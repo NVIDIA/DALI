@@ -19,7 +19,6 @@
 #include "dali/core/util.h"
 #include "dali/kernels/reduce/reduce.h"
 #include "dali/kernels/reduce/reduce_all_gpu_impl.cuh"
-#include "dali/kernels/reduce/reduce_inline.cuh"
 #include "dali/kernels/reduce/reduce_common.cuh"
 #include "dali/kernels/reduce/online_reducer.h"
 
@@ -45,7 +44,11 @@ __device__ void ReduceInnerSmall(Acc *out, const In *in, int64_t n_outer, int n_
   int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
   for (int64_t outer = base_idx; outer < n_outer; outer += grid_stride) {
     const float *base = in + outer * n_inner;
-    out[outer] = reductions::ThreadReduce<Acc>(base, n_inner, 1, reduce, pp);
+    OnlineReducer<Acc, Reduction> red;
+    red.reset();;
+    for (int i = 0; i < n_inner; i++)
+      red.add(pp(__ldg(base + i)), reduce);
+    out[outer] = red.result();
   }
 }
 
@@ -63,9 +66,12 @@ __device__ void ReduceInnerMedium(Acc *out, const In *in, int64_t n_outer, int n
   const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blockDim.y;
   int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blockDim.y + threadIdx.y;
   for (int64_t outer = base_idx; outer < n_outer; outer += grid_stride) {
-    const float *base = in + outer * n_inner + threadIdx.x;
-    int n = (n_inner + 31 - threadIdx.x) >> 5;
-    Acc v = reductions::ThreadReduce<Acc>(base, n, 32, reduce, pp);
+    const float *base = in + outer * n_inner;
+    OnlineReducer<Acc, Reduction> red;
+    red.reset();;
+    for (int i = threadIdx.x; i < n_inner; i += 32)
+      red.add(pp(__ldg(base + i)), reduce);
+    Acc v = red.result();
     WarpReduce(v, reduce);
     if (threadIdx.x == 0) {
       out[outer] = v;
@@ -202,7 +208,11 @@ void ReduceMiddleSmall(const ReduceSampleDesc<Acc, In> &sample,
     outer = idx / n_inner;
     inner = idx % n_inner;
     const float *base = in + outer * outer_stride + inner;
-    out[idx] = reductions::ThreadReduce<Acc>(base, n_reduced, n_inner, reduce, pp);
+    OnlineReducer<Acc, Reduction> red;
+    red.reset();
+    for (int i = 0; i < n_reduced; i++)
+      red.add(pp(__ldg(base + i * n_inner)), reduce);
+    out[idx] = red.result();
   }
 }
 
@@ -234,10 +244,14 @@ __device__ void ReduceMiddleMedium(const ReduceSampleDesc<Acc, In> &sample,
     int64_t outer, inner;
     outer = idx / n_inner;
     inner = idx % n_inner;
-    const float *base = in + outer * outer_stride + thread_offset + inner;
+    const float *base = in + outer * outer_stride + thread_offset;
 
-    int n = (n_reduced + 31 - tid) >> 5;
-    Acc val = reductions::ThreadReduce<Acc>(base, n, n_inner * 32, reduce, pp);
+    OnlineReducer<Acc, Reduction> red;
+    red.reset();
+
+    for (int64_t i = inner; i < outer_stride; i += n_inner * 32)
+      red.add(pp(__ldg(base + i)), reduce);
+    Acc val = red.result();
 
     WarpReduce(val, reduce);
     if (tid == 0)
@@ -289,10 +303,10 @@ __device__ void ReduceMiddleLargeInnerSmall(
   int outer_shift = __ffs(num_macroblocks) - 1;
   int mblock_mask = num_macroblocks - 1;
 
-  const int warps = blockDim.y;  // (blockDim.x * blockDim.y + 31) >> 5;
-  const int tid = threadIdx.x + blockDim.x * threadIdx.y;
-  const int lane = tid & 31;
-  const int warp = tid >> 5;
+  const int warps = blockDim.y;
+  const int tid = threadIdx.x + 32 * threadIdx.y;
+  const int lane = threadIdx.x;
+  const int warp = threadIdx.y;
   const int blk_size = blockDim.x * blockDim.y;
 
   const int64_t outer_stride = n_inner * sample.n_reduced;
@@ -305,15 +319,17 @@ __device__ void ReduceMiddleLargeInnerSmall(
   for (int w = warp; w < 32; w += warps)
     shared_tmp[w][lane] = r.template neutral<Acc>();
 
+  OnlineReducer<Acc, Reduction> red;
+
   for (int64_t macroblock = blockIdx.x; macroblock < total_macroblocks; macroblock += gridDim.x) {
     __syncthreads();
     int64_t outer_ofs = (macroblock >> outer_shift) * outer_stride;
     int mblock = macroblock & mblock_mask;
     int64_t macroblock_start = mblock * macroblock_stride;
     int64_t macroblock_end = min(macroblock_start + macroblock_stride, outer_stride);
-    OnlineReducer<Acc, Reduction, 256, 16> red;
-    red.reset(r);
+    red.reset();
     int lane_offset = lane_offset0;
+
     for (int64_t i = macroblock_start; i < macroblock_end; i += blk_size) {
       int64_t idx = i + tid;
       int64_t idx0 = idx + lane_offset;
@@ -324,8 +340,9 @@ __device__ void ReduceMiddleLargeInnerSmall(
                 : r.template neutral<Acc>();
       if (lane + lane_offset >= n_inner && lane < n_inner) {
         int64_t idx1 = idx0 - n_inner;
-        if (idx1 < macroblock_end)
+        if (idx1 < macroblock_end) {
           r(v, pp(__ldg(in + outer_ofs + idx1)));
+        }
       }
       red.add(v, r);
 
@@ -333,18 +350,19 @@ __device__ void ReduceMiddleLargeInnerSmall(
       if (lane_offset < 0)
         lane_offset += n_inner;
     }
-    Acc v = red.result(r);
+    Acc acc = red.result();
 
-    shared_tmp[warp][lane] = v;
+
+    shared_tmp[warp][lane] = acc;
     __syncthreads();
     for (int inner = warp; inner < n_inner; inner += warps) {
-      v = shared_tmp[lane][inner];
+      acc = shared_tmp[lane][inner];
       for (int j = inner + n_inner; j < 32; j += n_inner) {
-        r(v, shared_tmp[lane][j]);
+        r(acc, shared_tmp[lane][j]);
       }
-      WarpReduce(v, r);
+      WarpReduce(acc, r);
       if (lane == 0) {
-        out[macroblock * n_inner + inner] = v;
+        out[macroblock * n_inner + inner] = acc;
       }
     }
   }
@@ -414,8 +432,8 @@ __device__ void ReduceMiddleLargeInnerMedium(
 
     int64_t macroblock_start = mblock * macroblock_size;
     int64_t macroblock_end = min(macroblock_start + macroblock_size, n_reduced);
-    OnlineReducer<Acc, Reduction, 256, 24> red;
-    red.reset(r);
+    OnlineReducer<Acc, Reduction> red;
+    red.reset();
     int inner_base = horz_warp * 32;
     int64_t base_idx = outer_ofs + inner_base + lane;
     Acc v;
@@ -424,7 +442,7 @@ __device__ void ReduceMiddleLargeInnerMedium(
         int64_t offset = base_idx + i * n_inner;
         red.add(pp(__ldg(in + offset)), r);
       }
-      v = red.result(r);
+      v = red.result();
     } else {
       v = r.template neutral<Acc>();
     }

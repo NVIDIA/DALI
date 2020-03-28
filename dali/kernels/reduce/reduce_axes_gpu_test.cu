@@ -249,7 +249,7 @@ class ReduceMiddleGPUTest : public ::testing::Test {
 
     int xgrid = std::max(32, 1024 / N);
     dim3 grid(xgrid, N);
-    dim3 block(32, 20);
+    dim3 block(32, 24);
     auto start = CUDAEvent::CreateWithFlags(0);
     auto end =   CUDAEvent::CreateWithFlags(0);
     cudaEventRecord(start);
@@ -316,7 +316,11 @@ TYPED_TEST(ReduceMiddleGPUTest, ReduceMiddle_Medium_Medium_Small) {
 }
 
 TYPED_TEST(ReduceMiddleGPUTest, ReduceMiddle_Small_Large_Small) {
+#ifdef NDEBUG
   this->PrepareData(10, int_dist(10, 20), int_dist(20480, 102400), int_dist(10, 32));
+#else
+  this->PrepareData(10, int_dist(3, 5), int_dist(2<<10, 5<<10), int_dist(10, 32));
+#endif
   this->Run();
 }
 

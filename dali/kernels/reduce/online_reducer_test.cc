@@ -20,7 +20,7 @@ namespace kernels {
 
 TEST(OnlineReducer, TestVsDoubleSum) {
   double ref_sum = 0;
-  OnlineReducer<float, reductions::sum, 256, 16> r;
+  OnlineReducer<float, reductions::sum> r;
   r.reset();
   EXPECT_EQ(r.result(), 0);
   for (int i = 0; i < (1 << 24) - 1; i++) {
