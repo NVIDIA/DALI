@@ -15,18 +15,16 @@
 #include <gtest/gtest.h>
 #include <random>
 #include <vector>
-#include "dali/test/tensor_test_utils.h"
-#include "dali/test/test_tensors.h"
+#include "dali/kernels/alloc.h"
 #include "dali/kernels/reduce/reduce_all_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_all_kernel_gpu.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/reduce/reduce_test.h"
-#include "dali/core/util.h"
-#include "dali/kernels/alloc.h"
-#include "dali/core/util.h"
-#include "dali/core/span.h"
+#include "dali/kernels/scratch.h"
 #include "dali/core/cuda_event.h"
-#include "dali/test/device_test.h"
+#include "dali/core/span.h"
+#include "dali/core/util.h"
+#include "dali/test/tensor_test_utils.h"
+#include "dali/test/test_tensors.h"
 
 namespace dali {
 namespace kernels {

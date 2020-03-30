@@ -45,7 +45,7 @@ __device__ void ReduceInnerSmall(Acc *out, const In *in, int64_t n_outer, int n_
   for (int64_t outer = base_idx; outer < n_outer; outer += grid_stride) {
     const float *base = in + outer * n_inner;
     OnlineReducer<Acc, Reduction> red;
-    red.reset();;
+    red.reset();
     for (int i = 0; i < n_inner; i++)
       red.add(pp(__ldg(base + i)), reduce);
     out[outer] = red.result();
@@ -68,7 +68,7 @@ __device__ void ReduceInnerMedium(Acc *out, const In *in, int64_t n_outer, int n
   for (int64_t outer = base_idx; outer < n_outer; outer += grid_stride) {
     const float *base = in + outer * n_inner;
     OnlineReducer<Acc, Reduction> red;
-    red.reset();;
+    red.reset();
     for (int i = threadIdx.x; i < n_inner; i += 32)
       red.add(pp(__ldg(base + i)), reduce);
     Acc v = red.result();
@@ -190,7 +190,7 @@ template <typename Acc, typename In,
           typename Preprocess = dali::identity>
 __device__
 void ReduceMiddleSmall(const ReduceSampleDesc<Acc, In> &sample,
-                           Reduction reduce = {}, Preprocess pp = {}) {
+                       Reduction reduce = {}, Preprocess pp = {}) {
   int64_t n_outer = sample.n_outer;
   int n_reduced = sample.n_reduced;
   int64_t n_inner = sample.n_inner;
@@ -263,18 +263,6 @@ namespace reduce_shared {
   extern __shared__ uint8_t shared_tmp[];
 }  // namespace reduce_shared
 
-// Works with numerators up to 2^22 and denominators up to 2^20 (tested)
-__device__ DALI_FORCEINLINE
-int fast_div(int x, int y) {
-  return __float2int_rd(x * __frcp_ru(y));
-}
-
-// Works with numerators up to 2^22 and denominators up to 2^20 (tested)
-__device__ DALI_FORCEINLINE
-int fast_mod(int x, int y) {
-  return x - fast_div(x, y) * y;
-}
-
 /**
  * @brief Reduces the input by fetching contiguous warps of data per block.
  *
@@ -311,6 +299,44 @@ __device__ void ReduceMiddleLargeInnerSmall(
 
   const int64_t outer_stride = n_inner * sample.n_reduced;
 
+  // The algorithm:
+  // The macroblocks are traversed sequentially with grid stride.
+  // The reduced and inner dimensions are flattened and then each warp loads contiguous 32
+  // values.
+  //
+  // Each thread has an accumulator corresponding to one entry in inner dimension - but there
+  // may be multiple threads with bins corresponding to the same entry, e.g.
+  // for n_inner = 5 the bin assignment is:
+  //  0  1  2  3  4  0  1  2  3  4  0  1  2  3  4  0  1  2  3  4  0  1  2  3  4  0  1  2  3  4  0  1
+  // The assignmnent is not balanced when n_inner is not a divisor of 32, so there are
+  // 6 bins for 0, 1 and only for 2, 3, and 4.
+  ///
+  // For warp 0 in the block, the bins and offsets in the input are aligned. For subsequent
+  // warps (and iterations within warp), they are not aligned.
+  // warp 1 would see the following indices
+  // 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63
+  // modulo 5 these are
+  //  2  3  4  0  1  2  3  4  0  1  2  3  4  0  1  2  3  4  0  1  2  3  4  0  1  2  3  4  0  1  2  3
+  // There are two problems:
+  // - the bins the values should go to are no longer aligned with threads' bins.
+  // - the bins and values cannot be assigned 1:1, because of the imbalance of bin distribution,
+  //   as indicated above.
+  // The alignmnet is realized by shifting the input indices so that the values fetched go
+  // into the appropriate bin. The line idx0 = idx + lane_offset does that.
+  // Since after applying offset some values are out of range of the warp's coverage, we need
+  // a condition to guard against it (lane + lane_offset < 32).
+  // This condition rejects some values, whereas some of the values in warp's coverage were not
+  // consumed at all - this is handled by the second fetch from idx1.
+  // This ensures that all the values convered by warp were consumed.
+  // The additional fetch does not hurt the performance significantly, since the values are already
+  // in L1 cache.
+  //
+  // The inner loop has block stride, where each warp accumulates values into its own set of bins.
+  // After the loop, the per-thread values are stored in shared memory and transposed.
+  // Now we can conveniently combine bins gathered by distinct warps and each warp will take care
+  // of a subset of bins and store the final reduced result.
+
+  // To avoid the expensive division/modulo in the inner loop, we precalculate some values here:
   const int block_mod = blk_size % n_inner;
   int lane_offset0 = -((warp * 32) % n_inner);
   if (lane_offset0 < 0)
@@ -319,10 +345,14 @@ __device__ void ReduceMiddleLargeInnerSmall(
   for (int w = warp; w < 32; w += warps)
     shared_tmp[w][lane] = r.template neutral<Acc>();
 
+  // thread's accumulator
   OnlineReducer<Acc, Reduction> red;
 
   for (int64_t macroblock = blockIdx.x; macroblock < total_macroblocks; macroblock += gridDim.x) {
-    __syncthreads();
+    if (macroblock != blockIdx.x)
+      __syncthreads();
+
+    // calculate the outer/macroblock coordinates
     int64_t outer_ofs = (macroblock >> outer_shift) * outer_stride;
     int mblock = macroblock & mblock_mask;
     int64_t macroblock_start = mblock * macroblock_stride;
@@ -350,16 +380,19 @@ __device__ void ReduceMiddleLargeInnerSmall(
       if (lane_offset < 0)
         lane_offset += n_inner;
     }
-    Acc acc = red.result();
 
-
-    shared_tmp[warp][lane] = acc;
+    Acc acc = red.result();  // get the final result from the accumulator...
+    shared_tmp[warp][lane] = acc;  // ...and store it in shared memory to be transposed
     __syncthreads();
+    // Now the roles of warps and lanes are swapped - lanes now correspond to warps' partial
+    // results and warps correspond to bins.
     for (int inner = warp; inner < n_inner; inner += warps) {
+      // sum the bins corresponding to given position in inner dimension
       acc = shared_tmp[lane][inner];
       for (int j = inner + n_inner; j < 32; j += n_inner) {
         r(acc, shared_tmp[lane][j]);
       }
+      // combine warps' partial results
       WarpReduce(acc, r);
       if (lane == 0) {
         out[macroblock * n_inner + inner] = acc;
@@ -421,7 +454,8 @@ __device__ void ReduceMiddleLargeInnerMedium(
     shared_tmp[w][lane] = r.template neutral<Acc>();
 
   for (int out_block = blockIdx.x; out_block < total_out_blocks; out_block += gridDim.x) {
-    __syncthreads();
+    if (out_block != blockIdx.x)
+      __syncthreads();
 
     // Caution: fast approximate division ahead!
     int macroblock = __float2int_rd(out_block * rcp_horz_warps);  // integer division - round down
@@ -437,6 +471,7 @@ __device__ void ReduceMiddleLargeInnerMedium(
     int inner_base = horz_warp * 32;
     int64_t base_idx = outer_ofs + inner_base + lane;
     Acc v;
+    // Each warp does a full, parallel reduction over a range of inner dimension.
     if (lane + inner_base < n_inner) {
       for (int64_t i = macroblock_start + warp; i < macroblock_end; i += warps) {
         int64_t offset = base_idx + i * n_inner;
