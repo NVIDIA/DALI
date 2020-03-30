@@ -26,6 +26,7 @@ import os
 import random
 from PIL import Image
 from math import floor
+import sys
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
@@ -1861,3 +1862,18 @@ def check_duplicated_outs_cpu_to_gpu(device):
 def test_duplicated_outs_cpu_op_to_gpu():
     for device in ["cpu", "gpu"]:
         yield check_duplicated_outs_cpu_to_gpu, device
+
+def test_ref_count():
+    class HybridPipe(Pipeline):
+        def __init__(self):
+            super(HybridPipe, self).__init__(1, 1, 0, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+
+        def define_graph(self):
+            _, self.labels = self.input()
+            return self.labels
+
+    pipe = HybridPipe()
+    assert sys.getrefcount(pipe) == 2
+    pipe.build()
+    assert sys.getrefcount(pipe) == 2

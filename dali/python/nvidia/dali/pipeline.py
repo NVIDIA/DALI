@@ -212,7 +212,6 @@ Parameters
             pipeline_tls.pipeline_stack = [prev]
         else:
             stack.append(prev)
-        pipeline_tls.prev_pipeline = pipeline
         return prev
 
     @staticmethod
