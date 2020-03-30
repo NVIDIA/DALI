@@ -51,9 +51,17 @@ struct OnlineSum {
   template <typename T>
   DALI_HOST_DEV DALI_FORCEINLINE
   void add(T value, reductions::sum = {}) {
+  #ifdef __CUDA_ARCH__
+    // protect against fast_math optimizations
+    Acc addend = __fadd_rn(residue, value);
+    Acc new_sum = __fadd_rn(sum, addend);
+    residue = __fadd_rn(residue, __fsub_rn(value, __fsub_rn(new_sum, sum)));
+    sum = new_sum;
+  #else
     Acc new_sum = sum + (residue + value);
     residue += value - (new_sum - sum);
     sum = new_sum;
+  #endif
   }
 
   DALI_HOST_DEV DALI_FORCEINLINE Acc result() const { return sum; }
