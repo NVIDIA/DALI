@@ -121,7 +121,8 @@ void Pipeline::Init(int batch_size, int num_threads, int device_id, int64_t seed
     this->batch_size_ = batch_size;
     this->num_threads_ = num_threads;
     this->device_id_ = device_id;
-    this->original_seed_ = seed;
+    using Clock = std::chrono::high_resolution_clock;
+    this->original_seed_ = seed < 0 ? Clock::now().time_since_epoch().count() : seed;
     this->pipelined_execution_ = pipelined_execution;
     this->separated_execution_ = separated_execution;
     this->async_execution_ = async_execution;
@@ -150,11 +151,7 @@ void Pipeline::Init(int batch_size, int num_threads, int device_id, int64_t seed
 
     seed_.resize(MAX_SEEDS);
     current_seed_ = 0;
-    if (seed < 0) {
-      using Clock = std::chrono::high_resolution_clock;
-      seed = Clock::now().time_since_epoch().count();
-    }
-    std::seed_seq ss{seed};
+    std::seed_seq ss{this->original_seed_};
     ss.generate(seed_.begin(), seed_.end());
   }
 
