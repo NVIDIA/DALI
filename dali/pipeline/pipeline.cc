@@ -63,9 +63,9 @@ namespace dali {
 
 
 Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
-                   int64_t seed, bool pipelined_execution, int prefetch_queue_depth,
-                   bool async_execution, size_t bytes_per_sample_hint, bool set_affinity,
-                   int max_num_stream, int default_cuda_stream_priority)
+                   bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
+                   size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
+                   int default_cuda_stream_priority, int64_t seed)
         : built_(false), separated_execution_(false) {
     dali_proto::PipelineDef def;
     //  Reading Protobuf file has a limitation of 64 MB
