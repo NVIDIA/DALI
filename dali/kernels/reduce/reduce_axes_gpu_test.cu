@@ -22,6 +22,7 @@
 #include "dali/kernels/alloc.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
+#include "dali/core/format.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/core/cuda_event.h"
 

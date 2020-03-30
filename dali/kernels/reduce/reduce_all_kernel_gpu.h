@@ -22,7 +22,7 @@
 #include "dali/core/format.h"
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/reduce/reduce.h"
+#include "dali/kernels/reduce/reductions.h"
 
 namespace dali {
 namespace kernels {
