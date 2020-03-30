@@ -176,8 +176,9 @@ template <typename Acc, typename In,
           typename Reduction = reductions::sum,
           typename Preprocess = dali::identity>
 __global__ void ReduceInnerKernel(const ReduceSampleDesc<Acc, In> *samples,
-                                  Reduction reduce = {}, Preprocess pp = {}) {
-  ReduceInner(samples[blockIdx.y], reduce, pp);
+                                  Reduction reduce = {}, const Preprocess *pp = nullptr) {
+  Preprocess preprocess = pp ? pp[blockIdx.y] : Preprocess();
+  ReduceInner(samples[blockIdx.y], reduce, preprocess);
 }
 
 // Reduction over other dimensions (non-innermost)
@@ -321,13 +322,13 @@ __device__ void ReduceMiddleLargeInnerSmall(
   // - the bins the values should go to are no longer aligned with threads' bins.
   // - the bins and values cannot be assigned 1:1, because of the imbalance of bin distribution,
   //   as indicated above.
-  // The alignmnet is realized by shifting the input indices so that the values fetched go
+  // The alignment is realized by shifting the input indices so that the fetched values go
   // into the appropriate bin. The line idx0 = idx + lane_offset does that.
-  // Since after applying offset some values are out of range of the warp's coverage, we need
+  // Since after applying the offset some values are out of range of the warp's coverage, we need
   // a condition to guard against it (lane + lane_offset < 32).
   // This condition rejects some values, whereas some of the values in warp's coverage were not
   // consumed at all - this is handled by the second fetch from idx1.
-  // This ensures that all the values convered by warp were consumed.
+  // This ensures that all the values covered by the warp were consumed.
   // The additional fetch does not hurt the performance significantly, since the values are already
   // in L1 cache.
   //
@@ -500,15 +501,17 @@ template <typename Acc, typename In,
           typename Reduction = reductions::sum,
           typename Preprocess = dali::identity>
 __global__ void ReduceMiddleKernel(const ReduceSampleDesc<Acc, In> *samples,
-                                  Reduction reduce = {}, Preprocess pp = {}) {
+                                  Reduction reduce = {}, const Preprocess *pp = nullptr) {
   auto sample = samples[blockIdx.y];
 
+  Preprocess preprocess = pp ? pp[blockIdx.y] : Preprocess();
+
   if (sample.n_reduced < 1024) {
-    ReduceMiddleSmall(sample, reduce, pp);
+    ReduceMiddleSmall(sample, reduce, preprocess);
   } else if (sample.n_inner < 32) {
-    ReduceMiddleLargeInnerSmall(sample, reduce, pp);
+    ReduceMiddleLargeInnerSmall(sample, reduce, preprocess);
   } else {
-    ReduceMiddleLargeInnerMedium(sample, reduce, pp);
+    ReduceMiddleLargeInnerMedium(sample, reduce, preprocess);
   }
 }
 
