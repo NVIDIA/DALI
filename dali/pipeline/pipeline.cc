@@ -61,11 +61,12 @@ namespace dali {
     }
   }
 
-  Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
-                     bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
-                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
-                     int default_cuda_stream_priority)
-      : built_(false), separated_execution_(false) {
+
+Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
+                   int64_t seed, bool pipelined_execution, int prefetch_queue_depth,
+                   bool async_execution, size_t bytes_per_sample_hint, bool set_affinity,
+                   int max_num_stream, int default_cuda_stream_priority)
+        : built_(false), separated_execution_(false) {
     dali_proto::PipelineDef def;
     //  Reading Protobuf file has a limitation of 64 MB
     //  Following instructions will increase the
@@ -75,26 +76,14 @@ namespace dali {
     coded_input.SetTotalBytesLimit(serialized_pipe.size());
     def.ParseFromCodedStream(&coded_input);
 
-    // If not given, take parameters from the
-    // serialized pipeline
-    if (batch_size == -1) {
-      this->batch_size_ = def.batch_size();
-    } else {
-      this->batch_size_ = batch_size;
-    }
-    if (device_id == -1) {
-      this->device_id_ = def.device_id();
-    } else {
-      this->device_id_ = device_id;
-    }
-    if (num_threads == -1) {
-      this->num_threads_ = def.num_threads();
-    } else {
-      this->num_threads_ = num_threads;
-    }
+    // If not given, take parameters from the serialized pipeline
+    this->batch_size_ = batch_size == -1 ? def.batch_size() : batch_size;
+    this->device_id_ = device_id == -1 ? def.device_id() : device_id;
+    this->num_threads_ = num_threads == -1 ? static_cast<int>(def.num_threads()) : num_threads;
+    seed = seed == -1 ? def.seed() : seed;
 
     Init(this->batch_size_, this->num_threads_,
-         this->device_id_, def.seed(),
+         this->device_id_, seed,
          pipelined_execution,
          separated_execution_,
          async_execution,
