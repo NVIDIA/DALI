@@ -28,7 +28,7 @@ namespace dali {
 namespace kernels {
 namespace reduce {
 
-template <typename T, int ndim, typename Reduction, typename Preprocessor = identity>
+template <typename Out, typename In, int ndim, typename Reduction, typename Preprocessor = identity>
 class DLL_PUBLIC ReduceAllGPU {
  public:
   // TODO(janton): remove this when implemented
@@ -38,7 +38,7 @@ class DLL_PUBLIC ReduceAllGPU {
   DLL_PUBLIC ~ReduceAllGPU() = default;
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
-                                      const InListGPU<T, ndim> &in) {
+                                      const InListGPU<In, ndim> &in) {
     auto num_samples = in.size();
     ScratchpadEstimator se;
 
@@ -52,12 +52,12 @@ class DLL_PUBLIC ReduceAllGPU {
       blocks_per_sample_ = static_cast<int>(std::sqrt(max_sample_size));
     }
 
-    se.add<const T*>(AllocType::Host, num_samples);
+    se.add<const In*>(AllocType::Host, num_samples);
     se.add<int64_t>(AllocType::Host, num_samples);
-    se.add<const T*>(AllocType::GPU, num_samples);
+    se.add<const In*>(AllocType::GPU, num_samples);
     se.add<int64_t>(AllocType::GPU, num_samples);
     tmp_buffer_size_ = num_samples * blocks_per_sample_;
-    se.add<T>(AllocType::GPU, tmp_buffer_size_);
+    se.add<Out>(AllocType::GPU, tmp_buffer_size_);
 
     KernelRequirements req;
     req.scratch_sizes = se.sizes;
@@ -66,33 +66,33 @@ class DLL_PUBLIC ReduceAllGPU {
   }
 
   DLL_PUBLIC void Run(KernelContext &context,
-                      const OutListGPU<T, 1> &out,
-                      const InListGPU<T, ndim> &in) {
+                      const OutListGPU<Out, 1> &out,
+                      const InListGPU<In, ndim> &in) {
     DALI_ENFORCE(out.is_contiguous(), "Reduce all kernel expects the output to be contiguous");
     auto* out_start = out[0].data;
 
     auto num_samples = in.size();
-    auto* sample_data = context.scratchpad->Allocate<const T*>(AllocType::Host, num_samples);
+    auto* sample_data = context.scratchpad->Allocate<const In*>(AllocType::Host, num_samples);
     auto* sample_size = context.scratchpad->Allocate<int64_t>(AllocType::Host, num_samples);
     for (int i = 0; i < num_samples; i++) {
       sample_data[i] = in.tensor_data(i);
       sample_size[i] = volume(in.tensor_shape(i));
     }
 
-    auto* sample_data_gpu = context.scratchpad->Allocate<const T*>(AllocType::GPU, num_samples);
+    auto* sample_data_gpu = context.scratchpad->Allocate<const In*>(AllocType::GPU, num_samples);
     auto* sample_size_gpu = context.scratchpad->Allocate<int64_t>(AllocType::GPU, num_samples);
     // Single memcpy, since the data in the scratchpad is contiguous
     CUDA_CALL(
       cudaMemcpyAsync(sample_data_gpu, sample_data,
-                      num_samples * sizeof(const T*) + num_samples * sizeof(int64_t),
+                      num_samples * sizeof(const In*) + num_samples * sizeof(int64_t),
                       cudaMemcpyHostToDevice, context.gpu.stream));
 
-    auto* buffer_gpu = context.scratchpad->Allocate<T>(AllocType::GPU, tmp_buffer_size_);
+    auto* buffer_gpu = context.scratchpad->Allocate<Out>(AllocType::GPU, tmp_buffer_size_);
 
     // The reduction is divided into two stages. To minimize the precision error due to
     // accumulating numbers sequentially, we use `blocks_per_sample_ = sqrt(max_sample_size)`
     // so that the first kernel reduces sample_size numbers to sqrt(max_sample_size) numbers
-    // and the second one reduces sqrt(max_sample_size) numbers to a single number. 
+    // and the second one reduces sqrt(max_sample_size) numbers to a single number.
 
     dim3 block(32, 32);
     dim3 grid(blocks_per_sample_, num_samples);

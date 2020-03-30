@@ -217,6 +217,9 @@ TYPED_TEST(ReduceAllGPUTest, ReduceAllBatchedKernel) {
 
 template <typename Reduction>
 void ReduceAllGPUTest<Reduction>::TestReduceAllKernel(int min_size, int max_size) {
+  using Out = double;
+  using In = float;
+
   std::mt19937_64 rng(1234);
   std::uniform_int_distribution<int> size_dist(min_size, max_size);
 
@@ -230,14 +233,14 @@ void ReduceAllGPUTest<Reduction>::TestReduceAllKernel(int min_size, int max_size
     total_size += size;
   }
 
-  TestTensorList<float, ndim> in;
+  TestTensorList<In, ndim> in;
   in.reshape(data_shape);
   UniformRandomFill(in.cpu(), rng, 0.0, 1.0);
 
-  kernels::reduce::ReduceAllGPU<float, ndim, Reduction> kernel;
+  kernels::reduce::ReduceAllGPU<Out, In, ndim, Reduction> kernel;
 
   auto out_shape = TensorListShape<1>::make_uniform(nsamples, TensorShape<1>{1});
-  TestTensorList<float, 1> out;
+  TestTensorList<Out, 1> out;
   out.reshape(out_shape.to_static<1>());
 
   auto in_view_gpu = in.gpu();
