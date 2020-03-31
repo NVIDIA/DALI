@@ -57,15 +57,13 @@ class ToDecibelsImpl : public OpImplBase<GPUBackend> {
 template <typename T, int Dims>
 bool ToDecibelsImpl<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                         const workspace_t<GPUBackend> &ws) {
-  kernels::KernelContext ctx;
-  ctx.gpu.stream = ws.stream();
-
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto in_view = view<const T, Dims>(input);
   auto nsamples = input.size();
 
   auto type = TypeInfo::Create<T>();
 
+  kernels::KernelContext ctx;
   if (args_.ref_max) {
     auto& req_max = kmgr_max_.Setup<MaxKernel>(0, ctx, in_view);
     max_out_desc_.resize(1);
