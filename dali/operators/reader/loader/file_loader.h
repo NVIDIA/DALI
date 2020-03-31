@@ -38,6 +38,8 @@ namespace filesystem {
 struct ImageFileWrapper {
   Tensor<CPUBackend> image;
   std::string filename;
+  // some field for auxiliary info to pass to the reader
+  std::string meta;
 };
 
 class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {

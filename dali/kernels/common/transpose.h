@@ -118,7 +118,7 @@ void TransposeImpl(T *dst, const T *src, int level, int max_levels, span<const i
  *
  * @return List of starting and ending position of blocks(both ends inclusive)
  */
-SmallVector<std::pair<int, int>, 6> PermutationBlocks(span<const int> perm) {
+inline SmallVector<std::pair<int, int>, 6> PermutationBlocks(span<const int> perm) {
   if (perm.empty()) {
     return {};
   }
@@ -147,7 +147,7 @@ SmallVector<std::pair<int, int>, 6> PermutationBlocks(span<const int> perm) {
  * @param perm_blocks Description of consecutive blocks in perm
  * @return Collapsed permutation
  */
-std::vector<int> CollapsePermutation(span<const int> perm,
+inline std::vector<int> CollapsePermutation(span<const int> perm,
                                      span<const std::pair<int, int>> perm_blocks) {
   std::vector<int> result;
   std::vector<int> removed;
@@ -176,7 +176,7 @@ std::vector<int> CollapsePermutation(span<const int> perm,
  * @brief Convert permutation blocks [first_idx_in_perm, last_idx_in_perm] to
  *        description of shape blocks: {starting_dimension_idx, length}
  */
-SmallVector<std::pair<int, int>, 6> PermToShapeBlocks(span<const int> perm,
+inline SmallVector<std::pair<int, int>, 6> PermToShapeBlocks(span<const int> perm,
                             span<const std::pair<int, int>> perm_blocks) {
   SmallVector<std::pair<int, int>, 6> shape_blocks;
   shape_blocks.reserve(perm_blocks.size());

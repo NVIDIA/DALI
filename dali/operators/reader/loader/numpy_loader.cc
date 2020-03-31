@@ -170,6 +170,9 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
 
   // set file path
   imfile.filename = file_root_ + "/" + image_file;
+
+  // set meta
+  imfile.meta = (target.fortran_order ? "transpose:true" : "transpose:false");
 }
 
 }  // namespace dali

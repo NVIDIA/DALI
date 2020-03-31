@@ -18,6 +18,7 @@
 #include <utility>
 #include <string>
 #include <vector>
+
 #include "dali/operators/reader/reader_op.h"
 #include "dali/operators/reader/loader/numpy_loader.h"
 
@@ -42,15 +43,22 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
 
     // image
     Index image_bytes = imfile.image.nbytes();
-    image_output.Resize(imfile.image.shape(), imfile.image.type());
 
-    std::memcpy(image_output.raw_mutable_data(),
-                imfile.image.raw_data(),
-                image_bytes);
+    if (imfile.meta == "transpose:false") {
+      // just copy the tensor over
+      image_output.Resize(imfile.image.shape(), imfile.image.type());
+      std::memcpy(image_output.raw_mutable_data(),
+                  imfile.image.raw_data(),
+                  image_bytes);
+    } else {
+      // here we need to transpose the data
+      TransposeHelper(image_output, imfile.image);
+    }
     image_output.SetSourceInfo(imfile.image.GetSourceInfo());
   }
 
  protected:
+  void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageFileWrapper);
 };
 

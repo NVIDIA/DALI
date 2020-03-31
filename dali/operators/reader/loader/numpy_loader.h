@@ -32,7 +32,6 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/operators/reader/loader/file_loader.h"
 #include "dali/util/file.h"
-#include "dali/pipeline/util/thread_pool.h"
 
 
 namespace dali {
@@ -65,15 +64,7 @@ class NumpyLoader : public FileLoader {
     vector<std::string> images = std::vector<std::string>(),
     bool shuffle_after_epoch = false)
     : FileLoader(spec, images, shuffle_after_epoch),
-    num_prefetch_threads_(spec.GetArgument<int>("num_prefetch_threads")),
-    header_regex_(R"###(^\{'descr': \'(.*?)\', 'fortran_order': (.*?), 'shape': \((.*?)\), \})###") {
-    // Thread Pool:
-    thread_pool_ = new ThreadPool(num_prefetch_threads_, device_id_, false);
-  }
-
-  ~NumpyLoader() {
-    delete thread_pool_;
-  }
+    header_regex_(R"###(^\{'descr': \'(.*?)\', 'fortran_order': (.*?), 'shape': \((.*?)\), \})###") {}
 
   // we want to make it possible to override this function as well
   void ReadSample(ImageFileWrapper& tensor) override;
@@ -82,10 +73,6 @@ class NumpyLoader : public FileLoader {
   // parser function, only for internal use
   std::unique_ptr<FileStream> ParseHeader(std::unique_ptr<FileStream> file,
                                           NumpyParseTarget& target);
-
-  // number of threads
-  int num_prefetch_threads_;
-  ThreadPool* thread_pool_ = nullptr;
 
   // regex search string
   const std::regex header_regex_;
