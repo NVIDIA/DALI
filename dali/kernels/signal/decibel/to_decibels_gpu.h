@@ -27,7 +27,7 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-template <typename T = float, int Dims = 1>
+template <typename T = float>
 class DLL_PUBLIC ToDecibelsGpu {
  public:
   static_assert(std::is_floating_point<T>::value,
@@ -36,13 +36,13 @@ class DLL_PUBLIC ToDecibelsGpu {
   DLL_PUBLIC ~ToDecibelsGpu();
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
-                                      const InListGPU<T, Dims> &in);
+                                      const InListGPU<T, DynamicDimensions> &in);
 
   DLL_PUBLIC void Run(KernelContext &context,
-                      const OutListGPU<T, Dims> &out,
-                      const InListGPU<T, Dims> &in,
+                      const OutListGPU<T, DynamicDimensions> &out,
+                      const InListGPU<T, DynamicDimensions> &in,
                       const ToDecibelsArgs<T> &args,
-                      InTensorGPU<T, 1> max_values = {});
+                      InListGPU<T, 1> max_values = {});
 };
 
 }  // namespace signal

@@ -51,12 +51,12 @@ __global__ void ToDecibelsKernel(const SampleDesc<T>* sample_data,
   }
 }
 
-template <typename T, int Dims>
-ToDecibelsGpu<T, Dims>::~ToDecibelsGpu() = default;
+template <typename T>
+ToDecibelsGpu<T>::~ToDecibelsGpu() = default;
 
-template <typename T, int Dims>
-KernelRequirements ToDecibelsGpu<T, Dims>::Setup(KernelContext &context,
-                                                 const InListGPU<T, Dims> &in) {
+template <typename T>
+KernelRequirements ToDecibelsGpu<T>::Setup(KernelContext &context,
+                                           const InListGPU<T, DynamicDimensions> &in) {
   auto out_shape = in.shape;
   const size_t num_samples = in.size();
   ScratchpadEstimator se;
@@ -68,10 +68,14 @@ KernelRequirements ToDecibelsGpu<T, Dims>::Setup(KernelContext &context,
   return req;
 }
 
-template <typename T, int Dims>
-void ToDecibelsGpu<T, Dims>::Run(KernelContext &context, const OutListGPU<T, Dims> &out,
-                                 const InListGPU<T, Dims> &in, const ToDecibelsArgs<T> &args,
-                                 InTensorGPU<T, 1> max_values) {
+template <typename T>
+void ToDecibelsGpu<T>::Run(KernelContext &context, const OutListGPU<T, DynamicDimensions> &out,
+                           const InListGPU<T, DynamicDimensions> &in, const ToDecibelsArgs<T> &args,
+                           InListGPU<T, 1> max_values) {
+  DALI_ENFORCE(max_values.empty() || max_values.is_contiguous(),
+      "Reduce all kernel expects the output to be contiguous");
+  const T* max_values_data = max_values.empty() ? nullptr : max_values[0].data;
+
   auto num_samples = in.size();
   auto* sample_data = context.scratchpad->Allocate<SampleDesc<T>>(AllocType::Host, num_samples);
 
@@ -92,18 +96,11 @@ void ToDecibelsGpu<T, Dims>::Run(KernelContext &context, const OutListGPU<T, Dim
   auto blocks_per_sample = std::max(32, 1024 / num_samples);
   dim3 grid(blocks_per_sample, num_samples);
   ToDecibelsKernel<T><<<grid, block, 0, context.gpu.stream>>>(
-      sample_data_gpu, args, max_values.data);
+      sample_data_gpu, args, max_values_data);
 }
 
-template class ToDecibelsGpu<float, 1>;
-template class ToDecibelsGpu<float, 2>;
-template class ToDecibelsGpu<float, 3>;
-template class ToDecibelsGpu<float, 4>;
-
-template class ToDecibelsGpu<double, 1>;
-template class ToDecibelsGpu<double, 2>;
-template class ToDecibelsGpu<double, 3>;
-template class ToDecibelsGpu<double, 4>;
+template class ToDecibelsGpu<float>;
+template class ToDecibelsGpu<double>;
 
 }  // namespace signal
 }  // namespace kernels

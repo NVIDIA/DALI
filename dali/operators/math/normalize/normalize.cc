@@ -16,7 +16,7 @@
 #include "dali/core/math_util.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/kernels/normalize/normalize_cpu.h"
-#include "dali/kernels/reduce/reduce.h"
+#include "dali/kernels/reduce/reduce_cpu.h"
 #include "dali/operators/math/normalize/normalize_utils.h"
 
 namespace dali {
@@ -221,7 +221,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
     if (ShouldCalcMean()) {
       for (int i = 0; i < nsamples; i++) {
         tp.DoWorkWithID([&, i](int thread_idx) {
-          kernels::Mean<float, InputType> mean;
+          kernels::MeanCPU<float, InputType> mean;
           mean.Setup(mutable_mean[i], in_view[i], make_span(axes_));
           // Reset per-sample values, but don't postprocess
           mean.Run(true, false);
@@ -236,7 +236,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
       auto sample_mean = mean_view[0];
       for (int i = 0; i < nsamples; i++) {
         tp.DoWorkWithID([&, i](int thread_idx) {
-          kernels::Variance<float, InputType> stddev;
+          kernels::VarianceCPU<float, InputType> stddev;
           stddev.Setup(mutable_stddev[i], in_view[i], make_span(axes_), sample_mean);
           // Reset per-sample values, but don't postprocess
           stddev.Run(true, false);
@@ -264,7 +264,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
 
       if (!batch_norm_) {
         if (ShouldCalcMean()) {
-          kernels::Mean<float, InputType> mean;
+          kernels::MeanCPU<float, InputType> mean;
           mean.Setup(mutable_mean[i], in_view[i], make_span(axes_));
           // Reset per-sample values and preprocess
           mean.Run(true, true);
@@ -272,7 +272,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
         }
 
         if (ShouldCalcStdDev()) {
-          kernels::Variance<float, InputType> stddev;
+          kernels::VarianceCPU<float, InputType> stddev;
           stddev.Setup(mutable_stddev[i], in_view[i], make_span(axes_), sample_mean);
           // Reset per-sample values, but don't postprocess
           stddev.Run(true, false);

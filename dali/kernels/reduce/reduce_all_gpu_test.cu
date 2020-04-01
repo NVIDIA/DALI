@@ -15,48 +15,22 @@
 #include <gtest/gtest.h>
 #include <random>
 #include <vector>
-#include "dali/test/tensor_test_utils.h"
-#include "dali/test/test_tensors.h"
+#include "dali/kernels/alloc.h"
 #include "dali/kernels/reduce/reduce_all_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_all_kernel_gpu.h"
+#include "dali/kernels/reduce/reduce_test.h"
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/alloc.h"
-#include "dali/core/util.h"
-#include "dali/core/span.h"
 #include "dali/core/cuda_event.h"
+#include "dali/core/span.h"
+#include "dali/core/util.h"
+#include "dali/test/tensor_test_utils.h"
+#include "dali/test/test_tensors.h"
 
 namespace dali {
 namespace kernels {
 
-template <typename Out, typename Reduction, typename T>
-Out RefReduce(span<T> in, const Reduction &R) {
-  switch (in.size()) {
-    case 0:
-      return R.template neutral<Out>();
-    case 1:
-      return in[0];
-    default: {
-      if (in.size() <= 128) {
-        double acc = R.template neutral<Out>();
-        for (auto &x : in)
-          R(acc, x);
-        return acc;
-      }
-      int m = in.size() / 2;
-      int n = in.size() - m;
-      Out out = RefReduce<Out>(make_span(in.data(), m), R);
-      R(out, RefReduce<Out>(make_span(in.data() + m, n), R));
-      return out;
-    }
-  }
-}
 
 using ReductionTestTypes = ::testing::Types<reductions::sum, reductions::min, reductions::max>;
-
-inline bool IsAccurate(const reductions::min &) { return true; }
-inline bool IsAccurate(const reductions::max &) { return true; }
-template <typename Reduction>
-inline bool IsAccurate(const Reduction &) { return false; }
 
 template <typename Reduction>
 class ReduceAllGPUTest : public ::testing::Test {
@@ -233,11 +207,11 @@ void ReduceAllGPUTest<Reduction>::TestReduceAllKernel(int min_size, int max_size
     total_size += size;
   }
 
-  TestTensorList<In, ndim> in;
+  TestTensorList<In> in;
   in.reshape(data_shape);
   UniformRandomFill(in.cpu(), rng, 0.0, 1.0);
 
-  kernels::reduce::ReduceAllGPU<Out, In, ndim, Reduction> kernel;
+  kernels::reduce::ReduceAllGPU<Out, In, Reduction> kernel;
 
   auto out_shape = TensorListShape<1>::make_uniform(nsamples, TensorShape<1>{1});
   TestTensorList<Out, 1> out;

@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_REDUCE_REDUCE_H_
-#define DALI_KERNELS_REDUCE_REDUCE_H_
+#ifndef DALI_KERNELS_REDUCE_REDUCE_CPU_H_
+#define DALI_KERNELS_REDUCE_REDUCE_CPU_H_
 
 #include <cassert>
 #include <utility>
 #include <vector>
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/common/utils.h"
-#include "dali/core/convert.h"
+#include "dali/kernels/reduce/reductions.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/span.h"
@@ -31,77 +31,6 @@
 
 namespace dali {
 namespace kernels {
-namespace reductions {
-
-struct square {
-  template <typename T>
-  DALI_HOST_DEV DALI_FORCEINLINE
-  auto operator()(const T &x) const noexcept {
-    return x * x;
-  }
-
-  DALI_HOST_DEV DALI_FORCEINLINE
-  int64_t operator()(int32_t x) const noexcept {
-    return static_cast<int64_t>(x) * x;
-  }
-
-  DALI_HOST_DEV DALI_FORCEINLINE
-  uint64_t operator()(uint32_t x) const noexcept {
-    return static_cast<uint64_t>(x) * x;
-  }
-};
-
-template <typename Mean>
-struct variance {
-  Mean mean = 0;
-  template <typename T>
-  DALI_HOST_DEV DALI_FORCEINLINE
-  auto operator()(const T &x) const noexcept {
-    auto d = x - mean;
-    return d * d;
-  }
-};
-
-struct sum {
-  template <typename Acc, typename Addend>
-  DALI_HOST_DEV DALI_FORCEINLINE
-  void operator()(Acc &acc, const Addend &val) const noexcept {
-    acc += val;
-  }
-
-  template <typename T>
-  DALI_HOST_DEV DALI_FORCEINLINE
-  static constexpr T neutral() noexcept { return 0; }
-};
-
-struct min {
-  template <typename T, typename U>
-  DALI_HOST_DEV DALI_FORCEINLINE
-  void operator()(T &min_val, const U &val) const noexcept {
-    if (val < min_val)
-      min_val = val;
-  }
-
-  template <typename T>
-  DALI_HOST_DEV DALI_FORCEINLINE
-  static constexpr T neutral() noexcept { return max_value<T>(); }
-};
-
-struct max {
-  template <typename T, typename U>
-  DALI_HOST_DEV DALI_FORCEINLINE
-  void operator()(T &min_val, const U &val) const noexcept {
-    if (val > min_val)
-      min_val = val;
-  }
-
-  template <typename T>
-  DALI_HOST_DEV DALI_FORCEINLINE
-  static constexpr T neutral() noexcept { return min_value<T>(); }
-};
-
-
-}  // namespace reductions
 
 namespace reduce_impl {
 
@@ -209,7 +138,7 @@ void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
  *
  */
 template <typename Dst, typename Src, typename Actual>
-struct ReduceBase {
+struct ReduceBaseCPU {
   void Setup(const OutTensorCPU<Dst, -1> &out,
              const InTensorCPU<Src, -1> &in,
              span<const int> axes) {
@@ -238,8 +167,8 @@ struct ReduceBase {
   }
 
   void PostprocessAll() {
-    if (reinterpret_cast<decltype(&ReduceBase::Postprocess)>(&Actual::Postprocess) ==
-        &ReduceBase::Postprocess)
+    if (reinterpret_cast<decltype(&ReduceBaseCPU::Postprocess)>(&Actual::Postprocess) ==
+        &ReduceBaseCPU::Postprocess)
       return;  // trivial postprocessing, nothing to do
 
     int64_t v = output.num_elements();
@@ -379,11 +308,11 @@ struct ReduceBase {
 };
 
 template <typename Dst, typename Src>
-struct Sum : ReduceBase<Dst, Src, Sum<Dst, Src>> {
+struct SumCPU : ReduceBaseCPU<Dst, Src, SumCPU<Dst, Src>> {
 };
 
 template <typename Dst, typename Src>
-struct Mean : ReduceBase<Dst, Src, Mean<Dst, Src>> {
+struct MeanCPU : ReduceBaseCPU<Dst, Src, MeanCPU<Dst, Src>> {
   void PostSetup() {
     int64_t v = 1;
     for (auto a : this->axes)
@@ -401,8 +330,8 @@ struct Mean : ReduceBase<Dst, Src, Mean<Dst, Src>> {
 
 
 template <typename Dst, typename Src>
-struct MeanSquare : ReduceBase<Dst, Src, MeanSquare<Dst, Src>> {
-  using Base = ReduceBase<Dst, Src, MeanSquare<Dst, Src>>;
+struct MeanSquareCPU : ReduceBaseCPU<Dst, Src, MeanSquareCPU<Dst, Src>> {
+  using Base = ReduceBaseCPU<Dst, Src, MeanSquareCPU<Dst, Src>>;
 
   void PostSetup() {
     int64_t v = 1;
@@ -422,8 +351,8 @@ struct MeanSquare : ReduceBase<Dst, Src, MeanSquare<Dst, Src>> {
 
 
 template <typename Dst, typename Src>
-struct RootMeanSquare : ReduceBase<Dst, Src, RootMeanSquare<Dst, Src>> {
-  using Base = ReduceBase<Dst, Src, RootMeanSquare<Dst, Src>>;
+struct RootMeanSquareCPU : ReduceBaseCPU<Dst, Src, RootMeanSquareCPU<Dst, Src>> {
+  using Base = ReduceBaseCPU<Dst, Src, RootMeanSquareCPU<Dst, Src>>;
 
   void PostSetup() {
     int64_t v = 1;
@@ -442,8 +371,8 @@ struct RootMeanSquare : ReduceBase<Dst, Src, RootMeanSquare<Dst, Src>> {
 };
 
 template <typename Dst, typename Src, typename MeanType = Dst>
-struct Variance : ReduceBase<Dst, Src, Variance<Dst, Src, MeanType>> {
-  using Base = ReduceBase<Dst, Src, Variance<Dst, Src, MeanType>>;
+struct VarianceCPU : ReduceBaseCPU<Dst, Src, VarianceCPU<Dst, Src, MeanType>> {
+  using Base = ReduceBaseCPU<Dst, Src, VarianceCPU<Dst, Src, MeanType>>;
   InTensorCPU<MeanType, -1> mean;
 
   void Setup(const OutTensorCPU<Dst, -1> &out,
@@ -471,8 +400,8 @@ struct Variance : ReduceBase<Dst, Src, Variance<Dst, Src, MeanType>> {
 };
 
 template <typename Dst, typename Src, typename MeanType = Dst>
-struct StdDev : ReduceBase<Dst, Src, StdDev<Dst, Src, MeanType>> {
-  using Base = ReduceBase<Dst, Src, StdDev<Dst, Src, MeanType>>;
+struct StdDevCPU : ReduceBaseCPU<Dst, Src, StdDevCPU<Dst, Src, MeanType>> {
+  using Base = ReduceBaseCPU<Dst, Src, StdDevCPU<Dst, Src, MeanType>>;
   InTensorCPU<MeanType, -1> mean;
 
   void Setup(const OutTensorCPU<Dst, -1> &out,
@@ -507,4 +436,4 @@ struct StdDev : ReduceBase<Dst, Src, StdDev<Dst, Src, MeanType>> {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_REDUCE_REDUCE_H_
+#endif  // DALI_KERNELS_REDUCE_REDUCE_CPU_H_
