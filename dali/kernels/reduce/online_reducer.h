@@ -15,7 +15,7 @@
 #ifndef DALI_KERNELS_REDUCE_ONLINE_REDUCER_H_
 #define DALI_KERNELS_REDUCE_ONLINE_REDUCER_H_
 
-#include "dali/kernels/reduce/reduce.h"
+#include "dali/kernels/reduce/reductions.h"
 
 namespace dali {
 namespace kernels {

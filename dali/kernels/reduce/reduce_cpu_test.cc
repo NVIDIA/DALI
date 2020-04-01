@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <random>
 #include <chrono>
-#include "dali/kernels/reduce/reduce.h"
+#include "dali/kernels/reduce/reduce_cpu.h"
 
 namespace dali {
 namespace kernels {
@@ -28,7 +28,7 @@ inline Out microseconds(std::chrono::duration<R, P> d) {
 }
 
 TEST(ReduceTest, Mean2D) {
-  Mean<float, int> mean;
+  MeanCPU<float, int> mean;
 
   const int W = 11, H = 7;
   float xmean = (W-1)/2;
@@ -136,21 +136,21 @@ void TestStatelessReduction3D(bool mean, Preprocess pre, Postprocess post) {
 }
 
 TEST(ReduceTest, Sum3D) {
-  TestStatelessReduction3D<Sum<float, int>>(
+  TestStatelessReduction3D<SumCPU<float, int>>(
     false,
     dali::identity(),
     dali::identity());
 }
 
 TEST(ReduceTest, Mean3D) {
-  TestStatelessReduction3D<Mean<float, int>>(
+  TestStatelessReduction3D<MeanCPU<float, int>>(
     true,
     dali::identity(),
     dali::identity());
 }
 
 TEST(ReduceTest, MeanSquare3D) {
-  TestStatelessReduction3D<MeanSquare<float, int>>(
+  TestStatelessReduction3D<MeanSquareCPU<float, int>>(
     true,
     reductions::square(),
     dali::identity());
@@ -158,15 +158,15 @@ TEST(ReduceTest, MeanSquare3D) {
 
 TEST(ReduceTest, RootMeanSquare3D) {
   auto sqrt = [](auto x) { return std::sqrt(x); };
-  TestStatelessReduction3D<RootMeanSquare<float, int>>(
+  TestStatelessReduction3D<RootMeanSquareCPU<float, int>>(
     true,
     reductions::square(),
     sqrt);
 }
 
 TEST(ReduceTest, StdDev) {
-  Mean<float, float> mean;
-  StdDev<float, float> stddev;
+  MeanCPU<float, float> mean;
+  StdDevCPU<float, float> stddev;
 
   std::mt19937_64 rng(1337);
   std::normal_distribution<float> dist(10, 42);

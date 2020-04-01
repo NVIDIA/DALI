@@ -17,7 +17,7 @@
 
 
 #include "dali/core/util.h"
-#include "dali/kernels/reduce/reduce.h"
+#include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_all_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_common.cuh"
 #include "dali/kernels/reduce/online_reducer.h"
