@@ -224,11 +224,11 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
       // need RNG generators for left, top
       std::uniform_real_distribution<float> l_dis(0., 1. - w), t_dis(0., 1. - h);
-      auto left = l_dis(rngs_[sample]);
-      auto top = t_dis(rngs_[sample]);
+      double left = l_dis(rngs_[sample]);
+      double top = t_dis(rngs_[sample]);
 
-      auto right = left + w;
-      auto bottom = top + h;
+      double right = left + w;
+      double bottom = top + h;
 
       crop_ptr[0] = left;
       crop_ptr[1] = top;
@@ -305,10 +305,10 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
       }  // end bbox copy
 
       // everything is good, generate the crop parameters
-      const int left_idx = std::lround(left * wtot);
-      const int top_idx = std::lround(top * htot);
-      const int right_idx = std::lround(right * wtot);
-      const int bottom_idx = std::lround(bottom * htot);
+      const int left_idx = std::llround(left * wtot);
+      const int top_idx = std::llround(top * htot);
+      const int right_idx = std::llround(right * wtot);
+      const int bottom_idx = std::llround(bottom * htot);
 
       // perform the crop
       detail::crop(img, {left_idx, top_idx, right_idx, bottom_idx},
