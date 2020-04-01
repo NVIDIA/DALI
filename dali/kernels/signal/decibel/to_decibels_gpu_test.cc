@@ -27,11 +27,10 @@ namespace kernels {
 namespace signal {
 namespace test {
 
-static constexpr int ndim = 2;
 using T = float;
 
 using TestBase = ::testing::TestWithParam<
-  std::tuple<std::vector<TensorShape<ndim>>,  // data shape
+  std::tuple<std::vector<TensorShape<>>,  // data shape
              T /* mul */,
              T /* s_ref */,
              T /* min_ratio */,
@@ -57,13 +56,13 @@ class ToDecibelsGpuTest : public TestBase {
     std::mt19937 rng;
     UniformRandomFill(in_.cpu(), rng, 0.0, 1.0);
   }
-  TensorListShape<ndim> data_shape_;
+  TensorListShape<> data_shape_;
   T mul_ = 10.0;
   T s_ref_ = 1.0;
   T min_ratio_ = 1e-8;
   T data_max_ = 1.0;
   bool ref_max_ = false;
-  TestTensorList<T, ndim> in_;
+  TestTensorList<T> in_;
 };
 
 TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
@@ -77,7 +76,7 @@ TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
   args.min_ratio = min_ratio_;
   args.ref_max = ref_max_;
 
-  kernels::signal::ToDecibelsGpu<T, ndim> kernel;
+  kernels::signal::ToDecibelsGpu<T> kernel;
   auto req = kernel.Setup(ctx, in_.gpu());
 
   ScratchpadAllocator scratch_alloc;
@@ -86,7 +85,7 @@ TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
   ctx.scratchpad = &scratchpad;
 
   ASSERT_EQ(data_shape_, req.output_shapes[0]);
-  TestTensorList<T, ndim> out;
+  TestTensorList<T> out;
   out.reshape(data_shape_);
 
   auto in_view_cpu = in_.cpu();
@@ -128,8 +127,8 @@ TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
 }
 
 INSTANTIATE_TEST_SUITE_P(ToDecibelsGpuTest, ToDecibelsGpuTest, testing::Combine(
-    testing::Values(std::vector<TensorShape<2>>{TensorShape<2>{10, 1}},
-                    std::vector<TensorShape<2>>{TensorShape<2>{1, 10}}),  // shape
+    testing::Values(std::vector<TensorShape<>>{TensorShape<>{10, 1}},
+                    std::vector<TensorShape<>>{TensorShape<>{1, 10}}),  // shape
     testing::Values(10.0, 20.0),     // mul
     testing::Values(1.0, 1e-6),      // s_ref
     testing::Values(1e-8, 1e-20),    // min_ratio

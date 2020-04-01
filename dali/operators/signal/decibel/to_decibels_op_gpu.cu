@@ -24,11 +24,11 @@
 
 namespace dali {
 
-template <typename T, int Dims>
+template <typename T>
 class ToDecibelsImpl : public OpImplBase<GPUBackend> {
  public:
-  using MaxKernel = kernels::reduce::ReduceAllGPU<T, T, Dims, kernels::reductions::max>;
-  using ToDecibelsKernel = kernels::signal::ToDecibelsGpu<T, Dims>;
+  using MaxKernel = kernels::reduce::ReduceAllGPU<T, T, kernels::reductions::max>;
+  using ToDecibelsKernel = kernels::signal::ToDecibelsGpu<T>;
   using ToDecibelsArgs = kernels::signal::ToDecibelsArgs<T>;
 
   explicit ToDecibelsImpl(ToDecibelsArgs args)
@@ -54,11 +54,11 @@ class ToDecibelsImpl : public OpImplBase<GPUBackend> {
   TensorList<GPUBackend> max_out_;
 };
 
-template <typename T, int Dims>
-bool ToDecibelsImpl<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                        const workspace_t<GPUBackend> &ws) {
+template <typename T>
+bool ToDecibelsImpl<T>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                  const workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
-  auto in_view = view<const T, Dims>(input);
+  auto in_view = view<const T>(input);
   auto nsamples = input.size();
 
   auto type = TypeInfo::Create<T>();
@@ -79,14 +79,14 @@ bool ToDecibelsImpl<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
   return true;
 }
 
-template <typename T, int Dims>
-void ToDecibelsImpl<T, Dims>::RunImpl(workspace_t<GPUBackend> &ws) {
+template <typename T>
+void ToDecibelsImpl<T>::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
   int nsamples = input.size();
 
-  auto in_view = view<const T, Dims>(input);
-  auto out_view = view<T, Dims>(output);
+  auto in_view = view<const T>(input);
+  auto out_view = view<T>(output);
 
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
@@ -107,18 +107,13 @@ bool ToDecibels<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                        const workspace_t<GPUBackend> &ws) {
   output_desc.resize(kNumOutputs);
   const auto &input = ws.Input<GPUBackend>(0);
-  auto in_shape = input.shape();
-  int ndim = in_shape.sample_dim();
   auto type = input.type().id();
-  TYPE_SWITCH(type, type2id, T, TO_DB_SUPPORTED_TYPES, (
-    VALUE_SWITCH(ndim, Dims, TO_DB_SUPPORTED_NDIMS, (
-      using Impl = ToDecibelsImpl<T, Dims>;
-      if (!impl_ || type != type_ || ndim != ndim) {
+  TYPE_SWITCH(type, type2id, T, (float), (
+      using Impl = ToDecibelsImpl<T>;
+      if (!impl_ || type != type_) {
         impl_ = std::make_unique<Impl>(args_);
         type_ = type;
-        ndim_ = ndim;
       }
-    ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim)));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", type)));  // NOLINT
 
   impl_->SetupImpl(output_desc, ws);

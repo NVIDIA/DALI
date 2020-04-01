@@ -26,13 +26,13 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-template <typename T, int Dims>
-ToDecibelsCpu<T, Dims>::~ToDecibelsCpu() = default;
+template <typename T>
+ToDecibelsCpu<T>::~ToDecibelsCpu() = default;
 
-template <typename T, int Dims>
-KernelRequirements ToDecibelsCpu<T, Dims>::Setup(
+template <typename T>
+KernelRequirements ToDecibelsCpu<T>::Setup(
     KernelContext &context,
-    const InTensorCPU<T, Dims> &in,
+    const InTensorCPU<T, DynamicDimensions> &in,
     const ToDecibelsArgs<T> &args) {
   auto out_shape = in.shape;
   std::vector<TensorShape<DynamicDimensions>> tmp = {out_shape};  // workaround for clang-6 bug
@@ -41,11 +41,11 @@ KernelRequirements ToDecibelsCpu<T, Dims>::Setup(
   return req;
 }
 
-template <typename T, int Dims>
-void ToDecibelsCpu<T, Dims>::Run(
+template <typename T>
+void ToDecibelsCpu<T>::Run(
     KernelContext &context,
-    const OutTensorCPU<T, Dims> &out,
-    const InTensorCPU<T, Dims> &in,
+    const OutTensorCPU<T, DynamicDimensions> &out,
+    const InTensorCPU<T, DynamicDimensions> &in,
     const ToDecibelsArgs<T> &args) {
   auto in_size = volume(in.shape);
   auto out_size = volume(out.shape);
@@ -69,15 +69,8 @@ void ToDecibelsCpu<T, Dims>::Run(
   }
 }
 
-template class ToDecibelsCpu<float, 1>;
-template class ToDecibelsCpu<float, 2>;
-template class ToDecibelsCpu<float, 3>;
-template class ToDecibelsCpu<float, 4>;
-
-template class ToDecibelsCpu<double, 1>;
-template class ToDecibelsCpu<double, 2>;
-template class ToDecibelsCpu<double, 3>;
-template class ToDecibelsCpu<double, 4>;
+template class ToDecibelsCpu<float>;
+template class ToDecibelsCpu<double>;
 
 }  // namespace signal
 }  // namespace kernels

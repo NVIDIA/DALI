@@ -29,7 +29,7 @@ namespace dali {
 namespace kernels {
 namespace reduce {
 
-template <typename Out, typename In, int ndim, typename Reduction, typename Preprocessor = identity>
+template <typename Out, typename In, typename Reduction, typename Preprocessor = identity>
 class DLL_PUBLIC ReduceAllGPU {
  public:
   // TODO(janton): remove this when implemented
@@ -39,7 +39,7 @@ class DLL_PUBLIC ReduceAllGPU {
   DLL_PUBLIC ~ReduceAllGPU() = default;
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
-                                      const InListGPU<In, ndim> &in) {
+                                      const InListGPU<In, DynamicDimensions> &in) {
     auto num_samples = in.size();
     ScratchpadEstimator se;
 
@@ -68,7 +68,7 @@ class DLL_PUBLIC ReduceAllGPU {
 
   DLL_PUBLIC void Run(KernelContext &context,
                       const OutListGPU<Out, 1> &out,
-                      const InListGPU<In, ndim> &in) {
+                      const InListGPU<In, DynamicDimensions> &in) {
     DALI_ENFORCE(out.is_contiguous(), "Reduce all kernel expects the output to be contiguous");
     auto* out_start = out[0].data;
 

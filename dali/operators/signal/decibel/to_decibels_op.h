@@ -26,9 +26,6 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
-#define TO_DB_SUPPORTED_TYPES (float)
-#define TO_DB_SUPPORTED_NDIMS (1, 2, 3, 4)
-
 static constexpr int kNumInputs = 1;
 static constexpr int kNumOutputs = 1;
 
@@ -64,7 +61,6 @@ class ToDecibels : public Operator<Backend> {
 
   std::unique_ptr<OpImplBase<Backend>> impl_;
   DALIDataType type_;
-  int ndim_;
 };
 
 }  // namespace dali

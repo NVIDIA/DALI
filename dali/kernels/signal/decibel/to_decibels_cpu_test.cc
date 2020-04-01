@@ -53,18 +53,18 @@ class ToDecibelsCpuTest : public::testing::TestWithParam<
     std::mt19937 rng;
     UniformRandomFill(in_view_, rng, 0.0, data_max_);
   }
-  TensorShape<2> data_shape_;
+  TensorShape<> data_shape_;
   float mul_ = 10.0;
   float s_ref_ = 1.0;
   float min_ratio_ = 1e-8;
   float data_max_ = 1.0;
   bool ref_max_ = false;
   std::vector<float> data_;
-  OutTensorCPU<float, 2> in_view_;
+  OutTensorCPU<float, DynamicDimensions> in_view_;
 };
 
 template <typename T>
-void print_data(const OutTensorCPU<T, 2>& data_view) {
+void print_data(const OutTensorCPU<T, DynamicDimensions>& data_view) {
   auto sh = data_view.shape;
   for (int i0 = 0; i0 < sh[0]; i0++) {
     for (int i1 = 0; i1 < sh[1]; i1++) {
@@ -77,8 +77,7 @@ void print_data(const OutTensorCPU<T, 2>& data_view) {
 
 TEST_P(ToDecibelsCpuTest, ToDecibelsCpuTest) {
   using T = float;
-  constexpr int Dims = 2;
-  ToDecibelsCpu<T, Dims> kernel;
+  ToDecibelsCpu<T> kernel;
   check_kernel<decltype(kernel)>();
 
   KernelContext ctx;
@@ -99,7 +98,8 @@ TEST_P(ToDecibelsCpuTest, ToDecibelsCpuTest) {
 
   auto out_size = volume(out_shape);
   std::vector<T> expected_out(out_size);
-  auto expected_out_view = OutTensorCPU<T, Dims>(expected_out.data(), out_shape.to_static<Dims>());
+  auto expected_out_view =
+      OutTensorCPU<T, DynamicDimensions>(expected_out.data(), out_shape);
 
   if (ref_max_) {
     s_ref_ = 0.0;
@@ -124,7 +124,7 @@ TEST_P(ToDecibelsCpuTest, ToDecibelsCpuTest) {
   LOG_LINE << "ref_max: " << s_ref_ << std::endl;
 
   std::vector<T> out(out_size);
-  auto out_view = OutTensorCPU<T, Dims>(out.data(), out_shape.to_static<Dims>());
+  auto out_view = OutTensorCPU<T, DynamicDimensions>(out.data(), out_shape);
   kernel.Run(ctx, out_view, in_view_, args);
 
   LOG_LINE << "out:\n";
