@@ -88,7 +88,7 @@ def check_operator_to_decibels_vs_python(device, batch_size, input_shape,
         batch_size=batch_size, N_iterations=5, eps=1e-04)
 
 def test_operator_to_decibels_vs_python():
-    for device in ['cpu']:
+    for device in ['cpu', 'gpu']:
         for batch_size in [3]:
             for multiplier, reference, cutoff_db, shape in [(10.0, None, -80.0, (1, 4096)),
                                                             (20.0, 1.0, -200.0, (2, 1000)),
@@ -98,10 +98,11 @@ def test_operator_to_decibels_vs_python():
 
 
 class NaturalLogarithmPipeline(Pipeline):
-    def __init__(self, iterator, batch_size, num_threads=1, exec_async=True, exec_pipelined=True):
+    def __init__(self, device, iterator, batch_size, num_threads=1, exec_async=True, exec_pipelined=True):
         super(NaturalLogarithmPipeline, self).__init__(batch_size, num_threads, device_id=0,
                                                        seed=42, exec_async=exec_async,
                                                        exec_pipelined=exec_pipelined)
+        self.device = device
         self.inputs = ops.ExternalSource()
         self.iterator = iterator
         self.log = None
@@ -111,7 +112,8 @@ class NaturalLogarithmPipeline(Pipeline):
             raise RuntimeError(
                 "Error: you need to derive from this class and define `self.log` operator")
         self.data = self.inputs()
-        out = self.log(self.data + 1)
+        data = self.data.gpu() if self.device == 'gpu' else self.data
+        out = self.log(data + 1)
         return out
 
     def iter_setup(self):
@@ -120,9 +122,9 @@ class NaturalLogarithmPipeline(Pipeline):
 
 
 class NLDaliPipeline(NaturalLogarithmPipeline):
-    def __init__(self, iterator, batch_size, reference=1.0):
-        super().__init__(iterator, batch_size)
-        self.log = ops.ToDecibels(device="cpu", multiplier=np.log(10), reference=reference)
+    def __init__(self, device, iterator, batch_size, reference=1.0):
+        super().__init__(device, iterator, batch_size)
+        self.log = ops.ToDecibels(device=device, multiplier=np.log(10), reference=reference)
 
 
 def log_tensor(tensor):
@@ -131,7 +133,7 @@ def log_tensor(tensor):
 
 class NLPythonPipeline(NaturalLogarithmPipeline):
     def __init__(self, iterator, batch_size):
-        super().__init__(iterator, batch_size,
+        super().__init__('cpu', iterator, batch_size,
                          exec_async=False, exec_pipelined=False)
         function = partial(log_tensor)
         self.log = ops.PythonFunction(function=function)
@@ -141,7 +143,7 @@ def check_natural_logarithm(device, batch_size, input_shape):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     compare_pipelines(
-        NLDaliPipeline(iter(eii1), batch_size),
+        NLDaliPipeline(device, iter(eii1), batch_size),
         NLPythonPipeline(iter(eii2), batch_size),
         batch_size=batch_size, N_iterations=5, eps=1e-04)
 
@@ -149,10 +151,20 @@ def check_natural_logarithm(device, batch_size, input_shape):
 def test_operator_natural_logarithm():
     shapes = [(1, 4096), (2, 1000), (2, 3, 40)]
     batch_size = 3
-    device = "cpu"
-    for sh in shapes:
-        yield check_natural_logarithm, device, batch_size, sh
+    for device in ['cpu', 'gpu']:
+        for sh in shapes:
+            yield check_natural_logarithm, device, batch_size, sh
 
 @raises(RuntimeError)
 def test_invalid_reference():
     NLDaliPipeline(None, 1, 0.0).build()
+
+def main():
+  for test in test_operator_to_decibels_vs_python():
+      test[0](*test[1:])
+
+  for test in test_operator_natural_logarithm():
+      test[0](*test[1:])
+
+if __name__ == '__main__':
+  main()

@@ -19,7 +19,7 @@
 #include <vector>
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
-
+#include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 
@@ -34,7 +34,7 @@ class RandomBBoxCrop : public Operator<Backend> {
   void RunImpl(Workspace<Backend> &ws) override;
 
  private:
-  std::unique_ptr<detail::OpImplBase<Backend>> impl_;
+  std::unique_ptr<OpImplBase<Backend>> impl_;
   int impl_ndim_ = -1;
   OpSpec spec_;
 };

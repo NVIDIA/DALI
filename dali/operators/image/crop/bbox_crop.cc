@@ -252,7 +252,7 @@ Note: If left empty, ``"WH"`` or ``"WHD"`` will be assumed, depending on the num
         TensorLayout{""});
 
 template <int ndim>
-class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
+class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
  public:
   static constexpr int coords_size = ndim * 2;
 

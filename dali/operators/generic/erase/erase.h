@@ -25,6 +25,7 @@
 #include "dali/kernels/scratch.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 
@@ -45,7 +46,7 @@ class Erase : public Operator<Backend> {
 
   USE_OPERATOR_MEMBERS();
 
-  std::unique_ptr<detail::OpImplBase<Backend>> impl_;
+  std::unique_ptr<OpImplBase<Backend>> impl_;
 };
 
 }  // namespace dali

@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_SIGNAL_DECIBEL_TO_DECIBELS_H_
-#define DALI_OPERATORS_SIGNAL_DECIBEL_TO_DECIBELS_H_
+#ifndef DALI_OPERATORS_SIGNAL_DECIBEL_TO_DECIBELS_OP_H_
+#define DALI_OPERATORS_SIGNAL_DECIBEL_TO_DECIBELS_OP_H_
 
 #include <cmath>
+#include <memory>
 #include <string>
 #include <vector>
 #include "dali/core/common.h"
@@ -23,6 +24,10 @@
 #include "dali/kernels/signal/decibel/to_decibels_args.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/util/operator_impl_utils.h"
+
+static constexpr int kNumInputs = 1;
+static constexpr int kNumOutputs = 1;
 
 namespace dali {
 
@@ -46,15 +51,18 @@ class ToDecibels : public Operator<Backend> {
  protected:
   bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  void RunImpl(workspace_t<Backend> &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
   kernels::KernelManager kmgr_;
   kernels::signal::ToDecibelsArgs<float> args_;
+
+  std::unique_ptr<OpImplBase<Backend>> impl_;
+  DALIDataType type_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_SIGNAL_DECIBEL_TO_DECIBELS_H_
+#endif  // DALI_OPERATORS_SIGNAL_DECIBEL_TO_DECIBELS_OP_H_

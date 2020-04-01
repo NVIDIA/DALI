@@ -12,16 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/signal/decibel/to_decibels.h"
+#include "dali/operators/signal/decibel/to_decibels_op.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/signal/decibel/to_decibels_cpu.h"
 #include "dali/pipeline/data/views.h"
-
-#define TO_DB_SUPPORTED_TYPES (float)
-#define TO_DB_SUPPORTED_NDIMS (1, 2, 3, 4)
-
-static constexpr int kNumInputs = 1;
-static constexpr int kNumOutputs = 1;
 
 namespace dali {
 
@@ -57,19 +51,16 @@ bool ToDecibels<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   int nsamples = input.size();
   auto nthreads = ws.GetThreadPool().size();
 
-  TYPE_SWITCH(input.type().id(), type2id, T, TO_DB_SUPPORTED_TYPES, (
-    VALUE_SWITCH(in_shape.sample_dim(), Dims, TO_DB_SUPPORTED_NDIMS, (
-      using ToDbKernel = kernels::signal::ToDecibelsCpu<T, Dims>;
-      kmgr_.Initialize<ToDbKernel>();
-      kmgr_.Resize<ToDbKernel>(nthreads, nsamples);
-      output_desc[0].type = TypeInfo::Create<T>();
-      output_desc[0].shape.resize(nsamples, Dims);
-      for (int i = 0; i < nsamples; i++) {
-        const auto in_view = view<const T, Dims>(input[i]);
-        auto &req = kmgr_.Setup<ToDbKernel>(i, ctx, in_view, args_);
-        output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
-      }
-    ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
+  TYPE_SWITCH(input.type().id(), type2id, T, (float), (
+    using ToDbKernel = kernels::signal::ToDecibelsCpu<T>;
+    kmgr_.Initialize<ToDbKernel>();
+    kmgr_.Resize<ToDbKernel>(nthreads, nsamples);
+    output_desc[0].shape = in_shape;
+    output_desc[0].type = TypeInfo::Create<T>();
+    for (int i = 0; i < nsamples; i++) {
+      const auto in_view = view<const T>(input[i]);
+      auto &req = kmgr_.Setup<ToDbKernel>(i, ctx, in_view, args_);
+    }
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
   return true;
 }
@@ -82,19 +73,17 @@ void ToDecibels<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
 
-  TYPE_SWITCH(input.type().id(), type2id, T, TO_DB_SUPPORTED_TYPES, (
-    VALUE_SWITCH(in_shape.sample_dim(), Dims, TO_DB_SUPPORTED_NDIMS, (
-      using ToDbKernel = kernels::signal::ToDecibelsCpu<T, Dims>;
-      for (int i = 0; i < input.shape().num_samples(); i++) {
-        thread_pool.DoWorkWithID(
-          [this, &input, &output, i](int thread_id) {
-            kernels::KernelContext ctx;
-            auto in_view = view<const T, Dims>(input[i]);
-            auto out_view = view<T, Dims>(output[i]);
-            kmgr_.Run<ToDbKernel>(thread_id, i, ctx, out_view, in_view, args_);
-          });
-      }
-    ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
+  TYPE_SWITCH(input.type().id(), type2id, T, (float), (
+    using ToDbKernel = kernels::signal::ToDecibelsCpu<T>;
+    for (int i = 0; i < input.shape().num_samples(); i++) {
+      thread_pool.DoWorkWithID(
+        [this, &input, &output, i](int thread_id) {
+          kernels::KernelContext ctx;
+          auto in_view = view<const T>(input[i]);
+          auto out_view = view<T>(output[i]);
+          kmgr_.Run<ToDbKernel>(thread_id, i, ctx, out_view, in_view, args_);
+        });
+    }
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 
   thread_pool.WaitForWork();

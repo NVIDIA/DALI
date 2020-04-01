@@ -27,7 +27,7 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-template <typename T = float, int Dims = 1>
+template <typename T = float>
 class DLL_PUBLIC ToDecibelsCpu {
  public:
   static_assert(std::is_floating_point<T>::value,
@@ -36,12 +36,12 @@ class DLL_PUBLIC ToDecibelsCpu {
   DLL_PUBLIC ~ToDecibelsCpu();
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
-                                      const InTensorCPU<T, Dims> &in,
+                                      const InTensorCPU<T, DynamicDimensions> &in,
                                       const ToDecibelsArgs<T> &args);
 
   DLL_PUBLIC void Run(KernelContext &context,
-                      const OutTensorCPU<T, Dims> &out,
-                      const InTensorCPU<T, Dims> &in,
+                      const OutTensorCPU<T, DynamicDimensions> &out,
+                      const InTensorCPU<T, DynamicDimensions> &in,
                       const ToDecibelsArgs<T> &args);
 };
 

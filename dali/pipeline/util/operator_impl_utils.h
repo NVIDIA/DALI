@@ -18,7 +18,7 @@
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/operator/workspace.h"
+#include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"

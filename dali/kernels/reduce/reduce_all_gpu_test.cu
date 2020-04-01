@@ -207,11 +207,11 @@ void ReduceAllGPUTest<Reduction>::TestReduceAllKernel(int min_size, int max_size
     total_size += size;
   }
 
-  TestTensorList<In, ndim> in;
+  TestTensorList<In> in;
   in.reshape(data_shape);
   UniformRandomFill(in.cpu(), rng, 0.0, 1.0);
 
-  kernels::reduce::ReduceAllGPU<Out, In, ndim, Reduction> kernel;
+  kernels::reduce::ReduceAllGPU<Out, In, Reduction> kernel;
 
   auto out_shape = TensorListShape<1>::make_uniform(nsamples, TensorShape<1>{1});
   TestTensorList<Out, 1> out;
