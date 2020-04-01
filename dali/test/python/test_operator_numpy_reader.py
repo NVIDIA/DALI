@@ -71,11 +71,15 @@ def test_reader_vs_numpy():
     arr = np.asfortranarray(arr)
     np.save(os.path.join(test_data_root, "test_06.npy"), arr)
 
-    #3D with singleton dim
+    #3D Fortran with singleton dim
     arr = rng.randint(0, 10, (3,1,2))
     arr = np.asfortranarray(arr)
     np.save(os.path.join(test_data_root, "test_07.npy"), arr)
 
+    #singleton file
+    arr = 3
+    np.save(os.path.join(test_data_root, "test_08.npy"), arr)
+    
     #get files:
     filelist = sorted([os.path.join(test_data_root, x) for x in os.listdir(test_data_root) if x.endswith('.npy')])
 
@@ -92,5 +96,9 @@ def test_reader_vs_numpy():
             
             assert_array_equal(arr_rd, arr_np)
 
+    #clean up
+    for fname in filelist:
+        os.remove(fname)
+            
 if __name__ == "__main__":
     test_reader_vs_numpy()
