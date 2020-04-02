@@ -30,7 +30,7 @@
 #include "tfallocator.h"
 #endif
 
-#include "dali/c_api/c_api.h"
+#include "dali/c_api.h"
 #include "dali/core/common.h"
 #include "dali_shape_helper.h"
 

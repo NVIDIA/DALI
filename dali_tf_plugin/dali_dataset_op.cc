@@ -42,7 +42,7 @@
 #include "tensorflow/core/framework/tensor.h"
 
 #include "dali/core/common.h"
-#include "dali/c_api/c_api.h"
+#include "dali/c_api.h"
 #include "dali_shape_helper.h"
 
 #define DALI_CALL(FUNC)                                                    \

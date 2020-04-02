@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_C_API_C_API_H_
-#define DALI_C_API_C_API_H_
+#ifndef DALI_C_API_H_
+#define DALI_C_API_H_
 
 #include <cuda_runtime_api.h>
 #include <inttypes.h>
@@ -236,4 +236,4 @@ extern "C" {
 }
 #endif
 
-#endif  // DALI_C_API_C_API_H_
+#endif  // DALI_C_API_H_

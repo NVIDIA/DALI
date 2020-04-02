@@ -19,11 +19,6 @@ set(DALI_TEST_SRCS)
 set(DALI_BENCHMARK_SRCS)
 set(DALI_TF_SRCS)
 
-set(dali_lib "dali")
-set(dali_operator_lib "dali_operators")
-set(dali_kernel_lib "dali_kernels")
-set(dali_core_lib "dali_core")
-set(dali_python_lib "backend_impl")
 set(dali_python_function_lib "python_function_plugin")
 set(DALI_WHEEL_DIR "dali/python/nvidia/dali")
 set(DALI_INCLUDE_DIR "${DALI_WHEEL_DIR}/include/")
@@ -52,39 +47,34 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_SRCS PARENT_SCOPE)
 
 set(DALI_PROTO_OBJ $<TARGET_OBJECTS:DALI_PROTO>)
-add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ} ${CUDART_LIB})
-set_target_properties(${dali_lib} PROPERTIES
+add_library(dali SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ} ${CUDART_LIB})
+set_target_properties(dali PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 
 # Define symbol version script for libdali.so
 set(dali_lib_exports "libdali.map")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${CMAKE_BINARY_DIR}/${dali_lib_exports}")
-target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${dali_lib_exports})
+target_link_libraries(dali PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${dali_lib_exports})
 
 # Link in dali's dependencies
-message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
-target_link_libraries(${dali_lib} PUBLIC ${dali_core_lib})
-target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS} dynlink_cuda)
+message(STATUS "Adding dependencies to target `dali`: '${DALI_LIBS}'")
+target_link_libraries(dali PUBLIC dali_core)
+target_link_libraries(dali PRIVATE ${DALI_LIBS} dynlink_cuda)
 # Exclude (most) statically linked dali dependencies from the exports of libdali.so
-target_link_libraries(${dali_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+target_link_libraries(dali PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
 ################################################
 # Build test suite
 ################################################
 if (BUILD_TEST)
   add_subdirectory(test)
-  set(test_main_bin "dali_test.bin")
-  add_executable(${test_main_bin} "${DALI_TEST_SRCS}")
+  add_executable(dali_test.bin "${DALI_TEST_SRCS}")
 
-  target_link_libraries(${test_main_bin} PUBLIC
-    ${dali_lib} ${dali_core_lib} ${dali_kernel_lib} ${dali_operator_lib} ${DALI_LIBS}
-    gtest)
-  target_link_libraries(${test_main_bin} PRIVATE
-    dynlink_cuda ${CUDART_LIB})
-  set_target_properties(${test_main_bin} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
+  target_link_libraries(dali_test.bin PUBLIC dali dali_core dali_kernels dali_operators ${DALI_LIBS} gtest)
+  target_link_libraries(dali_test.bin PRIVATE dynlink_cuda ${CUDART_LIB})
+  set_target_properties(dali_test.bin PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 
-  add_check_gtest_target("check-dali-gtest" ${test_main_bin} ${TEST_BINARY_DIR})
+  add_check_gtest_target("check-dali-gtest" dali_test.bin ${TEST_BINARY_DIR})
 endif()
 
 
@@ -104,9 +94,8 @@ if (BUILD_PYTHON)
   add_subdirectory(python)
 
   # prepare check-python target
-  set(CHECK_PYTHON_TARGET "check-python")
-  add_custom_target("${CHECK_PYTHON_TARGET}")
-  add_dependencies("check" ${CHECK_PYTHON_TARGET})
+  add_custom_target(check-python)
+  add_dependencies(check check-python)
 
   set(PYTHON_TARGET_PATH ${PROJECT_BINARY_DIR}/dali/python)
   if($ENV{PYTHONPATH})
@@ -116,13 +105,13 @@ if (BUILD_PYTHON)
   endif()
 
   add_custom_command(
-    TARGET ${CHECK_PYTHON_TARGET}
+    TARGET check-python
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/qa/TL0_python-self-test/
     COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/qa/TL0_python-self-test/test_no_setup.sh
   )
 
-  add_dependencies(${CHECK_PYTHON_TARGET} ${dali_python_lib})
-  add_dependencies(${CHECK_PYTHON_TARGET} ${dali_lib})
+  add_dependencies(check-python dali_python)
+  add_dependencies(check-python dali)
 endif()
 
 
@@ -133,7 +122,7 @@ endif()
 # Copy all headers from DALI_INST_HDRS list to DALI_WHEEL_DIR using install command
 # with `-D` option, that recursively creates missing directories in destination path
 add_custom_target(install_headers ALL
-    DEPENDS ${dali_lib} ${dali_operators_lib}
+    DEPENDS dali dali_operators
 )
 
 # Process the DALI_INST_HDRS list

@@ -43,20 +43,20 @@ if (BUILD_PROTO3)
   list(APPEND DALI_OPERATOR_PROTO_OBJ $<TARGET_OBJECTS:TF_PROTO>)
 endif()
 
-add_library(${dali_operator_lib} SHARED ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_PROTO_OBJ})
-set_target_properties(${dali_operator_lib} PROPERTIES
+add_library(dali_operators SHARED ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_PROTO_OBJ})
+set_target_properties(dali_operators PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
-target_link_libraries(${dali_operator_lib} PUBLIC ${dali_lib} ${dali_kernel_lib} ${dali_core_lib})
-target_link_libraries(${dali_operator_lib} PRIVATE dynlink_cuda ${DALI_LIBS})
+target_link_libraries(dali_operators PUBLIC dali dali_kernels dali_core)
+target_link_libraries(dali_operators PRIVATE dynlink_cuda ${DALI_LIBS})
 # Exclude (most) statically linked dali dependencies from the exports of libdali_operators.so
-target_link_libraries(${dali_operator_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 # Options for using Dockerfile FFmpeg version
-target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVSTREAM_CODECPAR=1)
-target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
+target_compile_definitions(dali_operators PUBLIC HAVE_AVSTREAM_CODECPAR=1)
+target_compile_definitions(dali_operators PUBLIC HAVE_AVBSFCONTEXT=1)
 
 set(lib_exports "libdali_operators.map")
 configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${CMAKE_BINARY_DIR}/${lib_exports}")
-target_link_libraries(${dali_operator_lib} PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
+target_link_libraries(dali_operators PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
 
 if (BUILD_TEST)
   set(test_bin "dali_operator_test.bin")
@@ -66,7 +66,7 @@ if (BUILD_TEST)
     ${DALI_ROOT}/dali/test/dali_test_config.cc
     ${DALI_ROOT}/dali/test/dali_operator_test_utils.cc)
 
-  target_link_libraries(${test_bin} PUBLIC ${dali_operator_lib})
+  target_link_libraries(${test_bin} PUBLIC dali_operators)
   target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   target_link_libraries(${test_bin} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
   set_target_properties(${test_bin} PROPERTIES

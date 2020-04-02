@@ -17,7 +17,7 @@ file(GLOB SRCS *.cc *.cu)
 set(lib_name "customdummyplugin")
 add_library(${lib_name} SHARED ${SRCS})
 target_link_libraries(${lib_name} PRIVATE ${CUDART_LIB})
-target_link_libraries(${lib_name} PUBLIC ${dali_lib})
+target_link_libraries(${lib_name} PUBLIC dali)
 
 set_target_properties(${lib_name} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
