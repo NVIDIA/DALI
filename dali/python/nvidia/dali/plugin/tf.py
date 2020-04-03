@@ -20,7 +20,7 @@ import os
 import glob
 from collections import Iterable
 import re
-from distutils.version import StrictVersion
+from distutils.version import LooseVersion
 import warnings
 
 
@@ -139,12 +139,12 @@ def DALIRawIterator():
 
 
 def _get_tf_version():
-  return StrictVersion(tf.__version__)
+  return LooseVersion(tf.__version__)
 
 
-MIN_TENSORFLOW_VERSION = StrictVersion('1.15')
+MIN_TENSORFLOW_VERSION = LooseVersion('1.15')
 def dataset_compatible_tensorflow():
-    return StrictVersion(tf.__version__) >= MIN_TENSORFLOW_VERSION
+    return LooseVersion(tf.__version__) >= MIN_TENSORFLOW_VERSION
 
 
 if dataset_compatible_tensorflow():
@@ -256,7 +256,7 @@ if dataset_compatible_tensorflow():
         output_dtypes = self._output_dtypes)
 
 
-  if _get_tf_version() < StrictVersion('2.0'):
+  if _get_tf_version() < LooseVersion('2.0'):
     class DALIDataset(dataset_ops.DatasetV1Adapter):
       @functools.wraps(_DALIDatasetV2.__init__)
       def __init__(self, pipeline, **kwargs):
