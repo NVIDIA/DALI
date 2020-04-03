@@ -95,11 +95,13 @@ class DLL_PUBLIC Pipeline {
          default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
   }
 
+
   DLL_PUBLIC Pipeline(const string &serialized_pipe, int batch_size = -1, int num_threads = -1,
                       int device_id = -1, bool pipelined_execution = true,
                       int prefetch_queue_depth = 2, bool async_execution = true,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-                      int max_num_stream = -1, int default_cuda_stream_priority = 0);
+                      int max_num_stream = -1, int default_cuda_stream_priority = 0,
+                      int64_t seed = -1);
 
   DLL_PUBLIC ~Pipeline() = default;
 
