@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ def test_reader_vs_numpy():
 
         for fname in filelist:
             pipe_out = pipe.run()
-            arr_rd = np.squeeze(np.array(pipe_out[0].as_tensor()), axis=0)
+            arr_rd = np.squeeze(pipe_out[0].as_array(), axis=0)
             arr_np = np.load(fname)
             
             assert_array_equal(arr_rd, arr_np)
