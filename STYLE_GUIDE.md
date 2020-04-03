@@ -27,8 +27,8 @@ and introduces ugly code like `foo(&bar)` or `(*buf)[i]`.
 
 ### Test suites naming guide
 
-We use GTest for most of testing code in DALI. Names of TestSuites should start with a capital letter and end with `Test`. 
-Additionally, both suite and case name mustn't contain underscores (`_`). 
+We use GTest for most of testing code in DALI. Names of TestSuites should start with a capital letter and end with `Test`.
+Additionally, both suite and case name mustn't contain underscores (`_`).
 For details on the latter, cf. [GTest FAQ](https://github.com/google/googletest/blob/master/googletest/docs/faq.md#why-should-test-suite-names-and-test-names-not-contain-underscore).
 Examples:
 ```
@@ -54,6 +54,47 @@ See [the example](dali/kernels/kernel.h) kernel implementation for details.
 The order of the arguments is following memcpy semantics.
 
 ### Documentation
+
+#### Operator documentation
+
+DALI Operators are using docstrings written using [rst](https://docutils.sourceforge.io/docs/user/rst/quickref.html)
+with [numpydoc syntax](https://numpydoc.readthedocs.io/en/latest/format.html).
+
+The inputs, outputs and argument inputs that represent passing batches of tensors should
+be documented in following format:
+
+```
+<name> : sample shape: <shape info string>, <type>
+    <description>
+```
+
+for example:
+
+```
+images : sample shape: [H, W, C], uint8
+    decoded images.
+```
+
+In case when one of the `InputDox`, `AddArg` or `AddOptionalArg` is used to provide the documentation,
+the formatting above is automatically generated.
+
+When provided as a string through `CallDocStr`, the formatting should be maintained by hand.
+
+The `<shape info string>` should describe the shape of sample in that batch,
+using square brackets `[]`, for example `[H, W, C]`, `[time, frequency]`, `[X, Y] or [X, Y, Z]`
+and should not contain explicit batch size.
+
+The `<type>` should be singular form description of possible types, for example `int`, `uint8`,
+`float`, `uint8 or float`.
+
+In Operator docstrings, double backticks are preferred over single backticks where suitable:
+
+```
+``var_name`` - preferred
+`var_name`
+```
+
+#### C++ documentation
 
 DALI uses Doxygen for C++ code documentation with Javadoc-styled comments:
 
