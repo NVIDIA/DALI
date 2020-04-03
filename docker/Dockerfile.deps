@@ -22,7 +22,7 @@ RUN rm -f /opt/python/cp27-cp27m
 RUN BOOST_VERSION=1.66.0 && \
     cd /usr/local && \
     wget https://github.com/boostorg/boost/archive/boost-${BOOST_VERSION}.tar.gz && \
-    tar -xzf boost-${BOOST_VERSION}.tar.gz && \
+    tar -xzf boost-${BOOST_VERSION}.tar.gz && rm -f boost-${BOOST_VERSION}.tar.gz && \
     ln -s ../boost-${BOOST_VERSION}/boost include/boost
 
 # CMake
