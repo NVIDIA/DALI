@@ -39,12 +39,14 @@ class OpSpec;
 struct RequiredArgumentDef {
   std::string doc;
   DALIDataType dtype;
+  std::string shape;
 };
 
 struct DefaultedArgumentDef {
   std::string doc;
   DALIDataType dtype;
   Value *default_value;
+  std::string shape;
 };
 
 class DLL_PUBLIC OpSchema {
@@ -152,11 +154,11 @@ class DLL_PUBLIC OpSchema {
    * The arguments should be described using numpydoc syntax,
    * with comments indented by 4 spaces, for example:
    * """
-   * input0: Type of input
+   * input0: sample shape: [X, Y], element_type
    *     This is the first input
-   * input1: TensorList of some kind
+   * input1: sample shape: any shape, element_type
    *     This is second input
-   * optional_input: TensorList, optional
+   * optional_input:  sample shape: [X], element_type, optional
    *     This is optional input
    * """
    *
@@ -317,12 +319,27 @@ class DLL_PUBLIC OpSchema {
   /**
    * @brief Adds a required argument to op with its type
    */
+
+  /**
+   * @brief  Adds a required argument to op with its type
+   *
+   * @param s Argument name
+   * @param doc docstring for given argument
+   * @param dtype type of the argument (used for docstring generation)
+   * @param enable_tensor_input If given argument accepts tensors, which means it is also
+   *                            an Argument Input.
+   * @param shape If this is Argument Input optional shape can be provided.
+   */
   DLL_PUBLIC inline OpSchema& AddArg(const std::string &s,
                                      const std::string &doc,
                                      const DALIDataType dtype,
-                                     bool enable_tensor_input = false) {
+                                     bool enable_tensor_input = false,
+                                     const std::string &shape = "") {
+    DALI_ENFORCE(enable_tensor_input || shape.empty(),
+                 make_string("Shape cannot be provided for required argument ", s,
+                             " which doesn't accept tensor inputs."));
     CheckArgument(s);
-    arguments_[s] = {doc, dtype};
+    arguments_[s] = {doc, dtype, shape};
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
     }
@@ -431,9 +448,10 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC inline OpSchema& AddOptionalArg(const std::string &s,
                                      const std::string &doc,
                                      std::nullptr_t,
-                                     bool enable_tensor_input = false) {
+                                     bool enable_tensor_input = false,
+                                     const std::string &shape = "") {
     CheckArgument(s);
-    optional_arguments_[s] = {doc, type2id<T>::value, nullptr};
+    optional_arguments_[s] = {doc, type2id<T>::value, nullptr, shape};
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
     }
@@ -449,10 +467,11 @@ class DLL_PUBLIC OpSchema {
   AddOptionalArg(const std::string &s,
                  const std::string &doc,
                  T default_value,
-                 bool enable_tensor_input = false) {
+                 bool enable_tensor_input = false,
+                 const std::string &shape = "") {
     CheckArgument(s);
     auto to_store = Value::construct(default_value);
-    optional_arguments_[s] = {doc, type2id<T>::value, to_store.get()};
+    optional_arguments_[s] = {doc, type2id<T>::value, to_store.get(), shape};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
@@ -746,6 +765,13 @@ class DLL_PUBLIC OpSchema {
    * @brief Get enum representing type of argument of given name.
    */
   DLL_PUBLIC DALIDataType GetArgumentType(const std::string &name) const;
+
+  /**
+   * @brief Get string representing a shape of argument input of given name.
+   *
+   * If the input is not accepting tensor inputs (argument input) the returned string is empty.
+   */
+  DLL_PUBLIC std::string GetArgumentShape(const std::string &name) const;
 
   /**
    * @brief Check if the argument has a default value.

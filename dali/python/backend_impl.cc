@@ -1170,6 +1170,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("CheckArgs", &OpSchema::CheckArgs)
     .def("GetArgumentDox", &OpSchema::GetArgumentDox)
     .def("GetArgumentType", &OpSchema::GetArgumentType)
+    .def("GetArgumentShape", &OpSchema::GetArgumentShape)
     .def("HasArgumentDefaultValue", &OpSchema::HasArgumentDefaultValue)
     .def("GetArgumentDefaultValueString", &OpSchema::GetArgumentDefaultValueString)
     .def("GetArgumentNames", &OpSchema::GetArgumentNames)

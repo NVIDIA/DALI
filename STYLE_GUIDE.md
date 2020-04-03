@@ -75,10 +75,11 @@ images : sample shape: [H, W, C], uint8
     decoded images.
 ```
 
-In case when one of the `InputDox`, `AddArg` or `AddOptionalArg` is used to provide the documentation,
-the formatting above is automatically generated.
+In case when one of the `InputDoc`, `OutputDoc`, `AddArg` or `AddOptionalArg` is used to provide
+the documentation, the formatting above is automatically generated.
 
-When provided as a string through `CallDocStr`, the formatting should be maintained by hand.
+When provided as a string through `CallDocStr`, `InputDocStr` or `OutputDocStr` the formatting
+should be manually maintained.
 
 The `<shape info string>` should describe the shape of sample in that batch,
 using square brackets `[]`, for example `[H, W, C]`, `[time, frequency]`, `[X, Y] or [X, Y, Z]`

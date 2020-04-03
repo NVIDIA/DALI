@@ -71,13 +71,18 @@ if _tfrecord_support:
     _known_types[DALIDataType._FEATURE_DICT] = ("dict of (string, nvidia.dali.tfrecord.Feature)",
             _not_implemented)
 
-def _type_name_convert_to_string(dtype, is_tensor):
+def _type_name_convert_to_string(dtype, is_tensor, sample_shape = None):
+    if not is_tensor and sample_shape is not None:
+        raise RuntimeError("Cannot place shape information in scalar type signature")
     if dtype in _known_types:
-        ret = _known_types[dtype][0]
-        if is_tensor:
-            ret = "TensorList of " + ret
+        dtype_str = _known_types[dtype][0]
+        ret = dtype_str
+        if is_tensor and sample_shape:
+            ret = "sample shape: {}, {}".format(sample_shape, dtype_str)
+        elif is_tensor:
+            ret = "TensorList, {}".format(dtype_str)
         elif dtype in _vector_types:
-            ret = ret + " or list of " + _known_types[dtype][0]
+            ret = dtype_str + " or list of " + dtype_str
         return ret
     else:
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")

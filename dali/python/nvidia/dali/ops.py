@@ -83,7 +83,8 @@ def _get_kwargs(schema, only_tensor = False):
         if not only_tensor or schema.IsTensorArgument(arg):
             arg_name_doc = arg
             dtype = schema.GetArgumentType(arg)
-            type_name = _type_name_convert_to_string(dtype, is_tensor = only_tensor)
+            shape = schema.GetArgumentShape(arg) if only_tensor else None
+            type_name = _type_name_convert_to_string(dtype, is_tensor = only_tensor, sample_shape = shape)
             if schema.IsArgumentOptional(arg):
                 type_name += ", optional"
                 if schema.HasArgumentDefaultValue(arg):

@@ -234,6 +234,18 @@ DALIDataType OpSchema::GetArgumentType(const std::string &name) const {
   }
 }
 
+std::string OpSchema::GetArgumentShape(const std::string &name) const {
+  DALI_ENFORCE(HasArgument(name), "Argument \"" + name +
+      "\" is not supported by operator \"" + this->name() + "\".");
+  if (HasRequiredArgument(name)) {
+    return GetRequiredArguments().at(name).shape;
+  } else {
+    // optional argument
+    return GetOptionalArguments().at(name).shape;
+  }
+}
+
+
 bool OpSchema::HasArgumentDefaultValue(const std::string &name) const {
   DALI_ENFORCE(HasArgument(name, true), "Argument \"" + name +
       "\" is not supported by operator \"" + this->name() + "\".");
