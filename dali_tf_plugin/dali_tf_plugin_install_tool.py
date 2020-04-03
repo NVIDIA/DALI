@@ -162,7 +162,7 @@ class InstallerHelper:
         for filename in filenames:
             plugin_src = plugin_src + ' ' + self.src_path + '/' + filename
 
-        lib_path = self.plugin_dest_dir + '/libdali_tf_current.so'
+        lib_path = self.src_path + '/nvidia/dali_tf_plugin/libdali_tf_current.so'
 
         # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
         # https://github.com/tensorflow/tensorflow/issues/17316

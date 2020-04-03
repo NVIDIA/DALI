@@ -13,14 +13,34 @@
 # limitations under the License.
 
 from setuptools import setup, find_packages
-from setuptools.command.install import install
 from dali_tf_plugin_install_tool import InstallerHelper
+from distutils.command.build import build as build
+from setuptools.command.build_ext import build_ext
+from setuptools.dist import Distribution
+from setuptools.extension import Extension
 
-class CustomInstall(install, object):
+class CustomBuild(build):
+  # Overriding the default build order (build_py would go before build_ext)
+  # so that our *so file is picked
+  sub_commands = [('build_clib', build.has_c_libraries),
+                  ('build_ext', build.has_ext_modules),
+                  ('build_py', build.has_pure_modules),
+                  ('build_scripts', build.has_scripts)]
+
+class CustomBuildExt(build_ext, object):
     def run(self):
         helper = InstallerHelper()
         helper.install()
-        super(CustomInstall, self).run()
+
+class CustomDistribution(Distribution):
+    def __init__(self, attrs=None):
+        Distribution.__init__(self, attrs)
+        # Just telling distutils that we have an ext module
+        # It doesn't matter what we write here, because we are overriding the
+        # build_ext step altogether.
+        # By filling this ext_modules we are signaling that this package needs
+        # to be built for different platforms
+        self.ext_modules = [Extension('dali_tf_plugin', [])]
 
 setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@',
       description='NVIDIA DALI @DALI_FLAVOR@Tensorflow plugin for CUDA @CUDA_VERSION@. Git SHA: @GIT_SHA@',
@@ -34,7 +54,14 @@ setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@',
       install_requires = [
           'nvidia-dali@DALI_FLAVOR_MINUS@==@DALI_VERSION@'
           ],
-      cmdclass = {
-          'install': CustomInstall
-      }
+
+      cmdclass={
+          'build_ext': CustomBuildExt,
+          'build': CustomBuild,
+      },
+
+      package_data={
+          'nvidia.dali_tf_plugin': ['libdali_tf_current.so']
+      },
+      distclass=CustomDistribution
      )
