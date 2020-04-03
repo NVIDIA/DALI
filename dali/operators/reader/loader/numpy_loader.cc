@@ -39,30 +39,29 @@ TypeInfo TypeFromNumpyStr(const std::string &format) {
 std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream> file,
                                                      NumpyParseTarget& target) {
   // check if the file is actually a numpy file
-  uint8_t* token = new uint8_t[10];
-  int64_t nread = file->Read(token, 10);
+  std::vector<uint8_t> token(11);
+  int64_t nread = file->Read(token.data(), 10);
   DALI_ENFORCE(nread == 10, "Can not read header.");
+  token[nread] = '\0';
 
   // check if heqder is too short
-  char* chartoken = reinterpret_cast<char*>(token);
-  DALI_ENFORCE(std::string(chartoken).find("NUMPY") != std::string::npos,
+  std::string header = std::string(reinterpret_cast<char*>(token.data()));
+  DALI_ENFORCE(header.find("NUMPY") != std::string::npos,
                "File is not a numpy file.");
 
   // extract header length
   uint16_t header_len = 0;
   memcpy(&header_len, &token[8], 2);
-  delete [] token;
 
   // read header: the offset is a magic number
   int64 offset = (6+1+1+2);
-  token = new uint8_t[header_len];
-  chartoken = reinterpret_cast<char*>(token);
+  token.resize(header_len+1);
   file->Seek(offset);
-  nread = file->Read(token, header_len);
+  nread = file->Read(token.data(), header_len);
   DALI_ENFORCE(nread == header_len, "Can not read header.");
-  DALI_ENFORCE(std::string(chartoken).find("{") != std::string::npos, "Header is corrupted.");
-  std::string header(chartoken);
-  delete [] token;
+  token[header_len] = '\0';
+  header = std::string(reinterpret_cast<char*>(token.data()));
+  DALI_ENFORCE(header.find("{") != std::string::npos, "Header is corrupted.");
   offset += header_len;
 
   // prepare file for later reads
@@ -100,18 +99,19 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
   std::vector<std::string> shapevec{it, {}};
 
   // if shapevec size is 1 and shapevec[0] is the empty string,
-  // it is a scalar/singleton (denoted as ()) and needs to be set to one:
+  // the array is actually a scalar/singleton (denoted as ())
+  // and thus the size needs to be set to one:
   if ( (shapevec.size() == 1) && (shapevec[0] == "") ) shapevec[0] = "1";
 
   // determine shapes
-  int64_t shapesize = shapevec.size();
+  size_t shapesize = shapevec.size();
   target.shape.resize(shapesize);
   // cheapest thing to do is to define the tensor in an reversed way
   if (target.fortran_order) {
-    for (uint16_t i = 0; i < shapesize; ++i)
+    for (size_t i = 0; i < shapesize; ++i)
       target.shape[i] = static_cast<int64_t>(stoi(shapevec[shapesize-i-1]));
   } else {
-    for (uint16_t i = 0; i< shapesize; ++i)
+    for (size_t i = 0; i < shapesize; ++i)
       target.shape[i] = static_cast<int64_t>(stoi(shapevec[i]));
   }
 
