@@ -16,7 +16,7 @@
 import os
 import sys
 import sphinx_rtd_theme
-from sphinx.ext.autodoc.importer import mock, _MockImporter
+from sphinx.ext.autodoc.mock import mock
 from builtins import str
 import re
 import subprocess
@@ -49,12 +49,10 @@ release = str(version_long)
 
 # generate table of supported operators and their devices
 # mock torch required by supported_op_devices
-importer = _MockImporter(["torch"])
-importer.load_module("torch")
-sys.path.insert(0, os.path.abspath('./'))
-import supported_op_devices
-
-supported_op_devices.main(["op_inclusion"])
+with mock(["torch"]):
+    sys.path.insert(0, os.path.abspath('./'))
+    import supported_op_devices
+    supported_op_devices.main(["op_inclusion"])
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
 # keep_warnings = True
