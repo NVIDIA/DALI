@@ -23,7 +23,7 @@ class InstallerHelper:
         self.src_path = os.path.dirname(os.path.realpath(__file__))
         self.dali_lib_path = get_module_path('nvidia/dali')
         self.tf_path = get_module_path('tensorflow')
-        self.plugin_dest_dir = self.dali_lib_path + '/plugin' if self.dali_lib_path else ''
+        self.plugin_dest_dir = self.src_path + '/nvidia/dali_tf_plugin'
         self.is_conda = is_conda_env()
         self.tf_version = get_tf_version()
         self.tf_compiler = get_tf_compiler_version()
@@ -68,7 +68,7 @@ class InstallerHelper:
         s += "\n Platform machine:                     {}".format(self.platform_machine)
         s += "\n DALI lib path:                        {}".format(self.dali_lib_path or "Not Installed")
         s += "\n TF path:                              {}".format(self.tf_path or "Not Installed")
-        s += "\n DALI TF plugin destination directory: {}".format(self.plugin_dest_dir if self.dali_lib_path else "Not installed")
+        s += "\n DALI TF plugin destination directory: {}".format(self.plugin_dest_dir)
         s += "\n Is Conda environment?                 {}".format("Yes" if self.is_conda else "No")
         s += "\n Using compiler:                       \"{}\", version {}".format(self.cpp_compiler, self.default_cpp_version or "Empty")
         s += "\n TF version installed:                 {}".format(self.tf_version or "Empty")
@@ -162,7 +162,7 @@ class InstallerHelper:
         for filename in filenames:
             plugin_src = plugin_src + ' ' + self.src_path + '/' + filename
 
-        lib_path = self.src_path + '/nvidia/dali_tf_plugin/libdali_tf_current.so'
+        lib_path = self.plugin_dest_dir + '/libdali_tf_current.so'
 
         # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
         # https://github.com/tensorflow/tensorflow/issues/17316
