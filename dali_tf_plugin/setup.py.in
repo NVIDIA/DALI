@@ -12,24 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 from dali_tf_plugin_install_tool import InstallerHelper
-from distutils.command.build import build as build
 from setuptools.command.build_ext import build_ext
 from setuptools.dist import Distribution
 from setuptools.extension import Extension
 
-class CustomBuild(build):
-  # Overriding the default build order (build_py would go before build_ext)
-  # so that our *so file is picked
-  sub_commands = [('build_clib', build.has_c_libraries),
-                  ('build_ext', build.has_ext_modules),
-                  ('build_py', build.has_pure_modules),
-                  ('build_scripts', build.has_scripts)]
-
 class CustomBuildExt(build_ext, object):
     def run(self):
-        helper = InstallerHelper()
+        helper = InstallerHelper(plugin_dest_dir = self.build_lib + '/nvidia/dali_tf_plugin')
         helper.install()
 
 class CustomDistribution(Distribution):
@@ -43,12 +34,12 @@ class CustomDistribution(Distribution):
         self.ext_modules = [Extension('nvidia.dali_tf_plugin', [])]
 
 setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@',
-      description='NVIDIA DALI @DALI_FLAVOR@Tensorflow plugin for CUDA @CUDA_VERSION@. Git SHA: @GIT_SHA@',
+      description='NVIDIA DALI @DALI_FLAVOR@Tensorflow plugin. Git SHA: @GIT_SHA@',
       url='https://github.com/NVIDIA/dali',
       version='@DALI_VERSION@',
       author='NVIDIA Corporation',
       license='Apache License 2.0',
-      packages=find_packages(),
+      packages=find_namespace_packages(include=['nvidia.*']),
       include_package_data=True,
       zip_safe=False,
       install_requires = [
@@ -57,11 +48,6 @@ setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@',
 
       cmdclass={
           'build_ext': CustomBuildExt,
-          'build': CustomBuild,
-      },
-
-      package_data={
-          "nvidia.dali_tf_plugin": ['*.py', '*.so'],
       },
       distclass=CustomDistribution
      )

@@ -17,13 +17,14 @@ from shutil import copyfile
 from dali_tf_plugin_utils import *
 import os
 from distutils.version import StrictVersion
+from pathlib import Path
 
 class InstallerHelper:
-    def __init__(self):
+    def __init__(self, plugin_dest_dir = None):
         self.src_path = os.path.dirname(os.path.realpath(__file__))
         self.dali_lib_path = get_module_path('nvidia/dali')
         self.tf_path = get_module_path('tensorflow')
-        self.plugin_dest_dir = self.src_path + '/nvidia/dali_tf_plugin'
+        self.plugin_dest_dir = self.src_path + '/nvidia/dali_tf_plugin' if plugin_dest_dir is None else plugin_dest_dir
         self.is_conda = is_conda_env()
         self.tf_version = get_tf_version()
         self.tf_compiler = get_tf_compiler_version()
@@ -108,6 +109,8 @@ class InstallerHelper:
     def install(self):
         print("Checking build environment for DALI TF plugin ...")
         print(self.debug_str())
+
+        Path(self.plugin_dest_dir).mkdir(parents=True, exist_ok=True)
 
         if not self.tf_version or not self.tf_path:
             error_msg = "Installation error:"

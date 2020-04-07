@@ -26,6 +26,7 @@ endif()
 
 configure_file("${PROJECT_SOURCE_DIR}/setup.py.in" "${PROJECT_BINARY_DIR}/setup.py")
 configure_file("${PROJECT_SOURCE_DIR}/nvidia/dali_tf_plugin/__init__.py.in" "${PROJECT_BINARY_DIR}/nvidia/dali_tf_plugin/__init__.py")
+install(FILES "${PROJECT_SOURCE_DIR}/nvidia/dali_tf_plugin/dali_tf_plugin.py" DESTINATION "${PROJECT_BINARY_DIR}/nvidia/dali_tf_plugin/")
 
 install(FILES "daliop.cc" DESTINATION "${PROJECT_BINARY_DIR}")
 install(FILES "dali_dataset_op.cc" DESTINATION "${PROJECT_BINARY_DIR}")
