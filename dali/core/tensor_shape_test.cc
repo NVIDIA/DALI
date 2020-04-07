@@ -1059,6 +1059,89 @@ TEST(TensorShapeTest, CollapseDimsStatic) {
   EXPECT_EQ(expected_3, result_3);
 }
 
+TEST(TensorListShapeTest, IsDegenerateDim) {
+  TensorListShape<> tls = {
+    { 1, 1, 3, 1, 1 },
+    { 1, 2, 1, 1, 5 }
+  //  T  F  F  T  F    <-- all samples with extent == 1
+  };
+  ASSERT_EQ(tls.sample_dim(), 5);
+  EXPECT_TRUE(is_degenerate_dim(tls, 0));
+  EXPECT_FALSE(is_degenerate_dim(tls, 1));
+  EXPECT_FALSE(is_degenerate_dim(tls, 2));
+  EXPECT_TRUE(is_degenerate_dim(tls, 3));
+  EXPECT_FALSE(is_degenerate_dim(tls, 4));
+}
+
+TEST(TensorListShapeTest, CollapseDim) {
+  TensorListShape<7> in = {{
+    { 2, 4, 3, 2, 1, 3, 5 },
+    { 2, 1, 3, 6, 7, 3, 4 }
+  }};
+  TensorListShape<> in_dyn = in;
+  TensorListShape<6> ref0 = {{
+    { 8, 3, 2, 1, 3, 5 },
+    { 2, 3, 6, 7, 3, 4 }
+  }};
+  TensorListShape<> ref1 = {{
+    { 2, 12, 2, 1, 3, 5 },
+    { 2, 3, 6, 7, 3, 4 }
+  }};
+  TensorListShape<> ref5 = {{
+    { 2, 4, 3, 2, 1, 15 },
+    { 2, 1, 3, 6, 7, 12 }
+  }};
+  TensorListShape<6> out0;
+  collapse_dim(out0, in, 0);
+  EXPECT_EQ(out0, ref0);
+  TensorListShape<> out1 = collapse_dim(in_dyn, 1);
+  EXPECT_EQ(out1, ref1);
+  TensorListShape<6> out5 = collapse_dim(in, 5);
+  EXPECT_EQ(out5, ref5);
+}
+
+TEST(TensorListShapeTest, CollapseDims_Noop) {
+  TensorListShape<> in = {{
+    { 2, 4, 3, 2, 1, 3, 5 },
+    { 2, 1, 3, 6, 7, 3, 4 }
+  //  +--+     +-----+
+  }};
+  TensorListShape<> out = collapse_dims(in, {});
+  EXPECT_EQ(out, in);
+}
+
+TEST(TensorListShapeTest, CollapseDims_Dyn) {
+  TensorListShape<> in = {{
+    { 2, 4, 3, 2, 1, 3, 5 },
+    { 2, 1, 3, 6, 7, 3, 4 }
+  //  +--+     +-----+
+  }};
+  TensorListShape<> ref = {{
+    {  8,   3,   6,     5 },
+    {  2,   3,  126,    4 }
+  }};
+  TensorListShape<> out = collapse_dims(in, { { 0, 2 }, { 3, 3 } });
+  EXPECT_EQ(out, ref);
+  TensorListShape<4> out_static = collapse_dims<4>(in, { { 0, 2 }, { 2, 1 }, { 3, 3 }, { 6, 1 } });
+  EXPECT_EQ(out_static, ref);
+}
+
+TEST(TensorListShapeTest, CollapseDims_Static) {
+  TensorListShape<7> in = {{
+    { 2, 4, 3, 2, 1, 3, 5 },
+    { 2, 1, 3, 6, 7, 3, 4 }
+  //  +--+     +-----+
+  }};
+  TensorListShape<4> ref = {{
+    {  8,   3,   6,     5 },
+    {  2,   3,  126,    4 }
+  }};
+  TensorListShape<4> out = collapse_dims<4>(in, { { 0, 2 }, { 3, 3 } });
+  EXPECT_EQ(out, ref);
+  auto out_dyn = collapse_dims(in, { { 0, 2 }, { 2, 1 }, { 3, 3 }, { 6, 1 } });
+  EXPECT_EQ(out_dyn, ref);
+}
+
 TEST(TensorTest, WontCompile) {
   // TensorShape<5> static_shape_less(1, 2, 3, 4);
   // TensorShape<5> static_shape_more(1, 2, 3, 4, 5, 6);
