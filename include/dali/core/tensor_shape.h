@@ -1083,36 +1083,12 @@ auto collapse_dim(const TensorShape<ndim> &shape, int dim_idx) {
   return ret;
 }
 
+namespace detail {
 
-
-/**
- * @brief Collapse groups of dims in the shape based on dim_groups descritpion
- *
- * If the dimension is not covered by the dim_groups it is not collapsed.
- *
- * Allows to collapse more the one dimension in one go.
- * For example shape = [2, 4, 10, 30, 3]; dim_groups = {{0, 2}, {2, 3}} will return: [8, 90].
- *
- * @param shape      Shape to be collapsed
- * @param dim_groups Description of dimension groups in `shape` {starting_dimension_idx, size}.
- *                   Unlisted dimensions are implictly preserved (as if they were in a group
- *                   of size 1)
- * @return Collapsed shape
- */
-template <int out_ndim = DynamicDimensions, int ndim>
-TensorShape<out_ndim> collapse_dims(const TensorShape<ndim> &shape,
-                                    span<const std::pair<int, int>> dim_groups) {
-  TensorShape<out_ndim> result;
-  const int in_dim = shape.sample_dim();
-  int collapsed = 0;
-  for (const auto &group : dim_groups) {
-    assert(group.first >= 0 && group.first < in_dim && "dimension index out of range");
-    assert(group.second > 0 && group.first + group.second <= in_dim && "invalid group size");
-    collapsed += group.second - 1;
-  }
-  const int out_dim = in_dim - collapsed;
-  assert(out_ndim < 0 || out_ndim == out_dim);
-  result.resize(out_dim);
+template <typename DimGroups>
+void collapse_dims(span<int64_t> result, span<const int64_t> shape, const DimGroups &dim_groups) {
+  int in_dim = shape.size();
+  int out_dim = result.size();
   int in_d = 0;
   int out_d = 0;
   for (auto group : dim_groups) {
@@ -1131,9 +1107,47 @@ TensorShape<out_ndim> collapse_dims(const TensorShape<ndim> &shape,
   }
   assert(out_d == out_dim);
   assert(in_d == in_dim);
+}
+
+}  // namespace detail
+
+/**
+ * @brief Collapse groups of dims in the shape based on dim_groups descritpion
+ *
+ * If the dimension is not covered by the dim_groups it is not collapsed.
+ *
+ * Allows to collapse more the one dimension in one go.
+ * For example shape = [2, 4, 10, 30, 3]; dim_groups = {{0, 2}, {2, 3}} will return: [8, 90].
+ *
+ * @param shape      Shape to be collapsed
+ * @param dim_groups Description of dimension groups in `shape` {starting_dimension_idx, size}.
+ *                   Unlisted dimensions are implictly preserved (as if they were in a group
+ *                   of size 1)
+ * @return Collapsed shape
+ */
+template <int out_ndim = DynamicDimensions, int ndim, typename DimGroups>
+TensorShape<out_ndim> collapse_dims(const TensorShape<ndim> &shape,
+                                    const DimGroups &dim_groups) {
+  TensorShape<out_ndim> result;
+  const int in_dim = shape.sample_dim();
+  int collapsed = 0;
+  for (const auto &group : dim_groups) {
+    assert(group.first >= 0 && group.first < in_dim && "dimension index out of range");
+    assert(group.second > 0 && group.first + group.second <= in_dim && "invalid group size");
+    collapsed += group.second - 1;
+  }
+  const int out_dim = in_dim - collapsed;
+  assert(out_ndim < 0 || out_ndim == out_dim);
+  result.resize(out_dim);
+  detail::collapse_dims(make_span(result.shape), make_span(shape.shape), dim_groups);
   return result;
 }
 
+template <int out_ndim = DynamicDimensions, int ndim>
+TensorShape<out_ndim> collapse_dims(const TensorShape<ndim> &shape,
+                                    std::initializer_list<std::pair<int, int>> dim_groups) {
+  return collapse_dims(shape, make_span(dim_groups.begin(), dim_groups.size()));
+}
 
 /**
  * @brief Checks whether given dimension has extent 1 in tensors in the list
@@ -1225,30 +1239,12 @@ void collapse_dims(TensorListShape<out_ndim> &result,
   }
   const int out_dim = in_dim - collapsed;
   assert(out_ndim < 0 || out_ndim == out_dim);
+
   int nsamples = shape.num_samples();
   result.resize(nsamples, out_dim);
-  for (int i = 0; i < nsamples; i++) {
-    auto in_sample_shape = shape.tensor_shape_span(i);
-    auto out_sample_shape = result.tensor_shape_span(i);
-    int in_d = 0;
-    int out_d = 0;
-    for (auto group : dim_groups) {
-      assert(group.first >= in_d && "dim_groups not sorted");
-      while (in_d < group.first) {
-        out_sample_shape[out_d++] = in_sample_shape[in_d++];
-      }
-      int64_t v = in_sample_shape[in_d++];
-      while (in_d < group.first + group.second) {
-        v *= in_sample_shape[in_d++];
-      }
-      out_sample_shape[out_d++] = v;
-    }
-    while (in_d < in_dim) {
-      out_sample_shape[out_d++] = in_sample_shape[in_d++];
-    }
-    assert(out_d == out_dim);
-    assert(in_d == in_dim);
-  }
+
+  for (int i = 0; i < nsamples; i++)
+    detail::collapse_dims(result.tensor_shape_span(i), shape.tensor_shape_span(i), dim_groups);
 }
 
 /**
