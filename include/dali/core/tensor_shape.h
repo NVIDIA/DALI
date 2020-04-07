@@ -1056,9 +1056,10 @@ TensorListShape<ndim> uniform_list_shape(int num_samples, std::initializer_list<
 }
 
 /**
- * @brief Merges a dimension with the next one
+ * @brief Merges the dimensions `dim_idx` and `dim_idx+1`
  *
- * @details The output shape has two specified dimension collapsed with the next one
+ * @details The dimension is merged with the subsequent one, yielding a new dimension
+ * with extent being the product of the original extents, e.g. a shape:
  * [2, 3, 4, 5]
  * after a call to collapse_dim(tensor, 1) would have a shape:
  * [2, 12, 5]
@@ -1085,6 +1086,22 @@ auto collapse_dim(const TensorShape<ndim> &shape, int dim_idx) {
 
 namespace detail {
 
+/**
+ * @brief Collapse groups of dimensions in the shape based on dim_groups description
+ *
+ * If the dimension is not covered by `dim_groups` it is not collapsed.
+ *
+ * Allows to collapse more the one dimension in one go.
+ * For example shape = [2, 4, 10, 30, 3]; dim_groups = {{0, 2}, {2, 3}} will return: [8, 90].
+ *
+ * @param result     The resulting shape, must have a proper size (input size minus number of
+ *                   collapsed dimensions)
+ * @param shape      Shape to be collapsed
+ * @param dim_groups Description of dimension groups in `shape` {starting_dimension_idx, size}.
+ *                   The groups must be sorted by start index.
+ *                   Unlisted dimensions are implictly preserved (as if they were in a group
+ *                   of size 1)
+ */
 template <typename DimGroups>
 void collapse_dims(span<int64_t> result, span<const int64_t> shape, const DimGroups &dim_groups) {
   int in_dim = shape.size();
@@ -1112,7 +1129,7 @@ void collapse_dims(span<int64_t> result, span<const int64_t> shape, const DimGro
 }  // namespace detail
 
 /**
- * @brief Collapse groups of dims in the shape based on dim_groups descritpion
+ * @brief Collapse groups of dimensions in the shape based on dim_groups description
  *
  * If the dimension is not covered by the dim_groups it is not collapsed.
  *
@@ -1121,6 +1138,7 @@ void collapse_dims(span<int64_t> result, span<const int64_t> shape, const DimGro
  *
  * @param shape      Shape to be collapsed
  * @param dim_groups Description of dimension groups in `shape` {starting_dimension_idx, size}.
+ *                   The groups must be sorted by start index.
  *                   Unlisted dimensions are implictly preserved (as if they were in a group
  *                   of size 1)
  * @return Collapsed shape
@@ -1163,7 +1181,7 @@ inline bool is_degenerate_dim(const TensorListShape<ndim> &in_shape, int dim) {
 }
 
 /**
- * @brief Collapses a dimension with the next one in all tensors in the list
+ * @brief Merges the dimensions `dim` and `dim+1` in all tensors in the list
  */
 template <int out_ndim, int ndim>
 void collapse_dim(TensorListShape<out_ndim> &result, const TensorListShape<ndim> &shape, int dim) {
@@ -1190,7 +1208,7 @@ void collapse_dim(TensorListShape<out_ndim> &result, const TensorListShape<ndim>
 }
 
 /**
- * @brief Collapses a dimension with the next one in all tensors in the list
+ * @brief Merges the dimensions `dim` and `dim+1` in all tensors in the list
  */
 template <int out_ndim = InferDimensions, int ndim>
 auto collapse_dim(const TensorListShape<ndim> &shape, int dim) {
@@ -1203,9 +1221,9 @@ auto collapse_dim(const TensorListShape<ndim> &shape, int dim) {
 }
 
 /**
- * @brief Collapse blocks of dimensionss in the shape based on shape_blocks descritpion
+ * @brief Collapse groups of dimensions in the shape based on dim_groups descritpion
  *
- * If the dimension is not covered by the shape_blocks it is not collapsed.
+ * If the dimension is not covered by the dim_groups it is not collapsed.
  *
  * Allows to collapse more the one dimension in one go.
  * Example:
@@ -1220,11 +1238,12 @@ auto collapse_dim(const TensorListShape<ndim> &shape, int dim) {
  *           {  2,   3,  126,    4 } };
  * ```
  *
- * @param result The output shape, with collapsed dimension groups
- * @param shape Shape to be collapsed
- * @param dim_groups Description of groups of dimensions to collapse given
- *                   as integer pairs {start, length}.
- *                   Expected to be sorted; non-collapsed groups (size 1) may be omitted.
+ * @param result     The output shape, with collapsed dimension groups
+ * @param shape      Shape to be collapsed
+ * @param dim_groups Description of dimension groups in `shape` {starting_dimension_idx, size}.
+ *                   The groups must be sorted by start index.
+ *                   Unlisted dimensions are implictly preserved (as if they were in a group
+ *                   of size 1)
  */
 template <int out_ndim, int ndim, typename DimGroups>
 void collapse_dims(TensorListShape<out_ndim> &result,
@@ -1248,9 +1267,9 @@ void collapse_dims(TensorListShape<out_ndim> &result,
 }
 
 /**
- * @brief Collapse blocks of dimensionss in the shape based on shape_blocks descritpion
+ * @brief Collapse blocks of dimensions in the shape based on dim_groups description
  *
- * If the dimension is not covered by the shape_blocks it is not collapsed.
+ * If the dimension is not covered by the dim_groups it is not collapsed.
  *
  * Allows to collapse more the one dimension in one go.
  * Example:
@@ -1266,9 +1285,10 @@ void collapse_dims(TensorListShape<out_ndim> &result,
  * ```
  *
  * @param shape Shape to be collapsed
- * @param dim_groups Description of groups of dimensions to collapse given
- *                   as integer pairs {start, length}.
- *                   Expected to be sorted; non-collapsed groups (size 1) may be omitted.
+ * @param dim_groups Description of dimension groups in `shape` {starting_dimension_idx, size}.
+ *                   The groups must be sorted by start index.
+ *                   Unlisted dimensions are implictly preserved (as if they were in a group
+ *                   of size 1)
  * @return The output shape, with collapsed dimension groups
  */
 template <int out_ndim = DynamicDimensions, int ndim, typename DimGroups>
