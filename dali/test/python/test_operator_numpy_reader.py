@@ -38,97 +38,56 @@ class NumpyReaderPipeline(Pipeline):
 
         return inputs
 
+
+test_np_types = [np.float32, np.float64, np.int32, np.int64]
+test_np_shapes = [(), (11), (4, 7), (6, 2, 5), (1, 2, 7, 4)]
+rng = np.random.RandomState(12345)
+    
 # test: compare reader with numpy
 # with different batch_size and num_threads
-
-def test_reader_vs_numpy():
-
-    # create temporary directory
+def test_types_and_shapes():
     with tempfile.TemporaryDirectory() as test_data_root:
-    
-        # we need that
-        rng = np.random.RandomState(12345)
-    
-        # 1D array integer
-        arr = rng.randint(0,10, (15))
-        np.save(os.path.join(test_data_root, "test_01.npy"), arr)
+        index = 0
+        for fortran_order in [False, True]:
+            for typ in test_np_types:
+                for shape in test_np_shapes:
+                    filename = os.path.join(test_data_root, "test_" + str(index) + ".npy")
+                    index += 1
+                    yield check_array, filename, shape, typ, fortran_order
 
-        # 1D array float
-        arr = rng.random_sample((25)).astype(np.float32)
-        np.save(os.path.join(test_data_root, "test_02.npy"), arr)
-
-        # 1D array double
-        arr = rng.random_sample((8)).astype(np.float64)
-        np.save(os.path.join(test_data_root, "test_03.npy"), arr)
-
-        # 2D array float
-        arr = rng.random_sample((25,10)).astype(np.float32)
-        np.save(os.path.join(test_data_root, "test_04.npy"), arr)
-
-        # 3D array double
-        arr = rng.random_sample((1,20,10)).astype(np.float64)
-        np.save(os.path.join(test_data_root, "test_05.npy"), arr)
-
-        # 3D array float fortran order
-        arr = rng.random_sample((3,4,2)).astype(np.float32)
+                    
+def create_numpy_file(filename, shape, typ, fortran_order):
+    # generate random array
+    arr = rng.random_sample(shape) * 10.
+    arr = arr.astype(typ)
+    if fortran_order:
         arr = np.asfortranarray(arr)
-        np.save(os.path.join(test_data_root, "test_06.npy"), arr)
+    np.save(filename, arr)
 
-        # 3D Fortran with singleton dim
-        arr = rng.randint(0, 10, (3,1,2))
-        arr = np.asfortranarray(arr)
-        np.save(os.path.join(test_data_root, "test_07.npy"), arr)
+def delete_numpy_file(filename):
+    if os.path.isfile(filename):
+        os.remove(filename)
 
-        # singleton file
-        arr = 3
-        np.save(os.path.join(test_data_root, "test_08.npy"), arr)
+def check_array(filename, shape, typ, fortran_order=False):
+    # setup file
+    create_numpy_file(filename, shape, typ, fortran_order)
     
-        # get files:
-        filelist = sorted([os.path.join(test_data_root, x)
-                           for x in os.listdir(test_data_root) if x.endswith('.npy')])
+    for num_threads in [1, 2, 4, 8]:
+        # load with numpy reader
+        pipe = NumpyReaderPipeline(path = os.path.dirname(filename),
+                                   path_filter = os.path.basename(filename),
+                                   batch_size = 1,
+                                   num_threads = num_threads,
+                                   device_id = 0)
+        pipe.build()
+        pipe_out = pipe.run()
+        arr_rd = np.squeeze(pipe_out[0].as_array(), axis=0)
+        
+        # load manually
+        arr_np = np.load(filename)
+        
+        # compare
+        assert_array_equal(arr_rd, arr_np)
 
-        # batch size 1:
-        for num_threads in [1, 2, 4, 8]:
-            # create pipe and build
-            pipe = NumpyReaderPipeline(path = test_data_root,
-                                       batch_size = 1,
-                                       num_threads = num_threads,
-                                       device_id = 0)
-            pipe.build()
-
-            for fname in filelist:
-                pipe_out = pipe.run()
-                arr_rd = np.squeeze(pipe_out[0].as_array(), axis=0)
-                arr_np = np.load(fname)
-            
-                assert_array_equal(arr_rd, arr_np)
-
-        # batch size 4, 20 samples
-        num_samples = 20
-        batch_size = 4
-        for sample in range(num_samples):
-            arr = rng.random_sample((10,15,3)).astype(np.float32)
-            np.save(os.path.join(test_data_root, "sample_{:02d}.npy".format(sample)), arr)
-            
-        filelist = sorted([os.path.join(test_data_root, x)
-                           for x in os.listdir(test_data_root) if x.startswith("sample_") and x.endswith('.npy')])
-
-        for num_threads in [1, 2, 4, 8]:
-            # create pipe and build
-            pipe = NumpyReaderPipeline(path = test_data_root,
-                                       batch_size = batch_size,
-                                       path_filter = "sample_*.npy",
-                                       num_threads = num_threads,
-                                       device_id = 0)
-            pipe.build()
-
-            for idx in range(0, num_samples, batch_size):
-                pipe_out = pipe.run()
-                arr_rd = pipe_out[0].as_array()
-                arr_np = np.stack([ np.load(filelist[x]) for x in range(idx, idx+batch_size) ], axis = 0)
-
-                assert_array_equal(arr_rd, arr_np)
-                
-            
-if __name__ == "__main__":
-    test_reader_vs_numpy()
+    # delete temp files
+    delete_numpy_file(filename)
