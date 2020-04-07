@@ -20,7 +20,7 @@ from setuptools.extension import Extension
 
 class CustomBuildExt(build_ext, object):
     def run(self):
-        helper = InstallerHelper(plugin_dest_dir = self.build_lib + '/nvidia/dali_tf_plugin')
+        helper = InstallerHelper(plugin_dest_dir = os.path.join(self.build_lib, 'nvidia', 'dali_tf_plugin')
         helper.install()
 
 class CustomDistribution(Distribution):

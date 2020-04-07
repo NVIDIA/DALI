@@ -24,7 +24,7 @@ class InstallerHelper:
         self.src_path = os.path.dirname(os.path.realpath(__file__))
         self.dali_lib_path = get_module_path('nvidia/dali')
         self.tf_path = get_module_path('tensorflow')
-        self.plugin_dest_dir = self.src_path + '/nvidia/dali_tf_plugin' if plugin_dest_dir is None else plugin_dest_dir
+        self.plugin_dest_dir = os.path.join(self.src_path, 'nvidia', 'dali_tf_plugin') if plugin_dest_dir is None else plugin_dest_dir
         self.is_conda = is_conda_env()
         self.tf_version = get_tf_version()
         self.tf_compiler = get_tf_compiler_version()
@@ -35,7 +35,7 @@ class InstallerHelper:
         self.platform_system = platform.system()
         self.platform_machine = platform.machine()
         self.is_compatible_with_prebuilt_bin = self.platform_system == 'Linux' and self.platform_machine == 'x86_64'
-        self.prebuilt_dir = self.src_path + '/prebuilt/'
+        self.prebuilt_dir = os.path.join(self.src_path, 'prebuilt')
         # List of prebuilt artifact compilers
         self.prebuilt_compilers = []
         if os.path.exists(self.prebuilt_dir) and os.path.isdir(self.prebuilt_dir):
@@ -87,8 +87,8 @@ class InstallerHelper:
         assert(self.can_install_prebuilt)
         tf_version_underscore = self.tf_version.replace('.', '_')
         plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
-        prebuilt_path = self.prebuilt_dir + self.tf_compiler
-        prebuilt_plugin = prebuilt_path + '/' + plugin_name
+        prebuilt_path = os.path.join(self.prebuilt_dir, self.tf_compiler)
+        prebuilt_plugin = os.path.join(prebuilt_path, plugin_name)
         print("Tensorflow was built with g++ {}, providing prebuilt plugin".format(self.tf_compiler))
         if not os.path.isfile(prebuilt_plugin):
             available_files = find('libdali_tf_*.so', prebuilt_path)
@@ -101,8 +101,8 @@ class InstallerHelper:
             print("Prebuilt DALI TF plugin version {} is not present. Best match is {}".format(self.tf_version, best_version))
             tf_version_underscore = best_version.replace('.', '_')
             plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
-            prebuilt_plugin = prebuilt_path + '/' + plugin_name
-        plugin_dest = self.plugin_dest_dir + '/' + plugin_name
+            prebuilt_plugin =  os.path.join(prebuilt_path, plugin_name)
+        plugin_dest =  os.path.join(self.plugin_dest_dir, plugin_name)
         print("Copy {} to {}".format(prebuilt_plugin, self.plugin_dest_dir))
         copyfile(prebuilt_plugin, plugin_dest)
 
@@ -163,9 +163,9 @@ class InstallerHelper:
         filenames = ['daliop.cc', 'dali_dataset_op.cc']
         plugin_src = ''
         for filename in filenames:
-            plugin_src = plugin_src + ' ' + self.src_path + '/' + filename
+            plugin_src = plugin_src + ' ' + os.path.join(self.src_path, filename)
 
-        lib_path = self.plugin_dest_dir + '/libdali_tf_current.so'
+        lib_path =  os.path.join(self.plugin_dest_dir, 'libdali_tf_current.so')
 
         # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
         # https://github.com/tensorflow/tensorflow/issues/17316
