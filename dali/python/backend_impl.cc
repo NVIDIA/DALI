@@ -70,6 +70,20 @@ static string TensorLayoutRepr(const TensorLayout &tl) {
   return ss.str();
 }
 
+template<typename Backend>
+py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
+  py::dict d;
+  py::tuple tup(2);
+  d["typestr"] = FormatStrFromType(t.type());
+  // __array_interface__ expects shape to be a tuple
+  d["shape"] = py::tuple(py_shape<Backend>(t));
+  // tuple of (raw_data_pointer, if_data_is_read_only)
+  tup[0] = py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
+  tup[1] = true;
+  d["data"] = tup;
+  return d;
+}
+
 void ExposeTensorLayout(py::module &m) {
   py::class_<TensorLayout> tl(m, "TensorLayout");
   tl.def(py::init([](string s) {
@@ -187,6 +201,10 @@ void ExposeTensor(py::module &m) {
         },
       R"code(
       Returns the address of the first element of tensor.
+      )code")
+    .def_property("__array_interface__", &ArrayInterfaceRepr<CPUBackend>, nullptr,
+      R"code(
+      Returns array interface representation of TensorCPU.
       )code");
 
   py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
@@ -237,6 +255,10 @@ void ExposeTensor(py::module &m) {
         },
       R"code(
       Returns the address of the first element of tensor.
+      )code")
+    .def_property("__cuda_array_interface__",  &ArrayInterfaceRepr<GPUBackend>, nullptr,
+      R"code(
+      Returns cuda array interface representation of TensorGPU.
       )code");
 }
 

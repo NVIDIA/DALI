@@ -67,3 +67,14 @@ def test_data_ptr_tensor_list_gpu():
     from_tensor = py_buffer_from_address(tensor_list.data_ptr(), tensor.shape(), tensor.dtype(), gpu=True)
     # from_tensor is cupy array, convert arr to cupy as well
     assert(cp.allclose(cp.array(arr), from_tensor))
+
+def test_cuda_array_interface_tensor_gpu():
+    arr = np.random.rand(3, 5, 6)
+    pipe = ExternalSourcePipe(arr.shape[0], arr)
+    pipe.build()
+    tensor_list = pipe.run()[0]
+    assert tensor_list[0].__cuda_array_interface__['data'][0] == tensor_list[0].data_ptr()
+    assert tensor_list[0].__cuda_array_interface__['data'][1] == True
+    assert np.array_equal(tensor_list[0].__cuda_array_interface__['shape'], tensor_list[0].shape())
+    assert tensor_list[0].__cuda_array_interface__['typestr'] == tensor_list[0].dtype()
+    assert(cp.allclose(cp.array(arr[0]), cp.asanyarray(tensor_list[0])))

@@ -74,6 +74,14 @@ def test_data_ptr_tensor_list_cpu():
     from_tensor_list = py_buffer_from_address(tensorlist.data_ptr(), tensor.shape(), tensor.dtype())
     assert(np.array_equal(arr, from_tensor_list))
 
+def test_array_interface_tensor_cpu():
+    arr = np.random.rand(3, 5, 6)
+    tensorlist = TensorListCPU(arr, "NHWC")
+    assert tensorlist[0].__array_interface__['data'][0] == tensorlist[0].data_ptr()
+    assert tensorlist[0].__array_interface__['data'][1] == True
+    assert np.array_equal(tensorlist[0].__array_interface__['shape'], tensorlist[0].shape())
+    assert tensorlist[0].__array_interface__['typestr'] == tensorlist[0].dtype()
+
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
 #def test_tensorlist_getitem_slice():
 #    arr = np.random.rand(3, 5, 6)
