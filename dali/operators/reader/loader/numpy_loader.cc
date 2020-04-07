@@ -78,7 +78,7 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
 
   // < means LE, | means N/A, = means native. In all those cases, we can read
   bool little_endian =
-    (typestring[0] == '<' || typestring[0] == '|' || typestring[0] == '=' ? true : false);
+    (typestring[0] == '<' || typestring[0] == '|' || typestring[0] == '=');
   DALI_ENFORCE(little_endian,
     "Big Endian files are not supported.");
 

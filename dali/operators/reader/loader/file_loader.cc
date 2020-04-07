@@ -26,13 +26,13 @@ namespace dali {
 
 
 inline void assemble_file_list(const std::string& path, const std::string& curr_entry,
-                               const std::string& filter, std::vector<std::string>* file_list_) {
+                               const std::string& filter, std::vector<std::string>* file_list) {
   std::string curr_dir_path = path + "/" + curr_entry;
   DIR *dir = opendir(curr_dir_path.c_str());
 
   struct dirent *entry;
 
-  if (filter == "") {
+  if (filter.empty()) {
     while ((entry = readdir(dir))) {
       std::string full_path = curr_dir_path + "/" + std::string{entry->d_name};
 
@@ -48,7 +48,7 @@ inline void assemble_file_list(const std::string& path, const std::string& curr_
 #endif
       std::string rel_path = curr_entry + "/" + std::string{entry->d_name};
       if (HasKnownExtension(std::string(entry->d_name))) {
-         file_list_->push_back(rel_path);
+         file_list->push_back(rel_path);
       }
     }
   } else {
@@ -61,7 +61,7 @@ inline void assemble_file_list(const std::string& path, const std::string& curr_
     for (unsigned int count = 0; count < pglob.gl_pathc; ++count) {
       std::string match(pglob.gl_pathv[count]);
       std::string rel_path = curr_entry + "/" + match.substr(match.find_last_of("/")+1);
-      file_list_->push_back(rel_path);
+      file_list->push_back(rel_path);
     }
     // clean up
     globfree(&pglob);

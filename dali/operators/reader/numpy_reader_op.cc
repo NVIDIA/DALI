@@ -57,7 +57,7 @@ DALI_SCHEMA(NumpyReader)
 directories with numpy files in them.)code",
       DALI_STRING)
   .AddOptionalArg("file_filter",
-      R"code(If specified, the string will be interpreted as glob string to filer 
+      R"code(If specified, the string will be interpreted as glob string to filter
 the list of files in the sub-directories of `file_root`.)code", "*.npy")
   .AddOptionalArg("shuffle_after_epoch",
       R"code(If true, reader shuffles whole dataset after each epoch. It is exclusive with
