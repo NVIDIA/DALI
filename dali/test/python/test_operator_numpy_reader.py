@@ -82,8 +82,6 @@ def test_batch():
                 arr_rd = pipe_out[0].as_array()
                 arr_np = np.stack([np.load(x)
                                    for x in filenames[batch:batch+batch_size]], axis=0)
-
-                print("DALI:\n", arr_rd, "\n\n NUMPY:\n", arr_np)
                 
                 # compare
                 assert_array_equal(arr_rd, arr_np)
