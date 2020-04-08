@@ -44,16 +44,11 @@ class NumpyParseTarget{
   bool fortran_order;
 
   size_t size() {
-    if (shape.empty()) return 0;
-
-    size_t result = 1;
-    for (uint16_t i = 0; i < shape.size(); ++i)
-      result *= shape[i];
-    return result;
+    return volume(shape);
   }
 
   size_t nbytes() {
-    return type_info.size() * size();
+    return volume(shape) * size();
   }
 };
 

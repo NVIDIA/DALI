@@ -31,7 +31,7 @@ inline void assemble_file_list(std::vector<std::string>& file_list,
   std::string curr_dir_path = path + "/" + curr_entry;
   DIR *dir = opendir(curr_dir_path.c_str());
 
-  struct dirent *entry;
+  dirent *entry;
 
   if (filter.empty()) {
     while ((entry = readdir(dir))) {

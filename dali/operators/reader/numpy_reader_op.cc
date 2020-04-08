@@ -27,10 +27,10 @@ namespace dali {
 void NumpyReader::TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input) {
   auto& in_shape = input.shape();
   auto& type = input.type();
-  uint16_t n_dims = in_shape.size();
+  int n_dims = in_shape.size();
   std::vector<int> perm(n_dims);
   std::vector<int64_t> out_shape(n_dims);
-  for (uint16_t i = 0; i < n_dims; ++i) {
+  for (int i = 0; i < n_dims; ++i) {
     perm[i] = n_dims - i - 1;
     out_shape[i] = in_shape[perm[i]];
   }

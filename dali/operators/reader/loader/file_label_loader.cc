@@ -29,7 +29,7 @@ inline void assemble_file_list(std::vector<std::pair<std::string, int>>& file_la
   std::string curr_dir_path = path + "/" + curr_entry;
   DIR *dir = opendir(curr_dir_path.c_str());
 
-  struct dirent *entry;
+  dirent *entry;
 
   while ((entry = readdir(dir))) {
     std::string full_path = curr_dir_path + "/" + std::string{entry->d_name};
