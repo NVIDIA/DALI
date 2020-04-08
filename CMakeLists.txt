@@ -176,7 +176,8 @@ CUDA_get_gencode_args(CUDA_gencode_flags ${CUDA_targeted_archs})
 message(STATUS "Generated gencode flags: ${CUDA_gencode_flags}")
 
 # Add ptx & bin flags for cuda
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_gencode_flags} --compiler-options -fvisibility=hidden")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_gencode_flags} --compiler-options -fvisibility=hidden -Xptxas -v")
+
 
 # Include directories
 include_directories(
