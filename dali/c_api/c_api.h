@@ -29,17 +29,17 @@ extern "C" {
    * @note Beware, the C API is just C-like API for handling some mangling issues and
    * it can throw exceptions.
    */
-  typedef struct daliPipelineHandle {
+  typedef struct {
     void* pipe;
     void* ws;
   } daliPipelineHandle;
 
-  typedef enum device_type_t {
+  typedef enum {
     CPU = 0,
     GPU = 1
   } device_type_t;
 
-  typedef enum dali_data_type_t {
+  typedef enum {
     DALI_NO_TYPE         = -1,
     DALI_UINT8           =  0,
     DALI_UINT16          =  1,
@@ -54,11 +54,6 @@ extern "C" {
     DALI_FLOAT64         = 10,
     DALI_BOOL            = 11
   } dali_data_type_t;
-
-  typedef enum dali_result_t {
-    DALI_SUCCESS = 0,
-    DALI_FAILURE = 1
-  } dali_result_t;
 
   /**
    * @brief Create DALI pipeline. Setting batch_size,
@@ -81,10 +76,10 @@ extern "C" {
       int gpu_prefetch_queue_depth);
 
   /**
-   * @brief Feed the data to ExternalSource as contiguous allocation.
+   * @brief Feed the data to ExternalSource as contiguous memory.
    *
    * @param pipe_handle Pointer to pipeline handle
-   * @param name Pointer to null terminated string with External Source name to be fed
+   * @param name Pointer to a null terminated string with the name of the External Source to be fed
    * @param device Device of the supplied memory. Only CPU is supported.
    * @param data_ptr Pointer to contiguous buffer containing all samples
    * @param data_type Type of the provided data
@@ -94,15 +89,16 @@ extern "C" {
    * @param layout_str Optional layout provided as a pointer null terminated string.
    *                   Can be set to NULL.
    */
-  DLL_PUBLIC dali_result_t daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
-     device_type_t device, const void *data_ptr, dali_data_type_t data_type, int64_t *shape,
-     int sample_dim, const char *layout_str);
+  DLL_PUBLIC void daliSetExternalInput(daliPipelineHandle* pipe_handle, const char* name,
+                                       device_type_t device, const void* data_ptr,
+                                       dali_data_type_t data_type, const int64_t* shape,
+                                       int sample_dim, const char* layout_str);
 
   /**
-   * @brief Feed the data to ExternalSource as set of separate buffers.
+   * @brief Feed the data to ExternalSource as a set of separate buffers.
    *
    * @param pipe_handle Pointer to pipeline handle
-   * @param name Pointer to null terminated string with External Source name to be fed
+   * @param name Pointer to a null terminated string with the name of the External Source to be fed
    * @param device Device of the supplied memory. Only CPU is supported.
    * @param data_ptr Pointer to an array containing batch_size pointers to separate Tensors.
    * @param data_type Type of the provided data
@@ -112,9 +108,10 @@ extern "C" {
    * @param layout_str Optional layout provided as a pointer null terminated string.
    *                   Can be set to NULL.
    */
-  DLL_PUBLIC dali_result_t daliSetExternalInputTensors(daliPipelineHandle* pipe_handle,
-      const char* name, device_type_t device, const void* const* data_ptr,
-      dali_data_type_t data_type, int64_t* shape, int64_t sample_dim, const char* layout_str);
+  DLL_PUBLIC void daliSetExternalInputTensors(daliPipelineHandle* pipe_handle, const char* name,
+                                              device_type_t device, const void* const* data_ptr,
+                                              dali_data_type_t data_type, const int64_t* shape,
+                                              int64_t sample_dim, const char* layout_str);
 
   /**
    * @brief Start the execution of the pipeline.
