@@ -51,10 +51,43 @@ def test_types_and_shapes():
         for fortran_order in [False, True]:
             for typ in test_np_types:
                 for shape in test_np_shapes:
-                    filename = os.path.join(test_data_root, "test_" + str(index) + ".npy")
+                    filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
                     index += 1
                     yield check_array, filename, shape, typ, fortran_order
 
+
+# test batch_size > 1
+def test_batch():
+    with tempfile.TemporaryDirectory() as test_data_root:
+        # create files
+        num_samples = 20
+        batch_size = 4
+        filenames = []
+        for index in range(0,num_samples):
+            filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+            filenames.append(filename)
+            create_numpy_file(filename, (5, 2, 8), np.float32, False)
+
+        # create pipe
+        for num_threads in [1, 2, 4, 8]:
+            pipe = NumpyReaderPipeline(path = test_data_root,
+                                       path_filter = "test_*.npy",
+                                       batch_size = batch_size,
+                                       num_threads = num_threads,
+                                       device_id = 0)
+            pipe.build()
+
+            for batch in range(0, num_samples, batch_size):
+                pipe_out = pipe.run()
+                arr_rd = pipe_out[0].as_array()
+                arr_np = np.stack([np.load(x)
+                                   for x in filenames[batch:batch+batch_size]], axis=0)
+
+                print("DALI:\n", arr_rd, "\n\n NUMPY:\n", arr_np)
+                
+                # compare
+                assert_array_equal(arr_rd, arr_np)
+            
                     
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array

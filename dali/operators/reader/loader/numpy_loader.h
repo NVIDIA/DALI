@@ -48,7 +48,7 @@ class NumpyParseTarget{
   }
 
   size_t nbytes() {
-    return volume(shape) * size();
+    return type_info.size() * size();
   }
 };
 

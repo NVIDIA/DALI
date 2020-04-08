@@ -46,22 +46,27 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
 
   // check if heqder is too short
   std::string header = std::string(reinterpret_cast<char*>(token.data()));
-  DALI_ENFORCE(header.find("NUMPY") != std::string::npos,
+  DALI_ENFORCE(header.find_first_of("NUMPY") != std::string::npos,
                "File is not a numpy file.");
 
   // extract header length
   uint16_t header_len = 0;
   memcpy(&header_len, &token[8], 2);
+  DALI_ENFORCE(header_len % 16 == 0,
+               "Error extracting header length.");
 
   // read header: the offset is a magic number
   int64 offset = (6+1+1+2);
+  // the header_len can be 4GiB according to the NPYv2 file format
+  // specification: https://numpy.org/neps/nep-0001-npy-format.html
+  // while this allocation could be sizable, it is performed on the host.
   token.resize(header_len+1);
   file->Seek(offset);
   nread = file->Read(token.data(), header_len);
   DALI_ENFORCE(nread == header_len, "Can not read header.");
   token[header_len] = '\0';
   header = std::string(reinterpret_cast<char*>(token.data()));
-  DALI_ENFORCE(header.find("{") != std::string::npos, "Header is corrupted.");
+  DALI_ENFORCE(header.find_first_of("{") != std::string::npos, "Header is corrupted.");
   offset += header_len;
 
   // prepare file for later reads
