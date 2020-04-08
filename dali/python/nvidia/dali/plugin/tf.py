@@ -21,7 +21,14 @@ from distutils.version import LooseVersion
 import warnings
 
 from nvidia.dali_tf_plugin import dali_tf_plugin
-_dali_tf = dali_tf_plugin.load_dali_tf_plugin()
+_dali_tf_module = dali_tf_plugin.load_dali_tf_plugin()
+_dali_tf = _dali_tf_module.dali
+_dali_tf.__doc__ = _dali_tf.__doc__ + """
+
+    Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in
+    DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
+    differ based on your use case.
+"""
 
 def serialize_pipeline(pipeline):
   try:

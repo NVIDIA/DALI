@@ -17,41 +17,33 @@ import os
 import glob
 import re
 
-_dali_tf = None
+_dali_tf_module = None
 
 def load_dali_tf_plugin():
-    global _dali_tf
-    if _dali_tf is not None:
-        return _dali_tf
+    global _dali_tf_module
+    if _dali_tf_module is not None:
+        return _dali_tf_module
 
-    _tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
-    _dali_tf_module = None
+    tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
     # Order: 'current', prebuilt for current TF version, prebuilt for other TF versions
-    _tf_version = re.search("(\d+.\d+).\d+", tf.__version__).group(1)
-    _tf_version_underscore = _tf_version.replace('.', '_')
-    _dali_tf_current = list(filter(lambda x: 'current' in x, _tf_plugins))
-    _dali_tf_prebuilt_tf_ver = list(filter(lambda x: _tf_version_underscore in x, _tf_plugins))
-    _dali_tf_prebuilt_others = list(filter(lambda x: 'current' not in x and _tf_version_underscore not in x, _tf_plugins))
-    _processed_tf_plugins = _dali_tf_current + _dali_tf_prebuilt_tf_ver + _dali_tf_prebuilt_others
+    tf_version = re.search("(\d+.\d+).\d+", tf.__version__).group(1)
+    tf_version_underscore = tf_version.replace('.', '_')
+    dali_tf_current = list(filter(lambda x: 'current' in x, tf_plugins))
+    dali_tf_prebuilt_tf_ver = list(filter(lambda x: tf_version_underscore in x, tf_plugins))
+    dali_tf_prebuilt_others = list(filter(lambda x: 'current' not in x and tf_version_underscore not in x, tf_plugins))
+    processed_tf_plugins = dali_tf_current + dali_tf_prebuilt_tf_ver + dali_tf_prebuilt_others
 
     first_error = None
 
-    for _libdali_tf in _processed_tf_plugins:
+    for libdali_tf in processed_tf_plugins:
         try:
-            _dali_tf_module = tf.load_op_library(_libdali_tf)
+            _dali_tf_module = tf.load_op_library(libdali_tf)
             break
         # if plugin is not compatible skip it
         except tf.errors.NotFoundError as error:
-            if first_error == None:
+            if first_error is None:
                 first_error = error
     else:
         raise first_error or Exception('No matching DALI plugin found for installed TensorFlow version')
 
-    _dali_tf = _dali_tf_module.dali
-    _dali_tf.__doc__ = _dali_tf.__doc__ + """
-
-    Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in
-    DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
-    differ based on your use case.
-"""
-    return _dali_tf
+    return _dali_tf_module

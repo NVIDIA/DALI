@@ -12,7 +12,7 @@ test_body() {
     nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadFail
 
     # Remove the old and installing "current" dali tf (built against installed TF)
-    pip list | grep nvidia-dali-tf-plugin | xargs pip uninstall -y
+    pip uninstall -y nvidia-dali-tf-plugin
 
     pip install --upgrade ../../../nvidia-dali-tf-plugin*.tar.gz
     nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
