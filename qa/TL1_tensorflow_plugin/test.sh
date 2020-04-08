@@ -6,7 +6,7 @@ target_dir=./dali/test/python
 test_body() {
     # Manually removing the supported plugin so that it fails
     lib_dir=$(python -c 'import nvidia.dali.sysconfig as sc; print(sc.get_lib_dir())')
-    rm -rf $lib_dir/plugin/*.so
+    pip uninstall -y nvidia-dali-tf-plugin
 
     # No plugin installed, should fail
     nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadFail

@@ -11,7 +11,7 @@ epilog=(: disable_conda disable_virtualenv)
 test_body() {
     # Manually removing the supported plugin so that it fails
     lib_dir=$(python -c 'import nvidia.dali.sysconfig as sc; print(sc.get_lib_dir())')
-    rm -rf $lib_dir/plugin/*.so
+    pip uninstall -y nvidia-dali-tf-plugin
 
     # Installing "current" dali tf (built against installed TF)
     pip install ../../../nvidia-dali-tf-plugin*.tar.gz
