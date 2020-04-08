@@ -32,7 +32,7 @@
 
 namespace dali {
 namespace filesystem {
-  vector<std::string> traverse_directories(const std::string& path, std::string filter);
+  vector<std::string> traverse_directories(const std::string& path, const std::string& filter);
 }  // namespace filesystem
 
 struct ImageFileWrapper {

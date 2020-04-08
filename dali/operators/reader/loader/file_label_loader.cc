@@ -24,8 +24,8 @@
 namespace dali {
 
 
-inline void assemble_file_list(const std::string& path, const std::string& curr_entry, int label,
-                        std::vector<std::pair<std::string, int>> *file_label_pairs) {
+inline void assemble_file_list(std::vector<std::pair<std::string, int>>& file_label_pairs,
+                               const std::string& path, const std::string& curr_entry, int label) {
   std::string curr_dir_path = path + "/" + curr_entry;
   DIR *dir = opendir(curr_dir_path.c_str());
 
@@ -45,7 +45,7 @@ inline void assemble_file_list(const std::string& path, const std::string& curr_
 #endif
     std::string rel_path = curr_entry + "/" + std::string{entry->d_name};
     if (HasKnownExtension(std::string(entry->d_name))) {
-      file_label_pairs->push_back(std::make_pair(rel_path, label));
+      file_label_pairs.push_back(std::make_pair(rel_path, label));
     }
   }
   closedir(dir);
@@ -80,7 +80,7 @@ vector<std::pair<string, int>> filesystem::traverse_directories(const std::strin
   // could return directories with the same names in completely different order
   std::sort(entry_name_list.begin(), entry_name_list.end());
   for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
-      assemble_file_list(file_root, entry_name_list[dir_count], dir_count, &file_label_pairs);
+    assemble_file_list(file_label_pairs, file_root, entry_name_list[dir_count], dir_count);
   }
   // sort file names as well
   std::sort(file_label_pairs.begin(), file_label_pairs.end());

@@ -25,8 +25,9 @@
 namespace dali {
 
 
-inline void assemble_file_list(const std::string& path, const std::string& curr_entry,
-                               const std::string& filter, std::vector<std::string>* file_list) {
+inline void assemble_file_list(std::vector<std::string>& file_list,
+                               const std::string& path, const std::string& curr_entry,
+                               const std::string& filter) {
   std::string curr_dir_path = path + "/" + curr_entry;
   DIR *dir = opendir(curr_dir_path.c_str());
 
@@ -48,7 +49,7 @@ inline void assemble_file_list(const std::string& path, const std::string& curr_
 #endif
       std::string rel_path = curr_entry + "/" + std::string{entry->d_name};
       if (HasKnownExtension(std::string(entry->d_name))) {
-         file_list->push_back(rel_path);
+         file_list.push_back(rel_path);
       }
     }
   } else {
@@ -61,7 +62,7 @@ inline void assemble_file_list(const std::string& path, const std::string& curr_
     for (unsigned int count = 0; count < pglob.gl_pathc; ++count) {
       std::string match(pglob.gl_pathv[count]);
       std::string rel_path = curr_entry + "/" + match.substr(match.find_last_of("/")+1);
-      file_list->push_back(rel_path);
+      file_list.push_back(rel_path);
     }
     // clean up
     globfree(&pglob);
@@ -71,7 +72,7 @@ inline void assemble_file_list(const std::string& path, const std::string& curr_
 
 
 vector<std::string> filesystem::traverse_directories(const std::string& file_root,
-                                                     std::string filter) {
+                                                     const std::string& filter) {
   // open the root
   DIR *dir = opendir(file_root.c_str());
 
@@ -103,7 +104,7 @@ vector<std::string> filesystem::traverse_directories(const std::string& file_roo
   // sort directories
   std::sort(entry_name_list.begin(), entry_name_list.end());
   for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
-    assemble_file_list(file_root, entry_name_list[dir_count], filter, &file_list);
+    assemble_file_list(file_list, file_root, entry_name_list[dir_count], filter);
   }
   // sort file names as well
   std::sort(file_list.begin(), file_list.end());
