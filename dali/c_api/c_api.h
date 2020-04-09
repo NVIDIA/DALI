@@ -79,14 +79,15 @@ extern "C" {
    * @brief Feed the data to ExternalSource as contiguous memory.
    *
    * @param pipe_handle Pointer to pipeline handle
-   * @param name Pointer to a null terminated string with the name of the External Source to be fed
+   * @param name Pointer to a null-terminated byte string with the name of the External Source
+   *             to be fed
    * @param device Device of the supplied memory. Only CPU is supported.
    * @param data_ptr Pointer to contiguous buffer containing all samples
    * @param data_type Type of the provided data
    * @param shape Pointer to an array containing shape of all samples concatenated one after
    *              another. Should contain batch_size * sample_dim elements.
-   * @param sample_dim The dimensionality of the data.
-   * @param layout_str Optional layout provided as a pointer null terminated string.
+   * @param sample_dim The dimensionality of a single sample.
+   * @param layout_str Optional layout provided as a pointer to null-terminated byte string.
    *                   Can be set to NULL.
    */
   DLL_PUBLIC void daliSetExternalInput(daliPipelineHandle* pipe_handle, const char* name,
@@ -98,14 +99,15 @@ extern "C" {
    * @brief Feed the data to ExternalSource as a set of separate buffers.
    *
    * @param pipe_handle Pointer to pipeline handle
-   * @param name Pointer to a null terminated string with the name of the External Source to be fed
+   * @param name Pointer to a null-terminated byte string with the name of the External Source
+   *             to be fed
    * @param device Device of the supplied memory. Only CPU is supported.
    * @param data_ptr Pointer to an array containing batch_size pointers to separate Tensors.
    * @param data_type Type of the provided data
    * @param shape Pointer to an array containing shape of all samples concatenated one after
    *              another. Should contain batch_size * sample_dim elements.
-   * @param sample_dim The dimensionality of the data.
-   * @param layout_str Optional layout provided as a pointer null terminated string.
+   * @param sample_dim The dimensionality of a single sample.
+   * @param layout_str Optional layout provided as a pointer to null-terminated byte string.
    *                   Can be set to NULL.
    */
   DLL_PUBLIC void daliSetExternalInputTensors(daliPipelineHandle* pipe_handle, const char* name,

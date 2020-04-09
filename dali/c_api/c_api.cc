@@ -80,7 +80,6 @@ void daliSetExternalInput(daliPipelineHandle* pipe_handle, const char* name, dev
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shape, shape + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> shapes(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
-  std::string source_name(name);
   dali::TensorLayout layout{};
   if (layout_str != nullptr) {
     layout = dali::TensorLayout(layout_str);
@@ -95,7 +94,7 @@ void daliSetExternalInput(daliPipelineHandle* pipe_handle, const char* name, dev
   data.Resize(shapes, type_info);
   data.SetLayout(layout);
   const auto& cdata = data;
-  pipeline->SetExternalInput(source_name, cdata);
+  pipeline->SetExternalInput(name, cdata);
 }
 
 void daliSetExternalInputTensors(daliPipelineHandle* pipe_handle, const char* name,
@@ -106,7 +105,6 @@ void daliSetExternalInputTensors(daliPipelineHandle* pipe_handle, const char* na
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shape, shape + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> shapes(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
-  std::string source_name(name);
   dali::TensorLayout layout{};
   if (layout_str != nullptr) {
     layout = dali::TensorLayout(layout_str);
@@ -123,7 +121,7 @@ void daliSetExternalInputTensors(daliPipelineHandle* pipe_handle, const char* na
     data[i].SetLayout(layout);
   }
   const auto& cdata = data;
-  pipeline->SetExternalInput(source_name, cdata);
+  pipeline->SetExternalInput(name, cdata);
 }
 
 void daliRun(daliPipelineHandle* pipe_handle) {

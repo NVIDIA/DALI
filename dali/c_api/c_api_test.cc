@@ -179,9 +179,8 @@ TEST(CApiTest, ExternalSourceSingleAllocPipe) {
 
   SequentialFill(view<uint8_t>(input), 42 * prefetch_queue_depth);
   pipe_ptr->SetExternalInput(input_name, input);
-  std::string layout = "HWC";
   daliSetExternalInput(&handle, input_name.c_str(), device_type_t::CPU, input.raw_data(),
-      dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(), layout.c_str());
+      dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(), "HWC");
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
@@ -230,9 +229,8 @@ TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
 
   SequentialFill(view<uint8_t>(input), 42 * prefetch_queue_depth);
   pipe_ptr->SetExternalInput(input_name, input);
-  std::string layout = "HWC";
   daliSetExternalInputTensors(&handle, input_name.c_str(), device_type_t::CPU, data_ptrs.data(),
-      dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(), layout.c_str());
+      dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(), "HWC");
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
