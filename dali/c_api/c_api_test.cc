@@ -19,10 +19,10 @@
 #include <vector>
 
 #include "dali/c_api/c_api.h"
-#include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/data/tensor_list.h"
-#include "dali/test/dali_test_config.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/pipeline.h"
+#include "dali/test/dali_test_config.h"
 #include "dali/test/tensor_test_utils.h"
 
 using namespace std::string_literals;  // NOLINT(build/namespaces)
@@ -30,90 +30,87 @@ using namespace std::string_literals;  // NOLINT(build/namespaces)
 namespace dali {
 
 namespace {
-  constexpr int batch_size = 12;
-  constexpr int num_thread = 4;
-  constexpr int device_id = 0;
-  constexpr int seed = 0;
-  constexpr bool pipelined = true;
-  constexpr int prefetch_queue_depth = 2;
-  constexpr bool async = true;
-  constexpr float output_size = 20.f;
-  std::string input_name = "inputs"s;
 
-  std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string &output_device) {
-    auto pipe_ptr = std::make_unique<Pipeline>(batch_size, num_thread, device_id, seed, pipelined,
-                                               prefetch_queue_depth, async);
-    auto &pipe = *pipe_ptr;
-      TensorList<CPUBackend> data;
-    if (is_file_reader) {
-      std::string file_root = testing::dali_extra_path() + "/db/single/jpeg/";
-      std::string file_list = file_root + "image_list.txt";
-      pipe.AddOperator(
-          OpSpec("FileReader")
-          .AddArg("device", "cpu")
-          .AddArg("file_root", file_root)
-          .AddArg("file_list", file_list)
-          .AddOutput("compressed_images", "cpu")
-          .AddOutput("labels", "cpu"));
+constexpr int batch_size = 12;
+constexpr int num_thread = 4;
+constexpr int device_id = 0;
+constexpr int seed = 0;
+constexpr bool pipelined = true;
+constexpr int prefetch_queue_depth = 2;
+constexpr bool async = true;
+constexpr float output_size = 20.f;
+std::string input_name = "inputs"s;
 
-      pipe.AddOperator(
-          OpSpec("ImageDecoder")
-          .AddArg("device", "cpu")
-          .AddArg("output_type", DALI_RGB)
-          .AddInput("compressed_images", "cpu")
-          .AddOutput(input_name, "cpu"));
-    } else {
-      pipe.AddExternalInput(input_name);
-    }
-    //  Some Op
-    pipe.AddOperator(
-        OpSpec("Resize")
-        .AddArg("device", "cpu")
-        .AddArg("image_type", DALI_RGB)
-        .AddArg("resize_x", output_size)
-        .AddArg("resize_y", output_size)
-        .AddInput(input_name, "cpu")
-        .AddOutput("outputs", "cpu"));
+std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string &output_device) {
+  auto pipe_ptr = std::make_unique<Pipeline>(batch_size, num_thread, device_id, seed, pipelined,
+                                             prefetch_queue_depth, async);
+  auto &pipe = *pipe_ptr;
+  TensorList<CPUBackend> data;
+  if (is_file_reader) {
+    std::string file_root = testing::dali_extra_path() + "/db/single/jpeg/";
+    std::string file_list = file_root + "image_list.txt";
+    pipe.AddOperator(OpSpec("FileReader")
+                         .AddArg("device", "cpu")
+                         .AddArg("file_root", file_root)
+                         .AddArg("file_list", file_list)
+                         .AddOutput("compressed_images", "cpu")
+                         .AddOutput("labels", "cpu"));
 
-    vector<std::pair<string, string>> outputs = {{"outputs", output_device}};
-
-    pipe.SetOutputNames(outputs);
-    return pipe_ptr;
+    pipe.AddOperator(OpSpec("ImageDecoder")
+                         .AddArg("device", "cpu")
+                         .AddArg("output_type", DALI_RGB)
+                         .AddInput("compressed_images", "cpu")
+                         .AddOutput(input_name, "cpu"));
+  } else {
+    pipe.AddExternalInput(input_name);
   }
+  //  Some Op
+  pipe.AddOperator(OpSpec("Resize")
+                       .AddArg("device", "cpu")
+                       .AddArg("image_type", DALI_RGB)
+                       .AddArg("resize_x", output_size)
+                       .AddArg("resize_y", output_size)
+                       .AddInput(input_name, "cpu")
+                       .AddOutput("outputs", "cpu"));
 
-  // Takes Outptus from baseline and handle and compares them
-  // Allows only for uint8_t CPU output data to be compared
-  void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline) {
-    dali::DeviceWorkspace ws;
-    baseline.Outputs(&ws);
-    daliOutput(&handle);
+  vector<std::pair<string, string>> outputs = {{"outputs", output_device}};
 
-    EXPECT_EQ(daliGetNumOutput(&handle), ws.NumOutput());
-    const int num_output = ws.NumOutput();
-    TensorList<CPUBackend> c_output;
-    for (int output = 0; output < num_output; output++) {
-      EXPECT_EQ(daliNumTensors(&handle, output), batch_size);
-      for (int elem = 0; elem < batch_size; elem++) {
-        auto *shape = daliShapeAtSample(&handle, output, elem);
-        int idx = 0;
-        auto ref_shape = ws.Output<CPUBackend>(output).shape()[idx];
-        for (; shape[idx] != 0; idx++) {
-          EXPECT_EQ(shape[idx], ref_shape[idx]);
-        }
-        EXPECT_EQ(idx, ref_shape.sample_dim());
-        free(shape);
+  pipe.SetOutputNames(outputs);
+  return pipe_ptr;
+}
+
+// Takes Outptus from baseline and handle and compares them
+// Allows only for uint8_t CPU output data to be compared
+void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline) {
+  dali::DeviceWorkspace ws;
+  baseline.Outputs(&ws);
+  daliOutput(&handle);
+
+  EXPECT_EQ(daliGetNumOutput(&handle), ws.NumOutput());
+  const int num_output = ws.NumOutput();
+  TensorList<CPUBackend> c_output;
+  for (int output = 0; output < num_output; output++) {
+    EXPECT_EQ(daliNumTensors(&handle, output), batch_size);
+    for (int elem = 0; elem < batch_size; elem++) {
+      auto *shape = daliShapeAtSample(&handle, output, elem);
+      int idx = 0;
+      auto ref_shape = ws.Output<CPUBackend>(output).shape()[idx];
+      for (; shape[idx] != 0; idx++) {
+        EXPECT_EQ(shape[idx], ref_shape[idx]);
       }
-
-      TensorList<CPUBackend> c_output;
-      auto &regular_output = ws.Output<CPUBackend>(0);
-      c_output.Resize(regular_output.shape(), TypeInfo::Create<uint8_t>());
-      daliCopyTensorListNTo(&handle, c_output.raw_mutable_data(), 0, device_type_t::CPU, 0, false);
-      Check(view<uint8_t>(c_output), view<uint8_t>(regular_output));
+      EXPECT_EQ(idx, ref_shape.sample_dim());
+      free(shape);
     }
+
+    TensorList<CPUBackend> c_output;
+    auto &regular_output = ws.Output<CPUBackend>(0);
+    c_output.Resize(regular_output.shape(), TypeInfo::Create<uint8_t>());
+    daliCopyTensorListNTo(&handle, c_output.raw_mutable_data(), 0, device_type_t::CPU, 0, false);
+    Check(view<uint8_t>(c_output), view<uint8_t>(regular_output));
   }
+}
 
 }  // namespace
-
 
 TEST(CApiTest, FileReaderPipe) {
   auto pipe_ptr = GetTestPipeline(true, "cpu");
@@ -163,7 +160,8 @@ TEST(CApiTest, ExternalSourceSingleAllocPipe) {
     SequentialFill(view<uint8_t>(input), 42 * i);
     pipe_ptr->SetExternalInput(input_name, input);
     daliSetExternalInput(&handle, input_name.c_str(), device_type_t::CPU, input.raw_data(),
-        dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(), nullptr);
+                         dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(),
+                         nullptr);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -180,7 +178,8 @@ TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   SequentialFill(view<uint8_t>(input), 42 * prefetch_queue_depth);
   pipe_ptr->SetExternalInput(input_name, input);
   daliSetExternalInput(&handle, input_name.c_str(), device_type_t::CPU, input.raw_data(),
-      dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(), "HWC");
+                       dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(),
+                       "HWC");
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
@@ -213,7 +212,8 @@ TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
 
     pipe_ptr->SetExternalInput(input_name, input);
     daliSetExternalInputTensors(&handle, input_name.c_str(), device_type_t::CPU, data_ptrs.data(),
-        dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(), nullptr);
+                                dali_data_type_t::DALI_UINT8, input_shape.data(),
+                                input_shape.sample_dim(), nullptr);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -230,14 +230,13 @@ TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   SequentialFill(view<uint8_t>(input), 42 * prefetch_queue_depth);
   pipe_ptr->SetExternalInput(input_name, input);
   daliSetExternalInputTensors(&handle, input_name.c_str(), device_type_t::CPU, data_ptrs.data(),
-      dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(), "HWC");
+                              dali_data_type_t::DALI_UINT8, input_shape.data(),
+                              input_shape.sample_dim(), "HWC");
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs(handle, *pipe_ptr);
 }
-
-
 
 }  // namespace dali
