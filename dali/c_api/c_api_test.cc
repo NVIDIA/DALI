@@ -39,7 +39,7 @@ constexpr bool pipelined = true;
 constexpr int prefetch_queue_depth = 2;
 constexpr bool async = true;
 constexpr float output_size = 20.f;
-std::string input_name = "inputs"s;
+const std::string input_name = "inputs"s;  // NOLINT
 
 std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string &output_device) {
   auto pipe_ptr = std::make_unique<Pipeline>(batch_size, num_thread, device_id, seed, pipelined,
