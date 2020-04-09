@@ -84,7 +84,7 @@ extern "C" {
    * @param device Device of the supplied memory. Only CPU is supported.
    * @param data_ptr Pointer to contiguous buffer containing all samples
    * @param data_type Type of the provided data
-   * @param shape Pointer to an array containing shape of all samples concatenated one after
+   * @param shapes Pointer to an array containing shapes of all samples concatenated one after
    *              another. Should contain batch_size * sample_dim elements.
    * @param sample_dim The dimensionality of a single sample.
    * @param layout_str Optional layout provided as a pointer to null-terminated byte string.
@@ -92,7 +92,7 @@ extern "C" {
    */
   DLL_PUBLIC void daliSetExternalInput(daliPipelineHandle* pipe_handle, const char* name,
                                        device_type_t device, const void* data_ptr,
-                                       dali_data_type_t data_type, const int64_t* shape,
+                                       dali_data_type_t data_type, const int64_t* shapes,
                                        int sample_dim, const char* layout_str);
 
   /**
@@ -104,7 +104,7 @@ extern "C" {
    * @param device Device of the supplied memory. Only CPU is supported.
    * @param data_ptr Pointer to an array containing batch_size pointers to separate Tensors.
    * @param data_type Type of the provided data
-   * @param shape Pointer to an array containing shape of all samples concatenated one after
+   * @param shapes Pointer to an array containing shapes of all samples concatenated one after
    *              another. Should contain batch_size * sample_dim elements.
    * @param sample_dim The dimensionality of a single sample.
    * @param layout_str Optional layout provided as a pointer to null-terminated byte string.
@@ -112,7 +112,7 @@ extern "C" {
    */
   DLL_PUBLIC void daliSetExternalInputTensors(daliPipelineHandle* pipe_handle, const char* name,
                                               device_type_t device, const void* const* data_ptr,
-                                              dali_data_type_t data_type, const int64_t* shape,
+                                              dali_data_type_t data_type, const int64_t* shapes,
                                               int64_t sample_dim, const char* layout_str);
 
   /**
