@@ -52,7 +52,7 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
   // extract header length
   uint16_t header_len = 0;
   memcpy(&header_len, &token[8], 2);
-  DALI_ENFORCE(header_len % 16 == 0,
+  DALI_ENFORCE((header_len + 10) % 16 == 0,
                "Error extracting header length.");
 
   // read header: the offset is a magic number
