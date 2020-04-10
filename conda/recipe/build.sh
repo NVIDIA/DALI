@@ -75,7 +75,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
 make -j"$(nproc --all)"
 make install
 
-# set RPATH of dali_python.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
+# set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
 PKGNAME_PATH=$PWD/dali/python/nvidia/dali
 find $PKGNAME_PATH -type f -name "*.so*" -o -name "*.bin" | while read FILE; do
     UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
