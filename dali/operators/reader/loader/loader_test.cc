@@ -21,7 +21,7 @@
 #include "dali/test/dali_test.h"
 
 #include "dali/operators/reader/loader/loader.h"
-#include "dali/operators/reader/loader/file_loader.h"
+#include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/operators/reader/loader/lmdb.h"
 
 namespace dali {
@@ -59,8 +59,8 @@ TYPED_TEST(DataLoadStoreTest, LMDBTest) {
 }
 
 TYPED_TEST(DataLoadStoreTest, LoaderTest) {
-  shared_ptr<dali::FileLoader> reader(
-      new FileLoader(
+  shared_ptr<dali::FileLabelLoader> reader(
+      new FileLabelLoader(
           OpSpec("FileReader")
           .AddArg("file_root", loader_test_image_folder)
           .AddArg("batch_size", 32)
@@ -79,8 +79,8 @@ TYPED_TEST(DataLoadStoreTest, LoaderTest) {
 }
 
 TYPED_TEST(DataLoadStoreTest, LoaderTestFail) {
-  shared_ptr<dali::FileLoader> reader(
-      new FileLoader(OpSpec("FileReader")
+  shared_ptr<dali::FileLabelLoader> reader(
+      new FileLabelLoader(OpSpec("FileReader")
                          .AddArg("file_root", loader_test_image_folder + "/does_not_exist")
                          .AddArg("batch_size", 32)
                          .AddArg("device_id", 0)));

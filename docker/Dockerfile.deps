@@ -21,8 +21,8 @@ RUN rm -f /opt/python/cp27-cp27m
 # Boost
 RUN BOOST_VERSION=1.66.0 && \
     cd /usr/local && \
-    curl -L https://dl.bintray.com/boostorg/release/1.66.0/source/boost_${BOOST_VERSION//./_}.tar.gz | tar -xzf - && \
-    ln -s ../boost_${BOOST_VERSION//./_}/boost include/boost
+    curl -L https://github.com/boostorg/boost/archive/boost-${BOOST_VERSION}.tar.gz | tar -xzf - && \
+    ln -s /boost-${BOOST_VERSION}/boost include/boost
 
 # CMake
 RUN CMAKE_VERSION=3.12 && \

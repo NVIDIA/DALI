@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_FILE_LOADER_H_
-#define DALI_OPERATORS_READER_LOADER_FILE_LOADER_H_
+#ifndef DALI_OPERATORS_READER_LOADER_FILE_LABEL_LOADER_H_
+#define DALI_OPERATORS_READER_LOADER_FILE_LABEL_LOADER_H_
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -31,34 +31,35 @@
 #include "dali/util/file.h"
 
 namespace dali {
+
 namespace filesystem {
-  vector<std::string> traverse_directories(const std::string& path, const std::string& filter);
+
+vector<std::pair<string, int>> traverse_directories(const std::string& path);
+
 }  // namespace filesystem
 
-struct ImageFileWrapper {
+struct ImageLabelWrapper {
   Tensor<CPUBackend> image;
-  std::string filename;
-  // some field for auxiliary info to pass to the reader
-  std::string meta;
+  int label;
 };
 
-class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
+class FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> {
  public:
-  explicit inline FileLoader(
+  explicit inline FileLabelLoader(
     const OpSpec& spec,
-    vector<std::string> images = std::vector<std::string>(),
+    vector<std::pair<string, int>> image_label_pairs = std::vector<std::pair<string, int>>(),
     bool shuffle_after_epoch = false)
-    : Loader<CPUBackend, ImageFileWrapper >(spec),
+    : Loader<CPUBackend, ImageLabelWrapper>(spec),
       file_root_(spec.GetArgument<string>("file_root")),
-      file_filter_(spec.GetArgument<string>("file_filter")),
-      images_(std::move(images)),
+      file_list_(spec.GetArgument<string>("file_list")),
+      image_label_pairs_(std::move(image_label_pairs)),
       shuffle_after_epoch_(shuffle_after_epoch),
       current_index_(0),
       current_epoch_(0) {
       /*
       * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks differently
       * after each epoch so coexistence with `stick_to_shard` doesn't make any sense
-      * Still when `shuffle_after_epoch` we will set `stick_to_shard` internally in the FileLoader so all
+      * Still when `shuffle_after_epoch` we will set `stick_to_shard` internally in the FileLabelLoader so all
       * DALI instances will do shuffling after each epoch
       */
       if (shuffle_after_epoch_ || stick_to_shard_)
@@ -80,15 +81,29 @@ class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
     copy_read_data_ = !mmap_reserver.CanShareMappedData();
   }
 
-  void PrepareEmpty(ImageFileWrapper &tensor) override;
-  void ReadSample(ImageFileWrapper& tensor) override;
+  void PrepareEmpty(ImageLabelWrapper &tensor) override;
+  void ReadSample(ImageLabelWrapper &tensor) override;
 
  protected:
   Index SizeImpl() override;
 
   void PrepareMetadataImpl() override {
-    if (images_.empty()) {
-      images_ = filesystem::traverse_directories(file_root_, file_filter_);
+    if (image_label_pairs_.empty()) {
+      if (file_list_ == "") {
+        image_label_pairs_ = filesystem::traverse_directories(file_root_);
+      } else {
+        // load (path, label) pairs from list
+        std::ifstream s(file_list_);
+        DALI_ENFORCE(s.is_open(), "Cannot open: " + file_list_);
+
+        string image_file;
+        int label;
+        while (s >> image_file >> label) {
+          auto p = std::make_pair(image_file, label);
+          image_label_pairs_.push_back(p);
+        }
+        DALI_ENFORCE(s.eof(), "Wrong format of file_list: " + file_list_);
+      }
     }
     DALI_ENFORCE(Size() > 0, "No files found.");
 
@@ -96,7 +111,7 @@ class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
       // seeded with hardcoded value to get
       // the same sequence on every shard
       std::mt19937 g(kDaliDataloaderSeed);
-      std::shuffle(images_.begin(), images_.end(), g);
+      std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
     Reset(true);
   }
@@ -112,15 +127,15 @@ class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
 
     if (shuffle_after_epoch_) {
       std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
-      std::shuffle(images_.begin(), images_.end(), g);
+      std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
   }
 
-  using Loader<CPUBackend, ImageFileWrapper >::shard_id_;
-  using Loader<CPUBackend, ImageFileWrapper >::num_shards_;
+  using Loader<CPUBackend, ImageLabelWrapper>::shard_id_;
+  using Loader<CPUBackend, ImageLabelWrapper>::num_shards_;
 
-  string file_root_, file_list_, file_filter_;
-  vector<std::string> images_;
+  string file_root_, file_list_;
+  vector<std::pair<string, int>> image_label_pairs_;
   bool shuffle_after_epoch_;
   Index current_index_;
   int current_epoch_;
@@ -129,4 +144,4 @@ class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_FILE_LOADER_H_
+#endif  // DALI_OPERATORS_READER_LOADER_FILE_LABEL_LOADER_H_
