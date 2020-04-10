@@ -12,8 +12,8 @@ do_once() {
 
     CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1\2/')
 
-    # install any for CUDA 9 and the second for CUDA 10, 1.14 doesn't work so well with horovod
-    pip install $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
+    # install any for CUDA 9 and the 1.15 for CUDA 10
+    pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
 
     pip uninstall -y nvidia-dali-tf-plugin || true
     pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
