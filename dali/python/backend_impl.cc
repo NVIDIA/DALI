@@ -48,6 +48,15 @@ static void* ctypes_void_ptr(const py::object& object) {
   return ptr;
 }
 
+TensorShape<> shape_from_py(py::tuple tup) {
+  TensorShape<> shape;
+  shape.resize(tup.size());
+  for (size_t i = 0; i < tup.size(); ++i) {
+    shape[i] = tup[i].cast<int64_t>();
+  }
+  return shape;
+}
+
 template <int ndim>
 py::list as_py_list(const TensorShape<ndim> &shape) {
   py::list ret(shape.size());
@@ -81,7 +90,64 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   tup[0] = py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
   tup[1] = true;
   d["data"] = tup;
+  if (std::is_same<Backend, GPUBackend>::value) {
+    // see https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
+    // this set of atributes is tagged as version 2
+    d["version"] = 2;
+  } else {
+    // see https://docs.scipy.org/doc/numpy/reference/arrays.interface.html
+    // this set of atributes is tagged as version 3
+    d["version"] = 3;
+  }
+  d["strides"] = py::none();
   return d;
+}
+
+template <typename TensorType>
+TensorShape<> FillTensorData(const py::object object, TensorType *t, int device_id, string layout) {
+  PyObject *p_ptr = object.ptr();
+  if (!PyObject_HasAttr(p_ptr, PyUnicode_FromString("__cuda_array_interface__"))) {
+    DALI_FAIL("Provided object doesn't support cuda array interface protocol")
+  }
+  PyObject *ptr_intf = PyObject_GetAttr(p_ptr, PyUnicode_FromString("__cuda_array_interface__"));
+  if (ptr_intf == Py_None) {
+    DALI_FAIL("Provided object doesn't support cuda array interface protocol.")
+  }
+  py::dict cu_a_interface = py::reinterpret_borrow<py::dict>(ptr_intf);
+
+  DALI_ENFORCE(cu_a_interface.contains("typestr") &&
+                // see detail::PyUnicode_Check_Permissive implementation
+                (PyUnicode_Check(cu_a_interface["typestr"].ptr()) ||
+                PYBIND11_BYTES_CHECK(cu_a_interface["typestr"].ptr())) &&
+                cu_a_interface.contains("shape") &&
+                PyTuple_Check(cu_a_interface["shape"].ptr()) &&
+                cu_a_interface.contains("data") &&
+                PyTuple_Check(cu_a_interface["data"].ptr()) &&
+                cu_a_interface["data"].cast<py::tuple>().size() >= 2 &&
+                cu_a_interface.contains("version") &&
+                // see https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
+                // this set of atributes is tagged as version 2
+                cu_a_interface["version"].cast<int>() >= 2,
+                "Provided object doesn't have required cuda array interface "
+                "protocol fields of necessary type.");
+  DALI_ENFORCE(!cu_a_interface.contains("strides") || cu_a_interface["strides"].is_none(),
+                "Strided data is not supported");
+
+  // Create the Tensor and wrap the data
+  TensorShape<> shape = shape_from_py(cu_a_interface["shape"].cast<py::tuple>());
+
+  TypeInfo type = TypeFromFormatStr(cu_a_interface["typestr"].cast<py::str>());
+  size_t bytes = volume(shape) * type.size();
+
+  t->ShareData(PyLong_AsVoidPtr(cu_a_interface["data"].cast<py::tuple>()[0].ptr()), bytes);
+  t->set_type(type);
+  t->SetLayout(layout);
+  // it is for __cuda_array_interface__ so device_id < 0 is not a valid value
+  if (device_id < 0) {
+    CUDA_CALL(cudaGetDevice(&device_id));
+  }
+  t->set_device_id(device_id);
+  return shape;
 }
 
 void ExposeTensorLayout(py::module &m) {
@@ -208,6 +274,27 @@ void ExposeTensor(py::module &m) {
       )code");
 
   py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
+    .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
+          auto t = new Tensor<GPUBackend>;
+          auto shape = FillTensorData(object, t, device_id, layout);
+          t->Resize(shape);
+          return t;
+        }),
+      "object"_a,
+      "layout"_a = "",
+      "device_id"_a = -1,
+      R"code(
+      Tensor residing in the GPU memory.
+
+      Parameters
+      ----------
+      object : object
+            Python object that implement CUDA Array Interface
+      layout : str
+            Layout of the data
+      device_id: int
+            Device of where this tensor resides
+      )code")
     .def("shape", &py_shape<GPUBackend>,
          R"code(
          Shape of the tensor.
@@ -215,6 +302,20 @@ void ExposeTensor(py::module &m) {
     .def("layout", [](Tensor<GPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("as_cpu", [](Tensor<GPUBackend> &t) -> Tensor<CPUBackend>* {
+          Tensor<CPUBackend> * ret = new Tensor<CPUBackend>();
+          ret->set_pinned(false);
+          UserStream * us = UserStream::Get();
+          cudaStream_t s = us->GetStream(t);
+          DeviceGuard g(t.device_id());
+          ret->Copy(t, s);
+          us->Wait(t);
+          return ret;
+        },
+      R"code(
+      Returns a `TensorCPU` object being a copy of this `TensorGPU`.
+      )code",
+      py::return_value_policy::take_ownership)
     .def("squeeze", &Tensor<GPUBackend>::Squeeze,
          R"code(
          Remove single-dimensional entries from the shape of the Tensor.
@@ -299,8 +400,7 @@ void ExposeTensorList(py::module &m) {
         // and of a type that we can work with in the backend
         py::buffer_info info = b.request();
 
-        DALI_ENFORCE(info.shape.size() > 0,
-            "Cannot create TensorList from 0-dim array.");
+        DALI_ENFORCE(info.shape.size() > 0, "Cannot create TensorList from 0-dim array.");
 
         // Create a list of shapes
         std::vector<Index> tensor_shape(info.shape.size()-1);
@@ -494,6 +594,32 @@ void ExposeTensorList(py::module &m) {
       )code");
 
   py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
+    .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
+          auto t = new TensorList<GPUBackend>;
+          auto shape = FillTensorData(object, t, device_id, layout);
+          std::vector<Index> tensor_shape(shape.size()-1);
+          for (int i = 1; i < shape.size(); ++i) {
+            tensor_shape[i-1] = shape[i];
+          }
+          auto tl_shape = uniform_list_shape(shape[0], tensor_shape);
+          t->Resize(tl_shape);
+          return t;
+        }),
+      "object"_a,
+      "layout"_a = "",
+      "device_id"_a = -1,
+      R"code(
+      List of tensors residing in the CPU memory.
+
+      Parameters
+      ----------
+      object : object
+            Python object that implement CUDA Array Interface
+      layout : str
+            Layout of the data
+      device_id: int
+            Device of where this lists of tensors resides
+      )code")
     .def(py::init([]() {
           // Construct a default TensorList on GPU
           return new TensorList<GPUBackend>;

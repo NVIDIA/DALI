@@ -102,10 +102,14 @@ static std::string FormatStrFromType(const TypeInfo &type) {
 
 static TypeInfo TypeFromFormatStr(const std::string &format) {
   char format_letter;
+  int format_number = -1;
   if (format.size() == 1) {
     format_letter = format[0];
   } else if (format.size() > 1) {
     format_letter = format[1];
+    if (format.size() > 2) {
+      format_number = std::stoi(format.substr(2));
+    }
   } else {
     DALI_FAIL("Cannot create type for unknown format string: " + format);
   }
@@ -118,6 +122,17 @@ static TypeInfo TypeFromFormatStr(const std::string &format) {
   switch (format_letter) {
     case 'c':
       return TypeInfo::Create<char>();
+    // type supported by cupy
+    case 'u':
+      if (format_number == -1 || format_number == sizeof(uint8_t)) {
+        return TypeInfo::Create<uint8_t>();
+      } else if (format_number == sizeof(uint16_t)) {
+        return TypeInfo::Create<uint16_t>();
+      } else if (format_number == sizeof(uint32_t)) {
+        return TypeInfo::Create<uint32_t>();
+      } else if (format_number == sizeof(uint64_t)) {
+        return TypeInfo::Create<uint64_t>();
+      }
     case 'b':
       return TypeInfo::Create<int8_t>();
     case 'B':
@@ -127,7 +142,15 @@ static TypeInfo TypeFromFormatStr(const std::string &format) {
     case 'H':
       return TypeInfo::Create<uint16_t>();
     case 'i':
-      return TypeInfo::Create<int32_t>();
+      if (format_number == -1 || format_number == sizeof(int32_t)) {
+        return TypeInfo::Create<int32_t>();
+      } else if (format_number == sizeof(int64_t)) {
+        return TypeInfo::Create<int64_t>();
+      } else if (format_number == sizeof(int16_t)) {
+        return TypeInfo::Create<int16_t>();
+      } else if (format_number == sizeof(int8_t)) {
+        return TypeInfo::Create<int8_t>();
+      }
     case 'I':
       return TypeInfo::Create<uint32_t>();
     case 'l':
@@ -139,7 +162,13 @@ static TypeInfo TypeFromFormatStr(const std::string &format) {
     case 'Q':
       return TypeInfo::Create<uint64_t>();
     case 'f':
-      return TypeInfo::Create<float>();
+      if (format_number == -1 || format_number == sizeof(float)) {
+        return TypeInfo::Create<float>();
+      } else if (format_number == sizeof(double)) {
+        return TypeInfo::Create<double>();
+      } else if (format_number == sizeof(float16)) {
+        return TypeInfo::Create<float16>();
+      }
     case 'd':
       return TypeInfo::Create<double>();
     case '?':
