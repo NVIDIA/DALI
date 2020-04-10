@@ -80,3 +80,18 @@ DEVICE_TEST(SmallVectorDev, Resize, 1, 1) {
   v.resize(6);
   DEV_EXPECT_EQ(v.size(), 6);
 }
+
+// NOTE: this test should compile without warnings
+TEST(SmallVector, TestNoExecCheck) {
+  struct X {
+    __host__ X(int x) : x(x) {}
+    __host__ X(const X &x) : x(x.x) {}
+    int x;
+  };
+
+  dali::SmallVector<X, 4> v1, v2;
+  v1.emplace_back(42);  // the constructor
+  v2 = v1;
+  EXPECT_EQ(v1[0].x, 42);
+  EXPECT_EQ(v2[0].x, 42);
+}
