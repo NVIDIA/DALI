@@ -205,6 +205,14 @@ class DLL_PUBLIC Buffer {
   }
 
   /**
+   * @brief Sets a device this buffer was allocated on
+   * If the backend is CPUBackend, should be -1
+   */
+  void set_device_id(int device) {
+    device_ = device;
+  }
+
+  /**
    * @brief Sets the type of the buffer. If the buffer has not been
    * allocated because it does not yet have a type, the calling type
    * is taken to be the type of the data and the memory is allocated.

@@ -313,8 +313,8 @@ class CudaHttpPackage(CudaPackage):
 
 all_packages = [PlainPackage("opencv-python", ["4.2.0.32"]),
                 CudaPackage("cupy",
-                        { "90"  : ["6.6.0"],
-                          "100" : ["6.6.0"] },
+                        { "90"  : ["7.3.0"],
+                          "100" : ["7.3.0"] },
                         "cupy-cuda{cuda_v}"),
                 CudaPackage("mxnet",
                         { "90"  : ["1.6.0"],

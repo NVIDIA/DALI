@@ -82,6 +82,17 @@ def test_array_interface_tensor_cpu():
     assert np.array_equal(tensorlist[0].__array_interface__['shape'], tensorlist[0].shape())
     assert tensorlist[0].__array_interface__['typestr'] == tensorlist[0].dtype()
 
+def check_array_types(t):
+    arr = np.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
+    tensor = TensorCPU(arr, "NHWC")
+    assert(np.allclose(np.array(arr), np.asanyarray(tensor)))
+
+def test_array_interface_types():
+    for t in [np.bool_, np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64,
+             np.uint8, np.uint16, np.uint32, np.uint64, np.float_, np.float32, np.float16,
+             np.short, np.long, np.longlong, np.ushort, np.ulonglong]:
+        yield check_array_types, t
+
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
 #def test_tensorlist_getitem_slice():
 #    arr = np.random.rand(3, 5, 6)
