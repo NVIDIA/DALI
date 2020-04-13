@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
-#include <string>
-#include <vector>
 #include <algorithm>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "dali/c_api/c_api.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/plugin/copy.h"
 #include "dali/plugin/plugin_manager.h"
+#include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/data/backend.h"
 
 void daliCreatePipeline(daliPipelineHandle* pipe_handle,
     const char *serialized_pipeline,
@@ -68,6 +71,57 @@ void daliPrefetchSeparate(daliPipelineHandle* pipe_handle,
   for (int i = 0; i < cpu_queue_depth; ++i) {
     pipeline->RunCPU();
   }
+}
+
+void daliSetExternalInput(daliPipelineHandle* pipe_handle, const char* name, device_type_t device,
+                          const void* data_ptr, dali_data_type_t data_type, const int64_t* shapes,
+                          int sample_dim, const char* layout_str) {
+  DALI_ENFORCE(device == CPU, "GPU data cannot be passed as external source");
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
+  dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
+  dali::TensorLayout layout{};
+  if (layout_str != nullptr) {
+    layout = dali::TensorLayout(layout_str);
+  }
+  dali::TensorList<dali::CPUBackend> data;
+  const auto& type_info = dali::TypeTable::GetTypeInfo(static_cast<dali::DALIDataType>(data_type));
+  auto elem_sizeof = type_info.size();
+  // We cast away the const from data_ptr, as there is no other way of passing it to the
+  // TensorList, as we must also set the shape and type metadata.
+  // It is passed further as const TensorList, so it's data cannot be modified.
+  data.ShareData(const_cast<void*>(data_ptr), tl_shape.num_elements() * elem_sizeof);
+  data.Resize(tl_shape, type_info);
+  data.SetLayout(layout);
+  const auto& cdata = data;
+  pipeline->SetExternalInput(name, cdata);
+}
+
+void daliSetExternalInputTensors(daliPipelineHandle* pipe_handle, const char* name,
+                                 device_type_t device, const void* const* data_ptr,
+                                 dali_data_type_t data_type, const int64_t* shapes,
+                                 int64_t sample_dim, const char* layout_str) {
+  DALI_ENFORCE(device == CPU, "GPU data cannot be passed as external source");
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
+  dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
+  dali::TensorLayout layout{};
+  if (layout_str != nullptr) {
+    layout = dali::TensorLayout(layout_str);
+  }
+  std::vector<dali::Tensor<dali::CPUBackend>> data(pipeline->batch_size());
+  const auto& type_info = dali::TypeTable::GetTypeInfo(static_cast<dali::DALIDataType>(data_type));
+  auto elem_sizeof = type_info.size();
+  for (int i = 0; i < pipeline->batch_size(); i++) {
+    // We cast away the const from data_ptr, as there is no other way of passing it to the
+    // Tensor as we must also set the shape and type metadata.
+    // The vector that we pass to pipeline is const.
+    data[i].ShareData(const_cast<void*>(data_ptr[i]), tl_shape[i].num_elements() * elem_sizeof);
+    data[i].Resize(tl_shape[i], type_info);
+    data[i].SetLayout(layout);
+  }
+  const auto& cdata = data;
+  pipeline->SetExternalInput(name, cdata);
 }
 
 void daliRun(daliPipelineHandle* pipe_handle) {

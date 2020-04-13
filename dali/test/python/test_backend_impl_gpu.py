@@ -16,7 +16,7 @@ from nvidia.dali.backend_impl import *
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import numpy as np
-from nose.tools import assert_raises
+from nose.tools import assert_raises, raises
 import cupy as cp
 from test_utils import py_buffer_from_address
 
@@ -56,7 +56,7 @@ def test_data_ptr_tensor_gpu():
     tensor = pipe.run()[0][0]
     from_tensor = py_buffer_from_address(tensor.data_ptr(), tensor.shape(), tensor.dtype(), gpu=True)
     # from_tensor is cupy array, convert arr to cupy as well
-    assert(cp.allclose(cp.array(arr[0]), from_tensor))
+    assert(cp.allclose(arr[0], from_tensor))
 
 def test_data_ptr_tensor_list_gpu():
     arr = np.random.rand(3, 5, 6)
@@ -66,4 +66,79 @@ def test_data_ptr_tensor_list_gpu():
     tensor = tensor_list.as_tensor()
     from_tensor = py_buffer_from_address(tensor_list.data_ptr(), tensor.shape(), tensor.dtype(), gpu=True)
     # from_tensor is cupy array, convert arr to cupy as well
-    assert(cp.allclose(cp.array(arr), from_tensor))
+    assert(cp.allclose(arr, from_tensor))
+
+def test_cuda_array_interface_tensor_gpu():
+    arr = np.random.rand(3, 5, 6)
+    pipe = ExternalSourcePipe(arr.shape[0], arr)
+    pipe.build()
+    tensor_list = pipe.run()[0]
+    assert tensor_list[0].__cuda_array_interface__['data'][0] == tensor_list[0].data_ptr()
+    assert tensor_list[0].__cuda_array_interface__['data'][1] == True
+    assert np.array_equal(tensor_list[0].__cuda_array_interface__['shape'], tensor_list[0].shape())
+    assert tensor_list[0].__cuda_array_interface__['typestr'] == tensor_list[0].dtype()
+    assert(cp.allclose(arr[0], cp.asanyarray(tensor_list[0])))
+
+def test_cuda_array_interface_tensor_gpu_create():
+    arr = np.random.rand(3, 5, 6)
+    pipe = ExternalSourcePipe(arr.shape[0], arr)
+    pipe.build()
+    tensor_list = pipe.run()[0]
+    assert(cp.allclose(arr[0], cp.asanyarray(tensor_list[0])))
+
+def test_cuda_array_interface_tensor_list_gpu_create():
+    arr = np.random.rand(3, 5, 6)
+    pipe = ExternalSourcePipe(arr.shape[0], arr)
+    pipe.build()
+    tensor_list = pipe.run()[0]
+    assert(cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor())))
+
+def test_cuda_array_interface_tensor_gpu_direct_creation():
+    arr = cp.random.rand(3, 5, 6)
+    tensor = TensorGPU(arr, "NHWC")
+    assert(cp.allclose(arr, cp.asanyarray(tensor)))
+
+def test_cuda_array_interface_tensor_gpu_to_cpu():
+    arr = cp.random.rand(3, 5, 6)
+    tensor = TensorGPU(arr, "NHWC")
+    assert(np.allclose(arr.get(), tensor.as_cpu()))
+
+def test_cuda_array_interface_tensor_gpu_to_cpu_device_id():
+    arr = cp.random.rand(3, 5, 6)
+    tensor = TensorGPU(arr, "NHWC", 0)
+    assert(np.allclose(arr.get(), tensor.as_cpu()))
+
+def test_cuda_array_interface_tensor_list_gpu_direct_creation():
+    arr = cp.random.rand(3, 5, 6)
+    tensor_list = TensorListGPU(arr, "NHWC")
+    assert(cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor())))
+
+def test_cuda_array_interface_tensor_list_gpu_to_cpu():
+    arr = cp.random.rand(3, 5, 6)
+    tensor_list = TensorListGPU(arr, "NHWC")
+    assert(np.allclose(arr.get(), tensor_list.as_cpu().as_tensor()))
+
+def test_cuda_array_interface_tensor_list_gpu_to_cpu_device_id():
+    arr = cp.random.rand(3, 5, 6)
+    tensor_list = TensorListGPU(arr, "NHWC", 0)
+    assert(np.allclose(arr.get(), tensor_list.as_cpu().as_tensor()))
+
+def check_cuda_array_types(t):
+    arr = cp.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
+    tensor = TensorGPU(arr, "NHWC")
+    assert(cp.allclose(arr, cp.asanyarray(tensor)))
+
+def test_cuda_array_interface_types():
+    for t in [cp.bool_, cp.int8, cp.int16, cp.int32, cp.int64, cp.uint8,
+              cp.uint16, cp.uint32, cp.uint64, cp.float32, cp.float16]:
+        yield check_cuda_array_types, t
+
+@raises(RuntimeError)
+def test_cuda_array_interface_tensor_gpu_create_from_numpy():
+    arr = np.random.rand(3, 5, 6)
+    tensor = TensorGPU(arr, "NHWC")
+
+@raises(RuntimeError)
+def test_cuda_array_interface_tensor_list_gpu_create_from_numpy():
+    arr = np.random.rand(3, 5, 6)
+    tensor = TensorGPU(arr, "NHWC")
