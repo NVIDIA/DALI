@@ -60,7 +60,7 @@ requirements:
     - python
     - future >=0.17.1
     - protobuf >=3.11.2
-    - libjpeg-turbo >=1.5
+    - libjpeg-turbo >=2.0.3
     - ffmpeg >=4.1
     - tensorflow-gpu
     - libopencv >=3.4.1
@@ -73,7 +73,7 @@ requirements:
     - python
     - future >=0.17.1
     - protobuf >=3.11.2
-    - libjpeg-turbo >=1.5
+    - libjpeg-turbo >=2.0.3
     - ffmpeg >=4.1
     - tensorflow-gpu
     - libopencv >=3.4.1
