@@ -78,7 +78,7 @@ void CollectShape(std::vector<TensorShape<>> &v,
 
 struct SampleOption {
   bool no_crop = false;
-  float min_iou = 0.0f;
+  float threshold = 0.0f;
 };
 
 struct Range {
@@ -159,11 +159,18 @@ their corresponding labels. Bounding boxes are always specified in relative coor
     })
     .AddOptionalArg(
         "thresholds",
-        R"code(Minimum intersection-over-union (IoU) of the bounding boxes with respect to the
-crop window. Each sample will select one of the ``thresholds`` randomly, and the operator will
-try a given number of attempts (see ``num_attempts``) to produce a random crop window that yields an
-IoU above the selected threshold.)code",
+        R"code(Minimum intersection-over-union (IoU), or a different metric if specified by ``threshold_type``,
+of the bounding boxes with respect to the cropping window. Each sample will select one of the ``thresholds``
+randomly, and the operator will try a given number of attempts (see ``num_attempts``) to produce a random
+crop window that yields an IoU above the selected threshold.)code",
         std::vector<float>{0.f})
+    .AddOptionalArg(
+        "threshold_type",
+        R"code(Determines the meaning of ``thresholds``. By default refers to intersection-over-union (IoU) of
+the bounding boxes with respect to the cropping window. Alternatively, it could be set to ``rel_area``
+to specify the relative area of the bounding box that remains inside the cropping window (e.g. a threshold ``1.0``
+means the whole bounding box must be contained in the resulting cropping window))code",
+        "iou")
     .AddOptionalArg("aspect_ratio",
                     R"code(Single or multiple valid aspect ratio ranges for cropping windows.
 
@@ -190,20 +197,33 @@ Value for ``min`` should satisfy ``0.0 <= min <= max``.
 Note: Providing ``aspect_ratio`` and ``scaling`` is incompatible with specifying `crop_shape`
 explicitly)code",
         std::vector<float>{1.f, 1.f})
-    .AddOptionalArg(
-        "ltrb",
-        R"code(If true, bboxes are returned as ``[left, top, right, bottom]``,
+    .AddOptionalArg("ltrb",
+                    R"code(If true, bboxes are returned as ``[left, top, right, bottom]``,
 otherwise they are provided as ``[left, top, width, height]``.
 
 WARNING: This argument is deprecated. Use ``bbox_layout`` instead to specify the bbox encoding.
 E.g ``ltrb=True`` is equivalent to ``bbox_layout="xyXY"`` and ``ltrb=False`` corresponds to
 ``bbox_layout="xyWH"``)code",
-        true)
+                    true)
     .AddOptionalArg(
         "num_attempts",
-        R"code(Number of attempts to get a crop window that matches the ``aspect_ratio`` and selected
-IoU value from ``thresholds``.)code",
+        R"code(Number of attempts to get a crop window that matches the ``aspect_ratio`` and a selected
+IoU value from ``thresholds``.
+
+After each ``num_attempts``, a different threshold will be picked, until
+reaching a maximum of ``total_num_attempts``.)code",
         1)
+    .AddOptionalArg(
+        "total_num_attempts",
+        R"code(Total number of attempts to get a crop window that matches the ``aspect_ratio`` and any selected
+IoU value from ``thresholds``.
+
+After each ``num_attempts``, a different threshold will be picked, until
+reaching a maximum of ``total_num_attempts``.
+
+If not specified, ``total_num_attempts`` will be set to
+``num_attempts * num_thresholds * 10``.)code",
+        0)
     .AddOptionalArg(
         "allow_no_crop",
         R"code(If true, not cropping will be one of the possible outcomes of the random process, as
@@ -255,6 +275,11 @@ template <int ndim>
 class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
  public:
   static constexpr int coords_size = ndim * 2;
+
+  enum ThresholdType {
+    IoU = 1,
+    RelArea = 2
+  };
 
   ~RandomBBoxCropImpl() = default;
 
@@ -336,9 +361,29 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       sample_options_.push_back({false, threshold});
     }
 
+    if (spec.HasArgument("threshold_type")) {
+      auto threshold_type_str = spec.GetArgument<std::string>("threshold_type");
+      if (threshold_type_str == "iou") {
+        threshold_type_ = ThresholdType::IoU;
+      } else  if (threshold_type_str == "rel_area") {
+        threshold_type_ = ThresholdType::RelArea;
+      } else {
+        DALI_FAIL(make_string("Not supported ``threshold_type`` value: \"", threshold_type_str,
+                              "\". Supported values are: \"iou\", \"rel_area\"."));
+      }
+    }
+
     if (allow_no_crop) {
       sample_options_.push_back({true, 0.0f});
     }
+
+    if (spec.HasArgument("total_num_attempts")) {
+      total_num_attempts_ = spec.GetArgument<int>("total_num_attempts");
+    } else {
+      total_num_attempts_ = num_attempts_ * sample_options_.size() * 10;
+    }
+    DALI_ENFORCE(total_num_attempts_ > 0,
+      "Minimum total number of attempts must be greater than zero");
 
     auto default_bbox_layout_start_end = DefaultBBoxLayout<ndim>();
     auto default_bbox_layout_start_shape = DefaultBBoxAnchorAndShapeLayout<ndim>();
@@ -410,11 +455,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
 
     int sample = ws.data_idx();
-    ProspectiveCrop prospective_crop;
-    while (!prospective_crop.success) {
-      prospective_crop =
-          FindProspectiveCrop(make_cspan(bounding_boxes), make_cspan(labels), sample);
-    }
+    ProspectiveCrop prospective_crop =
+        FindProspectiveCrop(make_cspan(bounding_boxes), make_cspan(labels), sample);
 
     WriteCropToOutput(ws, prospective_crop.crop);
     WriteBoxesToOutput(ws, make_cspan(prospective_crop.boxes));
@@ -507,12 +549,33 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       extent = max_extent * extent / new_max_extent;
   }
 
-  const ProspectiveCrop FindProspectiveCrop(span<const Box<ndim, float>> bounding_boxes,
-                                            span<const int> labels,
-                                            int sample) {
+  ProspectiveCrop FindProspectiveCrop(span<const Box<ndim, float>> bounding_boxes,
+                                      span<const int> labels, int sample) {
+    ProspectiveCrop crop;
+    int count = 0;
+    while (!crop.success && count < total_num_attempts_) {
+      auto &rng = rngs_[sample];
+      std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
+      SampleOption option = sample_options_[idx_dist(rng)];
+
+      crop = FindProspectiveCrop(bounding_boxes, labels, sample, option);
+      count += num_attempts_;
+    }
+
+    if (!crop.success) {
+      DALI_FAIL(
+          make_string("Could not find a valid cropping window to satisfy the specified "
+                      "requirements (attempted ",
+                      total_num_attempts_,
+                      " times). Try changing the ``thresholds`` or/and the "
+                      "aspect ratio range, or increase the number of attempts"));
+    }
+    return crop;
+  }
+
+  ProspectiveCrop FindProspectiveCrop(span<const Box<ndim, float>> bounding_boxes,
+                                      span<const int> labels, int sample, SampleOption &option) {
     auto &rng = rngs_[sample];
-    std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
-    SampleOption option = sample_options_[idx_dist(rng)];
     bool absolute_crop_dims = has_crop_shape_;
 
     if (option.no_crop) {
@@ -568,7 +631,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         out_crop = rel_crop;
       }
 
-      if (!ValidOverlap(rel_crop, make_cspan(bounding_boxes), option.min_iou)) {
+      if (!ValidOverlap(rel_crop, make_cspan(bounding_boxes), option.threshold, threshold_type_)) {
         continue;
       }
 
@@ -601,7 +664,6 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     return ProspectiveCrop();
   }
 
-
   bool ValidAspectRatio(vec<ndim, float> shape) {
     assert(static_cast<int>(shape.size()) == ndim);
     int k = 0;
@@ -617,11 +679,20 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
   bool ValidOverlap(const Box<ndim, float> &crop,
                     span<const Box<ndim, float>> boxes,
-                    float threshold) {
-    return std::all_of(boxes.begin(), boxes.end(),
-      [&crop, threshold](const Box<ndim, float> &box) {
-        return intersection_over_union(crop, box) >= threshold;
-      });
+                    float threshold, ThresholdType threshold_type) {
+    std::function<bool(const Box<ndim, float> &box)> f;
+    if (threshold_type_ == ThresholdType::RelArea) {
+      f = [&crop, threshold](const Box<ndim, float> &box) {
+          float rel_area = volume(intersection(crop, box)) / static_cast<float>(volume(box));
+          return rel_area >= threshold;
+        };
+    } else {  // IoU
+      f = [&crop, threshold](const Box<ndim, float> &box) {
+          return intersection_over_union(crop, box) >= threshold;
+        };
+    }
+
+    return std::all_of(boxes.begin(), boxes.end(), f);
   }
 
   void FilterByCentroid(const Box<ndim, float> &crop,
@@ -680,12 +751,15 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
  private:
   OpSpec spec_;
   int num_attempts_;
+  int total_num_attempts_;
   bool has_labels_;
   bool has_crop_shape_;
   bool has_input_shape_;
 
   TensorLayout bbox_layout_;
   TensorLayout shape_layout_;
+
+  ThresholdType threshold_type_ = ThresholdType::IoU;
 
   BatchRNG<std::mt19937> rngs_;
 
