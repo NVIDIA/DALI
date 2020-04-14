@@ -172,6 +172,10 @@ class DALIDatasetOp : public DatasetOpKernel {
       return Status::OK();
     }
 
+    Status CheckExternalState() const override {
+      return Status::OK();
+    }
+
    private:
    /**
     * @brief Append the AttrValue created from `filed` under `name` to `attrs` vector
@@ -320,6 +324,16 @@ class DALIDatasetOp : public DatasetOpKernel {
 
       ~Iterator() {
         daliDeletePipeline(&pipeline_handle_);
+      }
+
+      Status SaveInternal(
+        SerializationContext* ctx, IteratorStateWriter* writer) override {
+        return Status::OK();
+      }
+
+      Status RestoreInternal(
+        IteratorContext* ctx, IteratorStateReader* reader) override {
+        return Status::OK();
       }
 
      private:
