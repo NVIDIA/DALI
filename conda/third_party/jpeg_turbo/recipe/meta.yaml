@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "1.5.0" %}
+{% set build_version = "2.0.3" %}
 
   package:
     name: jpeg-turbo
@@ -20,21 +20,18 @@
 
   source:
     git_url: https://github.com/libjpeg-turbo/libjpeg-turbo
-    git_rev: 1.5.x
+    git_rev: 2.0.3
 
   build:
     number: 0
     string: jpeg_turbo
 
   requirements:
-    build: 
+    build:
       - {{ compiler('c') }}
       - {{ compiler('cxx') }}
-      - autoconf 2.69
-      - automake 1.16.1
-      - libtool 2.4.6
       - java-openjdk-ppc64le 1.8.0 # [ppc64le]
       - openjdk 8.0.152  # [x86_64]
       - cmake 3.12.2
       - make 4.2.1
-      - nasm 2.13.03 # [x86_64]
+      - yasm # [x86_64]

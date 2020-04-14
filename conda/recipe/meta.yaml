@@ -69,8 +69,13 @@ requirements:
     - dali-ffmpeg
     - boost >=1.67
     - lmdb >=0.9.22
-    - libtiff >=4.0
+    - libtiff >=4.1.0
     - libsndfile >=1.0.28
+    # 1.3.6 doesn't work well now due to linking issue - conda-forge/libvorbis-feedstock#14
+    - libvorbis 1.3.5
+    # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
+    # we link it statically so it doesn't carry the dependency, so we need to add it manually
+    - libwebp-base
   run:
     - python
     - future >=0.17.1
@@ -78,5 +83,10 @@ requirements:
     - libjpeg-turbo >=2.0.3
     - tensorflow-gpu
     - lmdb >=0.9.22
-    - libtiff >=4.0
+    - libtiff >=4.1.0
     - libsndfile >=1.0.28
+    # 1.3.6 doesn't work well now due to linking issue - conda-forge/libvorbis-feedstock#14
+    - libvorbis 1.3.5
+    # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
+    # we link it statically so it doesn't carry the dependency, so we need to add it manually
+    - libwebp-base

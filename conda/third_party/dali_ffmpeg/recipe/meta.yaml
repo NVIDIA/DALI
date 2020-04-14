@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "4.2.1" %}
+{% set build_version = "4.2.2" %}
 
   package:
     name: dali-ffmpeg
     version: {{ build_version }}
 
   source:
-    fn: ffmpeg-4.2.1.tar.bz2
-    url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2
-    sha256: 682a9fa3f6864d7f0dbf224f86b129e337bc60286e0d00dffcd710998d521624
+    fn: ffmpeg-4.2.2.tar.bz2
+    url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.2.tar.bz2
+    sha256: b620d187c26f76ca19e74210a0336c3b8380b97730df5cdf45f3e69e89000e5c
 
   build:
     number: 0
@@ -34,9 +34,3 @@
       - make
       - nasm
       - libtool
-    host:
-      - libjpeg-turbo >=1.5
-      - libtiff >=4.0
-    run:
-      - libjpeg-turbo >=1.5
-      - libtiff >=4.0

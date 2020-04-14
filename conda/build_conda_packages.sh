@@ -14,7 +14,6 @@ export CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.
 conda config --add channels conda-forge
 
 CONDA_BUILD_OPTIONS="--python=${PYVER} --exclusive-config-file config/conda_build_config.yaml"
-#CONDA_BUILD_OPTIONS="--exclusive-config-file config/conda_build_config.yaml"
 
 CONDA_PREFIX=${CONDA_PREFIX:-/root/miniconda3}
 
