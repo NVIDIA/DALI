@@ -12,29 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from setuptools import setup, find_packages
-from setuptools.command.install import install
+from setuptools import setup, find_namespace_packages
 from dali_tf_plugin_install_tool import InstallerHelper
+from setuptools.command.build_ext import build_ext
+from setuptools.dist import Distribution
+from setuptools.extension import Extension
+import os
 
-class CustomInstall(install, object):
+class CustomBuildExt(build_ext, object):
     def run(self):
-        helper = InstallerHelper()
+        helper = InstallerHelper(plugin_dest_dir = os.path.join(self.build_lib, 'nvidia', 'dali_tf_plugin'))
         helper.install()
-        super(CustomInstall, self).run()
+
+class CustomDistribution(Distribution):
+    def __init__(self, attrs=None):
+        Distribution.__init__(self, attrs)
+        # Just telling distutils that we have an ext module
+        # It doesn't matter what we write here, because we are overriding the
+        # build_ext step altogether.
+        # By filling this ext_modules we are signaling that this package needs
+        # to be built for different platforms
+        self.ext_modules = [Extension('nvidia.dali_tf_plugin', [])]
 
 setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@',
-      description='NVIDIA DALI @DALI_FLAVOR@Tensorflow plugin for CUDA @CUDA_VERSION@. Git SHA: @GIT_SHA@',
+      description='NVIDIA DALI @DALI_FLAVOR@Tensorflow plugin. Git SHA: @GIT_SHA@',
       url='https://github.com/NVIDIA/dali',
       version='@DALI_VERSION@',
       author='NVIDIA Corporation',
       license='Apache License 2.0',
-      packages=find_packages(),
+      packages=find_namespace_packages(include=['nvidia.*']),
       include_package_data=True,
       zip_safe=False,
       install_requires = [
           'nvidia-dali@DALI_FLAVOR_MINUS@==@DALI_VERSION@'
           ],
-      cmdclass = {
-          'install': CustomInstall
-      }
+
+      cmdclass={
+          'build_ext': CustomBuildExt,
+      },
+      distclass=CustomDistribution
      )
