@@ -229,6 +229,12 @@ If not specified, ``total_num_attempts`` will be set to
 ``num_attempts * num_thresholds * 10``.)code",
         0)
     .AddOptionalArg(
+        "all_boxes_above_threshold",
+         R"code(If true, all bounding boxes in a sample should overlap with the cropping window as specified by
+``thresholds``, otherwise the cropping window is consider invalid. If false, a cropping window will be considered
+valid if at least a single bounding box overlaps sufficiently.)code",
+         true)
+    .AddOptionalArg(
         "allow_no_crop",
         R"code(If true, not cropping will be one of the possible outcomes of the random process, as
 if it was one more ``thresholds`` value to choose from.)code",
@@ -242,14 +248,15 @@ The order of dimensions is determined by the layout provided in ``shape_layout``
 Note: ``crop_shape`` and ``input_shape`` should be provided together, and providing those is
 incompatible with using ``scaling`` and ``aspect_ratio`` arguments.)code",
         std::vector<int>{}, true)
-    .AddOptionalArg<int>("input_shape",
-                         R"code(Specifies the shape of the original input image.
+    .AddOptionalArg<int>(
+        "input_shape",
+        R"code(Specifies the shape of the original input image.
 
 The order of dimensions is determined by the layout provided in ``shape_layout``.
 
 Note: ``crop_shape`` and ``input_shape`` should be provided together, and providing those is
 incompatible with using ``scaling`` and ``aspect_ratio`` arguments.)code",
-                         std::vector<int>{}, true)
+        std::vector<int>{}, true)
     .AddOptionalArg<TensorLayout>(
         "bbox_layout",
         R"code(Determines the meaning of the coordinates of the bounding boxes.
@@ -295,6 +302,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         has_input_shape_(spec.ArgumentDefined("input_shape")),
         bbox_layout_(spec.GetArgument<TensorLayout>("bbox_layout")),
         shape_layout_(spec.GetArgument<TensorLayout>("shape_layout")),
+        all_boxes_above_threshold_(spec.GetArgument<bool>("all_boxes_above_threshold")),
         rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int>("batch_size")) {
     auto scaling_arg = spec.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
@@ -696,6 +704,9 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         };
     }
 
+    if (all_boxes_above_threshold_) {
+      return std::all_of(boxes.begin(), boxes.end(), f);
+    }
     return std::any_of(boxes.begin(), boxes.end(), f);
   }
 
@@ -764,6 +775,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   TensorLayout shape_layout_;
 
   ThresholdType threshold_type_ = ThresholdType::IoU;
+  bool all_boxes_above_threshold_ = true;
 
   BatchRNG<std::mt19937> rngs_;
 
