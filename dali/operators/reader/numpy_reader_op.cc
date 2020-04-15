@@ -14,6 +14,8 @@
 
 #include <string>
 
+
+#include "dali/pipeline/data/views.h"
 #include "dali/kernels/common/transpose.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/reader/numpy_reader_op.h"
@@ -23,6 +25,120 @@ namespace dali {
 #define NUMPY_ALLOWED_TYPES \
   (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, float16, \
   double)
+
+
+TensorListShape<> NumpyReader::GetSliceArg(ArgumentWorkspace &ws, const char *name) {
+  if (spec_.HasArgument(name)) {
+    return uniform_list_shape(batch_size_, spec_.GetRepeatedArgument<int>(name));
+  } else if (spec_.HasTensorArgument(name)) {
+    auto &t = ws.ArgumentInput(name);
+    DALI_ENFORCE(static_cast<int>(t.size()) == batch_size_
+                 && t.shape().sample_dim() == 1
+                 && is_uniform(t.shape()),
+                 "Shape must be a list of 1D tensors of equal length");
+    auto tlv = view<const int>(t);
+    TensorListShape<> tls;
+    tls.resize(batch_size_, t.shape()[0][0]);
+    TensorShape<> ts;
+    ts.resize(tls.sample_dim());
+    for (int i = 0; i < batch_size_; i++) {
+      auto tv = tlv[i];
+      for (int j = 0; j < ts.shape[0]; j++)
+        ts[j] = tv.data[j];
+      tls.set_tensor_shape(i, ts);
+    }
+    return tls;
+  } else {
+    // create an list of empty shapes
+    return {};
+  }
+}
+
+// std::vector<int> NumpyReader::GetSliceArg(ArgumentWorkspace &ws, const char* name) {
+//  if (spec_.HasArgument(name)) {
+//    return spec_.GetRepeatedArgument<int>(name);
+//  } else if (spec_.HasTensorArgument(name)) {
+//    auto &t = ws.ArgumentInput(name);
+//    DALI_ENFORCE(t.shape().sample_dim() == 1, "A slice argument tensor has to be 1D");
+//    std::vector<int> result(t.shape()[0]);
+//    memcpy(result.data(), t.data<int>(), result.size());
+//    return result;
+//  } else {
+//    // no argument given, no slice
+//    return std::vector<int>();
+//  }
+// }
+
+// prefetching helpers
+
+
+void NumpyReader::Prefetch() {
+  // We actually prepare the next batch
+  TimeRange tr("NumpyReader::Prefetch #" + to_string(curr_batch_producer_), TimeRange::kRed);
+  auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
+  curr_batch.reserve(batch_size_);
+  curr_batch.clear();
+
+  if (slab_anchors_.empty() || slab_shapes_.empty()) {
+    loader_->SetSlabParameters({}, {});
+    for (int i = 0; i < batch_size_; ++i) {
+      curr_batch.push_back(loader_->ReadOne(i == 0));
+    }
+  } else {
+    for (int i = 0; i < batch_size_; ++i) {
+      loader_->SetSlabParameters(slab_anchors_[i], slab_shapes_[i]);
+      curr_batch.push_back(loader_->ReadOne(i == 0));
+    }
+    DALI_FAIL("Sliced reads not supported yet!");
+  }
+}
+
+// Run the operator
+void NumpyReader::Run(HostWorkspace &ws) {
+  // Get the arguments
+  slab_anchors_ = GetSliceArg(ws, "anchor");
+  slab_shapes_ = GetSliceArg(ws, "shape");
+
+  // If necessary start prefetching thread and wait for a consumable batch
+  StartPrefetchThread();
+  ConsumerWait();
+
+  // consume batch
+  TimeRange tr("NumpyReader::Run #" + to_string(curr_batch_consumer_), TimeRange::kViolet);
+
+  // This is synchronous call for CPU Backend
+  Operator<CPUBackend>::Run(ws);
+
+  // Notify that we have consumed whole batch
+  ConsumerAdvanceQueue();
+}
+
+// Actual Read implementation
+void NumpyReader::RunImpl(SampleWorkspace &ws) {
+  // get the ws index
+  const int idx = ws.data_idx();
+
+  // get sample
+  const auto& imfile = GetSample(idx);
+
+  // copy from raw_data -> outputs directly
+  auto& image_output = ws.Output<CPUBackend>(0);
+
+  if (imfile.meta == "transpose:false") {
+    // just copy the tensor over
+    CopyHelper(image_output, imfile.image);
+  } else {
+    // here we need to transpose the data
+    TransposeHelper(image_output, imfile.image);
+  }
+  image_output.SetSourceInfo(imfile.image.GetSourceInfo());
+}
+
+// data copy helpers
+void NumpyReader::CopyHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input) {
+  output.Resize(input.shape(), input.type());
+  std::memcpy(output.raw_mutable_data(), input.raw_data(), input.nbytes());
+}
 
 void NumpyReader::TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input) {
   auto& in_shape = input.shape();
@@ -63,6 +179,12 @@ the list of files in the sub-directories of `file_root`.)code", "*.npy")
       R"code(If true, reader shuffles whole dataset after each epoch. It is exclusive with
 `stick_to_shard` and `random_shuffle`.)code",
       false)
+  .AddOptionalArg<int>("anchor", R"code(Specifies the anchor for sliced reads.\n
+If no anchor is specified, the origin (0, ..., 0) is assumed.)code",
+      std::vector<int>(), true)
+  .AddOptionalArg<int>("shape", R"code(Specifies the shape of the slice for sliced reads.\n
+If no size is specified, (-1, ... ,-1) is assumed, i.e. the data is read from the anchor to the end.)code",
+      std::vector<int>(), true)
   .AddParent("LoaderBase");
 
 }  // namespace dali

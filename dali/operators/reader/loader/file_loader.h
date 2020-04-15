@@ -42,13 +42,14 @@ struct ImageFileWrapper {
   std::string meta;
 };
 
-class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
+template<class LoadTarget>
+class FileLoader : public Loader< CPUBackend, LoadTarget > {
  public:
   explicit inline FileLoader(
     const OpSpec& spec,
     vector<std::string> images = std::vector<std::string>(),
     bool shuffle_after_epoch = false)
-    : Loader<CPUBackend, ImageFileWrapper >(spec),
+    : Loader<CPUBackend, LoadTarget >(spec),
       file_root_(spec.GetArgument<string>("file_root")),
       file_filter_(spec.GetArgument<string>("file_filter")),
       images_(std::move(images)),
@@ -80,8 +81,8 @@ class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
     copy_read_data_ = !mmap_reserver.CanShareMappedData();
   }
 
-  void PrepareEmpty(ImageFileWrapper &tensor) override;
-  void ReadSample(ImageFileWrapper& tensor) override;
+  virtual PrepareEmpty(LoadTarget& tensor) = 0;
+  virtual ReadSample(LoadTarget& tensor) = 0;
 
  protected:
   Index SizeImpl() override;
@@ -116,8 +117,8 @@ class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
     }
   }
 
-  using Loader<CPUBackend, ImageFileWrapper >::shard_id_;
-  using Loader<CPUBackend, ImageFileWrapper >::num_shards_;
+  using Loader<CPUBackend, LoadTarget >::shard_id_;
+  using Loader<CPUBackend, LoadTarget >::num_shards_;
 
   string file_root_, file_list_, file_filter_;
   vector<std::string> images_;

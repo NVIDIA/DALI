@@ -28,37 +28,35 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
  public:
   explicit NumpyReader(const OpSpec& spec)
     : DataReader< CPUBackend, ImageFileWrapper >(spec) {
-    bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
+    bool shuffle_after_epoch = spec_.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<NumpyLoader>(spec, std::vector<string>(),
                                       shuffle_after_epoch);
   }
 
-  void RunImpl(SampleWorkspace &ws) override {
-    const int idx = ws.data_idx();
+  // these are helpers for strides reads
+  TensorListShape<> GetSliceArg(ArgumentWorkspace &ws, const char *name);
 
-    const auto& imfile = GetSample(idx);
+  // we need to override this, because we want to allow for sliced reads
+  void Prefetch() override;
 
-    // copy from raw_data -> outputs directly
-    auto &image_output = ws.Output<CPUBackend>(0);
+  // read the sample
+  void Run(HostWorkspace &ws) override;
 
-    // image
-    Index image_bytes = imfile.image.nbytes();
-
-    if (imfile.meta == "transpose:false") {
-      // just copy the tensor over
-      image_output.Resize(imfile.image.shape(), imfile.image.type());
-      std::memcpy(image_output.raw_mutable_data(),
-                  imfile.image.raw_data(),
-                  image_bytes);
-    } else {
-      // here we need to transpose the data
-      TransposeHelper(image_output, imfile.image);
-    }
-    image_output.SetSourceInfo(imfile.image.GetSourceInfo());
-  }
+  // actual read implementation for a single sample
+  void RunImpl(SampleWorkspace &ws) override;
 
  protected:
+  // used for copying the image to output buffer
+  void CopyHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
+
+  // used for transposing output in case of column-major order
   void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
+
+  // slicing helpers
+  TensorListShape<> slab_anchors_;
+  TensorListShape<> slab_shapes_;
+
+  // other parameters
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageFileWrapper);
 };
 
