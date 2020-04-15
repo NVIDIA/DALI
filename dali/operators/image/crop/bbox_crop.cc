@@ -52,12 +52,14 @@ void CollectShape(std::vector<TensorShape<>> &v,
     DALI_ENFORCE(arg_view.num_samples() == batch_size, make_string(
       "Unexpected number of samples in argument `", name, "`: ", arg_view.num_samples(),
       ", expected: ", batch_size));
-    DALI_ENFORCE(arg_view.sample_dim() == ndim, make_string(
-      "Unexpected number of dimensions in argument `", name, "`: ", arg_view.sample_dim(),
-      ", expected: ", ndim));
 
     std::vector<int64_t> tmp(ndim);
     for (int sample = 0; sample < batch_size; sample++) {
+      auto shape_len = volume(arg_view.tensor_shape(sample));
+      DALI_ENFORCE(shape_len == ndim, make_string(
+        "Unexpected number of elements in argument `", name, "`: ", shape_len,
+        ", expected: ", ndim));
+
       const auto* sample_data = arg_view.tensor_data(sample);
       for (int d = 0; d < ndim; d++) {
         tmp[d] = static_cast<int64_t>(sample_data[d]);
@@ -155,7 +157,7 @@ their corresponding labels. Bounding boxes are always specified in relative coor
               "(optional) Labels associated with each of the bounding boxes.")
     .NumOutput(3)  // [anchor, shape, bboxes, labels (optional),]
     .AdditionalOutputsFn([](const OpSpec &spec) {
-      return spec.NumInput() - 1;  // +1 if labels are provided
+      return spec.NumRegularInput() - 1;  // +1 if labels are provided
     })
     .AddOptionalArg(
         "thresholds",
@@ -286,7 +288,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   explicit RandomBBoxCropImpl(const OpSpec &spec)
       : spec_(spec),
         num_attempts_{spec.GetArgument<int>("num_attempts")},
-        has_labels_(spec.NumInput() > 1),
+        has_labels_(spec.NumRegularInput() > 1),
         has_crop_shape_(spec.ArgumentDefined("crop_shape")),
         has_input_shape_(spec.ArgumentDefined("input_shape")),
         bbox_layout_(spec.GetArgument<TensorLayout>("bbox_layout")),
@@ -566,7 +568,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       DALI_FAIL(
           make_string("Could not find a valid cropping window to satisfy the specified "
                       "requirements (attempted ",
-                      total_num_attempts_,
+                      count,
                       " times). Try changing the ``thresholds`` or/and the "
                       "aspect ratio range, or increase the number of attempts"));
     }
@@ -692,7 +694,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         };
     }
 
-    return std::all_of(boxes.begin(), boxes.end(), f);
+    return std::any_of(boxes.begin(), boxes.end(), f);
   }
 
   void FilterByCentroid(const Box<ndim, float> &crop,
