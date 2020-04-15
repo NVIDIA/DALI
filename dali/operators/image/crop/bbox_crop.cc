@@ -169,12 +169,13 @@ crop window that yields an IoU above the selected threshold.)code",
     .AddOptionalArg(
         "threshold_type",
         R"code(Determines the meaning of ``thresholds``. By default refers to intersection-over-union (IoU) of
-the bounding boxes with respect to the cropping window. Alternatively, it could be set to ``rel_area``
-to specify the relative area of the bounding box that remains inside the cropping window (e.g. a threshold ``1.0``
-means the whole bounding box must be contained in the resulting cropping window))code",
+the bounding boxes with respect to the cropping window. Alternatively, it could be set to ``overlap``
+to specify the overlap of the bounding box area and the cropping window, relative to the area of the bounding box 
+(e.g. a threshold ``1.0`` means the whole bounding box must be contained in the resulting cropping window))code",
         "iou")
-    .AddOptionalArg("aspect_ratio",
-                    R"code(Single or multiple valid aspect ratio ranges for cropping windows.
+    .AddOptionalArg(
+        "aspect_ratio",
+        R"code(Single or multiple valid aspect ratio ranges for cropping windows.
 
 For 2D bounding boxes, a single aspect ratio ``x/y`` range should be provided (i.e. ``[min_xy, max_xy]``)
 
@@ -199,14 +200,15 @@ Value for ``min`` should satisfy ``0.0 <= min <= max``.
 Note: Providing ``aspect_ratio`` and ``scaling`` is incompatible with specifying `crop_shape`
 explicitly)code",
         std::vector<float>{1.f, 1.f})
-    .AddOptionalArg("ltrb",
-                    R"code(If true, bboxes are returned as ``[left, top, right, bottom]``,
+    .AddOptionalArg(
+        "ltrb",
+        R"code(If true, bboxes are returned as ``[left, top, right, bottom]``,
 otherwise they are provided as ``[left, top, width, height]``.
 
 WARNING: This argument is deprecated. Use ``bbox_layout`` instead to specify the bbox encoding.
 E.g ``ltrb=True`` is equivalent to ``bbox_layout="xyXY"`` and ``ltrb=False`` corresponds to
 ``bbox_layout="xyWH"``)code",
-                    true)
+        true)
     .AddOptionalArg(
         "num_attempts",
         R"code(Number of attempts to get a crop window that matches the ``aspect_ratio`` and a selected
@@ -280,7 +282,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
   enum ThresholdType {
     IoU = 1,
-    RelArea = 2
+    Overlap = 2
   };
 
   ~RandomBBoxCropImpl() = default;
@@ -367,11 +369,11 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       auto threshold_type_str = spec.GetArgument<std::string>("threshold_type");
       if (threshold_type_str == "iou") {
         threshold_type_ = ThresholdType::IoU;
-      } else  if (threshold_type_str == "rel_area") {
-        threshold_type_ = ThresholdType::RelArea;
+      } else  if (threshold_type_str == "overlap") {
+        threshold_type_ = ThresholdType::Overlap;
       } else {
         DALI_FAIL(make_string("Not supported ``threshold_type`` value: \"", threshold_type_str,
-                              "\". Supported values are: \"iou\", \"rel_area\"."));
+                              "\". Supported values are: \"iou\", \"overlap\"."));
       }
     }
 
@@ -683,10 +685,10 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
                     span<const Box<ndim, float>> boxes,
                     float threshold, ThresholdType threshold_type) {
     std::function<bool(const Box<ndim, float> &box)> f;
-    if (threshold_type_ == ThresholdType::RelArea) {
+    if (threshold_type_ == ThresholdType::Overlap) {
       f = [&crop, threshold](const Box<ndim, float> &box) {
-          float rel_area = volume(intersection(crop, box)) / static_cast<float>(volume(box));
-          return rel_area >= threshold;
+          float overlap = volume(intersection(crop, box)) / static_cast<float>(volume(box));
+          return overlap >= threshold;
         };
     } else {  // IoU
       f = [&crop, threshold](const Box<ndim, float> &box) {

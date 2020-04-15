@@ -277,12 +277,12 @@ def test_random_bbox_crop_fixed_shape():
                         yield check_random_bbox_crop_fixed_shape, \
                                 batch_size, ndim, crop_shape, input_shape, use_labels
 
-def check_random_bbox_crop_rel_area(batch_size, ndim, crop_shape, input_shape, use_labels):
+def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, use_labels):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
     bbox_layout = "xyzXYZ" if ndim == 3 else "xyXY"
     pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size,
                                            thresholds=[1.0],
-                                           threshold_type='rel_area',
+                                           threshold_type='overlap',
                                            num_attempts=1000,
                                            bbox_source=bbox_source,
                                            bbox_layout=bbox_layout,
@@ -314,7 +314,7 @@ def check_random_bbox_crop_rel_area(batch_size, ndim, crop_shape, input_shape, u
                     break
             assert(at_least_one_box_in)
 
-def test_random_bbox_crop_rel_area():
+def test_random_bbox_crop_overlap():
     input_shapes = {
         2: [[400, 300]],
         3: [[400, 300, 64]]
@@ -328,7 +328,7 @@ def test_random_bbox_crop_rel_area():
             for input_shape in input_shapes[ndim]:
                 for crop_shape in crop_shapes[ndim]:
                     for use_labels in [True, False]:
-                        yield check_random_bbox_crop_rel_area, \
+                        yield check_random_bbox_crop_overlap, \
                                 batch_size, ndim, crop_shape, input_shape, use_labels
 
 def main():
@@ -338,7 +338,7 @@ def main():
     for test in test_random_bbox_crop_variable_shape():
         test[0](*test[1:])
 
-    for test in test_random_bbox_crop_rel_area():
+    for test in test_random_bbox_crop_overlap():
         test[0](*test[1:])
 
 if __name__ == '__main__':
