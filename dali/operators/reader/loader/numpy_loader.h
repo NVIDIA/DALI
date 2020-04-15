@@ -59,14 +59,7 @@ class NumpyLoader : public FileLoader {
     vector<std::string> images = std::vector<std::string>(),
     bool shuffle_after_epoch = false)
     : FileLoader(spec, images, shuffle_after_epoch),
-    header_regex_(R"###(^\{'descr': \'(.*?)\', 'fortran_order': (.*?), 'shape': \((.*?)\), \})###"),
-    slab_anchor_({}), slab_shape_({}) {}
-
-  // accessor for the anchors
-  void SetSlabParameters(const TensorShape<>& anchor, const TensorShape<>& shape) {
-    slab_anchor_ = anchor;
-    slab_shape_ = shape;
-  }
+    header_regex_(R"###(^\{'descr': \'(.*?)\', 'fortran_order': (.*?), 'shape': \((.*?)\), \})###") {}
 
   // we want to make it possible to override this function as well
   void ReadSample(ImageFileWrapper& tensor) override;
@@ -78,10 +71,6 @@ class NumpyLoader : public FileLoader {
 
   // regex search string
   const std::regex header_regex_;
-
-  // shapes for sliced reads
-  TensorShape<> slab_anchor_;
-  TensorShape<> slab_shape_;
 };
 
 }  // namespace dali

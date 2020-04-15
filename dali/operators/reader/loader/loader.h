@@ -70,7 +70,8 @@ class Loader {
       loading_flag_(false),
       read_sample_counter_(0),
       returned_sample_counter_(0),
-      pad_last_batch_(options.GetArgument<bool>("pad_last_batch")) {
+      pad_last_batch_(options.GetArgument<bool>("pad_last_batch")),
+      slab_anchor_({}), slab_shape_({}) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -239,6 +240,12 @@ class Loader {
     }
   }
 
+  // set slabs for sliced reads:
+  void SetSlabParameters(const TensorShape<>& anchor, const TensorShape<>& shape) {
+    slab_anchor_ = anchor;
+    slab_shape_ = shape;
+  }
+
  protected:
   virtual Index SizeImpl() = 0;
 
@@ -356,6 +363,10 @@ class Loader {
   int virtual_shard_id_;
   // Keeps pointer to the last returned sample just in case it needs to be cloned
   LoadTargetSharedPtr last_sample_ptr_tmp;
+
+  // shapes for sliced reads
+  TensorShape<> slab_anchor_;
+  TensorShape<> slab_shape_;
 
   struct ShardBoundaries {
     Index start;
