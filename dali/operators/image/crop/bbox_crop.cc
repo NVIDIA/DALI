@@ -164,13 +164,13 @@ their corresponding labels. Bounding boxes are always specified in relative coor
         R"code(Minimum intersection-over-union (IoU), or a different metric if specified by ``threshold_type``,
 of the bounding boxes with respect to the cropping window. Each sample will select one of the ``thresholds``
 randomly, and the operator will try a given number of attempts (see ``num_attempts``) to produce a random
-crop window that yields an IoU above the selected threshold.)code",
+crop window that has the metric above the selected threshold.)code",
         std::vector<float>{0.f})
     .AddOptionalArg(
         "threshold_type",
         R"code(Determines the meaning of ``thresholds``. By default refers to intersection-over-union (IoU) of
 the bounding boxes with respect to the cropping window. Alternatively, it could be set to ``overlap``
-to specify the overlap of the bounding box area and the cropping window, relative to the area of the bounding box 
+to specify the fraction (by area) of the the bounding box which will fall inside the crop window
 (e.g. a threshold ``1.0`` means the whole bounding box must be contained in the resulting cropping window))code",
         "iou")
     .AddOptionalArg(
@@ -231,8 +231,8 @@ If not specified, ``total_num_attempts`` will be set to
     .AddOptionalArg(
         "all_boxes_above_threshold",
          R"code(If true, all bounding boxes in a sample should overlap with the cropping window as specified by
-``thresholds``, otherwise the cropping window is consider invalid. If false, a cropping window will be considered
-valid if at least a single bounding box overlaps sufficiently.)code",
+``thresholds``, otherwise the cropping window is considered invalid. If false, a cropping window will be considered 
+valid if any bounding box overlaps it sufficiently.)code",
          true)
     .AddOptionalArg(
         "allow_no_crop",
@@ -692,22 +692,19 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   bool ValidOverlap(const Box<ndim, float> &crop,
                     span<const Box<ndim, float>> boxes,
                     float threshold, ThresholdType threshold_type) {
-    std::function<bool(const Box<ndim, float> &box)> f;
+    auto b = boxes.begin(), e = boxes.end();
     if (threshold_type_ == ThresholdType::Overlap) {
-      f = [&crop, threshold](const Box<ndim, float> &box) {
+      auto f = [&crop, threshold](const Box<ndim, float> &box) {
           float overlap = volume(intersection(crop, box)) / static_cast<float>(volume(box));
           return overlap >= threshold;
-        };
+      };
+      return all_boxes_above_threshold_ ? std::all_of(b, e, f) : std::any_of(b, e, f);
     } else {  // IoU
-      f = [&crop, threshold](const Box<ndim, float> &box) {
+      auto f = [&crop, threshold](const Box<ndim, float> &box) {
           return intersection_over_union(crop, box) >= threshold;
-        };
+      };
+      return all_boxes_above_threshold_ ? std::all_of(b, e, f) : std::any_of(b, e, f);
     }
-
-    if (all_boxes_above_threshold_) {
-      return std::all_of(boxes.begin(), boxes.end(), f);
-    }
-    return std::any_of(boxes.begin(), boxes.end(), f);
   }
 
   void FilterByCentroid(const Box<ndim, float> &crop,
