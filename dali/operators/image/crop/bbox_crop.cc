@@ -102,10 +102,11 @@ cropped region of interest. The applied random crop operation is constrained by 
 provided to the operator.
 
 The cropping window candidates are selected randomly until one matches the overlap restrictions
-specified by ``thresholds`` argument. Thresholds values represent minimum intersection-over-union
-(IoU) of the cropping window and each of the provided bounding boxes. A valid crop is one where
-all the provided bounding boxes produce an IoU above a (randomly selected) value from `thresholds`
-argument. Alternatively, we can allow not to crop as one of the valid outcomes of the random process
+specified by ``thresholds`` argument. Thresholds values represent a minimum overlap metric, specified
+by ``threshold_type``, such as intersection-over-union of the cropping window and the bounding boxes
+or relative overlap as the ratio of the intersection area and the area of the bounding box.
+
+Alternatively, we can allow not to crop as one of the valid outcomes of the random process
 (use ``allow_no_crop`` for that).
 
 Two modes of random crop are available:
@@ -119,7 +120,7 @@ When providing ``crop_shape``, a second argument ``input_shape`` should be provi
 original image dimensions, which is required to scale the output bounding boxes.
 
 The argument ``num_attempts`` can be used to control the maximum number of attempts that we try to
-produce a valid crop to match a single minimum IoU value from ``thresholds``. Be advised that when
+produce a valid crop to match a single minimum overlap metric value from ``thresholds``. Be advised that when
 ``allow_no_crop`` is ``False`` and ``thresholds`` does not contain ``0.0``, it is good to increase the
 ``num_attempts`` value as otherwise it may loop for a very long time.
 
@@ -212,24 +213,23 @@ E.g ``ltrb=True`` is equivalent to ``bbox_layout="xyXY"`` and ``ltrb=False`` cor
     .AddOptionalArg(
         "num_attempts",
         R"code(Number of attempts to get a crop window that matches the ``aspect_ratio`` and a selected
-IoU value from ``thresholds``.
+value from ``thresholds``.
 
-After each ``num_attempts``, a different threshold will be picked, until
-reaching a maximum of ``total_num_attempts``. After ``total_num_attempts`` the best candidate will be chosen
-as a default.)code",
+After each ``num_attempts``, a different threshold will be picked, until either reaching a maximum of
+``total_num_attempts`` (if provided), or indefinitely otherwise.)code",
         1)
     .AddOptionalArg(
         "total_num_attempts",
-        R"code(Total number of attempts to get a crop window that matches the ``aspect_ratio`` and any selected
-IoU value from ``thresholds``.
+        R"code(If provided, it indicates the total maximum number of attempts to get a crop window that
+matches the ``aspect_ratio`` and any selected value from ``thresholds``.
 
-After each ``num_attempts``, a different threshold will be picked, until
-reaching a maximum of ``total_num_attempts``. After ``total_num_attempts`` the best candidate will be chosen
-as a default.
+After ``total_num_attempts`` the best candidate will be chosen as a default.
 
-If not specified, ``total_num_attempts`` will be set to
-``num_attempts * num_thresholds * 100``.)code",
-        0)
+If not specified, the crop search will continue indefinitely until finding a valid crop.
+
+WARNING: Not providing ``total_num_attempts`` could lead to an infinite loop if the provided arguments
+can't be statisfied.)code",
+        -1)
     .AddOptionalArg(
         "all_boxes_above_threshold",
          R"code(If true, all bounding boxes in a sample should overlap with the cropping window as specified by
@@ -391,13 +391,12 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       sample_options_.push_back({true, 0.0f});
     }
 
+    total_num_attempts_ = -1;
     if (spec.HasArgument("total_num_attempts")) {
       total_num_attempts_ = spec.GetArgument<int>("total_num_attempts");
-    } else {
-      total_num_attempts_ = num_attempts_ * sample_options_.size() * 100;
+      DALI_ENFORCE(total_num_attempts_ > 0,
+        "Minimum total number of attempts must be greater than zero");
     }
-    DALI_ENFORCE(total_num_attempts_ > 0,
-      "Minimum total number of attempts must be greater than zero");
 
     auto default_bbox_layout_start_end = DefaultBBoxLayout<ndim>();
     auto default_bbox_layout_start_shape = DefaultBBoxAnchorAndShapeLayout<ndim>();
@@ -569,7 +568,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     int count = 0;
     float best_metric = -1.0;
 
-    while (!crop.success && count < total_num_attempts_) {
+    while (!crop.success && (total_num_attempts_ < 0 || count < total_num_attempts_)) {
       auto &rng = rngs_[sample];
       std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
       SampleOption option = sample_options_[idx_dist(rng)];
@@ -690,7 +689,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
                                       span<const Box<ndim, float>> boxes,
                                       Metric&& metric_f) {
     float best_metric = 0.0, worst_metric = 0.0;
-    assert(!boxes.empty());
+    if (boxes.empty())
+      return {0.0f, 0.0f};
     float metric = metric_f(crop, boxes[0]);
     best_metric = metric;
     worst_metric = metric;
