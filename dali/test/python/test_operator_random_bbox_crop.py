@@ -96,6 +96,7 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
                  allow_no_crop = False,
                  input_shape = None,
                  crop_shape = None,
+                 all_boxes_above_threshold = False,
                  num_threads=1, device_id=0, num_gpus=1):
         super(RandomBBoxCropSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
@@ -113,7 +114,8 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
             num_attempts = num_attempts,
             allow_no_crop = allow_no_crop,
             input_shape = input_shape,
-            crop_shape = crop_shape)
+            crop_shape = crop_shape,
+            all_boxes_above_threshold = all_boxes_above_threshold)
 
     def define_graph(self):
         inputs = fn.external_source(source=self.bbox_source, num_outputs=self.bbox_source.num_outputs)
@@ -244,7 +246,8 @@ def check_random_bbox_crop_fixed_shape(batch_size, ndim, crop_shape, input_shape
                                            bbox_source=bbox_source,
                                            bbox_layout=bbox_layout,
                                            scaling=None, aspect_ratio=None,
-                                           input_shape=input_shape, crop_shape=crop_shape)
+                                           input_shape=input_shape, crop_shape=crop_shape,
+                                           all_boxes_above_threshold = False)
     pipe.build()
     for i in range(100):
         outputs = pipe.run()
@@ -287,7 +290,8 @@ def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, us
                                            bbox_source=bbox_source,
                                            bbox_layout=bbox_layout,
                                            scaling=None, aspect_ratio=None,
-                                           input_shape=input_shape, crop_shape=crop_shape)
+                                           input_shape=input_shape, crop_shape=crop_shape,
+                                           all_boxes_above_threshold = False)
     pipe.build()
     for i in range(100):
         outputs = pipe.run()
@@ -302,7 +306,6 @@ def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, us
             for box_idx in range(nboxes):
                 box = in_boxes[box_idx]
                 is_box_in = True
-                print(box, rel_out_crop_anchor, rel_out_crop_shape, out_crop_anchor, out_crop_shape, input_shape, crop_shape)
                 for d in range(ndim):
                     if rel_out_crop_anchor[d] > box[d] or \
                         (rel_out_crop_anchor[d] + rel_out_crop_shape[d]) < box[ndim + d]:
