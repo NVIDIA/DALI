@@ -53,7 +53,8 @@ do
 
             # If we just installed tensorflow, we need to reinstall DALI TF plugin
             if [[ "$inst" == *tensorflow* ]]; then
-                pip uninstall -y nvidia-dali-tf-plugin || true
+                # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
+                pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
                 pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
             fi
         fi
