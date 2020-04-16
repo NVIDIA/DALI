@@ -182,7 +182,7 @@ Keyword Args
 
         callback = _get_callback_from_source(source, cycle)
 
-        if name is not None and self.num_outputs is not None:
+        if name is not None and num_outputs is not None:
             raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
 
         self._name = name
