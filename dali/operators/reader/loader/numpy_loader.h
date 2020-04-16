@@ -43,11 +43,11 @@ class NumpyParseTarget{
   TypeInfo type_info;
   bool fortran_order;
 
-  size_t size() {
+  size_t size() const {
     return volume(shape);
   }
 
-  size_t nbytes() {
+  size_t nbytes() const {
     return type_info.size() * size();
   }
 };
@@ -68,6 +68,17 @@ class NumpyLoader : public FileLoader {
   // parser function, only for internal use
   std::unique_ptr<FileStream> ParseHeader(std::unique_ptr<FileStream> file,
                                           NumpyParseTarget& target);
+
+  // sanitize shapes
+  bool SanitizeSlabs(const TensorShape<>& sample_shape, const bool& fortran_order);
+
+  // read helpers for sliced and non-sliced reads
+  std::unique_ptr<FileStream> ReadSampleHelper(std::unique_ptr<FileStream> file,
+                                               ImageFileWrapper& imfile,
+                                               const NumpyParseTarget& target);
+  std::unique_ptr<FileStream> ReadSlabSampleHelper(std::unique_ptr<FileStream> file,
+                                                   ImageFileWrapper& imfile,
+                                                   const NumpyParseTarget& target);
 
   // regex search string
   const std::regex header_regex_;

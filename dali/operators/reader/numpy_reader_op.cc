@@ -54,24 +54,6 @@ TensorListShape<> NumpyReader::GetSliceArg(ArgumentWorkspace &ws, const char *na
   }
 }
 
-// std::vector<int> NumpyReader::GetSliceArg(ArgumentWorkspace &ws, const char* name) {
-//  if (spec_.HasArgument(name)) {
-//    return spec_.GetRepeatedArgument<int>(name);
-//  } else if (spec_.HasTensorArgument(name)) {
-//    auto &t = ws.ArgumentInput(name);
-//    DALI_ENFORCE(t.shape().sample_dim() == 1, "A slice argument tensor has to be 1D");
-//    std::vector<int> result(t.shape()[0]);
-//    memcpy(result.data(), t.data<int>(), result.size());
-//    return result;
-//  } else {
-//    // no argument given, no slice
-//    return std::vector<int>();
-//  }
-// }
-
-// prefetching helpers
-
-
 void NumpyReader::Prefetch() {
   // We actually prepare the next batch
   TimeRange tr("NumpyReader::Prefetch #" + to_string(curr_batch_producer_), TimeRange::kRed);
@@ -79,7 +61,7 @@ void NumpyReader::Prefetch() {
   curr_batch.reserve(batch_size_);
   curr_batch.clear();
 
-  if (slab_anchors_.empty() || slab_shapes_.empty()) {
+  if (slab_shapes_.empty() || slab_anchors_.empty()) {
     loader_->SetSlabParameters({}, {});
     for (int i = 0; i < batch_size_; ++i) {
       curr_batch.push_back(loader_->ReadOne(i == 0));
@@ -180,10 +162,10 @@ the list of files in the sub-directories of `file_root`.)code", "*.npy")
 `stick_to_shard` and `random_shuffle`.)code",
       false)
   .AddOptionalArg<int>("anchor", R"code(Specifies the anchor for sliced reads.\n
-If no anchor is specified, the origin (0, ..., 0) is assumed.)code",
+If no anchor is specified, the whole file is read.)code",
       std::vector<int>(), true)
   .AddOptionalArg<int>("shape", R"code(Specifies the shape of the slice for sliced reads.\n
-If no size is specified, (-1, ... ,-1) is assumed, i.e. the data is read from the anchor to the end.)code",
+If no shape is specified, the whole file is read.)code",
       std::vector<int>(), true)
   .AddParent("LoaderBase");
 

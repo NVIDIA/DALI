@@ -22,15 +22,26 @@ import os
 import tempfile
 
 class NumpyReaderPipeline(Pipeline):
-    def __init__(self, path, batch_size, path_filter="*.npy", num_threads=1, device_id=0, num_gpus=1):
+    def __init__(self, path, batch_size, path_filter="*.npy",
+                 num_threads=1, device_id=0, num_gpus=1,
+                 slab_anchor=None, slab_shape=None):
         super(NumpyReaderPipeline, self).__init__(batch_size,
                                                   num_threads,
                                                   device_id)
-        
-        self.input = ops.NumpyReader(file_root = path,
-                                     file_filter = path_filter,
-                                     shard_id = device_id,
-                                     num_shards = num_gpus)
+
+        self.input = None
+        if (slab_anchor is not None) and (slab_shape is not None):
+            self.input = ops.NumpyReader(file_root = path,
+                                         file_filter = path_filter,
+                                         anchor = slab_anchor,
+                                         shape = slab_shape,
+                                         shard_id = device_id,
+                                         num_shards = num_gpus)
+        else:
+            self.input = ops.NumpyReader(file_root = path,
+                                         file_filter = path_filter,
+		                         shard_id = device_id,
+                                         num_shards = num_gpus)
 
         
     def define_graph(self):
@@ -44,6 +55,7 @@ test_np_shapes = [(), (11), (4, 7), (6, 2, 5), (1, 2, 7, 4)]
 rng = np.random.RandomState(12345)
     
 # test: compare reader with numpy
+
 # with different batch_size and num_threads
 def test_types_and_shapes():
     with tempfile.TemporaryDirectory() as test_data_root:
@@ -86,7 +98,28 @@ def test_batch():
                 # compare
                 assert_array_equal(arr_rd, arr_np)
             
-                    
+
+# test slab read
+def test_slab():
+    file_shape = (20, 20, 20)
+    slab_anchor = [5, 5, 5]
+    slab_shape = [10, 10, 10]
+
+    with tempfile.TemporaryDirectory() as test_data_root:
+        filename = os.path.join(test_data_root, "test_slab.npy")
+        create_numpy_file(filename, file_shape, np.float32, False)
+
+        for num_threads in [1, 2, 4, 8]:
+            pipe = NumpyReaderPipeline(path = test_data_root,
+                                       path_filter = "test_*.npy",
+                                       batch_size = 1,
+                                       num_threads = num_threads,
+                                       device_id = 0,
+                                       slab_anchor = slab_anchor,
+                                       slab_shape = slab_shape)
+            pipe.build()
+
+                
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array
     arr = rng.random_sample(shape) * 10.

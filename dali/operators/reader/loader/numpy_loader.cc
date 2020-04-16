@@ -123,6 +123,67 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
   return file;
 }
 
+// check slabs
+bool NumpyLoader::SanitizeSlabs(const TensorShape<>& sample_shape, const bool& fortran_order) {
+  // do sanity checks
+  int ndims = sample_shape.size();
+  bool read_slab = !(slab_anchor_.empty() || slab_shape_.empty());
+
+  std::cout << "read slab? " << read_slab << std::endl;
+  std::cout << "ndims? " << ndims << std::endl;
+
+  if (read_slab) {
+    DALI_ENFORCE((slab_anchor_.size() == slab_shape_.size()) &&
+                 (slab_anchor_.size() == ndims),
+                 "The dimensions of anchor and slab have to match.");
+
+    for (int i = 0; i < ndims; ++i) {
+      int offset = slab_anchor_[i];
+      DALI_ENFORCE((offset >= 0) &&
+                   (offset + slab_shape_[i] <= sample_shape[i]),
+                   "The slab has to fit inside the sample dimensions");
+    }
+    if (fortran_order) {
+      // transpose the shapes:
+      TensorShape<> old_anchor(slab_anchor_);
+      TensorShape<> old_shape(slab_shape_);
+      for (int i = 0; i < ndims; ++i) {
+        slab_anchor_[i] = old_anchor[ndims-i-1];
+        slab_shape_[i] = old_shape[ndims-i-1];
+      }
+    }
+    for (int i = 0; i < ndims; ++i) {
+      std::cout << slab_anchor_[i] << " ";
+    }
+    std::cout << std::endl;
+    for (int i = 0; i < ndims; ++i) {
+      std::cout << slab_shape_[i] << " ";
+    }
+    std::cout << std::endl;
+  }
+
+  return read_slab;
+}
+
+std::unique_ptr<FileStream> NumpyLoader::ReadSampleHelper(std::unique_ptr<FileStream> file,
+                                                          ImageFileWrapper& imfile,
+                                                          const NumpyParseTarget& target) {
+  Index image_bytes = target.nbytes();
+  if (copy_read_data_) {
+    if (imfile.image.shares_data()) {
+      imfile.image.Reset();
+    }
+    imfile.image.Resize(target.shape, target.type_info);
+    // copy the image
+    file->Read(static_cast<uint8_t*>(imfile.image.raw_mutable_data()), image_bytes);
+  } else {
+    auto p = file->Get(image_bytes);
+    // Wrap the raw data in the Tensor object.
+    imfile.image.ShareData(p, image_bytes, {image_bytes});
+    imfile.image.Resize(target.shape, target.type_info);
+  }
+  return file;
+}
 
 void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   auto image_file = images_[current_index_++];
@@ -146,6 +207,7 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
     return;
   }
 
+  // open file stream
   auto current_image = FileStream::Open(file_root_ + "/" + image_file, read_ahead_);
 
   // read the header
@@ -153,18 +215,11 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   current_image = ParseHeader(std::move(current_image), target);
   Index image_bytes = target.nbytes();
 
-  if (copy_read_data_) {
-    if (imfile.image.shares_data()) {
-      imfile.image.Reset();
-    }
-    imfile.image.Resize(target.shape, target.type_info);
-    // copy the image
-    current_image->Read(static_cast<uint8_t*>(imfile.image.raw_mutable_data()), image_bytes);
-  } else {
-    auto p = current_image->Get(image_bytes);
-    // Wrap the raw data in the Tensor object.
-    imfile.image.ShareData(p, image_bytes, {image_bytes});
-    imfile.image.Resize(target.shape, target.type_info);
+  // check if we need to perform a slab read
+  bool read_slab = SanitizeSlabs(TensorShape<>(target.shape), target.fortran_order);
+
+  if (!read_slab) {
+    current_image = ReadSampleHelper(std::move(current_image), imfile, target);
   }
 
   // close the file handle
