@@ -257,6 +257,8 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
 
   if (!read_slab) {
     current_image = ReadSampleHelper(std::move(current_image), imfile, target);
+  } else {
+    current_image = ReadSampleSlabHelper(std::move(current_image), imfile, target);
   }
 
   // close the file handle
