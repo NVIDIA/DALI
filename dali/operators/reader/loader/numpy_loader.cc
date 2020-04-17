@@ -18,6 +18,7 @@
 
 // general includes
 #include "dali/core/common.h"
+#include "dali/pipeline/data/views.h"
 
 // slicing includes
 #include "dali/kernels/slice/slice_cpu.h"
@@ -136,9 +137,6 @@ bool NumpyLoader::SetupSlab(const TensorShape<>& sample_shape, const bool& fortr
   int ndims = sample_shape.sample_dim();
   bool read_slab = !(slab_anchor_.empty() || slab_shape_.empty());
 
-  std::cout << "read slab? " << read_slab << std::endl;
-  std::cout << "ndims? " << ndims << std::endl;
-
   if (read_slab) {
     DALI_ENFORCE((slab_anchor_.size() == slab_shape_.size()) &&
                  (slab_anchor_.size() == ndims),
@@ -159,15 +157,6 @@ bool NumpyLoader::SetupSlab(const TensorShape<>& sample_shape, const bool& fortr
         slab_shape_[i] = old_shape[ndims-i-1];
       }
     }
-
-    for (int i = 0; i < ndims; ++i) {
-      std::cout << slab_anchor_[i] << " ";
-    }
-    std::cout << std::endl;
-    for (int i = 0; i < ndims; ++i) {
-      std::cout << slab_shape_[i] << " ";
-    }
-    std::cout << std::endl;
   }
 
   return read_slab;
@@ -207,25 +196,30 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<Fi
     tmptensor.Resize(target.shape, target.type_info);
     // Output tensor
     imfile.image.Resize(slab_shape_, target.type_info);
-    // copy the data over
+    // do the slicing
     auto ndims = tmptensor.shape().sample_dim();
     auto input_type = target.type_info.id();
-    auto in_strides = kernels::GetStrides(tmptensor.shape());
-    auto out_strides = kernels::GetStrides(slab_shape_);
     TYPE_SWITCH(input_type, type2id, Type, NUMPY_ALLOWED_TYPES, (
       VALUE_SWITCH(ndims, Dims, NUMPY_ALLOWED_DIMS, (
-        // using Kernel = kernels::SliceKernel<Type, Type, Dims>;
-        Type *out_ptr = imfile.image.data;
-        const Type *in_ptr = tmptensor.data;
+        auto out_tensor = view<Type, Dims>(imfile.image);
+        const auto& in_tensor = view<const Type, Dims>(tmptensor);
+        Type *out_ptr = out_tensor.data;
+        const Type *in_ptr = in_tensor.data;
+        const auto &in_shape = in_tensor.shape;
+        const auto &out_shape = out_tensor.shape;
+        const auto &anchor_shape = slab_anchor_.to_static<Dims>();
+        auto in_strides = kernels::GetStrides(in_shape);
+        auto out_strides = kernels::GetStrides(out_shape);
         kernels::SliceKernel<Type, Type, Dims>(out_ptr,
                in_ptr,
                in_strides,
                out_strides,
-               slab_anchor_,
-               slab_shape_);
+               anchor_shape,
+               out_shape);
       ), DALI_FAIL(make_string("Number of dimensions not supported ", ndims)););  // NOLINT
     ), DALI_FAIL(make_string("Type not supported", input_type)););  // NOLINT
   }
+  return file;
 }
 
 void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
