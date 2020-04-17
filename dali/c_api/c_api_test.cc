@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-#include "dali/c_api/c_api.h"
+#include "dali/c_api.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/pipeline.h"

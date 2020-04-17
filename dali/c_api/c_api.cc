@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-#include "dali/c_api/c_api.h"
+#include "dali/c_api.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/plugin/copy.h"
