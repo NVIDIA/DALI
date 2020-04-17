@@ -15,7 +15,9 @@ do_once() {
     # install any for CUDA 9 and the 1.15 for CUDA 10
     pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
 
-    pip uninstall -y nvidia-dali-tf-plugin || true
+    # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
+    pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
+
     pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
 
     export PATH=$PATH:/usr/local/mpi/bin
