@@ -172,7 +172,7 @@ find $PKGNAME_PATH -name '*.so*' -o -name '*.bin' | while read sofile; do
     done
 done
 
-# set RPATH of dali_python.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
+# set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
 find $PKGNAME_PATH/* -type f -name "*.so*" -o -name "*.bin" | while read FILE; do
     UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
     echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs'"
