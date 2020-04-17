@@ -20,7 +20,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 
+#include "dali/core/any.h"
 #include "dali/core/common.h"
 #include "dali/core/format.h"
 #include "dali/core/error_handling.h"
@@ -166,6 +168,26 @@ class DLL_PUBLIC OperatorBase {
 
   DISABLE_COPY_MOVE_ASSIGN(OperatorBase);
 
+
+  template<typename T>
+  T GetDiagnostic(const std::string &name) const {
+    return *any_cast<T *>(counters_.at(name));
+  }
+
+  template<typename T>
+  void RegisterDiagnostic(std::string name, T *val) {
+    using namespace std;  // NOLINT
+    static_assert(is_arithmetic_or_half<remove_reference_t<T>>::value || is_same<T, string>::value,
+                  "The eligible counter types are arithmetic types or string");
+    // Note the WAR for `any` bug - when T* is passed to
+    // forwarding reference ctor, T*& gets instantiated,
+    // which is a problematic type.
+    if (!counters_.emplace(move(name), (val + 0)).second) {
+      DALI_FAIL("Counter with given name already exists");
+    }
+  }
+
+
  protected:
   /**
    * @brief Fill output vector with per-sample argument values.
@@ -217,10 +239,13 @@ class DLL_PUBLIC OperatorBase {
     assert(output.size() == static_cast<size_t>(batch_size_));
   }
 
+
   const OpSpec spec_;
   int num_threads_;
   int batch_size_;
   int default_cuda_stream_priority_;
+
+  std::unordered_map<std::string, any> counters_;
 };
 
 #define USE_OPERATOR_MEMBERS()                       \

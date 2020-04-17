@@ -45,9 +45,43 @@ TEST(InstantiateOperator, RunMethodIsAccessible) {
   // We just want to test that Run method is visible (exported to the so file)
   // It is expected that the call throws as the worspace is empty
   ASSERT_THROW(
-    op->Run(ws),
-    std::runtime_error);
+          op->Run(ws),
+          std::runtime_error);
 }
+
+
+template<typename T>
+class OperatorDiagnosticsTest : public ::testing::Test {
+ protected:
+  void SetUp() final {
+    auto op_spec = OpSpec("CoinFlip").AddArg("num_threads", 1).AddArg("batch_size", 1);
+    operator_ = std::make_unique<OperatorBase>(op_spec);
+  }
+
+
+  std::unique_ptr<OperatorBase> operator_;
+  std::string counter_name_ = "Lorem ipsum";
+  T counter_{42};
+};
+
+using DiagnosticsTypes = ::testing::Types<int, unsigned int, int8_t, uint16_t, int32_t, uint64_t,
+                                          float, double, half_float::half>;
+TYPED_TEST_SUITE(OperatorDiagnosticsTest, DiagnosticsTypes);
+
+
+TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsTest) {
+  (this->operator_)->RegisterDiagnostic(this->counter_name_, &this->counter_);
+  auto cnt = this->operator_->template GetDiagnostic<TypeParam>(this->counter_name_);
+  ASSERT_EQ(this->counter_, cnt);
+}
+
+
+TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsCollisionTest) {
+  (this->operator_)->RegisterDiagnostic(this->counter_name_, &this->counter_);
+  EXPECT_THROW((this->operator_)->RegisterDiagnostic(this->counter_name_, &this->counter_),
+               std::runtime_error);
+}
+
 
 }  // namespace testing
 }  // namespace dali
