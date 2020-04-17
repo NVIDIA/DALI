@@ -177,7 +177,7 @@ class DLL_PUBLIC OperatorBase {
   template<typename T>
   void RegisterDiagnostic(std::string name, T *val) {
     using namespace std;  // NOLINT
-    static_assert(is_arithmetic_or_half<remove_reference_t<T>>::value || is_same<T, string>::value,
+    static_assert(is_arithmetic_or_half<remove_reference_t<T>>::value || is_enum<T>::value,
                   "The eligible counter types are arithmetic types or string");
     if (!diagnostics_.emplace(move(name), val).second) {
       DALI_FAIL("Diagnostic with given name already exists");

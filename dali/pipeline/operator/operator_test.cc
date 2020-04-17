@@ -48,34 +48,51 @@ TEST(InstantiateOperator, RunMethodIsAccessible) {
 }
 
 
+enum TestEnum : int {
+  TEST_ENUM = 42
+};
+
 template<typename T>
 class OperatorDiagnosticsTest : public ::testing::Test {
  protected:
   void SetUp() final {
+    assign_value();
     auto op_spec = OpSpec("CoinFlip").AddArg("num_threads", 1).AddArg("batch_size", 1);
     operator_ = std::make_unique<OperatorBase>(op_spec);
   }
 
+  void assign_value() {
+    this->value_ = 42;
+  }
+
   std::unique_ptr<OperatorBase> operator_;
-  std::string counter_name_ = "Lorem ipsum";
-  T counter_{1};
+  std::string value_name_ = "Lorem ipsum";
+  T value_;
 };
 
-using DiagnosticsTypes = ::testing::Types<int, unsigned int, int8_t, uint16_t, int32_t, uint64_t,
-                                          float, double, half_float::half, bool>;
-TYPED_TEST_SUITE(OperatorDiagnosticsTest, DiagnosticsTypes);
-
-
-TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsTest) {
-  (this->operator_)->RegisterDiagnostic(this->counter_name_, &this->counter_);
-  auto cnt = this->operator_->template GetDiagnostic<TypeParam>(this->counter_name_);
-  ASSERT_EQ(this->counter_, cnt);
+template<>
+void OperatorDiagnosticsTest<bool>::assign_value() {
+  this->value_ = true;
 }
 
+template<>
+void OperatorDiagnosticsTest<TestEnum>::assign_value() {
+  this->value_ = TEST_ENUM;
+}
+
+using DiagnosticsTypes = ::testing::Types<int, unsigned int, int8_t, uint16_t, int32_t, uint64_t,
+                                          float, double, half_float::half, bool, TestEnum>;
+TYPED_TEST_SUITE(OperatorDiagnosticsTest, DiagnosticsTypes);
+
+TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsTest) {
+  (this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_);
+  auto cnt = this->operator_->template GetDiagnostic<TypeParam>(this->value_name_);
+  ASSERT_EQ(this->value_, cnt);
+}
 
 TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsCollisionTest) {
-  (this->operator_)->RegisterDiagnostic(this->counter_name_, &this->counter_);
-  EXPECT_THROW((this->operator_)->RegisterDiagnostic(this->counter_name_, &this->counter_),
+  (this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_);
+  EXPECT_THROW((this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_),
                std::runtime_error);
 }
 
