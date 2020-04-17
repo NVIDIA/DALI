@@ -171,7 +171,7 @@ class DLL_PUBLIC OperatorBase {
 
   template<typename T>
   T GetDiagnostic(const std::string &name) const {
-    return *any_cast<T *>(counters_.at(name));
+    return *any_cast<T *>(diagnostics_.at(name));
   }
 
   template<typename T>
@@ -179,11 +179,8 @@ class DLL_PUBLIC OperatorBase {
     using namespace std;  // NOLINT
     static_assert(is_arithmetic_or_half<remove_reference_t<T>>::value || is_same<T, string>::value,
                   "The eligible counter types are arithmetic types or string");
-    // Note the WAR for `any` bug - when T* is passed to
-    // forwarding reference ctor, T*& gets instantiated,
-    // which is a problematic type.
-    if (!counters_.emplace(move(name), (val + 0)).second) {
-      DALI_FAIL("Counter with given name already exists");
+    if (!diagnostics_.emplace(move(name), val).second) {
+      DALI_FAIL("Diagnostic with given name already exists");
     }
   }
 
@@ -245,7 +242,7 @@ class DLL_PUBLIC OperatorBase {
   int batch_size_;
   int default_cuda_stream_priority_;
 
-  std::unordered_map<std::string, any> counters_;
+  std::unordered_map<std::string, any> diagnostics_;
 };
 
 #define USE_OPERATOR_MEMBERS()                       \

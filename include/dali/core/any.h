@@ -167,12 +167,17 @@ class any {
   }
 
   template <typename T>
+  any(T &value) {  // NOLINT
+    assign<T>(value);
+  }
+
+  template <typename T, typename = std::enable_if_t<!std::is_reference<T>::value>>
   any(T &&value) {  // NOLINT
     static_assert(std::is_copy_constructible<T>::value,
-      "only copy-constructible types can be stored in 'any'");
+                  "only copy-constructible types can be stored in 'any'");
     static_assert(std::is_destructible<T>::value,
-      "objects stored in 'any' must be destructible");
-    assign<T>(std::forward<T>(value));
+                  "objects stored in 'any' must be destructible");
+    assign<T>(std::move(value));
   }
 
   void reset() {
