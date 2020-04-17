@@ -44,9 +44,7 @@ TEST(InstantiateOperator, RunMethodIsAccessible) {
   auto op = InstantiateOperator(MakeOpSpec("Crop"));
   // We just want to test that Run method is visible (exported to the so file)
   // It is expected that the call throws as the worspace is empty
-  ASSERT_THROW(
-          op->Run(ws),
-          std::runtime_error);
+  ASSERT_THROW(op->Run(ws), std::runtime_error);
 }
 
 
@@ -58,14 +56,13 @@ class OperatorDiagnosticsTest : public ::testing::Test {
     operator_ = std::make_unique<OperatorBase>(op_spec);
   }
 
-
   std::unique_ptr<OperatorBase> operator_;
   std::string counter_name_ = "Lorem ipsum";
-  T counter_{42};
+  T counter_{1};
 };
 
 using DiagnosticsTypes = ::testing::Types<int, unsigned int, int8_t, uint16_t, int32_t, uint64_t,
-                                          float, double, half_float::half>;
+                                          float, double, half_float::half, bool>;
 TYPED_TEST_SUITE(OperatorDiagnosticsTest, DiagnosticsTypes);
 
 
