@@ -35,6 +35,13 @@
 
 
 namespace dali {
+
+#define NUMPY_ALLOWED_DIMS (1, 2, 3, 4, 5, 6, 7)
+
+#define NUMPY_ALLOWED_TYPES \
+  (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, float16, \
+  double)
+
 TypeInfo TypeFromNumpyStr(const std::string &format);
 
 class NumpyParseTarget{
@@ -70,13 +77,13 @@ class NumpyLoader : public FileLoader {
                                           NumpyParseTarget& target);
 
   // sanitize shapes
-  bool SanitizeSlabs(const TensorShape<>& sample_shape, const bool& fortran_order);
+  bool SetupSlab(const TensorShape<>& sample_shape, const bool& fortran_order);
 
   // read helpers for sliced and non-sliced reads
   std::unique_ptr<FileStream> ReadSampleHelper(std::unique_ptr<FileStream> file,
                                                ImageFileWrapper& imfile,
                                                const NumpyParseTarget& target);
-  std::unique_ptr<FileStream> ReadSlabSampleHelper(std::unique_ptr<FileStream> file,
+  std::unique_ptr<FileStream> ReadSampleSlabHelper(std::unique_ptr<FileStream> file,
                                                    ImageFileWrapper& imfile,
                                                    const NumpyParseTarget& target);
 

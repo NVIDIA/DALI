@@ -118,6 +118,7 @@ def test_slab():
                                        slab_anchor = slab_anchor,
                                        slab_shape = slab_shape)
             pipe.build()
+            pipe_out = pipe.run()
 
                 
 def create_numpy_file(filename, shape, typ, fortran_order):

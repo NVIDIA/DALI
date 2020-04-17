@@ -14,18 +14,12 @@
 
 #include <string>
 
-
 #include "dali/pipeline/data/views.h"
 #include "dali/kernels/common/transpose.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/reader/numpy_reader_op.h"
 
 namespace dali {
-
-#define NUMPY_ALLOWED_TYPES \
-  (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, float16, \
-  double)
-
 
 TensorListShape<> NumpyReader::GetSliceArg(ArgumentWorkspace &ws, const char *name) {
   if (spec_.HasArgument(name)) {
@@ -71,7 +65,6 @@ void NumpyReader::Prefetch() {
       loader_->SetSlabParameters(slab_anchors_[i], slab_shapes_[i]);
       curr_batch.push_back(loader_->ReadOne(i == 0));
     }
-    DALI_FAIL("Sliced reads not supported yet!");
   }
 }
 
