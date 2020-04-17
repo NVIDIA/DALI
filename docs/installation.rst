@@ -38,31 +38,59 @@ Prerequisites
 Installation
 ^^^^^^^^^^^^
 
-Execute the below command CUDA 9.0 based build:
+Execute the following command to install latest DALI for specified CUDA version:
+
+* for CUDA 9:
+
+.. warning::
+
+  DALI 0.22 is the last official release that supports CUDA 9. After that the build will not be provided.
+  Please update your environment to CUDA version 10 or newer and use corresponding version of DALI.
 
 .. code-block:: bash
 
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali
 
-Starting DALI 0.8.0 for CUDA 10.0 based build use:
+* for CUDA 10:
 
 .. code-block:: bash
 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali
 
-.. note::
+* for CUDA 11:
 
-  Starting 0.6.1 the ``nvidia-dali`` package no longer contains prebuilt versions of the DALI TensorFlow plugin, so you need to install DALI TensorFlow plugin for the currently installed version of TensorFlow:
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/11.0 nvidia-dali
+
+nvidia-dali-tf-plugin
+"""""""""""""""""""""
+
+Starting 0.6.1 the ``nvidia-dali`` package no longer contains prebuilt versions of the DALI TensorFlow plugin,
+so you need to install DALI TensorFlow plugin for the currently installed version of TensorFlow:
+
+.. warning::
+
+  DALI 0.22 is the last official release that supports CUDA 9. After that the build will not be provided.
+  Please update your environment to CUDA version 10 or newer and use corresponding version of DALI.
+
+* for CUDA 9:
 
 .. code-block:: bash
 
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali-tf-plugin
 
-Starting DALI 0.8.0 for CUDA 10.0 based build execute:
+* for CUDA 10:
 
 .. code-block:: bash
 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali-tf-plugin
+
+* for CUDA 11:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/11.0 nvidia-dali-tf-plugin
 
 
 Installing this package will install ``nvidia-dali`` and its dependencies, if these dependencies are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin``.
@@ -78,8 +106,11 @@ Installing this package will install ``nvidia-dali`` and its dependencies, if th
     OLDER_VERSION=0.6.1
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin==$OLDER_VERSION
 
+CUDA 9 build is provided up to DALI 0.22.0. CUDA 10 build is provided starting from DALI 0.8.0.
+CUDA 11 build is provided starting from DALI 0.22.0.
+
 Pre-built packages in Watson Machine Learing Community Edition
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+--------------------------------------------------------------
 
 .. |wmlce link| replace:: **WML CE installation**
 .. _wmlce link: https://www.ibm.com/support/knowledgecenter/SS5SF7_1.6.1/navigation/wmlce_install.html
@@ -99,7 +130,7 @@ After installing conda and configuring the WML CE conda channel (see |wmlce link
     dali                      0.9             py36_666ce55_1094.g70c071f
 
 Nightly and weekly release channels
-"""""""""""""""""""""""""""""""""""
+-----------------------------------
 
 .. note::
 
@@ -114,30 +145,44 @@ Nightly and weekly release channels
   or nvidia-dali-weekly as they are installed in the same path
 
 Nightly builds
-**************
+^^^^^^^^^^^^^^
 
 To access most recent nightly builds please use flowing release channel:
 
-* for CUDA9
+* for CUDA 9:
+
+.. warning::
+
+  DALI 0.22 is the last official release that supports CUDA 9. After that the nightly builds for CUDA 9
+  will not be provided. Please update your environment to CUDA version 10 or newer
+  and use corresponding version of DALI.
 
 .. code-block:: bash
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/9.0 nvidia-dali-nightly
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/9.0 nvidia-dali-tf-plugin-nightly
 
-* for CUDA10
+* for CUDA 10:
 
 .. code-block:: bash
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/10.0 nvidia-dali-nightly
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/10.0 nvidia-dali-tf-plugin-nightly
 
-Weekly builds
-**************
-
-Also, there is a weekly release channel with more thorough testing (only CUDA10 builds are provided there):
+* for CUDA 11:
 
 .. code-block:: bash
 
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly/cuda/10.0 nvidia-dali-weekly
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly/cuda/10.0 nvidia-dali-tf-plugin-weekly
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/11.0 nvidia-dali-nightly
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/11.0 nvidia-dali-tf-plugin-nightly
+
+
+Weekly builds
+^^^^^^^^^^^^^
+
+Also, there is a weekly release channel with more thorough testing (only CUDA11 builds are provided there):
+
+.. code-block:: bash
+
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly/cuda/11.0 nvidia-dali-weekly
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly/cuda/11.0 nvidia-dali-tf-plugin-weekly

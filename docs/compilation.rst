@@ -29,7 +29,7 @@ Building Python wheel and (optionally) Docker image
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed, set the following environment variables:
 
 * PYVER - Python version. The default is ``3.6``.
-* CUDA_VERSION - CUDA toolkit version (9 for 9.0 or 10 for 10.0). The default is ``10``. If the version is prefixed with `.` then any value ``XX`` can be passed and the user needs to make sure that Dockerfile.cudaXX.deps is present in `docker/` directory.
+* CUDA_VERSION - CUDA toolkit version (10 for 10.0 or 11 for 11.0). The default is ``11``. If the version is prefixed with `.` then any value ``XX`` can be passed and the user needs to make sure that Dockerfile.cudaXX.deps is present in `docker/` directory.
 * NVIDIA_BUILD_ID - Custom ID of the build. The default is ``1234``.
 * CREATE_WHL - Create a standalone wheel. The default is ``YES``.
 * BUILD_TF_PLUGIN - Create a DALI TensorFlow plugin wheel as well. The default is ``NO``.
