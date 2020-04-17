@@ -214,10 +214,10 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<Fi
     auto out_strides = kernels::GetStrides(slab_shape_);
     TYPE_SWITCH(input_type, type2id, Type, NUMPY_ALLOWED_TYPES, (
       VALUE_SWITCH(ndims, Dims, NUMPY_ALLOWED_DIMS, (
-        using Kernel = kernels::SliceKernel<Type, Type, Dims>;
+        // using Kernel = kernels::SliceKernel<Type, Type, Dims>;
         Type *out_ptr = imfile.image.data;
         const Type *in_ptr = tmptensor.data;
-        Kernel(out_ptr,
+        kernels::SliceKernel<Type, Type, Dims>(out_ptr,
                in_ptr,
                in_strides,
                out_strides,

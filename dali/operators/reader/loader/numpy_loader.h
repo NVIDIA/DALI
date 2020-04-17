@@ -36,11 +36,14 @@
 
 namespace dali {
 
-#define NUMPY_ALLOWED_DIMS (1, 2, 3, 4, 5, 6, 7)
+// #define NUMPY_ALLOWED_DIMS (1, 2, 3, 4, 5, 6, 7)
+#define NUMPY_ALLOWED_DIMS (1)
 
-#define NUMPY_ALLOWED_TYPES \
+// #define NUMPY_ALLOWED_TYPES \
   (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, float16, \
-  double)
+  double) // NOLINT
+
+#define NUMPY_ALLOWED_TYPES (float)
 
 TypeInfo TypeFromNumpyStr(const std::string &format);
 
