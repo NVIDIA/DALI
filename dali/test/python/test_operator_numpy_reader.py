@@ -51,24 +51,34 @@ class NumpyReaderPipeline(Pipeline):
 
     
 class NumpyReaderDynamicPipeline(Pipeline):
-    def __init__(self, path, batch_size, file_shape, path_filter="*.npy",
+    def __init__(self, path, batch_size, path_filter="*.npy",
                  num_threads=1, device_id=0, num_gpus=1):
-        super(NumpyReaderPipeline, self).__init__(batch_size,
-                                                  num_threads,
-                                                  device_id)
+        super(NumpyReaderDynamicPipeline, self).__init__(batch_size,
+                                                         num_threads,
+                                                         device_id)
 
-        self.rng = np.random(12345)
+        self.rng = np.random.RandomState(12345)
+        self.get_anchor = ops.ExternalSource()
+        self.get_shape = ops.ExternalSource()
         self.input = ops.NumpyReader(file_root = path,
                                      file_filter = path_filter,
                                      shard_id = device_id,
                                      num_shards = num_gpus)
         
-
     def define_graph(self):
-	inputs = self.input(name="Reader")
+        self.anchor = self.get_anchor()
+        self.shape = self.get_shape()
+        inputs = self.input(name="Reader",
+                            anchor=self.anchor,
+                            shape=self.shape)
 
-        return inputs
-    
+        return inputs, self.anchor, self.shape
+
+    def iter_setup(self):
+        anchor = np.expand_dims(self.rng.random_integers(low = 0, high = 5, size=(3)), axis=0).astype(np.int32)
+        shape =	np.expand_dims(self.rng.random_integers(low = 1, high = 5, size=(3)), axis=0).astype(np.int32)
+        self.feed_input(self.anchor, anchor)
+        self.feed_input(self.shape, shape)
     
 
 test_np_types = [np.float32, np.float64, np.int32, np.int64]
@@ -126,19 +136,26 @@ test_np_slab_subshapes = [[4], (7, 5), (5, 10, 1), (2, 4, 3, 1)]
                 
 # test slab read
 def test_static_slab():
-
     with tempfile.TemporaryDirectory() as test_data_root:
         index  = 0
         for typ in test_np_types:
             for idx,shape in enumerate(test_np_slab_shapes):
                 filename = os.path.join(test_data_root, "test_slab_{:02d}.npy".format(index))
-                create_numpy_file(filename, shape, typ, False)
                 slab_anchor = test_np_slab_anchors[idx]
                 slab_shape = test_np_slab_subshapes[idx]
                 index += 1
                 yield check_array_static_slab, filename, shape, slab_anchor, slab_shape, typ, False
 
+                
+def test_dynamic_slab():
+    with tempfile.TemporaryDirectory() as test_data_root:
+        index  = 0
+        for typ in test_np_types:
+            filename = os.path.join(test_data_root, "test_slab_{:02d}.npy".format(index))
+            index += 1
+            yield check_array_dynamic_slab, filename, (10, 10, 10), typ, False
 
+            
 # generic helper routines                
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array
@@ -200,6 +217,34 @@ def check_array_static_slab(filename, shape, slab_anchor, slab_shape, typ, fortr
 
         # compare
         assert_array_equal(arr_rd, arr_np[slab])
+
+    # delete temp files
+    delete_numpy_file(filename)
+
+
+def check_array_dynamic_slab(filename, shape, typ, fortran_order=False):
+    # setup file
+    create_numpy_file(filename, shape, typ, fortran_order)
+
+    for num_threads in [1, 2, 4, 8]:
+        # load with numpy reader
+        pipe = NumpyReaderDynamicPipeline(path = os.path.dirname(filename),
+                                          path_filter = os.path.basename(filename),
+                                          batch_size = 1,
+                                          num_threads = num_threads,
+                                          device_id = 0)
+        pipe.build()
+        pipe_out = pipe.run()
+        arr_rd = np.squeeze(pipe_out[0].as_array(), axis=0)
+
+        print(pipe_out[0].as_array(), pipe_out[1].as_array(), pipe_out[2].as_array())
+        
+        # load manually
+        #arr_np = np.load(filename)
+        #slab = [slice(x[0], x[0]+x[1]) for x in zip(slab_anchor, slab_shape)]
+
+        # compare
+        #assert_array_equal(arr_rd, arr_np[slab])
 
     # delete temp files
     delete_numpy_file(filename)

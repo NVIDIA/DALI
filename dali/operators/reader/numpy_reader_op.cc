@@ -34,11 +34,15 @@ TensorListShape<> NumpyReader::GetSliceArg(ArgumentWorkspace &ws, const char *na
     TensorListShape<> tls;
     tls.resize(batch_size_, t.shape()[0][0]);
     TensorShape<> ts;
-    ts.resize(tls.sample_dim());
+    ts.resize(t.shape()[0][0]);
+    std::cout << "BS: " << batch_size_ << " " << ts.shape[0] << std::endl;
     for (int i = 0; i < batch_size_; i++) {
       auto tv = tlv[i];
-      for (int j = 0; j < ts.shape[0]; j++)
+      for (int j = 0; j < ts.shape[0]; j++) {
         ts[j] = tv.data[j];
+        std::cout << ts[j] << " ";
+      }
+      std::cout << std::endl;
       tls.set_tensor_shape(i, ts);
     }
     return tls;
