@@ -78,12 +78,16 @@ class NumpyLoader : public FileLoader {
                                           NumpyParseTarget& target);
 
   // sanitize shapes
-  bool SetupSlab(const TensorShape<>& sample_shape, const bool& fortran_order);
+  void SetupSlab(TensorShape<>& slab_anchor,
+                 TensorShape<>& slab_shape,
+                 const TensorShape<>& sample_shape,
+                 const bool& fortran_order);
 
   // read helpers for sliced and non-sliced reads
   std::unique_ptr<FileStream> ReadSampleHelper(std::unique_ptr<FileStream> file,
                                                ImageFileWrapper& imfile,
                                                const NumpyParseTarget& target);
+
   std::unique_ptr<FileStream> ReadSampleSlabHelper(std::unique_ptr<FileStream> file,
                                                    ImageFileWrapper& imfile,
                                                    const NumpyParseTarget& target);

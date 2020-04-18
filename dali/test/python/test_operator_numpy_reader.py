@@ -138,13 +138,14 @@ test_np_slab_subshapes = [[4], (7, 5), (5, 10, 1), (2, 4, 3, 1)]
 def test_static_slab():
     with tempfile.TemporaryDirectory() as test_data_root:
         index  = 0
-        for typ in test_np_types:
-            for idx,shape in enumerate(test_np_slab_shapes):
-                filename = os.path.join(test_data_root, "test_slab_{:02d}.npy".format(index))
-                slab_anchor = test_np_slab_anchors[idx]
-                slab_shape = test_np_slab_subshapes[idx]
-                index += 1
-                yield check_array_static_slab, filename, shape, slab_anchor, slab_shape, typ, False
+        for fortran_order in [True]:
+            for typ in test_np_types:
+                for idx,shape in enumerate(test_np_slab_shapes):
+                    filename = os.path.join(test_data_root, "test_slab_{:02d}.npy".format(index))
+                    slab_anchor = test_np_slab_anchors[idx]
+                    slab_shape = test_np_slab_subshapes[idx]
+                    index += 1
+                    yield check_array_static_slab, filename, shape, slab_anchor, slab_shape, typ, fortran_order
 
                 
 def test_dynamic_slab():
@@ -237,14 +238,14 @@ def check_array_dynamic_slab(filename, shape, typ, fortran_order=False):
         pipe_out = pipe.run()
         arr_rd = np.squeeze(pipe_out[0].as_array(), axis=0)
 
-        print(pipe_out[0].as_array(), pipe_out[1].as_array(), pipe_out[2].as_array())
-        
         # load manually
-        #arr_np = np.load(filename)
-        #slab = [slice(x[0], x[0]+x[1]) for x in zip(slab_anchor, slab_shape)]
-
+        arr_np = np.load(filename)
+        slab_anchor = np.squeeze(pipe_out[1].as_array()).tolist()
+        slab_shape = np.squeeze(pipe_out[2].as_array()).tolist()
+        slab = [slice(x[0], x[0]+x[1]) for x in zip(slab_anchor, slab_shape)]
+        
         # compare
-        #assert_array_equal(arr_rd, arr_np[slab])
+        assert_array_equal(arr_rd, arr_np[slab])
 
     # delete temp files
     delete_numpy_file(filename)

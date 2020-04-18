@@ -131,35 +131,32 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
   return file;
 }
 
-// check slabs
-bool NumpyLoader::SetupSlab(const TensorShape<>& sample_shape, const bool& fortran_order) {
-  // do sanity checks
-  int ndims = sample_shape.sample_dim();
-  bool read_slab = !(slab_anchor_.empty() || slab_shape_.empty());
+// sanitize slabs
+void NumpyLoader::SetupSlab(TensorShape<>& slab_anchor,
+                            TensorShape<>& slab_shape,
+                            const TensorShape<>& sample_shape, const bool& fortran_order) {
+  int ndims = sample_shape.size();
 
-  if (read_slab) {
-    DALI_ENFORCE((slab_anchor_.size() == slab_shape_.size()) &&
-                 (slab_anchor_.size() == ndims),
-                 "The dimensions of anchor and slab have to match.");
-
+  if (fortran_order) {
+    // transpose the shapes:
+    TensorShape<> old_anchor(slab_anchor);
+    TensorShape<> old_shape(slab_shape);
     for (int i = 0; i < ndims; ++i) {
-      int offset = slab_anchor_[i];
-      DALI_ENFORCE((offset >= 0) &&
-                   (offset + slab_shape_[i] <= sample_shape[i]),
-                   "The slab has to fit inside the sample dimensions");
-    }
-    if (fortran_order) {
-      // transpose the shapes:
-      TensorShape<> old_anchor(slab_anchor_);
-      TensorShape<> old_shape(slab_shape_);
-      for (int i = 0; i < ndims; ++i) {
-        slab_anchor_[i] = old_anchor[ndims-i-1];
-        slab_shape_[i] = old_shape[ndims-i-1];
-      }
+      slab_anchor[i] = old_anchor[ndims-i-1];
+      slab_shape[i] = old_shape[ndims-i-1];
     }
   }
 
-  return read_slab;
+  DALI_ENFORCE((slab_anchor.size() == ndims) &&
+               (slab_shape.size() == ndims),
+               "The dimensions of anchor and slab have to match the sample dims.");
+
+  for (int i = 0; i < ndims; ++i) {
+    int offset = slab_anchor[i];
+    DALI_ENFORCE((offset >= 0) &&
+                 (offset + slab_shape[i] <= sample_shape[i]),
+                 "The slab has to fit inside the sample dimensions");
+  }
 }
 
 std::unique_ptr<FileStream> NumpyLoader::ReadSampleHelper(std::unique_ptr<FileStream> file,
@@ -182,9 +179,17 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleHelper(std::unique_ptr<FileSt
   return file;
 }
 
+// here, slab_anchor and slab_shape are passed by value deliberately, because
+// we might need to transpose them. In that case, we do not want to propagate that back
+// to the class members
 std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<FileStream> file,
                                                               ImageFileWrapper& imfile,
                                                               const NumpyParseTarget& target) {
+  // deal with potential fortran complications
+  TensorShape<> slab_anchor(slab_anchor_);
+  TensorShape<> slab_shape(slab_shape_);
+  SetupSlab(slab_anchor, slab_shape, TensorShape<>(target.shape), target.fortran_order);
+
   Index image_bytes = target.nbytes();
   if (copy_read_data_) {
     DALI_FAIL("Slab reading for non-mmap mode not implemented yet");
@@ -195,7 +200,7 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<Fi
     tmptensor.ShareData(p, image_bytes, {image_bytes});
     tmptensor.Resize(target.shape, target.type_info);
     // Output tensor
-    imfile.image.Resize(slab_shape_, target.type_info);
+    imfile.image.Resize(slab_shape, target.type_info);
     // do the slicing
     auto ndims = tmptensor.shape().sample_dim();
     auto input_type = target.type_info.id();
@@ -207,7 +212,7 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<Fi
         const Type *in_ptr = in_tensor.data;
         const auto &in_shape = in_tensor.shape;
         const auto &out_shape = out_tensor.shape;
-        const auto &anchor_shape = slab_anchor_.to_static<Dims>();
+        const auto &anchor_shape = slab_anchor.to_static<Dims>();
         auto in_strides = kernels::GetStrides(in_shape);
         auto out_strides = kernels::GetStrides(out_shape);
         kernels::SliceKernel<Type, Type, Dims>(out_ptr,
@@ -252,10 +257,8 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   current_image = ParseHeader(std::move(current_image), target);
   Index image_bytes = target.nbytes();
 
-  // check if we need to perform a slab read
-  bool read_slab = SetupSlab(TensorShape<>(target.shape), target.fortran_order);
-
-  if (!read_slab) {
+  // read a slab or the whole file
+  if (slab_anchor_.empty() || slab_shape_.empty()) {
     current_image = ReadSampleHelper(std::move(current_image), imfile, target);
   } else {
     current_image = ReadSampleSlabHelper(std::move(current_image), imfile, target);
