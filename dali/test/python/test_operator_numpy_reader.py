@@ -138,7 +138,7 @@ test_np_slab_subshapes = [[4], (7, 5), (5, 10, 1), (2, 4, 3, 1)]
 def test_static_slab():
     with tempfile.TemporaryDirectory() as test_data_root:
         index  = 0
-        for fortran_order in [True]:
+        for fortran_order in [False, True]:
             for typ in test_np_types:
                 for idx,shape in enumerate(test_np_slab_shapes):
                     filename = os.path.join(test_data_root, "test_slab_{:02d}.npy".format(index))
@@ -151,10 +151,11 @@ def test_static_slab():
 def test_dynamic_slab():
     with tempfile.TemporaryDirectory() as test_data_root:
         index  = 0
-        for typ in test_np_types:
-            filename = os.path.join(test_data_root, "test_slab_{:02d}.npy".format(index))
-            index += 1
-            yield check_array_dynamic_slab, filename, (10, 10, 10), typ, False
+        for fortran_order in [False, True]:
+            for typ in test_np_types:
+                filename = os.path.join(test_data_root, "test_slab_{:02d}.npy".format(index))
+                index += 1
+                yield check_array_dynamic_slab, filename, (10, 10, 10), typ, fortran_order
 
             
 # generic helper routines                
