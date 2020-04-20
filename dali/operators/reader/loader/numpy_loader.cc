@@ -20,14 +20,10 @@
 #include "dali/core/common.h"
 #include "dali/pipeline/data/views.h"
 
-// slicing includes
-#include "dali/kernels/slice/slice_cpu.h"
-#include "dali/core/static_switch.h"
-
 // numpy loader specific includes
 #include "dali/operators/reader/loader/numpy_loader.h"
+#include "dali/operators/reader/loader/utils/readslice.h"
 #include "dali/util/file.h"
-#include "dali/operators/reader/loader/utils.h"
 
 
 namespace dali {
@@ -134,7 +130,8 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
 // sanitize slabs
 void NumpyLoader::SetupSlab(TensorShape<>& slab_anchor,
                             TensorShape<>& slab_shape,
-                            const TensorShape<>& sample_shape, const bool& fortran_order) {
+                            const TensorShape<>& sample_shape,
+                            const bool& fortran_order) {
   int ndims = sample_shape.size();
 
   if (fortran_order) {
@@ -199,30 +196,9 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<Fi
     Tensor<CPUBackend> tmptensor;
     tmptensor.ShareData(p, image_bytes, {image_bytes});
     tmptensor.Resize(target.shape, target.type_info);
-    // Output tensor
-    imfile.image.Resize(slab_shape, target.type_info);
-    // do the slicing
-    auto ndims = tmptensor.shape().sample_dim();
-    auto input_type = target.type_info.id();
-    TYPE_SWITCH(input_type, type2id, Type, NUMPY_ALLOWED_TYPES, (
-      VALUE_SWITCH(ndims, Dims, NUMPY_ALLOWED_DIMS, (
-        auto out_tensor = view<Type, Dims>(imfile.image);
-        const auto& in_tensor = view<const Type, Dims>(tmptensor);
-        Type *out_ptr = out_tensor.data;
-        const Type *in_ptr = in_tensor.data;
-        const auto &in_shape = in_tensor.shape;
-        const auto &out_shape = out_tensor.shape;
-        const auto &anchor_shape = slab_anchor.to_static<Dims>();
-        auto in_strides = kernels::GetStrides(in_shape);
-        auto out_strides = kernels::GetStrides(out_shape);
-        kernels::SliceKernel<Type, Type, Dims>(out_ptr,
-               in_ptr,
-               in_strides,
-               out_strides,
-               anchor_shape,
-               out_shape);
-      ), DALI_FAIL(make_string("Number of dimensions not supported ", ndims)););  // NOLINT
-    ), DALI_FAIL(make_string("Type not supported", input_type)););  // NOLINT
+
+    // do the sliced read
+    CopySlice(imfile.image, tmptensor, slab_anchor, slab_shape);
   }
   return file;
 }

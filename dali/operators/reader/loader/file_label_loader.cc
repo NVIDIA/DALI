@@ -19,7 +19,7 @@
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/util/file.h"
-#include "dali/operators/reader/loader/utils.h"
+#include "dali/operators/reader/loader/utils/extensions.h"
 
 namespace dali {
 

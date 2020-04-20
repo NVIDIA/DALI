@@ -15,7 +15,7 @@
 #include <algorithm>
 #include <iostream>
 #include <sstream>
-#include "dali/operators/reader/loader/utils.h"
+#include "dali/operators/reader/loader/utils/extensions.h"
 
 namespace dali {
 

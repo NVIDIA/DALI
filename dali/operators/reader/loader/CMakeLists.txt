@@ -22,7 +22,8 @@ set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/sequence_loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/numpy_loader.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/utils.cc")
+  "${CMAKE_CURRENT_SOURCE_DIR}/utils/readslice.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/utils/extensions.cc")
 
 if (BUILD_NVDEC)
   set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}

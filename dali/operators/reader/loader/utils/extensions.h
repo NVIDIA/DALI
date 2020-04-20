@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_UTILS_H_
-#define DALI_OPERATORS_READER_LOADER_UTILS_H_
+#ifndef DALI_OPERATORS_READER_LOADER_UTILS_EXTENSIONS_H_
+#define DALI_OPERATORS_READER_LOADER_UTILS_EXTENSIONS_H_
 
 #include <vector>
 #include <string>
@@ -43,4 +43,4 @@ DLL_PUBLIC bool HasKnownExtension(const std::string &filepath);
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_UTILS_H_
+#endif  // DALI_OPERATORS_READER_LOADER_UTILS_EXTENSIONS_H_

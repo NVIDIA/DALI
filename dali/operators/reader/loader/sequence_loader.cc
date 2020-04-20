@@ -17,7 +17,7 @@
 #include <map>
 #include "dali/image/image.h"
 #include "dali/operators/reader/loader/sequence_loader.h"
-#include "dali/operators/reader/loader/utils.h"
+#include "dali/operators/reader/loader/utils/extensions.h"
 
 namespace dali {
 
