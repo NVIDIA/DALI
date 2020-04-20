@@ -35,18 +35,19 @@ namespace detail {
 template <class Fstream, typename Type, int Dims>
 void ReadSliceKernelImpl(Type *output,
                          std::unique_ptr<Fstream>& file,
-                         size_t &offset,
+                         size_t offset,
                          const TensorShape<Dims> &in_strides,
                          const TensorShape<Dims> &out_strides,
                          const TensorShape<Dims> &out_shape,
                          std::integral_constant<int, 1>) {
+  file->Seek(offset);
   file->Read(reinterpret_cast<uint8_t*>(output), out_shape[Dims - 1] * sizeof(Type));
 }
 
 template <class Fstream, typename Type, int Dims, int DimsLeft>
 void ReadSliceKernelImpl(Type *output,
                          std::unique_ptr<Fstream>& file,
-                         size_t &offset,
+                         size_t offset,
                          const TensorShape<Dims> &in_strides,
                          const TensorShape<Dims> &out_strides,
                          const TensorShape<Dims> &out_shape,
@@ -57,7 +58,6 @@ void ReadSliceKernelImpl(Type *output,
                         in_strides, out_strides, out_shape,
                         std::integral_constant<int, DimsLeft - 1>());
     offset += in_strides[d] * sizeof(Type);
-    file->Seek(offset);
     output += out_strides[d];
   }
 }
@@ -67,14 +67,13 @@ void ReadSliceKernelImpl(Type *output,
 template <class Fstream, typename Type, int Dims>
 void ReadSliceKernel(Type *output,
                      std::unique_ptr<Fstream>& file,
-                     size_t &offset,
+                     size_t offset,
                      const TensorShape<Dims> &in_strides,
                      const TensorShape<Dims> &out_strides,
                      const TensorShape<Dims> &anchor,
                      const TensorShape<Dims> &out_shape) {
   for (int d = 0; d < Dims; d++) {
     offset += in_strides[d] * anchor[d] * sizeof(Type);
-    file->Seek(offset);
   }
   detail::ReadSliceKernelImpl(output, file, offset,
                               in_strides, out_strides, out_shape,
