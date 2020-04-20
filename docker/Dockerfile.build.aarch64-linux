@@ -33,8 +33,8 @@ RUN BOOST_VERSION=1_66_0 \
    && ln -s ../boost_${BOOST_VERSION}/boost include/boost
 
 # CMake
-RUN CMAKE_VERSION=3.12 && \
-    CMAKE_BUILD=3.12.4 && \
+RUN CMAKE_VERSION=3.13 && \
+    CMAKE_BUILD=3.13.5 && \
     curl -L https://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_BUILD}.tar.gz | tar -xzf - && \
     cd /cmake-${CMAKE_BUILD} && \
     ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
