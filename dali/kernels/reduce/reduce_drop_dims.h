@@ -26,6 +26,23 @@ namespace dali {
 namespace kernels {
 namespace reduce_impl {
 
+/**
+ * Calculates a flat index in a tensor with reduced dimensions based on the
+ * index in original tensor.
+ *
+ * This is used in calculation of standard deviation when subtracting mean.
+ *
+ * @details When reducing non-adjacent dimensions, the outer reduction will see
+ * all inner dimensions flattened - reduced and non-reduced alike. This flat index
+ * cannot be used to index the the tensor of means, which has more reduced dimensions.
+ * Example - calculating mean/stddev of all pixel brightness values in a mutli-channel video:
+ * input layout FHWC
+ * output layout 1HW1
+ * When calculating variance in F, we still see HWC as the (fused) inner dimension, but it is
+ * different than HW1 in the tensor of means. This class implements this kind of reindexing.
+ *
+ * The reindexing is done by either dividing and multiplying by old/new strides or by takind modulo.
+ */
 struct DropDims {
   static constexpr int kMaxDims = 4;
 
@@ -36,9 +53,25 @@ struct DropDims {
 
   DropDims() = default;
 
+  /**
+   * Collapses adjacent groups of reduced/non-reduced dimensions.
+   * The input can have up to 64 dimensions, however, the result must havfe
+   * at most 8 groups of reduced/non-reduced dimensions.
+   *
+   * Example:
+   * ```
+   * in_shape:  [ 2, 3, 4, 5, 6 ]
+   * reduced:     ^        ^  ^
+   * axis_mask = 0b11001  (looks reversed - LSB is dim 0)
+   *
+   * out_shape: [ 2, 12, 30 ]
+   * reduced:     ^       ^
+   * out_mask = 0b101
+   * ```
+   */
   template <typename Indices>
   static int simplify(int64_t *out_shape, unsigned &out_mask,
-                      const Indices &in_shape, unsigned axis_mask) {
+                      const Indices &in_shape, uint64_t axis_mask) {
     int dims = size(in_shape);
     int d = 0;
     out_shape[0] = in_shape[0];
@@ -70,12 +103,14 @@ struct DropDims {
    * @brief Initializes reindexing given shape and mask.
    */
   template <typename Indices>
-  DropDims(const Indices &in_shape, unsigned axis_mask) {
+  DropDims(const Indices &in_shape, uint64_t reduced_axes) {
     int64_t shape[kMaxDims];
-    int d = simplify(shape, axis_mask, in_shape, axis_mask);
+    unsigned axis_mask;
+    int d = simplify(shape, axis_mask, in_shape, reduced_axes);
     start = 2 * kMaxDims;
 
     if (d == 1) {
+      // short circuit trivial case
       if (axis_mask == 1)
         start = -1;
       return;
@@ -103,6 +138,10 @@ struct DropDims {
 
     bool mod_first = (axis_mask & 1);
 
+    // If a dimension is kept, the index is calculated by dividing by original subvolume
+    // and multiplying by the new subvolume.
+    // If a dimension is dropped, the index is taken modulo subvolume.
+
     for (int i = 0; i < d; i++) {
       if (volumes[i] == 1)
         break;
@@ -115,39 +154,60 @@ struct DropDims {
       ndiv++;
     }
 
-    assert(abs(ndiv - nmod) <= 1);
+    assert(std::abs(ndiv - nmod) <= 1);
+    assert(mod_first || ndiv >= nmod);
 
     // Now we move the divisors/moduli to the end of the arrays, so we can use the unrolled loop
     // with fixed indices.
+    // See `reindex` function for examples.
 
-    int div_ofs = !mod_first && ndiv < nmod ? 1 : 0;
     int mod_ofs = nmod < ndiv || (nmod == ndiv && mod_first) ? 1 : 0;
 
-    if (ndiv + div_ofs > kMaxDims)
+    if (ndiv > kMaxDims)
       throw std::out_of_range("Maximum number of dimension groups exceeded");
 
     if (nmod + mod_ofs > kMaxDims)
       throw std::out_of_range("Maximum number of dimension groups exceeded");
 
-    if (div_ofs) {
-      div[kMaxDims - 1] = 1;
-      mul[kMaxDims - 1] = 0;
-    }
     if (mod_ofs || !nmod)
-      mod[kMaxDims - 1] = 1;
+      mod[kMaxDims - 1] = 1;  // pad with no-op mod
+
     for (int i = ndiv-1; i >= 0; i--) {
-      div[kMaxDims - ndiv + i - div_ofs] = div[i];
-      mul[kMaxDims - ndiv + i - div_ofs] = mul[i];
+      div[kMaxDims - ndiv + i] = div[i];
+      mul[kMaxDims - ndiv + i] = mul[i];
     }
     for (int i = nmod-1; i >= 0; i--) {
       mod[kMaxDims - nmod + i - mod_ofs] = mod[i];
     }
 
-    start = std::min(2*(kMaxDims - ndiv - div_ofs), 2*(kMaxDims - nmod - mod_ofs)) + mod_first;
+    // start index - even if starting with div/mul, odd if starting with mod
+    start = mod_first
+              ? 2 * (kMaxDims - nmod - mod_ofs) + 1
+              : 2 * (kMaxDims - ndiv);
   }
 
   DALI_HOST_DEV int64_t reindex(int64_t index) const {
     int64_t out = 0;
+
+    // Now we run through the divmul/mod stages. Since we've simplified the problem,
+    // the stages appear in an alternating pattern.
+    // The start can be at either divmul or mod, depending on `start` parity.
+    // There's also a special value of -1 which denotes full reduction - just return index 0.
+
+    // Example - 2 divs, 2 mods, mod_first = true (outermost dimension is reduced)
+    // D - div/mul stage
+    // M - mod stage
+    //
+    // D 0   ---
+    // M 0   ---
+    // D 1   ---
+    // M 1   mod 0           <-- start = 3
+    // D 2   div 0
+    // M 2   mod 1
+    // D 3   div 1
+    // M 3   1 (no-op)
+
+    // If a modulus is equal to 1, the operation is skipped - `if` is faster than integer division.
 
     // This is an unrolled loop over dimensions.
     // We can start either at modulo or at division, depending on whether
