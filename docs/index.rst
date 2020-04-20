@@ -38,6 +38,7 @@ This library is open sourced and it is available in the `NVIDIA GitHub repositor
    api
    supported_ops
    advanced_topics
+   Release Notes <https://docs.nvidia.com/deeplearning/sdk/dali-release-notes/index.html>
 
 Indices and tables
 ==================
