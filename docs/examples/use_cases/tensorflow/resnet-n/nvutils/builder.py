@@ -1,4 +1,8 @@
-import tensorflow as tf
+try:
+    import tensorflow.compat.v1 as tf
+    from tensorflow.compat.v1.layers import batch_normalization
+except:
+    import tensorflow as tf
 
 class LayerBuilder(object):
     def __init__(self, activation=None, data_format='channels_last',
@@ -64,9 +68,16 @@ class LayerBuilder(object):
         all_kwargs = dict(self.batch_norm_config)
         all_kwargs.update(kwargs)
         data_format = 'NHWC' if self.data_format == 'channels_last' else 'NCHW'
-        return tf.contrib.layers.batch_norm(
-            inputs, is_training=self.training, data_format=data_format,
-            fused=True, **all_kwargs)
+        # TODO: axis parameter
+        # axis = 
+        if hasattr(tf.layers, 'batch_normalization'):
+            return batch_normalization(
+                inputs, training=self.training, # axis=axis,
+                fused=True) # , **all_kwargs) TODO: kwargs
+        else:
+            return tf.contrib.layers.batch_norm(
+                inputs, is_training=self.training, axis=data_format,
+                fused=True, **all_kwargs)
 
     def spatial_average2d(self, inputs):
         shape = inputs.get_shape().as_list()

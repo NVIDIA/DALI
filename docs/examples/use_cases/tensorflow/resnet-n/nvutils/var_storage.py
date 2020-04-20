@@ -1,4 +1,7 @@
-import tensorflow as tf
+try:
+    import tensorflow.compat.v1 as tf
+except:
+    import tensorflow as tf
 
 
 def _fp32_trainvar_getter(getter, name, shape=None, dtype=None,
@@ -17,7 +20,10 @@ def _fp32_trainvar_getter(getter, name, shape=None, dtype=None,
                 cast_name + ':0')
         except KeyError:
             cast_variable = tf.cast(variable, dtype, name=cast_name)
-        cast_variable._ref = variable._ref
+        try:
+            cast_variable._ref = variable._ref
+        except:
+            pass
         variable = cast_variable
     return variable
 

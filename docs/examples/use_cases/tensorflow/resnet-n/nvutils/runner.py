@@ -29,17 +29,21 @@ import random
 import numpy as np
 
 try:
+    # Import compat layer, hide the whole tf behind
+    import tensorflow.compat.v1 as tf
     from tensorflow.compat.v1 import GPUOptions
     from tensorflow.compat.v1 import ConfigProto
     from tensorflow.compat.v1 import Session
+    from tensorflow.keras.regularizers import l2 as l2_regularizer
 except:
     # Older TF versions don't have compat.v1 layer
     from tensorflow import GPUOptions
     from tensorflow import ConfigProto
     from tensorflow import Session
+    from tensorflow.contrib.layers import l2_regularizer
 
 try:
-    tf.compat.v1.disable_eager_execution()
+    tf.disable_eager_execution()
 except:
     pass
 
@@ -65,15 +69,18 @@ class _LogSessionRunHook(tf.train.SessionRunHook):
         self.elapsed_secs += time.time() - self.t0
         self.count += 1
         global_step, loss, total_loss, lr = run_values.results
-        print_step = global_step + 1 # One-based index for printing.
-        if print_step == 1 or print_step % self.display_every == 0:
-            dt = self.elapsed_secs / self.count
-            img_per_sec = self.global_batch_size / dt
-            epoch = print_step * self.global_batch_size / self.num_records
-            print('%6i %5.1f %7.1f %6.3f %6.3f %7.5f' %
-                  (print_step, epoch, img_per_sec, loss, total_loss, lr))
-            self.elapsed_secs = 0.
-            self.count = 0
+        # TODO line below is causing invalid type promotion
+        # print_step = global_step + 1 # One-based index for printing.
+        # print_step = global_step + np.int(1)
+        # print(print_step)
+        # if print_step == 1 or print_step % self.display_every == 0:
+        #     dt = self.elapsed_secs / self.count
+        #     img_per_sec = self.global_batch_size / dt
+        #     epoch = print_step * self.global_batch_size / self.num_records
+        #     print('%6i %5.1f %7.1f %6.3f %6.3f %7.5f' %
+        #           (print_step, epoch, img_per_sec, loss, total_loss, lr))
+        #     self.elapsed_secs = 0.
+        #     self.count = 0
 
 def _cnn_model_function(features, labels, mode, params):
     model_func    = params['model']
@@ -101,7 +108,7 @@ def _cnn_model_function(features, labels, mode, params):
         if model_format == 'channels_first':
             inputs = tf.transpose(inputs, [0,3,1,2])
         with nvutils.fp32_trainable_vars(
-                regularizer=tf.contrib.layers.l2_regularizer(weight_decay)):
+                regularizer=l2_regularizer(weight_decay)):
             top_layer = model_func(inputs, training=is_training)
             logits = tf.layers.dense(top_layer, num_classes)
         predicted_classes = tf.argmax(logits, axis=1, output_type=tf.int32)

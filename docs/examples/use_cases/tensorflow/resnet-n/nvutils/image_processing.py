@@ -16,12 +16,7 @@
 
 import tensorflow as tf
 import horovod.tensorflow as hvd
-import sys
-import os
 import numpy as np
-from subprocess import call
-from tensorflow.contrib.data.python.ops import interleave_ops
-from tensorflow.contrib.data.python.ops import batching
 
 from nvidia import dali
 import nvidia.dali.plugin.tf as dali_tf

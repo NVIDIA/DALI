@@ -19,6 +19,7 @@ from builtins import range
 import tensorflow as tf
 
 try:
+    import tensorflow.compat.v1 as tf
     from tensorflow.compat.v1.train import Optimizer
 except:
     # Older TF versions don't have compat.v1 layer
