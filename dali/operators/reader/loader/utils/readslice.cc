@@ -24,11 +24,43 @@
 
 namespace dali {
 
+// this can be used to copy a slice from a file
+void ReadSliceKernel(Tensor<CPUBackend>& output,
+                     std::unique_ptr<FileStream>& file,
+                     size_t offset,
+                     const TensorShape<>& input_shape,
+                     const TypeInfo& input_type,
+                     const TensorShape<>& anchor,
+                     const TensorShape<>& shape) {
+  // do the slicing
+  output.Resize(shape, input_type);
+  auto ndims = input_shape.sample_dim();
+  auto in_type = input_type.id();
+  TYPE_SWITCH(in_type, type2id, Type, READSLICE_ALLOWED_TYPES, (
+    VALUE_SWITCH(ndims, Dims, READSLICE_ALLOWED_DIMS, (
+      auto out_tensor = view<Type, Dims>(output);
+      Type *out_ptr = out_tensor.data;
+      const auto &out_shape = out_tensor.shape;
+      const auto &in_shape = input_shape.to_static<Dims>();
+      const auto &anchor_shape = anchor.to_static<Dims>();
+      auto in_strides = kernels::GetStrides(in_shape);
+      auto out_strides = kernels::GetStrides(out_shape);
+      ReadSliceKernel<FileStream, Type, Dims>(out_ptr,
+                                              file,
+                                              offset,
+                                              in_strides,
+                                              out_strides,
+                                              anchor_shape,
+                                              out_shape);
+    ), DALI_FAIL(make_string("Number of dimensions not supported ", ndims)););  // NOLINT
+  ), DALI_FAIL(make_string("Type not supported", in_type)););  // NOLINT   
+}
+
 // this can be used to copy a slice from a memmapped buffer
-void CopySlice(Tensor<CPUBackend>& output,
-               const Tensor<CPUBackend>& input,
-               const TensorShape<>& anchor,
-               const TensorShape<>& shape) {
+void CopySliceKernel(Tensor<CPUBackend>& output,
+                     const Tensor<CPUBackend>& input,
+                     const TensorShape<>& anchor,
+                     const TensorShape<>& shape) {
   // do the slicing
   output.Resize(shape, input.type());
   auto ndims = input.shape().sample_dim();

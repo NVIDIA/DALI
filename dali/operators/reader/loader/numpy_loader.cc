@@ -198,7 +198,7 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<Fi
     tmptensor.Resize(target.shape, target.type_info);
 
     // do the sliced read
-    CopySlice(imfile.image, tmptensor, slab_anchor, slab_shape);
+    CopySliceKernel(imfile.image, tmptensor, slab_anchor, slab_shape);
   }
   return file;
 }
