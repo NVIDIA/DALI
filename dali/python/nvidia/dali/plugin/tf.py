@@ -20,8 +20,34 @@ from collections import Iterable
 from distutils.version import LooseVersion
 import warnings
 
-from nvidia.dali_tf_plugin import dali_tf_plugin
-_dali_tf_module = dali_tf_plugin.load_dali_tf_plugin()
+_dali_tf_module = None
+try:
+  from nvidia.dali_tf_plugin import dali_tf_plugin
+  _dali_tf_module = dali_tf_plugin.load_dali_tf_plugin()
+except Exception as first_error:
+  import os
+  import glob
+  import re
+  # If dali_tf_plugin could not be imported but we have available plugins in the current (dali/plugin/tf) folder
+  tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
+  # Order: 'current', prebuilt for current TF version, prebuilt for other TF versions
+  tf_version = re.search("(\d+.\d+).\d+", tf.__version__).group(1)
+  tf_version_underscore = tf_version.replace('.', '_')
+  dali_tf_current = list(filter(lambda x: 'current' in x, tf_plugins))
+  dali_tf_prebuilt_tf_ver = list(filter(lambda x: tf_version_underscore in x, tf_plugins))
+  dali_tf_prebuilt_others = list(filter(lambda x: 'current' not in x and tf_version_underscore not in x, tf_plugins))
+  processed_tf_plugins = dali_tf_current + dali_tf_prebuilt_tf_ver + dali_tf_prebuilt_others
+
+  for libdali_tf in processed_tf_plugins:
+      try:
+          _dali_tf_module = tf.load_op_library(libdali_tf)
+          break
+      # if plugin is not compatible skip it
+      except tf.errors.NotFoundError as error:
+          pass
+  if first_error:
+    raise first_error
+
 _dali_tf = _dali_tf_module.dali
 _dali_tf.__doc__ = _dali_tf.__doc__ + """
 
