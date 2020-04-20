@@ -21,12 +21,12 @@ from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 import os
 
-bbox_2d_ltrb_1 = [0.0123, 0.0123, 0.9123, 0.9123]
-bbox_2d_ltrb_2 = [0.1123, 0.1123, 0.99123, 0.99123]
+bbox_2d_ltrb_1 = [0.0123, 0.0123, 0.2123, 0.2123]
+bbox_2d_ltrb_2 = [0.1123, 0.1123, 0.19123, 0.19123]
 bbox_2d_ltrb_3 = [0.3123, 0.3123, 0.5123, 0.5123]
-bbox_3d_ltrb_1 = [0.5123, 0.5123, 0.5123, 0.7123, 0.7123, 0.7123]
-bbox_3d_ltrb_2 = [0.1123, 0.1123, 0.1123, 0.6123, 0.6123, 0.6123]
-bbox_3d_ltrb_3 = [0.4123, 0.4123, 0.4123, 0.9123, 0.9123, 0.9123]
+bbox_3d_ltrb_1 = [0.123, 0.6123, 0.6123, 0.7123, 0.7123, 0.7123]
+bbox_3d_ltrb_2 = [0.1123, 0.1123, 0.1123, 0.2123, 0.2123, 0.2123]
+bbox_3d_ltrb_3 = [0.7123, 0.7123, 0.7123, 0.8123, 0.8123, 0.8123]
 
 bboxes_data = {
     2 : [bbox_2d_ltrb_1, bbox_2d_ltrb_2, bbox_2d_ltrb_3],
@@ -88,6 +88,7 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size,
                  bbox_source,
                  thresholds = [0, 0.01, 0.05, 0.1, 0.15],
+                 threshold_type = 'iou',
                  scaling = [0.3, 1.0],
                  aspect_ratio = [0.5, 2.0],
                  bbox_layout = "xyXY",
@@ -95,6 +96,7 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
                  allow_no_crop = False,
                  input_shape = None,
                  crop_shape = None,
+                 all_boxes_above_threshold = False,
                  num_threads=1, device_id=0, num_gpus=1):
         super(RandomBBoxCropSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
@@ -107,11 +109,13 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
             aspect_ratio = aspect_ratio,
             scaling = scaling,
             thresholds = thresholds,
+            threshold_type = threshold_type,
             bbox_layout = bbox_layout,
             num_attempts = num_attempts,
             allow_no_crop = allow_no_crop,
             input_shape = input_shape,
-            crop_shape = crop_shape)
+            crop_shape = crop_shape,
+            all_boxes_above_threshold = all_boxes_above_threshold)
 
     def define_graph(self):
         inputs = fn.external_source(source=self.bbox_source, num_outputs=self.bbox_source.num_outputs)
@@ -242,7 +246,8 @@ def check_random_bbox_crop_fixed_shape(batch_size, ndim, crop_shape, input_shape
                                            bbox_source=bbox_source,
                                            bbox_layout=bbox_layout,
                                            scaling=None, aspect_ratio=None,
-                                           input_shape=input_shape, crop_shape=crop_shape)
+                                           input_shape=input_shape, crop_shape=crop_shape,
+                                           all_boxes_above_threshold = False)
     pipe.build()
     for i in range(100):
         outputs = pipe.run()
@@ -275,12 +280,69 @@ def test_random_bbox_crop_fixed_shape():
                         yield check_random_bbox_crop_fixed_shape, \
                                 batch_size, ndim, crop_shape, input_shape, use_labels
 
-def main():
-  for test in test_random_bbox_crop_fixed_shape():
-      test[0](*test[1:])
+def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, use_labels):
+    bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
+    bbox_layout = "xyzXYZ" if ndim == 3 else "xyXY"
+    pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size,
+                                           thresholds=[1.0],
+                                           threshold_type='overlap',
+                                           num_attempts=1000,
+                                           bbox_source=bbox_source,
+                                           bbox_layout=bbox_layout,
+                                           scaling=None, aspect_ratio=None,
+                                           input_shape=input_shape, crop_shape=crop_shape,
+                                           all_boxes_above_threshold = False)
+    pipe.build()
+    for i in range(100):
+        outputs = pipe.run()
+        for sample in range(batch_size):
+            out_crop_anchor = outputs[1].at(sample)
+            out_crop_shape = outputs[2].at(sample)
+            rel_out_crop_anchor = [out_crop_anchor[d] / input_shape[d] for d in range(ndim)]
+            rel_out_crop_shape = [out_crop_shape[d] / input_shape[d] for d in range(ndim)]
+            in_boxes = outputs[0].at(sample)
+            nboxes = in_boxes.shape[0]
+            at_least_one_box_in = False
+            for box_idx in range(nboxes):
+                box = in_boxes[box_idx]
+                is_box_in = True
+                for d in range(ndim):
+                    if rel_out_crop_anchor[d] > box[d] or \
+                        (rel_out_crop_anchor[d] + rel_out_crop_shape[d]) < box[ndim + d]:
+                        is_box_in = False
+                        break
 
-  for test in test_random_bbox_crop_variable_shape():
-      test[0](*test[1:])
+                if is_box_in:
+                    at_least_one_box_in = True
+                    break
+            assert(at_least_one_box_in)
+
+def test_random_bbox_crop_overlap():
+    input_shapes = {
+        2: [[400, 300]],
+        3: [[400, 300, 64]]
+    }
+    crop_shapes = {
+        2: [[150, 150], [400, 300]],
+        3: [[50, 50, 32], [400, 300, 64]]
+    }
+    for batch_size in [3]:
+        for ndim in [2, 3]:
+            for input_shape in input_shapes[ndim]:
+                for crop_shape in crop_shapes[ndim]:
+                    for use_labels in [True, False]:
+                        yield check_random_bbox_crop_overlap, \
+                                batch_size, ndim, crop_shape, input_shape, use_labels
+
+def main():
+    for test in test_random_bbox_crop_fixed_shape():
+        test[0](*test[1:])
+
+    for test in test_random_bbox_crop_variable_shape():
+        test[0](*test[1:])
+
+    for test in test_random_bbox_crop_overlap():
+        test[0](*test[1:])
 
 if __name__ == '__main__':
   main()
