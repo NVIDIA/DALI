@@ -64,7 +64,7 @@ requirements:
     - future >=0.17.1
     - protobuf >=3.11.2
     - libjpeg-turbo >=2.0.3
-    - tensorflow-gpu
+    - tensorflow-gpu =2.1.0
     - dali-opencv
     - dali-ffmpeg
     - boost >=1.67
@@ -81,7 +81,7 @@ requirements:
     - future >=0.17.1
     - protobuf >=3.11.2
     - libjpeg-turbo >=2.0.3
-    - tensorflow-gpu
+    - tensorflow-gpu =2.1.0
     - lmdb >=0.9.22
     - libtiff >=4.1.0
     - libsndfile >=1.0.28
