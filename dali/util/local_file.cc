@@ -170,6 +170,10 @@ inline uint8_t* ReadAheadHelper(std::shared_ptr<void> &p, size_t &pos,
   return tmp;
 }
 
+size_t LocalFileStream::Pos() const {
+  return pos_;
+}
+
 void LocalFileStream::Seek(int64 pos) {
   DALI_ENFORCE(pos >= 0 && pos < (int64)length_, "Invalid seek");
   pos_ = pos;

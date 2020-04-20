@@ -189,6 +189,12 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<Fi
 
   Index image_bytes = target.nbytes();
   if (copy_read_data_) {
+    if (imfile.image.shares_data()) {
+      imfile.image.Reset();
+    }
+    ReadSliceKernel(imfile.image, file, file->Pos(),
+                    TensorShape<>(target.shape), target.type_info,
+                    slab_anchor, slab_shape);
     DALI_FAIL("Slab reading for non-mmap mode not implemented yet");
   } else {
     auto p = file->Get(image_bytes);

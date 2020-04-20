@@ -32,6 +32,7 @@ class LocalFileStream : public FileStream {
   static bool ReserveFileMappings(unsigned int num);
   static void FreeFileMappings(unsigned int num);
   size_t Read(uint8_t * buffer, size_t n_bytes) override;
+  size_t Pos() const override;
   void Seek(int64 pos) override;
   size_t Size() const override;
 
