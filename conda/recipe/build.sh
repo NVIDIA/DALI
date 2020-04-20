@@ -78,7 +78,6 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA-${GIT_FULL_HASH}} \
       ..
 make -j"$(nproc --all)"
-make install
 
 # bundle FFmpeg to make sure DALI ships and uses own version
 fname_with_sha256() {
@@ -158,8 +157,6 @@ export LD_LIBRARY_PATH="$PREFIX/libjpeg-turbo/lib:$PREFIX/lib:$LD_LIBRARY_PATH"
 DALI_PATH=$($PYTHON -c 'import nvidia.dali as dali; import os; print(os.path.dirname(dali.__file__))')
 echo "DALI_PATH is ${DALI_PATH}"
 pushd $SRC_DIR/dali_tf_plugin/
-mkdir -p prebuilt/plugin
-source ./build_dali_tf.sh prebuilt/plugin/libdali_tf_current.so
 mkdir -p dali_tf_sdist_build
 cd dali_tf_sdist_build
 cmake .. \

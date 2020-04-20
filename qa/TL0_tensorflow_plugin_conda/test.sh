@@ -4,7 +4,7 @@
 pip_packages="nose"
 target_dir=./dali/test/python
 
-# populate epilog and prolog with variants to enable/disable conda and virtual env
+# populate epilog and prolog with variants to enable/disable conda
 # every test will be executed for bellow configs
 prolog=(enable_conda)
 epilog=(disable_conda)
