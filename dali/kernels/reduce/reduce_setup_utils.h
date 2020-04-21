@@ -29,15 +29,24 @@ namespace dali {
 namespace kernels {
 namespace reduce_impl {
 
+/**
+ * @brief Calculates the position of most significant bit in x
+ * @return The position of MSB or -1 if x is 0.
+ */
 template <typename T>
 constexpr enable_if_t<std::is_integral<T>::value, int> ilog2(T x) {
-  int n = 0;
-  while (x >>= 1)
+  int n = -1;
+  while (x) {
+    x >>= 1;
     n++;
+  }
   return n;
 }
 
-
+/**
+ * @brief Returns an integer where bits at indicies in `bit_indices` are set to 1.
+ * @remarks Indices that are outside the bit-width of OutType are ignored.
+ */
 template <typename OutType = uint64_t, typename BitIndices>
 OutType to_bit_mask(const BitIndices &bit_indices) {
   OutType mask = 0;
@@ -48,8 +57,19 @@ OutType to_bit_mask(const BitIndices &bit_indices) {
 }
 
 /**
- * @param out_axes a collection of integers, supporting `clear` and `push_back`.
- * @param dim_groups a collection of integer pairs, supporting `clear` and `push_back`
+ * @brief Calculates equivalent, simpler reduction by collapsing adjacent dimensions.
+ *
+ * @param out_axes   a collection of integers, supporting `clear` and `push_back`.
+ * @param dim_groups a collection of integer pairs, supporting `clear` and `push_back`;
+ *                   the returned values are { index, count }, where index is the index of the
+ *                   first dimension in group and count is the number of collapsed dimensions.
+ *
+ * @param in_shape   shape of the input
+ * @param axes       list of reduced axes; axis indices must be <= 63
+ *
+ * A dimension can be collapsed with its neighbor if:
+ *  - its extent is 1 in all samples
+ *  - both dimensions are reduced or non-reduced.
  */
 template <typename Axes, typename DimGroups, int ndim>
 void SimplifyReduction(Axes &out_axes, DimGroups &dim_groups,
@@ -104,6 +124,13 @@ void SimplifyReduction(Axes &out_axes, DimGroups &dim_groups,
 }
 
 
+/**
+ * @brief Throws an exception if given tensor list cannot be reduced across samples with
+ *        given set of axes.
+ *
+ * A tensor list can be reduced across samples only if the non-reduced dimensions have the
+ * same extent in all samples.
+ */
 inline void CheckBatchReduce(const TensorListShape<> &tls, span<const int> axes) {
   if (tls.num_samples() == 0)
     return;
@@ -129,11 +156,17 @@ inline void CheckBatchReduce(const TensorListShape<> &tls, span<const int> axes)
 }
 
 
-inline void CheckAxes(span<const int> axes, int dim) {
+/**
+ * @brief Checks that axes only appear once and that they are within range.
+ *
+ * @param axes list of axis indices
+ * @param ndim dimensionality of the tensor(list) to which axes refer
+ */
+inline void CheckAxes(span<const int> axes, int ndim) {
   uint64_t mask = 0;
   for (auto a : axes) {
-    if (a < 0 || a >= dim)
-      throw std::out_of_range(make_string("Axis index out of range: ", a, " not in 0..", dim-1));
+    if (a < 0 || a >= ndim)
+      throw std::out_of_range(make_string("Axis index out of range: ", a, " not in 0..", ndim-1));
     uint64_t amask = 1ul << a;
     if (mask & amask)
       throw std::invalid_argument(make_string("Duplicate axis index ", a));
