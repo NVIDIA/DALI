@@ -55,10 +55,17 @@ struct DropDims {
 
   /**
    * Collapses adjacent groups of reduced/non-reduced dimensions.
-   * The input can have up to 64 dimensions, however, the result must havfe
+   * The input can have up to 64 dimensions, however, the result must have
    * at most 8 groups of reduced/non-reduced dimensions.
+   * Dimensions with unit extent can be collapsed with either neighbor.
    *
-   * Example:
+   * @param out_shape   simplified shape
+   * @param out_mask    simplified mask (alternating bit pattern)
+   * @param in_shape    original shape
+   * @param axis_mask   mask, where 1 at position i indicates that the i-th dimension is reduced
+   * @return number of dimensions after simplification
+   *
+   * Example 1:
    * ```
    * in_shape:  [ 2, 3, 4, 5, 6 ]
    * reduced:     ^        ^  ^
@@ -67,6 +74,17 @@ struct DropDims {
    * out_shape: [ 2, 12, 30 ]
    * reduced:     ^       ^
    * out_mask = 0b101
+   * ```
+   *
+   * Example 2 (collapsing unit dim):
+   * ```
+   * in_shape:  [ 2, 1, 3, 4, 5 ]
+   * reduced:     ^     ^  ^
+   * axis_mask = 0b01101  (looks reversed - LSB is dim 0)
+   *
+   * out_shape: [ 24, 5 ]
+   * reduced:     ^
+   * out_mask = 0b10
    * ```
    */
   template <typename Indices>
@@ -107,12 +125,13 @@ struct DropDims {
     int64_t shape[kMaxDims];
     unsigned axis_mask;
     int d = simplify(shape, axis_mask, in_shape, reduced_axes);
-    start = 2 * kMaxDims;
 
     if (d == 1) {
       // short circuit trivial case
       if (axis_mask == 1)
         start = -1;
+      else
+        start = 2 * kMaxDims;
       return;
     }
 
@@ -142,16 +161,15 @@ struct DropDims {
     // and multiplying by the new subvolume.
     // If a dimension is dropped, the index is taken modulo subvolume.
 
-    for (int i = 0; i < d; i++) {
-      if (volumes[i] == 1)
-        break;
+    for (int i = 0; i < d - 1; i++) {
+      assert(volumes[i] > 1);  // simplification should make this impossible
       if (axis_mask & (1 << i)) {
         mod[nmod++] = volumes[i];
-        continue;
+      } else {
+        div[ndiv] = volumes[i];
+        mul[ndiv] = kept_volumes[i];
+        ndiv++;
       }
-      div[ndiv] = volumes[i];
-      mul[ndiv] = kept_volumes[i];
-      ndiv++;
     }
 
     assert(std::abs(ndiv - nmod) <= 1);

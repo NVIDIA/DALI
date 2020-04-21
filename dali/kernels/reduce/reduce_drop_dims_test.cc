@@ -145,26 +145,32 @@ TEST(DropDims, TrailingOne) {
 }
 
 TEST(DropDims, Multi5All) {
-  int shape[] = { 3, 4, 5, 6, 7 };
-  int rshape[5];
-  for (unsigned mask = 0; mask <= 0b11111u; mask++) {
+  int base_shape[] = { 3, 4, 5, 6, 7 };
+  for (unsigned degeneracy = 0; degeneracy <= 0b11111u; degeneracy++) {
+    int shape[5];
     for (int d = 0; d < 5; d++) {
-      rshape[d] = mask & (1u << d) ? 1 : shape[d];
+      shape[d] = degeneracy & (1u << d) ? 1 : base_shape[d];
     }
-    DropDims dd(shape, mask);
-    for (int i = 0, idx = 0; i < shape[0]; i++) {
-      int ri = mask & 0b00001 ? 0 : i;
-      for (int j = 0; j < shape[1]; j++) {
-        int rj = mask & 0b00010 ? 0 : j;
-        for (int k = 0; k < shape[2]; k++) {
-          int rk = mask & 0b00100 ? 0 : k;
-          for (int l = 0; l < shape[3]; l++) {
-            int rl = mask & 0b01000 ? 0 : l;
-            for (int m = 0; m < shape[4]; m++, idx++) {
-              int rm = mask & 0b10000 ? 0 : m;
-              int ridx =
-                ((((ri * rshape[1] + rj) * rshape[2]) + rk) * rshape[3] + rl) * rshape[4] + rm;
-              EXPECT_EQ(dd.reindex(idx), ridx);
+    int rshape[5];
+    for (unsigned mask = 0; mask <= 0b11111u; mask++) {
+      for (int d = 0; d < 5; d++) {
+        rshape[d] = mask & (1u << d) ? 1 : shape[d];
+      }
+      DropDims dd(shape, mask);
+      for (int i = 0, idx = 0; i < shape[0]; i++) {
+        int ri = mask & 0b00001 ? 0 : i;
+        for (int j = 0; j < shape[1]; j++) {
+          int rj = mask & 0b00010 ? 0 : j;
+          for (int k = 0; k < shape[2]; k++) {
+            int rk = mask & 0b00100 ? 0 : k;
+            for (int l = 0; l < shape[3]; l++) {
+              int rl = mask & 0b01000 ? 0 : l;
+              for (int m = 0; m < shape[4]; m++, idx++) {
+                int rm = mask & 0b10000 ? 0 : m;
+                int ridx =
+                  ((((ri * rshape[1] + rj) * rshape[2]) + rk) * rshape[3] + rl) * rshape[4] + rm;
+                EXPECT_EQ(dd.reindex(idx), ridx);
+              }
             }
           }
         }
