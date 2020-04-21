@@ -17,38 +17,194 @@
 
 
 #include "dali/core/util.h"
+#include "dali/core/geom/vec.h"
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_all_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_common.cuh"
 #include "dali/kernels/reduce/online_reducer.h"
+#include "dali/kernels/reduce/reduce_drop_dims.h"
 
 namespace dali {
 namespace kernels {
+
+namespace reduce_impl {
+/**
+ *  A preprocessor bank should satisfy the concept:
+ *
+ *  ```
+ *  struct PreprocessorBank {
+ *      SingleValuePreprocessor Get(const i64vec<non_reduced_dims> &pos) const;
+ *  };
+ *  ```
+ *  where SingleValuePreprocessor is a unary functor.
+ */
+
+/**
+ * @brief A no-op preprocessor bank,
+ */
+template <int non_reduced_ndim>
+struct IdentityPreprocessor {
+  DALI_HOST_DEV DALI_FORCEINLINE
+  dali::identity Get(const i64vec<non_reduced_ndim> &) const {
+    return {};
+  }
+};
+
+/**
+ * @brief Calculates variance, given a tensor of means.
+ */
+template <int non_reduced_ndim, typename Mean>
+struct VariancePreprocessor;
+
+template <typename Mean>
+struct VariancePreprocessor<1, Mean> {
+  const Mean *mean;
+  i64vec<1> stride;
+
+  template <typename T>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  reductions::variance<Mean> Get(const i64vec<1> &pos) const {
+    auto offset = dot(pos, stride);
+  #ifdef __CUDA_ARCH__
+    float m = __ldg(mean + offset);
+  #else
+    float m = mean[offset];
+  #endif
+    return { m };
+  }
+};
+
+template <typename Mean>
+struct VariancePreprocessor<2, Mean> {
+  const Mean *mean;
+  i64vec<2> stride;
+  DropDims inner_dims;
+
+  template <typename T>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  reductions::variance<Mean> Get(const i64vec<2> &pos) const {
+    auto offset = dot(i64vec2(pos[0], inner_dims.reindex(pos[1])), stride);
+  #ifdef __CUDA_ARCH__
+    float m = __ldg(mean + offset);
+  #else
+    float m = mean[offset];
+  #endif
+    return { m };
+  }
+};
+
+}  // namespace reduce_impl
+
+
+/**
+ * @brief This function is used when the reduction is no-op (reduced extent is 1)
+ *
+ * This function will apply preprocessing and postprocessing, but will not do
+ * any actual reduction.
+ *
+ * @param pre_bank      preprocessor bank, providing possibly distinct procssing
+ *                      per output sample
+ * @param post          posptprocessing unary functor
+ */
+template <typename Acc, typename In, typename PreprocessorBank, typename Postprocessor>
+__device__ void ReduceNone(Acc *out, const In *in, int64_t n,
+                           PreprocessorBank pre_bank, Postprocessor post) {
+  const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
+  const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
+  const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
+  int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
+  for (int64_t index = base_idx; index < n; index += grid_stride) {
+    auto pre = pre_bank.Get({index});
+    out[index] = post(pre(in[index]));
+  }
+}
+
+
+/**
+ * @brief This kernel is used when the reduction is no-op (reduced extent is 1)
+ *
+ * This function will apply preprocessing and postprocessing, but will not do
+ * any actual reduction.
+ * When the data batch contains only samples where the reduced extent happens to be 1,
+ * this kernel will be used.
+ *
+ * @param pre_bank      preprocessor bank, providing possibly distinct procssing
+ *                      per output sample
+ * @param post          posptprocessing unary functor
+ */
+template <typename Acc, typename In,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
+          typename Postprocessor = identity>
+__global__ void ReduceNoneKernel(Acc *const *out, const In *const *in, const int64_t *lengths,
+                                 PreprocessorBank *pre = nullptr,
+                                 Postprocessor *post = nullptr) {
+  int sample_idx = blockIdx.y;
+  PreprocessorBank pre_bank = pre ? pre[sample_idx] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[sample_idx] : Postprocessor();
+  ReduceNone(out[sample_idx], in[sample_idx], lengths[sample_idx], pre_bank, postprocessor);
+}
+
+
+/**
+ * @brief This kernel is used for reducing respective elements of tensors in across samples
+ *
+ * Grid and block are 1D and are used for indexing the samples; samples themselves are
+ * iterated over by threads;
+ *
+ * @param pre_bank      preprocessor bank, providing possibly distinct procssing
+ *                      per output coordinate per input sample
+ * @param post          posptprocessing unary functor
+ */
+template <typename Acc, typename In,
+          typename Reduction,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
+          typename Postprocessor = identity>
+__global__ void ReduceSamplesKernel(Acc *out, const In *const *in,
+                                    int64_t sample_size, int num_samples,
+                                    Reduction R = {},
+                                    PreprocessorBank *pre = nullptr,
+                                    Postprocessor post = {}) {
+  OnlineReducer<Acc, Reduction> red;
+  int64_t block_size = blockDim.x;
+  int64_t grid_size = block_size * gridDim.x;
+  for (int64_t ofs = threadIdx.x + blockIdx.x * block_size; ofs < sample_size; ofs += grid_size) {
+    red = {};
+    for (int i = 0; i < num_samples; i++) {
+      auto pp = pre[i].Get({ofs});
+      red.add(pp(in[i][ofs]), R);
+    }
+    out[ofs] = post(red.result());
+  }
+}
+
 
 /**
  * @brief This function is used for reducing innermost dimension with small extent.
  *
  * The reduction is done in a single pass, with each thread completely reducing
  * the inner dimension.
- * The implementation uses tree reduction up to 256 elements and above that
- * simple sum of 256-element blocks.
+ *
+ * @param pre_bank      preprocessor bank, providing possibly distinct procssing
+ *                      per output sample
+ * @param post          posptprocessing unary functor
  */
 template <typename Acc, typename In,
-          typename Reduction = reductions::sum,
-          typename Preprocess = dali::identity>
+          typename Reduction, typename PreprocessorBank, typename Postprocessor>
 __device__ void ReduceInnerSmall(Acc *out, const In *in, int64_t n_outer, int n_inner,
-                                 Reduction reduce = {}, Preprocess pp = {}) {
+                                 Reduction reduce,
+                                 PreprocessorBank pre_bank, Postprocessor post) {
   const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
   const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
   const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
   int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
   for (int64_t outer = base_idx; outer < n_outer; outer += grid_stride) {
-    const float *base = in + outer * n_inner;
+    auto pre = pre_bank.Get({outer});
+    const In *base = in + outer * n_inner;
     OnlineReducer<Acc, Reduction> red;
     red.reset();
     for (int i = 0; i < n_inner; i++)
-      red.add(pp(__ldg(base + i)), reduce);
-    out[outer] = red.result();
+      red.add(pre(__ldg(base + i)), reduce);
+    out[outer] = post(red.result());
   }
 }
 
@@ -59,22 +215,23 @@ __device__ void ReduceInnerSmall(Acc *out, const In *in, int64_t n_outer, int n_
  * After sequential step, warp reduction is performed.
  */
 template <typename Acc, typename In,
-          typename Reduction = reductions::sum,
-          typename Preprocess = dali::identity>
+          typename Reduction, typename PreprocessorBank, typename Postprocessor>
 __device__ void ReduceInnerMedium(Acc *out, const In *in, int64_t n_outer, int n_inner,
-                                  Reduction reduce = {}, Preprocess pp = {}) {
+                                  Reduction reduce,
+                                  PreprocessorBank pre_bank, Postprocessor post) {
   const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blockDim.y;
   int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blockDim.y + threadIdx.y;
   for (int64_t outer = base_idx; outer < n_outer; outer += grid_stride) {
-    const float *base = in + outer * n_inner;
+    auto pre = pre_bank.Get({outer});
+    const In *base = in + outer * n_inner;
     OnlineReducer<Acc, Reduction> red;
     red.reset();
     for (int i = threadIdx.x; i < n_inner; i += 32)
-      red.add(pp(__ldg(base + i)), reduce);
+      red.add(pre(__ldg(base + i)), reduce);
     Acc v = red.result();
     WarpReduce(v, reduce);
     if (threadIdx.x == 0) {
-      out[outer] = v;
+      out[outer] = post(v);
     }
   }
 }
@@ -89,11 +246,11 @@ __device__ void ReduceInnerMedium(Acc *out, const In *in, int64_t n_outer, int n
  * depending on the value num_macroblocks.
  */
 template <typename Acc, typename In,
-          typename Reduction = reductions::sum,
-          typename Preprocess = dali::identity>
+          typename Reduction, typename PreprocessorBank, typename Postprocessor>
 __device__ void ReduceInnerLarge(Acc *out, const In *in, int64_t n_outer, int64_t n_inner,
                                  int num_macroblocks, int macroblock_size,
-                                 Reduction reduce = {}, Preprocess pp = {}) {
+                                 Reduction reduce,
+                                 PreprocessorBank pre_bank, Postprocessor post) {
   const int blk_size = 32*blockDim.y;  // block must be warpSize * warpSize for BlockReduce
 
   const int total_blocks = n_outer * num_macroblocks;
@@ -107,16 +264,17 @@ __device__ void ReduceInnerLarge(Acc *out, const In *in, int64_t n_outer, int64_
     int64_t outer = idx >> outer_shift;
     int64_t inner_macroblock = idx & inner_mask;
     int64_t inner_start = inner_macroblock * macroblock_size;
-    int64_t inner_end = min(n_inner, inner_start + macroblock_size);
+    int64_t inner_end = cuda_min(n_inner, inner_start + macroblock_size);
 
     const In *base = &in[outer * n_inner];
 
     Acc val = reduce.template neutral<Acc>();
+    auto pre = pre_bank.Get({outer});
 
     // reduce macroblock to a block - each thread reduces its own block-strided slice
     bool first = true;
     for (int64_t inner = inner_start + flat_tid; inner < inner_end; inner += blk_size) {
-      auto x = pp(__ldg(base + inner));
+      auto x = pre(__ldg(base + inner));
       if (first) {
         val = x;
         first = false;
@@ -129,7 +287,7 @@ __device__ void ReduceInnerLarge(Acc *out, const In *in, int64_t n_outer, int64_
       __syncthreads();      // make sure that the shared memory used by BlockReduce is ready
 
     if (BlockReduce(val, reduce))
-      out[idx] = val;
+      out[idx] = post(val);
   }
 }
 
@@ -153,32 +311,38 @@ struct ReduceSampleDesc {
 
 
 template <typename Acc, typename In,
-          typename Reduction = reductions::sum,
-          typename Preprocess = dali::identity>
+          typename Reduction, typename PreprocessorBank, typename Postprocessor>
 __device__ void ReduceInner(const ReduceSampleDesc<Acc, In> &sample,
-                            Reduction reduce = {}, Preprocess pp = {}) {
+                            Reduction reduce,
+                            PreprocessorBank pre_bank, Postprocessor post) {
   int64_t n_outer = sample.n_outer;
   int64_t n_reduced = sample.n_reduced;
   Acc *out = sample.out;
   const In *in = sample.in;
 
-  if (n_reduced < 32 && sample.num_macroblocks == 1) {
-    ReduceInnerSmall(out, in, n_outer, n_reduced, reduce, pp);
+  if (n_reduced == 1) {
+    ReduceNone(out, in, n_outer, pre_bank, post);
+  } else if (n_reduced < 32 && sample.num_macroblocks == 1) {
+    ReduceInnerSmall(out, in, n_outer, n_reduced, reduce, pre_bank, post);
   } else if (n_reduced < 1024 && sample.num_macroblocks == 1) {
-    ReduceInnerMedium(out, in, n_outer, n_reduced, reduce, pp);
+    ReduceInnerMedium(out, in, n_outer, n_reduced, reduce, pre_bank, post);
   } else {
     ReduceInnerLarge(out, in, n_outer, n_reduced,
-                     sample.num_macroblocks, sample.macroblock_size, reduce, pp);
+                     sample.num_macroblocks, sample.macroblock_size,
+                     reduce, pre_bank, post);
   }
 }
 
 template <typename Acc, typename In,
           typename Reduction = reductions::sum,
-          typename Preprocess = dali::identity>
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
+          typename Postprocessor = identity>
 __global__ void ReduceInnerKernel(const ReduceSampleDesc<Acc, In> *samples,
-                                  Reduction reduce = {}, const Preprocess *pp = nullptr) {
-  Preprocess preprocess = pp ? pp[blockIdx.y] : Preprocess();
-  ReduceInner(samples[blockIdx.y], reduce, preprocess);
+                                  Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
+                                  const Postprocessor *post = nullptr) {
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+  ReduceInner(samples[blockIdx.y], reduce, pre_bank, postprocessor);
 }
 
 // Reduction over other dimensions (non-innermost)
@@ -187,11 +351,11 @@ __global__ void ReduceInnerKernel(const ReduceSampleDesc<Acc, In> *samples,
  * Each *thread* performs independent, full reduction
  */
 template <typename Acc, typename In,
-          typename Reduction = reductions::sum,
-          typename Preprocess = dali::identity>
+          typename Reduction, typename PreprocessorBank, typename Postprocessor>
 __device__
 void ReduceMiddleSmall(const ReduceSampleDesc<Acc, In> &sample,
-                       Reduction reduce = {}, Preprocess pp = {}) {
+                       Reduction reduce,
+                       PreprocessorBank pre_bank, Postprocessor post) {
   int64_t n_outer = sample.n_outer;
   int n_reduced = sample.n_reduced;
   int64_t n_inner = sample.n_inner;
@@ -208,55 +372,13 @@ void ReduceMiddleSmall(const ReduceSampleDesc<Acc, In> &sample,
     int64_t outer, inner;
     outer = idx / n_inner;
     inner = idx % n_inner;
-    const float *base = in + outer * outer_stride + inner;
+    const In *base = in + outer * outer_stride + inner;
+    auto pre = pre_bank.Get({outer, inner});
     OnlineReducer<Acc, Reduction> red;
     red.reset();
     for (int i = 0; i < n_reduced; i++)
-      red.add(pp(__ldg(base + i * n_inner)), reduce);
-    out[idx] = red.result();
-  }
-}
-
-
-/**
- * Each *warp* performs full reduction - blockDim.y is used as a stride in non-reduced dims
- */
-template <typename Acc, typename In,
-          typename Reduction = reductions::sum,
-          typename Preprocess = dali::identity>
-__device__ void ReduceMiddleMedium(const ReduceSampleDesc<Acc, In> &sample,
-                        Reduction reduce = {}, Preprocess pp = {}) {
-  int64_t n_outer = sample.n_outer;
-  int n_reduced = sample.n_reduced;
-  int64_t n_inner = sample.n_inner;
-  int64_t n_non_reduced = n_inner * n_outer;
-  int64_t outer_stride = n_inner * n_reduced;
-
-  Acc *out = sample.out;
-  const In *in = sample.in;
-
-  const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blockDim.y;
-  int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blockDim.y + threadIdx.y;
-  // we can't add thread_offset to base index, because we need warp convergence at all times
-  // to perform warp-sync reduction
-  int tid = threadIdx.x;
-  int64_t thread_offset = tid * n_inner;
-  for (int64_t idx = base_idx; idx < n_non_reduced; idx += grid_stride) {
-    int64_t outer, inner;
-    outer = idx / n_inner;
-    inner = idx % n_inner;
-    const float *base = in + outer * outer_stride + thread_offset;
-
-    OnlineReducer<Acc, Reduction> red;
-    red.reset();
-
-    for (int64_t i = inner; i < outer_stride; i += n_inner * 32)
-      red.add(pp(__ldg(base + i)), reduce);
-    Acc val = red.result();
-
-    WarpReduce(val, reduce);
-    if (tid == 0)
-      out[idx] = val;
+      red.add(pre(__ldg(base + i * n_inner)), reduce);
+    out[idx] = post(red.result());
   }
 }
 
@@ -273,10 +395,11 @@ namespace reduce_shared {
  * This function CANNOT work for inner extensts >32.
  * The macroblock size in reduced dimension is limited - see OnlineReducer for limits.
  */
-template <typename Acc, typename In, typename Reduction, typename Preprocess = identity>
-__device__ void ReduceMiddleLargeInnerSmall(
-      const ReduceSampleDesc<Acc, In> &sample,
-      Reduction r = {}, Preprocess pp = {}) {
+template <typename Acc, typename In,
+          typename Reduction, typename PreprocessorBank, typename Postprocessor>
+__device__ void ReduceMiddleLargeInnerSmall(const ReduceSampleDesc<Acc, In> &sample,
+                                            Reduction r,
+                                            PreprocessorBank pre_bank, Postprocessor post) {
   Acc (*shared_tmp)[33] = reinterpret_cast<Acc (*)[33]>(reduce_shared::shared_tmp);
 
   Acc *out = sample.out;
@@ -343,6 +466,8 @@ __device__ void ReduceMiddleLargeInnerSmall(
   if (lane_offset0 < 0)
     lane_offset0 += n_inner;
 
+  const int inner_bin = lane % n_inner;
+
   for (int w = warp; w < 32; w += warps)
     shared_tmp[w][lane] = r.template neutral<Acc>();
 
@@ -354,12 +479,15 @@ __device__ void ReduceMiddleLargeInnerSmall(
       __syncthreads();
 
     // calculate the outer/macroblock coordinates
-    int64_t outer_ofs = (macroblock >> outer_shift) * outer_stride;
+    int64_t outer = macroblock >> outer_shift;
+    int64_t outer_ofs = outer * outer_stride;
     int mblock = macroblock & mblock_mask;
     int64_t macroblock_start = mblock * macroblock_stride;
-    int64_t macroblock_end = min(macroblock_start + macroblock_stride, outer_stride);
+    int64_t macroblock_end = cuda_min(macroblock_start + macroblock_stride, outer_stride);
     red.reset();
     int lane_offset = lane_offset0;
+
+    auto pre = pre_bank.Get(i64vec2(outer, inner_bin));
 
     for (int64_t i = macroblock_start; i < macroblock_end; i += blk_size) {
       int64_t idx = i + tid;
@@ -367,12 +495,12 @@ __device__ void ReduceMiddleLargeInnerSmall(
 
       Acc v = lane + lane_offset < 32 &&
               idx0 < macroblock_end
-                ? pp(__ldg(in + outer_ofs + idx0))
+                ? pre(__ldg(in + outer_ofs + idx0))
                 : r.template neutral<Acc>();
       if (lane + lane_offset >= n_inner && lane < n_inner) {
         int64_t idx1 = idx0 - n_inner;
         if (idx1 < macroblock_end) {
-          r(v, pp(__ldg(in + outer_ofs + idx1)));
+          r(v, pre(__ldg(in + outer_ofs + idx1)));
         }
       }
       red.add(v, r);
@@ -396,7 +524,7 @@ __device__ void ReduceMiddleLargeInnerSmall(
       // combine warps' partial results
       WarpReduce(acc, r);
       if (lane == 0) {
-        out[macroblock * n_inner + inner] = acc;
+        out[macroblock * n_inner + inner] = post(acc);
       }
     }
   }
@@ -412,10 +540,11 @@ __device__ void ReduceMiddleLargeInnerSmall(
  * This function is not indented for use with small inner extent.
  * The macroblock size in reduced dimension is limited - see OnlineReducer for limits.
  */
-template <typename Acc, typename In, typename Reduction, typename Preprocess = identity>
-__device__ void ReduceMiddleLargeInnerMedium(
-      const ReduceSampleDesc<Acc, In> &sample,
-      Reduction r = {}, Preprocess pp = {}) {
+template <typename Acc, typename In,
+          typename Reduction, typename PreprocessorBank, typename Postprocessor>
+__device__ void ReduceMiddleLargeInnerMedium(const ReduceSampleDesc<Acc, In> &sample,
+                                             Reduction r,
+                                             PreprocessorBank pre_bank, Postprocessor post) {
   Acc (*shared_tmp)[33] = reinterpret_cast<Acc (*)[33]>(reduce_shared::shared_tmp);
 
   Acc *out = sample.out;
@@ -462,21 +591,24 @@ __device__ void ReduceMiddleLargeInnerMedium(
     int macroblock = __float2int_rd(out_block * rcp_horz_warps);  // integer division - round down
     int horz_warp = out_block - macroblock * horz_warps;  // modulo
 
-    int64_t outer_ofs = (macroblock >> outer_shift) * outer_stride;
+    int64_t outer = macroblock >> outer_shift;
+    int64_t outer_ofs = outer * outer_stride;
     int mblock = macroblock & mblock_mask;
 
     int64_t macroblock_start = mblock * macroblock_size;
-    int64_t macroblock_end = min(macroblock_start + macroblock_size, n_reduced);
+    int64_t macroblock_end = cuda_min(macroblock_start + macroblock_size, n_reduced);
     OnlineReducer<Acc, Reduction> red;
     red.reset();
     int inner_base = horz_warp * 32;
-    int64_t base_idx = outer_ofs + inner_base + lane;
+    int inner = inner_base + lane;
+    int64_t base_idx = outer_ofs + inner;
     Acc v;
     // Each warp does a full, parallel reduction over a range of inner dimension.
-    if (lane + inner_base < n_inner) {
+    if (inner < n_inner) {
+      auto pre = pre_bank.Get({ outer, inner });
       for (int64_t i = macroblock_start + warp; i < macroblock_end; i += warps) {
         int64_t offset = base_idx + i * n_inner;
-        red.add(pp(__ldg(in + offset)), r);
+        red.add(pre(__ldg(in + offset)), r);
       }
       v = red.result();
     } else {
@@ -490,7 +622,7 @@ __device__ void ReduceMiddleLargeInnerMedium(
       WarpReduce(v, r);
       if (lane == 0) {
         int inner = i + inner_base;
-        out[macroblock * n_inner + inner] = v;
+        out[macroblock * n_inner + inner] = post(v);
       }
     }
   }
@@ -499,19 +631,23 @@ __device__ void ReduceMiddleLargeInnerMedium(
 
 template <typename Acc, typename In,
           typename Reduction = reductions::sum,
-          typename Preprocess = dali::identity>
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
+          typename Postprocessor = identity>
 __global__ void ReduceMiddleKernel(const ReduceSampleDesc<Acc, In> *samples,
-                                  Reduction reduce = {}, const Preprocess *pp = nullptr) {
+                                  Reduction reduce = {},
+                                  const PreprocessorBank *pre = nullptr,
+                                  const Postprocessor *post = nullptr) {
   auto sample = samples[blockIdx.y];
 
-  Preprocess preprocess = pp ? pp[blockIdx.y] : Preprocess();
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
 
-  if (sample.n_reduced < 1024) {
-    ReduceMiddleSmall(sample, reduce, preprocess);
+  if (sample.n_reduced < 1024 && sample.num_macroblocks == 1) {
+    ReduceMiddleSmall(sample, reduce, pre_bank, postprocessor);
   } else if (sample.n_inner < 32) {
-    ReduceMiddleLargeInnerSmall(sample, reduce, preprocess);
+    ReduceMiddleLargeInnerSmall(sample, reduce, pre_bank, postprocessor);
   } else {
-    ReduceMiddleLargeInnerMedium(sample, reduce, preprocess);
+    ReduceMiddleLargeInnerMedium(sample, reduce, pre_bank, postprocessor);
   }
 }
 
