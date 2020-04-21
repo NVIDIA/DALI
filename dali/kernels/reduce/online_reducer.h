@@ -21,7 +21,7 @@ namespace dali {
 namespace kernels {
 
 template <typename Acc, typename Reduction>
-struct OnlineReducer {
+struct TrivialReducer {
   Acc value;
 
   DALI_HOST_DEV DALI_FORCEINLINE void reset() {
@@ -35,12 +35,15 @@ struct OnlineReducer {
   DALI_HOST_DEV DALI_FORCEINLINE Acc result() const { return value; }
 };
 
+template <typename Acc, typename Reduction>
+struct OnlineReducer : TrivialReducer<Acc, Reduction> {};
+
 /**
  * @brief Implements compensated sum.
  *
  * The residue contains accumulated error, effectively doubling the precision.
  */
-template <typename Acc>
+template <typename Acc, bool is_fp = std::is_floating_point<Acc>::value>
 struct OnlineSum {
   Acc sum, residue;
 
@@ -68,8 +71,10 @@ struct OnlineSum {
 };
 
 template <typename Acc>
-struct OnlineReducer<Acc, reductions::sum> : OnlineSum<Acc> {
-};
+struct OnlineSum<Acc, false> : TrivialReducer<Acc, reductions::sum> {};
+
+template <typename Acc>
+struct OnlineReducer<Acc, reductions::sum> : OnlineSum<Acc> {};
 
 
 }  // namespace kernels

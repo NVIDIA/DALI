@@ -1,0 +1,194 @@
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef DALI_KERNELS_REDUCE_REDUCE_SETUP_UTILS_H_
+#define DALI_KERNELS_REDUCE_REDUCE_SETUP_UTILS_H_
+
+#include <utility>
+#include <type_traits>
+#include "dali/core/error_handling.h"
+#include "dali/core/format.h"
+#include "dali/core/small_vector.h"
+#include "dali/core/span.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/core/tensor_shape_print.h"
+#include "dali/core/util.h"
+
+namespace dali {
+namespace kernels {
+namespace reduce_impl {
+
+template <typename T>
+constexpr enable_if_t<std::is_integral<T>::value, int> ilog2(T x) {
+  int n = 0;
+  while (x >>= 1)
+    n++;
+  return n;
+}
+
+
+template <typename OutType = uint64_t, typename BitIndices>
+OutType to_bit_mask(const BitIndices &bit_indices) {
+  OutType mask = 0;
+  for (int idx : bit_indices)
+    mask |= OutType(1) << idx;
+
+  return mask;
+}
+
+/**
+ * @param out_axes a collection of integers, supporting `clear` and `push_back`.
+ * @param dim_groups a collection of integer pairs, supporting `clear` and `push_back`
+ */
+template <typename Axes, typename DimGroups, int ndim>
+void SimplifyReduction(Axes &out_axes, DimGroups &dim_groups,
+                       const TensorListShape<ndim> &in_shape, span<const int> axes) {
+  out_axes.clear();
+  dim_groups.clear();
+  int d = in_shape.sample_dim();
+
+  uint64_t mask = to_bit_mask(axes);
+
+  int i;
+
+  // skip leading degenerate dimensions
+  for (i = 0; i < d && is_degenerate_dim(in_shape, i); i++) {}
+
+  if (i < d) {
+    // so we've reached the outermost non-degenerate dimension
+    int remapped = 0;  // its index will map to 0
+
+    bool prev_reduced = (mask >> i) & 1;  // is it reduced?
+    if (prev_reduced)
+      out_axes.push_back(remapped);  // if so, add the axis to the list of reduced dimension groups
+
+    int group_start = 0;     // the dimension group starts at 0 -
+    int group_size = i + 1;  // all leading degenerate dimensions are in this group
+
+    for (i++; i < d; i++) {
+      if (is_degenerate_dim(in_shape, i)) {
+        // Degenerate dimension can be merged with the previous one regardless of whether
+        // it is reduced or not.
+        group_size++;
+        continue;
+      }
+      bool is_reduced = (mask >> i) & 1;
+      if (is_reduced != prev_reduced) {
+        dim_groups.emplace_back(group_start, group_size);
+        group_start = i;
+        group_size = 1;
+        remapped++;
+        if (is_reduced)
+          out_axes.push_back(remapped);
+      } else {
+        group_size++;
+      }
+      prev_reduced = is_reduced;
+    }
+    dim_groups.push_back(std::make_pair(group_start, group_size));
+  } else {
+    // totally degenerate
+    dim_groups.push_back(std::make_pair(0, d));
+  }
+}
+
+
+inline void CheckBatchReduce(const TensorListShape<> &tls, span<const int> axes) {
+  if (tls.num_samples() == 0)
+    return;
+
+  uint64_t mask = to_bit_mask(axes);
+  SmallVector<int, 6> non_reduced;
+  for (int a = 0; a < tls.sample_dim(); a++) {
+    if (!(mask & (1 << a)))
+      non_reduced.push_back(a);
+  }
+
+  auto first_sample_shape = tls.tensor_shape_span(0);
+
+  for (int i = 1; i < tls.num_samples(); i++) {
+    auto sample_shape = tls.tensor_shape_span(i);
+    for (int a : non_reduced) {
+      DALI_ENFORCE(sample_shape[a] == first_sample_shape[a], make_string(
+        "Reduce: batch reduction requires that all samples have the same extent in non-reduced "
+        "dimensions.\nError at sample ", i, " axis ", a, ": the extent is ", sample_shape[a],
+        " != ", first_sample_shape[a], " in the first sample in the batch."));
+    }
+  }
+}
+
+
+inline void CheckAxes(span<const int> axes, int dim) {
+  uint64_t mask = 0;
+  for (auto a : axes) {
+    if (a < 0 || a >= dim)
+      throw std::out_of_range(make_string("Axis index out of range: ", a, " not in 0..", dim-1));
+    uint64_t amask = 1ul << a;
+    if (mask & amask)
+      throw std::invalid_argument(make_string("Duplicate axis index ", a));
+    mask |= amask;
+  }
+}
+
+
+inline void CalculateReducedShape(TensorListShape<> &out_shape,
+                                  const TensorListShape<> &in_shape,
+                                  span<const int> axes,
+                                  bool keep_dims,
+                                  bool batch_reduce) {
+  int nsamples = in_shape.num_samples();
+  int out_samples = batch_reduce ? 1 : nsamples;
+  int in_dim = in_shape.sample_dim();
+  uint64_t mask = to_bit_mask(axes);
+
+  int out_dim = keep_dims ? in_dim : in_dim - axes.size();
+  out_shape.resize(out_samples, out_dim);
+  for (int i = 0; i < out_samples; i++) {
+    auto in_sample_shape = in_shape.tensor_shape_span(i);
+    auto out_sample_shape = out_shape.tensor_shape_span(i);
+    int out_d = 0;
+    for (int d = 0; d < in_dim; d++) {
+      if (mask & (1ul << d)) {
+        if (keep_dims)
+          out_sample_shape[out_d++] = 1;
+        continue;  // skip reduced axes
+      }
+      assert(out_d < out_dim);
+      out_sample_shape[out_d++] = in_sample_shape[d];
+    }
+    assert(out_d == out_dim);
+  }
+}
+
+template <typename ArrayLike, int ndim>
+inline void CalculateReductionFactors(ArrayLike &out, const TensorListShape<ndim> &in_shape,
+                                      span<const int> axes) {
+  for (int i = 0; i < in_shape.num_samples(); i++) {
+    auto sample_shape = in_shape.tensor_shape_span(i);
+    if (volume(sample_shape) == 0) {
+      out[i] = 0;  // degenerate sample - no reduction possible
+      continue;
+    }
+    int64_t red = 1;
+    for (auto a : axes)
+      red *= sample_shape[a];
+    out[i] = red;
+  }
+}
+
+}  // namespace reduce_impl
+}  // namespace kernels
+}  // namespace dali
+
+#endif  // DALI_KERNELS_REDUCE_REDUCE_SETUP_UTILS_H_
