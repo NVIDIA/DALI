@@ -44,12 +44,16 @@ do_once() {
         echo "plm_rsh_agent = /usr/local/mpi/bin/rsh_warn.sh" >> /usr/local/mpi/etc/openmpi-mca-params.conf
     fi
 
+    if [ ${CUDA_VERSION} -lt 100 ]; then
+        apt-get update && apt-get install -y gcc-4.8 g++-4.8
+    fi
+
     export HOROVOD_GPU_ALLREDUCE=NCCL
     export HOROVOD_NCCL_INCLUDE=/usr/include
     export HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu
     export HOROVOD_NCCL_LINK=SHARED
     export HOROVOD_WITHOUT_PYTORCH=1
-    pip install horovod==0.15.1
+    pip install horovod==0.19.1
 
     for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
     do
