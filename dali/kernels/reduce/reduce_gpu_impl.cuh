@@ -486,6 +486,7 @@ class ReduceImplGPU {
         rs.reduced_out = 1;
         rs.reduced_in = 0;
       }
+      stage.is_last = true;
       return;
     }
 

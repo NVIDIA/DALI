@@ -450,6 +450,7 @@ TEST(SumImplGPU, WholeSamples) {
 
   TestTensorList<int64_t> out;
   out.reshape(req.output_shapes[0]);
+  cudaMemset(out.gpu().data[0], -1, out.gpu().num_elements() * sizeof(int64_t));
   sum.Run(ctx, out.gpu(), in.gpu());
 
   auto out_cpu = out.cpu(ctx.gpu.stream);
@@ -645,6 +646,7 @@ TEST(SumImplGPU, All_ZeroSize) {
 
   TestTensorList<int64_t> out;
   out.reshape(req.output_shapes[0]);
+  cudaMemset(out.gpu().data[0], -1, out.gpu().num_elements() * sizeof(int64_t));
   sum.Run(ctx, out.gpu(), in.gpu());
 
   EXPECT_EQ(*out.cpu().data[0], 0uL);
