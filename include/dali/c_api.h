@@ -56,12 +56,6 @@ typedef enum {
   DALI_BOOL = 11
 } dali_data_type_t;
 
-typedef enum {
-  DALI_SUCCESS = 0,
-  DALI_GENERAL_ERROR=1,
-  DALI_UNKNOWN_DEVICE = 2,
-} dali_error_t;
-
 /**
  * @brief Create DALI pipeline. Setting batch_size,
  * num_threads or device_id here overrides
@@ -85,8 +79,9 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
 /**
  * @brief Feed the data to ExternalSource as contiguous memory.
  *
- * An alternative function exists to specify also a CUDA stream to use
- * when copying the data onto GPU. If used with `device == CPU`, this value will be ignored
+ * When calling this function for GPU device, default stream (0) will be used when copying data
+ * onto GPU. An alternative function exists to specify also a CUDA stream.
+ * If used with CPU device, stream value will be ignored
  *
  * @param pipe_handle Pointer to pipeline handle
  * @param name Pointer to a null-terminated byte string with the name of the External Source
@@ -116,8 +111,9 @@ DLL_PUBLIC void daliSetExternalInputStream(daliPipelineHandle *pipe_handle, cons
 /**
  * @brief Feed the data to ExternalSource as a set of separate buffers.
  *
- * An alternative function exists to specify also a CUDA stream to use
- * when copying the data onto GPU. If used with `device == CPU`, this value will be ignored
+ * When calling this function for GPU device, default stream (0) will be used when copying data
+ * onto GPU. An alternative function exists to specify also a CUDA stream.
+ * If used with CPU device, stream value will be ignored
  *
  * @param pipe_handle Pointer to pipeline handle
  * @param name Pointer to a null-terminated byte string with the name of the External Source
@@ -131,7 +127,7 @@ DLL_PUBLIC void daliSetExternalInputStream(daliPipelineHandle *pipe_handle, cons
  * @param layout_str Optional layout provided as a pointer to null-terminated byte string.
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. If used with `device == CPU`,
- *               this value will be ignored
+ *               this value will be ignored.
  */
 DLL_PUBLIC void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                                             device_type_t device, const void *const *data_ptr,

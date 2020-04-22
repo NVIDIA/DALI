@@ -32,7 +32,6 @@ template<typename Backend>
 void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, device_type_t device,
                       const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
                       int sample_dim, const char *layout_str, cudaStream_t stream = 0) {
-  DALI_ENFORCE(device == CPU, "GPU data cannot be passed as external source");
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
@@ -59,7 +58,6 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                              device_type_t device, const void *const *data_ptr,
                              dali_data_type_t data_type, const int64_t *shapes, int64_t sample_dim,
                              const char *layout_str, cudaStream_t stream = 0) {
-  DALI_ENFORCE(device == CPU, "GPU data cannot be passed as external source");
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
@@ -164,8 +162,28 @@ void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *na
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str) {
-//  SetExternalInputTensors<dali::CPUBackend>(pipe_handle, name, device, data_ptr, data_type, shapes,
-//                                            sample_dim, layout_str);
+  daliSetExternalInputTensorsStream(pipe_handle, name, device, data_ptr, data_type, shapes,
+                                    sample_dim, layout_str, 0);
+}
+
+
+void daliSetExternalInputTensorsStream(daliPipelineHandle *pipe_handle, const char *name,
+                                       device_type_t device, const void *const *data_ptr,
+                                       dali_data_type_t data_type, const int64_t *shapes,
+                                       int64_t sample_dim, const char *layout_str,
+                                       cudaStream_t stream) {
+  switch (device) {
+    case device_type_t::CPU:
+      SetExternalInputTensors<dali::CPUBackend>(pipe_handle, name, device, data_ptr, data_type,
+                                                shapes, sample_dim, layout_str, stream);
+      return;
+    case device_type_t::GPU:
+      SetExternalInputTensors<dali::GPUBackend>(pipe_handle, name, device, data_ptr, data_type,
+                                                shapes, sample_dim, layout_str, stream);
+      return;
+    default:
+      DALI_FAIL(dali::make_string("Unknown device: ", device));
+  }
 }
 
 
