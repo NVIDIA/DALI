@@ -125,8 +125,8 @@ class DLL_PUBLIC Pipeline {
     // Create a spec for an ExternalInput op and add it to our graph
     OpSpec spec =
       OpSpec("ExternalSource")
-      .AddArg("device", "cpu")
-      .AddOutput(name, "cpu");
+              .AddArg("device", "cpu")
+              .AddOutput(name, "cpu");
     auto logical_id = GetNextLogicalId();
     logical_ids_[logical_id];
     PrepareOpSpec(&spec, logical_id);
@@ -135,20 +135,30 @@ class DLL_PUBLIC Pipeline {
     return logical_id;
   }
 
-  template <typename T, typename Backend>
-  void SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr) {
-    ExternalSource<Backend> *source = dynamic_cast<ExternalSource<Backend>*>(op_ptr);
-    DALI_ENFORCE(source != nullptr, "Input name '" +
-                 name + "' is not marked as an external input.");
-    source->SetDataSource(tl);
+
+  template<typename T, typename Backend>
+  void SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr,
+                           cudaStream_t stream = 0) {
+    auto *source = dynamic_cast<ExternalSource<Backend> *>(op_ptr);
+    DALI_ENFORCE(source != nullptr,
+                 "Input name '" + name + "' is not marked as an external input.");
+    source->SetDataSource(tl, stream);
   }
+
 
   /**
    * @brief Helper function for the SetExternalInput.
+   * @tparam Backend CPUBackend or GPUBackend
+   * @tparam TL TensorList<> or vector<Tensor<>>
+   * @param name name of the input
+   * @param tl data
+   * @param stream CUDA stream to use in case of GPUBackend
    */
-  template <typename T>
-  inline void SetExternalInputHelper(const string &name,
-      const T &tl) {
+  template<typename Backend, typename TL>
+  inline void SetExternalInputHelper(const string &name, const TL &tl, cudaStream_t stream = 0) {
+    static_assert(std::is_same<TL, TensorList<Backend>>::value ||
+                  std::is_same<TL, std::vector<Tensor<Backend>>>::value,
+                  "TL can be either TensorList<> or std::vector<Tensor<>>");
     bool is_cpu_node = true;
     OpNodeId node_id;
 
@@ -169,28 +179,38 @@ class DLL_PUBLIC Pipeline {
     OperatorBase *op_ptr = &node.InstantiateOperator();
 
     if (is_cpu_node) {
-      SetDataSourceHelper<T, CPUBackend>(name, tl, op_ptr);
+      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, stream);
     } else {
-      SetDataSourceHelper<T, GPUBackend>(name, tl, op_ptr);
+      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, stream);
     }
   }
 
-  /**
-   * @brief Sets the external input with the input name to the
-   * input data.
-   */
-  DLL_PUBLIC inline void SetExternalInput(const string &name,
-      const TensorList<CPUBackend> &tl) {
-    SetExternalInputHelper(name, tl);
-  }
 
   /**
-   * @brief Sets the external input with the input name to the
-   * input data.
+   * @brief Sets the external input with the input name to the input data
+   * @tparam Backend
+   * @param name name of the input
+   * @param tl data
+   * @param stream CUDA stream to use in case of GPUBackend
    */
-  DLL_PUBLIC inline void SetExternalInput(const string &name,
-      const vector<Tensor<CPUBackend>> &tl) {
-    SetExternalInputHelper(name, tl);
+  template<typename Backend>
+  DLL_PUBLIC inline void
+  SetExternalInput(const string &name, const TensorList<Backend> &tl, cudaStream_t stream = 0) {
+    SetExternalInputHelper<Backend>(name, tl, stream);
+  }
+
+
+  /**
+   * @brief Sets the external input with the input name to the input data
+   * @tparam Backend
+   * @param name name of the input
+   * @param tl data
+   * @param stream CUDA stream to use in case of GPUBackend
+   */
+  template<typename Backend>
+  DLL_PUBLIC inline void
+  SetExternalInput(const string &name, const vector<Tensor<Backend>> &tl, cudaStream_t stream = 0) {
+    SetExternalInputHelper<Backend>(name, tl, stream);
   }
 
   /**

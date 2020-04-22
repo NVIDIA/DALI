@@ -146,9 +146,10 @@ class ExternalSource : public Operator<Backend> {
    * @brief Sets the data that should be passed out of the op
    * on the next iteration.
    */
-  inline void SetDataSource(const TensorList<CPUBackend> &tl) {
+  template<typename SrcBackend>
+  inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0) {
     DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(tl.ntensor()),
-      "Data list provided to ExternalSource needs to have batch_size length.");
+                 "Data list provided to ExternalSource needs to have batch_size length.");
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
@@ -158,7 +159,7 @@ class ExternalSource : public Operator<Backend> {
       data = tl_data_.GetEmpty();
     }
 
-    data.front()->Copy(tl, 0);
+    data.front()->Copy(tl, stream);
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tl_data_.AddBack(data);
@@ -167,13 +168,15 @@ class ExternalSource : public Operator<Backend> {
     cv_.notify_one();
   }
 
+
   /**
    * @brief Sets the data that should be passed out of the op
    * on the next iteration.
    */
-  inline void SetDataSource(const vector<Tensor<CPUBackend>> &t) {
+  template<typename SrcBackend>
+  inline void SetDataSource(const vector<Tensor<SrcBackend>> &t, cudaStream_t stream = 0) {
     DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(t.size()),
-      "Data list provided to ExternalSource needs to have batch_size length.");
+                 "Data list provided to ExternalSource needs to have batch_size length.");
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
@@ -185,7 +188,7 @@ class ExternalSource : public Operator<Backend> {
 
     data.front()->resize(t.size());
     for (size_t i = 0; i < t.size(); ++i) {
-      (*(data.front()))[i].Copy(t[i], 0);
+      (*(data.front()))[i].Copy(t[i], stream);
     }
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
