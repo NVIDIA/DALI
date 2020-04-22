@@ -28,6 +28,7 @@ if (BUILD_BENCHMARK)
     "${CMAKE_CURRENT_SOURCE_DIR}/crop_mirror_normalize_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/warp_affine_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/transpose_cpu_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/color_twist_bench.cc"
   )
 
   if (BUILD_LMDB)
