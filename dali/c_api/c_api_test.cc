@@ -177,9 +177,9 @@ TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input), 42 * i);
     pipe_ptr->SetExternalInput(input_name, input);
-    daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<BACKEND>::value, input.raw_data(),
-                         dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(),
-                         nullptr);
+    daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<BACKEND>::value,
+                         input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
+                         input_shape.sample_dim(), nullptr);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -195,9 +195,9 @@ TEST(CApiTest, ExternalSourceSingleAllocPipe) {
 
   SequentialFill(view<uint8_t>(input), 42 * prefetch_queue_depth);
   pipe_ptr->SetExternalInput(input_name, input);
-  daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<CPUBackend>::value, input.raw_data(),
-                       dali_data_type_t::DALI_UINT8, input_shape.data(), input_shape.sample_dim(),
-                       "HWC");
+  daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<BACKEND>::value,
+                       input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
+                       input_shape.sample_dim(), "HWC");
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
@@ -229,8 +229,8 @@ TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
     SequentialFill(view<uint8_t>(input), 42 * i);
 
     pipe_ptr->SetExternalInput(input_name, input);
-    daliSetExternalInputTensors(&handle, input_name.c_str(), device_type_t::CPU, data_ptrs.data(),
-                                dali_data_type_t::DALI_UINT8, input_shape.data(),
+    daliSetExternalInputTensors(&handle, input_name.c_str(), backend_to_device_type<BACKEND>::value,
+                                data_ptrs.data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                                 input_shape.sample_dim(), nullptr);
   }
 
@@ -247,8 +247,8 @@ TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
 
   SequentialFill(view<uint8_t>(input), 42 * prefetch_queue_depth);
   pipe_ptr->SetExternalInput(input_name, input);
-  daliSetExternalInputTensors(&handle, input_name.c_str(), device_type_t::CPU, data_ptrs.data(),
-                              dali_data_type_t::DALI_UINT8, input_shape.data(),
+  daliSetExternalInputTensors(&handle, input_name.c_str(), backend_to_device_type<BACKEND>::value,
+                              data_ptrs.data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                               input_shape.sample_dim(), "HWC");
   daliRun(&handle);
   pipe_ptr->RunCPU();
