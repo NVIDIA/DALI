@@ -31,15 +31,13 @@ namespace reduce_impl {
 
 /**
  * @brief Calculates the position of most significant bit in x
- * @return The position of MSB or -1 if x is 0.
+ * @return The position of MSB or 0 if x is 0.
  */
 template <typename T>
 constexpr enable_if_t<std::is_integral<T>::value, int> ilog2(T x) {
-  int n = -1;
-  while (x) {
-    x >>= 1;
+  int n = 0;
+  while (x >>= 1)
     n++;
-  }
   return n;
 }
 
@@ -187,6 +185,12 @@ inline void CalculateReducedShape(TensorListShape<> &out_shape,
   uint64_t mask = to_bit_mask(axes);
 
   int out_dim = keep_dims ? in_dim : in_dim - axes.size();
+  if (out_dim == 0) {  // workaround until we have proper scalars
+    out_shape.resize(out_samples, 1);
+    for (int i = 0; i < out_samples; i++)
+      out_shape.tensor_shape_span(i)[0] = 1;
+    return;
+  }
   out_shape.resize(out_samples, out_dim);
   for (int i = 0; i < out_samples; i++) {
     auto in_sample_shape = in_shape.tensor_shape_span(i);

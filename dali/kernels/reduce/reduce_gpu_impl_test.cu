@@ -420,13 +420,15 @@ TEST(SumImplGPU, WholeSamples) {
   TensorListShape<> in_shape = {{
     { 480, 640 },
     { 640, 480 },
-    { 1280, 300 }
+    { 0, 0 },
+    { 1280, 300 },
   }};
   int axes[] = { 0, 1 };
   SumImplGPU<int64_t, uint8_t> sum;
   KernelContext ctx = {};
   auto req = sum.Setup(ctx, in_shape, make_span(axes), true, false);
   TensorListShape<> ref_out_shape = {{
+    { 1, 1 },
     { 1, 1 },
     { 1, 1 },
     { 1, 1 }
@@ -563,9 +565,9 @@ TEST(SumImplGPU, SplitStageBatch) {
   int axes[] = { 0, 2 };
   SumImplGPU<int64_t, uint8_t> sum;
   KernelContext ctx = {};
-  auto req = sum.Setup(ctx, in_shape, make_span(axes), true, true);
+  auto req = sum.Setup(ctx, in_shape, make_span(axes), false, true);
   TensorListShape<> ref_out_shape = {{
-    { 1, 3, 1 },
+    { 3 },
   }};
   EXPECT_EQ(req.output_shapes[0], ref_out_shape);
   EXPECT_GE(sum.GetNumStages(), 4);  // both reduced axes must be split due to large max extent
@@ -611,6 +613,41 @@ TEST(SumImplGPU, SplitStageBatch) {
   }
 
   Check(out_cpu, ref_cpu);
+}
+
+
+TEST(SumImplGPU, All_ZeroSize) {
+  TensorListShape<> in_shape = {{
+    TensorShape<>{0, 0},
+    TensorShape<>{0, 0},
+    TensorShape<>{0, 0},
+  }};
+  int axes[] = { 0, 1 };
+  SumImplGPU<int64_t, uint8_t> sum;
+  KernelContext ctx = {};
+  auto req = sum.Setup(ctx, in_shape, make_span(axes), false, true);
+  TensorListShape<> ref_out_shape = {{
+    { 1 }
+  }};
+  EXPECT_EQ(req.output_shapes[0], ref_out_shape);
+
+  ScratchpadAllocator sa;
+  sa.Reserve(req.scratch_sizes);
+  auto scratchpad = sa.GetScratchpad();
+  ctx.scratchpad = &scratchpad;
+
+  std::mt19937_64 rng(12345);
+
+  TestTensorList<uint8_t> in;
+  in.reshape(in_shape);
+  auto in_cpu = in.cpu();
+  UniformRandomFill(in_cpu, rng, 0, 255);
+
+  TestTensorList<int64_t> out;
+  out.reshape(req.output_shapes[0]);
+  sum.Run(ctx, out.gpu(), in.gpu());
+
+  EXPECT_EQ(*out.cpu().data[0], 0uL);
 }
 
 }  // namespace reduce_impl

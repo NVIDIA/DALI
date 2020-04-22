@@ -473,6 +473,22 @@ class ReduceImplGPU {
       }
     }
 
+    if (max_reduced_extent == 0) {
+      stages_.resize(1);
+      ReductionStage &stage = stages_.front();
+      stage.index = 0;
+      // stage 0 is never ReduceAll, because that would require contiguous input
+      stage.kind = reduce_batch_ ? ReductionKind::All : ReductionKind::Sample;
+      stage.shape.resize(stage.kind == ReductionKind::All ? 1 : nsamples);
+      for (auto &rs : stage.shape) {
+        rs.outer = 1;
+        rs.inner = 1;
+        rs.reduced_out = 1;
+        rs.reduced_in = 0;
+      }
+      return;
+    }
+
     int log2max = ilog2(max_reduced_extent * (reduce_batch_ ? nsamples : 1));
     int substages = div_ceil(log2max, 15);
     if (substages == 1 && reduce_batch_ && nsamples > 1) {
@@ -581,7 +597,10 @@ class ReduceImplGPU {
         }
         reduced[i] = sample_shape[axis];
         outer[i] *= new_outer;
-        inner[i] /= new_outer * reduced[i];
+        if (axis < in_dim - 1)
+          inner[i] /= new_outer * reduced[i];
+        else
+          inner[i] = 1;
       }
       prev_axis = axis;
 
