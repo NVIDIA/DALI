@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/c_api.h"  // NOLINT [build/include]
+
 #include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "dali/c_api.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/pipeline.h"
