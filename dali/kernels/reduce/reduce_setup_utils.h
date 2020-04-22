@@ -136,7 +136,7 @@ inline void CheckBatchReduce(const TensorListShape<> &tls, span<const int> axes)
     return;
 
   uint64_t mask = to_bit_mask(axes);
-  SmallVector<int, 6> non_reduced;
+  SmallVector<int, DynamicTensorShapeContainer::static_size> non_reduced;
   for (int a = 0; a < tls.sample_dim(); a++) {
     if (!(mask & (1 << a)))
       non_reduced.push_back(a);
@@ -163,6 +163,7 @@ inline void CheckBatchReduce(const TensorListShape<> &tls, span<const int> axes)
  * @param ndim dimensionality of the tensor(list) to which axes refer
  */
 inline void CheckAxes(span<const int> axes, int ndim) {
+  assert(ndim >= 0 && ndim <= 64);
   uint64_t mask = 0;
   for (auto a : axes) {
     if (a < 0 || a >= ndim)

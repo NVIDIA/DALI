@@ -217,6 +217,8 @@ class ReduceImplGPU {
                            span<const int> axes,
                            bool keep_dims,
                            bool reduce_batch) {
+    if (in_shape.sample_dim() > 64)
+      throw std::range_error("Reduce supports up to 64 dimensions");
     reduce_batch_ = reduce_batch;
     CheckAxes(axes, in_shape.sample_dim());
     if (reduce_batch)
@@ -997,14 +999,15 @@ class ReduceImplGPU {
   int64_t TotalReducedElements() const { return total_reduced_; }
 
  protected:
+  static constexpr int kMaxStaticDims = DynamicTensorShapeContainer::static_size;
   /// Input shape with merged dims
   TensorListShape<> in_shape_;
   /// Output shape with merged dims (reduced dims kept)
   TensorListShape<> out_shape_;
   /// Merged axes (without degenerate ones)
-  SmallVector<int, 6> axes_;
+  SmallVector<int, kMaxStaticDims> axes_;
   /// Dim groups
-  SmallVector<std::pair<int, int>, 6> dim_groups_;
+  SmallVector<std::pair<int, int>, kMaxStaticDims> dim_groups_;
 
   bool reduce_batch_ = false;
 
