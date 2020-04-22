@@ -1041,13 +1041,16 @@ class MeanImplBase {
     assert(!This().ReduceBatch());
     int n = This().SimplifiedOutputShape().num_samples();
     Postprocessor *pp = wa.ParamBuffer<Postprocessor>(n);
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < n; i++) {
+      DALI_ENFORCE(This().ReducedElements(i) > 0, "Cannot calculate a mean from 0 elements");
       pp[i].inv_dim = 1.0 / This().ReducedElements(i);
+    }
     return pp;
   }
 
   Postprocessor GetPostprocessor(std::true_type) const {
     assert(This().ReduceBatch());
+    DALI_ENFORCE(This().TotalReducedElements() > 0, "Cannot calculate a mean from 0 elements");
     return { 1.0 / This().TotalReducedElements() };
   }
 };

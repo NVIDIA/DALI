@@ -209,10 +209,6 @@ inline void CalculateReductionFactors(ArrayLike &out, const TensorListShape<ndim
                                       span<const int> axes) {
   for (int i = 0; i < in_shape.num_samples(); i++) {
     auto sample_shape = in_shape.tensor_shape_span(i);
-    if (volume(sample_shape) == 0) {
-      out[i] = 0;  // degenerate sample - no reduction possible
-      continue;
-    }
     int64_t red = 1;
     for (auto a : axes)
       red *= sample_shape[a];
