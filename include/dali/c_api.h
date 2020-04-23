@@ -76,12 +76,12 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                                    int cpu_prefetch_queue_depth,
                                    int gpu_prefetch_queue_depth);
 
+/// @{
 /**
  * @brief Feed the data to ExternalSource as contiguous memory.
  *
- * When calling this function for GPU device, default stream (0) will be used when copying data
- * onto GPU. An alternative function exists to specify also a CUDA stream.
- * If used with CPU device, stream value will be ignored
+ * When calling this function, you need to provide a CUDA stream, which will be used when
+ * copying data onto GPU. A convenience alternative function exists to use default (0) stream.
  *
  * @param pipe_handle Pointer to pipeline handle
  * @param name Pointer to a null-terminated byte string with the name of the External Source
@@ -94,26 +94,26 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
  * @param sample_dim The dimensionality of a single sample.
  * @param layout_str Optional layout provided as a pointer to null-terminated byte string.
  *                   Can be set to NULL.
- * @param stream CUDA stream to use when copying the data onto GPU. If used with `device == CPU`,
+ * @param stream CUDA stream to use when copying the data onto GPU. If used with CPU device code,
  *               this value will be ignored
  */
+DLL_PUBLIC void daliSetExternalInputCudaStream(daliPipelineHandle *pipe_handle, const char *name,
+                                               device_type_t device, const void *data_ptr,
+                                               dali_data_type_t data_type, const int64_t *shapes,
+                                               int sample_dim, const char *layout_str,
+                                               cudaStream_t stream);
+
 DLL_PUBLIC void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
                                      device_type_t device, const void *data_ptr,
                                      dali_data_type_t data_type, const int64_t *shapes,
                                      int sample_dim, const char *layout_str);
-
-DLL_PUBLIC void daliSetExternalInputStream(daliPipelineHandle *pipe_handle, const char *name,
-                                           device_type_t device, const void *data_ptr,
-                                           dali_data_type_t data_type, const int64_t *shapes,
-                                           int sample_dim, const char *layout_str,
-                                           cudaStream_t stream);
-
+///@}
+///@{
 /**
  * @brief Feed the data to ExternalSource as a set of separate buffers.
  *
- * When calling this function for GPU device, default stream (0) will be used when copying data
- * onto GPU. An alternative function exists to specify also a CUDA stream.
- * If used with CPU device, stream value will be ignored
+ * When calling this function, you need to provide a CUDA stream, which will be used when
+ * copying data onto GPU. A convenience alternative function exists to use default (0) stream.
  *
  * @param pipe_handle Pointer to pipeline handle
  * @param name Pointer to a null-terminated byte string with the name of the External Source
@@ -126,19 +126,23 @@ DLL_PUBLIC void daliSetExternalInputStream(daliPipelineHandle *pipe_handle, cons
  * @param sample_dim The dimensionality of a single sample.
  * @param layout_str Optional layout provided as a pointer to null-terminated byte string.
  *                   Can be set to NULL.
- * @param stream CUDA stream to use when copying the data onto GPU. If used with `device == CPU`,
+ * @param stream CUDA stream to use when copying the data onto GPU. If used with CPU device code,
  *               this value will be ignored.
  */
-DLL_PUBLIC void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
-                                            device_type_t device, const void *const *data_ptr,
-                                            dali_data_type_t data_type, const int64_t *shapes,
-                                            int64_t sample_dim, const char *layout_str);
+DLL_PUBLIC void
+daliSetExternalInputTensorsCudaStream(daliPipelineHandle *pipe_handle, const char *name,
+                                      device_type_t device, const void *const *data_ptr,
+                                      dali_data_type_t data_type, const int64_t *shapes,
+                                      int64_t sample_dim, const char *layout_str,
+                                      cudaStream_t stream);
 
-DLL_PUBLIC void daliSetExternalInputTensorsStream(daliPipelineHandle *pipe_handle, const char *name,
-                                                  device_type_t device, const void *const *data_ptr,
-                                                  dali_data_type_t data_type, const int64_t *shapes,
-                                                  int64_t sample_dim, const char *layout_str,
-                                                  cudaStream_t stream);
+DLL_PUBLIC void
+daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
+                            device_type_t device, const void *const *data_ptr,
+                            dali_data_type_t data_type, const int64_t *shapes,
+                            int64_t sample_dim, const char *layout_str);
+///@}
+
 
 /**
  * @brief Start the execution of the pipeline.

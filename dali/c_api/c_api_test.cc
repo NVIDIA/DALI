@@ -117,18 +117,18 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline) {
       free(shape);
     }
 
-    TensorList<CPUBackend> output1, output2;
+    TensorList<CPUBackend> pipeline_output_cpu, c_api_output_cpu;
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    output1.Copy(ws.Output<Backend>(0), cuda_stream);
+    pipeline_output_cpu.Copy(ws.Output<Backend>(0), cuda_stream);
 
     TensorList<Backend> c_api_output;
-    c_api_output.Resize(output1.shape(), TypeInfo::Create<uint8_t>());
+    c_api_output.Resize(pipeline_output_cpu.shape(), TypeInfo::Create<uint8_t>());
     daliCopyTensorListNTo(&handle, c_api_output.raw_mutable_data(), 0,
                           backend_to_device_type<Backend>::value, 0, false);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    output2.Copy(c_api_output, cuda_stream);
+    c_api_output_cpu.Copy(c_api_output, cuda_stream);
     CUDA_CALL(cudaDeviceSynchronize());
-    Check(view<uint8_t>(output1), view<uint8_t>(output2));
+    Check(view<uint8_t>(pipeline_output_cpu), view<uint8_t>(c_api_output_cpu));
   }
 }
 
