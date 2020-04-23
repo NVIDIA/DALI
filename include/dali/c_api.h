@@ -86,7 +86,7 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
  * @param pipe_handle Pointer to pipeline handle
  * @param name Pointer to a null-terminated byte string with the name of the External Source
  *             to be fed
- * @param device Device of the supplied memory. Only CPU is supported.
+ * @param device Device of the supplied memory.
  * @param data_ptr Pointer to contiguous buffer containing all samples
  * @param data_type Type of the provided data
  * @param shapes Pointer to an array containing shapes of all samples concatenated one after
@@ -118,7 +118,7 @@ DLL_PUBLIC void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char
  * @param pipe_handle Pointer to pipeline handle
  * @param name Pointer to a null-terminated byte string with the name of the External Source
  *             to be fed
- * @param device Device of the supplied memory. Only CPU is supported.
+ * @param device Device of the supplied memory.
  * @param data_ptr Pointer to an array containing batch_size pointers to separate Tensors.
  * @param data_type Type of the provided data
  * @param shapes Pointer to an array containing shapes of all samples concatenated one after
@@ -142,7 +142,6 @@ daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                             dali_data_type_t data_type, const int64_t *shapes,
                             int64_t sample_dim, const char *layout_str);
 ///@}
-
 
 /**
  * @brief Start the execution of the pipeline.
