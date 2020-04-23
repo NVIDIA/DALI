@@ -116,8 +116,8 @@ class CachingList {
  */
 template <typename Backend>
 class ExternalSource : public Operator<Backend> {
-  using uptr_tl_type = std::unique_ptr<TensorList<CPUBackend>>;
-  using uptr_vt_type = std::unique_ptr<std::vector<Tensor<CPUBackend>>>;
+  using uptr_tl_type = std::unique_ptr<TensorList<Backend>>;
+  using uptr_vt_type = std::unique_ptr<std::vector<Tensor<Backend>>>;
   using uptr_cuda_event_type = std::unique_ptr<detail::CudaEventWrapper>;
 
  public:

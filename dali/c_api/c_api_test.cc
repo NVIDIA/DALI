@@ -127,6 +127,7 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline) {
                           backend_to_device_type<Backend>::value, 0, false);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     output2.Copy(c_api_output, cuda_stream);
+    CUDA_CALL(cudaDeviceSynchronize());
     Check(view<uint8_t>(output1), view<uint8_t>(output2));
   }
 }
