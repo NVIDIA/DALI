@@ -193,10 +193,10 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     input.Copy(input_cpu, cuda_stream);
     pipe_ptr->SetExternalInput(input_name, input);
-    daliSetExternalInputStream(&handle, input_name.c_str(),
-                               backend_to_device_type<TypeParam>::value, input.raw_data(),
-                               dali_data_type_t::DALI_UINT8, input_shape.data(),
-                               input_shape.sample_dim(), nullptr, cuda_stream);
+    daliSetExternalInputCudaStream(&handle, input_name.c_str(),
+                                   backend_to_device_type<TypeParam>::value, input.raw_data(),
+                                   dali_data_type_t::DALI_UINT8, input_shape.data(),
+                                   input_shape.sample_dim(), nullptr, cuda_stream);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -214,9 +214,10 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
   input.Copy(input_cpu, cuda_stream);
   pipe_ptr->SetExternalInput(input_name, input);
-  daliSetExternalInputStream(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
-                             input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
-                             input_shape.sample_dim(), "HWC", cuda_stream);
+  daliSetExternalInputCudaStream(&handle, input_name.c_str(),
+                                 backend_to_device_type<TypeParam>::value, input.raw_data(),
+                                 dali_data_type_t::DALI_UINT8, input_shape.data(),
+                                 input_shape.sample_dim(), "HWC", cuda_stream);
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
@@ -251,10 +252,11 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     input.Copy(input_cpu, cuda_stream);
     pipe_ptr->SetExternalInput(input_name, input, cuda_stream);
-    daliSetExternalInputTensorsStream(&handle, input_name.c_str(),
-                                      backend_to_device_type<TypeParam>::value, data_ptrs.data(),
-                                      dali_data_type_t::DALI_UINT8, input_shape.data(),
-                                      input_shape.sample_dim(), nullptr, cuda_stream);
+    daliSetExternalInputTensorsCudaStream(&handle, input_name.c_str(),
+                                          backend_to_device_type<TypeParam>::value,
+                                          data_ptrs.data(), dali_data_type_t::DALI_UINT8,
+                                          input_shape.data(), input_shape.sample_dim(), nullptr,
+                                          cuda_stream);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -272,10 +274,10 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
   input.Copy(input_cpu, cuda_stream);
   pipe_ptr->SetExternalInput(input_name, input, cuda_stream);
-  daliSetExternalInputTensorsStream(&handle, input_name.c_str(),
-                                    backend_to_device_type<TypeParam>::value, data_ptrs.data(),
-                                    dali_data_type_t::DALI_UINT8, input_shape.data(),
-                                    input_shape.sample_dim(), "HWC", cuda_stream);
+  daliSetExternalInputTensorsCudaStream(&handle, input_name.c_str(),
+                                        backend_to_device_type<TypeParam>::value, data_ptrs.data(),
+                                        dali_data_type_t::DALI_UINT8, input_shape.data(),
+                                        input_shape.sample_dim(), "HWC", cuda_stream);
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();

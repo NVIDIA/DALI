@@ -135,15 +135,15 @@ void daliPrefetchSeparate(daliPipelineHandle* pipe_handle,
 void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name, device_type_t device,
                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str) {
-  daliSetExternalInputStream(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
-                             layout_str, 0);
+  daliSetExternalInputCudaStream(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
+                                 layout_str, 0);
 }
 
 
-void
-daliSetExternalInputStream(daliPipelineHandle *pipe_handle, const char *name, device_type_t device,
-                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
-                           int sample_dim, const char *layout_str, cudaStream_t stream) {
+void daliSetExternalInputCudaStream(daliPipelineHandle *pipe_handle, const char *name,
+                                    device_type_t device, const void *data_ptr,
+                                    dali_data_type_t data_type, const int64_t *shapes,
+                                    int sample_dim, const char *layout_str, cudaStream_t stream) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInput<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
@@ -163,16 +163,16 @@ void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *na
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str) {
-  daliSetExternalInputTensorsStream(pipe_handle, name, device, data_ptr, data_type, shapes,
-                                    sample_dim, layout_str, 0);
+  daliSetExternalInputTensorsCudaStream(pipe_handle, name, device, data_ptr, data_type, shapes,
+                                        sample_dim, layout_str, 0);
 }
 
 
-void daliSetExternalInputTensorsStream(daliPipelineHandle *pipe_handle, const char *name,
-                                       device_type_t device, const void *const *data_ptr,
-                                       dali_data_type_t data_type, const int64_t *shapes,
-                                       int64_t sample_dim, const char *layout_str,
-                                       cudaStream_t stream) {
+void daliSetExternalInputTensorsCudaStream(daliPipelineHandle *pipe_handle, const char *name,
+                                           device_type_t device, const void *const *data_ptr,
+                                           dali_data_type_t data_type, const int64_t *shapes,
+                                           int64_t sample_dim, const char *layout_str,
+                                           cudaStream_t stream) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInputTensors<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
