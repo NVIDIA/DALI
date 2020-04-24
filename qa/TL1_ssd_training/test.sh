@@ -12,6 +12,8 @@ test_body() {
     #install APEX
     git clone https://github.com/nvidia/apex
     pushd apex
+    # newer apex doexn't support Torch 1.1.0 we use for CUDA 9 tests
+    git checkout 2ec84ebdca59278eaf15e8ddf32476d9d6d8b904
     export CUDA_HOME=/usr/local/cuda-$(python -c "import torch; print('.'.join(torch.version.cuda.split('.')[0:2]))")
     pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
     unset CUDA_HOME
