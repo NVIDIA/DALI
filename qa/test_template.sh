@@ -62,12 +62,12 @@ do
         set +e
         RV=0
         test_body || RV=$?
-        set -e
         if [ $RV -gt 0 ] ; then
             mkdir -p $topdir/core_artifacts
             cp core* $topdir/core_artifacts
             exit ${RV}
         fi
+        set -e
         # remove packages
         remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION})
         if [ -n "$remove" ]; then
