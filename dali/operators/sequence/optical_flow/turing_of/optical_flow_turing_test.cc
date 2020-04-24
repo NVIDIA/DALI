@@ -47,6 +47,68 @@ mat_to_tensor(cv::Mat &mat) {
   return std::forward_as_tuple(tvgpu, std::move(mem));
 }
 
+
+template<typename T>
+float px_interp(T tv, float h, float w, int c) {
+  auto px = [](auto tv, int h, int w, int c) {//TODO interp
+      return tv.data[h * tv.shape[1] * tv.shape[2] + w * tv.shape[2] + c];
+  };
+  auto h_part = h - floor(h);
+  auto w_part=w-floor(w);
+  auto a = (1 - h_part) * px(tv, h, w, c) + h_part * px(tv, h + 1, w, c);
+  auto b = h_part * px(tv, h, w + 1, c) + (1 - h_part) * px(tv, h + 1, w + 1, c);
+  auto d = (1-w_part)*a+w_part*b;
+  return d;
+}
+
+
+template<typename StorageBackend, typename T, int ndims = 3>
+float
+flow_mse(TensorView<StorageBackend, T, ndims> reference, TensorView<StorageBackend, T, ndims> input,
+         TensorView<StorageBackend, float, ndims> optical_flow) {
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "StorageBackend has to be cpu accessible");
+  DALI_ENFORCE(reference.shape == input.shape);
+  auto sh = reference.shape;
+  std::vector<uint8_t> mse;
+  mse.resize(volume(sh));
+
+  auto px = [](auto tv, int h, int w, int c) {//TODO interp
+      return tv.data[h * tv.shape[1] * tv.shape[2] + w * tv.shape[2] + c];
+  };
+
+  auto abs = [](auto val) { return val < 0 ? -val : val; };
+
+//  for (int i=0;i<volume(sh);i++){
+//    mse[i]=reference.data[i];
+//  }
+
+  for (int y = 0; y < sh[0]; y++) {
+    for (int x = 0; x < sh[1]; x++) {
+      for (int c = 0; c < sh[2]; c++) {
+        int ox = x / 4;
+        int oy = y / 4;
+        int ow = optical_flow.shape[1];
+        auto ofx = optical_flow.data[oy * ow + ox + 0];
+        auto ofy = optical_flow.data[oy * ow + ox + 1];
+        mse[y*sh[1]*sh[2]+x*sh[2]+c]=px_interp(reference,y+ofy,x+ofx,c);
+//        mse[y*sh[1]*sh[2]+x*sh[2]+c];
+//        mse.emplace_back(abs(px_interp(reference, y + ofy, x + ofx, c) - px_interp(input, y, x, c)));
+//        mse.emplace_back(abs(px(reference, y + ofy, x + ofx, c) - px(input, y, x, c)));
+      }
+    }
+  }
+
+
+
+  cv::Mat img = cv::Mat(sh[0],sh[1],CV_8UC3,mse.data());
+  cv::cvtColor(img,img,cv::COLOR_BGR2RGB);
+  cv::imwrite("dupa.jpeg",img);
+
+
+  return .0;
+}
+
 }  // namespace
 
 namespace kernel {
@@ -273,6 +335,13 @@ TEST(OpticalFlowTuringTest, CalcOpticalFlowTest) {
 
     of.CalcOpticalFlow(tvref, tvin, tvout);
     CUDA_CALL(cudaDeviceSynchronize());
+
+    auto tvref_cpu = kernels::copy<kernels::AllocType::Host>(tvref);
+    auto tvin_cpu = kernels::copy<kernels::AllocType::Host>(tvin);
+    auto tvout_cpu = kernels::copy<kernels::AllocType::Host>(tvout);
+
+    auto mse = flow_mse(tvref_cpu.first, tvin_cpu.first, tvout_cpu.first);
+    cout << "MSE " << mse << endl;
 
     // Read reference data
     ifstream reffile(test_data_path + "decoded_flow_vector.dat");
