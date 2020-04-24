@@ -100,8 +100,10 @@ void CoordFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
           int64_t i = 0;
           for (; i < in_size; i++, d++) {
             if (d == ndim_) d = 0;
-            assert(in[i] >= 0.0f && in[i] <= 1.0f);
-            out[i] = flip_dim[d] ? 1.0f - in[i] : in[i];
+            auto in_val = in[i];
+            DALI_ENFORCE(in_val >= 0.0f && in_val <= 1.0f,
+              "Input expected to be within the range [0.0, 1.0]");
+            out[i] = flip_dim[d] ? 1.0f - in_val : in_val;
           }
         });
   }
