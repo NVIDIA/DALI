@@ -771,10 +771,10 @@ class ReduceImplGPU {
     auto post = This().GetPostprocessor(bool_const<is_last>());
 
     const StageIn *in = is_first ? reinterpret_cast<const StageIn *>(ctx.input.data[0])
-                                 : wa.InputBuffer<StageIn>(stage.index);
+                                 : wa.InputBuffer<StageIn>(stage.input_elements());
 
     StageOut *out = is_last ? reinterpret_cast<StageOut *>(ctx.output.data[0])
-                            : wa.OutputBuffer<StageOut>(stage.index);
+                            : wa.OutputBuffer<StageOut>(stage.output_elements());
 
     dim3 block(32, 32);
     dim3 grid(stage.shape[0].reduced_out);
@@ -794,7 +794,7 @@ class ReduceImplGPU {
     const StageIn *const *in = InputPtrs<StageIn>(ctx, stage);
 
     StageOut *out = is_last ? reinterpret_cast<StageOut *>(ctx.output.data[0])
-                            : wa.OutputBuffer<StageOut>(stage.index);
+                            : wa.OutputBuffer<StageOut>(stage.output_elements());
     int64_t *sizes = wa.ParamBuffer<int64_t>(stage.num_samples());
     for (int i = 0; i < stage.num_samples(); i++) {
       sizes[i] = stage.shape[i].reduced_in;
@@ -832,10 +832,10 @@ class ReduceImplGPU {
     auto *post = This().GetPostprocessors(wa, bool_const<is_last>());
 
     const StageIn *in = is_first ? reinterpret_cast<const StageIn *>(ctx.input.data[0])
-                                 : wa.InputBuffer<StageIn>(stage.index);
+                                 : wa.InputBuffer<StageIn>(stage.input_elements());
 
     StageOut *out = is_last ? reinterpret_cast<StageOut *>(ctx.output.data[0])
-                            : wa.OutputBuffer<StageOut>(stage.index);
+                            : wa.OutputBuffer<StageOut>(stage.output_elements());
 
     dim3 block(32, 32);
     dim3 grid(stage.shape[0].reduced_out, stage.num_samples());
