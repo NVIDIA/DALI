@@ -117,6 +117,7 @@ void Pipeline::Init(int batch_size, int num_threads, int device_id, int64_t seed
                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                     int default_cuda_stream_priority, QueueSizes prefetch_queue_depth) {
     // guard cudaDeviceGetStreamPriorityRange call
+    abort();
     DeviceGuard g(device_id);
     this->batch_size_ = batch_size;
     this->num_threads_ = num_threads;
