@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <opencv2/opencv.hpp>
 #include <gtest/gtest.h>
-#include <fstream>
 #include <vector>
 #include <string>
-#include <tuple>
 #include <utility>
-#include <numeric>
 
-#include "dali/kernels/alloc.h"
 #include "dali/kernels/common/copy.h"
-#include "dali/test/mat2tensor.h"
 #include "dali/operators/sequence/optical_flow/turing_of/optical_flow_turing.h"
-#include "dali/test/dali_test_config.h"
 #include "dali/core/cuda_utils.h"
 
 namespace dali {
@@ -34,80 +27,6 @@ namespace testing {
 
 namespace {
 constexpr float kFlowVectorEpsilon = 1.f / 32;
-
-
-std::tuple<TensorView<StorageGPU, uint8_t, 3>,
-        kernels::memory::KernelUniquePtr<uint8_t>>
-mat_to_tensor(cv::Mat &mat) {
-  auto tvcpu = kernels::view_as_tensor<uint8_t, 3>(mat);
-  auto mem = kernels::memory::alloc_unique<uint8_t>(kernels::AllocType::Unified,
-                                                    mat.cols * mat.rows * mat.channels());
-  auto tvgpu = make_tensor_gpu<3>(mem.get(), {mat.rows, mat.cols, mat.channels()});
-  kernels::copy(tvgpu, tvcpu);
-  return std::forward_as_tuple(tvgpu, std::move(mem));
-}
-
-
-template<typename T>
-float px_interp(T tv, float h, float w, int c) {
-  auto px = [](auto tv, int h, int w, int c) {//TODO interp
-      return tv.data[h * tv.shape[1] * tv.shape[2] + w * tv.shape[2] + c];
-  };
-  auto h_part = h - floor(h);
-  auto w_part=w-floor(w);
-  auto a = (1 - h_part) * px(tv, h, w, c) + h_part * px(tv, h + 1, w, c);
-  auto b = h_part * px(tv, h, w + 1, c) + (1 - h_part) * px(tv, h + 1, w + 1, c);
-  auto d = (1-w_part)*a+w_part*b;
-  return d;
-}
-
-
-template<typename StorageBackend, typename T, int ndims = 3>
-float
-flow_mse(TensorView<StorageBackend, T, ndims> reference, TensorView<StorageBackend, T, ndims> input,
-         TensorView<StorageBackend, float, ndims> optical_flow) {
-  static_assert(is_cpu_accessible<StorageBackend>::value,
-                "StorageBackend has to be cpu accessible");
-  DALI_ENFORCE(reference.shape == input.shape);
-  auto sh = reference.shape;
-  std::vector<uint8_t> mse;
-  mse.resize(volume(sh));
-
-  auto px = [](auto tv, int h, int w, int c) {//TODO interp
-      return tv.data[h * tv.shape[1] * tv.shape[2] + w * tv.shape[2] + c];
-  };
-
-  auto abs = [](auto val) { return val < 0 ? -val : val; };
-
-//  for (int i=0;i<volume(sh);i++){
-//    mse[i]=reference.data[i];
-//  }
-
-  for (int y = 0; y < sh[0]; y++) {
-    for (int x = 0; x < sh[1]; x++) {
-      for (int c = 0; c < sh[2]; c++) {
-        int ox = x / 4;
-        int oy = y / 4;
-        int ow = optical_flow.shape[1];
-        auto ofx = optical_flow.data[oy * ow + ox + 0];
-        auto ofy = optical_flow.data[oy * ow + ox + 1];
-        mse[y*sh[1]*sh[2]+x*sh[2]+c]=px_interp(reference,y+ofy,x+ofx,c);
-//        mse[y*sh[1]*sh[2]+x*sh[2]+c];
-//        mse.emplace_back(abs(px_interp(reference, y + ofy, x + ofx, c) - px_interp(input, y, x, c)));
-//        mse.emplace_back(abs(px(reference, y + ofy, x + ofx, c) - px(input, y, x, c)));
-      }
-    }
-  }
-
-
-
-  cv::Mat img = cv::Mat(sh[0],sh[1],CV_8UC3,mse.data());
-  cv::cvtColor(img,img,cv::COLOR_BGR2RGB);
-  cv::imwrite("dupa.jpeg",img);
-
-
-  return .0;
-}
 
 }  // namespace
 
@@ -252,186 +171,6 @@ TEST(OpticalFlowTuringTest, DecodeFlowVectorTest) {
   }
 }
 
-
-// DISABLED due to lack of test data. Enable on next possible chance
-TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
-  using std::ifstream;
-  using std::string;
-  using std::vector;
-  auto test_data_path = dali::testing::dali_extra_path() + "/db/optical_flow/flow_vector_decode/";
-  ifstream infile(test_data_path + "flow_vector_test_data.txt"),
-          reffile(test_data_path + "flow_vector_ground_truth.txt");
-  ASSERT_TRUE(infile && reffile) << "Error accessing test data";
-  vector<int16_t> test_data;
-  int16_t valin;
-  float valref;
-  while (infile >> valin) {
-    test_data.push_back(valin);
-  }
-  vector<float> ref_data;
-  while (reffile >> valref) {
-    ref_data.push_back(valref);
-  }
-  ASSERT_EQ(ref_data.size(), test_data.size());
-  void *incuda;
-  float *outcuda;
-  size_t inpitch;
-
-  size_t inwidth = 200, inheight = 50;
-  ASSERT_EQ(test_data.size(), inwidth * inheight) << "Provided dims don't match with data size";
-
-  CUDA_CALL(cudaMallocPitch(&incuda, &inpitch, inwidth * sizeof(int16_t), inheight));
-  CUDA_CALL(cudaMemcpy2D(incuda, inpitch, test_data.data(), inwidth * sizeof(int16_t),
-                         inwidth * sizeof(int16_t), inheight, cudaMemcpyDefault));
-  CUDA_CALL(cudaMallocManaged(&outcuda, ref_data.size() * sizeof(float)));
-  optical_flow::kernel::DecodeFlowComponents(static_cast<int16_t *> (incuda), outcuda,
-                                             inpitch, inwidth, inheight);
-  CUDA_CALL(cudaDeviceSynchronize());
-  for (size_t i = 0; i < ref_data.size(); i++) {
-    EXPECT_NEAR(ref_data[i], outcuda[i], kFlowVectorEpsilon) << "Failed on idx: " << i;
-  }
-  CUDA_CALL(cudaFree(incuda));
-  CUDA_CALL(cudaFree(outcuda));
-}
-
-
-// DISABLED due to lack of test data. Enable on next possible chance
-TEST(OpticalFlowTuringTest, CalcOpticalFlowTest) {
-  using namespace std;  // NOLINT
-
-  auto test_data_path = dali::testing::dali_extra_path() + "/db/optical_flow/slow_preset/";
-
-  // Reference
-  auto matref = cv::imread(test_data_path + string("frame_reference.png"));
-  cv::cvtColor(matref, matref, cv::COLOR_BGR2RGB);
-  assert(matref.isContinuous() && matref.channels() == 3);
-  auto ref = mat_to_tensor(matref);
-  auto tvref = get<0>(ref);
-  auto memref = reinterpret_cast<uint8_t *>(get<1>(ref).get());
-
-  // Input
-  auto matin = cv::imread(test_data_path + string("frame_input.png"));
-  cv::cvtColor(matin, matin, cv::COLOR_BGR2RGB);
-  assert(matin.isContinuous() && matin.channels() == 3);
-  auto in = mat_to_tensor(matin);
-  auto tvin = get<0>(in);
-  auto memin = reinterpret_cast<uint8_t *>(get<1>(in).get());
-
-  ASSERT_EQ(matref.size, matin.size) << "Sizes of test data don't match";
-  auto width = matref.cols;
-  auto height = matref.rows;
-  auto channels = matref.channels();
-
-
-  OpticalFlowParams params = {0.0, VectorGridSize::SIZE_4, true, false};
-  try {
-    OpticalFlowTuring of(params, width, height, channels, DALIImageType::DALI_RGB, 0);
-
-    // Output
-    auto out_shape = of.GetOutputShape().to_static<3>();
-    auto memout = kernels::memory::alloc_unique<float>(kernels::AllocType::Unified,
-                                                       volume(out_shape));
-    auto tvout = make_tensor_gpu(memout.get(), out_shape);
-
-    of.CalcOpticalFlow(tvref, tvin, tvout);
-    CUDA_CALL(cudaDeviceSynchronize());
-
-    auto tvref_cpu = kernels::copy<kernels::AllocType::Host>(tvref);
-    auto tvin_cpu = kernels::copy<kernels::AllocType::Host>(tvin);
-    auto tvout_cpu = kernels::copy<kernels::AllocType::Host>(tvout);
-
-    auto mse = flow_mse(tvref_cpu.first, tvin_cpu.first, tvout_cpu.first);
-    cout << "MSE " << mse << endl;
-
-    // Read reference data
-    ifstream reffile(test_data_path + "decoded_flow_vector.dat");
-    vector<float> reference_data;
-    copy(istream_iterator<float>(reffile),
-         istream_iterator<float>(),
-         back_inserter(reference_data));
-
-    ASSERT_EQ(reference_data.size(), tvout.num_elements())
-                          << "Number of output elements doesn't match";
-    vector<float> distances(reference_data.size());
-    for (size_t i = 0; i < distances.size(); i++) {
-      distances[i] = abs(reference_data[i] - tvout.data[i]);
-    }
-    float mean_err = accumulate(distances.begin(), distances.end(), 0.f) / distances.size();
-    // Expecting, that average error would be less than 0.5[px]
-    ASSERT_GT(0.9, mean_err);
-  } catch (unsupported_exception &) {
-    GTEST_SKIP() << "Test skipped due to module unavailability";
-  }
-}
-
-
-// DISABLED due to lack of test data. Enable on next possible chance
-TEST(OpticalFlowTuringTest, CalcOpticalFlowExternalHintsTest) {
-  using namespace std;  // NOLINT
-
-  auto test_data_path = dali::testing::dali_extra_path() + "/db/optical_flow/slow_preset/";
-
-  // Reference frame
-  auto matref = cv::imread(test_data_path + string("frame_reference.png"));
-  cv::cvtColor(matref, matref, cv::COLOR_BGR2RGB);
-  assert(matref.isContinuous() && matref.channels() == 3);
-  auto ref = mat_to_tensor(matref);
-  auto tvref = get<0>(ref);
-  auto memref = reinterpret_cast<uint8_t *>(get<1>(ref).get());
-
-
-  // Input frame
-  auto matin = cv::imread(test_data_path + string("frame_input.png"));
-  cv::cvtColor(matin, matin, cv::COLOR_BGR2RGB);
-  assert(matin.isContinuous() && matin.channels() == 3);
-  auto in = mat_to_tensor(matin);
-  auto tvin = get<0>(in);
-  auto memin = reinterpret_cast<uint8_t *>(get<1>(in).get());
-
-  ASSERT_EQ(matref.size, matin.size) << "Sizes of test data don't match";
-  auto width = matref.cols;
-  auto height = matref.rows;
-  auto channels = matref.channels();
-
-
-  // Read reference data (used also as external hints)
-  ifstream reffile(test_data_path + "decoded_flow_vector.dat");
-  vector<float> reference_data;
-  copy(istream_iterator<float>(reffile),
-       istream_iterator<float>(),
-       back_inserter(reference_data));
-  auto tvhints = make_tensor_gpu<3>(reference_data.data(), {
-          (height + 3) / 4, (width + 3) / 4, 2  // Shape has 2 "channels": y and x components
-  });
-
-
-  OpticalFlowParams params = {0.0, VectorGridSize::SIZE_4, false, true};
-  try {
-    OpticalFlowTuring of(params, width, height, channels, DALIImageType::DALI_RGB, 0);
-
-    // Output frame
-    auto out_shape = of.GetOutputShape().to_static<3>();
-    auto memout = kernels::memory::alloc_unique<float>(kernels::AllocType::Unified,
-                                                       volume(out_shape));
-    auto tvout = make_tensor_gpu(memout.get(), out_shape);
-
-    of.CalcOpticalFlow(tvref, tvin, tvout, tvhints);
-    CUDA_CALL(cudaDeviceSynchronize());
-
-
-    ASSERT_EQ(reference_data.size(), tvout.num_elements())
-                          << "Number of output elements doesn't match";
-    vector<float> distances(reference_data.size());
-    for (size_t i = 0; i < distances.size(); i++) {
-      distances[i] = abs(reference_data[i] - tvout.data[i]);
-    }
-    float mean_err = accumulate(distances.begin(), distances.end(), 0.f) / distances.size();
-    // Expecting, that average error would be less than 0.5[px]
-    EXPECT_GT(0.9, mean_err);
-  } catch (unsupported_exception &) {
-    GTEST_SKIP() << "Test skipped due to module unavailability";
-  }
-}
 }  // namespace testing
 }  // namespace optical_flow
 
