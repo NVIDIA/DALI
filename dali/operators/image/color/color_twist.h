@@ -54,12 +54,18 @@ class Brightness : public ColorAugment {
 class Contrast : public ColorAugment {
  public:
   void operator() (float * matrix) override {
+    const float const_mat[] = {.299, .587, .114, 0.0,
+                               .299, .587, .114, 0.0,
+                               .299, .587, .114, 0.0,
+                               .0,   .0,   .0,   1.0};
     for (int i = 0; i < nDim - 1; ++i) {
-      for (int j = 0; j < nDim - 1; ++j) {
-        matrix[i * nDim + j] *= contrast_;
+      for (int j = 0; j < nDim; ++j) {
+        float sum = 0;
+        for (int k = 0; k < nDim; ++k) {
+            sum += const_mat[i * nDim + k] * matrix[k * nDim + j];
+        }
+        matrix[i * nDim + j] = matrix[i * nDim + j] * contrast_ + sum * (1 - contrast_);
       }
-      matrix[i * nDim + nDim - 1] = matrix[i * nDim + nDim - 1] * contrast_ +
-                                    (1 - contrast_) * 128.f;
     }
   }
 
