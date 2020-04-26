@@ -1,4 +1,4 @@
-# (C) Copyright IBM Corp. 2019. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,26 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "2.0.3" %}
+{% set build_version = "4.2.2" %}
 
   package:
-    name: jpeg-turbo
+    name: dali-ffmpeg
     version: {{ build_version }}
 
   source:
-    git_url: https://github.com/libjpeg-turbo/libjpeg-turbo
-    git_rev: 2.0.3
+    fn: ffmpeg-4.2.2.tar.bz2
+    url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.2.tar.bz2
+    sha256: b620d187c26f76ca19e74210a0336c3b8380b97730df5cdf45f3e69e89000e5c
 
   build:
     number: 0
-    string: jpeg_turbo
+    string: dali_ffmpeg
 
   requirements:
     build:
       - {{ compiler('c') }}
       - {{ compiler('cxx') }}
-      - java-openjdk-ppc64le 1.8.0 # [ppc64le]
-      - openjdk 8.0.152  # [x86_64]
-      - cmake 3.12.2
-      - make 4.2.1
-      - yasm # [x86_64]
+      - make
+      - nasm
+      - libtool

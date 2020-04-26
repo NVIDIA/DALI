@@ -1,4 +1,4 @@
-# (C) Copyright IBM Corp. 2019. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,26 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "2.0.3" %}
+{% set build_version = "4.3.0" %}
 
   package:
-    name: jpeg-turbo
+    name: dali-opencv
     version: {{ build_version }}
 
   source:
-    git_url: https://github.com/libjpeg-turbo/libjpeg-turbo
-    git_rev: 2.0.3
+    fn: opencv-4.3.0.tar.gz
+    url: https://github.com/opencv/opencv/archive/4.3.0.tar.gz
+    sha256: 68bc40cbf47fdb8ee73dfaf0d9c6494cd095cf6294d99de445ab64cf853d278a
 
   build:
     number: 0
-    string: jpeg_turbo
+    string: dali_opencv
 
   requirements:
     build:
       - {{ compiler('c') }}
       - {{ compiler('cxx') }}
-      - java-openjdk-ppc64le 1.8.0 # [ppc64le]
-      - openjdk 8.0.152  # [x86_64]
-      - cmake 3.12.2
-      - make 4.2.1
-      - yasm # [x86_64]
+      - cmake
+      - make
+    host:
+      - libjpeg-turbo >=2.0.3
+      - libtiff >=4.1.0
+    run:
+      - libjpeg-turbo >=2.0.3
+      - libtiff >=4.1.0
