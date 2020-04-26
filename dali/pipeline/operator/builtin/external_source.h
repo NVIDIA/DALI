@@ -39,6 +39,7 @@ struct CudaEventWrapper {
       std::terminate();
     }
   }
+
   ~CudaEventWrapper() {
     auto res = cudaEventDestroy(event);
     if (res != cudaSuccess) {
@@ -46,6 +47,13 @@ struct CudaEventWrapper {
       std::terminate();
     }
   }
+
+  DEFAULT_COPY_MOVE_ASSIGN(CudaEventWrapper);
+
+  operator cudaEvent_t() const {  // NOLINT (non-explicit op)
+    return event;
+  }
+
   cudaEvent_t event;
 };
 
@@ -70,8 +78,6 @@ namespace detail {
 template <typename T>
 class CachingList {
  public:
-  CachingList() = default;
-
   bool IsEmpty() const {
     return full_data_.empty();
   }
@@ -142,6 +148,7 @@ class ExternalSource : public Operator<Backend> {
     return "ExternalSource (" + output_name_ + ")";
   }
 
+
   /**
    * @brief Sets the data that should be passed out of the op
    * on the next iteration.
@@ -154,15 +161,22 @@ class ExternalSource : public Operator<Backend> {
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
     std::list<uptr_tl_type> data;
+    std::list<uptr_cuda_event_type> copy_to_gpu_event;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       data = tl_data_.GetEmpty();
+      copy_to_gpu_event = copy_to_gpu_events_.GetEmpty();
     }
 
     data.front()->Copy(tl, stream);
+    if (std::is_same<SrcBackend, GPUBackend>::value) {
+      cudaEventRecord(*copy_to_gpu_event.front(), stream);
+    }
+
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tl_data_.AddBack(data);
+      copy_to_gpu_events_.AddBack(copy_to_gpu_event);
       data_in_tl_.push_back(true);
     }
     cv_.notify_one();
@@ -181,18 +195,25 @@ class ExternalSource : public Operator<Backend> {
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
     std::list<uptr_vt_type> data;
+    std::list<uptr_cuda_event_type> copy_to_gpu_event;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       data = t_data_.GetEmpty();
+      copy_to_gpu_event = copy_to_gpu_events_.GetEmpty();
     }
 
     data.front()->resize(t.size());
     for (size_t i = 0; i < t.size(); ++i) {
       (*(data.front()))[i].Copy(t[i], stream);
     }
+    if (std::is_same<SrcBackend, GPUBackend>::value) {
+      cudaEventRecord(*copy_to_gpu_event.front(), stream);
+    }
+
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       t_data_.AddBack(data);
+      copy_to_gpu_events_.AddBack(copy_to_gpu_event);
       data_in_tl_.push_back(false);
     }
     cv_.notify_one();
@@ -208,7 +229,7 @@ class ExternalSource : public Operator<Backend> {
   /*
    * So that compiler wouldn't complain, that
    * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
-   * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"
+   * overridden in class `dali::[...]<dali::CPUBackend>`"
    */
   using Operator<Backend>::RunImpl;
 
@@ -226,21 +247,26 @@ class ExternalSource : public Operator<Backend> {
   // reference it is not that easy
   template<typename DataType>
   void RecycleBuffer(DataType &data,
-                     std::list<uptr_cuda_event_type> *cuda_event = nullptr) {
+                     std::list<uptr_cuda_event_type> *cuda_event = nullptr,
+                     std::list<uptr_cuda_event_type> *copy_to_gpu = nullptr) {
     if (cuda_event) {
       cudaEventSynchronize(cuda_event->front()->event);
     }
+    // No need to synchronize on copy_to_gpu - it was already synchronized before
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     RecycleHelper(data);
     if (cuda_event) {
       cuda_events_.Recycle(*cuda_event);
+    }
+    if (copy_to_gpu) {
+      copy_to_gpu_events_.Recycle(*copy_to_gpu);
     }
   }
 
   string output_name_;
   detail::CachingList<uptr_tl_type> tl_data_;
   detail::CachingList<uptr_vt_type> t_data_;
-  detail::CachingList<uptr_cuda_event_type> cuda_events_;
+  detail::CachingList<uptr_cuda_event_type> cuda_events_, copy_to_gpu_events_;
   std::list<bool> data_in_tl_;
   struct RecycleFunctor;
 
