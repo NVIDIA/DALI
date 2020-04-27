@@ -666,13 +666,13 @@ Parameters
 
     @classmethod
     def deserialize(cls, serialized_pipeline, **kwargs):
-        """Deserialize pipeline.
+        """Deserialize and build pipeline.
 
         Deserialize pipeline, previously serialized with `serialize()` method.
 
-        Returned pipeline shall be built before it can be ran.
+        Returned pipeline is already built.
 
-        Alternatively, addition arguments can be passed, which will be used when instantiating
+        Alternatively, additional arguments can be passed, which will be used when instantiating
         the pipeline. Refer to Pipeline constructor for full list of arguments. By default,
         the pipeline will be instantiated with the arguments from serialized pipeline.
 
@@ -680,39 +680,30 @@ Parameters
         ----------
         serialized_pipeline : str
                    Pipeline, serialized using `serialize()` method.
-        kwargs : bool
+        kwargs : dict
                    Refer to Pipeline constructor for full list of arguments.
 
         Returns
         ----------
-        Deserialized pipeline. Remember to call .build() before running it.
+        Deserialized and built pipeline.
         """
         kw = kwargs
         pipeline = cls()
-        # pipeline._pipe = b.Pipeline(serialized_pipeline)
-        # serialized_pipeline
-        # kw.get("batch_size", -1)
-        # kw.get("num_threads", -1)
-        # kw.get("device_id", -1)
-        # kw.get("exec_pipelined", True)
-        # kw.get("prefetch_queue_depth", 2)
-        # kw.get("exec_async", True)
-        # kw.get("bytes_per_sample", 0)
-        # kw.get("set_affinity", False)
-        # kw.get("max_streams", -1)
-        # kw.get("default_cuda_stream_priority", 0)
-        pipeline._pipe = b.Pipeline(serialized_pipeline,
-                                pipeline._batch_size,
-                                pipeline._num_threads,
-                                pipeline._device_id,
-                                pipeline._exec_pipelined,
-                                pipeline._prefetch_queue_depth,
-                                pipeline._exec_async,
-                                pipeline._bytes_per_sample,
-                                pipeline._set_affinity,
-                                pipeline._max_streams,
-                                pipeline._default_cuda_stream_priority)
-        pipeline._pipe.SetExecutionTypes(pipeline._exec_pipelined, pipeline._exec_separated, pipeline._exec_async)
+        pipeline._pipe = b.Pipeline(
+            serialized_pipeline,
+            kw.get("batch_size", -1),
+            kw.get("num_threads", -1),
+            kw.get("device_id", -1),
+            kw.get("exec_pipelined", True),
+            kw.get("prefetch_queue_depth", 2),
+            kw.get("exec_async", True),
+            kw.get("bytes_per_sample", 0),
+            kw.get("set_affinity", False),
+            kw.get("max_streams", -1),
+            kw.get("default_cuda_stream_priority", 0)
+        )
+        pipeline._pipe.SetExecutionTypes(pipeline._exec_pipelined, pipeline._exec_separated,
+                                         pipeline._exec_async)
         pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
         pipeline._prepared = True
         pipeline._pipe.Build()

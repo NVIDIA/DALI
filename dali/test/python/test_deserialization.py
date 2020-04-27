@@ -1,0 +1,62 @@
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from nvidia.dali.pipeline import Pipeline
+import nvidia.dali.ops as ops
+import nvidia.dali.types as types
+import test_utils
+
+
+class TestPipeline(Pipeline):
+    def __init__(self, batch_size, num_threads, shape):
+        super().__init__(batch_size, num_threads, device_id=0, seed=42)
+        self.cf = ops.Uniform(device="cpu", shape=shape, seed=42)
+
+    def define_graph(self):
+        cf = self.cf()
+        return cf
+
+
+def check_deserialization(batch_size, num_threads, shape):
+    ref_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
+    serialized = ref_pipe.serialize()
+    test_pipe = Pipeline.deserialize(serialized)
+    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size, N_iterations=10)
+
+
+def check_deserialization_with_params(batch_size, num_threads, shape):
+    ref_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
+    serialized = ref_pipe.serialize()
+    test_pipe = Pipeline.deserialize(serialized, batch_size=batch_size, num_threads=num_threads)
+    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size, N_iterations=10)
+
+
+def test_deserialization():
+    batch_sizes = [3]
+    nums_thread = [1]
+    shapes = [[6], [2, 5], [3, 1, 6]]
+    for bs in batch_sizes:
+        for nt in nums_thread:
+            for sh in shapes:
+                yield check_deserialization, bs, nt, sh
+
+
+def test_deserialization_with_params():
+    batch_sizes = [3]
+    nums_thread = [1]
+    shapes = [[6], [2, 5], [3, 1, 6]]
+    for bs in batch_sizes:
+        for nt in nums_thread:
+            for sh in shapes:
+                yield check_deserialization_with_params, bs, nt, sh
