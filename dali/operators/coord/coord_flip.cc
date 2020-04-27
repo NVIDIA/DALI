@@ -18,8 +18,8 @@ namespace dali {
 
 DALI_SCHEMA(CoordFlip)
     .DocStr(
-        R"code(Transforms normalized coordinates (range [0.0, 1.0]) so that they map to the same place after
-horizontal or/and vertical flip of the input they refer to.)code")
+        R"code(Transforms coordinates so that they are flipped (point reflected) with respect
+to a center point.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg<TensorLayout>(
@@ -32,9 +32,13 @@ horizontal or/and vertical flip of the input they refer to.)code")
 Note: If left empty, ``"xy"`` or ``"xyz"`` will be assumed, depending on the number of dimensions.
 )code",
       TensorLayout{""})
-    .AddOptionalArg("horizontal", R"code(Perform flip along horizontal axis.)code", 1, true)
-    .AddOptionalArg("vertical", R"code(Perform flip along vertical axis.)code", 0, true)
-    .AddOptionalArg("depthwise", R"code(Perform flip along depthwise axis.)code", 0, true);
+    .AddOptionalArg("horizontal", R"code(Flip horizontal dimension.)code", 1, true)
+    .AddOptionalArg("vertical", R"code(Flip vertical dimension.)code", 0, true)
+    .AddOptionalArg("depthwise", R"code(Flip depthwise dimension.)code", 0, true)
+    .AddOptionalArg("center_x", R"code(Flip center on horizontal dimension.)code", 0.5f, true)
+    .AddOptionalArg("center_y", R"code(Flip center on vertical dimension.)code", 0.5f, true)
+    .AddOptionalArg("center_z", R"code(Flip center on depthwise dimension.)code", 0.5f, true);
+
 
 class CoordFlipCPU : public CoordFlip<CPUBackend> {
  public:
@@ -53,14 +57,8 @@ class CoordFlipCPU : public CoordFlip<CPUBackend> {
 
 void CoordFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
-  DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Input is expected to be float");
-
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();
-
-  if (layout_.empty()) {
-    layout_ = ndim_ == 2 ? "xy" : "xyz";
-  }
 
   int x_dim = layout_.find('x');
   DALI_ENFORCE(x_dim >= 0, "Dimension \"x\" not found in the layout");
@@ -74,25 +72,18 @@ void CoordFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
     DALI_ENFORCE(z_dim >= 0, "Dimension \"z\" not found in the layout");
 
   for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
-    bool horizontal_flip = spec_.GetArgument<int>("horizontal", &ws, sample_id);
-    bool vertical_flip = spec_.GetArgument<int>("vertical", &ws, sample_id);
-    bool depthwise_flip = spec_.GetArgument<int>("depthwise", &ws, sample_id);
     std::array<bool, 3> flip_dim = {false, false, false};
+    flip_dim[x_dim] = spec_.GetArgument<int>("horizontal", &ws, sample_id);
+    flip_dim[y_dim] = spec_.GetArgument<int>("vertical", &ws, sample_id);
+    flip_dim[z_dim] = spec_.GetArgument<int>("depthwise", &ws, sample_id);
 
-    if (horizontal_flip) {
-      flip_dim[x_dim] = horizontal_flip;
-    }
-
-    if (vertical_flip) {
-      flip_dim[y_dim] = vertical_flip;
-    }
-
-    if (depthwise_flip) {
-      flip_dim[z_dim] = depthwise_flip;
-    }
+    std::array<float, 3> mirrored_origin = {1.0f, 1.0f, 1.0f};
+    mirrored_origin[x_dim] = 2.0f * spec_.GetArgument<float>("center_x", &ws, sample_id);
+    mirrored_origin[y_dim] = 2.0f * spec_.GetArgument<float>("center_y", &ws, sample_id);
+    mirrored_origin[z_dim] = 2.0f * spec_.GetArgument<float>("center_z", &ws, sample_id);
 
     thread_pool.DoWorkWithID(
-        [this, &input, &output, sample_id, flip_dim](int thread_id) {
+        [this, &input, &output, sample_id, flip_dim, mirrored_origin](int thread_id) {
           const auto *in = input[sample_id].data<float>();
           auto *out = output[sample_id].mutable_data<float>();
           auto in_size = volume(input[sample_id].shape());
@@ -101,9 +92,7 @@ void CoordFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
           for (; i < in_size; i++, d++) {
             if (d == ndim_) d = 0;
             auto in_val = in[i];
-            DALI_ENFORCE(in_val >= 0.0f && in_val <= 1.0f,
-              "Input expected to be within the range [0.0, 1.0]");
-            out[i] = flip_dim[d] ? 1.0f - in_val : in_val;
+            out[i] = flip_dim[d] ? mirrored_origin[d] - in_val : in_val;
           }
         });
   }

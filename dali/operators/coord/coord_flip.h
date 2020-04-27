@@ -40,6 +40,8 @@ class CoordFlip : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     const auto &input = ws.template InputRef<Backend>(0);
+    DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Input is expected to be float");
+
     output_desc.resize(1);
     auto in_shape = input.shape();
     output_desc[0].shape = in_shape;
@@ -48,6 +50,21 @@ class CoordFlip : public Operator<Backend> {
     DALI_ENFORCE(in_shape[0].size() == 2);
     ndim_ = in_shape[0][1];
     DALI_ENFORCE(ndim_ >= 1 && ndim_ <= 3, make_string("Unexpected number of dimensions ", ndim_));
+
+    if (layout_.empty()) {
+      switch (ndim_) {
+        case 1:
+          layout_ = "x";
+          break;
+        case 2:
+          layout_ = "xy";
+          break;
+        case 3:
+        default:
+          layout_ = "xyz";
+          break;
+      }
+    }
     return true;
   }
 
