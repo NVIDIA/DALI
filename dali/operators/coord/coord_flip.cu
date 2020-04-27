@@ -64,13 +64,7 @@ class CoordFlipGPU : public CoordFlip<GPUBackend> {
 
 void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
-  DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Input is expected to be float");
-
   auto &output = ws.OutputRef<GPUBackend>(0);
-
-  if (layout_.empty()) {
-    layout_ = ndim_ == 2 ? "xy" : "xyz";
-  }
 
   int x_dim = layout_.find('x');
   DALI_ENFORCE(x_dim >= 0, "Dimension \"x\" not found in the layout");
@@ -92,19 +86,19 @@ void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
     sample_desc.size = volume(input.tensor_shape(sample_id));
     assert(sample_desc.size == volume(output.tensor_shape(sample_id)));
 
-    bool horizontal_flip = spec_.GetArgument<int>("horizontal", &ws, sample_id);
-    bool vertical_flip = spec_.GetArgument<int>("vertical", &ws, sample_id);
-    bool depthwise_flip = spec_.GetArgument<int>("depthwise", &ws, sample_id);
+    bool flip_x = spec_.GetArgument<int>("flip_x", &ws, sample_id);
+    bool flip_y = spec_.GetArgument<int>("flip_y", &ws, sample_id);
+    bool flip_z = spec_.GetArgument<int>("flip_z", &ws, sample_id);
 
-    if (horizontal_flip) {
+    if (flip_x) {
       sample_desc.flip_dim_mask |= (1 << x_dim);
     }
 
-    if (vertical_flip) {
+    if (flip_y) {
       sample_desc.flip_dim_mask |= (1 << y_dim);
     }
 
-    if (depthwise_flip) {
+    if (flip_z) {
       sample_desc.flip_dim_mask |= (1 << z_dim);
     }
     sample_descs_.emplace_back(std::move(sample_desc));
