@@ -254,7 +254,7 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
   TensorList<TypeParam> tensor_list;
 
   int num_tensor = this->RandInt(0, 128);
-  auto shape = uniform_list_shape(num_tensor, TensorShape<>{{ 0 }});
+  auto shape = uniform_list_shape(num_tensor, TensorShape<>{ 0 });
   tensor_list.Resize(shape);
 
   ASSERT_EQ(tensor_list.template mutable_data<float>(), nullptr);
@@ -265,7 +265,7 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
 
   ASSERT_EQ(tensor_list.ntensor(), num_tensor);
   for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{{ 0 }});
+    ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{ 0 });
     ASSERT_EQ(tensor_list.tensor_offset(i), 0);
   }
 }

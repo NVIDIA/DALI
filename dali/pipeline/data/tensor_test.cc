@@ -26,7 +26,7 @@
 namespace dali {
 
 inline TensorShape<> empty_tensor_shape() {
-  return {{ 0 }};
+  return { 0 };
 }
 
 template <typename Backend>
@@ -501,7 +501,7 @@ TYPED_TEST(TensorTest, TestResizeScalar) {
   Tensor<TypeParam> tensor;
 
   // Get shape
-  TensorShape<> shape = {{ 1 }};
+  TensorShape<> shape = { 1 };
   tensor.Resize(shape);
 
   // Verify the settings
@@ -514,7 +514,7 @@ TYPED_TEST(TensorTest, TestResizeZeroSize) {
   Tensor<TypeParam> tensor;
 
   // Get shape
-  TensorShape<> shape = {{ 0 }};
+  TensorShape<> shape = { 0 };
   tensor.Resize(shape);
 
   // Verify the settings
