@@ -33,21 +33,21 @@ class CoordFlipPipeline(Pipeline):
         self.device = device
         self.iterator = iterator
         self.coord_flip = ops.CoordFlip(device = self.device, layout=layout)
-        self.flip_h = ops.CoinFlip(probability = 0.5)
-        self.flip_v = ops.CoinFlip(probability = 0.5)
-        self.flip_d = ops.CoinFlip(probability = 0.5) if len(layout) == 3 else None
+        self.flip_x = ops.CoinFlip(probability = 0.5)
+        self.flip_y = ops.CoinFlip(probability = 0.5)
+        self.flip_z = ops.CoinFlip(probability = 0.5) if len(layout) == 3 else None
 
     def define_graph(self):
         inputs = fn.external_source(lambda: next(self.iterator))
         inputs = 0.5 + inputs  # Make it fit the range [0.0, 1.0]
         out = inputs.gpu() if self.device == 'gpu' else inputs
-        h = self.flip_h()
-        v = self.flip_v()
-        d = self.flip_d() if self.flip_d is not None else None
-        out = self.coord_flip(out, horizontal=h, vertical=v, depthwise=d)
-        outputs = [inputs, out, h, v]
-        if d is not None:
-            outputs.append(d)
+        flip_x = self.flip_x()
+        flip_y = self.flip_y()
+        flip_z = self.flip_z() if self.flip_z is not None else None
+        out = self.coord_flip(out, flip_x=flip_x, flip_y=flip_y, flip_z=flip_z)
+        outputs = [inputs, out, flip_x, flip_y]
+        if flip_z is not None:
+            outputs.append(flip_z)
         return outputs
 
 def check_operator_coord_flip(device, batch_size, layout, shape):
@@ -58,17 +58,21 @@ def check_operator_coord_flip(device, batch_size, layout, shape):
         outputs = pipe.run()
         for sample in range(batch_size):
             in_coords = outputs[0].at(sample)
-            out_coords = outputs[1].at(sample)
-            h = outputs[2].at(sample)
-            v = outputs[3].at(sample)
-            d = None
+            out_coords = outputs[1].as_cpu().at(sample) if device == 'gpu' else outputs[1].at(sample)
+            if in_coords.shape == ():
+                assert(out_coords.shape == ())
+                continue
+
+            flip_x = outputs[2].at(sample)
+            flip_y = outputs[3].at(sample)
+            flip_z = None
             if len(layout) == 3:
-                d = outputs[4].at(sample)
+                flip_z = outputs[4].at(sample)
             npoints, ndim = in_coords.shape
 
-            flip_dim = [h[0], v[0]]
+            flip_dim = [flip_x[0], flip_y[0]]
             if ndim == 3:
-                flip_dim.append(d[0])
+                flip_dim.append(flip_z[0])
 
             expected_out_coords = np.copy(in_coords)
             for d in range(ndim):
@@ -79,7 +83,7 @@ def check_operator_coord_flip(device, batch_size, layout, shape):
 def test_operator_coord_flip():
     for device in ['cpu']:
         for batch_size in [1, 3]:
-            for layout, shape in [("xy", (10, 2)), ("xyz", (10, 3))]:
+            for layout, shape in [("x", (10, 1)), ("xy", (10, 2)), ("xyz", (10, 3)), ("xy", (0, 2))]:
                 yield check_operator_coord_flip, device, batch_size, layout, shape
 
 def main():

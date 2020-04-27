@@ -24,17 +24,18 @@ to a center point.)code")
     .NumOutput(1)
     .AddOptionalArg<TensorLayout>(
       "layout",
-      R"code(Determines the layout of the coordinates.
-  Possible values are:
+      R"code(Determines the layout of the coordinates. Possible values are:
 
-  ``x`` (horizontal position), ``y`` (vertical position), ``z`` (depthwise position),
+  - ``x`` (horizontal position), 
+  - ``y`` (vertical position), 
+  - ``z`` (depthwise position),
 
-Note: If left empty, ``"xy"`` or ``"xyz"`` will be assumed, depending on the number of dimensions.
+Note: If left empty, ``"x"``, ``"xy"`` or ``"xyz"`` will be assumed, depending on the number of dimensions.
 )code",
       TensorLayout{""})
-    .AddOptionalArg("horizontal", R"code(Flip horizontal dimension.)code", 1, true)
-    .AddOptionalArg("vertical", R"code(Flip vertical dimension.)code", 0, true)
-    .AddOptionalArg("depthwise", R"code(Flip depthwise dimension.)code", 0, true)
+    .AddOptionalArg("flip_x", R"code(Flip horizontal (x) dimension.)code", 1, true)
+    .AddOptionalArg("flip_y", R"code(Flip vertical (y) dimension.)code", 0, true)
+    .AddOptionalArg("flip_z", R"code(Flip depthwise (z) dimension.)code", 0, true)
     .AddOptionalArg("center_x", R"code(Flip center on horizontal dimension.)code", 0.5f, true)
     .AddOptionalArg("center_y", R"code(Flip center on vertical dimension.)code", 0.5f, true)
     .AddOptionalArg("center_z", R"code(Flip center on depthwise dimension.)code", 0.5f, true);
@@ -73,9 +74,9 @@ void CoordFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
 
   for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
     std::array<bool, 3> flip_dim = {false, false, false};
-    flip_dim[x_dim] = spec_.GetArgument<int>("horizontal", &ws, sample_id);
-    flip_dim[y_dim] = spec_.GetArgument<int>("vertical", &ws, sample_id);
-    flip_dim[z_dim] = spec_.GetArgument<int>("depthwise", &ws, sample_id);
+    flip_dim[x_dim] = spec_.GetArgument<int>("flip_x", &ws, sample_id);
+    flip_dim[y_dim] = spec_.GetArgument<int>("flip_y", &ws, sample_id);
+    flip_dim[z_dim] = spec_.GetArgument<int>("flip_z", &ws, sample_id);
 
     std::array<float, 3> mirrored_origin = {1.0f, 1.0f, 1.0f};
     mirrored_origin[x_dim] = 2.0f * spec_.GetArgument<float>("center_x", &ws, sample_id);
