@@ -209,7 +209,7 @@ struct WorkArea {
 };
 
 
-template <typename Out, typename In, typename Actual>
+template <typename Out, typename In, typename Acc, typename Actual>
 class ReduceImplGPU {
  public:
   KernelRequirements Setup(KernelContext &ctx,
@@ -349,10 +349,17 @@ class ReduceImplGPU {
     switch (stage.kind) {
       case ReductionKind::Middle:
       case ReductionKind::Inner:
-        if (stage.index == 0)  // playing it safe for unlikely event of specialization
-          buf_sizes.AddParam<ReduceSampleDesc<Out, In>>(N);
-        else
-          buf_sizes.AddParam<ReduceSampleDesc<Out, Out>>(N);
+        if (stage.index == 0) { // playing it safe for unlikely event of specialization
+          if (stage.is_last)
+            buf_sizes.AddParam<ReduceSampleDesc<Out, In>>(N);
+          else
+            buf_sizes.AddParam<ReduceSampleDesc<Acc, In>>(N);
+        } else {
+          if (stage.is_last)
+            buf_sizes.AddParam<ReduceSampleDesc<Out, Acc>>(N);
+          else
+            buf_sizes.AddParam<ReduceSampleDesc<Acc, Acc>>(N);
+        }
         break;
 
       case ReductionKind::None:
@@ -398,7 +405,7 @@ class ReduceImplGPU {
         }
       }
     } else {
-      buf_sizes.AddIO<Out>(stage.input_elements());
+      buf_sizes.AddIO<Acc>(stage.input_elements());
     }
 
     // last stage may require postprocessing
@@ -418,7 +425,7 @@ class ReduceImplGPU {
         }
       }
     } else {
-      buf_sizes.AddIO<Out>(stage.output_elements());
+      buf_sizes.AddIO<Acc>(stage.output_elements());
     }
   }
 
@@ -659,8 +666,8 @@ class ReduceImplGPU {
   struct Context {
     cudaStream_t stream;
     WorkArea work_area;
-    TensorListView<StorageGPU, Out> output;
-    TensorListView<StorageGPU, const In> input;
+    OutListGPU<Out> output;
+    InListGPU<In> input;
   };
 
   template <ReductionKind kind>
@@ -681,12 +688,12 @@ class ReduceImplGPU {
           if (stage.is_last)
             LaunchStage<Out, In, true, true>(ctx, stage, ReductionKindTag<kind>());
           else
-            LaunchStage<Out, In, true, false>(ctx, stage, ReductionKindTag<kind>());
+            LaunchStage<Acc, In, true, false>(ctx, stage, ReductionKindTag<kind>());
         } else {
           if (stage.is_last)
-            LaunchStage<Out, Out, false, true>(ctx, stage, ReductionKindTag<kind>());
+            LaunchStage<Out, Acc, false, true>(ctx, stage, ReductionKindTag<kind>());
           else
-            LaunchStage<Out, Out, false, false>(ctx, stage, ReductionKindTag<kind>());
+            LaunchStage<Acc, Acc, false, false>(ctx, stage, ReductionKindTag<kind>());
         }
       ),  // NOLINT
       (assert(!"This code should be urneachable"))
@@ -720,7 +727,7 @@ class ReduceImplGPU {
     } else {
       assert((std::is_same<StageOut, Out>::value));
       for (int i = 0; i < stage.num_samples(); i++)
-        ptrs[i] = reinterpret_cast<Out*>(ctx.output.data[i]);
+        ptrs[i] = reinterpret_cast<StageOut*>(ctx.output.data[i]);
     }
     return ptrs;
   }
@@ -748,7 +755,7 @@ class ReduceImplGPU {
     } else {
       assert((std::is_same<StageOut, Out>::value));
       for (int i = 0; i < stage.num_samples(); i++)
-        samples[i].out = reinterpret_cast<Out*>(ctx.output.data[i]);
+        samples[i].out = reinterpret_cast<StageOut*>(ctx.output.data[i]);
     }
 
     for (int i = 0; i < stage.num_samples(); i++) {
@@ -1039,48 +1046,7 @@ class ReduceImplGPU {
 };
 
 template <typename Out, typename In>
-class SumImplGPU : public ReduceImplGPU<Out, In, SumImplGPU<Out, In>> {
- public:
-  reductions::sum GetReduction() const { return {}; }
-};
-
-template <typename Out, typename In, typename Actual>
-class MeanImplBase {
-  Actual &This() { return static_cast<Actual&>(*this); }
-  const Actual &This() const { return static_cast<const Actual&>(*this); }
-
-  struct Postprocessor {
-    std::conditional_t<std::is_same<Out, double>::value, double, float> inv_div = 1;
-
-    template <typename T>
-    DALI_HOST_DEV Out operator()(T x) const {
-      return ConvertSat<Out>(x * inv_div);
-    }
-  };
-
-  bool HasPostprocessingParams() const { return true; }
-
-  Postprocessor *GetPostprocessors(WorkArea &wa, std::true_type) const {
-    assert(!This().ReduceBatch());
-    int n = This().SimplifiedOutputShape().num_samples();
-    Postprocessor *pp = wa.ParamBuffer<Postprocessor>(n);
-    for (int i = 0; i < n; i++) {
-      DALI_ENFORCE(This().ReducedElements(i) > 0, "Cannot calculate a mean from 0 elements");
-      pp[i].inv_dim = 1.0 / This().ReducedElements(i);
-    }
-    return pp;
-  }
-
-  Postprocessor GetPostprocessor(std::true_type) const {
-    assert(This().ReduceBatch());
-    DALI_ENFORCE(This().TotalReducedElements() > 0, "Cannot calculate a mean from 0 elements");
-    return { 1.0 / This().TotalReducedElements() };
-  }
-};
-
-template <typename Out, typename In>
-class MeanImplGPU : public ReduceImplGPU<Out, In, MeanImplGPU<Out, In>>,
-                    public MeanImplBase<Out, In, MeanImplGPU<Out, In>> {
+class SumImplGPU : public ReduceImplGPU<Out, In, Out, SumImplGPU<Out, In>> {
  public:
   reductions::sum GetReduction() const { return {}; }
 };

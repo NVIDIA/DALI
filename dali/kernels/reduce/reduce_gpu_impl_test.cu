@@ -20,54 +20,9 @@
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/core/tensor_shape_print.h"
+#include "dali/kernels/reduce/reduce_test.h"
 
 namespace dali {
-
-
-template <typename T, int ndim>
-std::ostream &operator<<(std::ostream &os, const TensorView<StorageCPU, T, ndim> &t) {
-  if (!t.data) {
-    return os << "[data is null, shape = " << t.shape << "]";
-  }
-  if (t.dim() == 0) {
-    return os << *t.data;
-  }
-
-  const char *sep = t.num_elements() > 16 ? ",\n " : ", ";
-  os << "[";
-  if (t.dim() == 1) {
-    for (int64_t i = 0; i < t.num_elements(); i++) {
-      if (i)
-        os << sep;
-      os << t.data[i];
-    }
-  } else {
-    for (int64_t i = 0; i < t.shape[0]; i++) {
-      if (i)
-        os << sep;
-      os << subtensor(t, i);
-    }
-  }
-
-  return os << "]";
-}
-
-template <typename T, int ndim>
-std::ostream &operator<<(std::ostream &os, const TensorListView<StorageCPU, T, ndim> &tl) {
-  if (tl.data.empty() || !tl.data[0]) {
-    return os << "{ data is null, shape = " << tl.shape << " }";
-  }
-  os << "{ ";
-  const char *sep = tl.num_elements() > 16 ? ",\n " : ", ";
-  for (int i = 0; i < tl.num_samples(); i++) {
-    if (i)
-      os << sep;
-    os << tl[i];
-  }
-  return os << " }";
-}
-
-
 namespace kernels {
 namespace reduce_impl {
 
@@ -180,85 +135,6 @@ TEST(ReduceImpl, TestCheckBatchReduce) {
       EXPECT_THROW(CheckBatchReduce(tls, make_span(axes)), std::exception);
     }
   }
-}
-
-template <typename OnlineReducer, typename In>
-void RefReduceStrided(OnlineReducer &R, const In *in, const int64_t *in_stride,
-               const int64_t *in_extent, int dim) {
-  if (dim == 0) {
-    R.add(*in);
-  } else if (dim == 1) {
-    const int64_t n = in_extent[0];
-    const int64_t stride = in_stride[0];
-    for (int64_t i = 0; i < n; i++) {
-      R.add(*in);
-      in += stride;
-    }
-  } else {
-    for (int64_t i = 0; i < in_extent[0]; i++) {
-      RefReduceStrided(R, in, in_stride+1, in_extent+1, dim - 1);
-      in += in_stride[0];
-    }
-  }
-}
-
-
-template <typename Reduction, typename Out, typename In>
-void RefReduceAxes(Out *out, const In *in,
-                   const int64_t *reduced_stride, const int64_t *reduced_extent,
-                   int reduced_dim,
-                   const int64_t *non_reduced_stride, const int64_t *non_reduced_extent,
-                   int non_reduced_dim, Reduction R = {}) {
-  if (non_reduced_dim == 0) {
-    // only reduced dimensions left - let's reduce them and store the value
-    OnlineReducer<Out, Reduction> red;
-    red = {};
-    RefReduceStrided(red, in, reduced_stride, reduced_extent, reduced_dim);
-    *out = red.result();
-  } else {
-    // traverse remaining non-reduced dimensions
-
-    // output stride is a plain product of remaining inner extents
-    int64_t out_stride = non_reduced_dim > 1
-      ? volume(make_span(non_reduced_extent + 1, non_reduced_dim - 1))
-      : 1;
-    for (int64_t i = 0; i < non_reduced_extent[0]; i++) {
-      RefReduceAxes(out, in, reduced_stride, reduced_extent, reduced_dim,
-                    non_reduced_stride + 1, non_reduced_extent + 1, non_reduced_dim - 1, R);
-      in += non_reduced_stride[0];
-      out += out_stride;
-    }
-  }
-}
-
-
-template <typename Out, typename In, typename Reduction>
-void RefReduce(const TensorView<StorageCPU, Out> &out, const TensorView<StorageCPU, In> &in,
-               span<const int> axes, Reduction R = {}) {
-  uint64_t mask = to_bit_mask(axes);
-  SmallVector<int, 6> reduced_dims, non_reduced_dims;
-  auto strides = GetStrides(in.shape.shape);
-  SmallVector<int64_t, 6> reduced_strides, non_reduced_strides;
-  SmallVector<int64_t, 6> reduced_extents, non_reduced_extents;
-
-  // factorize the tensor into reduced and non-reduced parts
-
-  int ndim = strides.size();
-  for (int i = 0; i < ndim; i++) {
-    if (mask & (1 << i)) {
-      assert(out.shape[i] == 1);
-      reduced_strides.push_back(strides[i]);
-      reduced_extents.push_back(in.shape[i]);
-    } else {
-      assert(out.shape[i] == in.shape[i]);
-      non_reduced_strides.push_back(strides[i]);
-      non_reduced_extents.push_back(in.shape[i]);
-    }
-  }
-
-  RefReduceAxes(out.data, in.data,
-    reduced_strides.data(), reduced_extents.data(), reduced_extents.size(),
-    non_reduced_strides.data(), non_reduced_extents.data(), non_reduced_extents.size(), R);
 }
 
 TEST(SumImplGPU, Inner) {
