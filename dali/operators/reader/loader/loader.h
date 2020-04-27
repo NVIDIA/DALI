@@ -70,7 +70,8 @@ class Loader {
       loading_flag_(false),
       read_sample_counter_(0),
       returned_sample_counter_(0),
-      pad_last_batch_(options.GetArgument<bool>("pad_last_batch")) {
+      pad_last_batch_(options.GetArgument<bool>("pad_last_batch")),
+      dont_map_files_(options.GetArgument<bool>("dont_map_files")) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -352,6 +353,9 @@ class Loader {
   // If true, the last batch will be padded with the last sample so that the number
   // of samples matches batch size
   bool pad_last_batch_;
+  // If true data will be always read using read function and copied instead of shared with the
+  // target tensor
+  bool dont_map_files_;
   // Number of data shards that were actually read by the reader
   int virtual_shard_id_;
   // Keeps pointer to the last returned sample just in case it needs to be cloned

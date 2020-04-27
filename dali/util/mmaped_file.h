@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_LOCAL_FILE_H_
-#define DALI_UTIL_LOCAL_FILE_H_
+#ifndef DALI_UTIL_MMAPED_FILE_H_
+#define DALI_UTIL_MMAPED_FILE_H_
 
 #include <cstdio>
 #include <string>
@@ -24,9 +24,9 @@
 
 namespace dali {
 
-class LocalFileStream : public FileStream {
+class MmapedFileStream : public FileStream {
  public:
-  explicit LocalFileStream(const std::string& path, bool read_ahead);
+  explicit MmapedFileStream(const std::string& path, bool read_ahead);
   void Close() override;
   shared_ptr<void> Get(size_t n_bytes) override;
   static bool ReserveFileMappings(unsigned int num);
@@ -35,7 +35,7 @@ class LocalFileStream : public FileStream {
   void Seek(int64 pos) override;
   size_t Size() const override;
 
-  ~LocalFileStream() override {
+  ~MmapedFileStream() override {
     Close();
   }
 
@@ -49,4 +49,4 @@ class LocalFileStream : public FileStream {
 
 }  // namespace dali
 
-#endif  // DALI_UTIL_LOCAL_FILE_H_
+#endif  // DALI_UTIL_MMAPED_FILE_H_
