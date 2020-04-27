@@ -25,6 +25,10 @@
 
 namespace dali {
 
+inline TensorShape<> empty_tensor_shape() {
+  return {{ 0 }};
+}
+
 template <typename Backend>
 class TensorTest : public DALITest {
  public:
@@ -135,7 +139,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   // Verify internals
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>{});
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -144,7 +148,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>{});
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -152,7 +156,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>{});
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -170,7 +174,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_EQ(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>());
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_FALSE(t.shares_data());
 }
@@ -189,7 +193,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   // Verify internals
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>{});
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -199,7 +203,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>{});
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<double>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -209,7 +213,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>{});
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<double>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -227,7 +231,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_EQ(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>());
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_FALSE(t.shares_data());
 }
@@ -246,7 +250,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   // Verify internals
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>{});
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -280,7 +284,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   ASSERT_EQ(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>());
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_FALSE(t.shares_data());
 }
@@ -299,7 +303,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   // Verify internals
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>{});
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -334,7 +338,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   ASSERT_EQ(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), TensorShape<>());
+  ASSERT_EQ(t.shape(), empty_tensor_shape());
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_FALSE(t.shares_data());
 }
@@ -480,11 +484,24 @@ TYPED_TEST(TensorTest, TestMultipleResize) {
   }
 }
 
+TYPED_TEST(TensorTest, TestResizeTrueScalar) {
+  Tensor<TypeParam> tensor;
+
+  // Get shape
+  TensorShape<> shape = {};
+  tensor.Resize(shape);
+
+  // Verify the settings
+  ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
+  ASSERT_EQ(tensor.size(), volume(shape));
+  ASSERT_EQ(tensor.ndim(), shape.size());
+}
+
 TYPED_TEST(TensorTest, TestResizeScalar) {
   Tensor<TypeParam> tensor;
 
   // Get shape
-  TensorShape<> shape = {1};
+  TensorShape<> shape = {{ 1 }};
   tensor.Resize(shape);
 
   // Verify the settings
@@ -497,7 +514,7 @@ TYPED_TEST(TensorTest, TestResizeZeroSize) {
   Tensor<TypeParam> tensor;
 
   // Get shape
-  TensorShape<> shape = {};
+  TensorShape<> shape = {{ 0 }};
   tensor.Resize(shape);
 
   // Verify the settings

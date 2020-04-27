@@ -330,7 +330,7 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(void *ptr, size_t bytes) {
-    ShareData(ptr, bytes, {});
+    ShareData(ptr, bytes, {{ 0 }});
   }
 
   /**
@@ -395,7 +395,7 @@ class Tensor : public Buffer<Backend> {
 
   inline void Reset() {
     reset();  // free the underlying buffer
-    shape_ = {};
+    shape_ = {{ 0 }};
     meta_ = {};
   }
 
@@ -533,7 +533,7 @@ class Tensor : public Buffer<Backend> {
   }
 
  protected:
-  TensorShape<> shape_;
+  TensorShape<> shape_ = {{ 0 }};
   DALIMeta meta_;
   USE_BUFFER_MEMBERS();
 };
