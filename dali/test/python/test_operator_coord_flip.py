@@ -33,8 +33,12 @@ class CoordFlipPipeline(Pipeline):
         super(CoordFlipPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
         self.iterator = iterator
+<<<<<<< HEAD
         self.coord_flip = ops.CoordFlip(device = self.device, layout=layout,
                                         center_x=center_x, center_y=center_y, center_z=center_z)
+=======
+        self.coord_flip = ops.CoordFlip(device = self.device, layout=layout)
+>>>>>>> Code review fixes
         self.flip_x = ops.CoinFlip(probability = 0.5)
         self.flip_y = ops.CoinFlip(probability = 0.5)
         self.flip_z = ops.CoinFlip(probability = 0.5) if len(layout) == 3 else None
