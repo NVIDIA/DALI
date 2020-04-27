@@ -256,7 +256,7 @@ DALI_HOST_DEV
 inline volume_t<decltype(*std::declval<Iter>())>
 volume(Iter shape_begin, Iter shape_end) {
   if (shape_begin == shape_end)
-    return 0;  // perhaps we should return 1 as a neutral element of multiplication?
+    return 1;
   auto it = shape_begin;
   volume_t<decltype(*shape_begin)> v = *it;
   for (++it; it != shape_end; ++it)
