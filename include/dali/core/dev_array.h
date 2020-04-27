@@ -129,7 +129,7 @@ class DeviceArray<T, 0> {
 
 template <typename T>
 constexpr DALI_HOST_DEV volume_t<T> volume(const DeviceArray<T, 0> &) {
-  return 0;
+  return 1;
 }
 
 template <typename T, size_t N>

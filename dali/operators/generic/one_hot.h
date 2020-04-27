@@ -35,7 +35,7 @@ void DoOneHot(kernels::OutTensorCPU<Out, DynamicDimensions> output,
   auto in = input.data;
   auto out = output.data;
   for (int i = 0; i < volume(output.shape); ++i) out[i] = off_value;
-  int64_t inner = axis == ndims ? 1 : volume(input.shape.last(ndims - axis));
+  int64_t inner = volume(input.shape.last(ndims - axis));
   for (int64_t i = 0, n = input.num_elements(); i < n; i++) {
     int cls = in[i];
     if (cls < 0 || cls >= num_classes)

@@ -463,8 +463,8 @@ TEST(TensorShapeTest, ConcatenationMixed) {
 }
 
 TEST(VolumeTest, Result) {
-  EXPECT_EQ(volume(std::vector<int64_t>{}), 0);
-  EXPECT_EQ(volume(std::vector<int64_t>{1}), 1);
+  EXPECT_EQ(volume(std::vector<int64_t>{}), 1);
+  EXPECT_EQ(volume(std::vector<int64_t>{2}), 2);
   EXPECT_EQ(volume(std::vector<int64_t>{1, 2}), 2);
   EXPECT_EQ(volume(std::vector<int64_t>{1, 2, 3, 4, 5}), 1 * 2 * 3 * 4 * 5);
 }
