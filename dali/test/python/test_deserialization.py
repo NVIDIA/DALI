@@ -36,10 +36,11 @@ def check_deserialization(batch_size, num_threads, shape):
 
 
 def check_deserialization_with_params(batch_size, num_threads, shape):
-    ref_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
-    serialized = ref_pipe.serialize()
-    test_pipe = Pipeline.deserialize(serialized, batch_size=batch_size, num_threads=num_threads)
-    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size, N_iterations=10)
+    init_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
+    serialized = init_pipe.serialize()
+    ref_pipe = TestPipeline(batch_size=batch_size**2, num_threads=num_threads, shape=shape)
+    test_pipe = Pipeline.deserialize(serialized, batch_size=batch_size**2, num_threads=num_threads)
+    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size**2, N_iterations=10)
 
 
 def test_deserialization():
