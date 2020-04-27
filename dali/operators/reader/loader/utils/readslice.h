@@ -80,6 +80,11 @@ void ReadSliceKernel(Type *output,
                               std::integral_constant<int, Dims>());
 }
 
+// kernel for fusing dims
+void FuseShapes(TensorShape<>& in_shape,
+                TensorShape<>& out_shape,
+                TensorShape<>& anchor);
+
 // we need to use this when we use the read-based file IO
 void ReadSliceKernel(Tensor<CPUBackend>& output,
                      std::unique_ptr<FileStream>& file,

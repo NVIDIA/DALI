@@ -131,9 +131,9 @@ def test_batch():
             
 
 test_np_slab_shapes = [[12], (10, 10), (5, 20, 10), (4, 8, 3, 6)]
-test_np_slab_anchors = [[5], (2, 4), (0, 3, 2), (1, 3, 0, 4)]
-test_np_slab_subshapes = [[4], (7, 5), (5, 10, 1), (2, 4, 3, 1)]
-                
+test_np_slab_anchors = [[5], (2, 4), (1, 3, 2), (1, 3, 1, 4)]
+test_np_slab_subshapes = [[4], (7, 5), (4, 10, 1), (2, 4, 2, 1)]
+
 # test slab read
 def test_static_slab():
     with tempfile.TemporaryDirectory() as test_data_root:
@@ -157,7 +157,25 @@ def test_dynamic_slab():
                 index += 1
                 yield check_array_dynamic_slab, filename, (10, 10, 10), typ, fortran_order
 
-            
+
+# test fused reads
+test_np_fused_slab_shapes    = [(10, 10), (5, 8, 10), (5, 8, 10), (4, 8, 3, 6), (4, 8, 3, 6)]
+test_np_fused_slab_anchors   = [( 2,  0), (1, 0,  2), (1, 0,  0), (1, 0, 1, 4), (1, 0, 1, 0)]
+test_np_fused_slab_subshapes = [( 7, 10), (4, 8,  5), (4, 8, 10), (2, 8, 2, 1), (2, 8, 2, 6)]
+
+def test_static_fused_slab():
+    with tempfile.TemporaryDirectory() as test_data_root:
+        index  = 0
+        for fortran_order in [False, True]:
+            for typ in test_np_types:
+                for idx,shape in enumerate(test_np_fused_slab_shapes):
+                    filename = os.path.join(test_data_root, "test_slab_{:02d}.npy".format(index))
+                    slab_anchor = test_np_fused_slab_anchors[idx]
+                    slab_shape = test_np_fused_slab_subshapes[idx]
+                    index += 1
+                    yield check_array_static_slab, filename, shape, slab_anchor, slab_shape, typ, fortran_order
+
+
 # generic helper routines                
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array
