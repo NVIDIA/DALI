@@ -24,7 +24,7 @@
 #include "dali/operators/reader/loader/numpy_loader.h"
 #include "dali/operators/reader/loader/utils/readslice.h"
 #include "dali/util/file.h"
-
+#include "dali/core/tensor_shape_print.h"
 
 namespace dali {
 TypeInfo TypeFromNumpyStr(const std::string &format) {
@@ -182,7 +182,7 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleHelper(std::unique_ptr<FileSt
 std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<FileStream> file,
                                                               ImageFileWrapper& imfile,
                                                               const NumpyParseTarget& target) {
-  // deal with potential fortran complications
+  // deal with potential column-major complications
   TensorShape<> slab_anchor(slab_anchor_);
   TensorShape<> slab_shape(slab_shape_);
   SetupSlab(slab_anchor, slab_shape, TensorShape<>(target.shape), target.fortran_order);
@@ -192,9 +192,34 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<Fi
     if (imfile.image.shares_data()) {
       imfile.image.Reset();
     }
-    ReadSliceKernel(imfile.image, file, file->Pos(),
-                    TensorShape<>(target.shape), target.type_info,
-                    slab_anchor, slab_shape);
+
+    // Preprocess the shapes to do a 2stage IO
+    TensorShape<> slab_shape_io;
+    TensorShape<> slab_anchor_io;
+    TensorShape<> slab_anchor_copy;
+    bool use_twostage = SplitTwostageShapes(slab_anchor_io,
+                                            slab_anchor_copy,
+                                            slab_shape_io,
+                                            TensorShape<>(target.shape),
+                                            slab_anchor,
+                                            slab_shape,
+                                            target.type_info,
+                                            target_io_bytes_);
+
+    if (!use_twostage) {
+      // we can load it directly
+      ReadSliceKernel(imfile.image, file, file->Pos(),
+                      TensorShape<>(target.shape), target.type_info,
+                      slab_anchor, slab_shape);
+    } else {
+      // load into a temporary array
+      ReadSliceKernel(io_tensor_, file, file->Pos(),
+                      TensorShape<>(target.shape), target.type_info,
+                      slab_anchor_io, slab_shape_io);
+
+      // now slice in-memory to the desired shapex
+      CopySliceKernel(imfile.image, io_tensor_, slab_anchor_copy, slab_shape);
+    }
   } else {
     auto p = file->Get(image_bytes);
     // Wrap the raw data in the Tensor object.

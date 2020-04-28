@@ -63,6 +63,7 @@ class Loader {
       num_shards_(options.GetArgument<int>("num_shards")),
       copy_read_data_(false),
       read_ahead_(options.GetArgument<bool>("read_ahead")),
+      target_io_bytes_(options.GetArgument<int>("target_io_bytes")),
       stick_to_shard_(options.GetArgument<bool>("stick_to_shard")),
       device_id_(options.GetArgument<int>("device_id")),
       skip_cached_images_(options.GetArgument<bool>("skip_cached_images")),
@@ -332,6 +333,8 @@ class Loader {
   bool copy_read_data_;
   // if accessed files should be loaded into memory in advance at the first access
   bool read_ahead_;
+  // can be used to give a hint ton the loader for an optimal IO chunk size
+  size_t target_io_bytes_;
   // if reader for the given GPU should read over and over the same shard or should go through
   // whole data set
   bool stick_to_shard_;

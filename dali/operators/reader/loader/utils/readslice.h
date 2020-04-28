@@ -85,6 +85,16 @@ void FuseShapes(TensorShape<>& in_shape,
                 TensorShape<>& out_shape,
                 TensorShape<>& anchor);
 
+// helper function to split the IO on long strides
+bool SplitTwostageShapes(TensorShape<>& anchor_stage1,
+                         TensorShape<>& anchor_stage2,
+                         TensorShape<>& out_shape_stage1,
+                         const TensorShape<>& in_shape,
+                         const TensorShape<>& anchor,
+                         const TensorShape<>& out_shape,
+                         const TypeInfo& input_type,
+                         const size_t& min_read_bytes);
+
 // we need to use this when we use the read-based file IO
 void ReadSliceKernel(Tensor<CPUBackend>& output,
                      std::unique_ptr<FileStream>& file,

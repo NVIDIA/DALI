@@ -66,6 +66,47 @@ void FuseShapes(TensorShape<>& in_shape, TensorShape<>& out_shape, TensorShape<>
   anchor = TensorShape<>(anc_new);
 }
 
+// helper function to find larger strides for better IO performance
+// the stage 1 shape can be used to do the IO and the stage2 shapes
+// to use the copy slice kernel
+bool SplitTwostageShapes(TensorShape<>& anchor_stage1,
+                         TensorShape<>& anchor_stage2,
+                         TensorShape<>& out_shape_stage1,
+                         const TensorShape<>& in_shape,
+                         const TensorShape<>& anchor,
+                         const TensorShape<>& out_shape,
+                         const TypeInfo& input_type,
+                         const size_t& min_read_bytes) {
+  // determine whether we can use 2stage or single stage is sufficient:
+  bool use_twostage = false;
+
+  // get the strides
+  auto in_strides = kernels::GetStrides(in_shape);
+  auto tsize = input_type.size();
+
+  // initialize the shapes
+  out_shape_stage1 = in_shape;
+  anchor_stage1 = anchor;
+  for (int i = 0; i < anchor_stage1.sample_dim(); ++i)
+    anchor_stage1[i] = 0;
+  anchor_stage2 = anchor;
+
+  // determine shapes
+  for (int i = 0; i < in_shape.sample_dim(); ++i) {
+    if ((in_strides[i] * tsize) > min_read_bytes) {
+      out_shape_stage1[i] = out_shape[i];
+      anchor_stage1[i] = anchor[i];
+      anchor_stage2[i] = 0;
+    } else {
+      // from here on out, out_shape_new = in_shape
+      use_twostage = true;
+      break;
+    }
+  }
+  // return the modified out_shape
+  return use_twostage;
+}
+
 // this can be used to copy a slice from a file
 void ReadSliceKernel(Tensor<CPUBackend>& output,
                      std::unique_ptr<FileStream>& file,

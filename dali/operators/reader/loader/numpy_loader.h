@@ -87,6 +87,9 @@ class NumpyLoader : public FileLoader {
 
   // regex search string
   const std::regex header_regex_;
+
+  // temporary tensor for 2-stage IO
+  Tensor<CPUBackend> io_tensor_;
 };
 
 }  // namespace dali
