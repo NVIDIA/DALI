@@ -545,6 +545,13 @@ DALI_HOST_DEV ivec<N> ceil_int(const vec<N> &a) {
   IMPL_VEC_ELEMENTWISE(ceil_int(a[i]));
 }
 
+template <int N, typename T, typename U>
+DALI_HOST_DEV std::enable_if_t<std::is_integral<T>::value && std::is_integral<U>::value,
+                               vec<N, decltype(div_ceil(T{}, U{}))>>
+div_ceil(const vec<N, T> &a, const vec<N, U> &b) {
+  IMPL_VEC_ELEMENTWISE(div_ceil(a[i], b[i]));
+}
+
 template <typename T, int size0, int size1>
 DALI_HOST_DEV DALI_FORCEINLINE
 constexpr auto cat(const vec<size0, T> &v0, const vec<size1, T> &v1) {
