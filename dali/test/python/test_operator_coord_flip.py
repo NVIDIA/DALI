@@ -33,12 +33,8 @@ class CoordFlipPipeline(Pipeline):
         super(CoordFlipPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
         self.iterator = iterator
-<<<<<<< HEAD
         self.coord_flip = ops.CoordFlip(device = self.device, layout=layout,
                                         center_x=center_x, center_y=center_y, center_z=center_z)
-=======
-        self.coord_flip = ops.CoordFlip(device = self.device, layout=layout)
->>>>>>> Code review fixes
         self.flip_x = ops.CoinFlip(probability = 0.5)
         self.flip_y = ops.CoinFlip(probability = 0.5)
         self.flip_z = ops.CoinFlip(probability = 0.5) if len(layout) == 3 else None
@@ -66,8 +62,8 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
         for sample in range(batch_size):
             in_coords = outputs[0].at(sample)
             out_coords = outputs[1].as_cpu().at(sample) if device == 'gpu' else outputs[1].at(sample)
-            if in_coords.shape == ():
-                assert(out_coords.shape == ())
+            if in_coords.shape == () or in_coords.shape[0] == 0:
+                assert(out_coords.shape == () or out_coords.shape[0] == 0)
                 continue
 
             flip_x = outputs[2].at(sample)

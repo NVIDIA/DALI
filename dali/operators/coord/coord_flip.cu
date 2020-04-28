@@ -39,7 +39,7 @@ __global__ void CoordFlipKernel(const SampleDesc<T>* samples, int ndim) {
   int64_t tid = threadIdx.y * blockDim.x + threadIdx.x;
   for (int64_t idx = offset + tid; idx < sample.size; idx += grid_size) {
     int d = idx % ndim;
-    bool flip = static_cast<bool>(sample.flip_dim_mask & (1 << d));
+    bool flip = sample.flip_dim_mask & (1 << d);
     sample.out[idx] = flip ? sample.mirrored_origin[d] - sample.in[idx] : sample.in[idx];
   }
 }
