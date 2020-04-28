@@ -52,6 +52,16 @@ struct backend_to_device_type<GPUBackend> {
   static constexpr device_type_t value = GPU;
 };
 
+template<typename Backend>
+struct the_other_backend {
+  using type = GPUBackend;
+};
+
+template<>
+struct the_other_backend<GPUBackend> {
+  using type = CPUBackend;
+};
+
 
 template<typename Backend, device_type_t execution_device = backend_to_device_type<Backend>::value>
 std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string &output_device) {
@@ -171,6 +181,7 @@ TYPED_TEST(CApiTest, FileReaderPipe) {
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
 }
 
+
 TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
@@ -283,6 +294,126 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
+}
+
+
+TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
+  using OpBackend = TypeParam;
+  using DataBackend = typename the_other_backend<TypeParam>::type;
+  TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8,  8,  3},
+                                   {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
+                                   {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
+  TensorList<CPUBackend> input_cpu;
+  TensorList<DataBackend> input;
+  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  auto pipe_ptr = GetTestPipeline<OpBackend>(false, this->output_device_);
+  auto serialized = pipe_ptr->SerializeToProtobuf();
+
+  pipe_ptr->Build();
+
+  daliPipelineHandle handle;
+  daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
+                     device_id, false, prefetch_queue_depth, prefetch_queue_depth,
+                     prefetch_queue_depth);
+
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    SequentialFill(view<uint8_t>(input_cpu), 42 * i);
+    // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
+    input.Copy(input_cpu, cuda_stream);
+    CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+    pipe_ptr->SetExternalInput(input_name, input);
+    daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
+                         input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
+                         input_shape.sample_dim(), nullptr);
+  }
+
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    pipe_ptr->RunCPU();
+    pipe_ptr->RunGPU();
+  }
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
+
+  dali::DeviceWorkspace ws;
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
+  }
+
+  SequentialFill(view<uint8_t>(input_cpu), 42 * prefetch_queue_depth);
+  // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
+  input.Copy(input_cpu, cuda_stream);
+  CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+  pipe_ptr->SetExternalInput(input_name, input);
+  daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
+                       input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
+                       input_shape.sample_dim(), "HWC");
+  daliRun(&handle);
+  pipe_ptr->RunCPU();
+  pipe_ptr->RunGPU();
+
+  ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
+}
+
+
+TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
+  using OpBackend = TypeParam;
+  using DataBackend = typename the_other_backend<TypeParam>::type;
+  TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8,  8,  3},
+                                   {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
+                                   {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
+  TensorList<CPUBackend> input_cpu;
+  TensorList<DataBackend> input;
+  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  std::vector<const void *> data_ptrs(batch_size);
+  for (int i = 0; i < batch_size; i++) {
+    data_ptrs[i] = input_cpu.raw_tensor(i);
+  }
+  auto pipe_ptr = GetTestPipeline<OpBackend>(false, this->output_device_);
+  auto serialized = pipe_ptr->SerializeToProtobuf();
+
+  pipe_ptr->Build();
+
+  daliPipelineHandle handle;
+  daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
+                     device_id, false, prefetch_queue_depth, prefetch_queue_depth,
+                     prefetch_queue_depth);
+
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    SequentialFill(view<uint8_t>(input_cpu), 42 * i);
+    // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
+    input.Copy(input_cpu, cuda_stream);
+    CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+    pipe_ptr->SetExternalInput(input_name, input, cuda_stream);
+    daliSetExternalInputTensors(&handle, input_name.c_str(),
+                                backend_to_device_type<DataBackend>::value, data_ptrs.data(),
+                                dali_data_type_t::DALI_UINT8, input_shape.data(),
+                                input_shape.sample_dim(), nullptr);
+  }
+
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    pipe_ptr->RunCPU();
+    pipe_ptr->RunGPU();
+  }
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
+
+  dali::DeviceWorkspace ws;
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
+  }
+
+  SequentialFill(view<uint8_t>(input_cpu), 42 * prefetch_queue_depth);
+  // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
+  input.Copy(input_cpu, cuda_stream);
+  CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+  pipe_ptr->SetExternalInput(input_name, input, cuda_stream);
+  daliSetExternalInputTensors(&handle, input_name.c_str(),
+                              backend_to_device_type<DataBackend>::value, data_ptrs.data(),
+                              dali_data_type_t::DALI_UINT8, input_shape.data(),
+                              input_shape.sample_dim(), "HWC");
+  daliRun(&handle);
+  pipe_ptr->RunCPU();
+  pipe_ptr->RunGPU();
+
+  ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
 }
 
 }  // namespace dali

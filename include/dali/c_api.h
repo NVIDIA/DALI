@@ -81,7 +81,15 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
  * @brief Feed the data to ExternalSource as contiguous memory.
  *
  * When calling this function, you need to provide a CUDA stream, which will be used when
- * copying data onto GPU. A convenience alternative function exists to use default (0) stream.
+ * copying data onto GPU. This function is asynchronous, so it's your responsibility to
+ * synchronize on a provided CUDA stream.
+ *
+ * Keep in mind, that for the special case, where the data exists on the CPU and the
+ * ExternalSource's Backend in also a CPU, stream is not needed - feel free to pass
+ * the default stream.
+ *
+ * A convenience, synchronous, overload function is provided,
+ * which handles the stream synchronization.
  *
  * @param pipe_handle Pointer to pipeline handle
  * @param name Pointer to a null-terminated byte string with the name of the External Source
@@ -94,8 +102,8 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
  * @param sample_dim The dimensionality of a single sample.
  * @param layout_str Optional layout provided as a pointer to null-terminated byte string.
  *                   Can be set to NULL.
- * @param stream CUDA stream to use when copying the data onto GPU. If used with CPU device code,
- *               this value will be ignored
+ * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
+ *               provided stream.
  */
 DLL_PUBLIC void daliSetExternalInputCudaStream(daliPipelineHandle *pipe_handle, const char *name,
                                                device_type_t device, const void *data_ptr,
@@ -113,7 +121,15 @@ DLL_PUBLIC void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char
  * @brief Feed the data to ExternalSource as a set of separate buffers.
  *
  * When calling this function, you need to provide a CUDA stream, which will be used when
- * copying data onto GPU. A convenience alternative function exists to use default (0) stream.
+ * copying data onto GPU. This function is asynchronous, so it's your responsibility to
+ * synchronize on a provided CUDA stream.
+ *
+ * Keep in mind, that for the special case, where the data exists on the CPU and the
+ * ExternalSource's Backend in also a CPU, stream is not needed - feel free to pass
+ * the default stream.
+ *
+ * A convenience, synchronous, overload function is provided,
+ * which handles the stream synchronization.
  *
  * @param pipe_handle Pointer to pipeline handle
  * @param name Pointer to a null-terminated byte string with the name of the External Source
@@ -126,8 +142,8 @@ DLL_PUBLIC void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char
  * @param sample_dim The dimensionality of a single sample.
  * @param layout_str Optional layout provided as a pointer to null-terminated byte string.
  *                   Can be set to NULL.
- * @param stream CUDA stream to use when copying the data onto GPU. If used with CPU device code,
- *               this value will be ignored.
+ * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
+ *               provided stream.
  */
 DLL_PUBLIC void
 daliSetExternalInputTensorsCudaStream(daliPipelineHandle *pipe_handle, const char *name,

@@ -135,8 +135,11 @@ void daliPrefetchSeparate(daliPipelineHandle* pipe_handle,
 void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name, device_type_t device,
                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str) {
+  cudaStream_t stream;
+  CUDA_CALL(cudaStreamCreate(&stream));
   daliSetExternalInputCudaStream(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
-                                 layout_str, 0);
+                                 layout_str, stream);
+  CUDA_CALL(cudaStreamSynchronize(stream));
 }
 
 
@@ -163,8 +166,11 @@ void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *na
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str) {
+  cudaStream_t stream;
+  CUDA_CALL(cudaStreamCreate(&stream));
   daliSetExternalInputTensorsCudaStream(pipe_handle, name, device, data_ptr, data_type, shapes,
-                                        sample_dim, layout_str, 0);
+                                        sample_dim, layout_str, stream);
+  CUDA_CALL(cudaStreamSynchronize(stream));
 }
 
 
