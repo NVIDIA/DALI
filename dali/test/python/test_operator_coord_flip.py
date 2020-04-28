@@ -94,7 +94,10 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
 def test_operator_coord_flip():
     for device in ['cpu', 'gpu']:
         for batch_size in [1, 3]:
-            for layout, shape in [("x", (10, 1)), ("xy", (10, 2)), ("xyz", (10, 3)), ("xy", (0, 2))]:
+            layout_shape_values = [("x", (10, 1)), ("xy", (10, 2)), ("xyz", (10, 3))]
+            if device == 'cpu':
+                layout_shape_values.append(("xy", (0, 2)))
+            for layout, shape in layout_shape_values:
                 for center_x, center_y, center_z in [(0.5, 0.5, 0.5), (0.0, 1.0, -0.5)]:
                     yield check_operator_coord_flip, device, batch_size, layout, shape, center_x, center_y, center_z
 

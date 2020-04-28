@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "dali/operators/coord/coord_flip.h"
+#include <utility>
+#include <vector>
 
 namespace dali {
 
@@ -24,6 +26,7 @@ struct SampleDesc {
   const float* in = nullptr;
   int64_t size = 0;
   uint8_t flip_dim_mask = 0;
+  float mirrored_origin[3];
 };
 
 template <typename T = float>
@@ -37,7 +40,7 @@ __global__ void CoordFlipKernel(const SampleDesc<T>* samples, int ndim) {
   for (int64_t idx = offset + tid; idx < sample.size; idx += grid_size) {
     int d = idx % ndim;
     bool flip = static_cast<bool>(sample.flip_dim_mask & (1 << d));
-    sample.out[idx] = flip ? T(1) - sample.in[idx] : sample.in[idx];
+    sample.out[idx] = flip ? sample.mirrored_origin[d] - sample.in[idx] : sample.in[idx];
   }
 }
 
@@ -66,17 +69,6 @@ void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
 
-  int x_dim = layout_.find('x');
-  DALI_ENFORCE(x_dim >= 0, "Dimension \"x\" not found in the layout");
-
-  int y_dim = layout_.find('y');
-  if (ndim_ > 1)
-    DALI_ENFORCE(y_dim >= 0, "Dimension \"y\" not found in the layout");
-
-  int z_dim = layout_.find('z');
-  if (ndim_ > 2)
-    DALI_ENFORCE(z_dim >= 0, "Dimension \"z\" not found in the layout");
-
   sample_descs_.clear();
   sample_descs_.reserve(batch_size_);
   for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
@@ -91,23 +83,32 @@ void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
     bool flip_z = spec_.GetArgument<int>("flip_z", &ws, sample_id);
 
     if (flip_x) {
-      sample_desc.flip_dim_mask |= (1 << x_dim);
+      sample_desc.flip_dim_mask |= (1 << x_dim_);
     }
 
     if (flip_y) {
-      sample_desc.flip_dim_mask |= (1 << y_dim);
+      sample_desc.flip_dim_mask |= (1 << y_dim_);
     }
 
     if (flip_z) {
-      sample_desc.flip_dim_mask |= (1 << z_dim);
+      sample_desc.flip_dim_mask |= (1 << z_dim_);
     }
+
+    sample_desc.mirrored_origin[x_dim_] =
+        2.0f * spec_.GetArgument<float>("center_x", &ws, sample_id);
+    sample_desc.mirrored_origin[y_dim_] =
+        2.0f * spec_.GetArgument<float>("center_y", &ws, sample_id);
+    sample_desc.mirrored_origin[z_dim_] =
+        2.0f * spec_.GetArgument<float>("center_z", &ws, sample_id);
+
     sample_descs_.emplace_back(std::move(sample_desc));
   }
 
   scratchpad_.set_type(TypeInfo::Create<uint8_t>());
   int64_t sz = batch_size_ * sizeof(SampleDesc<float>);
   scratchpad_.Resize({sz});
-  auto sample_descs_gpu_ = reinterpret_cast<SampleDesc<float>*>(scratchpad_.mutable_data<uint8_t>());
+  auto sample_descs_gpu_ = reinterpret_cast<SampleDesc<float>*>(
+      scratchpad_.mutable_data<uint8_t>());
   auto stream = ws.stream();
   CUDA_CALL(
     cudaMemcpyAsync(sample_descs_gpu_, sample_descs_.data(), sz, cudaMemcpyHostToDevice, stream));
