@@ -64,13 +64,16 @@ void CoordFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   int x_dim = layout_.find('x');
   DALI_ENFORCE(x_dim >= 0, "Dimension \"x\" not found in the layout");
 
-  int y_dim = layout_.find('y');
-  if (ndim_ > 1)
+  int y_dim = 1;
+  if (ndim_ > 1) {
+    y_dim = layout_.find('y');
     DALI_ENFORCE(y_dim >= 0, "Dimension \"y\" not found in the layout");
-
-  int z_dim = layout_.find('z');
-  if (ndim_ > 2)
+  }
+  int z_dim = 2;
+  if (ndim_ > 2) {
+    z_dim = layout_.find('z');
     DALI_ENFORCE(z_dim >= 0, "Dimension \"z\" not found in the layout");
+  }
 
   for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
     std::array<bool, 3> flip_dim = {false, false, false};
