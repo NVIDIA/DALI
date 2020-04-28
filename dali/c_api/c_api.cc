@@ -109,6 +109,7 @@ void daliCreatePipeline(daliPipelineHandle* pipe_handle,
   pipe->Build();
   pipe_handle->pipe = reinterpret_cast<void*>(pipe);
   pipe_handle->ws = new dali::DeviceWorkspace();
+  CUDA_CALL(cudaStreamCreate(&pipe_handle->copy_stream));
 }
 
 void daliPrefetchUniform(daliPipelineHandle* pipe_handle, int queue_depth) {
@@ -135,11 +136,9 @@ void daliPrefetchSeparate(daliPipelineHandle* pipe_handle,
 void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name, device_type_t device,
                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str) {
-  cudaStream_t stream;
-  CUDA_CALL(cudaStreamCreate(&stream));
   daliSetExternalInputAsync(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
-                                 layout_str, stream);
-  CUDA_CALL(cudaStreamSynchronize(stream));
+                                 layout_str, pipe_handle->copy_stream);
+  CUDA_CALL(cudaStreamSynchronize(pipe_handle->copy_stream));
 }
 
 
@@ -166,11 +165,9 @@ void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *na
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str) {
-  cudaStream_t stream;
-  CUDA_CALL(cudaStreamCreate(&stream));
   daliSetExternalInputTensorsAsync(pipe_handle, name, device, data_ptr, data_type, shapes,
-                                        sample_dim, layout_str, stream);
-  CUDA_CALL(cudaStreamSynchronize(stream));
+                                        sample_dim, layout_str, pipe_handle->copy_stream);
+  CUDA_CALL(cudaStreamSynchronize(pipe_handle->copy_stream));
 }
 
 
@@ -388,9 +385,11 @@ void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n, device
 }
 
 void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
-  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
-  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
   DALI_ENFORCE(pipeline != nullptr && ws != nullptr, "Pipeline already deleted");
+  CUDA_CALL(cudaStreamDestroy(pipe_handle->copy_stream));
+  pipe_handle->copy_stream = nullptr;
   delete ws;
   delete pipeline;
   pipe_handle->ws = nullptr;

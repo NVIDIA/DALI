@@ -33,6 +33,7 @@ extern "C" {
 typedef struct {
   void *pipe;
   void *ws;
+  cudaStream_t copy_stream;  /// Stream to perform copy operations on
 } daliPipelineHandle;
 
 typedef enum {
