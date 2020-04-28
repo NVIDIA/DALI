@@ -45,8 +45,30 @@ enum class ReductionKind {
   Fold,    ///< Reduce samples, keep spatial extents
 };
 
+/**
+ * @brief Describes the size of a sample (or sometimes of all samples comined) recuced by
+ *        a single stage.
+ *
+ * Example:
+ * calculate mean pixel values for a video (frames, height, width, channels).
+ * 20 frames, 640x480, 3 channels
+ *
+ * Stage input shape: [20, 307200, 3]
+ * Stage output shape: [20, 512, 3]
+ * outer = 20
+ * inner = 3
+ * reduced_in = 307200
+ * reduced_out = 512     # cannot reduce 307200 elements in one stage
+ */
 struct ReductionShape {
-  int64_t outer, inner, reduced_in, reduced_out;
+  /// Combined volume of the outer dimensions (relative to the ones reduced in this stage)
+  int64_t outer;
+  /// Combined volume of the inner dimensions (relative to the ones reduced in this stage)
+  int64_t inner;
+  /// Input volume of the dimension reduced by this stage
+  int64_t reduced_in;
+  /// Output volume of the dimension reduced by this stage
+  int64_t reduced_out;
 
   int64_t input_elements() const {
     return outer * inner * reduced_in;
@@ -93,8 +115,8 @@ struct ReductionStage {
     // if the stage produces contiguous output or just one sample, we only
     // need one output pointer - otherwise we need a pointer for each sample separately
     int n_out = kind == ReductionKind::All ||     // only one sample in output
-                kind == ReductionKind::Block ||   // contiguous output
                 kind == ReductionKind::Sample ||  // contiguous output
+                kind == ReductionKind::Block ||   // contiguous output
                 kind == ReductionKind::Fold       // only one sample in output
                 ? 1 : num_samples();
 
@@ -115,7 +137,7 @@ struct TempBufferSizes {
   int64_t io_buffers = 0;
   int64_t param_buffers = 0;
 
-  void Reserve(TempBufferSizes sz) {
+  void GrowToFit(TempBufferSizes sz) {
     if (sz.io_buffers > io_buffers)
       io_buffers = sz.io_buffers;
     if (sz.param_buffers > param_buffers)
@@ -324,17 +346,16 @@ class ReduceImplGPU {
   void CalculateTempBuffers(ScratchpadEstimator &se) {
     int nstages = stages_.size();
     buffer_sizes_ = {};
-    for (int stage_idx = 0; stage_idx < nstages; stage_idx++) {
-      auto &stage = stages_[stage_idx];
+    for (auto &stage : stages_) {
       TempBufferSizes stage_buffers;
       CalculateTempBuffers(stage_buffers, stage);
-      buffer_sizes_.Reserve(stage_buffers);
+      buffer_sizes_.GrowToFit(stage_buffers);
     }
+    buffer_sizes_.param_buffers = align_up(buffer_sizes_.param_buffers, 64);
 
     // now reserve the scratchpad - overaligned to 64 bytes, just in case
-    se.add<uint8_t>(AllocType::GPU, buffer_sizes_.io_buffers, 64);
     se.add<uint8_t>(AllocType::Host, buffer_sizes_.param_buffers, 64);
-    se.add<uint8_t>(AllocType::GPU, buffer_sizes_.param_buffers, 64);
+    se.add<uint8_t>(AllocType::GPU, buffer_sizes_.param_buffers + buffer_sizes_.io_buffers, 64);
   }
 
   void CalculateTempBuffers(TempBufferSizes &buf_sizes, ReductionStage &stage) {
@@ -432,8 +453,8 @@ class ReduceImplGPU {
   /**
    * @brief Initializes processing where no per-sample dimension is reduced
    *
-   * The reduction is either pre- and post-processing only or a of repsective elements
-   * across samples.
+   * The reduction is either pre- and post-processing only or a reduction of respective
+   * elements across samples.
    */
   void InitPassThrough() {
     stages_.resize(1);
@@ -446,8 +467,9 @@ class ReduceImplGPU {
     stage.shape.resize(N);
     for (int i = 0; i < N; i++) {
       ReductionShape &rs = stage.shape[i];
-      rs.inner = volume(in_shape_.tensor_shape_span(i));
-      rs.outer = rs.reduced_in = 1;
+      rs.inner = volume(in_shape_.tensor_shape_span(i));  // everything goes here into inner
+      rs.outer = 1;
+      rs.reduced_in = 1;
       rs.reduced_out = (i == 0 || !reduce_batch_) ? 1 : 0;
     }
   }
@@ -519,23 +541,25 @@ class ReduceImplGPU {
       int64_t r = volume(in_shape_.tensor_shape_span(i));
       auto &rs = stages_[0].shape[i];
       rs.reduced_in = r;
-      rs.inner = rs.outer = 1;
     }
+
+    for (auto &stage : stages_)
+      for (auto &rs : stage.shape)
+        rs.inner = rs.outer = 1;  // we reduce everything - no inner, no outer
 
     for (int s = 0; s < substages; s++) {
       int remaining_stages = substages - 1 - s;
       ReductionStage &stage = stages_[s];
       if (stage.kind == ReductionKind::All) {
-        // ReduceAll cannot happen at stage 0
+        // ReduceAll cannot happen at stage 0 unless there's just one sample
         assert(s > 0 || nsamples == 1);
-        int64_t r = 0;
+        int64_t r = 0;  // calculate total size
         if (s > 0) {
           for (auto &rs : stages_[s-1].shape)
             r += rs.reduced_out;
         } else {
           r = max_reduced_extent;
         }
-        stage.shape[0].inner = stage.shape[0].outer = 1;
         stage.shape[0].reduced_in = r;
         r = CalcReducedExtent(r, remaining_stages);
         stage.shape[0].reduced_out = r;

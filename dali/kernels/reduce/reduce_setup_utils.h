@@ -34,7 +34,7 @@ namespace reduce_impl {
  * @return The position of MSB or 0 if x is 0.
  */
 template <typename T>
-constexpr enable_if_t<std::is_integral<T>::value, int> ilog2(T x) {
+DALI_HOST_DEV constexpr enable_if_t<std::is_integral<T>::value, int> ilog2(T x) {
   int n = 0;
   while (x >>= 1)
     n++;
@@ -46,7 +46,7 @@ constexpr enable_if_t<std::is_integral<T>::value, int> ilog2(T x) {
  * @remarks Indices that are outside the bit-width of OutType are ignored.
  */
 template <typename OutType = uint64_t, typename BitIndices>
-OutType to_bit_mask(const BitIndices &bit_indices) {
+DALI_HOST_DEV OutType to_bit_mask(const BitIndices &bit_indices) {
   OutType mask = 0;
   for (int idx : bit_indices)
     mask |= OutType(1) << idx;
@@ -83,42 +83,43 @@ void SimplifyReduction(Axes &out_axes, DimGroups &dim_groups,
   // skip leading degenerate dimensions
   for (i = 0; i < d && is_degenerate_dim(in_shape, i); i++) {}
 
-  if (i < d) {
-    // so we've reached the outermost non-degenerate dimension
-    int remapped = 0;  // its index will map to 0
-
-    bool prev_reduced = (mask >> i) & 1;  // is it reduced?
-    if (prev_reduced)
-      out_axes.push_back(remapped);  // if so, add the axis to the list of reduced dimension groups
-
-    int group_start = 0;     // the dimension group starts at 0 -
-    int group_size = i + 1;  // all leading degenerate dimensions are in this group
-
-    for (i++; i < d; i++) {
-      if (is_degenerate_dim(in_shape, i)) {
-        // Degenerate dimension can be merged with the previous one regardless of whether
-        // it is reduced or not.
-        group_size++;
-        continue;
-      }
-      bool is_reduced = (mask >> i) & 1;
-      if (is_reduced != prev_reduced) {
-        dim_groups.emplace_back(group_start, group_size);
-        group_start = i;
-        group_size = 1;
-        remapped++;
-        if (is_reduced)
-          out_axes.push_back(remapped);
-      } else {
-        group_size++;
-      }
-      prev_reduced = is_reduced;
-    }
-    dim_groups.push_back(std::make_pair(group_start, group_size));
-  } else {
-    // totally degenerate
+  if (i >= d) {
+    // no non-degenerate dimensions
     dim_groups.push_back(std::make_pair(0, d));
+    return;
   }
+
+  // so we've reached the outermost non-degenerate dimension
+  int remapped = 0;  // its index will map to 0
+
+  bool prev_reduced = (mask >> i) & 1;  // is it reduced?
+  if (prev_reduced)
+    out_axes.push_back(remapped);  // if so, add the axis to the list of reduced dimension groups
+
+  int group_start = 0;     // the dimension group starts at 0 -
+  int group_size = i + 1;  // all leading degenerate dimensions are in this group
+
+  for (i++; i < d; i++) {
+    if (is_degenerate_dim(in_shape, i)) {
+      // Degenerate dimension can be merged with the previous one regardless of whether
+      // it is reduced or not.
+      group_size++;
+      continue;
+    }
+    bool is_reduced = (mask >> i) & 1;
+    if (is_reduced != prev_reduced) {
+      dim_groups.emplace_back(group_start, group_size);
+      group_start = i;
+      group_size = 1;
+      remapped++;
+      if (is_reduced)
+        out_axes.push_back(remapped);
+    } else {
+      group_size++;
+    }
+    prev_reduced = is_reduced;
+  }
+  dim_groups.push_back(std::make_pair(group_start, group_size));
 }
 
 
