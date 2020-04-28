@@ -28,11 +28,13 @@ from nose.tools import *
 
 class CoordFlipPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, layout,
+                 center_x = None, center_y = None, center_z = None,
                  num_threads=1, device_id=0):
         super(CoordFlipPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
         self.iterator = iterator
-        self.coord_flip = ops.CoordFlip(device = self.device, layout=layout)
+        self.coord_flip = ops.CoordFlip(device = self.device, layout=layout,
+                                        center_x=center_x, center_y=center_y, center_z=center_z)
         self.flip_x = ops.CoinFlip(probability = 0.5)
         self.flip_y = ops.CoinFlip(probability = 0.5)
         self.flip_z = ops.CoinFlip(probability = 0.5) if len(layout) == 3 else None
@@ -50,9 +52,10 @@ class CoordFlipPipeline(Pipeline):
             outputs.append(flip_z)
         return outputs
 
-def check_operator_coord_flip(device, batch_size, layout, shape):
+def check_operator_coord_flip(device, batch_size, layout, shape, center_x, center_y, center_z):
     eii1 = RandomDataIterator(batch_size, shape=shape, dtype=np.float32)
-    pipe = CoordFlipPipeline(device, batch_size, iter(eii1), layout)
+    pipe = CoordFlipPipeline(device, batch_size, iter(eii1),
+                             layout, center_x, center_y, center_z)
     pipe.build()
     for i in range(30):
         outputs = pipe.run()
@@ -74,17 +77,22 @@ def check_operator_coord_flip(device, batch_size, layout, shape):
             if ndim == 3:
                 flip_dim.append(flip_z[0])
 
+            center_dim = [center_x, center_y]
+            if ndim == 3:
+                center_dim.append(center_z)
+
             expected_out_coords = np.copy(in_coords)
             for d in range(ndim):
                 if flip_dim[d]:
-                    expected_out_coords[:, d] = 1.0 - in_coords[:, d]
+                    expected_out_coords[:, d] = 2 * center_dim[d] - in_coords[:, d]
             np.testing.assert_allclose(out_coords[:, d], expected_out_coords[:, d])
 
 def test_operator_coord_flip():
     for device in ['cpu']:
         for batch_size in [1, 3]:
             for layout, shape in [("x", (10, 1)), ("xy", (10, 2)), ("xyz", (10, 3)), ("xy", (0, 2))]:
-                yield check_operator_coord_flip, device, batch_size, layout, shape
+                for center_x, center_y, center_z in [(0.5, 0.5, 0.5), (0.0, 1.0, -0.5)]:
+                    yield check_operator_coord_flip, device, batch_size, layout, shape, center_x, center_y, center_z
 
 def main():
   for test in test_operator_coord_flip():
