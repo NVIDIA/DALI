@@ -81,6 +81,7 @@ class WarpPipeline(Pipeline):
     def __init__(self, device, batch_size, output_type, input_type, use_input, num_threads=3, device_id=0, num_gpus=1):
         super(WarpPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.use_input = use_input
+        self.use_dynamic_size = use_input  # avoid Cartesian product
         self.name = device
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
@@ -89,12 +90,14 @@ class WarpPipeline(Pipeline):
         else:
           self.cast = None
 
+        static_size = None if self.use_dynamic_size else (240,320)
+
         if use_input:
           self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.batch_size, 10))
-          self.warp = ops.WarpAffine(device = device, size=(240,320), fill_value = 42, output_dtype = output_type)
+          self.warp = ops.WarpAffine(device = device, size=static_size, fill_value = 42, output_dtype = output_type)
         else:
           warp_matrix = (0.1, 0.9, 10, 0.8, -0.2, -20)
-          self.warp = ops.WarpAffine(device = device, size=(240,320), matrix = warp_matrix, fill_value = 42, output_dtype = output_type)
+          self.warp = ops.WarpAffine(device = device, size=static_size, matrix = warp_matrix, fill_value = 42, output_dtype = output_type)
 
         self.iter = 0
 
@@ -106,11 +109,13 @@ class WarpPipeline(Pipeline):
         if self.cast:
           images = self.cast(images)
 
+        dynamic_size = types.Constant(np.array([240, 320], dtype=np.float32)) if self.use_dynamic_size else None
+
         if self.use_input:
           transform = self.transform_source()
-          outputs = self.warp(images, transform)
+          outputs = self.warp(images, transform, size = dynamic_size)
         else:
-          outputs = self.warp(images)
+          outputs = self.warp(images, size = dynamic_size)
         return outputs
 
 
