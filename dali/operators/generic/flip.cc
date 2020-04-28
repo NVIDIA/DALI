@@ -23,12 +23,12 @@
 namespace dali {
 
 DALI_SCHEMA(Flip)
-    .DocStr(R"code(Flip the image over the horizontal and/or vertical axes.)code")
+    .DocStr(R"code(Flip selected dimensions (horizontal, vertical, depthwise).)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("horizontal", R"code(Perform a horizontal flip.)code", 1, true)
-    .AddOptionalArg("vertical", R"code(Perform a vertical flip.)code", 0, true)
-    .AddOptionalArg("depthwise", R"code(Perform a depthwise flip.)code", 0, true)
+    .AddOptionalArg("horizontal", R"code(Flip horizontal dimension.)code", 1, true)
+    .AddOptionalArg("vertical", R"code(Flip vertical dimension.)code", 0, true)
+    .AddOptionalArg("depthwise", R"code(Flip depthwise dimension.)code", 0, true)
     .InputLayout({"FDHWC", "FHWC", "DHWC", "HWC", "FCDHW", "FCHW", "CDHW", "CHW"})
     .AllowSequences()
     .SupportVolumetric();
