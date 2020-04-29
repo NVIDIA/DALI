@@ -246,11 +246,11 @@ auto GetPreprocessorsHelper(std::true_type, const ReduceImpl *impl, WorkArea *wa
   return impl->GetPreprocessorsImpl(*wa);
 }
 
-template <int non_reduced_dim, typename ReduceImpl>
+template <int non_reduced_dims, typename ReduceImpl>
 auto GetPreprocessorBanksHelper(
       std::true_type, const ReduceImpl *impl, WorkArea *wa, int reduced_axis)
-      ->decltype(impl->GetPreprocessorBanksImpl(*wa, reduced_axis)) {
-  return impl->GetPreprocessorBanksImpl(*wa, reduced_axis);
+      ->decltype(impl->template GetPreprocessorBanksImpl<non_reduced_dims>(*wa, reduced_axis)) {
+  return impl->template GetPreprocessorBanksImpl<non_reduced_dims>(*wa, reduced_axis);
 }
 
 template <typename ReduceImpl>
@@ -909,6 +909,20 @@ class ReduceImplGPU {
     CUDA_CALL(cudaGetLastError());
   }
 
+  template <typename Fn>
+  int GetMaxBlockSize(Fn *f) {
+    static int max_block_size[1024] = {};
+    int device = 0;
+    cudaGetDevice(&device);
+    if (!max_block_size[device]) {
+      cudaFuncAttributes attr = {};
+      CUDA_CALL(cudaFuncGetAttributes(&attr, f));
+      max_block_size[device] = attr.maxThreadsPerBlock;
+    }
+    return max_block_size[device];
+  }
+
+
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
   void LaunchStage(Context &ctx, const ReductionStage &stage,
                    ReductionKindTag<ReductionKind::Inner>) {
@@ -919,8 +933,15 @@ class ReduceImplGPU {
     auto *pre = GetPreprocessorBanks<is_first, 1>(wa, stage.axis);
     auto *post = GetPostprocessors<is_last>(wa);
 
+    using pre_bank_t = std::remove_cv_t<std::remove_reference_t<decltype(*pre)>>;;
+    using post_t = std::remove_cv_t<std::remove_reference_t<decltype(*post)>>;;
+    using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
+
+    int max_block_size = GetMaxBlockSize(
+      ReduceInnerKernel<StageOut, StageIn, red_t, pre_bank_t, post_t>);
+
     wa.CopyParamsToDevice(ctx.stream);
-    dim3 block(32, 24);
+    dim3 block(32, max_block_size / 32);
     int gridx = std::max(32, 512/stage.num_samples());
     dim3 grid(gridx, stage.num_samples());
 
@@ -934,7 +955,6 @@ class ReduceImplGPU {
     CUDA_CALL(cudaGetLastError());
   }
 
-
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
   void LaunchStage(Context &ctx, const ReductionStage &stage,
                    ReductionKindTag<ReductionKind::Middle>) {
@@ -945,8 +965,15 @@ class ReduceImplGPU {
     auto *pre = GetPreprocessorBanks<is_first, 2>(wa, stage.axis);
     auto *post = GetPostprocessors<is_last>(wa);
 
+    using pre_bank_t = std::remove_cv_t<std::remove_reference_t<decltype(*pre)>>;;
+    using post_t = std::remove_cv_t<std::remove_reference_t<decltype(*post)>>;;
+    using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
+
+    int max_block_size = GetMaxBlockSize(
+      ReduceMiddleKernel<StageOut, StageIn, red_t, pre_bank_t, post_t>);
+
     wa.CopyParamsToDevice(ctx.stream);
-    dim3 block(32, 24);
+    dim3 block(32, max_block_size / 32);
     int gridx = std::max(32, 512/stage.num_samples());
     dim3 grid(gridx, stage.num_samples());
     const int shm_size = 0x8000;  // 32 kB shared mem

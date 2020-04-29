@@ -58,10 +58,9 @@ struct VariancePreprocessor;
 
 template <typename Mean>
 struct VariancePreprocessor<1, Mean> {
-  const Mean *mean;
+  const Mean *__restrict__ mean;
   i64vec<1> stride;
 
-  template <typename T>
   DALI_HOST_DEV DALI_FORCEINLINE
   reductions::variance<Mean> Get(const i64vec<1> &pos) const {
     auto offset = dot(pos, stride);
@@ -80,7 +79,6 @@ struct VariancePreprocessor<2, Mean> {
   i64vec<2> stride;
   DropDims inner_dims;
 
-  template <typename T>
   DALI_HOST_DEV DALI_FORCEINLINE
   reductions::variance<Mean> Get(const i64vec<2> &pos) const {
     auto offset = dot(i64vec2(pos[0], inner_dims.reindex(pos[1])), stride);
