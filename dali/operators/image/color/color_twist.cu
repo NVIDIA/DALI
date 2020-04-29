@@ -38,6 +38,7 @@ void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       float matrix[nDim][nDim];
       float * m = reinterpret_cast<float*>(matrix);
       IdentityMatrix(m);
+      std::random_shuffle(augments_.begin(), augments_.end());
       for (size_t j = 0; j < augments_.size(); ++j) {
         augments_[j]->Prepare(i, spec_, &ws);
         (*augments_[j])(m);
