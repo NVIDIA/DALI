@@ -52,10 +52,10 @@ instead of in the constructor.)code", false)
 not aligned with the shard size. It means that the remainder of the batch or even the whole batch can be
 artificially added when the data set size is not equally divisible by the number of shards, and the shard is
 not equally divisible by the batch size. In the end, the shard size will be equalized between shards.)code", false)
-.AddOptionalArg("dont_map_files",
-      R"code(If set to true, Loader will not mmap files and will always call a read instead of memcopy.  mmap
+.AddOptionalArg("mmap_files",
+      R"code(If set to false, Loader will not mmap files and will always call a read instead of memcopy.  mmap
 provides a small performance benefit when accessing a local file system, but most of the network ones,
-due to their nature, don't provide optimum performance)code", false);
+due to their nature, don't provide optimum performance)code", true);
 
 size_t start_index(const size_t shard_id,
                    const size_t shard_num,

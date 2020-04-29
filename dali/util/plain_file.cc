@@ -35,8 +35,8 @@ PlainFileStream::PlainFileStream(const std::string& path) :
 void PlainFileStream::Close() {
   if (fp_ != nullptr) {
     std::fclose(fp_);
+    fp_ = nullptr;
   }
-  fp_ = nullptr;
 }
 
 void PlainFileStream::Seek(int64 pos) {
@@ -50,7 +50,9 @@ size_t PlainFileStream::Read(uint8_t * buffer, size_t n_bytes) {
 }
 
 shared_ptr<void> PlainFileStream::Get(size_t /*n_bytes*/) {
-  return shared_ptr<void>();
+  // this unction should return a pointer inside mmaped file
+  // it doesn't make sense in case of PlainFileStream
+  return {};
 }
 
 size_t PlainFileStream::Size() const {

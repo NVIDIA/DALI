@@ -76,11 +76,11 @@ class FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> {
       if (shuffle_after_epoch_) {
         stick_to_shard_ = true;
       }
-    if (!dont_map_files_) {
+    if (mmap_files_) {
       mmap_reserver = FileStream::FileStreamMappinReserver(
                                   static_cast<unsigned int>(initial_buffer_fill_));
     }
-    copy_read_data_ = dont_map_files_ || !mmap_reserver.CanShareMappedData();
+    copy_read_data_ = !mmap_files_ || !mmap_reserver.CanShareMappedData();
   }
 
   void PrepareEmpty(ImageLabelWrapper &tensor) override;

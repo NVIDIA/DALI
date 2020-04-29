@@ -126,11 +126,11 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     current_file_index_ = INVALID_INDEX;
     Reset(true);
 
-    if (!dont_map_files_) {
+    if (mmap_files_) {
       mmap_reserver = FileStream::FileStreamMappinReserver(
                                   static_cast<unsigned int>(initial_buffer_fill_));
     }
-    copy_read_data_ = dont_map_files_ || !mmap_reserver.CanShareMappedData();
+    copy_read_data_ = !mmap_files_ || !mmap_reserver.CanShareMappedData();
   }
 
   void Reset(bool wrap_to_shard) override {
