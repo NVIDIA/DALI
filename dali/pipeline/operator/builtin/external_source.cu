@@ -48,7 +48,7 @@ struct ExternalSource<GPUBackend>::RecycleFunctor {
 template<>
 void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   std::list<uptr_tl_type> data;
-  std::list<uptr_cuda_event_type> cuda_event, internal_copy_to_gpu;
+  std::list<uptr_cuda_event_type> cuda_event, internal_copy_to_storage;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     cv_.wait(busy_lock, [&data = data_in_tl_]{return !data.empty();});
@@ -56,18 +56,18 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     data_in_tl_.pop_front();
     DALI_ENFORCE(is_data_in_tl, "Cannot feed non-contiguous data to GPU op.");
     data = tl_data_.PopFront();
-    internal_copy_to_gpu = copy_to_gpu_events_.PopFront();
+    internal_copy_to_storage = copy_to_storage_events_.PopFront();
     cuda_event = cuda_events_.GetEmpty();
   }
 
-  cudaEventSynchronize(*internal_copy_to_gpu.front());
   auto &output = ws.Output<GPUBackend>(0);
   cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
+  CUDA_CALL(cudaStreamWaitEvent(stream_used,*internal_copy_to_storage.front(), 0));
   output.Copy(*(data.front()), stream_used);
   // record an event so Recycle can synchronize on it
   cudaEventRecord(*cuda_event.front(), stream_used);
   sync_worker_.DoWork(RecycleFunctor{this, std::move(cuda_event), std::move(data),
-                                     std::move(internal_copy_to_gpu)});
+                                     std::move(internal_copy_to_storage)});
 }
 
 DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<GPUBackend>, GPU);

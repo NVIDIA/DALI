@@ -161,22 +161,22 @@ class ExternalSource : public Operator<Backend> {
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
     std::list<uptr_tl_type> data;
-    std::list<uptr_cuda_event_type> copy_to_gpu_event;
+    std::list<uptr_cuda_event_type> copy_to_storage_event;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       data = tl_data_.GetEmpty();
-      copy_to_gpu_event = copy_to_gpu_events_.GetEmpty();
+      copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
 
     data.front()->Copy(tl, stream);
     if (std::is_same<SrcBackend, GPUBackend>::value) {
-      cudaEventRecord(*copy_to_gpu_event.front(), stream);
+      cudaEventRecord(*copy_to_storage_event.front(), stream);
     }
 
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tl_data_.AddBack(data);
-      copy_to_gpu_events_.AddBack(copy_to_gpu_event);
+      copy_to_storage_events_.AddBack(copy_to_storage_event);
       data_in_tl_.push_back(true);
     }
     cv_.notify_one();
@@ -195,11 +195,11 @@ class ExternalSource : public Operator<Backend> {
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
     std::list<uptr_vt_type> data;
-    std::list<uptr_cuda_event_type> copy_to_gpu_event;
+    std::list<uptr_cuda_event_type> copy_to_storage_event;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       data = t_data_.GetEmpty();
-      copy_to_gpu_event = copy_to_gpu_events_.GetEmpty();
+      copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
 
     data.front()->resize(t.size());
@@ -207,13 +207,13 @@ class ExternalSource : public Operator<Backend> {
       (*(data.front()))[i].Copy(t[i], stream);
     }
     if (std::is_same<SrcBackend, GPUBackend>::value) {
-      cudaEventRecord(*copy_to_gpu_event.front(), stream);
+      cudaEventRecord(*copy_to_storage_event.front(), stream);
     }
 
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       t_data_.AddBack(data);
-      copy_to_gpu_events_.AddBack(copy_to_gpu_event);
+      copy_to_storage_events_.AddBack(copy_to_storage_event);
       data_in_tl_.push_back(false);
     }
     cv_.notify_one();
@@ -259,14 +259,14 @@ class ExternalSource : public Operator<Backend> {
       cuda_events_.Recycle(*cuda_event);
     }
     if (copy_to_gpu) {
-      copy_to_gpu_events_.Recycle(*copy_to_gpu);
+      copy_to_storage_events_.Recycle(*copy_to_gpu);
     }
   }
 
   string output_name_;
   detail::CachingList<uptr_tl_type> tl_data_;
   detail::CachingList<uptr_vt_type> t_data_;
-  detail::CachingList<uptr_cuda_event_type> cuda_events_, copy_to_gpu_events_;
+  detail::CachingList<uptr_cuda_event_type> cuda_events_, copy_to_storage_events_;
   std::list<bool> data_in_tl_;
   struct RecycleFunctor;
 

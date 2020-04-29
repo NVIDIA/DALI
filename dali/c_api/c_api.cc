@@ -109,7 +109,7 @@ void daliCreatePipeline(daliPipelineHandle* pipe_handle,
   pipe->Build();
   pipe_handle->pipe = reinterpret_cast<void*>(pipe);
   pipe_handle->ws = new dali::DeviceWorkspace();
-  CUDA_CALL(cudaStreamCreate(&pipe_handle->copy_stream));
+  CUDA_CALL(cudaStreamCreateWithFlags(&pipe_handle->copy_stream, cudaStreamNonBlocking));
 }
 
 void daliPrefetchUniform(daliPipelineHandle* pipe_handle, int queue_depth) {
