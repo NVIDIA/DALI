@@ -12,27 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/image/color/color_twist.h"
+#include <numeric>
+#include <vector>
+
 #include "dali/image/transform.h"
+#include "dali/operators/image/color/color_twist.h"
 
 namespace dali {
 
 DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
-    .AddOptionalArg("image_type",
-        R"code(The color space of input and output image)code", DALI_RGB);
+    .AddOptionalArg("image_type", R"code(The color space of input and output image)code", DALI_RGB);
 
 DALI_SCHEMA(Brightness)
     .DocStr(R"code(Changes the brightness of an image)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("brightness",
-        R"code(Brightness change factor.
+                    R"code(Brightness change factor.
 Values >= 0 are accepted. For example:
 
 * `0` - black image,
 * `1` - no change
-* `2` - increase brightness twice)code", 1.f, true)
+* `2` - increase brightness twice)code",
+                    1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
@@ -41,20 +44,20 @@ DALI_SCHEMA(Contrast)
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("contrast",
-        R"code(Contrast change factor.
+                    R"code(Contrast change factor.
 Values >= 0 are accepted. For example:
 
 * `0` - gray image,
 * `1` - no change
-* `2` - increase contrast twice)code", 1.f, true)
+* `2` - increase contrast twice)code",
+                    1.f, true)
     .AddParent("ColorTransformBase");
 
 DALI_SCHEMA(Hue)
     .DocStr(R"code(Changes the hue level of the image.)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("hue",
-        R"code(Hue change, in degrees.)code", 0.f, true)
+    .AddOptionalArg("hue", R"code(Hue change, in degrees.)code", 0.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
@@ -63,11 +66,12 @@ DALI_SCHEMA(Saturation)
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("saturation",
-        R"code(Saturation change factor.
+                    R"code(Saturation change factor.
 Values >= 0 are supported. For example:
 
 * `0` - completely desaturated image
-* `1` - no change to image's saturation)code", 1.f, true)
+* `1` - no change to image's saturation)code",
+                    1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
@@ -75,28 +79,30 @@ DALI_SCHEMA(ColorTwist)
     .DocStr(R"code(Combination of hue, saturation, contrast and brightness.)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("hue",
-        R"code(Hue change, in degrees.)code", 0.f, true)
+    .AddOptionalArg("hue", R"code(Hue change, in degrees.)code", 0.f, true)
     .AddOptionalArg("saturation",
-        R"code(Saturation change factor.
+                    R"code(Saturation change factor.
 Values >= 0 are supported. For example:
 
 * `0` - completely desaturated image
-* `1` - no change to image's saturation)code", 1.f, true)
+* `1` - no change to image's saturation)code",
+                    1.f, true)
     .AddOptionalArg("contrast",
-        R"code(Contrast change factor.
+                    R"code(Contrast change factor.
 Values >= 0 are accepted. For example:
 
 * `0` - gray image,
 * `1` - no change
-* `2` - increase contrast twice)code", 1.f, true)
+* `2` - increase contrast twice)code",
+                    1.f, true)
     .AddOptionalArg("brightness",
-        R"code(Brightness change factor.
+                    R"code(Brightness change factor.
 Values >= 0 are accepted. For example:
 
 * `0` - black image,
 * `1` - no change
-* `2` - increase brightness twice)code", 1.f, true)
+* `2` - increase brightness twice)code",
+                    1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
@@ -122,9 +128,13 @@ void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
     float matrix[nDim][nDim];
     float *m = reinterpret_cast<float *>(matrix);
     IdentityMatrix(m);
+
+    std::vector<int> idx(augments_.size());
+    std::iota(idx.begin(), idx.end(), 0);
+    std::random_shuffle(idx.begin(), idx.end());
     for (size_t j = 0; j < augments_.size(); ++j) {
-      augments_[j]->Prepare(ws.data_idx(), spec_, &ws);
-      (*augments_[j])(m);
+      augments_[idx[j]]->Prepare(ws.data_idx(), spec_, &ws);
+      (*augments_[idx[j]])(m);
     }
 
     MakeColorTransformation(pImgInp, H, W, C, m, pImgOut);

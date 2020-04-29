@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #ifndef DALI_OPERATORS_IMAGE_COLOR_COLOR_TWIST_H_
 #define DALI_OPERATORS_IMAGE_COLOR_COLOR_TWIST_H_
 
-#include <vector>
-#include <memory>
 #include <cmath>
+#include <memory>
+#include <vector>
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -27,15 +26,15 @@ class ColorAugment {
  public:
   static const int nDim = 4;
 
-  virtual void operator() (float * matrix) = 0;
-  virtual void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) = 0;
+  virtual void operator()(float *matrix) = 0;
+  virtual void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace *ws) = 0;
 
   virtual ~ColorAugment() = default;
 };
 
 class Brightness : public ColorAugment {
  public:
-  void operator() (float * matrix) override {
+  void operator()(float *matrix) override {
     for (int i = 0; i < nDim - 1; ++i) {
       for (int j = 0; j < nDim; ++j) {
         matrix[i * nDim + j] *= brightness_;
@@ -43,7 +42,7 @@ class Brightness : public ColorAugment {
     }
   }
 
-  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) override {
+  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace *ws) override {
     brightness_ = spec.GetArgument<float>("brightness", ws, i);
   }
 
@@ -53,23 +52,21 @@ class Brightness : public ColorAugment {
 
 class Contrast : public ColorAugment {
  public:
-  void operator() (float * matrix) override {
-    const float const_mat[] = {.299, .587, .114, 0.0,
-                               .299, .587, .114, 0.0,
-                               .299, .587, .114, 0.0,
-                               .0,   .0,   .0,   1.0};
+  void operator()(float *matrix) override {
+    const float const_mat[] = {.299, .587, .114, 0.0, .299, .587, .114, 0.0,
+                               .299, .587, .114, 0.0, .0,   .0,   .0,   1.0};
     for (int i = 0; i < nDim - 1; ++i) {
       for (int j = 0; j < nDim; ++j) {
         float sum = 0;
         for (int k = 0; k < nDim; ++k) {
-            sum += const_mat[i * nDim + k] * matrix[k * nDim + j];
+          sum += const_mat[i * nDim + k] * matrix[k * nDim + j];
         }
         matrix[i * nDim + j] = matrix[i * nDim + j] * contrast_ + sum * (1 - contrast_);
       }
     }
   }
 
-  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) override {
+  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace *ws) override {
     contrast_ = spec.GetArgument<float>("contrast", ws, i);
   }
 
@@ -79,10 +76,10 @@ class Contrast : public ColorAugment {
 
 class Hue : public ColorAugment {
  public:
-  void operator() (float * matrix) override {
-    float temp[nDim*nDim];  // NOLINT(*)
+  void operator()(float *matrix) override {
+    float temp[nDim * nDim];  // NOLINT(*)
     for (int i = 0; i < nDim * nDim; ++i) {
-        temp[i] = matrix[i];
+      temp[i] = matrix[i];
     }
     const float U = cos(hue_ * M_PI / 180.0);
     const float V = sin(hue_ * M_PI / 180.0);
@@ -91,35 +88,28 @@ class Hue : public ColorAugment {
     // from https://beesbuzz.biz/code/hsv_color_transforms.php. Derived by
     // transforming first to HSV, then do the modification, and transfom back to RGB.
 
-    const float const_mat[] = {.299, .587, .114, 0.0,
-                               .299, .587, .114, 0.0,
-                               .299, .587, .114, 0.0,
-                               .0,   .0,   .0,   1.0};
+    const float const_mat[] = {.299, .587, .114, 0.0, .299, .587, .114, 0.0,
+                               .299, .587, .114, 0.0, .0,   .0,   .0,   1.0};
 
-    const float U_mat[] = { .701, -.587, -.114, 0.0,
-                           -.299,  .413, -.114, 0.0,
-                           -.300, -.588, .886,  0.0,
-                            .0,    .0,   .0,    0.0};
+    const float U_mat[] = {.701,  -.587, -.114, 0.0, -.299, .413, -.114, 0.0,
+                           -.300, -.588, .886,  0.0, .0,    .0,   .0,    0.0};
 
-    const float V_mat[] = { .168,   .330, -.497, 0.0,
-                           -.328,   .035,  .292, 0.0,
-                           1.25, -1.05,  -.203, 0.0,
-                            .0,    .0,    .0,   0.0};
+    const float V_mat[] = {.168, .330,  -.497, 0.0, -.328, .035, .292, 0.0,
+                           1.25, -1.05, -.203, 0.0, .0,    .0,   .0,   0.0};
     // The last row stays the same so we update only nDim - 1 rows
-    for (int i = 0 ; i < nDim - 1; ++i) {
+    for (int i = 0; i < nDim - 1; ++i) {
       for (int j = 0; j < nDim; ++j) {
         float sum = 0;
         for (int k = 0; k < nDim; ++k) {
-          sum += temp[k * nDim + j] * (const_mat[i * nDim + k] +
-                                       U_mat[i * nDim + k] * U +
-                                       V_mat[i * nDim + k] * V);
+          sum += temp[k * nDim + j] *
+                 (const_mat[i * nDim + k] + U_mat[i * nDim + k] * U + V_mat[i * nDim + k] * V);
         }
         matrix[i * nDim + j] = sum;
       }
     }
   }
 
-  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) override {
+  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace *ws) override {
     hue_ = spec.GetArgument<float>("hue", ws, i);
   }
 
@@ -129,40 +119,35 @@ class Hue : public ColorAugment {
 
 class Saturation : public ColorAugment {
  public:
-  void operator() (float * matrix) override {
-    float temp[nDim*nDim];  // NOLINT(*)
+  void operator()(float *matrix) override {
+    float temp[nDim * nDim];  // NOLINT(*)
     for (int i = 0; i < nDim * nDim; ++i) {
-        temp[i] = matrix[i];
+      temp[i] = matrix[i];
     }
 
     // Single matrix transform for both hue and saturation change. Matrix taken
     // from https://beesbuzz.biz/code/hsv_color_transforms.php. Derived by
     // transforming first to HSV, then do the modification, and transfom back to RGB.
 
-    const float const_mat[] = {.299, .587, .114, 0.0,
-                               .299, .587, .114, 0.0,
-                               .299, .587, .114, 0.0,
-                               .0,   .0,   .0,   1.0};
+    const float const_mat[] = {.299, .587, .114, 0.0, .299, .587, .114, 0.0,
+                               .299, .587, .114, 0.0, .0,   .0,   .0,   1.0};
 
-    const float U_mat[] = { .701, -.587, -.114, 0.0,
-                           -.299,  .413, -.114, 0.0,
-                           -.300, -.588, .886,  0.0,
-                            .0,    .0,   .0,    0.0};
+    const float U_mat[] = {.701,  -.587, -.114, 0.0, -.299, .413, -.114, 0.0,
+                           -.300, -.588, .886,  0.0, .0,    .0,   .0,    0.0};
 
     // The last row stays the same so we update only nDim - 1 rows
-    for (int i = 0 ; i < nDim - 1; ++i) {
+    for (int i = 0; i < nDim - 1; ++i) {
       for (int j = 0; j < nDim; ++j) {
         float sum = 0;
         for (int k = 0; k < nDim; ++k) {
-          sum += temp[k * nDim + j] * (const_mat[i * nDim + k] +
-                                       U_mat[i * nDim + k] * saturation_);
+          sum += temp[k * nDim + j] * (const_mat[i * nDim + k] + U_mat[i * nDim + k] * saturation_);
         }
         matrix[i * nDim + j] = sum;
       }
     }
   }
 
-  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) override {
+  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace *ws) override {
     saturation_ = spec.GetArgument<float>("saturation", ws, i);
   }
 
@@ -175,13 +160,14 @@ class ColorTwistBase : public Operator<Backend> {
  public:
   static const int nDim = 4;
 
-  inline explicit ColorTwistBase(const OpSpec &spec) : Operator<Backend>(spec),
-                      C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
+  inline explicit ColorTwistBase(const OpSpec &spec)
+      : Operator<Backend>(spec),
+        C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
     DALI_ENFORCE(C_ == 3, "Color transformation is implemented only for RGB images");
   }
 
   ~ColorTwistBase() override {
-    for (auto * a : augments_) {
+    for (auto *a : augments_) {
       delete a;
     }
   }
@@ -193,14 +179,14 @@ class ColorTwistBase : public Operator<Backend> {
 
   void RunImpl(Workspace<Backend> &ws) override;
 
-  std::vector<ColorAugment*> augments_;
+  std::vector<ColorAugment *> augments_;
   const int C_;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
  private:
-  void IdentityMatrix(float * matrix) {
+  void IdentityMatrix(float *matrix) {
     for (int i = 0; i < nDim; ++i) {
       for (int j = 0; j < nDim; ++j) {
         if (i == j) {
@@ -233,7 +219,7 @@ class ContrastAdjust : public ColorTwistBase<Backend> {
   ~ContrastAdjust() override = default;
 };
 
-template<typename Backend>
+template <typename Backend>
 class HueAdjust : public ColorTwistBase<Backend> {
  public:
   inline explicit HueAdjust(const OpSpec &spec) : ColorTwistBase<Backend>(spec) {
@@ -243,7 +229,7 @@ class HueAdjust : public ColorTwistBase<Backend> {
   ~HueAdjust() override = default;
 };
 
-template<typename Backend>
+template <typename Backend>
 class SaturationAdjust : public ColorTwistBase<Backend> {
  public:
   inline explicit SaturationAdjust(const OpSpec &spec) : ColorTwistBase<Backend>(spec) {
@@ -253,7 +239,7 @@ class SaturationAdjust : public ColorTwistBase<Backend> {
   ~SaturationAdjust() override = default;
 };
 
-template<typename Backend>
+template <typename Backend>
 class ColorTwistAdjust : public ColorTwistBase<Backend> {
  public:
   inline explicit ColorTwistAdjust(const OpSpec &spec) : ColorTwistBase<Backend>(spec) {

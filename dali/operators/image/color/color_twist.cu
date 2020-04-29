@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <vector>
+#include <numeric>
 
 #include "dali/util/npp.h"
 #include "dali/operators/image/color/color_twist.h"
@@ -33,15 +35,19 @@ void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   cudaStream_t old_stream = nppGetStream();
   nppSetStream(ws.stream());
 
+  
   for (size_t i = 0; i < input.ntensor(); ++i) {
     if (!augments_.empty()) {
       float matrix[nDim][nDim];
       float * m = reinterpret_cast<float*>(matrix);
       IdentityMatrix(m);
-      std::random_shuffle(augments_.begin(), augments_.end());
+
+      std::vector<int> idx(augments_.size());
+      std::iota(idx.begin(), idx.end(), 0);
+      std::random_shuffle(idx.begin(), idx.end());
       for (size_t j = 0; j < augments_.size(); ++j) {
-        augments_[j]->Prepare(i, spec_, &ws);
-        (*augments_[j])(m);
+        augments_[idx[j]]->Prepare(i, spec_, &ws);
+        (*augments_[idx[j]])(m);
       }
       NppiSize size;
       size.height = input.tensor_shape(i)[0];
