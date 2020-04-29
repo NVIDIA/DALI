@@ -64,6 +64,9 @@ class Contrast : public ColorAugment {
 class Hue : public ColorAugment {
  public:
   void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) override {
+    // Single matrix transform for both hue and saturation change. Matrix taken
+    // from https://beesbuzz.biz/code/hsv_color_transforms.php. Derived by
+    // transforming first to HSV, then do the modification, and transfom back to RGB.
     auto hue = spec.GetArgument<float>("hue", ws, i);
     const float U = cos(hue * M_PI / 180.0);
     const float V = sin(hue * M_PI / 180.0);
