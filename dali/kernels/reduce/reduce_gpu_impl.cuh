@@ -230,6 +230,55 @@ struct WorkArea {
   TempBufferSizes buffer_sizes;
 };
 
+template <bool value>
+using bool_const = std::integral_constant<bool, value>;
+
+
+template <typename ReduceImpl>
+auto GetPreprocessorHelper(std::true_type, const ReduceImpl *impl)
+      ->decltype(impl->GetPreprocessorImpl()) {
+  return impl->GetPreprocessorImpl();
+}
+
+template <typename ReduceImpl>
+auto GetPreprocessorsHelper(std::true_type, const ReduceImpl *impl, WorkArea *wa)
+      ->decltype(impl->GetPreprocessorsImpl(*wa)) {
+  return impl->GetPreprocessorsImpl(*wa);
+}
+
+template <int non_reduced_dim, typename ReduceImpl>
+auto GetPreprocessorBanksHelper(
+      std::true_type, const ReduceImpl *impl, WorkArea *wa, int reduced_axis)
+      ->decltype(impl->GetPreprocessorBanksImpl(*wa, reduced_axis)) {
+  return impl->GetPreprocessorBanksImpl(*wa, reduced_axis);
+}
+
+template <typename ReduceImpl>
+auto GetPostprocessorHelper(std::true_type, const ReduceImpl *impl)
+      ->decltype(impl->GetPostprocessorImpl()) {
+  return impl->GetPostprocessorImpl();
+}
+
+template <typename ReduceImpl>
+auto GetPostprocessorsHelper(std::true_type, const ReduceImpl *impl, WorkArea *wa)
+      ->decltype(impl->GetPostprocessorsImpl(*wa)) {
+  return impl->GetPostprocessorsImpl(*wa);
+}
+
+
+template <bool do_preprocess>
+inline identity GetPreprocessorHelper(bool_const<do_preprocess>, ...) { return {}; }
+template <bool do_preprocess>
+inline identity *GetPreprocessorsHelper(bool_const<do_preprocess>, ...) { return nullptr; }
+template <bool do_postprocess>
+inline identity GetPostprocessorHelper(bool_const<do_postprocess>, ...) { return {}; }
+template <bool do_postprocess>
+inline identity *GetPostprocessorsHelper(bool_const<do_postprocess>, ...) { return nullptr; }
+template <int non_reduced_dims, bool do_preprocess>
+inline IdentityPreprocessor<non_reduced_dims> *
+GetPreprocessorBanksHelper(bool_const<do_preprocess>, ...) {
+  return nullptr;
+}
 
 template <typename Out, typename In, typename Acc, typename Actual>
 class ReduceImplGPU {
@@ -271,77 +320,55 @@ class ReduceImplGPU {
   using Preprocessor = identity;
   using Postprocessor = identity;
 
-  bool HasPreprocessingParams() const { return false; }
-  bool HasPostprocessingParams() const { return false; }
-
-  template <bool value>
-  using bool_const = std::integral_constant<bool, value>;
+  bool HasPreprocessingParams() const {
+    using pbank = std::remove_reference_t<decltype(
+      *GetPreprocessorBanks<true, 2>(std::declval<WorkArea&>(), 0))>;
+    return !std::is_empty<pbank>::value;
+  }
+  bool HasPostprocessingParams() const {
+    using postprocessor = std::remove_reference_t<decltype(GetPostprocessor<true>())>;
+    return !std::is_empty<postprocessor>::value;
+  }
 
   /**
    * The functions below get the preprocessors and postprocessors.
    * Note the is_first/is_last compile-time parameters. Overload resolution will pick the
-   * right function with distinct return type. The overloads with false_type are final -
-   * they should not be shadowed by the Actual class. They return trivial pre/postprocessors
-   * so that the implementation of intermediate stages runs faster.
-   *
-   * When redefining these functions in Actual, the Preprocessor, PreprocessorBank and
-   * Postprocessor types must be redefined to math the return types of the respective functions
-   * or memory corruption may occur.
+   * right function with distinct return type.
+   * The function uses a helper class and have a default template arugment Derived = Actual
+   * to make the return type a depenedent type.
+   * To specialize these, define GetPreprocessorImpl, GetPostprocessorsImpl, etc in the
+   * Actual class. These functions don't need the std::true_type argument.
    */
 
-  /// Can be redefined in CRTP derived class
-  template <int non_reduced_dim>
-  PreprocessorBank<non_reduced_dim> *GetPreprocessorBanks(
-      WorkArea &wa, int reduced_axis, std::true_type is_first) const {
-    return nullptr;
+  template <bool do_preprocess, int non_reduced_dim, typename Derived = Actual>
+  auto *GetPreprocessorBanks(
+      WorkArea &wa, int reduced_axis) const {
+    return GetPreprocessorBanksHelper<non_reduced_dim>(bool_const<do_preprocess>(),
+      static_cast<const Derived *>(this), &wa, reduced_axis);
   }
 
-  /// DO NOT redefine in CRTP derived class
-  template <int non_reduced_dim>
-  IdentityPreprocessor<non_reduced_dim> *GetPreprocessorBanks(
-      WorkArea &wa, int reduced_axis, std::false_type is_first) const {
-    return nullptr;
+  template <bool do_preprocess, typename Derived = Actual>
+  auto *GetPreprocessors(WorkArea &wa) const {
+    return GetPreprocessorsHelper(
+      bool_const<do_preprocess>(), static_cast<const Derived *>(this), &wa);
   }
 
-  /// Can be redefined in CRTP derived class
-  Preprocessor *GetPreprocessors(WorkArea &wa, std::true_type is_first) const {
-    return nullptr;
+  template <bool do_preprocess, typename Derived = Actual>
+  auto GetPreprocessor() const {
+    return GetPreprocessorHelper(bool_const<do_preprocess>(), static_cast<const Derived *>(this));
   }
 
-  /// DO NOT redefine in CRTP derived class
-  identity *GetPreprocessors(WorkArea &wa, std::false_type is_first) const {
-    return nullptr;
+  template <bool do_postprocess, typename Derived = Actual>
+  auto *GetPostprocessors(WorkArea &wa) const {
+    return GetPostprocessorsHelper(
+      bool_const<do_postprocess>(), static_cast<const Derived *>(this), &wa);
   }
 
-  /// Can be redefined in CRTP derived class
-  Preprocessor GetPreprocessor(std::true_type is_first) const {
-    return {};
+  template <bool do_postprocess, typename Derived = Actual>
+  auto GetPostprocessor() const {
+    return GetPostprocessorHelper(bool_const<do_postprocess>(), static_cast<const Derived *>(this));
   }
 
-  /// DO NOT redefine in CRTP derived class
-  identity GetPreprocessor(std::false_type is_first) const {
-    return {};
-  }
-
-  /// Can be redefined in CRTP derived class
-  Postprocessor *GetPostprocessors(WorkArea &wa, std::true_type is_last) const {
-    return nullptr;
-  }
-
-  /// DO NOT redefine in CRTP derived class
-  identity *GetPostprocessors(WorkArea &wa, std::false_type is_last) const {
-    return nullptr;
-  }
-
-  /// Can be redefined in CRTP derived class
-  Postprocessor GetPostprocessor(std::true_type is_last) const {
-    return {};
-  }
-
-  /// DO NOT redefine in CRTP derived class
-  identity GetPostprocessor(std::false_type is_last) const {
-    return {};
-  }
 
   void CalculateTempBuffers(ScratchpadEstimator &se) {
     int nstages = stages_.size();
@@ -370,7 +397,7 @@ class ReduceImplGPU {
     switch (stage.kind) {
       case ReductionKind::Middle:
       case ReductionKind::Inner:
-        if (stage.index == 0) { // playing it safe for unlikely event of specialization
+        if (stage.index == 0) {  // playing it safe for unlikely event of specialization
           if (stage.is_last)
             buf_sizes.AddParam<ReduceSampleDesc<Out, In>>(N);
           else
@@ -798,8 +825,8 @@ class ReduceImplGPU {
     assert(!is_first || ctx.input.is_contiguous());
     WorkArea &wa = ctx.work_area;
 
-    auto pre = This().GetPreprocessor(bool_const<is_first>());
-    auto post = This().GetPostprocessor(bool_const<is_last>());
+    auto pre = GetPreprocessor<is_first>();
+    auto post = GetPostprocessor<is_last>();
 
     const StageIn *in = is_first ? reinterpret_cast<const StageIn *>(ctx.input.data[0])
                                  : wa.InputBuffer<StageIn>(stage.input_elements());
@@ -835,8 +862,8 @@ class ReduceImplGPU {
     dim3 block(32, 32);
     dim3 grid(stage.shape[0].reduced_out, stage.num_samples());
 
-    auto *pre = This().GetPreprocessors(wa, bool_const<is_first>());
-    auto *post = This().GetPostprocessors(wa, bool_const<is_last>());
+    auto *pre = GetPreprocessors<is_first>(wa);
+    auto *post = GetPostprocessors<is_last>(wa);
 
     wa.CopyParamsToDevice(ctx.stream);
 
@@ -859,8 +886,8 @@ class ReduceImplGPU {
     assert(!is_first && "Block reduction is never the first stage");
     WorkArea &wa = ctx.work_area;
 
-    auto *pre = This().GetPreprocessors(wa, bool_const<is_first>());
-    auto *post = This().GetPostprocessors(wa, bool_const<is_last>());
+    auto *pre = GetPreprocessors<is_first>(wa);
+    auto *post = GetPostprocessors<is_last>(wa);
 
     const StageIn *in = is_first ? reinterpret_cast<const StageIn *>(ctx.input.data[0])
                                  : wa.InputBuffer<StageIn>(stage.input_elements());
@@ -889,8 +916,8 @@ class ReduceImplGPU {
     WorkArea &wa = ctx.work_area;
     SampleDesc *cpu_samples = PrepareSampleDescs<StageOut, StageIn>(ctx, stage);
 
-    auto *pre = This().template GetPreprocessorBanks<1>(wa, stage.axis, bool_const<is_first>());
-    auto *post = This().GetPostprocessors(wa, bool_const<is_last>());
+    auto *pre = GetPreprocessorBanks<is_first, 1>(wa, stage.axis);
+    auto *post = GetPostprocessors<is_last>(wa);
 
     wa.CopyParamsToDevice(ctx.stream);
     dim3 block(32, 24);
@@ -915,8 +942,8 @@ class ReduceImplGPU {
     WorkArea &wa = ctx.work_area;
     SampleDesc *cpu_samples = PrepareSampleDescs<StageOut, StageIn>(ctx, stage);
 
-    auto *pre = This().template GetPreprocessorBanks<2>(wa, stage.axis, bool_const<is_first>());
-    auto *post = This().GetPostprocessors(wa, bool_const<is_last>());
+    auto *pre = GetPreprocessorBanks<is_first, 2>(wa, stage.axis);
+    auto *post = GetPostprocessors<is_last>(wa);
 
     wa.CopyParamsToDevice(ctx.stream);
     dim3 block(32, 24);
@@ -957,8 +984,8 @@ class ReduceImplGPU {
     dim3 block(1024);
     dim3 grid(std::min<int>(div_ceil(sample_size, 1024), 1024));
 
-    auto *pre = This().template GetPreprocessorBanks<1>(wa, -1, bool_const<is_first>());
-    auto post = This().GetPostprocessor(bool_const<is_last>());
+    auto *pre = GetPreprocessorBanks<is_first, 1>(wa, -1);
+    auto post = GetPostprocessor<is_last>();
 
     wa.CopyParamsToDevice(ctx.stream);
 
@@ -992,8 +1019,8 @@ class ReduceImplGPU {
     dim3 block(1024);
     dim3 grid(std::max(div_ceil(1024, N), 32), N);
 
-    auto *pre = This().template GetPreprocessorBanks<1>(wa, -1, bool_const<is_first>());
-    auto *post = This().GetPostprocessors(wa, bool_const<is_last>());
+    auto *pre = GetPreprocessorBanks<is_first, 1>(wa, -1);
+    auto *post = GetPostprocessors<is_last>(wa);
 
     wa.CopyParamsToDevice(ctx.stream);
 
