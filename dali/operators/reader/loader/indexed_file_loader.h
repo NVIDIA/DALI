@@ -120,17 +120,17 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
   void PrepareMetadataImpl() override {
-    DALI_ENFORCE(!uris_.empty(), "No files specified.");
-    ReadIndexFile(index_uris_);
-    DALI_ENFORCE(!indices_.empty(), "Content of index files should not be empty");
-    current_file_index_ = INVALID_INDEX;
-    Reset(true);
-
     if (!dont_use_mmap_) {
       mmap_reserver = FileStream::FileStreamMappinReserver(
                                   static_cast<unsigned int>(initial_buffer_fill_));
     }
     copy_read_data_ = dont_use_mmap_ || !mmap_reserver.CanShareMappedData();
+
+    DALI_ENFORCE(!uris_.empty(), "No files specified.");
+    ReadIndexFile(index_uris_);
+    DALI_ENFORCE(!indices_.empty(), "Content of index files should not be empty");
+    current_file_index_ = INVALID_INDEX;
+    Reset(true);
   }
 
   void Reset(bool wrap_to_shard) override {
