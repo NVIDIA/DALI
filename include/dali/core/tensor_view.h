@@ -57,7 +57,8 @@ bool ContainsCoords(const Shape &shape, const Position &pos) {
  */
 DALI_NO_EXEC_CHECK
 template <typename Shape, typename Position>
-DALI_HOST_DEV if_array_like<Position, ptrdiff_t> CalcOffset(const Shape &shape, const Position &pos) {
+DALI_HOST_DEV if_array_like<Position, ptrdiff_t> CalcOffset(const Shape &shape,
+                                                            const Position &pos) {
   ptrdiff_t ofs = pos[0];
   const int pos_dim = size(pos);
   const int shape_dim = size(shape);

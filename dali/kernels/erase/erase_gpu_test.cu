@@ -97,8 +97,7 @@ struct EraseTestParams {
 };
 
 template <int ndim>
-std::ostream& operator<<(std::ostream& os, const EraseTestParams<ndim>& p)
-{
+std::ostream& operator<<(std::ostream& os, const EraseTestParams<ndim>& p) {
   os << "Num erase regions: " << p.num_erase_regions << ", region generation: "
      << p.region_generation << ", fill type: " << p.fill_type << ", shape: " << p.shape;
   return os;

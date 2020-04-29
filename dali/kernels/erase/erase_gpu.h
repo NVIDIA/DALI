@@ -383,11 +383,10 @@ struct EraseGpu {
     const int num_samples = in.num_samples();
 
     if (channel_dim == -1) {
-      DALI_ENFORCE(
-          fill_values.size() == 1 || fill_values.size() == 0,
-          make_string(
-              "Kernel is unaware of channel dimension, exactly 0 or 1 fill value is expected, got: ",
-              fill_values.size(), "."));
+      DALI_ENFORCE(fill_values.size() == 1 || fill_values.size() == 0,
+                   make_string("Kernel is unaware of channel dimension, exactly 0 or 1 fill value "
+                               "is expected, got: ",
+                               fill_values.size(), "."));
     } else {
       // ensure that dim `channel_dim` in every sample matches fill_values.size();
       for (int i = 0; i < num_samples; i++) {
@@ -522,7 +521,6 @@ struct EraseGpu {
 
     erase_gpu_impl<channel_dim><<<grid_dim, block_dim, 0, stream>>>(
         sample_desc_gpu, region_dim, erase_regions_count, fill_values_span);
-
   }
 };
 
