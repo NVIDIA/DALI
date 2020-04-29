@@ -31,7 +31,7 @@ Requirements
 Training
 --------
 
-To train a model, run :fileref:`docs/examples/pytorch/resnet50/main.py` with the desired model architecture and the path to the ImageNet dataset:
+To train a model, run :fileref:`docs/examples/use_cases/pytorch/resnet50/main.py` with the desired model architecture and the path to the ImageNet dataset:
 
 .. code-block:: bash
 
@@ -55,7 +55,7 @@ Usage
    positional arguments:
    DIR                         path(s) to dataset (if one path is provided, it is assumed to have subdirectories named "train" and "val"; alternatively, train and val paths can be specified directly by providing both paths as arguments)
 
-   optional arguments:
+   optional arguments (for the full list please check `Apex ImageNet example <https://github.com/NVIDIA/apex/tree/master/examples/imagenet>`_)
    -h, --help                  show this help message and exit
    --arch ARCH, -a ARCH        model architecture: alexnet | resnet | resnet101 | resnet152 | resnet18 | resnet34 | resnet50 | vgg | vgg11 | vgg11_bn | vgg13 | vgg13_bn | vgg16 | vgg16_bn | vgg19 | vgg19_bn (default: resnet18)
    -j N, --workers N           number of data loading workers (default: 4)
@@ -69,4 +69,4 @@ Usage
    --resume PATH               path to latest checkpoint (default: none)
    -e, --evaluate              evaluate model on validation set
    --pretrained                use pre-trained model
-   --dali_cpu                   use CPU based pipeline for DALI, for heavy GPU networks it may work better, for IO bottlenecked one like RN18 GPU default should be faster
+   --dali_cpu                  use CPU based pipeline for DALI, for heavy GPU networks it may work better, for IO bottlenecked one like RN18 GPU default should be faster

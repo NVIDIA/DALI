@@ -3,15 +3,14 @@
 pip_packages="nose jupyter tensorflow-gpu"
 target_dir=./dali/test/python
 
-# populate epilog and prolog with variants to enable/disable conda and virtual env
+# populate epilog and prolog with variants to enable/disable virtual env
 # every test will be executed for bellow configs
-prolog=(: enable_conda enable_virtualenv)
-epilog=(: disable_conda disable_virtualenv)
+prolog=(: enable_virtualenv)
+epilog=(: disable_virtualenv)
 
 test_body() {
     # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
     pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
-
 
     # Installing "current" dali tf (built against installed TF)
     pip install ../../../nvidia-dali-tf-plugin*.tar.gz

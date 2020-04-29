@@ -30,7 +30,7 @@ class JitterAugment {
  public:
   explicit JitterAugment(const OpSpec& spec) :
         nDegree_(spec.GetArgument<int>("nDegree")),
-        rnd_(spec.GetArgument<int64_t>("seed"), 128*256) {}
+        rnd_(spec.GetArgument<int64_t>("seed"), rnd_size_) {}
 
   DALI_HOST_DEV ivec2 operator()(int y, int x, int c, int H, int W, int C) {
     // JITTER_PREAMBLE
@@ -45,8 +45,8 @@ class JitterAugment {
     const int idx = 0;
 #endif
 
-    const int newX = rnd_.rand(idx) % degr - nHalf + x;
-    const int newY = rnd_.rand(idx) % degr - nHalf + y;
+    const int newX = rnd_.rand(idx % rnd_size_) % degr - nHalf + x;
+    const int newY = rnd_.rand(idx % rnd_size_) % degr - nHalf + y;
 
     return { cuda_min(cuda_max(0, newX), W), cuda_min(cuda_max(0, newY), H) };
   }
@@ -58,6 +58,7 @@ class JitterAugment {
  private:
   const size_t nDegree_;
   Randomizer<Backend> rnd_;
+  static constexpr unsigned rnd_size_ = 128 * 256;
 };
 
 template <typename Backend>

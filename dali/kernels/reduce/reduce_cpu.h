@@ -89,8 +89,6 @@ void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
     R(reduced, tmp);
   } else {
     int64_t sub_v = volume(in.size.begin() + axis + 1, in.size.end());
-    if (sub_v == 0)
-      sub_v = 1;
     if (extent >= 2 && extent * sub_v > kTreeReduceThreshold) {
       Dst tmp1 = neutral, tmp2 = neutral;
       int64_t mid = extent / 2;

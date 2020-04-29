@@ -657,12 +657,77 @@ Parameters
         """
         return self._batches_to_consume == 0
 
-    def serialize(self, define_graph = None):
-        """Serialize the pipeline to a Protobuf string."""
+    def serialize(self, define_graph=None, filename=None):
+        """Serialize the pipeline to a Protobuf string.
+
+        Additionally, you can pass file name, so that serialized pipeline will be written there.
+        The file contents will be overwritten
+        """
         if not self._prepared:
             self._prepare_graph(define_graph)
             self._pipe.SetOutputNames(self._names_and_devices)
-        return self._pipe.SerializeToProtobuf()
+        ret = self._pipe.SerializeToProtobuf()
+        if filename is not None:
+            with open(filename, 'wb') as pipeline_file:
+                pipeline_file.write(ret)
+        return ret
+
+    @classmethod
+    def deserialize(cls, serialized_pipeline=None, filename=None, **kwargs):
+        """Deserialize and build pipeline.
+
+        Deserialize pipeline, previously serialized with ``serialize()`` method.
+
+        Returned pipeline is already built.
+
+        Alternatively, additional arguments can be passed, which will be used when instantiating
+        the pipeline. Refer to Pipeline constructor for full list of arguments. By default,
+        the pipeline will be instantiated with the arguments from serialized pipeline.
+
+        Note, that ``serialized_pipeline`` and ``filename`` parameters are mutually exclusive
+
+        Parameters
+        ----------
+        serialized_pipeline : str
+                   Pipeline, serialized using ``serialize()`` method.
+        filename : str
+                   File, from which serialized pipeline will be read.
+        kwargs : dict
+                   Refer to Pipeline constructor for full list of arguments.
+
+        Returns
+        ----------
+        Deserialized and built pipeline.
+        """
+        kw = kwargs
+        if (serialized_pipeline is None) == (filename is None):  # XNOR
+            raise ValueError(
+                "serialized_pipeline and filename arguments are mutually exclusive. "
+                "Precisely one of them should be defined.")
+        pipeline = cls()
+        if filename is not None:
+            with open(filename, 'rb') as pipeline_file:
+                serialized_pipeline = pipeline_file.read()
+        pipeline._pipe = b.Pipeline(
+            serialized_pipeline,
+            kw.get("batch_size", -1),
+            kw.get("num_threads", -1),
+            kw.get("device_id", -1),
+            kw.get("exec_pipelined", True),
+            kw.get("prefetch_queue_depth", 2),
+            kw.get("exec_async", True),
+            kw.get("bytes_per_sample", 0),
+            kw.get("set_affinity", False),
+            kw.get("max_streams", -1),
+            kw.get("default_cuda_stream_priority", 0)
+        )
+        pipeline._pipe.SetExecutionTypes(pipeline._exec_pipelined, pipeline._exec_separated,
+                                         pipeline._exec_async)
+        pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
+        pipeline._prepared = True
+        pipeline._pipe.Build()
+        pipeline._built = True
+        return pipeline
 
     def deserialize_and_build(self, serialized_pipeline):
         """Deserialize and build the pipeline given in serialized form.

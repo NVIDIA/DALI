@@ -36,6 +36,7 @@ class Randomizer {
     void *states_;
     size_t len_;
     int device_;
+    static constexpr int block_size_ = 256;
 };
 
 }  // namespace dali

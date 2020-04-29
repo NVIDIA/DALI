@@ -14,12 +14,12 @@
 # limitations under the License.
 
 package:
-  name: dali
-  version: {{ GIT_DESCRIBE_TAG | replace("-","_") }}.{{ GIT_BUILD_STR }}
+  name: nvidia-dali-cu{{ environ.get('CUDA_VERSION', '') }}
+  version: {{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
 
 source:
   # Beware: Only commited files are used
-  git_url: ../..
+  - git_url: ../..
 
 build:
   script_env:
@@ -46,38 +46,47 @@ build:
    - DALI_TIMESTAMP
    - NVIDIA_DALI_BUILD_FLAVOR
    - LD_LIBRARY_PATH
-  number: 0
-  string: py{{ python | replace(".","") }}
+   - DALI_CONDA_BUILD_VERSION
+   - CUDA_VERSION
+  string: py{{ python | replace(".","") }}_{{ environ.get('NVIDIA_BUILD_ID', '') }}
 
 requirements:
   build:
+    skip: True  # [not linux]
     - {{ compiler('c') }}
     - {{ compiler('cxx')}}
-    - pkg-config >=0.29.2
+    - pkg-config
     - cmake >=3.12.4
-    - make >=4.2.1
+    - make
+    - patchelf
   host:
     - python
     - future >=0.17.1
     - protobuf >=3.11.2
     - libjpeg-turbo >=2.0.3
-    - ffmpeg >=4.1
-    - tensorflow-gpu
-    - libopencv >=3.4.1
-    - opencv >=3.4.1
+    - tensorflow-gpu =2.1.0
+    - dali-opencv
+    - dali-ffmpeg
     - boost >=1.67
     - lmdb >=0.9.22
-    - libtiff >=4.0
+    - libtiff >=4.1.0
     - libsndfile >=1.0.28
+    # 1.3.6 doesn't work well now due to linking issue - conda-forge/libvorbis-feedstock#14
+    - libvorbis 1.3.5
+    # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
+    # we link it statically so it doesn't carry the dependency, so we need to add it manually
+    - libwebp-base
   run:
     - python
     - future >=0.17.1
     - protobuf >=3.11.2
     - libjpeg-turbo >=2.0.3
-    - ffmpeg >=4.1
-    - tensorflow-gpu
-    - libopencv >=3.4.1
-    - opencv >=3.4.1
+    - tensorflow-gpu =2.1.0
     - lmdb >=0.9.22
-    - libtiff >=4.0
+    - libtiff >=4.1.0
     - libsndfile >=1.0.28
+    # 1.3.6 doesn't work well now due to linking issue - conda-forge/libvorbis-feedstock#14
+    - libvorbis 1.3.5
+    # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
+    # we link it statically so it doesn't carry the dependency, so we need to add it manually
+    - libwebp-base
