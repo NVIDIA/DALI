@@ -23,7 +23,7 @@ struct ColorTwistArgs {
     float con;
     float hue;
     float sat;
-};    
+};
 
 ColorTwistArgs kArgs{0.1, 1.1, 10., 0.1};
 
@@ -47,7 +47,32 @@ BENCHMARK_DEFINE_F(OperatorBench, ColorTwistGPU)(benchmark::State& st) {
     batch_size, H, W, C);
 }
 
+BENCHMARK_DEFINE_F(OperatorBench, OldColorTwistGPU)(benchmark::State& st) {
+  int batch_size = st.range(0);
+  int H = st.range(1);
+  int W = st.range(1);
+  int C = 3;
+
+  this->RunGPU<uint8_t>(
+    st,
+    OpSpec("OldColorTwist")
+      .AddArg("batch_size", batch_size)
+      .AddArg("num_threads", 1)
+      .AddArg("device", "gpu")
+      .AddArg("output_type", DALI_RGB)
+      .AddArg("brightness", kArgs.bri)
+      .AddArg("contrast", kArgs.con)
+      .AddArg("hue", kArgs.hue)
+      .AddArg("saturation", kArgs.sat),
+    batch_size, H, W, C);
+}
+
 BENCHMARK_REGISTER_F(OperatorBench, ColorTwistGPU)->Iterations(1000)
+->Unit(benchmark::kMicrosecond)
+->UseRealTime()
+->Ranges({{1, 128}, {128, 2048}});
+
+BENCHMARK_REGISTER_F(OperatorBench, OldColorTwistGPU)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Ranges({{1, 128}, {128, 2048}});

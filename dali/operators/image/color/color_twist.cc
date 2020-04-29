@@ -100,6 +100,18 @@ Values >= 0 are accepted. For example:
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
+
+template <>
+bool ColorTwistBase<CPUBackend>::CanInferOutputs() const  {
+  return false;
+}
+
+template <>
+bool ColorTwistBase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                           const workspace_t<CPUBackend> &ws) {
+  return false;
+}
+
 template <>
 void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
@@ -119,15 +131,14 @@ void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   auto pImgOut = output.template mutable_data<uint8>();
 
   if (!augments_.empty()) {
-    float matrix[nDim][nDim];
-    float *m = reinterpret_cast<float *>(matrix);
-    IdentityMatrix(m);
-    for (size_t j = 0; j < augments_.size(); ++j) {
-      augments_[j]->Prepare(ws.data_idx(), spec_, &ws);
-      (*augments_[j])(m);
-    }
+    ColorAugment::mat_t m(1.);
+      for (size_t j = 0; j < augments_.size(); ++j) {
+        augments_[j]->Prepare(ws.data_idx(), spec_, &ws);
+        (*augments_[j])(m);
+      }
+      float *matrix = reinterpret_cast<float*>(m.m);
 
-    MakeColorTransformation(pImgInp, H, W, C, m, pImgOut);
+    MakeColorTransformation(pImgInp, H, W, C, matrix, pImgOut);
   } else {
     memcpy(pImgOut, pImgInp, H * W * C);
   }

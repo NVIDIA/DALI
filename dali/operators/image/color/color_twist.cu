@@ -13,13 +13,47 @@
 // limitations under the License.
 
 
+#include <vector>
 #include "dali/util/npp.h"
 #include "dali/operators/image/color/color_twist.h"
+#include "dali/kernels/imgproc/pointwise/linear_transformation_gpu.h"
+#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
-typedef NppStatus (*colorTwistFunc)(const Npp8u *pSrc, int nSrcStep, Npp8u *pDst, int nDstStep,
-                                    NppiSize oSizeROI, const Npp32f aTwist[3][4]);
+template <>
+bool ColorTwistBase<GPUBackend>::CanInferOutputs() const  {
+  return true;
+}
+
+template <>
+bool ColorTwistBase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                           const DeviceWorkspace &ws) {
+  const auto &input = ws.template InputRef<GPUBackend>(0);
+  output_desc.resize(1);
+  using Kernel = kernels::LinearTransformationGpu<uint8_t, uint8_t, 3, 3, 2>;
+  kernel_manager_.Initialize<Kernel>();
+  kernel_manager_.Resize<Kernel>(1, 1);
+  kernels::KernelContext ctx;
+  ctx.gpu.stream = ws.stream();
+  const auto tvin = view<const uint8_t, 3>(input);
+  mats.resize(input.ntensor());
+  vecs.resize(input.ntensor());
+  for (size_t i = 0; i < input.ntensor(); ++i) {
+    ColorAugment::mat_t m(1.);
+    for (size_t j = 0; j < augments_.size(); ++j) {
+      augments_[j]->Prepare(i, spec_, &ws);
+      (*augments_[j])(m);
+    }
+    mats[i] = sub<3, 3>(m);
+    vecs[i] = sub<3>(m.col(3));
+  }
+  const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin,
+                                                   make_cspan(mats), make_cspan(vecs));
+  auto &shapes = reqs.output_shapes[0];
+  output_desc[0] = {shapes, TypeTable::GetTypeInfo(TypeTable::GetTypeID<uint8_t>())};
+  return true;
+}
 
 template <>
 void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
@@ -27,41 +61,14 @@ void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   DALI_ENFORCE(IsType<uint8_t>(input.type()),
       "Color augmentations accept only uint8 tensors");
   auto &output = ws.Output<GPUBackend>(0);
-  output.ResizeLike(input);
   output.SetLayout(InputLayout(ws, 0));
-
-  cudaStream_t old_stream = nppGetStream();
-  nppSetStream(ws.stream());
-
-  for (size_t i = 0; i < input.ntensor(); ++i) {
-    if (!augments_.empty()) {
-      float matrix[nDim][nDim];
-      float * m = reinterpret_cast<float*>(matrix);
-      IdentityMatrix(m);
-      for (size_t j = 0; j < augments_.size(); ++j) {
-        augments_[j]->Prepare(i, spec_, &ws);
-        (*augments_[j])(m);
-      }
-      NppiSize size;
-      size.height = input.tensor_shape(i)[0];
-      size.width = input.tensor_shape(i)[1];
-      const int nStep = C_ * size.width;  // W * C
-      colorTwistFunc twist_func = C_ == 3 ? nppiColorTwist32f_8u_C3R : nppiColorTwist32f_8u_C1R;
-      DALI_CHECK_NPP(twist_func(input.tensor<uint8_t>(i),
-                                nStep,
-                                output.mutable_tensor<uint8_t>(i),
-                                nStep,
-                                size,
-                                matrix));
-    } else {
-      CUDA_CALL(cudaMemcpyAsync(output.raw_mutable_tensor(i),
-                                input.raw_tensor(i),
-                                volume(input.tensor_shape(i)),
-                                cudaMemcpyDefault,
-                                ws.stream()));
-    }
-  }
-  nppSetStream(old_stream);
+  kernels::KernelContext ctx;
+  ctx.gpu.stream = ws.stream();
+  auto tvin = view<const uint8_t, 3>(input);
+  auto tvout = view<uint8_t, 3>(output);
+  using Kernel = kernels::LinearTransformationGpu<uint8_t, uint8_t, 3, 3, 2>;
+  kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout, tvin,
+                              make_cspan(mats), make_cspan(vecs));
 }
 
 DALI_REGISTER_OPERATOR(Brightness, BrightnessAdjust<GPUBackend>, GPU);
