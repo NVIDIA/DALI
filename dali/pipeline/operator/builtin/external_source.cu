@@ -62,7 +62,7 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
 
   auto &output = ws.Output<GPUBackend>(0);
   cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
-  CUDA_CALL(cudaStreamWaitEvent(stream_used,*internal_copy_to_storage.front(), 0));
+  CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));
   output.Copy(*(data.front()), stream_used);
   // record an event so Recycle can synchronize on it
   cudaEventRecord(*cuda_event.front(), stream_used);
