@@ -31,12 +31,12 @@ struct SampleDesc {
 
 template <typename T = float>
 __global__ void CoordFlipKernel(const SampleDesc<T>* samples, int ndim) {
-  int64_t block_size = blockDim.y * blockDim.x;
+  int64_t block_size = blockDim.x;
   int64_t grid_size = gridDim.x * block_size;
   int sample_idx = blockIdx.y;
   const auto &sample = samples[sample_idx];
   int64_t offset = block_size * blockIdx.x;
-  int64_t tid = threadIdx.y * blockDim.x + threadIdx.x;
+  int64_t tid = threadIdx.x;
   for (int64_t idx = offset + tid; idx < sample.size; idx += grid_size) {
     int d = idx % ndim;
     bool flip = sample.flip_dim_mask & (1 << d);
@@ -113,7 +113,7 @@ void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   CUDA_CALL(
     cudaMemcpyAsync(sample_descs_gpu_, sample_descs_.data(), sz, cudaMemcpyHostToDevice, stream));
 
-  dim3 block(32, 32);
+  int block = 1024;
   auto blocks_per_sample = std::max(32, 1024 / batch_size_);
   dim3 grid(blocks_per_sample, batch_size_);
   CoordFlipKernel<<<grid, block, 0, stream>>>(sample_descs_gpu_, ndim_);
