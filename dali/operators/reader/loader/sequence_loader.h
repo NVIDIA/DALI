@@ -108,11 +108,11 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
     DALI_ENFORCE(sequence_length_ > 0, "Sequence length must be positive");
     DALI_ENFORCE(step_ > 0, "Step must be positive");
     DALI_ENFORCE(stride_ > 0, "Stride must be positive");
-    if (mmap_files_) {
+    if (!dont_use_mmap_) {
       mmap_reserver = FileStream::FileStreamMappinReserver(
                                   static_cast<unsigned int>(initial_buffer_fill_));
     }
-    copy_read_data_ = !mmap_files_ || !mmap_reserver.CanShareMappedData();
+    copy_read_data_ = dont_use_mmap_ || !mmap_reserver.CanShareMappedData();
     if (shuffle_) {
       // TODO(spanev) decide of a policy for multi-gpu here
       // seeded with hardcoded value to get

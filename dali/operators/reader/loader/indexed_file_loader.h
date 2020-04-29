@@ -51,7 +51,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
     if (file_index != current_file_index_) {
       current_file_->Close();
-      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, copy_read_data_);
+      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_);
       current_file_index_ = file_index;
     }
 
@@ -126,11 +126,11 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     current_file_index_ = INVALID_INDEX;
     Reset(true);
 
-    if (mmap_files_) {
+    if (!dont_use_mmap_) {
       mmap_reserver = FileStream::FileStreamMappinReserver(
                                   static_cast<unsigned int>(initial_buffer_fill_));
     }
-    copy_read_data_ = !mmap_files_ || !mmap_reserver.CanShareMappedData();
+    copy_read_data_ = dont_use_mmap_ || !mmap_reserver.CanShareMappedData();
   }
 
   void Reset(bool wrap_to_shard) override {
@@ -146,7 +146,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       if (current_file_index_ != static_cast<size_t>(INVALID_INDEX)) {
         current_file_->Close();
       }
-      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, copy_read_data_);
+      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_);
       current_file_index_ = file_index;
     }
     current_file_->Seek(seek_pos);

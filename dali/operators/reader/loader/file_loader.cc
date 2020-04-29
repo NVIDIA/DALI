@@ -143,7 +143,7 @@ void FileLoader::ReadSample(ImageFileWrapper& imfile) {
   }
 
   auto current_image = FileStream::Open(file_root_ + "/" + image_file, read_ahead_,
-                                        copy_read_data_);
+                                        !copy_read_data_);
   Index image_size = current_image->Size();
 
   if (copy_read_data_) {

@@ -23,7 +23,7 @@
 namespace dali {
 
 std::unique_ptr<FileStream> FileStream::Open(const std::string& uri, bool read_ahead,
-                                             bool dont_use_mmap) {
+                                             bool use_mmap) {
   std::string processed_uri;
 
   if (uri.find("file://") == 0) {
@@ -32,10 +32,10 @@ std::unique_ptr<FileStream> FileStream::Open(const std::string& uri, bool read_a
     processed_uri = uri;
   }
 
-  if (dont_use_mmap) {
-    return std::unique_ptr<FileStream>(new PlainFileStream(processed_uri));
-  } else {
+  if (use_mmap) {
     return std::unique_ptr<FileStream>(new MmapedFileStream(processed_uri, read_ahead));
+  } else {
+    return std::unique_ptr<FileStream>(new PlainFileStream(processed_uri));
   }
 }
 

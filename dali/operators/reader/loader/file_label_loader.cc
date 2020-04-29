@@ -118,7 +118,7 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
   }
 
   auto current_image = FileStream::Open(file_root_ + "/" + image_pair.first,
-                                        read_ahead_, copy_read_data_);
+                                        read_ahead_, !copy_read_data_);
   Index image_size = current_image->Size();
 
   if (copy_read_data_) {

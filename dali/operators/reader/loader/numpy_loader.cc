@@ -147,7 +147,7 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   }
 
   auto current_image = FileStream::Open(file_root_ + "/" + image_file, read_ahead_,
-                                        copy_read_data_);
+                                        !copy_read_data_);
 
   // read the header
   NumpyParseTarget target;
