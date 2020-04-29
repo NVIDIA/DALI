@@ -1,1 +1,0 @@
-// NOLINT(legal/copyright)

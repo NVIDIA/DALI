@@ -23,17 +23,52 @@ namespace dali {
 namespace kernels {
 
 template <typename Out, typename In>
-class SumGPU {
+class DLL_PUBLIC SumGPU {
  public:
+  SumGPU();
+  ~SumGPU();
+
+  /**
+   * @brief Sets up the reduction
+   *
+   * Sets up the reduction according to the parameters. The indices of dimensions to be reduced
+   * are provided in `axes` parameter.
+   * For a successful batch reduction, the reduced shape of all samples must be equal (but the
+   * input may have non-uniform shape, as long as the non-uniform dimensions are reduced).
+   *
+   * @param ctx          the execution environment
+   * @param in_shape     shape of the input tensor list
+   * @param axes         indices of axes to reduce along
+   * @param keep_dims    if true, the reduced dimensions are kept in the output shape, with the
+   *                     extent of 1
+   * @param reduce_batch if true, reduces respective output values of all samples in the batch
+   *                     and outputs a single tensor
+   */
   KernelRequirements Setup(KernelContext &ctx,
                            const TensorListShape<> &in_shape,
-                           span<const int> axes);
+                           span<const int> axes, bool keep_dims, bool reduce_batch);
 
+  /**
+   * @brief Performs the reduction, according to the parameters specified in Setup.
+   */
   void Run(KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in);
+
  private:
   class Impl;
   std::unique_ptr<Impl> impl_;
 };
+
+extern template class SumGPU<uint64_t, uint8_t>;
+extern template class SumGPU<float, uint8_t>;
+extern template class SumGPU<int64_t, int8_t>;
+extern template class SumGPU<float, int8_t>;
+extern template class SumGPU<uint64_t, uint16_t>;
+extern template class SumGPU<float, uint16_t>;
+extern template class SumGPU<int64_t, int16_t>;
+extern template class SumGPU<float, int16_t>;
+extern template class SumGPU<int64_t, int32_t>;
+extern template class SumGPU<float, int32_t>;
+extern template class SumGPU<float, float>;
 
 }  // namespace kernels
 }  // namespace dali

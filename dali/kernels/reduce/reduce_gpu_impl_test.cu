@@ -444,7 +444,7 @@ TEST(SumImplGPU, SplitStageBatch) {
   KernelContext ctx = {};
   auto req = sum.Setup(ctx, in_shape, make_span(axes), false, true);
   TensorListShape<> ref_out_shape = {{
-    { 3 },
+    TensorShape<>{3}
   }};
   EXPECT_EQ(req.output_shapes[0], ref_out_shape);
   EXPECT_GE(sum.GetNumStages(), 4);  // both reduced axes must be split due to large max extent
