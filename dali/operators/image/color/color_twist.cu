@@ -37,19 +37,19 @@ bool ColorTwistBase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
   const auto tvin = view<const uint8_t, 3>(input);
-  mats.resize(input.ntensor());
-  vecs.resize(input.ntensor());
+  mats_.resize(input.ntensor());
+  vecs_.resize(input.ntensor());
   for (size_t i = 0; i < input.ntensor(); ++i) {
     ColorAugment::mat_t m(1.);
     for (size_t j = 0; j < augments_.size(); ++j) {
       augments_[j]->Prepare(i, spec_, &ws);
       (*augments_[j])(m);
     }
-    mats[i] = sub<3, 3>(m);
-    vecs[i] = sub<3>(m.col(3));
+    mats_[i] = sub<3, 3>(m);
+    vecs_[i] = sub<3>(m.col(3));
   }
   const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin,
-                                                   make_cspan(mats), make_cspan(vecs));
+                                                   make_cspan(mats_), make_cspan(vecs_));
   auto &shapes = reqs.output_shapes[0];
   output_desc[0] = {shapes, TypeTable::GetTypeInfo(TypeTable::GetTypeID<uint8_t>())};
   return true;
@@ -68,7 +68,7 @@ void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto tvout = view<uint8_t, 3>(output);
   using Kernel = kernels::LinearTransformationGpu<uint8_t, uint8_t, 3, 3, 2>;
   kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout, tvin,
-                              make_cspan(mats), make_cspan(vecs));
+                              make_cspan(mats_), make_cspan(vecs_));
 }
 
 DALI_REGISTER_OPERATOR(Brightness, BrightnessAdjust<GPUBackend>, GPU);

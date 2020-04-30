@@ -40,6 +40,24 @@ class ColorAugment {
 
  protected:
   mat_t matrix_ = mat_t::eye();
+
+  // Single matrix transform for both hue and saturation change. Matrix taken
+  // from https://beesbuzz.biz/code/hsv_color_transforms.php. Derived by
+  // transforming first to HSV, then do the modification, and transfom back to RGB.
+  const mat_t const_mat = {{{.299, .587, .114, 0.0},
+                            {.299, .587, .114, 0.0},
+                            {.299, .587, .114, 0.0},
+                            {.0,   .0,   .0,   1.0}}};
+
+  const mat_t U_mat = {{{ .701, -.587, -.114, 0.0},
+                        {-.299,  .413, -.114, 0.0},
+                        {-.300, -.588, .886,  0.0},
+                        { .0,    .0,   .0,    0.0}}};
+
+  const mat_t V_mat = {{{ .168,   .330, -.497, 0.0},
+                        {-.328,   .035,  .292, 0.0},
+                        {1.25,  -1.05,  -.203, 0.0},
+                        {  .0,    .0,    .0,   0.0}}};
 };
 
 class Brightness : public ColorAugment {
@@ -64,27 +82,9 @@ class Contrast : public ColorAugment {
 class Hue : public ColorAugment {
  public:
   void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) override {
-    // Single matrix transform for both hue and saturation change. Matrix taken
-    // from https://beesbuzz.biz/code/hsv_color_transforms.php. Derived by
-    // transforming first to HSV, then do the modification, and transfom back to RGB.
     auto hue = spec.GetArgument<float>("hue", ws, i);
     const float U = cos(hue * M_PI / 180.0);
     const float V = sin(hue * M_PI / 180.0);
-    const mat_t const_mat = mat_t({{.299, .587, .114, 0.0},
-                                   {.299, .587, .114, 0.0},
-                                   {.299, .587, .114, 0.0},
-                                   {.0,   .0,   .0,   1.0}});
-
-    const mat_t U_mat = mat_t({{ .701, -.587, -.114, 0.0},
-                               {-.299,  .413, -.114, 0.0},
-                               {-.300, -.588, .886,  0.0},
-                               { .0,    .0,   .0,    0.0}});
-
-    const mat_t V_mat = mat_t({{ .168,   .330, -.497, 0.0},
-                                 {-.328,   .035,  .292, 0.0},
-                                 {1.25,  -1.05,  -.203, 0.0},
-                                 {  .0,    .0,    .0,   0.0}});
-
     matrix_ = const_mat + U_mat * U + V_mat * V;
   }
 };
@@ -93,16 +93,6 @@ class Saturation : public ColorAugment {
  public:
   void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) override {
     auto saturation = spec.GetArgument<float>("saturation", ws, i);
-    const mat_t const_mat = mat_t({{.299, .587, .114, 0.0},
-                                   {.299, .587, .114, 0.0},
-                                   {.299, .587, .114, 0.0},
-                                   {.0,   .0,   .0,   1.0}});
-
-    const mat_t U_mat = mat_t({{ .701, -.587, -.114, 0.0},
-                               {-.299,  .413, -.114, 0.0},
-                               {-.300, -.588, .886,  0.0},
-                               { .0,    .0,   .0,    0.0}});
-
     matrix_ = const_mat + U_mat * saturation;
   }
 };
@@ -132,8 +122,8 @@ class ColorTwistBase : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
 
  private:
-  std::vector<mat<3, 3, float>> mats{};
-  std::vector<vec<3, float>> vecs{};
+  std::vector<mat<3, 3, float>> mats_{};
+  std::vector<vec<3, float>> vecs_{};
   kernels::KernelManager kernel_manager_;
 };
 

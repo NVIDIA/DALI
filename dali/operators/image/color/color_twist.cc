@@ -103,13 +103,16 @@ Values >= 0 are accepted. For example:
 
 template <>
 bool ColorTwistBase<CPUBackend>::CanInferOutputs() const  {
-  return false;
+  return true;
 }
 
 template <>
 bool ColorTwistBase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                            const workspace_t<CPUBackend> &ws) {
-  return false;
+  const auto &input = ws.template InputRef<CPUBackend>(0);
+  output_desc.resize(1);
+  output_desc[0] = {input.shape(), input.type()};
+  return true;
 }
 
 template <>
@@ -124,7 +127,6 @@ void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   const auto W = input_shape[1];
   const auto C = input_shape[2];
 
-  output.ResizeLike(input);
   output.SetLayout(InputLayout(ws, 0));
 
   auto pImgInp = input.template data<uint8>();
