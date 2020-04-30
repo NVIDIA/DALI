@@ -24,25 +24,28 @@ import tempfile
 class NumpyReaderPipeline(Pipeline):
     def __init__(self, path, batch_size, path_filter="*.npy",
                  num_threads=1, device_id=0, num_gpus=1,
-                 slab_anchor=None, slab_shape=None, io_size=0):
+                 slice_anchor=None, slice_shape=None, io_size=0,
+                 use_mmap = True):
         super(NumpyReaderPipeline, self).__init__(batch_size,
                                                   num_threads,
                                                   device_id)
 
         self.input = None
-        if (slab_anchor is not None) and (slab_shape is not None):
+        if (slice_anchor is not None) and (slice_shape is not None):
             self.input = ops.NumpyReader(file_root = path,
                                          file_filter = path_filter,
-                                         anchor = slab_anchor,
-                                         shape = slab_shape,
+                                         anchor = slice_anchor,
+                                         shape = slice_shape,
                                          shard_id = device_id,
                                          num_shards = num_gpus,
-                                         target_io_bytes = io_size)
+                                         target_io_bytes = io_size,
+                                         dont_use_mmap = not use_mmap)
         else:
             self.input = ops.NumpyReader(file_root = path,
                                          file_filter = path_filter,
 		                         shard_id = device_id,
-                                         num_shards = num_gpus)
+                                         num_shards = num_gpus,
+                                         dont_use_mmap = not use_mmap)
 
         
     def define_graph(self):
@@ -53,33 +56,41 @@ class NumpyReaderPipeline(Pipeline):
     
 class NumpyReaderDynamicPipeline(Pipeline):
     def __init__(self, path, batch_size, path_filter="*.npy",
-                 num_threads=1, device_id=0, num_gpus=1):
+                 num_threads=1, device_id=0, num_gpus=1,
+                 use_mmap = True):
         super(NumpyReaderDynamicPipeline, self).__init__(batch_size,
                                                          num_threads,
                                                          device_id)
 
-        self.rng = np.random.RandomState(12345)
-        self.get_anchor = ops.ExternalSource()
-        self.get_shape = ops.ExternalSource()
+        class RNGIterator(object):
+            def __init__(self):
+                self.rng = np.random.RandomState(12345)
+
+            def __iter__(self):
+                self.i = 0
+                self.n = 10
+                return self
+                
+            def __next__(self):
+                anchor = np.expand_dims(self.rng.random_integers(low = 0, high = 5, size=(3)), axis=0).astype(np.int32)
+                shape = np.expand_dims(self.rng.random_integers(low = 1, high = 5, size=(3)), axis=0).astype(np.int32)
+                return anchor, shape
+    
+        rngiter = RNGIterator()
+        self.source = ops.ExternalSource(source = rngiter, num_outputs = 2)
         self.input = ops.NumpyReader(file_root = path,
                                      file_filter = path_filter,
                                      shard_id = device_id,
-                                     num_shards = num_gpus)
+                                     num_shards = num_gpus,
+                                     dont_use_mmap = not use_mmap)
         
     def define_graph(self):
-        self.anchor = self.get_anchor()
-        self.shape = self.get_shape()
+        anchor, shape = self.source()
         inputs = self.input(name="Reader",
-                            anchor=self.anchor,
-                            shape=self.shape)
+                            anchor = anchor,
+                            shape = shape)
 
-        return inputs, self.anchor, self.shape
-
-    def iter_setup(self):
-        anchor = np.expand_dims(self.rng.random_integers(low = 0, high = 5, size=(3)), axis=0).astype(np.int32)
-        shape =	np.expand_dims(self.rng.random_integers(low = 1, high = 5, size=(3)), axis=0).astype(np.int32)
-        self.feed_input(self.anchor, anchor)
-        self.feed_input(self.shape, shape)
+        return inputs, anchor, shape
     
 
 test_np_types = [np.float32, np.float64, np.int32, np.int64]
@@ -93,11 +104,12 @@ def test_types_and_shapes():
     with tempfile.TemporaryDirectory() as test_data_root:
         index = 0
         for fortran_order in [False, True]:
-            for typ in test_np_types:
-                for shape in test_np_shapes:
-                    filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
-                    index += 1
-                    yield check_array, filename, shape, typ, fortran_order
+            for use_mmap in [True, False]:
+                for typ in test_np_types:
+                    for shape in test_np_shapes:
+                        filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+                        index += 1
+                        yield check_array, filename, shape, typ, fortran_order, use_mmap
 
 
 # test batch_size > 1
@@ -132,52 +144,53 @@ def test_batch():
             
 
 test_np_chunk_sizes = [0, 128, 4096]
-test_np_slab_shapes = [[12], (10, 10), (5, 20, 10), (4, 8, 3, 6)]
-test_np_slab_anchors = [[5], (2, 4), (1, 3, 2), (1, 3, 1, 4)]
-test_np_slab_subshapes = [[4], (7, 5), (4, 10, 1), (2, 4, 2, 1)]
+test_np_slice_shapes = [[12], (10, 10), (5, 20, 10), (4, 8, 3, 6)]
+test_np_slice_anchors = [[5], (2, 4), (1, 3, 2), (1, 3, 1, 4)]
+test_np_slice_subshapes = [[4], (7, 5), (4, 10, 1), (2, 4, 2, 1)]
 
-# test slab read
-def test_static_slab():
+# test slice read
+def test_static_slice():
     with tempfile.TemporaryDirectory() as test_data_root:
         index  = 0
         for fortran_order in [False, True]:
             for io_size in test_np_chunk_sizes:
                 for typ in test_np_types:
-                    for idx,shape in enumerate(test_np_slab_shapes):
-                        filename = os.path.join(test_data_root, "test_slab_{:02d}.npy".format(index))
-                        slab_anchor = test_np_slab_anchors[idx]
-                        slab_shape = test_np_slab_subshapes[idx]
+                    for idx,shape in enumerate(test_np_slice_shapes):
+                        filename = os.path.join(test_data_root, "test_slice_{:02d}.npy".format(index))
+                        slice_anchor = test_np_slice_anchors[idx]
+                        slice_shape = test_np_slice_subshapes[idx]
                         index += 1
-                        yield check_array_static_slab, filename, shape, slab_anchor, slab_shape, typ, io_size, fortran_order
+                        yield check_array_static_slice, filename, shape, slice_anchor, slice_shape, typ, io_size, fortran_order, True
 
                 
-def test_dynamic_slab():
+def test_dynamic_slice():
     with tempfile.TemporaryDirectory() as test_data_root:
         index  = 0
         for fortran_order in [False, True]:
             for typ in test_np_types:
-                filename = os.path.join(test_data_root, "test_slab_{:02d}.npy".format(index))
+                filename = os.path.join(test_data_root, "test_slice_{:02d}.npy".format(index))
                 index += 1
-                yield check_array_dynamic_slab, filename, (10, 10, 10), typ, fortran_order
+                yield check_array_dynamic_slice, filename, (10, 10, 10), typ, fortran_order, True
 
 
 # test fused reads
-test_np_fused_slab_shapes    = [(10, 10), (5, 8, 10), (5, 8, 10), (4, 8, 3, 6), (4, 8, 3, 6)]
-test_np_fused_slab_anchors   = [( 2,  0), (1, 0,  2), (1, 0,  0), (1, 0, 1, 4), (1, 0, 1, 0)]
-test_np_fused_slab_subshapes = [( 7, 10), (4, 8,  5), (4, 8, 10), (2, 8, 2, 1), (2, 8, 2, 6)]
+test_np_fused_slice_shapes    = [(10, 10), (5, 8, 10), (5, 8, 10), (4, 8, 3, 6), (4, 8, 3, 6)]
+test_np_fused_slice_anchors   = [( 2,  0), (1, 0,  2), (1, 0,  0), (1, 0, 1, 4), (1, 0, 1, 0)]
+test_np_fused_slice_subshapes = [( 7, 10), (4, 8,  5), (4, 8, 10), (2, 8, 2, 1), (2, 8, 2, 6)]
 
-def test_static_fused_slab():
+def test_static_fused_slice():
     with tempfile.TemporaryDirectory() as test_data_root:
         index  = 0
         for fortran_order in [False, True]:
-            for io_size in test_np_chunk_sizes:
-                for typ in test_np_types:
-                    for idx,shape in enumerate(test_np_fused_slab_shapes):
-                        filename = os.path.join(test_data_root, "test_slab_{:02d}.npy".format(index))
-                        slab_anchor = test_np_fused_slab_anchors[idx]
-                        slab_shape = test_np_fused_slab_subshapes[idx]
-                        index += 1
-                        yield check_array_static_slab, filename, shape, slab_anchor, slab_shape, typ, io_size, fortran_order
+            for use_mmap in [True, False]:
+                for io_size in test_np_chunk_sizes:
+                    for typ in test_np_types:
+                        for idx,shape in enumerate(test_np_fused_slice_shapes):
+                            filename = os.path.join(test_data_root, "test_slice_{:02d}.npy".format(index))
+                            slice_anchor = test_np_fused_slice_anchors[idx]
+                            slice_shape = test_np_fused_slice_subshapes[idx]
+                            index += 1
+                            yield check_array_static_slice, filename, shape, slice_anchor, slice_shape, typ, io_size, fortran_order, use_mmap
 
 
 # generic helper routines                
@@ -193,7 +206,7 @@ def delete_numpy_file(filename):
     if os.path.isfile(filename):
         os.remove(filename)
 
-def check_array(filename, shape, typ, fortran_order=False):
+def check_array(filename, shape, typ, fortran_order = False, use_mmap = True):
     # setup file
     create_numpy_file(filename, shape, typ, fortran_order)
     
@@ -203,7 +216,8 @@ def check_array(filename, shape, typ, fortran_order=False):
                                    path_filter = os.path.basename(filename),
                                    batch_size = 1,
                                    num_threads = num_threads,
-                                   device_id = 0)
+                                   device_id = 0,
+                                   use_mmap = use_mmap)
         pipe.build()
         pipe_out = pipe.run()
         arr_rd = np.squeeze(pipe_out[0].as_array(), axis=0)
@@ -218,7 +232,8 @@ def check_array(filename, shape, typ, fortran_order=False):
     delete_numpy_file(filename)
 
 
-def check_array_static_slab(filename, shape, slab_anchor, slab_shape, typ, io_size=0, fortran_order=False):
+def check_array_static_slice(filename, shape, slice_anchor, slice_shape, typ,
+                            io_size=0, fortran_order = False, use_mmap = True):
     # setup file
     create_numpy_file(filename, shape, typ, fortran_order)
     
@@ -229,16 +244,17 @@ def check_array_static_slab(filename, shape, slab_anchor, slab_shape, typ, io_si
                                    batch_size = 1,
                                    num_threads = num_threads,
                                    device_id = 0,
-                                   slab_anchor = slab_anchor,
-                                   slab_shape = slab_shape,
-                                   io_size = io_size)
+                                   slice_anchor = slice_anchor,
+                                   slice_shape = slice_shape,
+                                   io_size = io_size,
+                                   use_mmap = use_mmap)
         pipe.build()
         pipe_out = pipe.run()
         arr_rd = np.squeeze(pipe_out[0].as_array(), axis=0)
 
         # load manually
         arr_np = np.load(filename)
-        slab = [slice(x[0], x[0]+x[1]) for x in zip(slab_anchor, slab_shape)]
+        slab = [slice(x[0], x[0]+x[1]) for x in zip(slice_anchor, slice_shape)]
 
         print(arr_rd, arr_np)
         
@@ -249,7 +265,7 @@ def check_array_static_slab(filename, shape, slab_anchor, slab_shape, typ, io_si
     delete_numpy_file(filename)
 
 
-def check_array_dynamic_slab(filename, shape, typ, fortran_order=False):
+def check_array_dynamic_slice(filename, shape, typ, fortran_order = False, use_mmap = True):
     # setup file
     create_numpy_file(filename, shape, typ, fortran_order)
 
@@ -259,16 +275,17 @@ def check_array_dynamic_slab(filename, shape, typ, fortran_order=False):
                                           path_filter = os.path.basename(filename),
                                           batch_size = 1,
                                           num_threads = num_threads,
-                                          device_id = 0)
+                                          device_id = 0,
+                                          use_mmap = use_mmap)
         pipe.build()
         pipe_out = pipe.run()
         arr_rd = np.squeeze(pipe_out[0].as_array(), axis=0)
 
         # load manually
         arr_np = np.load(filename)
-        slab_anchor = np.squeeze(pipe_out[1].as_array()).tolist()
-        slab_shape = np.squeeze(pipe_out[2].as_array()).tolist()
-        slab = [slice(x[0], x[0]+x[1]) for x in zip(slab_anchor, slab_shape)]
+        slice_anchor = np.squeeze(pipe_out[1].as_array()).tolist()
+        slice_shape = np.squeeze(pipe_out[2].as_array()).tolist()
+        slab = [slice(x[0], x[0]+x[1]) for x in zip(slice_anchor, slice_shape)]
         
         # compare
         assert_array_equal(arr_rd, arr_np[slab])
