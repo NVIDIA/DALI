@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_PLAIN_FILE_H_
-#define DALI_UTIL_PLAIN_FILE_H_
+#ifndef DALI_UTIL_STD_FILE_H_
+#define DALI_UTIL_STD_FILE_H_
 
 #include <cstdio>
 #include <string>
@@ -24,16 +24,16 @@
 
 namespace dali {
 
-class PlainFileStream : public FileStream {
+class StdFileStream : public FileStream {
  public:
-  explicit PlainFileStream(const std::string& path);
+  explicit StdFileStream(const std::string& path);
   void Close() override;
   shared_ptr<void>  Get(size_t n_bytes) override;
   size_t Read(uint8_t * buffer, size_t n_bytes) override;
   void Seek(int64 pos) override;
   size_t Size() const override;
 
-  ~PlainFileStream() override {
+  ~StdFileStream() override {
     Close();
   }
 
@@ -43,4 +43,4 @@ class PlainFileStream : public FileStream {
 
 }  // namespace dali
 
-#endif  // DALI_UTIL_PLAIN_FILE_H_
+#endif  // DALI_UTIL_STD_FILE_H_

@@ -21,41 +21,41 @@
 #include <memory>
 
 
-#include "dali/util/plain_file.h"
+#include "dali/util/std_file.h"
 #include "dali/core/error_handling.h"
 
 namespace dali {
 
-PlainFileStream::PlainFileStream(const std::string& path) :
+StdFileStream::StdFileStream(const std::string& path):
   FileStream(path) {
   fp_ = std::fopen(path.c_str(), "rb");
   DALI_ENFORCE(fp_ != nullptr, "Could not open file " + path + ": " + std::strerror(errno));
 }
 
-void PlainFileStream::Close() {
+void StdFileStream::Close() {
   if (fp_ != nullptr) {
     std::fclose(fp_);
     fp_ = nullptr;
   }
 }
 
-void PlainFileStream::Seek(int64 pos) {
+void StdFileStream::Seek(int64 pos) {
     DALI_ENFORCE(!std::fseek(fp_, pos, SEEK_SET),
       "Seek operation did not succeed: " + std::string(std::strerror(errno)) );
 }
 
-size_t PlainFileStream::Read(uint8_t * buffer, size_t n_bytes) {
+size_t StdFileStream::Read(uint8_t * buffer, size_t n_bytes) {
   size_t n_read = std::fread(buffer, 1, n_bytes, fp_);
   return n_read;
 }
 
-shared_ptr<void> PlainFileStream::Get(size_t /*n_bytes*/) {
+shared_ptr<void> StdFileStream::Get(size_t /*n_bytes*/) {
   // this unction should return a pointer inside mmaped file
-  // it doesn't make sense in case of PlainFileStream
+  // it doesn't make sense in case of StdFileStream
   return {};
 }
 
-size_t PlainFileStream::Size() const {
+size_t StdFileStream::Size() const {
   struct stat sb;
   if (stat(path_.c_str(), &sb) == -1) {
     DALI_FAIL("Unable to stat file " + path_ + ": " + std::strerror(errno));

@@ -17,7 +17,7 @@
 
 #include "dali/util/file.h"
 #include "dali/util/mmaped_file.h"
-#include "dali/util/plain_file.h"
+#include "dali/util/std_file.h"
 
 
 namespace dali {
@@ -35,7 +35,7 @@ std::unique_ptr<FileStream> FileStream::Open(const std::string& uri, bool read_a
   if (use_mmap) {
     return std::unique_ptr<FileStream>(new MmapedFileStream(processed_uri, read_ahead));
   } else {
-    return std::unique_ptr<FileStream>(new PlainFileStream(processed_uri));
+    return std::unique_ptr<FileStream>(new StdFileStream(processed_uri));
   }
 }
 
