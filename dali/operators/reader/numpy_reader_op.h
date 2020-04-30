@@ -60,8 +60,8 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
   void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
 
   // slicing helpers
-  TensorListShape<> slab_anchors_;
-  TensorListShape<> slab_shapes_;
+  TensorListShape<> slice_anchors_;
+  TensorListShape<> slice_shapes_;
 
   // other parameters
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageFileWrapper);

@@ -127,32 +127,32 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
   return file;
 }
 
-// sanitize slabs
-void NumpyLoader::SetupSlab(TensorShape<>& slab_anchor,
-                            TensorShape<>& slab_shape,
-                            const TensorShape<>& sample_shape,
-                            const bool& fortran_order) {
+// sanitize slices
+void NumpyLoader::SetupSlice(TensorShape<>& slice_anchor,
+                             TensorShape<>& slice_shape,
+                             const TensorShape<>& sample_shape,
+                             const bool& fortran_order) {
   int ndims = sample_shape.size();
 
   if (fortran_order) {
     // transpose the shapes:
-    TensorShape<> old_anchor(slab_anchor);
-    TensorShape<> old_shape(slab_shape);
+    TensorShape<> old_anchor(slice_anchor);
+    TensorShape<> old_shape(slice_shape);
     for (int i = 0; i < ndims; ++i) {
-      slab_anchor[i] = old_anchor[ndims-i-1];
-      slab_shape[i] = old_shape[ndims-i-1];
+      slice_anchor[i] = old_anchor[ndims-i-1];
+      slice_shape[i] = old_shape[ndims-i-1];
     }
   }
 
-  DALI_ENFORCE((slab_anchor.size() == ndims) &&
-               (slab_shape.size() == ndims),
-               "The dimensions of anchor and slab have to match the sample dims.");
+  DALI_ENFORCE((slice_anchor.size() == ndims) &&
+               (slice_shape.size() == ndims),
+               "The dimensions of anchor and slice have to match the sample dims.");
 
   for (int i = 0; i < ndims; ++i) {
-    int offset = slab_anchor[i];
+    int offset = slice_anchor[i];
     DALI_ENFORCE((offset >= 0) &&
-                 (offset + slab_shape[i] <= sample_shape[i]),
-                 "The slab has to fit inside the sample dimensions");
+                 (offset + slice_shape[i] <= sample_shape[i]),
+                 "The slice has to fit inside the sample dimensions");
   }
 }
 
@@ -176,16 +176,15 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleHelper(std::unique_ptr<FileSt
   return file;
 }
 
-// here, slab_anchor and slab_shape are passed by value deliberately, because
-// we might need to transpose them. In that case, we do not want to propagate that back
-// to the class members
-std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<FileStream> file,
+
+// helper function for reading a slice from a bigger file
+std::unique_ptr<FileStream> NumpyLoader::ReadSampleSliceHelper(std::unique_ptr<FileStream> file,
                                                               ImageFileWrapper& imfile,
                                                               const NumpyParseTarget& target) {
   // deal with potential column-major complications
-  TensorShape<> slab_anchor(slab_anchor_);
-  TensorShape<> slab_shape(slab_shape_);
-  SetupSlab(slab_anchor, slab_shape, TensorShape<>(target.shape), target.fortran_order);
+  TensorShape<> slice_anchor(slice_anchor_);
+  TensorShape<> slice_shape(slice_shape_);
+  SetupSlice(slice_anchor, slice_shape, TensorShape<>(target.shape), target.fortran_order);
 
   Index image_bytes = target.nbytes();
   if (copy_read_data_) {
@@ -194,15 +193,15 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<Fi
     }
 
     // Preprocess the shapes to do a 2stage IO
-    TensorShape<> slab_shape_io;
-    TensorShape<> slab_anchor_io;
-    TensorShape<> slab_anchor_copy;
-    bool use_twostage = SplitTwostageShapes(slab_anchor_io,
-                                            slab_anchor_copy,
-                                            slab_shape_io,
+    TensorShape<> slice_shape_io;
+    TensorShape<> slice_anchor_io;
+    TensorShape<> slice_anchor_copy;
+    bool use_twostage = SplitTwostageShapes(slice_anchor_io,
+                                            slice_anchor_copy,
+                                            slice_shape_io,
                                             TensorShape<>(target.shape),
-                                            slab_anchor,
-                                            slab_shape,
+                                            slice_anchor,
+                                            slice_shape,
                                             target.type_info,
                                             target_io_bytes_);
 
@@ -210,15 +209,15 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<Fi
       // we can load it directly
       ReadSliceKernel(imfile.image, file, file->Pos(),
                       TensorShape<>(target.shape), target.type_info,
-                      slab_anchor, slab_shape);
+                      slice_anchor, slice_shape);
     } else {
       // load into a temporary array
       ReadSliceKernel(io_tensor_, file, file->Pos(),
                       TensorShape<>(target.shape), target.type_info,
-                      slab_anchor_io, slab_shape_io);
+                      slice_anchor_io, slice_shape_io);
 
       // now slice in-memory to the desired shapex
-      CopySliceKernel(imfile.image, io_tensor_, slab_anchor_copy, slab_shape);
+      CopySliceKernel(imfile.image, io_tensor_, slice_anchor_copy, slice_shape);
     }
   } else {
     auto p = file->Get(image_bytes);
@@ -228,11 +227,12 @@ std::unique_ptr<FileStream> NumpyLoader::ReadSampleSlabHelper(std::unique_ptr<Fi
     tmptensor.Resize(target.shape, target.type_info);
 
     // do the sliced read
-    CopySliceKernel(imfile.image, tmptensor, slab_anchor, slab_shape);
+    CopySliceKernel(imfile.image, tmptensor, slice_anchor, slice_shape);
   }
   return file;
 }
 
+// reader function for reading a whole file
 void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   auto image_file = images_[current_index_++];
 
@@ -263,11 +263,11 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   current_image = ParseHeader(std::move(current_image), target);
   Index image_bytes = target.nbytes();
 
-  // read a slab or the whole file
-  if (slab_anchor_.empty() || slab_shape_.empty()) {
+  // read a slice or the whole file
+  if (slice_anchor_.empty() || slice_shape_.empty()) {
     current_image = ReadSampleHelper(std::move(current_image), imfile, target);
   } else {
-    current_image = ReadSampleSlabHelper(std::move(current_image), imfile, target);
+    current_image = ReadSampleSliceHelper(std::move(current_image), imfile, target);
   }
 
   // close the file handle

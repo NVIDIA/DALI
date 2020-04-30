@@ -56,14 +56,14 @@ void NumpyReader::Prefetch() {
   curr_batch.reserve(batch_size_);
   curr_batch.clear();
 
-  if (slab_shapes_.empty() || slab_anchors_.empty()) {
-    loader_->SetSlabParameters({}, {});
+  if (slice_shapes_.empty() || slice_anchors_.empty()) {
+    loader_->SetSliceParameters({}, {});
     for (int i = 0; i < batch_size_; ++i) {
       curr_batch.push_back(loader_->ReadOne(i == 0));
     }
   } else {
     for (int i = 0; i < batch_size_; ++i) {
-      loader_->SetSlabParameters(slab_anchors_[i], slab_shapes_[i]);
+      loader_->SetSliceParameters(slice_anchors_[i], slice_shapes_[i]);
       curr_batch.push_back(loader_->ReadOne(i == 0));
     }
   }
@@ -72,8 +72,8 @@ void NumpyReader::Prefetch() {
 // Run the operator
 void NumpyReader::Run(HostWorkspace &ws) {
   // Get the arguments
-  slab_anchors_ = GetSliceArg(ws, "anchor");
-  slab_shapes_ = GetSliceArg(ws, "shape");
+  slice_anchors_ = GetSliceArg(ws, "anchor");
+  slice_shapes_ = GetSliceArg(ws, "shape");
 
   // If necessary start prefetching thread and wait for a consumable batch
   StartPrefetchThread();
