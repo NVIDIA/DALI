@@ -37,7 +37,7 @@ to_torch_type = {
     np.dtype(np.int64)   : torch.int64
 }
 
-def feed_ndarray(dali_tensor, arr):
+def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     """
     Copy contents of DALI tensor to PyTorch's Tensor.
 
@@ -47,13 +47,19 @@ def feed_ndarray(dali_tensor, arr):
                     Tensor from which to copy
     `arr` : torch.Tensor
             Destination of the copy
+    `cuda_stream` : torch.cuda.Stream or any value that can be casted to cudaStream_t
+                    CUDA stream to be used for the copy
+                    (if not provided, an internal user stream will be selected)
     """
     assert dali_tensor.shape() == list(arr.size()), \
             ("Shapes do not match: DALI tensor has size {0}"
             ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
     #turn raw int to a c void pointer
     c_type_pointer = ctypes.c_void_p(arr.data_ptr())
-    dali_tensor.copy_to_external(c_type_pointer)
+    if isinstance(dali_tensor, nvidia.dali.backend.TensorGPU):
+        dali_tensor.copy_to_external(c_type_pointer, cuda_stream)
+    else:
+        dali_tensor.copy_to_external(c_type_pointer)
     return arr
 
 class DALIGenericIterator(object):
@@ -217,11 +223,13 @@ class DALIGenericIterator(object):
 
             # Copy data from DALI Tensors to torch tensors
             for category, tensor in category_tensors.items():
-                  if self._dynamic_shape and tensor.shape() != list(pyt_tensors[category].size()):
-                      pyt_tensors[category] = torch.zeros(category_shapes[category],
-                                                          dtype=pyt_tensors[category].dtype,
-                                                          device=pyt_tensors[category].device)
-                  feed_ndarray(tensor, pyt_tensors[category])
+                if self._dynamic_shape and tensor.shape() != list(pyt_tensors[category].size()):
+                    pyt_tensors[category] = torch.zeros(category_shapes[category],
+                                                        dtype=pyt_tensors[category].dtype,
+                                                        device=pyt_tensors[category].device)
+                # Using cuda_stream=0 because torch.zeros launches a cuda memcpy async on that stream
+                stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
+                feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
 
         for p in self._pipes:
             with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):

@@ -60,7 +60,7 @@ def to_paddle_type(tensor):
     return dtype_map[dtype]
 
 
-def feed_ndarray(dali_tensor, ptr):
+def feed_ndarray(dali_tensor, ptr, cuda_stream = None):
     """
     Copy contents of DALI tensor to Paddle's Tensor.
 
@@ -70,9 +70,15 @@ def feed_ndarray(dali_tensor, ptr):
                     Tensor from which to copy
     `ptr` : LoDTensor data pointer
             Destination of the copy
+    `cuda_stream` : Any value that can be casted to cudaStream_t
+                    CUDA stream to be used for the copy
+                    (if not provided, an internal user stream will be selected)
     """
     c_type_pointer = ctypes.c_void_p(ptr)
-    dali_tensor.copy_to_external(c_type_pointer)
+    if isinstance(dali_tensor, nvidia.dali.backend.TensorGPU):
+        dali_tensor.copy_to_external(c_type_pointer, cuda_stream)
+    else:
+        dali_tensor.copy_to_external(c_type_pointer)
     return ptr
 
 

@@ -37,7 +37,7 @@ def _wait_to_write(arr):
         raise RuntimeError("Can only wait for NDArray")
     mx.base._LIB.MXNDArrayWaitToWrite(arr.handle)
 
-def feed_ndarray(dali_tensor, arr):
+def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     """
     Copy contents of DALI tensor to MXNet's NDArray.
 
@@ -47,6 +47,9 @@ def feed_ndarray(dali_tensor, arr):
                     Tensor from which to copy
     `arr` : mxnet.nd.NDArray
             Destination of the copy
+    `cuda_stream` : Any value that can be casted to cudaStream_t
+                    CUDA stream to be used for the copy
+                    (if not provided, an internal user stream will be selected)
     """
     # Wait until arr is no longer used by the engine
     _wait_to_write(arr)
@@ -57,7 +60,10 @@ def feed_ndarray(dali_tensor, arr):
     ptr = ctypes.c_void_p()
     mx.base._LIB.MXNDArrayGetData(arr.handle, ctypes.byref(ptr))
     # Copy data from DALI tensor to ptr
-    dali_tensor.copy_to_external(ptr)
+    if isinstance(dali_tensor, nvidia.dali.backend.TensorGPU):
+        dali_tensor.copy_to_external(ptr, cuda_stream)
+    else:
+        dali_tensor.copy_to_external(ptr)
 
 class _DALIIteratorBase(mx.io.DataIter):
     """
