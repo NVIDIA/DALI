@@ -197,3 +197,5 @@ file(WRITE ${CMAKE_BINARY_DIR}/dali/__init__.py "")
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/lint.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Install.cmake)
+
+export(PACKAGE dali)
