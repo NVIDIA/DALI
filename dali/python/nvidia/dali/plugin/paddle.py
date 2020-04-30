@@ -75,7 +75,7 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream = None):
                     (if not provided, an internal user stream will be selected)
     """
     c_type_pointer = ctypes.c_void_p(ptr)
-    if isinstance(dali_tensor, nvidia.dali.backend.TensorGPU):
+    if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
         dali_tensor.copy_to_external(c_type_pointer, cuda_stream)
     else:
         dali_tensor.copy_to_external(c_type_pointer)

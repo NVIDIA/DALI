@@ -15,6 +15,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from nvidia.dali.backend import TensorGPU, TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 from nvidia.dali import types
@@ -56,7 +57,7 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
             ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
     #turn raw int to a c void pointer
     c_type_pointer = ctypes.c_void_p(arr.data_ptr())
-    if isinstance(dali_tensor, nvidia.dali.backend.TensorGPU):
+    if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
         dali_tensor.copy_to_external(c_type_pointer, cuda_stream)
     else:
         dali_tensor.copy_to_external(c_type_pointer)
@@ -205,7 +206,6 @@ class DALIGenericIterator(object):
                 # check category and device
                 for category in self._output_categories:
                     category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category].dtype())]
-                    from nvidia.dali.backend import TensorGPU
                     if type(category_tensors[category]) is TensorGPU:
                         category_device[category] = torch_gpu_device
                     else:
@@ -227,9 +227,12 @@ class DALIGenericIterator(object):
                     pyt_tensors[category] = torch.zeros(category_shapes[category],
                                                         dtype=pyt_tensors[category].dtype,
                                                         device=pyt_tensors[category].device)
-                # Using cuda_stream=0 because torch.zeros launches a cuda memcpy async on that stream
-                stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
-                feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
+                if isinstance(tensor, (TensorGPU, TensorListGPU)):
+                    # Using same cuda_stream used by torch.zeros to set the memory
+                    stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
+                    feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
+                else:
+                    feed_ndarray(tensor, pyt_tensors[category])
 
         for p in self._pipes:
             with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
