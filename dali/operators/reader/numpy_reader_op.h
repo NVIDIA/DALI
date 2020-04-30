@@ -38,10 +38,11 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
     bool shuffle_after_epoch = spec_.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<NumpyLoader>(spec, std::vector<string>(),
                                       shuffle_after_epoch);
+    // check if there are static args
+    GetStaticSliceArg(slice_anchors_, "anchor");
+    GetStaticSliceArg(slice_shapes_, "shape");
+    SanitizeSliceArgs(slice_anchors_, slice_shapes_);
   }
-
-  // these are helpers for strides reads
-  TensorListShape<> GetSliceArg(ArgumentWorkspace &ws, const char *name);
 
   // we need to override this, because we want to allow for sliced reads
   void Prefetch() override;
@@ -53,6 +54,14 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
   void RunImpl(SampleWorkspace &ws) override;
 
  protected:
+  // helper functions for extracting the slices statically or dynamically
+  // those are defined so that it is easier to deal with combined static + dynamic
+  // arguments. For example, a typical use case would be to define a static slice_shape
+  // but a random anchor point.
+  void GetStaticSliceArg(TensorListShape<>& tls, const char *name);
+  void GetDynamicSliceArg(TensorListShape<>& tls, ArgumentWorkspace &ws, const char *name);
+  void SanitizeSliceArgs(TensorListShape<>& anchor, const TensorListShape<>& shape);
+
   // used for copying the image to output buffer
   void CopyHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
 

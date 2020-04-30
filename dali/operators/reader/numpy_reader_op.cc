@@ -21,17 +21,35 @@
 
 namespace dali {
 
-TensorListShape<> NumpyReader::GetSliceArg(ArgumentWorkspace &ws, const char *name) {
+void NumpyReader::SanitizeSliceArgs(TensorListShape<>& anchors, const TensorListShape<>& shapes) {
+  // if shape is set but anchor isn't, set anchor to 0
+  if (!shapes.empty() && anchors.empty()) {
+    TensorShape<> ts;
+    ts.resize(shapes.sample_dim());
+    for (int d = 0; d < shapes.sample_dim(); d++) ts[d] = 0;
+    anchors = uniform_list_shape(batch_size_, ts);
+  }
+}
+
+void NumpyReader::GetStaticSliceArg(TensorListShape<>& tls, const char *name) {
   if (spec_.HasArgument(name)) {
-    return uniform_list_shape(batch_size_, spec_.GetRepeatedArgument<int>(name));
-  } else if (spec_.HasTensorArgument(name)) {
+    tls = uniform_list_shape(batch_size_, spec_.GetRepeatedArgument<int>(name));
+  } else {
+    // create an list of empty shapes
+    tls = {};
+  }
+}
+
+void NumpyReader::GetDynamicSliceArg(TensorListShape<>& tls,
+                                     ArgumentWorkspace &ws,
+                                     const char *name) {
+  if (spec_.HasTensorArgument(name)) {
     auto &t = ws.ArgumentInput(name);
     DALI_ENFORCE(static_cast<int>(t.size()) == batch_size_
                  && t.shape().sample_dim() == 1
                  && is_uniform(t.shape()),
                  "Shape must be a list of 1D tensors of equal length");
     auto tlv = view<const int>(t);
-    TensorListShape<> tls;
     tls.resize(batch_size_, t.shape()[0][0]);
     TensorShape<> ts;
     ts.resize(t.shape()[0][0]);
@@ -42,10 +60,11 @@ TensorListShape<> NumpyReader::GetSliceArg(ArgumentWorkspace &ws, const char *na
       }
       tls.set_tensor_shape(i, ts);
     }
-    return tls;
   } else {
-    // create an list of empty shapes
-    return {};
+    // create an list of empty shapes only if there is not static argument
+    if (!spec_.HasArgument(name)) {
+      tls = {};
+    }
   }
 }
 
@@ -56,7 +75,7 @@ void NumpyReader::Prefetch() {
   curr_batch.reserve(batch_size_);
   curr_batch.clear();
 
-  if (slice_shapes_.empty() || slice_anchors_.empty()) {
+  if (slice_shapes_.empty()) {
     loader_->SetSliceParameters({}, {});
     for (int i = 0; i < batch_size_; ++i) {
       curr_batch.push_back(loader_->ReadOne(i == 0));
@@ -72,8 +91,8 @@ void NumpyReader::Prefetch() {
 // Run the operator
 void NumpyReader::Run(HostWorkspace &ws) {
   // Get the arguments
-  slice_anchors_ = GetSliceArg(ws, "anchor");
-  slice_shapes_ = GetSliceArg(ws, "shape");
+  GetDynamicSliceArg(slice_anchors_, ws, "anchor");
+  GetDynamicSliceArg(slice_shapes_, ws, "shape");
 
   // If necessary start prefetching thread and wait for a consumable batch
   StartPrefetchThread();
@@ -156,7 +175,7 @@ the list of files in the sub-directories of `file_root`.)code", "*.npy")
 `stick_to_shard` and `random_shuffle`.)code",
       false)
   .AddOptionalArg<int>("anchor", R"code(Specifies the anchor for sliced reads.\n
-If no anchor is specified, the whole file is read.)code",
+If no anchor is specified, but shape is set, anchor=0 is assumed.)code",
       std::vector<int>(), true)
   .AddOptionalArg<int>("shape", R"code(Specifies the shape of the slice for sliced reads.\n
 If no shape is specified, the whole file is read.)code",
