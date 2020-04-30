@@ -139,7 +139,8 @@ class RecordIOLoader : public IndexedFileLoader {
         DALI_ENFORCE(current_file_index_ + 1 < uris_.size(),
           "Incomplete or corrupted record files");
         // Release previously opened file
-        current_file_ = FileStream::Open(uris_[++current_file_index_], read_ahead_, !copy_read_data_);
+        current_file_ = FileStream::Open(uris_[++current_file_index_], read_ahead_,
+                                         !copy_read_data_);
         next_seek_pos_ = 0;
         continue;
       }

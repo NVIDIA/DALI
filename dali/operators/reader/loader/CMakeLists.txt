@@ -34,6 +34,6 @@ set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)
 # we don't want to test Caffe2 reader if LMDB is not present
 if (BUILD_TEST AND BUILD_LMDB)
   # get all the test srcs
-  file(GLOB tmp *_test.cc file_loader.cc file_label_loader.cc)
+  file(GLOB tmp *_test.cc file_loader.cc file_label_loader.cc coco_loader.cc)
   set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()
