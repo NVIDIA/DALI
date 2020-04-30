@@ -39,6 +39,13 @@ epilog=${epilog-:}
 # get the number of elements in `prolog` array
 numer_of_prolog_elms=${#prolog[@]}
 
+# Wrap the test_body in a subshell, where we can safely execute it with `set -e`
+# and turn it off in current shell to intercept the error code
+test_body_wrapper() {(
+    set -e
+    test_body
+)}
+
 for i in `seq 0 $last_config_index`;
 do
     echo "Test run $i"
@@ -59,15 +66,19 @@ do
             fi
         fi
         # test code
+        # Run test_body in subshell, the exit on error is turned off in current shell,
+        # but it will be present in subshell (thanks to wrapper).
+        # We can intercept first error that happens. test_body_wrapper cannot be used with
+        # any conditional as it will turn on "exit on error" behaviour
         set +e
-        RV=0
-        test_body || RV=$?
+        test_body_wrapper
+        RV=$?
+        set -e
         if [ $RV -gt 0 ] ; then
             mkdir -p $topdir/core_artifacts
-            cp core* $topdir/core_artifacts
+            cp core* $topdir/core_artifacts || true
             exit ${RV}
         fi
-        set -e
         # remove packages
         remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION})
         if [ -n "$remove" ]; then
