@@ -51,7 +51,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
     if (file_index != current_file_index_) {
       current_file_->Close();
-      current_file_ = FileStream::Open(uris_[file_index], read_ahead_);
+      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_);
       current_file_index_ = file_index;
     }
 
@@ -120,14 +120,17 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
   void PrepareMetadataImpl() override {
+    if (!dont_use_mmap_) {
+      mmap_reserver = FileStream::FileStreamMappinReserver(
+                                  static_cast<unsigned int>(initial_buffer_fill_));
+    }
+    copy_read_data_ = dont_use_mmap_ || !mmap_reserver.CanShareMappedData();
+
     DALI_ENFORCE(!uris_.empty(), "No files specified.");
     ReadIndexFile(index_uris_);
     DALI_ENFORCE(!indices_.empty(), "Content of index files should not be empty");
     current_file_index_ = INVALID_INDEX;
     Reset(true);
-
-    mmap_reserver = FileStream::FileStreamMappinReserver(uris_.size());
-    copy_read_data_ = !mmap_reserver.CanShareMappedData();
   }
 
   void Reset(bool wrap_to_shard) override {
@@ -143,7 +146,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       if (current_file_index_ != static_cast<size_t>(INVALID_INDEX)) {
         current_file_->Close();
       }
-      current_file_ = FileStream::Open(uris_[file_index], read_ahead_);
+      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_);
       current_file_index_ = file_index;
     }
     current_file_->Seek(seek_pos);
