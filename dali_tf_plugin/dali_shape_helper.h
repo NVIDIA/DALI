@@ -15,7 +15,7 @@
 #ifndef DALI_TF_PLUGIN_DALI_SHAPE_HELPER_H_
 #define DALI_TF_PLUGIN_DALI_SHAPE_HELPER_H_
 
-#include "dali/c_api/c_api.h"
+#include "dali/c_api.h"
 
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/types.h"

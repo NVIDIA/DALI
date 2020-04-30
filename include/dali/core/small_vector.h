@@ -27,8 +27,10 @@ namespace dali {
 template <typename T, typename Allocator, bool Contextless = std::is_empty<Allocator>::value>
 struct SmallVectorAlloc {
   SmallVectorAlloc() = default;
-  __host__ __device__ SmallVectorAlloc(Allocator &&allocator) : allocator_(cuda_move(allocator)) {}
-  __host__ __device__ SmallVectorAlloc(const Allocator &allocator) : allocator_(allocator) {}
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV SmallVectorAlloc(Allocator &&allocator) : allocator_(cuda_move(allocator)) {}
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV SmallVectorAlloc(const Allocator &allocator) : allocator_(allocator) {}
 
   Allocator allocator_;
   __host__ T *allocate(size_t count) {
@@ -63,20 +65,23 @@ struct SmallVectorAlloc<T, device_side_allocator<T>, true> {
 template <typename T, bool is_pod = std::is_pod<T>::value>
 class SmallVectorBase {
  protected:
-  __host__ __device__ static void move_and_destroy(T *dest, T *src, size_t count) noexcept {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV static void move_and_destroy(T *dest, T *src, size_t count) noexcept {
     for (size_t i = 0; i < count; i++) {
       new(dest + i) T(cuda_move(src[i]));
       src[i].~T();
     }
   }
 
-  __host__ __device__ static void destroy(T *ptr, size_t count) noexcept {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV static void destroy(T *ptr, size_t count) noexcept {
     for (size_t i = 0; i < count; i++) {
       ptr[i].~T();
     }
   }
 
-  __host__ __device__ static void copy(T *dst, const T *src, size_t count) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV static void copy(T *dst, const T *src, size_t count) {
     for (size_t i = 0; i <count; i++)
       dst[i] = src[i];
   }
@@ -86,7 +91,8 @@ class SmallVectorBase {
 template <typename T>
 class SmallVectorBase<T, true> {
  protected:
-  __host__ __device__ void copy(T *dst, const T *src, size_t count) noexcept {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV void copy(T *dst, const T *src, size_t count) noexcept {
 #ifdef __CUDA_ARCH__
     for (size_t i = 0; i < count; i++) {
       dst[i] = src[i];
@@ -95,11 +101,12 @@ class SmallVectorBase<T, true> {
     memcpy(dst, src, count * sizeof(T));
 #endif
   }
-  __host__ __device__ void move_and_destroy(T *dst, T *src, size_t count) noexcept {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV void move_and_destroy(T *dst, T *src, size_t count) noexcept {
     copy(dst, src, count);
   }
 
-  __host__ __device__ static void destroy(T *, size_t) noexcept {}
+  DALI_HOST_DEV static void destroy(T *, size_t) noexcept {}
 };
 
 #ifdef __CUDA_ARCH__
@@ -116,31 +123,37 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
 
  public:
   static constexpr const size_t static_size = static_size_;  // NOLINT (kOnstant)
-  __host__ __device__ SmallVector() {}
-  __host__ __device__ explicit SmallVector(allocator &&alloc) : Alloc(cuda_move(alloc)) {}
-  __host__ __device__ explicit SmallVector(const allocator &alloc) : Alloc(alloc) {}
+  DALI_HOST_DEV SmallVector() {}
 
-  __host__ __device__ SmallVector(const T *data, size_t count) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV explicit SmallVector(allocator &&alloc) : Alloc(cuda_move(alloc)) {}
+
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV explicit SmallVector(const allocator &alloc) : Alloc(alloc) {}
+
+  DALI_HOST_DEV SmallVector(const T *data, size_t count) {
     copy_assign(data, count);
   }
 
   template <typename Iterator>
-  __host__ __device__ SmallVector(Iterator begin, Iterator end) {
+  DALI_HOST_DEV SmallVector(Iterator begin, Iterator end) {
     copy_assign(begin, end);
   }
 
-  __host__ __device__ SmallVector(const std::vector<T> &v) {
+  __host__ SmallVector(const std::vector<T> &v) {
     *this = v;
   }
 
 
-  __host__ __device__ SmallVector(std::initializer_list<T> il) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV SmallVector(std::initializer_list<T> il) {
     auto *data = &*il.begin();
     auto count = il.end() - il.begin();
     copy_assign(data, count);
   }
 
-  __host__ __device__ ~SmallVector() {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV ~SmallVector() {
     T *ptr = data();
     this->destroy(ptr, size());
     if (is_dynamic())
@@ -149,33 +162,37 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     reset_capacity();
   }
 
-  SmallVector(const SmallVector &other) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV SmallVector(const SmallVector &other) {
     *this = other;
   }
 
+  DALI_NO_EXEC_CHECK
   template <size_t other_static_size, typename alloc>
-  __host__ __device__ SmallVector(const SmallVector<T, other_static_size, alloc> &other) {
+  DALI_HOST_DEV SmallVector(const SmallVector<T, other_static_size, alloc> &other) {
     *this = other;
   }
 
   template <size_t other_static_size>
-  __host__ __device__ SmallVector(SmallVector<T, other_static_size, allocator> &&other) noexcept {
+  DALI_HOST_DEV SmallVector(SmallVector<T, other_static_size, allocator> &&other) noexcept {
     *this = cuda_move(other);
   }
 
-  __host__ __device__ SmallVector &operator=(const SmallVector &v) {
+  DALI_HOST_DEV SmallVector &operator=(const SmallVector &v) {
     copy_assign(v);
     return *this;
   }
 
+  DALI_NO_EXEC_CHECK
   template <size_t other_static_size, typename alloc>
-  __host__ __device__ SmallVector &operator=(const SmallVector<T, other_static_size, alloc> &v) {
+  DALI_HOST_DEV SmallVector &operator=(const SmallVector<T, other_static_size, alloc> &v) {
     copy_assign(v);
     return *this;
   }
 
+  DALI_NO_EXEC_CHECK
   template <typename Collection>
-  __host__ __device__ if_array_like<Collection, SmallVector &> operator=(const Collection &c) {
+  DALI_HOST_DEV if_array_like<Collection, SmallVector &> operator=(const Collection &c) {
     auto n = dali::size(c);
     clear();
     reserve(n);
@@ -190,7 +207,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   }
 
   template <typename Iterator>
-  __host__ __device__ void copy_assign(Iterator begin, Iterator end) {
+  DALI_HOST_DEV void copy_assign(Iterator begin, Iterator end) {
     auto n = end - begin;
     clear();
     reserve(n);
@@ -199,11 +216,12 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     }
   }
 
-  __host__ __device__ void copy_assign(const T *begin, const T *end) {
+  DALI_HOST_DEV void copy_assign(const T *begin, const T *end) {
     copy_assign(begin, end-begin);
   }
 
-  __host__ __device__ void copy_assign(const T *data, size_t count) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV void copy_assign(const T *data, size_t count) {
     clear();
     reserve(count);
     T *ptr = this->data();
@@ -220,8 +238,9 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     }
   }
 
+  DALI_NO_EXEC_CHECK
   template <size_t other_static_size, typename alloc>
-  __host__ __device__ void copy_assign(const SmallVector<T, other_static_size, alloc> &v) {
+  DALI_HOST_DEV void copy_assign(const SmallVector<T, other_static_size, alloc> &v) {
     const T *src = v.data();
     if (capacity() >= v.size()) {
       size_t i;
@@ -265,8 +284,9 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     }
   }
 
+  DALI_NO_EXEC_CHECK
   template <size_t other_static_size, typename alloc>
-  __host__ __device__ bool operator==(const SmallVector<T, other_static_size, alloc> &v) const {
+  DALI_HOST_DEV bool operator==(const SmallVector<T, other_static_size, alloc> &v) const {
     size_t n = size();
     if (n != v.size())
       return false;
@@ -277,13 +297,15 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     return true;
   }
 
+  DALI_NO_EXEC_CHECK
   template <size_t other_static_size, typename alloc>
-  __host__ __device__ bool operator!=(const SmallVector<T, other_static_size, alloc> &v) const {
+  DALI_HOST_DEV bool operator!=(const SmallVector<T, other_static_size, alloc> &v) const {
     return !(*this == v);
   }
 
+  DALI_NO_EXEC_CHECK
   template <size_t other_static_size>
-  __host__ __device__ SmallVector &operator=(SmallVector<T, other_static_size, allocator> &&v) {
+  DALI_HOST_DEV SmallVector &operator=(SmallVector<T, other_static_size, allocator> &&v) {
     if (v.is_dynamic() && v.capacity() > static_size) {
       clear();
       if (is_dynamic()) {
@@ -331,53 +353,53 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   using const_iterator = const T*;
   using index_type = std::ptrdiff_t;
 
-  inline __host__ __device__ iterator begin() {
+  DALI_HOST_DEV inline iterator begin() {
     return data();
   }
-  inline __host__ __device__ iterator end() {
+  DALI_HOST_DEV inline iterator end() {
     return data() + size();
   }
-  inline __host__ __device__ const_iterator cbegin() const {
+  DALI_HOST_DEV inline const_iterator cbegin() const {
     return data();
   }
-  inline __host__ __device__ const_iterator cend() const {
+  DALI_HOST_DEV inline const_iterator cend() const {
     return data() + size();
   }
 
-  inline __host__ __device__ const_iterator begin() const {
+  DALI_HOST_DEV inline const_iterator begin() const {
     return cbegin();
   }
-  inline __host__ __device__ const_iterator end() const {
+  DALI_HOST_DEV inline const_iterator end() const {
     return cend();
   }
 
-  inline __host__ __device__ reference front() {
+  DALI_HOST_DEV inline reference front() {
     return data()[0];
   }
-  inline __host__ __device__ const_reference front() const {
+  DALI_HOST_DEV inline const_reference front() const {
     return data()[0];
   }
 
-  inline __host__ __device__ reference back() {
+  DALI_HOST_DEV inline reference back() {
     return data()[size() - 1];
   }
-  inline __host__ __device__ const_reference back() const {
+  DALI_HOST_DEV inline const_reference back() const {
     return data()[size() - 1];
   }
 
-  inline __host__ __device__ size_t size() const {
+  DALI_HOST_DEV inline size_t size() const {
     return size_ & size_mask;
   }
 
-  inline __host__ __device__ bool empty() const {
+  DALI_HOST_DEV inline bool empty() const {
     return size() == 0;
   }
 
-  inline __host__ __device__ size_t capacity() const {
+  DALI_HOST_DEV inline size_t capacity() const {
     return is_dynamic() ? dynamic.capacity : static_size;
   }
 
-  inline __host__ __device__ T *data() {
+  DALI_HOST_DEV inline T *data() {
     if (is_dynamic()) {
       return dynamic_data();
     } else {
@@ -385,7 +407,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     }
   }
 
-  inline __host__ __device__ const T *data() const {
+  DALI_HOST_DEV inline const T *data() const {
     if (is_dynamic()) {
       return dynamic_data();
     } else {
@@ -393,62 +415,72 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     }
   }
 
-  inline __host__ __device__ bool is_dynamic() const {
+  DALI_HOST_DEV inline bool is_dynamic() const {
     return (size_ & dynamic_flag) != 0;
   }
 
-  inline __host__ __device__ reference operator[](ptrdiff_t index) {
+  DALI_HOST_DEV inline reference operator[](ptrdiff_t index) {
     return data()[index];
   }
 
-  inline __host__ __device__ const_reference operator[](ptrdiff_t index) const {
+  DALI_HOST_DEV inline const_reference operator[](ptrdiff_t index) const {
     return data()[index];
   }
 
-  inline __host__ __device__ void clear() {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV inline void clear() {
     this->destroy(data(), size());
     set_size(0);
   }
 
-  inline __host__ __device__ void push_back(const T &value) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV inline void push_back(const T &value) {
     emplace_back(value);
   }
 
-  inline __host__ __device__ void push_back(T &&value) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV inline void push_back(T &&value) {
     emplace_back(cuda_move(value));
   }
 
+  DALI_NO_EXEC_CHECK
   template <typename... Args>
-  inline __host__ __device__ void emplace_back(Args&&... args) {
+  DALI_HOST_DEV inline void emplace_back(Args&&... args) {
     pre_append();
     T *ptr = data();
     new(ptr + size_) T(cuda_forward<Args>(args)...);
     set_size(size() + 1);
   }
 
-  inline __host__ __device__ iterator insert(const_iterator before, const T &value) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV inline iterator insert(const_iterator before, const T &value) {
     return emplace(before, value);
   }
 
-  inline __host__ __device__ iterator insert(const_iterator before, T &&value) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV inline iterator insert(const_iterator before, T &&value) {
     return emplace(before, cuda_move(value));
   }
 
-  inline __host__ __device__ iterator insert_at(index_type index, const T &value) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV inline iterator insert_at(index_type index, const T &value) {
     return emplace_at(index, value);
   }
 
-  inline __host__ __device__ iterator insert_at(index_type index, T &&value) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV inline iterator insert_at(index_type index, T &&value) {
     return emplace_at(index, cuda_move(value));
   }
 
+  DALI_NO_EXEC_CHECK
   template <typename... Args>
-  inline __host__ __device__ iterator emplace(const_iterator before, Args&&... args) {
+  DALI_HOST_DEV inline iterator emplace(const_iterator before, Args&&... args) {
     return emplace_at(before - begin(), cuda_forward<Args>(args)...);
   }
 
+  DALI_NO_EXEC_CHECK
   template <typename... Args>
-  inline __host__ __device__ iterator emplace_at(index_type index, Args&&... args) {
+  DALI_HOST_DEV inline iterator emplace_at(index_type index, Args&&... args) {
     if (index == static_cast<index_type>(size())) {
       emplace_back(cuda_forward<Args>(args)...);
       return begin() + index;
@@ -495,15 +527,18 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     return begin() + index;
   }
 
-  inline __host__ __device__ iterator erase(const_iterator position) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV inline iterator erase(const_iterator position) {
     return erase_at(position - begin());
   }
 
-  inline __host__ __device__ iterator erase(const_iterator first, const_iterator last) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV inline iterator erase(const_iterator first, const_iterator last) {
     return erase_at(first - begin(), last - first);
   }
 
-  inline __host__ __device__ iterator erase_at(index_type first, size_t count = 1) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV inline iterator erase_at(index_type first, size_t count = 1) {
     index_type n = size();
     T *ptr = data();
 
@@ -519,12 +554,14 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     return ptr + first;
   }
 
-  inline __host__ __device__ void pop_back() {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV inline void pop_back() {
     back().~T();
     set_size(size() - 1);
   }
 
-  __host__ __device__ void resize(size_t count) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV void resize(size_t count) {
     reserve(count);
     T *ptr = data();
     for (size_t i = size(); i < count; i++) {
@@ -536,7 +573,8 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     set_size(count);
   }
 
-  __host__ __device__ void resize(size_t count, const value_type &value) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV void resize(size_t count, const value_type &value) {
     reserve(count);
     T *ptr = data();
     for (size_t i = size(); i < count; i++) {
@@ -548,7 +586,8 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     set_size(count);
   }
 
-  __host__ __device__ void reserve(size_t new_capacity) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV void reserve(size_t new_capacity) {
     if (new_capacity <= capacity())
       return;
     T *ptr = data();
@@ -561,7 +600,8 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     set_capacity(new_capacity);
   }
 
-  __host__ __device__ void shrink_to_fit() {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV void shrink_to_fit() {
     size_t new_capacity = cuda_max(size_, static_size);
     if (capacity() > new_capacity) {
       T *ptr = data();
@@ -599,13 +639,13 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   static constexpr size_t dynamic_flag = ~size_mask;
 
   template <typename U>
-  inline __host__ __device__ void swap(U &a, U &b) {
+  DALI_HOST_DEV inline void swap(U &a, U &b) {
     U tmp = cuda_move(a);
     a = cuda_move(b);
     b = cuda_move(tmp);
   }
 
-  inline __host__ __device__ void make_space(size_t index) {
+  DALI_HOST_DEV inline void make_space(size_t index) {
     T *ptr = data();
     size_t n = size();
     size_t i = n;
@@ -615,10 +655,10 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     }
   }
 
-  inline __host__ __device__ void set_size(size_t new_size) {
+  DALI_HOST_DEV inline void set_size(size_t new_size) {
     size_ = new_size | (size_ & dynamic_flag);
   }
-  inline __host__ __device__ void set_capacity(size_t new_capacity) {
+  DALI_HOST_DEV inline void set_capacity(size_t new_capacity) {
     if (new_capacity > static_size) {
       size_ |= dynamic_flag;
       dynamic.capacity = new_capacity;
@@ -626,11 +666,11 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       reset_capacity();
     }
   }
-  inline __host__ __device__ void reset_capacity() {
+  DALI_HOST_DEV inline void reset_capacity() {
     size_ &= ~dynamic_flag;
   }
 
-  inline __host__ __device__ T *allocate(size_t count, bool &dynamic) {
+  DALI_HOST_DEV inline T *allocate(size_t count, bool &dynamic) {
     if (count <= static_size) {
       dynamic = false;
       return static_data();
@@ -641,24 +681,24 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   }
   using Alloc::deallocate;
 
-  inline __host__ __device__ T *static_data() {
+  DALI_HOST_DEV inline T *static_data() {
     return reinterpret_cast<T *>(&storage);
   }
-  inline __host__ __device__ const T *static_data() const {
+  DALI_HOST_DEV inline const T *static_data() const {
     return reinterpret_cast<const T *>(&storage);
   }
 
-  inline __host__ __device__ T *dynamic_data() {
+  DALI_HOST_DEV inline T *dynamic_data() {
     return dynamic.data;
   }
-  inline __host__ __device__ const T *dynamic_data() const {
+  DALI_HOST_DEV inline const T *dynamic_data() const {
     return dynamic.data;
   }
-  inline __host__ __device__ void set_dynamic_data(T *ptr) {
+  DALI_HOST_DEV inline void set_dynamic_data(T *ptr) {
     dynamic.data = ptr;
   }
 
-  inline __host__ __device__ void pre_append(size_t count = 1) {
+  DALI_HOST_DEV inline void pre_append(size_t count = 1) {
     if (size() + count > capacity()) {
       reserve(cuda_max(2 * capacity(), size() + count));
     }

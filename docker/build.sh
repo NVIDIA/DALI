@@ -153,6 +153,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_LIBSND=${BUILD_LIBSND}              \
                                         BUILD_NVML=${BUILD_NVML}                  \
                                         BUILD_FFTS=${BUILD_FFTS}                  \
+                                        STRIP_BINARY=${STRIP_BINARY}              \
                                         VERBOSE_LOGS=${VERBOSE_LOGS}              \
                                         WERROR=${WERROR}                          \
                                         BUILD_WITH_ASAN=${BUILD_WITH_ASAN}        \
@@ -185,6 +186,7 @@ else
                                    --build-arg "BUILD_LIBSND=${BUILD_LIBSND}"              \
                                    --build-arg "BUILD_NVML=${BUILD_NVML}"                  \
                                    --build-arg "BUILD_FFTS=${BUILD_FFTS}"                  \
+                                   --build_arg "STRIP_BINARY=${STRIP_BINARY}"              \
                                    --build-arg "VERBOSE_LOGS=${VERBOSE_LOGS}"              \
                                    --build-arg "WERROR=${WERROR}"                          \
                                    --build-arg "BUILD_WITH_ASAN=${BUILD_WITH_ASAN}"        \

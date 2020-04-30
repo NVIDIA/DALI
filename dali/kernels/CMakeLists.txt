@@ -32,17 +32,17 @@ collect_sources(DALI_KERNEL_SRCS)
 collect_test_sources(DALI_KERNEL_TEST_SRCS)
 
 # cuFFT library
-add_library(${dali_kernel_lib} SHARED ${DALI_KERNEL_SRCS})
-target_link_libraries(${dali_kernel_lib} PUBLIC ${dali_core_lib})
-target_link_libraries(${dali_kernel_lib} PRIVATE ${CUDA_cufft_static_LIBRARY})
-target_link_libraries(${dali_kernel_lib} PRIVATE ${DALI_LIBS})
-target_link_libraries(${dali_kernel_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
-set_target_properties(${dali_kernel_lib} PROPERTIES
+add_library(dali_kernels SHARED ${DALI_KERNEL_SRCS})
+target_link_libraries(dali_kernels PUBLIC dali_core)
+target_link_libraries(dali_kernels PRIVATE ${CUDA_cufft_static_LIBRARY})
+target_link_libraries(dali_kernels PRIVATE ${DALI_LIBS})
+target_link_libraries(dali_kernels PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+set_target_properties(dali_kernels PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 
 set(lib_exports "libdali_kernels.map")
 configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${CMAKE_BINARY_DIR}/${lib_exports}")
-target_link_libraries(${dali_kernel_lib} PRIVATE  -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
+target_link_libraries(dali_kernels PRIVATE  -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
 
 if (BUILD_TEST)
   set(test_bin "dali_kernel_test.bin")
@@ -51,8 +51,8 @@ if (BUILD_TEST)
     ${DALI_KERNEL_TEST_SRCS}
     ${DALI_ROOT}/dali/test/dali_test_config.cc)
 
-  # TODO(janton): Remove dependency with dali_lib
-  target_link_libraries(${test_bin} PUBLIC ${dali_kernel_lib} ${dali_lib})
+  # TODO(janton): Remove dependency with target `dali`
+  target_link_libraries(${test_bin} PUBLIC dali_kernels dali)
   target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   target_link_libraries(${test_bin} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
   set_target_properties(${test_bin} PROPERTIES

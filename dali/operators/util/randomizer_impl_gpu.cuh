@@ -17,6 +17,7 @@
 
 #include "dali/operators/util/randomizer.h"
 
+#include <math.h>
 #include <curand.h>
 #include <curand_kernel.h>
 
@@ -38,7 +39,8 @@ Randomizer<GPUBackend>::Randomizer(int seed, size_t len) {
   len_ = len;
   cudaGetDevice(&device_);
   states_ = GPUBackend::New(sizeof(curandState) * len, true);
-  initializeStates<<<128, 256>>>(len_, seed, reinterpret_cast<curandState*>(states_));
+  initializeStates<<<div_ceil(len, block_size_), block_size_>>>
+                  (len_, seed, reinterpret_cast<curandState*>(states_));
 }
 
 template <>

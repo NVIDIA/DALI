@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13)
 # allow usage of check_symbol_exists() macro
 include(CheckCXXSymbolExists)
 
@@ -195,3 +195,5 @@ add_subdirectory(dali)
 file(WRITE ${CMAKE_BINARY_DIR}/dali/__init__.py "")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/lint.cmake)
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Install.cmake)

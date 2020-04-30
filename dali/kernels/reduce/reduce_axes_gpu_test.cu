@@ -58,7 +58,6 @@ class ReduceInnerGPUTest : public ::testing::Test {
   using SampleDesc = ReduceSampleDesc<float, float>;
 
   void PrepareData(int N, int_dist outer_shape_dist, int_dist inner_shape_dist) {
-    std::uniform_real_distribution<float> dist(0, 1);
     std::mt19937_64 rng;
 
     TensorListShape<2> tls;
@@ -349,6 +348,56 @@ TYPED_TEST(ReduceMiddleGPUTest, ReduceOuter_B1_16M_3) {
   this->Run();
 }
 #endif
+
+TEST(ReduceSamples, Sum) {
+  std::mt19937_64 rng(12345);
+  TestTensorList<float, 2> in, out;
+  TensorShape<2> sample_shape = { 480, 640 };
+#ifdef NDEBUG
+  int N = 64;
+#else
+  int N = 16;
+#endif
+  reductions::sum R;
+  auto in_shape = uniform_list_shape(N, sample_shape);
+  auto out_shape = uniform_list_shape(1, sample_shape);
+  in.reshape(in_shape);
+  out.reshape(out_shape);
+
+  auto cpu_in = in.cpu();
+  UniformRandomFill(cpu_in, rng, 0, 1);
+
+  auto gpu_in = in.gpu();
+  DeviceBuffer<const float *> sample_ptrs;
+  sample_ptrs.resize(N);
+
+  int64_t n = volume(sample_shape);
+  auto gpu_out = out.gpu();
+
+  auto start = CUDAEvent::CreateWithFlags(0);
+  auto end =   CUDAEvent::CreateWithFlags(0);
+  sample_ptrs.from_host(gpu_in.data);
+  cudaEventRecord(start);
+  ReduceSamplesKernel<<<256, 1024>>>(gpu_out.data[0], sample_ptrs.data(), n, N, R);
+  cudaEventRecord(end);
+  auto cpu_out = out.cpu();
+  float t = 0;
+  cudaEventElapsedTime(&t, start, end);
+  t /= 1000;  // convert to seconds
+  int64_t read = sizeof(float) * in_shape.num_elements();
+  int64_t written = sizeof(float) * out_shape.num_elements();
+  std::cerr << (read + written) / t * 1e-9 << " GB/s" << endl;
+
+  for (int64_t j = 0; j < n; j++) {
+    OnlineReducer<float, decltype(R)> red;
+    red = {};
+    for (int i = 0; i < N; i++) {
+      red.add(cpu_in.data[i][j]);
+    }
+    float ref = red.result();
+    EXPECT_NEAR(cpu_out.data[0][j], ref, 1e-6f) << " at offset " << j;
+  }
+}
 
 
 }  // namespace kernels

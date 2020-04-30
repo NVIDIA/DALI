@@ -52,12 +52,14 @@ void CollectShape(std::vector<TensorShape<>> &v,
     DALI_ENFORCE(arg_view.num_samples() == batch_size, make_string(
       "Unexpected number of samples in argument `", name, "`: ", arg_view.num_samples(),
       ", expected: ", batch_size));
-    DALI_ENFORCE(arg_view.sample_dim() == ndim, make_string(
-      "Unexpected number of dimensions in argument `", name, "`: ", arg_view.sample_dim(),
-      ", expected: ", ndim));
 
     std::vector<int64_t> tmp(ndim);
     for (int sample = 0; sample < batch_size; sample++) {
+      auto shape_len = volume(arg_view.tensor_shape(sample));
+      DALI_ENFORCE(shape_len == ndim, make_string(
+        "Unexpected number of elements in argument `", name, "`: ", shape_len,
+        ", expected: ", ndim));
+
       const auto* sample_data = arg_view.tensor_data(sample);
       for (int d = 0; d < ndim; d++) {
         tmp[d] = static_cast<int64_t>(sample_data[d]);
@@ -78,7 +80,7 @@ void CollectShape(std::vector<TensorShape<>> &v,
 
 struct SampleOption {
   bool no_crop = false;
-  float min_iou = 0.0f;
+  float threshold = 0.0f;
 };
 
 struct Range {
@@ -100,10 +102,11 @@ cropped region of interest. The applied random crop operation is constrained by 
 provided to the operator.
 
 The cropping window candidates are selected randomly until one matches the overlap restrictions
-specified by ``thresholds`` argument. Thresholds values represent minimum intersection-over-union
-(IoU) of the cropping window and each of the provided bounding boxes. A valid crop is one where
-all the provided bounding boxes produce an IoU above a (randomly selected) value from `thresholds`
-argument. Alternatively, we can allow not to crop as one of the valid outcomes of the random process
+specified by ``thresholds`` argument. Thresholds values represent a minimum overlap metric, specified
+by ``threshold_type``, such as intersection-over-union of the cropping window and the bounding boxes
+or relative overlap as the ratio of the intersection area and the area of the bounding box.
+
+Alternatively, we can allow not to crop as one of the valid outcomes of the random process
 (use ``allow_no_crop`` for that).
 
 Two modes of random crop are available:
@@ -117,7 +120,7 @@ When providing ``crop_shape``, a second argument ``input_shape`` should be provi
 original image dimensions, which is required to scale the output bounding boxes.
 
 The argument ``num_attempts`` can be used to control the maximum number of attempts that we try to
-produce a valid crop to match a single minimum IoU value from ``thresholds``. Be advised that when
+produce a valid crop to match a single minimum overlap metric value from ``thresholds``. Be advised that when
 ``allow_no_crop`` is ``False`` and ``thresholds`` does not contain ``0.0``, it is good to increase the
 ``num_attempts`` value as otherwise it may loop for a very long time.
 
@@ -155,17 +158,25 @@ their corresponding labels. Bounding boxes are always specified in relative coor
               "(optional) Labels associated with each of the bounding boxes.")
     .NumOutput(3)  // [anchor, shape, bboxes, labels (optional),]
     .AdditionalOutputsFn([](const OpSpec &spec) {
-      return spec.NumInput() - 1;  // +1 if labels are provided
+      return spec.NumRegularInput() - 1;  // +1 if labels are provided
     })
     .AddOptionalArg(
         "thresholds",
-        R"code(Minimum intersection-over-union (IoU) of the bounding boxes with respect to the
-crop window. Each sample will select one of the ``thresholds`` randomly, and the operator will
-try a given number of attempts (see ``num_attempts``) to produce a random crop window that yields an
-IoU above the selected threshold.)code",
+        R"code(Minimum intersection-over-union (IoU), or a different metric if specified by ``threshold_type``,
+of the bounding boxes with respect to the cropping window. Each sample will select one of the ``thresholds``
+randomly, and the operator will try a given number of attempts (see ``num_attempts``) to produce a random
+crop window that has the metric above the selected threshold.)code",
         std::vector<float>{0.f})
-    .AddOptionalArg("aspect_ratio",
-                    R"code(Single or multiple valid aspect ratio ranges for cropping windows.
+    .AddOptionalArg(
+        "threshold_type",
+        R"code(Determines the meaning of ``thresholds``. By default refers to intersection-over-union (IoU) of
+the bounding boxes with respect to the cropping window. Alternatively, it could be set to ``overlap``
+to specify the fraction (by area) of the the bounding box which will fall inside the crop window
+(e.g. a threshold ``1.0`` means the whole bounding box must be contained in the resulting cropping window))code",
+        "iou")
+    .AddOptionalArg(
+        "aspect_ratio",
+        R"code(Single or multiple valid aspect ratio ranges for cropping windows.
 
 For 2D bounding boxes, a single aspect ratio ``x/y`` range should be provided (i.e. ``[min_xy, max_xy]``)
 
@@ -201,9 +212,30 @@ E.g ``ltrb=True`` is equivalent to ``bbox_layout="xyXY"`` and ``ltrb=False`` cor
         true)
     .AddOptionalArg(
         "num_attempts",
-        R"code(Number of attempts to get a crop window that matches the ``aspect_ratio`` and selected
-IoU value from ``thresholds``.)code",
+        R"code(Number of attempts to get a crop window that matches the ``aspect_ratio`` and a selected
+value from ``thresholds``.
+
+After each ``num_attempts``, a different threshold will be picked, until either reaching a maximum of
+``total_num_attempts`` (if provided), or indefinitely otherwise.)code",
         1)
+    .AddOptionalArg(
+        "total_num_attempts",
+        R"code(If provided, it indicates the total maximum number of attempts to get a crop window that
+matches the ``aspect_ratio`` and any selected value from ``thresholds``.
+
+After ``total_num_attempts`` the best candidate will be chosen as a default.
+
+If not specified, the crop search will continue indefinitely until finding a valid crop.
+
+WARNING: Not providing ``total_num_attempts`` could lead to an infinite loop if the provided arguments
+can't be statisfied.)code",
+        -1)
+    .AddOptionalArg(
+        "all_boxes_above_threshold",
+         R"code(If true, all bounding boxes in a sample should overlap with the cropping window as specified by
+``thresholds``, otherwise the cropping window is considered invalid. If false, a cropping window will be considered 
+valid if any bounding box overlaps it sufficiently.)code",
+         true)
     .AddOptionalArg(
         "allow_no_crop",
         R"code(If true, not cropping will be one of the possible outcomes of the random process, as
@@ -218,14 +250,15 @@ The order of dimensions is determined by the layout provided in ``shape_layout``
 Note: ``crop_shape`` and ``input_shape`` should be provided together, and providing those is
 incompatible with using ``scaling`` and ``aspect_ratio`` arguments.)code",
         std::vector<int>{}, true)
-    .AddOptionalArg<int>("input_shape",
-                         R"code(Specifies the shape of the original input image.
+    .AddOptionalArg<int>(
+        "input_shape",
+        R"code(Specifies the shape of the original input image.
 
 The order of dimensions is determined by the layout provided in ``shape_layout``.
 
 Note: ``crop_shape`` and ``input_shape`` should be provided together, and providing those is
 incompatible with using ``scaling`` and ``aspect_ratio`` arguments.)code",
-                         std::vector<int>{}, true)
+        std::vector<int>{}, true)
     .AddOptionalArg<TensorLayout>(
         "bbox_layout",
         R"code(Determines the meaning of the coordinates of the bounding boxes.
@@ -256,16 +289,22 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
  public:
   static constexpr int coords_size = ndim * 2;
 
+  enum OverlapMetric {
+    IoU = 1,
+    Overlap = 2
+  };
+
   ~RandomBBoxCropImpl() = default;
 
   explicit RandomBBoxCropImpl(const OpSpec &spec)
       : spec_(spec),
         num_attempts_{spec.GetArgument<int>("num_attempts")},
-        has_labels_(spec.NumInput() > 1),
+        has_labels_(spec.NumRegularInput() > 1),
         has_crop_shape_(spec.ArgumentDefined("crop_shape")),
         has_input_shape_(spec.ArgumentDefined("input_shape")),
         bbox_layout_(spec.GetArgument<TensorLayout>("bbox_layout")),
         shape_layout_(spec.GetArgument<TensorLayout>("shape_layout")),
+        all_boxes_above_threshold_(spec.GetArgument<bool>("all_boxes_above_threshold")),
         rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int>("batch_size")) {
     auto scaling_arg = spec.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
@@ -336,8 +375,27 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       sample_options_.push_back({false, threshold});
     }
 
+    if (spec.HasArgument("threshold_type")) {
+      auto threshold_type = spec.GetArgument<std::string>("threshold_type");
+      if (threshold_type == "iou") {
+        overlap_metric_ = OverlapMetric::IoU;
+      } else  if (threshold_type == "overlap") {
+        overlap_metric_ = OverlapMetric::Overlap;
+      } else {
+        DALI_FAIL(make_string("Not supported ``threshold_type`` value: \"", threshold_type,
+                              "\". Supported values are: \"iou\", \"overlap\"."));
+      }
+    }
+
     if (allow_no_crop) {
       sample_options_.push_back({true, 0.0f});
+    }
+
+    total_num_attempts_ = -1;
+    if (spec.HasArgument("total_num_attempts")) {
+      total_num_attempts_ = spec.GetArgument<int>("total_num_attempts");
+      DALI_ENFORCE(total_num_attempts_ > 0,
+        "Minimum total number of attempts must be greater than zero");
     }
 
     auto default_bbox_layout_start_end = DefaultBBoxLayout<ndim>();
@@ -410,11 +468,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
 
     int sample = ws.data_idx();
-    ProspectiveCrop prospective_crop;
-    while (!prospective_crop.success) {
-      prospective_crop =
-          FindProspectiveCrop(make_cspan(bounding_boxes), make_cspan(labels), sample);
-    }
+    ProspectiveCrop prospective_crop =
+        FindProspectiveCrop(make_cspan(bounding_boxes), make_cspan(labels), sample);
 
     WriteCropToOutput(ws, prospective_crop.crop);
     WriteBoxesToOutput(ws, make_cspan(prospective_crop.boxes));
@@ -507,100 +562,114 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       extent = max_extent * extent / new_max_extent;
   }
 
-  const ProspectiveCrop FindProspectiveCrop(span<const Box<ndim, float>> bounding_boxes,
-                                            span<const int> labels,
-                                            int sample) {
-    auto &rng = rngs_[sample];
-    std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
-    SampleOption option = sample_options_[idx_dist(rng)];
-    bool absolute_crop_dims = has_crop_shape_;
+  ProspectiveCrop FindProspectiveCrop(span<const Box<ndim, float>> bounding_boxes,
+                                      span<const int> labels, int sample) {
+    ProspectiveCrop crop;
+    int count = 0;
+    float best_metric = -1.0;
 
-    if (option.no_crop) {
-      Box<ndim, float> no_crop = Uniform<ndim>(0.0f, 1.0f);
-      if (absolute_crop_dims) {
-        auto &input_shape = input_shape_[sample];
-        for (int d = 0; d < ndim; d++)
-          no_crop.hi[d] *= input_shape[d];
+    while (!crop.success && (total_num_attempts_ < 0 || count < total_num_attempts_)) {
+      auto &rng = rngs_[sample];
+      std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
+      SampleOption option = sample_options_[idx_dist(rng)];
+      bool absolute_crop_dims = has_crop_shape_;
+
+      if (option.no_crop) {
+        Box<ndim, float> no_crop = Uniform<ndim>(0.0f, 1.0f);
+        if (absolute_crop_dims) {
+          auto &input_shape = input_shape_[sample];
+          for (int d = 0; d < ndim; d++)
+            no_crop.hi[d] *= input_shape[d];
+        }
+        crop = ProspectiveCrop(true, no_crop, bounding_boxes, labels);
+        break;
       }
-      return ProspectiveCrop(true, no_crop, bounding_boxes, labels);
-    }
 
-    vec<ndim, float> shape, anchor;
-    Box<ndim, float> rel_crop, out_crop;
-    std::array<float, coords_size> out_bounds, rel_bounds;
-    for (int i = 0; i < num_attempts_; i++) {
-      if (absolute_crop_dims) {
-        auto &crop_shape = crop_shape_[sample];
-        auto &input_shape = input_shape_[sample];
+      vec<ndim, float> shape, anchor;
+      Box<ndim, float> rel_crop, out_crop;
+      std::array<float, coords_size> out_bounds, rel_bounds;
+      for (int i = 0; i < num_attempts_; i++, count++) {
+        if (absolute_crop_dims) {
+          auto &crop_shape = crop_shape_[sample];
+          auto &input_shape = input_shape_[sample];
 
-        for (int d = 0; d < ndim; d++) {
-          shape[d] = static_cast<float>(crop_shape[d]);
-          out_crop.hi[d] = shape[d];
-          rel_crop.hi[d] = shape[d] / input_shape[d];
+          for (int d = 0; d < ndim; d++) {
+            shape[d] = static_cast<float>(crop_shape[d]);
+            out_crop.hi[d] = shape[d];
+            rel_crop.hi[d] = shape[d] / input_shape[d];
+          }
+
+          for (int d = 0; d < ndim; d++) {
+            std::uniform_int_distribution<> anchor_dist(0, input_shape[d] - crop_shape[d]);
+            anchor[d] = static_cast<float>(anchor_dist(rng));
+            out_crop.lo[d] = anchor[d];
+            rel_crop.lo[d] = anchor[d] / input_shape[d];
+          }
+          out_crop.hi += out_crop.lo;
+          rel_crop.hi += rel_crop.lo;
+        } else {  // relative dimensions
+          std::uniform_real_distribution<float> extent_dist(scale_range_.min, scale_range_.max);
+          for (int d = 0; d < ndim; d++) {
+            shape[d] = extent_dist(rng);
+          }
+
+          FixAspectRatios(shape);
+
+          if (!ValidAspectRatio(shape)) {
+            continue;
+          }
+
+          for (int d = 0; d < ndim; d++) {
+            std::uniform_real_distribution<float> anchor_dist(0.0f, 1.0f - shape[d]);
+            anchor[d] = anchor_dist(rng);
+            rel_crop.lo[d] = anchor[d];
+            rel_crop.hi[d] = anchor[d] + shape[d];
+          }
+          out_crop = rel_crop;
         }
 
-        for (int d = 0; d < ndim; d++) {
-          std::uniform_int_distribution<> anchor_dist(0, input_shape[d] - crop_shape[d]);
-          anchor[d] = static_cast<float>(anchor_dist(rng));
-          out_crop.lo[d] = anchor[d];
-          rel_crop.lo[d] = anchor[d] / input_shape[d];
-        }
-        out_crop.hi += out_crop.lo;
-        rel_crop.hi += rel_crop.lo;
-      } else {  // relative dimensions
-        std::uniform_real_distribution<float> extent_dist(scale_range_.min, scale_range_.max);
-        for (int d = 0; d < ndim; d++) {
-          shape[d] = extent_dist(rng);
-        }
-
-        FixAspectRatios(shape);
-
-        if (!ValidAspectRatio(shape)) {
+        float min_overlap = 0.0, max_overlap = 0.0;
+        std::tie(min_overlap, max_overlap) =
+            OverlapMetricRange(rel_crop, make_cspan(bounding_boxes));
+        float metric = all_boxes_above_threshold_ ? min_overlap : max_overlap;
+        bool is_valid_overlap = metric >= option.threshold;
+        if (metric <= best_metric && !is_valid_overlap)
           continue;
+
+        best_metric = metric;
+
+        crop = {};
+        crop.crop = out_crop;
+
+        crop.boxes.resize(bounding_boxes.size());
+        for (int i = 0; i < bounding_boxes.size(); i++)
+          crop.boxes[i] = bounding_boxes[i];
+
+        if (!labels.empty()) {
+          assert(labels.size() == bounding_boxes.size());
+          crop.labels.resize(labels.size());
+          for (int i = 0; i < labels.size(); i++)
+            crop.labels[i] = labels[i];
         }
 
-        for (int d = 0; d < ndim; d++) {
-          std::uniform_real_distribution<float> anchor_dist(0.0f, 1.0f - shape[d]);
-          anchor[d] = anchor_dist(rng);
-          rel_crop.lo[d] = anchor[d];
-          rel_crop.hi[d] = anchor[d] + shape[d];
+        FilterByCentroid(rel_crop, crop.boxes, crop.labels);
+        for (auto &box : crop.boxes) {
+          box = RemapBox(box, rel_crop);
         }
-        out_crop = rel_crop;
+
+        bool at_least_one_box = !crop.boxes.empty();
+        crop.success = is_valid_overlap && at_least_one_box;
       }
-
-      if (!ValidOverlap(rel_crop, make_cspan(bounding_boxes), option.min_iou)) {
-        continue;
-      }
-
-      ProspectiveCrop crop;
-      crop.success = true;
-      crop.crop = out_crop;
-
-      crop.boxes.resize(bounding_boxes.size());
-      for (int i = 0; i < bounding_boxes.size(); i++)
-        crop.boxes[i] = bounding_boxes[i];
-
-      if (!labels.empty()) {
-        assert(labels.size() == bounding_boxes.size());
-        crop.labels.resize(labels.size());
-        for (int i = 0; i < labels.size(); i++)
-          crop.labels[i] = labels[i];
-      }
-
-      FilterByCentroid(rel_crop, crop.boxes, crop.labels);
-      if (crop.boxes.empty()) {
-        continue;
-      }
-
-      for (auto &box : crop.boxes) {
-        box = RemapBox(box, rel_crop);
-      }
-      return crop;
     }
 
-    return ProspectiveCrop();
+    if (!crop.success) {
+      DALI_WARN(make_string(
+        "Could not find a valid cropping window to satisfy the specified requirements (attempted ",
+        count, " times). Using the best cropping window so far (best_metric=", best_metric, ")"));
+      crop.success = true;
+    }
+    return crop;
   }
-
 
   bool ValidAspectRatio(vec<ndim, float> shape) {
     assert(static_cast<int>(shape.size()) == ndim);
@@ -615,13 +684,39 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     return true;
   }
 
-  bool ValidOverlap(const Box<ndim, float> &crop,
-                    span<const Box<ndim, float>> boxes,
-                    float threshold) {
-    return std::all_of(boxes.begin(), boxes.end(),
-      [&crop, threshold](const Box<ndim, float> &box) {
-        return intersection_over_union(crop, box) >= threshold;
-      });
+  template <typename Metric>
+  std::pair<float, float> MinMaxRange(const Box<ndim, float> &crop,
+                                      span<const Box<ndim, float>> boxes,
+                                      Metric&& metric_f) {
+    float best_metric = 0.0, worst_metric = 0.0;
+    if (boxes.empty())
+      return {0.0f, 0.0f};
+    float metric = metric_f(crop, boxes[0]);
+    best_metric = metric;
+    worst_metric = metric;
+    for (int i = 1; i < boxes.size(); i++) {
+      metric = metric_f(crop, boxes[i]);
+      best_metric = std::max(metric, best_metric);
+      worst_metric = std::min(metric, worst_metric);
+    }
+    return {worst_metric, best_metric};
+  }
+
+  std::pair<float, float> OverlapMetricRange(const Box<ndim, float> &crop,
+                                             span<const Box<ndim, float>> boxes) {
+    if (overlap_metric_ == OverlapMetric::Overlap) {
+      auto f =
+          [](const Box<ndim, float> &crop, const Box<ndim, float> &box) {
+            return volume(intersection(crop, box)) / static_cast<float>(volume(box));
+          };
+      return MinMaxRange(crop, boxes, f);
+    } else {  // IoU
+      auto f =
+          [](const Box<ndim, float> &crop, const Box<ndim, float> &box) {
+            return intersection_over_union(crop, box);
+          };
+      return MinMaxRange(crop, boxes, f);
+    }
   }
 
   void FilterByCentroid(const Box<ndim, float> &crop,
@@ -680,12 +775,16 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
  private:
   OpSpec spec_;
   int num_attempts_;
+  int total_num_attempts_;
   bool has_labels_;
   bool has_crop_shape_;
   bool has_input_shape_;
 
   TensorLayout bbox_layout_;
   TensorLayout shape_layout_;
+
+  OverlapMetric overlap_metric_ = OverlapMetric::IoU;
+  bool all_boxes_above_threshold_ = true;
 
   BatchRNG<std::mt19937> rngs_;
 

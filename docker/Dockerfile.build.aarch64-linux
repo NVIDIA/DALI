@@ -33,8 +33,8 @@ RUN BOOST_VERSION=1_66_0 \
    && ln -s ../boost_${BOOST_VERSION}/boost include/boost
 
 # CMake
-RUN CMAKE_VERSION=3.12 && \
-    CMAKE_BUILD=3.12.4 && \
+RUN CMAKE_VERSION=3.13 && \
+    CMAKE_BUILD=3.13.5 && \
     curl -L https://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_BUILD}.tar.gz | tar -xzf - && \
     cd /cmake-${CMAKE_BUILD} && \
     ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
@@ -61,7 +61,7 @@ RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
 
 
 # libjpeg-turbo
-RUN JPEG_TURBO_VERSION=2.0.2 && \
+RUN JPEG_TURBO_VERSION=2.0.4 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
     echo "set(CMAKE_SYSTEM_NAME  Linux)" > toolchain.cmake && \
@@ -79,9 +79,8 @@ RUN JPEG_TURBO_VERSION=2.0.2 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
-
 # libtiff
-RUN LIBTIFF_VERSION=4.0.10 && \
+RUN LIBTIFF_VERSION=4.1.0 && \
     cd /tmp && \
     curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \
     cd tiff-${LIBTIFF_VERSION} && \
@@ -99,8 +98,8 @@ RUN LIBTIFF_VERSION=4.0.10 && \
     rm -rf /tmp/tiff-${LIBTIFF_VERSION}
 
 # OpenCV
-ENV OPENCV_VERSION=3.4.3
-RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
+RUN OPENCV_VERSION=4.3.0 && \
+    curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
     cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_TOOLCHAIN_FILE=$PWD/../platforms/linux/aarch64-gnu.toolchain.cmake \
@@ -112,7 +111,9 @@ RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | 
           -DBUILD_TBB=OFF \
           -DBUILD_WEBP=OFF \
           -DBUILD_JPEG=OFF \
+          -DBUILD_TIFF=OFF \
           -DWITH_JPEG=ON \
+          -DWITH_TIFF=ON \
           -DBUILD_JASPER=OFF \
           -DBUILD_ZLIB=ON \
           -DBUILD_EXAMPLES=OFF \

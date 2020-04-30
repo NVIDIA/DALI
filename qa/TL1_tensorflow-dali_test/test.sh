@@ -12,10 +12,12 @@ do_once() {
 
     CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1\2/')
 
-    # install any for CUDA 9 and the second for CUDA 10, 1.14 doesn't work so well with horovod
-    pip install $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
+    # install any for CUDA 9 and the 1.15 for CUDA 10
+    pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
 
-    pip uninstall -y nvidia-dali-tf-plugin || true
+    # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
+    pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
+
     pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
 
     export PATH=$PATH:/usr/local/mpi/bin
@@ -42,12 +44,16 @@ do_once() {
         echo "plm_rsh_agent = /usr/local/mpi/bin/rsh_warn.sh" >> /usr/local/mpi/etc/openmpi-mca-params.conf
     fi
 
+    if [ ${CUDA_VERSION} -lt 100 ]; then
+        apt-get update && apt-get install -y gcc-4.8 g++-4.8
+    fi
+
     export HOROVOD_GPU_ALLREDUCE=NCCL
     export HOROVOD_NCCL_INCLUDE=/usr/include
     export HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu
     export HOROVOD_NCCL_LINK=SHARED
     export HOROVOD_WITHOUT_PYTORCH=1
-    pip install horovod==0.15.1
+    pip install horovod==0.19.1
 
     for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
     do

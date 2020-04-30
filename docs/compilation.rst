@@ -37,6 +37,7 @@ Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If n
 * CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside. It will create the ``Docker_run_cuda`` image, which needs to be run using ``nvidia-docker`` and DALI wheel in the ``wheelhouse`` directory under$
 * DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package description, i.e. `nightly` will result in the `nvidia-dali-nightly`
 * CMAKE_BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo. The default is ``Release``.
+* STRIP_BINARY - when used with CMAKE_BUILD_TYPE equal to Debug, DevDebug, or RelWithDebInfo it produces bare wheel binary without any debug information and the second one with *_debug.whl name with this information included. In the case of the other build configurations, these two wheels will be identical.
 * BUILD_INHOST - ask docker to mount source code instead of copying it. Thank to that consecutive builds are resuing existing object files and are faster for the development. Uses $DALI_BUILD_DIR as a directory for build objects. The default is ``YES``.
 * REBUILD_BUILDERS - if builder docker images need to be rebuild or can be reused from the previous build. The default is ``NO``.
 * REBUILD_MANYLINUX - if manylinux base image need to be rebuild. The default is ``NO``.
@@ -74,30 +75,30 @@ Prerequisites
 .. _nvjpeg link: https://developer.nvidia.com/nvjpeg
 .. |protobuf link| replace:: **protobuf**
 .. _protobuf link: https://github.com/google/protobuf
-.. |cmake link| replace:: **CMake 3.12**
+.. |cmake link| replace:: **CMake 3.13**
 .. _cmake link: https://cmake.org
-.. |jpegturbo link| replace:: **libjpeg-turbo 1.5.x**
+.. |jpegturbo link| replace:: **libjpeg-turbo 2.0.4 (2.0.3 for conda due to availability)**
 .. _jpegturbo link: https://github.com/libjpeg-turbo/libjpeg-turbo
-.. |libtiff link| replace:: **libtiff 4.0.x**
+.. |libtiff link| replace:: **libtiff 4.1.0**
 .. _libtiff link: http://libtiff.org/
-.. |ffmpeg link| replace:: **FFmpeg 4.2.1**
-.. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2
+.. |ffmpeg link| replace:: **FFmpeg 4.2.2**
+.. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.2.tar.bz2
 .. |libsnd link| replace:: **libsnd 1.0.28**
 .. _libsnd link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz
-.. |opencv link| replace:: **OpenCV 3**
+.. |opencv link| replace:: **OpenCV 4**
 .. _opencv link: https://opencv.org
 .. |lmdb link| replace:: **liblmdb 0.9.x**
 .. _lmdb link: https://github.com/LMDB/lmdb
-.. |gcc link| replace:: **GCC 5.3**
+.. |gcc link| replace:: **GCC 5.3.1**
 .. _gcc link: https://www.gnu.org/software/gcc/
 .. |boost link| replace:: **Boost 1.66**
 .. _boost link: https://www.boost.org/
 
-.. |mxnet link| replace:: **MXNet 1.3**
+.. |mxnet link| replace:: **MXNet 1.5**
 .. _mxnet link: http://mxnet.incubator.apache.org
-.. |pytorch link| replace:: **PyTorch 0.4**
+.. |pytorch link| replace:: **PyTorch 1.1**
 .. _pytorch link: https://pytorch.org
-.. |tf link| replace:: **TensorFlow 1.7**
+.. |tf link| replace:: **TensorFlow 1.12**
 .. _tf link: https://www.tensorflow.org
 
 
@@ -126,11 +127,11 @@ Prerequisites
    | |libtiff link|_ or later               | *This can be unofficially disabled. See below.*                                             |
    |                                        | Note: libtiff should be built with zlib support                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |ffmpeg link|_ or later                | We recommend using version 4.2.1 compiled following the *instructions below*.               |
+   | |ffmpeg link|_ or later                | We recommend using version 4.2.2 compiled following the *instructions below*.               |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |libsnd link|_ or later                | We recommend using version 1.0.28 compiled following the *instructions below*.              |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |opencv link|_ or later                | Supported version: 3.4                                                                      |
+   | |opencv link|_ or later                | Supported version: 4.3.0                                                                    |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | (Optional) |lmdb link|_ or later       |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+

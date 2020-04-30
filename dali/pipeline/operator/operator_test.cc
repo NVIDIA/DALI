@@ -44,10 +44,58 @@ TEST(InstantiateOperator, RunMethodIsAccessible) {
   auto op = InstantiateOperator(MakeOpSpec("Crop"));
   // We just want to test that Run method is visible (exported to the so file)
   // It is expected that the call throws as the worspace is empty
-  ASSERT_THROW(
-    op->Run(ws),
-    std::runtime_error);
+  ASSERT_THROW(op->Run(ws), std::runtime_error);
 }
+
+
+enum TestEnum : int {
+  TEST_ENUM = 42
+};
+
+template<typename T>
+class OperatorDiagnosticsTest : public ::testing::Test {
+ protected:
+  void SetUp() final {
+    assign_value();
+    auto op_spec = OpSpec("CoinFlip").AddArg("num_threads", 1).AddArg("batch_size", 1);
+    operator_ = std::make_unique<OperatorBase>(op_spec);
+  }
+
+  void assign_value() {
+    this->value_ = 42;
+  }
+
+  std::unique_ptr<OperatorBase> operator_;
+  std::string value_name_ = "Lorem ipsum";
+  T value_;
+};
+
+template<>
+void OperatorDiagnosticsTest<bool>::assign_value() {
+  this->value_ = true;
+}
+
+template<>
+void OperatorDiagnosticsTest<TestEnum>::assign_value() {
+  this->value_ = TEST_ENUM;
+}
+
+using DiagnosticsTypes = ::testing::Types<int, unsigned int, int8_t, uint16_t, int32_t, uint64_t,
+                                          float, double, half_float::half, bool, TestEnum>;
+TYPED_TEST_SUITE(OperatorDiagnosticsTest, DiagnosticsTypes);
+
+TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsTest) {
+  (this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_);
+  auto cnt = this->operator_->template GetDiagnostic<TypeParam>(this->value_name_);
+  ASSERT_EQ(this->value_, cnt);
+}
+
+TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsCollisionTest) {
+  (this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_);
+  EXPECT_THROW((this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_),
+               std::runtime_error);
+}
+
 
 }  // namespace testing
 }  // namespace dali
