@@ -198,4 +198,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/lint.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Install.cmake)
 
-export(PACKAGE dali)
+add_library(DALI::dali ALIAS dali)
+add_library(DALI::dali_core ALIAS dali_core)
+add_library(DALI::dali_kernels ALIAS dali_kernels)
+add_library(DALI::dali_operators ALIAS dali_operators)
