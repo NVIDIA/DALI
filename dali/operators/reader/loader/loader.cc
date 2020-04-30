@@ -53,7 +53,11 @@ instead of in the constructor.)code", false)
       R"code(If set to true, the Loader will pad the last batch with the last image when the batch size is
 not aligned with the shard size. It means that the remainder of the batch or even the whole batch can be
 artificially added when the data set size is not equally divisible by the number of shards, and the shard is
-not equally divisible by the batch size. In the end, the shard size will be equalized between shards.)code", false);
+not equally divisible by the batch size. In the end, the shard size will be equalized between shards.)code", false)
+.AddOptionalArg("dont_use_mmap",
+      R"code(If set to true, the Loader will not attempt to map the file in memory and will use plain
+file I/O instead. Mapping provides a small performance benefit when accessing a local file system,
+but most of the network ones, due to their nature, don't provide optimum performance)code", false);
 
 size_t start_index(const size_t shard_id,
                    const size_t shard_num,
