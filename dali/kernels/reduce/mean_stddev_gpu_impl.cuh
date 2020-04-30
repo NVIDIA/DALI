@@ -107,11 +107,13 @@ class VarianceImplBase {
   }
 
   Preprocessor *GetPreprocessorsImpl(WorkArea &wa) const {
-    int n = This().SimplifiedOutputShape().num_samples();
-    assert(This().SimplifiedOutputShape().num_elements() == n);
+    int n = This().SimplifiedInputShape().num_samples();
+    assert(This().SimplifiedOutputShape().num_elements() ==
+           This().SimplifiedOutputShape().num_samples());
     Preprocessor *pp = wa.ParamBuffer<Preprocessor>(n);
     for (int i = 0; i < n; i++) {
-      pp[i] = { mean_.data[i] };
+      int o = This().ReduceBatch() ? 0 : i;
+      pp[i] = { mean_.data[o] };
     }
     return pp;
   }
@@ -119,13 +121,14 @@ class VarianceImplBase {
   PreprocessorBank<1> *
   GetPreprocessorBanks(WorkArea &wa, int axis, std::integral_constant<int, 1>) const {
     using Bank = PreprocessorBank<1>;
-    int n = This().SimplifiedOutputShape().num_samples();
+    int n = This().SimplifiedInputShape().num_samples();
     Bank *banks = wa.ParamBuffer<Bank>(n);
 
     for (int i = 0; i < n; i++) {
-      auto shape = This().SimplifiedOutputShape().tensor_shape_span(i);
+      int o = This().ReduceBatch() ? 0 : i;
+      auto shape = This().SimplifiedOutputShape().tensor_shape_span(o);
       auto &bank = banks[i];
-      bank.mean = mean_.data[i];
+      bank.mean = mean_.data[o];
       bank.stride[0] = volume(shape.begin() + axis, shape.end());  // outer stride
     }
     return banks;
@@ -134,7 +137,7 @@ class VarianceImplBase {
   PreprocessorBank<2> *
   GetPreprocessorBanks(WorkArea &wa, int axis, std::integral_constant<int, 2>) const {
     using Bank = PreprocessorBank<2>;
-    int n = This().SimplifiedOutputShape().num_samples();
+    int n = This().SimplifiedInputShape().num_samples();
     Bank *banks = wa.ParamBuffer<Bank>(n);
 
     SmallVector<int, 6> remaining_axes;
@@ -144,11 +147,13 @@ class VarianceImplBase {
     int mask = to_bit_mask(remaining_axes);
 
     for (int i = 0; i < n; i++) {
+      int o = This().ReduceBatch() ? 0 : i;
       auto &bank = banks[i];
-      auto shape = This().SimplifiedInputShape().tensor_shape_span(i);
-      auto inner_shape = span<const int64_t>(shape.begin() + axis + 1, shape.end());
-      bank.mean = mean_.data[i];
-      bank.stride[0] = volume(shape.begin() + axis, shape.end());  // outer stride
+      auto in_shape = This().SimplifiedInputShape().tensor_shape_span(i);
+      auto out_shape = This().SimplifiedOutputShape().tensor_shape_span(o);
+      auto inner_shape = span<const int64_t>(in_shape.begin() + axis + 1, in_shape.end());
+      bank.mean = mean_.data[o];
+      bank.stride[0] = volume(out_shape.begin() + axis, out_shape.end());  // outer stride
       bank.stride[1] = 1;  // inner stride, always 1?
       bank.inner_dims = DropDims(inner_shape, mask);  // reindexing, if necessary
     }
