@@ -996,8 +996,7 @@ class ReduceImplGPU {
     WorkArea &wa = ctx.work_area;
 
     const StageIn *const *in = InputPtrs<StageIn>(ctx, stage);
-
-    StageOut *out = ctx.output.data[0];
+    StageOut *out = reinterpret_cast<StageOut*>(ctx.output.data[0]);
     int N = stage.num_samples();
     for (int i = 0; i < N; i++) {
       assert(stage.shape[i].inner == stage.shape[0].inner);
@@ -1008,7 +1007,7 @@ class ReduceImplGPU {
 
     int64_t sample_size = stage.shape[0].input_elements();
 
-    dim3 block(1024);
+    dim3 block(std::min<int64_t>(1024, sample_size));
     dim3 grid(std::min<int>(div_ceil(sample_size, 1024), 1024));
 
     auto *pre = GetPreprocessorBanks<is_first, 1>(wa, -1);
