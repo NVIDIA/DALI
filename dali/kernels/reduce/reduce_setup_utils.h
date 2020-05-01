@@ -30,31 +30,6 @@ namespace kernels {
 namespace reduce_impl {
 
 /**
- * @brief Calculates the position of most significant bit in x
- * @return The position of MSB or 0 if x is 0.
- */
-template <typename T>
-DALI_HOST_DEV constexpr enable_if_t<std::is_integral<T>::value, int> ilog2(T x) {
-  int n = 0;
-  while (x >>= 1)
-    n++;
-  return n;
-}
-
-/**
- * @brief Returns an integer where bits at indicies in `bit_indices` are set to 1.
- * @remarks Indices that are outside the bit-width of OutType are ignored.
- */
-template <typename OutType = uint64_t, typename BitIndices>
-DALI_HOST_DEV OutType to_bit_mask(const BitIndices &bit_indices) {
-  OutType mask = 0;
-  for (int idx : bit_indices)
-    mask |= OutType(1) << idx;
-
-  return mask;
-}
-
-/**
  * @brief Calculates equivalent, simpler reduction by collapsing adjacent dimensions.
  *
  * @param out_axes   a collection of integers, supporting `clear` and `push_back`.
@@ -70,10 +45,10 @@ DALI_HOST_DEV OutType to_bit_mask(const BitIndices &bit_indices) {
  *  - both dimensions are reduced or non-reduced.
  */
 template <typename Axes, typename DimGroups, int ndim>
-void SimplifyReduction(Axes &out_axes, DimGroups &dim_groups,
+void SimplifyReduction(Axes &out_axes, DimGroups &out_dim_groups,
                        const TensorListShape<ndim> &in_shape, span<const int> axes) {
   out_axes.clear();
-  dim_groups.clear();
+  out_dim_groups.clear();
   int d = in_shape.sample_dim();
 
   uint64_t mask = to_bit_mask(axes);
@@ -85,7 +60,7 @@ void SimplifyReduction(Axes &out_axes, DimGroups &dim_groups,
 
   if (i >= d) {
     // no non-degenerate dimensions
-    dim_groups.push_back(std::make_pair(0, d));
+    out_dim_groups.push_back(std::make_pair(0, d));
     return;
   }
 
@@ -108,7 +83,7 @@ void SimplifyReduction(Axes &out_axes, DimGroups &dim_groups,
     }
     bool is_reduced = (mask >> i) & 1;
     if (is_reduced != prev_reduced) {
-      dim_groups.emplace_back(group_start, group_size);
+      out_dim_groups.emplace_back(group_start, group_size);
       group_start = i;
       group_size = 1;
       remapped++;
@@ -119,7 +94,7 @@ void SimplifyReduction(Axes &out_axes, DimGroups &dim_groups,
     }
     prev_reduced = is_reduced;
   }
-  dim_groups.push_back(std::make_pair(group_start, group_size));
+  out_dim_groups.push_back(std::make_pair(group_start, group_size));
 }
 
 
@@ -146,10 +121,11 @@ inline void CheckBatchReduce(const TensorListShape<> &tls, span<const int> axes)
   for (int i = 1; i < tls.num_samples(); i++) {
     auto sample_shape = tls.tensor_shape_span(i);
     for (int a : non_reduced) {
-      DALI_ENFORCE(sample_shape[a] == first_sample_shape[a], make_string(
-        "Reduce: batch reduction requires that all samples have the same extent in non-reduced "
-        "dimensions.\nError at sample ", i, " axis ", a, ": the extent is ", sample_shape[a],
-        " != ", first_sample_shape[a], " in the first sample in the batch."));
+      if (sample_shape[a] != first_sample_shape[a])
+        throw std::logic_error(make_string(
+          "Reduce: batch reduction requires that all samples have the same extent in non-reduced "
+          "dimensions.\nError at sample ", i, " axis ", a, ": the extent is ", sample_shape[a],
+          " != ", first_sample_shape[a], " in the first sample in the batch."));
     }
   }
 }
@@ -174,7 +150,25 @@ inline void CheckAxes(span<const int> axes, int ndim) {
   }
 }
 
-
+/**
+ * @brief Calculates the shape of the result of reduction under given parameters
+ *
+ * The reduced shape is calculated in one of two ways:
+ * 1. If `keep_dims` is `true`, the extents of reduced dimensions in the input are replaced with 1
+ * 2. If `keep_dims` is `false`, the dimensions specified in `axes` are removed from the output
+ *    shape.
+ *
+ * If `batch_reduce` is specified, the output contains just one sample.
+ *
+ * @note `batch_reduce` requires that all non-reduced extents are equal in all input tensors.
+ *
+ * @param out_shape     shape of the output
+ * @param in_shape      shape of the input to reduce
+ * @param axes          indices of reduced dimensions
+ * @param keep_dims     if `true`, the reduced dimensions stay in the output shape, with value 1
+ *                      if `false`, the reduced dimensions are omitted in the output shape
+ * @param batch_reduce  if `true`, there's just one sample in the output
+ */
 inline void CalculateReducedShape(TensorListShape<> &out_shape,
                                   const TensorListShape<> &in_shape,
                                   span<const int> axes,
@@ -210,6 +204,23 @@ inline void CalculateReducedShape(TensorListShape<> &out_shape,
   }
 }
 
+/**
+ * @brief Calculates reduction factor for each sample in `in_shape`
+ *
+ * Reduction factor is the number of input values contributing to a single reduced value.
+ * Example:
+ * ```
+ * in_shape = { {4, 5, 6}, {1, 2, 3 } }
+ * axes = { 0, 2 }
+ * out = { 4*6, 1*3 }
+ * ```
+ * If `axes` are empty, the result is always 1. If `axes` specify all dimensions,
+ * the result is an array of volumes of respective samples in in_shape.
+ *
+ * @param out       array of numbers, containing the reduction factors
+ * @param in_shape  shape of the input
+ * @param axes      indices of reduced dimensions
+ */
 template <typename ArrayLike, int ndim>
 inline void CalculateReductionFactors(ArrayLike &out, const TensorListShape<ndim> &in_shape,
                                       span<const int> axes) {

@@ -380,7 +380,8 @@ class ReduceImplGPU {
     }
     buffer_sizes_.param_buffers = align_up(buffer_sizes_.param_buffers, 64);
 
-    // now reserve the scratchpad - overaligned to 64 bytes, just in case
+    // Now reserve the scratchpad - it's overaligned, because the buffer is opaque
+    // and may contain any type - possibly with alignment requirements.
     se.add<uint8_t>(AllocType::Host, buffer_sizes_.param_buffers, 64);
     se.add<uint8_t>(AllocType::GPU, buffer_sizes_.param_buffers + buffer_sizes_.io_buffers, 64);
   }
