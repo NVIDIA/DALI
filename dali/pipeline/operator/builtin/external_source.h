@@ -24,6 +24,7 @@
 #include <condition_variable>
 #include <utility>
 
+#include "dali/core/cuda_event.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/worker_thread.h"
 
@@ -31,35 +32,9 @@ namespace dali {
 
 namespace detail {
 
-struct CudaEventWrapper {
-  CudaEventWrapper() {
-    auto res = cudaEventCreate(&event);
-    if (res != cudaSuccess) {
-      DALI_ERROR("Fatal error: " + to_string(res) + " in CudaEventWrapper()");
-      std::terminate();
-    }
-  }
-
-  ~CudaEventWrapper() {
-    auto res = cudaEventDestroy(event);
-    if (res != cudaSuccess) {
-      DALI_ERROR("Fatal error:: " + to_string(res) + " in ~CudaEventWrapper()");
-      std::terminate();
-    }
-  }
-
-  DEFAULT_COPY_MOVE_ASSIGN(CudaEventWrapper);
-
-  operator cudaEvent_t() const {  // NOLINT (non-explicit op)
-    return event;
-  }
-
-  cudaEvent_t event;
+struct CudaEventWrapper : CUDAEvent {
+  CudaEventWrapper() : CUDAEvent(CUDAEvent::Create()) {}
 };
-
-}  // namespace detail
-
-namespace detail {
 
 /**
  * CachingList differs from std::List by the ability to recycle empty elements. When allocating memory
@@ -155,6 +130,12 @@ class ExternalSource : public Operator<Backend> {
    */
   template<typename SrcBackend>
   inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0) {
+    if (!(std::is_same<SrcBackend, GPUBackend>::value &&
+          std::is_same<Backend, CPUBackend>::value)) {
+      std::string msg = "Incorrect Backends warning. Loading GPU-originated data into CPU "
+                        "ExternalSource operator is discouraged and might be inefficient.";
+      DALI_WARN(msg);
+    }
     DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(tl.ntensor()),
                  "Data list provided to ExternalSource needs to have batch_size length.");
     // Note: If we create a GPU source, we will need to figure
@@ -189,6 +170,12 @@ class ExternalSource : public Operator<Backend> {
    */
   template<typename SrcBackend>
   inline void SetDataSource(const vector<Tensor<SrcBackend>> &t, cudaStream_t stream = 0) {
+    if (!(std::is_same<SrcBackend, GPUBackend>::value &&
+          std::is_same<Backend, CPUBackend>::value)) {
+      std::string msg = "Incorrect Backends warning. Loading GPU-originated data into CPU "
+                        "ExternalSource operator is discouraged and might be inefficient.";
+      DALI_WARN(msg);
+    }
     DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(t.size()),
                  "Data list provided to ExternalSource needs to have batch_size length.");
     // Note: If we create a GPU source, we will need to figure
@@ -250,7 +237,7 @@ class ExternalSource : public Operator<Backend> {
                      std::list<uptr_cuda_event_type> *cuda_event = nullptr,
                      std::list<uptr_cuda_event_type> *copy_to_gpu = nullptr) {
     if (cuda_event) {
-      cudaEventSynchronize(cuda_event->front()->event);
+      cudaEventSynchronize(*cuda_event->front());
     }
     // No need to synchronize on copy_to_gpu - it was already synchronized before
     std::lock_guard<std::mutex> busy_lock(busy_m_);

@@ -297,6 +297,9 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
 TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   using OpBackend = TypeParam;
   using DataBackend = typename the_other_backend<TypeParam>::type;
+  if (std::is_same<OpBackend, CPUBackend>::value && std::is_same<DataBackend, GPUBackend>::value) {
+    GTEST_SKIP();  // GPU data -> CPU op   is currently not supported. Might be added later.
+  }
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8,  8,  3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
@@ -354,6 +357,9 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
 TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   using OpBackend = TypeParam;
   using DataBackend = typename the_other_backend<TypeParam>::type;
+  if (std::is_same<OpBackend, CPUBackend>::value && std::is_same<DataBackend, GPUBackend>::value) {
+    GTEST_SKIP();  // GPU data -> CPU op   is currently not supported. Might be added later.
+  }
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8,  8,  3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};

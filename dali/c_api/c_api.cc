@@ -49,8 +49,7 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof);
   data.Resize(tl_shape, type_info);
   data.SetLayout(layout);
-  const auto &cdata = data;
-  pipeline->SetExternalInput(name, cdata, stream);
+  pipeline->SetExternalInput(name, data, stream);
 }
 
 
@@ -77,8 +76,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     data[i].Resize(tl_shape[i], type_info);
     data[i].SetLayout(layout);
   }
-  const auto &cdata = data;
-  pipeline->SetExternalInput(name, cdata, stream);
+  pipeline->SetExternalInput(name, data, stream);
 }
 
 }  // namespace
