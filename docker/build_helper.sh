@@ -100,7 +100,7 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
         export UNZIP_PATH="$(mktemp -d)"
         unzip $WHEEL -d $UNZIP_PATH
         for f in $(find $UNZIP_PATH -iname *.so); do
-            strip --strip-debug $f
+            strip --strip-unneeded $f
         done
         rm -f $WHEEL
         pushd $UNZIP_PATH
