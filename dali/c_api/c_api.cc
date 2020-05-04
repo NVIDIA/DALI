@@ -105,20 +105,32 @@ void daliCreatePipeline(daliPipelineHandle* pipe_handle,
     pipe->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
   }
   pipe->Build();
-  pipe_handle->pipe = reinterpret_cast<void*>(pipe);
+  pipe_handle->pipe = reinterpret_cast<void *>(pipe);
   pipe_handle->ws = new dali::DeviceWorkspace();
   CUDA_CALL(cudaStreamCreateWithFlags(&pipe_handle->copy_stream, cudaStreamNonBlocking));
 }
 
-void daliPrefetchUniform(daliPipelineHandle* pipe_handle, int queue_depth) {
-  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+
+void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
+                            int length) {
+  dali::Pipeline *pipe = new dali::Pipeline(std::string(serialized_pipeline, length));
+  pipe->Build();
+  pipe_handle->pipe = reinterpret_cast<void *>(pipe);
+  pipe_handle->ws = new dali::DeviceWorkspace();
+  CUDA_CALL(cudaStreamCreateWithFlags(&pipe_handle->copy_stream, cudaStreamNonBlocking));
+}
+
+
+void daliPrefetchUniform(daliPipelineHandle *pipe_handle, int queue_depth) {
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   for (int i = 0; i < queue_depth; ++i) {
     pipeline->RunCPU();
     pipeline->RunGPU();
   }
 }
 
-void daliPrefetchSeparate(daliPipelineHandle* pipe_handle,
+
+void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
                           int cpu_queue_depth, int gpu_queue_depth) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   for (int i = 0; i < gpu_queue_depth; ++i) {
