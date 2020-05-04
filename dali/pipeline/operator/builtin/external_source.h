@@ -24,6 +24,7 @@
 #include <condition_variable>
 #include <utility>
 
+#include "dali/core/cuda_event.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/worker_thread.h"
 
@@ -31,27 +32,9 @@ namespace dali {
 
 namespace detail {
 
-struct CudaEventWrapper {
-  CudaEventWrapper() {
-    auto res = cudaEventCreate(&event);
-    if (res != cudaSuccess) {
-      DALI_ERROR("Fatal error: " + to_string(res) + " in CudaEventWrapper()");
-      std::terminate();
-    }
-  }
-  ~CudaEventWrapper() {
-    auto res = cudaEventDestroy(event);
-    if (res != cudaSuccess) {
-      DALI_ERROR("Fatal error:: " + to_string(res) + " in ~CudaEventWrapper()");
-      std::terminate();
-    }
-  }
-  cudaEvent_t event;
+struct CudaEventWrapper : CUDAEvent {
+  CudaEventWrapper() : CUDAEvent(CUDAEvent::Create()) {}
 };
-
-}  // namespace detail
-
-namespace detail {
 
 /**
  * CachingList differs from std::List by the ability to recycle empty elements. When allocating memory
@@ -70,8 +53,6 @@ namespace detail {
 template <typename T>
 class CachingList {
  public:
-  CachingList() = default;
-
   bool IsEmpty() const {
     return full_data_.empty();
   }
@@ -116,8 +97,8 @@ class CachingList {
  */
 template <typename Backend>
 class ExternalSource : public Operator<Backend> {
-  using uptr_tl_type = std::unique_ptr<TensorList<CPUBackend>>;
-  using uptr_vt_type = std::unique_ptr<std::vector<Tensor<CPUBackend>>>;
+  using uptr_tl_type = std::unique_ptr<TensorList<Backend>>;
+  using uptr_vt_type = std::unique_ptr<std::vector<Tensor<Backend>>>;
   using uptr_cuda_event_type = std::unique_ptr<detail::CudaEventWrapper>;
 
  public:
@@ -142,54 +123,84 @@ class ExternalSource : public Operator<Backend> {
     return "ExternalSource (" + output_name_ + ")";
   }
 
+
   /**
    * @brief Sets the data that should be passed out of the op
    * on the next iteration.
    */
-  inline void SetDataSource(const TensorList<CPUBackend> &tl) {
+  template<typename SrcBackend>
+  inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0) {
+    if (!(std::is_same<SrcBackend, GPUBackend>::value &&
+          std::is_same<Backend, CPUBackend>::value)) {
+      std::string msg = "Incorrect Backends warning. Loading GPU-originated data into CPU "
+                        "ExternalSource operator is discouraged and might be inefficient.";
+      DALI_WARN(msg);
+    }
     DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(tl.ntensor()),
-      "Data list provided to ExternalSource needs to have batch_size length.");
+                 "Data list provided to ExternalSource needs to have batch_size length.");
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
     std::list<uptr_tl_type> data;
+    std::list<uptr_cuda_event_type> copy_to_storage_event;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       data = tl_data_.GetEmpty();
+      copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
 
-    data.front()->Copy(tl, 0);
+    data.front()->Copy(tl, stream);
+    if (std::is_same<SrcBackend, GPUBackend>::value) {
+      cudaEventRecord(*copy_to_storage_event.front(), stream);
+    }
+
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tl_data_.AddBack(data);
+      copy_to_storage_events_.AddBack(copy_to_storage_event);
       data_in_tl_.push_back(true);
     }
     cv_.notify_one();
   }
 
+
   /**
    * @brief Sets the data that should be passed out of the op
    * on the next iteration.
    */
-  inline void SetDataSource(const vector<Tensor<CPUBackend>> &t) {
+  template<typename SrcBackend>
+  inline void SetDataSource(const vector<Tensor<SrcBackend>> &t, cudaStream_t stream = 0) {
+    if (!(std::is_same<SrcBackend, GPUBackend>::value &&
+          std::is_same<Backend, CPUBackend>::value)) {
+      std::string msg = "Incorrect Backends warning. Loading GPU-originated data into CPU "
+                        "ExternalSource operator is discouraged and might be inefficient.";
+      DALI_WARN(msg);
+    }
     DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(t.size()),
-      "Data list provided to ExternalSource needs to have batch_size length.");
+                 "Data list provided to ExternalSource needs to have batch_size length.");
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
     std::list<uptr_vt_type> data;
+    std::list<uptr_cuda_event_type> copy_to_storage_event;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       data = t_data_.GetEmpty();
+      copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
 
     data.front()->resize(t.size());
     for (size_t i = 0; i < t.size(); ++i) {
-      (*(data.front()))[i].Copy(t[i], 0);
+      (*(data.front()))[i].Copy(t[i], stream);
     }
+    if (std::is_same<SrcBackend, GPUBackend>::value) {
+      cudaEventRecord(*copy_to_storage_event.front(), stream);
+    }
+
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       t_data_.AddBack(data);
+      copy_to_storage_events_.AddBack(copy_to_storage_event);
       data_in_tl_.push_back(false);
     }
     cv_.notify_one();
@@ -205,7 +216,7 @@ class ExternalSource : public Operator<Backend> {
   /*
    * So that compiler wouldn't complain, that
    * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
-   * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"
+   * overridden in class `dali::[...]<dali::CPUBackend>`"
    */
   using Operator<Backend>::RunImpl;
 
@@ -223,21 +234,26 @@ class ExternalSource : public Operator<Backend> {
   // reference it is not that easy
   template<typename DataType>
   void RecycleBuffer(DataType &data,
-                     std::list<uptr_cuda_event_type> *cuda_event = nullptr) {
+                     std::list<uptr_cuda_event_type> *cuda_event = nullptr,
+                     std::list<uptr_cuda_event_type> *copy_to_gpu = nullptr) {
     if (cuda_event) {
-      cudaEventSynchronize(cuda_event->front()->event);
+      cudaEventSynchronize(*cuda_event->front());
     }
+    // No need to synchronize on copy_to_gpu - it was already synchronized before
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     RecycleHelper(data);
     if (cuda_event) {
       cuda_events_.Recycle(*cuda_event);
+    }
+    if (copy_to_gpu) {
+      copy_to_storage_events_.Recycle(*copy_to_gpu);
     }
   }
 
   string output_name_;
   detail::CachingList<uptr_tl_type> tl_data_;
   detail::CachingList<uptr_vt_type> t_data_;
-  detail::CachingList<uptr_cuda_event_type> cuda_events_;
+  detail::CachingList<uptr_cuda_event_type> cuda_events_, copy_to_storage_events_;
   std::list<bool> data_in_tl_;
   struct RecycleFunctor;
 
