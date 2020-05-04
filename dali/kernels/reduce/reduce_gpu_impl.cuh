@@ -46,7 +46,7 @@ enum class ReductionKind {
 };
 
 /**
- * @brief Describes the size of a sample (or sometimes of all samples comined) recuced by
+ * @brief Describes the size of a sample (or sometimes of all samples combined) reduced by
  *        a single stage.
  *
  * Example:
@@ -84,6 +84,9 @@ struct ReductionStage {
   int axis;
   int index;
   bool is_last = false;
+
+  vector<ReductionShape> shape;
+  vector<int64_t> input_offsets, output_offsets;
 
   int num_samples() const {
     return shape.size();
@@ -127,9 +130,6 @@ struct ReductionStage {
       ofs += shape[i].output_elements();
     }
   }
-
-  vector<ReductionShape> shape;
-  vector<int64_t> input_offsets, output_offsets;
 };
 
 
@@ -341,8 +341,7 @@ class ReduceImplGPU {
    */
 
   template <bool do_preprocess, int non_reduced_dim, typename Derived = Actual>
-  auto *GetPreprocessorBanks(
-      WorkArea &wa, int reduced_axis) const {
+  auto *GetPreprocessorBanks(WorkArea &wa, int reduced_axis) const {
     return GetPreprocessorBanksHelper<non_reduced_dim>(bool_const<do_preprocess>(),
       static_cast<const Derived *>(this), &wa, reduced_axis);
   }
@@ -748,7 +747,7 @@ class ReduceImplGPU {
             LaunchStage<Acc, Acc, false, false>(ctx, stage, ReductionKindTag<kind>());
         }
       ),  // NOLINT
-      (assert(!"This code should be urneachable"))
+      (assert(!"This code should be unreachable"))
     );    // NOLINT
   }
 
