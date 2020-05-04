@@ -61,30 +61,16 @@ void CoordFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();
 
-  int x_dim = layout_.find('x');
-  DALI_ENFORCE(x_dim >= 0, "Dimension \"x\" not found in the layout");
-
-  int y_dim = 1;
-  if (ndim_ > 1) {
-    y_dim = layout_.find('y');
-    DALI_ENFORCE(y_dim >= 0, "Dimension \"y\" not found in the layout");
-  }
-  int z_dim = 2;
-  if (ndim_ > 2) {
-    z_dim = layout_.find('z');
-    DALI_ENFORCE(z_dim >= 0, "Dimension \"z\" not found in the layout");
-  }
-
   for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
     std::array<bool, 3> flip_dim = {false, false, false};
-    flip_dim[x_dim] = spec_.GetArgument<int>("flip_x", &ws, sample_id);
-    flip_dim[y_dim] = spec_.GetArgument<int>("flip_y", &ws, sample_id);
-    flip_dim[z_dim] = spec_.GetArgument<int>("flip_z", &ws, sample_id);
+    flip_dim[x_dim_] = spec_.GetArgument<int>("flip_x", &ws, sample_id);
+    flip_dim[y_dim_] = spec_.GetArgument<int>("flip_y", &ws, sample_id);
+    flip_dim[z_dim_] = spec_.GetArgument<int>("flip_z", &ws, sample_id);
 
     std::array<float, 3> mirrored_origin = {1.0f, 1.0f, 1.0f};
-    mirrored_origin[x_dim] = 2.0f * spec_.GetArgument<float>("center_x", &ws, sample_id);
-    mirrored_origin[y_dim] = 2.0f * spec_.GetArgument<float>("center_y", &ws, sample_id);
-    mirrored_origin[z_dim] = 2.0f * spec_.GetArgument<float>("center_z", &ws, sample_id);
+    mirrored_origin[x_dim_] = 2.0f * spec_.GetArgument<float>("center_x", &ws, sample_id);
+    mirrored_origin[y_dim_] = 2.0f * spec_.GetArgument<float>("center_y", &ws, sample_id);
+    mirrored_origin[z_dim_] = 2.0f * spec_.GetArgument<float>("center_z", &ws, sample_id);
 
     thread_pool.DoWorkWithID(
         [this, &input, &output, sample_id, flip_dim, mirrored_origin](int thread_id) {
