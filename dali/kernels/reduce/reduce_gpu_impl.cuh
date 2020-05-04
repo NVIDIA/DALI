@@ -871,7 +871,7 @@ class ReduceImplGPU {
     dim3 block(32, 32);
     dim3 grid(stage.shape[0].reduced_out);
 
-    ReduceAllKernel<<<grid, block, 0, ctx.stream>>>(
+    ReduceAllKernel<Acc><<<grid, block, 0, ctx.stream>>>(
       out, in, stage.input_elements(), This().GetReduction(), pre, post);
 
     CUDA_CALL(cudaGetLastError());
@@ -906,7 +906,7 @@ class ReduceImplGPU {
     auto *gpu_pre             = wa.GetDeviceParam(pre);
     auto *gpu_post            = wa.GetDeviceParam(post);
 
-    ReduceAllBatchedKernel<<<grid, block, 0, ctx.stream>>>(
+    ReduceAllBatchedKernel<Acc><<<grid, block, 0, ctx.stream>>>(
       out, gpu_in, gpu_sizes, This().GetReduction(), gpu_pre, gpu_post);
 
     CUDA_CALL(cudaGetLastError());
@@ -937,7 +937,7 @@ class ReduceImplGPU {
     auto *gpu_post  = wa.GetDeviceParam(post);
 
     int64_t sample_size = stage.shape[0].reduced_in;
-    ReduceAllBlockwiseKernel<<<grid, block, 0, ctx.stream>>>(
+    ReduceAllBlockwiseKernel<Acc><<<grid, block, 0, ctx.stream>>>(
       out, in, sample_size, This().GetReduction(), gpu_pre, gpu_post);
 
     CUDA_CALL(cudaGetLastError());
@@ -958,7 +958,7 @@ class ReduceImplGPU {
     using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
 
     int max_block_size = std::min(1024, MaxThreadsPerBlock(
-      ReduceInnerKernel<StageOut, StageIn, red_t, pre_bank_t, post_t>));
+      ReduceInnerKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>));
 
     wa.CopyParamsToDevice(ctx.stream);
     dim3 block(32, max_block_size / 32);
@@ -969,7 +969,7 @@ class ReduceImplGPU {
     auto *gpu_pre = wa.GetDeviceParam(pre);
     auto *gpu_post = wa.GetDeviceParam(post);
 
-    ReduceInnerKernel<<<grid, block, 0, ctx.stream>>>(
+    ReduceInnerKernel<Acc><<<grid, block, 0, ctx.stream>>>(
       gpu_samples, This().GetReduction(), gpu_pre, gpu_post);
 
     CUDA_CALL(cudaGetLastError());
@@ -990,7 +990,7 @@ class ReduceImplGPU {
     using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
 
     int max_block_size = std::min(1024, MaxThreadsPerBlock(
-      ReduceMiddleKernel<StageOut, StageIn, red_t, pre_bank_t, post_t>));
+      ReduceMiddleKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>));
 
     wa.CopyParamsToDevice(ctx.stream);
     dim3 block(32, max_block_size / 32);
@@ -1002,7 +1002,7 @@ class ReduceImplGPU {
     auto *gpu_pre = wa.GetDeviceParam(pre);
     auto *gpu_post = wa.GetDeviceParam(post);
 
-    ReduceMiddleKernel<<<grid, block, shm_size, ctx.stream>>>(
+    ReduceMiddleKernel<Acc><<<grid, block, shm_size, ctx.stream>>>(
       gpu_samples, This().GetReduction(), gpu_pre, gpu_post);
 
     CUDA_CALL(cudaGetLastError());
@@ -1038,7 +1038,7 @@ class ReduceImplGPU {
     auto *gpu_in  = wa.GetDeviceParam(in);
     auto *gpu_pre = wa.GetDeviceParam(pre);
 
-    ReduceSamplesKernel<<<grid, block, 0, ctx.stream>>>(
+    ReduceSamplesKernel<Acc><<<grid, block, 0, ctx.stream>>>(
       out, gpu_in, sample_size, N, This().GetReduction(), gpu_pre, post);
 
     CUDA_CALL(cudaGetLastError());
@@ -1143,7 +1143,55 @@ class ReduceImplGPU {
 };
 
 template <typename Out, typename In>
-class SumImplGPU : public ReduceImplGPU<Out, In, Out, SumImplGPU<Out, In>> {
+struct DefaultSumAcc {
+  using type = std::conditional_t<std::is_same<Out, double>::value, Out, float>;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, int8_t> {
+  using type = int64_t;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, uint8_t> {
+  using type = uint64_t;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, int16_t> {
+  using type = int64_t;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, uint16_t> {
+  using type = uint64_t;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, int32_t> {
+  using type = std::conditional_t<std::is_floating_point<Out>::value, Out, int64_t>;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, uint32_t> {
+  using type = std::conditional_t<std::is_floating_point<Out>::value, Out, uint64_t>;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, int64_t> {
+  using type = std::conditional_t<std::is_floating_point<Out>::value, Out, int64_t>;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, uint64_t> {
+  using type = std::conditional_t<std::is_floating_point<Out>::value, Out, uint64_t>;
+};
+
+template <typename Out, typename In>
+using default_sum_acc_t = typename DefaultSumAcc<Out, In>::type;
+
+template <typename Out, typename In>
+class SumImplGPU : public ReduceImplGPU<Out, In, default_sum_acc_t<Out, In>, SumImplGPU<Out, In>> {
  public:
   reductions::sum GetReduction() const { return {}; }
 };

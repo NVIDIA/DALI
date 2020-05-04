@@ -22,20 +22,34 @@ namespace dali {
 namespace kernels {
 namespace reduce_impl {
 
+/**
+ * @brief A position-independent bank, wrapping a functor
+ */
+template <int non_reduced_ndim, typename Functor>
+struct UniformPreprocessorBank {
+  DALI_HOST_DEV DALI_FORCEINLINE
+  Functor Get(const i64vec<non_reduced_ndim> &) const {
+    return {};
+  }
+};
+
+template <typename Out, typename Scale>
+struct ScaleAndConvert {
+  Scale scale = 1;
+  template <typename T>
+  DALI_HOST_DEV Out operator()(T x) const {
+    return ConvertSat<Out>(x * scale);
+  }
+};
+
 template <typename Out, typename In, typename Actual>
 class MeanImplBase {
  public:
   Actual &This() { return static_cast<Actual&>(*this); }
   const Actual &This() const { return static_cast<const Actual&>(*this); }
 
-  struct Postprocessor {
-    std::conditional_t<std::is_same<Out, double>::value, double, float> inv_div = 1;
-
-    template <typename T>
-    DALI_HOST_DEV Out operator()(T x) const {
-      return ConvertSat<Out>(x * inv_div);
-    }
-  };
+  using scale_t = std::conditional_t<std::is_same<Out, double>::value, double, float>;
+  using Postprocessor = ScaleAndConvert<Out, scale_t>;
 
   Postprocessor *GetPostprocessorsImpl(WorkArea &wa) const {
     assert(!This().ReduceBatch());
@@ -43,7 +57,7 @@ class MeanImplBase {
     Postprocessor *pp = wa.ParamBuffer<Postprocessor>(n);
     for (int i = 0; i < n; i++) {
       DALI_ENFORCE(This().ReducedElements(i) > 0, "Cannot calculate a mean from 0 elements");
-      pp[i].inv_div = 1.0 / This().ReducedElements(i);
+      pp[i].scale = 1.0 / This().ReducedElements(i);
     }
     return pp;
   }
@@ -55,13 +69,31 @@ class MeanImplBase {
   }
 };
 
-template <typename Out, typename In, typename Acc = Out>
+template <typename Out, typename In, typename Acc = default_sum_acc_t<Out, In>>
 class MeanImplGPU : public ReduceImplGPU<Out, In, Acc, MeanImplGPU<Out, In, Acc>>,
                     public MeanImplBase<Out, In, MeanImplGPU<Out, In, Acc>> {
  public:
   using MeanBase = MeanImplBase<Out, In, MeanImplGPU<Out, In, Acc>>;
   using typename MeanBase::Postprocessor;
   reductions::sum GetReduction() const { return {}; }
+};
+
+/**
+ * @brief Subtracts a mean value stored in specified memory location
+ */
+template <class Mean>
+struct SubtractMeanIndirect {
+  const Mean *__restrict__ mean = nullptr;
+  template <typename T>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  auto operator()(const T &x) const noexcept {
+    #ifdef __CUDA_ARCH__
+      auto d = x - __ldg(mean);
+    #else
+      auto d = x - *mean;
+    #endif
+      return d * d;
+  }
 };
 
 template <typename Out, typename In, typename Mean, typename Actual>
@@ -77,19 +109,7 @@ class VarianceImplBase {
 
   InListGPU<Mean> mean_;
 
-  struct Preprocessor {
-    const Mean *__restrict__ mean = nullptr;
-    template <typename T>
-    DALI_HOST_DEV DALI_FORCEINLINE
-    auto operator()(const T &x) const noexcept {
-      #ifdef __CUDA_ARCH__
-        auto d = x - __ldg(mean);
-      #else
-        auto d = x - *mean;
-      #endif
-        return d * d;
-    }
-  };
+  using Preprocessor = SubtractMeanIndirect<Mean>;
 
   static_assert(sizeof(Preprocessor) == sizeof(Mean*),
     "A variance functor must carry only a pointer to the mean");
@@ -167,20 +187,24 @@ class VarianceImplBase {
   }
 };
 
+template <typename Out, typename Scale>
+struct ScaleSqrtConvert {
+  Scale scale = 1;
+
+  template <typename T>
+  DALI_HOST_DEV Out operator()(T x) const {
+    return ConvertSat<Out>(sqrt(x * scale));
+  }
+};
+
 template <typename Out, typename In, typename Actual>
 class RootMeanImplBase {
  public:
   Actual &This() { return static_cast<Actual&>(*this); }
   const Actual &This() const { return static_cast<const Actual&>(*this); }
 
-  struct Postprocessor {
-    std::conditional_t<std::is_same<Out, double>::value, double, float> inv_div = 1;
-
-    template <typename T>
-    DALI_HOST_DEV Out operator()(T x) const {
-      return ConvertSat<Out>(sqrt(x * inv_div));
-    }
-  };
+  using scale_t = std::conditional_t<std::is_same<Out, double>::value, double, float>;
+  using Postprocessor = ScaleSqrtConvert<Out, scale_t>;
 
   Postprocessor *GetPostprocessorsImpl(WorkArea &wa) const {
     assert(!This().ReduceBatch());
@@ -188,7 +212,7 @@ class RootMeanImplBase {
     Postprocessor *pp = wa.ParamBuffer<Postprocessor>(n);
     for (int i = 0; i < n; i++) {
       DALI_ENFORCE(This().ReducedElements(i) > 0, "Cannot calculate a mean from 0 elements");
-      pp[i].inv_div = 1.0 / This().ReducedElements(i);
+      pp[i].scale = 1.0 / This().ReducedElements(i);
     }
     return pp;
   }
@@ -198,6 +222,31 @@ class RootMeanImplBase {
     DALI_ENFORCE(This().TotalReducedElements() > 0, "Cannot calculate a mean from 0 elements");
     return { static_cast<float>(1.0 / This().TotalReducedElements()) };
   }
+};
+
+
+template <typename Out, typename In, typename Acc =
+  default_sum_acc_t<Out, decltype(reductions::square()(In()))>>
+class RootMeanSquareImplGPU
+    : public ReduceImplGPU<Out, In, Acc, RootMeanSquareImplGPU<Out, In, Acc>>
+    , public RootMeanImplBase<Out, In, RootMeanSquareImplGPU<Out, In, Acc>> {
+ public:
+  using MeanBase = RootMeanImplBase<Out, In, RootMeanSquareImplGPU<Out, In, Acc>>;
+  using typename MeanBase::Postprocessor;
+
+  using Preprocessor = reductions::square;
+  template <int non_reduced_dims>
+  using PreprocessorBank = UniformPreprocessorBank<non_reduced_dims, Preprocessor>;
+
+  Preprocessor GetPreprocessorImpl() const { return {}; }
+  Preprocessor *GetPreprocessorsImpl(WorkArea &wa) const { return nullptr; }
+
+  template <int non_reduced_dims>
+  PreprocessorBank<non_reduced_dims> *GetPreprocessorBanksImpl(WorkArea &wa, int axis) const {
+    return nullptr;
+  }
+
+  reductions::sum GetReduction() const { return {}; }
 };
 
 template <typename Out, typename In, typename Mean = Out, typename Acc = Out>
@@ -221,6 +270,78 @@ class StdDevImplGPU : public ReduceImplGPU<Out, In, Acc, StdDevImplGPU<Out, In, 
            const InListGPU<In> &in,
            const InListGPU<Mean> &mean) {
     this->InitMean(mean);
+    ReduceBase::Run(kctx, out, in);
+  }
+};
+
+template <typename Out, typename ScaleAndReg>
+struct RegularizedInvSqrt {
+  ScaleAndReg scale = 1, reg = 0;
+
+  template <typename T>
+  DALI_HOST_DEV Out operator()(T x) const {
+    float s = scale * (x + reg);
+    return s ? ConvertSat<Out>(rsqrt(s)) : Out(0);
+  }
+};
+
+template <typename Out, typename In, typename Actual>
+class RegularizedInvRMS {
+ public:
+  Actual &This() { return static_cast<Actual&>(*this); }
+  const Actual &This() const { return static_cast<const Actual&>(*this); }
+
+  using param_t = std::conditional_t<std::is_same<Out, double>::value, double, float>;
+  using Postprocessor = RegularizedInvSqrt<Out, param_t>;
+
+  void SetRegularizationTerm(param_t reg) {
+    regularization_ = reg * reg;
+  }
+
+  param_t regularization_ = 0.0f;
+
+  Postprocessor *GetPostprocessorsImpl(WorkArea &wa) const {
+    assert(!This().ReduceBatch());
+    int n = This().SimplifiedOutputShape().num_samples();
+    Postprocessor *pp = wa.ParamBuffer<Postprocessor>(n);
+    for (int i = 0; i < n; i++) {
+      DALI_ENFORCE(This().ReducedElements(i) > 0, "Cannot calculate a mean from 0 elements");
+      pp[i].scale = param_t(1.0 / This().ReducedElements(i));
+      pp[i].reg = regularization_;
+    }
+    return pp;
+  }
+
+  Postprocessor GetPostprocessorImpl() const {
+    assert(This().ReduceBatch());
+    DALI_ENFORCE(This().TotalReducedElements() > 0, "Cannot calculate a mean from 0 elements");
+    return { param_t(1.0f / This().TotalReducedElements()), regularization_ };
+  }
+};
+
+template <typename Out, typename In, typename Mean = Out, typename Acc = Out>
+class InvStdDevImplGPU : public ReduceImplGPU<Out, In, Acc, InvStdDevImplGPU<Out, In, Mean, Acc>>,
+                      public VarianceImplBase<Out, In, Mean, InvStdDevImplGPU<Out, In, Mean, Acc>>,
+                      public RegularizedInvRMS<Out, In, InvStdDevImplGPU<Out, In, Mean, Acc>> {
+ public:
+  using ReduceBase = ReduceImplGPU<Out, In, Acc, InvStdDevImplGPU<Out, In, Mean, Acc>>;
+  using VarBase = VarianceImplBase<Out, In, Mean, InvStdDevImplGPU<Out, In, Mean, Acc>>;
+  using MeanBase = RegularizedInvRMS<Out, In, InvStdDevImplGPU<Out, In, Mean, Acc>>;
+
+  using Preprocessor = typename VarBase::Preprocessor;
+  template <int non_reduced_dims>
+  using PreprocessorBank = typename VarBase::template PreprocessorBank<non_reduced_dims>;
+
+  using Postprocessor = typename MeanBase::Postprocessor;
+  reductions::sum GetReduction() const { return {}; }
+
+  void Run(KernelContext &kctx,
+           const OutListGPU<Out> &out,
+           const InListGPU<In> &in,
+           const InListGPU<Mean> &mean,
+           float reg = 0.0f) {
+    this->InitMean(mean);
+    this->SetRegularizationTerm(reg);
     ReduceBase::Run(kctx, out, in);
   }
 };

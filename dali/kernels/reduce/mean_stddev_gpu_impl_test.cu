@@ -78,7 +78,7 @@ TEST(MeanImplGPU, SplitStage) {
     { 72000, 1, 7 }
   }};
   int axes[] = { 0, 2 };
-  MeanImplGPU<float, uint8_t> mean;
+  MeanImplGPU<float, uint8_t, uint64_t> mean;
   KernelContext ctx = {};
   auto req = mean.Setup(ctx, in_shape, make_span(axes), true, false);
   TensorListShape<> ref_out_shape = {{
@@ -106,19 +106,22 @@ TEST(MeanImplGPU, SplitStage) {
   mean.Run(ctx, out.gpu(), in.gpu());
 
   auto out_cpu = out.cpu(ctx.gpu.stream);
+  TestTensorList<int64_t> ref_sum;
   TestTensorList<float> ref;
   ref.reshape(ref_out_shape);
+  ref_sum.reshape(ref_out_shape);
   auto ref_cpu = ref.cpu();
+  auto ref_sum_cpu = ref.cpu();
   for (int i = 0; i < ref_cpu.num_samples(); i++) {
     int64_t n = ref_cpu[i].num_elements();
     int64_t n_in = in_cpu[i].num_elements();
     int64_t ratio = n_in / n;
-    RefReduce(ref_cpu[i], in_cpu[i], make_span(axes), reductions::sum());
+    RefReduce(ref_sum_cpu[i], in_cpu[i], make_span(axes), reductions::sum());
     for (int j = 0; j < n; j++)
-      ref_cpu.data[i][j] /= ratio;
+      ref_cpu.data[i][j] = ref_sum_cpu.data[i][j] / ratio;
   }
 
-  Check(out_cpu, ref_cpu, EqualEpsRel(1e-5, 1e-6));
+  Check(out_cpu, ref_cpu, EqualEpsRel(1e-6, 1e-6));
 }
 
 

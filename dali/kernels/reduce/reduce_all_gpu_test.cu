@@ -69,13 +69,13 @@ void ReduceAllGPUTest<Reduction>::TestReduceAll() {
   cudaMemcpy(in_data.get(), in_cpu.data(), n_in * sizeof(*in_data), cudaMemcpyHostToDevice);
 
   dim3 grid = n_out0;
-  ReduceAllKernel<<<1, block>>>(out_data.get(), in_data.get(), n_in);
+  ReduceAllKernel<float><<<1, block>>>(out_data.get(), in_data.get(), n_in);
   cudaDeviceSynchronize();
   auto start = CUDAEvent::CreateWithFlags(0);
   auto end =   CUDAEvent::CreateWithFlags(0);
   cudaEventRecord(start);
-  ReduceAllKernel<<<grid, block>>>(out_data.get() + 1, in_data.get(), n_in, R);
-  ReduceAllKernel<<<1, block>>>(out_data.get(), out_data.get() + 1, n_out0, R);
+  ReduceAllKernel<float><<<grid, block>>>(out_data.get() + 1, in_data.get(), n_in, R);
+  ReduceAllKernel<float><<<1, block>>>(out_data.get(), out_data.get() + 1, n_out0, R);
   cudaEventRecord(end);
   cudaMemcpy(out_cpu.data(), out_data.get(), n_out * sizeof(*out_data), cudaMemcpyDeviceToHost);
   cudaDeviceSynchronize();
@@ -146,18 +146,18 @@ void ReduceAllGPUTest<Reduction>::TestReduceBatched() {
   cudaMemcpy(gpu_sizes.get(), sizes.data(), samples * sizeof(*gpu_sizes), cudaMemcpyHostToDevice);
 
   // warm-up
-  ReduceAllBatchedKernel<<<1, block>>>(out_data.get(), gpu_dev_ptrs.get(), gpu_sizes.get(), R);
+  ReduceAllBatchedKernel<float><<<1, block>>>(out_data.get(), gpu_dev_ptrs.get(), gpu_sizes.get(), R);
   cudaDeviceSynchronize();
   auto start = CUDAEvent::CreateWithFlags(0);
   auto end =   CUDAEvent::CreateWithFlags(0);
   cudaEventRecord(start);
-  ReduceAllBatchedKernel<<<grid, block>>>(out_data.get() + samples,
-                                          gpu_dev_ptrs.get(), gpu_sizes.get(), R);
+  ReduceAllBatchedKernel<float><<<grid, block>>>(out_data.get() + samples,
+                                                 gpu_dev_ptrs.get(), gpu_sizes.get(), R);
 
   dim3 grid2(1, samples);
-  ReduceAllBlockwiseKernel<<<grid2, block>>>(out_data.get(),
-                                             out_data.get() + samples, n_out_per_sample,
-                                             R);
+  ReduceAllBlockwiseKernel<float><<<grid2, block>>>(out_data.get(),
+                                                    out_data.get() + samples, n_out_per_sample,
+                                                    R);
   cudaEventRecord(end);
   cudaMemcpy(out_cpu.data(), out_data.get(), n_out * sizeof(*out_data), cudaMemcpyDeviceToHost);
   cudaDeviceSynchronize();
