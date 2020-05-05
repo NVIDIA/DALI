@@ -107,6 +107,9 @@ class Pad : public Operator<Backend> {
     }
 
     // If a single *align* value is provided, use this value for all the axes
+    for (auto &align : align_) {
+      DALI_ENFORCE(align > 0, "Values of `align` argument must be positive.");
+    }
     if (align_.size() == 1 && axes_.size() > 1) {
       align_.resize(axes_.size(), align_[0]);
     }
