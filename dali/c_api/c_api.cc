@@ -113,11 +113,11 @@ void daliCreatePipeline(daliPipelineHandle* pipe_handle,
 
 void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
                             int length) {
-  dali::Pipeline *pipe = new dali::Pipeline(std::string(serialized_pipeline, length));
-  pipe->Build();
-  pipe_handle->pipe = reinterpret_cast<void *>(pipe);
-  pipe_handle->ws = new dali::DeviceWorkspace();
+  auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length));
+  pipeline->Build();
   CUDA_CALL(cudaStreamCreateWithFlags(&pipe_handle->copy_stream, cudaStreamNonBlocking));
+  pipe_handle->ws = new dali::DeviceWorkspace();
+  pipe_handle->pipe = pipeline.release();
 }
 
 
