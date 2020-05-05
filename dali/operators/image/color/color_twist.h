@@ -132,27 +132,27 @@ class ColorTwistBase : public Operator<Backend> {
   }
 
   void AcquireArguments(const workspace_t<Backend> &ws) {
-    if (spec_.ArgumentDefined(color::kHue)) {
+    if (this->spec_.ArgumentDefined(color::kHue)) {
       this->GetPerSampleArgument(hue_, color::kHue, ws);
     } else {
       hue_ = std::vector<float>(batch_size_, color::kHueDefault);
     }
 
-    if (spec_.ArgumentDefined(color::kSaturation)) {
+    if (this->spec_.ArgumentDefined(color::kSaturation)) {
       this->GetPerSampleArgument(saturation_, color::kSaturation, ws);
     } else {
       saturation_ = std::vector<float>(batch_size_, color::kSaturationDefault);
     }
 
-    if (spec_.ArgumentDefined(color::kValue)) {
+    if (this->spec_.ArgumentDefined(color::kValue)) {
       this->GetPerSampleArgument(brightness_, color::kValue, ws);
-    } else if (spec_.ArgumentDefined(color::kBrightness)) {
+    } else if (this->spec_.ArgumentDefined(color::kBrightness)) {
       this->GetPerSampleArgument(brightness_, color::kBrightness, ws);
     } else {
       brightness_ = std::vector<float>(batch_size_, color::kBrightnessDefault);
     }
 
-    if (spec_.ArgumentDefined(color::kContrast)) {
+    if (this->spec_.ArgumentDefined(color::kContrast)) {
       this->GetPerSampleArgument(contrast_, color::kContrast, ws);
     } else {
       contrast_ = std::vector<float>(batch_size_, color::kContrastDefault);
