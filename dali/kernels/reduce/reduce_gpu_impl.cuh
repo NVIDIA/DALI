@@ -15,6 +15,12 @@
 #ifndef DALI_KERNELS_REDUCE_REDUCE_GPU_IMPL_CUH_
 #define DALI_KERNELS_REDUCE_REDUCE_GPU_IMPL_CUH_
 
+/** @file
+ *
+ * This file contains a template for implementing directional reductions and
+ * an implementation of Sum for GPU backend.
+ */
+
 #include <cassert>
 #include <memory>
 #include <utility>
@@ -24,6 +30,7 @@
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_setup_utils.h"
 #include "dali/core/convert.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/span.h"
@@ -33,6 +40,8 @@
 
 namespace dali {
 namespace kernels {
+
+/// @brief Implementation details of reduction kernels
 namespace reduce_impl {
 
 enum class ReductionKind {
@@ -330,7 +339,7 @@ class ReduceImplGPU {
     return !std::is_empty<postprocessor>::value;
   }
 
-  /**
+  /*
    * The functions below get the preprocessors and postprocessors.
    * Note the is_first/is_last compile-time parameters. Overload resolution will pick the
    * right function with distinct return type.
@@ -368,7 +377,9 @@ class ReduceImplGPU {
     return GetPostprocessorHelper(bool_const<do_postprocess>(), static_cast<const Derived *>(this));
   }
 
-
+  /**
+   * @brief Calculate the sizes of the temporary buffers required to launch all stages
+   */
   void CalculateTempBuffers(ScratchpadEstimator &se) {
     int nstages = stages_.size();
     buffer_sizes_ = {};
@@ -385,6 +396,9 @@ class ReduceImplGPU {
     se.add<uint8_t>(AllocType::GPU, buffer_sizes_.param_buffers + buffer_sizes_.io_buffers, 64);
   }
 
+  /**
+   * @brief Calculates memory requirements of a single stage
+   */
   void CalculateTempBuffers(TempBufferSizes &buf_sizes, ReductionStage &stage) {
     const int N = stage.num_samples();
 
@@ -392,7 +406,7 @@ class ReduceImplGPU {
 
     // Outputs, Inputs, lengths, preprocessors
     // or
-    // Sample descritpros, preprocessors, postprocessors
+    // Sample descriptors, preprocessors, postprocessors
 
     switch (stage.kind) {
       case ReductionKind::Middle:
@@ -617,6 +631,10 @@ class ReduceImplGPU {
       stage.calculate_offsets();
   }
 
+  /**
+   * @brief Defines what kind of reduction stages are necessary to realize the reduction
+   *        defined by the parameters passed to Setup and initializes them.
+   */
   void InitStages() {
     const int nsamples = in_shape_.num_samples();
     const int in_dim = in_shape_.sample_dim();
@@ -709,7 +727,9 @@ class ReduceImplGPU {
     CalculateOffsets();
   }
 
-
+  /**
+   * @brief Defines excution environment of the reduction.
+   */
   struct Context {
     cudaStream_t stream;
     WorkArea work_area;
@@ -720,6 +740,9 @@ class ReduceImplGPU {
   template <ReductionKind kind>
   using ReductionKindTag = std::integral_constant<ReductionKind, kind>;
 
+  /**
+   * @brief Launches a reduction stage in environment given by `ctx`
+   */
   void LaunchStage(Context &ctx, const ReductionStage &stage) {
     ctx.work_area.BeginStage(stage.index);
     VALUE_SWITCH(stage.kind, kind, (
@@ -747,6 +770,11 @@ class ReduceImplGPU {
     );    // NOLINT
   }
 
+  /**
+   * @brief Calculates input pointers for a stage and stores them in a host-side parameter buffer.
+   *
+   * @return Host-side parameter buffer containing the input pointers.
+   */
   template <typename StageIn>
   const StageIn *const *InputPtrs(Context &ctx, const ReductionStage &stage) const {
     WorkArea &wa = ctx.work_area;
@@ -763,6 +791,11 @@ class ReduceImplGPU {
     return ptrs;
   }
 
+  /**
+   * @brief Calculates output pointers for a stage and stores them in a host-side parameter buffer.
+   *
+   * @return Host-side parameter buffer containing the output pointers.
+   */
   template <typename StageOut>
   StageOut *const *OutputPtrs(Context &ctx, const ReductionStage &stage) const {
     WorkArea &wa = ctx.work_area;
@@ -779,6 +812,11 @@ class ReduceImplGPU {
     return ptrs;
   }
 
+  /**
+   * @brief Calculates sample descriptors for a stage and stores them in a host-side buffer.
+   *
+   * @return Host-side parameter buffer containing the descriptors.
+   */
   template <typename StageOut, typename StageIn>
   auto PrepareSampleDescs(Context &ctx, const ReductionStage &stage) const {
     using SampleDesc = ReduceSampleDesc<StageOut, StageIn>;
@@ -905,20 +943,6 @@ class ReduceImplGPU {
     CUDA_CALL(cudaGetLastError());
   }
 
-  template <typename Fn>
-  int GetMaxBlockSize(Fn *f) {
-    static int max_block_size[1024] = {};
-    int device = 0;
-    cudaGetDevice(&device);
-    if (!max_block_size[device]) {
-      cudaFuncAttributes attr = {};
-      CUDA_CALL(cudaFuncGetAttributes(&attr, f));
-      max_block_size[device] = attr.maxThreadsPerBlock;
-    }
-    return max_block_size[device];
-  }
-
-
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
   void LaunchStage(Context &ctx, const ReductionStage &stage,
                    ReductionKindTag<ReductionKind::Inner>) {
@@ -933,8 +957,8 @@ class ReduceImplGPU {
     using post_t = std::remove_cv_t<std::remove_reference_t<decltype(*post)>>;;
     using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
 
-    int max_block_size = GetMaxBlockSize(
-      ReduceInnerKernel<StageOut, StageIn, red_t, pre_bank_t, post_t>);
+    int max_block_size = std::min(1024, MaxThreadsPerBlock(
+      ReduceInnerKernel<StageOut, StageIn, red_t, pre_bank_t, post_t>));
 
     wa.CopyParamsToDevice(ctx.stream);
     dim3 block(32, max_block_size / 32);
@@ -965,8 +989,8 @@ class ReduceImplGPU {
     using post_t = std::remove_cv_t<std::remove_reference_t<decltype(*post)>>;;
     using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
 
-    int max_block_size = GetMaxBlockSize(
-      ReduceMiddleKernel<StageOut, StageIn, red_t, pre_bank_t, post_t>);
+    int max_block_size = std::min(1024, MaxThreadsPerBlock(
+      ReduceMiddleKernel<StageOut, StageIn, red_t, pre_bank_t, post_t>));
 
     wa.CopyParamsToDevice(ctx.stream);
     dim3 block(32, max_block_size / 32);

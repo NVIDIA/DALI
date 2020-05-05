@@ -15,6 +15,11 @@
 #ifndef DALI_KERNELS_REDUCE_REDUCE_SETUP_UTILS_H_
 #define DALI_KERNELS_REDUCE_REDUCE_SETUP_UTILS_H_
 
+/** @file
+ *
+ * This file contains utilities for setting up multi-stage directional reduction
+ */
+
 #include <utility>
 #include <type_traits>
 #include "dali/core/error_handling.h"
@@ -43,6 +48,8 @@ namespace reduce_impl {
  * A dimension can be collapsed with its neighbor if:
  *  - its extent is 1 in all samples
  *  - both dimensions are reduced or non-reduced.
+ *
+ * @remarks The function assumes that arguments are valid.
  */
 template <typename Axes, typename DimGroups, int ndim>
 void SimplifyReduction(Axes &out_axes, DimGroups &out_dim_groups,
@@ -168,6 +175,8 @@ inline void CheckAxes(span<const int> axes, int ndim) {
  * @param keep_dims     if `true`, the reduced dimensions stay in the output shape, with value 1
  *                      if `false`, the reduced dimensions are omitted in the output shape
  * @param batch_reduce  if `true`, there's just one sample in the output
+ *
+ * @remarks The function assumes that arguments are valid.
  */
 inline void CalculateReducedShape(TensorListShape<> &out_shape,
                                   const TensorListShape<> &in_shape,
@@ -180,6 +189,8 @@ inline void CalculateReducedShape(TensorListShape<> &out_shape,
   uint64_t mask = to_bit_mask(axes);
 
   int out_dim = keep_dims ? in_dim : in_dim - axes.size();
+  assert(out_dim >= 0);
+
   if (out_dim == 0) {  // workaround until we have proper scalars
     out_shape.resize(out_samples, 1);
     for (int i = 0; i < out_samples; i++)
@@ -193,11 +204,11 @@ inline void CalculateReducedShape(TensorListShape<> &out_shape,
     int out_d = 0;
     for (int d = 0; d < in_dim; d++) {
       if (mask & (1ul << d)) {
+      assert(out_d < out_dim);
         if (keep_dims)
           out_sample_shape[out_d++] = 1;
         continue;  // skip reduced axes
       }
-      assert(out_d < out_dim);
       out_sample_shape[out_d++] = in_sample_shape[d];
     }
     assert(out_d == out_dim);
@@ -220,6 +231,8 @@ inline void CalculateReducedShape(TensorListShape<> &out_shape,
  * @param out       array of numbers, containing the reduction factors
  * @param in_shape  shape of the input
  * @param axes      indices of reduced dimensions
+ *
+ * @remarks The function assumes that arguments are valid.
  */
 template <typename ArrayLike, int ndim>
 inline void CalculateReductionFactors(ArrayLike &out, const TensorListShape<ndim> &in_shape,
