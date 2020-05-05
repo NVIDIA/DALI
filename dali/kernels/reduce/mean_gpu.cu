@@ -40,7 +40,8 @@ KernelRequirements MeanGPU<Out, In>::Setup(
 }
 
 template <typename Out, typename In>
-void MeanGPU<Out, In>::Run(KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in) {
+void MeanGPU<Out, In>::Run(
+    KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in) {
   assert(impl_ != nullptr);
   impl_->Run(ctx, out, in);
 }
@@ -82,7 +83,8 @@ KernelRequirements RootMeanSquareGPU<Out, In>::Setup(
 }
 
 template <typename Out, typename In>
-void RootMeanSquareGPU<Out, In>::Run(KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in) {
+void RootMeanSquareGPU<Out, In>::Run(
+    KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in) {
   assert(impl_ != nullptr);
   impl_->Run(ctx, out, in);
 }

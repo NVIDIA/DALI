@@ -146,7 +146,8 @@ void ReduceAllGPUTest<Reduction>::TestReduceBatched() {
   cudaMemcpy(gpu_sizes.get(), sizes.data(), samples * sizeof(*gpu_sizes), cudaMemcpyHostToDevice);
 
   // warm-up
-  ReduceAllBatchedKernel<float><<<1, block>>>(out_data.get(), gpu_dev_ptrs.get(), gpu_sizes.get(), R);
+  ReduceAllBatchedKernel<float><<<1, block>>>(
+      out_data.get(), gpu_dev_ptrs.get(), gpu_sizes.get(), R);
   cudaDeviceSynchronize();
   auto start = CUDAEvent::CreateWithFlags(0);
   auto end =   CUDAEvent::CreateWithFlags(0);

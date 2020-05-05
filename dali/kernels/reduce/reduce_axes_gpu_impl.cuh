@@ -65,9 +65,9 @@ struct VariancePreprocessor<1, Mean> {
   reductions::variance<Mean> Get(const i64vec<1> &pos) const {
     auto offset = dot(pos, stride);
   #ifdef __CUDA_ARCH__
-    float m = __ldg(mean + offset);
+    Mean m = __ldg(mean + offset);
   #else
-    float m = mean[offset];
+    Mean m = mean[offset];
   #endif
     return { m };
   }
@@ -83,9 +83,9 @@ struct VariancePreprocessor<2, Mean> {
   reductions::variance<Mean> Get(const i64vec<2> &pos) const {
     auto offset = dot(i64vec2(pos[0], inner_dims.reindex(pos[1])), stride);
   #ifdef __CUDA_ARCH__
-    float m = __ldg(mean + offset);
+    Mean m = __ldg(mean + offset);
   #else
-    float m = mean[offset];
+    Mean m = mean[offset];
   #endif
     return { m };
   }
@@ -219,7 +219,7 @@ __device__ void ReduceInnerSmall(Out *out, const In *in, int64_t n_outer, int n_
  * The reduction is done by a warp.
  * After sequential step, warp reduction is performed.
  */
-template <typename Acc, typename Out,typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction, typename PreprocessorBank, typename Postprocessor>
 __device__ void ReduceInnerMedium(Out *out, const In *in, int64_t n_outer, int n_inner,
                                   Reduction reduce,

@@ -320,9 +320,10 @@ class RegularizedInvRMS {
 };
 
 template <typename Out, typename In, typename Mean = Out, typename Acc = Out>
-class InvStdDevImplGPU : public ReduceImplGPU<Out, In, Acc, InvStdDevImplGPU<Out, In, Mean, Acc>>,
-                      public VarianceImplBase<Out, In, Mean, InvStdDevImplGPU<Out, In, Mean, Acc>>,
-                      public RegularizedInvRMS<Out, In, InvStdDevImplGPU<Out, In, Mean, Acc>> {
+class InvStdDevImplGPU :
+      public ReduceImplGPU<Out, In, Acc, InvStdDevImplGPU<Out, In, Mean, Acc>>,
+      public VarianceImplBase<Out, In, Mean, InvStdDevImplGPU<Out, In, Mean, Acc>>,
+      public RegularizedInvRMS<Out, In, InvStdDevImplGPU<Out, In, Mean, Acc>> {
  public:
   using ReduceBase = ReduceImplGPU<Out, In, Acc, InvStdDevImplGPU<Out, In, Mean, Acc>>;
   using VarBase = VarianceImplBase<Out, In, Mean, InvStdDevImplGPU<Out, In, Mean, Acc>>;

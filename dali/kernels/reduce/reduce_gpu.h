@@ -299,6 +299,18 @@ class DLL_PUBLIC InvStdDevGPU {
 };
 
 
+extern template class InvStdDevGPU<float, uint8_t>;
+extern template class InvStdDevGPU<float, int8_t>;
+
+extern template class InvStdDevGPU<float, uint16_t>;
+extern template class InvStdDevGPU<float, int16_t>;
+
+extern template class InvStdDevGPU<float, uint32_t>;
+extern template class InvStdDevGPU<float, int32_t>;
+
+extern template class InvStdDevGPU<float, float>;
+
+
 }  // namespace kernels
 }  // namespace dali
 
