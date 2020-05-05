@@ -12,39 +12,40 @@ class ColorTwistPipeline(Pipeline):
     def __init__(self, batch_size, seed, data_iterator, kind="new", num_threads=1, device_id=0):
         super(ColorTwistPipeline, self).__init__(batch_size, num_threads, device_id, seed=seed)
         self.input = ops.ExternalSource(source=data_iterator)
-        self.hue = ops.Uniform(range=[-20., 20.])
-        self.sat = ops.Uniform(range=[0., 1.])
-        self.bri = ops.Uniform(range=[0., 2.])
-        self.con = ops.Uniform(range=[0., 2.])
+        self.hue = ops.Uniform(range=[-20., 20.], seed=seed)
+        self.sat = ops.Uniform(range=[0., 1.], seed=seed)
+        self.bri = ops.Uniform(range=[0., 2.], seed=seed)
+        self.con = ops.Uniform(range=[0., 2.], seed=seed)
         self.kind = kind
         if kind == "new":
             self.color_twist = ops.ColorTwist(device="gpu")
         elif kind == "old":
             self.color_twist = ops.OldColorTwist(device="gpu")
         else:
-            self.color_twist = ops.ColorTwist(device="cpu")
+            self.color_twist = ops.OldColorTwist(device="cpu")
 
     def define_graph(self):
         self.images = self.input()
-        imgs = self.images if self.kind == "cpu" else self.images.gpu()
-        return self.color_twist(imgs, hue=self.hue(), saturation=self.sat(), brightness=self.bri(), contrast=self.con())
+        imgs = self.images if self.kind == "oldCpu" else self.images.gpu()
+        hue = self.hue() if self.kind in ["old", "oldCpu"] else -self.hue()
+        return self.color_twist(imgs, hue=hue, saturation=self.sat(), brightness=self.bri(), contrast=self.con())
 
 
 def test_color_twist_vs_old():
-    batch_size = 32
+    batch_size = 16
     seed = 2139
     rand_it1 = RandomDataIterator(batch_size, shape=(1024, 512, 3))
     rand_it2 = RandomDataIterator(batch_size, shape=(1024, 512, 3))
     compare_pipelines(ColorTwistPipeline(batch_size, seed, iter(rand_it1), kind="new"),
                       ColorTwistPipeline(batch_size, seed, iter(rand_it2), kind="old"),
-                      batch_size=batch_size, N_iterations=64, eps=1)
+                      batch_size=batch_size, N_iterations=16, eps=1)
 
 
 def test_color_twist_vs_cpu():
-    batch_size = 12
+    batch_size = 8
     seed = 1919
     rand_it1 = RandomDataIterator(batch_size, shape=(1024, 512, 3))
     rand_it2 = RandomDataIterator(batch_size, shape=(1024, 512, 3))
     compare_pipelines(ColorTwistPipeline(batch_size, seed, iter(rand_it1), kind="new"),
-                      ColorTwistPipeline(batch_size, seed, iter(rand_it2), kind="cpu"),
-                      batch_size=batch_size, N_iterations=64, eps=1)
+                      ColorTwistPipeline(batch_size, seed, iter(rand_it2), kind="oldCpu"),
+                      batch_size=batch_size, N_iterations=16, eps=1)

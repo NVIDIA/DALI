@@ -16,6 +16,7 @@
 #include <memory>
 #include <vector>
 #include "dali/pipeline/operator/operator.h"
+#include "dali/image/transform.h"
 #include "dali/util/npp.h"
 
 namespace dali {
@@ -151,12 +152,13 @@ class Saturation : public ColorAugment {
 };
 }  // namespace old
 
-class OldColorTwistBase : public Operator<GPUBackend> {
+template <typename Backend>
+class OldColorTwistBase : public Operator<Backend> {
  public:
   static const int nDim = 4;
 
   inline explicit OldColorTwistBase(const OpSpec &spec)
-      : Operator<GPUBackend>(spec),
+      : Operator<Backend>(spec),
         C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
     DALI_ENFORCE(C_ == 3, "Color transformation is implemented only for RGB images");
   }
@@ -168,17 +170,17 @@ class OldColorTwistBase : public Operator<GPUBackend> {
   }
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     return false;
   }
 
-  void RunImpl(Workspace<GPUBackend> &ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
   std::vector<old::ColorAugment *> augments_;
   const int C_;
 
   USE_OPERATOR_MEMBERS();
-  using Operator<GPUBackend>::RunImpl;
+  using Operator<Backend>::RunImpl;
 
  private:
   void IdentityMatrix(float *matrix) {
@@ -193,10 +195,10 @@ class OldColorTwistBase : public Operator<GPUBackend> {
     }
   }
 };
-
-class OldColorTwistAdjust : public OldColorTwistBase {
+template <typename Backend>
+class OldColorTwistAdjust : public OldColorTwistBase<Backend> {
  public:
-  inline explicit OldColorTwistAdjust(const OpSpec &spec) : OldColorTwistBase(spec) {
+  inline explicit OldColorTwistAdjust(const OpSpec &spec) : OldColorTwistBase<Backend>(spec) {
     this->augments_.push_back(new old::Hue());
     this->augments_.push_back(new old::Saturation());
     this->augments_.push_back(new old::Contrast());
@@ -209,7 +211,8 @@ class OldColorTwistAdjust : public OldColorTwistBase {
 typedef NppStatus (*colorTwistFunc)(const Npp8u *pSrc, int nSrcStep, Npp8u *pDst, int nDstStep,
                                     NppiSize oSizeROI, const Npp32f aTwist[3][4]);
 
-void OldColorTwistBase::RunImpl(DeviceWorkspace &ws) {
+template<>
+void OldColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8_t>(input.type()), "Color augmentations accept only uint8 tensors");
   auto &output = ws.Output<GPUBackend>(0);
@@ -241,6 +244,39 @@ void OldColorTwistBase::RunImpl(DeviceWorkspace &ws) {
     }
   }
   nppSetStream(old_stream);
+}
+
+template <>
+void OldColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
+  const auto &input_shape = input.shape();
+
+  CheckParam(input, "Color augmentation");
+
+  const auto H = input_shape[0];
+  const auto W = input_shape[1];
+  const auto C = input_shape[2];
+
+  output.ResizeLike(input);
+  output.SetLayout(InputLayout(ws, 0));
+
+  auto pImgInp = input.template data<uint8>();
+  auto pImgOut = output.template mutable_data<uint8>();
+
+  if (!augments_.empty()) {
+    float matrix[nDim][nDim];
+    float *m = reinterpret_cast<float *>(matrix);
+    IdentityMatrix(m);
+    for (size_t j = 0; j < augments_.size(); ++j) {
+      augments_[j]->Prepare(ws.data_idx(), spec_, &ws);
+      (*augments_[j])(m);
+    }
+
+    MakeColorTransformation(pImgInp, H, W, C, m, pImgOut);
+  } else {
+    memcpy(pImgOut, pImgInp, H * W * C);
+  }
 }
 
 DALI_SCHEMA(OldColorTwist)
@@ -275,6 +311,7 @@ Values >= 0 are accepted. For example:
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
-DALI_REGISTER_OPERATOR(OldColorTwist, OldColorTwistAdjust, GPU);
+DALI_REGISTER_OPERATOR(OldColorTwist, OldColorTwistAdjust<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(OldColorTwist, OldColorTwistAdjust<CPUBackend>, CPU);
 
 }  // namespace dali
