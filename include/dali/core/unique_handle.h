@@ -107,9 +107,9 @@ class UniqueHandle {
    * @returns The old handle value, no longer managed by UniqueHandle
    * @remarks The null value to replace the handle with, is taken from `Actual::null_value()`.
    */
-  inline handle_type release() {
+  inline handle_type release() noexcept {
     handle_type old = handle_;
-    handle_ = Actual::null_value();
+    handle_ = Actual::null_handle();
     return old;
   }
 
