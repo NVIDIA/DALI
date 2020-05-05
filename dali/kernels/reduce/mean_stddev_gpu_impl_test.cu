@@ -26,51 +26,6 @@ namespace dali {
 namespace kernels {
 namespace reduce_impl {
 
-template <typename T, int ndim>
-std::ostream &operator<<(std::ostream &os, const TensorView<StorageCPU, T, ndim> &t) {
-  if (!t.data) {
-    return os << "[data is null, shape = " << t.shape << "]";
-  }
-  if (t.dim() == 0) {
-    return os << *t.data;
-  }
-
-  const char *sep = t.num_elements() > 16 ? ",\n " : ", ";
-  os << "[";
-  if (t.dim() == 1) {
-    for (int64_t i = 0; i < t.num_elements(); i++) {
-      if (i)
-        os << sep;
-      os << t.data[i];
-    }
-  } else {
-    for (int64_t i = 0; i < t.shape[0]; i++) {
-      if (i)
-        os << sep;
-      os << subtensor(t, i);
-    }
-  }
-
-  return os << "]";
-}
-
-template <typename T, int ndim>
-std::ostream &operator<<(std::ostream &os, const TensorListView<StorageCPU, T, ndim> &tl) {
-  if (tl.data.empty() || !tl.data[0]) {
-    return os << "{ data is null, shape = " << tl.shape << " }";
-  }
-  os << "{ ";
-  const char *sep = tl.num_elements() > 16 ? ",\n " : ", ";
-  for (int i = 0; i < tl.num_samples(); i++) {
-    if (i)
-      os << sep;
-    os << tl[i];
-  }
-  return os << " }";
-}
-
-
-
 TEST(MeanImplGPU, SplitStage) {
   TensorListShape<> in_shape = {{
     { 32, 2, 64000 },
@@ -233,7 +188,9 @@ TestTensorList<Out> CenterAndSquare(const InListCPU<In> &in,
 
 template <typename Out = float, typename In, typename Mean>
 TestTensorList<Out> RefStdDev(const TensorListView<StorageCPU, In> &in,
-                              const TensorListView<StorageCPU, Mean> &mean) {
+                              const TensorListView<StorageCPU, Mean> &mean,
+                              double reg = 0, bool inv = false) {
+  reg *= reg;
   SmallVector<int, 6> axes;
   for (int d = 0; d < mean.sample_dim(); d++) {
     for (int i = 0; i < mean.num_samples(); i++) {
@@ -272,10 +229,10 @@ TestTensorList<Out> RefStdDev(const TensorListView<StorageCPU, In> &in,
     int64_t n = out_shape.num_elements();
     double ratio = in.num_elements() / n;
     for (int j = 0; j < n; j++) {
-      double sum = 0;
+      double sum = reg;
       for (int i = 0; i < N; i++)
         sum += reduced_samples_cpu.data[i][j];
-      out.data[0][j] = std::sqrt(sum / ratio);
+      out.data[0][j] = inv ? rsqrt(sum / ratio) : std::sqrt(sum / ratio);
     }
     return out_tl;
   } else {
@@ -286,8 +243,10 @@ TestTensorList<Out> RefStdDev(const TensorListView<StorageCPU, In> &in,
       int64_t n_in = in[i].num_elements();
       double ratio = n_in / n;
       RefReduce(out[i], centered_squared_cpu[i], make_span(axes), reductions::sum());
-      for (int j = 0; j < n; j++)
-        out.data[i][j] = std::sqrt(out.data[i][j] / ratio);
+      for (int j = 0; j < n; j++) {
+        double x = (out.data[i][j] + reg) / ratio;
+        out.data[i][j] = inv ? rsqrt(x) : std::sqrt(x);
+      }
     }
     return reduced_samples;
   }
@@ -438,6 +397,51 @@ TEST(StdDevImplGPU, Middle_Inner_Batch) {
 
   Check(out_cpu, ref.cpu(), EqualEpsRel(1e-5, 1e-6));
 }
+
+
+TEST(InvStdDevImplGPU, Outer_Batch_Regularized) {
+  TensorListShape<> in_shape = {{
+    { 480, 640, 3 },
+    { 720, 1280, 3 },
+    { 1080, 1920, 3 }
+  }};
+  int axes[] = { 0, 1 };
+  InvStdDevImplGPU<float, int16_t> stddev;
+  KernelContext ctx = {};
+  auto req = stddev.Setup(ctx, in_shape, make_span(axes), true, true);
+  TensorListShape<> ref_out_shape = {{
+    { 1, 1, 3 }
+  }};
+
+  ScratchpadAllocator sa;
+  sa.Reserve(req.scratch_sizes);
+  auto scratchpad = sa.GetScratchpad();
+  ctx.scratchpad = &scratchpad;
+
+  std::mt19937_64 rng(12345);
+
+  TestTensorList<int16_t> in;
+  in.reshape(in_shape);
+  auto in_cpu = in.cpu();
+  UniformRandomFill(in_cpu, rng, -100, 100);
+
+  TestTensorList<float> fake_mean;
+  fake_mean.reshape(ref_out_shape);
+  auto mean_cpu = fake_mean.cpu();
+  for (int i = 0, n = mean_cpu.num_elements(); i < n; i++) {
+    mean_cpu.data[0][i] = 10 * (i+1);
+  }
+
+  TestTensorList<float> out;
+  out.reshape(req.output_shapes[0]);
+  stddev.Run(ctx, out.gpu(), in.gpu(), fake_mean.gpu(), 100000);
+  auto out_cpu = out.cpu(ctx.gpu.stream);
+
+  TestTensorList<float> ref = RefStdDev(in_cpu, mean_cpu, 100000, true);
+
+  Check(out_cpu, ref.cpu(), EqualEpsRel(1e-5, 1e-6));
+}
+
 
 }  // namespace reduce_impl
 }  // namespace kernels

@@ -118,7 +118,7 @@ class VarianceImplBase {
   using PreprocessorBank = VariancePreprocessor<non_reduced_dims, Mean>;
 
   void InitMean(const InListGPU<Mean> &mean) {
-    mean_ = reshape(mean, This().SimplifiedOutputShape());
+    mean_ = reshape(mean, This().SimplifiedOutputShape(), true);
   }
 
   Preprocessor GetPreprocessorImpl() const {
