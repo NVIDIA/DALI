@@ -105,7 +105,7 @@ void daliCreatePipeline(daliPipelineHandle* pipe_handle,
     pipe->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
   }
   pipe->Build();
-  pipe_handle->pipe = reinterpret_cast<void *>(pipe);
+  pipe_handle->pipe = pipe;
   pipe_handle->ws = new dali::DeviceWorkspace();
   CUDA_CALL(cudaStreamCreateWithFlags(&pipe_handle->copy_stream, cudaStreamNonBlocking));
 }
