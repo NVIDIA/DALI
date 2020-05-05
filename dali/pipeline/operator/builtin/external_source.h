@@ -130,8 +130,7 @@ class ExternalSource : public Operator<Backend> {
    */
   template<typename SrcBackend>
   inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0) {
-    if (std::is_same<SrcBackend, GPUBackend>::value &&
-          std::is_same<Backend, CPUBackend>::value) {
+    if (std::is_same<SrcBackend, GPUBackend>::value && std::is_same<Backend, CPUBackend>::value) {
       std::string msg = "Incorrect Backends warning. Loading GPU-originated data into CPU "
                         "ExternalSource operator is discouraged and might be inefficient.";
       DALI_WARN(msg);
@@ -170,8 +169,7 @@ class ExternalSource : public Operator<Backend> {
    */
   template<typename SrcBackend>
   inline void SetDataSource(const vector<Tensor<SrcBackend>> &t, cudaStream_t stream = 0) {
-    if (std::is_same<SrcBackend, GPUBackend>::value &&
-          std::is_same<Backend, CPUBackend>::value) {
+    if (std::is_same<SrcBackend, GPUBackend>::value && std::is_same<Backend, CPUBackend>::value) {
       std::string msg = "Incorrect Backends warning. Loading GPU-originated data into CPU "
                         "ExternalSource operator is discouraged and might be inefficient.";
       DALI_WARN(msg);
