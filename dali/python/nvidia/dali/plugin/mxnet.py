@@ -51,6 +51,8 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     `cuda_stream` : Any value that can be casted to cudaStream_t
                     CUDA stream to be used for the copy
                     (if not provided, an internal user stream will be selected)
+                    In most cases, using the default internal user stream or stream 0
+                    is expected.
     """
     # Wait until arr is no longer used by the engine
     _wait_to_write(arr)

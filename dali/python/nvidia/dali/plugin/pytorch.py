@@ -51,6 +51,8 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     `cuda_stream` : torch.cuda.Stream or any value that can be casted to cudaStream_t
                     CUDA stream to be used for the copy
                     (if not provided, an internal user stream will be selected)
+                    In most cases, using pytorch's current stream is expected (for example,
+                    if we are copying to a tensor allocated with torch.zeros(...))
     """
     assert dali_tensor.shape() == list(arr.size()), \
             ("Shapes do not match: DALI tensor has size {0}"
