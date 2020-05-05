@@ -19,6 +19,7 @@ import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 import os
+from nose.tools import assert_raises
 
 from test_utils import RandomlyShapedDataIterator
 
@@ -131,6 +132,23 @@ def test_slice_synth_data_vs_numpy():
                  ((25, 100, 3), (0,), None, None, (25,)),
                  ((200, 400, 3), (0, 1), None, (4, 16), (1, 200))]:
                 yield check_pad_synth_data, device, batch_size, input_max_shape, axes, axis_names, align, shape_arg
+
+def test_pad_fail():
+    batch_size = 2
+    input_max_shape = (5, 5, 3)
+    device = "cpu"
+    axes = None
+    layout = "HWC"
+    axis_names = "H"
+    align = 0
+    shape_arg = None
+
+    eii = RandomlyShapedDataIterator(batch_size, max_shape=input_max_shape)
+    pipe = PadSynthDataPipeline(device, batch_size, iter(eii), axes=axes, axis_names=axis_names,
+                                align=align, shape_arg=shape_arg, layout=layout)
+
+    pipe.build()
+    assert_raises(RuntimeError, pipe.run)
 
 def main():
   for test in test_slice_synth_data_vs_numpy():
