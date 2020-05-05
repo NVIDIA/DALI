@@ -127,6 +127,34 @@ constexpr std::enable_if_t<std::is_integral<T>::value, bool> is_pow2(T n) {
   return (n & (n-1)) == 0;
 }
 
+
+/**
+ * @brief Calculates the position of most significant bit in x
+ * @return The position of MSB or 0 if x is 0.
+ */
+template <typename T>
+DALI_HOST_DEV DALI_FORCEINLINE
+constexpr std::enable_if_t<std::is_integral<T>::value, int> ilog2(T x) {
+  int n = 0;
+  while (x >>= 1)
+    n++;
+  return n;
+}
+
+/**
+ * @brief Returns an integer where bits at indicies in `bit_indices` are set to 1.
+ * @remarks Indices that are outside the bit-width of OutType are ignored.
+ */
+template <typename OutType = uint64_t, typename BitIndices>
+DALI_HOST_DEV DALI_FORCEINLINE
+OutType to_bit_mask(const BitIndices &bit_indices) {
+  static_assert(std::is_integral<OutType>::value, "A bit mask must be of integral type");
+  OutType mask = 0;
+  for (int idx : bit_indices)
+    mask |= OutType(1) << idx;
+  return mask;
+}
+
 template <typename DependentName, typename Result>
 using if_istype = std::conditional_t<false, DependentName, Result>;
 

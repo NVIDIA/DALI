@@ -21,41 +21,41 @@
 namespace dali {
 namespace kernels {
 
-template <typename StorageBackend, typename ElementType, int sample_dim>
+template <typename StorageBackend, typename ElementType, int sample_dim = DynamicDimensions>
 using InList = TensorListView<StorageBackend, const ElementType, sample_dim>;
 
-template <typename StorageBackend, typename ElementType, int sample_dim>
+template <typename StorageBackend, typename ElementType, int sample_dim = DynamicDimensions>
 using OutList = TensorListView<StorageBackend, ElementType, sample_dim>;
 
-template <typename ElementType, int sample_dim>
+template <typename ElementType, int sample_dim = DynamicDimensions>
 using InListCPU = InList<StorageCPU, ElementType, sample_dim>;
 
-template <typename ElementType, int sample_dim>
+template <typename ElementType, int sample_dim = DynamicDimensions>
 using InListGPU = InList<StorageGPU, ElementType, sample_dim>;
 
-template <typename ElementType, int sample_dim>
+template <typename ElementType, int sample_dim = DynamicDimensions>
 using OutListCPU = OutList<StorageCPU, ElementType, sample_dim>;
 
-template <typename ElementType, int sample_dim>
+template <typename ElementType, int sample_dim = DynamicDimensions>
 using OutListGPU = OutList<StorageGPU, ElementType, sample_dim>;
 
-template <typename StorageBackend, typename ElementType, int sample_dim>
-using InTensor = TensorView<StorageBackend, const ElementType, sample_dim>;
+template <typename StorageBackend, typename ElementType, int ndim = DynamicDimensions>
+using InTensor = TensorView<StorageBackend, const ElementType, ndim>;
 
-template <typename StorageBackend, typename ElementType, int sample_dim>
-using OutTensor = TensorView<StorageBackend, ElementType, sample_dim>;
+template <typename StorageBackend, typename ElementType, int ndim = DynamicDimensions>
+using OutTensor = TensorView<StorageBackend, ElementType, ndim>;
 
-template <typename ElementType, int sample_dim>
-using InTensorCPU = InTensor<StorageCPU, ElementType, sample_dim>;
+template <typename ElementType, int ndim = DynamicDimensions>
+using InTensorCPU = InTensor<StorageCPU, ElementType, ndim>;
 
-template <typename ElementType, int sample_dim>
-using InTensorGPU = InTensor<StorageGPU, ElementType, sample_dim>;
+template <typename ElementType, int ndim = DynamicDimensions>
+using InTensorGPU = InTensor<StorageGPU, ElementType, ndim>;
 
-template <typename ElementType, int sample_dim>
-using OutTensorCPU = OutTensor<StorageCPU, ElementType, sample_dim>;
+template <typename ElementType, int ndim = DynamicDimensions>
+using OutTensorCPU = OutTensor<StorageCPU, ElementType, ndim>;
 
-template <typename ElementType, int sample_dim>
-using OutTensorGPU = OutTensor<StorageGPU, ElementType, sample_dim>;
+template <typename ElementType, int ndim = DynamicDimensions>
+using OutTensorGPU = OutTensor<StorageGPU, ElementType, ndim>;
 
 }  // namespace kernels
 }  // namespace dali

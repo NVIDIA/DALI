@@ -122,6 +122,10 @@ struct DropDims {
    */
   template <typename Indices>
   DropDims(const Indices &in_shape, uint64_t reduced_axes) {
+    if (size(in_shape) == 0) {
+      start = -1;
+      return;
+    }
     int64_t shape[kMaxDims];
     unsigned axis_mask;
     int d = simplify(shape, axis_mask, in_shape, reduced_axes);

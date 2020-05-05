@@ -58,10 +58,9 @@ struct VariancePreprocessor;
 
 template <typename Mean>
 struct VariancePreprocessor<1, Mean> {
-  const Mean *mean;
+  const Mean *__restrict__ mean;
   i64vec<1> stride;
 
-  template <typename T>
   DALI_HOST_DEV DALI_FORCEINLINE
   reductions::variance<Mean> Get(const i64vec<1> &pos) const {
     auto offset = dot(pos, stride);
@@ -80,7 +79,6 @@ struct VariancePreprocessor<2, Mean> {
   i64vec<2> stride;
   DropDims inner_dims;
 
-  template <typename T>
   DALI_HOST_DEV DALI_FORCEINLINE
   reductions::variance<Mean> Get(const i64vec<2> &pos) const {
     auto offset = dot(i64vec2(pos[0], inner_dims.reindex(pos[1])), stride);
@@ -168,10 +166,17 @@ __global__ void ReduceSamplesKernel(Acc *out, const In *const *in,
   int64_t block_size = blockDim.x;
   int64_t grid_size = block_size * gridDim.x;
   for (int64_t ofs = threadIdx.x + blockIdx.x * block_size; ofs < sample_size; ofs += grid_size) {
-    red = {};
-    for (int i = 0; i < num_samples; i++) {
-      auto pp = pre[i].Get({ofs});
-      red.add(pp(in[i][ofs]), R);
+    red.reset();
+    if (pre) {
+      for (int i = 0; i < num_samples; i++) {
+        auto pp = pre[i].Get({ofs});
+        red.add(pp(in[i][ofs]), R);
+      }
+    } else {
+      auto pp = std::remove_reference_t<decltype(pre->Get({ofs}))>();
+      for (int i = 0; i < num_samples; i++) {
+        red.add(pp(in[i][ofs]), R);
+      }
     }
     out[ofs] = post(red.result());
   }
