@@ -122,12 +122,12 @@ RUN FFMPEG_VERSION=4.2.2 && \
 
 # flac
 RUN FLAC_VERSION=1.3.3 && cd /tmp                                                    && \
-    wget http://downloads.xiph.org/releases/flac/flac-${FLAC_VERSION}.tar.xz         && \
-    tar -xf flac-$FLAC_VERSION.tar.xz                                                && \
-    rm flac-$FLAC_VERSION.tar.xz                                                     && \
-    cd flac-$FLAC_VERSION                                                            && \
+    wget https://github.com/xiph/flac/archive/${FLAC_VERSION}.tar.gz                 && \
+    tar -xf $FLAC_VERSION.tar.gz                                                     && \
+    rm $FLAC_VERSION.tar.gz                                                          && \
+    cd $FLAC_VERSION                                                                 && \
     ./configure && make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
-    cd /tmp && rm -rf flac-$FLAC_VERSION
+    cd /tmp && rm -rf $FLAC_VERSION
 
 # libogg
 RUN OGG_VERSION=1.3.4 && cd /tmp                                                     && \
