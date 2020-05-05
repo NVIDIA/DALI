@@ -81,10 +81,10 @@ std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string
                              .AddOutput("labels", "cpu"));
 
     pipe.AddOperator(OpSpec("ImageDecoder")
-                             .AddArg("device", execution_device == CPU ? "cpu"s : "mixed"s)
+                             .AddArg("device", "cpu")
                              .AddArg("output_type", DALI_RGB)
                              .AddInput("compressed_images", "cpu")
-                             .AddOutput(input_name, exec_device));
+                             .AddOutput(input_name, "cpu"));
   } else {
     pipe.AddExternalInput(input_name);
   }
