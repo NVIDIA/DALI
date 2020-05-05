@@ -505,13 +505,9 @@ class ReduceImplGPU {
     if (remaining_stages == 0)
       return 1;
     int log2 = ilog2(to_reduce);
-    int pow = log2 / (remaining_stages + 1);  // floor division - better to over-reduce...
-    // ...unless this would result in the following stages being no-ops.
-    // To consider: do some magic to use result of this stage directly and avoid small
-    // reductions or copying.
-    // For now, let's just avoid no-ops:
-    if (pow < remaining_stages && to_reduce >= (1 << remaining_stages))
-      pow = 1;
+    int pow = log2 * remaining_stages / (remaining_stages + 1);
+    if (pow == 0 && to_reduce > 2)  // avoid no-op in the following stage
+      pow = 1;  // keep some work for the next stage
     int macroblocks = 1 << pow;
     return macroblocks;
   }
