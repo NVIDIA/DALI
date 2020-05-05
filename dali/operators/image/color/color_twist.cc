@@ -144,7 +144,7 @@ DALI_REGISTER_OPERATOR(Hue, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(Saturation, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistCpu, CPU);
 
-bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) {
+bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   const auto &output = ws.template OutputRef<CPUBackend>(0);
   output_desc.resize(1);
@@ -179,7 +179,8 @@ void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                   kernels::KernelContext ctx;
                   auto tvin = view<const InputType, 3>(input[i]);
                   auto tvout = view<OutputType, 3>(output[i]);
-                  kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin, tmatrices_[i], toffsets_[i]);
+                  kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
+                                              tmatrices_[i], toffsets_[i]);
                 });
               }
           }

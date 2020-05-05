@@ -31,7 +31,7 @@ DALI_REGISTER_OPERATOR(Hue, ColorTwistGpu, GPU);
 DALI_REGISTER_OPERATOR(Saturation, ColorTwistGpu, GPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistGpu, GPU);
 
-bool ColorTwistGpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) {
+bool ColorTwistGpu::SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
   const auto &input = ws.template InputRef<GPUBackend>(0);
   const auto &output = ws.template OutputRef<GPUBackend>(0);
   output_desc.resize(1);

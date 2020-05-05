@@ -35,9 +35,9 @@ namespace color {
  */
 const std::string kHue = "hue";                 // NOLINT
 const std::string kSaturation = "saturation";   // NOLINT
-const std::string kValue = "value";
-const std::string kBrightness = "brightness";        // NOLINT
-const std::string kContrast = "contrast";          // NOLINT
+const std::string kValue = "value";             // NOLINT
+const std::string kBrightness = "brightness";   // NOLINT
+const std::string kContrast = "contrast";       // NOLINT
 const std::string kOutputType = "dtype";        // NOLINT
 
 const float kHueDefault = 0;
@@ -130,7 +130,7 @@ class ColorTwistBase : public Operator<Backend> {
   bool CanInferOutputs() const override {
     return true;
   }
- 
+
   void AcquireArguments(const workspace_t<Backend> &ws) {
     if (spec_.ArgumentDefined(color::kHue)) {
       this->GetPerSampleArgument(hue_, color::kHue, ws);
@@ -164,8 +164,11 @@ class ColorTwistBase : public Operator<Backend> {
         ? output_type_arg_
         : in_type;
 
-    if (in_type == DALI_FLOAT16 || in_type == DALI_FLOAT || in_type == DALI_FLOAT64) half_range_ = 0.5f;
-    else half_range_ = 128.f;
+    if (in_type == DALI_FLOAT16 || in_type == DALI_FLOAT || in_type == DALI_FLOAT64) {
+      half_range_ = 0.5f;
+    } else {
+      half_range_ = 128.f;
+    }
   }
 
 
@@ -182,7 +185,7 @@ class ColorTwistBase : public Operator<Backend> {
     toffsets_.resize(size);
     for (size_t i = 0; i < size; i++) {
       tmatrices_[i] =
-              Yiq2Rgb * hue_mat(hue_[i]) * sat_mat(saturation_[i]) * 
+              Yiq2Rgb * hue_mat(hue_[i]) * sat_mat(saturation_[i]) *
               bri_mat(brightness_[i]) * con_mat(contrast_[i])  * Rgb2Yiq;
       toffsets_[i] = (half_range_ - half_range_ * contrast_[i]) * brightness_[i];
     }
@@ -257,7 +260,8 @@ class ColorTwistGpu : public ColorTwistBase<GPUBackend> {
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
     const auto tvin = view<const InputType, 3>(tl);
-    const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, make_cspan(tmatrices_), make_cspan(toffsets_));
+    const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, make_cspan(tmatrices_),
+                                                     make_cspan(toffsets_));
     return reqs.output_shapes[0];
   }
 };
