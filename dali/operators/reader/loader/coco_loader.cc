@@ -242,7 +242,7 @@ void parse_json_file(
   const auto annotations_file = spec.GetArgument<string>("annotations_file");
 
   std::ifstream f(annotations_file);
-  DALI_ENFORCE(f, "Could not open JSON annotations file");
+  DALI_ENFORCE(f, "Could not open JSON annotations file: \"" + annotations_file + "\"");
   f.seekg(0, std::ios::end);
   size_t file_size = f.tellg();
   std::unique_ptr<char, std::function<void(char*)>> buff(

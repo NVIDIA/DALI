@@ -32,7 +32,7 @@
 #include <algorithm>
 #include <tuple>
 
-#include "dali/util/local_file.h"
+#include "dali/util/mmaped_file.h"
 #include "dali/core/error_handling.h"
 
 static int _sysctl(struct __sysctl_args *args);
@@ -125,7 +125,7 @@ static unsigned int dali_reserved_mv_cnt = 0;
 std::mutex mapped_files_mutex;
 std::map<std::string, MappedFile> mapped_files;
 
-LocalFileStream::LocalFileStream(const std::string& path, bool read_ahead) :
+MmapedFileStream::MmapedFileStream(const std::string& path, bool read_ahead) :
   FileStream(path), length_(0), pos_(0), read_ahead_whole_file_(read_ahead) {
   std::lock_guard<std::mutex> lock(mapped_files_mutex);
   std::weak_ptr<void> mapped_memory;
@@ -147,7 +147,7 @@ LocalFileStream::LocalFileStream(const std::string& path, bool read_ahead) :
   DALI_ENFORCE(p_ != nullptr, "Could not open file " + path + ": " + std::strerror(errno));
 }
 
-void LocalFileStream::Close() {
+void MmapedFileStream::Close() {
   // Not doing any munmap right now, since Buffer objects might still
   // reference the memory range of the mapping.
   // When last instance of p_ in  LocalFileStream or in memory obtained from
@@ -170,13 +170,13 @@ inline uint8_t* ReadAheadHelper(std::shared_ptr<void> &p, size_t &pos,
   return tmp;
 }
 
-void LocalFileStream::Seek(int64 pos) {
+void MmapedFileStream::Seek(int64 pos) {
   DALI_ENFORCE(pos >= 0 && pos < (int64)length_, "Invalid seek");
   pos_ = pos;
 }
 
 // This method saves a memcpy
-shared_ptr<void> LocalFileStream::Get(size_t n_bytes) {
+shared_ptr<void> MmapedFileStream::Get(size_t n_bytes) {
   if (pos_ + n_bytes > length_) {
     return nullptr;
   }
@@ -196,18 +196,18 @@ shared_ptr<void> LocalFileStream::Get(size_t n_bytes) {
   return p;
 }
 
-size_t LocalFileStream::Read(uint8_t * buffer, size_t n_bytes) {
+size_t MmapedFileStream::Read(uint8_t * buffer, size_t n_bytes) {
   n_bytes = std::min(n_bytes, length_ - pos_);
   memcpy(buffer, ReadAheadHelper(p_, pos_, n_bytes, !read_ahead_whole_file_), n_bytes);
   pos_ += n_bytes;
   return n_bytes;
 }
 
-size_t LocalFileStream::Size() const {
+size_t MmapedFileStream::Size() const {
   return length_;
 }
 
-bool LocalFileStream::ReserveFileMappings(unsigned int num) {
+bool MmapedFileStream::ReserveFileMappings(unsigned int num) {
   if (num + dali_reserved_mv_cnt > dali_max_mv_cnt) {
     return false;
   } else {
@@ -216,7 +216,7 @@ bool LocalFileStream::ReserveFileMappings(unsigned int num) {
   }
 }
 
-void LocalFileStream::FreeFileMappings(unsigned int num) {
+void MmapedFileStream::FreeFileMappings(unsigned int num) {
   DALI_ENFORCE(dali_reserved_mv_cnt >= num,
       "Trying to free more of mmap reservations than was reserved");
   dali_reserved_mv_cnt -= num;

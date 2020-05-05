@@ -6,9 +6,12 @@ import sys
 from pip._vendor.packaging.version import parse
 import urllib.parse
 try:
-    import pip._internal.pep425tags as p
-except:
-    import pip.pep425tags as p
+    import pip._internal.utils.compatibility_tags as p
+except ImportError:
+    try:
+        import pip._internal.pep425tags as p
+    except ImportError:
+        import pip.pep425tags as p
 try:
     # For Python 3.0 and later
     from urllib.request import urlopen, HTTPError, Request

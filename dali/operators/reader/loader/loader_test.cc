@@ -22,6 +22,9 @@
 
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/loader/file_label_loader.h"
+#include "dali/operators/reader/loader/recordio_loader.h"
+#include "dali/operators/reader/loader/indexed_file_loader.h"
+#include "dali/operators/reader/loader/coco_loader.h"
 #include "dali/operators/reader/loader/lmdb.h"
 
 namespace dali {
@@ -54,8 +57,88 @@ TYPED_TEST(DataLoadStoreTest, LMDBTest) {
     // shared_ptr to sample is destroyed
     auto sample = reader->ReadOne(false);
   }
+}
 
-  return;
+TYPED_TEST(DataLoadStoreTest, FileLabelLoaderMmmap) {
+  for (bool dont_use_mmap : {true, false}) {
+    shared_ptr<dali::FileLabelLoader> reader(
+        new FileLabelLoader(
+            OpSpec("FileReader")
+            .AddArg("file_root", loader_test_image_folder)
+            .AddArg("batch_size", 32)
+            .AddArg("device_id", 0)
+            .AddArg("dont_use_mmap", dont_use_mmap)));
+
+    reader->PrepareMetadata();
+    auto sample = reader->ReadOne(false);
+    EXPECT_EQ(sample->image.shares_data(), !dont_use_mmap);
+  }
+}
+
+TYPED_TEST(DataLoadStoreTest, RecordIOLoaderMmmap) {
+  for (bool dont_use_mmap : {true, false}) {
+    std::vector<std::string> path =  {testing::dali_extra_path() + "/db/recordio/train.rec"};
+    std::vector<std::string> index_path = {testing::dali_extra_path() + "/db/recordio/train.idx"};
+    shared_ptr<dali::RecordIOLoader> reader(
+        new RecordIOLoader(
+            OpSpec("MXNetReader")
+            .AddArg("path", path)
+            .AddArg("index_path", index_path)
+            .AddArg("batch_size", 32)
+            .AddArg("device_id", 0)
+            .AddArg("dont_use_mmap", dont_use_mmap)));
+
+    reader->PrepareMetadata();
+    auto sample = reader->ReadOne(false);
+    EXPECT_EQ(sample->shares_data(), !dont_use_mmap);
+  }
+}
+
+TYPED_TEST(DataLoadStoreTest, TFRecordLoaderMmmap) {
+  for (bool dont_use_mmap : {true, false}) {
+    std::vector<std::string> path = {testing::dali_extra_path() + "/db/tfrecord/train"};
+    std::vector<std::string> index_path = {testing::dali_extra_path() + "/db/tfrecord/train.idx"};
+    shared_ptr<dali::IndexedFileLoader> reader(
+        new IndexedFileLoader(
+            OpSpec("TFRecordReader")
+            .AddArg("path", path)
+            .AddArg("index_path", index_path)
+            .AddArg("batch_size", 32)
+            .AddArg("device_id", 0)
+            .AddArg("dont_use_mmap", dont_use_mmap)));
+
+    reader->PrepareMetadata();
+    auto sample = reader->ReadOne(false);
+    EXPECT_EQ(sample->shares_data(), !dont_use_mmap);
+  }
+}
+
+TYPED_TEST(DataLoadStoreTest, CocoLoaderMmmap) {
+  for (bool dont_use_mmap : {true, false}) {
+    std::vector<int> offsets;
+    std::vector<float> boxes;
+    std::vector<int> labels;
+    std::vector<int> counts;
+    std::vector<std::vector<int> > masks_meta;
+    std::vector<std::vector<float> > masks_coords;
+    std::vector<int> original_ids;
+    std::string file_root = testing::dali_extra_path() + "/db/coco/images";
+    std::string annotations_file = testing::dali_extra_path() + "/db/coco/instances.json";
+    auto coco_spec = OpSpec("COCOReader")
+                      .AddArg("file_root", file_root)
+                      .AddArg("annotations_file", annotations_file)
+                      .AddArg("batch_size", 32)
+                      .AddArg("device_id", 0)
+                      .AddArg("dont_use_mmap", dont_use_mmap);
+    shared_ptr<dali::CocoLoader> reader(
+        new CocoLoader(
+            coco_spec, offsets, boxes, labels, counts, masks_meta,
+            masks_coords, false, false, original_ids));
+
+    reader->PrepareMetadata();
+    auto sample = reader->ReadOne(false);
+    EXPECT_EQ(sample->image.shares_data(), !dont_use_mmap);
+  }
 }
 
 TYPED_TEST(DataLoadStoreTest, LoaderTest) {
@@ -74,8 +157,6 @@ TYPED_TEST(DataLoadStoreTest, LoaderTest) {
     // shared_ptr to sample is destroyed
     auto sample = reader->ReadOne(false);
   }
-
-  return;
 }
 
 TYPED_TEST(DataLoadStoreTest, LoaderTestFail) {
