@@ -106,7 +106,7 @@ def test_mxnet_iterator_model_fit():
             return labels
 
     pipes, _ = create_pipeline(lambda gpu: RN50Pipeline(batch_size=batch_size, num_threads=4, device_id=gpu, num_gpus=num_gpus,
-                                                                  data_paths=image_data_set), batch_size, num_gpus)
+                                                        data_paths=image_data_set), batch_size, num_gpus)
     pipe = pipes[0]
 
     class MXNetIteratorWrapper(MXNetIterator):
@@ -428,6 +428,70 @@ def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
     assert len(next_img_ids_list_set) == data_size
     assert len(set(next_mirrored_data)) != 1
 
+class CustomPipe(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths):
+        super(CustomPipe, self).__init__(batch_size, num_threads, device_id,)
+        self.input = ops.FileReader(file_root = data_paths, shard_id = device_id, num_shards = num_gpus)
+        self.decode_gpu = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
+        self.res = ops.RandomResizedCrop(device="gpu", size =(224, 224))
+
+        self.cmnp = ops.CropMirrorNormalize(device="gpu",
+                                            output_dtype=types.FLOAT,
+                                            output_layout=types.NCHW,
+                                            crop=(224, 224),
+                                            image_type=types.RGB,
+                                            mean=[0.485 * 255,0.456 * 255,0.406 * 255],
+                                            std=[0.229 * 255,0.224 * 255,0.225 * 255])
+
+    def define_graph(self):
+        jpegs, _ = self.input(name="Reader")
+        images = self.decode_gpu(jpegs)
+        images = self.res(images)
+        output = self.cmnp(images)
+        return output
+
+def test_pytorch_iterator_feed_ndarray():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import feed_ndarray as feed_ndarray
+    import torch
+    num_gpus = 1
+    batch_size = 100
+    pipes, _ = create_pipeline(lambda gpu: CustomPipe(batch_size=batch_size, num_threads=4, device_id=gpu, num_gpus=num_gpus,
+                                                      data_paths=image_data_set), batch_size, num_gpus)
+    for gpu_id in range(num_gpus):
+        pipe = pipes[gpu_id]
+        pipe.build()
+        outs = pipe.run()
+        out_data = outs[0].as_tensor()
+        device = torch.device('cuda', gpu_id)
+        arr = torch.zeros(out_data.shape(), dtype=torch.float32, device=device)
+        feed_ndarray(out_data, arr, cuda_stream = torch.cuda.current_stream(device=device))
+        np.testing.assert_equal(arr.cpu().numpy(), outs[0].as_cpu().as_array())
+
+def test_mxnet_iterator_feed_ndarray():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    from nvidia.dali.plugin.mxnet import feed_ndarray as feed_ndarray
+    import mxnet as mx
+
+    num_gpus = 1
+    batch_size = 100
+    pipes, _ = create_pipeline(lambda gpu: CustomPipe(batch_size=batch_size, num_threads=4, device_id=gpu, num_gpus=num_gpus,
+                                                      data_paths=image_data_set), batch_size, num_gpus)
+    for gpu_id in range(num_gpus):
+        pipe = pipes[gpu_id]
+        pipe.build()
+        outs = pipe.run()
+        out_data = outs[0].as_tensor()
+        with mx.Context(mx.gpu(gpu_id)):
+            arr = mx.nd.zeros(out_data.shape(), dtype=np.float32)
+            mx.base._LIB.MXNDArrayWaitToWrite(arr.handle)
+            feed_ndarray(out_data, arr, cuda_stream = None)  # Using DALI's internal stream
+            np.testing.assert_equal(arr.asnumpy(), outs[0].as_cpu().as_array())
+
+            arr2 = mx.nd.zeros(out_data.shape(), dtype=np.float32)
+            mx.base._LIB.MXNDArrayWaitToWrite(arr2.handle)
+            feed_ndarray(out_data, arr2, cuda_stream = 0)  # Using default stream
+            np.testing.assert_equal(arr2.asnumpy(), outs[0].as_cpu().as_array())
 
 def test_paddle_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
