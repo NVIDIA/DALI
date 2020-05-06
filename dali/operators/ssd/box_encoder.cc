@@ -191,15 +191,24 @@ DALI_SCHEMA(BoxEncoder)
         R"code(Encodes input bounding boxes and labels using set of default boxes (anchors) passed
 during op construction. Follows algorithm described in https://arxiv.org/abs/1512.02325 and
 implemented in https://github.com/mlperf/training/tree/master/single_stage_detector/ssd
-Inputs must be supplied as two Tensors: `BBoxes` containing bounding boxes represented as
-`[l,t,r,b]`, and `Labels` containing the corresponding label for each bounding box.
-Results are two tensors: `EncodedBBoxes` containing M encoded bounding boxes as `[l,t,r,b]`,
-where M is number of anchors and `EncodedLabels` containing the corresponding label for each
+Inputs must be supplied as two Tensors: `bboxes` containing bounding boxes represented as
+`[l,t,r,b]`, and `labels` containing the corresponding label for each bounding box.
+Results are two tensors: `encoded_bboxes` containing M encoded bounding boxes as `[l,t,r,b]`,
+where M is number of anchors and `encoded_labels` containing the corresponding label for each
 encoded box.)code")
     .NumInput(2)
+    .InputDoc(0, "bboxes", "2D TensorList of float",
+              "Bounding boxes to encode in `[l, t, r, b]` format, each sample ``i`` can have shape "
+              "``{m_i, 4}`` to represent ``m_i`` boxes")
+    .InputDoc(1, "labels", "2D TensorList of int",
+              "Labels corresponding to bounding boxes, sample ``i`` should have shape ``{m_i, 1}``")
     .NumOutput(2)
+    .OutputDoc(0, "encoded_bboxes", "TensorList of {batch, M, 4} float",
+               "Batch of encoded bounding boxes.")
+    .OutputDoc(1, "encoded_labels", "TensorList of {batch, M} int",
+               "Batch of corresponding labels.")
     .AddArg("anchors",
-            R"code(Anchors to be used for encoding. List of floats in ltrb format.)code",
+            R"code(Anchors to be used for encoding. List of 4 * M floats in ltrb format.)code",
             DALI_FLOAT_VEC)
     .AddOptionalArg(
         "criteria",
@@ -208,16 +217,15 @@ encoded box.)code")
     .AddOptionalArg(
         "offset",
         R"code(Returns normalized offsets `((encoded_bboxes*scale - anchors*scale) - mean) / stds`
-in `EncodedBBoxes` using `std`, `mean` and `scale` arguments (default values are transparent).)code",
+in `encoded_bboxes` using `std`, `mean` and `scale` arguments (default values are transparent).)code",
         false)
-    .AddOptionalArg("scale",
-            R"code(Rescale the box and anchors values before offset calculation (e.g. to get back to absolute values).)code",
-            1.0f)
-    .AddOptionalArg("means",
-            R"code([x y w h] means for offset normalization.)code",
-            std::vector<float>{0.f, 0.f, 0.f, 0.f})
-    .AddOptionalArg("stds",
-            R"code([x y w h] standard deviations for offset normalization.)code",
-            std::vector<float>{1.f, 1.f, 1.f, 1.f});
+    .AddOptionalArg(
+        "scale",
+        R"code(Rescale the box and anchors values before offset calculation (e.g. to get back to absolute values).)code",
+        1.0f)
+    .AddOptionalArg("means", R"code([x y w h] means for offset normalization.)code",
+                    std::vector<float>{0.f, 0.f, 0.f, 0.f})
+    .AddOptionalArg("stds", R"code([x y w h] standard deviations for offset normalization.)code",
+                    std::vector<float>{1.f, 1.f, 1.f, 1.f});
 
 }  // namespace dali

@@ -95,9 +95,8 @@ Output of the decoder is in `HWC` ordering.)code")
   .AddParent("ImageDecoderAttr")
   .AddParent("RandomCropAttr");
 
-
 DALI_SCHEMA(ImageDecoderSlice)
-  .DocStr(R"code(Decode images on the host with a cropping window of given size and anchor.
+    .DocStr(R"code(Decode images on the host with a cropping window of given size and anchor.
 Inputs must be supplied as 3 separate tensors in a specific order: `data`
 containing input data, `anchor` containing either normalized or absolute coordinates
 (depending on the value of `normalized_anchor`) for the starting point of the
@@ -111,9 +110,18 @@ coordinates and `WH` order for the slice arguments.
 When possible, will make use of partial decoding (e.g. libjpeg-turbo, nvJPEG).
 When not supported, will decode the whole image and then crop.
 Output of the decoder is in `HWC` ordering.)code")
-  .NumInput(3)
-  .NumOutput(1)
-  .AddParent("ImageDecoderAttr")
-  .AddParent("SliceAttr");
+    .NumInput(3)
+    .InputDoc(0, "data", "TensorList", "Batch containing input data")
+    .InputDoc(1, "anchor", "1D TensorList of float",
+              R"code(Input containing either normalized or absolute coordinates
+(depending on the value of `normalized_anchor`) for the starting point of the
+slice (x0, x1, x2, ...).)code")
+    .InputDoc(2, "shape", "1D TensorList of float",
+              R"code(Input containing either normalized or absolute coordinates
+(depending on the value of `normalized_shape`) for the dimensions of the slice
+(s0, s1, s2, ...).)code")
+    .NumOutput(1)
+    .AddParent("ImageDecoderAttr")
+    .AddParent("SliceAttr");
 
 }  // namespace dali

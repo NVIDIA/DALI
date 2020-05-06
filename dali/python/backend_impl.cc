@@ -1140,18 +1140,29 @@ PYBIND11_MODULE(backend_impl, m) {
   m.def("GetSchema", &GetSchema, py::return_value_policy::reference);
 
   py::class_<OpSchema>(m, "OpSchema")
-    .def("Dox", &OpSchema::Dox)
-    .def("CanUseAutoInputDox", &OpSchema::CanUseAutoInputDox)
+    .def("DocStr", (std::string (OpSchema::*)() const)&OpSchema::DocStr)
+    .def("CanUseAutoInputDoc", &OpSchema::CanUseAutoInputDoc)
     .def("AppendKwargsSection", &OpSchema::AppendKwargsSection)
-    .def("HasCallDox", &OpSchema::HasCallDox)
-    .def("GetCallDox", &OpSchema::GetCallDox)
-    .def("HasInputDox", &OpSchema::HasInputDox)
+    .def("HasCallDocStr", &OpSchema::HasCallDocStr)
+    .def("GetCallDocStr", &OpSchema::GetCallDocStr)
+    .def("HasInputDocStr", &OpSchema::HasInputDocStr)
+    .def("GetInputDocStr", &OpSchema::GetInputDocStr)
+    .def("HasOutputDocStr", &OpSchema::HasOutputDocStr)
+    .def("GetOutputDocStr", &OpSchema::GetOutputDocStr)
+    .def("HasPerInputDoc", &OpSchema::HasPerInputDoc)
     .def("GetCallSignatureInputs", &OpSchema::GetCallSignatureInputs)
-    .def("GetInputName", &OpSchema::GetInputName)
-    .def("GetInputType", &OpSchema::GetInputType)
-    .def("GetInputDox", &OpSchema::GetInputDox)
+    .def("GetPerInputDoc", [](OpSchema &schema, int input_idx) {
+        const auto &info = schema.GetPerInputDoc(input_idx);
+        return std::make_tuple(info.name, info.type_doc, info.doc);
+     })
+    .def("HasPerOutputDoc", &OpSchema::HasPerOutputDoc)
+    .def("GetPerOutputDoc", [](OpSchema &schema, int output_idx) {
+        const auto &info = schema.GetPerOutputDoc(output_idx);
+        return std::make_tuple(info.name, info.type_doc, info.doc);
+     })
     .def("MaxNumInput", &OpSchema::MaxNumInput)
     .def("MinNumInput", &OpSchema::MinNumInput)
+    .def("NumOutput", (int (OpSchema::*)() const)&OpSchema::NumOutput)
     .def("HasOutputFn", &OpSchema::HasOutputFn)
     .def("CalculateOutputs", &OpSchema::CalculateOutputs)
     .def("CalculateAdditionalOutputs", &OpSchema::CalculateAdditionalOutputs)
@@ -1159,6 +1170,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("CheckArgs", &OpSchema::CheckArgs)
     .def("GetArgumentDox", &OpSchema::GetArgumentDox)
     .def("GetArgumentType", &OpSchema::GetArgumentType)
+    .def("GetArgumentShape", &OpSchema::GetArgumentShape)
     .def("HasArgumentDefaultValue", &OpSchema::HasArgumentDefaultValue)
     .def("GetArgumentDefaultValueString", &OpSchema::GetArgumentDefaultValueString)
     .def("GetArgumentNames", &OpSchema::GetArgumentNames)

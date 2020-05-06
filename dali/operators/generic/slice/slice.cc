@@ -27,12 +27,12 @@ with arguments `axis_names` or `axes`. By default `Slice` operator uses normaliz
 coordinates and `WH` order for the slice arguments.)code")
     .NumInput(3)
     .NumOutput(1)
-    .InputDox(0, "data", "TensorList", "Batch containing input data")
-    .InputDox(1, "anchor", "1D TensorList of floats",
+    .InputDoc(0, "data", "TensorList", "Batch containing input data")
+    .InputDoc(1, "anchor", "1D TensorList of float",
                  R"code(Input containing either normalized or absolute coordinates
 (depending on the value of `normalized_anchor`) for the starting point of the
 slice (x0, x1, x2, ...).)code")
-    .InputDox(2, "shape", "1D TensorList of floats",
+    .InputDoc(2, "shape", "1D TensorList of float",
                  R"code(Input containing either normalized or absolute coordinates
 (depending on the value of `normalized_shape`) for the dimensions of the slice
 (s0, s1, s2, ...).)code")

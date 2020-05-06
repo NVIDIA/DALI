@@ -21,8 +21,17 @@ DALI_SCHEMA(COCOReader)
   .NumInput(0)
   .NumOutput(3)
   .DocStr(R"code(Read data from a COCO dataset composed of directory with images
-and an annotation files. For each image, with `m` bboxes, returns its bboxes as `(m,4)`
-Tensor (``m * [x, y, w, h]`` or ``m * [left, top, right, bottom]``) and labels as `(m,1)` Tensor (``m * category_id``).)code")
+and an annotation files. For each image ``i``, with ``m_i`` bboxes, returns its bboxes as
+``{m_i ,4}`` Tensor (``m_i * [x, y, w, h]`` or ``m_i * [left, top, right, bottom]``)
+and labels as ``{m_i, 1}`` Tensor (``m * category_id``).)code")
+.OutputDocStr(R"code(images : 1D TensorList of uint8
+    Encoded image data.s.
+bboxes : 2D TensorList of float
+    Adjusted bounding boxes. Each sample ``i`` has shape ``{m_i, 4}`` representing ``m_i`` bounding
+    boxes that are valid for given crop window.
+labels : 2D TensorList of int, optional
+    Labels corresponding to bounding boxes. Each sample ``i`` has shape ``{m_i, 1}`` representing
+    ``m_i`` labels.)code")
   .AddOptionalArg(
     "meta_files_path",
     "Path to directory with meta files containing preprocessed COCO annotations.",
