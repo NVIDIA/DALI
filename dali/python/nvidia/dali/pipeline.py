@@ -220,45 +220,45 @@ Parameters
             return self._pipe.shard_id(name)
         return self._pipe.shard_id()
 
-    def if_reader_pads(self, name = None):
+    def is_pad_last_batch(self, name = None):
         """Checks if the reader in the pipeline use padding
 
         If the `name` parameter is `None`, returns a dictionary of pairs
-        `(reader name, if_reader_pads for that reader)`.
-        If the `name` parameter is not `None`, returns if_reader_pads for that
+        `(reader name, is_pad_last_batch for that reader)`.
+        If the `name` parameter is not `None`, returns is_pad_last_batch for that
         reader.
 
         Parameters
         ----------
         name : str, optional, default = None
-            The reader which should be used to obtain if_reader_pads.
+            The reader which should be used to obtain is_pad_last_batch.
         """
 
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         if name is not None:
-            return self._pipe.if_reader_pads(name)
-        return self._pipe.if_reader_pads()
+            return self._pipe.is_pad_last_batch(name)
+        return self._pipe.is_pad_last_batch()
 
-    def if_sticks_to_shard(self, name = None):
+    def is_stick_to_shard(self, name = None):
         """Checks if the reader in the pipeline sticks to the shard
 
         If the `name` parameter is `None`, returns a dictionary of pairs
-        `(reader name, if_sticks_to_shard for that reader)`.
-        If the `name` parameter is not `None`, returns if_sticks_to_shard for that
+        `(reader name, is_stick_to_shard for that reader)`.
+        If the `name` parameter is not `None`, returns is_stick_to_shard for that
         reader.
 
         Parameters
         ----------
         name : str, optional, default = None
-            The reader which should be used to obtain if_sticks_to_shard.
+            The reader which should be used to obtain is_stick_to_shard.
         """
 
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         if name is not None:
-            return self._pipe.if_sticks_to_shard(name)
-        return self._pipe.if_sticks_to_shard()
+            return self._pipe.is_stick_to_shard(name)
+        return self._pipe.is_stick_to_shard()
 
     @staticmethod
     def current():

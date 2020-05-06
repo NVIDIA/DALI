@@ -691,7 +691,6 @@ def test_paddle_iterator_feed_ndarray():
         feed_ndarray(out_data, ptr2, cuda_stream = 0)  # Using default stream
         np.testing.assert_equal(np.array(lod_tensor2), outs[0].as_cpu().as_array())
 
-def check_pytorch_iterator_pass_reader_name(shards_num, batch_size, stick_to_shard, pad, iters):
 def check_pytorch_iterator_pass_reader_name(shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, fill_last_batch):
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,

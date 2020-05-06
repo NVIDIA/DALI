@@ -95,7 +95,7 @@ class DALIGenericIterator(_DaliBaseIterator):
            Name of the reader which will be queried to the shard size, number of shards and
            all other properties necessary to count properly the number of relevant and padded
            samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
-           `last_batch_padded` accordingly
+           `last_batch_padded` accordingly to match the reader's configuration
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
@@ -302,7 +302,7 @@ class DALIClassificationIterator(DALIGenericIterator):
            Name of the reader which will be queried to the shard size, number of shards and
            all other properties necessary to count properly the number of relevant and padded
            samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
-           `last_batch_padded` accordingly
+           `last_batch_padded` accordingly to match the reader's configuration
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.

@@ -30,6 +30,8 @@ class _DaliBaseIterator(object):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
+        # frameworks expect from its data iterators to have batch_size field,
+        # so it is not possible to use _batch_size instead
         self.batch_size = pipelines[0].batch_size
         self._size = int(size)
         self._auto_reset = auto_reset
@@ -55,7 +57,7 @@ class _DaliBaseIterator(object):
         if self._reader_name:
             self._size_no_pad = self._pipes[0].epoch_size(self._reader_name, False)
             assert np.all(np.equal([p.epoch_size(self._reader_name, False) for p in self._pipes], self._size_no_pad)), \
-                "All pipelines readers should have the same size, check if they are reading the same data"
+                "All pipelines readers should have the same size, please check if they are reading the same data"
 
             self._shards_num = self._pipes[0].shards_number(self._reader_name)
             assert np.all(np.equal([p.shards_number(self._reader_name) for p in self._pipes], self._shards_num)), \
@@ -63,15 +65,15 @@ class _DaliBaseIterator(object):
 
             self._shards_id = np.array([p.shard_id(self._reader_name) for p in self._pipes], dtype=np.int)
 
-            assert np.all([p.if_reader_pads(self._reader_name) for p in self._pipes]) or \
-                   not np.any([p.if_reader_pads(self._reader_name) for p in self._pipes]), \
+            assert np.all([p.is_pad_last_batch(self._reader_name) for p in self._pipes]) or \
+                   not np.any([p.is_pad_last_batch(self._reader_name) for p in self._pipes]), \
                 "All pipelines readers should have set padding in the same way"
-            self._last_batch_padded = self._pipes[0].if_reader_pads(self._reader_name)
+            self._last_batch_padded = self._pipes[0].is_pad_last_batch(self._reader_name)
 
-            assert np.all([p.if_sticks_to_shard(self._reader_name) for p in self._pipes]) or \
-                   not np.any([p.if_sticks_to_shard(self._reader_name) for p in self._pipes]), \
+            assert np.all([p.is_stick_to_shard(self._reader_name) for p in self._pipes]) or \
+                   not np.any([p.is_stick_to_shard(self._reader_name) for p in self._pipes]), \
                 "All pipelines readers should have set stick to the shard in the same way"
-            self._if_sticks_to_shard = self._pipes[0].if_sticks_to_shard(self._reader_name)
+            self._is_stick_to_shard = self._pipes[0].is_stick_to_shard(self._reader_name)
 
             if self._last_batch_padded:
                 # if padding is enabled all shards are equal
@@ -137,13 +139,13 @@ class _DaliBaseIterator(object):
                 self._counter = 0
             # advance to the next shard
             if self._reader_name:
-                if not self._if_sticks_to_shard:
+                if not self._is_stick_to_shard:
                     # move shards id for wrapped pipeliens
                     self._shards_id = (self._shards_id + 1) % self._shards_num
                 # revaluate _size
                 if self._fill_last_batch and not self._last_batch_padded:
                     # move all shards ids GPU ahead
-                    if not self._if_sticks_to_shard:
+                    if not self._is_stick_to_shard:
                         self._shard_sizes = np.roll(self._shard_sizes, 1)
                     # check how many samples we need to reach from each shard in next epoch per each GPU
                     # taking into account already read

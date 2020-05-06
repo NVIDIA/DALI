@@ -173,11 +173,11 @@ class DataReader : public Operator<Backend> {
     return loader_->GetShardId();
   }
 
-  int if_pads() const override {
+  int pad_last_batch() const override {
     return loader_->PadLastBatch();
   }
 
-  int if_sticks() const override {
+  int stick_to_shard() const override {
     return loader_->StickToShard();
   }
 

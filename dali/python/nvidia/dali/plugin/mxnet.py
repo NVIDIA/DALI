@@ -15,6 +15,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from nvidia.dali.backend import TensorGPU, TensorListGPU
 from nvidia.dali import types
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 import mxnet as mx
@@ -152,7 +153,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
            Name of the reader which will be queried to the shard size, number of shards and
            all other properties necessary to count properly the number of relevant and padded
            samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
-           `last_batch_padded` accordingly
+           `last_batch_padded` accordingly to match the reader's configuration
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     fill_last_batch : bool, optional, default = True
@@ -403,7 +404,7 @@ class DALIClassificationIterator(DALIGenericIterator):
            Name of the reader which will be queried to the shard size, number of shards and
            all other properties necessary to count properly the number of relevant and padded
            samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
-           `last_batch_padded` accordingly
+           `last_batch_padded` accordingly to match the reader's configuration
     data_name : str, optional, default = 'data'
                 Data name for provided symbols.
     label_name : str, optional, default = 'softmax_label'
@@ -533,7 +534,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
            Name of the reader which will be queried to the shard size, number of shards and
            all other properties necessary to count properly the number of relevant and padded
            samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
-           `last_batch_padded` accordingly
+           `last_batch_padded` accordingly to match the reader's configuration
     output_types : list of str, optional, default = None
                  List of tags indicating whether the pipeline(s) output batch is
                  uniform (all the samples have the same size) or not. Batch output marked

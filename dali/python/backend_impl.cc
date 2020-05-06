@@ -1107,23 +1107,25 @@ PYBIND11_MODULE(backend_impl, m) {
         [](Pipeline* p, const std::string& op_name) {
           std::map<std::string, int> ids = p->ShardId();
           DALI_ENFORCE(ids.find(op_name) != ids.end(),
-              "Operator " + op_name + " does not expose valid epoch size.");
+              "Operator " + op_name + " does not expose valid shard id.");
           return ids[op_name];
         })
-    .def("if_reader_pads", &Pipeline::IfReaderPads)
-    .def("if_reader_pads",
+    .def("is_pad_last_batch", &Pipeline::IsPadLastBatch)
+    .def("is_pad_last_batch",
         [](Pipeline* p, const std::string& op_name) {
-          std::map<std::string, bool> pads = p->IfReaderPads();
+          std::map<std::string, bool> pads = p->IsPadLastBatch();
           DALI_ENFORCE(pads.find(op_name) != pads.end(),
-              "Operator " + op_name + " does not expose valid epoch size.");
+              "Operator " + op_name + " does not expose information about whether the last batch" +
+              " is padded");
           return pads[op_name];
         })
-    .def("if_sticks_to_shard", &Pipeline::IfSticksToShard)
-    .def("if_sticks_to_shard",
+    .def("is_stick_to_shard", &Pipeline::IsStickToShard)
+    .def("is_stick_to_shard",
         [](Pipeline* p, const std::string& op_name) {
-          std::map<std::string, bool> sticks = p->IfSticksToShard();
+          std::map<std::string, bool> sticks = p->IsStickToShard();
           DALI_ENFORCE(sticks.find(op_name) != sticks.end(),
-              "Operator " + op_name + " does not expose valid epoch size.");
+              "Operator " + op_name + " does not expose valid information about whether the" +
+              " reader sticks to a single shard.");
           return sticks[op_name];
         });
 

@@ -768,39 +768,39 @@ std::map<std::string, int> Pipeline::ShardId() {
   return ret;
 }
 
-std::map<std::string, bool> Pipeline::IfReaderPads() {
+std::map<std::string, bool> Pipeline::IsPadLastBatch() {
   std::map<std::string, bool> ret;
   for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
     const OpNode &current = graph_.Node(OpType::CPU, i);
-    int if_pads = current.op->if_pads();
-    if (if_pads != -1) {
-      ret.insert(make_pair(current.instance_name, !!if_pads));
+    int pad_last_batch = current.op->pad_last_batch();
+    if (pad_last_batch != -1) {
+      ret.insert(make_pair(current.instance_name, !!pad_last_batch));
     }
   }
   for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
     const OpNode &current = graph_.Node(OpType::GPU, i);
-    int if_pads = current.op->if_pads();
-    if (if_pads != -1) {
-      ret.insert(make_pair(current.instance_name, !!if_pads));
+    int pad_last_batch = current.op->pad_last_batch();
+    if (pad_last_batch != -1) {
+      ret.insert(make_pair(current.instance_name, !!pad_last_batch));
     }
   }
   return ret;
 }
 
-std::map<std::string, bool> Pipeline::IfSticksToShard() {
+std::map<std::string, bool> Pipeline::IsStickToShard() {
   std::map<std::string, bool> ret;
   for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
     const OpNode &current = graph_.Node(OpType::CPU, i);
-    int if_sticks = current.op->if_sticks();
-    if (if_sticks != -1) {
-      ret.insert(make_pair(current.instance_name, !!if_sticks));
+    int stick_to_shard = current.op->stick_to_shard();
+    if (stick_to_shard != -1) {
+      ret.insert(make_pair(current.instance_name, !!stick_to_shard));
     }
   }
   for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
     const OpNode &current = graph_.Node(OpType::GPU, i);
-    int if_sticks = current.op->if_sticks();
-    if (if_sticks != -1) {
-      ret.insert(make_pair(current.instance_name, !!if_sticks));
+    int stick_to_shard = current.op->stick_to_shard();
+    if (stick_to_shard != -1) {
+      ret.insert(make_pair(current.instance_name, !!stick_to_shard));
     }
   }
   return ret;

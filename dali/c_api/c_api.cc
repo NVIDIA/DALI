@@ -445,7 +445,7 @@ int daliGetShardId(daliPipelineHandle* pipe_handle, const char *reader_name) {
   std::map<std::string, int> ids = pipeline->ShardId();
   std::string op_name(reader_name);
   DALI_ENFORCE(ids.find(op_name) != ids.end(),
-      "Operator " + op_name + " does not expose valid epoch size.");
+      "Operator " + op_name + " does not expose valid shard id.");
   return ids[op_name];
 }
 
@@ -458,20 +458,22 @@ int daliGetNumberOfShards(daliPipelineHandle* pipe_handle, const char *reader_na
   return shards[op_name];
 }
 
-bool daliGetIfReaderPads(daliPipelineHandle* pipe_handle, const char *reader_name) {
+bool daliIsPadLastBatch(daliPipelineHandle* pipe_handle, const char *reader_name) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
-  std::map<std::string, bool> pads = pipeline->IfReaderPads();
+  std::map<std::string, bool> pads = pipeline->IsPadLastBatch();
   std::string op_name(reader_name);
   DALI_ENFORCE(pads.find(op_name) != pads.end(),
-      "Operator " + op_name + " does not expose valid epoch size.");
+      "Operator " + op_name + " does not expose information about whether the last" +
+      " batch is padded.");
   return pads[op_name];
 }
 
-bool daliGetIfSticksToShard(daliPipelineHandle* pipe_handle, const char *reader_name) {
+bool daliIsStickToShard(daliPipelineHandle* pipe_handle, const char *reader_name) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
-  std::map<std::string, bool> sticks = pipeline->IfSticksToShard();
+  std::map<std::string, bool> sticks = pipeline->IsStickToShard();
   std::string op_name(reader_name);
   DALI_ENFORCE(sticks.find(op_name) != sticks.end(),
-      "Operator " + op_name + " does not expose valid epoch size.");
+      "Operator " + op_name + " does not expose information about whether the reader" +
+      " sticks to a single shard");
   return sticks[op_name];
 }

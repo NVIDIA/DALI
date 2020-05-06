@@ -328,12 +328,12 @@ DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
   /**
    * @brief Returns if reader pads last batch for, named reader
    */
-  DLL_PUBLIC bool daliGetIfReaderPads(daliPipelineHandle* pipe_handle, const char *reader_name);
+  DLL_PUBLIC bool daliIsPadLastBatch(daliPipelineHandle* pipe_handle, const char *reader_name);
 
   /**
    * @brief Returns if reader sticks to the shard, named reader
    */
-  DLL_PUBLIC bool daliGetIfSticksToShard(daliPipelineHandle* pipe_handle, const char *reader_name);
+  DLL_PUBLIC bool daliIsStickToShard(daliPipelineHandle* pipe_handle, const char *reader_name);
 
 
 #ifdef __cplusplus

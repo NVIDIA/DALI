@@ -176,7 +176,7 @@ class DLL_PUBLIC OperatorBase {
    * @brief For reader Ops, returns if padding is applied in the reader
    * For all other Ops, returns -1
    */
-  DLL_PUBLIC virtual int if_pads() const {
+  DLL_PUBLIC virtual int pad_last_batch() const {
     return -1;
   }
 
@@ -184,7 +184,7 @@ class DLL_PUBLIC OperatorBase {
    * @brief For reader Ops, returns if the reader should stick to the assigned shard
    * For all other Ops, returns -1
    */
-  DLL_PUBLIC virtual int if_sticks() const {
+  DLL_PUBLIC virtual int stick_to_shard() const {
     return -1;
   }
 
