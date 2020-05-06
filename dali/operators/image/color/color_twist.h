@@ -170,7 +170,7 @@ class ColorTwistBase : public Operator<Backend> {
     toffsets_.resize(size);
     for (size_t i = 0; i < size; i++) {
       tmatrices_[i] =
-               mat3(brightness_[i]) * mat3(contrast_[i]) * 
+               mat3(brightness_[i]) * mat3(contrast_[i]) *
                Yiq2Rgb * hue_mat(hue_[i]) * sat_mat(saturation_[i]) * mat3(value_[i]) * Rgb2Yiq;
       toffsets_[i] = (half_range_ - half_range_ * contrast_[i]) * brightness_[i];
     }
