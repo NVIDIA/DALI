@@ -18,8 +18,8 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <include/dali/core/cuda_stream.h>
 
+#include "dali/core/cuda_stream.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/pipeline.h"
