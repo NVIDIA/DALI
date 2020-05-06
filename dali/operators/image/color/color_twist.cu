@@ -33,7 +33,6 @@ DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistGpu, GPU);
 
 bool ColorTwistGpu::SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
   const auto &input = ws.template InputRef<GPUBackend>(0);
-  const auto &output = ws.template OutputRef<GPUBackend>(0);
   output_desc.resize(1);
   DetermineTransformation(ws);
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (

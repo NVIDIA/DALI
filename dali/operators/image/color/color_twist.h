@@ -40,11 +40,6 @@ const std::string kBrightness = "brightness";   // NOLINT
 const std::string kContrast = "contrast";       // NOLINT
 const std::string kOutputType = "dtype";        // NOLINT
 
-const float kHueDefault = 0;
-const float kSaturationDefault = 1.f;
-const float kBrightnessDefault = 1.f;
-const float kContrastDefault = 1.f;
-
 /**
  * Color space conversion
  */
@@ -89,20 +84,6 @@ inline mat3 sat_mat(float saturation) {
   return ret;
 }
 
-
-/**
- * Composes transformation matrix for value
- */
-inline mat3 bri_mat(float value) {
-  // In the YIQ color space, value change is a
-  // uniform scaling across all dimensions
-  return mat3::diag(value);
-}
-
-inline mat3 con_mat(float contrast) {
-  return mat3::diag(contrast);
-}
-
 }  // namespace color
 
 
@@ -135,27 +116,31 @@ class ColorTwistBase : public Operator<Backend> {
     if (this->spec_.ArgumentDefined(color::kHue)) {
       this->GetPerSampleArgument(hue_, color::kHue, ws);
     } else {
-      hue_ = std::vector<float>(batch_size_, color::kHueDefault);
+      hue_ = std::vector<float>(batch_size_, 0);
     }
 
     if (this->spec_.ArgumentDefined(color::kSaturation)) {
       this->GetPerSampleArgument(saturation_, color::kSaturation, ws);
     } else {
-      saturation_ = std::vector<float>(batch_size_, color::kSaturationDefault);
+      saturation_ = std::vector<float>(batch_size_, 1);
     }
 
     if (this->spec_.ArgumentDefined(color::kValue)) {
-      this->GetPerSampleArgument(brightness_, color::kValue, ws);
-    } else if (this->spec_.ArgumentDefined(color::kBrightness)) {
+      this->GetPerSampleArgument(value_, color::kValue, ws);
+    } else {
+      value_ = std::vector<float>(batch_size_, 1);
+    }
+
+    if (this->spec_.ArgumentDefined(color::kBrightness)) {
       this->GetPerSampleArgument(brightness_, color::kBrightness, ws);
     } else {
-      brightness_ = std::vector<float>(batch_size_, color::kBrightnessDefault);
+      brightness_ = std::vector<float>(batch_size_, 1);
     }
 
     if (this->spec_.ArgumentDefined(color::kContrast)) {
       this->GetPerSampleArgument(contrast_, color::kContrast, ws);
     } else {
-      contrast_ = std::vector<float>(batch_size_, color::kContrastDefault);
+      contrast_ = std::vector<float>(batch_size_, 1);
     }
 
     auto in_type = ws.template InputRef<Backend>(0).type().id();
@@ -185,15 +170,15 @@ class ColorTwistBase : public Operator<Backend> {
     toffsets_.resize(size);
     for (size_t i = 0; i < size; i++) {
       tmatrices_[i] =
-              Yiq2Rgb * hue_mat(hue_[i]) * sat_mat(saturation_[i]) *
-              bri_mat(brightness_[i]) * con_mat(contrast_[i])  * Rgb2Yiq;
+               mat3(brightness_[i]) * mat3(contrast_[i]) * 
+               Yiq2Rgb * hue_mat(hue_[i]) * sat_mat(saturation_[i]) * mat3(value_[i]) * Rgb2Yiq;
       toffsets_[i] = (half_range_ - half_range_ * contrast_[i]) * brightness_[i];
     }
   }
 
   USE_OPERATOR_MEMBERS();
   float half_range_;
-  std::vector<float> hue_, saturation_, brightness_, contrast_;
+  std::vector<float> hue_, saturation_, value_, brightness_, contrast_;
   std::vector<mat3> tmatrices_;
   std::vector<vec3> toffsets_;
   DALIDataType output_type_arg_, output_type_;
@@ -208,7 +193,7 @@ class ColorTwistCpu : public ColorTwistBase<CPUBackend> {
   /*
    * So that compiler wouldn't complain, that
    * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl`
-   * is only partially overridden in class `dali::HsvCpu`"
+   * is only partially overridden in class `dali::ColorTwistCpu`"
    */
   using Operator<CPUBackend>::RunImpl;
 
