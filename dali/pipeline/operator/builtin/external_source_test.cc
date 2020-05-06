@@ -112,9 +112,12 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     tl_.set_type(TypeInfo::Create<int>());
     TensorListShape<> shape = uniform_list_shape(this->batch_size_, {10, 10});
     tl_.Resize(shape);
+    std::cout<<"FeedWithList"<<std::endl;
     for (int j = 0; j < this->batch_size_; ++j) {
       auto data = tl_.template mutable_tensor<int>(j);
       for (int i = 0; i < volume(tl_.tensor_shape(j)); ++i) {
+        std::cout<<"j "<<j<<"\ti "<<i<<"\tdata[i] "<<data[i]
+                 << "\tfillcnt "<<fill_counter_<<std::endl;
         data[i] = fill_counter_;
       }
       ++fill_counter_;
@@ -134,11 +137,14 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     auto &tensor_gpu_list = ws.Output<GPUBackend>(0);
     TensorList<CPUBackend> tensor_cpu_list;
     tensor_cpu_list.Copy(tensor_gpu_list, (ws.has_stream() ? ws.stream() : 0));
-    cudaStreamSynchronize(ws.has_stream() ? ws.stream() : 0);
-
+//    cudaStreamSynchronize(ws.has_stream() ? ws.stream() : 0);
+    cudaDeviceSynchronize();
+    std::cout<<"RunOutputs"<<std::endl;
     for (int j = 0; j < this->batch_size_; ++j) {
       auto data = tensor_cpu_list.template mutable_tensor<int>(j);
       for (int i = 0; i < volume(tensor_cpu_list.tensor_shape(j)); ++i) {
+        std::cout<<"j "<<j<<"\ti "<<i<<"\tdata[i] "<<data[i]
+                 << "\tfillcnt "<<check_counter_<<std::endl;
         if (data[i] != check_counter_) {
           return false;
         }
