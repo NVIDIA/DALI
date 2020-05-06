@@ -57,6 +57,7 @@ typedef enum {
   DALI_BOOL     =  11,
 } dali_data_type_t;
 
+/// @{
 /**
  * @brief Create DALI pipeline. Setting batch_size,
  * num_threads or device_id here overrides
@@ -77,6 +78,14 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                                    int cpu_prefetch_queue_depth,
                                    int gpu_prefetch_queue_depth);
 
+/**
+ * Convenient overload. Use it, if the Pipeline should inherit its parameters
+ * from serialized pipeline.
+ */
+DLL_PUBLIC void daliDeserializeDefault(daliPipelineHandle *pipe_handle,
+                                       const char *serialized_pipeline,
+                                       int length);
+/// }@
 /// @{
 /**
  * @brief Feed the data to ExternalSource as contiguous memory.

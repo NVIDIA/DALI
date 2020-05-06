@@ -181,6 +181,32 @@ TYPED_TEST(CApiTest, FileReaderPipe) {
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
 }
 
+TYPED_TEST(CApiTest, FileReaderDefaultPipe) {
+  auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
+  auto serialized = pipe_ptr->SerializeToProtobuf();
+
+  pipe_ptr->Build();
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    pipe_ptr->RunCPU();
+    pipe_ptr->RunGPU();
+  }
+
+  daliPipelineHandle handle;
+  daliDeserializeDefault(&handle, serialized.c_str(), serialized.size());
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
+
+  dali::DeviceWorkspace ws;
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
+  }
+
+  daliRun(&handle);
+  pipe_ptr->RunCPU();
+  pipe_ptr->RunGPU();
+
+  ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
+}
+
 
 TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},

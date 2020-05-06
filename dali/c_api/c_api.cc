@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "dali/core/cuda_stream.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/pipeline.h"
@@ -81,44 +82,54 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
 
 }  // namespace
 
-void daliCreatePipeline(daliPipelineHandle* pipe_handle,
-    const char *serialized_pipeline,
-    int length,
-    int batch_size,
-    int num_threads,
-    int device_id,
-    bool separated_execution,
-    int prefetch_queue_depth,
-    int cpu_prefetch_queue_depth,
-    int gpu_prefetch_queue_depth) {
-  dali::Pipeline* pipe = new dali::Pipeline(
-                              std::string(serialized_pipeline, length),
-                              batch_size,
-                              num_threads,
-                              device_id,
-                              true,
-                              // TODO(spanev) remove this arg and infere from SetQueueSizes
-                              prefetch_queue_depth,
-                              true);
-  pipe->SetExecutionTypes(true, separated_execution, true);
+void daliCreatePipeline(daliPipelineHandle *pipe_handle,
+                        const char *serialized_pipeline,
+                        int length,
+                        int batch_size,
+                        int num_threads,
+                        int device_id,
+                        bool separated_execution,
+                        int prefetch_queue_depth,
+                        int cpu_prefetch_queue_depth,
+                        int gpu_prefetch_queue_depth) {
+  auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length),
+                                                   batch_size, num_threads, device_id, true,
+                                                   prefetch_queue_depth, true);
+  pipeline->SetExecutionTypes(true, separated_execution, true);
   if (separated_execution) {
-    pipe->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
+    pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
   }
-  pipe->Build();
-  pipe_handle->pipe = reinterpret_cast<void*>(pipe);
-  pipe_handle->ws = new dali::DeviceWorkspace();
-  CUDA_CALL(cudaStreamCreateWithFlags(&pipe_handle->copy_stream, cudaStreamNonBlocking));
+  pipeline->Build();
+  auto ws = std::make_unique<dali::DeviceWorkspace>();
+  auto stream = dali::CUDAStream::Create(true);
+  pipe_handle->ws = ws.release();
+  pipe_handle->copy_stream = stream.release();
+  pipe_handle->pipe = pipeline.release();
 }
 
-void daliPrefetchUniform(daliPipelineHandle* pipe_handle, int queue_depth) {
-  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+
+void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
+                            int length) {
+  auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length));
+  pipeline->Build();
+  auto stream = dali::CUDAStream::Create(true);
+  auto ws = std::make_unique<dali::DeviceWorkspace>();
+  pipe_handle->ws = ws.release();
+  pipe_handle->copy_stream = stream.release();
+  pipe_handle->pipe = pipeline.release();
+}
+
+
+void daliPrefetchUniform(daliPipelineHandle *pipe_handle, int queue_depth) {
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   for (int i = 0; i < queue_depth; ++i) {
     pipeline->RunCPU();
     pipeline->RunGPU();
   }
 }
 
-void daliPrefetchSeparate(daliPipelineHandle* pipe_handle,
+
+void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
                           int cpu_queue_depth, int gpu_queue_depth) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   for (int i = 0; i < gpu_queue_depth; ++i) {
