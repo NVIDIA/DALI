@@ -51,43 +51,13 @@ struct IdentityPreprocessor {
 };
 
 /**
- * @brief Calculates variance, given a tensor of means.
+ * @brief A position-independent bank, wrapping a functor
  */
-template <int non_reduced_ndim, typename Mean>
-struct VariancePreprocessor;
-
-template <typename Mean>
-struct VariancePreprocessor<1, Mean> {
-  const Mean *__restrict__ mean;
-  i64vec<1> stride;
-
+template <int non_reduced_ndim, typename Functor>
+struct UniformPreprocessorBank {
   DALI_HOST_DEV DALI_FORCEINLINE
-  reductions::variance<Mean> Get(const i64vec<1> &pos) const {
-    auto offset = dot(pos, stride);
-  #ifdef __CUDA_ARCH__
-    Mean m = __ldg(mean + offset);
-  #else
-    Mean m = mean[offset];
-  #endif
-    return { m };
-  }
-};
-
-template <typename Mean>
-struct VariancePreprocessor<2, Mean> {
-  const Mean *mean;
-  i64vec<2> stride;
-  DropDims inner_dims;
-
-  DALI_HOST_DEV DALI_FORCEINLINE
-  reductions::variance<Mean> Get(const i64vec<2> &pos) const {
-    auto offset = dot(i64vec2(pos[0], inner_dims.reindex(pos[1])), stride);
-  #ifdef __CUDA_ARCH__
-    Mean m = __ldg(mean + offset);
-  #else
-    Mean m = mean[offset];
-  #endif
-    return { m };
+  Functor Get(const i64vec<non_reduced_ndim> &) const {
+    return {};
   }
 };
 

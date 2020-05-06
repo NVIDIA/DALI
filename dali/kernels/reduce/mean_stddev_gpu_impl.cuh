@@ -22,17 +22,6 @@ namespace dali {
 namespace kernels {
 namespace reduce_impl {
 
-/**
- * @brief A position-independent bank, wrapping a functor
- */
-template <int non_reduced_ndim, typename Functor>
-struct UniformPreprocessorBank {
-  DALI_HOST_DEV DALI_FORCEINLINE
-  Functor Get(const i64vec<non_reduced_ndim> &) const {
-    return {};
-  }
-};
-
 template <typename Out, typename Scale>
 struct ScaleAndConvert {
   Scale scale = 1;
@@ -96,6 +85,47 @@ struct SubtractMeanIndirect {
   }
 };
 
+/**
+ * @brief Calculates variance, given a tensor of means.
+ */
+template <int non_reduced_ndim, typename Mean>
+struct VariancePreprocessor;
+
+template <typename Mean>
+struct VariancePreprocessor<1, Mean> {
+  const Mean *__restrict__ mean;
+  i64vec<1> stride;
+
+  DALI_HOST_DEV DALI_FORCEINLINE
+  reductions::variance<Mean> Get(const i64vec<1> &pos) const {
+    auto offset = dot(pos, stride);
+  #ifdef __CUDA_ARCH__
+    Mean m = __ldg(mean + offset);
+  #else
+    Mean m = mean[offset];
+  #endif
+    return { m };
+  }
+};
+
+template <typename Mean>
+struct VariancePreprocessor<2, Mean> {
+  const Mean *mean;
+  i64vec<2> stride;
+  DropDims inner_dims;
+
+  DALI_HOST_DEV DALI_FORCEINLINE
+  reductions::variance<Mean> Get(const i64vec<2> &pos) const {
+    auto offset = dot(i64vec2(pos[0], inner_dims.reindex(pos[1])), stride);
+  #ifdef __CUDA_ARCH__
+    Mean m = __ldg(mean + offset);
+  #else
+    Mean m = mean[offset];
+  #endif
+    return { m };
+  }
+};
+
 template <typename Out, typename In, typename Mean, typename Actual>
 class VarianceImplBase {
  public:
@@ -139,7 +169,7 @@ class VarianceImplBase {
   }
 
   PreprocessorBank<1> *
-  GetPreprocessorBanks(WorkArea &wa, int axis, std::integral_constant<int, 1>) const {
+  GetPreprocessorBanks(WorkArea &wa, int axis, int_const<1>) const {
     using Bank = PreprocessorBank<1>;
     int n = This().SimplifiedInputShape().num_samples();
     Bank *banks = wa.ParamBuffer<Bank>(n);
@@ -155,7 +185,7 @@ class VarianceImplBase {
   }
 
   PreprocessorBank<2> *
-  GetPreprocessorBanks(WorkArea &wa, int axis, std::integral_constant<int, 2>) const {
+  GetPreprocessorBanks(WorkArea &wa, int axis, int_const<2>) const {
     using Bank = PreprocessorBank<2>;
     int n = This().SimplifiedInputShape().num_samples();
     Bank *banks = wa.ParamBuffer<Bank>(n);
@@ -182,8 +212,8 @@ class VarianceImplBase {
 
   template <int non_reduced_dims>
   PreprocessorBank<non_reduced_dims> *
-  GetPreprocessorBanksImpl(WorkArea &wa, int axis) const {
-    return GetPreprocessorBanks(wa, axis, std::integral_constant<int, non_reduced_dims>());
+  GetPreprocessorBanksImpl(WorkArea &wa, int axis, int_const<non_reduced_dims> nrd) const {
+    return GetPreprocessorBanks(wa, axis, nrd);
   }
 };
 
@@ -242,7 +272,8 @@ class RootMeanSquareImplGPU
   Preprocessor *GetPreprocessorsImpl(WorkArea &wa) const { return nullptr; }
 
   template <int non_reduced_dims>
-  PreprocessorBank<non_reduced_dims> *GetPreprocessorBanksImpl(WorkArea &wa, int axis) const {
+  PreprocessorBank<non_reduced_dims> *
+  GetPreprocessorBanksImpl(WorkArea &wa, int axis, int_const<non_reduced_dims>) const {
     return nullptr;
   }
 

@@ -242,6 +242,9 @@ struct WorkArea {
 template <bool value>
 using bool_const = std::integral_constant<bool, value>;
 
+template <int value>
+using int_const = std::integral_constant<int, value>;
+
 
 template <typename ReduceImpl>
 auto GetPreprocessorHelper(std::true_type, const ReduceImpl *impl)
@@ -258,8 +261,8 @@ auto GetPreprocessorsHelper(std::true_type, const ReduceImpl *impl, WorkArea *wa
 template <int non_reduced_dims, typename ReduceImpl>
 auto GetPreprocessorBanksHelper(
       std::true_type, const ReduceImpl *impl, WorkArea *wa, int reduced_axis)
-      ->decltype(impl->template GetPreprocessorBanksImpl<non_reduced_dims>(*wa, reduced_axis)) {
-  return impl->template GetPreprocessorBanksImpl<non_reduced_dims>(*wa, reduced_axis);
+      ->decltype(impl->GetPreprocessorBanksImpl(*wa, reduced_axis, int_const<non_reduced_dims>())) {
+  return impl->GetPreprocessorBanksImpl(*wa, reduced_axis, int_const<non_reduced_dims>());
 }
 
 template <typename ReduceImpl>

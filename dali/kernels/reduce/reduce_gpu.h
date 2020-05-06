@@ -298,7 +298,6 @@ class DLL_PUBLIC InvStdDevGPU {
   std::unique_ptr<Impl> impl_;
 };
 
-
 extern template class InvStdDevGPU<float, uint8_t>;
 extern template class InvStdDevGPU<float, int8_t>;
 
@@ -309,7 +308,6 @@ extern template class InvStdDevGPU<float, uint32_t>;
 extern template class InvStdDevGPU<float, int32_t>;
 
 extern template class InvStdDevGPU<float, float>;
-
 
 }  // namespace kernels
 }  // namespace dali

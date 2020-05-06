@@ -93,18 +93,15 @@ void InvStdDevGPU<Out, In, Mean>::Run(
   impl_->Run(ctx, out, in, mean, reg);
 }
 
-template class InvStdDevGPU<uint8_t, uint8_t>;
 template class InvStdDevGPU<float, uint8_t>;
-template class InvStdDevGPU<int8_t, int8_t>;
 template class InvStdDevGPU<float, int8_t>;
-template class InvStdDevGPU<uint16_t, uint16_t>;
+
 template class InvStdDevGPU<float, uint16_t>;
-template class InvStdDevGPU<int16_t, int16_t>;
 template class InvStdDevGPU<float, int16_t>;
-template class InvStdDevGPU<int32_t, int32_t>;
-template class InvStdDevGPU<float, int32_t>;
-template class InvStdDevGPU<uint32_t, uint32_t>;
+
 template class InvStdDevGPU<float, uint32_t>;
+template class InvStdDevGPU<float, int32_t>;
+
 template class InvStdDevGPU<float, float>;
 
 }  // namespace kernels
