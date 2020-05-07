@@ -38,6 +38,12 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     DALISingleOpTest::SetUp();
     set_batch_size(10);
     vt_.resize(this->batch_size_);
+    for (auto &vt : vt_) {
+      vt.Reset();
+      vt.set_pinned(false);
+    }
+    tl_.Reset();
+    tl_.set_pinned(false);
     fill_counter_ = 0;
     check_counter_ = 0;
   }
