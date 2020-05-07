@@ -493,6 +493,38 @@ def test_mxnet_iterator_feed_ndarray():
             feed_ndarray(out_data, arr2, cuda_stream = 0)  # Using default stream
             np.testing.assert_equal(arr2.asnumpy(), outs[0].as_cpu().as_array())
 
+def test_paddle_iterator_feed_ndarray():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+    from nvidia.dali.plugin.paddle import feed_ndarray as feed_ndarray
+    from paddle import fluid
+
+    num_gpus = 1
+    batch_size = 100
+    pipes, _ = create_pipeline(lambda gpu: CustomPipe(batch_size=batch_size, num_threads=4, device_id=gpu, num_gpus=num_gpus,
+                                                      data_paths=image_data_set), batch_size, num_gpus)
+    for gpu_id in range(num_gpus):
+        pipe = pipes[gpu_id]
+        pipe.build()
+        outs = pipe.run()
+        out_data = outs[0].as_tensor()
+
+        lod_tensor = fluid.core.LoDTensor()
+        lod_tensor._set_dims(out_data.shape())
+        gpu_place = fluid.CUDAPlace(gpu_id)
+
+        ptr = lod_tensor._mutable_data(gpu_place, fluid.core.VarDesc.VarType.FP32)
+        arr = np.array(lod_tensor)
+        feed_ndarray(out_data, ptr, cuda_stream = None)  # Using DALI's internal stream
+        np.testing.assert_equal(np.array(lod_tensor), outs[0].as_cpu().as_array())
+
+        lod_tensor2 = fluid.core.LoDTensor()
+        lod_tensor2._set_dims(out_data.shape())
+
+        ptr2 = lod_tensor2._mutable_data(gpu_place, fluid.core.VarDesc.VarType.FP32)
+        arr2 = np.array(lod_tensor2)
+        feed_ndarray(out_data, ptr2, cuda_stream = 0)  # Using default stream
+        np.testing.assert_equal(np.array(lod_tensor2), outs[0].as_cpu().as_array())
+
 def test_paddle_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     num_gpus = 1
