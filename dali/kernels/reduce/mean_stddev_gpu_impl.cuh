@@ -22,23 +22,41 @@ namespace dali {
 namespace kernels {
 namespace reduce_impl {
 
-template <typename Out, typename Scale>
+template <typename T>
+using scale_t = std::conditional_t<std::is_same<T, double>::value, double, float>;
+
+template <typename Out, typename Scale = scale_t<Out>>
 struct ScaleAndConvert {
-  Scale scale = 1;
+  using scale_t = Scale;
+  scale_t scale = 1;
+
   template <typename T>
   DALI_HOST_DEV Out operator()(T x) const {
     return ConvertSat<Out>(x * scale);
   }
 };
 
-template <typename Out, typename In, typename Actual>
+
+template <typename Out, typename Scale = scale_t<Out>>
+struct ScaleSqrtConvert {
+  using scale_t = Scale;
+  scale_t scale = 1;
+
+  template <typename T>
+  DALI_HOST_DEV Out operator()(T x) const {
+    return ConvertSat<Out>(sqrt(x * scale));
+  }
+};
+
+template <typename Out, typename In, typename Actual,
+          typename Postprocessor_ = ScaleAndConvert<Out>>
 class MeanImplBase {
  public:
   Actual &This() { return static_cast<Actual&>(*this); }
   const Actual &This() const { return static_cast<const Actual&>(*this); }
 
-  using scale_t = std::conditional_t<std::is_same<Out, double>::value, double, float>;
-  using Postprocessor = ScaleAndConvert<Out, scale_t>;
+  using Postprocessor = Postprocessor_;
+  using scale_t = typename Postprocessor::scale_t;
 
   Postprocessor *GetPostprocessorsImpl(WorkArea &wa) const {
     assert(!This().ReduceBatch());
@@ -54,10 +72,16 @@ class MeanImplBase {
   Postprocessor GetPostprocessorImpl() const {
     assert(This().ReduceBatch());
     DALI_ENFORCE(This().TotalReducedElements() > 0, "Cannot calculate a mean from 0 elements");
-    return { static_cast<float>(1.0 / This().TotalReducedElements()) };
+    return { static_cast<scale_t>(1.0 / This().TotalReducedElements()) };
   }
 };
 
+template <typename Out, typename In, typename Actual>
+using RootMeanImplBase = MeanImplBase<Out, In, Actual, ScaleSqrtConvert<Out>>;
+
+/**
+ * @brief Implements mean reduction
+ */
 template <typename Out, typename In, typename Acc = default_sum_acc_t<Out, In>>
 class MeanImplGPU : public ReduceImplGPU<Out, In, Acc, MeanImplGPU<Out, In, Acc>>,
                     public MeanImplBase<Out, In, MeanImplGPU<Out, In, Acc>> {
@@ -67,8 +91,41 @@ class MeanImplGPU : public ReduceImplGPU<Out, In, Acc, MeanImplGPU<Out, In, Acc>
   reductions::sum GetReduction() const { return {}; }
 };
 
+
+/**
+ * @brief Implements root mean square reduction
+ */
+template <typename Out, typename In, typename Acc =
+  default_sum_acc_t<Out, decltype(reductions::square()(In()))>>
+class RootMeanSquareImplGPU
+    : public ReduceImplGPU<Out, In, Acc, RootMeanSquareImplGPU<Out, In, Acc>>
+    , public RootMeanImplBase<Out, In, RootMeanSquareImplGPU<Out, In, Acc>> {
+ public:
+  using MeanBase = RootMeanImplBase<Out, In, RootMeanSquareImplGPU<Out, In, Acc>>;
+  using typename MeanBase::Postprocessor;
+
+  using Preprocessor = reductions::square;
+  template <int non_reduced_dims>
+  using PreprocessorBank = UniformPreprocessorBank<non_reduced_dims, Preprocessor>;
+
+  Preprocessor GetPreprocessorImpl() const { return {}; }
+  Preprocessor *GetPreprocessorsImpl(WorkArea &wa) const { return nullptr; }
+
+  template <int non_reduced_dims>
+  PreprocessorBank<non_reduced_dims> *
+  GetPreprocessorBanksImpl(WorkArea &wa, int axis, int_const<non_reduced_dims>) const {
+    return nullptr;
+  }
+
+  reductions::sum GetReduction() const { return {}; }
+};
+
+
 /**
  * @brief Subtracts a mean value stored in specified memory location and squares the difference
+ *
+ * This postprocessor is necessary because regular `variance` would require gathering means
+ * for all samples, which may be scattered in non-contiguous device memory.
  */
 template <class Mean>
 struct VarianceIndirect {
@@ -86,13 +143,14 @@ struct VarianceIndirect {
 };
 
 /**
- * @brief Returns a `reduce::variance` functor with mean value taken from a tensor
+ * @brief A preprocessor bank which returns a `reduce::variance` functor with
+ *        mean value taken from a tensor
  */
 template <int non_reduced_ndim, typename Mean>
-struct VariancePreprocessor;
+struct VariancePreprocessorBank;
 
 template <typename Mean>
-struct VariancePreprocessor<1, Mean> {
+struct VariancePreprocessorBank<1, Mean> {
   const Mean *__restrict__ mean;
   i64vec<1> stride;
 
@@ -109,7 +167,7 @@ struct VariancePreprocessor<1, Mean> {
 };
 
 template <typename Mean>
-struct VariancePreprocessor<2, Mean> {
+struct VariancePreprocessorBank<2, Mean> {
   const Mean *mean;
   i64vec<2> stride;
   /// Calculates the fully reduced inner offset based on non-reduced `pos[1]`
@@ -146,7 +204,7 @@ class VarianceImplBase {
     "A variance functor must carry only a pointer to the mean");
 
   template <int non_reduced_dims>
-  using PreprocessorBank = VariancePreprocessor<non_reduced_dims, Mean>;
+  using PreprocessorBank = VariancePreprocessorBank<non_reduced_dims, Mean>;
 
   void InitMean(const InListGPU<Mean> &mean) {
     mean_ = reshape(mean, This().SimplifiedOutputShape(), true);
@@ -218,69 +276,9 @@ class VarianceImplBase {
   }
 };
 
-template <typename Out, typename Scale>
-struct ScaleSqrtConvert {
-  Scale scale = 1;
-
-  template <typename T>
-  DALI_HOST_DEV Out operator()(T x) const {
-    return ConvertSat<Out>(sqrt(x * scale));
-  }
-};
-
-template <typename Out, typename In, typename Actual>
-class RootMeanImplBase {
- public:
-  Actual &This() { return static_cast<Actual&>(*this); }
-  const Actual &This() const { return static_cast<const Actual&>(*this); }
-
-  using scale_t = std::conditional_t<std::is_same<Out, double>::value, double, float>;
-  using Postprocessor = ScaleSqrtConvert<Out, scale_t>;
-
-  Postprocessor *GetPostprocessorsImpl(WorkArea &wa) const {
-    assert(!This().ReduceBatch());
-    int n = This().SimplifiedOutputShape().num_samples();
-    Postprocessor *pp = wa.ParamBuffer<Postprocessor>(n);
-    for (int i = 0; i < n; i++) {
-      DALI_ENFORCE(This().ReducedElements(i) > 0, "Cannot calculate a mean from 0 elements");
-      pp[i].scale = 1.0 / This().ReducedElements(i);
-    }
-    return pp;
-  }
-
-  Postprocessor GetPostprocessorImpl() const {
-    assert(This().ReduceBatch());
-    DALI_ENFORCE(This().TotalReducedElements() > 0, "Cannot calculate a mean from 0 elements");
-    return { static_cast<float>(1.0 / This().TotalReducedElements()) };
-  }
-};
-
-
-template <typename Out, typename In, typename Acc =
-  default_sum_acc_t<Out, decltype(reductions::square()(In()))>>
-class RootMeanSquareImplGPU
-    : public ReduceImplGPU<Out, In, Acc, RootMeanSquareImplGPU<Out, In, Acc>>
-    , public RootMeanImplBase<Out, In, RootMeanSquareImplGPU<Out, In, Acc>> {
- public:
-  using MeanBase = RootMeanImplBase<Out, In, RootMeanSquareImplGPU<Out, In, Acc>>;
-  using typename MeanBase::Postprocessor;
-
-  using Preprocessor = reductions::square;
-  template <int non_reduced_dims>
-  using PreprocessorBank = UniformPreprocessorBank<non_reduced_dims, Preprocessor>;
-
-  Preprocessor GetPreprocessorImpl() const { return {}; }
-  Preprocessor *GetPreprocessorsImpl(WorkArea &wa) const { return nullptr; }
-
-  template <int non_reduced_dims>
-  PreprocessorBank<non_reduced_dims> *
-  GetPreprocessorBanksImpl(WorkArea &wa, int axis, int_const<non_reduced_dims>) const {
-    return nullptr;
-  }
-
-  reductions::sum GetReduction() const { return {}; }
-};
-
+/**
+ * @brief Implements standard deviation with externally provided mean
+ */
 template <typename Out, typename In, typename Mean = Out, typename Acc = Out>
 class StdDevImplGPU : public ReduceImplGPU<Out, In, Acc, StdDevImplGPU<Out, In, Mean, Acc>>,
                       public VarianceImplBase<Out, In, Mean, StdDevImplGPU<Out, In, Mean, Acc>>,
@@ -351,6 +349,9 @@ class RegularizedInvRMS {
   }
 };
 
+/**
+ * @brief Implements regularize inverse standard  deviation reduction with externally provided mean
+ */
 template <typename Out, typename In, typename Mean = Out, typename Acc = Out>
 class InvStdDevImplGPU :
       public ReduceImplGPU<Out, In, Acc, InvStdDevImplGPU<Out, In, Mean, Acc>>,

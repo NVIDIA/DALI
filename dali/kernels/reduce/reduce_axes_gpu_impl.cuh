@@ -37,6 +37,10 @@ namespace reduce_impl {
  *  };
  *  ```
  *  where SingleValuePreprocessor is a unary functor.
+ *
+ * non_recuced_dims is either 1 or 2; if it's 1, the dimension 0 is outer (wrt reduced dime)
+ * and dimesnion 1 is inner.
+ * If non_reduced_dims is 1, then `pos` is the outer dimension.
  */
 
 /**

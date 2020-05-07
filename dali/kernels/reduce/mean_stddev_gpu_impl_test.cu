@@ -229,10 +229,10 @@ TestTensorList<Out> RefStdDev(const TensorListView<StorageCPU, In> &in,
     int64_t n = out_shape.num_elements();
     double ratio = in.num_elements() / n;
     for (int j = 0; j < n; j++) {
-      double sum = reg;
+      double sum = 0;
       for (int i = 0; i < N; i++)
         sum += reduced_samples_cpu.data[i][j];
-      out.data[0][j] = inv ? rsqrt(sum / ratio) : std::sqrt(sum / ratio);
+      out.data[0][j] = inv ? rsqrt(sum / ratio + reg) : std::sqrt(sum / ratio + reg);
     }
     return out_tl;
   } else {
@@ -244,7 +244,7 @@ TestTensorList<Out> RefStdDev(const TensorListView<StorageCPU, In> &in,
       double ratio = n_in / n;
       RefReduce(out[i], centered_squared_cpu[i], make_span(axes), reductions::sum());
       for (int j = 0; j < n; j++) {
-        double x = (out.data[i][j] + reg) / ratio;
+        double x = out.data[i][j] / ratio + reg;
         out.data[i][j] = inv ? rsqrt(x) : std::sqrt(x);
       }
     }

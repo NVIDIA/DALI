@@ -344,12 +344,10 @@ class ReduceImplGPU {
 
   /*
    * The functions below get the preprocessors and postprocessors.
-   * Note the is_first/is_last compile-time parameters. Overload resolution will pick the
-   * right function with distinct return type.
    * The function uses a helper class and have a default template arugment Derived = Actual
    * to make the return type a depenedent type.
    * To specialize these, define GetPreprocessorImpl, GetPostprocessorsImpl, etc in the
-   * Actual class. These functions don't need the std::true_type argument.
+   * Actual class. See `StdDevImplGPU` for usage example.
    */
 
   template <bool do_preprocess, int non_reduced_dim, typename Derived = Actual>
