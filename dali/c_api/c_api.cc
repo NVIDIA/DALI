@@ -87,16 +87,15 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
 
 }  // namespace
 
-daliPipelineHandle *daliInitialize() {
-  if (dali_initialized) {
-    return nullptr;
+
+void daliInitialize() {
+  if (!dali_initialized) {
+    dali::InitOperatorsLib();
+    dali::DALIInit(dali::OpSpec("CPUAllocator"),
+                   dali::OpSpec("PinnedCPUAllocator"),
+                   dali::OpSpec("GPUAllocator"));
+    dali_initialized = true;
   }
-  dali::InitOperatorsLib();
-  dali::DALIInit(dali::OpSpec("CPUAllocator"),
-                 dali::OpSpec("PinnedCPUAllocator"),
-                 dali::OpSpec("GPUAllocator"));
-  dali_initialized = true;
-  return new daliPipelineHandle;
 }
 
 
@@ -424,9 +423,6 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
   delete pipeline;
   pipe_handle->ws = nullptr;
   pipe_handle->pipe = nullptr;
-  delete pipe_handle;
-  pipe_handle = nullptr;
-  dali_initialized = false;
 }
 
 void daliLoadLibrary(const char* lib_path) {

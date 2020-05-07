@@ -62,7 +62,7 @@ typedef enum {
  * @brief DALI initialization
  * @return The handle object
  */
-DLL_PUBLIC daliPipelineHandle *daliInitialize();
+DLL_PUBLIC void daliInitialize();
 
 /// @{
 /**
