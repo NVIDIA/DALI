@@ -18,6 +18,9 @@
 /*
  * The point of these functions is to force the linker to link against dali_operators lib
  * and not optimize-out symbols from dali_operators
+ *
+ * The functions to reference, when one needs to make sure DALI operators
+ * shared object is actually linked against.
  */
 
 namespace dali {

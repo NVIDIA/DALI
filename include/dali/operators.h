@@ -16,10 +16,10 @@
 #define DALI_OPERATORS_H_
 
 #ifdef __cplusplus
-namespace dali {
 ///@{
+namespace dali {
 /**
- * @brief Function to initialize operators in DALI
+ * @brief Functions to initialize operators in DALI
  *
  * You should call this function once per process.
  * Remember to also call @see daliInitialize() from `c_api.h` to initialize DALI.
@@ -28,9 +28,16 @@ namespace dali {
 void InitOperatorsLib();
 }  // namespace dali
 extern "C" void daliInitOperators();
+///@}
 #else
+/**
+ * @brief Function to initialize operators in DALI
+ *
+ * You should call this function once per process.
+ * Remember to also call @see daliInitialize() from `c_api.h` to initialize DALI.
+ */
 void daliInitOperators();
 #endif
-///@}
+
 
 #endif  // DALI_OPERATORS_H_
