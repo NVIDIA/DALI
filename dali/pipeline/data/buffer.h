@@ -363,7 +363,7 @@ class DLL_PUBLIC Buffer {
   size_t num_bytes_ = 0;             // To keep track of the true size of the underlying allocation
   int device_ = -1;                  // device the buffer was allocated on
   bool shares_data_ = false;         // Whether we aren't using our own allocation
-  bool pinned_ = true;               // Whether the allocation uses pinned memory
+  bool pinned_ = false;              // Whether the allocation uses pinned memory
 };
 
 template <typename Backend>
