@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,8 +13,18 @@
 // limitations under the License.
 
 #include "dali/core/api_helper.h"
-#include "dali/operators/operators.h"
+#include "dali/operators.h"
 
+/*
+ * The point of these functions is to force the linker to link against dali_operators lib
+ * and not optimize-out symbols from dali_operators
+ */
+
+#ifdef __cplusplus
 namespace dali {
 DLL_PUBLIC void InitOperatorsLib() {}
 }  // namespace dali
+DLL_PUBLIC void daliInitOperators() {}
+#else
+DLL_PUBLIC void daliInitOperators() {}
+#endif

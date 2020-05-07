@@ -22,7 +22,7 @@
 #include "dali/core/cuda_stream.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/operators/operators.h"
+#include "dali/operators.h"
 #include "dali/pipeline/init.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/plugin/copy.h"
@@ -90,7 +90,6 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
 
 void daliInitialize() {
   if (!dali_initialized) {
-    dali::InitOperatorsLib();
     dali::DALIInit(dali::OpSpec("CPUAllocator"),
                    dali::OpSpec("PinnedCPUAllocator"),
                    dali::OpSpec("GPUAllocator"));
