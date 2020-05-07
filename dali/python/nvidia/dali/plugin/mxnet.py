@@ -15,6 +15,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from nvidia.dali.backend import TensorGPU, TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import types
 import mxnet as mx
@@ -37,7 +38,7 @@ def _wait_to_write(arr):
         raise RuntimeError("Can only wait for NDArray")
     mx.base._LIB.MXNDArrayWaitToWrite(arr.handle)
 
-def feed_ndarray(dali_tensor, arr):
+def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     """
     Copy contents of DALI tensor to MXNet's NDArray.
 
@@ -47,6 +48,11 @@ def feed_ndarray(dali_tensor, arr):
                     Tensor from which to copy
     `arr` : mxnet.nd.NDArray
             Destination of the copy
+    `cuda_stream` : Any value that can be casted to cudaStream_t
+                    CUDA stream to be used for the copy
+                    (if not provided, an internal user stream will be selected)
+                    In most cases, using the default internal user stream or stream 0
+                    is expected.
     """
     # Wait until arr is no longer used by the engine
     _wait_to_write(arr)
@@ -57,7 +63,10 @@ def feed_ndarray(dali_tensor, arr):
     ptr = ctypes.c_void_p()
     mx.base._LIB.MXNDArrayGetData(arr.handle, ctypes.byref(ptr))
     # Copy data from DALI tensor to ptr
-    dali_tensor.copy_to_external(ptr)
+    if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
+        dali_tensor.copy_to_external(ptr, cuda_stream)
+    else:
+        dali_tensor.copy_to_external(ptr)
 
 class _DALIIteratorBase(mx.io.DataIter):
     """
@@ -319,7 +328,6 @@ class DALIGenericIterator(_DALIIteratorBase):
             if self._data_batches[i][self._current_data_batch] is None:
                 mx_gpu_device = mx.gpu(self._pipes[i].device_id)
                 mx_cpu_device = mx.cpu(0)
-                from nvidia.dali.backend import TensorGPU
                 category_device = {key : [] for key in self._output_categories}
                 for category in self._output_categories:
                     for t in category_tensors[category]:
@@ -677,7 +685,6 @@ class DALIGluonIterator(_DALIIteratorBase):
     def _create_data_batch(self, output_elements, shapes, device_id):
         mx_gpu_device = mx.gpu(device_id)
         mx_cpu_device = mx.cpu(0)
-        from nvidia.dali.backend import TensorGPU
         new_batch = []
         for j, output_el in enumerate(output_elements):
             first_t = output_el if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG else output_el[0]
