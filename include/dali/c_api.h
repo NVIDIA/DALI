@@ -61,9 +61,11 @@ typedef enum {
 /**
  * @brief DALI initialization
  *
- * Call this function to initialize DALI. It shall be called once per process.
- * Along with this, you'll need to call @see daliInitOperatorsLib function from
- * `operators.h` file.
+ * Call this function to initialize DALI backend. It shall be called once per process.
+ * Along with this, you'll need to call @see daliInitOperatorsLib() function from
+ * `operators.h` file, to initialize whole DALI.
+ * In the unlikely event you'd like to use only Pipeline and Executor (no Operators),
+ * you may pass on calling @see daliInitOperatorsLib()
  */
 DLL_PUBLIC void daliInitialize();
 

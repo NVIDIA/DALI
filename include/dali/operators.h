@@ -21,9 +21,10 @@ namespace dali {
 /**
  * @brief Functions to initialize operators in DALI
  *
- * You should call this function once per process.
- * Remember to also call @see daliInitialize() from `c_api.h` to initialize DALI.
- * Use either InitOperatorsLib or daliInitOperators, depending whether you use C++ or C API
+ * Remember to also call @see daliInitialize() from `c_api.h` to initialize whole DALI backend.
+ * Use either InitOperatorsLib or daliInitOperators, depending whether you use C++ or C API.
+ * This function initializes operators' library. In case you use only Operators
+ * (no Executor or Pipeline), you may pass on @see daliInitialize().
  */
 void InitOperatorsLib();
 }  // namespace dali
@@ -31,10 +32,12 @@ extern "C" void daliInitOperators();
 ///@}
 #else
 /**
- * @brief Function to initialize operators in DALI
+ * @brief Functions to initialize operators in DALI
  *
- * You should call this function once per process.
- * Remember to also call @see daliInitialize() from `c_api.h` to initialize DALI.
+ * Remember to also call @see daliInitialize() from `c_api.h` to initialize whole DALI backend.
+ * Use either InitOperatorsLib or daliInitOperators, depending whether you use C++ or C API.
+ * This function initializes operators' library. In case you use only Operators
+ * (no Executor or Pipeline), you may pass on @see daliInitialize().
  */
 void daliInitOperators();
 #endif
