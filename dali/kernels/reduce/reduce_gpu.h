@@ -275,7 +275,7 @@ class DLL_PUBLIC InvStdDevGPU {
    * ```
    * s = sum( (in[pos] - mean[reduced_pos])^2
    * out[reduced_pos] = s > 0 || reg > 0
-   *                    ? 1/sqrt((s + reg^2) / reduction_factor)
+   *                    ? 1/sqrt(s / reduction_factor + reg^2)
    *                    : 0
    * ```
    * where `reduction_factor` is the number of input elements contributing to a single output.

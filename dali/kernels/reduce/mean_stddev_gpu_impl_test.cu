@@ -434,10 +434,10 @@ TEST(InvStdDevImplGPU, Outer_Batch_Regularized) {
 
   TestTensorList<float> out;
   out.reshape(req.output_shapes[0]);
-  stddev.Run(ctx, out.gpu(), in.gpu(), fake_mean.gpu(), 100000);
+  stddev.Run(ctx, out.gpu(), in.gpu(), fake_mean.gpu(), 100);
   auto out_cpu = out.cpu(ctx.gpu.stream);
 
-  TestTensorList<float> ref = RefStdDev(in_cpu, mean_cpu, 100000, true);
+  TestTensorList<float> ref = RefStdDev(in_cpu, mean_cpu, 100, true);
 
   Check(out_cpu, ref.cpu(), EqualEpsRel(1e-5, 1e-6));
 }

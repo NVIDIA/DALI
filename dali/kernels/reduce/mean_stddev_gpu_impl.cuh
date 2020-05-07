@@ -311,7 +311,7 @@ struct RegularizedInvSqrt {
 
   template <typename T>
   DALI_HOST_DEV Out operator()(T x) const {
-    float s = scale * (x + reg);
+    float s = scale * x + reg;
     return s ? ConvertSat<Out>(rsqrt(s)) : Out(0);
   }
 };
