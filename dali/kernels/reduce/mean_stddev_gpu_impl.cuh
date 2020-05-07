@@ -68,10 +68,10 @@ class MeanImplGPU : public ReduceImplGPU<Out, In, Acc, MeanImplGPU<Out, In, Acc>
 };
 
 /**
- * @brief Subtracts a mean value stored in specified memory location
+ * @brief Subtracts a mean value stored in specified memory location and squares the difference
  */
 template <class Mean>
-struct SubtractMeanIndirect {
+struct VarianceIndirect {
   const Mean *__restrict__ mean = nullptr;
   template <typename T>
   DALI_HOST_DEV DALI_FORCEINLINE
@@ -86,7 +86,7 @@ struct SubtractMeanIndirect {
 };
 
 /**
- * @brief Calculates variance, given a tensor of means.
+ * @brief Returns a `reduce::variance` functor with mean value taken from a tensor
  */
 template <int non_reduced_ndim, typename Mean>
 struct VariancePreprocessor;
@@ -112,6 +112,7 @@ template <typename Mean>
 struct VariancePreprocessor<2, Mean> {
   const Mean *mean;
   i64vec<2> stride;
+  /// Calculates the fully reduced inner offset based on non-reduced `pos[1]`
   DropDims inner_dims;
 
   DALI_HOST_DEV DALI_FORCEINLINE
@@ -139,7 +140,7 @@ class VarianceImplBase {
 
   InListGPU<Mean> mean_;
 
-  using Preprocessor = SubtractMeanIndirect<Mean>;
+  using Preprocessor = VarianceIndirect<Mean>;
 
   static_assert(sizeof(Preprocessor) == sizeof(Mean*),
     "A variance functor must carry only a pointer to the mean");

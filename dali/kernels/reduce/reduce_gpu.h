@@ -269,11 +269,11 @@ class DLL_PUBLIC InvStdDevGPU {
   using param_t = std::conditional_t<std::is_same<Out, double>::value, double, float>;
 
   /**
-   * @brief Caluclates regularized inverse standard deviation
+   * @brief Calculates regularized inverse standard deviation
    *
    * The output values are calculated as:
    * ```
-   * s = sum( (in[pos] - mean[reduced_pos])^2
+   * s = sum( (in[pos] - mean[reduced_pos])^2 )
    * out[reduced_pos] = s > 0 || reg > 0
    *                    ? 1/sqrt(s / reduction_factor + reg^2)
    *                    : 0
