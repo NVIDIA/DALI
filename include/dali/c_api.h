@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 
 #include <cuda_runtime_api.h>
 #include <inttypes.h>
-#include <stdbool.h>
 #include "dali/core/api_helper.h"
 
 // Trick to bypass gcc4.9 old ABI name mangling used by TF
@@ -58,6 +57,13 @@ typedef enum {
   DALI_BOOL     =  11,
 } dali_data_type_t;
 
+
+/**
+ * @brief DALI initialization
+ * @return The handle object
+ */
+DLL_PUBLIC daliPipelineHandle *daliInitialize();
+
 /// @{
 /**
  * @brief Create DALI pipeline. Setting batch_size,
@@ -74,7 +80,7 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                                    int batch_size,
                                    int num_threads,
                                    int device_id,
-                                   bool separated_execution,
+                                   int separated_execution,
                                    int prefetch_queue_depth,
                                    int cpu_prefetch_queue_depth,
                                    int gpu_prefetch_queue_depth);
@@ -261,23 +267,24 @@ DLL_PUBLIC size_t daliMaxDimTensors(daliPipelineHandle *pipe_handle, int n);
  * dst_type (0 - CPU, 1 - GPU)
  * @remarks Tensor list doesn't need to be dense
  */
-DLL_PUBLIC void daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int n,
-                                      device_type_t dst_type, cudaStream_t stream,
-                                      bool non_blocking);
+DLL_PUBLIC void
+daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int n, device_type_t dst_type,
+                      cudaStream_t stream, int non_blocking);
 
 /**
  * @brief Returns number of DALI pipeline outputs
  */
 DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle);
+
 /**
  * @brief Copy the output tensor stored
  * at position `n` in the pipeline.
  * dst_type (0 - CPU, 1 - GPU)
  * @remarks If the output is tensor list then it need to be dense
  */
-DLL_PUBLIC void daliCopyTensorNTo(daliPipelineHandle *pipe_handle, void *dst, int n,
-                                  device_type_t dst_type, cudaStream_t stream,
-                                  bool non_blocking);
+DLL_PUBLIC void
+daliCopyTensorNTo(daliPipelineHandle *pipe_handle, void *dst, int n, device_type_t dst_type,
+                  cudaStream_t stream, int non_blocking);
 
 /**
  * @brief Delete the pipeline object.
