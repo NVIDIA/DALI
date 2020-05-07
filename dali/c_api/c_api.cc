@@ -424,6 +424,7 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
   delete pipeline;
   pipe_handle->ws = nullptr;
   pipe_handle->pipe = nullptr;
+  delete pipe_handle;
   pipe_handle = nullptr;
   dali_initialized = false;
 }
