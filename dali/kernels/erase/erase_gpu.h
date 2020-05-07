@@ -102,7 +102,7 @@ constexpr unsigned FULL_MASK = 0xffffffffu;
 /**
  * @brief Returns true if that parameter configuration is just outer layer of recursive loop call
  */
-constexpr bool select_outer_loops(int ndim, int current_dim, int channel_dim) {
+constexpr bool is_outer_loops(int ndim, int current_dim, int channel_dim) {
   // channel_dim is not one of the 2 last dimensions
   if (channel_dim < ndim - 2) {
     return ndim - current_dim > 2;  // true if we are not in the last two dimensions
@@ -116,7 +116,7 @@ constexpr bool select_outer_loops(int ndim, int current_dim, int channel_dim) {
  * @brief Outer layer of recursive loop over current region
  */
 template <typename Worker, int channel_dim, int current_dim = 0, typename T, int ndim>
-__device__ std::enable_if_t<select_outer_loops(ndim, current_dim, channel_dim)>
+__device__ std::enable_if_t<is_outer_loops(ndim, current_dim, channel_dim)>
 erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill_values,
               span<ibox<ndim>> erase_regions = {}, ivec<ndim> coordinate = {},
               int64_t offset_base = 0) {
@@ -217,9 +217,9 @@ erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill
  * @brief Edge case kernel, 1D case
  */
 template <typename Worker, int channel_dim, int current_dim = 0, typename T, int ndim>
-__device__ std::enable_if_t<ndim == 1 && current_dim == 0> erase_generic(
-    erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill_values,
-    span<ibox<ndim>> erase_regions = {}, ivec<ndim> coordinate = {}, int64_t offset_base = 0) {
+__device__ std::enable_if_t<ndim == 1> erase_generic(erase_sample_desc<T, ndim> sample,
+    ibox<ndim> region, span<T> fill_values, span<ibox<ndim>> erase_regions = {},
+    ivec<ndim> coordinate = {}, int64_t offset_base = 0) {
   constexpr int d = current_dim;
   int boundary = ::min(region.hi[d], sample.sample_shape[d]);
 
