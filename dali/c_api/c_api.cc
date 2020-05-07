@@ -22,7 +22,6 @@
 #include "dali/core/cuda_stream.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/operators.h"
 #include "dali/pipeline/init.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/plugin/copy.h"
@@ -108,7 +107,7 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                         int prefetch_queue_depth,
                         int cpu_prefetch_queue_depth,
                         int gpu_prefetch_queue_depth) {
-  bool se = separated_execution > 0;
+  bool se = separated_execution != 0;
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length),
                                                    batch_size, num_threads, device_id, true,
                                                    prefetch_queue_depth, true);
@@ -381,7 +380,7 @@ static void daliCopyTensorListNToHelper(dali::DeviceWorkspace* ws, void* dst, in
 
 void daliCopyTensorListNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
                            device_type_t dst_type, cudaStream_t stream, int non_blocking) {
-  bool nb = non_blocking > 0;
+  bool nb = non_blocking != 0;
   dali::TimeRange tr("daliCopyTensorNTo", dali::TimeRange::kGreen);
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   if (ws->OutputIsType<dali::CPUBackend>(n)) {

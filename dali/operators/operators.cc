@@ -20,11 +20,8 @@
  * and not optimize-out symbols from dali_operators
  */
 
-#ifdef __cplusplus
 namespace dali {
 DLL_PUBLIC void InitOperatorsLib() {}
 }  // namespace dali
-DLL_PUBLIC void daliInitOperators() {}
-#else
-DLL_PUBLIC void daliInitOperators() {}
-#endif
+
+extern "C" DLL_PUBLIC void daliInitOperators() {}

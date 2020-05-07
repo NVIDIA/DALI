@@ -17,9 +17,13 @@
 
 #ifdef __cplusplus
 namespace dali {
+///@{
 /**
- * @brief The function to reference, when one needs to make sure DALI operators shared
- *        object is actually linked against.
+ * @brief Function to initialize operators in DALI
+ *
+ * You should call this function once per process.
+ * Remember to also call @see daliInitialize() from `c_api.h` to initialize DALI.
+ * Use either InitOperatorsLib or daliInitOperators, depending whether you use C++ or C API
  */
 void InitOperatorsLib();
 }  // namespace dali
@@ -27,5 +31,6 @@ extern "C" void daliInitOperators();
 #else
 void daliInitOperators();
 #endif
+///@}
 
 #endif  // DALI_OPERATORS_H_

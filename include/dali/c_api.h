@@ -60,7 +60,10 @@ typedef enum {
 
 /**
  * @brief DALI initialization
- * @return The handle object
+ *
+ * Call this function to initialize DALI. It shall be called once per process.
+ * Along with this, you'll need to call @see daliInitOperatorsLib function from
+ * `operators.h` file.
  */
 DLL_PUBLIC void daliInitialize();
 
@@ -69,9 +72,9 @@ DLL_PUBLIC void daliInitialize();
  * @brief Create DALI pipeline. Setting batch_size,
  * num_threads or device_id here overrides
  * values stored in the serialized pipeline.
- * When separated_execution is false, prefetch_queue_depth is considered,
+ * When separated_execution is equal to 0, prefetch_queue_depth is considered,
  * gpu_prefetch_queue_depth and cpu_prefetch_queue_depth are ignored.
- * When separated_execution is true, cpu_prefetch_queue_depth and
+ * When separated_execution is not equal to 0, cpu_prefetch_queue_depth and
  * gpu_prefetch_queue_depth are considered and prefetch_queue_depth is ignored.
  */
 DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
@@ -266,6 +269,10 @@ DLL_PUBLIC size_t daliMaxDimTensors(daliPipelineHandle *pipe_handle, int n);
  * at position `n` in the pipeline.
  * dst_type (0 - CPU, 1 - GPU)
  * @remarks Tensor list doesn't need to be dense
+ *
+ * If you call this function with non_blocking != 0, make sure to
+ * synchronize on provided stream before reading the data.
+ * If non_blocking == 0, function will do it for you
  */
 DLL_PUBLIC void
 daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int n, device_type_t dst_type,
@@ -281,6 +288,10 @@ DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle);
  * at position `n` in the pipeline.
  * dst_type (0 - CPU, 1 - GPU)
  * @remarks If the output is tensor list then it need to be dense
+ *
+ * If you call this function with non_blocking != 0, make sure to
+ * synchronize on provided stream before reading the data.
+ * If non_blocking == 0, function will do it for you
  */
 DLL_PUBLIC void
 daliCopyTensorNTo(daliPipelineHandle *pipe_handle, void *dst, int n, device_type_t dst_type,
