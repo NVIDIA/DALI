@@ -277,6 +277,34 @@ GetPreprocessorBanksHelper(bool_const<do_preprocess>, ...) {
   return nullptr;
 }
 
+/**
+ * @brief This is the base class for implementing reductions
+ *
+ * Implementing reductions:
+ * 1. Create a CRTP derived class MyReduction
+ * ```~~~~~~~~~~cpp
+ * template <typename In>
+ * class MyReduction : public ReduceImplGPU<float, In, float, MyReduction<In>>
+ * ```
+ * 2. Define your reduction function (to your class), e.g.:
+ * ```~~~~~~~~~~cpp
+ * reductions::sum GetReduction() const { return {}; }
+ * ```~~~~~~~~~~cpp
+ * 3. Add your pre/postprocessing functions:
+ * ```~~~~~~~~~~cpp
+ * MyPostprocessor GetPortprocessor(int sample_idx, bool reduce_batch) const { ... };
+ *
+ * MyPreprocessor GetPreprocessor(int sample_idx, bool reduce_batch) const { ... };
+ *
+ * template <int non_reduced_dims>
+ * MyPreprocessorBank<non_reduced_dims> *GetPreprocessorBanksImpl(WorkArea &wa) const { ... };
+ * ```
+ *
+ * You may need to add extra arguments to Run/Setup, in which case just shadow the original
+ * function(s) - you should call them at some point in your customized Run/Setup.
+ *
+ * See mean_stddev_gpu_impl.cuh for usage examples.
+ */
 template <typename Out, typename In, typename Acc, typename Actual>
 class ReduceImplGPU {
  public:
