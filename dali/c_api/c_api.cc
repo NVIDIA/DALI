@@ -89,7 +89,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
 
 void daliInitialize() {
   static std::once_flag init_flag;
-  auto init = [&dali_initialized] {
+  auto init = [&] {
       dali::DALIInit(dali::OpSpec("CPUAllocator"),
                      dali::OpSpec("PinnedCPUAllocator"),
                      dali::OpSpec("GPUAllocator"));
