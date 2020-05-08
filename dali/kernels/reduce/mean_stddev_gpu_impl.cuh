@@ -15,6 +15,13 @@
 #ifndef DALI_KERNELS_REDUCE_MEAN_STDDEV_GPU_IMPL_CUH_
 #define DALI_KERNELS_REDUCE_MEAN_STDDEV_GPU_IMPL_CUH_
 
+/**
+ * @file
+ *
+ * This file contains the classes needed to implement reductions with pre-
+ * and postprocessing: mean, root mean square, standard deviation (and its reciprocal).
+ */
+
 #include "dali/kernels/reduce/reduce_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_drop_dims.h"
 

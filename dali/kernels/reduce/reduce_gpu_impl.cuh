@@ -282,16 +282,16 @@ GetPreprocessorBanksHelper(bool_const<do_preprocess>, ...) {
  *
  * Implementing reductions:
  * 1. Create a CRTP derived class MyReduction
- * ```~~~~~~~~~~cpp
+ * ```{.cpp}
  * template <typename In>
  * class MyReduction : public ReduceImplGPU<float, In, float, MyReduction<In>>
  * ```
  * 2. Define your reduction function (to your class), e.g.:
- * ```~~~~~~~~~~cpp
+ * ```{.cpp}
  * reductions::sum GetReduction() const { return {}; }
- * ```~~~~~~~~~~cpp
+ * ```
  * 3. Add your pre/postprocessing functions:
- * ```~~~~~~~~~~cpp
+ * ```{.cpp}
  * MyPostprocessor GetPortprocessor(int sample_idx, bool reduce_batch) const { ... };
  *
  * MyPreprocessor GetPreprocessor(int sample_idx, bool reduce_batch) const { ... };
@@ -308,6 +308,50 @@ GetPreprocessorBanksHelper(bool_const<do_preprocess>, ...) {
 template <typename Out, typename In, typename Acc, typename Actual>
 class ReduceImplGPU {
  public:
+  /// returns a reference to the actual derived class instance
+  Actual &This() noexcept { return static_cast<Actual &>(*this); }
+
+  /// returns a const reference to the actual derived class instance
+  const Actual &This() const noexcept { return static_cast<Actual &>(*this); }
+
+  /// Get stage - for testing
+  const ReductionStage &GetStage(int idx) const { return stages_[idx]; }
+  /// Get number of stages - for testing
+  int GetNumStages() const { return stages_.size(); }
+
+  /// Trye, if reduction across input tensors was requested
+  bool ReduceBatch() const { return reduce_batch_; }
+
+  /// Input shape after simplification (with merged dimensions)
+  const TensorListShape<> &SimplifiedOutputShape() const { return out_shape_; }
+
+  /// Output shape after simplification (with merged dimensions)
+  const TensorListShape<> &SimplifiedInputShape() const { return in_shape_; }
+
+  /// Indices of reduced axes after simplification
+  span<const int> SimplifiedAxes() const { return make_span(axes_); }
+
+  /// Reduction factor for given sample
+  int64_t ReducedElements(int sample) const { return reduced_elements_[sample]; }
+  /// Total reduction factor - valid when reducing whole batch
+  int64_t TotalReducedElements() const { return total_reduced_; }
+
+  /**
+   * @brief Sets up the reduction
+   *
+   * This function determines how many and what kind of reduction stages are necessary, as well
+   * as calculates memory requirements for them.
+   * The arguments are validated and exception is thrown if the arguments don't describe a valid
+   * reduction.
+   *
+   * @param ctx           kernel context - for compatibility with DALI kernel API
+   * @param in_shape      shape of the input tensor
+   * @param axes          indices of dimensions to reduce
+   * @param keep_dims     if true, the reduced dimensions are present in the output shape, with
+   *                      unit extent, otherwise the reduced dimensions are omitted in the output
+   *                      shape
+   * @param reduce_batch  true, if reducing across tensors within the batch
+   */
   KernelRequirements Setup(KernelContext &ctx,
                            const TensorListShape<> &in_shape,
                            span<const int> axes,
@@ -337,6 +381,31 @@ class ReduceImplGPU {
     CalculateTempBuffers(se);
     req.scratch_sizes = se.sizes;
     return req;
+  }
+
+  void Run(KernelContext &kctx, const OutListGPU<Out> &out, const InListGPU<In> &in) {
+    assert(!stages_.empty());
+    Context ctx;
+    auto host_mem_size = buffer_sizes_.param_buffers;
+    auto gpu_mem_size = buffer_sizes_.param_buffers + buffer_sizes_.io_buffers;
+
+    ctx.stream = kctx.gpu.stream;
+    ctx.work_area.buffer_sizes = buffer_sizes_;
+    ctx.work_area.host_memory = kctx.scratchpad->Allocate<char>(AllocType::Host, host_mem_size, 64);
+    ctx.work_area.gpu_memory = kctx.scratchpad->Allocate<char>(AllocType::GPU, gpu_mem_size, 64);
+
+    ctx.input = reshape(in, in_shape_, true);
+    ctx.output = reshape(out, out_shape_, true);
+
+    for (auto &stage : stages_)
+      LaunchStage(ctx, stage);
+  }
+
+ private:
+  void Simplify(const TensorListShape<> &in_shape, span<const int> axes) {
+    SimplifyReduction(axes_, dim_groups_, in_shape, axes);
+    collapse_dims(in_shape_, in_shape, dim_groups_);
+    CalculateReducedShape(out_shape_, in_shape_, make_span(axes_), true, reduce_batch_);
   }
 
   bool HasPreprocessingParams() const {
@@ -399,7 +468,7 @@ class ReduceImplGPU {
     return pp;
   }
 
-
+ public:
   template <int non_reduced_dim, typename Derived = Actual>
   using PreprocessorBank = decltype(*std::declval<ReduceImplGPU&>().
     template GetPreprocessorBanks<true, non_reduced_dim, Derived>(std::declval<WorkArea&>(), 0));
@@ -412,7 +481,7 @@ class ReduceImplGPU {
   using Postprocessor =
     decltype(std::declval<ReduceImplGPU&>().template GetPostprocessor<true, Derived>(0, true));
 
-
+ private:
   /**
    * @brief Calculate the sizes of the temporary buffers required to launch all stages
    */
@@ -1118,47 +1187,6 @@ class ReduceImplGPU {
     CUDA_CALL(cudaGetLastError());
   }
 
-
-  void Run(KernelContext &kctx, const OutListGPU<Out> &out, const InListGPU<In> &in) {
-    assert(!stages_.empty());
-    Context ctx;
-    auto host_mem_size = buffer_sizes_.param_buffers;
-    auto gpu_mem_size = buffer_sizes_.param_buffers + buffer_sizes_.io_buffers;
-
-    ctx.stream = kctx.gpu.stream;
-    ctx.work_area.buffer_sizes = buffer_sizes_;
-    ctx.work_area.host_memory = kctx.scratchpad->Allocate<char>(AllocType::Host, host_mem_size, 64);
-    ctx.work_area.gpu_memory = kctx.scratchpad->Allocate<char>(AllocType::GPU, gpu_mem_size, 64);
-
-    ctx.input = reshape(in, in_shape_, true);
-    ctx.output = reshape(out, out_shape_, true);
-
-    for (auto &stage : stages_)
-      LaunchStage(ctx, stage);
-  }
-
-  Actual &This() noexcept { return static_cast<Actual &>(*this); }
-  const Actual &This() const noexcept { return static_cast<Actual &>(*this); }
-
-  void Simplify(const TensorListShape<> &in_shape, span<const int> axes) {
-    SimplifyReduction(axes_, dim_groups_, in_shape, axes);
-    collapse_dims(in_shape_, in_shape, dim_groups_);
-    CalculateReducedShape(out_shape_, in_shape_, make_span(axes_), true, reduce_batch_);
-  }
-
-  /// Get stage - for testing
-  const ReductionStage &GetStage(int idx) const { return stages_[idx]; }
-  /// Get number of stages - for testing
-  int GetNumStages() const { return stages_.size(); }
-
-  bool ReduceBatch() const { return reduce_batch_; }
-  const TensorListShape<> &SimplifiedOutputShape() const { return out_shape_; }
-  const TensorListShape<> &SimplifiedInputShape() const { return in_shape_; }
-  span<const int> SimplifiedAxes() const { return make_span(axes_); }
-  int64_t ReducedElements(int sample) const { return reduced_elements_[sample]; }
-  int64_t TotalReducedElements() const { return total_reduced_; }
-
- protected:
   static constexpr int kMaxStaticDims = DynamicTensorShapeContainer::static_size;
   /// Input shape with merged dims
   TensorListShape<> in_shape_;
@@ -1166,7 +1194,7 @@ class ReduceImplGPU {
   TensorListShape<> out_shape_;
   /// Merged axes (without degenerate ones)
   SmallVector<int, kMaxStaticDims> axes_;
-  /// Dim groups
+  /// Groups of dimensions merged by Simplify
   SmallVector<std::pair<int, int>, kMaxStaticDims> dim_groups_;
 
   bool reduce_batch_ = false;
