@@ -89,7 +89,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
 
 void daliInitialize() {
   static std::once_flag init_flag;
-  auto init = [&] {
+  auto init = [&dali_initialized] {
       dali::DALIInit(dali::OpSpec("CPUAllocator"),
                      dali::OpSpec("PinnedCPUAllocator"),
                      dali::OpSpec("GPUAllocator"));
@@ -403,7 +403,7 @@ static void daliCopyTensorNToHelper(dali::DeviceWorkspace* ws, void* dst, int n,
 
 void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n, device_type_t dst_type,
                        cudaStream_t stream, int non_blocking) {
-  bool nb = non_blocking > 0;
+  bool nb = non_blocking != 0;
   dali::TimeRange tr("daliCopyTensorNTo", dali::TimeRange::kGreen);
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   if (ws->OutputIsType<dali::CPUBackend>(n)) {

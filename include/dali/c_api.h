@@ -273,7 +273,7 @@ DLL_PUBLIC size_t daliMaxDimTensors(daliPipelineHandle *pipe_handle, int n);
  * @remarks Tensor list doesn't need to be dense
  *
  * If you call this function with non_blocking != 0, make sure to
- * synchronize on provided stream before reading the data.
+ * synchronize with the provided stream before reading the data.
  * If non_blocking == 0, function will do it for you
  */
 DLL_PUBLIC void
