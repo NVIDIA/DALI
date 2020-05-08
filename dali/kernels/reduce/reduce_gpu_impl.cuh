@@ -326,12 +326,6 @@ class ReduceImplGPU {
     return req;
   }
 
-  // shadow in Actual if necessary
-  template <int non_reduced_dim>
-  using PreprocessorBank = IdentityPreprocessor<non_reduced_dim>;
-  using Preprocessor = identity;
-  using Postprocessor = identity;
-
   bool HasPreprocessingParams() const {
     using pbank = std::remove_reference_t<decltype(
       *GetPreprocessorBanks<true, 2>(std::declval<WorkArea&>(), 0))>;
@@ -377,6 +371,19 @@ class ReduceImplGPU {
   auto GetPostprocessor() const {
     return GetPostprocessorHelper(bool_const<do_postprocess>(), static_cast<const Derived *>(this));
   }
+
+  template <int non_reduced_dim, typename Derived = Actual>
+  using PreprocessorBank = decltype(*std::declval<ReduceImplGPU&>().
+    template GetPreprocessorBanks<true, non_reduced_dim, Derived>(std::declval<WorkArea&>(), 0));
+
+  template <typename Derived = Actual>
+  using Preprocessor =
+    decltype(std::declval<ReduceImplGPU&>().template GetPreprocessor<true, Derived>());
+
+  template <typename Derived = Actual>
+  using Postprocessor =
+    decltype(std::declval<ReduceImplGPU&>().template GetPostprocessor<true, Derived>());
+
 
   /**
    * @brief Calculate the sizes of the temporary buffers required to launch all stages
@@ -451,16 +458,16 @@ class ReduceImplGPU {
         // per-sample preprocessor may need some parameter space
         switch (stage.kind) {
           case ReductionKind::Middle:  // the preprocessor bank is 2D (outer, inner)
-            buf_sizes.AddParam<typename Actual::PreprocessorBank<2>>(N);
+            buf_sizes.AddParam<PreprocessorBank<2>>(N);
             break;
           case ReductionKind::Inner:  // the preprocessor bank is 1D (outer)
           case ReductionKind::None:   // the preprocessor bank is 1D (pointwise)
           case ReductionKind::Fold:   // the preprocessor bank is 1D (pointwise)
-            buf_sizes.AddParam<typename Actual::PreprocessorBank<1>>(N);
+            buf_sizes.AddParam<PreprocessorBank<1>>(N);
             break;
           case ReductionKind::Sample:
             // per sample scalar preprocessor is possible
-            buf_sizes.AddParam<typename Actual::Preprocessor>(N);
+            buf_sizes.AddParam<Preprocessor<>>(N);
             break;
           default:
             // no buffer for preprocessor - it's passed by value
@@ -480,7 +487,7 @@ class ReduceImplGPU {
           case ReductionKind::Inner:
           case ReductionKind::None:
           case ReductionKind::Sample:
-            buf_sizes.AddParam<typename Actual::Postprocessor>(N);
+            buf_sizes.AddParam<Postprocessor<>>(N);
             break;
           default:
             // no buffer required - passed by value

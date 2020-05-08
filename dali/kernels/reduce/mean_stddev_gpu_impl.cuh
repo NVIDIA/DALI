@@ -49,13 +49,12 @@ struct ScaleSqrtConvert {
 };
 
 template <typename Out, typename In, typename Actual,
-          typename Postprocessor_ = ScaleAndConvert<Out>>
+          typename Postprocessor = ScaleAndConvert<Out>>
 class MeanImplBase {
  public:
   Actual &This() { return static_cast<Actual&>(*this); }
   const Actual &This() const { return static_cast<const Actual&>(*this); }
 
-  using Postprocessor = Postprocessor_;
   using scale_t = typename Postprocessor::scale_t;
 
   Postprocessor *GetPostprocessorsImpl(WorkArea &wa) const {
@@ -86,8 +85,6 @@ template <typename Out, typename In, typename Acc = default_sum_acc_t<Out, In>>
 class MeanImplGPU : public ReduceImplGPU<Out, In, Acc, MeanImplGPU<Out, In, Acc>>,
                     public MeanImplBase<Out, In, MeanImplGPU<Out, In, Acc>> {
  public:
-  using MeanBase = MeanImplBase<Out, In, MeanImplGPU<Out, In, Acc>>;
-  using typename MeanBase::Postprocessor;
   reductions::sum GetReduction() const { return {}; }
 };
 
@@ -101,9 +98,6 @@ class RootMeanSquareImplGPU
     : public ReduceImplGPU<Out, In, Acc, RootMeanSquareImplGPU<Out, In, Acc>>
     , public RootMeanImplBase<Out, In, RootMeanSquareImplGPU<Out, In, Acc>> {
  public:
-  using MeanBase = RootMeanImplBase<Out, In, RootMeanSquareImplGPU<Out, In, Acc>>;
-  using typename MeanBase::Postprocessor;
-
   using Preprocessor = reductions::square;
   template <int non_reduced_dims>
   using PreprocessorBank = UniformPreprocessorBank<non_reduced_dims, Preprocessor>;
@@ -285,14 +279,7 @@ class StdDevImplGPU : public ReduceImplGPU<Out, In, Acc, StdDevImplGPU<Out, In, 
                       public RootMeanImplBase<Out, In, StdDevImplGPU<Out, In, Mean, Acc>> {
  public:
   using ReduceBase = ReduceImplGPU<Out, In, Acc, StdDevImplGPU<Out, In, Mean, Acc>>;
-  using VarBase = VarianceImplBase<Out, In, Mean, StdDevImplGPU<Out, In, Mean, Acc>>;
-  using MeanBase = RootMeanImplBase<Out, In, StdDevImplGPU<Out, In, Mean, Acc>>;
 
-  using Preprocessor = typename VarBase::Preprocessor;
-  template <int non_reduced_dims>
-  using PreprocessorBank = typename VarBase::template PreprocessorBank<non_reduced_dims>;
-
-  using Postprocessor = typename MeanBase::Postprocessor;
   reductions::sum GetReduction() const { return {}; }
 
   void Run(KernelContext &kctx,
@@ -359,14 +346,7 @@ class InvStdDevImplGPU :
       public RegularizedInvRMS<Out, In, InvStdDevImplGPU<Out, In, Mean, Acc>> {
  public:
   using ReduceBase = ReduceImplGPU<Out, In, Acc, InvStdDevImplGPU<Out, In, Mean, Acc>>;
-  using VarBase = VarianceImplBase<Out, In, Mean, InvStdDevImplGPU<Out, In, Mean, Acc>>;
-  using MeanBase = RegularizedInvRMS<Out, In, InvStdDevImplGPU<Out, In, Mean, Acc>>;
 
-  using Preprocessor = typename VarBase::Preprocessor;
-  template <int non_reduced_dims>
-  using PreprocessorBank = typename VarBase::template PreprocessorBank<non_reduced_dims>;
-
-  using Postprocessor = typename MeanBase::Postprocessor;
   reductions::sum GetReduction() const { return {}; }
 
   void Run(KernelContext &kctx,
