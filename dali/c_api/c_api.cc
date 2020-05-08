@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "dali/core/cuda_stream.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/init.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/plugin/copy.h"
 #include "dali/plugin/plugin_manager.h"
@@ -29,6 +30,9 @@
 #include "dali/pipeline/data/backend.h"
 
 namespace {
+
+bool dali_initialized = false;
+
 
 template<typename Backend>
 void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const void *data_ptr,
@@ -82,21 +86,35 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
 
 }  // namespace
 
+
+void daliInitialize() {
+  static std::once_flag init_flag;
+  auto init = [&] {
+      dali::DALIInit(dali::OpSpec("CPUAllocator"),
+                     dali::OpSpec("PinnedCPUAllocator"),
+                     dali::OpSpec("GPUAllocator"));
+      dali_initialized = true;
+  };
+  std::call_once(init_flag, init);
+}
+
+
 void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                         const char *serialized_pipeline,
                         int length,
                         int batch_size,
                         int num_threads,
                         int device_id,
-                        bool separated_execution,
+                        int separated_execution,
                         int prefetch_queue_depth,
                         int cpu_prefetch_queue_depth,
                         int gpu_prefetch_queue_depth) {
+  bool se = separated_execution != 0;
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length),
                                                    batch_size, num_threads, device_id, true,
                                                    prefetch_queue_depth, true);
-  pipeline->SetExecutionTypes(true, separated_execution, true);
-  if (separated_execution) {
+  pipeline->SetExecutionTypes(true, se, true);
+  if (se) {
     pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
   }
   pipeline->Build();
@@ -363,13 +381,14 @@ static void daliCopyTensorListNToHelper(dali::DeviceWorkspace* ws, void* dst, in
 }
 
 void daliCopyTensorListNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
-                           device_type_t dst_type, cudaStream_t stream, bool non_blocking) {
+                           device_type_t dst_type, cudaStream_t stream, int non_blocking) {
+  bool nb = non_blocking != 0;
   dali::TimeRange tr("daliCopyTensorNTo", dali::TimeRange::kGreen);
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
-    daliCopyTensorListNToHelper<dali::CPUBackend>(ws, dst, n, dst_type, stream, non_blocking);
+    daliCopyTensorListNToHelper<dali::CPUBackend>(ws, dst, n, dst_type, stream, nb);
   } else {
-    daliCopyTensorListNToHelper<dali::GPUBackend>(ws, dst, n, dst_type, stream, non_blocking);
+    daliCopyTensorListNToHelper<dali::GPUBackend>(ws, dst, n, dst_type, stream, nb);
   }
 }
 
@@ -383,13 +402,14 @@ static void daliCopyTensorNToHelper(dali::DeviceWorkspace* ws, void* dst, int n,
 }
 
 void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n, device_type_t dst_type,
-                       cudaStream_t stream, bool non_blocking) {
+                       cudaStream_t stream, int non_blocking) {
+  bool nb = non_blocking != 0;
   dali::TimeRange tr("daliCopyTensorNTo", dali::TimeRange::kGreen);
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
-    daliCopyTensorNToHelper<dali::CPUBackend>(ws, dst, n, dst_type, stream, non_blocking);
+    daliCopyTensorNToHelper<dali::CPUBackend>(ws, dst, n, dst_type, stream, nb);
   } else {
-    daliCopyTensorNToHelper<dali::GPUBackend>(ws, dst, n, dst_type, stream, non_blocking);
+    daliCopyTensorNToHelper<dali::GPUBackend>(ws, dst, n, dst_type, stream, nb);
   }
 }
 

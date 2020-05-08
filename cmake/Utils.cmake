@@ -160,8 +160,8 @@ macro(collect_sources DALI_SRCS_GROUP)
     "" # multi value keywords
     ${ARGV})
 
-  file(GLOB collect_sources_tmp *.cc *.cu)
-  file(GLOB collect_sources_tmp_test *_test.cc *_test.cu)
+  file(GLOB collect_sources_tmp *.cc *.cu *.c)
+  file(GLOB collect_sources_tmp_test *_test.cc *_test.cu *_test.c)
   remove(collect_sources_tmp "${collect_sources_tmp}" ${collect_sources_tmp_test})
   set(${DALI_SRCS_GROUP} ${${DALI_SRCS_GROUP}} ${collect_sources_tmp})
   if (COLLECT_SOURCES_PARENT_SCOPE)
@@ -183,7 +183,7 @@ macro(collect_test_sources DALI_TEST_SRCS_GROUP)
     "" # multi value keywords
     ${ARGV})
 
-  file(GLOB collect_test_sources_tmp_test *_test.cc *_test.cu)
+  file(GLOB collect_test_sources_tmp_test *_test.cc *_test.cu *_test.c)
   set(${DALI_TEST_SRCS_GROUP} ${${DALI_TEST_SRCS_GROUP}} ${collect_test_sources_tmp_test})
   if (COLLECT_TEST_SOURCES_PARENT_SCOPE)
     set(${DALI_TEST_SRCS_GROUP} ${${DALI_TEST_SRCS_GROUP}} PARENT_SCOPE)

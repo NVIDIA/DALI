@@ -28,7 +28,7 @@
 #include "dali/util/half.hpp"
 #include "dali/core/device_guard.h"
 #include "dali/core/python_util.h"
-#include "dali/operators/operators.h"
+#include "dali/operators.h"
 
 namespace dali {
 namespace python {

@@ -18,7 +18,7 @@
 #include "dali/pipeline/data/allocator.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/test/dali_test_config.h"
-#include "dali/operators/operators.h"
+#include "dali/operators.h"
 
 int main(int argc, char **argv) {
   dali::DALIInit(dali::OpSpec("CPUAllocator"),
