@@ -247,15 +247,10 @@ using int_const = std::integral_constant<int, value>;
 
 
 template <typename ReduceImpl>
-auto GetPreprocessorHelper(std::true_type, const ReduceImpl *impl)
-      ->decltype(impl->GetPreprocessorImpl()) {
-  return impl->GetPreprocessorImpl();
-}
-
-template <typename ReduceImpl>
-auto GetPreprocessorsHelper(std::true_type, const ReduceImpl *impl, WorkArea *wa)
-      ->decltype(impl->GetPreprocessorsImpl(*wa)) {
-  return impl->GetPreprocessorsImpl(*wa);
+auto GetPreprocessorHelper(
+      std::true_type, const ReduceImpl *impl, int sample_idx, bool reduce_batch)
+      ->decltype(impl->GetPreprocessorImpl(sample_idx, reduce_batch)) {
+  return impl->GetPreprocessorImpl(sample_idx, reduce_batch);
 }
 
 template <int non_reduced_dims, typename ReduceImpl>
@@ -266,26 +261,16 @@ auto GetPreprocessorBanksHelper(
 }
 
 template <typename ReduceImpl>
-auto GetPostprocessorHelper(std::true_type, const ReduceImpl *impl)
-      ->decltype(impl->GetPostprocessorImpl()) {
-  return impl->GetPostprocessorImpl();
+auto GetPostprocessorHelper(
+      std::true_type, const ReduceImpl *impl, int sample_idx, bool reduce_batch)
+      ->decltype(impl->GetPostprocessorImpl(sample_idx, reduce_batch)) {
+  return impl->GetPostprocessorImpl(sample_idx, reduce_batch);
 }
-
-template <typename ReduceImpl>
-auto GetPostprocessorsHelper(std::true_type, const ReduceImpl *impl, WorkArea *wa)
-      ->decltype(impl->GetPostprocessorsImpl(*wa)) {
-  return impl->GetPostprocessorsImpl(*wa);
-}
-
 
 template <bool do_preprocess>
 inline identity GetPreprocessorHelper(bool_const<do_preprocess>, ...) { return {}; }
-template <bool do_preprocess>
-inline identity *GetPreprocessorsHelper(bool_const<do_preprocess>, ...) { return nullptr; }
 template <bool do_postprocess>
 inline identity GetPostprocessorHelper(bool_const<do_postprocess>, ...) { return {}; }
-template <bool do_postprocess>
-inline identity *GetPostprocessorsHelper(bool_const<do_postprocess>, ...) { return nullptr; }
 template <int non_reduced_dims, bool do_preprocess>
 inline IdentityPreprocessor<non_reduced_dims> *
 GetPreprocessorBanksHelper(bool_const<do_preprocess>, ...) {
@@ -327,13 +312,11 @@ class ReduceImplGPU {
   }
 
   bool HasPreprocessingParams() const {
-    using pbank = std::remove_reference_t<decltype(
-      *GetPreprocessorBanks<true, 2>(std::declval<WorkArea&>(), 0))>;
-    return !std::is_empty<pbank>::value;
+    return !std::is_empty<PreprocessorBank<2>>::value;
   }
+
   bool HasPostprocessingParams() const {
-    using postprocessor = std::remove_reference_t<decltype(GetPostprocessor<true>())>;
-    return !std::is_empty<postprocessor>::value;
+    return !std::is_empty<Postprocessor<>>::value;
   }
 
   /*
@@ -351,26 +334,43 @@ class ReduceImplGPU {
   }
 
   template <bool do_preprocess, typename Derived = Actual>
-  auto *GetPreprocessors(WorkArea &wa) const {
-    return GetPreprocessorsHelper(
-      bool_const<do_preprocess>(), static_cast<const Derived *>(this), &wa);
+  auto GetPreprocessor(int sample_index, bool reduce_batch) const {
+    return GetPreprocessorHelper(
+      bool_const<do_preprocess>(), static_cast<const Derived *>(this), sample_index, reduce_batch);
+  }
+
+  template <bool do_postprocess, typename Derived = Actual>
+  auto GetPostprocessor(int sample_index, bool reduce_batch) const {
+    return GetPostprocessorHelper(
+      bool_const<do_postprocess>(), static_cast<const Derived *>(this), sample_index, reduce_batch);
   }
 
   template <bool do_preprocess, typename Derived = Actual>
-  auto GetPreprocessor() const {
-    return GetPreprocessorHelper(bool_const<do_preprocess>(), static_cast<const Derived *>(this));
+  auto *GetPreprocessors(WorkArea &wa) const {
+    using pp_t = std::remove_reference_t<decltype(GetPreprocessor<do_preprocess>(0, false))>;
+    pp_t *pp = nullptr;
+    if (!std::is_empty<pp_t>::value) {
+      int N = in_shape_.num_samples();
+      pp = wa.ParamBuffer<pp_t>(N);
+      for (int i = 0; i < N; i++)
+        pp[i] = GetPreprocessor<do_preprocess>(i, false);
+    }
+    return pp;
   }
 
   template <bool do_postprocess, typename Derived = Actual>
   auto *GetPostprocessors(WorkArea &wa) const {
-    return GetPostprocessorsHelper(
-      bool_const<do_postprocess>(), static_cast<const Derived *>(this), &wa);
+    using pp_t = std::remove_reference_t<decltype(GetPostprocessor<do_postprocess>(0, false))>;
+    pp_t *pp = nullptr;
+    if (!std::is_empty<pp_t>::value) {
+      int N = in_shape_.num_samples();
+      pp = wa.ParamBuffer<pp_t>(N);
+      for (int i = 0; i < N; i++)
+        pp[i] = GetPostprocessor<do_postprocess>(i, false);
+    }
+    return pp;
   }
 
-  template <bool do_postprocess, typename Derived = Actual>
-  auto GetPostprocessor() const {
-    return GetPostprocessorHelper(bool_const<do_postprocess>(), static_cast<const Derived *>(this));
-  }
 
   template <int non_reduced_dim, typename Derived = Actual>
   using PreprocessorBank = decltype(*std::declval<ReduceImplGPU&>().
@@ -378,11 +378,11 @@ class ReduceImplGPU {
 
   template <typename Derived = Actual>
   using Preprocessor =
-    decltype(std::declval<ReduceImplGPU&>().template GetPreprocessor<true, Derived>());
+    decltype(std::declval<ReduceImplGPU&>().template GetPreprocessor<true, Derived>(0, true));
 
   template <typename Derived = Actual>
   using Postprocessor =
-    decltype(std::declval<ReduceImplGPU&>().template GetPostprocessor<true, Derived>());
+    decltype(std::declval<ReduceImplGPU&>().template GetPostprocessor<true, Derived>(0, true));
 
 
   /**
@@ -867,8 +867,8 @@ class ReduceImplGPU {
     assert(!is_first || ctx.input.is_contiguous());
     WorkArea &wa = ctx.work_area;
 
-    auto pre = GetPreprocessor<is_first>();
-    auto post = GetPostprocessor<is_last>();
+    auto pre = GetPreprocessor<is_first>(0, true);
+    auto post = GetPostprocessor<is_last>(0, true);
 
     const StageIn *in = is_first ? reinterpret_cast<const StageIn *>(ctx.input.data[0])
                                  : wa.InputBuffer<StageIn>(stage.input_elements());
@@ -1039,7 +1039,7 @@ class ReduceImplGPU {
     dim3 grid(std::min<int>(div_ceil(sample_size, 1024), 1024));
 
     auto *pre = GetPreprocessorBanks<is_first, 1>(wa, -1);
-    auto post = GetPostprocessor<is_last>();
+    auto post = GetPostprocessor<is_last>(0, true);
 
     wa.CopyParamsToDevice(ctx.stream);
 

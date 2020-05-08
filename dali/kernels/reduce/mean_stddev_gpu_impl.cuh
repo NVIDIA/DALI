@@ -57,21 +57,11 @@ class MeanImplBase {
 
   using scale_t = typename Postprocessor::scale_t;
 
-  Postprocessor *GetPostprocessorsImpl(WorkArea &wa) const {
-    assert(!This().ReduceBatch());
-    int n = This().SimplifiedOutputShape().num_samples();
-    Postprocessor *pp = wa.ParamBuffer<Postprocessor>(n);
-    for (int i = 0; i < n; i++) {
-      DALI_ENFORCE(This().ReducedElements(i) > 0, "Cannot calculate a mean from 0 elements");
-      pp[i].scale = 1.0 / This().ReducedElements(i);
-    }
-    return pp;
-  }
-
-  Postprocessor GetPostprocessorImpl() const {
-    assert(This().ReduceBatch());
-    DALI_ENFORCE(This().TotalReducedElements() > 0, "Cannot calculate a mean from 0 elements");
-    return { static_cast<scale_t>(1.0 / This().TotalReducedElements()) };
+  Postprocessor GetPostprocessorImpl(int sample_index, bool reduce_batch) const {
+    int64_t reduced_elems = reduce_batch ? This().TotalReducedElements()
+                                         : This().ReducedElements(sample_index);
+    DALI_ENFORCE(reduced_elems > 0, "Cannot calculate a mean from 0 elements");
+    return { scale_t(1.0 / reduced_elems) };
   }
 };
 
@@ -102,8 +92,7 @@ class RootMeanSquareImplGPU
   template <int non_reduced_dims>
   using PreprocessorBank = UniformPreprocessorBank<non_reduced_dims, Preprocessor>;
 
-  Preprocessor GetPreprocessorImpl() const { return {}; }
-  Preprocessor *GetPreprocessorsImpl(WorkArea &wa) const { return nullptr; }
+  Preprocessor GetPreprocessorImpl(int sample_idx, bool batch) const { return {}; }
 
   template <int non_reduced_dims>
   PreprocessorBank<non_reduced_dims> *
@@ -204,21 +193,9 @@ class VarianceImplBase {
     mean_ = reshape(mean, This().SimplifiedOutputShape(), true);
   }
 
-  Preprocessor GetPreprocessorImpl() const {
-    assert(This().SimplifiedOutputShape().num_elements() == 1);
-    return Preprocessor { mean_.data[0] };
-  }
-
-  Preprocessor *GetPreprocessorsImpl(WorkArea &wa) const {
-    int n = This().SimplifiedInputShape().num_samples();
-    assert(This().SimplifiedOutputShape().num_elements() ==
-           This().SimplifiedOutputShape().num_samples());
-    Preprocessor *pp = wa.ParamBuffer<Preprocessor>(n);
-    for (int i = 0; i < n; i++) {
-      int o = This().ReduceBatch() ? 0 : i;
-      pp[i] = { mean_.data[o] };
-    }
-    return pp;
+  Preprocessor GetPreprocessorImpl(int sample_index, bool batch) const {
+    assert(sample_index < This().SimplifiedOutputShape().num_elements());
+    return Preprocessor { mean_.data[sample_index] };
   }
 
   PreprocessorBank<1> *
@@ -317,22 +294,11 @@ class RegularizedInvRMS {
 
   param_t regularization_ = 0.0f;
 
-  Postprocessor *GetPostprocessorsImpl(WorkArea &wa) const {
-    assert(!This().ReduceBatch());
-    int n = This().SimplifiedOutputShape().num_samples();
-    Postprocessor *pp = wa.ParamBuffer<Postprocessor>(n);
-    for (int i = 0; i < n; i++) {
-      DALI_ENFORCE(This().ReducedElements(i) > 0, "Cannot calculate a mean from 0 elements");
-      pp[i].scale = param_t(1.0 / This().ReducedElements(i));
-      pp[i].reg = regularization_;
-    }
-    return pp;
-  }
-
-  Postprocessor GetPostprocessorImpl() const {
-    assert(This().ReduceBatch());
-    DALI_ENFORCE(This().TotalReducedElements() > 0, "Cannot calculate a mean from 0 elements");
-    return { param_t(1.0f / This().TotalReducedElements()), regularization_ };
+  Postprocessor GetPostprocessorImpl(int sample_index, bool reduce_batch) const {
+    int64_t reduced_elems = reduce_batch ? This().TotalReducedElements()
+                                         : This().ReducedElements(sample_index);
+    DALI_ENFORCE(reduced_elems > 0, "Cannot calculate a mean from 0 elements");
+    return { param_t(1.0 / reduced_elems), regularization_ };
   }
 };
 
