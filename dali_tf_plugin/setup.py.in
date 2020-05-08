@@ -34,8 +34,8 @@ class CustomDistribution(Distribution):
         # to be built for different platforms
         self.ext_modules = [Extension('nvidia.dali_tf_plugin', [])]
 
-setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@',
-      description='NVIDIA DALI @DALI_FLAVOR@Tensorflow plugin. Git SHA: @GIT_SHA@',
+setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cu@CUDA_VERSION_SHORT_DIGIT_ONLY@',
+      description='NVIDIA DALI @DALI_FLAVOR@ Tensorflow plugin for CUDA @CUDA_VERSION_SHORT@. Git SHA: @GIT_SHA@',
       url='https://github.com/NVIDIA/dali',
       version='@DALI_VERSION@',
       author='NVIDIA Corporation',
@@ -44,7 +44,7 @@ setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@',
       include_package_data=True,
       zip_safe=False,
       install_requires = [
-          'nvidia-dali@DALI_FLAVOR_MINUS@==@DALI_VERSION@'
+          'nvidia-dali@DALI_FLAVOR_MINUS@-cu@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'
           ],
 
       cmdclass={
