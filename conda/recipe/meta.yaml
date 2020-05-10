@@ -58,7 +58,6 @@ requirements:
     - pkg-config
     - cmake >=3.12.4
     - make
-    - patchelf
   host:
     - python
     - future >=0.17.1

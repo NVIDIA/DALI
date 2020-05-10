@@ -105,6 +105,24 @@ DEPS_SONAME=(
 PKGNAME_PATH=dali/python/nvidia/dali/
 mkdir -p $PKGNAME_PATH/.libs
 
+# use LIEF master until a release with perf optimization is available
+TMP_PATH="$(mktemp -d)"
+pushd $TMP_PATH
+
+git clone https://github.com/lief-project/LIEF
+cd LIEF
+
+mkdir build
+cd build
+
+cmake ../
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+cp api/python/lief.so $(python -c "import sys; print(sys.path[-1])")
+rm -rf $TMP_PATH
+
+popd
+
+patch_elf="python ../dali/python/patcher.py"
 patched=()
 for filepath in "${DEPS_LIST[@]}"; do
     filename=$(basename $filepath)
@@ -120,24 +138,16 @@ for filepath in "${DEPS_LIST[@]}"; do
     cp $filepath $patchedpath
 
     echo "Patching DT_SONAME field in $patchedpath"
-    patchelf --set-soname $patchedname $patchedpath
+    ${patch_elf} --set-soname $patchedname $patchedpath
 done
 
 find $PKGNAME_PATH -name '*.so*' -o -name '*.bin' | while read sofile; do
-    for ((i=0;i<${#DEPS_LIST[@]};++i)); do
-        origname=${DEPS_SONAME[i]}
-        patchedname=${patched[i]}
-        if [[ "$origname" != "$patchedname" ]]; then
-            set +e
-            patchelf --print-needed $sofile | grep $origname 2>&1 >/dev/null
-            ERRCODE=$?
-            set -e
-            if [ "$ERRCODE" -eq "0" ]; then
-                echo "patching $sofile entry $origname to $patchedname"
-                patchelf --replace-needed $origname $patchedname $sofile
-            fi
-        fi
-    done
+    echo "*************************"
+    echo "patching: $sofile"
+    echo "from:  ${DEPS_SONAME[@]//[$'\t\r\n']}"
+    echo "to:    ${patched[@]//[$'\t\r\n']}"
+    ${patch_elf} --replace-needed ${DEPS_SONAME} ${patched} $sofile
+    echo "*************************"
 done
 
 # set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
@@ -145,8 +155,8 @@ PKGNAME_PATH=$PWD/dali/python/nvidia/dali
 find $PKGNAME_PATH -type f -name "*.so*" -o -name "*.bin" | while read FILE; do
     UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
     echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs'"
-    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs" $FILE
-    patchelf --print-rpath $FILE
+    ${patch_elf}--set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs" $FILE
+    ${patch_elf} --print-rpath $FILE
 done
 
 # pip install
