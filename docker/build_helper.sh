@@ -107,16 +107,7 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
         zip -rq $WHEEL *
         popd
         rm -rf $UNZIP_PATH
-        # rerun all things involving patchelf on striped binary
-        # we cannot strip after patchelf as according to the documentation
-        ###
-        ### The `strip' command from binutils generated broken executables when
-        ### applied to the output of patchelf (if `--set-rpath' or
-        ### `--set-interpreter' with a larger path than the original is used).
-        ### This appears to be a bug in binutils
-        ### (http://bugs.strategoxt.org/browse/NIXPKGS-85).
-
+        # rerun all things as we need to rebuild whl record anyway
         ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl
     fi
 fi
-

@@ -121,6 +121,9 @@ unzip -q $INWHL
 mkdir -p $PKGNAME_PATH/.libs
 popd
 
+SCRIPTPATH="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+patch_elf="python $SCRIPTPATH/patcher.py"
+echo ${patch_elf}
 # copy over needed dependent .so files over and tag them with their hash
 patched=()
 for filepath in "${DEPS_LIST[@]}"; do
@@ -135,56 +138,36 @@ for filepath in "${DEPS_LIST[@]}"; do
     fi
     echo "Copying $filepath to $patchedpath"
     cp $filepath $TMPDIR/$patchedpath
-
-    # HACK: CUDA libraries like libnvjpeg.so.9.0 set their .gnu.version info
-    # in the ELF... to their own name.  which means that if we go messing
-    # around with the SONAME, then anything that ever linked against that
-    # library will be broken.  For the rest of CUDA we don't have to deal
-    # with this because we rely on the CUDA libs to be installed as system
-    # libs.  libnvjpeg.so.9.0 is a special case because it's a newer addition
-    # that didn't originally ship with 9.0.
-    if [[ "$filename" == "libnvjpeg.so.9.0" ]]; then
-        echo "Skipping patch of DT_SONAME for $filename"
-        continue
-    fi
-
-    echo "Patching DT_SONAME field in $patchedpath"
-    patchelf --set-soname $patchedname $TMPDIR/$patchedpath
 done
 
 pushd $TMPDIR
 
-echo "patching to fix the so names to the hashed names"
+echo "patching to fix the so names to the hashed names, patching RPATH/RUNPATH"
 find $PKGNAME_PATH -name '*.so*' -o -name '*.bin' | while read sofile; do
-    for ((i=0;i<${#DEPS_LIST[@]};++i)); do
-        origname=${DEPS_SONAME[i]}
-        patchedname=${patched[i]}
-        if [[ "$origname" != "$patchedname" ]]; then
-            set +e
-            patchelf --print-needed $sofile | grep $origname 2>&1 >/dev/null
-            ERRCODE=$?
-            set -e
-            if [ "$ERRCODE" -eq "0" ]; then
-                echo "patching $sofile entry $origname to $patchedname"
-                patchelf --replace-needed $origname $patchedname $sofile
-            fi
-        fi
-    done
-done
+    new_so_path=''
+    if [ -n ${sofile%%*\.lib*} ]; then
+        # set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
+        UPDIRS=$(dirname $(echo "$sofile" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
+        new_so_path="\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs"
+    else
+        # set RPATH of .libs/ files to $ORIGIN
+        new_so_path="$ORIGIN"
+    fi
 
-# set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
-find $PKGNAME_PATH/* -type f -name "*.so*" -o -name "*.bin" | while read FILE; do
-    UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
-    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs'"
-    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs" $FILE
-    patchelf --print-rpath $FILE
-done
-
-# set RPATH of .libs/ files to $ORIGIN
-find $PKGNAME_PATH/.libs -maxdepth 1 -type f -name "*.so*" | while read sofile; do
-    echo "Setting rpath of $sofile to " '$ORIGIN'
-    patchelf --set-rpath '$ORIGIN' $sofile
-    patchelf --print-rpath $sofile
+    echo "*************************"
+    echo "patching $sofile:"
+    echo "from:             ${DEPS_SONAME[@]//[$'\t\r\n']}"
+    echo "to:               ${patched[@]//[$'\t\r\n']}"
+    echo "Setting rpath to: $new_so_path"
+    if [[ ${patched[@]} =~ $(basename $sofile) ]]; then
+        patchedname=$(basename $sofile)
+        echo "DT_SONAME to:     $patchedname"
+        ${patch_elf} --replace-needed ${DEPS_SONAME[@]} ${patched[@]} --set-rpath $new_so_path --set-soname $patchedname --file $sofile
+    else
+        ${patch_elf} --replace-needed ${DEPS_SONAME[@]} ${patched[@]} --set-rpath $new_so_path --file $sofile
+    fi
+    ${patch_elf} --print-rpath --file $sofile
+    echo "*************************"
 done
 
 # correct the metadata in the dist-info/WHEEL, e.g.:

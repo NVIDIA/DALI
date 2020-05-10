@@ -25,6 +25,13 @@ RUN pip install future setuptools wheel && \
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     ldconfig
 
+# use LIEF master until a release with perf optimization is available
+RUN cd /tmp && git clone https://github.com/lief-project/LIEF && cd LIEF && \
+    mkdir build && cd build && \
+    cmake ../ && make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    cp api/python/lief.so $(python -c "import sys; print(sys.path[-1])") && \
+    rm -rf /tmp/LIEF && cd /
+
 WORKDIR /opt/dali
 
 ARG CC

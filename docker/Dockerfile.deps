@@ -160,7 +160,7 @@ RUN LIBSND_VERSION=1.0.28 && cd /tmp                                            
     rm libsndfile-$LIBSND_VERSION.tar.gz                                                                       && \
     cd libsndfile-$LIBSND_VERSION                                                                              && \
     ./configure && make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                           && \
-    cd /tmp && rm -rf libsnd-$LIBSND_VERSION
+    cd /tmp && rm -rf libsndfile-$LIBSND_VERSION
 
 # CUDA
 COPY --from=cuda /usr/local/cuda /usr/local/cuda
