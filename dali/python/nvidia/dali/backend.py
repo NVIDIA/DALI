@@ -42,9 +42,8 @@ if not initialized:
                             "reaches the end of life on January 1st, 2020. To stay up to date with "
                             "DALI, please upgrade to Python 3.5 or later.")
     if __cuda_version__ < 100:
-        deprecation_warning("Support for CUDA versions older than 10.0 will soon be dropped "
-                            "and DALI build won't be provided. Please update your environment "
-                            "to CUDA version 10 or newer.")
+        deprecation_warning("DALI 0.22 is the last official release that supports CUDA 9. "
+                            "Please update your environment to CUDA version 10 or newer.")
 
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))
