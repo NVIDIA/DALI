@@ -110,48 +110,60 @@ def gen_cmd(dali_root_dir, file_list, process_includes=False):
     return cmd
 
 
-def lint(dali_root_dir, file_list, process_includes, n_subprocesses):
+def lint(dali_root_dir, file_list, process_includes, n_subproc):
     """
     n_subprocesses: how many subprocesses to use for linter processing
     Returns: 0 if lint passed, 1 otherwise
     """
-    subprocesses = []
-    diff = int(len(file_list) / n_subprocesses)
-    for process_idx in range(n_subprocesses - 1):
-        subprocesses.append(subprocess.Popen(
-            gen_cmd(dali_root_dir=dali_root_dir,
-                    file_list=file_list[process_idx * diff: (process_idx + 1) * diff],
-                    process_includes=process_includes)))
-    subprocesses.append(subprocess.Popen(
-        gen_cmd(dali_root_dir=dali_root_dir,
-                file_list=file_list[(n_subprocesses - 1) * diff:],
-                process_includes=process_includes)))
-    ret = 0
-    for sp in subprocesses:
-        ret += sp.wait()
-    return 0 if ret == 0 else 1
+    assert n_subproc > 0
+    if len(file_list)==0:
+        return 0
+    cmds = []
+    diff = int(len(file_list) / n_subproc)
+    for process_idx in range(n_subproc - 1):
+        cmds.append(gen_cmd(dali_root_dir=dali_root_dir,
+                            file_list=file_list[process_idx * diff: (process_idx + 1) * diff],
+                            process_includes=process_includes))
+    cmds.append(gen_cmd(dali_root_dir=dali_root_dir,
+                        file_list=file_list[(n_subproc - 1) * diff:],
+                        process_includes=process_includes))
+    subprocesses = [subprocess.Popen(cmd, stdout=subprocess.PIPE) for cmd in cmds]
+    success = True
+    for subproc in subprocesses:
+        stdout, stderr = subproc.communicate()
+        success *= not bool(subproc.poll())
+        # print(stdout, stderr)
+    return 0 if success else 1
 
 
-def main(dali_root_dir, n_subprocesses=1):
-    n_subprocesses = n_subprocesses if n_subprocesses >= 1 else 1
-    cc_files = gather_files(os.path.join(dali_root_dir, "dali"),
-                            ["*.cc", "*.h", "*.cu", "*.cuh"], negative_filters)
-    inc_files = gather_files(os.path.join(dali_root_dir, "include"),
-                             ["*.h", "*.cuh", "*.inc", "*.inl"], negative_filters)
+def main(dali_root_dir, n_subproc=1, file_list=None):
+    cc_files = gather_files(
+        os.path.join(dali_root_dir, "dali"),
+        ["*.cc", "*.h", "*.cu", "*.cuh"] if file_list is None else file_list,
+        negative_filters)
+    inc_files = gather_files(
+        os.path.join(dali_root_dir, "include"),
+        ["*.h", "*.cuh", "*.inc", "*.inl"] if file_list is None else file_list,
+        negative_filters)
+
     cc_code = lint(dali_root_dir=dali_root_dir, file_list=cc_files, process_includes=False,
-                   n_subprocesses=n_subprocesses)
+                   n_subproc=n_subproc)
     inc_code = lint(dali_root_dir=dali_root_dir, file_list=inc_files, process_includes=True,
-                    n_subprocesses=n_subprocesses)
+                    n_subproc=n_subproc)
+
     if cc_code != 0 or inc_code != 0:
         sys.exit(1)
     sys.exit(0)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Run linter check for DALI files")
+    parser = argparse.ArgumentParser(description="Run linter check for DALI files. "
+             "Gather all code-files (h, cuh, cc, cu, inc, inl) and perform linter check on them.")
     parser.add_argument('dali_root_path', type=str,
                         help='Root path of DALI repository (pointed directory should contain `.git` folder)')
     parser.add_argument('--nproc', type=int, default=1,
                         help='Number of processes to spawn for linter verification')
+    parser.add_argument('--file-list', nargs='*',
+                        help='List of files. This overrides the default scenario')
     args = parser.parse_args()
-    main(str(args.dali_root_path), args.nproc)
+    main(str(args.dali_root_path), args.nproc, file_list=args.file_list)
