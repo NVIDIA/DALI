@@ -191,10 +191,8 @@ inline void CalculateReducedShape(TensorListShape<> &out_shape,
   int out_dim = keep_dims ? in_dim : in_dim - axes.size();
   assert(out_dim >= 0);
 
-  if (out_dim == 0) {  // workaround until we have proper scalars
-    out_shape.resize(out_samples, 1);
-    for (int i = 0; i < out_samples; i++)
-      out_shape.tensor_shape_span(i)[0] = 1;
+  if (out_dim == 0) {
+    out_shape.resize(out_samples, 0);
     return;
   }
   out_shape.resize(out_samples, out_dim);

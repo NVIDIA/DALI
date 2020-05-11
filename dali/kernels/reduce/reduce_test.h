@@ -15,6 +15,8 @@
 #ifndef DALI_KERNELS_REDUCE_REDUCE_TEST_H_
 #define DALI_KERNELS_REDUCE_REDUCE_TEST_H_
 
+#include <memory>
+#include <utility>
 #include "dali/core/span.h"
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/reduce/online_reducer.h"
@@ -105,10 +107,11 @@ void RefReduceAxes(Out *out, const In *in,
 
 template <typename Out, typename In, typename Reduction>
 void RefReduce(const TensorView<StorageCPU, Out> &out, const TensorView<StorageCPU, In> &in,
-               span<const int> axes, Reduction R = {}) {
+               span<const int> axes, bool keep_dims, Reduction R = {}) {
   uint64_t mask = 0;
-  for (int idx : axes)
+  for (int idx : axes) {
     mask |= 1uL << idx;
+  }
 
   SmallVector<int, 6> reduced_dims, non_reduced_dims;
   auto strides = GetStrides(in.shape.shape);
@@ -118,13 +121,17 @@ void RefReduce(const TensorView<StorageCPU, Out> &out, const TensorView<StorageC
   // factorize the tensor into reduced and non-reduced parts
 
   int ndim = strides.size();
-  for (int i = 0; i < ndim; i++) {
+  for (int i = 0, o = 0; i < ndim; i++) {
     if (mask & (1 << i)) {
-      assert(out.shape[i] == 1);
+      if (keep_dims) {
+        assert(out.shape[o] == 1);
+        o++;
+      }
       reduced_strides.push_back(strides[i]);
       reduced_extents.push_back(in.shape[i]);
     } else {
-      assert(out.shape[i] == in.shape[i]);
+      assert(out.shape[o] == in.shape[i]);
+      o++;
       non_reduced_strides.push_back(strides[i]);
       non_reduced_extents.push_back(in.shape[i]);
     }
@@ -133,6 +140,34 @@ void RefReduce(const TensorView<StorageCPU, Out> &out, const TensorView<StorageC
   RefReduceAxes(out.data, in.data,
     reduced_strides.data(), reduced_extents.data(), reduced_extents.size(),
     non_reduced_strides.data(), non_reduced_extents.data(), non_reduced_extents.size(), R);
+}
+
+template <typename Out, typename In, typename Reduction>
+void RefReduce(const TensorListView<StorageCPU, Out> &out,
+               const TensorListView<StorageCPU, In> &in,
+               span<const int> axes, bool keep_dims, bool batch, Reduction R = {}) {
+  if (batch && in.num_samples() > 1) {
+    assert(out.shape.num_samples() == 1);
+    auto s_shape = uniform_list_shape(in.num_samples(), out.shape[0]);
+    unique_ptr<Out> s_data(new Out[s_shape.num_elements()]);
+    auto reduced_samples = make_tensor_list_cpu(s_data.get(), std::move(s_shape));
+    RefReduce(reduced_samples, in, axes, keep_dims, false, R);
+    int64_t n = out.shape[0].num_elements();
+    int N = in.num_samples();
+    for (int64_t j = 0; j < n; j++) {
+      OnlineReducer<Out, Reduction> red;
+      red.reset();
+      for (int i = 0; i < N; i++) {
+        red.add(reduced_samples.data[i][j], R);
+      }
+      out.data[0][j] = red.result();
+    }
+  } else {
+    assert(out.num_samples() == in.num_samples());
+    for (int i =0; i < in.num_samples(); i++) {
+      RefReduce(out[i], in[i], axes, keep_dims, R);
+    }
+  }
 }
 
 }  // namespace kernels

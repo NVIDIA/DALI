@@ -310,7 +310,7 @@ class RegularizedInvRMS {
 };
 
 /**
- * @brief Implements regularize inverse standard  deviation reduction with externally provided mean
+ * @brief Implements regularized inverse standard  deviation reduction with externally provided mean
  */
 template <typename Out, typename In, typename Mean = Out, typename Acc = Out>
 class InvStdDevImplGPU :

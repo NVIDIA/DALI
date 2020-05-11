@@ -319,7 +319,7 @@ class ReduceImplGPU {
   /// Get number of stages - for testing
   int GetNumStages() const { return stages_.size(); }
 
-  /// Trye, if reduction across input tensors was requested
+  /// True, if reduction across input tensors was requested
   bool ReduceBatch() const { return reduce_batch_; }
 
   /// Input shape after simplification (with merged dimensions)

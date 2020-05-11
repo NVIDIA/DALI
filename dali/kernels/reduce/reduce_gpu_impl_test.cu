@@ -21,10 +21,109 @@
 #include "dali/test/tensor_test_utils.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/reduce/reduce_test.h"
+#include "dali/kernels/reduce/reduce_gpu_test.h"
 
 namespace dali {
 namespace kernels {
 namespace reduce_impl {
+
+TEST(ReduceImplGPU, ReducedShape_NoOp) {
+  TensorListShape<> in = {{
+    { 1, 2, 3 },
+    { 4, 5, 6 }
+  }};
+  TensorListShape<> ref = {{
+    { 1, 2, 3 },
+    { 4, 5, 6 }
+  }};
+  TensorListShape<> out;
+  CalculateReducedShape(out, in, {}, false, false);
+  EXPECT_EQ(out, ref);
+}
+
+TEST(ReduceImplGPU, ReducedShape_BatchOnly) {
+  TensorListShape<> in = {{
+    { 3, 4, 5 },
+    { 3, 4, 5 }
+  }};
+  TensorListShape<> ref = {{
+    { 3, 4, 5 }
+  }};
+  TensorListShape<> out;
+  CalculateReducedShape(out, in, {}, false, true);
+  EXPECT_EQ(out, ref);
+}
+
+TEST(ReduceImplGPU, ReducedShape_SomeAxes_KeepDims) {
+  TensorListShape<> in = {{
+    { 2, 3, 4 },
+    { 5, 6, 7 }
+  }};
+  TensorListShape<> ref = {{
+    { 1, 3, 1 },
+    { 1, 6, 1 }
+  }};
+  int axes[] = { 0, 2 };
+  TensorListShape<> out;
+  CalculateReducedShape(out, in, make_span(axes), true, false);
+  EXPECT_EQ(out, ref);
+}
+
+TEST(ReduceImplGPU, ReducedShape_SomeAxes_NoKeepDims_Batch) {
+  TensorListShape<> in = {{
+    { 3, 15, 5, 17 },
+    { 3, 16, 5, 18 }
+  }};
+  TensorListShape<> ref = {{
+    { 3, 5 }
+  }};
+  int axes[] = { 1 };
+  TensorListShape<> out;
+  CalculateReducedShape(out, in, make_span(axes), false, true);
+  EXPECT_EQ(out, ref);
+}
+
+TEST(ReduceImplGPU, ReducedShape_AllAxes_NoKeepDims) {
+  TensorListShape<> in = {{
+    { 1, 2 },
+    { 3, 4 }
+  }};
+  TensorListShape<> ref = {{
+    TensorShape<>{},
+    TensorShape<>{}
+  }};
+  int axes[] = { 0, 1 };
+  TensorListShape<> out;
+  CalculateReducedShape(out, in, make_span(axes), false, false);
+  EXPECT_EQ(out, ref);
+}
+
+TEST(ReduceImplGPU, ReducedShape_AllAxes_KeepDims_Batch) {
+  TensorListShape<> in = {{
+    { 1, 2, 3, 4 },
+    { 5, 6, 7, 8 }
+  }};
+  TensorListShape<> ref = {{
+    { 1, 1, 1, 1 }
+  }};
+  int axes[] = { 0, 1, 2, 3 };
+  TensorListShape<> out;
+  CalculateReducedShape(out, in, make_span(axes), true, true);
+  EXPECT_EQ(out, ref);
+}
+
+TEST(ReduceImplGPU, ReducedShape_ScalarInput_batch) {
+  TensorListShape<> in = {{
+    TensorShape<>{},
+    TensorShape<>{}
+  }};
+  TensorListShape<> ref = {{
+    TensorShape<>{}
+  }};
+  TensorListShape<> out;
+  CalculateReducedShape(out, in, {}, true, true);
+  EXPECT_EQ(out, ref);
+}
 
 TEST(ReduceImplGPU, SimplifyComplex) {
   TensorListShape<> tls = {{
@@ -143,19 +242,18 @@ TEST(SumImplGPU, Inner) {
     { 3, 720, 1280 },
     { 1, 576, 720 }
   }};
-  int axes[] = { 1, 2 };
-  SumImplGPU<int64_t, uint8_t> sum;
-  KernelContext ctx = {};
-  auto req = sum.Setup(ctx, in_shape, make_span(axes), true, false);
   TensorListShape<> ref_out_shape = {{
     { 3, 1, 1 },
     { 3, 1, 1 },
     { 1, 1, 1 }
   }};
-  EXPECT_EQ(req.output_shapes[0], ref_out_shape);
-  EXPECT_GT(sum.GetNumStages(), 1);  // should be more than 1 stage for this scale of reduction
-  auto &input_stage = sum.GetStage(0);
-  auto &output_stage = sum.GetStage(sum.GetNumStages() - 1);
+  int axes[] = { 1, 2 };
+
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, make_span(axes), true, false);
+  EXPECT_GT(test.kernel.GetNumStages(), 1);  // should be more than 1 stage - large extent
+  auto &input_stage = test.kernel.GetStage(0);
+  auto &output_stage = test.kernel.GetStage(test.kernel.GetNumStages() - 1);
   for (int i = 0; i < in_shape.num_samples(); i++) {
     auto sample_shape = in_shape[i];
     EXPECT_EQ(input_stage.shape[i].inner, 1);
@@ -164,31 +262,12 @@ TEST(SumImplGPU, Inner) {
     EXPECT_EQ(output_stage.shape[i].reduced_out, 1);
   }
 
-  ScratchpadAllocator sa;
-  sa.Reserve(req.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  test.FillData(0, 255);
+  test.Run();
 
-  std::mt19937_64 rng(12345);
+  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), true, false, reductions::sum());
 
-  TestTensorList<uint8_t> in;
-  in.reshape(in_shape);
-  auto in_cpu = in.cpu();
-  UniformRandomFill(in_cpu, rng, 0, 255);
-
-  TestTensorList<int64_t> out;
-  out.reshape(req.output_shapes[0]);
-  sum.Run(ctx, out.gpu(), in.gpu());
-
-  auto out_cpu = out.cpu(ctx.gpu.stream);
-  TestTensorList<int64_t> ref;
-  ref.reshape(ref_out_shape);
-  auto ref_cpu = ref.cpu();
-  for (int i = 0; i < ref_cpu.num_samples(); i++) {
-    RefReduce(ref_cpu[i], in_cpu[i], make_span(axes), reductions::sum());
-  }
-
-  Check(out_cpu, ref_cpu);
+  test.Check();
 }
 
 
@@ -198,19 +277,19 @@ TEST(SumImplGPU, Outer) {
     { 720, 1280, 3 },
     { 576, 720, 1 }
   }};
-  int axes[] = { 0, 1 };
-  SumImplGPU<int64_t, uint8_t> sum;
-  KernelContext ctx = {};
-  auto req = sum.Setup(ctx, in_shape, make_span(axes), true, false);
   TensorListShape<> ref_out_shape = {{
     { 1, 1, 3 },
     { 1, 1, 3 },
     { 1, 1, 1 }
   }};
-  EXPECT_EQ(req.output_shapes[0], ref_out_shape);
-  EXPECT_GT(sum.GetNumStages(), 1);  // should be more than 1 stage for this scale of reduction
-  auto &input_stage = sum.GetStage(0);
-  auto &output_stage = sum.GetStage(sum.GetNumStages() - 1);
+  int axes[] = { 0, 1 };
+
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, make_span(axes), true, false);
+
+  EXPECT_GT(test.kernel.GetNumStages(), 1);  // should be more than 1 stage - large extent
+  auto &input_stage = test.kernel.GetStage(0);
+  auto &output_stage = test.kernel.GetStage(test.kernel.GetNumStages() - 1);
   for (int i = 0; i < in_shape.num_samples(); i++) {
     auto sample_shape = in_shape[i];
     EXPECT_EQ(input_stage.shape[i].outer, 1);
@@ -219,31 +298,12 @@ TEST(SumImplGPU, Outer) {
     EXPECT_EQ(output_stage.shape[i].reduced_out, 1);
   }
 
-  ScratchpadAllocator sa;
-  sa.Reserve(req.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  test.FillData(0, 255);
+  test.Run();
 
-  std::mt19937_64 rng(12345);
+  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), true, false, reductions::sum());
 
-  TestTensorList<uint8_t> in;
-  in.reshape(in_shape);
-  auto in_cpu = in.cpu();
-  UniformRandomFill(in_cpu, rng, 0, 255);
-
-  TestTensorList<int64_t> out;
-  out.reshape(req.output_shapes[0]);
-  sum.Run(ctx, out.gpu(), in.gpu());
-
-  auto out_cpu = out.cpu(ctx.gpu.stream);
-  TestTensorList<int64_t> ref;
-  ref.reshape(ref_out_shape);
-  auto ref_cpu = ref.cpu();
-  for (int i = 0; i < ref_cpu.num_samples(); i++) {
-    RefReduce(ref_cpu[i], in_cpu[i], make_span(axes), reductions::sum());
-  }
-
-  Check(out_cpu, ref_cpu);
+  test.Check();
 }
 
 TEST(SumImplGPU, SplitStage) {
@@ -252,43 +312,22 @@ TEST(SumImplGPU, SplitStage) {
     { 15, 4, 128000 },
     { 72000, 1, 7 }
   }};
-  int axes[] = { 0, 2 };
-  SumImplGPU<int64_t, uint8_t> sum;
-  KernelContext ctx = {};
-  auto req = sum.Setup(ctx, in_shape, make_span(axes), true, false);
   TensorListShape<> ref_out_shape = {{
     { 1, 2, 1 },
     { 1, 4, 1 },
     { 1, 1, 1 }
   }};
-  EXPECT_EQ(req.output_shapes[0], ref_out_shape);
-  EXPECT_GE(sum.GetNumStages(), 4);  // both reduced axes must be split due to large max extent
+  int axes[] = { 0, 2 };
 
-  ScratchpadAllocator sa;
-  sa.Reserve(req.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, make_span(axes), true, false);
+  EXPECT_GE(test.kernel.GetNumStages(), 4);  // both reduced axes must be split
+  test.FillData(0, 255);
+  test.Run();
 
-  std::mt19937_64 rng(12345);
+  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), true, false, reductions::sum());
 
-  TestTensorList<uint8_t> in;
-  in.reshape(in_shape);
-  auto in_cpu = in.cpu();
-  UniformRandomFill(in_cpu, rng, 0, 255);
-
-  TestTensorList<int64_t> out;
-  out.reshape(req.output_shapes[0]);
-  sum.Run(ctx, out.gpu(), in.gpu());
-
-  auto out_cpu = out.cpu(ctx.gpu.stream);
-  TestTensorList<int64_t> ref;
-  ref.reshape(ref_out_shape);
-  auto ref_cpu = ref.cpu();
-  for (int i = 0; i < ref_cpu.num_samples(); i++) {
-    RefReduce(ref_cpu[i], in_cpu[i], make_span(axes), reductions::sum());
-  }
-
-  Check(out_cpu, ref_cpu);
+  test.Check();
 }
 
 
@@ -299,45 +338,22 @@ TEST(SumImplGPU, WholeSamples) {
     { 0, 0 },
     { 1280, 300 },
   }};
-  int axes[] = { 0, 1 };
-  SumImplGPU<int64_t, uint8_t> sum;
-  KernelContext ctx = {};
-  auto req = sum.Setup(ctx, in_shape, make_span(axes), true, false);
   TensorListShape<> ref_out_shape = {{
     { 1, 1 },
     { 1, 1 },
     { 1, 1 },
     { 1, 1 }
   }};
-  EXPECT_EQ(req.output_shapes[0], ref_out_shape);
-  EXPECT_GE(sum.GetNumStages(), 2);
+  int axes[] = { 0, 1 };
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, make_span(axes), true, false);
+  EXPECT_GE(test.kernel.GetNumStages(), 2);  // at least two stages - large extent
+  test.FillData(0, 255);
+  test.Run();
 
-  ScratchpadAllocator sa;
-  sa.Reserve(req.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), true, false, reductions::sum());
 
-  std::mt19937_64 rng(12345);
-
-  TestTensorList<uint8_t> in;
-  in.reshape(in_shape);
-  auto in_cpu = in.cpu();
-  UniformRandomFill(in_cpu, rng, 0, 255);
-
-  TestTensorList<int64_t> out;
-  out.reshape(req.output_shapes[0]);
-  cudaMemset(out.gpu().data[0], -1, out.gpu().num_elements() * sizeof(int64_t));
-  sum.Run(ctx, out.gpu(), in.gpu());
-
-  auto out_cpu = out.cpu(ctx.gpu.stream);
-  TestTensorList<int64_t> ref;
-  ref.reshape(ref_out_shape);
-  auto ref_cpu = ref.cpu();
-  for (int i = 0; i < ref_cpu.num_samples(); i++) {
-    RefReduce(ref_cpu[i], in_cpu[i], make_span(axes), reductions::sum());
-  }
-
-  Check(out_cpu, ref_cpu);
+  test.Check();
 }
 
 
@@ -348,40 +364,19 @@ TEST(SumImplGPU, All) {
     { 1280, 300 }
   }};
   int axes[] = { 0, 1 };
-  SumImplGPU<int64_t, uint8_t> sum;
-  KernelContext ctx = {};
-  auto req = sum.Setup(ctx, in_shape, make_span(axes), true, true);
   TensorListShape<> ref_out_shape = {{
     { 1, 1 }
   }};
-  EXPECT_EQ(req.output_shapes[0], ref_out_shape);
-  EXPECT_GE(sum.GetNumStages(), 2);
 
-  ScratchpadAllocator sa;
-  sa.Reserve(req.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, make_span(axes), true, true);
+  EXPECT_GE(test.kernel.GetNumStages(), 2);  // at least two stages - sample + all
+  test.FillData(0, 255);
+  test.Run();
 
-  std::mt19937_64 rng(12345);
+  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), true, true, reductions::sum());
 
-  TestTensorList<uint8_t> in;
-  in.reshape(in_shape);
-  auto in_cpu = in.cpu();
-  UniformRandomFill(in_cpu, rng, 0, 255);
-
-  TestTensorList<int64_t> out;
-  out.reshape(req.output_shapes[0]);
-  sum.Run(ctx, out.gpu(), in.gpu());
-
-  auto out_cpu = out.cpu(ctx.gpu.stream);
-  int64_t ref = 0;
-  for (int i = 0; i < in_cpu.num_samples(); i++) {
-    auto tv = in_cpu[i];
-    int64_t total_n = tv.num_elements();
-    for (int j = 0; j < total_n; j++)
-      ref += tv.data[j];
-  }
-  EXPECT_EQ(*out_cpu.data[0], ref);
+  test.Check();
 }
 
 TEST(SumImplGPU, BatchOnly) {
@@ -390,47 +385,19 @@ TEST(SumImplGPU, BatchOnly) {
     { 480, 640 },
     { 480, 640 }
   }};
-  SumImplGPU<int64_t, uint8_t> sum;
-  KernelContext ctx = {};
-  auto req = sum.Setup(ctx, in_shape, {}, true, true);
   TensorListShape<> ref_out_shape = {{
     { 480, 640 }
   }};
-  EXPECT_EQ(req.output_shapes[0], ref_out_shape);
-  EXPECT_EQ(sum.GetNumStages(), 1);
 
-  ScratchpadAllocator sa;
-  sa.Reserve(req.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, {}, false, true);
+  EXPECT_EQ(test.kernel.GetNumStages(), 1);  // just one stage - fold
+  test.FillData(0, 255);
+  test.Run();
 
-  std::mt19937_64 rng(12345);
+  RefReduce(test.ref.cpu(), test.in.cpu(), {}, false, true, reductions::sum());
 
-  TestTensorList<uint8_t> in;
-  in.reshape(in_shape);
-  auto in_cpu = in.cpu();
-  UniformRandomFill(in_cpu, rng, 0, 255);
-
-  TestTensorList<int64_t> out;
-  out.reshape(req.output_shapes[0]);
-  sum.Run(ctx, out.gpu(), in.gpu());
-
-  TestTensorList<int64_t> ref;
-  ref.reshape(ref_out_shape);
-  auto ref_cpu = ref.cpu();
-  int64_t n = ref_cpu.num_elements();
-  int64_t N = in_cpu.num_samples();
-  for (int j = 0; j < n; j++) {
-    int64_t sum = 0;
-    for (int i = 0; i < N; i++) {
-      sum += in_cpu.data[i][j];
-    }
-    ref_cpu.data[0][j] = sum;
-  }
-
-  auto out_cpu = out.cpu();
-
-  Check(out_cpu, ref_cpu);
+  test.Check();
 }
 
 TEST(SumImplGPU, SplitStageBatch) {
@@ -439,57 +406,20 @@ TEST(SumImplGPU, SplitStageBatch) {
     { 15, 3, 128000 },
     { 72000, 3, 7 }
   }};
-  int axes[] = { 0, 2 };
-  SumImplGPU<int64_t, uint8_t> sum;
-  KernelContext ctx = {};
-  auto req = sum.Setup(ctx, in_shape, make_span(axes), false, true);
   TensorListShape<> ref_out_shape = {{
     TensorShape<>{3}
   }};
-  EXPECT_EQ(req.output_shapes[0], ref_out_shape);
-  EXPECT_GE(sum.GetNumStages(), 4);  // both reduced axes must be split due to large max extent
+  int axes[] = { 0, 2 };
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, make_span(axes), false, true);
+  test.FillData(0, 255);
 
-  ScratchpadAllocator sa;
-  sa.Reserve(req.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  EXPECT_GE(test.kernel.GetNumStages(), 4);  // both reduced axes must be split
+  test.Run();
 
-  std::mt19937_64 rng(12345);
+  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), false, true, reductions::sum());
 
-  TestTensorList<uint8_t> in;
-  in.reshape(in_shape);
-  auto in_cpu = in.cpu();
-  UniformRandomFill(in_cpu, rng, 0, 255);
-
-  TestTensorList<int64_t> out;
-  out.reshape(req.output_shapes[0]);
-  sum.Run(ctx, out.gpu(), in.gpu());
-
-  auto out_cpu = out.cpu(ctx.gpu.stream);
-  TestTensorList<int64_t> ref_samples, ref;
-  TensorListShape<> ref_samples_shape = {{
-    { 1, 3, 1 },
-    { 1, 3, 1 },
-    { 1, 3, 1 }
-  }};
-
-  ref.reshape(ref_out_shape);
-  ref_samples.reshape(ref_samples_shape);
-  auto ref_cpu = ref.cpu();
-  auto ref_samples_cpu = ref_samples.cpu();
-  int N = ref_samples_shape.num_samples();
-  for (int i = 0; i < N; i++) {
-    RefReduce(ref_samples_cpu[i], in_cpu[i], make_span(axes), reductions::sum());
-  }
-  int64_t n = ref_out_shape.num_elements();
-  for (int j = 0; j < n; j++) {
-    int64_t sum = 0;
-    for (int i = 0; i < N; i++)
-      sum += ref_samples_cpu.data[i][j];
-    ref_cpu.data[0][j] = sum;
-  }
-
-  Check(out_cpu, ref_cpu);
+  test.Check();
 }
 
 
@@ -499,33 +429,19 @@ TEST(SumImplGPU, All_ZeroSize) {
     TensorShape<>{0, 0},
     TensorShape<>{0, 0},
   }};
-  int axes[] = { 0, 1 };
-  SumImplGPU<int64_t, uint8_t> sum;
-  KernelContext ctx = {};
-  auto req = sum.Setup(ctx, in_shape, make_span(axes), false, true);
   TensorListShape<> ref_out_shape = {{
-    { 1 }
+    TensorShape<>{}
   }};
-  EXPECT_EQ(req.output_shapes[0], ref_out_shape);
+  int axes[] = { 0, 1 };
 
-  ScratchpadAllocator sa;
-  sa.Reserve(req.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, make_span(axes), false, true);
+  test.FillData(0, 255);
+  test.Run();
 
-  std::mt19937_64 rng(12345);
+  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), false, true, reductions::sum());
 
-  TestTensorList<uint8_t> in;
-  in.reshape(in_shape);
-  auto in_cpu = in.cpu();
-  UniformRandomFill(in_cpu, rng, 0, 255);
-
-  TestTensorList<int64_t> out;
-  out.reshape(req.output_shapes[0]);
-  cudaMemset(out.gpu().data[0], -1, out.gpu().num_elements() * sizeof(int64_t));
-  sum.Run(ctx, out.gpu(), in.gpu());
-
-  EXPECT_EQ(*out.cpu().data[0], 0uL);
+  test.Check();
 }
 
 }  // namespace reduce_impl
