@@ -115,7 +115,6 @@ def lint(dali_root_dir, file_list, process_includes, n_subproc):
     n_subprocesses: how many subprocesses to use for linter processing
     Returns: 0 if lint passed, 1 otherwise
     """
-    assert n_subproc > 0
     if len(file_list)==0:
         return 0
     cmds = []
@@ -167,4 +166,5 @@ if __name__ == '__main__':
     parser.add_argument('--file-list', nargs='*',
                         help='List of files. This overrides the default scenario')
     args = parser.parse_args()
+    assert args.nproc > 0
     main(str(args.dali_root_path), args.nproc, file_list=args.file_list)
