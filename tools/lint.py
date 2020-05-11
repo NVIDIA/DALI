@@ -127,12 +127,13 @@ def lint(dali_root_dir, file_list, process_includes, n_subproc):
     cmds.append(gen_cmd(dali_root_dir=dali_root_dir,
                         file_list=file_list[(n_subproc - 1) * diff:],
                         process_includes=process_includes))
-    subprocesses = [subprocess.Popen(cmd, stdout=subprocess.PIPE) for cmd in cmds]
+    subprocesses = [subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for cmd in cmds]
     success = True
     for subproc in subprocesses:
         stdout, stderr = subproc.communicate()
         success *= not bool(subproc.poll())
-        # print(stdout, stderr)
+        if len(stderr) > 0:
+            print(stderr.decode("utf-8"))
     return 0 if success else 1
 
 
