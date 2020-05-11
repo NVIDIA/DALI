@@ -19,6 +19,7 @@ import glob
 import itertools
 import re
 import argparse
+import sys
 
 # Linter script, that calls cpplint.py, specifically for DALI repo.
 # This comes in handy for specifying pre-push git hook, so that
@@ -99,8 +100,11 @@ def main(dali_root_dir):
                             ["*.cc", "*.h", "*.cu", "*.cuh"], negative_filters)
     inc_files = gather_files(os.path.join(dali_root_dir, "include"),
                              ["*.h", "*.cuh", "*.inc", "*.inl"], negative_filters)
-    os.system(gen_cmd(dali_root_dir=dali_root_dir, file_list=cc_files, process_includes=False))
-    os.system(gen_cmd(dali_root_dir=dali_root_dir, file_list=inc_files, process_includes=True))
+    cc_code = os.system(gen_cmd(dali_root_dir=dali_root_dir, file_list=cc_files, process_includes=False))
+    inc_code = os.system(gen_cmd(dali_root_dir=dali_root_dir, file_list=inc_files, process_includes=True))
+    if cc_code != 0 or inc_code !=0:
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == '__main__':
