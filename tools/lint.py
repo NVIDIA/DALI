@@ -22,9 +22,20 @@ import argparse
 import sys
 
 # Linter script, that calls cpplint.py, specifically for DALI repo.
-# This comes in handy for specifying pre-push git hook, so that
-# linter is automatically applied.
-# To configure this hook, edit `.git/hooks
+# This will be called in `make lint` cmake target
+
+# Q: How to configure git hook for pre-push linter check?
+# A: Create a file `.git/hooks/pre-push`:
+#
+# #!/bin/sh
+# DALI_ROOT_DIR=$(git rev-parse --show-toplevel)
+# python $DALI_ROOT_DIR/tools/lint.py $DALI_ROOT_DIR
+# ret=$?
+# if [ $ret -ne 0 ]; then
+#     exit 1
+# fi
+# exit 0
+
 
 # These filters are regexes, not typical unix-like path specification
 negative_filters = [
