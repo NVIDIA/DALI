@@ -8,7 +8,8 @@ if [ -z $PYVER ]; then
     exit 1
 fi
 
-export CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1\2/')
+export CUDA_VERSION_DIGIT_ONLY=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1\2/')
+export CUDA_VERSION_STR=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1.\2/')
 
 # Adding conda-forge channel for dependencies
 conda config --add channels conda-forge

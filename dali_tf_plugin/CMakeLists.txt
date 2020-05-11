@@ -13,6 +13,7 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.2)
+project(dali_tf)
 
 set(DALI_ROOT "${PROJECT_SOURCE_DIR}/..")
 

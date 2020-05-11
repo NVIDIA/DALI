@@ -159,7 +159,9 @@ echo "DALI_PATH is ${DALI_PATH}"
 pushd $SRC_DIR/dali_tf_plugin/
 mkdir -p dali_tf_sdist_build
 cd dali_tf_sdist_build
+
 cmake .. \
+      -DCUDA_VERSION:STRING="${CUDA_VERSION_STR}" \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
       -DTIMESTAMP=${DALI_TIMESTAMP} \
       -DGIT_SHA=${GIT_SHA}

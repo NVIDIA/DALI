@@ -14,7 +14,7 @@
 # limitations under the License.
 
 package:
-  name: nvidia-dali-cu{{ environ.get('CUDA_VERSION', '') }}
+  name: nvidia-dali-cu{{ environ.get('CUDA_VERSION_DIGIT_ONLY', '') }}
   version: {{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
 
 source:
@@ -47,7 +47,8 @@ build:
    - NVIDIA_DALI_BUILD_FLAVOR
    - LD_LIBRARY_PATH
    - DALI_CONDA_BUILD_VERSION
-   - CUDA_VERSION
+   - CUDA_VERSION_DIGIT_ONLY
+   - CUDA_VERSION_STR
   string: py{{ python | replace(".","") }}_{{ environ.get('NVIDIA_BUILD_ID', '') }}
 
 requirements:
