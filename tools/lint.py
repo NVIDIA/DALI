@@ -20,6 +20,7 @@ import itertools
 import re
 import argparse
 import sys
+import subprocess
 
 # Linter script, that calls cpplint.py, specifically for DALI repo.
 # This will be called in `make lint` cmake target
@@ -29,7 +30,7 @@ import sys
 #
 # #!/bin/sh
 # DALI_ROOT_DIR=$(git rev-parse --show-toplevel)
-# python $DALI_ROOT_DIR/tools/lint.py $DALI_ROOT_DIR
+# python $DALI_ROOT_DIR/tools/lint.py $DALI_ROOT_DIR --nproc=10
 # ret=$?
 # if [ $ret -ne 0 ]; then
 #     exit 1
@@ -100,20 +101,46 @@ def gen_cmd(dali_root_dir, file_list, process_includes=False):
     """
     Command for calling cpplint.py
     """
-    return "python " + \
-           os.path.join(dali_root_dir, "third_party", "cpplint.py") + \
-           " --quiet --linelength=100 --root=" + \
-           os.path.join(dali_root_dir, "include" if process_includes else "") + \
-           " " + ' '.join(file_list)
+    cmd = ["python",
+           os.path.join(dali_root_dir, "third_party", "cpplint.py"),
+           "--quiet",
+           "--linelength=100",
+           "--root=" + os.path.join(dali_root_dir, "include" if process_includes else "")]
+    cmd.extend(file_list)
+    return cmd
 
 
-def main(dali_root_dir):
+def lint(dali_root_dir, file_list, process_includes, n_subprocesses):
+    """
+    n_subprocesses: how many subprocesses to use for linter processing
+    Returns: 0 if lint passed, 1 otherwise
+    """
+    subprocesses = []
+    diff = int(len(file_list) / n_subprocesses)
+    for process_idx in range(n_subprocesses - 1):
+        subprocesses.append(subprocess.Popen(
+            gen_cmd(dali_root_dir=dali_root_dir,
+                    file_list=file_list[process_idx * diff: (process_idx + 1) * diff],
+                    process_includes=process_includes)))
+    subprocesses.append(subprocess.Popen(
+        gen_cmd(dali_root_dir=dali_root_dir,
+                file_list=file_list[(n_subprocesses - 1) * diff: len(file_list)],
+                process_includes=process_includes)))
+    ret = 0
+    for sp in subprocesses:
+        ret += sp.wait()
+    return 0 if ret == 0 else 1
+
+
+def main(dali_root_dir, n_subprocesses=1):
     cc_files = gather_files(os.path.join(dali_root_dir, "dali"),
                             ["*.cc", "*.h", "*.cu", "*.cuh"], negative_filters)
     inc_files = gather_files(os.path.join(dali_root_dir, "include"),
                              ["*.h", "*.cuh", "*.inc", "*.inl"], negative_filters)
-    cc_code = os.system(gen_cmd(dali_root_dir=dali_root_dir, file_list=cc_files, process_includes=False))
-    inc_code = os.system(gen_cmd(dali_root_dir=dali_root_dir, file_list=inc_files, process_includes=True))
+    cc_code = lint(dali_root_dir=dali_root_dir, file_list=cc_files, process_includes=False,
+                   n_subprocesses=n_subprocesses)
+    inc_code = lint(dali_root_dir=dali_root_dir, file_list=inc_files, process_includes=True,
+                    n_subprocesses=n_subprocesses)
     if cc_code != 0 or inc_code != 0:
         sys.exit(1)
     sys.exit(0)
@@ -123,5 +150,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run linter check for DALI files")
     parser.add_argument('dali_root_path', type=str,
                         help='Root path of DALI repository (pointed directory should contain `.git` folder)')
+    parser.add_argument('--nproc', type=int, default=1,
+                        help='Number of processes to spawn for linter verification')
     args = parser.parse_args()
-    main(str(args.dali_root_path))
+    main(str(args.dali_root_path), args.nproc)
