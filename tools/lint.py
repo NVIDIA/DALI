@@ -37,6 +37,7 @@ import sys
 # exit 0
 
 
+# Specifies, which files are to be excluded
 # These filters are regexes, not typical unix-like path specification
 negative_filters = [
     ".*core/dynlink_cuda.cc",
@@ -113,7 +114,7 @@ def main(dali_root_dir):
                              ["*.h", "*.cuh", "*.inc", "*.inl"], negative_filters)
     cc_code = os.system(gen_cmd(dali_root_dir=dali_root_dir, file_list=cc_files, process_includes=False))
     inc_code = os.system(gen_cmd(dali_root_dir=dali_root_dir, file_list=inc_files, process_includes=True))
-    if cc_code != 0 or inc_code !=0:
+    if cc_code != 0 or inc_code != 0:
         sys.exit(1)
     sys.exit(0)
 
