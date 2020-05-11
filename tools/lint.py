@@ -124,7 +124,7 @@ def lint(dali_root_dir, file_list, process_includes, n_subprocesses):
                     process_includes=process_includes)))
     subprocesses.append(subprocess.Popen(
         gen_cmd(dali_root_dir=dali_root_dir,
-                file_list=file_list[(n_subprocesses - 1) * diff: len(file_list)],
+                file_list=file_list[(n_subprocesses - 1) * diff:],
                 process_includes=process_includes)))
     ret = 0
     for sp in subprocesses:
@@ -133,6 +133,7 @@ def lint(dali_root_dir, file_list, process_includes, n_subprocesses):
 
 
 def main(dali_root_dir, n_subprocesses=1):
+    n_subprocesses = n_subprocesses if n_subprocesses >= 1 else 1
     cc_files = gather_files(os.path.join(dali_root_dir, "dali"),
                             ["*.cc", "*.h", "*.cu", "*.cuh"], negative_filters)
     inc_files = gather_files(os.path.join(dali_root_dir, "include"),

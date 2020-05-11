@@ -15,7 +15,7 @@
 add_custom_target(
           lint
         COMMAND
-          python ${PROJECT_SOURCE_DIR}/tools/lint.py ${PROJECT_SOURCE_DIR}
+          python ${PROJECT_SOURCE_DIR}/tools/lint.py ${PROJECT_SOURCE_DIR} --nproc=5
         COMMENT
           "Performing linter check"
 )
