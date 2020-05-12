@@ -191,10 +191,8 @@ inline void CalculateReducedShape(TensorListShape<> &out_shape,
   int out_dim = keep_dims ? in_dim : in_dim - axes.size();
   assert(out_dim >= 0);
 
-  if (out_dim == 0) {  // workaround until we have proper scalars
-    out_shape.resize(out_samples, 1);
-    for (int i = 0; i < out_samples; i++)
-      out_shape.tensor_shape_span(i)[0] = 1;
+  if (out_dim == 0) {
+    out_shape.resize(out_samples, 0);
     return;
   }
   out_shape.resize(out_samples, out_dim);
@@ -204,11 +202,11 @@ inline void CalculateReducedShape(TensorListShape<> &out_shape,
     int out_d = 0;
     for (int d = 0; d < in_dim; d++) {
       if (mask & (1ul << d)) {
-      assert(out_d < out_dim);
         if (keep_dims)
           out_sample_shape[out_d++] = 1;
         continue;  // skip reduced axes
       }
+      assert(out_d < out_dim);
       out_sample_shape[out_d++] = in_sample_shape[d];
     }
     assert(out_d == out_dim);

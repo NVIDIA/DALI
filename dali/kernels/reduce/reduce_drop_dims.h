@@ -51,7 +51,7 @@ struct DropDims {
   int64_t mod[kMaxDims];
   int start = 2 * kMaxDims;
 
-  DropDims() = default;
+  DALI_HOST_DEV DropDims() {}
 
   /**
    * Collapses adjacent groups of reduced/non-reduced dimensions.
@@ -260,6 +260,7 @@ struct DropDims {
     return out;
   }
 };
+
 }  // namespace reduce_impl
 }  // namespace kernels
 }  // namespace dali

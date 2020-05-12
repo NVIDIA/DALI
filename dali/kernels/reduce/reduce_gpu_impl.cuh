@@ -242,56 +242,116 @@ struct WorkArea {
 template <bool value>
 using bool_const = std::integral_constant<bool, value>;
 
+template <int value>
+using int_const = std::integral_constant<int, value>;
+
 
 template <typename ReduceImpl>
-auto GetPreprocessorHelper(std::true_type, const ReduceImpl *impl)
-      ->decltype(impl->GetPreprocessorImpl()) {
-  return impl->GetPreprocessorImpl();
-}
-
-template <typename ReduceImpl>
-auto GetPreprocessorsHelper(std::true_type, const ReduceImpl *impl, WorkArea *wa)
-      ->decltype(impl->GetPreprocessorsImpl(*wa)) {
-  return impl->GetPreprocessorsImpl(*wa);
+auto GetPreprocessorHelper(
+      std::true_type, const ReduceImpl *impl, int sample_idx, bool reduce_batch)
+      ->decltype(impl->GetPreprocessorImpl(sample_idx, reduce_batch)) {
+  return impl->GetPreprocessorImpl(sample_idx, reduce_batch);
 }
 
 template <int non_reduced_dims, typename ReduceImpl>
 auto GetPreprocessorBanksHelper(
       std::true_type, const ReduceImpl *impl, WorkArea *wa, int reduced_axis)
-      ->decltype(impl->template GetPreprocessorBanksImpl<non_reduced_dims>(*wa, reduced_axis)) {
-  return impl->template GetPreprocessorBanksImpl<non_reduced_dims>(*wa, reduced_axis);
+      ->decltype(impl->GetPreprocessorBanksImpl(*wa, reduced_axis, int_const<non_reduced_dims>())) {
+  return impl->GetPreprocessorBanksImpl(*wa, reduced_axis, int_const<non_reduced_dims>());
 }
 
 template <typename ReduceImpl>
-auto GetPostprocessorHelper(std::true_type, const ReduceImpl *impl)
-      ->decltype(impl->GetPostprocessorImpl()) {
-  return impl->GetPostprocessorImpl();
+auto GetPostprocessorHelper(
+      std::true_type, const ReduceImpl *impl, int sample_idx, bool reduce_batch)
+      ->decltype(impl->GetPostprocessorImpl(sample_idx, reduce_batch)) {
+  return impl->GetPostprocessorImpl(sample_idx, reduce_batch);
 }
-
-template <typename ReduceImpl>
-auto GetPostprocessorsHelper(std::true_type, const ReduceImpl *impl, WorkArea *wa)
-      ->decltype(impl->GetPostprocessorsImpl(*wa)) {
-  return impl->GetPostprocessorsImpl(*wa);
-}
-
 
 template <bool do_preprocess>
 inline identity GetPreprocessorHelper(bool_const<do_preprocess>, ...) { return {}; }
-template <bool do_preprocess>
-inline identity *GetPreprocessorsHelper(bool_const<do_preprocess>, ...) { return nullptr; }
 template <bool do_postprocess>
 inline identity GetPostprocessorHelper(bool_const<do_postprocess>, ...) { return {}; }
-template <bool do_postprocess>
-inline identity *GetPostprocessorsHelper(bool_const<do_postprocess>, ...) { return nullptr; }
 template <int non_reduced_dims, bool do_preprocess>
 inline IdentityPreprocessor<non_reduced_dims> *
 GetPreprocessorBanksHelper(bool_const<do_preprocess>, ...) {
   return nullptr;
 }
 
+/**
+ * @brief This is the base class for implementing reductions
+ *
+ * Implementing reductions:
+ * 1. Create a CRTP derived class MyReduction
+ * ```{.cpp}
+ * template <typename In>
+ * class MyReduction : public ReduceImplGPU<float, In, float, MyReduction<In>>
+ * ```
+ * 2. Define your reduction function (to your class), e.g.:
+ * ```{.cpp}
+ * reductions::sum GetReduction() const { return {}; }
+ * ```
+ * 3. Add your pre/postprocessing functions:
+ * ```{.cpp}
+ * MyPostprocessor GetPortprocessor(int sample_idx, bool reduce_batch) const { ... };
+ *
+ * MyPreprocessor GetPreprocessor(int sample_idx, bool reduce_batch) const { ... };
+ *
+ * template <int non_reduced_dims>
+ * MyPreprocessorBank<non_reduced_dims> *GetPreprocessorBanksImpl(WorkArea &wa) const { ... };
+ * ```
+ *
+ * You may need to add extra arguments to Run/Setup, in which case just shadow the original
+ * function(s) - you should call them at some point in your customized Run/Setup.
+ *
+ * See mean_stddev_gpu_impl.cuh for usage examples.
+ */
 template <typename Out, typename In, typename Acc, typename Actual>
 class ReduceImplGPU {
  public:
+  /// returns a reference to the actual derived class instance
+  Actual &This() noexcept { return static_cast<Actual &>(*this); }
+
+  /// returns a const reference to the actual derived class instance
+  const Actual &This() const noexcept { return static_cast<Actual &>(*this); }
+
+  /// Get stage - for testing
+  const ReductionStage &GetStage(int idx) const { return stages_[idx]; }
+  /// Get number of stages - for testing
+  int GetNumStages() const { return stages_.size(); }
+
+  /// True, if reduction across input tensors was requested
+  bool ReduceBatch() const { return reduce_batch_; }
+
+  /// Input shape after simplification (with merged dimensions)
+  const TensorListShape<> &SimplifiedOutputShape() const { return out_shape_; }
+
+  /// Output shape after simplification (with merged dimensions)
+  const TensorListShape<> &SimplifiedInputShape() const { return in_shape_; }
+
+  /// Indices of reduced axes after simplification
+  span<const int> SimplifiedAxes() const { return make_span(axes_); }
+
+  /// Reduction factor for given sample
+  int64_t ReducedElements(int sample) const { return reduced_elements_[sample]; }
+  /// Total reduction factor - valid when reducing whole batch
+  int64_t TotalReducedElements() const { return total_reduced_; }
+
+  /**
+   * @brief Sets up the reduction
+   *
+   * This function determines how many and what kind of reduction stages are necessary, as well
+   * as calculates memory requirements for them.
+   * The arguments are validated and exception is thrown if the arguments don't describe a valid
+   * reduction.
+   *
+   * @param ctx           kernel context - for compatibility with DALI kernel API
+   * @param in_shape      shape of the input tensor
+   * @param axes          indices of dimensions to reduce
+   * @param keep_dims     if true, the reduced dimensions are present in the output shape, with
+   *                      unit extent, otherwise the reduced dimensions are omitted in the output
+   *                      shape
+   * @param reduce_batch  true, if reducing across tensors within the batch
+   */
   KernelRequirements Setup(KernelContext &ctx,
                            const TensorListShape<> &in_shape,
                            span<const int> axes,
@@ -323,30 +383,45 @@ class ReduceImplGPU {
     return req;
   }
 
-  // shadow in Actual if necessary
-  template <int non_reduced_dim>
-  using PreprocessorBank = IdentityPreprocessor<non_reduced_dim>;
-  using Preprocessor = identity;
-  using Postprocessor = identity;
+  void Run(KernelContext &kctx, const OutListGPU<Out> &out, const InListGPU<In> &in) {
+    assert(!stages_.empty());
+    Context ctx;
+    auto host_mem_size = buffer_sizes_.param_buffers;
+    auto gpu_mem_size = buffer_sizes_.param_buffers + buffer_sizes_.io_buffers;
+
+    ctx.stream = kctx.gpu.stream;
+    ctx.work_area.buffer_sizes = buffer_sizes_;
+    ctx.work_area.host_memory = kctx.scratchpad->Allocate<char>(AllocType::Host, host_mem_size, 64);
+    ctx.work_area.gpu_memory = kctx.scratchpad->Allocate<char>(AllocType::GPU, gpu_mem_size, 64);
+
+    ctx.input = reshape(in, in_shape_, true);
+    ctx.output = reshape(out, out_shape_, true);
+
+    for (auto &stage : stages_)
+      LaunchStage(ctx, stage);
+  }
+
+ private:
+  void Simplify(const TensorListShape<> &in_shape, span<const int> axes) {
+    SimplifyReduction(axes_, dim_groups_, in_shape, axes);
+    collapse_dims(in_shape_, in_shape, dim_groups_);
+    CalculateReducedShape(out_shape_, in_shape_, make_span(axes_), true, reduce_batch_);
+  }
 
   bool HasPreprocessingParams() const {
-    using pbank = std::remove_reference_t<decltype(
-      *GetPreprocessorBanks<true, 2>(std::declval<WorkArea&>(), 0))>;
-    return !std::is_empty<pbank>::value;
+    return !std::is_empty<PreprocessorBank<2>>::value;
   }
+
   bool HasPostprocessingParams() const {
-    using postprocessor = std::remove_reference_t<decltype(GetPostprocessor<true>())>;
-    return !std::is_empty<postprocessor>::value;
+    return !std::is_empty<Postprocessor<>>::value;
   }
 
   /*
    * The functions below get the preprocessors and postprocessors.
-   * Note the is_first/is_last compile-time parameters. Overload resolution will pick the
-   * right function with distinct return type.
    * The function uses a helper class and have a default template arugment Derived = Actual
    * to make the return type a depenedent type.
    * To specialize these, define GetPreprocessorImpl, GetPostprocessorsImpl, etc in the
-   * Actual class. These functions don't need the std::true_type argument.
+   * Actual class. See `StdDevImplGPU` for usage example.
    */
 
   template <bool do_preprocess, int non_reduced_dim, typename Derived = Actual>
@@ -356,27 +431,57 @@ class ReduceImplGPU {
   }
 
   template <bool do_preprocess, typename Derived = Actual>
-  auto *GetPreprocessors(WorkArea &wa) const {
-    return GetPreprocessorsHelper(
-      bool_const<do_preprocess>(), static_cast<const Derived *>(this), &wa);
+  auto GetPreprocessor(int sample_index, bool reduce_batch) const {
+    return GetPreprocessorHelper(
+      bool_const<do_preprocess>(), static_cast<const Derived *>(this), sample_index, reduce_batch);
+  }
+
+  template <bool do_postprocess, typename Derived = Actual>
+  auto GetPostprocessor(int sample_index, bool reduce_batch) const {
+    return GetPostprocessorHelper(
+      bool_const<do_postprocess>(), static_cast<const Derived *>(this), sample_index, reduce_batch);
   }
 
   template <bool do_preprocess, typename Derived = Actual>
-  auto GetPreprocessor() const {
-    return GetPreprocessorHelper(bool_const<do_preprocess>(), static_cast<const Derived *>(this));
+  auto *GetPreprocessors(WorkArea &wa) const {
+    using pp_t = std::remove_reference_t<decltype(GetPreprocessor<do_preprocess>(0, false))>;
+    pp_t *pp = nullptr;
+    if (!std::is_empty<pp_t>::value) {
+      int N = in_shape_.num_samples();
+      pp = wa.ParamBuffer<pp_t>(N);
+      for (int i = 0; i < N; i++)
+        pp[i] = GetPreprocessor<do_preprocess>(i, false);
+    }
+    return pp;
   }
 
   template <bool do_postprocess, typename Derived = Actual>
   auto *GetPostprocessors(WorkArea &wa) const {
-    return GetPostprocessorsHelper(
-      bool_const<do_postprocess>(), static_cast<const Derived *>(this), &wa);
+    using pp_t = std::remove_reference_t<decltype(GetPostprocessor<do_postprocess>(0, false))>;
+    pp_t *pp = nullptr;
+    if (!std::is_empty<pp_t>::value) {
+      int N = in_shape_.num_samples();
+      pp = wa.ParamBuffer<pp_t>(N);
+      for (int i = 0; i < N; i++)
+        pp[i] = GetPostprocessor<do_postprocess>(i, false);
+    }
+    return pp;
   }
 
-  template <bool do_postprocess, typename Derived = Actual>
-  auto GetPostprocessor() const {
-    return GetPostprocessorHelper(bool_const<do_postprocess>(), static_cast<const Derived *>(this));
-  }
+ public:
+  template <int non_reduced_dim, typename Derived = Actual>
+  using PreprocessorBank = decltype(*std::declval<ReduceImplGPU&>().
+    template GetPreprocessorBanks<true, non_reduced_dim, Derived>(std::declval<WorkArea&>(), 0));
 
+  template <typename Derived = Actual>
+  using Preprocessor =
+    decltype(std::declval<ReduceImplGPU&>().template GetPreprocessor<true, Derived>(0, true));
+
+  template <typename Derived = Actual>
+  using Postprocessor =
+    decltype(std::declval<ReduceImplGPU&>().template GetPostprocessor<true, Derived>(0, true));
+
+ private:
   /**
    * @brief Calculate the sizes of the temporary buffers required to launch all stages
    */
@@ -450,16 +555,16 @@ class ReduceImplGPU {
         // per-sample preprocessor may need some parameter space
         switch (stage.kind) {
           case ReductionKind::Middle:  // the preprocessor bank is 2D (outer, inner)
-            buf_sizes.AddParam<typename Actual::PreprocessorBank<2>>(N);
+            buf_sizes.AddParam<PreprocessorBank<2>>(N);
             break;
           case ReductionKind::Inner:  // the preprocessor bank is 1D (outer)
           case ReductionKind::None:   // the preprocessor bank is 1D (pointwise)
           case ReductionKind::Fold:   // the preprocessor bank is 1D (pointwise)
-            buf_sizes.AddParam<typename Actual::PreprocessorBank<1>>(N);
+            buf_sizes.AddParam<PreprocessorBank<1>>(N);
             break;
           case ReductionKind::Sample:
             // per sample scalar preprocessor is possible
-            buf_sizes.AddParam<typename Actual::Preprocessor>(N);
+            buf_sizes.AddParam<Preprocessor<>>(N);
             break;
           default:
             // no buffer for preprocessor - it's passed by value
@@ -479,7 +584,7 @@ class ReduceImplGPU {
           case ReductionKind::Inner:
           case ReductionKind::None:
           case ReductionKind::Sample:
-            buf_sizes.AddParam<typename Actual::Postprocessor>(N);
+            buf_sizes.AddParam<Postprocessor<>>(N);
             break;
           default:
             // no buffer required - passed by value
@@ -859,8 +964,8 @@ class ReduceImplGPU {
     assert(!is_first || ctx.input.is_contiguous());
     WorkArea &wa = ctx.work_area;
 
-    auto pre = GetPreprocessor<is_first>();
-    auto post = GetPostprocessor<is_last>();
+    auto pre = GetPreprocessor<is_first>(0, true);
+    auto post = GetPostprocessor<is_last>(0, true);
 
     const StageIn *in = is_first ? reinterpret_cast<const StageIn *>(ctx.input.data[0])
                                  : wa.InputBuffer<StageIn>(stage.input_elements());
@@ -871,7 +976,7 @@ class ReduceImplGPU {
     dim3 block(32, 32);
     dim3 grid(stage.shape[0].reduced_out);
 
-    ReduceAllKernel<<<grid, block, 0, ctx.stream>>>(
+    ReduceAllKernel<Acc><<<grid, block, 0, ctx.stream>>>(
       out, in, stage.input_elements(), This().GetReduction(), pre, post);
 
     CUDA_CALL(cudaGetLastError());
@@ -906,7 +1011,7 @@ class ReduceImplGPU {
     auto *gpu_pre             = wa.GetDeviceParam(pre);
     auto *gpu_post            = wa.GetDeviceParam(post);
 
-    ReduceAllBatchedKernel<<<grid, block, 0, ctx.stream>>>(
+    ReduceAllBatchedKernel<Acc><<<grid, block, 0, ctx.stream>>>(
       out, gpu_in, gpu_sizes, This().GetReduction(), gpu_pre, gpu_post);
 
     CUDA_CALL(cudaGetLastError());
@@ -937,7 +1042,7 @@ class ReduceImplGPU {
     auto *gpu_post  = wa.GetDeviceParam(post);
 
     int64_t sample_size = stage.shape[0].reduced_in;
-    ReduceAllBlockwiseKernel<<<grid, block, 0, ctx.stream>>>(
+    ReduceAllBlockwiseKernel<Acc><<<grid, block, 0, ctx.stream>>>(
       out, in, sample_size, This().GetReduction(), gpu_pre, gpu_post);
 
     CUDA_CALL(cudaGetLastError());
@@ -958,7 +1063,7 @@ class ReduceImplGPU {
     using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
 
     int max_block_size = std::min(1024, MaxThreadsPerBlock(
-      ReduceInnerKernel<StageOut, StageIn, red_t, pre_bank_t, post_t>));
+      ReduceInnerKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>));
 
     wa.CopyParamsToDevice(ctx.stream);
     dim3 block(32, max_block_size / 32);
@@ -969,7 +1074,7 @@ class ReduceImplGPU {
     auto *gpu_pre = wa.GetDeviceParam(pre);
     auto *gpu_post = wa.GetDeviceParam(post);
 
-    ReduceInnerKernel<<<grid, block, 0, ctx.stream>>>(
+    ReduceInnerKernel<Acc><<<grid, block, 0, ctx.stream>>>(
       gpu_samples, This().GetReduction(), gpu_pre, gpu_post);
 
     CUDA_CALL(cudaGetLastError());
@@ -990,7 +1095,7 @@ class ReduceImplGPU {
     using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
 
     int max_block_size = std::min(1024, MaxThreadsPerBlock(
-      ReduceMiddleKernel<StageOut, StageIn, red_t, pre_bank_t, post_t>));
+      ReduceMiddleKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>));
 
     wa.CopyParamsToDevice(ctx.stream);
     dim3 block(32, max_block_size / 32);
@@ -1002,7 +1107,7 @@ class ReduceImplGPU {
     auto *gpu_pre = wa.GetDeviceParam(pre);
     auto *gpu_post = wa.GetDeviceParam(post);
 
-    ReduceMiddleKernel<<<grid, block, shm_size, ctx.stream>>>(
+    ReduceMiddleKernel<Acc><<<grid, block, shm_size, ctx.stream>>>(
       gpu_samples, This().GetReduction(), gpu_pre, gpu_post);
 
     CUDA_CALL(cudaGetLastError());
@@ -1031,14 +1136,14 @@ class ReduceImplGPU {
     dim3 grid(std::min<int>(div_ceil(sample_size, 1024), 1024));
 
     auto *pre = GetPreprocessorBanks<is_first, 1>(wa, -1);
-    auto post = GetPostprocessor<is_last>();
+    auto post = GetPostprocessor<is_last>(0, true);
 
     wa.CopyParamsToDevice(ctx.stream);
 
     auto *gpu_in  = wa.GetDeviceParam(in);
     auto *gpu_pre = wa.GetDeviceParam(pre);
 
-    ReduceSamplesKernel<<<grid, block, 0, ctx.stream>>>(
+    ReduceSamplesKernel<Acc><<<grid, block, 0, ctx.stream>>>(
       out, gpu_in, sample_size, N, This().GetReduction(), gpu_pre, post);
 
     CUDA_CALL(cudaGetLastError());
@@ -1082,47 +1187,6 @@ class ReduceImplGPU {
     CUDA_CALL(cudaGetLastError());
   }
 
-
-  void Run(KernelContext &kctx, const OutListGPU<Out> &out, const InListGPU<In> &in) {
-    assert(!stages_.empty());
-    Context ctx;
-    auto host_mem_size = buffer_sizes_.param_buffers;
-    auto gpu_mem_size = buffer_sizes_.param_buffers + buffer_sizes_.io_buffers;
-
-    ctx.stream = kctx.gpu.stream;
-    ctx.work_area.buffer_sizes = buffer_sizes_;
-    ctx.work_area.host_memory = kctx.scratchpad->Allocate<char>(AllocType::Host, host_mem_size, 64);
-    ctx.work_area.gpu_memory = kctx.scratchpad->Allocate<char>(AllocType::GPU, gpu_mem_size, 64);
-
-    ctx.input = reshape(in, in_shape_, true);
-    ctx.output = reshape(out, out_shape_, true);
-
-    for (auto &stage : stages_)
-      LaunchStage(ctx, stage);
-  }
-
-  Actual &This() noexcept { return static_cast<Actual &>(*this); }
-  const Actual &This() const noexcept { return static_cast<Actual &>(*this); }
-
-  void Simplify(const TensorListShape<> &in_shape, span<const int> axes) {
-    SimplifyReduction(axes_, dim_groups_, in_shape, axes);
-    collapse_dims(in_shape_, in_shape, dim_groups_);
-    CalculateReducedShape(out_shape_, in_shape_, make_span(axes_), true, reduce_batch_);
-  }
-
-  /// Get stage - for testing
-  const ReductionStage &GetStage(int idx) const { return stages_[idx]; }
-  /// Get number of stages - for testing
-  int GetNumStages() const { return stages_.size(); }
-
-  bool ReduceBatch() const { return reduce_batch_; }
-  const TensorListShape<> &SimplifiedOutputShape() const { return out_shape_; }
-  const TensorListShape<> &SimplifiedInputShape() const { return in_shape_; }
-  span<const int> SimplifiedAxes() const { return make_span(axes_); }
-  int64_t ReducedElements(int sample) const { return reduced_elements_[sample]; }
-  int64_t TotalReducedElements() const { return total_reduced_; }
-
- protected:
   static constexpr int kMaxStaticDims = DynamicTensorShapeContainer::static_size;
   /// Input shape with merged dims
   TensorListShape<> in_shape_;
@@ -1130,7 +1194,7 @@ class ReduceImplGPU {
   TensorListShape<> out_shape_;
   /// Merged axes (without degenerate ones)
   SmallVector<int, kMaxStaticDims> axes_;
-  /// Dim groups
+  /// Groups of dimensions merged by Simplify
   SmallVector<std::pair<int, int>, kMaxStaticDims> dim_groups_;
 
   bool reduce_batch_ = false;
@@ -1143,7 +1207,55 @@ class ReduceImplGPU {
 };
 
 template <typename Out, typename In>
-class SumImplGPU : public ReduceImplGPU<Out, In, Out, SumImplGPU<Out, In>> {
+struct DefaultSumAcc {
+  using type = std::conditional_t<std::is_same<Out, double>::value, Out, float>;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, int8_t> {
+  using type = int64_t;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, uint8_t> {
+  using type = uint64_t;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, int16_t> {
+  using type = int64_t;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, uint16_t> {
+  using type = uint64_t;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, int32_t> {
+  using type = std::conditional_t<std::is_floating_point<Out>::value, Out, int64_t>;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, uint32_t> {
+  using type = std::conditional_t<std::is_floating_point<Out>::value, Out, uint64_t>;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, int64_t> {
+  using type = std::conditional_t<std::is_floating_point<Out>::value, Out, int64_t>;
+};
+
+template <typename Out>
+struct DefaultSumAcc<Out, uint64_t> {
+  using type = std::conditional_t<std::is_floating_point<Out>::value, Out, uint64_t>;
+};
+
+template <typename Out, typename In>
+using default_sum_acc_t = typename DefaultSumAcc<Out, In>::type;
+
+template <typename Out, typename In>
+class SumImplGPU : public ReduceImplGPU<Out, In, default_sum_acc_t<Out, In>, SumImplGPU<Out, In>> {
  public:
   reductions::sum GetReduction() const { return {}; }
 };

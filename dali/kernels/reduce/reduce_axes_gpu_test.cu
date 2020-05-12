@@ -112,7 +112,7 @@ class ReduceInnerGPUTest : public ::testing::Test {
     auto end =   CUDAEvent::CreateWithFlags(0);
     gpu_descs.from_host(cpu_descs);
     cudaEventRecord(start);
-    ReduceInnerKernel<<<grid, block>>>(gpu_descs.data(), reduction);
+    ReduceInnerKernel<float><<<grid, block>>>(gpu_descs.data(), reduction);
     cudaEventRecord(end);
     CUDA_CALL(cudaDeviceSynchronize());
     float t = 0;
@@ -137,7 +137,7 @@ class ReduceInnerGPUTest : public ::testing::Test {
       int64_t outer = ts[0];
       int64_t inner = ts[1];
       ref_out.resize(outer);
-      RefReduceInner(ref_out.data(), cpu_in.data[i], outer, inner, reduction);
+      RefReduceInner<float>(ref_out.data(), cpu_in.data[i], outer, inner, reduction);
       auto out = cpu_out[i];
       if (out.shape[1] > 1) {
         full_out.resize(outer);
@@ -253,7 +253,7 @@ class ReduceMiddleGPUTest : public ::testing::Test {
     auto start = CUDAEvent::CreateWithFlags(0);
     auto end =   CUDAEvent::CreateWithFlags(0);
     cudaEventRecord(start);
-    ReduceMiddleKernel<<<grid, block, sizeof(float)*32*33>>>(gpu_descs.data(), reduction);
+    ReduceMiddleKernel<float><<<grid, block, sizeof(float)*32*33>>>(gpu_descs.data(), reduction);
     CUDA_CALL(cudaGetLastError());
     cudaEventRecord(end);
     CUDA_CALL(cudaDeviceSynchronize());
@@ -378,7 +378,7 @@ TEST(ReduceSamples, Sum) {
   auto end =   CUDAEvent::CreateWithFlags(0);
   sample_ptrs.from_host(gpu_in.data);
   cudaEventRecord(start);
-  ReduceSamplesKernel<<<256, 1024>>>(gpu_out.data[0], sample_ptrs.data(), n, N, R);
+  ReduceSamplesKernel<float><<<256, 1024>>>(gpu_out.data[0], sample_ptrs.data(), n, N, R);
   cudaEventRecord(end);
   auto cpu_out = out.cpu();
   float t = 0;

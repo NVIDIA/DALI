@@ -35,6 +35,7 @@ class DLL_PUBLIC ReduceAllGPU {
   // TODO(janton): remove this when implemented
   static_assert(std::is_same<Preprocessor, identity>::value,
                 "Preprocessing is not yet implemented");
+  using Acc = Out;
 
   DLL_PUBLIC ~ReduceAllGPU() = default;
 
@@ -100,14 +101,14 @@ class DLL_PUBLIC ReduceAllGPU {
 
     if (blocks_per_sample_ == 1) {
       // For small inputs, we reduce in one step
-      ReduceAllBatchedKernel<<<grid, block, 0, context.gpu.stream>>>(
+      ReduceAllBatchedKernel<Acc><<<grid, block, 0, context.gpu.stream>>>(
           out_start, sample_data_gpu, sample_size_gpu, reduction);
     } else {
-      ReduceAllBatchedKernel<<<grid, block, 0, context.gpu.stream>>>(
+      ReduceAllBatchedKernel<Acc><<<grid, block, 0, context.gpu.stream>>>(
           buffer_gpu, sample_data_gpu, sample_size_gpu, reduction);
 
       dim3 grid2(1, num_samples);
-      ReduceAllBlockwiseKernel<<<grid2, block, 0, context.gpu.stream>>>(
+      ReduceAllBlockwiseKernel<Acc><<<grid2, block, 0, context.gpu.stream>>>(
           out_start, buffer_gpu, blocks_per_sample_, reduction);
     }
   }
