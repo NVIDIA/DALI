@@ -15,6 +15,12 @@
 #ifndef DALI_KERNELS_REDUCE_REDUCE_GPU_H_
 #define DALI_KERNELS_REDUCE_REDUCE_GPU_H_
 
+/**
+ * @file
+ *
+ * This file contains classes for performing various reductions on GPU.
+ */
+
 #include <memory>
 #include "dali/kernels/kernel.h"
 #include "dali/core/tensor_view.h"
@@ -22,6 +28,34 @@
 namespace dali {
 namespace kernels {
 
+/**
+ * @brief Calculates the sum of elements in the tensor(s) along given axes
+ *
+ * @details
+ * The reduction can be described by the following algorithm:
+ *
+ * ```
+ * function reduce(out, in, dim, in_coords, out_coords, in_size, axes)
+ *   if dim == number_of_dimensions(in) - 1
+ *     if in_size[dim] == 0:
+ *       out[out_coords] = neutral_element
+ *     else
+ *       out[out_coords] = reduce(out[out_coords], in[in_coords])
+ *   else
+ *     for i = 0 to in_size[dim]
+ *       if axes contains dim
+ *         out_coords[dim] = 0
+ *       else
+ *         out_coords[dim] = i
+ *       reduce(out, in, dim + 1, in_coords, out_coords, in_size, axes)
+ * ```
+ *
+ * If batch reduction is requested, the corresponding elements of the output tensors
+ * (calculated as in the algorithm above) are also reduced and the output batch contains
+ * just one tensor.
+ *
+ * For batch reduction to be possible, non-reduced extents of all samples must be equal.
+ */
 template <typename Out, typename In>
 class DLL_PUBLIC SumGPU {
  public:
@@ -75,7 +109,28 @@ extern template class SumGPU<float, int32_t>;
 
 extern template class SumGPU<float, float>;
 
-
+/**
+ * @brief Calculates the mean of elements in the tensor(s) along given axes
+ *
+ * @copydetails SumGPU
+ *
+ * Output elements are calculated as the sum of input elements divided by the reduction factor,
+ * given as:
+ * per-sample reduction:
+ * ```
+ * reduction_factor[sample] = product(in_shape[sample][i] for i in axes)
+ * ```
+ * batch reduction:
+ * ```
+ * reduction_factor =
+ * sum(
+ *   product(in_shape[sample][i] for i in axes)
+ *   for sample from 0 to number_of_samples
+ * )
+ * ```
+ *
+ * The reduction factor cannot be zero - if it is, an exception is thrown.
+ */
 template <typename Out, typename In>
 class DLL_PUBLIC MeanGPU {
  public:
@@ -131,6 +186,12 @@ extern template class MeanGPU<float, int32_t>;
 extern template class MeanGPU<float, float>;
 
 
+/**
+ * @brief Calculates the root mean square of elements in the tensor(s) along given axes
+ *
+ * Output elements are calculated as a squre root of the mean of squared input elements.
+ * See MeanGPU for details on calculating the mean.
+ */
 template <typename Out, typename In>
 class DLL_PUBLIC RootMeanSquareGPU {
  public:
@@ -185,6 +246,18 @@ extern template class RootMeanSquareGPU<float, int32_t>;
 extern template class RootMeanSquareGPU<float, float>;
 
 
+/**
+ * @brief Calculates the standard deviation of input elements along given axes, given externally
+ *        provided mean values.
+ *
+ * True standard deviation would be calculated as:
+ * ```
+ * sqrt(mean( (in - mean(in)) ^ 2 )
+ * ```
+ * Here, the `mean(in)` term is not calculated internally, but externally provided as a tensor.
+ *
+ * For more details on how directional reductions work, see SumGPU, MeanGPU, RootMeanSquareGPU
+ */
 template <typename Out, typename In, typename Mean = Out>
 class DLL_PUBLIC StdDevGPU {
  public:
@@ -240,6 +313,23 @@ extern template class StdDevGPU<float, int32_t>;
 extern template class StdDevGPU<float, float>;
 
 
+/**
+ * @brief Calculates the inverse of standard deviation of input elements along given axes,
+ *        given externally provided mean values.
+ *
+ * The output values are calculated as:
+ * ```
+ * s = sum( (in[pos] - mean[reduced_pos])^2 )
+ * out[reduced_pos] = s > 0 || reg > 0
+ *                    ? 1/sqrt(s / reduction_factor + reg^2)
+ *                    : 0
+ * ```
+ * where `reduction_factor` is the number of input elements contributing to a single output.
+ *
+ * For more details on how directional reductions work, see SumGPU, MeanGPU, RootMeanSquareGPU.
+ *
+ * @see StdDevGPU
+ */
 template <typename Out, typename In, typename Mean = In>
 class DLL_PUBLIC InvStdDevGPU {
  public:
