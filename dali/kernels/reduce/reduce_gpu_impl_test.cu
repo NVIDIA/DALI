@@ -77,7 +77,7 @@ TEST(ReduceImplGPU, ReducedShape_SomeAxes_NoKeepDims_Batch) {
   TensorListShape<> ref = {{
     { 3, 5 }
   }};
-  int axes[] = { 1 };
+  int axes[] = { 1, 3 };
   TensorListShape<> out;
   CalculateReducedShape(out, in, make_span(axes), false, true);
   EXPECT_EQ(out, ref);

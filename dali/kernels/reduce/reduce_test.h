@@ -164,7 +164,7 @@ void RefReduce(const TensorListView<StorageCPU, Out> &out,
     }
   } else {
     assert(out.num_samples() == in.num_samples());
-    for (int i =0; i < in.num_samples(); i++) {
+    for (int i = 0; i < in.num_samples(); i++) {
       RefReduce(out[i], in[i], axes, keep_dims, R);
     }
   }
