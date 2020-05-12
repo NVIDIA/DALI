@@ -18,6 +18,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import glob
+import os
 import argparse
 import time
 
@@ -263,6 +264,25 @@ class AverageMeter(object):
 for pipe_name in test_data.keys():
     data_set_len = len(test_data[pipe_name])
     for i, data_set in enumerate(test_data[pipe_name]):
+
+        skiptest=False
+        for d in data_set:
+            if os.path.isdir(d):
+                continue
+            count=0
+            for f in glob.glob(d):
+                if not os.path.exists(f):
+                    skiptest=True
+                count=count+1
+            if count == 0:
+               skiptest=True
+
+            if skiptest:
+                break
+        if skiptest:
+            print("Files not found, Skipping test {} {}".format(pipe_name.__name__,data_set))
+            break
+
         pipes = [pipe_name(batch_size=BATCH_SIZE, num_threads=WORKERS, device_id=n,
                            num_gpus=SIMULATE_N_GPUS, data_paths=data_set, prefetch=PREFETCH, fp16=FP16, random_shuffle=READ_SHUFFLE,
                            nhwc=NHWC, decoder_type=DECODER_TYPE, decoder_cache_params=DECODER_CACHE_PARAMS,
