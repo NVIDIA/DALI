@@ -20,6 +20,7 @@ import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
 import tempfile
+import nose.tools
 
 class NumpyReaderPipeline(Pipeline):
     def __init__(self, path, batch_size, path_filter="*.npy", num_threads=1, device_id=0, num_gpus=1):
@@ -32,14 +33,21 @@ class NumpyReaderPipeline(Pipeline):
                                      shard_id = device_id,
                                      num_shards = num_gpus)
 
-        
     def define_graph(self):
         inputs = self.input(name="Reader")
 
         return inputs
 
 
-test_np_types = [np.float32, np.float64, np.int32, np.int64]
+all_numpy_types = set(
+    [np.bool_, np.byte, np.ubyte, np.short, np.ushort, np.intc, np.uintc, np.int_, np.uint,
+     np.longlong, np.ulonglong, np.half, np.float16, np.single, np.double, np.longdouble,
+     np.csingle, np.cdouble, np.clongdouble, np.int8, np.int16, np.int32, np.int64, np.uint8,
+     np.uint16, np.uint32, np.uint64, np.intp, np.uintp, np.float32, np.float64, np.float_,
+     np.complex64, np.complex128, np.complex_])
+unsupported_numpy_types = set(
+    [np.bool_, np.csingle, np.cdouble, np.clongdouble, np.complex64, np.complex128, np.longdouble,
+     np.complex_])
 test_np_shapes = [(), (11), (4, 7), (6, 2, 5), (1, 2, 7, 4)]
 rng = np.random.RandomState(12345)
     
@@ -49,11 +57,22 @@ def test_types_and_shapes():
     with tempfile.TemporaryDirectory() as test_data_root:
         index = 0
         for fortran_order in [False, True]:
-            for typ in test_np_types:
+            for type in all_numpy_types - unsupported_numpy_types:
                 for shape in test_np_shapes:
                     filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
                     index += 1
-                    yield check_array, filename, shape, typ, fortran_order
+                    yield check_array, filename, shape, type, fortran_order
+
+
+def test_unsupported_types():
+    with tempfile.TemporaryDirectory() as test_data_root:
+        index = 0
+        filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+        shape = test_np_shapes[1]
+        fortran_order = True
+        for type in unsupported_numpy_types:
+            nose.tools.assert_raises(RuntimeError, check_array, filename, shape, type,
+                                     fortran_order)
 
 
 # test batch_size > 1
