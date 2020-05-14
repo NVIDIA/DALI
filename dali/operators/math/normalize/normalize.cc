@@ -206,7 +206,11 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   }
 
   if (has_scalar_stddev_) {
-    scalar_inv_stddev = scale_ / spec_.GetArgument<float>("stddev");
+    float scalar_stddev = spec_.GetArgument<float>("stddev");
+    if (epsilon_)
+      scalar_inv_stddev = scale_ * rsqrt(scalar_stddev*scalar_stddev + epsilon_);
+    else
+      scalar_inv_stddev = scale_ / scalar_stddev;
     if (!IsFullReduction()) {
       UniformFill(inv_stddev_, scalar_inv_stddev);
       inv_stddev_view = view<const float>(inv_stddev_);

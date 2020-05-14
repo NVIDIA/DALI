@@ -10,11 +10,16 @@ def normalize(x, axes = None, mean = None, stddev = None, ddof = 0, eps = 0):
     if type(axes) is list:
         axes = tuple(axes)
 
+    num_reduced = np.prod([x.shape[a] for a in axes]) if axes else x.size
+
     if mean is None:
         mean = x.mean(axis = axes, keepdims = True)
+        if stddev is None and eps == 0 and num_reduced > ddof:
+            stddev = np.std(x, axis = axes, ddof = ddof, keepdims=True)
+
 
     if stddev is None:
-        factor = np.prod([x.shape[a] for a in axes]) - ddof if axes else x.size - ddof
+        factor = num_reduced - ddof
         sqr = (x - mean).astype(np.float)**2
         var = np.sum(sqr, axis = axes, keepdims = True)
         if factor > 0:
@@ -161,7 +166,6 @@ def err(l1, l2):
 
 def check_float(l1, l2, eps = 1e-3):
     for i, a in enumerate(zip(l1, l2)):
-        dif = a[0] - a[1]
         assert(np.allclose(a[0], a[1], rtol=1e-3, atol=eps))
 
 def check_integer(actual, ref, input = None):
@@ -219,9 +223,9 @@ class NormalizePipeline(Pipeline):
 
         self.mean = ops.PythonFunction(function = custom_mean(batch, axes), batch_processing=True)
         self.stddev = ops.PythonFunction(function = custom_stddev(batch, axes), batch_processing=True)
-        self.normalize = ops.Normalize(**common_args, ddof=self.ddof, epsilon=self.eps)
-        self.scalar_mean = ops.Normalize(**common_args, mean=1)
-        self.scalar_stddev = ops.Normalize(**common_args, stddev=2)
+        self.normalize = ops.Normalize(**common_args, ddof=self.ddof)
+        self.scalar_mean = ops.Normalize(**common_args, mean=1, ddof=self.ddof, epsilon=self.eps)
+        self.scalar_stddev = ops.Normalize(**common_args, stddev=2, epsilon=self.eps)
         self.scalar_params = ops.Normalize(**common_args, mean=1, stddev=2)
 
 
@@ -270,9 +274,9 @@ class NormalizePipeline(Pipeline):
                 eps = 1e-3 * scale * len(data[0].shape)
                 check_float(l1, l2, eps)
 
-        ref = normalize_list(batch, data, axes, ddof=self.ddof, eps=self.eps)
-        ref_scalar_mean = normalize_list(batch, data, axes, mean=1)
-        ref_scalar_stddev = normalize_list(batch, data, axes, stddev=2)
+        ref = normalize_list(batch, data, axes, ddof=self.ddof)
+        ref_scalar_mean = normalize_list(batch, data, axes, mean=1, ddof=self.ddof, eps=self.eps)
+        ref_scalar_stddev = normalize_list(batch, data, axes, stddev=2, eps=self.eps)
         shift_scale(ref, shift, scale)
         shift_scale(ref_scalar_mean, shift, scale)
         shift_scale(ref_scalar_stddev, shift, scale)
@@ -284,11 +288,11 @@ class NormalizePipeline(Pipeline):
         check(scalar_stddev, ref_scalar_stddev)
 
         if not batch:
-            ref_ext_mean = normalize_list(batch, data, axes, mean = mean, ddof=self.ddof, eps=self.eps)
-            ref_ext_stddev = normalize_list(batch, data, axes, stddev = stddev, ddof=self.ddof, eps=self.eps)
-            ref_ext_all = normalize_list(batch, data, axes, mean = mean, stddev = stddev, ddof=self.ddof, eps=self.eps)
-            ref_scalar_mean_ext = normalize_list(batch, data, axes, mean = 1, stddev = stddev)
-            ref_scalar_stddev_ext = normalize_list(batch, data, axes, mean = mean, stddev = 2)
+            ref_ext_mean = normalize_list(batch, data, axes, mean = mean, ddof=self.ddof)
+            ref_ext_stddev = normalize_list(batch, data, axes, stddev = stddev, ddof=self.ddof)
+            ref_ext_all = normalize_list(batch, data, axes, mean = mean, stddev = stddev)
+            ref_scalar_mean_ext = normalize_list(batch, data, axes, mean = 1, stddev = stddev, ddof=self.ddof, eps=self.eps)
+            ref_scalar_stddev_ext = normalize_list(batch, data, axes, mean = mean, stddev = 2, eps=self.eps)
 
             shift_scale(ref_ext_mean, shift, scale)
             shift_scale(ref_ext_stddev, shift, scale)
