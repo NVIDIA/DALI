@@ -161,7 +161,7 @@ mkdir -p dali_tf_sdist_build
 cd dali_tf_sdist_build
 
 cmake .. \
-      -DCUDA_VERSION:STRING="${CUDA_VERSION_STR}" \
+      -DCUDA_VERSION:STRING="${CUDA_VERSION}" \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
       -DTIMESTAMP=${DALI_TIMESTAMP} \
       -DGIT_SHA=${GIT_SHA}

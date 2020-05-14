@@ -41,5 +41,6 @@ if (DALI_BUILD_FLAVOR)
   set(DALI_VERSION "${DALI_VERSION}.${TIMESTAMP}")
 endif()
 
+file(COPY "${PROJECT_SOURCE_DIR}/nvidia/__init__.py" DESTINATION "${PROJECT_BINARY_DIR}/nvidia")
 configure_file("${PROJECT_SOURCE_DIR}/__init__.py.in" "${PROJECT_BINARY_DIR}/nvidia/dali/__init__.py")
 configure_file("${PROJECT_SOURCE_DIR}/setup.py.in" "${PROJECT_BINARY_DIR}/setup.py")
