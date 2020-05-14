@@ -128,6 +128,16 @@ if dataset_compatible_tensorflow():
   from tensorflow.python.data.util import structure
   import functools
 
+  def dataset_options():
+    options = tf.data.Options()
+    try:
+        options.experimental_optimization.apply_default_optimizations = False
+        options.experimental_optimization.autotune = False
+    except:
+        print('Could not set TF Dataset Options')
+
+    return options
+
 
   class _DALIDatasetV2(dataset_ops.DatasetSource):
     def __init__(
@@ -180,6 +190,8 @@ if dataset_compatible_tensorflow():
         self._output_dtypes, self._output_shapes, output_classes)
 
       super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
+
+      self._options_attr = dataset_options()
 
     def _check_output_dtypes(self, output_dtypes):
       """Check whether output_dtypes is instance of tf.DType or tuple of tf.DType

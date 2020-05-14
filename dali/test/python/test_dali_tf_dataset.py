@@ -111,7 +111,6 @@ def _test_tf_dataset(device, device_id = 0):
             output_dtypes=dtypes,
             num_threads=num_threads,
             device_id=device_id)
-        daliset = daliset.with_options(dataset_options())
 
         iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
         next_element = iterator.get_next()
@@ -201,7 +200,6 @@ def _test_tf_dataset_multigpu():
                 output_dtypes=dtypes,
                 num_threads=num_threads,
                 device_id=device_id)
-            daliset = daliset.with_options(dataset_options())
 
             iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
             initializers.append(iterator.initializer)

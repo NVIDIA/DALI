@@ -90,7 +90,7 @@ def _get_mnist_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1):
         output_dtypes=dtypes,
         num_threads=4,
         device_id=device_id)
-    return daliset.with_options(dataset_options())
+    return daliset
 
 
 def _get_train_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1):
