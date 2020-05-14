@@ -87,12 +87,19 @@ void UniformFill(TensorList<CPUBackend> &tl, const T &value) {
 
 void CalcInvStdDev(const TensorListView<StorageCPU, float> &inv,
                    const TensorListView<StorageCPU, const float> &stddev,
+                   float epsilon,
                    float scale) {
   assert(inv.shape == stddev.shape);
   for (int i = 0; i < inv.shape.num_samples(); i++) {
-    auto v = volume(inv.shape.tensor_shape_span(i));
-    for (int j = 0; j < v; j++) {
-      inv.data[i][j] = stddev.data[i][j] ? scale / stddev.data[i][j] : 0;
+    int64_t v = volume(inv.shape.tensor_shape_span(i));
+    if (epsilon) {
+      for (int64_t j = 0; j < v; j++) {
+        inv.data[i][j] = scale * rsqrt(stddev.data[i][j] * stddev.data[i][j] + epsilon);
+      }
+    } else {
+      for (int64_t j = 0; j < v; j++) {
+        inv.data[i][j] = stddev.data[i][j] ? scale / stddev.data[i][j] : 0;
+      }
     }
   }
 }
@@ -105,36 +112,76 @@ void CalcInvStdDev(const TensorListView<StorageCPU, float> &inv,
  *
  * @remarks The scaling is split into these two values for precision.
  */
-static void ScaleRSqrtKeepZero(float *data, int64_t n, float rdiv, float mul) {
-  int i = 0;
+static void ScaleRSqrtKeepZero(float *data, int64_t n, float eps, float rdiv, float mul) {
+  int64_t i = 0;
 
 #ifdef __SSE__
-  // vectorized version of the loop below
+  // Vectorized version of the loop below
+
+  // We calculate the following:
+  // mul * rsqrt(data[i] + eps)
+  //
+  // rsqrt needs an extra step of Newton-Raphson refinement:
+  // rough = approx_rsqrt(x)
+  // precise = rough * (3 + x*y*y) * 0.5
+  //
+  // The multiplication by half is fused with mul, so the vectorized multipliplier is halved
+
   __m128 rdivx4 = _mm_set1_ps(rdiv);
-  __m128 mulx4 = _mm_set1_ps(mul);
-  __m128 zero = _mm_setzero_ps();
-  for (; i + 4 <= n; i += 4) {
-    __m128 x = _mm_loadu_ps(&data[i]);
-    x = _mm_mul_ps(x, rdivx4);
-    __m128 mask = _mm_cmpneq_ps(x, zero);
-    x = _mm_rsqrt_ps(x);
-    x = _mm_and_ps(x, mask);
-    x = _mm_mul_ps(x, mulx4);
-    _mm_storeu_ps(&data[i], x);
+  __m128 mulx4 = _mm_set1_ps(mul * 0.5f);  // halve here - save a multiplication in the inner loop
+  __m128 three = _mm_set1_ps(3.0f);
+  if (eps) {  // epsilon is present - no need for masking, but we need to add it
+    __m128 epsx4 = _mm_set1_ps(eps);
+    for (; i + 4 <= n; i += 4) {
+      __m128 x = _mm_loadu_ps(&data[i]);
+      x = _mm_mul_ps(x, rdivx4);
+      x = _mm_add_ps(x, epsx4);
+      __m128 y = _mm_rsqrt_ps(x);
+      __m128 y2 = _mm_mul_ps(y, y);
+      __m128 xy2 = _mm_mul_ps(x, y2);
+      __m128 three_minus_xy2 = _mm_sub_ps(three, xy2);
+      y = _mm_mul_ps(y, three_minus_xy2);
+      y = _mm_mul_ps(y, mulx4);
+      _mm_storeu_ps(&data[i], y);
+    }
+  } else {  // no epsilon - need to mask zeros
+    __m128 zero = _mm_setzero_ps();
+    for (; i + 4 <= n; i += 4) {
+      __m128 x = _mm_loadu_ps(&data[i]);
+      x = _mm_mul_ps(x, rdivx4);
+      __m128 mask = _mm_cmpneq_ps(x, zero);
+      __m128 y = _mm_rsqrt_ps(x);
+      y = _mm_and_ps(y, mask);  // mask whatever garbage was there and force to zero
+      __m128 y2 = _mm_mul_ps(y, y);
+      __m128 xy2 = _mm_mul_ps(x, y2);
+      __m128 three_minus_xy2 = _mm_sub_ps(three, xy2);
+      y = _mm_mul_ps(y, three_minus_xy2);
+      y = _mm_mul_ps(y, mulx4);
+      _mm_storeu_ps(&data[i], y);
+    }
   }
 #endif
 
-  for (; i < n; i++)
-    if (data[i])
-      data[i] = rsqrt(data[i] * rdiv) * mul;
+  if (eps) {
+    for (; i < n; i++)
+      data[i] = rsqrt(data[i] * rdiv + eps) * mul;
+  } else {
+    for (; i < n; i++) {
+      float x = data[i] * rdiv;
+      data[i] = x ? rsqrt(x) * mul : 0;
+    }
+  }
 }
 
-static void ScaleRSqrtKeepZero(const TensorView<StorageCPU, float> &inout, float rdiv, float mul) {
-  ScaleRSqrtKeepZero(inout.data, inout.num_elements(), rdiv, mul);
+static void ScaleRSqrtKeepZero(const TensorView<StorageCPU, float> &inout,
+                               float eps, float rdiv, float mul) {
+  ScaleRSqrtKeepZero(inout.data, inout.num_elements(), eps, rdiv, mul);
 }
 
 static void SumSquare2InvStdDev(const TensorView<StorageCPU, float> &inout,
                                 const TensorShape<> &data_shape,
+                                int degrees_of_freedom,
+                                double epsilon,
                                 double scale) {
   if (inout.num_elements() == 0) {
     return;
@@ -142,8 +189,16 @@ static void SumSquare2InvStdDev(const TensorView<StorageCPU, float> &inout,
   assert(data_shape.num_elements() >= inout.num_elements());
 
   int64_t v = data_shape.num_elements() / inout.num_elements();
-  float rdiv = static_cast<float>(1.0 / v);  // reciprocal in double precision
-  ScaleRSqrtKeepZero(inout, rdiv, scale);
+  float rdiv = 0;
+  if (v > degrees_of_freedom) {
+    rdiv = static_cast<float>(1.0 / (v - degrees_of_freedom));  // reciprocal in double precision
+  } else {
+    if (epsilon == 0) {
+      rdiv = 1;
+      scale = 0;
+    }
+  }
+  ScaleRSqrtKeepZero(inout, static_cast<float>(epsilon), rdiv, scale);
 }
 
 

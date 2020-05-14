@@ -6,17 +6,24 @@ import nvidia.dali.types as types
 import numpy as np
 from test_utils import dali_type
 
-def normalize(x, axes = None, mean = None, stddev = None):
+def normalize(x, axes = None, mean = None, stddev = None, ddof = 0, eps = 0):
     if type(axes) is list:
         axes = tuple(axes)
-    if mean is None and stddev is None:
+
+    if mean is None:
         mean = x.mean(axis = axes, keepdims = True)
-        stddev = np.std(x, axis = axes, keepdims=True)
-    elif mean is None:
-        mean = x.mean(axis = axes, keepdims = True)
-    elif stddev is None:
-        var = ((x - mean).astype(np.float)**2).mean(axis = axes, keepdims = True)
-        stddev = np.sqrt(var)
+
+    if stddev is None:
+        factor = np.prod([x.shape[a] for a in axes]) - ddof if axes else x.size - ddof
+        sqr = (x - mean).astype(np.float)**2
+        var = np.sum(sqr, axis = axes, keepdims = True)
+        if factor > 0:
+            var /= factor
+        else:
+            var *= 0
+        stddev = np.sqrt(var + eps)
+    elif eps:
+        stddev = np.sqrt(stddev**2 + eps)
 
     with np.errstate(divide='ignore', invalid='ignore'):
         norm = (x - mean) / stddev
@@ -49,7 +56,7 @@ def batch_mean(batch, axes):
 
 
 # calculate standard deviation over whole batch
-def batch_stddev(batch, axes, mean):
+def batch_stddev(batch, axes, mean, ddof = 0, eps = 0):
     var = None
     for i, x in enumerate(batch):
         tmp = np.sum((x - mean)**2, axis = axes, keepdims = True)
@@ -57,11 +64,16 @@ def batch_stddev(batch, axes, mean):
             var = tmp
         else:
             var += tmp
-    return np.sqrt(var / batch_reduced_vol(batch, axes))
+    factor = batch_reduced_vol(batch, axes) - ddof
+    if factor > 0:
+        var /= factor
+    else:
+        var *= 0
+    return np.sqrt(var + eps)
 
 # normalize a batch as a whole
 # non-reduced dims must have same extent in all batch items
-def batch_norm(in_batch, axes = None, mean = None, stddev = None):
+def batch_norm(in_batch, axes = None, mean = None, stddev = None, ddof = 0, eps = 0):
     if type(axes) is list:
         axes = tuple(axes)
 
@@ -69,7 +81,9 @@ def batch_norm(in_batch, axes = None, mean = None, stddev = None):
         mean = batch_mean(in_batch, axes)
 
     if stddev is None:
-        stddev = batch_stddev(in_batch, axes, mean)
+        stddev = batch_stddev(in_batch, axes, mean, ddof, eps)
+    elif eps:
+        stddev = np.sqrt(stddev * stddev + eps)
 
     out = []
     for x in in_batch:
@@ -131,21 +145,23 @@ def custom_stddev(batch_norm, axes):
             return [out]
         return per_sample_stddev
 
-def normalize_list(whole_batch, data_batch, axes = None, mean = None, stddev = None):
+def normalize_list(whole_batch, data_batch, axes = None, mean = None, stddev = None, ddof = 0, eps = 0):
     if whole_batch:
-        return batch_norm(data_batch, axes, mean, stddev)
+        return batch_norm(data_batch, axes, mean, stddev, ddof, eps)
     else:
         if type(mean) is not list:
             mean = [mean] * len(data_batch)
         if type(stddev) is not list:
             stddev = [stddev] * len(data_batch)
-        return [normalize(data_batch[i].astype(np.float), axes, mean[i], stddev[i]) for i in range(len(data_batch))]
+        return [normalize(data_batch[i].astype(np.float), axes, mean[i], stddev[i], ddof, eps)
+                for i in range(len(data_batch))]
 
 def err(l1, l2):
     return np.max([np.max(np.abs(a[0] - a[1])) for a in zip(l1, l2)])
 
 def check_float(l1, l2, eps = 1e-3):
     for i, a in enumerate(zip(l1, l2)):
+        dif = a[0] - a[1]
         assert(np.allclose(a[0], a[1], rtol=1e-3, atol=eps))
 
 def check_integer(actual, ref, input = None):
@@ -198,13 +214,15 @@ class NormalizePipeline(Pipeline):
 
         self.axes = axes
         self.axis_names = axis_names
+        self.ddof = 2 if axes is not None and len(axes) > 0 else 0
+        self.eps = 0.25
 
         self.mean = ops.PythonFunction(function = custom_mean(batch, axes), batch_processing=True)
         self.stddev = ops.PythonFunction(function = custom_stddev(batch, axes), batch_processing=True)
-        self.normalize = ops.Normalize(**common_args)
-        self.scalar_mean = ops.Normalize(**common_args, mean = 1)
-        self.scalar_stddev = ops.Normalize(**common_args, stddev = 2)
-        self.scalar_params = ops.Normalize(**common_args, mean = 1, stddev = 2)
+        self.normalize = ops.Normalize(**common_args, ddof=self.ddof, epsilon=self.eps)
+        self.scalar_mean = ops.Normalize(**common_args, mean=1)
+        self.scalar_stddev = ops.Normalize(**common_args, stddev=2)
+        self.scalar_params = ops.Normalize(**common_args, mean=1, stddev=2)
 
 
     def define_graph(self):
@@ -252,22 +270,23 @@ class NormalizePipeline(Pipeline):
                 eps = 1e-3 * scale * len(data[0].shape)
                 check_float(l1, l2, eps)
 
-        ref = normalize_list(batch, data, axes)
-        ref_scalar_mean = normalize_list(batch, data, axes, mean = 1)
-        ref_scalar_stddev = normalize_list(batch, data, axes, stddev = 2)
+        ref = normalize_list(batch, data, axes, ddof=self.ddof, eps=self.eps)
+        ref_scalar_mean = normalize_list(batch, data, axes, mean=1)
+        ref_scalar_stddev = normalize_list(batch, data, axes, stddev=2)
         shift_scale(ref, shift, scale)
         shift_scale(ref_scalar_mean, shift, scale)
         shift_scale(ref_scalar_stddev, shift, scale)
         mean, = mean_func(data)
         stddev, = stddev_func(data)
+
         check(normalized, ref)
         check(scalar_mean, ref_scalar_mean)
         check(scalar_stddev, ref_scalar_stddev)
 
         if not batch:
-            ref_ext_mean = normalize_list(batch, data, axes, mean = mean)
-            ref_ext_stddev = normalize_list(batch, data, axes, stddev = stddev)
-            ref_ext_all = normalize_list(batch, data, axes, mean = mean, stddev = stddev)
+            ref_ext_mean = normalize_list(batch, data, axes, mean = mean, ddof=self.ddof, eps=self.eps)
+            ref_ext_stddev = normalize_list(batch, data, axes, stddev = stddev, ddof=self.ddof, eps=self.eps)
+            ref_ext_all = normalize_list(batch, data, axes, mean = mean, stddev = stddev, ddof=self.ddof, eps=self.eps)
             ref_scalar_mean_ext = normalize_list(batch, data, axes, mean = 1, stddev = stddev)
             ref_scalar_stddev_ext = normalize_list(batch, data, axes, mean = mean, stddev = 2)
 
@@ -359,6 +378,8 @@ def test_types(device = "cpu"):
     for out_type, scale, shift in [(np.uint8, 64, 128), (np.int16, 1000, 0), (np.float32, 0.5, 0.5)]:
         for in_type in [None, np.uint8, np.int16, np.float32]:
             yield _run_test, device, batch_size, dim, axes, None, False, out_type, in_type, shift, scale
+
+import nvidia.dali.fn as fn
 
 def main():
     for test in test_cpu_up_to_5D_all_axis_combinations():
