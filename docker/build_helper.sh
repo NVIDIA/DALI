@@ -38,6 +38,7 @@ export BUILD_NVDEC=${BUILD_NVDEC:-ON}
 export BUILD_LIBSND=${BUILD_LIBSND:-ON}
 export BUILD_NVML=${BUILD_NVML:-ON}
 export BUILD_FFTS=${BUILD_FFTS:-ON}
+export BUILD_DUMMY_PKG=${BUILD_DUMMY_PKG:-ON}
 export STRIP_BINARY=${STRIP_BINARY:-OFF}
 export VERBOSE_LOGS=${VERBOSE_LOGS:-OFF}
 export WERROR=${WERROR:-ON}
@@ -118,5 +119,19 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
 
         ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl
     fi
-fi
 
+    if [ "${BUILD_DUMMY_PKG}" = "ON" ]; then
+        mkdir -p dummy_build
+        pushd dummy_build
+        export CUDA_VERSION_STR=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1.\2/')
+        cmake ../../dali/python/dummy \
+              -DCUDA_VERSION:STRING="${CUDA_VERSION}" \
+              -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
+              -DTIMESTAMP=${DALI_TIMESTAMP} \
+              -DGIT_SHA=${GIT_SHA}
+        python setup.py bdist_wheel
+        mkdir -p /wheelhouse/dummy
+        mv dist/*whl /wheelhouse/dummy
+        popd
+    fi
+fi
