@@ -40,7 +40,6 @@ Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If n
 * STRIP_BINARY - when used with CMAKE_BUILD_TYPE equal to Debug, DevDebug, or RelWithDebInfo it produces bare wheel binary without any debug information and the second one with *_debug.whl name with this information included. In the case of the other build configurations, these two wheels will be identical.
 * BUILD_INHOST - ask docker to mount source code instead of copying it. Thank to that consecutive builds are resuing existing object files and are faster for the development. Uses $DALI_BUILD_DIR as a directory for build objects. The default is ``YES``.
 * REBUILD_BUILDERS - if builder docker images need to be rebuild or can be reused from the previous build. The default is ``NO``.
-* REBUILD_MANYLINUX - if manylinux base image need to be rebuild. The default is ``NO``.
 * DALI_BUILD_DIR - where DALI build should happen. It matters only bit the in-tree build where user may provide different path for every python/CUDA version. The default is ``build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}``.
 * ARCH - architecture that DALI is build for, currently only x86_64 is supported. The default is ``x86_64``.
 * WHL_PLATFORM_NAME - the name of the Python wheel platform tag. The default is ``manylinux1_x86_64``.

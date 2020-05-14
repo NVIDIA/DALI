@@ -30,6 +30,22 @@ namespace kernels {
 
 namespace detail {
 
+template <typename O>
+inline std::enable_if_t<std::is_trivially_copyable<O>::value, void>
+CopyImpl(O *out, const O *in, size_t num) {
+  std::memcpy(out, in, num * sizeof(O));
+}
+
+template <typename O>
+inline std::enable_if_t<!std::is_trivially_copyable<O>::value, void>
+CopyImpl(O *out, const O *in, size_t num) {
+  for (size_t i = 0; i < num; ++i) {
+    *out = *in;
+    ++in;
+    ++out;
+  }
+}
+
 template <typename T, int Dims>
 void EraseKernelImpl(T *data,
                      const TensorShape<Dims> &strides,
@@ -111,7 +127,7 @@ class EraseCpu {
     const T *in_ptr = in.data;
     T *out_ptr = out.data;
     if (out_ptr != in_ptr) {
-      std::memcpy(out_ptr, in_ptr, volume(shape) * sizeof(T));
+      detail::CopyImpl(out_ptr, in_ptr, volume(shape));
     }
 
     for (auto &roi : args.rois) {
@@ -161,3 +177,4 @@ class EraseCpu {
 }  // namespace dali
 
 #endif  // DALI_KERNELS_ERASE_ERASE_CPU_H_
+

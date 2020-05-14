@@ -1050,6 +1050,8 @@ namespace half_float
 #endif
     }
 
+    half &operator=(const half &) = default;
+
     template <class T>
     CAFFE_UTIL_IHD half& operator=(const T& rhs) {
       assign(static_cast<float>(rhs));
