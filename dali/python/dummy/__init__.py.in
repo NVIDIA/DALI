@@ -14,11 +14,19 @@
 
 from __future__ import absolute_import
 
-print(
-    """###########################################################################################################\n"""
-    """WARNING: Package nvidia-dali@DALI_FLAVOR_MINUS@ is now deprecated. Please install nvidia-dali@DALI_FLAVOR_MINUS@-cu@CUDA_VERSION_SHORT_DIGIT_ONLY@ instead.\n"""
-    """For more information, go to https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html#id1\n"""
-    """###########################################################################################################""",)
+import os
+
+new_path = os.path.join('https://developer.download.nvidia.com/compute/redist', '@DALI_FLAVOR_MINUS@')
+
+warning_msg = """
+###########################################################################################################
+WARNING: Package nvidia-dali@DALI_FLAVOR_MINUS@ is now deprecated. Please install nvidia-dali@DALI_FLAVOR_MINUS@-cu@CUDA_VERSION_SHORT_DIGIT_ONLY@ instead:
+pip install --extra-index-url {} nvidia-dali@DALI_FLAVOR_MINUS@-cu@CUDA_VERSION_SHORT_DIGIT_ONLY@
+For more information, go to https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html#id1
+###########################################################################################################
+""".format(new_path)
+
+print(warning_msg)
 
 # we need to have that defined and accessible before any other DALI import
 __version__ = '@DALI_VERSION@'
