@@ -130,11 +130,8 @@ if dataset_compatible_tensorflow():
 
   def dataset_options():
     options = tf.data.Options()
-    try:
-        options.experimental_optimization.apply_default_optimizations = False
-        options.experimental_optimization.autotune = False
-    except:
-        print('Could not set TF Dataset Options')
+    options.experimental_optimization.apply_default_optimizations = False
+    options.experimental_optimization.autotune = False
 
     return options
 
