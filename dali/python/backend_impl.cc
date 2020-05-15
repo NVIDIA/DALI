@@ -33,6 +33,14 @@
 namespace dali {
 namespace python {
 
+// add this alignment to work around a patchelf bug/feature which
+// changes TLS alignment and break DALI interoperability with CUDA RT
+alignas(0x1000) thread_local volatile bool __backend_impl_force_tls_align;
+
+void __backend_impl_force_tls_align_fun(void) {
+  __backend_impl_force_tls_align = 0;
+}
+
 using namespace pybind11::literals; // NOLINT
 
 static void* ctypes_void_ptr(const py::object& object) {
@@ -199,6 +207,7 @@ void ExposeTensor(py::module &m) {
     .def(py::init([](py::buffer b, string layout = "") {
           // We need to verify that hte input data is c contiguous
           // and of a type that we can work with in the backend
+          __backend_impl_force_tls_align_fun();
           py::buffer_info info = b.request();
 
           std::vector<Index> i_shape;

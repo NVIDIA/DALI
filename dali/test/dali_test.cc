@@ -20,7 +20,16 @@
 #include "dali/test/dali_test_config.h"
 #include "dali/operators.h"
 
+// add this alignment to work around a patchelf bug/feature which
+// changes TLS alignment and break DALI interoperability with CUDA RT
+alignas(0x1000) thread_local volatile bool __dali_test_force_tls_align;
+
+void __dali_test_force_tls_align_fun(void) {
+  __dali_test_force_tls_align = 0;
+}
+
 int main(int argc, char **argv) {
+  __dali_test_force_tls_align_fun();
   dali::DALIInit(dali::OpSpec("CPUAllocator"),
                  dali::OpSpec("PinnedCPUAllocator"),
                  dali::OpSpec("GPUAllocator"));
