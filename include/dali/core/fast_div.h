@@ -152,6 +152,7 @@ DALI_HOST_DEV inline uint64_t div_lohi(uint64_t lo, uint64_t hi, uint64_t diviso
  * Based on:
  * Labor of Division (Episode III): Faster Unsigned Division by Constants
  * ridiculous_fish corydoras@ridiculousfish.com
+ * https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
  *
  * Limitations:
  * - doesn't work for maximum value of uint when dividing by uncooperative numbers

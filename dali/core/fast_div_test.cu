@@ -23,55 +23,83 @@
 namespace dali {
 
 template <uint32_t divisor>
-void TestDiv32() {
+void TestDiv32(bool quick_test) {
   fast_div<uint32_t> fast = divisor;
+
   std::cerr << "Testing x / " << divisor << std::endl;
-  for (uint32_t x = 0; x < 0xffffffffu; x++) {
+  uint32_t range = quick_test ? (1<<20) : 0xFFFFFFFFu;
+  for (uint32_t xx = 0; xx < range; xx++) {
+    uint32_t x = quick_test
+      ? ((xx >> 12) << 24) | (xx & 0xfff)
+      : xx;
     ASSERT_EQ(x / divisor, x / fast) << " when dividing " << x << " / " << divisor;
   }
-}
 
-// This test is disabled because it's ridiculously slow - only run when touching fast_div
-TEST(FastDiv, DISABLED_U32_Host) {
-  // use compile-time constants so the compiler can optimize the reference division
-  TestDiv32<0xFFFFFFFEu>();
-  TestDiv32<3>();
-  TestDiv32<5>();
-  TestDiv32<7>();
-  TestDiv32<1>();
-  TestDiv32<0x800000>();
-  TestDiv32<19>();
-  TestDiv32<42>();
-  TestDiv32<12345678>();
-  TestDiv32<0x82345678>();
+  uint32_t x = 0xFFFFFFFEu;
+  ASSERT_EQ(x / divisor, x / fast) << " when dividing " << x << " / " << divisor;
 }
 
 template <uint64_t divisor>
-void TestDiv64() {
+void TestDiv64(bool quick_test) {
   fast_div<uint64_t> fast = divisor;
   std::cerr << "Testing x / " << divisor << std::endl;
-  for (uint64_t xx = 0; xx < 0xffffffffu; xx++) {
-    uint64_t x = ((xx >> 12) << 44) + (xx & 0xfff);
+  uint64_t range = quick_test ? (1<<20) : 0xFFFFFFFFu;
+  for (uint64_t xx = 0; xx < range; xx++) {
+    uint64_t x = quick_test
+      ? ((xx >> 12) << 56) + (xx & 0xfff)
+      : ((xx >> 12) << 44) + (xx & 0xfff);
     ASSERT_EQ(x / divisor, x / fast) << " when dividing " << x << " / " << divisor;
   }
+  uint64_t x = 0xFFFFFFFFFFFFFFFEuL;
+  ASSERT_EQ(x / divisor, x / fast) << " when dividing " << x << " / " << divisor;
+}
+
+void TestDiv32(bool quick) {
+  // use compile-time constants so the compiler can optimize the reference division
+  TestDiv32<0xFFFFFFFEu>(quick);
+  TestDiv32<3>(quick);
+  TestDiv32<5>(quick);
+  TestDiv32<7>(quick);
+  TestDiv32<1>(quick);
+  TestDiv32<0x800000>(quick);
+  TestDiv32<19>(quick);
+  TestDiv32<42>(quick);
+  TestDiv32<12345678>(quick);
+  TestDiv32<0x82345678>(quick);
+}
+
+void TestDiv64(bool quick) {
+  // use compile-time constants so the compiler can optimize the reference division
+  TestDiv64<0xFFFFFFFFFFFFFFFEuL>(quick);
+  TestDiv64<3>(quick);
+  TestDiv64<5>(quick);
+  TestDiv64<7>(quick);
+  TestDiv64<1>(quick);
+  TestDiv64<0x800000>(quick);
+  TestDiv64<0x80000000000000uL>(quick);
+  TestDiv64<19>(quick);
+  TestDiv64<42>(quick);
+  TestDiv64<12345678901234567uL>(quick);
+  TestDiv64<0x82345678DEADBEEFuL>(quick);
 }
 
 // This test is disabled because it's ridiculously slow - only run when touching fast_div
-TEST(FastDiv, DISABLED_U64_Host) {
-  // use compile-time constants so the compiler can optimize the reference division
-  TestDiv64<0xFFFFFFFFFFFFFFFEuL>();
-  TestDiv64<3>();
-  TestDiv64<5>();
-  TestDiv64<7>();
-  TestDiv64<1>();
-  TestDiv64<0x800000>();
-  TestDiv64<0x80000000000000uL>();
-  TestDiv64<19>();
-  TestDiv64<42>();
-  TestDiv64<12345678901234567uL>();
-  TestDiv64<0x82345678DEADBEEFuL>();
+TEST(FastDiv, DISABLED_U32_Host_Slow) {
+  TestDiv32(false);
 }
 
+TEST(FastDiv, DISABLED_U64_Host_Slow) {
+  TestDiv64(false);
+}
+
+// This test is disabled because it's ridiculously slow - only run when touching fast_div
+TEST(FastDiv, U32_Host) {
+  TestDiv32(true);
+}
+
+TEST(FastDiv, U64_Host) {
+  TestDiv64(true);
+}
 
 // This test is disabled because it's ridiculously slow - only run when touching fast_div
 DEVICE_TEST(FastDiv, DISABLED_U32_GPU, dim3(1<<10, 1<<10), (1<<10)) {
@@ -87,14 +115,56 @@ DEVICE_TEST(FastDiv, DISABLED_U32_GPU, dim3(1<<10, 1<<10), (1<<10)) {
 }
 
 // This test is disabled because it's ridiculously slow - only run when touching fast_div
-DEVICE_TEST(FastDiv, DISABLED_U64_GPU, dim3(1<<10, 1<<10), (1<<10)) {
+DEVICE_TEST(FastDiv, DISABLED_U64_GPU_Slow, dim3(1<<10, 1<<10), (1<<10)) {
   uint64_t start = static_cast<uint64_t>(blockIdx.x * blockDim.x + threadIdx.x) << 44;
   uint64_t divisor = blockIdx.y + 1;
   fast_div<uint64_t> fast;
   fast.init(divisor);
   uint64_t end = start + (1<<12);
+  if (blockIdx.x == gridDim.x - 1 && threadIdx.x == blockDim.x-1) {
+    start = 0xfffffffffffffffeuL - (1<<12);
+    end = 0xffffffffffffffffuL;
+  }
+  for (uint64_t value = start; value < end; value++) {
+    auto ref = value / divisor;
+    auto result = value / fast;
+    if (result != ref) {
+      printf("%lld / %lld   got %lld expected %lld\n", value, divisor, result, ref);
+      DEV_ASSERT_EQ(result, ref);
+    }
+  }
+}
+
+DEVICE_TEST(FastDiv, U32_GPU, dim3(1<<10, 11), (1<<10)) {
+  static constexpr uint32_t divisors[11] = {
+    1, 2, 3, 5, 7, 14, 19, 42,
+    0x7fffffffu, 0x80000000u, 0xfffffffeu
+  };
+  uint32_t start = (blockIdx.x * blockDim.x + threadIdx.x) << 12;
+  uint32_t divisor = divisors[blockIdx.y];
+  fast_div<uint32_t> fast = divisor;
+  uint32_t end = start + (1<<12);
   if (end == 0)
     end--;
+  for (uint32_t value = start; value < end; value++) {
+    DEV_EXPECT_EQ(value / divisor, value / fast);
+  }
+}
+
+DEVICE_TEST(FastDiv, U64_GPU, dim3(1<<10, 11), (1<<10)) {
+  static constexpr uint64_t divisors[11] = {
+    1, 2, 3, 5, 7, 14, 19, 42,
+    0x7fffffffffffffffuL, 0x8000000000000000uL, 0xfffffffffffffffeuL
+  };
+  uint64_t start = static_cast<uint64_t>(blockIdx.x * blockDim.x + threadIdx.x) << 44;
+  uint64_t divisor = divisors[blockIdx.y];
+  fast_div<uint64_t> fast;
+  fast.init(divisor);
+  uint64_t end = start + (1<<12);
+  if (blockIdx.x == gridDim.x - 1 && threadIdx.x == blockDim.x-1) {
+    start = 0xfffffffffffffffeuL - (1<<12);
+    end = 0xffffffffffffffffuL;
+  }
   for (uint64_t value = start; value < end; value++) {
     auto ref = value / divisor;
     auto result = value / fast;
