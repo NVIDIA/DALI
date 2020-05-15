@@ -106,8 +106,8 @@ std::vector<testing::Arguments> devices = {
 };
 
 template <typename T>
-void CheckRearrange(const T* ptr, const TensorShape<>& old_shape,
-                    const TensorShape<>& new_shape, const std::vector<int>& new_order) {
+void CheckRearrange(const T* ptr, const TensorShape<>& old_shape, const TensorShape<>& new_shape,
+                    const std::vector<int>& new_order) {
   auto old_element_size = volume(old_shape) / GetSeqLength(old_shape);
   auto new_element_size = volume(new_shape) / GetSeqLength(new_shape);
   ASSERT_EQ(old_element_size, new_element_size);
@@ -153,8 +153,8 @@ TEST_P(SequenceRearrangeInvalidTest, InvalidInputs) {
 }
 
 INSTANTIATE_TEST_SUITE_P(SequenceRearrangeSuite, SequenceRearrangeValidTest,
-                        ::testing::ValuesIn(cartesian(devices, reorders)));
+                         ::testing::ValuesIn(cartesian(devices, reorders)));
 INSTANTIATE_TEST_SUITE_P(SequenceRearrangeSuite, SequenceRearrangeInvalidTest,
-                        ::testing::ValuesIn(cartesian(devices, wrong_reorders)));
+                         ::testing::ValuesIn(cartesian(devices, wrong_reorders)));
 
 }  // namespace dali

@@ -47,6 +47,7 @@ void SequenceRearrange<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
       scatter_gather_.AddCopy(copy_desc.to, copy_desc.from, copy_desc.size);
     }
     scatter_gather_.Run(ws.stream());
+    output.SetLayout(input.GetLayout());
   }
 }
 

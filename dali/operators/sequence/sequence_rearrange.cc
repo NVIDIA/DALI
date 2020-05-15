@@ -18,14 +18,40 @@
 
 namespace dali {
 
+TensorShape<> GetOutputShape(const TensorShape<> &in_sample_shape,
+                             const TensorView<StorageCPU, const int, 1> &new_order,
+                             int sample_idx) {
+  const int in_seq_length = GetSeqLength(in_sample_shape);
+  const int out_seq_length = new_order.num_elements();
+  for (int i = 0; i < out_seq_length; i++) {
+    int src_idx = new_order.data[i];
+    DALI_ENFORCE(
+        0 <= src_idx && src_idx < in_seq_length,
+        make_string("Source element src_idx must be between 0 and input_sequence_length = ",
+                    in_seq_length, " for sample ", sample_idx, ", but it is: ", src_idx, "."));
+  }
+  auto element_shape = in_sample_shape.last(in_sample_shape.sample_dim() - 1);
+  auto new_sample_shape = shape_cat(out_seq_length, element_shape);
+  return new_sample_shape;
+}
+
+copy_desc GetCopyDesc(char *output_sample, const char *input_sample, int out_elem_idx,
+                      int in_elem_idx, int64_t element_sizeof) {
+  copy_desc result;
+  result.from = input_sample + in_elem_idx * element_sizeof;
+  result.to = output_sample + out_elem_idx * element_sizeof;
+  result.size = element_sizeof;
+  return result;
+}
+
 template <>
 void SequenceRearrange<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+  const auto &input = ws.InputRef<CPUBackend>(0);
+  auto &output = ws.OutputRef<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();
 
   for (int sample_idx = 0; sample_idx < batch_size_; ++sample_idx) {
-    thread_pool.DoWorkWithID([this, &ws, sample_idx](int tid) {
-      const auto &input = ws.InputRef<CPUBackend>(0);
-      auto &output = ws.OutputRef<CPUBackend>(0);
+    thread_pool.DoWorkWithID([this, &ws, &input, &output, sample_idx](int tid) {
       TypeInfo type = input.type();
       const auto *in_sample = reinterpret_cast<const char *>(input[sample_idx].raw_data());
       auto *out_sample = reinterpret_cast<char *>(output[sample_idx].raw_mutable_data());
@@ -48,6 +74,8 @@ void SequenceRearrange<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
     });
   }
   thread_pool.WaitForWork();
+
+  output.SetLayout(input.GetLayout());
 }
 
 DALI_REGISTER_OPERATOR(SequenceRearrange, SequenceRearrange<CPUBackend>, CPU);
