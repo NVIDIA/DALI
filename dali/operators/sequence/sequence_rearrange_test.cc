@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 
-#include "dali/pipeline/operators/sequence/sequence_rearrange.h"
+#include "dali/operators/sequence/sequence_rearrange.h"
 #include "dali/test/dali_operator_test.h"
 #include "dali/test/dali_operator_test_utils.h"
 
@@ -34,8 +34,6 @@ void FillSeq(T* ptr, const std::vector<Index>& shape) {
     }
   }
 }
-
-}  // namespace
 
 class SequenceRearrangeBaseTest : public testing::DaliOperatorTest {
   testing::GraphDescr GenerateOperatorGraph() const noexcept override {
@@ -103,13 +101,13 @@ std::vector<testing::Arguments> wrong_reorders = {
 };
 
 std::vector<testing::Arguments> devices = {
-    {{"device", std::string{"cpu"}}},
-    {{"device", std::string{"gpu"}}},
+    {{"device", "cpu"}},
+    {{"device", "gpu"}},
 };
 
 template <typename T>
-void CheckRearrange(const T* ptr, const std::vector<Index>& old_shape,
-                    const std::vector<Index>& new_shape, const std::vector<int>& new_order) {
+void CheckRearrange(const T* ptr, const TensorShape<>& old_shape,
+                    const TensorShape<>& new_shape, const std::vector<int>& new_order) {
   auto old_element_size = volume(old_shape) / GetSeqLength(old_shape);
   auto new_element_size = volume(new_shape) / GetSeqLength(new_shape);
   ASSERT_EQ(old_element_size, new_element_size);
@@ -127,10 +125,12 @@ void SeqRearrangeVerify(const testing::TensorListWrapper& input,
   auto in = input.CopyTo<CPUBackend>();
   auto out = output.CopyTo<CPUBackend>();
   auto order = args.at(testing::ArgumentKey("new_order")).GetValue<std::vector<int>>();
-  for (decltype(out->ntensor()) i = 0; i < out->ntensor(); i++) {
+  for (size_t i = 0; i < out->ntensor(); i++) {
     CheckRearrange(out->tensor<int>(i), in->tensor_shape(i), out->tensor_shape(i), order);
   }
 }
+
+}  // namespace
 
 TEST_P(SequenceRearrangeValidTest, GoodRearranges) {
   auto args = GetParam();
