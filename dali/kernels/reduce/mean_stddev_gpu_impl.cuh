@@ -161,7 +161,7 @@ struct VariancePreprocessorBank<2, Mean> {
   const Mean *mean;
   i64vec<2> stride;
   /// Calculates the fully reduced inner offset based on non-reduced `pos[1]`
-  DropDims inner_dims;
+  DropDims<3> inner_dims;
 
   DALI_HOST_DEV DALI_FORCEINLINE
   reductions::variance<Mean> Get(const i64vec<2> &pos) const {
@@ -242,7 +242,7 @@ class VarianceImplBase {
       bank.mean = mean_.data[o];
       bank.stride[0] = volume(out_shape.begin() + axis, out_shape.end());  // outer stride
       bank.stride[1] = 1;  // inner stride, always 1?
-      bank.inner_dims = DropDims(inner_shape, mask);  // reindexing, if necessary
+      bank.inner_dims = DropDims<3>(inner_shape, mask);  // reindexing, if necessary
     }
     return banks;
   }

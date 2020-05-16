@@ -20,7 +20,7 @@ namespace kernels {
 namespace reduce_impl {
 
 TEST(DropDims, Simplify) {
-  DropDims dd;
+  DropDims<3> dd;
   unsigned in_mask = 0b10011, out_mask = 0xffffffffu;
   int64_t in_shape[5] = { 2, 3, 4, 5, 6 };
   int64_t out_shape[5];
@@ -49,7 +49,7 @@ TEST(DropDims, Simplify) {
 }
 
 TEST(DropDims, NoOp) {
-  DropDims dd;
+  DropDims<3> dd;
   for (int i = 0; i < 10; i++)
     EXPECT_EQ(dd.reindex(i), i);
 }
@@ -58,7 +58,7 @@ TEST(DropDims, Outer) {
   int h = 32;
   int w = 40;
   int shape[] = { h, w };
-  DropDims dd(shape, 0b01);
+  DropDims<3> dd(shape, 0b01);
   for (int y = 0, idx = 0; y < h; y++) {
     for (int x = 0; x < w; x++, idx++) {
       EXPECT_EQ(dd.reindex(idx), x);
@@ -70,7 +70,7 @@ TEST(DropDims, Inner) {
   int h = 32;
   int w = 40;
   int shape[] = { h, w };
-  DropDims dd(shape, 0b10);
+  DropDims<3> dd(shape, 0b10);
   for (int y = 0, idx = 0; y < h; y++) {
     for (int x = 0; x < w; x++, idx++) {
       EXPECT_EQ(dd.reindex(idx), y);
@@ -83,7 +83,7 @@ TEST(DropDims, Middle) {
   int h = 4;
   int w = 5;
   int shape[] = { d, h, w };
-  DropDims dd(shape, 0b010);
+  DropDims<3> dd(shape, 0b010);
   for (int z = 0, idx = 0; z < d; z++) {
     for (int y = 0; y < h; y++) {
       for (int x = 0; x < w; x++, idx++) {
@@ -98,7 +98,7 @@ TEST(DropDims, TwoOuter) {
   int h = 4;
   int w = 5;
   int shape[] = { d, h, w };
-  DropDims dd(shape, 0b101);
+  DropDims<3> dd(shape, 0b101);
   for (int z = 0, idx = 0; z < d; z++) {
     for (int y = 0; y < h; y++) {
       for (int x = 0; x < w; x++, idx++) {
@@ -110,7 +110,7 @@ TEST(DropDims, TwoOuter) {
 
 TEST(DropDims, Multi4Odd) {
   int shape[] = { 3, 4, 5, 6 };
-  DropDims dd(shape, 0b1010);
+  DropDims<3> dd(shape, 0b1010);
   for (int i = 0, idx = 0; i < shape[0]; i++)
     for (int j = 0; j < shape[1]; j++)
       for (int k = 0; k < shape[2]; k++)
@@ -122,7 +122,7 @@ TEST(DropDims, Multi4Odd) {
 
 TEST(DropDims, Multi4Even) {
   int shape[] = { 3, 4, 5, 6 };
-  DropDims dd(shape, 0b0101);
+  DropDims<3> dd(shape, 0b0101);
   for (int i = 0, idx = 0; i < shape[0]; i++)
     for (int j = 0; j < shape[1]; j++)
       for (int k = 0; k < shape[2]; k++)
@@ -134,7 +134,7 @@ TEST(DropDims, Multi4Even) {
 
 TEST(DropDims, TrailingOne) {
   int shape[] = { 3, 4, 5, 6, 1 };
-  DropDims dd(shape, 0b01010);
+  DropDims<3> dd(shape, 0b01010);
   for (int i = 0, idx = 0; i < shape[0]; i++)
     for (int j = 0; j < shape[1]; j++)
       for (int k = 0; k < shape[2]; k++)
@@ -156,7 +156,7 @@ TEST(DropDims, Multi5All) {
       for (int d = 0; d < 5; d++) {
         rshape[d] = mask & (1u << d) ? 1 : shape[d];
       }
-      DropDims dd(shape, mask);
+      DropDims<3> dd(shape, mask);
       for (int i = 0, idx = 0; i < shape[0]; i++) {
         int ri = mask & 0b00001 ? 0 : i;
         for (int j = 0; j < shape[1]; j++) {
@@ -169,7 +169,7 @@ TEST(DropDims, Multi5All) {
                 int rm = mask & 0b10000 ? 0 : m;
                 int ridx =
                   ((((ri * rshape[1] + rj) * rshape[2]) + rk) * rshape[3] + rl) * rshape[4] + rm;
-                EXPECT_EQ(dd.reindex(idx), ridx);
+                ASSERT_EQ(dd.reindex(idx), ridx);
               }
             }
           }
@@ -179,14 +179,13 @@ TEST(DropDims, Multi5All) {
   }
 }
 
-
 TEST(DropDims, CollapseUnitDims) {
   int shape[] = { 3, 4, 5, 1, 1, 6, 7 };
   // reduce:      ^     ^^^^        ^
   //
   // collapse unit dims, with different reduce/non-reduce flag
 
-  DropDims dd(shape, 0b1001101);
+  DropDims<3> dd(shape, 0b1001101);
   for (int i = 0, idx = 0; i < shape[0]; i++)
     for (int j = 0; j < shape[1]; j++)
       for (int k = 0; k < shape[2]; k++)

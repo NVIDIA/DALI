@@ -20,7 +20,9 @@
 #include <cstdint>
 #include <stdexcept>
 #include "dali/core/util.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/core/host_dev.h"
+#include "dali/core/fast_div.h"
 
 namespace dali {
 namespace kernels {
@@ -43,13 +45,49 @@ namespace reduce_impl {
  *
  * The reindexing is done by either dividing and multiplying by old/new strides or by takind modulo.
  */
+template <int max_dims>
 struct DropDims {
-  static constexpr int kMaxDims = 4;
+  static constexpr int kMaxDims = max_dims;
 
-  int64_t div[kMaxDims];
+  // improved packing, divisors not stored for div (only for modulo)
+  uint64_t div_m[kMaxDims];
+  uint64_t mod_m[kMaxDims];
+  uint64_t mod_d[kMaxDims];
+  uint8_t div_add[kMaxDims], div_shift[kMaxDims];
+  uint8_t mod_add[kMaxDims], mod_shift[kMaxDims];
   int64_t mul[kMaxDims];
-  int64_t mod[kMaxDims];
   int start = 2 * kMaxDims;
+
+  DALI_HOST_DEV DALI_FORCEINLINE fast_div<uint64_t> div(int idx) const {
+    fast_div<uint64_t> fd;
+    fd.divisor = 0;
+    fd.mul = div_m[idx];
+    fd.add = div_add[idx];
+    fd.shift = div_shift[idx];
+    return fd;
+  }
+
+  DALI_HOST_DEV DALI_FORCEINLINE fast_div<uint64_t> mod(int idx) const {
+    fast_div<uint64_t> fd;
+    fd.divisor = mod_d[idx];
+    fd.mul = mod_m[idx];
+    fd.add = mod_add[idx];
+    fd.shift = mod_shift[idx];
+    return fd;
+  }
+
+  DALI_HOST_DEV DALI_FORCEINLINE void div(int idx, fast_div<uint64_t> v) {
+    div_m[idx] = v.mul;
+    div_add[idx] = v.add;
+    div_shift[idx] = v.shift;
+  }
+
+  DALI_HOST_DEV DALI_FORCEINLINE void mod(int idx, fast_div<uint64_t> v) {
+    mod_d[idx] = v.divisor;
+    mod_m[idx] = v.mul;
+    mod_add[idx] = v.add;
+    mod_shift[idx] = v.shift;
+  }
 
   DALI_HOST_DEV DropDims() {}
 
@@ -168,9 +206,9 @@ struct DropDims {
     for (int i = 0; i < d - 1; i++) {
       assert(volumes[i] > 1);  // simplification should make this impossible
       if (axis_mask & (1 << i)) {
-        mod[nmod++] = volumes[i];
+        mod(nmod++, volumes[i]);
       } else {
-        div[ndiv] = volumes[i];
+        div(ndiv, volumes[i]);
         mul[ndiv] = kept_volumes[i];
         ndiv++;
       }
@@ -192,14 +230,14 @@ struct DropDims {
       throw std::out_of_range("Maximum number of dimension groups exceeded");
 
     if (mod_ofs || !nmod)
-      mod[kMaxDims - 1] = 1;  // pad with no-op mod
+      mod(kMaxDims - 1, 1);  // pad with no-op mod
 
     for (int i = ndiv-1; i >= 0; i--) {
-      div[kMaxDims - ndiv + i] = div[i];
+      div(kMaxDims - ndiv + i, div(i));
       mul[kMaxDims - ndiv + i] = mul[i];
     }
     for (int i = nmod-1; i >= 0; i--) {
-      mod[kMaxDims - nmod + i - mod_ofs] = mod[i];
+      mod(kMaxDims - nmod + i - mod_ofs, mod(i));
     }
 
     // start index - even if starting with div/mul, odd if starting with mod
@@ -241,18 +279,23 @@ struct DropDims {
     // Warning: intentional fall-through!
     #define REINDEX_CASE(idx)\
       case 2*idx:\
-        out += index / div[idx] * mul[idx];\
+        if (idx < kMaxDims)\
+          out += static_cast<uint64_t>(index) / div(idx) * mul[cuda_min(idx, kMaxDims-1)];\
       case 2*idx+1:\
-        if (mod[idx] == 1) {\
-          index = 0;\
-          break;\
-        }\
-        index = index % mod[idx]
+        if (idx < kMaxDims) {\
+          if (mod_d[cuda_min(idx, kMaxDims-1)] == 1) {\
+            index = 0;\
+            break;\
+          }\
+          index = static_cast<uint64_t>(index) % mod(idx);\
+        }
 
-      REINDEX_CASE(0);
-      REINDEX_CASE(1);
-      REINDEX_CASE(2);
-      REINDEX_CASE(3);
+      REINDEX_CASE(0)
+      REINDEX_CASE(1)
+      REINDEX_CASE(2)
+      REINDEX_CASE(3)
+      REINDEX_CASE(4)
+      static_assert(max_dims <= 5, "Add more switch cases for max_dims > 5");
     }
 
     out += index;
