@@ -82,7 +82,9 @@ DALI_REGISTER_OPERATOR(SequenceRearrange, SequenceRearrange<CPUBackend>, CPU);
 
 DALI_SCHEMA(SequenceRearrange)
     .DocStr(R"code(Rearrange the sequence stored as tensor.
-Assumes that )code")
+Assumes that the outermost dimension represents a sequence and other dimensions of input
+represent elements of that sequence. If layout is specified, the first dimension should
+be denoted as ``F`` indicating frames of the sequence.)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowSequences()
