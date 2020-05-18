@@ -85,6 +85,20 @@ void UniformFill(TensorList<CPUBackend> &tl, const T &value) {
   std::fill(data, data + tl.size(), value);
 }
 
+/**
+ * @brief Calculates inverse of the standard deviation, adding epsilon to varianace
+ *        and scaling the result
+ *
+ * The output elements are calculated as:
+ * ```
+ * inv = scale / sqrt(stddev * stddev + epsilon)
+ * ```
+ *
+ * @param inv     output
+ * @param stddev  the standard deviation
+ * @param epsilon a small positive value added to the variance
+ * @param scale   a multiplier, applied to the final result
+ */
 void CalcInvStdDev(const TensorListView<StorageCPU, float> &inv,
                    const TensorListView<StorageCPU, const float> &stddev,
                    float epsilon,
@@ -105,10 +119,11 @@ void CalcInvStdDev(const TensorListView<StorageCPU, float> &inv,
 }
 
 /**
- * @brief Calculates mul/sqrt(x * rdiv) for nonzero x and keeps 0 when x == 0
+ * @brief Calculates `mul/sqrt(data[i] * rdiv + eps)` for nonzero argument of sqrt and 0 otherwise
  *
  * @param rdiv reciprocal of the divisor
  * @param mul scaling factor
+ * @param eps epsilon added to data[i] * rdiv to avoid reciprocals of small numbers
  *
  * @remarks The scaling is split into these two values for precision.
  */
@@ -119,11 +134,11 @@ static void ScaleRSqrtKeepZero(float *data, int64_t n, float eps, float rdiv, fl
   // Vectorized version of the loop below
 
   // We calculate the following:
-  // mul * rsqrt(data[i] + eps)
+  // mul * rsqrt(data[i] * rdiv + eps)
   //
   // rsqrt needs an extra step of Newton-Raphson refinement:
-  // rough = approx_rsqrt(x)
-  // precise = rough * (3 + x*y*y) * 0.5
+  // y = approx_rsqrt(x)  // rough approximation
+  // precise = y * (3 - x*y*y) * 0.5
   //
   // The multiplication by half is fused with mul, so the vectorized multipliplier is halved
 

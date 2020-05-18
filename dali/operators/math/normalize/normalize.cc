@@ -207,7 +207,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
 
   if (has_scalar_stddev_) {
     float scalar_stddev = spec_.GetArgument<float>("stddev");
-    if (epsilon_)
+    if (epsilon_)  // add epsilon to variance
       scalar_inv_stddev = scale_ * rsqrt(scalar_stddev*scalar_stddev + epsilon_);
     else
       scalar_inv_stddev = scale_ / scalar_stddev;
