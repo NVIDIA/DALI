@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "dali/core/format.h"
+#include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/scatter_gather.h"
 #include "dali/pipeline/data/views.h"
@@ -83,8 +84,15 @@ class SequenceRearrange : public Operator<Backend> {
         output_desc[0].shape.set_tensor_shape(i, GetOutputShape(in_shape[i], new_order, i));
       }
     }
+
+    auto layout = input.GetLayout();
+    DALI_ENFORCE(layout.empty() || layout.find('F') == 0,
+                 make_string("Expected sequence as the input, where outermost dimension represents "
+                             "frames dimension `F`, got data with layout = \"", layout, "\"."));
+
     return true;
   }
+
   void RunImpl(workspace_t<Backend>& ws) override;
 
  private:

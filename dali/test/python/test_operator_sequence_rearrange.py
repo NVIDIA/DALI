@@ -54,10 +54,10 @@ def to_batch(tl, batch_size):
     return [np.array(tl[i]) for i in range(batch_size)]
 
 
-def check_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True, op_type="cpu"):
+def check_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True, op_type="cpu", layout=""):
     pipe = Pipeline(batch_size = batch_size, num_threads=4, device_id=0)
     with pipe:
-        input = fn.external_source(lambda : get_sequences(batch_size, shape))
+        input = fn.external_source(lambda : get_sequences(batch_size, shape), layout=layout)
         frames = input.gpu() if op_type == "gpu" else input
         order = fn.external_source(lambda : reorders) if persample_reorder else reorders
         rearranged = fn.sequence_rearrange(frames, new_order=order, device=op_type)
@@ -79,11 +79,12 @@ def test_sequence_rearrange():
     for dev in ["cpu", "gpu"]:
         for shape in [[4, 3, 2], [5, 1]]:
             for new_order, per_sample in [order_0, order_1, order_2]:
-                yield check_sequence_rearrange, 5, shape, new_order, per_sample, dev
+                for layout in ["FHW"[:len(shape)], ""]:
+                    yield check_sequence_rearrange, 5, shape, new_order, per_sample, dev, layout
 
 @raises(RuntimeError)
-def check_fail_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True, op_type="cpu"):
-    check_sequence_rearrange(batch_size, shape, reorders, persample_reorder, op_type)
+def check_fail_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True, op_type="cpu", layout=""):
+    check_sequence_rearrange(batch_size, shape, reorders, persample_reorder, op_type, layout)
 
 def test_fail_sequence_rearrange():
     for dev in ["cpu", "gpu"]:
@@ -92,3 +93,11 @@ def test_fail_sequence_rearrange():
                     ([np.int32([0]), np.int32([])], True), ([np.int32([6, 7]), np.int32([0])], True),
                     ([np.int32([-1]), np.int32([0])], True)]:
                 yield check_fail_sequence_rearrange, 2, shape, new_order, per_sample, dev
+
+def test_wrong_layouts_sequence_rearrange():
+    shape = [5, 1]
+    new_order = [0, 2, 1, 3, 4]
+    per_sample = False
+    for dev in ["cpu", "gpu"]:
+        for layout in ["HF", "HW"]:
+            yield check_fail_sequence_rearrange, 5, shape, new_order, per_sample, dev, layout
