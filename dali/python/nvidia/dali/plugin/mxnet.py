@@ -211,13 +211,14 @@ class DALIGenericIterator(_DALIIteratorBase):
                  If False, the iterator will fail in case of change.
     last_batch_padded : bool, optional, default = False
                  Whether the last batch provided by DALI is padded with the last sample
-                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 or it just wraps up. In the conjunction with ``fill_last_batch`` it tells
                  if the iterator returning last batch with data only partially filled with
                  data from the current epoch is dropping padding samples or samples from
-                 the next epoch. If set to False next epoch will end sooner as data from
-                 it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one. For this happen, the option `pad_last_batch`
-                 in the reader need to be set to `True` as well.
+                 the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
+                 so the following code could use it to drop the data). If set to ``False`` next
+                 epoch will end sooner as data from it was consumed but dropped. If set to
+                 ``True`` next epoch would be the same length as the first one. For this to happen,
+                 the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
 
     Example
     -------
@@ -450,12 +451,14 @@ class DALIClassificationIterator(DALIGenericIterator):
                  If False, the iterator will fail in case of change.
     last_batch_padded : bool, optional, default = False
                  Whether the last batch provided by DALI is padded with the last sample
-                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 or it just wraps up. In the conjunction with ``fill_last_batch`` it tells
                  if the iterator returning last batch with data only partially filled with
                  data from the current epoch is dropping padding samples or samples from
-                 the next epoch. If set to False next epoch will end sooner as data from
-                 it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one.
+                 the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
+                 so the following code could use it to drop the data). If set to ``False`` next
+                 epoch will end sooner as data from it was consumed but dropped. If set to
+                 ``True`` next epoch would be the same length as the first one. For this to happen,
+                 the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
 
     Example
     -------
@@ -564,13 +567,14 @@ class DALIGluonIterator(_DALIIteratorBase):
                  exactly 'size' entries.
     last_batch_padded : bool, optional, default = False
                  Whether the last batch provided by DALI is padded with the last sample
-                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 or it just wraps up. In the conjunction with ``fill_last_batch`` it tells
                  if the iterator returning last batch with data only partially filled with
                  data from the current epoch is dropping padding samples or samples from
-                 the next epoch. If set to False next epoch will end sooner as data from
-                 it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one. For this happen, the option `pad_last_batch`
-                 in the reader need to be set to `True` as well.
+                 the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
+                 so the following code could use it to drop the data). If set to ``False`` next
+                 epoch will end sooner as data from it was consumed but dropped. If set to
+                 ``True`` next epoch would be the same length as the first one. For this to happen,
+                 the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
 
     Example
     -------

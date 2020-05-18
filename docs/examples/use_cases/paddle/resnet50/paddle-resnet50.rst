@@ -12,7 +12,7 @@ Run it with the commands below:
 Training
 --------
 
-To train the model, run :fileref:`docs/examples/paddle/resnet50/main.py` with the desired ResNet depth and the path to the ImageNet dataset:
+To train the model, run :fileref:`docs/examples/use_cases/paddle/resnet50/main.py` with the desired ResNet depth and the path to the ImageNet dataset:
 
 .. code-block:: bash
 

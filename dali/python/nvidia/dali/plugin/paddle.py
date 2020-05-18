@@ -177,8 +177,8 @@ class DALIGenericIterator(object):
                  data from the current epoch is dropping padding samples or samples from
                  the next epoch. If set to False next epoch will end sooner as data from
                  it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one. For this happen, the option `pad_last_batch`
-                 in the reader need to be set to `True` as well.
+                 same length as the first one. For this to happen, the option ``pad_last_batch``
+                 in the reader needs to be set to ``True`` as well.
 
     Example
     -------
@@ -446,7 +446,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                  data from the current epoch is dropping padding samples or samples from
                  the next epoch. If set to False next epoch will end sooner as data from
                  it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one.
+                 same length as the first one. For this to happen, the option ``pad_last_batch``
+                 in the reader needs to be set to ``True`` as well.
 
     Example
     -------

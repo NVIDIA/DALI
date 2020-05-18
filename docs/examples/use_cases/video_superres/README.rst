@@ -145,7 +145,7 @@ where <resolution> can be one of: '4K', 1080p, 720p or 540p. The transcoded scen
 Training
 --------
 
-Training can be run by running the following command available in :fileref:`docs/examples/video/superres_pytorch/run.sh`:
+Training can be run by running the following command available in :fileref:`docs/examples/use_cases/video_superres/run.sh`:
 
 .. code-block:: bash
 
