@@ -13,13 +13,9 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
-import nvidia.dali.types as types
-import nvidia.dali as dali
-# from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
-import os
+from nose.tools import raises
 
 def get_sequence(shape, offset=0):
     assert len(shape) > 1
@@ -84,3 +80,15 @@ def test_sequence_rearrange():
         for shape in [[4, 3, 2], [5, 1]]:
             for new_order, per_sample in [order_0, order_1, order_2]:
                 yield check_sequence_rearrange, 5, shape, new_order, per_sample, dev
+
+@raises(RuntimeError)
+def check_fail_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True, op_type="cpu"):
+    check_sequence_rearrange(batch_size, shape, reorders, persample_reorder, op_type)
+
+def test_fail_sequence_rearrange():
+    for dev in ["cpu", "gpu"]:
+        for shape in [[5, 1]]:
+            for new_order, per_sample in [([6, 7], False), ([-1], False), ([], False),
+                    ([np.int32([0]), np.int32([])], True), ([np.int32([6, 7]), np.int32([0])], True),
+                    ([np.int32([-1]), np.int32([0])], True)]:
+                yield check_fail_sequence_rearrange, 2, shape, new_order, per_sample, dev

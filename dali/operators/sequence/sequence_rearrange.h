@@ -78,6 +78,8 @@ class SequenceRearrange : public Operator<Backend> {
       const auto& new_orders = ws.ArgumentInput("new_order");
       for (int i = 0; i < batch_size_; i++) {
         auto new_order = view<const int, 1>(new_orders[i]);
+        DALI_ENFORCE(new_order.shape.num_elements() > 0,
+                     make_string("Empty result sequence for sample ", i, " is not allowed."));
         output_desc[0].shape.set_tensor_shape(i, GetOutputShape(in_shape[i], new_order, i));
       }
     }
