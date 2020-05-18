@@ -349,7 +349,7 @@ def check_slice_synth_data_vs_numpy(device, batch_size, input_shape, layout, axe
             for k in range(2)]
     eii_args = [SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,
                 image_layout=layout, axes=axes, axis_names=axis_names, normalized_anchor=normalized_anchor,
-                normalized_shape=normalized_shape)
+                normalized_shape=normalized_shape, max_norm_anchor=1.3, max_norm_shape=1.3)
                 for k in range(2)]
 
     compare_pipelines(

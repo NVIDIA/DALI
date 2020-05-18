@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 #include "dali/core/common.h"
+#include "dali/core/convert.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
@@ -119,12 +120,21 @@ class SliceAttr {
             }
             slice_end = std::llround(anchor_val + shape_val);
           }
-          DALI_ENFORCE(slice_end <= shape[dim],
-            make_string("Slice end for dim ", dim, " is out of bounds:",
-                        slice_end, ">", shape[dim]));
-          slice.anchor[dim] = std::llround(anchor_val);
+          DALI_ENFORCE(anchor_val >= 0,
+                       make_string("Negative anchor value if forbidden. Got: anchor = ",
+                                   anchor_val));
+          DALI_ENFORCE(slice_end >= 0,
+                       make_string("Negative slice end value if forbidden. Got: slice_end = ",
+                                   slice_end));
+          slice_end = std::min(slice_end, shape[dim]);
+          slice.anchor[dim] = std::min(
+                  ConvertSat<std::remove_reference<decltype(shape)>::type::value_type>(anchor_val),
+                  shape[dim]);
           slice.shape[dim] = slice_end - slice.anchor[dim];
-          assert(slice.anchor[dim] + slice.shape[dim] <= shape[dim]);
+          DALI_ENFORCE(slice.anchor[dim] + slice.shape[dim] <= shape[dim],
+                       make_string("Something went wrong while calculating slice parameters: ",
+                                   slice.anchor[dim], " + ", slice.shape[dim], " <= ", shape[dim]));
+
         }
         slice.IsInRange(shape);
         return slice;
