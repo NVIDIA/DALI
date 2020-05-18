@@ -296,7 +296,9 @@ class RegularizedInvRMS {
   using Postprocessor = RegularizedInvSqrt<Out, param_t>;
 
   void SetRegularizationTerm(param_t reg) {
-    regularization_ = reg * reg;
+    if (!(reg >= 0))  // >= 0 and not NaN
+      throw std::range_error("The regularizing term must be a non-negative number.");
+    regularization_ = reg;
   }
 
   param_t regularization_ = 0.0f;

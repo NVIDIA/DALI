@@ -76,7 +76,6 @@ template <typename Out = float, typename In, typename Mean>
 TestTensorList<Out> RefStdDev(const TensorListView<StorageCPU, In> &in,
                               const TensorListView<StorageCPU, Mean> &mean,
                               double reg = 0, bool inv = false) {
-  reg *= reg;
   SmallVector<int, 6> axes;
   for (int d = 0; d < mean.sample_dim(); d++) {
     for (int i = 0; i < mean.num_samples(); i++) {
@@ -348,9 +347,9 @@ TEST(InvStdDevImplGPU, Outer_Batch_Regularized) {
   EXPECT_GE(test.kernel.GetNumStages(), 2);  // both reduced axes must be split
   test.FillData(-100, 100);
 
-  test.Run(fake_mean.gpu(), 120);
+  test.Run(fake_mean.gpu(), 12000);
 
-  test.ref = RefStdDev(test.in.cpu(), mean_cpu, 120, true);
+  test.ref = RefStdDev(test.in.cpu(), mean_cpu, 12000, true);
 
   test.Check(EqualEpsRel(1e-5, 1e-6));
 }
