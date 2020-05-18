@@ -129,9 +129,9 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
               -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
               -DTIMESTAMP=${DALI_TIMESTAMP} \
               -DGIT_SHA=${GIT_SHA}
-        python setup.py bdist_wheel
+        python setup.py sdist
         mkdir -p /wheelhouse/dummy
-        mv dist/*whl /wheelhouse/dummy
+        mv dist/*.tar.gz /wheelhouse/dummy
         popd
     fi
 fi

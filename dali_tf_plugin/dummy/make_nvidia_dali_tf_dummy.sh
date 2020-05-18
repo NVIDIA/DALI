@@ -14,5 +14,5 @@ cmake .. \
       -DTIMESTAMP=${DALI_TIMESTAMP} \
       -DGIT_SHA=${GIT_SHA}
 
-python setup.py sdist
-cp dist/*.tar.gz /nvidia_dali_dummy
+python setup.py bdist_wheel
+cp dist/*.whl /dali_tf_dummy

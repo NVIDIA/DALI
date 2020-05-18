@@ -13,9 +13,9 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.2)
-project(dali_dummy)
+project(dali_tf_dummy)
 
-set(DALI_ROOT "${PROJECT_SOURCE_DIR}/../../..")
+set(DALI_ROOT "${PROJECT_SOURCE_DIR}/../..")
 
 SET(CUDA_VERSION "" CACHE STRING "CUDA version")
 if ("${CUDA_VERSION}" STREQUAL "")

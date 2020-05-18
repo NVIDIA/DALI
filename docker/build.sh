@@ -301,9 +301,11 @@ if [[ "$CREATE_WHL" == "YES" && "$BUILD_TF_PLUGIN" = "YES" ]]; then
            --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
            . ;
     export DALI_TF_BUILDER_CONTAINER_SDIST="extract_dali_tf_sdist"
-    nvidia-docker run --name "${DALI_TF_BUILDER_CONTAINER_SDIST}" "${BUILDER_DALI_TF_SDIST}" /bin/bash -c 'cd /opt/dali/dali_tf_plugin && source make_dali_tf_sdist.sh'
+    nvidia-docker run --name "${DALI_TF_BUILDER_CONTAINER_SDIST}" "${BUILDER_DALI_TF_SDIST}" /bin/bash -c \
+        'cd /opt/dali/dali_tf_plugin && source make_dali_tf_sdist.sh'
     docker cp "${DALI_TF_BUILDER_CONTAINER_SDIST}:/dali_tf_sdist/." "dali_tf_sdist"
     cp dali_tf_sdist/*.tar.gz wheelhouse/
+    cp dali_tf_sdist/dummy/*.tar.gz wheelhouse/dummy
     docker rm -f "${DALI_TF_BUILDER_CONTAINER_SDIST}"
 
     rm -rf dali_tf_plugin/whl
