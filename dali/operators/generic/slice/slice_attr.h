@@ -134,7 +134,6 @@ class SliceAttr {
           DALI_ENFORCE(slice.anchor[dim] + slice.shape[dim] <= shape[dim],
                        make_string("Something went wrong while calculating slice parameters: ",
                                    slice.anchor[dim], " + ", slice.shape[dim], " <= ", shape[dim]));
-
         }
         slice.IsInRange(shape);
         return slice;
