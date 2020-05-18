@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,14 +19,15 @@
 #include "dali/operators/sequence/sequence_rearrange.h"
 #include "dali/test/dali_operator_test.h"
 #include "dali/test/dali_operator_test_utils.h"
+#include "dali/core/tensor_shape.h"
 
 namespace dali {
 
 namespace {
 
 template <typename T>
-void FillSeq(T* ptr, const std::vector<Index>& shape) {
-  auto element_size = volume(shape) / GetSeqLength(shape);
+void FillSeq(T* ptr, const TensorShape<>& shape) {
+  auto element_size = volume(shape.last(shape.sample_dim() - 1));
   for (int i = 0; i < GetSeqLength(shape); i++) {
     auto ith_offset = element_size * i;
     for (int j = 0; j < element_size; j++) {
@@ -42,12 +43,12 @@ class SequenceRearrangeBaseTest : public testing::DaliOperatorTest {
 
  public:
   std::unique_ptr<TensorList<CPUBackend>> getInput() {
-    constexpr int batch_size = 10;
-    std::vector<Index> seq_shape{8, 4, 2, 2};
-    std::vector<std::vector<Index>> batch_shape;
-    // repeat seq_shape for whole batch
+    constexpr int batch_size = 5;
+    TensorShape<> seq_shape_tmp{8, 4, 2, 2};
+    TensorListShape<> batch_shape(batch_size, seq_shape_tmp.sample_dim());
     for (int i = 0; i < batch_size; i++) {
-      batch_shape.push_back(seq_shape);
+      batch_shape.set_tensor_shape(i, seq_shape_tmp);
+      seq_shape_tmp[2]++;
     }
 
     std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
@@ -56,7 +57,7 @@ class SequenceRearrangeBaseTest : public testing::DaliOperatorTest {
 
     // Fill frames with consecutive numbers
     for (int i = 0; i < batch_size; i++) {
-      FillSeq(tl->mutable_tensor<int>(i), seq_shape);
+      FillSeq(tl->mutable_tensor<int>(i), batch_shape[i]);
     }
     return tl;
   }
@@ -65,13 +66,8 @@ class SequenceRearrangeBaseTest : public testing::DaliOperatorTest {
 struct SequenceRearrangeValidTest : public SequenceRearrangeBaseTest {};
 struct SequenceRearrangeInvalidTest : public SequenceRearrangeBaseTest {
   std::unique_ptr<TensorList<CPUBackend>> getInputInvalid() {
-    constexpr int batch_size = 10;
-    std::vector<Index> seq_shape{8};
-    std::vector<std::vector<Index>> batch_shape;
-    // repeat seq_shape for whole batch
-    for (int i = 0; i < batch_size; i++) {
-      batch_shape.push_back(seq_shape);
-    }
+    constexpr int batch_size = 5;
+    TensorListShape<> batch_shape = uniform_list_shape(batch_size, {8});
 
     std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
     tl->Resize(batch_shape);
@@ -108,8 +104,8 @@ std::vector<testing::Arguments> devices = {
 template <typename T>
 void CheckRearrange(const T* ptr, const TensorShape<>& old_shape, const TensorShape<>& new_shape,
                     const std::vector<int>& new_order) {
-  auto old_element_size = volume(old_shape) / GetSeqLength(old_shape);
-  auto new_element_size = volume(new_shape) / GetSeqLength(new_shape);
+  auto old_element_size = volume(old_shape.last(old_shape.sample_dim() - 1));
+  auto new_element_size = volume(new_shape.last(new_shape.sample_dim() - 1));
   ASSERT_EQ(old_element_size, new_element_size);
   ASSERT_EQ(new_order.size(), GetSeqLength(new_shape));
   for (int i = 0; i < GetSeqLength(new_shape); i++) {
