@@ -21,7 +21,7 @@ target_link_libraries(test_lib PUBLIC DALI::dali DALI::dali_core DALI::dali_kern
 " > CMakeLists.txt
     mkdir build
     pushd build
-    cmake ..
+    cmake -D CUDA_TARGET_ARCHS=60 -D CMAKE_BUILD_TYPE=Debug ..
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 }
 
