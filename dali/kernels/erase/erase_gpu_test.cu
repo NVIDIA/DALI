@@ -102,7 +102,7 @@ enum class FillType {
 
 template <int ndim>
 struct EraseTestParams {
-  int num_erase_regions;
+  int max_erase_regions;
   RegionGen region_generation;
   FillType fill_type;
   TensorShape<ndim> shape;
@@ -142,7 +142,7 @@ std::ostream& operator<<(std::ostream& os, FillType p) {
 
 template <int ndim>
 std::ostream& operator<<(std::ostream& os, const EraseTestParams<ndim>& p) {
-  os << "Num erase regions: " << p.num_erase_regions << ", region generation: "
+  os << "Num erase regions: " << p.max_erase_regions << ", region generation: "
      << p.region_generation << ", fill type: " << p.fill_type << ", shape: " << p.shape;
   return os;
 }
@@ -152,7 +152,7 @@ struct EraseGpuKernelTest :
     public testing::TestWithParam<EraseTestParams<ndim>> {
   void SetUp() override {
     auto params = this->GetParam();
-    num_erase_regions_ = params.num_erase_regions;
+    max_erase_regions_ = params.max_erase_regions;
     region_generation_ = params.region_generation;
     fill_type_ = params.fill_type;
     shape_ = params.shape;
@@ -183,7 +183,7 @@ struct EraseGpuKernelTest :
     } else if (region_generation_ == RegionGen::FULL_ERASE) {
       std::cerr << ">> Full cover" << std::endl;
     } else if (region_generation_ == RegionGen::RANDOM_ERASE) {
-      std::cerr << ">> Random cover of size: " << num_erase_regions_ << std::endl;
+      std::cerr << ">> Random cover of max size: " << max_erase_regions_ << std::endl;
     }
     EraseGpu<T, ndim, channel_dim> kernel;
     KernelContext ctx;
@@ -191,11 +191,9 @@ struct EraseGpuKernelTest :
 
     CreateRegions();
 
-    auto regions_gpu = regions_.gpu();
-
     auto in_view = input_.gpu();
 
-    auto req = kernel.Setup(ctx, in_view, regions_gpu, make_span(fill_values_));
+    auto req = kernel.Setup(ctx, in_view, regions_, make_span(fill_values_));
 
     auto out_view = output_.gpu();
 
@@ -204,7 +202,7 @@ struct EraseGpuKernelTest :
     auto scratchpad = scratch_alloc.GetScratchpad();
     ctx.scratchpad = &scratchpad;
 
-    kernel.Run(ctx, out_view, in_view, regions_gpu, make_span(fill_values_));
+    kernel.Run(ctx, out_view, in_view, regions_, make_span(fill_values_));
 
     CUDA_CALL(cudaDeviceSynchronize());
     CUDA_CALL(cudaGetLastError());
@@ -222,17 +220,16 @@ struct EraseGpuKernelTest :
   void RepackAndCalcCpu() {
     auto input_tlv = input_.cpu();
     auto baseline_tlv = baseline_.cpu();
-    auto regions_tlv = regions_.cpu();
     for (int i = 0; i < batch_size_; i++) {
       auto baseline_tv = baseline_tlv[i];
       auto input_tv = input_tlv[i];
 
       EraseArgs<T, ndim> args;
-      args.rois.resize(num_erase_regions_);
-      for (int j = 0; j < num_erase_regions_; j++) {
+      args.rois.resize(regions_[i].size());
+      for (int j = 0; j < regions_[i].size(); j++) {
         for (int d = 0; d < ndim; d++) {
-          args.rois[j].anchor[d] = regions_tlv[i](j)->lo[d];
-          args.rois[j].shape[d] = regions_tlv[i](j)->hi[d] - regions_tlv[i](j)->lo[d];
+          args.rois[j].anchor[d] = regions_[i][j].lo[d];
+          args.rois[j].shape[d] = regions_[i][j].hi[d] - regions_[i][j].lo[d];
           args.rois[j].fill_values = fill_values_;
           args.rois[j].channels_dim = channel_dim;
         }
@@ -245,27 +242,29 @@ struct EraseGpuKernelTest :
   }
 
   void CreateRegions() {
+    std::mt19937 gen(0);
+    int min_erase_regions = 0;
     if (region_generation_ == RegionGen::NO_ERASE) {
-      num_erase_regions_ = 0;
+      max_erase_regions_ = 0;
       // no cover
     } else if (region_generation_ == RegionGen::FULL_ERASE) {
       // full cover
-      num_erase_regions_ = 1;
+      max_erase_regions_ = 1;
+      min_erase_regions = 1;
     }
-    TensorListShape<1> regions_shape = uniform_list_shape<1>(batch_size_, {num_erase_regions_});
-    regions_.reshape(regions_shape);
-    auto regions_cpu = regions_.cpu();
+    regions_.resize(batch_size_);
+    std::uniform_int_distribution<> n_regions(min_erase_regions, max_erase_regions_+1);
+    for (int i = 0; i < batch_size_; ++i) {
+      regions_[i].resize(n_regions(gen));
+    }
     if (region_generation_ == RegionGen::FULL_ERASE) {
       // full cover
       for (int i = 0; i < batch_size_; i++) {
-        auto regions_tv = regions_cpu[i];
-        *regions_tv(0) = ibox<ndim>({0}, to_ivec(shape_));
+        regions_[i][0] = ibox<ndim>({0}, to_ivec(shape_));
       }
     } else if (region_generation_ == RegionGen::RANDOM_ERASE) {
-      std::mt19937 gen(0);
       for (int i = 0; i < batch_size_; i++) {
-        auto regions_tv = regions_cpu[i];
-        for (int j = 0; j < num_erase_regions_; j ++) {
+        for (int j = 0; j < regions_[i].size(); j ++) {
           ibox<ndim> region_box;
           for (int d = 0; d < ndim; d++) {
             std::uniform_int_distribution<>  start_dim(0, shape_[d] - 1);
@@ -273,13 +272,13 @@ struct EraseGpuKernelTest :
             std::uniform_int_distribution<>  end_dim(region_box.lo[d] + 1, shape_[d]);
             region_box.hi[d] = end_dim(gen);
           }
-          *regions_tv(j) = region_box;
+          regions_[i][j] = region_box;
         }
       }
     }
   }
 
-  int num_erase_regions_;
+  int max_erase_regions_;
   RegionGen region_generation_;
   FillType fill_type_;
   std::vector<T> fill_values_;
@@ -287,7 +286,7 @@ struct EraseGpuKernelTest :
   TensorListShape<ndim> test_shape_;
   constexpr static int batch_size_ = 16;
   TestTensorList<T, ndim> input_, output_, baseline_;
-  TestTensorList<ibox<ndim>, 1> regions_;
+  std::vector<std::vector<ibox<ndim>>> regions_;
 };
 
 using EraseGpuKernel1fTest = EraseGpuKernelTest<float, 1>;
