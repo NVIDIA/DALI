@@ -35,8 +35,7 @@ void ValidateSeqRearrange(const TensorShape<>& in_sample_shape,
                           const TensorView<StorageCPU, const int, 1>& new_order, int sample_idx);
 
 TensorShape<> GetSeqRearrangedShape(const TensorShape<>& in_sample_shape,
-                                    const TensorView<StorageCPU, const int, 1>& new_order,
-                                    int sample_idx);
+                                    const TensorView<StorageCPU, const int, 1>& new_order);
 
 struct copy_desc {
   const void* from;
@@ -78,14 +77,14 @@ class SequenceRearrange : public Operator<Backend> {
                                                      TensorShape<1>(new_order_.size()));
       for (int i = 0; i < batch_size_; i++) {
         ValidateSeqRearrange(in_shape[i], new_order, i);
-        output_desc[0].shape.set_tensor_shape(i, GetSeqRearrangedShape(in_shape[i], new_order, i));
+        output_desc[0].shape.set_tensor_shape(i, GetSeqRearrangedShape(in_shape[i], new_order));
       }
     } else {
       const auto& new_orders = ws.ArgumentInput("new_order");
       for (int i = 0; i < batch_size_; i++) {
         auto new_order = view<const int, 1>(new_orders[i]);
         ValidateSeqRearrange(in_shape[i], new_order, i);
-        output_desc[0].shape.set_tensor_shape(i, GetSeqRearrangedShape(in_shape[i], new_order, i));
+        output_desc[0].shape.set_tensor_shape(i, GetSeqRearrangedShape(in_shape[i], new_order));
       }
     }
 

@@ -38,19 +38,18 @@ void ValidateSeqRearrange(const TensorShape<> &in_sample_shape,
   const int in_seq_length = GetSeqLength(in_sample_shape);
   const int out_seq_length = new_order.num_elements();
   DALI_ENFORCE(out_seq_length > 0,
-               make_string("Empty result sequence for sample ", sample_idx, " is not allowed."));
+               make_string("Empty `new_order` for sample ", sample_idx, " is not allowed."));
   for (int i = 0; i < out_seq_length; i++) {
     int src_idx = new_order.data[i];
     DALI_ENFORCE(
         0 <= src_idx && src_idx < in_seq_length,
-        make_string("Source element src_idx must be between 0 and input_sequence_length = ",
+        make_string("new_order[", i, "] must be between 0 and input_sequence_length = ",
                     in_seq_length, " for sample ", sample_idx, ", but it is: ", src_idx, "."));
   }
 }
 
 TensorShape<> GetSeqRearrangedShape(const TensorShape<> &in_sample_shape,
-                                    const TensorView<StorageCPU, const int, 1> &new_order,
-                                    int sample_idx) {
+                                    const TensorView<StorageCPU, const int, 1> &new_order) {
   TensorShape<> result = in_sample_shape;
   result[0] = new_order.num_elements();
   return result;
