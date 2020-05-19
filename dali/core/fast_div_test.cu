@@ -147,7 +147,12 @@ DEVICE_TEST(FastDiv, U32_GPU, dim3(1<<10, 11), (1<<10)) {
   if (end == 0)
     end--;
   for (uint32_t value = start; value < end; value++) {
-    DEV_EXPECT_EQ(value / divisor, value / fast);
+    auto ref = value / divisor;
+    auto result = value / fast;
+    if (result != ref) {
+      printf("%u / %u   got %u expected %u\n", value, divisor, result, ref);
+      DEV_ASSERT_EQ(value / divisor, value / fast);
+    }
   }
 }
 

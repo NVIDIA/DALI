@@ -15,11 +15,9 @@
 #ifndef DALI_CORE_FAST_DIV_H_
 #define DALI_CORE_FAST_DIV_H_
 
-#include <stdio.h>
 #include <cuda_runtime.h>
 #include <cstdint>
-#include "dali/core/util.h"
-#include "dali/core/host_dev.h"
+#include <type_traits>
 
 namespace dali {
 
@@ -31,7 +29,7 @@ struct lohi {
 };
 
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE lohi<T> operator<<(lohi<T> x, unsigned sh) {
+__host__ __device__ __forceinline__ lohi<T> operator<<(lohi<T> x, unsigned sh) {
   using U = typename std::make_unsigned<T>::type;
   static constexpr unsigned bits = sizeof(T) * 8;
   if (sh == 0) {
@@ -47,7 +45,7 @@ DALI_HOST_DEV DALI_FORCEINLINE lohi<T> operator<<(lohi<T> x, unsigned sh) {
 }
 
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE lohi<T> operator>>(lohi<T> x, unsigned sh) {
+__host__ __device__ __forceinline__ lohi<T> operator>>(lohi<T> x, unsigned sh) {
   using U = typename std::make_unsigned<T>::type;
   static constexpr unsigned bits = sizeof(T) * 8;
   if (sh == 0) {
@@ -63,19 +61,19 @@ DALI_HOST_DEV DALI_FORCEINLINE lohi<T> operator>>(lohi<T> x, unsigned sh) {
 }
 
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE lohi<T> &operator<<=(lohi<T> &x, unsigned sh) {
+__host__ __device__ __forceinline__ lohi<T> &operator<<=(lohi<T> &x, unsigned sh) {
   x = x << sh;
   return x;
 }
 
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE lohi<T> &operator>>=(lohi<T> &x, unsigned sh) {
+__host__ __device__ __forceinline__ lohi<T> &operator>>=(lohi<T> &x, unsigned sh) {
   x = x >> sh;
   return x;
 }
 
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE lohi<T> operator-(lohi<T> a, lohi<T> b) {
+__host__ __device__ __forceinline__ lohi<T> operator-(lohi<T> a, lohi<T> b) {
   lohi<T> ret;
   ret.lo = a.lo - b.lo;
   int borrow = (b.lo && ret.lo > a.lo);
@@ -83,11 +81,11 @@ DALI_HOST_DEV DALI_FORCEINLINE lohi<T> operator-(lohi<T> a, lohi<T> b) {
   return ret;
 }
 
-DALI_HOST_DEV inline uint32_t div_lohi(uint32_t lo, uint32_t hi, uint32_t divisor) {
+__host__ __device__ inline uint32_t div_lohi(uint32_t lo, uint32_t hi, uint32_t divisor) {
   return (static_cast<uint64_t>(hi) << 32 | lo) / divisor;
 }
 
-DALI_HOST_DEV DALI_FORCEINLINE lohi<uint64_t> mull(uint64_t a, uint64_t b) {
+__host__ __device__ __forceinline__ lohi<uint64_t> mull(uint64_t a, uint64_t b) {
   lohi<uint64_t> ret;
 #ifdef __CUDA_ARCH__
   ret.lo = a * b;
@@ -100,14 +98,15 @@ DALI_HOST_DEV DALI_FORCEINLINE lohi<uint64_t> mull(uint64_t a, uint64_t b) {
   return ret;
 }
 
-using dali::ilog2;
-
 template <typename uint>
-DALI_HOST_DEV DALI_FORCEINLINE int ilog2(lohi<uint> lh) {
-  return lh.hi ? ilog2(lh.hi) + sizeof(uint)*8 : ilog2(lh.lo);
-}
+__host__ __device__ int ilog2(uint x) noexcept {
+  int n = 0;
+  while (x >>= 1)
+    n++;
+  return n;
+};
 
-DALI_HOST_DEV inline uint64_t div_lohi(uint64_t lo, uint64_t hi, uint64_t divisor) {
+__host__ __device__ inline uint64_t div_lohi(uint64_t lo, uint64_t hi, uint64_t divisor) {
 #if defined(__x86_64) && defined(__GNUC__) && !defined(__CUDA_ARCH__)
   // I hope this gets compiled to dividing rdx:rax register pair by a 64-bit value
   return (static_cast<unsigned __int128>(hi) << 64 | lo) / divisor;
@@ -164,13 +163,13 @@ struct fast_div {
   uint8_t add;
   uint8_t shift;
 
-  DALI_HOST_DEV fast_div() {}
+  __host__ __device__ fast_div() {}
 
-  DALI_HOST_DEV fast_div(uint divisor) {  // NOLINT
+  __host__ __device__ fast_div(uint divisor) {  // NOLINT
     init(divisor);
   }
 
-  DALI_HOST_DEV void init(uint divisor) {
+  __host__ __device__ void init(uint divisor) {
     this->divisor = divisor;
     this->mul = 1;
     this->shift = 0;
@@ -178,7 +177,7 @@ struct fast_div {
     if (divisor == 0) {
       return;
     }
-    int l = ilog2(divisor);
+    int l = detail::ilog2(divisor);
 
     this->shift = l;
 
@@ -190,20 +189,21 @@ struct fast_div {
 
     uint m_lo = detail::div_lohi(0,            uint(1) << l, divisor);
     uint m_hi = detail::div_lohi(uint(1) << l, uint(1) << l, divisor);
-    this->add = (m_lo == m_hi);  // round-up failed, use round-down method
+    this->add = (m_lo == m_hi) ? 1 : 0;  // round-up failed, use round-down method
     this->mul = m_hi;
   }
 
-  DALI_HOST_DEV DALI_FORCEINLINE operator uint() const noexcept {
+  __host__ __device__ __forceinline__ operator uint() const noexcept {
     return divisor;
   }
 };
 
-DALI_HOST_DEV DALI_FORCEINLINE uint32_t operator/(uint32_t x, fast_div<uint32_t> y) {
+__host__ __device__ __forceinline__ uint32_t operator/(uint32_t x, fast_div<uint32_t> y) {
   // If the divisor is a power of 2, the multiplier would be 2^32, which is out of range
   // - therefore, powers of 2 get special treatment and the multiplication is skipped.
 #ifdef __CUDA_ARCH__
-  x = y.mul ? __umulhi(x + y.add, y.mul) : x;
+  if (y.mul)
+    x = __umulhi(x + y.add, y.mul);
   return x >> y.shift;
 #else
   if (y.mul) {
@@ -215,11 +215,12 @@ DALI_HOST_DEV DALI_FORCEINLINE uint32_t operator/(uint32_t x, fast_div<uint32_t>
 #endif
 }
 
-DALI_HOST_DEV DALI_FORCEINLINE uint64_t operator/(uint64_t x, fast_div<uint64_t> y) {
+__host__ __device__ __forceinline__ uint64_t operator/(uint64_t x, fast_div<uint64_t> y) {
   // If the divisor is a power of 2, the multiplier would be 2^64, which is out of range
   // - therefore, powers of 2 get special treatment and the multiplication is skipped.
 #ifdef __CUDA_ARCH__
-  x = y.mul ? __umul64hi(x + y.add, y.mul) : x;
+  if (y.mul)
+    x = __umul64hi(x + y.add, y.mul);
   return x >> y.shift;
 #else
   if (y.mul) {
@@ -232,12 +233,12 @@ DALI_HOST_DEV DALI_FORCEINLINE uint64_t operator/(uint64_t x, fast_div<uint64_t>
 }
 
 template <typename uint>
-DALI_HOST_DEV DALI_FORCEINLINE uint operator%(uint x, fast_div<uint> y) {
+__host__ __device__ __forceinline__ uint operator%(uint x, fast_div<uint> y) {
   return x - x / y * y;
 }
 
 template <typename uint>
-DALI_HOST_DEV DALI_FORCEINLINE uint div_mod(uint &mod, uint dividend, fast_div<uint> divisor) {
+__host__ __device__ __forceinline__ uint div_mod(uint &mod, uint dividend, fast_div<uint> divisor) {
   uint q = dividend / divisor;
   mod = dividend - q * divisor;
   return q;
