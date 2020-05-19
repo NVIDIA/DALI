@@ -31,8 +31,12 @@ inline int64_t GetSeqLength(const TensorShape<>& seq_shape) {
   return seq_shape[0];
 }
 
-TensorShape<> GetOutputShape(const TensorShape<>& in_sample_shape,
-                             const TensorView<StorageCPU, const int, 1>& new_order, int sample_idx);
+void ValidateSeqRearrange(const TensorShape<>& in_sample_shape,
+                          const TensorView<StorageCPU, const int, 1>& new_order, int sample_idx);
+
+TensorShape<> GetSeqRearrangedShape(const TensorShape<>& in_sample_shape,
+                                    const TensorView<StorageCPU, const int, 1>& new_order,
+                                    int sample_idx);
 
 struct copy_desc {
   const void* from;
@@ -73,22 +77,23 @@ class SequenceRearrange : public Operator<Backend> {
       TensorView<StorageCPU, const int, 1> new_order(new_order_.data(),
                                                      TensorShape<1>(new_order_.size()));
       for (int i = 0; i < batch_size_; i++) {
-        output_desc[0].shape.set_tensor_shape(i, GetOutputShape(in_shape[i], new_order, i));
+        ValidateSeqRearrange(in_shape[i], new_order, i);
+        output_desc[0].shape.set_tensor_shape(i, GetSeqRearrangedShape(in_shape[i], new_order, i));
       }
     } else {
       const auto& new_orders = ws.ArgumentInput("new_order");
       for (int i = 0; i < batch_size_; i++) {
         auto new_order = view<const int, 1>(new_orders[i]);
-        DALI_ENFORCE(new_order.shape.num_elements() > 0,
-                     make_string("Empty result sequence for sample ", i, " is not allowed."));
-        output_desc[0].shape.set_tensor_shape(i, GetOutputShape(in_shape[i], new_order, i));
+        ValidateSeqRearrange(in_shape[i], new_order, i);
+        output_desc[0].shape.set_tensor_shape(i, GetSeqRearrangedShape(in_shape[i], new_order, i));
       }
     }
 
     auto layout = input.GetLayout();
     DALI_ENFORCE(layout.empty() || layout.find('F') == 0,
                  make_string("Expected sequence as the input, where outermost dimension represents "
-                             "frames dimension `F`, got data with layout = \"", layout, "\"."));
+                             "frames dimension `F`, got data with layout = \"",
+                             layout, "\"."));
 
     return true;
   }

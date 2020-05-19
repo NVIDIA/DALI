@@ -91,7 +91,7 @@ def test_fail_sequence_rearrange():
         for shape in [[5, 1]]:
             for new_order, per_sample in [([6, 7], False), ([-1], False), ([], False),
                     ([np.int32([0]), np.int32([])], True), ([np.int32([6, 7]), np.int32([0])], True),
-                    ([np.int32([-1]), np.int32([0])], True)]:
+                    ([np.int32([-1]), np.int32([0])], True), ([np.int32([[1], [2]]), np.int32([[1], [2]])], True)]:
                 yield check_fail_sequence_rearrange, 2, shape, new_order, per_sample, dev
 
 def test_wrong_layouts_sequence_rearrange():

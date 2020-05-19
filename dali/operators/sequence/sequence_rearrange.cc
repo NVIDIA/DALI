@@ -18,7 +18,6 @@
 
 namespace dali {
 
-
 DALI_SCHEMA(SequenceRearrange)
     .DocStr(R"code(Rearrange the sequence stored as tensor.
 Assumes that the outermost dimension represents a sequence and other dimensions of input
@@ -34,11 +33,12 @@ Only indices in ``[0, input_outermost_dimension)`` are allowed
 to be used in ``new_order``. Can be specified per sample as 1D tensors.)code",
             DALI_INT_VEC, true);
 
-TensorShape<> GetOutputShape(const TensorShape<> &in_sample_shape,
-                             const TensorView<StorageCPU, const int, 1> &new_order,
-                             int sample_idx) {
+void ValidateSeqRearrange(const TensorShape<> &in_sample_shape,
+                          const TensorView<StorageCPU, const int, 1> &new_order, int sample_idx) {
   const int in_seq_length = GetSeqLength(in_sample_shape);
   const int out_seq_length = new_order.num_elements();
+  DALI_ENFORCE(out_seq_length > 0,
+               make_string("Empty result sequence for sample ", sample_idx, " is not allowed."));
   for (int i = 0; i < out_seq_length; i++) {
     int src_idx = new_order.data[i];
     DALI_ENFORCE(
@@ -46,9 +46,14 @@ TensorShape<> GetOutputShape(const TensorShape<> &in_sample_shape,
         make_string("Source element src_idx must be between 0 and input_sequence_length = ",
                     in_seq_length, " for sample ", sample_idx, ", but it is: ", src_idx, "."));
   }
-  auto element_shape = in_sample_shape.last(in_sample_shape.sample_dim() - 1);
-  auto new_sample_shape = shape_cat(out_seq_length, element_shape);
-  return new_sample_shape;
+}
+
+TensorShape<> GetSeqRearrangedShape(const TensorShape<> &in_sample_shape,
+                                    const TensorView<StorageCPU, const int, 1> &new_order,
+                                    int sample_idx) {
+  TensorShape<> result = in_sample_shape;
+  result[0] = new_order.num_elements();
+  return result;
 }
 
 copy_desc GetCopyDesc(char *output_sample, const char *input_sample, int out_elem_idx,

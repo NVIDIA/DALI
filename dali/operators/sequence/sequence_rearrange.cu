@@ -46,9 +46,9 @@ void SequenceRearrange<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
       auto copy_desc = GetCopyDesc(out_sample, in_sample, i, new_order.data[i], element_sizeof);
       scatter_gather_.AddCopy(copy_desc.to, copy_desc.from, copy_desc.size);
     }
-    scatter_gather_.Run(ws.stream());
-    output.SetLayout(input.GetLayout());
   }
+  scatter_gather_.Run(ws.stream());
+  output.SetLayout(input.GetLayout());
 }
 
 DALI_REGISTER_OPERATOR(SequenceRearrange, SequenceRearrange<GPUBackend>, GPU);
