@@ -18,6 +18,22 @@
 
 namespace dali {
 
+
+DALI_SCHEMA(SequenceRearrange)
+    .DocStr(R"code(Rearrange the sequence stored as tensor.
+Assumes that the outermost dimension represents a sequence and other dimensions of input
+represent elements of that sequence. If layout is specified, the first dimension should
+be denoted as ``F`` indicating frames of the sequence.)code")
+    .NumInput(1)
+    .NumOutput(1)
+    .AllowSequences()
+    .AddArg("new_order", R"code(List describing new order for elements of each sample.
+Output sequence at position ``i`` will contain element ``new_order[i]`` from input sequence.
+Elements can be repeated or dropped, empty output sequences are not allowed.
+Only indices in ``[0, input_outermost_dimension)`` are allowed
+to be used in ``new_order``. Can be specified per sample as 1D tensors.)code",
+            DALI_INT_VEC, true);
+
 TensorShape<> GetOutputShape(const TensorShape<> &in_sample_shape,
                              const TensorView<StorageCPU, const int, 1> &new_order,
                              int sample_idx) {
@@ -79,19 +95,5 @@ void SequenceRearrange<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
 }
 
 DALI_REGISTER_OPERATOR(SequenceRearrange, SequenceRearrange<CPUBackend>, CPU);
-
-DALI_SCHEMA(SequenceRearrange)
-    .DocStr(R"code(Rearrange the sequence stored as tensor.
-Assumes that the outermost dimension represents a sequence and other dimensions of input
-represent elements of that sequence. If layout is specified, the first dimension should
-be denoted as ``F`` indicating frames of the sequence.)code")
-    .NumInput(1)
-    .NumOutput(1)
-    .AllowSequences()
-    .AddArg("new_order", R"code(List describing new order for elements of each sample.
-Output sequence at position ``i`` will contain element ``new_order[i]`` from input sequence.
-Elements can be repeated or dropped, only indices in ``[0, input_outermost_dimension)`` are allowed
-to be used in ``new_order``. Can be specified per sample as 1D tensors.)code",
-            DALI_INT_VEC, true);
 
 }  // namespace dali
