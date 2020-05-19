@@ -15,7 +15,7 @@
 from setuptools import setup, find_packages
 
 setup(name='nvidia-dali@DALI_FLAVOR_MINUS@-cu@CUDA_VERSION_SHORT_DIGIT_ONLY@',
-      description='NVIDIA DALI @DALI_FLAVOR@ for CUDA @CUDA_VERSION_SHORT@ Git SHA: @GIT_SHA@',
+      description='NVIDIA DALI @DALI_FLAVOR@ for CUDA @CUDA_VERSION_SHORT@. Git SHA: @GIT_SHA@',
       url='https://github.com/NVIDIA/dali',
       version='@DALI_VERSION@',
       author='NVIDIA Corporation',
