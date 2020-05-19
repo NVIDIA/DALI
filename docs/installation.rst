@@ -37,46 +37,57 @@ Prerequisites
 
 Installation
 ^^^^^^^^^^^^
-
-Execute the below command CUDA 9.0 based build:
-
-.. code-block:: bash
-
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali
-
-Starting DALI 0.8.0 for CUDA 10.0 based build use:
+To install a CUDA 9.0 based DALI build, execute the following command:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cu90
+
+For CUDA 10.0 based build use:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cu100
 
 .. note::
 
-  Starting 0.6.1 the ``nvidia-dali`` package no longer contains prebuilt versions of the DALI TensorFlow plugin, so you need to install DALI TensorFlow plugin for the currently installed version of TensorFlow:
+  Since version 0.6.1, DALI doesn't contain prebuilt versions of the DALI TensorFlow plugin. It needs to be installed as a separate package which will be built against the currently installed version of TensorFlow:
 
 .. code-block:: bash
 
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali-tf-plugin
-
-Starting DALI 0.8.0 for CUDA 10.0 based build execute:
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cu90
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali-tf-plugin
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cu100
 
-
-Installing this package will install ``nvidia-dali`` and its dependencies, if these dependencies are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin``.
+Installing this package will install ``nvidia-dali-cuXXX`` and its dependencies, if these dependencies are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin-cuXXX``.
 
 .. note::
 
-  The package ``nvidia-dali-tf-plugin`` has a strict requirement with ``nvidia-dali`` as its exact same version.
-  Thus, installing ``nvidia-dali-tf-plugin`` at its latest version will replace any older ``nvidia-dali`` versions already installed with the latest.
+  The package ``nvidia-dali-tf-plugin-cuXXX`` has a strict requirement with ``nvidia-dali-cuXXX`` as its exact same version.
+  Thus, installing ``nvidia-dali-tf-plugin-cuXXX`` at its latest version will replace any older ``nvidia-dali-cuXXX`` versions already installed with the latest.
   To work with older versions of DALI, provide the version explicitly to the ``pip install`` command.
 
 .. code-block:: bash
 
-    OLDER_VERSION=0.6.1
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin==$OLDER_VERSION
+    CUDA_SUFFIX=100
+    CURRENT_DALI_VERSION=0.23  # Already installed version of nvidia-dali-cu${CUDA_SUFFIX}, assuming we don't want to upgrade
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cu${CUDA_SUFFIX}==$CURRENT_DALI_VERSION
+
+
+For older versions of DALI (0.22 and lower), use the package `nvidia-dali`. The CUDA version is selected by changing the pip index:
+
+.. code-block:: bash
+
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali-tf-plugin
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali-tf-plugin
+
 
 Pre-built packages in Watson Machine Learing Community Edition
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""

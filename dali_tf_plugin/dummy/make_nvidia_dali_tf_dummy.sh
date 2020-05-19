@@ -15,4 +15,4 @@ cmake .. \
       -DGIT_SHA=${GIT_SHA}
 
 python setup.py bdist_wheel
-cp dist/*.whl /dali_tf_dummy
+cp dist/*.tar.gz /dali_tf_dummy
