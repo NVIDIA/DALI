@@ -74,13 +74,13 @@ class SliceTest : public ::testing::Test {
     auto in = input_data.cpu();
     std::vector<TensorShape<Dims>> output_shapes;
     for (int i = 0; i < in.size(); i++) {
-      auto in_sample_shape = in.tensor_shape(i);
+//      auto in_sample_shape = in.tensor_shape(i);
       TensorShape<Dims> out_sample_shape(slice_args[i].shape);
       auto& anchor = slice_args[i].anchor;
 
-      for (int d = 0; d < Dims; d++) {
-        ASSERT_TRUE(anchor[d] >= 0 && (anchor[d] + out_sample_shape[d]) <= in_sample_shape[d]);
-      }
+//      for (int d = 0; d < Dims; d++) {
+//        ASSERT_TRUE(anchor[d] >= 0 && (anchor[d] + out_sample_shape[d]) <= in_sample_shape[d]);
+//      }
 
       output_shapes.push_back(out_sample_shape);
     }
@@ -101,12 +101,20 @@ class SliceTest : public ::testing::Test {
       for (size_t out_idx = 0; out_idx < total_size; out_idx++) {
         size_t idx = out_idx;
         size_t in_idx = 0;
+        bool out_of_bounds = false;
         for (int d = 0; d < Dims; d++) {
           int i_d = idx / out_strides[d];
+
+          out_of_bounds |= anchor[d] + i_d < 0;
+          out_of_bounds |= anchor[d] + i_d >= in_shape[d];
+          if (out_of_bounds)
+            break;
+
           idx = idx % out_strides[d];
           in_idx += (anchor[d] + i_d) * in_strides[d];
         }
-        out_tensor[out_idx] = in_tensor[in_idx];
+
+        out_tensor[out_idx] = out_of_bounds ? OutputType(0) : Convert<OutputType>(in_tensor[in_idx]);
       }
     }
   }
@@ -172,8 +180,45 @@ struct SliceArgsGenerator_ExtractCenterElement {
   }
 };
 
+template <int Dims>
+struct SliceArgsGenerator_BiggerThanInputSlice {
+  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<Dims> args;
+    for (int d = 0; d < Dims; d++) {
+      args.anchor[d] = -input_shape[d] / 2;
+      args.shape[d] = input_shape[d] * 2;
+    }
+    return args;
+  }
+};
+
+template <int Dims>
+struct SliceArgsGenerator_LeftSideOutOfBounds{
+  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<Dims> args;
+    for (int d = 0; d < Dims; d++) {
+      args.anchor[d] = -input_shape[d] / 2;
+      args.shape[d] = input_shape[d];
+    }
+    return args;
+  }
+};
+
+template <int Dims>
+struct SliceArgsGenerator_RightSideOutOfBounds{
+  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<Dims> args;
+    for (int d = 0; d < Dims; d++) {
+      args.anchor[d] = input_shape[d] / 2;
+      args.shape[d] = input_shape[d];
+    }
+    return args;
+  }
+};
+
 using SLICE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+    SliceTestArgs<int, int, 2, 1, 6, SliceArgsGenerator_HalfAllDims<2>>,
     SliceTestArgs<int, int, 4, 1, 2, SliceArgsGenerator_HalfAllDims<4>>,
     SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 0>>,
     SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 1>>,
@@ -194,7 +239,12 @@ using SLICE_TEST_TYPES = ::testing::Types<
 using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
     SliceTestArgs<int, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
     SliceTestArgs<float16, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
-    SliceTestArgs<float16, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>
+    SliceTestArgs<float16, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+
+    // TODO(janton): Move to SLICE_TEST_TYPES once GPU implementation supports out of bounds slicing
+    SliceTestArgs<int, int, 2, 1, 20, SliceArgsGenerator_BiggerThanInputSlice<2>>, 
+    SliceTestArgs<int, int, 2, 1, 21, SliceArgsGenerator_LeftSideOutOfBounds<2>>,
+    SliceTestArgs<int, int, 2, 1, 22, SliceArgsGenerator_RightSideOutOfBounds<2>>
 >;
 
 }  // namespace kernels
