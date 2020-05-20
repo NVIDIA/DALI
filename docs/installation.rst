@@ -41,13 +41,13 @@ To install a CUDA 9.0 based DALI build, execute the following command:
 
 .. code-block:: bash
 
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cu90
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda90
 
 For CUDA 10.0 based build use:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cu100
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda100
 
 .. note::
 
@@ -55,25 +55,25 @@ For CUDA 10.0 based build use:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cu90
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cuda90
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cu100
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cuda100
 
-Installing this package will install ``nvidia-dali-cuXXX`` and its dependencies, if these dependencies are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin-cuXXX``.
+Installing this package will install ``nvidia-dali-cudaXXX`` and its dependencies, if these dependencies are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin-cudaXXX``.
 
 .. note::
 
-  The package ``nvidia-dali-tf-plugin-cuXXX`` has a strict requirement with ``nvidia-dali-cuXXX`` as its exact same version.
-  Thus, installing ``nvidia-dali-tf-plugin-cuXXX`` at its latest version will replace any older ``nvidia-dali-cuXXX`` versions already installed with the latest.
+  The package ``nvidia-dali-tf-plugin-cudaXXX`` has a strict requirement with ``nvidia-dali-cudaXXX`` as its exact same version.
+  Thus, installing ``nvidia-dali-tf-plugin-cudaXXX`` at its latest version will replace any older ``nvidia-dali-cudaXXX`` versions already installed with the latest.
   To work with older versions of DALI, provide the version explicitly to the ``pip install`` command.
 
 .. code-block:: bash
 
     CUDA_SUFFIX=100
-    CURRENT_DALI_VERSION=0.23  # Already installed version of nvidia-dali-cu${CUDA_SUFFIX}, assuming we don't want to upgrade
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cu${CUDA_SUFFIX}==$CURRENT_DALI_VERSION
+    CURRENT_DALI_VERSION=0.23  # Already installed version of nvidia-dali-cuda${CUDA_SUFFIX}, assuming we don't want to upgrade
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cuda${CUDA_SUFFIX}==$CURRENT_DALI_VERSION
 
 
 For older versions of DALI (0.22 and lower), use the package `nvidia-dali`. The CUDA version is selected by changing the pip index:

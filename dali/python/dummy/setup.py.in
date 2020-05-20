@@ -21,8 +21,8 @@ class CustomInstallCommand(install, object):
         new_path = os.path.join('https://developer.download.nvidia.com/compute/redist', '@DALI_FLAVOR_MINUS@')
         raise NameError( \
 """\n###########################################################################################################
-ERROR: Package nvidia-dali@DALI_FLAVOR_MINUS@ is now deprecated. Please install nvidia-dali@DALI_FLAVOR_MINUS@-cu@CUDA_VERSION_SHORT_DIGIT_ONLY@ instead:
-pip install --extra-index-url {} nvidia-dali@DALI_FLAVOR_MINUS@-cu@CUDA_VERSION_SHORT_DIGIT_ONLY@
+ERROR: Package nvidia-dali@DALI_FLAVOR_MINUS@ is now deprecated. Please install nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@ instead:
+pip install --extra-index-url {} nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@
 For more information, go to https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html#id1
 ###########################################################################################################
 """.format(new_path))
