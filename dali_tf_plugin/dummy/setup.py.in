@@ -18,12 +18,12 @@ import os
 
 class CustomInstallCommand(install, object):
     def run(self):
-        new_path = os.path.join('https://developer.download.nvidia.com/compute/redist', '@DALI_FLAVOR_MINUS@')
+        new_path = os.path.join('https://developer.download.nvidia.com/compute/redist', '@DALI_FLAVOR@')
         raise NameError( \
 """\n###########################################################################################################
 ERROR: Package nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@ is now deprecated. Please install nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@ instead:
 pip install --extra-index-url {} nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@
-For more information, go to https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html#id1
+For more information, go to https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html#installing-prebuilt-dali-packages
 ###########################################################################################################
 """.format(new_path))
 

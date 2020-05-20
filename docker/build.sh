@@ -305,7 +305,7 @@ if [[ "$CREATE_WHL" == "YES" && "$BUILD_TF_PLUGIN" = "YES" ]]; then
         'cd /opt/dali/dali_tf_plugin && source make_dali_tf_sdist.sh'
     docker cp "${DALI_TF_BUILDER_CONTAINER_SDIST}:/dali_tf_sdist/." "dali_tf_sdist"
     cp dali_tf_sdist/*.tar.gz wheelhouse/
-    cp dali_tf_sdist/dummy/*.tar.gz wheelhouse/dummy
+    cp dali_tf_sdist/dummy/*.tar.gz wheelhouse/dummy || true
     docker rm -f "${DALI_TF_BUILDER_CONTAINER_SDIST}"
 
     rm -rf dali_tf_plugin/whl

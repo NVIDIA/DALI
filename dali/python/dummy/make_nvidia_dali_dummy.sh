@@ -3,8 +3,10 @@
 set -o xtrace
 set -e
 
+DST_DIR=${1:-"/nvidia_dali_dummy"}
+
 mkdir -p build
-cd build
+pushd build
 
 CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1.\2/')
 
@@ -15,4 +17,7 @@ cmake .. \
       -DGIT_SHA=${GIT_SHA}
 
 python setup.py sdist
-cp dist/*.tar.gz /nvidia_dali_dummy
+cp dist/*.tar.gz ${DST_DIR}
+
+popd
+rm -rf build

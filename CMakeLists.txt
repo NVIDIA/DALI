@@ -16,6 +16,9 @@ cmake_minimum_required(VERSION 3.13)
 # allow usage of check_symbol_exists() macro
 include(CheckCXXSymbolExists)
 
+include(cmake/Utils.cmake)
+include(cmake/CUDA_utils.cmake)
+
 if (POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
 endif()
@@ -24,7 +27,6 @@ project(DALI CUDA CXX C)
 set(DALI_ROOT ${PROJECT_SOURCE_DIR})
 set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
 
-include(${DALI_ROOT}/cmake/Utils.cmake)
 parse_cuda_version(${CUDA_VERSION} CUDA_VERSION_MAJOR CUDA_VERSION_MINOR CUDA_VERSION_PATCH CUDA_VERSION_SHORT CUDA_VERSION_SHORT_DIGIT_ONLY)
 
 # Build options
@@ -56,9 +58,6 @@ option(WERROR "Threat all warnings as errors" OFF)
 
 # FFmpeg is required when we are using NVDEC for video reader
 set(BUILD_FFMPEG ${BUILD_NVDEC})
-
-include(cmake/Utils.cmake)
-include(cmake/CUDA_utils.cmake)
 
 propagate_option(BUILD_NVTX)
 propagate_option(BUILD_PYTHON)

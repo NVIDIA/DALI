@@ -38,7 +38,7 @@ export BUILD_NVDEC=${BUILD_NVDEC:-ON}
 export BUILD_LIBSND=${BUILD_LIBSND:-ON}
 export BUILD_NVML=${BUILD_NVML:-ON}
 export BUILD_FFTS=${BUILD_FFTS:-ON}
-export BUILD_DUMMY_PKG=${BUILD_DUMMY_PKG:-ON}
+export BUILD_DUMMY_PKG=${BUILD_DUMMY_PKG:-OFF}
 export STRIP_BINARY=${STRIP_BINARY:-OFF}
 export VERBOSE_LOGS=${VERBOSE_LOGS:-OFF}
 export WERROR=${WERROR:-ON}
@@ -121,17 +121,9 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
     fi
 
     if [ "${BUILD_DUMMY_PKG}" = "ON" ]; then
-        mkdir -p dummy_build
-        pushd dummy_build
-        export CUDA_VERSION_STR=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1.\2/')
-        cmake ../../dali/python/dummy \
-              -DCUDA_VERSION:STRING="${CUDA_VERSION_STR}" \
-              -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
-              -DTIMESTAMP=${DALI_TIMESTAMP} \
-              -DGIT_SHA=${GIT_SHA}
-        python setup.py sdist
+        pushd ../dali/python/dummy
         mkdir -p /wheelhouse/dummy
-        mv dist/*.tar.gz /wheelhouse/dummy
+        source make_nvidia_dali_dummy.sh /wheelhouse/dummy
         popd
     fi
 fi

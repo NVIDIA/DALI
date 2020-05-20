@@ -22,14 +22,7 @@ python setup.py sdist
 cp dist/*.tar.gz /dali_tf_sdist
 popd
 
-mkdir -p dummy/build
-pushd dummy/build
-cmake .. \
-      -DCUDA_VERSION:STRING="${CUDA_VERSION_STR}" \
-      -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
-      -DTIMESTAMP=${DALI_TIMESTAMP} \
-      -DGIT_SHA=${GIT_SHA}
-python setup.py sdist
-
+pushd dummy
 mkdir -p /dali_tf_sdist/dummy
-cp dist/*.tar.gz /dali_tf_sdist/dummy
+source make_nvidia_dali_tf_dummy.sh /dali_tf_sdist/dummy
+popd
