@@ -183,18 +183,17 @@ struct fast_div {
     if (divisor == 0) {
       return;
     }
-    int l = detail::ilog2(divisor);
 
-    this->shift = l;
+    int log_div = detail::ilog2(divisor);
+    this->shift = log_div;
 
     if ((divisor & (divisor - 1)) == 0) {
       this->mul = 0;
-      this->shift = l;
       return;
     }
 
-    uint m_lo = detail::div_lohi(0,            uint(1) << l, divisor);
-    uint m_hi = detail::div_lohi(uint(1) << l, uint(1) << l, divisor);
+    uint m_lo = detail::div_lohi(0,                  uint(1) << log_div, divisor);
+    uint m_hi = detail::div_lohi(uint(1) << log_div, uint(1) << log_div, divisor);
     this->add = (m_lo == m_hi) ? 1 : 0;  // round-up failed, use round-down method
     this->mul = m_hi;
   }
