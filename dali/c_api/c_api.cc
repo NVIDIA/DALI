@@ -368,8 +368,16 @@ size_t daliMaxDimTensors(daliPipelineHandle* pipe_handle, int n) {
 }
 
 unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle) {
-  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
-  return ws->NumOutput();
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  return pipeline->num_outputs();
+}
+
+device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id) {
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  if (pipeline->output_device(id) == "gpu") {
+    return device_type_t::GPU;
+  }
+  return device_type_t::CPU;
 }
 
 template <typename T>

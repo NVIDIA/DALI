@@ -286,6 +286,12 @@ daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int n, device_
 DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle);
 
 /**
+ * @brief Returns device_type_t indicating device backing pipeline output given by id
+ */
+DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id);
+
+
+/**
  * @brief Copy the output tensor stored
  * at position `n` in the pipeline.
  * dst_type (0 - CPU, 1 - GPU)

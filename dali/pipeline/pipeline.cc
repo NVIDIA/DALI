@@ -730,6 +730,19 @@ std::map<std::string, Index> Pipeline::EpochSize() {
   return ret;
 }
 
+std::string Pipeline::output_device(int id) const {
+  DALI_ENFORCE(built_,
+      "\"Build()\" must be called prior to calling \"output_device()\".");
+  DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
+  return output_names_[id].second;
+}
+
+int Pipeline::num_outputs() const {
+  DALI_ENFORCE(built_,
+      "\"Build()\" must be called prior to calling \"num_outputs()\".");
+  return output_names_.size();
+}
+
 void Pipeline::SaveGraphToDotFile(const std::string &filename, bool show_tensors, bool show_ids,
                                   bool use_colors) {
   graph_.SaveToDotFile(filename, show_tensors, show_ids, use_colors);

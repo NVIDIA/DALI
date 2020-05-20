@@ -133,6 +133,8 @@ class DALIDatasetOp : public DatasetOpKernel {
     std::unique_ptr<IteratorBase> MakeIteratorInternal(const string &prefix) const override {
       daliPipelineHandle pipeline_handle;
       TF_CHECK_OK(InitPipeline(&pipeline_handle));
+      TF_CHECK_OK(CheckOutputDevices(&pipeline_handle));
+      
       return absl::make_unique<Iterator>(Iterator::Params{this, strings::StrCat(prefix, "::DALI")},
                                          pipeline_handle);
     }
@@ -169,6 +171,10 @@ class DALIDatasetOp : public DatasetOpKernel {
 
       TF_RETURN_IF_ERROR(b->AddDataset(this, {}, attrs, output));
 
+      return Status::OK();
+    }
+
+    Status CheckExternalState() const override {
       return Status::OK();
     }
 
@@ -218,6 +224,26 @@ class DALIDatasetOp : public DatasetOpKernel {
       } else {
         DALI_CALL(daliPrefetchSeparate(pipeline_handle, pipeline_def_.cpu_prefetch_queue_depth,
                                        pipeline_def_.gpu_prefetch_queue_depth));
+      }
+      return Status::OK();
+    }
+
+    Status CheckOutputDevices(daliPipelineHandle *pipeline_handle) const {
+      auto num_outputs = daliGetNumOutput(pipeline_handle);
+      for (auto i  = 0; i < num_outputs; ++i) {
+        auto dali_device_type = daliGetOutputDevice(pipeline_handle, i);
+        if (dali_device_type != device_type_) {
+          std::stringstream msg;
+          msg << "TF device and DALI device mismatch. TF device: ";
+          msg << (device_type_ == device_type_t::CPU ? "CPU" : "GPU");
+          msg << ", DALI device: ";
+          msg << (dali_device_type == device_type_t::CPU ? "CPU" : "GPU");
+          msg << " for output " << i;
+
+          return Status(
+            tensorflow::error::Code::INTERNAL,
+            msg.str());
+        }
       }
       return Status::OK();
     }
@@ -320,6 +346,16 @@ class DALIDatasetOp : public DatasetOpKernel {
 
       ~Iterator() {
         daliDeletePipeline(&pipeline_handle_);
+      }
+
+      Status SaveInternal(
+        SerializationContext* ctx, IteratorStateWriter* writer) override {
+        return Status::OK();
+      }
+
+      Status RestoreInternal(
+        IteratorContext* ctx, IteratorStateReader* reader) override {
+        return Status::OK();
       }
 
      private:
