@@ -148,13 +148,16 @@ __host__ __device__ inline uint64_t div_lohi(uint64_t lo, uint64_t hi, uint64_t 
 /**
  * @brief Fast unsigned integer division
  *
+ * This class is useful when there's a need calculate division (and/or remainder) of many numbers
+ * by common divisor, not known at compile time.
+ *
  * Based on:
  * Labor of Division (Episode III): Faster Unsigned Division by Constants
  * ridiculous_fish corydoras@ridiculousfish.com
  * https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
  *
  * Limitations:
- * - doesn't work for maximum value of uint when dividing by uncooperative numbers
+ * - doesn't work for maximum value of uint when dividing by "uncooperative" numbers
  */
 template <typename uint>
 struct fast_div {
@@ -162,6 +165,9 @@ struct fast_div {
   uint mul;
   uint8_t add;
   uint8_t shift;
+
+  static_assert(std::is_integral<uint>::value && std::is_unsigned<uint>::value,
+                "fast_div works only with unsigned integers");
 
   __host__ __device__ fast_div() {}
 
