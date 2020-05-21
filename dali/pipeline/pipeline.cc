@@ -730,7 +730,7 @@ std::map<std::string, Index> Pipeline::EpochSize() {
   return ret;
 }
 
-std::string Pipeline::output_device(int id) const {
+const std::string &Pipeline::output_device(int id) const {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to calling \"output_device()\".");
   DALI_ENFORCE_VALID_INDEX(id, output_names_.size());

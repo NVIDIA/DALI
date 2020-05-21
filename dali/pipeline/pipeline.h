@@ -391,9 +391,9 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC int num_outputs() const;
 
   /**
-   * @brief Returns string describing device backing output specified by given id.
+   * @brief Returns a string describing the type device type backing the output specified by given id.
    */
-  DLL_PUBLIC std::string output_device(int id) const;
+  DLL_PUBLIC const std::string &output_device(int id) const;
 
   // For testing
   template <typename T>
