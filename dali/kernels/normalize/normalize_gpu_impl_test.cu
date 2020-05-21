@@ -12,10 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/kernels/normalize/normalize_gpu_impl.cuh"  // NOLINT
 #include <gtest/gtest.h>
+#include <cmath>
+#include <initializer_list>
 #include <random>
+#include <utility>
+#include "dali/kernels/kernel_manager.h"
 #include "dali/test/device_test.h"
-#include "dali/kernels/normalize/normalize_gpu_impl.cuh"
+#include "dali/test/test_tensors.h"
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -25,7 +31,7 @@ void RefNormalize(
     const OutTensorCPU<Out> &out,
     const InTensorCPU<In> &in, const InTensorCPU<float> &base,
     const InTensorCPU<float> &scale,
-    float global_scale, float shift, float epsilon,
+    float epsilon, float global_scale, float shift,
     TensorShape<> &data_pos, TensorShape<> &base_pos, TensorShape<> &scale_pos, int dim) {
 
   int db = 0, ds = 0;
@@ -48,7 +54,7 @@ void RefNormalize(
       } else {
         mul = sptr[s] * global_scale;
       }
-      optr[i] = ConvertSat<Out>(fma(iptr[i] - bptr[b], mul, shift));
+      optr[i] = ConvertSat<Out>(std::fma(iptr[i] - bptr[b], mul, shift));
     }
   } else {
     for (int64_t i = 0, b = 0, s = 0; i < extent; i++, b += db, s += ds) {
@@ -62,7 +68,14 @@ void RefNormalize(
 }
 
 
-
+/**
+ * @brief Reference normalization of a single tensor
+ *
+ * If base/scale has an extent of 1 in any given dimension, it's broadcast along this axis.
+ *
+ * @param calc_inv_stddev if true, `scale` is assumed to contain standard deviation, which
+ *                        is subsequently regularized using given epsilon value
+ */
 template <typename Out, typename In>
 void RefNormalize(
     const OutTensorCPU<Out> &out,
@@ -84,58 +97,269 @@ void RefNormalize(
   }
 }
 
-
+/**
+ * @brief Reference implementation of normalization
+ *
+ * Goes over all input samples and normalizes them using given base and scale tensor lists.
+ * If base/scale TL has 1 element, it is reused for normalization of all samples.
+ * If base/scale has an extent of 1 in any given dimension, it's broadcast along this axis.
+ *
+ * @param calc_inv_stddev if true, `scale` is assumed to contain standard deviation, which
+ *                        is subsequently regularized using given epsilon value
+ */
 template <typename Out, typename In>
 void RefNormalize(
-    const OutListCPU<Out> &out, const InListCPU<In> &in,
+    const OutListCPU<Out> &out, const TensorListView<StorageCPU, In> &in,
     const InListCPU<float> &base, const InListCPU<float> &scale,
     float global_scale, float shift,
-    bool calc_inv_stddev, float epsilon) {
+    bool calc_inv_stddev = false, float epsilon = 0) {
   assert(out.shape == in.shape);
   int N = in.num_samples();
   int db = base.num_samples() > 1;
   int ds = scale.num_samples() > 1;
   for (int i = 0, b = 0, s = 0; i < N; i++, b += db, s += ds) {
-    RefNormalize(out[i], in[i], base[b], scale[s], global_scale, shift, calc_inv_stddev, epsilon);
+    RefNormalize<Out, In>(out[i], in[i], base[b], scale[s],
+                          global_scale, shift, calc_inv_stddev, epsilon);
   }
 }
 
+template <typename RNG>
+TensorListShape<>
+RandomDataShape(int num_samples, int ndim, int64_t max_volume,
+                uint64_t reduced_axes, bool reduce_batch, RNG &rng) {
+  assert(max_volume >= 1);
+  TensorListShape<> sh;
+  sh.resize(num_samples, ndim);
+
+  int64_t extent_range = std::ceil(pow(max_volume, 1.0 / ndim));
+  std::uniform_int_distribution<int64_t> shape_dist(1, extent_range);
+
+  for (int i = 0; i < num_samples; i++) {
+    auto sample_shape = sh.tensor_shape_span(i);
+    do {
+      for (int d = 0; d < ndim; d++) {
+        // when reducing samples in the batch, the non-reduced extents must be uniform
+        // across all samples
+        sample_shape[d] = reduced_axes & (1 << d) || !reduce_batch || i == 0
+            ? shape_dist(rng)
+            : sh.tensor_shape_span(0)[d];
+      }
+    } while (volume(sample_shape) > max_volume);
+  }
+  return sh;
+}
+
+/**
+ * @brief Creates a tensor list which contains a repeated scalar
+ *
+ * If ndim > 0, then the tensor list will contain 1x1x...x1 tensors with given dimensionality
+ */
+template <typename T>
+TensorListView<StorageCPU, T> ScalarTLV(T &scalar, int num_samples, int ndim = 0) {
+  TensorListView<StorageCPU, T> tlv;
+  TensorShape<> ts;
+  ts.resize(ndim);
+  for (int d = 0; d < ndim; d++)
+    ts[d] = 1;
+
+  tlv.shape = uniform_list_shape(num_samples, ts);
+  tlv.data.resize(num_samples);
+  for (int i = 0 ; i < num_samples; i++)
+    tlv.data[i] = &scalar;
+  return tlv;
+}
+
+template <typename Params>
+class NormalizeImplGPUTest;
 
 template <typename Out, typename In>
-void RefNormalize(
-    const OutListCPU<Out> &out, const InListCPU<In> &in,
-    const InListCPU<float> &base, float scale,
-    float global_scale, float shift,
-    bool calc_inv_stddev, float epsilon) {
-  assert(out.shape == in.shape);
-  int N = in.num_samples();
-  int db = base.num_samples() > 1;
-  TensorView<StorageCPU, float> scale_tv;
-  scale_tv.data = &scale;
-  for (int i = 0, b = 0; i < N; i++, b += db) {
-    RefNormalize(out[i], in[i], base[b], scale_tv, global_scale, shift, calc_inv_stddev, epsilon);
+class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
+ public:
+  void Init(int num_samples, int ndim, int64_t max_sample_volume,
+            std::initializer_list<int> reduced_axes, bool reduce_batch,
+            bool scalar_base, bool scalar_scale, bool scale_is_stddev) {
+    Init(num_samples, ndim, max_sample_volume,
+         { reduced_axes.begin(), reduced_axes.end() }, reduce_batch,
+         scalar_base, scalar_scale, scale_is_stddev);
   }
+
+  void Init(int num_samples, int ndim, int64_t max_sample_volume,
+            span<const int> reduced_axes, bool reduce_batch,
+            bool scalar_base, bool scalar_scale, bool scale_is_stddev) {
+    In lo = 0, hi = 100;
+    use_scalar_base_ = scalar_base;
+    use_scalar_scale_ = scalar_scale;
+    axis_mask_ = to_bit_mask(reduced_axes);
+    reduced_axes_ = { begin(reduced_axes), end(reduced_axes) };
+    reduce_batch_ = reduce_batch;
+    scale_is_stddev_ = scale_is_stddev;
+
+    data_shape_ = RandomDataShape(num_samples, ndim, max_sample_volume,
+                                  axis_mask_, reduce_batch_, rng_);
+    in_.reshape(data_shape_);
+    UniformRandomFill(in_.cpu(), rng_, lo, hi);
+
+    if (!scalar_base || !scalar_scale) {
+      int param_samples = reduce_batch ? 1 : num_samples;
+      param_shape_.resize(param_samples, ndim);
+      for (int i = 0; i < param_samples; i++) {
+        for (int d = 0; d < ndim; d++) {
+          bool reduced = axis_mask_ & (1 << d);
+          param_shape_.tensor_shape_span(i)[d] = reduced ? 1 : data_shape_.tensor_shape_span(i)[d];
+        }
+      }
+    } else {
+      param_shape_.resize(1, 0);
+    }
+
+    auto scale_dist = uniform_distribution(0.1f, 10.0f);
+    if (scalar_scale) {
+      scalar_scale_ = scale_dist(rng_);
+    } else {
+      scale_.reshape(param_shape_);
+      UniformRandomFill(scale_.cpu(), rng_, scale_dist.a(), scale_dist.b());
+    }
+
+    if (scalar_base) {
+      scalar_base_ = uniform_distribution(lo, hi)(rng_);
+    } else {
+      base_.reshape(param_shape_);
+      UniformRandomFill(base_.cpu(), rng_, lo, hi);
+    }
+
+    if (std::is_integral<Out>::value) {
+      global_scale_ = std::exp2f(7 * sizeof(Out)) / hi;  // scale to half range
+      if (std::is_unsigned<Out>::value)
+        shift_ = global_scale_;  // shift half range up
+    }
+  }
+
+  void RunTest() {
+    using Kernel = normalize_impl::NormalizeImplGPU<Out, In, float, float>;
+    kmgr_.Resize<Kernel>(1, 1);
+    KernelContext ctx;
+    auto req = kmgr_.Setup<Kernel>(0, ctx, data_shape_, param_shape_,
+                                   use_scalar_base_, use_scalar_scale_, scale_is_stddev_);
+    ASSERT_EQ(req.output_shapes.size(), 1u);
+    ASSERT_EQ(req.output_shapes[0], data_shape_);
+    out_.reshape(data_shape_);
+    ref_.reshape(data_shape_);
+
+    if (use_scalar_base_) {
+      if (use_scalar_scale_) {
+        kmgr_.Run<Kernel>(0, 0, ctx, out_.gpu(), in_.gpu(), scalar_base_, scalar_scale_,
+                          global_scale_, shift_, epsilon_);
+      } else {
+        kmgr_.Run<Kernel>(0, 0, ctx, out_.gpu(), in_.gpu(), scalar_base_, scale_.gpu(),
+                          global_scale_, shift_, epsilon_);
+      }
+    } else {
+      if (use_scalar_scale_) {
+        kmgr_.Run<Kernel>(0, 0, ctx, out_.gpu(), in_.gpu(), base_.gpu(), scalar_scale_,
+                          global_scale_, shift_, epsilon_);
+      } else {
+        kmgr_.Run<Kernel>(0, 0, ctx, out_.gpu(), in_.gpu(), base_.gpu(), scale_.gpu(),
+                          global_scale_, shift_, epsilon_);
+      }
+    }
+
+    int param_samples = param_shape_.num_samples();
+    auto ref_base  = use_scalar_base_
+                     ? ScalarTLV(scalar_base_,  param_samples, data_shape_.sample_dim())
+                     : base_.cpu();
+    auto ref_scale = use_scalar_scale_
+                     ? ScalarTLV(scalar_scale_, param_samples, data_shape_.sample_dim())
+                     : scale_.cpu();
+    RefNormalize(ref_.cpu(), in_.cpu(), ref_base, ref_scale,
+                 global_scale_, shift_, scale_is_stddev_, epsilon_);
+
+    if (scale_is_stddev_ && !std::is_integral<Out>::value)
+      Check(out_.cpu(), ref_.cpu(), EqualEpsRel(1e-6, 1e-6));
+    else
+      Check(out_.cpu(), ref_.cpu(), EqualUlp(4));
+  }
+
+ protected:
+  KernelManager kmgr_;
+  TestTensorList<In> in_;
+  TestTensorList<Out> out_;
+  TestTensorList<float> ref_;
+  TestTensorList<float> base_, scale_;
+  TensorListShape<> data_shape_, param_shape_;
+  SmallVector<int, 6> reduced_axes_;
+  uint64_t axis_mask_;
+  bool reduce_batch_ = false;
+  bool use_scalar_base_ = false;
+  bool use_scalar_scale_ = false;
+  bool scale_is_stddev_ = false;
+
+  float scalar_base_ = 0, scalar_scale_ = 1;
+  float global_scale_ = 1.25f, shift_ = 0.1f, epsilon_ = 0.2f;
+
+  std::mt19937_64 rng_;
+};
+
+using NormalizeTestTypes = ::testing::Types<
+  std::pair<int16_t, uint8_t>,
+  std::pair<float, float>>;
+
+TYPED_TEST_SUITE(NormalizeImplGPUTest, NormalizeTestTypes);
+
+TYPED_TEST(NormalizeImplGPUTest, NonScalar) {
+  this->Init(10, 4, 10000, { 1, 3 }, false, false, false, false);
+  this->RunTest();
+  this->Init(10, 3, 10000, { 0, 2 }, true, false, false, false);
+  this->RunTest();
 }
 
-template <typename Out, typename In>
-void RefNormalize(
-    const OutListCPU<Out> &out, const InListCPU<In> &in,
-    float base, const InListCPU<float> &scale,
-    float global_scale, float shift,
-    bool calc_inv_stddev, float epsilon) {
-  assert(out.shape == in.shape);
-  int N = in.num_samples();
-  int ds = scale.num_samples() > 1;
-  TensorView<StorageCPU, float> base_tv;
-  base_tv.data = &base;
-  for (int i = 0, s = 0; i < N; i++, s += ds) {
-    RefNormalize(out[i], in[i], base_tv, scale[s], global_scale, shift, calc_inv_stddev, epsilon);
-  }
+TYPED_TEST(NormalizeImplGPUTest, ScalarBase) {
+  this->Init(10, 4, 10000, { 1, 3 }, false, true, false, false);
+  this->RunTest();
+  this->Init(10, 3, 10000, { 0, 2 }, true, true, false, false);
+  this->RunTest();
+}
+
+TYPED_TEST(NormalizeImplGPUTest, ScalarScale) {
+  this->Init(10, 4, 10000, { 1, 3 }, false, false, true, false);
+  this->RunTest();
+  this->Init(10, 3, 10000, { 0, 2 }, true, false, true, false);
+  this->RunTest();
+}
+
+TYPED_TEST(NormalizeImplGPUTest, ScalarParams) {
+  this->Init(10, 4, 10000, { 1, 3 }, false, true, true, false);
+  this->RunTest();
+  this->Init(10, 3, 10000, { 0, 2 }, true, true, true, false);
+  this->RunTest();
+}
+
+TYPED_TEST(NormalizeImplGPUTest, NonScalar_InvStdDev) {
+  this->Init(10, 4, 10000, { 1, 3 }, false, false, false, true);
+  this->RunTest();
+  this->Init(10, 3, 10000, { 0, 2 }, true, false, false, true);
+  this->RunTest();
+}
+
+TYPED_TEST(NormalizeImplGPUTest, ScalarBase_InvStdDev) {
+  this->Init(10, 4, 10000, { 1, 3 }, false, true, false, false);
+  this->RunTest();
+  this->Init(10, 3, 10000, { 0, 2 }, true, true, false, false);
+  this->RunTest();
+}
+
+TYPED_TEST(NormalizeImplGPUTest, ScalarScale_InvStdDev) {
+  this->Init(10, 4, 10000, { 1, 3 }, false, false, true, true);
+  this->RunTest();
+  this->Init(10, 3, 10000, { 0, 2 }, true, false, true, true);
+  this->RunTest();
 }
 
 
-TEST(NormalizeKernel, NonScalar) {
-
+TYPED_TEST(NormalizeImplGPUTest, ScalarParams_InvStdDev) {
+  this->Init(10, 4, 10000, { 1, 3 }, false, true, true, true);
+  this->RunTest();
+  this->Init(10, 3, 10000, { 0, 2 }, true, true, true, true);
+  this->RunTest();
 }
 
 }  // namespace kernels
