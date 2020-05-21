@@ -325,7 +325,7 @@ all_packages = [PlainPackage("opencv-python", ["4.2.0.32"]),
                         "mxnet-cu{cuda_v}"),
                 CudaPackage("tensorflow-gpu",
                         { "90"  : [PckgVer("1.12.0", python_max_ver="3.7")],
-                          "100" : [PckgVer("1.15.2",  python_max_ver="3.7"), PckgVer("2.1.0",  python_max_ver="3.7"), \
+                          "100" : [PckgVer("1.15.3",  python_max_ver="3.7"), PckgVer("2.2.0",  python_max_ver="3.7"), \
                                    "2.2.0"] }),
                 CudaHttpPackage("torch",
                         { "90"  : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.1.0-{platform}.whl"],
