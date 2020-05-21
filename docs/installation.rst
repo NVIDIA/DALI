@@ -55,7 +55,7 @@ Execute the following command to install latest DALI for specified CUDA version:
 DALI TensorFlow plugin (nvidia-dali-tf-plugin)
 """"""""""""""""""""""""""""""""""""""""""""""
 
-  Since version 0.6.1, DALI doesn't contain prebuilt versions of the DALI TensorFlow plugin. It needs to be installed as a separate package which will be built against the currently installed version of TensorFlow:
+  DALI doesn't contain prebuilt versions of the DALI TensorFlow plugin. It needs to be installed as a separate package which will be built against the currently installed version of TensorFlow:
 
 * for CUDA 9:
 
@@ -76,13 +76,6 @@ Installing this package will install ``nvidia-dali-cudaXXX`` and its dependencie
   The packages ``nvidia-dali-tf-plugin-cudaXXX`` and ``nvidia-dali-cudaXXX`` should be in exactly the same version.
   Therefore, installing the latest ``nvidia-dali-tf-plugin-cudaXXX``, will replace any older ``nvidia-dali-cudaXXX`` version already installed.
   To work with older versions of DALI, provide the version explicitly to the ``pip install`` command.
-
-.. code-block:: bash
-
-    CUDA_SUFFIX=100
-    CURRENT_DALI_VERSION=0.23  # Already installed version of nvidia-dali-cuda${CUDA_SUFFIX}, assuming you don't want to upgrade it
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cuda${CUDA_SUFFIX}==$CURRENT_DALI_VERSION
-
 
 For older versions of DALI (0.22 and lower), use the package `nvidia-dali`. The CUDA version can be selected by changing the pip index:
 
