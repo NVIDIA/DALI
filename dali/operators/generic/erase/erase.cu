@@ -46,6 +46,26 @@ void fill_with_box(kernels::OutTensorCPU<int32_t, 3> regions,
   }
 }
 
+template <int ndim, typename Storage>
+TensorListView<Storage, kernels::ibox<ndim>, 1>
+as_boxes(TensorListView<Storage, int32_t, 3> tlv) {
+  TensorListShape<1> new_shape(tlv.shape.size());
+  for (int i = 0; i < tlv.shape.size(); ++i)
+    new_shape.set_tensor_shape(i, {tlv.shape[i][0]});
+  using ptrs_t = kernels::ibox<ndim>* const*;
+  return {reinterpret_cast<ptrs_t>(tlv.data.data()), new_shape};
+}
+
+template <int ndim, typename Storage>
+TensorListView<Storage, const kernels::ibox<ndim>, 1>
+as_boxes(TensorListView<Storage, const int32_t, 3> tlv) {
+  TensorListShape<1> new_shape(tlv.shape.size());
+  for (int i = 0; i < tlv.shape.size(); ++i)
+    new_shape.set_tensor_shape(i, {tlv.shape[i][0]});
+  using ptrs_t = const kernels::ibox<ndim>* const*;
+  return {reinterpret_cast<ptrs_t>(tlv.data.data()), new_shape};
+}
+
 }  // namespace detail
 
 template <typename T, int Dims, int channel_dim>
@@ -70,7 +90,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
     auto in_view = view<const T, Dims>(input);
     kmgr_.Initialize<EraseKernel>();
     ctx_.gpu.stream = ws.stream();
-    auto regions_view = view<const int32_t, 3>(regions_gpu_);
+    auto regions_view = detail::as_boxes<Dims>(view<const int32_t, 3>(regions_gpu_));
     kmgr_.Setup<EraseKernel>(0, ctx_, in_view, regions_view, make_cspan(fill_values_));
 
     output_desc.resize(1);
@@ -81,7 +101,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
   void RunImpl(workspace_t<GPUBackend> &ws) override {
     auto input = view<const T, Dims>(ws.template InputRef<GPUBackend>(0));
     auto output = view<T, Dims>(ws.template OutputRef<GPUBackend>(0));
-    auto regions_view = view<const int32_t, 3>(regions_gpu_);
+    auto regions_view = detail::as_boxes<Dims>(view<const int32_t, 3>(regions_gpu_));
     kmgr_.Run<EraseKernel>(0, 0, ctx_, output, input, regions_view, make_cspan(fill_values_));
   }
 
@@ -97,12 +117,12 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
     TensorList<CPUBackend> regions_cpu;
     regions_cpu.set_type(TypeTable::GetTypeInfo(TypeTable::GetTypeID<int32_t>()));
     regions_cpu.Resize(regions_shape);
-    auto regions_tlv = view<int32_t, 3>(regions_cpu);
+    auto regions_tlv = detail::as_boxes<Dims>(view<int32_t, 3>(regions_cpu));
     for (int i = 0; i < batch_size_; ++i) {
       auto regions_tv = regions_tlv[i];
       for (int j = 0; j < regions_tv.shape[0]; ++j) {
         auto box = detail::make_box(args[i].rois[j].anchor, args[i].rois[j].shape);
-        detail::fill_with_box(regions_tv, box, j);
+        *regions_tv(j) = box;
       }
     }
     regions_gpu_.Copy(regions_cpu, ws.stream());

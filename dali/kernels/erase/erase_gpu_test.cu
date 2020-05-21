@@ -228,12 +228,12 @@ struct EraseGpuKernelTest :
       auto input_tv = input_tlv[i];
 
       EraseArgs<T, ndim> args;
-      auto n_regions = regions_tlv[i].shape[0];
+      auto n_regions = regions_tlv[i].num_elements();
       args.rois.resize(n_regions);
       for (int j = 0; j < n_regions; j++) {
         for (int d = 0; d < ndim; d++) {
-          args.rois[j].anchor[d] = *regions_tlv[i](j, 0, d);
-          args.rois[j].shape[d] = *regions_tlv[i](j, 1, d) - *regions_tlv[i](j, 0, d);
+          args.rois[j].anchor[d] = regions_tlv[i](j)->lo[d];
+          args.rois[j].shape[d] = regions_tlv[i](j)->hi[d] - regions_tlv[i](j)->lo[d];
           args.rois[j].fill_values = fill_values_;
           args.rois[j].channels_dim = channel_dim;
         }
@@ -257,9 +257,9 @@ struct EraseGpuKernelTest :
     }
     std::mt19937 gen(0);
     std::uniform_int_distribution<> n_regions(min_erase_regions, max_erase_regions_+1);
-    auto regions_shape = TensorListShape<3>(batch_size_);
+    auto regions_shape = TensorListShape<1>(batch_size_);
     for (int i = 0; i < batch_size_; ++i) {
-      regions_shape.set_tensor_shape(i, {n_regions(gen), 2, ndim});
+      regions_shape.set_tensor_shape(i, {n_regions(gen)});
     }
     regions_.reshape(regions_shape);
     auto regions_cpu = regions_.cpu();
@@ -267,23 +267,20 @@ struct EraseGpuKernelTest :
       // full cover
       for (int i = 0; i < batch_size_; i++) {
         auto regions_tv = regions_cpu[i];
-        for (int d = 0; d < ndim; ++d) {
-          *regions_tv(0, 0, d) = 0;
-          *regions_tv(0, 1, d) = shape_[d];
-        }
+         *regions_tv(0) = ibox<ndim>({0}, to_ivec(shape_));
       }
     } else if (region_generation_ == RegionGen::RANDOM_ERASE) {
       for (int i = 0; i < batch_size_; i++) {
         auto regions_tv = regions_cpu[i];
         for (int j = 0; j < regions_tv.shape[0]; j ++) {
-          auto *lo = regions_tv(j, 0);
-          auto *hi = regions_tv(j, 1);
+          ibox<ndim> region_box;
           for (int d = 0; d < ndim; d++) {
             std::uniform_int_distribution<>  start_dim(0, shape_[d] - 1);
-            lo[d] = start_dim(gen);
-            std::uniform_int_distribution<>  end_dim(lo[d] + 1, shape_[d]);
-            hi[d] = end_dim(gen);
+            region_box.lo[d] = start_dim(gen);
+            std::uniform_int_distribution<>  end_dim(region_box.lo[d] + 1, shape_[d]);
+            region_box.hi[d] = end_dim(gen);
           }
+          *regions_tv(j) = region_box;
         }
       }
     }
@@ -297,7 +294,7 @@ struct EraseGpuKernelTest :
   TensorListShape<ndim> test_shape_;
   constexpr static int batch_size_ = 16;
   TestTensorList<T, ndim> input_, output_, baseline_;
-  TestTensorList<int32_t, 3> regions_;
+  TestTensorList<ibox<ndim>, 1> regions_;
 };
 
 using EraseGpuKernel1fTest = EraseGpuKernelTest<float, 1>;
