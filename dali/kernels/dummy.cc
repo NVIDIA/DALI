@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <gtest/gtest.h>
+#include "dali/core/api_helper.h"
+
+namespace dali {
 
 // add this alignment to work around a patchelf bug/feature which
 // changes TLS alignment and break DALI interoperability with CUDA RT
-alignas(0x1000) thread_local volatile bool __dali_kernel_test_force_tls_align;
+alignas(0x1000) thread_local volatile bool __dali_kernels_force_tls_align;
 
-void __dali_kernel_test_force_tls_align_fun(void) {
-  __dali_kernel_test_force_tls_align = 0;
+DLL_PUBLIC void __dali_kernels_force_tls_align_fun(void) {
+  __dali_kernels_force_tls_align = 0;
 }
 
-int main(int argc, char **argv) {
-  __dali_kernel_test_force_tls_align_fun();
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+}  // namespace dali

@@ -46,6 +46,8 @@ class Normalize : public Operator<Backend> {
     has_axis_names_arg_ = spec.HasArgument("axis_names");
     shift_ = spec.GetArgument<float>("shift");
     scale_ = spec.GetArgument<float>("scale");
+    epsilon_ = spec.GetArgument<float>("epsilon");
+    degrees_of_freedom_ = spec.GetArgument<int>("ddof");
     output_type_ = spec.GetArgument<DALIDataType>("dtype");
 
     DALI_ENFORCE(!has_axes_arg_ || !has_axis_names_arg_,
@@ -318,6 +320,8 @@ class Normalize : public Operator<Backend> {
   bool has_axis_names_arg_ = false;
   float shift_ = 0;
   float scale_ = 1;
+  float epsilon_ = 0;  //!< Added to variance for regularization
+  int degrees_of_freedom_ = 0;  //!< For Bessel's correction
   DALIDataType input_type_ = DALI_NO_TYPE, output_type_ = DALI_FLOAT;
   std::vector<int> axes_;
   int axis_mask_ = 0;

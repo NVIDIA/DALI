@@ -65,9 +65,9 @@ Detailed instructions can be found in the documentation |docs_install|_.
 Build instructions for DALI can be found in |dali_compile|_.
 
 .. |docs_install| replace:: installation guide
-.. _docs_install: https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/docs/installation.html
+.. _docs_install: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html
 .. |dali_compile| replace:: compilation guide
-.. _dali_compile: https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/docs/compilation.html
+.. _dali_compile: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/compilation.html
 
 ----
 
@@ -82,7 +82,7 @@ highlighting different features of DALI and how to use DALI to interface
 with deep learning frameworks.
 
 .. |dali_start| replace:: Getting started
-.. _dali_start: https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/docs/examples/getting%20started.html
+.. _dali_start: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/getting%20started.html
 
 Also note:
 
@@ -92,9 +92,9 @@ Also note:
   master branch is available |here2|_.
 
 .. |here1| replace:: here
-.. _here1: https://docs.nvidia.com/deeplearning/sdk/index.html#data-loading
+.. _here1: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
 .. |here2| replace:: here
-.. _here2: https://docs.nvidia.com/deeplearning/sdk/dali-master-branch-user-guide/docs/index.html
+.. _here2: https://docs.nvidia.com/deeplearning/dali/master-user-guide/docs/index.html
 
 ----
 
@@ -104,6 +104,7 @@ Additional resources
 - GPU Technology Conference 2018; Fast data pipeline for deep learning training, T. Gale, S. Layton and P. Trędak: |slides1|_, |recording1|_.
 - GPU Technology Conference 2019; Fast AI data pre-preprocessing with DALI; Janusz Lisiecki, Michał Zientkiewicz: |slides2|_, |recording2|_.
 - GPU Technology Conference 2019; Integration of DALI with TensorRT on Xavier; Josh Park and Anurag Dixit: |slides3|_, |recording3|_.
+- GPU Technology Conference 2020; Fast Data Pre-Processing with NVIDIA Data Loading Library (DALI); Albert Wolant, Joaquin Anton Guirao |recording4|_.
 - `Developer page <https://developer.nvidia.com/DALI>`_.
 - `Blog post <https://devblogs.nvidia.com/fast-ai-data-preprocessing-with-nvidia-dali/>`_.
 
@@ -119,6 +120,8 @@ Additional resources
 .. _slides3:  https://developer.download.nvidia.com/video/gputechconf/gtc/2019/presentation/s9818-integration-of-tensorrt-with-dali-on-xavier.pdf
 .. |recording3| replace:: recording
 .. _recording3: https://developer.nvidia.com/gtc/2019/video/S9818/video
+.. |recording4| replace:: recording
+.. _recording4: https://developer.nvidia.com/gtc/2020/video/s21139
 
 ----
 
@@ -159,4 +162,4 @@ Tredak, Simon Layton, Andrei Ivanov, Serge Panev.
    :target: https://opensource.org/licenses/Apache-2.0
 
 .. |Documentation| image:: https://img.shields.io/badge/Nvidia%20DALI-documentation-brightgreen.svg?longCache=true
-   :target: https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/ides
+   :target: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
