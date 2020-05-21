@@ -71,7 +71,7 @@ template <typename T, int ndim>
 struct erase_sample_desc {
   const T *in = nullptr;
   T* out = nullptr;
-  span<ibox<ndim>> erase_regions = {};
+  span<const ibox<ndim>> erase_regions = {};
   ivec<ndim> sample_shape;
   ivec<ndim> sample_stride;
 };
@@ -379,10 +379,15 @@ struct EraseGpu {
 
   KernelRequirements Setup(KernelContext &context,
                            const InListGPU<T, ndim> &in,
-                           const std::vector<std::vector<ibox<ndim>>> &erased_regions,
-                           const span<const T> fill_values = {}) {
+                           const InListGPU<int32_t, 3> &erased_regions,
+                           span<const T> fill_values = {}) {
     const int num_samples = in.num_samples();
-
+    for (int i = 0; i < num_samples; ++i) {
+      auto tshape = erased_regions.tensor_shape(i);
+      DALI_ENFORCE(tshape[1] == 2 && tshape[2] == ndim, "The `erased_regions` has to be a "
+                                                        "TensorList of shape "
+                                                        "(regions count, 2, ndims).");
+    }
     if (channel_dim == -1) {
       DALI_ENFORCE(fill_values.size() == 1 || fill_values.size() == 0,
                    make_string("Kernel is unaware of channel dimension, exactly 0 or 1 fill value "
@@ -416,10 +421,6 @@ struct EraseGpu {
       se.add<T>(AllocType::GPU, 1);
     }
 
-    for (auto &regions : erased_regions) {
-      se.add<ibox<ndim>>(AllocType::GPU, regions.size());
-    }
-
     req.output_shapes = {in.shape};
     req.scratch_sizes = se.sizes;
     return req;
@@ -437,7 +438,7 @@ struct EraseGpu {
   void Run(KernelContext &ctx,
            OutListGPU<T, ndim> &out,
            const InListGPU<T, ndim> &in,
-           const std::vector<std::vector<ibox<ndim>>> &erased_regions,
+           const InListGPU<int32_t, 3> &erased_regions,
            span<const T> fill_values = {}) {
     auto stream = ctx.gpu.stream;  // MAYBE some runtime check if it's not used?
     const int num_samples = in.num_samples();
@@ -505,8 +506,9 @@ struct EraseGpu {
       auto &sample = sample_desc_cpu[i];
       sample.in = in.data[i];
       sample.out = out.data[i];
-      auto *regions_ptr = ctx.scratchpad->ToGPU(stream, erased_regions[i]);
-      sample.erase_regions = make_span(regions_ptr, erased_regions[i].size());
+      const auto *box_ptr = reinterpret_cast<const ibox<ndim>*>(erased_regions.tensor_data(i));
+      auto n_boxes = erased_regions.tensor_shape(i)[0];
+      sample.erase_regions = make_cspan(box_ptr, n_boxes);
       for (int dim = 0; dim < ndim; dim++) {
         sample.sample_shape[dim] = in.tensor_shape_span(i)[dim];
       }

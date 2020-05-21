@@ -17,6 +17,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/kernels/erase/erase_gpu.h"
 #include "dali/kernels/kernel_manager.h"
+#include "dali/kernels/kernel_params.h"
 #include "dali/operators/generic/erase/erase.h"
 #include "dali/operators/generic/erase/erase_utils.h"
 #include "dali/pipeline/data/views.h"
@@ -29,18 +30,20 @@ namespace dali {
 namespace detail {
 
 template <int ndim>
-ivec<ndim> to_ivec(const TensorShape<ndim> &shape) {
-  ivec<ndim> result;
-  for (int d = 0; d < ndim; d++) {
-    result[d] = shape[d];
-  }
-  return result;
+kernels::ibox<ndim> make_box(const TensorShape<ndim> &lcorner, const TensorShape<ndim> &shape) {
+  auto lc = kernels::to_ivec(lcorner);
+  return kernels::ibox<ndim>(lc, lc + kernels::to_ivec(shape));
 }
 
 template <int ndim>
-kernels::ibox<ndim> make_box(const TensorShape<ndim> &lcorner, const TensorShape<ndim> &shape) {
-  auto lc = to_ivec(lcorner);
-  return Box<ndim, int>(lc, lc + to_ivec(shape));
+void fill_with_box(kernels::OutTensorCPU<int32_t, 3> regions,
+                   const kernels::ibox<ndim> &box, int idx) {
+  auto *lo = regions(idx, 0);
+  auto *hi = regions(idx, 1);
+  for (int d = 0; d < ndim; ++d) {
+    lo[d] = box.lo[d];
+    hi[d] = box.hi[d];
+  }
 }
 
 }  // namespace detail
@@ -51,9 +54,10 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
   using EraseKernel = kernels::EraseGpu<T, Dims, channel_dim>;
 
   explicit EraseImplGpu(const OpSpec &spec)
-      : spec_(spec), batch_size_(spec.GetArgument<int>("batch_size")) {
-        kmgr_.Resize<EraseKernel>(1, 1);
-      }
+  : spec_(spec)
+  , batch_size_(spec.GetArgument<int>("batch_size")) {
+      kmgr_.Resize<EraseKernel>(1, 1);
+  }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const workspace_t<GPUBackend> &ws) override {
@@ -66,7 +70,8 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
     auto in_view = view<const T, Dims>(input);
     kmgr_.Initialize<EraseKernel>();
     ctx_.gpu.stream = ws.stream();
-    kmgr_.Setup<EraseKernel>(0, ctx_, in_view, regions_, make_cspan(fill_values_));
+    auto regions_view = view<const int32_t, 3>(regions_gpu_);
+    kmgr_.Setup<EraseKernel>(0, ctx_, in_view, regions_view, make_cspan(fill_values_));
 
     output_desc.resize(1);
     output_desc[0] = {shape, input.type()};
@@ -76,64 +81,43 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
   void RunImpl(workspace_t<GPUBackend> &ws) override {
     auto input = view<const T, Dims>(ws.template InputRef<GPUBackend>(0));
     auto output = view<T, Dims>(ws.template OutputRef<GPUBackend>(0));
-    kmgr_.Run<EraseKernel>(0, 0, ctx_, output, input, regions_, make_cspan(fill_values_));
+    auto regions_view = view<const int32_t, 3>(regions_gpu_);
+    kmgr_.Run<EraseKernel>(0, 0, ctx_, output, input, regions_view, make_cspan(fill_values_));
   }
 
-  void AcquireArgs(const ArgumentWorkspace &ws, TensorListShape<> in_shape,
+  void AcquireArgs(const DeviceWorkspace &ws, TensorListShape<> in_shape,
                    TensorLayout in_layout) {
     fill_values_ = spec_.template GetRepeatedArgument<float>("fill_value");
-    DALI_ENFORCE(channel_dim >= 0 || fill_values_.size() <= 1,
-      "If a multi channel fill value is provided, the input layout must have a 'C' dimension");
-    regions_.resize(batch_size_);
     auto args = detail::GetEraseArgs<T, Dims>(spec_, ws, in_shape, in_layout);
+    auto regions_shape = TensorListShape<3>(batch_size_);
     for (int i = 0; i < batch_size_; ++i) {
-      regions_[i].reserve(args[i].rois.size());
-      const auto &rois = args[i].rois;
-      for (const auto &roi : args[i].rois) {
-        regions_[i].push_back(detail::make_box(roi.anchor, roi.shape));
+      auto n_regions = static_cast<int>(args[i].rois.size());
+      regions_shape.set_tensor_shape(i, {n_regions, 2, Dims});
+    }
+    TensorList<CPUBackend> regions_cpu;
+    regions_cpu.set_type(TypeTable::GetTypeInfo(TypeTable::GetTypeID<int32_t>()));
+    regions_cpu.Resize(regions_shape);
+    auto regions_tlv = view<int32_t, 3>(regions_cpu);
+    for (int i = 0; i < batch_size_; ++i) {
+      auto regions_tv = regions_tlv[i];
+      for (int j = 0; j < regions_tv.shape[0]; ++j) {
+        auto box = detail::make_box(args[i].rois[j].anchor, args[i].rois[j].shape);
+        detail::fill_with_box(regions_tv, box, j);
       }
     }
+    regions_gpu_.Copy(regions_cpu, ws.stream());
   }
 
  private:
-  OpSpec spec_;
+  const OpSpec &spec_;
   int batch_size_ = 0;
   std::vector<int> axes_;
   std::vector<kernels::EraseArgs<T, Dims>> args_;
-  std::vector<std::vector<kernels::ibox<Dims>>> regions_;
+  TensorList<GPUBackend> regions_gpu_;
   SmallVector<T, 3> fill_values_;
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
 };
-
-namespace detail {
-
-template <typename T, int Dims, int... ChDims>
-struct select_impl {};
-
-template <typename T, int Dims, int ChDim, int... ChDims>
-struct select_impl<T, Dims, ChDim, ChDims...> {
-  static std::unique_ptr<OpImplBase<GPUBackend>> make(int channel_dim, const OpSpec &spec) {
-    if (channel_dim == ChDim) {
-      return std::make_unique<EraseImplGpu<T, Dims, ChDim>>(spec);
-    } else {
-      return select_impl<T, Dims, ChDims...>::make(channel_dim, spec);
-    }
-  }
-};
-
-template <typename T, int Dims, int ChDim>
-struct select_impl<T, Dims, ChDim> {
-  static std::unique_ptr<OpImplBase<GPUBackend>> make(int channel_dim, const OpSpec &spec) {
-    if (channel_dim == ChDim) {
-      return std::make_unique<EraseImplGpu<T, Dims, ChDim>>(spec);
-    } else {
-      DALI_FAIL("Unsopported layout. Only channel-first and channel-last layouts are supported.");
-    }
-  }
-};
-
-}  // namespace detail
 
 template <>
 bool Erase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -143,7 +127,15 @@ bool Erase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto channel_dim = input.GetLayout().find('C');
   TYPE_SWITCH(input.type().id(), type2id, T, ERASE_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, ERASE_SUPPORTED_NDIMS, (
-      impl_ = detail::select_impl<T, Dims, -1, 0, Dims-1>::make(channel_dim, spec_);
+      if (channel_dim == -1)
+        impl_ = std::make_unique<EraseImplGpu<T, Dims, -1>>(spec_);
+      else if (channel_dim == 0)
+        impl_ = std::make_unique<EraseImplGpu<T, Dims, 0>>(spec_);
+      else if (channel_dim == Dims-1)
+        impl_ = std::make_unique<EraseImplGpu<T, Dims, Dims-1>>(spec_);
+      else
+        DALI_FAIL("Unsupported layout. Only 'no channel', "
+                  "'channel first' and 'channel last' layouts are supported.");
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 
