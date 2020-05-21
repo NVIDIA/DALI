@@ -69,7 +69,7 @@ class SliceTest : public ::testing::Test {
   }
 
   void PrepareExpectedOutput(TestTensorList<InputType, Dims>& input_data,
-                             std::vector<SliceArgs<Dims>>& slice_args,
+                             std::vector<SliceArgs<OutputType, Dims>>& slice_args,
                              TestTensorList<OutputType, Dims>& output_data) {
     auto in = input_data.cpu();
     std::vector<TensorShape<Dims>> output_shapes;
@@ -119,9 +119,9 @@ class SliceTest : public ::testing::Test {
     }
   }
 
-  std::vector<SliceArgs<Dims>> GenerateArgs(const InListCPU<InputType, Dims>& input_tlv) {
+  std::vector<SliceArgs<OutputType, Dims>> GenerateArgs(const InListCPU<InputType, Dims>& input_tlv) {
     ArgsGenerator generator;
-    std::vector<SliceArgs<Dims>> slice_args;
+    std::vector<SliceArgs<OutputType, Dims>> slice_args;
     for (int i = 0; i < NumSamples; i++) {
       auto shape = input_tlv.tensor_shape(i);
       slice_args.push_back(generator.Get(shape));
@@ -132,10 +132,10 @@ class SliceTest : public ::testing::Test {
   virtual void Run() = 0;
 };
 
-template <int Dims>
+template <typename OutputType, int Dims>
 struct SliceArgsGenerator_WholeTensor {
-  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<Dims> args;
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
     for (int d = 0; d < Dims; d++) {
       args.anchor[d] = 0;
       args.shape[d] = input_shape[d];
@@ -144,10 +144,10 @@ struct SliceArgsGenerator_WholeTensor {
   }
 };
 
-template <int Dims>
+template <typename OutputType, int Dims>
 struct SliceArgsGenerator_HalfAllDims {
-  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<Dims> args;
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
     for (int d = 0; d < Dims; d++) {
       args.anchor[d] = input_shape[d] / 2;
       args.shape[d] = input_shape[d] / 2;
@@ -156,10 +156,10 @@ struct SliceArgsGenerator_HalfAllDims {
   }
 };
 
-template <int Dims, int ExtractDim>
+template <typename OutputType, int Dims, int ExtractDim>
 struct SliceArgsGenerator_HalfOneDim {
-  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<Dims> args;
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
     for (int d = 0; d < Dims; d++) {
       args.anchor[d] = 0;
       args.shape[d] = (d == ExtractDim) ? input_shape[d] / 2 : input_shape[d];
@@ -168,10 +168,10 @@ struct SliceArgsGenerator_HalfOneDim {
   }
 };
 
-template <int Dims>
+template <typename OutputType, int Dims>
 struct SliceArgsGenerator_ExtractCenterElement {
-  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<Dims> args;
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
     for (int d = 0; d < Dims; d++) {
       args.anchor[d] = input_shape[d] / 2;
       args.shape[d] = 1;
@@ -180,10 +180,10 @@ struct SliceArgsGenerator_ExtractCenterElement {
   }
 };
 
-template <int Dims>
+template <typename OutputType, int Dims>
 struct SliceArgsGenerator_BiggerThanInputSlice {
-  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<Dims> args;
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
     for (int d = 0; d < Dims; d++) {
       args.anchor[d] = -input_shape[d] / 2;
       args.shape[d] = input_shape[d] * 2;
@@ -192,10 +192,10 @@ struct SliceArgsGenerator_BiggerThanInputSlice {
   }
 };
 
-template <int Dims>
+template <typename OutputType, int Dims>
 struct SliceArgsGenerator_LeftSideOutOfBounds{
-  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<Dims> args;
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
     for (int d = 0; d < Dims; d++) {
       args.anchor[d] = -input_shape[d] / 2;
       args.shape[d] = input_shape[d];
@@ -204,10 +204,10 @@ struct SliceArgsGenerator_LeftSideOutOfBounds{
   }
 };
 
-template <int Dims>
+template <typename OutputType, int Dims>
 struct SliceArgsGenerator_RightSideOutOfBounds{
-  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<Dims> args;
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
     for (int d = 0; d < Dims; d++) {
       args.anchor[d] = input_shape[d] / 2;
       args.shape[d] = input_shape[d];
@@ -217,34 +217,34 @@ struct SliceArgsGenerator_RightSideOutOfBounds{
 };
 
 using SLICE_TEST_TYPES = ::testing::Types<
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
-    SliceTestArgs<int, int, 2, 1, 6, SliceArgsGenerator_HalfAllDims<2>>,
-    SliceTestArgs<int, int, 4, 1, 2, SliceArgsGenerator_HalfAllDims<4>>,
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 0>>,
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 1>>,
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
-    SliceTestArgs<float, float, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
-    SliceTestArgs<int, float, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
-    SliceTestArgs<float, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
-    SliceTestArgs<int, int, 3, 10, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
-    SliceTestArgs<int, int, 10, 1, 2, SliceArgsGenerator_HalfAllDims<10>>,
-    SliceTestArgs<unsigned char, unsigned char, 3, 1, 2, SliceArgsGenerator_HalfAllDims<3>>,
-    SliceTestArgs<unsigned char, unsigned char, 1, 1, 2, SliceArgsGenerator_HalfAllDims<1>>,
-    SliceTestArgs<unsigned char, unsigned char, 2, 1, 1024, SliceArgsGenerator_HalfAllDims<2>>,
-    SliceTestArgs<unsigned char, unsigned char, 2, 100, 1024, SliceArgsGenerator_HalfAllDims<2>>,
-    SliceTestArgs<unsigned char, unsigned char, 3, 3, 256, SliceArgsGenerator_HalfAllDims<3>>,
-    SliceTestArgs<int, int, 2, 1, 3, SliceArgsGenerator_ExtractCenterElement<2>>
+    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<int, 3>>,
+    SliceTestArgs<int, int, 2, 1, 6, SliceArgsGenerator_HalfAllDims<int, 2>>,
+    SliceTestArgs<int, int, 4, 1, 2, SliceArgsGenerator_HalfAllDims<int, 4>>,
+    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<int, 3, 0>>,
+    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<int, 3, 1>>,
+    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<int, 3, 2>>,
+    SliceTestArgs<float, float, 3, 1, 2, SliceArgsGenerator_HalfOneDim<float, 3, 2>>,
+    SliceTestArgs<int, float, 3, 1, 2, SliceArgsGenerator_HalfOneDim<float, 3, 2>>,
+    SliceTestArgs<float, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<int, 3, 2>>,
+    SliceTestArgs<int, int, 3, 10, 2, SliceArgsGenerator_HalfOneDim<int, 3, 2>>,
+    SliceTestArgs<int, int, 10, 1, 2, SliceArgsGenerator_HalfAllDims<int, 10>>,
+    SliceTestArgs<uint8_t, uint8_t, 3, 1, 2, SliceArgsGenerator_HalfAllDims<uint8_t, 3>>,
+    SliceTestArgs<uint8_t, uint8_t, 1, 1, 2, SliceArgsGenerator_HalfAllDims<uint8_t, 1>>,
+    SliceTestArgs<uint8_t, uint8_t, 2, 1, 1024, SliceArgsGenerator_HalfAllDims<uint8_t, 2>>,
+    SliceTestArgs<uint8_t, uint8_t, 2, 100, 1024, SliceArgsGenerator_HalfAllDims<uint8_t, 2>>,
+    SliceTestArgs<uint8_t, uint8_t, 3, 3, 256, SliceArgsGenerator_HalfAllDims<uint8_t, 3>>,
+    SliceTestArgs<int, int, 2, 1, 3, SliceArgsGenerator_ExtractCenterElement<int, 2>>
 >;
 
 using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
-    SliceTestArgs<int, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
-    SliceTestArgs<float16, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
-    SliceTestArgs<float16, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+    SliceTestArgs<int, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<float16, 3>>,
+    SliceTestArgs<float16, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<int, 3>>,
+    SliceTestArgs<float16, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<float16, 3>>,
 
     // TODO(janton): Move to SLICE_TEST_TYPES once GPU implementation supports out of bounds slicing
-    SliceTestArgs<int, int, 2, 1, 20, SliceArgsGenerator_BiggerThanInputSlice<2>>, 
-    SliceTestArgs<int, int, 2, 1, 21, SliceArgsGenerator_LeftSideOutOfBounds<2>>,
-    SliceTestArgs<int, int, 2, 1, 22, SliceArgsGenerator_RightSideOutOfBounds<2>>
+    SliceTestArgs<int, int, 2, 1, 20, SliceArgsGenerator_BiggerThanInputSlice<int, 2>>, 
+    SliceTestArgs<int, int, 2, 1, 21, SliceArgsGenerator_LeftSideOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 2, 1, 22, SliceArgsGenerator_RightSideOutOfBounds<int, 2>>
 >;
 
 }  // namespace kernels

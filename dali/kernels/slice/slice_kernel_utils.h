@@ -25,10 +25,12 @@
 namespace dali {
 namespace kernels {
 
-template <int Dims>
+template <typename T, int Dims>
 struct SliceArgs {
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
+  SmallVector<T, 3> fill_values = {0, };
+  int channel_dim = -1;
 };
 
 template <int Dims, typename Args>

@@ -37,7 +37,7 @@ void RunHelper(TensorList<GPUBackend>& output,
     ctx.gpu.stream = stream;
     auto in_view = view<const InputType, NumDims>(input);
 
-    std::vector<kernels::SliceArgs<NumDims>> slice_args;
+    std::vector<kernels::SliceArgs<OutputType, NumDims>> slice_args;
     slice_args.reserve(slice_anchors.size());
     for (std::size_t i = 0; i < slice_anchors.size(); i++) {
       std::array<int64_t, NumDims> anchor, shape;

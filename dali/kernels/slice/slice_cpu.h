@@ -37,6 +37,8 @@ void SliceKernelImpl(OutputType *output,
                      const TensorShape<Dims> &anchor,
                      const TensorShape<Dims> &in_shape,
                      const TensorShape<Dims> &out_shape,
+                     const OutputType *fill_values,
+                     int channel_dim = -1,
                      std::integral_constant<int, 1>,
                      std::integral_constant<bool, OutOfBounds>) {
   constexpr auto d = Dims - 1;  // NOLINT
@@ -73,8 +75,11 @@ void SliceKernelImpl(OutputType *output,
                      const TensorShape<Dims> &anchor,
                      const TensorShape<Dims> &in_shape,
                      const TensorShape<Dims> &out_shape,
+                     const OutputType *fill_values,
+                     int channel_dim = -1,
                      std::integral_constant<int, DimsLeft>,
                      std::integral_constant<bool, OutOfBounds>) {
+
   constexpr auto d = Dims - DimsLeft;  // NOLINT
   int in_idx = anchor[d];
   int out_idx = 0;
@@ -119,8 +124,10 @@ void SliceKernel(OutputType *output,
                  const TensorShape<Dims> &out_strides,
                  const TensorShape<Dims> &anchor,
                  const TensorShape<Dims> &in_shape,
-                 const TensorShape<Dims> &out_shape) {
-  detail::SliceKernelImpl(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
+                 const TensorShape<Dims> &out_shape,
+                 const OutputType *fill_values,
+                 int channel_dim = -1) {
+  detail::SliceKernelImpl(output, input, in_strides, out_strides, anchor, in_shape, out_shape, fill_values, channel_dim,
                           std::integral_constant<int, Dims>(),
                           std::integral_constant<bool, false>());
 }
@@ -130,7 +137,7 @@ class SliceCPU {
  public:
   KernelRequirements Setup(KernelContext &context,
                            const InTensorCPU<InputType, Dims> &in,
-                           const SliceArgs<Dims> &slice_args) {
+                           const SliceArgs<OutputType, Dims> &slice_args) {
     KernelRequirements req;
     auto shape = GetOutputShape(in.shape, slice_args);
     req.output_shapes.push_back(uniform_list_shape<Dims>(1, shape));
@@ -140,7 +147,7 @@ class SliceCPU {
   void Run(KernelContext &context,
            OutTensorCPU<OutputType, Dims> &out,
            const InTensorCPU<InputType, Dims> &in,
-           const SliceArgs<Dims> &slice_args) {
+           const SliceArgs<OutputType, Dims> &slice_args) {
     const auto &in_shape = in.shape;
     const auto &out_shape = out.shape;
     const auto &anchor = slice_args.anchor;
@@ -148,7 +155,7 @@ class SliceCPU {
     auto out_strides = GetStrides(out_shape);
     const InputType *in_ptr = in.data;
     OutputType *out_ptr = out.data;
-
+/*
     auto inptr2 = in_ptr;
     for (int i = 0; i < in_shape[0]; i++) {
       for (int j = 0; j < in_shape[1]; j++) {
@@ -167,18 +174,19 @@ class SliceCPU {
     for (int d = 0; d < Dims; d++)
       std::cout << " " << out_shape[d];
     std::cout << "\n";
-
-    SliceKernel(out_ptr, in_ptr, in_strides, out_strides, anchor, in_shape, out_shape);
-
-    std::cout << "slice: \n";
-    auto ptr = out_ptr;
-    for (int i = 0; i < out_shape[0]; i++) {
-      for (int j = 0; j < out_shape[1]; j++) {
-        std::cout << " " << *(ptr + i * out_strides[0] + j * out_strides[1]);
-      }
-      std::cout << "\n";
-    }
-
+*/
+    SliceKernel(out_ptr, in_ptr, in_strides, out_strides, anchor, in_shape, out_shape,
+                slice_args.fill_values.data(), slice_args.channel_dim);
+    /*
+        std::cout << "slice: \n";
+        auto ptr = out_ptr;
+        for (int i = 0; i < out_shape[0]; i++) {
+          for (int j = 0; j < out_shape[1]; j++) {
+            std::cout << " " << *(ptr + i * out_strides[0] + j * out_strides[1]);
+          }
+          std::cout << "\n";
+        }
+    */
   }
 };
 
