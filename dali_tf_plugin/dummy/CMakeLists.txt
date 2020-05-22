@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +13,9 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.2)
-project(dali_tf)
+project(dali_tf_dummy)
 
-set(DALI_ROOT "${PROJECT_SOURCE_DIR}/..")
+set(DALI_ROOT "${PROJECT_SOURCE_DIR}/../..")
 
 SET(CUDA_VERSION "" CACHE STRING "CUDA version")
 if ("${CUDA_VERSION}" STREQUAL "")
@@ -33,16 +33,3 @@ if (DALI_BUILD_FLAVOR)
 endif()
 
 configure_file("${PROJECT_SOURCE_DIR}/setup.py.in" "${PROJECT_BINARY_DIR}/setup.py")
-configure_file("${PROJECT_SOURCE_DIR}/nvidia/dali_tf_plugin/__init__.py.in" "${PROJECT_BINARY_DIR}/nvidia/dali_tf_plugin/__init__.py")
-install(FILES "${PROJECT_SOURCE_DIR}/nvidia/dali_tf_plugin/dali_tf_plugin.py" DESTINATION "${PROJECT_BINARY_DIR}/nvidia/dali_tf_plugin/")
-
-install(FILES "daliop.cc" DESTINATION "${PROJECT_BINARY_DIR}")
-install(FILES "dali_dataset_op.cc" DESTINATION "${PROJECT_BINARY_DIR}")
-install(FILES "dali_shape_helper.h" DESTINATION "${PROJECT_BINARY_DIR}")
-install(FILES "dali_tf_plugin_install_tool.py" DESTINATION "${PROJECT_BINARY_DIR}")
-install(FILES "dali_tf_plugin_utils.py" DESTINATION "${PROJECT_BINARY_DIR}")
-install(FILES "${PROJECT_SOURCE_DIR}/MANIFEST.in" DESTINATION "${PROJECT_BINARY_DIR}")
-install(FILES "${DALI_ROOT}/Acknowledgements.txt" DESTINATION "${PROJECT_BINARY_DIR}")
-install(FILES "${DALI_ROOT}/COPYRIGHT" DESTINATION "${PROJECT_BINARY_DIR}")
-install(FILES "${DALI_ROOT}/LICENSE" DESTINATION "${PROJECT_BINARY_DIR}")
-install(DIRECTORY "${PROJECT_SOURCE_DIR}/prebuilt" DESTINATION "${PROJECT_BINARY_DIR}" OPTIONAL)
