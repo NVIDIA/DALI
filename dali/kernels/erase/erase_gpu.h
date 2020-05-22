@@ -24,6 +24,7 @@
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/erase/erase_args.h"
 
 namespace dali {
 namespace kernels {
@@ -68,9 +69,9 @@ using ibox = box<int32_t, ndim>;
 
 template <typename T, int ndim>
 struct erase_sample_desc {
-  const T *in = nullptr;
-  T* out = nullptr;
-  const ibox<ndim> *erase_regions = nullptr;
+  const T * __restrict__ in = nullptr;
+  T * __restrict__ out = nullptr;
+  span<const ibox<ndim>> erase_regions = {};
   ivec<ndim> sample_shape;
   ivec<ndim> sample_stride;
 };
@@ -308,8 +309,8 @@ struct do_copy_or_erase {
 };
 
 template <int channel_dim = -1, typename T, int ndim = 2>
-__global__ void erase_gpu_impl(erase_sample_desc<T, ndim> *samples, ivec<ndim> region_shape,
-                               int erase_regions_count, span<T> fill_values) {
+__global__ void erase_gpu_impl(const erase_sample_desc<T, ndim> *samples,
+                               ivec<ndim> region_shape, span<T> fill_values) {
   const auto region_idx = blockIdx.x;
   const auto sample_idx = blockIdx.y;
 
@@ -318,7 +319,8 @@ __global__ void erase_gpu_impl(erase_sample_desc<T, ndim> *samples, ivec<ndim> r
 
   auto region_box = get_region(region_idx, region_shape, sample_shape);
 
-  const auto *erase_regions_ptrs = sample.erase_regions;
+  const auto *erase_regions_ptrs = sample.erase_regions.data();
+  const auto erase_regions_count = sample.erase_regions.size();
   constexpr int max_regions = 40 * 1024 / sizeof(ibox<ndim>);
   __shared__ ibox<ndim> erase_regions[max_regions];
   __shared__ int filtered_region_idx;
@@ -376,7 +378,6 @@ struct EraseGpu {
   using sample_t = erase_sample_desc<T, ndim>;
 
   KernelRequirements Setup(KernelContext &context,
-                          //  const TensorListView<StorageGPU, const T, ndim> &in
                            const InListGPU<T, ndim> &in,
                            const InListGPU<ibox<ndim>, 1> &erased_regions,
                            span<const T> fill_values = {}) {
@@ -404,8 +405,8 @@ struct EraseGpu {
 
     ScratchpadEstimator se;
 
-    se.add<erase_sample_desc<T, ndim>>(AllocType::Host, num_samples);
-    se.add<erase_sample_desc<T, ndim>>(AllocType::GPU, num_samples);
+    se.add<sample_t>(AllocType::Host, num_samples);
+    se.add<sample_t>(AllocType::GPU, num_samples);
     if (channel_dim >= 0) {
       int num_channels = in.shape.tensor_shape_span(0)[channel_dim];
       se.add<T>(AllocType::Host, num_channels);
@@ -446,7 +447,6 @@ struct EraseGpu {
     const int num_fill_values = channel_dim >= 0 ? in.shape.tensor_shape_span(0)[channel_dim] : 1;
 
     ivec<ndim> region_dim;
-    int erase_regions_count = erased_regions.shape[0][0];
 
     // Prepare Dim {2, 2, ..., 2, 64, 64}
     for (int d = 0; d < ndim - 2; d++) {
@@ -491,9 +491,7 @@ struct EraseGpu {
     dim3 block_dim = {32, 32, 1};  // fixed block dim
 
     auto* sample_desc_cpu = ctx.scratchpad->Allocate<sample_t>(AllocType::Host, num_samples);
-    auto* sample_desc_gpu = ctx.scratchpad->Allocate<sample_t>(AllocType::GPU, num_samples);
     auto* fill_values_cpu = ctx.scratchpad->Allocate<T>(AllocType::Host, num_fill_values);
-    auto* fill_values_gpu = ctx.scratchpad->Allocate<T>(AllocType::GPU, num_fill_values);
 
     for (int i = 0; i < num_fill_values; i++) {
       fill_values_cpu[i] = fill_values.size() == 1 ? fill_values[0] : fill_values[i];
@@ -503,24 +501,23 @@ struct EraseGpu {
       auto &sample = sample_desc_cpu[i];
       sample.in = in.data[i];
       sample.out = out.data[i];
-      sample.erase_regions = erased_regions.data[i];
+      sample.erase_regions = make_cspan(erased_regions.tensor_data(i),
+                                        erased_regions.tensor_shape(i).num_elements());
       for (int dim = 0; dim < ndim; dim++) {
         sample.sample_shape[dim] = in.tensor_shape_span(i)[dim];
       }
       sample.sample_stride = GetStrides(sample.sample_shape);
     }
 
-    CUDA_CALL(
-      cudaMemcpyAsync(sample_desc_gpu, sample_desc_cpu, num_samples * sizeof(sample_t),
-                      cudaMemcpyHostToDevice, stream));
-    CUDA_CALL(
-      cudaMemcpyAsync(fill_values_gpu, fill_values_cpu, num_fill_values * sizeof(T),
-                      cudaMemcpyHostToDevice, stream));
-
+    sample_t *sample_desc_gpu;
+    T *fill_values_gpu;
+    std::tie(sample_desc_gpu, fill_values_gpu) =
+      ctx.scratchpad->ToContiguousGPU(stream, make_cspan(sample_desc_cpu, num_samples),
+                                      make_cspan(fill_values_cpu, num_fill_values));
     auto fill_values_span = make_span(fill_values_gpu, num_fill_values);
 
     erase_gpu_impl<channel_dim><<<grid_dim, block_dim, 0, stream>>>(
-        sample_desc_gpu, region_dim, erase_regions_count, fill_values_span);
+        sample_desc_gpu, region_dim, fill_values_span);
   }
 };
 
