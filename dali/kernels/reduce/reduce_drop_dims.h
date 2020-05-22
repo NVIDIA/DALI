@@ -55,7 +55,7 @@ struct DropDims {
   uint64_t mod_d[kMaxDims];
   uint8_t div_add[kMaxDims], div_shift[kMaxDims];
   uint8_t mod_add[kMaxDims], mod_shift[kMaxDims];
-  int64_t mul[kMaxDims];
+  int64_t mul_m[kMaxDims];
   int start = 2 * kMaxDims;
 
   DALI_HOST_DEV DALI_FORCEINLINE fast_div<uint64_t> div(int idx) const {
@@ -76,6 +76,10 @@ struct DropDims {
     return fd;
   }
 
+  DALI_HOST_DEV DALI_FORCEINLINE int64_t mul(int idx) const {
+    return mul_m[idx];
+  }
+
   DALI_HOST_DEV DALI_FORCEINLINE void div(int idx, fast_div<uint64_t> v) {
     div_m[idx] = v.mul;
     div_add[idx] = v.add;
@@ -87,6 +91,10 @@ struct DropDims {
     mod_m[idx] = v.mul;
     mod_add[idx] = v.add;
     mod_shift[idx] = v.shift;
+  }
+
+  DALI_HOST_DEV DALI_FORCEINLINE void mul(int idx, int64_t m) {
+    mul_m[idx] = m;
   }
 
   DALI_HOST_DEV DropDims() {}
@@ -160,11 +168,12 @@ struct DropDims {
    */
   template <typename Indices>
   DropDims(const Indices &in_shape, uint64_t reduced_axes) {
+    memset(this, 0, sizeof(*this));
     if (size(in_shape) == 0) {
       start = -1;
       return;
     }
-    int64_t shape[kMaxDims];
+    int64_t shape[2*kMaxDims];
     unsigned axis_mask;
     int d = simplify(shape, axis_mask, in_shape, reduced_axes);
 
@@ -209,7 +218,7 @@ struct DropDims {
         mod(nmod++, volumes[i]);
       } else {
         div(ndiv, volumes[i]);
-        mul[ndiv] = kept_volumes[i];
+        mul(ndiv, kept_volumes[i]);
         ndiv++;
       }
     }
@@ -234,7 +243,7 @@ struct DropDims {
 
     for (int i = ndiv-1; i >= 0; i--) {
       div(kMaxDims - ndiv + i, div(i));
-      mul[kMaxDims - ndiv + i] = mul[i];
+      mul(kMaxDims - ndiv + i, mul(i));
     }
     for (int i = nmod-1; i >= 0; i--) {
       mod(kMaxDims - nmod + i - mod_ofs, mod(i));
@@ -280,10 +289,10 @@ struct DropDims {
     #define REINDEX_CASE(idx)\
       case 2*idx:\
         if (idx < kMaxDims)\
-          out += static_cast<uint64_t>(index) / div(idx) * mul[cuda_min(idx, kMaxDims-1)];\
+          out += static_cast<uint64_t>(index) / div(idx) * mul(idx);\
       case 2*idx+1:\
         if (idx < kMaxDims) {\
-          if (mod_d[cuda_min(idx, kMaxDims-1)] == 1) {\
+          if (mod(idx) == 1) {\
             index = 0;\
             break;\
           }\
