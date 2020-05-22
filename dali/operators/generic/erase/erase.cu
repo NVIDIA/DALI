@@ -35,17 +35,6 @@ kernels::ibox<ndim> make_box(const TensorShape<ndim> &lcorner, const TensorShape
   return kernels::ibox<ndim>(lc, lc + kernels::to_ivec(shape));
 }
 
-template <int ndim>
-void fill_with_box(kernels::OutTensorCPU<int32_t, 3> regions,
-                   const kernels::ibox<ndim> &box, int idx) {
-  auto *lo = regions(idx, 0);
-  auto *hi = regions(idx, 1);
-  for (int d = 0; d < ndim; ++d) {
-    lo[d] = box.lo[d];
-    hi[d] = box.hi[d];
-  }
-}
-
 template <int ndim, typename Storage>
 TensorListView<Storage, kernels::ibox<ndim>, 1>
 as_boxes(TensorListView<Storage, int32_t, 3> tlv) {

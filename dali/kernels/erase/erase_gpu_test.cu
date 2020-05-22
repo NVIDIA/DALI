@@ -267,7 +267,7 @@ struct EraseGpuKernelTest :
       // full cover
       for (int i = 0; i < batch_size_; i++) {
         auto regions_tv = regions_cpu[i];
-         *regions_tv(0) = ibox<ndim>({0}, to_ivec(shape_));
+        *regions_tv(0) = ibox<ndim>({0}, to_ivec(shape_));
       }
     } else if (region_generation_ == RegionGen::RANDOM_ERASE) {
       for (int i = 0; i < batch_size_; i++) {

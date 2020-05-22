@@ -69,8 +69,8 @@ using ibox = box<int32_t, ndim>;
 
 template <typename T, int ndim>
 struct erase_sample_desc {
-  const T *in = nullptr;
-  T* out = nullptr;
+  const T * __restrict__ in = nullptr;
+  T * __restrict__ out = nullptr;
   span<const ibox<ndim>> erase_regions = {};
   ivec<ndim> sample_shape;
   ivec<ndim> sample_stride;
@@ -309,8 +309,8 @@ struct do_copy_or_erase {
 };
 
 template <int channel_dim = -1, typename T, int ndim = 2>
-__global__ void erase_gpu_impl(erase_sample_desc<T, ndim> *samples, ivec<ndim> region_shape,
-                               span<T> fill_values) {
+__global__ void erase_gpu_impl(const erase_sample_desc<T, ndim> *samples,
+                               ivec<ndim> region_shape, span<T> fill_values) {
   const auto region_idx = blockIdx.x;
   const auto sample_idx = blockIdx.y;
 
@@ -509,10 +509,11 @@ struct EraseGpu {
       sample.sample_stride = GetStrides(sample.sample_shape);
     }
 
-    auto *sample_desc_gpu = ctx.scratchpad->ToGPU(stream, make_span(sample_desc_cpu, num_samples));
-    auto* fill_values_gpu =
-      ctx.scratchpad->ToGPU(stream, make_span(fill_values_cpu, num_fill_values));
-
+    sample_t *sample_desc_gpu;
+    T *fill_values_gpu;
+    std::tie(sample_desc_gpu, fill_values_gpu) =
+      ctx.scratchpad->ToContiguousGPU(stream, make_cspan(sample_desc_cpu, num_samples),
+                                      make_cspan(fill_values_cpu, num_fill_values));
     auto fill_values_span = make_span(fill_values_gpu, num_fill_values);
 
     erase_gpu_impl<channel_dim><<<grid_dim, block_dim, 0, stream>>>(
