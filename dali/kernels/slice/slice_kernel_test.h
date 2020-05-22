@@ -56,10 +56,16 @@ class SliceTest : public ::testing::Test {
   static constexpr int Dims = TestArgs::Dims;
   static constexpr int NumSamples = TestArgs::NumSamples;
   static constexpr int DimSize = TestArgs::DimSize;
+  static constexpr int DimSize0 = TestArgs::DimSize0;
+  static constexpr int DimSize1 = TestArgs::DimSize1;
+  static constexpr int DimSize2 = TestArgs::DimSize2;
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
 
   void PrepareData(TestTensorList<InputType, Dims>& test_data) {
     std::vector<int> sample_dims(Dims, static_cast<int>(DimSize));
+    sample_dims[0] = DimSize0;
+    sample_dims[1] = DimSize1;
+    sample_dims[2] = DimSize2;
     TensorListShape<Dims> shape = uniform_list_shape<Dims>(NumSamples, sample_dims);
     test_data.reshape(shape);
 
@@ -74,14 +80,8 @@ class SliceTest : public ::testing::Test {
     auto in = input_data.cpu();
     std::vector<TensorShape<Dims>> output_shapes;
     for (int i = 0; i < in.size(); i++) {
-//      auto in_sample_shape = in.tensor_shape(i);
       TensorShape<Dims> out_sample_shape(slice_args[i].shape);
       auto& anchor = slice_args[i].anchor;
-
-//      for (int d = 0; d < Dims; d++) {
-//        ASSERT_TRUE(anchor[d] >= 0 && (anchor[d] + out_sample_shape[d]) <= in_sample_shape[d]);
-//      }
-
       output_shapes.push_back(out_sample_shape);
     }
     output_data.reshape(output_shapes);
@@ -94,32 +94,46 @@ class SliceTest : public ::testing::Test {
       const auto *in_tensor = in.tensor_data(i);
       auto *out_tensor = out.tensor_data(i);
 
+      int channel_dim = slice_args[i].channel_dim;
+      auto *fill_values = slice_args[i].fill_values.data();
+      int fill_values_size = slice_args[i].fill_values.size();
+      if (fill_values_size > 1) {
+        ASSERT_NE(-1, channel_dim);
+        ASSERT_EQ(fill_values_size, out_shape[channel_dim]);
+      }
+
       auto in_strides = GetStrides(in_shape);
       auto out_strides = GetStrides(out_shape);
 
       size_t total_size = volume(out_shape);
+
+      int i_c = 0;
       for (size_t out_idx = 0; out_idx < total_size; out_idx++) {
         size_t idx = out_idx;
         size_t in_idx = 0;
         bool out_of_bounds = false;
         for (int d = 0; d < Dims; d++) {
           int i_d = idx / out_strides[d];
+          idx = idx % out_strides[d];
 
+          if (d == channel_dim)
+            i_c = i_d;
           out_of_bounds |= anchor[d] + i_d < 0;
           out_of_bounds |= anchor[d] + i_d >= in_shape[d];
-          if (out_of_bounds)
-            break;
-
-          idx = idx % out_strides[d];
-          in_idx += (anchor[d] + i_d) * in_strides[d];
+          if (!out_of_bounds) {
+            in_idx += (anchor[d] + i_d) * in_strides[d];
+          }
         }
 
-        out_tensor[out_idx] = out_of_bounds ? OutputType(0) : Convert<OutputType>(in_tensor[in_idx]);
+        assert(i_c >= 0 && i_c < fill_values_size);
+        out_tensor[out_idx] =
+            out_of_bounds ? fill_values[i_c] : Convert<OutputType>(in_tensor[in_idx]);
       }
     }
   }
 
-  std::vector<SliceArgs<OutputType, Dims>> GenerateArgs(const InListCPU<InputType, Dims>& input_tlv) {
+  std::vector<SliceArgs<OutputType, Dims>> GenerateArgs(
+      const InListCPU<InputType, Dims>& input_tlv) {
     ArgsGenerator generator;
     std::vector<SliceArgs<OutputType, Dims>> slice_args;
     for (int i = 0; i < NumSamples; i++) {
@@ -216,6 +230,38 @@ struct SliceArgsGenerator_RightSideOutOfBounds{
   }
 };
 
+template <typename OutputType, int Dims = 3>
+struct SliceArgsGenerator_MultiChannelPad {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = -input_shape[0] / 2;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = 0;
+    args.shape[0] = 2 * input_shape[0];
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = input_shape[2];
+    args.fill_values = {100, 110, 120};
+    args.channel_dim = 2;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
+struct SliceArgsGenerator_PadAlsoChannelDim {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = -input_shape[0] / 2;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = 0;
+    args.shape[0] = 2 * input_shape[0];
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = input_shape[2] + 1;
+    args.fill_values = {100, 110, 120, 128};
+    args.channel_dim = 2;
+    return args;
+  }
+};
+
 using SLICE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<int, 3>>,
     SliceTestArgs<int, int, 2, 1, 6, SliceArgsGenerator_HalfAllDims<int, 2>>,
@@ -242,9 +288,11 @@ using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
     SliceTestArgs<float16, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<float16, 3>>,
 
     // TODO(janton): Move to SLICE_TEST_TYPES once GPU implementation supports out of bounds slicing
-    SliceTestArgs<int, int, 2, 1, 20, SliceArgsGenerator_BiggerThanInputSlice<int, 2>>, 
+    SliceTestArgs<int, int, 2, 1, 20, SliceArgsGenerator_BiggerThanInputSlice<int, 2>>,
     SliceTestArgs<int, int, 2, 1, 21, SliceArgsGenerator_LeftSideOutOfBounds<int, 2>>,
-    SliceTestArgs<int, int, 2, 1, 22, SliceArgsGenerator_RightSideOutOfBounds<int, 2>>
+    SliceTestArgs<int, int, 2, 1, 22, SliceArgsGenerator_RightSideOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 3, 1, 20, SliceArgsGenerator_MultiChannelPad<int, 3>, 20, 20, 3>,
+    SliceTestArgs<int, int, 3, 1, 20, SliceArgsGenerator_PadAlsoChannelDim<int, 3>, 20, 20, 3>
 >;
 
 }  // namespace kernels
