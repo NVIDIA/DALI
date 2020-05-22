@@ -102,8 +102,8 @@ std::tuple<std::remove_cv_t<element_t<Collections>>*...>
 ToContiguousHostMem(Scratchpad &scratchpad, const Collections &... c) {
   const size_t N = sizeof...(Collections);
   static_assert(
-    all_of<std::is_pod<std::remove_cv_t<element_t<Collections>>>::value...>::value,
-    "ToContiguousHostMem must be used with collections of POD types");
+    all_of<std::is_trivially_copyable<std::remove_cv_t<element_t<Collections>>>::value...>::value,
+    "ToContiguousHostMem must be used with collections of trivially copyable types");
 
   std::array<size_t, N + 1> offsets;
   detail::GetCollectionOffsets(0, &offsets[0], c...);
