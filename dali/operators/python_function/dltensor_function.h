@@ -116,20 +116,22 @@ void PrepareOutputs(workspace_t<Backend> &ws, const py::object &output_o, int ba
 template <typename Backend>
 void PrepareOutputsPerSample(workspace_t<Backend> &ws, const py::object &output_o, int batch_size) {
   py::list output = output_o;
-  std::vector<py::list> output_tuple(ws.NumOutput());
-  for (auto &sample_out : output) {
+  py::tuple output_tuple(ws.NumOutput());
+  std::vector<py::list> output_lists(ws.NumOutput());
+  for (py::handle sample_out : output) {
     if (py::tuple::check_(sample_out)) {
-      py::tuple out = py::reinterpret_borrow<py::tuple>(sample_out);
-      for (Index idx = 0; idx < ws.NumOutput(); ++idx) output_tuple[idx].append(out[idx]);
+      auto out = py::reinterpret_borrow<py::tuple>(sample_out);
+      for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
+        output_lists[idx].append(out[idx]);
+      }
     } else {
-      output_tuple[0].append(sample_out);
+      output_lists[0].append(sample_out);
     }
   }
-  py::tuple t(ws.NumOutput());
   for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
-    t[idx] = py::reinterpret_steal<py::list>(output_tuple[idx]);
+    output_tuple[idx] = std::move(output_lists[idx]);
   }
-  PrepareOutputs<Backend>(ws, t, batch_size);
+  PrepareOutputs<Backend>(ws, output_tuple, batch_size);
 }
 
 template <typename Backend>
