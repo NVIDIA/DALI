@@ -141,9 +141,11 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
       target->Reset();
     }
     target->Resize({frame_size});
-    frame->Read(target->mutable_data<uint8_t>(), frame_size);
+    Index ret = frame->Read(target->mutable_data<uint8_t>(), frame_size);
+    DALI_ENFORCE(ret == frame_size, make_string("Failed to read file: ", frame_filename));
   } else {
     auto p = frame->Get(frame_size);
+    DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", frame_filename));
     // Wrap the raw data in the Tensor object.
     target->ShareData(p, frame_size, {frame_size});
     target->set_type(TypeInfo::Create<uint8_t>());

@@ -127,9 +127,11 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
     }
     image_label.image.Resize({image_size});
     // copy the image
-    current_image->Read(image_label.image.mutable_data<uint8_t>(), image_size);
+    Index ret = current_image->Read(image_label.image.mutable_data<uint8_t>(), image_size);
+    DALI_ENFORCE(ret == image_size, make_string("Failed to read file: ", image_pair.first));
   } else {
     auto p = current_image->Get(image_size);
+    DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", image_pair.first));
     // Wrap the raw data in the Tensor object.
     image_label.image.ShareData(p, image_size, {image_size});
     image_label.image.set_type(TypeInfo::Create<uint8_t>());
