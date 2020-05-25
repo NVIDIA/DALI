@@ -21,6 +21,7 @@
 #include "dali/core/convert.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
+#include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/reduce/reduce_drop_dims.h"
 #include "dali/kernels/kernel.h"
 
