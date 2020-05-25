@@ -61,18 +61,19 @@ configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${CMAKE_BINARY_DIR}/${lib
 target_link_libraries(dali_operators PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
 
 if (BUILD_TEST)
-  set(test_bin "dali_operator_test.bin")
   # TODO(janton): create a test_utils_lib with dali_test_config.cc and other common utilities
-  add_executable(${test_bin}
+  add_executable(dali_operator_test
     ${DALI_OPERATOR_TEST_SRCS}
     ${DALI_ROOT}/dali/test/dali_test_config.cc
     ${DALI_ROOT}/dali/test/dali_operator_test_utils.cc)
 
-  target_link_libraries(${test_bin} PUBLIC dali_operators)
-  target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})
-  target_link_libraries(${test_bin} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
-  set_target_properties(${test_bin} PROPERTIES
+  target_link_libraries(dali_operator_test PUBLIC dali_operators)
+  target_link_libraries(dali_operator_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
+  target_link_libraries(dali_operator_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+  set_target_properties(dali_operator_test PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(dali_operator_test PROPERTIES OUTPUT_NAME "dali_operator_test.bin")
+  set_target_properties(dali_operator_test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 
-  add_check_gtest_target("check-operator-gtest" ${test_bin} ${TEST_BINARY_DIR})
+  add_check_gtest_target("check-operator-gtest" dali_operator_test ${TEST_BINARY_DIR})
 endif()

@@ -35,14 +35,15 @@ configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${CMAKE_BINARY_DIR}/${lib
 target_link_libraries(dali_core PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
 
 if (BUILD_TEST)
-  set(test_bin "dali_core_test.bin")
-  add_executable(${test_bin} "${DALI_CORE_TEST_SRCS}")
-  target_link_libraries(${test_bin} PUBLIC dali_core)
-  target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})
-  target_link_libraries(${test_bin} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+  add_executable(dali_core_test "${DALI_CORE_TEST_SRCS}")
+  target_link_libraries(dali_core_test PUBLIC dali_core)
+  target_link_libraries(dali_core_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
+  target_link_libraries(dali_core_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+  set_target_properties(dali_core_test PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(dali_core_test PROPERTIES OUTPUT_NAME "dali_core_test.bin")
 
-  set_target_properties(${test_bin} PROPERTIES
+  set_target_properties(dali_core_test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 
-  add_check_gtest_target("check-core-gtest" ${test_bin} ${TEST_BINARY_DIR})
+  add_check_gtest_target("check-core-gtest" dali_core_test ${TEST_BINARY_DIR})
 endif()

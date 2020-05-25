@@ -36,12 +36,13 @@ if (BUILD_BENCHMARK)
     list(APPEND DALI_BENCHMARK_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/caffe2_alexnet_bench.cc")
   endif()
 
-  set(benchmark_bin "dali_benchmark.bin")
-  add_executable(${benchmark_bin} "${DALI_BENCHMARK_SRCS}")
+  add_executable(dali_benchmark "${DALI_BENCHMARK_SRCS}")
 
-  target_link_libraries(${benchmark_bin} PRIVATE dali dali_operators benchmark ${DALI_LIBS})
+  target_link_libraries(dali_benchmark PRIVATE dali dali_operators benchmark ${DALI_LIBS})
+  set_target_properties(dali_benchmark PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(dali_benchmark PROPERTIES OUTPUT_NAME "dali_benchmark.bin")
 
-  set_target_properties(${benchmark_bin} PROPERTIES
+  set_target_properties(dali_benchmark PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 
 endif()
