@@ -18,6 +18,7 @@
 #include <pybind11/embed.h>
 #include <pybind11/stl.h>
 #include <vector>
+#include <utility>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/copy_with_stride.h"
 
