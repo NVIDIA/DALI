@@ -122,8 +122,8 @@ Nightly and weekly release channels
 
 .. note::
 
-  It is recommended to uninstall regular DALI and TensorFlow plugin before installing nvidia-dali-nightly
-  or nvidia-dali-weekly as they are installed in the same path
+  It is recommended to uninstall regular DALI and TensorFlow plugin before installing nightly or weekly
+  builds as they are installed in the same path
 
 Nightly builds
 """"""""""""""
@@ -134,22 +134,22 @@ To access most recent nightly builds please use flowing release channel:
 
 .. code-block:: bash
 
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-nightly-cu90
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-tf-plugin-nightly-cu90
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-nightly-cuda90
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-tf-plugin-nightly-cuda90
 
 * for CUDA 10
 
 .. code-block:: bash
 
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-nightly-cu100
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-tf-plugin-nightly-cu100
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-nightly-cuda100
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-tf-plugin-nightly-cuda100
 
 Weekly builds
 """""""""""""
 
-Also, there is a weekly release channel with more thorough testing (only CUDA10 builds are provided there):
+Also, there is a weekly release channel with more thorough testing (only CUDA 10 builds are provided there):
 
 .. code-block:: bash
 
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly nvidia-dali-weekly-cu100
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly nvidia-dali-tf-plugin-weekly-cu100
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly nvidia-dali-weekly-cuda100
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly nvidia-dali-tf-plugin-weekly-cuda100
