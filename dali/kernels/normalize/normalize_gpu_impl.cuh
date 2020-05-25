@@ -115,7 +115,7 @@ struct NormalizeScalar {
  *        be regularized and inversed.
  *
  * The output elements are calculated as:
- * mul = 1 / sqrt(sqr(stddev[param_offset]) + epsilon)
+ * mul = 1 / sqrt(square(stddev[param_offset]) + epsilon)
  * (in[offset] - mean[param_offset]) * mul * scale + shift
  */
 template <int max_dims, typename Out, typename In, typename Mean, typename StdDev>
@@ -148,7 +148,7 @@ struct NormalizeInvStdDevNonScalar {
  *        be regularized and inversed.
  *
  * The output elements are calculated as:
- * mul = 1 / sqrt(sqr(stddev[param_offset]) + epsilon)
+ * mul = 1 / sqrt(square(stddev[param_offset]) + epsilon)
  * (in[offset] - mean[param_offset]) * mul * scale + shift
  */
 template <int max_dims, typename Out, typename In, typename StdDev>
