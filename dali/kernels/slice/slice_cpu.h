@@ -42,12 +42,12 @@ void Fill(T *output, const T *fill_values, int64_t npixels, int64_t nchannels) {
     output[i] = output[i - nchannels];
 }
 
-static inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t anchor,
-                                                                       int64_t in_extent,
-                                                                       int64_t out_extent) {
-  int64_t pad_before = std::max(0l, std::min(out_extent, -anchor));
-  int64_t to_copy =
-      std::max(0l, std::min(in_extent - std::max(0l, anchor), out_extent - pad_before));
+inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t anchor,
+                                                                int64_t in_extent,
+                                                                int64_t out_extent) {
+  int64_t pad_before = std::max<int64_t>(0, std::min(out_extent, -anchor));
+  int64_t to_copy = std::max<int64_t>(
+      0, std::min(in_extent - std::max<int64_t>(0, anchor), out_extent - pad_before));
   int64_t pad_after = out_extent - pad_before - to_copy;
   return std::tuple<int64_t, int64_t, int64_t>{pad_before, to_copy, pad_after};
 }
@@ -55,7 +55,7 @@ static inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t a
 /**
  * @brief Optimized special case for the last two dimensions whith channel-last configuration
  */
-template <typename OutputType, typename InputType, bool OutOfBounds, bool NeedPad, int DimsLeft>
+template <typename OutputType, typename InputType, bool OutOfBounds, bool NeedPad>
 void SliceKernelImplChannelLast(OutputType *output,
                                 const InputType *input,
                                 const int64_t* in_strides,
@@ -65,10 +65,9 @@ void SliceKernelImplChannelLast(OutputType *output,
                                 const int64_t* out_shape,
                                 const OutputType *fill_values,
                                 int channel_dim,
-                                std::integral_constant<int, DimsLeft>,
                                 std::integral_constant<bool, OutOfBounds>,
                                 std::integral_constant<bool, NeedPad>) {
-  static_assert(DimsLeft == 2);
+  constexpr int DimsLeft = 2;
   constexpr auto d = 0;  // NOLINT
   assert(channel_dim == 1);
   int64_t out_nchannels = out_shape[channel_dim];
@@ -94,7 +93,7 @@ void SliceKernelImplChannelLast(OutputType *output,
       output += pad_pixels_before * out_strides[d];
     }
 
-    // If the anchor is positive, increase the input pointer
+    // If the anchor is positive, advance the input pointer
     if (anchor[d] > 0)
       input += anchor[d] * in_strides[d];
 
@@ -110,7 +109,7 @@ void SliceKernelImplChannelLast(OutputType *output,
       int64_t pad_channels_before, copy_channels, pad_channels_after;
       std::tie(pad_channels_before, copy_channels, pad_channels_after) =
           CalcPadCopyExtents(anchor[channel_dim], in_nchannels, out_nchannels);
-      int64_t anchor_channel_in = std::max(0l, anchor[channel_dim]);
+      int64_t anchor_channel_in = std::max<int64_t>(0, anchor[channel_dim]);
       // Copy pixels with potential padding on the channel dimension
       for (int64_t i = 0; i < copy_pixels; i++) {
         int64_t out_c = 0;
@@ -214,7 +213,6 @@ void SliceKernelImpl(OutputType *output,
   if (DimsLeft == 2 && channel_dim == 1) {
     SliceKernelImplChannelLast(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
                                fill_values, channel_dim,
-                               std::integral_constant<int, 2>(),
                                std::integral_constant<bool, OutOfBounds>(),
                                std::integral_constant<bool, NeedPad>());
     return;
