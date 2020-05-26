@@ -55,26 +55,25 @@ static inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t a
 /**
  * @brief Optimized special case for the last two dimensions whith channel-last configuration
  */
-template <typename OutputType, typename InputType, int Dims, bool OutOfBounds, bool NeedPad,
-          int DimsLeft>
+template <typename OutputType, typename InputType, bool OutOfBounds, bool NeedPad, int DimsLeft>
 void SliceKernelImplChannelLast(OutputType *output,
                                 const InputType *input,
-                                const TensorShape<Dims> &in_strides,
-                                const TensorShape<Dims> &out_strides,
-                                const TensorShape<Dims> &anchor,
-                                const TensorShape<Dims> &in_shape,
-                                const TensorShape<Dims> &out_shape,
+                                const int64_t* in_strides,
+                                const int64_t* out_strides,
+                                const int64_t* anchor,
+                                const int64_t* in_shape,
+                                const int64_t* out_shape,
                                 const OutputType *fill_values,
                                 int channel_dim,
                                 std::integral_constant<int, DimsLeft>,
                                 std::integral_constant<bool, OutOfBounds>,
                                 std::integral_constant<bool, NeedPad>) {
   static_assert(DimsLeft == 2);
-  constexpr auto d = Dims - 2;  // NOLINT
-  assert(channel_dim == Dims - 1);
+  constexpr auto d = 0;  // NOLINT
+  assert(channel_dim == 1);
   int64_t out_nchannels = out_shape[channel_dim];
   int64_t in_nchannels = in_shape[channel_dim];
-  int64_t npixels = out_shape[Dims - 2];
+  int64_t npixels = out_shape[d];
 
   if (NeedPad) {
     // If the whole row is out of bounds, just fill
@@ -99,26 +98,34 @@ void SliceKernelImplChannelLast(OutputType *output,
     if (anchor[d] > 0)
       input += anchor[d] * in_strides[d];
 
-    // Calculate number of channels to pad on the left, right and the number of channels to be
-    // copied
-    int64_t pad_channels_before, copy_channels, pad_channels_after;
-    std::tie(pad_channels_before, copy_channels, pad_channels_after) =
-        CalcPadCopyExtents(anchor[channel_dim], in_nchannels, out_nchannels);
-    int64_t anchor_channel_in = std::max(0l, anchor[channel_dim]);
-    // Copy pixels with potential padding on the channel dimension
-    for (int64_t i = 0; i < copy_pixels; i++) {
-      int64_t out_c = 0;
-      for (; out_c < pad_channels_before; out_c++)
-        output[out_c] = fill_values[out_c];
+    bool channel_dim_unchanged = in_nchannels == out_nchannels && anchor[channel_dim] == 0;
+    if (channel_dim_unchanged) {
+      auto n = copy_pixels * out_nchannels;
+      for (int64_t i = 0; i < n; i++)
+        output[i] = input[i];
+      output += n;
+    } else {
+      // Calculate number of channels to pad on the left, right and the number of channels to be
+      // copied
+      int64_t pad_channels_before, copy_channels, pad_channels_after;
+      std::tie(pad_channels_before, copy_channels, pad_channels_after) =
+          CalcPadCopyExtents(anchor[channel_dim], in_nchannels, out_nchannels);
+      int64_t anchor_channel_in = std::max(0l, anchor[channel_dim]);
+      // Copy pixels with potential padding on the channel dimension
+      for (int64_t i = 0; i < copy_pixels; i++) {
+        int64_t out_c = 0;
+        for (; out_c < pad_channels_before; out_c++)
+          output[out_c] = fill_values[out_c];
 
-      for (int64_t in_c = 0; in_c < copy_channels; in_c++, out_c++)
-        output[out_c] = input[anchor_channel_in + in_c];
+        for (int64_t in_c = 0; in_c < copy_channels; in_c++, out_c++)
+          output[out_c] = input[anchor_channel_in + in_c];
 
-      for (; out_c < out_nchannels; out_c++)
-        output[out_c] = fill_values[out_c];
+        for (; out_c < out_nchannels; out_c++)
+          output[out_c] = fill_values[out_c];
 
-      output += out_nchannels;
-      input += in_nchannels;
+        output += out_nchannels;
+        input += in_nchannels;
+      }
     }
 
     // Padding pixels on the right, if needed
@@ -127,32 +134,32 @@ void SliceKernelImplChannelLast(OutputType *output,
       output += pad_pixels_after * out_strides[d];
     }
   } else {  // NeedPad = false
-    assert(out_strides[Dims - 1] == 1);
-    assert(in_strides[Dims - 1] == 1);
-    for (int64_t i = 0; i < out_shape[Dims - 2]; i++) {
-      auto *out_row = output + i * out_strides[Dims - 2];
-      auto *in_row = input + (anchor[d] + i) * in_strides[Dims - 2];
-      for (int64_t j = 0; j < out_shape[Dims - 1]; j++) {
-        out_row[j] = in_row[anchor[Dims - 1] + j];
+    assert(out_strides[1] == 1);
+    assert(in_strides[1] == 1);
+    for (int64_t i = 0; i < out_shape[0]; i++) {
+      auto *out_row = output + i * out_strides[0];
+      auto *in_row = input + (anchor[d] + i) * in_strides[0];
+      for (int64_t j = 0; j < out_shape[1]; j++) {
+        out_row[j] = clamp<OutputType>(in_row[anchor[1] + j]);
       }
     }
   }
 }
 
-template <typename OutputType, typename InputType, int Dims, bool OutOfBounds, bool NeedPad>
+template <typename OutputType, typename InputType, bool OutOfBounds, bool NeedPad>
 void SliceKernelImpl(OutputType *output,
                      const InputType *input,
-                     const TensorShape<Dims> &in_strides,
-                     const TensorShape<Dims> &out_strides,
-                     const TensorShape<Dims> &anchor,
-                     const TensorShape<Dims> &in_shape,
-                     const TensorShape<Dims> &out_shape,
+                     const int64_t* in_strides,
+                     const int64_t* out_strides,
+                     const int64_t* anchor,
+                     const int64_t* in_shape,
+                     const int64_t* out_shape,
                      const OutputType *fill_values,
                      int channel_dim,
                      std::integral_constant<int, 1>,
                      std::integral_constant<bool, OutOfBounds>,
                      std::integral_constant<bool, NeedPad>) {
-  constexpr auto d = Dims - 1;  // NOLINT
+  constexpr auto d = 0;  // NOLINT
   if (OutOfBounds) {
     for (int i = 0; i < out_shape[d]; i++) {
       output[i] = *fill_values;
@@ -190,22 +197,21 @@ void SliceKernelImpl(OutputType *output,
   }
 }
 
-template <typename OutputType, typename InputType, int Dims,
-          bool OutOfBounds, bool NeedPad, int DimsLeft>
+template <typename OutputType, typename InputType, bool OutOfBounds, bool NeedPad, int DimsLeft>
 void SliceKernelImpl(OutputType *output,
                      const InputType *input,
-                     const TensorShape<Dims> &in_strides,
-                     const TensorShape<Dims> &out_strides,
-                     const TensorShape<Dims> &anchor,
-                     const TensorShape<Dims> &in_shape,
-                     const TensorShape<Dims> &out_shape,
+                     const int64_t* in_strides,
+                     const int64_t* out_strides,
+                     const int64_t* anchor,
+                     const int64_t* in_shape,
+                     const int64_t* out_shape,
                      const OutputType *fill_values,
                      int channel_dim,
                      std::integral_constant<int, DimsLeft>,
                      std::integral_constant<bool, OutOfBounds>,
                      std::integral_constant<bool, NeedPad>) {
   // Special case for last 2 dimensions with channel-last configuration
-  if (DimsLeft == 2 && channel_dim == Dims - 1) {
+  if (DimsLeft == 2 && channel_dim == 1) {
     SliceKernelImplChannelLast(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
                                fill_values, channel_dim,
                                std::integral_constant<int, 2>(),
@@ -214,7 +220,7 @@ void SliceKernelImpl(OutputType *output,
     return;
   }
 
-  constexpr auto d = Dims - DimsLeft;  // NOLINT
+  constexpr auto d = 0;  // NOLINT
   int in_idx = anchor[d];
   int out_idx = 0;
 
@@ -224,8 +230,8 @@ void SliceKernelImpl(OutputType *output,
   if (NeedPad) {
     // out of bounds (left side)
     for (; in_idx < 0 && out_idx < out_shape[d]; in_idx++, out_idx++) {
-      SliceKernelImpl(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
-                      fill_values, channel_dim,
+      SliceKernelImpl(output, input, in_strides + 1, out_strides + 1, anchor + 1, in_shape + 1,
+                      out_shape + 1, fill_values, channel_dim > 0 ? channel_dim - 1 : channel_dim,
                       std::integral_constant<int, DimsLeft - 1>(),
                       std::integral_constant<bool, true>(),
                       std::integral_constant<bool, NeedPad>());
@@ -237,8 +243,8 @@ void SliceKernelImpl(OutputType *output,
 
   // within input bounds
   for (; in_idx < in_shape[d] && out_idx < out_shape[d]; in_idx++, out_idx++) {
-    SliceKernelImpl(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
-                    fill_values, channel_dim,
+    SliceKernelImpl(output, input, in_strides + 1, out_strides + 1, anchor + 1, in_shape + 1,
+                    out_shape + 1, fill_values, channel_dim > 0 ? channel_dim - 1 : channel_dim,
                     std::integral_constant<int, DimsLeft - 1>(),
                     std::integral_constant<bool, OutOfBounds>(),
                     std::integral_constant<bool, NeedPad>());
@@ -252,8 +258,8 @@ void SliceKernelImpl(OutputType *output,
   if (NeedPad) {
     // out of bounds (right side)
     for (; out_idx < out_shape[d]; in_idx++, out_idx++) {
-      SliceKernelImpl(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
-                      fill_values, channel_dim,
+      SliceKernelImpl(output, input, in_strides + 1, out_strides + 1, anchor + 1, in_shape + 1,
+                      out_shape + 1, fill_values, channel_dim > 0 ? channel_dim - 1 : channel_dim,
                       std::integral_constant<int, DimsLeft - 1>(),
                       std::integral_constant<bool, true>(),
                       std::integral_constant<bool, NeedPad>());
@@ -282,17 +288,19 @@ void SliceKernel(OutputType *output,
     need_pad = (anchor[d] < 0) || ((anchor[d] + out_shape[d]) > in_shape[d]);
   }
   if (need_pad) {
-    detail::SliceKernelImpl(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
-                            fill_values, channel_dim,
-                            std::integral_constant<int, Dims>(),
-                            std::integral_constant<bool, false>(),
-                            std::integral_constant<bool, true>());
+    detail::SliceKernelImpl(
+        output, input, in_strides.data(), out_strides.data(), anchor.data(), in_shape.data(),
+        out_shape.data(), fill_values, channel_dim,
+        std::integral_constant<int, Dims>(),
+        std::integral_constant<bool, false>(),
+        std::integral_constant<bool, true>());
   } else {
-    detail::SliceKernelImpl(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
-                            fill_values, channel_dim,
-                            std::integral_constant<int, Dims>(),
-                            std::integral_constant<bool, false>(),
-                            std::integral_constant<bool, false>());
+    detail::SliceKernelImpl(
+        output, input, in_strides.data(), out_strides.data(), anchor.data(), in_shape.data(),
+        out_shape.data(), fill_values, channel_dim,
+        std::integral_constant<int, Dims>(),
+        std::integral_constant<bool, false>(),
+        std::integral_constant<bool, false>());
   }
 }
 
@@ -333,7 +341,9 @@ class SliceCPU {
         "Multi-channel fill value does not match the number of channels in the input");
     }
 
-    SliceKernel(out_ptr, in_ptr, in_strides, out_strides, anchor, in_shape, out_shape,
+    SliceKernel(out_ptr, in_ptr,
+                in_strides, out_strides,
+                anchor, in_shape, out_shape,
                 fill_values, channel_dim);
   }
 };
