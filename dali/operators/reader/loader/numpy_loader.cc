@@ -162,9 +162,12 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
     }
     imfile.image.Resize(target.shape, target.type_info);
     // copy the image
-    current_image->Read(static_cast<uint8_t*>(imfile.image.raw_mutable_data()), image_bytes);
+    Index ret = current_image->Read(static_cast<uint8_t*>(imfile.image.raw_mutable_data()),
+                                    image_bytes);
+    DALI_ENFORCE(ret == image_bytes, make_string("Failed to read file: ", image_file));
   } else {
     auto p = current_image->Get(image_bytes);
+    DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", image_file));
     // Wrap the raw data in the Tensor object.
     imfile.image.ShareData(p, image_bytes, {image_bytes});
     imfile.image.Resize(target.shape, target.type_info);
