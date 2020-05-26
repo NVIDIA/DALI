@@ -15,8 +15,9 @@
 #ifndef DALI_KERNELS_SLICE_SLICE_CPU_H_
 #define DALI_KERNELS_SLICE_SLICE_CPU_H_
 
-#include <vector>
 #include <utility>
+#include <tuple>
+#include <vector>
 #include "dali/kernels/slice/slice_kernel_utils.h"
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
@@ -27,6 +28,116 @@ namespace dali {
 namespace kernels {
 
 namespace detail {
+
+/**
+ * @brief Fills output with nchannel values repeatedly
+ */
+template <typename T>
+void Fill(T *output, const T *fill_values, int64_t npixels, int64_t nchannels) {
+  int64_t n = npixels * nchannels;
+  int64_t i = 0;
+  for (; i < nchannels; i++)
+    output[i] = fill_values[i];
+  for (; i < n; i++)
+    output[i] = output[i - nchannels];
+}
+
+static inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t anchor,
+                                                                       int64_t in_extent,
+                                                                       int64_t out_extent) {
+  int64_t pad_before = std::max(0l, std::min(out_extent, -anchor));
+  int64_t to_copy =
+      std::max(0l, std::min(in_extent - std::max(0l, anchor), out_extent - pad_before));
+  int64_t pad_after = out_extent - pad_before - to_copy;
+  return std::tuple<int64_t, int64_t, int64_t>{pad_before, to_copy, pad_after};
+}
+
+/**
+ * @brief Optimized special case for the last two dimensions whith channel-last configuration
+ */
+template <typename OutputType, typename InputType, int Dims, bool OutOfBounds, bool NeedPad,
+          int DimsLeft>
+void SliceKernelImplChannelLast(OutputType *output,
+                                const InputType *input,
+                                const TensorShape<Dims> &in_strides,
+                                const TensorShape<Dims> &out_strides,
+                                const TensorShape<Dims> &anchor,
+                                const TensorShape<Dims> &in_shape,
+                                const TensorShape<Dims> &out_shape,
+                                const OutputType *fill_values,
+                                int channel_dim,
+                                std::integral_constant<int, DimsLeft>,
+                                std::integral_constant<bool, OutOfBounds>,
+                                std::integral_constant<bool, NeedPad>) {
+  static_assert(DimsLeft == 2);
+  constexpr auto d = Dims - 2;  // NOLINT
+  assert(channel_dim == Dims - 1);
+  int64_t out_nchannels = out_shape[channel_dim];
+  int64_t in_nchannels = in_shape[channel_dim];
+  int64_t npixels = out_shape[Dims - 2];
+
+  if (NeedPad) {
+    // If the whole row is out of bounds, just fill
+    if (OutOfBounds) {
+      Fill(output, fill_values, npixels, out_nchannels);
+      return;
+    }
+
+    // Calculate number of pixels to pad on the left and right, and the number of pixels to be
+    // copied
+    int64_t pad_pixels_before, copy_pixels, pad_pixels_after;
+    std::tie(pad_pixels_before, copy_pixels, pad_pixels_after) =
+        CalcPadCopyExtents(anchor[d], in_shape[d], out_shape[d]);
+
+    // Padding pixels on the left, if needed
+    if (pad_pixels_before > 0) {
+      Fill(output, fill_values, pad_pixels_before, out_nchannels);
+      output += pad_pixels_before * out_strides[d];
+    }
+
+    // If the anchor is positive, increase the input pointer
+    if (anchor[d] > 0)
+      input += anchor[d] * in_strides[d];
+
+    // Calculate number of channels to pad on the left, right and the number of channels to be
+    // copied
+    int64_t pad_channels_before, copy_channels, pad_channels_after;
+    std::tie(pad_channels_before, copy_channels, pad_channels_after) =
+        CalcPadCopyExtents(anchor[channel_dim], in_nchannels, out_nchannels);
+    int64_t anchor_channel_in = std::max(0l, anchor[channel_dim]);
+    // Copy pixels with potential padding on the channel dimension
+    for (int64_t i = 0; i < copy_pixels; i++) {
+      int64_t out_c = 0;
+      for (; out_c < pad_channels_before; out_c++)
+        output[out_c] = fill_values[out_c];
+
+      for (int64_t in_c = 0; in_c < copy_channels; in_c++, out_c++)
+        output[out_c] = input[anchor_channel_in + in_c];
+
+      for (; out_c < out_nchannels; out_c++)
+        output[out_c] = fill_values[out_c];
+
+      output += out_nchannels;
+      input += in_nchannels;
+    }
+
+    // Padding pixels on the right, if needed
+    if (pad_pixels_after > 0) {
+      Fill(output, fill_values, pad_pixels_after, out_nchannels);
+      output += pad_pixels_after * out_strides[d];
+    }
+  } else {  // NeedPad = false
+    assert(out_strides[Dims - 1] == 1);
+    assert(in_strides[Dims - 1] == 1);
+    for (int64_t i = 0; i < out_shape[Dims - 2]; i++) {
+      auto *out_row = output + i * out_strides[Dims - 2];
+      auto *in_row = input + (anchor[d] + i) * in_strides[Dims - 2];
+      for (int64_t j = 0; j < out_shape[Dims - 1]; j++) {
+        out_row[j] = in_row[anchor[Dims - 1] + j];
+      }
+    }
+  }
+}
 
 template <typename OutputType, typename InputType, int Dims, bool OutOfBounds, bool NeedPad>
 void SliceKernelImpl(OutputType *output,
@@ -93,6 +204,16 @@ void SliceKernelImpl(OutputType *output,
                      std::integral_constant<int, DimsLeft>,
                      std::integral_constant<bool, OutOfBounds>,
                      std::integral_constant<bool, NeedPad>) {
+  // Special case for last 2 dimensions with channel-last configuration
+  if (DimsLeft == 2 && channel_dim == Dims - 1) {
+    SliceKernelImplChannelLast(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
+                               fill_values, channel_dim,
+                               std::integral_constant<int, 2>(),
+                               std::integral_constant<bool, OutOfBounds>(),
+                               std::integral_constant<bool, NeedPad>());
+    return;
+  }
+
   constexpr auto d = Dims - DimsLeft;  // NOLINT
   int in_idx = anchor[d];
   int out_idx = 0;
