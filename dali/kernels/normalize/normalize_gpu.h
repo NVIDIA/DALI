@@ -132,20 +132,25 @@ class DLL_PUBLIC NormalizeGPU {
   std::unique_ptr<Impl> impl_;
 };
 
-extern template class NormalizeGPU<float, int8_t>;
-extern template class NormalizeGPU<float, int16_t>;
-extern template class NormalizeGPU<float, int32_t>;
-extern template class NormalizeGPU<float, uint8_t>;
-extern template class NormalizeGPU<float, uint16_t>;
-extern template class NormalizeGPU<float, uint32_t>;
-extern template class NormalizeGPU<float, float>;
+#define DALI_INSTANTIATE_NORMALIZE_GPU_OUT(linkage, output_type)\
+  linkage template class NormalizeGPU<output_type, int8_t>;\
+  linkage template class NormalizeGPU<output_type, int16_t>;\
+  linkage template class NormalizeGPU<output_type, int32_t>;\
+  linkage template class NormalizeGPU<output_type, uint8_t>;\
+  linkage template class NormalizeGPU<output_type, uint16_t>;\
+  linkage template class NormalizeGPU<output_type, uint32_t>;\
+  linkage template class NormalizeGPU<output_type, float>;\
 
-extern template class NormalizeGPU<int8_t, int8_t>;
-extern template class NormalizeGPU<int16_t, int16_t>;
-extern template class NormalizeGPU<int32_t, int32_t>;
-extern template class NormalizeGPU<uint8_t, uint8_t>;
-extern template class NormalizeGPU<uint16_t, uint16_t>;
-extern template class NormalizeGPU<uint32_t, uint32_t>;
+#define DALI_INSTANTIATE_NORMALIZE_GPU(linkage)\
+  DALI_INSTANTIATE_NORMALIZE_GPU_OUT(linkage, int8_t)\
+  DALI_INSTANTIATE_NORMALIZE_GPU_OUT(linkage, int16_t)\
+  DALI_INSTANTIATE_NORMALIZE_GPU_OUT(linkage, int32_t)\
+  DALI_INSTANTIATE_NORMALIZE_GPU_OUT(linkage, uint8_t)\
+  DALI_INSTANTIATE_NORMALIZE_GPU_OUT(linkage, uint16_t)\
+  DALI_INSTANTIATE_NORMALIZE_GPU_OUT(linkage, uint32_t)\
+  DALI_INSTANTIATE_NORMALIZE_GPU_OUT(linkage, float)
+
+DALI_INSTANTIATE_NORMALIZE_GPU(extern)
 
 }  // namespace kernels
 }  // namespace dali

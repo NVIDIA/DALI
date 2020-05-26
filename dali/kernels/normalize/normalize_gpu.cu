@@ -83,20 +83,7 @@ void NormalizeGPU<Out, In>::Run(
 
 // instantiate explicitly
 
-template class NormalizeGPU<float, int8_t>;
-template class NormalizeGPU<float, int16_t>;
-template class NormalizeGPU<float, int32_t>;
-template class NormalizeGPU<float, uint8_t>;
-template class NormalizeGPU<float, uint16_t>;
-template class NormalizeGPU<float, uint32_t>;
-template class NormalizeGPU<float, float>;
-
-template class NormalizeGPU<int8_t, int8_t>;
-template class NormalizeGPU<int16_t, int16_t>;
-template class NormalizeGPU<int32_t, int32_t>;
-template class NormalizeGPU<uint8_t, uint8_t>;
-template class NormalizeGPU<uint16_t, uint16_t>;
-template class NormalizeGPU<uint32_t, uint32_t>;
+DALI_INSTANTIATE_NORMALIZE_GPU()
 
 }  // namespace kernels
 }  // namespace dali
