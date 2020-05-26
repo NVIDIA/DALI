@@ -711,99 +711,28 @@ OpNode * Pipeline::GetOperatorNode(const std::string& name) {
   return &(graph_.Node(name));
 }
 
-std::map<std::string, Index> Pipeline::EpochSize(bool consider_padding) {
-  std::map<std::string, Index> ret;
-  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::CPU, i);
-    Index epoch_size = current.op->epoch_size(consider_padding);
-    if (epoch_size != -1) {
-      ret.insert(make_pair(current.instance_name, epoch_size));
-    }
-  }
-  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::GPU, i);
-    Index epoch_size = current.op->epoch_size(consider_padding);
-    if (epoch_size != -1) {
-      ret.insert(make_pair(current.instance_name, epoch_size));
+std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
+  std::map<std::string, ReaderMeta> ret;
+  for (Index i = 0; i < graph_.NumOp(); ++i) {
+    const OpNode &current = graph_.Node(i);
+    ReaderMeta meta = current.op->get_reader_meta();
+    if (meta) {
+      ret.insert(make_pair(current.instance_name, meta));
     }
   }
   return ret;
 }
 
-std::map<std::string, int> Pipeline::NumberOfShards() {
-  std::map<std::string, int> ret;
-  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::CPU, i);
-    int number_of_shards = current.op->number_of_shards();
-    if (number_of_shards != -1) {
-      ret.insert(make_pair(current.instance_name, number_of_shards));
+ReaderMeta Pipeline::GetReaderMeta(std::string name) {
+  ReaderMeta meta;
+  for (Index i = 0; i < graph_.NumOp(); ++i) {
+    const OpNode &current = graph_.Node(i);
+    if (current.instance_name == name) {
+      meta = current.op->get_reader_meta();
+      break;
     }
   }
-  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::GPU, i);
-    int number_of_shards = current.op->number_of_shards();
-    if (number_of_shards != -1) {
-      ret.insert(make_pair(current.instance_name, number_of_shards));
-    }
-  }
-  return ret;
-}
-
-std::map<std::string, int> Pipeline::ShardId() {
-  std::map<std::string, int> ret;
-  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::CPU, i);
-    int shard_id = current.op->shard_id();
-    if (shard_id != -1) {
-      ret.insert(make_pair(current.instance_name, shard_id));
-    }
-  }
-  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::GPU, i);
-    int shard_id = current.op->shard_id();
-    if (shard_id != -1) {
-      ret.insert(make_pair(current.instance_name, shard_id));
-    }
-  }
-  return ret;
-}
-
-std::map<std::string, bool> Pipeline::IsPadLastBatch() {
-  std::map<std::string, bool> ret;
-  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::CPU, i);
-    int pad_last_batch = current.op->pad_last_batch();
-    if (pad_last_batch != -1) {
-      ret.insert(make_pair(current.instance_name, !!pad_last_batch));
-    }
-  }
-  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::GPU, i);
-    int pad_last_batch = current.op->pad_last_batch();
-    if (pad_last_batch != -1) {
-      ret.insert(make_pair(current.instance_name, !!pad_last_batch));
-    }
-  }
-  return ret;
-}
-
-std::map<std::string, bool> Pipeline::IsStickToShard() {
-  std::map<std::string, bool> ret;
-  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::CPU, i);
-    int stick_to_shard = current.op->stick_to_shard();
-    if (stick_to_shard != -1) {
-      ret.insert(make_pair(current.instance_name, !!stick_to_shard));
-    }
-  }
-  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::GPU, i);
-    int stick_to_shard = current.op->stick_to_shard();
-    if (stick_to_shard != -1) {
-      ret.insert(make_pair(current.instance_name, !!stick_to_shard));
-    }
-  }
-  return ret;
+  return meta;
 }
 
 void Pipeline::SaveGraphToDotFile(const std::string &filename, bool show_tensors, bool show_ids,

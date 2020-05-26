@@ -263,10 +263,9 @@ def check_mxnet_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
                                 shuffle_after_epoch=False, pad_last_batch=pad) for id in range(pipes_number)]
     dali_train_iter = MXNetIterator(pipes, [("ids", MXNetIterator.DATA_TAG)], reader_name="Reader", fill_last_batch=fill_last_batch)
-    data_set_size = pipes[0].epoch_size("Reader", False)
-    data_set_size = pipes[0].epoch_size("Reader", False)
+    data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
-    ids = [pipe.shard_id("Reader") for pipe in pipes]
+    ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0
@@ -444,9 +443,9 @@ def check_gluon_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
                                 shuffle_after_epoch=False, pad_last_batch=pad) for id in range(pipes_number)]
     dali_train_iter = GluonIterator(pipes, reader_name="Reader", fill_last_batch=fill_last_batch)
-    data_set_size = pipes[0].epoch_size("Reader", False)
+    data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
-    ids = [pipe.shard_id("Reader") for pipe in pipes]
+    ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0
@@ -697,9 +696,9 @@ def check_pytorch_iterator_pass_reader_name(shards_num, pipes_number, batch_size
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
                                 shuffle_after_epoch=False, pad_last_batch=pad) for id in range(pipes_number)]
     dali_train_iter = PyTorchIterator(pipes, output_map=["data"], reader_name="Reader", fill_last_batch=fill_last_batch)
-    data_set_size = pipes[0].epoch_size("Reader", False)
+    data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
-    ids = [pipe.shard_id("Reader") for pipe in pipes]
+    ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0
@@ -851,9 +850,9 @@ def check_paddle_iterator_pass_reader_name(shards_num, pipes_number, batch_size,
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
                                 shuffle_after_epoch=False, pad_last_batch=pad) for id in range(pipes_number)]
     dali_train_iter = PaddleIterator(pipes, output_map=["data"], reader_name="Reader", fill_last_batch=fill_last_batch)
-    data_set_size = pipes[0].epoch_size("Reader", False)
+    data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
-    ids = [pipe.shard_id("Reader") for pipe in pipes]
+    ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0

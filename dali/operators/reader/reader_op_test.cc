@@ -191,7 +191,7 @@ TYPED_TEST(ReaderTest, LazyInitTest) {
   dummyfs.close();
 
   // This calls PrepareMetadataImpl
-  ASSERT_NO_THROW(lazy_pipe.EpochSize());
+  ASSERT_NO_THROW(lazy_pipe.GetReaderMeta());
 
   DeviceWorkspace ws;
   for (int i=0; i < 5; ++i) {

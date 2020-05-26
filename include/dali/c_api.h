@@ -58,6 +58,19 @@ typedef enum {
 } dali_data_type_t;
 
 
+/*
+ * Need to keep that in sync with ReaderMeta from operator.h
+ */
+typedef struct {
+  int64_t epoch_size;          // raw epoch size
+  int64_t epoch_size_padded;   // epoch size with the padding at the end
+  int number_of_shards;        // number of shards
+  int shard_id;                // shard id of given reader
+  int pad_last_batch;          // if given reader should pad last batch
+  int stick_to_shard;          // if given reader should stick to its shard
+} daliReaderMetadata;
+
+
 /**
  * @brief DALI initialization
  *
@@ -309,32 +322,11 @@ DLL_PUBLIC void daliDeletePipeline(daliPipelineHandle *pipe_handle);
  */
 DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
 
-  /**
-   * @brief Returns the epoch size with/without padded samples for given, named reader
-   */
-  DLL_PUBLIC int64_t daliGetEpochSize(daliPipelineHandle* pipe_handle, const char *reader_name,
-                                  bool with_padding);
-
-  /**
-   * @brief Returns the shard ID for given, named reader
-   */
-  DLL_PUBLIC int daliGetShardId(daliPipelineHandle* pipe_handle, const char *reader_name);
-
-  /**
-   * @brief Returns the number of shards, named reader
-   */
-  DLL_PUBLIC int daliGetNumberOfShards(daliPipelineHandle* pipe_handle, const char *reader_name);
-
-  /**
-   * @brief Returns if reader pads last batch for, named reader
-   */
-  DLL_PUBLIC bool daliIsPadLastBatch(daliPipelineHandle* pipe_handle, const char *reader_name);
-
-  /**
-   * @brief Returns if reader sticks to the shard, named reader
-   */
-  DLL_PUBLIC bool daliIsStickToShard(daliPipelineHandle* pipe_handle, const char *reader_name);
-
+/**
+ * @brief Returns the named reader metadata
+ */
+DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
+                                      daliReaderMetadata* meta);
 
 #ifdef __cplusplus
 }

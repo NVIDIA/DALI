@@ -430,50 +430,15 @@ void daliLoadLibrary(const char* lib_path) {
     dali::PluginManager::LoadLibrary(lib_path);
 }
 
-int64_t daliGetEpochSize(daliPipelineHandle* pipe_handle, const char *reader_name,
-                     bool with_padding) {
+void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
+                           daliReaderMetadata* meta) {
+  DALI_ENFORCE(meta, "Provided pointer to meta cannot be NULL.");
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
-  std::map<std::string, int64_t> sizes = pipeline->EpochSize(with_padding);
-  std::string op_name(reader_name);
-  DALI_ENFORCE(sizes.find(op_name) != sizes.end(),
-      "Operator " + op_name + " does not expose valid epoch size.");
-  return sizes[op_name];
-}
-
-int daliGetShardId(daliPipelineHandle* pipe_handle, const char *reader_name) {
-  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
-  std::map<std::string, int> ids = pipeline->ShardId();
-  std::string op_name(reader_name);
-  DALI_ENFORCE(ids.find(op_name) != ids.end(),
-      "Operator " + op_name + " does not expose valid shard id.");
-  return ids[op_name];
-}
-
-int daliGetNumberOfShards(daliPipelineHandle* pipe_handle, const char *reader_name) {
-  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
-  std::map<std::string, int> shards = pipeline->NumberOfShards();
-  std::string op_name(reader_name);
-  DALI_ENFORCE(shards.find(op_name) != shards.end(),
-      "Operator " + op_name + " does not expose valid number of shards.");
-  return shards[op_name];
-}
-
-bool daliIsPadLastBatch(daliPipelineHandle* pipe_handle, const char *reader_name) {
-  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
-  std::map<std::string, bool> pads = pipeline->IsPadLastBatch();
-  std::string op_name(reader_name);
-  DALI_ENFORCE(pads.find(op_name) != pads.end(),
-      "Operator " + op_name + " does not expose information about whether the last" +
-      " batch is padded.");
-  return pads[op_name];
-}
-
-bool daliIsStickToShard(daliPipelineHandle* pipe_handle, const char *reader_name) {
-  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
-  std::map<std::string, bool> sticks = pipeline->IsStickToShard();
-  std::string op_name(reader_name);
-  DALI_ENFORCE(sticks.find(op_name) != sticks.end(),
-      "Operator " + op_name + " does not expose information about whether the reader" +
-      " sticks to a single shard");
-  return sticks[op_name];
+  dali::ReaderMeta returned_meta = pipeline->GetReaderMeta(reader_name);
+  meta->epoch_size = returned_meta.epoch_size;
+  meta->epoch_size_padded = returned_meta.epoch_size_padded;
+  meta->number_of_shards = returned_meta.number_of_shards;
+  meta->shard_id = returned_meta.shard_id;
+  meta->pad_last_batch = returned_meta.pad_last_batch;
+  meta->stick_to_shard = returned_meta.stick_to_shard;
 }

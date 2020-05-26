@@ -143,7 +143,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                  for data or label correspondingly.
                  output_names should be distinct.
     size : int, default = -1
-          Number of samples in the epoch (Usually the size of the dataset).
+          Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
           Providing -1 means that the iterator will work until StopIteration is raised
           from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
           `auto_reset` don't work in such case. It works with only one pipeline inside
@@ -394,7 +394,7 @@ class DALIClassificationIterator(DALIGenericIterator):
     pipelines : list of nvidia.dali.pipeline.Pipeline
                 List of pipelines to use
     size : int, default = -1
-           Number of samples in the epoch (Usually the size of the dataset).
+           Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
            Providing -1 means that the iterator will work until StopIteration is raised
            from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
            `auto_reset` don't work in such case. It works with only one pipeline inside
@@ -524,7 +524,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
     pipelines : list of nvidia.dali.pipeline.Pipeline
                 List of pipelines to use
     size : int, default = -1
-          Number of samples in the epoch (Usually the size of the dataset).
+          Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
           Providing -1 means that the iterator will work until StopIteration is raised
           from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
           `auto_reset` don't work in such case. It works with only one pipeline inside

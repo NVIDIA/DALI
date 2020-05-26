@@ -38,6 +38,20 @@
 
 namespace dali {
 
+struct DLL_PUBLIC ReaderMeta {
+  Index epoch_size = -1;          // raw epoch size
+  Index epoch_size_padded = -1;   // epoch size with the padding at the end
+  int number_of_shards = -1;      // number of shards
+  int shard_id = -1;              // shard id of given reader
+  int pad_last_batch = -1;        // if given reader should pad last batch
+  int stick_to_shard = -1;        // if given reader should stick to its shard
+
+  DLL_PUBLIC operator bool() const {
+    return epoch_size != -1 && epoch_size_padded != -1 && number_of_shards != -1 &&
+           shard_id != -1 && pad_last_batch != -1 && stick_to_shard != -1;
+  }
+};
+
 /**
  * Names for most commonly used arguments, to keep consistency between arg naming amongst operators.
  */
@@ -149,43 +163,13 @@ class DLL_PUBLIC OperatorBase {
   }
 
   /**
-   * @brief For reader Ops, returns the size of the dataset
+   * @brief For reader Ops, returns the metadata of the reader and dataset,
+   * See ReaderMeta strucutre for the data returned
    * For all other Ops, returns -1
    */
-  DLL_PUBLIC virtual Index epoch_size(bool consider_padding = true) const {
-    return -1;
-  }
 
-  /**
-   * @brief For reader Ops, returns the number of shards for given reader
-   * For all other Ops, returns -1
-   */
-  DLL_PUBLIC virtual int number_of_shards() const {
-    return -1;
-  }
-
-  /**
-   * @brief For reader Ops, returns the shard id
-   * For all other Ops, returns -1
-   */
-  DLL_PUBLIC virtual int shard_id() const {
-    return -1;
-  }
-
-  /**
-   * @brief For reader Ops, returns if padding is applied in the reader
-   * For all other Ops, returns -1
-   */
-  DLL_PUBLIC virtual int pad_last_batch() const {
-    return -1;
-  }
-
-  /**
-   * @brief For reader Ops, returns if the reader should stick to the assigned shard
-   * For all other Ops, returns -1
-   */
-  DLL_PUBLIC virtual int stick_to_shard() const {
-    return -1;
+  DLL_PUBLIC virtual ReaderMeta get_reader_meta() const {
+    return {};
   }
 
   template <typename Workspace>

@@ -1084,49 +1084,35 @@ PYBIND11_MODULE(backend_impl, m) {
         "show_tensors"_a = false,
         "show_ids"_a = false,
         "use_colors"_a = false)
-    .def("epoch_size",  [](Pipeline* p, bool with_padding) {
-          return p->EpochSize(with_padding);
+    .def("reader_meta", [](Pipeline* p) {
+          std::map<std::string, ReaderMeta> meta_map = p->GetReaderMeta();
+          py::dict d;
+          for (auto const& value : meta_map) {
+            py::dict nested;
+            auto &meta = value.second;
+            nested["epoch_size"] = meta.epoch_size;
+            nested["epoch_size_padded"] = meta.epoch_size_padded;
+            nested["number_of_shards"] = meta.number_of_shards;
+            nested["shard_id"] = meta.shard_id;
+            nested["pad_last_batch"] = meta.pad_last_batch;
+            nested["stick_to_shard"] = meta.stick_to_shard;
+            d[value.first.c_str()] = nested;
+          }
+          return d;
         })
-    .def("epoch_size",
-        [](Pipeline* p, const std::string& op_name, bool with_padding) {
-          std::map<std::string, Index> sizes = p->EpochSize(with_padding);
-          DALI_ENFORCE(sizes.find(op_name) != sizes.end(),
-              "Operator " + op_name + " does not expose valid epoch size.");
-          return sizes[op_name];
-        })
-    .def("shards_number", &Pipeline::NumberOfShards)
-    .def("shards_number",
+    .def("reader_meta",
         [](Pipeline* p, const std::string& op_name) {
-          std::map<std::string, int> shards = p->NumberOfShards();
-          DALI_ENFORCE(shards.find(op_name) != shards.end(),
-              "Operator " + op_name + " does not expose valid number of shards.");
-          return shards[op_name];
-        })
-    .def("shard_id", &Pipeline::ShardId)
-    .def("shard_id",
-        [](Pipeline* p, const std::string& op_name) {
-          std::map<std::string, int> ids = p->ShardId();
-          DALI_ENFORCE(ids.find(op_name) != ids.end(),
-              "Operator " + op_name + " does not expose valid shard id.");
-          return ids[op_name];
-        })
-    .def("is_pad_last_batch", &Pipeline::IsPadLastBatch)
-    .def("is_pad_last_batch",
-        [](Pipeline* p, const std::string& op_name) {
-          std::map<std::string, bool> pads = p->IsPadLastBatch();
-          DALI_ENFORCE(pads.find(op_name) != pads.end(),
-              "Operator " + op_name + " does not expose information about whether the last batch" +
-              " is padded");
-          return pads[op_name];
-        })
-    .def("is_stick_to_shard", &Pipeline::IsStickToShard)
-    .def("is_stick_to_shard",
-        [](Pipeline* p, const std::string& op_name) {
-          std::map<std::string, bool> sticks = p->IsStickToShard();
-          DALI_ENFORCE(sticks.find(op_name) != sticks.end(),
-              "Operator " + op_name + " does not expose valid information about whether the" +
-              " reader sticks to a single shard.");
-          return sticks[op_name];
+          ReaderMeta meta = p->GetReaderMeta(op_name);
+          DALI_ENFORCE(meta,
+              "Operator " + op_name + " does not expose valid metadata.");
+          py::dict d;
+          d["epoch_size"] = meta.epoch_size;
+          d["epoch_size_padded"] = meta.epoch_size_padded;
+          d["number_of_shards"] = meta.number_of_shards;
+          d["shard_id"] = meta.shard_id;
+          d["pad_last_batch"] = meta.pad_last_batch;
+          d["stick_to_shard"] = meta.stick_to_shard;
+          return d;
         });
 
 #define DALI_OPSPEC_ADDARG(T) \
