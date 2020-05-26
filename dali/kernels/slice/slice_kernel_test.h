@@ -230,6 +230,18 @@ struct SliceArgsGenerator_RightSideOutOfBounds{
   }
 };
 
+template <typename OutputType, int Dims>
+struct SliceArgsGenerator_CompletelyOutOfBounds{
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
+    for (int d = 0; d < Dims; d++) {
+      args.anchor[d] = 4 * input_shape[d];
+      args.shape[d] = input_shape[d] / 2;
+    }
+    return args;
+  }
+};
+
 template <typename OutputType, int Dims = 3>
 struct SliceArgsGenerator_MultiChannelPad {
   SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
@@ -288,9 +300,13 @@ using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
     SliceTestArgs<float16, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<float16, 3>>,
 
     // TODO(janton): Move to SLICE_TEST_TYPES once GPU implementation supports out of bounds slicing
+    SliceTestArgs<int, int, 1, 1, 20, SliceArgsGenerator_BiggerThanInputSlice<int, 1>>,
     SliceTestArgs<int, int, 2, 1, 20, SliceArgsGenerator_BiggerThanInputSlice<int, 2>>,
+    SliceTestArgs<int, int, 1, 1, 21, SliceArgsGenerator_LeftSideOutOfBounds<int, 1>>,
     SliceTestArgs<int, int, 2, 1, 21, SliceArgsGenerator_LeftSideOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 1, 1, 22, SliceArgsGenerator_RightSideOutOfBounds<int, 1>>,
     SliceTestArgs<int, int, 2, 1, 22, SliceArgsGenerator_RightSideOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 2, 1, 22, SliceArgsGenerator_CompletelyOutOfBounds<int, 2>>,
     SliceTestArgs<int, int, 3, 1, 20, SliceArgsGenerator_MultiChannelPad<int, 3>, 20, 20, 3>,
     SliceTestArgs<int, int, 3, 1, 20, SliceArgsGenerator_PadAlsoChannelDim<int, 3>, 20, 20, 3>
 >;
