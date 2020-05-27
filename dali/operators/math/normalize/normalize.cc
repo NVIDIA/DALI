@@ -119,7 +119,54 @@ void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
   for (int i = 0; i < nsamples; i++) {
     kmgr_.Setup<Kernel>(i, ctx, data_shape_[i], param_shape_[batch_norm_ ? 0 : i]);
   }
+  AllocTempStorage();
 }
+
+template <>
+void Normalize<CPUBackend>::AllocTempStorage() {
+  const TypeInfo &float_type = TypeTable::GetTypeInfo(DALI_FLOAT);
+  int n = data_shape_.num_samples();
+  const TensorListShape<> &tmp_shape = batch_norm_
+    ? uniform_list_shape(n, param_shape_[0])  // extend to all samples, to enable parallelism
+    : param_shape_;
+
+  if (ShouldCalcMean()) {
+    mean_.Resize(tmp_shape);
+  } else if (has_tensor_mean_) {
+    assert(!batch_norm_);
+    // use mean as-is
+    assert(param_shape_ == mean_input_.shape);
+  } else if (has_scalar_mean_) {
+    // need to broadcast mean to match required shape
+    if (is_uniform(param_shape_)) {
+      // if param_shape_ is uniform, we need only one tensor
+      mean_.Resize(TensorListShape<>({ param_shape_[0] }));
+    } else {
+      mean_.Resize(param_shape_);
+    }
+  }
+  if (ShouldCalcStdDev()) {
+    inv_stddev_.Resize(tmp_shape);
+  } else if (has_tensor_stddev_) {
+    assert(!batch_norm_);
+    // we need space to calculate inverse stddev
+    inv_stddev_.Resize(stddev_input_.shape);
+  } else {
+    assert(has_scalar_stddev_);
+    if (!IsFullReduction()) {
+      // need to broadcast stddev to match required shape
+      if (is_uniform(param_shape_)) {
+        // if param_shape_ is uniform, we need only one tensor
+        inv_stddev_.Resize(TensorListShape<>({ param_shape_[0] }));
+      } else {
+        inv_stddev_.Resize(param_shape_);
+      }
+    }
+  }
+  mean_.set_type(float_type);
+  inv_stddev_.set_type(float_type);
+}
+
 
 template <>
 void Normalize<CPUBackend>::FoldMeans() {
