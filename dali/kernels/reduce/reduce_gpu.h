@@ -321,7 +321,7 @@ extern template class StdDevGPU<float, float>;
  * ```
  * s = sum( (in[pos] - mean[reduced_pos])^2 )
  * out[reduced_pos] = s > 0 || reg > 0
- *                    ? 1/sqrt(s / reduction_factor + reg^2)
+ *                    ? 1/sqrt(s / reduction_factor + reg)
  *                    : 0
  * ```
  * where `reduction_factor` is the number of input elements contributing to a single output.
@@ -365,7 +365,7 @@ class DLL_PUBLIC InvStdDevGPU {
    * ```
    * s = sum( (in[pos] - mean[reduced_pos])^2 )
    * out[reduced_pos] = s > 0 || reg > 0
-   *                    ? 1/sqrt(s / reduction_factor + reg^2)
+   *                    ? 1/sqrt(s / reduction_factor + reg)
    *                    : 0
    * ```
    * where `reduction_factor` is the number of input elements contributing to a single output.
@@ -375,8 +375,8 @@ class DLL_PUBLIC InvStdDevGPU {
    * @param in      input tensor
    * @param mean    mean, used for centering the data
    * @param reg     regularizing term to avoid division by zero (or small numbers);
-   *                its squared and added to the sum of squares in variance calculation,
-   *                preventing it from being zero; if reg = 0, the results that would
+   *                its added to the sum of squares in variance calculation, preventing
+   *                it from being close to zero; if reg = 0, the results that would
    *                cause division by zero are forced to 0, but small denominators
    *                may still cause problems
    */
