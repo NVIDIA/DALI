@@ -161,6 +161,10 @@ class _DaliBaseIterator(object):
             self._counter_per_gpu = np.zeros(self._shards_num, dtype=np.long)
             self._shard_sizes_per_gpu = self._calculate_shard_sizes(np.arange(0, self._shards_num))
 
+            # to avoid recalculation of shard sizes when iterator moves across the shards
+            # memorize the initial shard sizes and then use chaning self._shards_id to index it
+            self._shard_sizes_per_gpu_initial = self._shard_sizes_per_gpu.copy()
+
     def _check_stop(self):
         """"
         Checks iterator stop condition and raise StopIteration if needed
@@ -183,7 +187,7 @@ class _DaliBaseIterator(object):
         if not self._fill_last_batch:
             # calculate each shard size for each id, and check how many samples are left by substracting
             # from iterator counter the shard size, then go though all GPUs and check how much data needs to be dropped
-            left = self.batch_size - (self._counter - self._calculate_shard_sizes(self._shards_id))
+            left = self.batch_size - (self._counter - self._shard_sizes_per_gpu_initial[self._shards_id])
             if_drop = np.less(left, self.batch_size)
         return if_drop, left
 
