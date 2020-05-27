@@ -715,7 +715,7 @@ std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
   std::map<std::string, ReaderMeta> ret;
   for (Index i = 0; i < graph_.NumOp(); ++i) {
     const OpNode &current = graph_.Node(i);
-    ReaderMeta meta = current.op->get_reader_meta();
+    ReaderMeta meta = current.op->GetReaderMeta();
     if (meta) {
       ret.insert(make_pair(current.instance_name, meta));
     }
@@ -728,7 +728,7 @@ ReaderMeta Pipeline::GetReaderMeta(std::string name) {
   for (Index i = 0; i < graph_.NumOp(); ++i) {
     const OpNode &current = graph_.Node(i);
     if (current.instance_name == name) {
-      meta = current.op->get_reader_meta();
+      meta = current.op->GetReaderMeta();
       break;
     }
   }

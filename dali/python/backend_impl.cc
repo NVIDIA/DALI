@@ -853,6 +853,17 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetDeviceBufferGrowthFactor", Buffer<GPUBackend>::GetGrowthFactor);
 }
 
+py::dict MetaToDict(const ReaderMeta &meta) {
+  py::dict d;
+  d["epoch_size"] = meta.epoch_size;
+  d["epoch_size_padded"] = meta.epoch_size_padded;
+  d["number_of_shards"] = meta.number_of_shards;
+  d["shard_id"] = meta.shard_id;
+  d["pad_last_batch"] = meta.pad_last_batch;
+  d["stick_to_shard"] = meta.stick_to_shard;
+  return d;
+}
+
 PYBIND11_MODULE(backend_impl, m) {
   dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
@@ -1088,15 +1099,7 @@ PYBIND11_MODULE(backend_impl, m) {
           std::map<std::string, ReaderMeta> meta_map = p->GetReaderMeta();
           py::dict d;
           for (auto const& value : meta_map) {
-            py::dict nested;
-            auto &meta = value.second;
-            nested["epoch_size"] = meta.epoch_size;
-            nested["epoch_size_padded"] = meta.epoch_size_padded;
-            nested["number_of_shards"] = meta.number_of_shards;
-            nested["shard_id"] = meta.shard_id;
-            nested["pad_last_batch"] = meta.pad_last_batch;
-            nested["stick_to_shard"] = meta.stick_to_shard;
-            d[value.first.c_str()] = nested;
+            d[value.first.c_str()] = MetaToDict(value.second);
           }
           return d;
         })
@@ -1105,14 +1108,7 @@ PYBIND11_MODULE(backend_impl, m) {
           ReaderMeta meta = p->GetReaderMeta(op_name);
           DALI_ENFORCE(meta,
               "Operator " + op_name + " does not expose valid metadata.");
-          py::dict d;
-          d["epoch_size"] = meta.epoch_size;
-          d["epoch_size_padded"] = meta.epoch_size_padded;
-          d["number_of_shards"] = meta.number_of_shards;
-          d["shard_id"] = meta.shard_id;
-          d["pad_last_batch"] = meta.pad_last_batch;
-          d["stick_to_shard"] = meta.stick_to_shard;
-          return d;
+          return MetaToDict(meta);
         });
 
 #define DALI_OPSPEC_ADDARG(T) \

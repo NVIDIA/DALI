@@ -161,7 +161,7 @@ class DataReader : public Operator<Backend> {
     ConsumerAdvanceQueue();
   }
 
-  ReaderMeta get_reader_meta() const override {
+  ReaderMeta GetReaderMeta() const override {
     ReaderMeta ret;
     ret.epoch_size = loader_->SizePadded(false);
     ret.epoch_size_padded = loader_->SizePadded(true);

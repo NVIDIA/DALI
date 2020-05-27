@@ -169,9 +169,6 @@ Parameters
         ----------
         name : str, optional, default = None
             The reader which should be used to obtain epoch size.
-        with_padding : bool, optional, default = True
-            If is set to true the data set size is rounded to multiply of
-        the batch size
         """
 
         if not self._built:

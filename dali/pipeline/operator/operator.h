@@ -168,7 +168,7 @@ class DLL_PUBLIC OperatorBase {
    * For all other Ops, returns -1
    */
 
-  DLL_PUBLIC virtual ReaderMeta get_reader_meta() const {
+  DLL_PUBLIC virtual ReaderMeta GetReaderMeta() const {
     return {};
   }
 

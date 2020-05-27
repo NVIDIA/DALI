@@ -77,20 +77,28 @@ Sharding
 
 Sharding allows DALI to partition the dataset into nonoverlapping pieces that every separate DALI pipeline instance can work on. This addresses the problem of having a global and shared state that allows the distribution of training samples among the ranks. After each epoch, the DALI pipeline by default advances to the next shard to increase the entropy of data seen by this particular pipeline. The user may customize this behavior through ``stick_to_shard`` reader parameter.
 
-This however leads to problems when the dataset size is not divisible by the number of GPUs, and when the shard size is not divisible by the batch size. To address this problem and adjust behavior depending on the user needs DALI provides several options.
+This however leads to problems when the dataset size is not divisible by the number of used Pipelines, and when the shard size is not divisible by the batch size. To address this problem and adjust behavior depending on the user needs DALI provides several options.
 
-The first is ``pad_last_batch`` which asks the reader to duplicate the last sample in the last batch so DALI won't read ahead data from the next shard when the batch doesn't divide its size. Also it makes sure that all pipelines return the same number of batches - when one is dividable by the batch size but others are bigger by one sample.
+The first is ``pad_last_batch`` Reader parameter which asks the reader to duplicate the last sample in the last batch of given shard, so DALI won't read ahead data from the next shard when the batch doesn't divide its size. Also, it makes sure that all pipelines return the same number of batches - when one is dividable by the batch size but others are bigger by one sample. This pads every shard to the same size which is multiple of batch size.
 
 As DALI is used in the Deep Learning Frameworks through dedicated iterators, they need to be aware of this padding and other reader properties as well. Let us look into the following Iterator options:
 
+- ``reader_name`` - **(The recommended way that excludes the options below)** Allows the user to provide the name of the reader that would drive the iterator, and provide the necessary parameters. It is more flexible and accurate (takes into account that shards size for the given pipeline can differ epoch to epoch when shards are rotated).
 - ``size`` - the size of the shard for given iterator (or sum of all shard sizes for all wrapped pipelines if there is more than one)
 - ``fill_last_batch`` - whether the last batch should be full no matter if shard size is divisible by the batch size
-- ``last_batch_padded`` - whether the data that is reminder between multiply of batch size and shard size consists of data from the next shard or duplicated dummy data
-- ``reader_name`` - if the user wants to avoid providing the above parameters and let the iterator query online the selected reader in the pipeline. This the recommended way as it is more flexible and accurate (takes into account that shards size for the given pipeline can differ epoch to epoch when shards are rotated)
+- ``last_batch_padded`` - whether the data that is reminder between multiple of batch size and shard size consists of data from the next shard or duplicated dummy data
 
-Shard size for given sard id is computed as ``(id + 1) * dataset_size / num_shards - id * dataset_size / num_shards``. When pipeline advances through the epochs and reader moves to next shard this equation should reflect that as well ``((id + epoch_num) % num_shards + 1) * dataset_size / num_shards - ((id + epoch_num) % num_shards) * dataset_size / num_shards``. When the last equation is used it is clear that providing one ``size`` value once at the beginning of the training doesn't work really well. It works only when the ``stick_to_shard`` reader option is enabled and prevents DALI from rotating shards, in such cases the first equation applies.
+Shard size for given shard id is computed as:
 
-To address above challenges the user may provide ``reader_name`` and let the iterator to query selected reader for the necessary information. ``fill_last_batch`` and ``last_batch_padded`` would be set based on the ``pad_last_batch``,  ``stick_to_shard``, ``shard_id`` and ``num_shards`` readers value.
+*floor((id + 1) * dataset_size / num_shards) - floor(id * dataset_size / num_shards)*
+
+When pipeline advances through the epochs and reader moves to next shard the equation need to be extended to reflect that as well:
+
+*floor(((id + epoch_num) % num_shards + 1) * dataset_size / num_shards) - floor(((id + epoch_num) % num_shards) * dataset_size / num_shards)*
+
+When the last equation is used it is clear that providing one ``size`` value once at the beginning of the training doesn't work really well. It works only when the ``stick_to_shard`` reader option is enabled and prevents DALI from rotating shards, in such cases the first equation applies.
+
+To address above challenges the user should use ``reader_name`` parameter and let the iterator do the rest.
 
 C++ API
 -------
