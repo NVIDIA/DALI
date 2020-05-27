@@ -37,8 +37,9 @@ namespace kernels {
  * out[data_idx] = (in[data_idx] - base[param_idx]) * scale[param_idx] * global_scale + shift
  * ```
  * Where `data_idx` is a position in the data tensor (in, out) and `param_idx` is a position
- * in the base and scale tensors. The two additional constants, `global_scale` and `shift` can
- * be used to adjust the result to the ynamic range and resolution of the output type.
+ * in the base and scale tensors (see below for details). The two additional constants,
+ * `global_scale` and `shift` can be used to adjust the result to the dynamic range and resolution
+ * of the output type.
  *
  * The `scale` parameter may also be interpreted as standard deviation - in that case, its
  * reciprocal is used and optionally, a regularizing term is added to the variance.
@@ -50,9 +51,13 @@ namespace kernels {
  * The shapes of the input/output data and of the parameters (base/scale) can be different - some
  * dimensions in the parameter tensors may have extent 1, in which case the values are broadcast
  * along this axis, as they would in numpy when operating on arrays of different shape.
+ * `param_idx` is calculated as follows:
+ * ```
+ * param_idx[axis] = param_shape[axis] == 1 ? 0 : data_idx[axis]
+ * ```
  *
- * The parameter tensor list can contain either as many tensors as the input/output data or just
- * one sample - in which case the sample is used for normalization of all input tensors.
+ * The parameter batch can be of the same length as the data batch or have length == 1 - in which
+ * case the first sample is used for normalization of all input tensors.
  *
  * One or both of the parameters can be scalars.
  *
