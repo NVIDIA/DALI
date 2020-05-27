@@ -41,9 +41,10 @@ KernelRequirements StdDevGPU<Out, In, Mean>::Setup(
 
 template <typename Out, typename In, typename Mean>
 void StdDevGPU<Out, In, Mean>::Run(KernelContext &ctx, const OutListGPU<Out> &out,
-                             const InListGPU<In> &in, const InListGPU<Mean> &mean) {
+                             const InListGPU<In> &in, const InListGPU<Mean> &mean,
+                             int ddof) {
   assert(impl_ != nullptr);
-  impl_->Run(ctx, out, in, mean);
+  impl_->Run(ctx, out, in, mean, ddof);
 }
 
 
@@ -88,9 +89,9 @@ KernelRequirements InvStdDevGPU<Out, In, Mean>::Setup(
 template <typename Out, typename In, typename Mean>
 void InvStdDevGPU<Out, In, Mean>::Run(
     KernelContext &ctx, const OutListGPU<Out> &out,
-    const InListGPU<In> &in, const InListGPU<Mean> &mean, param_t reg) {
+    const InListGPU<In> &in, const InListGPU<Mean> &mean, int ddof, param_t epsilon) {
   assert(impl_ != nullptr);
-  impl_->Run(ctx, out, in, mean, reg);
+  impl_->Run(ctx, out, in, mean, ddof, epsilon);
 }
 
 template class InvStdDevGPU<float, uint8_t>;

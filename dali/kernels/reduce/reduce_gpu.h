@@ -286,9 +286,11 @@ class DLL_PUBLIC StdDevGPU {
 
   /**
    * @brief Performs the reduction, according to the parameters specified in Setup.
+   *
+   * @param ddof delta degrees of freedom for Bessel's correction
    */
   void Run(KernelContext &ctx, const OutListGPU<Out> &out,
-           const InListGPU<In> &in, const InListGPU<Mean> &mean);
+           const InListGPU<In> &in, const InListGPU<Mean> &mean, int ddof = 0);
 
  private:
   class Impl;
@@ -364,8 +366,8 @@ class DLL_PUBLIC InvStdDevGPU {
    * The output values are calculated as:
    * ```
    * s = sum( (in[pos] - mean[reduced_pos])^2 )
-   * out[reduced_pos] = s > 0 || reg > 0
-   *                    ? 1/sqrt(s / reduction_factor + reg)
+   * out[reduced_pos] = (s > 0 || reg > 0) && reduction_factor - ddof > 0
+   *                    ? 1/sqrt(s / (reduction_factor - ddof) + reg)
    *                    : 0
    * ```
    * where `reduction_factor` is the number of input elements contributing to a single output.
@@ -374,14 +376,15 @@ class DLL_PUBLIC InvStdDevGPU {
    * @param out     (regularized) inverse standard deviation
    * @param in      input tensor
    * @param mean    mean, used for centering the data
+   * @param ddof    delta degrees of freedom, for Bessel's correction
    * @param reg     regularizing term to avoid division by zero (or small numbers);
-   *                its added to the sum of squares in variance calculation, preventing
+   *                it's added to the sum of squares in variance calculation, preventing
    *                it from being close to zero; if reg = 0, the results that would
    *                cause division by zero are forced to 0, but small denominators
    *                may still cause problems
    */
   void Run(KernelContext &ctx, const OutListGPU<Out> &out,
-           const InListGPU<In> &in, const InListGPU<Mean> &mean, param_t reg = 0);
+           const InListGPU<In> &in, const InListGPU<Mean> &mean, int ddof = 0, param_t epsilon = 0);
 
  private:
   class Impl;

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/kernels/normalize/normalize_gpu.h"  // NOLINT
 #include "dali/kernels/normalize/normalize_gpu_impl.cuh"  // NOLINT
 #include <gtest/gtest.h>
 #include <cmath>
@@ -177,7 +178,11 @@ class NormalizeImplGPUTest;
 template <typename Out, typename In>
 class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
  public:
-  using Kernel = normalize_impl::NormalizeImplGPU<Out, In, float, float>;
+  // this will test both the top-level pImpl class and the internal implementation class
+  using Kernel = std::conditional_t<std::is_same<Out, In>::value,
+    NormalizeGPU<Out, In>,
+    normalize_impl::NormalizeImplGPU<Out, In, float, float>
+  >;
 
   void Init(int num_samples, int ndim, int64_t max_sample_volume,
             std::initializer_list<int> reduced_axes, bool reduce_batch,
@@ -239,7 +244,6 @@ class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
   }
 
   void RunTest() {
-    using Kernel = normalize_impl::NormalizeImplGPU<Out, In, float, float>;
     kmgr_.Resize<Kernel>(1, 1);
     KernelContext ctx;
     auto req = kmgr_.Setup<Kernel>(0, ctx, data_shape_, param_shape_,
@@ -440,7 +444,6 @@ TYPED_TEST(NormalizeImplGPUTest, Perf_ScalarParams_InvStdDev) {
   this->Init(64, 3, 1<<20, {}, false, true, true, true);
   this->RunPerf();
 }
-
 
 }  // namespace kernels
 }  // namespace dali
