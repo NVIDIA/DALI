@@ -330,7 +330,8 @@ class RegularizedInvRMS {
     int64_t reduced_elems = reduce_batch ? This().TotalReducedElements()
                                          : This().ReducedElements(sample_index);
     DALI_ENFORCE(reduced_elems > 0, "Cannot calculate a mean from 0 elements");
-    return { param_t(1.0 / (reduced_elems - ddof_)), regularization_ };
+    param_t scale = reduced_elems > ddof_ ? param_t(1.0 / (reduced_elems - ddof_)) : 0;
+    return { scale, regularization_ };
   }
 };
 
