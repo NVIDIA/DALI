@@ -280,11 +280,8 @@ void SliceKernel(OutputType *output,
                  const TensorShape<Dims> &in_shape,
                  const TensorShape<Dims> &out_shape,
                  const OutputType *fill_values,
-                 int channel_dim = -1) {  // negative if no channel dim or already processed
-  bool need_pad = false;
-  for (int d = 0; d < Dims && !need_pad; d++) {
-    need_pad = (anchor[d] < 0) || ((anchor[d] + out_shape[d]) > in_shape[d]);
-  }
+                 int channel_dim = -1) {
+  bool need_pad = NeedPad(Dims, anchor.data(), in_shape.data(), out_shape.data());
   if (need_pad) {
     detail::SliceKernelImpl(
         output, input, in_strides.data(), out_strides.data(), anchor.data(), in_shape.data(),

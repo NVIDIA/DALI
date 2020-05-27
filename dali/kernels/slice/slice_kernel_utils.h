@@ -69,6 +69,14 @@ TensorListShape<Dims> GetOutputShapes(const TensorListShape<Dims>& in_shapes,
     return output_shapes;
 }
 
+inline bool NeedPad(int ndim, const int64_t* anchor, const int64_t* in_shape,
+                    const int64_t* out_shape) {
+  bool need_pad = false;
+  for (int d = 0; d < ndim && !need_pad; d++)
+    need_pad = (anchor[d] < 0) || ((anchor[d] + out_shape[d]) > in_shape[d]);
+  return need_pad;
+}
+
 }  // namespace kernels
 }  // namespace dali
 

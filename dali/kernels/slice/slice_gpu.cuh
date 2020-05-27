@@ -55,11 +55,11 @@ struct BlockDesc {
 
 template <int Dims, typename OutputType, typename InputType>
 __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
-                          const int64_t *out_strides, const int64_t *in_strides, 
+                          const int64_t *out_strides, const int64_t *in_strides,
                           const int64_t *anchor, const int64_t *in_shape,
-                          OutputType *__restrict__ fill_values, int channel_dim,
+                          const OutputType *__restrict__ fill_values, int channel_dim,
                           size_t offset, size_t block_end) {
-  if (Dims > 1 && out_strides[Dims-1] == in_strides[Dims-1]) {
+  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && anchor[Dims - 1] == 0 && false) {  // TODO(janton): fix
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
     SliceFunc<NextDims>(out, in, out_strides, in_strides, anchor, in_shape, fill_values,
                         channel_dim, offset, block_end);
@@ -78,7 +78,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
       if (d == channel_dim)
         i_c = i_d;
 
-      in_i_d = anchor[d] + i_d;
+      int in_i_d = anchor[d] + i_d;
       out_of_range |= in_i_d < 0 || in_i_d >= in_shape[d];
       if (!out_of_range)
         in_idx += in_i_d * in_strides[d];
@@ -97,8 +97,9 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDes
   auto *out = static_cast<OutputType*>(sample.out);
   auto *in = static_cast<const InputType*>(sample.in);
   auto *fill_values = static_cast<const OutputType*>(sample.fill_values);
-  SliceFunc<Dims>(out, in, sample.out_strides.data(), sample.in_strides.data(), 
-                  fill_values, sample.channel_dim, offset, block_end);
+  SliceFunc<Dims>(out, in, sample.out_strides.data(), sample.in_strides.data(),
+                  sample.anchor.data(), sample.in_shape.data(), fill_values, sample.channel_dim,
+                  offset, block_end);
 }
 
 }  // namespace detail
@@ -139,9 +140,9 @@ class SliceGPU {
           "The number of fill values should match the number of channels in the output slice");
       }
     }
-    
-    se.add<OutputType>(AllocType::Host, num_samples * nfill_values);
-    se.add<OutputType>(AllocType::GPU, num_samples * nfill_values);
+
+    se.add<OutputType>(AllocType::Host, num_samples * nfill_values_);
+    se.add<OutputType>(AllocType::GPU, num_samples * nfill_values_);
 
     std::vector<int64_t> sample_sizes;
     sample_sizes.reserve(slice_args.size());
@@ -172,42 +173,46 @@ class SliceGPU {
     // Host memory
     detail::SliceSampleDesc<Dims>* sample_descs_cpu =
       context.scratchpad->Allocate<detail::SliceSampleDesc<Dims>>(AllocType::Host, num_samples);
+    OutputType *fill_values_cpu =
+        context.scratchpad->Allocate<OutputType>(AllocType::Host, num_samples * nfill_values_);
     detail::BlockDesc *block_descs_cpu =
       context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
-    OutputType *fill_values_cpu =
-        context.scratchpad->Allocate<OutputType>(AllocType::Host, nfill_values_);
-    if (default_fill_values_) {
-      for (int i = 0; i < num_samples; i++)
-        fill_values_cpu[i] = OutputType(0);
-    }
-    
+
     // GPU memory
     detail::SliceSampleDesc<Dims> *sample_descs =
       context.scratchpad->Allocate<detail::SliceSampleDesc<Dims>>(
         AllocType::GPU, num_samples);
+    OutputType *fill_values_gpu =
+        context.scratchpad->Allocate<OutputType>(AllocType::GPU, num_samples * nfill_values_);
     detail::BlockDesc *block_descs =
       context.scratchpad->Allocate<detail::BlockDesc>(
         AllocType::GPU, block_count_);
-    OutputType *fill_values_gpu =
-        context.scratchpad->Allocate<OutputType>(AllocType::GPU, nfill_values_);
 
     std::vector<int64_t> sample_sizes(in.size());
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);
       const auto out_shape = out.tensor_shape(i);
+      const auto anchor = slice_args[i].anchor;
       auto &sample_desc = sample_descs_cpu[i];
       sample_desc.in_strides = GetStrides(in_shape);
       sample_desc.out_strides = GetStrides(out_shape);
-      sample_desc.anchor = slice_args[i].anchor;
+      sample_desc.anchor = anchor;
       sample_desc.in_shape = in_shape;
-
       sample_desc.in = in.tensor_data(i);
       sample_desc.out = out.tensor_data(i);
       sample_sizes[i] = volume(out_shape);
 
-      // Points to the sample's fill values in the GPU buffer
+      // We are filling fill_values_cpu but the sample desc will point to GPU memory
+      if (default_fill_values_) {
+        assert(nfill_values_ == 1);
+        fill_values_cpu[i] = OutputType(0);
+      } else {
+        auto *fill_values = fill_values_cpu + i * nfill_values_;
+        for (int d = 0; d < nfill_values_; d++)
+          fill_values[d] = slice_args[i].fill_values[d];
+      }
       sample_desc.fill_values = fill_values_gpu + i * nfill_values_;
-      sample_desc.channel_dim = slice_args[i].channel_dim;
+      sample_desc.channel_dim = nfill_values_ > 1 ? slice_args[i].channel_dim : -1;
     }
 
     int64_t block_idx = 0;
@@ -224,10 +229,9 @@ class SliceGPU {
 
     // Memory is allocated contiguously, so we launch only one cudaMemcpyAsync
     int64_t total_bytes = num_samples * sizeof(detail::SliceSampleDesc<Dims>)
-      + block_count_ * sizeof(detail::BlockDesc) + nfill_values_ * sizeof(OutputType);
-    cudaMemcpyAsync(sample_descs, sample_descs_cpu,
-                    total_bytes,
-                    cudaMemcpyHostToDevice,
+        + num_samples * nfill_values_ * sizeof(OutputType)
+        + block_count_ * sizeof(detail::BlockDesc);
+    cudaMemcpyAsync(sample_descs, sample_descs_cpu, total_bytes, cudaMemcpyHostToDevice,
                     context.gpu.stream);
 
     const auto grid = block_count_;
