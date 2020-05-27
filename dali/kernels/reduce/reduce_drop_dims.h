@@ -43,7 +43,7 @@ namespace reduce_impl {
  * When calculating variance in F, we still see HWC as the (fused) inner dimension, but it is
  * different than HW1 in the tensor of means. This class implements this kind of reindexing.
  *
- * The reindexing is done by either dividing and multiplying by old/new strides or by takind modulo.
+ * The reindexing is done by either dividing and multiplying by old/new strides or by taking modulo.
  */
 template <int max_dims>
 struct DropDims {

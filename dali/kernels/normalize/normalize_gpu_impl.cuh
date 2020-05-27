@@ -177,7 +177,7 @@ struct NormalizeInvStdDevScalarMean {
 
 template <typename NormalizeParams>
 __global__ void NormalizeKernel(const NormalizeParams *sample_params,
-                          float scale, float shift) {
+                                float scale, float shift) {
   auto params = sample_params[blockIdx.y];
   int64_t start_ofs = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blockDim.x;
@@ -454,9 +454,9 @@ class NormalizeImplGPU {
 
   template <typename Desc, typename BaseParam, typename ScaleParam>
   void RunInvStdDev(KernelContext &ctx,
-                const OutListGPU<Out> &out, const InListGPU<In> &in,
-                const BaseParam &base, const ScaleParam &scale,
-                float epsilon, float global_scale, float shift) {
+                    const OutListGPU<Out> &out, const InListGPU<In> &in,
+                    const BaseParam &base, const ScaleParam &scale,
+                    float epsilon, float global_scale, float shift) {
     Desc *cpu_descs = ctx.scratchpad->Allocate<Desc>(AllocType::Host, num_samples_);
     FillDescs(cpu_descs, out, in, base, scale);
     Desc *gpu_descs = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(cpu_descs, num_samples_));
