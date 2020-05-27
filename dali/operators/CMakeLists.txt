@@ -70,6 +70,7 @@ if (BUILD_TEST)
   target_link_libraries(dali_operator_test PUBLIC dali_operators)
   target_link_libraries(dali_operator_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   target_link_libraries(dali_operator_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+  target_link_libraries(dali_operator_test PRIVATE "-pie")
   set_target_properties(dali_operator_test PROPERTIES POSITION_INDEPENDENT_CODE ON)
   set_target_properties(dali_operator_test PROPERTIES OUTPUT_NAME "dali_operator_test.bin")
   set_target_properties(dali_operator_test PROPERTIES
