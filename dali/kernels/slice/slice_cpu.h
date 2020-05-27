@@ -45,7 +45,7 @@ void Fill(T *output, const T *fill_values, int64_t npixels, int64_t nchannels) {
 inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t anchor,
                                                                 int64_t in_extent,
                                                                 int64_t out_extent) {
-  int64_t pad_before = std::max<int64_t>(0, std::min(out_extent, -anchor));
+  int64_t pad_before = std::min(out_extent, std::max<int64_t>(0, -anchor));
   int64_t to_copy = std::max<int64_t>(
       0, std::min(in_extent - std::max<int64_t>(0, anchor), out_extent - pad_before));
   int64_t pad_after = out_extent - pad_before - to_copy;

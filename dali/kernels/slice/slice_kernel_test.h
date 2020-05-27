@@ -98,7 +98,7 @@ class SliceTest : public ::testing::Test {
       auto *fill_values = slice_args[i].fill_values.data();
       int fill_values_size = slice_args[i].fill_values.size();
       if (fill_values_size > 1) {
-        ASSERT_NE(-1, channel_dim);
+        ASSERT_GE(channel_dim, 0);
         ASSERT_EQ(fill_values_size, out_shape[channel_dim]);
       }
 
