@@ -268,27 +268,6 @@ class NormalizeBase : public Operator<Backend> {
   int axis_mask_ = 0;
 };
 
-template <>
-class Normalize<CPUBackend> : public NormalizeBase<CPUBackend> {
- public:
-  explicit Normalize(const OpSpec &spec) : NormalizeBase<CPUBackend>(spec) {}
-
- private:
-  friend class NormalizeBase<CPUBackend>;
-
-  template <typename OutputType, typename InputType>
-  void SetupTyped(const HostWorkspace &ws);
-
-  template <typename OutputType, typename InputType>
-  void RunTyped(HostWorkspace &ws);
-
-  void AllocTempStorage();
-  void FoldMeans();
-  void FoldStdDev();
-
-  kernels::KernelManager kmgr_;
-};
-
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_NORMALIZE_NORMALIZE_H_

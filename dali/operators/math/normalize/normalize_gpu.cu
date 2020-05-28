@@ -56,6 +56,8 @@ class Normalize<GPUBackend> : public NormalizeBase<GPUBackend> {
     return normalize_kernel_.create_or_get<NormalizeGPU<OutputType, InputType>>();
   }
 
+  TensorListView<StorageGPU, float> BroadcastMean(KernelContext &ctx, float value) const;
+
   AnyKernelInstance mean_kernel_, std_kernel_, normalize_kernel_;
   ScratchpadAllocator alloc_;
 };
@@ -94,11 +96,47 @@ void RestoreScratchpadSnapshot(PreallocatedScratchpad &s, const scratch_sizes_t 
   }
 }
 
+template <int ndim>
+int64_t MaxSampleSize(const TensorListShape<ndim> &tls) {
+  int64_t max_sample_size = 0;
+  for (int i = 0; i < tls.num_samples(); i++) {
+    int64_t v = volume(tls.tensor_shape_span(i));
+    if (v > max_sample_size)
+      max_sample_size = v;
+  }
+  return max_sample_size;
+}
+
+template <typename T>
+__global__ void Fill(T *data, size_t count, T value) {
+  auto i = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (i < count)
+    data[i] = value;
+}
+
 }  // namespace
+
+TensorListView<StorageGPU, float>
+Normalize<GPUBackend>::BroadcastMean(KernelContext &ctx, float value) const {
+  TensorListView<StorageGPU, float> mean_gpu;
+  mean_gpu.shape = param_shape_;
+  mean_gpu.data.resize(param_shape_.num_samples());
+  // allocate enough memory to hold the largest sample...
+  int64_t max_sample_size = MaxSampleSize(param_shape_);
+  float *gpu_mean_data = ctx.scratchpad->Allocate<float>(AllocType::GPU, max_sample_size);
+  int grid = div_ceil(max_sample_size, 1024);
+  int block = std::min<int64_t>(max_sample_size, 1024);
+  // ...fill it with given value...
+  Fill<<<grid, block, 0, ctx.gpu.stream>>>(gpu_mean_data, max_sample_size, value);
+  // ...and reuse the memory for all samples
+  for (auto &ptr : mean_gpu.data)
+    ptr = gpu_mean_data;
+  return mean_gpu;
+}
 
 template <typename OutputType, typename InputType>
 void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
-  auto &input = ws.InputRef<CPUBackend>(0);
+  auto &input = ws.InputRef<GPUBackend>(0);
   int nsamples = input.ntensor();
 
   KernelContext ctx;
@@ -114,8 +152,10 @@ void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
     se.add<float>(AllocType::GPU, param_volume);
   } else {
     if (ShouldCalcStdDev()) {
-      // stddev kernel requires the mean to be in GPU memory, even if it's a scalar
-      se.add<float>(AllocType::GPU, 1);
+      // StdDev kernel requires the mean to have the same shape as the output.
+      // We can save memory by broadcasting the mean only to the size of the largest sample
+      // and repeat the pointer for all samples.
+      se.add<float>(AllocType::GPU, MaxSampleSize(param_shape_));
     }
   }
 
@@ -145,7 +185,9 @@ void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
     MaxInPlace(req.scratch_sizes, stddev_req.scratch_sizes);
   }
 
-  MaxInPlace(se.sizes, req.scratch_sizes);
+  for (size_t i = 0; i < se.sizes.size(); i++) {
+    se.add<uint8_t>(static_cast<AllocType>(i), req.scratch_sizes[i], 64);
+  }
 
   alloc_.Reserve(se.sizes);
 }
@@ -168,20 +210,15 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
 
   // Prepare mean and stddev
 
-  float scalar_mean = 0;
-  float scalar_stddev = 1;
+  float scalar_mean   = has_scalar_mean_   ? spec_.GetArgument<float>("mean")   : 0;
+  float scalar_stddev = has_scalar_stddev_ ? spec_.GetArgument<float>("stddev") : 1;
 
   OutListGPU<float> mean_gpu, stddev_gpu;
 
   if (!has_scalar_mean_) {
     mean_gpu = scratch.AllocTensorList<AllocType::GPU, float>(param_shape_);
   } else if (ShouldCalcStdDev()) {
-    mean_gpu.shape.resize(param_shape_.num_samples(), 0);
-    float *gpu_scalar_mean = scratch.Allocate<float>(AllocType::GPU, 1);
-    for (auto &ptr : mean_gpu.data)
-      ptr = gpu_scalar_mean;
-    CUDA_CALL(cudaMemcpyAsync(gpu_scalar_mean, &scalar_mean, sizeof(scalar_mean),
-                              cudaMemcpyHostToDevice, stream));
+    mean_gpu = BroadcastMean(ctx, scalar_mean);
   }
 
   if (!has_scalar_stddev_) {
@@ -193,32 +230,27 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   // before launching each kernel.
   auto scratch_snap = GetScratchpadSnapshot(scratch);
 
-  if (has_scalar_mean_) {
-    scalar_mean = spec_.GetArgument<float>("mean");
-  } else if (ShouldCalcMean()) {
+  if (ShouldCalcMean()) {
     auto &mean_kernel = GetMeanKernel<float, InputType>();
 
     RestoreScratchpadSnapshot(scratch, scratch_snap);
     mean_kernel.Run(ctx, mean_gpu, in_view);
-  } else {
+  } else if (has_tensor_mean_) {
     kernels::copy(mean_gpu, mean_input_, stream);
   }
 
-  if (has_scalar_stddev_) {
-    scalar_stddev = spec_.GetArgument<float>("stddev");
-  } else if (ShouldCalcStdDev()) {
+  if (ShouldCalcStdDev()) {
     auto &stddev_kernel = GetInvStdDevKernel<float, InputType>();
 
     RestoreScratchpadSnapshot(scratch, scratch_snap);
     stddev_kernel.Run(ctx, stddev_gpu, in_view, mean_gpu, degrees_of_freedom_, epsilon_);
-  } else {
+  } else if (has_tensor_stddev_) {
     kernels::copy(stddev_gpu, stddev_input_, stream);
   }
 
   // finally, run the normalize kernel
   {
     auto &norm_kernel = GetNormalizeKernel<OutputType, InputType>();
-
     RestoreScratchpadSnapshot(scratch, scratch_snap);
 
     // if stddev is calculated internally, epsilon has already been included

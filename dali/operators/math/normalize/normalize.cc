@@ -101,6 +101,27 @@ samples in the batch.
     "improve usage of the output type's dynamic range. If dtype is an integral type, out of range "
     "values are clamped, and non-integer values are rounded to nearest integer.", DALI_FLOAT);
 
+template <>
+class Normalize<CPUBackend> : public NormalizeBase<CPUBackend> {
+ public:
+  explicit Normalize(const OpSpec &spec) : NormalizeBase<CPUBackend>(spec) {}
+
+ private:
+  friend class NormalizeBase<CPUBackend>;
+
+  template <typename OutputType, typename InputType>
+  void SetupTyped(const HostWorkspace &ws);
+
+  template <typename OutputType, typename InputType>
+  void RunTyped(HostWorkspace &ws);
+
+  void AllocTempStorage();
+  void FoldMeans();
+  void FoldStdDev();
+
+  kernels::KernelManager kmgr_;
+};
+
 DALI_REGISTER_OPERATOR(Normalize, Normalize<CPUBackend>, CPU);
 
 using namespace normalize;  // NOLINT
