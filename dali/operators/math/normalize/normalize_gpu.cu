@@ -48,7 +48,7 @@ class Normalize<GPUBackend> : public NormalizeBase<GPUBackend> {
 
   template <typename ParamType, typename InputType>
   InvStdDevGPU<ParamType, InputType> &GetInvStdDevKernel() {
-    return mean_kernel_.create_or_get<InvStdDevGPU<ParamType, InputType>>();
+    return stddev_kernel_.create_or_get<InvStdDevGPU<ParamType, InputType>>();
   }
 
   template <typename OutputType, typename InputType>
@@ -58,7 +58,7 @@ class Normalize<GPUBackend> : public NormalizeBase<GPUBackend> {
 
   TensorListView<StorageGPU, float> BroadcastMean(KernelContext &ctx, float value) const;
 
-  AnyKernelInstance mean_kernel_, std_kernel_, normalize_kernel_;
+  AnyKernelInstance mean_kernel_, stddev_kernel_, normalize_kernel_;
   ScratchpadAllocator alloc_;
 };
 

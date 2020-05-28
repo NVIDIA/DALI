@@ -207,7 +207,7 @@ class VarianceImplBase {
   }
 
   Preprocessor GetPreprocessorImpl(int sample_index, bool batch) const {
-    assert(sample_index < This().SimplifiedOutputShape().num_elements());
+    assert(sample_index < This().SimplifiedOutputShape().num_samples());
     return Preprocessor { mean_.data[sample_index] };
   }
 

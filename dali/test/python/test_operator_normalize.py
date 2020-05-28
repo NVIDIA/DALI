@@ -1,6 +1,7 @@
 from __future__ import print_function
 from __future__ import division
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import backend
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
@@ -187,6 +188,7 @@ class NormalizePipeline(Pipeline):
                 num_threads=3, device_id=0, num_gpus=1):
         super(NormalizePipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         common_args = {
+            "device" : device,
             "axes" : axes,
             "axis_names" : axis_names,
             "batch" : batch,
@@ -235,17 +237,19 @@ class NormalizePipeline(Pipeline):
             data = self.add_layout(data)
         mean = self.mean(data)
         stddev = self.stddev(data)
-        normalized = self.normalize(data)
-        scalar_mean = self.scalar_mean(data)
-        scalar_stddev = self.scalar_stddev(data)
+
+        dev_data = data.gpu() if self.device == "gpu" else data
+        normalized = self.normalize(dev_data)
+        scalar_mean = self.scalar_mean(dev_data)
+        scalar_stddev = self.scalar_stddev(dev_data)
         if not self.batch:
-            ext_mean = self.normalize(data, mean = mean)
-            ext_stddev = self.normalize(data, stddev = stddev)
-            ext_all = self.normalize(data, mean = mean, stddev = stddev)
-            scalar_mean_ext = self.scalar_mean(data, stddev = stddev)
-            scalar_stddev_ext = self.scalar_stddev(data, mean = mean)
+            ext_mean = self.normalize(dev_data, mean = mean)
+            ext_stddev = self.normalize(dev_data, stddev = stddev)
+            ext_all = self.normalize(dev_data, mean = mean, stddev = stddev)
+            scalar_mean_ext = self.scalar_mean(dev_data, stddev = stddev)
+            scalar_stddev_ext = self.scalar_stddev(dev_data, mean = mean)
         if not self.has_axes:
-            scalar_params = self.scalar_params(data)
+            scalar_params = self.scalar_params(dev_data)
 
         out = [data, mean, stddev, normalized, scalar_mean, scalar_stddev]
         if not self.batch:
@@ -315,6 +319,8 @@ class NormalizePipeline(Pipeline):
         self.feed_input(self.input_data, generate_data(self.dims, self.batch_size, self.batch, self.axes, dtype = self.in_type))
 
 def to_list(tensor_list):
+    if isinstance(tensor_list, backend.TensorListGPU):
+        tensor_list = tensor_list.as_cpu()
     out = []
     for i in range(len(tensor_list)):
         out.append(tensor_list.at(i))
@@ -370,18 +376,20 @@ def _test_up_to_5D_all_axis_combinations(device):
                     yield _run_test, device, batch_size, dim, None, axis_names, batch_norm
 
 def test_cpu_up_to_5D_all_axis_combinations():
-    for x in _test_up_to_5D_all_axis_combinations("cpu"):
-        yield x
+    for device in ["cpu", "gpu"]:
+        for x in _test_up_to_5D_all_axis_combinations(device):
+            yield x
 
-def test_types(device = "cpu"):
+def test_types():
     batch_size = 100
     dim = 4
     axes = [1, 2]
     out_type = np.uint8
     in_type = None
-    for out_type, scale, shift in [(np.uint8, 64, 128), (np.int16, 1000, 0), (np.float32, 0.5, 0.5)]:
-        for in_type in [None, np.uint8, np.int16, np.float32]:
-            yield _run_test, device, batch_size, dim, axes, None, False, out_type, in_type, shift, scale
+    for device in ["cpu", "gpu"]:
+        for out_type, scale, shift in [(np.uint8, 64, 128), (np.int16, 1000, 0), (np.float32, 0.5, 0.5)]:
+            for in_type in [None, np.uint8, np.int16, np.float32]:
+                yield _run_test, device, batch_size, dim, axes, None, False, out_type, in_type, shift, scale
 
 import nvidia.dali.fn as fn
 
