@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <chrono>
 #include <cmath>
 #include <complex>
 #include <tuple>
@@ -26,6 +25,7 @@
 #include "dali/kernels/scratch.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
+#include "dali/kernels/imgproc/convolution/baseline_convolution.h"
 
 namespace dali {
 namespace kernels {
@@ -134,39 +134,6 @@ REGISTER_TYPED_TEST_SUITE_P(CyclicWindowWrapperTest, FillAndCycle, DotProduct);
 INSTANTIATE_TYPED_TEST_SUITE_P(CyclicWindowWrapper, CyclicWindowWrapperTest,
                                CyclicWindowWrapperValues);
 
-template <typename Out, typename In, typename W>
-void BaselineConvolveAxis(Out *out, const In *in, const W *window, int len, int r, int channel_num,
-                          int64_t stride) {
-  for (int i = 0; i < len; i++) {
-    for (int c = 0; c < channel_num; c++) {
-      W accum = {};
-      for (int d = -r; d <= r; d++) {
-          accum += in[boundary::idx_reflect_101(i + d, len) * stride + c] * window[d + r];
-      }
-      out[i * stride + c] = ConvertSat<Out>(accum);
-    }
-  }
-}
-
-template <typename Out, typename In, typename W, int ndim>
-void BaselineConvolve(const TensorView<StorageCPU, Out, ndim> &out,
-                      const TensorView<StorageCPU, In, ndim> &in,
-                      const TensorView<StorageCPU, W, 1> &window, int axis, int r,
-                      int current_axis = 0, int64_t offset = 0) {
-  if (current_axis == ndim - 1) {
-    auto stride = GetStrides(out.shape)[axis];
-    BaselineConvolveAxis(out.data + offset, in.data + offset, window.data, out.shape[axis], r,
-                         in.shape[ndim - 1], stride);
-  } else if (current_axis == axis) {
-    BaselineConvolve(out, in, window, axis, r, current_axis + 1, offset);
-  } else {
-    for (int i = 0; i < out.shape[current_axis]; i++) {
-      auto stride = GetStrides(out.shape)[current_axis];
-      BaselineConvolve(out, in, window, axis, r, current_axis + 1, offset + i * stride);
-    }
-  }
-}
-
 template <int ndim_, bool has_channels_, int axis_, int window_size_, typename InType_,
           bool in_place_>
 struct convolution_params {
@@ -253,7 +220,7 @@ struct ConvolutionCpuKernelTest : public ::testing::Test {
     auto scratchpad = scratch_alloc.GetScratchpad();
     ctx.scratchpad = &scratchpad;
 
-    BaselineConvolve(baseline_out_, baseline_in_, k_win_, T::axis, T::window_size / 2);
+    testing::BaselineConvolve(baseline_out_, baseline_in_, k_win_, T::axis, T::window_size / 2);
     kernel.Run(ctx, out_, in_, k_win_);
 
     // for validation we need the same shape
