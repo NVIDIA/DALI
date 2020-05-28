@@ -105,7 +105,6 @@ DALI_REGISTER_OPERATOR(Normalize, Normalize<CPUBackend>, CPU);
 
 using namespace normalize;  // NOLINT
 
-template <>
 template <typename OutputType, typename InputType>
 void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
@@ -122,7 +121,6 @@ void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
   AllocTempStorage();
 }
 
-template <>
 void Normalize<CPUBackend>::AllocTempStorage() {
   const TypeInfo &float_type = TypeTable::GetTypeInfo(DALI_FLOAT);
   int n = data_shape_.num_samples();
@@ -168,7 +166,6 @@ void Normalize<CPUBackend>::AllocTempStorage() {
 }
 
 
-template <>
 void Normalize<CPUBackend>::FoldMeans() {
   assert(mean_.ntensor() > 0);
   SumSamples(view<float>(mean_));
@@ -185,7 +182,6 @@ void Normalize<CPUBackend>::FoldMeans() {
   }
 }
 
-template <>
 void Normalize<CPUBackend>::FoldStdDev() {
   assert(inv_stddev_.ntensor() > 0);
   SumSamples(view<float>(inv_stddev_));
@@ -209,7 +205,6 @@ void Normalize<CPUBackend>::FoldStdDev() {
   ScaleRSqrtKeepZero(sample0.data, elems, epsilon_, rdiv, scale);
 }
 
-template <>
 template <typename OutputType, typename InputType>
 void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   ThreadPool &tp = ws.GetThreadPool();

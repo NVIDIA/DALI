@@ -243,8 +243,8 @@ class NormalizeBase : public Operator<Backend> {
     int ndim = data_shape_.sample_dim();
     return axis_mask_== ((1 << ndim) - 1);
   }
- protected:
 
+ protected:
   TensorListShape<> data_shape_;
   TensorListShape<> param_shape_;
 
@@ -266,11 +266,10 @@ class NormalizeBase : public Operator<Backend> {
   DALIDataType input_type_ = DALI_NO_TYPE, output_type_ = DALI_FLOAT;
   std::vector<int> axes_;
   int axis_mask_ = 0;
-
 };
 
-template <typename CPUBackend>
-class Normalize : public NormalizeBase<CPUBackend> {
+template <>
+class Normalize<CPUBackend> : public NormalizeBase<CPUBackend> {
  public:
   explicit Normalize(const OpSpec &spec) : NormalizeBase<CPUBackend>(spec) {}
 
@@ -289,7 +288,6 @@ class Normalize : public NormalizeBase<CPUBackend> {
 
   kernels::KernelManager kmgr_;
 };
-
 
 }  // namespace dali
 
