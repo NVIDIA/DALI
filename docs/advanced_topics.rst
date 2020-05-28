@@ -83,9 +83,9 @@ The first is ``pad_last_batch`` Reader parameter which asks the reader to duplic
 
 As DALI is used in the Deep Learning Frameworks through dedicated iterators, they need to be aware of this padding and other reader properties as well. Let us look into the following Iterator options:
 
+- ``fill_last_batch`` - whether the last batch should be full no matter if shard size is divisible by the batch size
 - ``reader_name`` - **(The recommended way that excludes the options below)** Allows the user to provide the name of the reader that would drive the iterator, and provide the necessary parameters. It is more flexible and accurate (takes into account that shards size for the given pipeline can differ epoch to epoch when shards are rotated).
 - ``size`` - the size of the shard for given iterator (or sum of all shard sizes for all wrapped pipelines if there is more than one)
-- ``fill_last_batch`` - whether the last batch should be full no matter if shard size is divisible by the batch size
 - ``last_batch_padded`` - whether the data that is reminder between multiple of batch size and shard size consists of data from the next shard or duplicated dummy data
 
 Shard size for given shard id is computed as:

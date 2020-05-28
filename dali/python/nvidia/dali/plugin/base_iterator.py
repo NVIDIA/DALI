@@ -16,6 +16,17 @@ from nvidia.dali import types
 import math
 import logging
 import numpy as np
+import warnings
+
+def _iterator_deprecation_warning():
+    # show only this warning
+    with warnings.catch_warnings():
+        warnings.simplefilter("default")
+        warnings.warn("Please set `reader_name` and don't set last_batch_padded and size manually " +
+                      " whenever possible. This may lead, in some situations, to miss some " +
+                      " samples or return duplicated ones. Check the Sharding section of the "
+                      "documentation for more details.",
+                      Warning, stacklevel=2)
 
 class _DaliBaseIterator(object):
     """
@@ -104,10 +115,13 @@ class _DaliBaseIterator(object):
         assert self._size != 0, "Size cannot be 0"
         assert self._size > 0 or (self._size < 0 and (len(pipelines) == 1 or reader_name)), "Negative size is supported only for a single pipeline"
         assert not reader_name or (reader_name and self._size < 0), "When reader_name is provided, size should not be set"
+        assert not reader_name or (reader_name and last_batch_padded != False), "When reader_name is provided, last_batch_padded should not be set"
         if self._size < 0 and not reader_name:
             self._auto_reset = False
             self._fill_last_batch = False
             self._last_batch_padded = False
+        if self.size > 0 and not reader_name:
+            _iterator_deprecation_warning()
         self._pipes = pipelines
         self._counter = 0
 
