@@ -129,7 +129,10 @@ AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, DynamicDi
                                             // directly to the output
 
     tmp_buf.resize(tmp_size);
-    decoders_[sample_idx]->Decode(as_raw_span(tmp_buf.data(), meta.length * meta.channels));
+    size_t num_samples = meta.length * meta.channels;
+    size_t ret = decoders_[sample_idx]->Decode(as_raw_span(tmp_buf.data(), num_samples));
+    DALI_ENFORCE(ret == num_samples,
+                 make_string("Error decoding audio file: ", files_names_[sample_idx]));
 
     if (should_downmix) {
       if (should_resample) {
@@ -158,7 +161,10 @@ AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, DynamicDi
     }
   } else {
     assert(!should_downmix && !should_resample);
-    decoders_[sample_idx]->Decode(as_raw_span(audio.data, volume(audio.shape)));
+    size_t num_samples = volume(audio.shape);
+    size_t ret = decoders_[sample_idx]->Decode(as_raw_span(audio.data, num_samples));
+    DALI_ENFORCE(ret == num_samples,
+                 make_string("Error decoding audio file: ", files_names_[sample_idx]));
   }
 }
 

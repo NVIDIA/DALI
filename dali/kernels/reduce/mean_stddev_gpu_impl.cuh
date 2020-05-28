@@ -62,13 +62,19 @@ class MeanImplBase {
   Actual &This() { return static_cast<Actual&>(*this); }
   const Actual &This() const { return static_cast<const Actual&>(*this); }
 
+  using postprocessor_t = Postprocessor;
   using scale_t = typename Postprocessor::scale_t;
 
   Postprocessor GetPostprocessorImpl(int sample_index, bool reduce_batch) const {
     int64_t reduced_elems = reduce_batch ? This().TotalReducedElements()
                                          : This().ReducedElements(sample_index);
+    return GetPostprocessorImpl(reduced_elems, 0);
+  }
+
+  Postprocessor GetPostprocessorImpl(int64_t reduced_elems, int ddof) const {
     DALI_ENFORCE(reduced_elems > 0, "Cannot calculate a mean from 0 elements");
-    return { scale_t(1.0 / reduced_elems) };
+    auto denominator = reduced_elems - ddof;
+    return { denominator > 0 ? scale_t(1.0 / denominator) : 0 };
   }
 };
 
@@ -161,7 +167,7 @@ struct VariancePreprocessorBank<2, Mean> {
   const Mean *mean;
   i64vec<2> stride;
   /// Calculates the fully reduced inner offset based on non-reduced `pos[1]`
-  DropDims inner_dims;
+  DropDims<3> inner_dims;
 
   DALI_HOST_DEV DALI_FORCEINLINE
   reductions::variance<Mean> Get(const i64vec<2> &pos) const {
@@ -242,7 +248,7 @@ class VarianceImplBase {
       bank.mean = mean_.data[o];
       bank.stride[0] = volume(out_shape.begin() + axis, out_shape.end());  // outer stride
       bank.stride[1] = 1;  // inner stride, always 1?
-      bank.inner_dims = DropDims(inner_shape, mask);  // reindexing, if necessary
+      bank.inner_dims = DropDims<3>(inner_shape, mask);  // reindexing, if necessary
     }
     return banks;
   }
@@ -263,16 +269,29 @@ class StdDevImplGPU : public ReduceImplGPU<Out, In, Acc, StdDevImplGPU<Out, In, 
                       public RootMeanImplBase<Out, In, StdDevImplGPU<Out, In, Mean, Acc>> {
  public:
   using ReduceBase = ReduceImplGPU<Out, In, Acc, StdDevImplGPU<Out, In, Mean, Acc>>;
+  using RMSBase = RootMeanImplBase<Out, In, StdDevImplGPU<Out, In, Mean, Acc>>;
 
   reductions::sum GetReduction() const { return {}; }
+
+  typename RMSBase::postprocessor_t
+  GetPostprocessorImpl(int sample_index, bool reduce_batch) const {
+    int64_t reduced_elems = reduce_batch ? this->TotalReducedElements()
+                                         : this->ReducedElements(sample_index);
+    return RMSBase::GetPostprocessorImpl(reduced_elems, ddof_);
+  }
 
   void Run(KernelContext &kctx,
            const OutListGPU<Out> &out,
            const InListGPU<In> &in,
-           const InListGPU<Mean> &mean) {
+           const InListGPU<Mean> &mean,
+           int ddof = 0) {
+    ddof_ = ddof;
     this->InitMean(mean);
     ReduceBase::Run(kctx, out, in);
   }
+
+ private:
+  int ddof_ = 0;
 };
 
 template <typename Out, typename ScaleAndReg>
@@ -295,17 +314,24 @@ class RegularizedInvRMS {
   using param_t = std::conditional_t<std::is_same<Out, double>::value, double, float>;
   using Postprocessor = RegularizedInvSqrt<Out, param_t>;
 
-  void SetRegularizationTerm(param_t reg) {
-    regularization_ = reg * reg;
+  void SetStdDevParams(int ddof, param_t epsilon) {
+    if (!(epsilon >= 0))  // >= 0 and not NaN
+      throw std::range_error("The regularizing term must be a non-negative number.");
+    if (ddof < 0)
+      throw std::range_error("Delta Degrees of Freedom must be a non-negative number.");
+    regularization_ = epsilon;
+    ddof_ = ddof;
   }
 
   param_t regularization_ = 0.0f;
+  int     ddof_ = 0;
 
   Postprocessor GetPostprocessorImpl(int sample_index, bool reduce_batch) const {
     int64_t reduced_elems = reduce_batch ? This().TotalReducedElements()
                                          : This().ReducedElements(sample_index);
     DALI_ENFORCE(reduced_elems > 0, "Cannot calculate a mean from 0 elements");
-    return { param_t(1.0 / reduced_elems), regularization_ };
+    param_t scale = reduced_elems > ddof_ ? param_t(1.0 / (reduced_elems - ddof_)) : 0;
+    return { scale, regularization_ };
   }
 };
 
@@ -322,13 +348,17 @@ class InvStdDevImplGPU :
 
   reductions::sum GetReduction() const { return {}; }
 
+  /**
+   *
+   */
   void Run(KernelContext &kctx,
            const OutListGPU<Out> &out,
            const InListGPU<In> &in,
            const InListGPU<Mean> &mean,
-           float reg = 0.0f) {
+           int ddof = 0,
+           float epsilon = 0.0f) {
     this->InitMean(mean);
-    this->SetRegularizationTerm(reg);
+    this->SetStdDevParams(ddof, epsilon);
     ReduceBase::Run(kctx, out, in);
   }
 };

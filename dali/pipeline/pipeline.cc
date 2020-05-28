@@ -74,7 +74,8 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     google::protobuf::io::CodedInputStream coded_input(
             reinterpret_cast<const uint8_t *>(serialized_pipe.c_str()), serialized_pipe.size());
     coded_input.SetTotalBytesLimit(serialized_pipe.size());
-    def.ParseFromCodedStream(&coded_input);
+    auto res = def.ParseFromCodedStream(&coded_input);
+    DALI_ENFORCE(res, "Error parsing serialized pipeline.");
 
     // If not given, take parameters from the serialized pipeline
     this->batch_size_ = batch_size == -1 ? def.batch_size() : batch_size;

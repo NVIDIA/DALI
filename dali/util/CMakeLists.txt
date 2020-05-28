@@ -15,7 +15,6 @@
 set(DALI_INST_HDRS ${DALI_INST_HDRS}
   "${CMAKE_CURRENT_SOURCE_DIR}/crop_window.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/file.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/half.hpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/image.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/mmaped_file.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/std_file.h"

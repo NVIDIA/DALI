@@ -75,8 +75,8 @@ TestTensorList<Out> CenterAndSquare(const InListCPU<In> &in,
 template <typename Out = float, typename In, typename Mean>
 TestTensorList<Out> RefStdDev(const TensorListView<StorageCPU, In> &in,
                               const TensorListView<StorageCPU, Mean> &mean,
+                              int ddof = 0,
                               double reg = 0, bool inv = false) {
-  reg *= reg;
   SmallVector<int, 6> axes;
   for (int d = 0; d < mean.sample_dim(); d++) {
     for (int i = 0; i < mean.num_samples(); i++) {
@@ -113,7 +113,7 @@ TestTensorList<Out> RefStdDev(const TensorListView<StorageCPU, In> &in,
     out_tl.reshape(out_shape);
     auto out = out_tl.cpu();
     int64_t n = out_shape.num_elements();
-    double ratio = in.num_elements() / n;
+    double ratio = in.num_elements() / n - ddof;
     for (int j = 0; j < n; j++) {
       double sum = 0;
       for (int i = 0; i < N; i++)
@@ -127,7 +127,7 @@ TestTensorList<Out> RefStdDev(const TensorListView<StorageCPU, In> &in,
     for (int i = 0; i < N; i++) {
       int64_t n = out[i].num_elements();
       int64_t n_in = in[i].num_elements();
-      double ratio = n_in / n;
+      double ratio = n_in / n - ddof;
       RefReduce(out[i], centered_squared_cpu[i], make_span(axes), true, reductions::sum());
       for (int j = 0; j < n; j++) {
         double x = out.data[i][j] / ratio + reg;
@@ -348,9 +348,9 @@ TEST(InvStdDevImplGPU, Outer_Batch_Regularized) {
   EXPECT_GE(test.kernel.GetNumStages(), 2);  // both reduced axes must be split
   test.FillData(-100, 100);
 
-  test.Run(fake_mean.gpu(), 120);
+  test.Run(fake_mean.gpu(), 1, 12000);
 
-  test.ref = RefStdDev(test.in.cpu(), mean_cpu, 120, true);
+  test.ref = RefStdDev(test.in.cpu(), mean_cpu, 1, 12000, true);
 
   test.Check(EqualEpsRel(1e-5, 1e-6));
 }

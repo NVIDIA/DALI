@@ -93,7 +93,7 @@ class SliceGPU {
  public:
   KernelRequirements Setup(KernelContext &context,
                            const InListGPU<InputType, Dims> &in,
-                           const std::vector<SliceArgs<Dims>> &slice_args) {
+                           const std::vector<SliceArgs<OutputType, Dims>> &slice_args) {
     KernelRequirements req;
     ScratchpadEstimator se;
     const size_t num_samples = in.size();
@@ -123,7 +123,7 @@ class SliceGPU {
   void Run(KernelContext &context,
            OutListGPU<OutputType, Dims> &out,
            const InListGPU<InputType, Dims> &in,
-           const std::vector<SliceArgs<Dims>> &slice_args) {
+           const std::vector<SliceArgs<OutputType, Dims>> &slice_args) {
     const auto num_samples = in.size();
 
     detail::SliceSampleDesc<Dims>* sample_descs_cpu =

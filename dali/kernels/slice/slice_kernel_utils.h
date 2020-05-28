@@ -25,10 +25,12 @@
 namespace dali {
 namespace kernels {
 
-template <int Dims>
+template <typename T, int Dims>
 struct SliceArgs {
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
+  SmallVector<T, 3> fill_values = {0, };
+  int channel_dim = -1;
 };
 
 template <int Dims, typename Args>
@@ -50,7 +52,6 @@ template <int Dims, typename Args>
 TensorShape<Dims> GetOutputShape(const TensorShape<Dims>& in_sample_shape,
                                  const Args& args) {
   TensorShape<Dims> out_sample_shape(args.shape);
-  CheckValidOutputShape(in_sample_shape, out_sample_shape, args);
   return out_sample_shape;
 }
 

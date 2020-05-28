@@ -32,7 +32,7 @@ void RunHelper(Tensor<CPUBackend> &output,
     kernels::KernelContext ctx;
     auto in_view = view<const InputType, NumDims>(input);
 
-    kernels::SliceArgs<NumDims> slice_args;
+    kernels::SliceArgs<OutputType, NumDims> slice_args;
     auto &anchor = slice_args.anchor;
     auto &shape = slice_args.shape;
     for (std::size_t d = 0; d < NumDims; d++) {
