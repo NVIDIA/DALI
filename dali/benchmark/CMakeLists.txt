@@ -40,6 +40,7 @@ if (BUILD_BENCHMARK)
   add_executable(dali_benchmark "${DALI_BENCHMARK_SRCS}")
 
   target_link_libraries(dali_benchmark PRIVATE dali dali_operators benchmark ${DALI_LIBS})
+  target_link_libraries(dali_benchmark PRIVATE "-pie")
   set_target_properties(dali_benchmark PROPERTIES POSITION_INDEPENDENT_CODE ON)
   set_target_properties(dali_benchmark PROPERTIES OUTPUT_NAME "dali_benchmark.bin")
 
