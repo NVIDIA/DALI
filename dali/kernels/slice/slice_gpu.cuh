@@ -59,7 +59,8 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
                           const int64_t *anchor, const int64_t *in_shape,
                           const OutputType *__restrict__ fill_values, int channel_dim,
                           size_t offset, size_t block_end) {
-  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && anchor[Dims - 1] == 0 && false) {  // TODO(janton): fix
+  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && anchor[Dims - 1] == 0 &&
+      channel_dim != Dims - 1) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
     SliceFunc<NextDims>(out, in, out_strides, in_strides, anchor, in_shape, fill_values,
                         channel_dim, offset, block_end);
@@ -122,7 +123,7 @@ class SliceGPU {
     se.add<detail::SliceSampleDesc<Dims>>(AllocType::GPU, num_samples);
 
     nfill_values_ = 0;
-    for (const auto& args: slice_args) {
+    for (const auto& args : slice_args) {
       if (nfill_values_ == 0)
         nfill_values_ = args.fill_values.size();
       else
@@ -133,7 +134,7 @@ class SliceGPU {
       default_fill_values_ = true;
       nfill_values_ = 1;
     } else if (nfill_values_ > 1) {
-      for (const auto& args: slice_args) {
+      for (const auto& args : slice_args) {
         DALI_ENFORCE(args.channel_dim >= 0 && args.channel_dim < Dims,
           "Channel dim must be valid for multi-channel fill values");
         DALI_ENFORCE(nfill_values_ == args.shape[args.channel_dim],
@@ -170,23 +171,26 @@ class SliceGPU {
            const std::vector<SliceArgs<OutputType, Dims>> &slice_args) {
     const auto num_samples = in.size();
 
-    // Host memory
-    detail::SliceSampleDesc<Dims>* sample_descs_cpu =
-      context.scratchpad->Allocate<detail::SliceSampleDesc<Dims>>(AllocType::Host, num_samples);
     OutputType *fill_values_cpu =
         context.scratchpad->Allocate<OutputType>(AllocType::Host, num_samples * nfill_values_);
-    detail::BlockDesc *block_descs_cpu =
-      context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
+    for (int i = 0; i < in.size(); i++) {
+      if (default_fill_values_) {
+        assert(nfill_values_ == 1);
+        fill_values_cpu[i] = OutputType(0);
+      } else {
+        auto *fill_values = fill_values_cpu + i * nfill_values_;
+        for (int d = 0; d < nfill_values_; d++)
+          fill_values[d] = slice_args[i].fill_values[d];
+      }
+    }
+    OutputType *fill_values_gpu = context.scratchpad->ToGPU(
+        context.gpu.stream, make_span(fill_values_cpu, num_samples * nfill_values_));
 
-    // GPU memory
-    detail::SliceSampleDesc<Dims> *sample_descs =
-      context.scratchpad->Allocate<detail::SliceSampleDesc<Dims>>(
-        AllocType::GPU, num_samples);
-    OutputType *fill_values_gpu =
-        context.scratchpad->Allocate<OutputType>(AllocType::GPU, num_samples * nfill_values_);
-    detail::BlockDesc *block_descs =
-      context.scratchpad->Allocate<detail::BlockDesc>(
-        AllocType::GPU, block_count_);
+    // Host memory
+    detail::SliceSampleDesc<Dims> *sample_descs_cpu =
+        context.scratchpad->Allocate<detail::SliceSampleDesc<Dims>>(AllocType::Host, num_samples);
+    detail::BlockDesc *block_descs_cpu =
+        context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
 
     std::vector<int64_t> sample_sizes(in.size());
     for (int i = 0; i < in.size(); i++) {
@@ -202,15 +206,7 @@ class SliceGPU {
       sample_desc.out = out.tensor_data(i);
       sample_sizes[i] = volume(out_shape);
 
-      // We are filling fill_values_cpu but the sample desc will point to GPU memory
-      if (default_fill_values_) {
-        assert(nfill_values_ == 1);
-        fill_values_cpu[i] = OutputType(0);
-      } else {
-        auto *fill_values = fill_values_cpu + i * nfill_values_;
-        for (int d = 0; d < nfill_values_; d++)
-          fill_values[d] = slice_args[i].fill_values[d];
-      }
+      // fill values points to gpu memory
       sample_desc.fill_values = fill_values_gpu + i * nfill_values_;
       sample_desc.channel_dim = nfill_values_ > 1 ? slice_args[i].channel_dim : -1;
     }
@@ -227,17 +223,16 @@ class SliceGPU {
       }
     }
 
-    // Memory is allocated contiguously, so we launch only one cudaMemcpyAsync
-    int64_t total_bytes = num_samples * sizeof(detail::SliceSampleDesc<Dims>)
-        + num_samples * nfill_values_ * sizeof(OutputType)
-        + block_count_ * sizeof(detail::BlockDesc);
-    cudaMemcpyAsync(sample_descs, sample_descs_cpu, total_bytes, cudaMemcpyHostToDevice,
-                    context.gpu.stream);
+    detail::SliceSampleDesc<Dims> *sample_descs =
+        context.scratchpad->ToGPU(context.gpu.stream, make_span(sample_descs_cpu, num_samples));
+    detail::BlockDesc *block_descs =
+        context.scratchpad->ToGPU(context.gpu.stream, make_span(block_descs_cpu, block_count_));
 
     const auto grid = block_count_;
     detail::SliceKernel<OutputType, InputType, Dims>
       <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
   }
+
  private:
   int nfill_values_ = 0;
   bool default_fill_values_ = false;
