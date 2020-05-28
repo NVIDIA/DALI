@@ -68,7 +68,7 @@ void SliceKernelImplChannelLast(OutputType *output,
                                 std::integral_constant<bool, OutOfBounds>,
                                 std::integral_constant<bool, NeedPad>) {
   constexpr int DimsLeft = 2;
-  constexpr auto d = 0;  // NOLINT
+  constexpr int d = 0;
   assert(channel_dim == 1);
   int64_t out_nchannels = out_shape[channel_dim];
   int64_t in_nchannels = in_shape[channel_dim];
@@ -133,13 +133,13 @@ void SliceKernelImplChannelLast(OutputType *output,
       output += pad_pixels_after * out_strides[d];
     }
   } else {  // NeedPad = false
-    assert(out_strides[1] == 1);
-    assert(in_strides[1] == 1);
-    for (int64_t i = 0; i < out_shape[0]; i++) {
-      auto *out_row = output + i * out_strides[0];
-      auto *in_row = input + (anchor[d] + i) * in_strides[0];
-      for (int64_t j = 0; j < out_shape[1]; j++) {
-        out_row[j] = clamp<OutputType>(in_row[anchor[1] + j]);
+    assert(out_strides[d + 1] == 1);
+    assert(in_strides[d + 1] == 1);
+    for (int64_t i = 0; i < out_shape[d]; i++) {
+      auto *out_row = output + i * out_strides[d];
+      auto *in_row = input + (anchor[d] + i) * in_strides[d];
+      for (int64_t j = 0; j < out_shape[d + 1]; j++) {
+        out_row[j] = clamp<OutputType>(in_row[anchor[d + 1] + j]);
       }
     }
   }
@@ -158,7 +158,7 @@ void SliceKernelImpl(OutputType *output,
                      std::integral_constant<int, 1>,
                      std::integral_constant<bool, OutOfBounds>,
                      std::integral_constant<bool, NeedPad>) {
-  constexpr auto d = 0;  // NOLINT
+  constexpr int d = 0;
   if (OutOfBounds) {
     for (int i = 0; i < out_shape[d]; i++) {
       output[i] = *fill_values;
@@ -218,7 +218,7 @@ void SliceKernelImpl(OutputType *output,
     return;
   }
 
-  constexpr auto d = 0;  // NOLINT
+  constexpr int d = 0;
   int in_idx = anchor[d];
   int out_idx = 0;
 
@@ -280,7 +280,7 @@ void SliceKernel(OutputType *output,
                  const TensorShape<Dims> &in_shape,
                  const TensorShape<Dims> &out_shape,
                  const OutputType *fill_values,
-                 int channel_dim = -1) {
+                 int channel_dim = -1) {  // negative if no channel dim or already processed
   bool need_pad = NeedPad(Dims, anchor.data(), in_shape.data(), out_shape.data());
   if (need_pad) {
     detail::SliceKernelImpl(

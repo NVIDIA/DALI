@@ -105,12 +105,12 @@ class SliceTest : public ::testing::Test {
       auto in_strides = GetStrides(in_shape);
       auto out_strides = GetStrides(out_shape);
 
-      size_t total_size = volume(out_shape);
+      int64_t total_size = volume(out_shape);
 
       int i_c = 0;
-      for (size_t out_idx = 0; out_idx < total_size; out_idx++) {
-        size_t idx = out_idx;
-        size_t in_idx = 0;
+      for (int64_t out_idx = 0; out_idx < total_size; out_idx++) {
+        int64_t idx = out_idx;
+        int64_t in_idx = 0;
         bool out_of_bounds = false;
         for (int d = 0; d < Dims; d++) {
           int i_d = idx / out_strides[d];
