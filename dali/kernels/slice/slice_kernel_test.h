@@ -308,34 +308,40 @@ struct ArgsGen_PadAlsoChDim_ChFirst {
 };
 
 using SLICE_TEST_TYPES = ::testing::Types<
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<int, 3>>,
-    SliceTestArgs<int, int, 2, 1, 6, SliceArgsGenerator_HalfAllDims<int, 2>>,
-    SliceTestArgs<int, int, 4, 1, 2, SliceArgsGenerator_HalfAllDims<int, 4>>,
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<int, 3, 0>>,
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<int, 3, 1>>,
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<int, 3, 2>>,
-    SliceTestArgs<float, float, 3, 1, 2, SliceArgsGenerator_HalfOneDim<float, 3, 2>>,
-    SliceTestArgs<int, float, 3, 1, 2, SliceArgsGenerator_HalfOneDim<float, 3, 2>>,
-    SliceTestArgs<float, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<int, 3, 2>>,
-    SliceTestArgs<int, int, 3, 10, 2, SliceArgsGenerator_HalfOneDim<int, 3, 2>>,
-    SliceTestArgs<int, int, 10, 1, 2, SliceArgsGenerator_HalfAllDims<int, 10>>,
-    SliceTestArgs<uint8_t, uint8_t, 3, 1, 2, SliceArgsGenerator_HalfAllDims<uint8_t, 3>>,
-    SliceTestArgs<uint8_t, uint8_t, 1, 1, 2, SliceArgsGenerator_HalfAllDims<uint8_t, 1>>,
-    SliceTestArgs<uint8_t, uint8_t, 2, 1, 1024, SliceArgsGenerator_HalfAllDims<uint8_t, 2>>,
-    SliceTestArgs<uint8_t, uint8_t, 2, 100, 1024, SliceArgsGenerator_HalfAllDims<uint8_t, 2>>,
-    SliceTestArgs<uint8_t, uint8_t, 3, 3, 256, SliceArgsGenerator_HalfAllDims<uint8_t, 3>>,
-    SliceTestArgs<int, int, 2, 1, 3, SliceArgsGenerator_ExtractCenterElement<int, 2>>,
-    SliceTestArgs<int, int, 2, 1, 20, SliceArgsGenerator_BiggerThanInputSlice<int, 2>>,
-    SliceTestArgs<int, int, 2, 1, 21, SliceArgsGenerator_LeftSideOutOfBounds<int, 2>>,
-    SliceTestArgs<int, int, 2, 1, 22, SliceArgsGenerator_RightSideOutOfBounds<int, 2>>,
-    SliceTestArgs<int, int, 3, 1, 20, SliceArgsGenerator_MultiChannelPad<int, 3>, 20, 20, 3>,
-    SliceTestArgs<int, int, 3, 1, 20, SliceArgsGenerator_PadAlsoChannelDim<int, 3>, 20, 20, 3>
+    SliceTestArgs<int, int, 3, 1, 2, ArgsGen_WholeTensor<int, 3>>,
+    SliceTestArgs<int, int, 2, 1, 6, ArgsGen_HalfAllDims<int, 2>>,
+    SliceTestArgs<int, int, 4, 1, 2, ArgsGen_HalfAllDims<int, 4>>,
+    SliceTestArgs<int, int, 3, 1, 2, ArgsGen_HalfOneDim<int, 3, 0>>,
+    SliceTestArgs<int, int, 3, 1, 2, ArgsGen_HalfOneDim<int, 3, 1>>,
+    SliceTestArgs<int, int, 3, 1, 2, ArgsGen_HalfOneDim<int, 3, 2>>,
+    SliceTestArgs<float, float, 3, 1, 2, ArgsGen_HalfOneDim<float, 3, 2>>,
+    SliceTestArgs<int, float, 3, 1, 2, ArgsGen_HalfOneDim<float, 3, 2>>,
+    SliceTestArgs<float, int, 3, 1, 2, ArgsGen_HalfOneDim<int, 3, 2>>,
+    SliceTestArgs<int, int, 3, 10, 2, ArgsGen_HalfOneDim<int, 3, 2>>,
+    SliceTestArgs<int, int, 10, 1, 2, ArgsGen_HalfAllDims<int, 10>>,
+    SliceTestArgs<uint8_t, uint8_t, 3, 1, 2, ArgsGen_HalfAllDims<uint8_t, 3>>,
+    SliceTestArgs<uint8_t, uint8_t, 1, 1, 2, ArgsGen_HalfAllDims<uint8_t, 1>>,
+    SliceTestArgs<uint8_t, uint8_t, 2, 1, 1024, ArgsGen_HalfAllDims<uint8_t, 2>>,
+    SliceTestArgs<uint8_t, uint8_t, 2, 100, 1024, ArgsGen_HalfAllDims<uint8_t, 2>>,
+    SliceTestArgs<uint8_t, uint8_t, 3, 3, 256, ArgsGen_HalfAllDims<uint8_t, 3>>,
+    SliceTestArgs<int, int, 2, 1, 3, ArgsGen_ExtractCenterElement<int, 2>>,
+    SliceTestArgs<int, int, 1, 1, 20, ArgsGen_BiggerThanInputSlice<int, 1>>,
+    SliceTestArgs<int, int, 2, 1, 20, ArgsGen_BiggerThanInputSlice<int, 2>>,
+    SliceTestArgs<int, int, 1, 1, 21, ArgsGen_LeftSideOutOfBounds<int, 1>>,
+    SliceTestArgs<int, int, 2, 1, 21, ArgsGen_LeftSideOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 1, 1, 22, ArgsGen_RightSideOutOfBounds<int, 1>>,
+    SliceTestArgs<int, int, 2, 1, 22, ArgsGen_RightSideOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 2, 1, 22, ArgsGen_CompletelyOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad<int, 3>, 20, 20, 3>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad_ChFirst<int, 3>, 3, 20, 20>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim<int, 3>, 20, 20, 3>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim_ChFirst<int, 3>, 3, 20, 20>
 >;
 
 using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
-    SliceTestArgs<int, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<float16, 3>>,
-    SliceTestArgs<float16, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<int, 3>>,
-    SliceTestArgs<float16, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<float16, 3>>
+    SliceTestArgs<int, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>,
+    SliceTestArgs<float16, int, 3, 1, 2, ArgsGen_WholeTensor<int, 3>>,
+    SliceTestArgs<float16, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>
 >;
 
 }  // namespace kernels
