@@ -745,6 +745,7 @@ class ReduceImplGPU {
   void InitStages() {
     const int nsamples = in_shape_.num_samples();
     const int in_dim = in_shape_.sample_dim();
+    stages_.clear();
 
     // short-circuit special cases
     if (in_dim == 1) {

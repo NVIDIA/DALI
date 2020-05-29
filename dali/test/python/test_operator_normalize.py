@@ -359,14 +359,15 @@ def _run_test(device, batch_size, dim, axes, axis_names, batch_norm,
 
     pipe = NormalizePipeline(device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale)
     pipe.build()
-    out = pipe.run()
-    pipe.check_batch(*[to_list(x) for x in out])
+    for iter in range(2):
+        out = pipe.run()
+        pipe.check_batch(*[to_list(x) for x in out])
 
 def axes2names(axes, layout='abcdefghijklmnopqrstuvwxyz'):
     return "".join([layout[axis] for axis in axes])
 
 def _test_up_to_5D_all_axis_combinations(device):
-    batch_size = 10
+    batch_size = 5
     for batch_norm in [False, True]:
         for dim in range(1, 6):
             for axes in all_axes(dim):
@@ -381,7 +382,7 @@ def test_cpu_up_to_5D_all_axis_combinations():
             yield x
 
 def test_types():
-    batch_size = 100
+    batch_size = 50
     dim = 4
     axes = [1, 2]
     out_type = np.uint8
