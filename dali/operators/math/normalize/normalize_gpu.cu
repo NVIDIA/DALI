@@ -82,19 +82,27 @@ inline void MaxInPlace(ToUpdate &inout, const Other &other) {
 
 using scratch_sizes_t = std::array<size_t, static_cast<size_t>(AllocType::Count)>;
 
-scratch_sizes_t GetScratchpadSnapshot(const PreallocatedScratchpad &s) {
-  scratch_sizes_t ss;
-  for (size_t i = 0; i < ss.size(); i++)
-    ss[i] = s.allocs[i].used();
-  return ss;
-}
-
-void RestoreScratchpadSnapshot(PreallocatedScratchpad &s, const scratch_sizes_t &ss) {
-  s.Clear();  // this doesn't clear the memory - just resets the usage counter to 0
-  for (size_t i = 0; i < ss.size(); i++) {
-    s.allocs[i].alloc(ss[i]);
+class ScratchpadSnapshot {
+ public:
+  explicit ScratchpadSnapshot(PreallocatedScratchpad &scratch) : scratch_(scratch) {
+    for (size_t i = 0; i < ss_.size(); i++)
+      ss_[i] = scratch_.allocs[i].used();
   }
-}
+
+  ~ScratchpadSnapshot() {
+    restore();
+  }
+
+ private:
+  void restore() {
+    scratch_.Clear();  // this doesn't clear the memory - just resets the usage counter to 0
+    for (size_t i = 0; i < ss_.size(); i++)
+      scratch_.allocs[i].alloc(ss_[i]);
+  }
+
+  scratch_sizes_t ss_;
+  PreallocatedScratchpad &scratch_;
+};
 
 template <int ndim>
 int64_t MaxSampleSize(const TensorListShape<ndim> &tls) {
@@ -225,24 +233,20 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
     stddev_gpu = scratch.AllocTensorList<AllocType::GPU, float>(param_shape_);
   }
 
-  // We can't just Clear() the scratchpad to reuse it, because temporary buffers are also
-  // stored there - so let's make a snapshot of current allocation state and restore it
-  // before launching each kernel.
-  auto scratch_snap = GetScratchpadSnapshot(scratch);
-
   if (ShouldCalcMean()) {
+    // We can't just Clear() the scratchpad to reuse it, because temporary buffers are also
+    // stored there - so let's make a snapshot of current allocation state and restore it
+    // after the kernel Run is done.
+    ScratchpadSnapshot snap(scratch);
     auto &mean_kernel = GetMeanKernel<float, InputType>();
-
-    RestoreScratchpadSnapshot(scratch, scratch_snap);
     mean_kernel.Run(ctx, mean_gpu, in_view);
   } else if (has_tensor_mean_) {
     kernels::copy(mean_gpu, mean_input_, stream);
   }
 
   if (ShouldCalcStdDev()) {
+    ScratchpadSnapshot snap(scratch);
     auto &stddev_kernel = GetInvStdDevKernel<float, InputType>();
-
-    RestoreScratchpadSnapshot(scratch, scratch_snap);
     stddev_kernel.Run(ctx, stddev_gpu, in_view, mean_gpu, degrees_of_freedom_, epsilon_);
   } else if (has_tensor_stddev_) {
     kernels::copy(stddev_gpu, stddev_input_, stream);
@@ -250,8 +254,8 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
 
   // finally, run the normalize kernel
   {
+    ScratchpadSnapshot snap(scratch);
     auto &norm_kernel = GetNormalizeKernel<OutputType, InputType>();
-    RestoreScratchpadSnapshot(scratch, scratch_snap);
 
     // if stddev is calculated internally, epsilon has already been included
     float epsilon = ShouldCalcStdDev() ? 0 : epsilon_;
