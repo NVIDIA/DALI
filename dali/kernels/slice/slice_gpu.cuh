@@ -21,6 +21,7 @@
 #include "dali/kernels/slice/slice_kernel_utils.h"
 #include "dali/kernels/kernel.h"
 #include "dali/core/common.h"
+#include "dali/core/fast_div.h"
 #include "dali/core/convert.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/error_handling.h"
@@ -39,9 +40,10 @@ struct SliceSampleDesc {
 
   const void *__restrict__ fill_values;
   int channel_dim;
+  bool need_pad;
 
   TensorShape<Dims> in_strides;
-  TensorShape<Dims> out_strides;
+  fast_div<uint64_t> out_strides[Dims];
 
   TensorShape<Dims> anchor;
   TensorShape<Dims> in_shape;
@@ -53,39 +55,91 @@ struct BlockDesc {
   int64_t size;
 };
 
+/**
+ * @brief Simplified algorithm when no padding is necessary
+ * @remarks `in` already refers to the slice anchor start
+ */
 template <int Dims, typename OutputType, typename InputType>
-__device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
-                          const int64_t *out_strides, const int64_t *in_strides,
-                          const int64_t *anchor, const int64_t *in_shape,
-                          const OutputType *__restrict__ fill_values, int channel_dim,
-                          size_t offset, size_t block_end) {
-  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && anchor[Dims - 1] == 0 &&
-      channel_dim != Dims - 1) {
+__device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__restrict__ in,
+                               const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
+                               int64_t offset, int64_t block_end) {
+  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1]) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
-    SliceFunc<NextDims>(out, in, out_strides, in_strides, anchor, in_shape, fill_values,
-                        channel_dim, offset, block_end);
+    SliceFuncNoPad<NextDims, OutputType, InputType>(out, in, out_strides, in_strides, offset, block_end);
     return;
   }
 
   for (; offset < block_end; offset += blockDim.x) {
-    int64_t idx = offset;
-    int64_t out_idx = idx;
-    int64_t in_idx = 0;
-    int i_c = 0;
-    bool out_of_range = false;
+    uint64_t idx = offset;
+    uint64_t out_idx = idx;
+    uint64_t in_idx = 0;
     for (int d = 0; d < Dims; d++) {
-      int i_d = idx / out_strides[d];
-      idx %= out_strides[d];
-      if (d == channel_dim)
-        i_c = i_d;
-
-      int in_i_d = anchor[d] + i_d;
-      out_of_range |= in_i_d < 0 || in_i_d >= in_shape[d];
-      if (!out_of_range)
-        in_idx += in_i_d * in_strides[d];
+      int i_d = div_mod(idx, idx, out_strides[d]);
+      in_idx += i_d * in_strides[d];
     }
     in_idx += idx;  // remaining dims have equal strides
-    out[out_idx] = out_of_range ? fill_values[i_c] : clamp<OutputType>(in[in_idx]);
+    out[out_idx] = clamp<OutputType>(in[in_idx]);
+  }
+}
+
+DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_extent) {
+  // check idx < 0 and idx >= data_extent at once
+  return static_cast<uint64_t>(idx) >= static_cast<uint64_t>(data_extent);
+}
+
+
+/**
+ * @brief General algorithm that allows for padding in any dimension
+ * @remarks `in` refers to the beginning of the input (not the slice anchor)
+ */
+template <int Dims, typename OutputType, typename InputType, bool AllDims = true>
+__device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
+                          const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
+                          const int64_t *anchor, const int64_t *in_shape,
+                          const OutputType *__restrict__ fill_values, int channel_dim,
+                          int64_t offset, int64_t block_end) {
+  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && anchor[Dims - 1] == 0 &&
+      channel_dim != Dims - 1) {
+    const int NextDims = Dims > 1 ? Dims - 1 : 1;
+    SliceFunc<NextDims, OutputType, InputType, false>(out, in, out_strides, in_strides, anchor,
+                                                      in_shape, fill_values, channel_dim, offset,
+                                                      block_end);
+    return;
+  }
+
+  for (; offset < block_end; offset += blockDim.x) {
+    uint64_t idx = offset;
+    uint64_t out_idx = idx;
+    uint64_t in_idx = 0;
+    int i_c = 0;
+    bool out_of_bounds = false;
+
+    // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
+    // because know the stride is 1
+    for (int d = 0; d < Dims - (AllDims ? 1 : 0); d++) {
+      int i_d = div_mod(idx, idx, out_strides[d]);
+      if (d == channel_dim)
+        i_c = i_d;
+      int in_i_d = anchor[d] + i_d;
+      out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
+      if (!out_of_bounds)
+        in_idx += in_i_d * in_strides[d];
+    }
+
+    // Here we do one last bounds check for the last dimension (if we didn't in the main loop)
+    if (AllDims) {
+      constexpr int d = Dims - 1;
+      int i_d = idx; idx = 0;  // We know that out_strides[d] is 1
+      if (d == channel_dim)
+        i_c = i_d;
+      int in_i_d = anchor[d] + i_d;
+      out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
+      if (!out_of_bounds)
+        in_idx += in_i_d * in_strides[d];
+    }
+
+    in_idx += idx;  // nothing happens in remaining dims
+    out[out_idx] = out_of_bounds ? fill_values[i_c] : clamp<OutputType>(in[in_idx]);
   }
 }
 
@@ -97,10 +151,20 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDes
   auto sample = samples[sampleIdx];
   auto *out = static_cast<OutputType*>(sample.out);
   auto *in = static_cast<const InputType*>(sample.in);
+  auto *out_strides = sample.out_strides;
+  auto *in_strides = sample.in_strides.data();
+  auto *anchor = sample.anchor.data();
+  auto *in_shape = sample.in_shape.data();
   auto *fill_values = static_cast<const OutputType*>(sample.fill_values);
-  SliceFunc<Dims>(out, in, sample.out_strides.data(), sample.in_strides.data(),
-                  sample.anchor.data(), sample.in_shape.data(), fill_values, sample.channel_dim,
-                  offset, block_end);
+  auto channel_dim = sample.channel_dim;
+  if (sample.need_pad) {
+    SliceFunc<Dims>(out, in, out_strides, in_strides, anchor, in_shape, fill_values, channel_dim,
+                    offset, block_end);
+  } else {
+    for (int d = 0; d < Dims; d++)
+      in += anchor[d] * in_strides[d];
+    SliceFuncNoPad<Dims>(out, in, out_strides, in_strides, offset, block_end);
+  }
 }
 
 }  // namespace detail
@@ -199,7 +263,9 @@ class SliceGPU {
       const auto anchor = slice_args[i].anchor;
       auto &sample_desc = sample_descs_cpu[i];
       sample_desc.in_strides = GetStrides(in_shape);
-      sample_desc.out_strides = GetStrides(out_shape);
+      auto out_strides_tmp = GetStrides(out_shape);
+      for (int d = 0; d < Dims; d++)
+        sample_desc.out_strides[d] = fast_div<uint64_t>(out_strides_tmp[d]);
       sample_desc.anchor = anchor;
       sample_desc.in_shape = in_shape;
       sample_desc.in = in.tensor_data(i);
@@ -209,6 +275,7 @@ class SliceGPU {
       // fill values points to gpu memory
       sample_desc.fill_values = fill_values_gpu + i * nfill_values_;
       sample_desc.channel_dim = nfill_values_ > 1 ? slice_args[i].channel_dim : -1;
+      sample_desc.need_pad = NeedPad(Dims, anchor, in_shape, out_shape);
     }
 
     int64_t block_idx = 0;
