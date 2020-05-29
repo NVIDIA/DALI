@@ -58,7 +58,7 @@ void copy(const TensorView<StorageOut, TOut, NDimIn>& out,
 /**
  * @brief Copy in to out, merging contiguous samples.
  *
- * Contiguous samples are merged to reduce number of copies issuead and, at the same time,
+ * Contiguous samples are merged to reduce number of copies issued and, at the same time,
  * allow for non-contiguous data.
  * The function does not do full coalescing - samples are not sorted to discover order
  *
@@ -91,7 +91,7 @@ void copy(const TensorListView<StorageOut, TOut, NDimOut> &out,
       o++;
       continue;
     }
-    if (in.data[i] != in_start + in_len || out.data[i] != out_start + out_len) {
+    if (in.data[i] != in_start + in_len || out.data[o] != out_start + out_len) {
       // discontinuity detected
       if (in_len < out_len) {
         assert(in.data[i] != in_start + in_len);
