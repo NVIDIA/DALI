@@ -51,8 +51,8 @@ struct SliceSampleDesc {
 
 struct BlockDesc {
   int sampleIdx;
-  int64_t offset;
-  int64_t size;
+  uint64_t offset;
+  uint64_t size;
 };
 
 /**
@@ -62,10 +62,11 @@ struct BlockDesc {
 template <int Dims, typename OutputType, typename InputType>
 __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__restrict__ in,
                                const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
-                               int64_t offset, int64_t block_end) {
+                               uint64_t offset, uint64_t block_end) {
   if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1]) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
-    SliceFuncNoPad<NextDims, OutputType, InputType>(out, in, out_strides, in_strides, offset, block_end);
+    SliceFuncNoPad<NextDims, OutputType, InputType>(out, in, out_strides, in_strides, offset,
+                                                    block_end);
     return;
   }
 
@@ -97,7 +98,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
                           const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
                           const int64_t *anchor, const int64_t *in_shape,
                           const OutputType *__restrict__ fill_values, int channel_dim,
-                          int64_t offset, int64_t block_end) {
+                          uint64_t offset, uint64_t block_end) {
   if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && anchor[Dims - 1] == 0 &&
       channel_dim != Dims - 1) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
@@ -110,44 +111,46 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
   for (; offset < block_end; offset += blockDim.x) {
     uint64_t idx = offset;
     uint64_t out_idx = idx;
-    uint64_t in_idx = 0;
-    int i_c = 0;
-    bool out_of_bounds = false;
 
     // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
     // because know the stride is 1
-    for (int d = 0; d < Dims - (AllDims ? 1 : 0); d++) {
-      int i_d = div_mod(idx, idx, out_strides[d]);
-      if (d == channel_dim)
-        i_c = i_d;
-      int in_i_d = anchor[d] + i_d;
-      out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
-      if (!out_of_bounds)
-        in_idx += in_i_d * in_strides[d];
+    int i_d[Dims];
+    for (int d = 0; d < Dims - AllDims; d++) {
+      i_d[d] = div_mod(idx, idx, out_strides[d]);
     }
 
-    // Here we do one last bounds check for the last dimension (if we didn't in the main loop)
+    // Here we handle the last dimension (if we didn't in the main loop)
     if (AllDims) {
+      // We know that out_strides[d] is 1
       constexpr int d = Dims - 1;
-      int i_d = idx; idx = 0;  // We know that out_strides[d] is 1
-      if (d == channel_dim)
-        i_c = i_d;
-      int in_i_d = anchor[d] + i_d;
-      out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
-      if (!out_of_bounds)
-        in_idx += in_i_d * in_strides[d];
+      i_d[d] = idx;
+      idx = 0;
     }
 
-    in_idx += idx;  // nothing happens in remaining dims
-    out[out_idx] = out_of_bounds ? fill_values[i_c] : clamp<OutputType>(in[in_idx]);
+    uint64_t in_idx = 0;
+    bool out_of_bounds = false;
+    for (int d = 0; d < Dims && !out_of_bounds; d++)
+      out_of_bounds |= is_out_of_bounds(anchor[d] + i_d[d], in_shape[d]);
+
+    OutputType out_val;
+    if (out_of_bounds) {
+      int i_c = channel_dim >= 0 ? i_d[channel_dim] : 0;
+      out_val = fill_values[i_c];
+    } else {
+      for (int d = 0; d < Dims && !out_of_bounds; d++)
+        in_idx += (i_d[d] + anchor[d]) * in_strides[d];
+      in_idx += idx;  // nothing happens in the remaining dims
+      out_val = clamp<OutputType>(in[in_idx]);
+    }
+    out[out_idx] = out_val;
   }
 }
 
 template <typename OutputType, typename InputType, int Dims>
 __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
-  int64_t offset = blocks[blockIdx.x].offset + threadIdx.x;
-  int64_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
+  uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x;
+  uint64_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
   auto sample = samples[sampleIdx];
   auto *out = static_cast<OutputType*>(sample.out);
   auto *in = static_cast<const InputType*>(sample.in);
@@ -263,9 +266,7 @@ class SliceGPU {
       const auto anchor = slice_args[i].anchor;
       auto &sample_desc = sample_descs_cpu[i];
       sample_desc.in_strides = GetStrides(in_shape);
-      auto out_strides_tmp = GetStrides(out_shape);
-      for (int d = 0; d < Dims; d++)
-        sample_desc.out_strides[d] = fast_div<uint64_t>(out_strides_tmp[d]);
+      CalcStrides(sample_desc.out_strides, out_shape);
       sample_desc.anchor = anchor;
       sample_desc.in_shape = in_shape;
       sample_desc.in = in.tensor_data(i);
@@ -280,10 +281,10 @@ class SliceGPU {
 
     int64_t block_idx = 0;
     for (int i = 0; i < num_samples; i++) {
-      int64_t offset = 0;
-      int64_t remaining = sample_sizes[i];
+      uint64_t offset = 0;
+      uint64_t remaining = sample_sizes[i];
       while (remaining > 0) {
-        int64_t size = remaining < kBlockSize ? remaining : kBlockSize;
+        uint64_t size = remaining < kBlockSize ? remaining : kBlockSize;
         block_descs_cpu[block_idx++] = {i, offset, size};
         remaining -= size;
         offset += size;
