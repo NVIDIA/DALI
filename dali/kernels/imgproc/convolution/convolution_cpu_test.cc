@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <chrono>
 #include <cmath>
 #include <complex>
 #include <tuple>
@@ -29,112 +30,108 @@ namespace dali {
 namespace kernels {
 
 template <typename T>
-struct CyclicPixelWrapperTest : public ::testing::Test {};
+struct CyclicWindowWrapperTest : public ::testing::Test {};
 
-TYPED_TEST_SUITE_P(CyclicPixelWrapperTest);
+TYPED_TEST_SUITE_P(CyclicWindowWrapperTest);
 
-template <int num_channels_, bool has_channels_>
-struct cpw_params {
-  static constexpr int num_channels = num_channels_;
-  static constexpr bool has_channels = has_channels_;
+template <int num_lanes_>
+struct cww_params {
+  static constexpr int num_lanes = num_lanes_;
 };
 
-using CyclicPixelWrapperValues =
-    ::testing::Types<cpw_params<1, true>, cpw_params<3, true>, cpw_params<1, false>>;
+using CyclicWindowWrapperValues = ::testing::Types<cww_params<1>, cww_params<3>, cww_params<16>>;
 
-TYPED_TEST_P(CyclicPixelWrapperTest, FillAndCycle) {
+TYPED_TEST_P(CyclicWindowWrapperTest, FillAndCycle) {
   constexpr int size = 6;
-  constexpr int num_channels = TypeParam::num_channels;
-  constexpr bool has_channels = TypeParam::has_channels;
-  int tmp_buffer[size * num_channels];  // NOLINT
-  int input_buffer[size * num_channels];  // NOLINT
-  for (int i = 0; i < size * num_channels; i++) {
+  constexpr int num_lanes = TypeParam::num_lanes;
+  int tmp_buffer[size * num_lanes];    // NOLINT
+  int input_buffer[size * num_lanes];  // NOLINT
+  for (int i = 0; i < size * num_lanes; i++) {
     input_buffer[i] = i;
     tmp_buffer[i] = -1;
   }
-  CyclicPixelWrapper<int, has_channels> cpw(tmp_buffer, size, num_channels);
-  EXPECT_EQ(0, cpw.Size());
+  CyclicWindowWrapper<int, 16> cww(tmp_buffer, size, num_lanes);
+  EXPECT_EQ(0, cww.Size());
   for (int i = 0; i < size; i++) {
-    cpw.PushPixel(input_buffer + i * num_channels);
-    EXPECT_EQ(tmp_buffer + i * num_channels, cpw.GetPixelOffset(i));
-    for (int c = 0; c < num_channels; c++) {
-      EXPECT_EQ(input_buffer[i * num_channels + c], cpw.GetPixelOffset(i)[c]);
+    cww.PushElement(input_buffer + i * num_lanes);
+    EXPECT_EQ(tmp_buffer + i * num_lanes, cww.GetElementOffset(i));
+    for (int c = 0; c < num_lanes; c++) {
+      EXPECT_EQ(input_buffer[i * num_lanes + c], cww.GetElementOffset(i)[c]);
     }
   }
   for (int i = 0; i < size; i++) {
-    cpw.PopPixel();
-    cpw.PushPixel(input_buffer + i * num_channels);
+    cww.PopElement();
+    cww.PushElement(input_buffer + i * num_lanes);
     for (int j = 0; j < size; j++) {
       // we're starting at i + 1 as we did already one Pop & Push operation
       int element = (i + 1 + j) % size;
-      EXPECT_EQ(tmp_buffer + element * num_channels, cpw.GetPixelOffset(j));
-      for (int c = 0; c < num_channels; c++) {
-        EXPECT_EQ(input_buffer[element * num_channels + c], cpw.GetPixelOffset(j)[c]);
+      EXPECT_EQ(tmp_buffer + element * num_lanes, cww.GetElementOffset(j));
+      for (int c = 0; c < num_lanes; c++) {
+        EXPECT_EQ(input_buffer[element * num_lanes + c], cww.GetElementOffset(j)[c]);
       }
     }
   }
 }
 
 void baseline_dot(span<int> result, span<const int> input, span<const int> window, int in_offset) {
-  int num_channels = result.size();
+  int num_lanes = result.size();
   int num_elements = window.size();
-  ASSERT_EQ(input.size(), num_channels * num_elements);
-  for (int c = 0; c < num_channels; c++) {
+  ASSERT_EQ(input.size(), num_lanes * num_elements);
+  for (int c = 0; c < num_lanes; c++) {
     result[c] = 0;
     for (int i = 0; i < num_elements; i++) {
       int in_elem = (i + in_offset) % num_elements;
-      result[c] += window[i] * input[in_elem * num_channels + c];
+      result[c] += window[i] * input[in_elem * num_lanes + c];
     }
   }
 }
 
-TYPED_TEST_P(CyclicPixelWrapperTest, DotProduct) {
+TYPED_TEST_P(CyclicWindowWrapperTest, DotProduct) {
   constexpr int size = 6;
-  constexpr int num_channels = TypeParam::num_channels;
-  constexpr bool has_channels = TypeParam::has_channels;
-  int tmp_buffer[size * num_channels];  // NOLINT
-  int input_buffer[size * num_channels];  // NOLINT
-  int window[size];  // NOLINT
-  for (int i = 0; i < size * num_channels; i++) {
+  constexpr int num_lanes = TypeParam::num_lanes;
+  int tmp_buffer[size * num_lanes];    // NOLINT
+  int input_buffer[size * num_lanes];  // NOLINT
+  int window[size];                    // NOLINT
+  for (int i = 0; i < size * num_lanes; i++) {
     input_buffer[i] = i;
     tmp_buffer[i] = -1;
   }
   for (int i = 0; i < size; i++) {
     window[i] = i;
   }
-  int baseline[num_channels], result[num_channels];
-  for (int c = 0; c < num_channels; c++) {
+  int baseline[num_lanes], result[num_lanes];
+  for (int c = 0; c < num_lanes; c++) {
     baseline[c] = 0;
     for (int i = 0; i < size; i++) {
-      baseline[c] += window[i] * input_buffer[i * num_channels + c];
+      baseline[c] += window[i] * input_buffer[i * num_lanes + c];
     }
   }
 
-  CyclicPixelWrapper<int, has_channels> cpw(tmp_buffer, size, num_channels);
+  CyclicWindowWrapper<int, 16> cww(tmp_buffer, size, num_lanes);
   for (int i = 0; i < size; i++) {
-    cpw.PushPixel(input_buffer + i * num_channels);
+    cww.PushElement(input_buffer + i * num_lanes);
   }
-  cpw.CalculateDot(result, window);
+  cww.CalculateDot(result, window);
   baseline_dot(make_span(baseline), make_span(input_buffer), make_span(window), 0);
-  for (int c = 0; c < num_channels; c++) {
+  for (int c = 0; c < num_lanes; c++) {
     EXPECT_EQ(baseline[c], result[c]);
   }
   for (int i = 0; i < size; i++) {
-    cpw.PopPixel();
-    cpw.PushPixel(input_buffer + i * num_channels);
-    cpw.CalculateDot(result, window);
+    cww.PopElement();
+    cww.PushElement(input_buffer + i * num_lanes);
+    cww.CalculateDot(result, window);
     // again we start here at i + 1 offset
     baseline_dot(make_span(baseline), make_span(input_buffer), make_span(window), i + 1);
-    for (int c = 0; c < num_channels; c++) {
+    for (int c = 0; c < num_lanes; c++) {
       EXPECT_EQ(baseline[c], result[c]);
     }
   }
 }
 
-REGISTER_TYPED_TEST_SUITE_P(CyclicPixelWrapperTest, FillAndCycle, DotProduct);
+REGISTER_TYPED_TEST_SUITE_P(CyclicWindowWrapperTest, FillAndCycle, DotProduct);
 
-INSTANTIATE_TYPED_TEST_SUITE_P(CyclicPixelWrapper, CyclicPixelWrapperTest,
-                               CyclicPixelWrapperValues);
+INSTANTIATE_TYPED_TEST_SUITE_P(CyclicWindowWrapper, CyclicWindowWrapperTest,
+                               CyclicWindowWrapperValues);
 
 template <typename Out, typename In, typename W>
 void BaselineConvolveAxis(Out *out, const In *in, const W *window, int len, int r, int channel_num,
@@ -173,18 +170,24 @@ void BaselineConvolve(const TensorView<StorageCPU, Out, ndim> &out,
   }
 }
 
-template <int ndim_, bool has_channels_, int axis_, int window_size_>
+template <int ndim_, bool has_channels_, int axis_, int window_size_, typename InType_,
+          bool in_place_>
 struct convolution_params {
   static constexpr int ndim = ndim_;
   static constexpr int baseline_ndim = ndim + (has_channels_ ? 0 : 1);
   static constexpr bool has_channels = has_channels_;
   static constexpr int axis = axis_;
   static constexpr int window_size = window_size_;
+  static constexpr bool in_place = in_place_;
+  using InType = InType_;
+  static_assert(!in_place_ || std::is_same<InType, float>::value,
+                "Input type must be float if you want to test in place transformation.");
 };
 
 template <typename T>
 struct ConvolutionCpuKernelTest : public ::testing::Test {
-  using Kernel = ConvolutionCpu<float, uint8_t, float, T::ndim, T::axis, T::has_channels>;
+  using Kernel =
+      ConvolutionCpu<float, typename T::InType, float, T::ndim, T::axis, T::has_channels>;
 
   TensorShape<T::ndim> GetShape() {
     if (T::has_channels) {
@@ -220,7 +223,6 @@ struct ConvolutionCpuKernelTest : public ::testing::Test {
 
     input_.reshape(uniform_list_shape<T::ndim>(1, GetShape()));
     in_ = input_.cpu()[0];
-    baseline_in_ = {in_.data, GetBaselineShape()};
 
     ConstantFill(in_, 0);
 
@@ -228,11 +230,18 @@ struct ConvolutionCpuKernelTest : public ::testing::Test {
     UniformRandomFill(in_, rng, 0, 255);
 
     output_.reshape(uniform_list_shape<T::ndim>(1, GetShape()));
+    if (T::in_place) {
+      out_ = {reinterpret_cast<float *>(in_.data), in_.shape};  // so the compiler doesn't complain
+    } else {
+      out_ = output_.cpu()[0];
+      ConstantFill(out_, -1);
+    }
+    baseline_input_.reshape(uniform_list_shape<T::baseline_ndim>(1, GetBaselineShape()));
     baseline_output_.reshape(uniform_list_shape<T::baseline_ndim>(1, GetBaselineShape()));
-    out_ = output_.cpu()[0];
+    baseline_in_ = baseline_input_.cpu()[0];
     baseline_out_ = baseline_output_.cpu()[0];
+    memcpy(baseline_in_.data, in_.data, volume(in_.shape) * sizeof(typename T::InType));
 
-    ConstantFill(out_, -1);
     ConstantFill(baseline_out_, -1);
   }
 
@@ -240,15 +249,15 @@ struct ConvolutionCpuKernelTest : public ::testing::Test {
     KernelContext ctx;
     Kernel kernel;
 
-    auto req = kernel.Setup(ctx, in_, k_win_);
+    auto req = kernel.Setup(ctx, in_.shape, k_win_.num_elements());
     // this is painful
     ScratchpadAllocator scratch_alloc;
     scratch_alloc.Reserve(req.scratch_sizes);
     auto scratchpad = scratch_alloc.GetScratchpad();
     ctx.scratchpad = &scratchpad;
 
-    kernel.Run(ctx, out_, in_, k_win_);
     BaselineConvolve(baseline_out_, baseline_in_, k_win_, T::axis, T::window_size / 2);
+    kernel.Run(ctx, out_, in_, k_win_);
 
     // for validation we need the same shape
     TensorView<StorageCPU, float, T::ndim> baseline_out_reshaped = {baseline_out_.data, out_.shape};
@@ -256,13 +265,14 @@ struct ConvolutionCpuKernelTest : public ::testing::Test {
   }
 
   TestTensorList<float, 1> kernel_window_;
-  TestTensorList<uint8_t, T::ndim> input_;
+  TestTensorList<typename T::InType, T::ndim> input_;
+  TestTensorList<typename T::InType, T::baseline_ndim> baseline_input_;
   TestTensorList<float, T::ndim> output_;
   TestTensorList<float, T::baseline_ndim> baseline_output_;
 
   TensorView<StorageCPU, float, 1> k_win_;
-  TensorView<StorageCPU, uint8_t, T::ndim> in_;
-  TensorView<StorageCPU, uint8_t, T::baseline_ndim> baseline_in_;
+  TensorView<StorageCPU, typename T::InType, T::ndim> in_;
+  TensorView<StorageCPU, typename T::InType, T::baseline_ndim> baseline_in_;
   TensorView<StorageCPU, float, T::ndim> out_;
   TensorView<StorageCPU, float, T::baseline_ndim> baseline_out_;
 
@@ -273,13 +283,33 @@ struct ConvolutionCpuKernelTest : public ::testing::Test {
 
 TYPED_TEST_SUITE_P(ConvolutionCpuKernelTest);
 
-using ConvolutionTestValues =
-    ::testing::Types<convolution_params<1, false, 0, 3>, convolution_params<2, true, 0, 3>,
-                     convolution_params<2, false, 0, 3>, convolution_params<2, false, 1, 3>,
-                     convolution_params<3, true, 0, 3>, convolution_params<3, true, 1, 3>,
-                     convolution_params<3, false, 1, 3>, convolution_params<3, false, 1, 7>,
-                     convolution_params<3, false, 1, 11>, convolution_params<3, false, 1, 21>,
-                     convolution_params<3, false, 1, 101>>;
+using ConvolutionTestValues = ::testing::Types<convolution_params<1, false, 0, 3, uint8_t, false>,
+                                               convolution_params<1, false, 0, 21, uint8_t, false>,
+                                               convolution_params<1, false, 0, 51, uint8_t, false>,
+                                               convolution_params<2, true, 0, 3, uint8_t, false>,
+                                               convolution_params<2, true, 0, 21, uint8_t, false>,
+                                               convolution_params<2, true, 0, 51, uint8_t, false>,
+
+                                               convolution_params<1, false, 0, 3, float, true>,
+                                               convolution_params<1, false, 0, 21, float, true>,
+                                               convolution_params<1, false, 0, 51, float, true>,
+                                               convolution_params<2, true, 0, 3, float, true>,
+                                               convolution_params<2, true, 0, 21, float, true>,
+                                               convolution_params<2, true, 0, 51, float, true>,
+
+                                               convolution_params<2, false, 0, 3, uint8_t, false>,
+                                               convolution_params<2, false, 1, 3, uint8_t, false>,
+                                               convolution_params<3, true, 0, 3, uint8_t, false>,
+                                               convolution_params<3, true, 1, 3, uint8_t, false>,
+                                               convolution_params<3, false, 1, 3, uint8_t, false>,
+                                               convolution_params<3, false, 1, 7, uint8_t, false>,
+                                               convolution_params<3, false, 1, 11, uint8_t, false>,
+                                               convolution_params<3, false, 1, 21, uint8_t, false>,
+                                               convolution_params<3, false, 1, 101, uint8_t, false>,
+
+                                               convolution_params<3, false, 1, 3, float, true>,
+                                               convolution_params<3, false, 1, 21, float, true>,
+                                               convolution_params<3, false, 1, 101, float, true>>;
 
 TYPED_TEST_P(ConvolutionCpuKernelTest, DoConvolution) {
   this->RunTest();
