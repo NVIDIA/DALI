@@ -222,15 +222,7 @@ class Loader {
   }
 
   // Give the size of the data accessed through the Loader
-  Index Size() {
-    if (!loading_flag_) {
-      PrepareMetadata();
-    }
-    return SizeImpl();
-  }
-
-  // Give the size of the data accessed externally from python
-  Index SizePadded(bool consider_padding = true) {
+  Index Size(bool consider_padding = false) {
     if (!loading_flag_) {
       PrepareMetadata();
     }
@@ -241,7 +233,7 @@ class Loader {
     }
   }
 
-  int GetShardNumber() {
+  int GetNumShards() {
     return num_shards_;
   }
 

@@ -163,9 +163,9 @@ class DataReader : public Operator<Backend> {
 
   ReaderMeta GetReaderMeta() const override {
     ReaderMeta ret;
-    ret.epoch_size = loader_->SizePadded(false);
-    ret.epoch_size_padded = loader_->SizePadded(true);
-    ret.number_of_shards = loader_->GetShardNumber();
+    ret.epoch_size = loader_->Size(false);
+    ret.epoch_size_padded = loader_->Size(true);
+    ret.number_of_shards = loader_->GetNumShards();
     ret.shard_id = loader_->GetShardId();
     ret.pad_last_batch = loader_->PadLastBatch();
     ret.stick_to_shard = loader_->StickToShard();

@@ -115,7 +115,7 @@ class _DaliBaseIterator(object):
         assert self._size != 0, "Size cannot be 0"
         assert self._size > 0 or (self._size < 0 and (len(pipelines) == 1 or reader_name)), "Negative size is supported only for a single pipeline"
         assert not reader_name or (reader_name and self._size < 0), "When reader_name is provided, size should not be set"
-        assert not reader_name or (reader_name and last_batch_padded != False), "When reader_name is provided, last_batch_padded should not be set"
+        assert not reader_name or (reader_name and last_batch_padded == False), "When reader_name is provided, last_batch_padded should not be set"
         if self._size < 0 and not reader_name:
             self._auto_reset = False
             self._fill_last_batch = False
