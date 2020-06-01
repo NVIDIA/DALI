@@ -334,7 +334,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 for batch, to_copy in zip(self._data_batches, left):
                     batch = batch.copy()
                     for cat in self.output_map:
-                        batch[cat] = batch[cat][0:to_copy]
+                        batch[cat] = lod_tensor_clip(batch[cat], to_copy)
                     output.append(batch)
                 return output
 
@@ -361,8 +361,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 output[-1] = output[-1].copy()
                 for cat in self.output_map:
                     lod_tensor = output[-1][cat]
-                    output[-1][cat] = lod_tensor_clip(lod_tensor,
-                                                    data_from_last_gpu)
+                    output[-1][cat] = lod_tensor_clip(lod_tensor, data_from_last_gpu)
                 return output
 
         return self._data_batches
