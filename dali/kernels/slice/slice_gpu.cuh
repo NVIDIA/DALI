@@ -146,7 +146,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
   }
 }
 
-template <typename OutputType, typename InputType, int Dims>
+template <typename OutputType, typename InputType, int Dims, bool SupportPad>
 __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
   uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x;
@@ -160,9 +160,16 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDes
   auto *in_shape = sample.in_shape.data();
   auto *fill_values = static_cast<const OutputType*>(sample.fill_values);
   auto channel_dim = sample.channel_dim;
-  if (sample.need_pad) {
-    SliceFunc<Dims>(out, in, out_strides, in_strides, anchor, in_shape, fill_values, channel_dim,
-                    offset, block_end);
+  if (SupportPad) {
+    bool need_pad = sample.need_pad;
+    if (need_pad) {
+      SliceFunc<Dims>(out, in, out_strides, in_strides, anchor, in_shape, fill_values, channel_dim,
+                      offset, block_end);
+    } else {
+      for (int d = 0; d < Dims; d++)
+        in += anchor[d] * in_strides[d];
+      SliceFuncNoPad<Dims>(out, in, out_strides, in_strides, offset, block_end);
+    }
   } else {
     for (int d = 0; d < Dims; d++)
       in += anchor[d] * in_strides[d];
@@ -263,6 +270,7 @@ class SliceGPU {
     detail::BlockDesc *block_descs_cpu =
         context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
 
+    bool any_padded_sample = false;
     std::vector<int64_t> sample_sizes(in.size());
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);
@@ -281,6 +289,7 @@ class SliceGPU {
       sample_desc.fill_values = fill_values_gpu + i * nfill_values_;
       sample_desc.channel_dim = nfill_values_ > 1 ? slice_args[i].channel_dim : -1;
       sample_desc.need_pad = NeedPad(Dims, anchor, in_shape, out_shape);
+      any_padded_sample |= sample_desc.need_pad;
     }
 
     int64_t block_idx = 0;
@@ -301,8 +310,13 @@ class SliceGPU {
         context.scratchpad->ToGPU(context.gpu.stream, make_span(block_descs_cpu, block_count_));
 
     const auto grid = block_count_;
-    detail::SliceKernel<OutputType, InputType, Dims>
-      <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
+
+    if (any_padded_sample)
+      detail::SliceKernel<OutputType, InputType, Dims, true>
+        <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
+    else
+      detail::SliceKernel<OutputType, InputType, Dims, false>
+        <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
   }
 
  private:
