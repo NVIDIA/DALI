@@ -138,7 +138,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
       out_val = fill_values[i_c];
     } else {
       for (int d = 0; d < Dims && !out_of_bounds; d++)
-        in_idx += (i_d[d] + anchor[d]) * in_strides[d];
+        in_idx += i_d[d] * in_strides[d];
       in_idx += idx;  // nothing happens in the remaining dims
       out_val = clamp<OutputType>(in[in_idx]);
     }
@@ -156,23 +156,14 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDes
   auto *in = static_cast<const InputType*>(sample.in);
   auto *out_strides = sample.out_strides;
   auto *in_strides = sample.in_strides.data();
-  auto *anchor = sample.anchor.data();
-  auto *in_shape = sample.in_shape.data();
-  auto *fill_values = static_cast<const OutputType*>(sample.fill_values);
-  auto channel_dim = sample.channel_dim;
-  if (SupportPad) {
-    bool need_pad = sample.need_pad;
-    if (need_pad) {
-      SliceFunc<Dims>(out, in, out_strides, in_strides, anchor, in_shape, fill_values, channel_dim,
-                      offset, block_end);
-    } else {
-      for (int d = 0; d < Dims; d++)
-        in += anchor[d] * in_strides[d];
-      SliceFuncNoPad<Dims>(out, in, out_strides, in_strides, offset, block_end);
-    }
+  if (SupportPad && sample.need_pad) {
+    auto *anchor = sample.anchor.data();
+    auto *in_shape = sample.in_shape.data();
+    auto *fill_values = static_cast<const OutputType*>(sample.fill_values);
+    auto channel_dim = sample.channel_dim;
+    SliceFunc<Dims>(out, in, out_strides, in_strides, anchor, in_shape, fill_values, channel_dim,
+                    offset, block_end);
   } else {
-    for (int d = 0; d < Dims; d++)
-      in += anchor[d] * in_strides[d];
     SliceFuncNoPad<Dims>(out, in, out_strides, in_strides, offset, block_end);
   }
 }
@@ -281,8 +272,14 @@ class SliceGPU {
       CalcStrides(sample_desc.out_strides, out_shape);
       sample_desc.anchor = anchor;
       sample_desc.in_shape = in_shape;
-      sample_desc.in = in.tensor_data(i);
+
+      const InputType *in_data = in.tensor_data(i);
+      // `sample_desc.in` is expected to point to the slice anchor
+      for (int d = 0; d < Dims; d++)
+        in_data += anchor[d] * sample_desc.in_strides[d];
+
       sample_desc.out = out.tensor_data(i);
+      sample_desc.in = in_data;
       sample_sizes[i] = volume(out_shape);
 
       // fill values points to gpu memory
@@ -304,10 +301,12 @@ class SliceGPU {
       }
     }
 
-    detail::SliceSampleDesc<Dims> *sample_descs =
-        context.scratchpad->ToGPU(context.gpu.stream, make_span(sample_descs_cpu, num_samples));
-    detail::BlockDesc *block_descs =
-        context.scratchpad->ToGPU(context.gpu.stream, make_span(block_descs_cpu, block_count_));
+    detail::SliceSampleDesc<Dims> *sample_descs;
+    detail::BlockDesc *block_descs;
+    std::tie(sample_descs, block_descs) =
+        context.scratchpad->ToContiguousGPU(context.gpu.stream,
+                                            make_cspan(sample_descs_cpu, num_samples),
+                                            make_cspan(block_descs_cpu, block_count_));
 
     const auto grid = block_count_;
 
