@@ -191,21 +191,25 @@ class SliceGPU {
 
     nfill_values_ = 0;
     for (const auto& args : slice_args) {
-      if (nfill_values_ == 0)
+      if (nfill_values_ == 0) {
         nfill_values_ = args.fill_values.size();
-      else
-        DALI_ENFORCE(nfill_values_ == args.fill_values.size(),
-          "The number of fill values should be the same for all the samples");
+      } else {
+        if (nfill_values_ != args.fill_values.size())
+          throw std::invalid_argument(
+              "The number of fill values should be the same for all the samples");
+      }
     }
     if (nfill_values_ == 0) {
       default_fill_values_ = true;
       nfill_values_ = 1;
     } else if (nfill_values_ > 1) {
       for (const auto& args : slice_args) {
-        DALI_ENFORCE(args.channel_dim >= 0 && args.channel_dim < Dims,
-          "Channel dim must be valid for multi-channel fill values");
-        DALI_ENFORCE(nfill_values_ == args.shape[args.channel_dim],
-          "The number of fill values should match the number of channels in the output slice");
+        if (args.channel_dim < 0 || args.channel_dim >= Dims)
+          throw std::invalid_argument(
+              "Channel dim must be valid for multi-channel fill values");
+        if (nfill_values_ != args.shape[args.channel_dim])
+          throw std::invalid_argument(
+              "The number of fill values should match the number of channels in the output slice");
       }
     }
 

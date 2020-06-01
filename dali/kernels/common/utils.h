@@ -43,7 +43,7 @@ void CalcStrides(Shape &strides, const Shape& shape) {
 template <typename OutStrides, typename Shape>
 DALI_HOST_DEV
 void CalcStrides(OutStrides &out_strides, const Shape& shape) {
-  Shape strides = shape;
+  Shape strides = shape;  // strides has the same size as shape
   CalcStrides(strides, shape);
   for (int d = 0; d < static_cast<int>(strides.size()); d++)
     out_strides[d] = strides[d];
