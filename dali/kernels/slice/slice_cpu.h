@@ -67,7 +67,6 @@ void SliceKernelImplChannelLast(OutputType *output,
                                 int channel_dim,  // negative if no channel dim or already processed
                                 std::integral_constant<bool, OutOfBounds>,
                                 std::integral_constant<bool, NeedPad>) {
-  constexpr int DimsLeft = 2;
   constexpr int d = 0;
   assert(channel_dim == 1);
   int64_t out_nchannels = out_shape[channel_dim];

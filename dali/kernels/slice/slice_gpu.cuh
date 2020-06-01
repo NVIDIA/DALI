@@ -74,6 +74,8 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
     uint64_t idx = offset;
     uint64_t out_idx = idx;
     uint64_t in_idx = 0;
+
+    #pragma unroll
     for (int d = 0; d < Dims; d++) {
       int i_d = div_mod(idx, idx, out_strides[d]);
       in_idx += i_d * in_strides[d];
@@ -114,35 +116,34 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
 
     // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
     // because know the stride is 1
-    int i_d[Dims];
+    int i_c = 0;
+    int i_d;
+    bool out_of_bounds = false;
+    uint64_t in_idx = 0;
+
+    #pragma unroll
     for (int d = 0; d < Dims - AllDims; d++) {
-      i_d[d] = div_mod(idx, idx, out_strides[d]);
+      i_d = div_mod(idx, idx, out_strides[d]);
+      if (d == channel_dim)
+        i_c = i_d;
+      out_of_bounds |= is_out_of_bounds(anchor[d] + i_d, in_shape[d]);
+      if (!out_of_bounds)
+        in_idx += i_d * in_strides[d];
     }
 
     // Here we handle the last dimension (if we didn't in the main loop)
     if (AllDims) {
-      // We know that out_strides[d] is 1
       constexpr int d = Dims - 1;
-      i_d[d] = idx;
-      idx = 0;
+      i_d = idx;  // We know that out_strides[d] is 1
+      if (d == channel_dim)
+        i_c = i_d;
+      out_of_bounds |= is_out_of_bounds(anchor[d] + i_d, in_shape[d]);
+      if (!out_of_bounds)
+        in_idx += i_d;  // We know that in_strides[d] is 1
     }
 
-    uint64_t in_idx = 0;
-    bool out_of_bounds = false;
-    for (int d = 0; d < Dims && !out_of_bounds; d++)
-      out_of_bounds |= is_out_of_bounds(anchor[d] + i_d[d], in_shape[d]);
-
-    OutputType out_val;
-    if (out_of_bounds) {
-      int i_c = channel_dim >= 0 ? i_d[channel_dim] : 0;
-      out_val = fill_values[i_c];
-    } else {
-      for (int d = 0; d < Dims && !out_of_bounds; d++)
-        in_idx += i_d[d] * in_strides[d];
-      in_idx += idx;  // nothing happens in the remaining dims
-      out_val = clamp<OutputType>(in[in_idx]);
-    }
-    out[out_idx] = out_val;
+    // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
+    out[out_idx] = out_of_bounds ? __ldg(&fill_values[i_c]) : clamp<OutputType>(in[in_idx]);
   }
 }
 
@@ -184,8 +185,6 @@ class SliceGPU {
     KernelRequirements req;
     ScratchpadEstimator se;
     auto num_samples = in.size();
-    se.add<detail::SliceSampleDesc<Dims>>(AllocType::Host, num_samples);
-    se.add<detail::SliceSampleDesc<Dims>>(AllocType::GPU, num_samples);
 
     nfill_values_ = 0;
     for (const auto& args : slice_args) {
@@ -213,6 +212,9 @@ class SliceGPU {
 
     se.add<OutputType>(AllocType::Host, num_samples * nfill_values_);
     se.add<OutputType>(AllocType::GPU, num_samples * nfill_values_);
+
+    se.add<detail::SliceSampleDesc<Dims>>(AllocType::Host, num_samples);
+    se.add<detail::SliceSampleDesc<Dims>>(AllocType::GPU, num_samples);
 
     std::vector<int64_t> sample_sizes;
     sample_sizes.reserve(slice_args.size());
@@ -254,6 +256,7 @@ class SliceGPU {
     }
     OutputType *fill_values_gpu = context.scratchpad->ToGPU(
         context.gpu.stream, make_span(fill_values_cpu, num_samples * nfill_values_));
+    CUDA_CALL(cudaGetLastError());
 
     // Host memory
     detail::SliceSampleDesc<Dims> *sample_descs_cpu =
@@ -307,15 +310,16 @@ class SliceGPU {
         context.scratchpad->ToContiguousGPU(context.gpu.stream,
                                             make_cspan(sample_descs_cpu, num_samples),
                                             make_cspan(block_descs_cpu, block_count_));
+    CUDA_CALL(cudaGetLastError());
 
     const auto grid = block_count_;
-
     if (any_padded_sample)
       detail::SliceKernel<OutputType, InputType, Dims, true>
         <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
     else
       detail::SliceKernel<OutputType, InputType, Dims, false>
         <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
+    CUDA_CALL(cudaGetLastError());
   }
 
  private:
