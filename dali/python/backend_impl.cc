@@ -1107,7 +1107,7 @@ PYBIND11_MODULE(backend_impl, m) {
         [](Pipeline* p, const std::string& op_name) {
           ReaderMeta meta = p->GetReaderMeta(op_name);
           DALI_ENFORCE(meta,
-              "Operator " + op_name + " does not expose valid metadata.");
+              "Operator " + op_name + "  not found or does not expose valid metadata.");
           return MetaToDict(meta);
         });
 

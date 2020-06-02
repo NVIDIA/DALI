@@ -691,6 +691,17 @@ Parameters
 
         Additionally, you can pass file name, so that serialized pipeline will be written there.
         The file contents will be overwritten
+
+        Parameters
+        ----------
+        define_graph : allable
+                If specified, this function will be used instead of member :meth:`define_graph`.
+                This parameter must not be set, if the pipeline outputs are specified with
+                :meth:`set_outputs`.
+        filename : str
+                File, from where serialized pipeline will be writeen.
+        kwargs : dict
+                Refer to Pipeline constructor for full list of arguments.
         """
         if not self._prepared:
             self._prepare_graph(define_graph)
