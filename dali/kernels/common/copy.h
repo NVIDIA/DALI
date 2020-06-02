@@ -104,7 +104,7 @@ void copy(const TensorListView<StorageOut, TOut, NDimOut> &out,
         continue;
       }
       assert(in_len == out_len && "Groups of contiguous samples must have equal length");
-      if (out_len)
+      if (out_len > 0)
         copy<StorageOut, StorageIn>(out_start, in_start, out_len * sizeof(TOut), stream);
       out_start = out.data[o];
       in_start = in.data[i];
@@ -112,7 +112,7 @@ void copy(const TensorListView<StorageOut, TOut, NDimOut> &out,
       out_len = 0;
     }
     in_len  += in_sample_size;
-    out_len += volume(out.shape.tensor_shape_span(o));
+    out_len += out_sample_size;
     i++;
     o++;
   }
@@ -132,7 +132,7 @@ void copy(const TensorListView<StorageOut, TOut, NDimOut> &out,
   assert(i == M && o == N);
   assert(in_len == out_len && "Groups of contiguous samples must have equal length");
 
-  if (out_len)
+  if (out_len > 0)
     copy<StorageOut, StorageIn>(out_start, in_start, out_len * sizeof(TOut), stream);
 }
 
