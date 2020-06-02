@@ -43,8 +43,7 @@ class COCOPipeline(Pipeline):
             ratio=True,
             ltrb=True,
             random_shuffle=False,
-            shuffle_after_epoch=True,
-            pad_last_batch=True)
+            shuffle_after_epoch=True)
 
         self.decode = ops.ImageDecoder(device="cpu", output_type=types.RGB)
 

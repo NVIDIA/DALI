@@ -70,7 +70,7 @@ def get_train_dali_loader(args, default_boxes, local_seed):
         train_pipe,
         ["images", "boxes", "labels"],
         reader_name="Reader",
-        fill_last_batch=False)
+        fill_last_batch=True)
 
     return train_loader
 
