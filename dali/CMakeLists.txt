@@ -68,13 +68,16 @@ target_link_libraries(dali PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 ################################################
 if (BUILD_TEST)
   add_subdirectory(test)
-  add_executable(dali_test.bin "${DALI_TEST_SRCS}")
+  add_executable(dali_test "${DALI_TEST_SRCS}")
 
-  target_link_libraries(dali_test.bin PUBLIC dali dali_core dali_kernels dali_operators ${DALI_LIBS} gtest)
-  target_link_libraries(dali_test.bin PRIVATE dynlink_cuda ${CUDART_LIB})
-  set_target_properties(dali_test.bin PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
+  target_link_libraries(dali_test PUBLIC dali dali_core dali_kernels dali_operators ${DALI_LIBS} gtest)
+  target_link_libraries(dali_test PRIVATE dynlink_cuda ${CUDART_LIB})
+  target_link_libraries(dali_test PRIVATE "-pie")
+  set_target_properties(dali_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
+  set_target_properties(dali_test PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(dali_test PROPERTIES OUTPUT_NAME "dali_test.bin")
 
-  add_check_gtest_target("check-dali-gtest" dali_test.bin ${TEST_BINARY_DIR})
+  add_check_gtest_target("check-dali-gtest" dali_test ${TEST_BINARY_DIR})
 endif()
 
 
@@ -127,7 +130,7 @@ add_custom_target(install_headers ALL
 
 # Process the DALI_INST_HDRS list
 foreach(INSTALL_HEADER ${DALI_INST_HDRS})
-  file(RELATIVE_PATH HEADER_RELATIVE ${CMAKE_SOURCE_DIR} ${INSTALL_HEADER})
+  file(RELATIVE_PATH HEADER_RELATIVE ${PROJECT_SOURCE_DIR} ${INSTALL_HEADER})
   add_custom_command(
     TARGET install_headers
     COMMAND install -D "${INSTALL_HEADER}" "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/${HEADER_RELATIVE}")
@@ -136,5 +139,5 @@ endforeach(INSTALL_HEADER)
 # Copy proper `include` dir
 add_custom_command(
   TARGET install_headers
-  COMMAND cp -r "${CMAKE_SOURCE_DIR}/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}"
+  COMMAND cp -r "${PROJECT_SOURCE_DIR}/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}"
 )

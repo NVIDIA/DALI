@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,252 +12,243 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #ifndef DALI_OPERATORS_IMAGE_COLOR_COLOR_TWIST_H_
 #define DALI_OPERATORS_IMAGE_COLOR_COLOR_TWIST_H_
 
-#include <vector>
 #include <memory>
-#include <cmath>
+#include <string>
+#include <vector>
+#include "dali/core/geom/mat.h"
+#include "dali/core/static_switch.h"
+#include "dali/core/tensor_shape_print.h"
+#include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
+#include "dali/kernels/kernel_manager.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
+namespace color {
 
-class ColorAugment {
- public:
-  static const int nDim = 4;
+/**
+ * Names of arguments
+ */
+const std::string kHue = "hue";                 // NOLINT
+const std::string kSaturation = "saturation";   // NOLINT
+const std::string kValue = "value";             // NOLINT
+const std::string kBrightness = "brightness";   // NOLINT
+const std::string kContrast = "contrast";       // NOLINT
+const std::string kOutputType = "dtype";        // NOLINT
 
-  virtual void operator() (float * matrix) = 0;
-  virtual void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) = 0;
+/**
+ * Color space conversion
+ */
+const mat3 Rgb2Yiq = {{
+                              {.299f, .587f, .114f},
+                              {.596f, -.274f, -.321f},
+                              {.211f, -.523f, .311f}
+                      }};
 
-  virtual ~ColorAugment() = default;
-};
+// Inversion of Rgb2Yiq, but pre-calculated, cause mat<> doesn't do inversion.
+const mat3 Yiq2Rgb = {{
+                              {1, .956f, .621f},
+                              {1, -.272f, -.647f},
+                              {1, -1.107f, 1.705f}
+                      }};
 
-class Brightness : public ColorAugment {
- public:
-  void operator() (float * matrix) override {
-    for (int i = 0; i < nDim - 1; ++i) {
-      for (int j = 0; j < nDim; ++j) {
-        matrix[i * nDim + j] *= brightness_;
-      }
-    }
-  }
 
-  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) override {
-    brightness_ = spec.GetArgument<float>("brightness", ws, i);
-  }
+/**
+ * Composes transformation matrix for hue
+ */
+inline mat3 hue_mat(float hue /* hue hue hue */ ) {
+  const float h_rad = hue * M_PI / 180;
+  mat3 ret = mat3::eye();  // rotation matrix
+  // Hue change in YIQ color space is a rotation along the Y axis
+  ret(1, 1) = cos(h_rad);
+  ret(2, 2) = cos(h_rad);
+  ret(1, 2) = sin(h_rad);
+  ret(2, 1) = -sin(h_rad);
+  return ret;
+}
 
- private:
-  float brightness_;
-};
 
-class Contrast : public ColorAugment {
- public:
-  void operator() (float * matrix) override {
-    for (int i = 0; i < nDim - 1; ++i) {
-      for (int j = 0; j < nDim - 1; ++j) {
-        matrix[i * nDim + j] *= contrast_;
-      }
-      matrix[i * nDim + nDim - 1] = matrix[i * nDim + nDim - 1] * contrast_ +
-                                    (1 - contrast_) * 128.f;
-    }
-  }
+/**
+ * Composes transformation matrix for saturation
+ */
+inline mat3 sat_mat(float saturation) {
+  mat3 ret = mat3::eye();
+  // In the YIQ color space, saturation change is a
+  // uniform scaling in IQ dimensions
+  ret(1, 1) = saturation;
+  ret(2, 2) = saturation;
+  return ret;
+}
 
-  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) override {
-    contrast_ = spec.GetArgument<float>("contrast", ws, i);
-  }
+}  // namespace color
 
- private:
-  float contrast_;
-};
 
-class Hue : public ColorAugment {
- public:
-  void operator() (float * matrix) override {
-    float temp[nDim*nDim];  // NOLINT(*)
-    for (int i = 0; i < nDim * nDim; ++i) {
-        temp[i] = matrix[i];
-    }
-    const float U = cos(hue_ * M_PI / 180.0);
-    const float V = sin(hue_ * M_PI / 180.0);
-
-    // Single matrix transform for both hue and saturation change. Matrix taken
-    // from https://beesbuzz.biz/code/hsv_color_transforms.php. Derived by
-    // transforming first to HSV, then do the modification, and transfom back to RGB.
-
-    const float const_mat[] = {.299, .587, .114, 0.0,
-                               .299, .587, .114, 0.0,
-                               .299, .587, .114, 0.0,
-                               .0,   .0,   .0,   1.0};
-
-    const float U_mat[] = { .701, -.587, -.114, 0.0,
-                           -.299,  .413, -.114, 0.0,
-                           -.300, -.588, .886,  0.0,
-                            .0,    .0,   .0,    0.0};
-
-    const float V_mat[] = { .168,   .330, -.497, 0.0,
-                           -.328,   .035,  .292, 0.0,
-                           1.25, -1.05,  -.203, 0.0,
-                            .0,    .0,    .0,   0.0};
-    // The last row stays the same so we update only nDim - 1 rows
-    for (int i = 0 ; i < nDim - 1; ++i) {
-      for (int j = 0; j < nDim; ++j) {
-        float sum = 0;
-        for (int k = 0; k < nDim; ++k) {
-          sum += temp[k * nDim + j] * (const_mat[i * nDim + k] +
-                                       U_mat[i * nDim + k] * U +
-                                       V_mat[i * nDim + k] * V);
-        }
-        matrix[i * nDim + j] = sum;
-      }
-    }
-  }
-
-  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) override {
-    hue_ = spec.GetArgument<float>("hue", ws, i);
-  }
-
- private:
-  float hue_;
-};
-
-class Saturation : public ColorAugment {
- public:
-  void operator() (float * matrix) override {
-    float temp[nDim*nDim];  // NOLINT(*)
-    for (int i = 0; i < nDim * nDim; ++i) {
-        temp[i] = matrix[i];
-    }
-
-    // Single matrix transform for both hue and saturation change. Matrix taken
-    // from https://beesbuzz.biz/code/hsv_color_transforms.php. Derived by
-    // transforming first to HSV, then do the modification, and transfom back to RGB.
-
-    const float const_mat[] = {.299, .587, .114, 0.0,
-                               .299, .587, .114, 0.0,
-                               .299, .587, .114, 0.0,
-                               .0,   .0,   .0,   1.0};
-
-    const float U_mat[] = { .701, -.587, -.114, 0.0,
-                           -.299,  .413, -.114, 0.0,
-                           -.300, -.588, .886,  0.0,
-                            .0,    .0,   .0,    0.0};
-
-    // The last row stays the same so we update only nDim - 1 rows
-    for (int i = 0 ; i < nDim - 1; ++i) {
-      for (int j = 0; j < nDim; ++j) {
-        float sum = 0;
-        for (int k = 0; k < nDim; ++k) {
-          sum += temp[k * nDim + j] * (const_mat[i * nDim + k] +
-                                       U_mat[i * nDim + k] * saturation_);
-        }
-        matrix[i * nDim + j] = sum;
-      }
-    }
-  }
-
-  void Prepare(Index i, const OpSpec &spec, const ArgumentWorkspace * ws) override {
-    saturation_ = spec.GetArgument<float>("saturation", ws, i);
-  }
-
- private:
-  float saturation_;
-};
 
 template <typename Backend>
 class ColorTwistBase : public Operator<Backend> {
  public:
-  static const int nDim = 4;
+  ~ColorTwistBase() override = default;
 
-  inline explicit ColorTwistBase(const OpSpec &spec) : Operator<Backend>(spec),
-                      C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
-    DALI_ENFORCE(C_ == 3, "Color transformation is implemented only for RGB images");
-  }
-
-  ~ColorTwistBase() override {
-    for (auto * a : augments_) {
-      delete a;
-    }
-  }
+  DISABLE_COPY_MOVE_ASSIGN(ColorTwistBase);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    return false;
-  }
-
-  void RunImpl(Workspace<Backend> &ws) override;
-
-  std::vector<ColorAugment*> augments_;
-  const int C_;
-
-  USE_OPERATOR_MEMBERS();
-  using Operator<Backend>::RunImpl;
-
- private:
-  void IdentityMatrix(float * matrix) {
-    for (int i = 0; i < nDim; ++i) {
-      for (int j = 0; j < nDim; ++j) {
-        if (i == j) {
-          matrix[i * nDim + j] = 1;
-        } else {
-          matrix[i * nDim + j] = 0;
-        }
-      }
+  explicit ColorTwistBase(const OpSpec &spec)
+          : Operator<Backend>(spec)
+          , output_type_arg_(spec.GetArgument<DALIDataType>(color::kOutputType))
+          , output_type_(DALI_NO_TYPE) {
+    if (std::is_same<Backend, GPUBackend>::value) {
+      kernel_manager_.Resize(1, 1);
+    } else {
+      kernel_manager_.Resize(num_threads_, batch_size_);
     }
   }
-};
 
-template <typename Backend>
-class BrightnessAdjust : public ColorTwistBase<Backend> {
- public:
-  inline explicit BrightnessAdjust(const OpSpec &spec) : ColorTwistBase<Backend>(spec) {
-    this->augments_.push_back(new Brightness());
+
+  bool CanInferOutputs() const override {
+    return true;
   }
 
-  ~BrightnessAdjust() override = default;
-};
+  void AcquireArguments(const workspace_t<Backend> &ws) {
+    if (this->spec_.ArgumentDefined(color::kHue)) {
+      this->GetPerSampleArgument(hue_, color::kHue, ws);
+    } else {
+      hue_ = std::vector<float>(batch_size_, 0);
+    }
 
-template <typename Backend>
-class ContrastAdjust : public ColorTwistBase<Backend> {
- public:
-  inline explicit ContrastAdjust(const OpSpec &spec) : ColorTwistBase<Backend>(spec) {
-    this->augments_.push_back(new Contrast());
+    if (this->spec_.ArgumentDefined(color::kSaturation)) {
+      this->GetPerSampleArgument(saturation_, color::kSaturation, ws);
+    } else {
+      saturation_ = std::vector<float>(batch_size_, 1);
+    }
+
+    if (this->spec_.ArgumentDefined(color::kValue)) {
+      this->GetPerSampleArgument(value_, color::kValue, ws);
+    } else {
+      value_ = std::vector<float>(batch_size_, 1);
+    }
+
+    if (this->spec_.ArgumentDefined(color::kBrightness)) {
+      this->GetPerSampleArgument(brightness_, color::kBrightness, ws);
+    } else {
+      brightness_ = std::vector<float>(batch_size_, 1);
+    }
+
+    if (this->spec_.ArgumentDefined(color::kContrast)) {
+      this->GetPerSampleArgument(contrast_, color::kContrast, ws);
+    } else {
+      contrast_ = std::vector<float>(batch_size_, 1);
+    }
+
+    auto in_type = ws.template InputRef<Backend>(0).type().id();
+    output_type_ =
+        output_type_arg_ != DALI_NO_TYPE
+        ? output_type_arg_
+        : in_type;
+
+    if (in_type == DALI_FLOAT16 || in_type == DALI_FLOAT || in_type == DALI_FLOAT64) {
+      half_range_ = 0.5f;
+    } else {
+      half_range_ = 128.f;
+    }
   }
 
-  ~ContrastAdjust() override = default;
-};
 
-template<typename Backend>
-class HueAdjust : public ColorTwistBase<Backend> {
- public:
-  inline explicit HueAdjust(const OpSpec &spec) : ColorTwistBase<Backend>(spec) {
-    this->augments_.push_back(new Hue());
+  /**
+   * @brief Creates transformation matrices based on given args
+   */
+  void DetermineTransformation(const workspace_t<Backend> &ws) {
+    using namespace color;  // NOLINT
+    AcquireArguments(ws);
+    assert(hue_.size() == saturation_.size() && hue_.size() == brightness_.size());
+    assert(hue_.size() == contrast_.size());
+    auto size = hue_.size();
+    tmatrices_.resize(size);
+    toffsets_.resize(size);
+    for (size_t i = 0; i < size; i++) {
+      tmatrices_[i] =
+               mat3(brightness_[i]) * mat3(contrast_[i]) *
+               Yiq2Rgb * hue_mat(hue_[i]) * sat_mat(saturation_[i]) * mat3(value_[i]) * Rgb2Yiq;
+      toffsets_[i] = (half_range_ - half_range_ * contrast_[i]) * brightness_[i];
+    }
   }
 
-  ~HueAdjust() override = default;
+  USE_OPERATOR_MEMBERS();
+  float half_range_;
+  std::vector<float> hue_, saturation_, value_, brightness_, contrast_;
+  std::vector<mat3> tmatrices_;
+  std::vector<vec3> toffsets_;
+  DALIDataType output_type_arg_, output_type_;
+  kernels::KernelManager kernel_manager_;
 };
 
-template<typename Backend>
-class SaturationAdjust : public ColorTwistBase<Backend> {
- public:
-  inline explicit SaturationAdjust(const OpSpec &spec) : ColorTwistBase<Backend>(spec) {
-    this->augments_.push_back(new Saturation());
-  }
 
-  ~SaturationAdjust() override = default;
+class ColorTwistCpu : public ColorTwistBase<CPUBackend> {
+ public:
+  explicit ColorTwistCpu(const OpSpec &spec) : ColorTwistBase(spec) {}
+
+  /*
+   * So that compiler wouldn't complain, that
+   * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl`
+   * is only partially overridden in class `dali::ColorTwistCpu`"
+   */
+  using Operator<CPUBackend>::RunImpl;
+
+  ~ColorTwistCpu() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(ColorTwistCpu);
+
+ protected:
+  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
+                 const workspace_t<CPUBackend> &ws) override;
+
+  void RunImpl(workspace_t<CPUBackend> &ws) override;
+
+ private:
+  template <typename Kernel, typename InputType>
+  TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input) {
+    kernels::KernelContext ctx;
+    TensorListShape<> sh = input.shape();
+    TensorListShape<> ret(sh.num_samples(), 3);
+    assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
+    for (int i = 0; i < sh.num_samples(); i++) {
+      const auto tvin = view<const InputType, 3>(input[i]);
+      const auto reqs = kernel_manager_.Setup<Kernel>(i, ctx, tvin, tmatrices_[i], toffsets_[i]);
+      const TensorListShape<> &out_sh = reqs.output_shapes[0];
+      ret.set_tensor_shape(i, out_sh.tensor_shape(0));
+    }
+    return ret;
+  }
 };
 
-template<typename Backend>
-class ColorTwistAdjust : public ColorTwistBase<Backend> {
- public:
-  inline explicit ColorTwistAdjust(const OpSpec &spec) : ColorTwistBase<Backend>(spec) {
-    this->augments_.push_back(new Hue());
-    this->augments_.push_back(new Saturation());
-    this->augments_.push_back(new Contrast());
-    this->augments_.push_back(new Brightness());
-  }
 
-  ~ColorTwistAdjust() override = default;
+class ColorTwistGpu : public ColorTwistBase<GPUBackend> {
+ public:
+  explicit ColorTwistGpu(const OpSpec &spec) : ColorTwistBase(spec) {}
+
+  ~ColorTwistGpu() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(ColorTwistGpu);
+
+ protected:
+  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
+                 const workspace_t<GPUBackend> &ws) override;
+
+  void RunImpl(workspace_t<GPUBackend> &ws) override;
+
+ private:
+  template <typename Kernel, typename InputType>
+  const TensorListShape<> &CallSetup(const DeviceWorkspace &ws, const TensorList<GPUBackend> &tl) {
+    kernels::KernelContext ctx;
+    ctx.gpu.stream = ws.stream();
+    const auto tvin = view<const InputType, 3>(tl);
+    const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, make_cspan(tmatrices_),
+                                                     make_cspan(toffsets_));
+    return reqs.output_shapes[0];
+  }
 };
 
 }  // namespace dali

@@ -55,8 +55,10 @@ bool ContainsCoords(const Shape &shape, const Position &pos) {
  * @brief Calculates flat index of a given element in the tensor
  * @remarks If pos has fewer dimensions than shape, the remaining offsets are assumed to be 0
  */
+DALI_NO_EXEC_CHECK
 template <typename Shape, typename Position>
-if_array_like<Position, ptrdiff_t> CalcOffset(const Shape &shape, const Position &pos) {
+DALI_HOST_DEV if_array_like<Position, ptrdiff_t> CalcOffset(const Shape &shape,
+                                                            const Position &pos) {
   ptrdiff_t ofs = pos[0];
   const int pos_dim = size(pos);
   const int shape_dim = size(shape);
@@ -75,7 +77,7 @@ if_array_like<Position, ptrdiff_t> CalcOffset(const Shape &shape, const Position
  * @brief Calculates the offset to a slice of the tensor
  */
 template <typename Shape>
-ptrdiff_t CalcOffset(const Shape &shape, const ptrdiff_t &index) {
+DALI_HOST_DEV ptrdiff_t CalcOffset(const Shape &shape, const ptrdiff_t &index) {
   ptrdiff_t ofs = index;
   const int shape_dim = size(shape);
   for (int i = 1; i < shape_dim; i++) {

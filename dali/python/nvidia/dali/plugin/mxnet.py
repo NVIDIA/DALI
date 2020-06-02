@@ -15,6 +15,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from nvidia.dali.backend import TensorGPU, TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import types
 import mxnet as mx
@@ -37,7 +38,7 @@ def _wait_to_write(arr):
         raise RuntimeError("Can only wait for NDArray")
     mx.base._LIB.MXNDArrayWaitToWrite(arr.handle)
 
-def feed_ndarray(dali_tensor, arr):
+def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     """
     Copy contents of DALI tensor to MXNet's NDArray.
 
@@ -47,6 +48,11 @@ def feed_ndarray(dali_tensor, arr):
                     Tensor from which to copy
     `arr` : mxnet.nd.NDArray
             Destination of the copy
+    `cuda_stream` : Any value that can be casted to cudaStream_t
+                    CUDA stream to be used for the copy
+                    (if not provided, an internal user stream will be selected)
+                    In most cases, using the default internal user stream or stream 0
+                    is expected.
     """
     # Wait until arr is no longer used by the engine
     _wait_to_write(arr)
@@ -57,7 +63,10 @@ def feed_ndarray(dali_tensor, arr):
     ptr = ctypes.c_void_p()
     mx.base._LIB.MXNDArrayGetData(arr.handle, ctypes.byref(ptr))
     # Copy data from DALI tensor to ptr
-    dali_tensor.copy_to_external(ptr)
+    if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
+        dali_tensor.copy_to_external(ptr, cuda_stream)
+    else:
+        dali_tensor.copy_to_external(ptr)
 
 class _DALIIteratorBase(mx.io.DataIter):
     """
@@ -202,13 +211,14 @@ class DALIGenericIterator(_DALIIteratorBase):
                  If False, the iterator will fail in case of change.
     last_batch_padded : bool, optional, default = False
                  Whether the last batch provided by DALI is padded with the last sample
-                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 or it just wraps up. In the conjunction with ``fill_last_batch`` it tells
                  if the iterator returning last batch with data only partially filled with
                  data from the current epoch is dropping padding samples or samples from
-                 the next epoch. If set to False next epoch will end sooner as data from
-                 it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one. For this happen, the option `pad_last_batch`
-                 in the reader need to be set to `True` as well.
+                 the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
+                 so the following code could use it to drop the data). If set to ``False`` next
+                 epoch will end sooner as data from it was consumed but dropped. If set to
+                 ``True`` next epoch would be the same length as the first one. For this to happen,
+                 the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
 
     Example
     -------
@@ -319,7 +329,6 @@ class DALIGenericIterator(_DALIIteratorBase):
             if self._data_batches[i][self._current_data_batch] is None:
                 mx_gpu_device = mx.gpu(self._pipes[i].device_id)
                 mx_cpu_device = mx.cpu(0)
-                from nvidia.dali.backend import TensorGPU
                 category_device = {key : [] for key in self._output_categories}
                 for category in self._output_categories:
                     for t in category_tensors[category]:
@@ -442,12 +451,14 @@ class DALIClassificationIterator(DALIGenericIterator):
                  If False, the iterator will fail in case of change.
     last_batch_padded : bool, optional, default = False
                  Whether the last batch provided by DALI is padded with the last sample
-                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 or it just wraps up. In the conjunction with ``fill_last_batch`` it tells
                  if the iterator returning last batch with data only partially filled with
                  data from the current epoch is dropping padding samples or samples from
-                 the next epoch. If set to False next epoch will end sooner as data from
-                 it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one.
+                 the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
+                 so the following code could use it to drop the data). If set to ``False`` next
+                 epoch will end sooner as data from it was consumed but dropped. If set to
+                 ``True`` next epoch would be the same length as the first one. For this to happen,
+                 the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
 
     Example
     -------
@@ -556,13 +567,14 @@ class DALIGluonIterator(_DALIIteratorBase):
                  exactly 'size' entries.
     last_batch_padded : bool, optional, default = False
                  Whether the last batch provided by DALI is padded with the last sample
-                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 or it just wraps up. In the conjunction with ``fill_last_batch`` it tells
                  if the iterator returning last batch with data only partially filled with
                  data from the current epoch is dropping padding samples or samples from
-                 the next epoch. If set to False next epoch will end sooner as data from
-                 it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one. For this happen, the option `pad_last_batch`
-                 in the reader need to be set to `True` as well.
+                 the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
+                 so the following code could use it to drop the data). If set to ``False`` next
+                 epoch will end sooner as data from it was consumed but dropped. If set to
+                 ``True`` next epoch would be the same length as the first one. For this to happen,
+                 the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
 
     Example
     -------
@@ -677,7 +689,6 @@ class DALIGluonIterator(_DALIIteratorBase):
     def _create_data_batch(self, output_elements, shapes, device_id):
         mx_gpu_device = mx.gpu(device_id)
         mx_cpu_device = mx.cpu(0)
-        from nvidia.dali.backend import TensorGPU
         new_batch = []
         for j, output_el in enumerate(output_elements):
             first_t = output_el if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG else output_el[0]

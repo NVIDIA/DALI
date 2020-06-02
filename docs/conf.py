@@ -71,9 +71,9 @@ else:
     option_nr = 0
 version = version + """<br/>
 Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {0}">
-    <option value="https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/"{1}>Current release</option>
-    <option value="https://docs.nvidia.com/deeplearning/sdk/dali-master-branch-user-guide/docs/"{2}>master (unstable)</option>
-    <option value="https://docs.nvidia.com/deeplearning/sdk/dali-archived/index.html">Older releases</option>
+    <option value="https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html"{1}>Current release</option>
+    <option value="https://docs.nvidia.com/deeplearning/dali/master-user-guide/docs/index.html"{2}>master (unstable)</option>
+    <option value="https://docs.nvidia.com/deeplearning/dali/archives/index.html">Older releases</option>
 </select>""".format(option_nr, release_opt, master_opt)
 
 # -- General configuration ---------------------------------------------------
@@ -143,7 +143,7 @@ html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 # documentation.
 #
 html_theme_options = {
-    'canonical_url': 'https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/',
+    'canonical_url': 'https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html',
     'collapse_navigation': False,
     'display_version': True,
     'logo_only': False,

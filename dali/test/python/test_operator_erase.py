@@ -208,7 +208,7 @@ def test_operator_erase_with_normalized_coords():
             ("HWC", (60, 80, 1), "WH", (10, 4), (50, 40), (10/80.0, 4/60.0), (50/80.0, 40/60.0), 0),
             ("XYZ", (60, 80, 3), "X", (4,), (7,), (4/60.0,), (7/60.0,), -10),]
 
-    for device in ['cpu']:
+    for device in ['cpu', 'gpu']:
         for batch_size in [1, 8]:
             for input_layout, input_shape, axis_names, anchor, shape, anchor_norm, shape_norm, fill_value in rois:
                 assert len(input_layout) == len(input_shape)

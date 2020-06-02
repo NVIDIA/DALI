@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc-aarch64-linux-gnu \
     g++-aarch64-linux-gnu \
     pkg-config \
+    libtool \
+    libtool-bin \
     && rm -rf /var/lib/apt/lists/*
 
 ENV REPO_DEBS="cuda-repo-ubuntu1604-10-0-local-10.0.117-410.38_1.0-1_amd64.deb"
@@ -146,37 +148,39 @@ ENV PKG_CONFIG_PATH=/usr/aarch64-linux-gnu/lib/pkgconfig
 
 # flac
 RUN FLAC_VERSION=1.3.3 && cd /tmp                                                    && \
-    wget http://downloads.xiph.org/releases/flac/flac-${FLAC_VERSION}.tar.xz         && \
-    tar -xf flac-$FLAC_VERSION.tar.xz                                                && \
-    rm flac-$FLAC_VERSION.tar.xz                                                     && \
+    wget https://github.com/xiph/flac/archive/${FLAC_VERSION}.tar.gz                 && \
+    tar -xf ${FLAC_VERSION}.tar.gz                                                   && \
+    rm -f  ${FLAC_VERSION}.tar.gz                                                    && \
     cd flac-$FLAC_VERSION                                                            && \
+    ./autogen.sh                                                                     && \
     ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
                                              --host=aarch64-unknown-linux-gnu --prefix=/usr/aarch64-linux-gnu/ \
                                              --disable-ogg && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
     cd /tmp && rm -rf flac-$FLAC_VERSION
 
 # libogg
 RUN OGG_VERSION=1.3.4 && cd /tmp                                                     && \
-    wget http://downloads.xiph.org/releases/ogg/libogg-${OGG_VERSION}.tar.gz         && \
-    tar -xf libogg-$OGG_VERSION.tar.gz                                               && \
-    rm libogg-$OGG_VERSION.tar.gz                                                    && \
-    cd libogg-$OGG_VERSION                                                           && \
+    wget https://github.com/xiph/ogg/releases/download/v1.3.4/libogg-${OGG_VERSION}.tar.gz && \
+    tar -xf libogg-${OGG_VERSION}.tar.gz                                             && \
+    rm -f libogg-${OGG_VERSION}.tar.gz                                               && \
+    cd libogg-${OGG_VERSION}                                                         && \
     ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
                                              --host=aarch64-unknown-linux-gnu --prefix=/usr/aarch64-linux-gnu/ && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
     cd /tmp && rm -rf libogg-$OGG_VERSION
 
 # libvorbis
 # Install after libogg
 RUN VORBIS_VERSION=1.3.6 && cd /tmp                                                   && \
-    wget http://downloads.xiph.org/releases/vorbis/libvorbis-${VORBIS_VERSION}.tar.xz && \
-    tar -xf libvorbis-$VORBIS_VERSION.tar.xz                                          && \
-    rm libvorbis-$VORBIS_VERSION.tar.xz                                               && \
-    cd libvorbis-$VORBIS_VERSION                                                      && \
+    wget https://github.com/xiph/vorbis/archive/v${VORBIS_VERSION}.tar.gz             && \
+    tar -xf v${VORBIS_VERSION}.tar.gz                                                 && \
+    rm -f  v${VORBIS_VERSION}.tar.gz                                                  && \
+    cd vorbis-$VORBIS_VERSION                                                         && \
+    ./autogen.sh                                                                      && \
     ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
                                              --host=aarch64-unknown-linux-gnu --prefix=/usr/aarch64-linux-gnu/ && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install  && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
     cd /tmp && rm -rf libvorbis-$VORBIS_VERSION
 
 # libsnd
@@ -189,7 +193,6 @@ RUN LIBSND_VERSION=1.0.28 && cd /tmp                                            
                                              --host=aarch64-unknown-linux-gnu --prefix=/usr/aarch64-linux-gnu/ && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                                  && \
     cd /tmp && rm -rf libsndfile-$LIBSND_VERSION
-
 
 VOLUME /dali
 

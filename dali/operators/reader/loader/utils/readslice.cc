@@ -192,6 +192,8 @@ void CopySliceKernel(Tensor<CPUBackend>& output,
       // tensor pointers
       Type *out_ptr = out_tensor.data;
       const Type *in_ptr = in_tensor.data;
+      SmallVector<Type, Dims> fill_vector = {0, };
+      const Type* fill_values = fill_vector.data();
 
       // launch kernel
       kernels::SliceKernel<Type, Type, Dims>(out_ptr,
@@ -199,7 +201,10 @@ void CopySliceKernel(Tensor<CPUBackend>& output,
                                              in_strides,
                                              out_strides,
                                              anchor_shape,
-                                             out_shape);
+                                             in_shape,
+                                             out_shape,
+                                             fill_values,
+                                             -1);
     ), DALI_FAIL(make_string("Number of dimensions not supported ", ndims)););  // NOLINT
   ), DALI_FAIL(make_string("Type not supported", in_type)););  // NOLINT
 }

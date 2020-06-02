@@ -11,9 +11,8 @@ NVIDIA DALI documentation
    .. warning::
       You are currently viewing unstable developer preview of the documentation.
       To see the documentation for the latest stable release, refer to:
-        * `Release Notes <https://docs.nvidia.com/deeplearning/sdk/dali-release-notes/index.html>`_
-        * `Installation Guide <https://docs.nvidia.com/deeplearning/sdk/dali-install-guide/index.html>`_
-        * `Developer Guide <https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/docs/index.html>`_ (stable version of this page)
+        * `Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes/index.html>`_
+        * `Developer Guide <https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html>`_ (stable version of this page)
 
 .. include:: ../README.rst
    :start-after: overview-begin-marker-do-not-remove
@@ -38,7 +37,7 @@ This library is open sourced and it is available in the `NVIDIA GitHub repositor
    api
    supported_ops
    advanced_topics
-   Release Notes <https://docs.nvidia.com/deeplearning/sdk/dali-release-notes/index.html>
+   Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes/index.html>
 
 Indices and tables
 ==================

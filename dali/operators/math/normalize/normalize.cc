@@ -92,6 +92,11 @@ samples in the batch.
     "unsigned output types.", 0.0f, false)
   .AddOptionalArg("scale", "The scaling factor applied to the output. Useful for integral "
     "output types", 1.0f, false)
+  .AddOptionalArg("epsilon", "A value added to the variance to avoid division by small numbers",
+    0.0f, false)
+  .AddOptionalArg("ddof", "Delta Degrees of Freedom for Bessel's correction. "
+    "The variance is estimated as ``sum(Xi - mean)**2 / (N - ddof)``. "
+    "This argument is ignored when externally supplied standard deviation is used.", 0, false)
   .AddOptionalArg("dtype", "Output type. When using integral types, use *shift* and *scale* to "
     "improve usage of the output type's dynamic range. If dtype is an integral type, out of range "
     "values are clamped, and non-integer values are rounded to nearest integer.", DALI_FLOAT);
@@ -142,10 +147,19 @@ void Normalize<CPUBackend>::FoldStdDev() {
   if (v == 0) {
     return;
   }
-  float rdiv = static_cast<float>(1.0 / v);
+  float rdiv = 0;
+  float scale = scale_;
+  if (v > degrees_of_freedom_) {
+    rdiv = static_cast<float>(1.0 / (v - degrees_of_freedom_));
+  } else {
+    if (epsilon_ == 0) {
+      rdiv = 1;
+      scale = 0;
+    }
+  }
   auto sample0 = make_tensor_cpu(inv_stddev_.mutable_tensor<float>(0), inv_stddev_.shape()[0]);
   auto elems = sample0.num_elements();
-  ScaleRSqrtKeepZero(sample0.data, elems, rdiv, scale_);
+  ScaleRSqrtKeepZero(sample0.data, elems, epsilon_, rdiv, scale);
 }
 
 template <>
@@ -192,7 +206,11 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   }
 
   if (has_scalar_stddev_) {
-    scalar_inv_stddev = scale_ / spec_.GetArgument<float>("stddev");
+    float scalar_stddev = spec_.GetArgument<float>("stddev");
+    if (epsilon_)  // add epsilon to variance
+      scalar_inv_stddev = scale_ * rsqrt(scalar_stddev*scalar_stddev + epsilon_);
+    else
+      scalar_inv_stddev = scale_ / scalar_stddev;
     if (!IsFullReduction()) {
       UniformFill(inv_stddev_, scalar_inv_stddev);
       inv_stddev_view = view<const float>(inv_stddev_);
@@ -206,7 +224,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   } else if (has_tensor_stddev_) {
     inv_stddev_.Resize(param_shape_);
     mutable_stddev = view<float>(inv_stddev_);
-    CalcInvStdDev(mutable_stddev, stddev_input_, scale_);
+    CalcInvStdDev(mutable_stddev, stddev_input_, epsilon_, scale_);
     inv_stddev_view = mutable_stddev;
   } else {
     assert(ShouldCalcStdDev());
@@ -277,7 +295,8 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
           // Reset per-sample values, but don't postprocess
           stddev.Run(true, false);
           // Fused postprocessing with inverse square root.
-          SumSquare2InvStdDev(mutable_stddev[i], data_shape_[i], scale_);
+          SumSquare2InvStdDev(mutable_stddev[i], data_shape_[i],
+                              degrees_of_freedom_, epsilon_, scale_);
           assert(sample_inv_stddev.data == mutable_stddev[i].data);
         }
       }

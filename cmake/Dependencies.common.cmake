@@ -41,6 +41,7 @@ if (BUILD_TEST)
   set(BUILD_GMOCK OFF CACHE INTERNAL "Build gmock submodule")
   check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/googletest EXCLUDE_FROM_ALL)
   include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/googletest/googletest/include)
+  set_target_properties(gtest PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
 ##################################################################
@@ -50,6 +51,7 @@ if (BUILD_BENCHMARK)
   set(BENCHMARK_ENABLE_TESTING OFF CACHE INTERNAL "Build benchmark testsuite")
   check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/benchmark EXCLUDE_FROM_ALL)
   include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/benchmark/include/benchmark)
+  set_target_properties(benchmark PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
 ##################################################################

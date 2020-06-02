@@ -56,10 +56,16 @@ class SliceTest : public ::testing::Test {
   static constexpr int Dims = TestArgs::Dims;
   static constexpr int NumSamples = TestArgs::NumSamples;
   static constexpr int DimSize = TestArgs::DimSize;
+  static constexpr int DimSize0 = TestArgs::DimSize0;
+  static constexpr int DimSize1 = TestArgs::DimSize1;
+  static constexpr int DimSize2 = TestArgs::DimSize2;
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
 
   void PrepareData(TestTensorList<InputType, Dims>& test_data) {
     std::vector<int> sample_dims(Dims, static_cast<int>(DimSize));
+    sample_dims[0] = DimSize0;
+    sample_dims[1] = DimSize1;
+    sample_dims[2] = DimSize2;
     TensorListShape<Dims> shape = uniform_list_shape<Dims>(NumSamples, sample_dims);
     test_data.reshape(shape);
 
@@ -69,19 +75,13 @@ class SliceTest : public ::testing::Test {
   }
 
   void PrepareExpectedOutput(TestTensorList<InputType, Dims>& input_data,
-                             std::vector<SliceArgs<Dims>>& slice_args,
+                             std::vector<SliceArgs<OutputType, Dims>>& slice_args,
                              TestTensorList<OutputType, Dims>& output_data) {
     auto in = input_data.cpu();
     std::vector<TensorShape<Dims>> output_shapes;
     for (int i = 0; i < in.size(); i++) {
-      auto in_sample_shape = in.tensor_shape(i);
       TensorShape<Dims> out_sample_shape(slice_args[i].shape);
       auto& anchor = slice_args[i].anchor;
-
-      for (int d = 0; d < Dims; d++) {
-        ASSERT_TRUE(anchor[d] >= 0 && (anchor[d] + out_sample_shape[d]) <= in_sample_shape[d]);
-      }
-
       output_shapes.push_back(out_sample_shape);
     }
     output_data.reshape(output_shapes);
@@ -94,26 +94,48 @@ class SliceTest : public ::testing::Test {
       const auto *in_tensor = in.tensor_data(i);
       auto *out_tensor = out.tensor_data(i);
 
+      int channel_dim = slice_args[i].channel_dim;
+      auto *fill_values = slice_args[i].fill_values.data();
+      int fill_values_size = slice_args[i].fill_values.size();
+      if (fill_values_size > 1) {
+        ASSERT_GE(channel_dim, 0);
+        ASSERT_EQ(fill_values_size, out_shape[channel_dim]);
+      }
+
       auto in_strides = GetStrides(in_shape);
       auto out_strides = GetStrides(out_shape);
 
-      size_t total_size = volume(out_shape);
-      for (size_t out_idx = 0; out_idx < total_size; out_idx++) {
-        size_t idx = out_idx;
-        size_t in_idx = 0;
+      int64_t total_size = volume(out_shape);
+
+      int i_c = 0;
+      for (int64_t out_idx = 0; out_idx < total_size; out_idx++) {
+        int64_t idx = out_idx;
+        int64_t in_idx = 0;
+        bool out_of_bounds = false;
         for (int d = 0; d < Dims; d++) {
           int i_d = idx / out_strides[d];
           idx = idx % out_strides[d];
-          in_idx += (anchor[d] + i_d) * in_strides[d];
+
+          if (d == channel_dim)
+            i_c = i_d;
+          out_of_bounds |= anchor[d] + i_d < 0;
+          out_of_bounds |= anchor[d] + i_d >= in_shape[d];
+          if (!out_of_bounds) {
+            in_idx += (anchor[d] + i_d) * in_strides[d];
+          }
         }
-        out_tensor[out_idx] = in_tensor[in_idx];
+
+        assert(i_c >= 0 && i_c < fill_values_size);
+        out_tensor[out_idx] =
+            out_of_bounds ? fill_values[i_c] : Convert<OutputType>(in_tensor[in_idx]);
       }
     }
   }
 
-  std::vector<SliceArgs<Dims>> GenerateArgs(const InListCPU<InputType, Dims>& input_tlv) {
+  std::vector<SliceArgs<OutputType, Dims>> GenerateArgs(
+      const InListCPU<InputType, Dims>& input_tlv) {
     ArgsGenerator generator;
-    std::vector<SliceArgs<Dims>> slice_args;
+    std::vector<SliceArgs<OutputType, Dims>> slice_args;
     for (int i = 0; i < NumSamples; i++) {
       auto shape = input_tlv.tensor_shape(i);
       slice_args.push_back(generator.Get(shape));
@@ -124,10 +146,10 @@ class SliceTest : public ::testing::Test {
   virtual void Run() = 0;
 };
 
-template <int Dims>
-struct SliceArgsGenerator_WholeTensor {
-  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<Dims> args;
+template <typename OutputType, int Dims>
+struct ArgsGen_WholeTensor {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
     for (int d = 0; d < Dims; d++) {
       args.anchor[d] = 0;
       args.shape[d] = input_shape[d];
@@ -136,10 +158,10 @@ struct SliceArgsGenerator_WholeTensor {
   }
 };
 
-template <int Dims>
-struct SliceArgsGenerator_HalfAllDims {
-  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<Dims> args;
+template <typename OutputType, int Dims>
+struct ArgsGen_HalfAllDims {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
     for (int d = 0; d < Dims; d++) {
       args.anchor[d] = input_shape[d] / 2;
       args.shape[d] = input_shape[d] / 2;
@@ -148,10 +170,10 @@ struct SliceArgsGenerator_HalfAllDims {
   }
 };
 
-template <int Dims, int ExtractDim>
-struct SliceArgsGenerator_HalfOneDim {
-  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<Dims> args;
+template <typename OutputType, int Dims, int ExtractDim>
+struct ArgsGen_HalfOneDim {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
     for (int d = 0; d < Dims; d++) {
       args.anchor[d] = 0;
       args.shape[d] = (d == ExtractDim) ? input_shape[d] / 2 : input_shape[d];
@@ -160,10 +182,10 @@ struct SliceArgsGenerator_HalfOneDim {
   }
 };
 
-template <int Dims>
-struct SliceArgsGenerator_ExtractCenterElement {
-  SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<Dims> args;
+template <typename OutputType, int Dims>
+struct ArgsGen_ExtractCenterElement {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
     for (int d = 0; d < Dims; d++) {
       args.anchor[d] = input_shape[d] / 2;
       args.shape[d] = 1;
@@ -172,29 +194,156 @@ struct SliceArgsGenerator_ExtractCenterElement {
   }
 };
 
+template <typename OutputType, int Dims>
+struct ArgsGen_BiggerThanInputSlice {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
+    for (int d = 0; d < Dims; d++) {
+      args.anchor[d] = -input_shape[d] / 2;
+      args.shape[d] = input_shape[d] * 2;
+    }
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims>
+struct ArgsGen_LeftSideOutOfBounds{
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
+    for (int d = 0; d < Dims; d++) {
+      args.anchor[d] = -input_shape[d] / 2;
+      args.shape[d] = input_shape[d];
+    }
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims>
+struct ArgsGen_RightSideOutOfBounds{
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
+    for (int d = 0; d < Dims; d++) {
+      args.anchor[d] = input_shape[d] / 2;
+      args.shape[d] = input_shape[d];
+    }
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims>
+struct ArgsGen_CompletelyOutOfBounds{
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, Dims> args;
+    for (int d = 0; d < Dims; d++) {
+      args.anchor[d] = 4 * input_shape[d];
+      args.shape[d] = input_shape[d] / 2;
+    }
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelPad {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = -input_shape[0] / 2;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = 0;
+    args.shape[0] = 2 * input_shape[0];
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = input_shape[2];
+    args.fill_values = {100, 110, 120};
+    args.channel_dim = 2;
+    return args;
+  }
+};
+
+
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelPad_ChFirst {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = 0;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = -input_shape[2] / 2;
+    args.shape[0] = input_shape[0];
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = 2 * input_shape[2];
+    args.fill_values = {100, 110, 120};
+    args.channel_dim = 0;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_PadAlsoChDim {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = -input_shape[0] / 2;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = 0;
+    args.shape[0] = 2 * input_shape[0];
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = input_shape[2] + 1;
+    args.fill_values = {100, 110, 120, 128};
+    args.channel_dim = 2;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_PadAlsoChDim_ChFirst {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = 0;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = -input_shape[2] / 2;
+    args.shape[0] = input_shape[0] + 1;
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = 2 * input_shape[2];
+    args.fill_values = {100, 110, 120, 128};
+    args.channel_dim = 0;
+    return args;
+  }
+};
+
 using SLICE_TEST_TYPES = ::testing::Types<
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
-    SliceTestArgs<int, int, 4, 1, 2, SliceArgsGenerator_HalfAllDims<4>>,
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 0>>,
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 1>>,
-    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
-    SliceTestArgs<float, float, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
-    SliceTestArgs<int, float, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
-    SliceTestArgs<float, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
-    SliceTestArgs<int, int, 3, 10, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
-    SliceTestArgs<int, int, 10, 1, 2, SliceArgsGenerator_HalfAllDims<10>>,
-    SliceTestArgs<unsigned char, unsigned char, 3, 1, 2, SliceArgsGenerator_HalfAllDims<3>>,
-    SliceTestArgs<unsigned char, unsigned char, 1, 1, 2, SliceArgsGenerator_HalfAllDims<1>>,
-    SliceTestArgs<unsigned char, unsigned char, 2, 1, 1024, SliceArgsGenerator_HalfAllDims<2>>,
-    SliceTestArgs<unsigned char, unsigned char, 2, 100, 1024, SliceArgsGenerator_HalfAllDims<2>>,
-    SliceTestArgs<unsigned char, unsigned char, 3, 3, 256, SliceArgsGenerator_HalfAllDims<3>>,
-    SliceTestArgs<int, int, 2, 1, 3, SliceArgsGenerator_ExtractCenterElement<2>>
+    SliceTestArgs<int, int, 3, 1, 2, ArgsGen_WholeTensor<int, 3>>,
+    SliceTestArgs<int, int, 2, 1, 6, ArgsGen_HalfAllDims<int, 2>>,
+    SliceTestArgs<int, int, 4, 1, 2, ArgsGen_HalfAllDims<int, 4>>,
+    SliceTestArgs<int, int, 3, 1, 2, ArgsGen_HalfOneDim<int, 3, 0>>,
+    SliceTestArgs<int, int, 3, 1, 2, ArgsGen_HalfOneDim<int, 3, 1>>,
+    SliceTestArgs<int, int, 3, 1, 2, ArgsGen_HalfOneDim<int, 3, 2>>,
+    SliceTestArgs<float, float, 3, 1, 2, ArgsGen_HalfOneDim<float, 3, 2>>,
+    SliceTestArgs<int, float, 3, 1, 2, ArgsGen_HalfOneDim<float, 3, 2>>,
+    SliceTestArgs<float, int, 3, 1, 2, ArgsGen_HalfOneDim<int, 3, 2>>,
+    SliceTestArgs<int, int, 3, 10, 2, ArgsGen_HalfOneDim<int, 3, 2>>,
+    SliceTestArgs<int, int, 10, 1, 2, ArgsGen_HalfAllDims<int, 10>>,
+    SliceTestArgs<uint8_t, uint8_t, 3, 1, 2, ArgsGen_HalfAllDims<uint8_t, 3>>,
+    SliceTestArgs<uint8_t, uint8_t, 1, 1, 2, ArgsGen_HalfAllDims<uint8_t, 1>>,
+    SliceTestArgs<uint8_t, uint8_t, 2, 1, 1024, ArgsGen_HalfAllDims<uint8_t, 2>>,
+    SliceTestArgs<uint8_t, uint8_t, 2, 100, 1024, ArgsGen_HalfAllDims<uint8_t, 2>>,
+    SliceTestArgs<uint8_t, uint8_t, 3, 3, 256, ArgsGen_HalfAllDims<uint8_t, 3>>,
+    SliceTestArgs<int, int, 2, 1, 3, ArgsGen_ExtractCenterElement<int, 2>>
 >;
 
 using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
-    SliceTestArgs<int, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
-    SliceTestArgs<float16, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
-    SliceTestArgs<float16, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>
+    SliceTestArgs<int, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>,
+    SliceTestArgs<float16, int, 3, 1, 2, ArgsGen_WholeTensor<int, 3>>,
+    SliceTestArgs<float16, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>,
+
+    // TODO(janton): Move to SLICE_TEST_TYPES once GPU implementation supports out of bounds slicing
+    SliceTestArgs<int, int, 1, 1, 20, ArgsGen_BiggerThanInputSlice<int, 1>>,
+    SliceTestArgs<int, int, 2, 1, 20, ArgsGen_BiggerThanInputSlice<int, 2>>,
+    SliceTestArgs<int, int, 1, 1, 21, ArgsGen_LeftSideOutOfBounds<int, 1>>,
+    SliceTestArgs<int, int, 2, 1, 21, ArgsGen_LeftSideOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 1, 1, 22, ArgsGen_RightSideOutOfBounds<int, 1>>,
+    SliceTestArgs<int, int, 2, 1, 22, ArgsGen_RightSideOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 2, 1, 22, ArgsGen_CompletelyOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad<int, 3>, 20, 20, 3>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad_ChFirst<int, 3>, 3, 20, 20>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim<int, 3>, 20, 20, 3>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim_ChFirst<int, 3>, 3, 20, 20>
 >;
 
 }  // namespace kernels

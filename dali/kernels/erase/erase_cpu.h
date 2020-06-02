@@ -82,6 +82,9 @@ void EraseKernel(T *data,
   for (int d = 0; d < Dims; d++) {
     data += strides[d] * anchor[d];
   }
+  if (channels_dim != -1) {
+    fill_values += anchor[channels_dim];
+  }
   detail::EraseKernelImpl(data, strides, shape, fill_values, channels_dim,
                           std::integral_constant<int, Dims>());
 }

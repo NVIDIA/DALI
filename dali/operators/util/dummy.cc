@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_OPERATORS_H_
-#define DALI_OPERATORS_OPERATORS_H_
+#include "dali/core/api_helper.h"
 
 namespace dali {
-/**
- * @brief The function to reference, when one needs to make sure DALI operators shared
- *        object is actually linked against.
- */
-DLL_PUBLIC void InitOperatorsLib();
-}  // namespace dali
 
-#endif  // DALI_OPERATORS_OPERATORS_H_
+// add this alignment to work around a patchelf bug/feature which
+// changes TLS alignment and break DALI interoperability with CUDA RT
+alignas(0x1000) thread_local volatile bool __dali_operators_force_tls_align;
+
+DLL_PUBLIC void __dali_operators_force_tls_align_fun(void) {
+  __dali_operators_force_tls_align = 0;
+}
+
+}  // namespace dali

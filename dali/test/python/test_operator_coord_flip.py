@@ -62,8 +62,8 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
         for sample in range(batch_size):
             in_coords = outputs[0].at(sample)
             out_coords = outputs[1].as_cpu().at(sample) if device == 'gpu' else outputs[1].at(sample)
-            if in_coords.shape == ():
-                assert(out_coords.shape == ())
+            if in_coords.shape == () or in_coords.shape[0] == 0:
+                assert(out_coords.shape == () or out_coords.shape[0] == 0)
                 continue
 
             flip_x = outputs[2].at(sample)
@@ -88,9 +88,12 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
             np.testing.assert_allclose(out_coords[:, d], expected_out_coords[:, d])
 
 def test_operator_coord_flip():
-    for device in ['cpu']:
+    for device in ['cpu', 'gpu']:
         for batch_size in [1, 3]:
-            for layout, shape in [("x", (10, 1)), ("xy", (10, 2)), ("xyz", (10, 3)), ("xy", (0, 2))]:
+            layout_shape_values = [("x", (10, 1)), ("xy", (10, 2)), ("xyz", (10, 3))]
+            if device == 'cpu':
+                layout_shape_values.append(("xy", (0, 2)))
+            for layout, shape in layout_shape_values:
                 for center_x, center_y, center_z in [(0.5, 0.5, 0.5), (0.0, 1.0, -0.5)]:
                     yield check_operator_coord_flip, device, batch_size, layout, shape, center_x, center_y, center_z
 

@@ -37,6 +37,10 @@ namespace reduce_impl {
  *  };
  *  ```
  *  where SingleValuePreprocessor is a unary functor.
+ *
+ * non_recuced_dims is either 1 or 2; if it's 1, the dimension 0 is outer (wrt reduced dime)
+ * and dimesnion 1 is inner.
+ * If non_reduced_dims is 1, then `pos` is the outer dimension.
  */
 
 /**
@@ -51,45 +55,13 @@ struct IdentityPreprocessor {
 };
 
 /**
- * @brief Calculates variance, given a tensor of means.
+ * @brief A position-independent bank, wrapping a functor
  */
-template <int non_reduced_ndim, typename Mean>
-struct VariancePreprocessor;
-
-template <typename Mean>
-struct VariancePreprocessor<1, Mean> {
-  const Mean *mean;
-  i64vec<1> stride;
-
-  template <typename T>
+template <int non_reduced_ndim, typename Functor>
+struct UniformPreprocessorBank {
   DALI_HOST_DEV DALI_FORCEINLINE
-  reductions::variance<Mean> Get(const i64vec<1> &pos) const {
-    auto offset = dot(pos, stride);
-  #ifdef __CUDA_ARCH__
-    float m = __ldg(mean + offset);
-  #else
-    float m = mean[offset];
-  #endif
-    return { m };
-  }
-};
-
-template <typename Mean>
-struct VariancePreprocessor<2, Mean> {
-  const Mean *mean;
-  i64vec<2> stride;
-  DropDims inner_dims;
-
-  template <typename T>
-  DALI_HOST_DEV DALI_FORCEINLINE
-  reductions::variance<Mean> Get(const i64vec<2> &pos) const {
-    auto offset = dot(i64vec2(pos[0], inner_dims.reindex(pos[1])), stride);
-  #ifdef __CUDA_ARCH__
-    float m = __ldg(mean + offset);
-  #else
-    float m = mean[offset];
-  #endif
-    return { m };
+  Functor Get(const i64vec<non_reduced_ndim> &) const {
+    return {};
   }
 };
 
@@ -106,8 +78,8 @@ struct VariancePreprocessor<2, Mean> {
  *                      per output sample
  * @param post          posptprocessing unary functor
  */
-template <typename Acc, typename In, typename PreprocessorBank, typename Postprocessor>
-__device__ void ReduceNone(Acc *out, const In *in, int64_t n,
+template <typename Out, typename In, typename PreprocessorBank, typename Postprocessor>
+__device__ void ReduceNone(Out *out, const In *in, int64_t n,
                            PreprocessorBank pre_bank, Postprocessor post) {
   const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
   const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
@@ -115,7 +87,7 @@ __device__ void ReduceNone(Acc *out, const In *in, int64_t n,
   int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
   for (int64_t index = base_idx; index < n; index += grid_stride) {
     auto pre = pre_bank.Get({index});
-    out[index] = post(pre(in[index]));
+    out[index] = ConvertSat<Out>(post(pre(in[index])));
   }
 }
 
@@ -132,10 +104,10 @@ __device__ void ReduceNone(Acc *out, const In *in, int64_t n,
  *                      per output sample
  * @param post          posptprocessing unary functor
  */
-template <typename Acc, typename In,
+template <typename Out, typename In,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
           typename Postprocessor = identity>
-__global__ void ReduceNoneKernel(Acc *const *out, const In *const *in, const int64_t *lengths,
+__global__ void ReduceNoneKernel(Out *const *out, const In *const *in, const int64_t *lengths,
                                  PreprocessorBank *pre = nullptr,
                                  Postprocessor *post = nullptr) {
   int sample_idx = blockIdx.y;
@@ -155,11 +127,11 @@ __global__ void ReduceNoneKernel(Acc *const *out, const In *const *in, const int
  *                      per output coordinate per input sample
  * @param post          posptprocessing unary functor
  */
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
           typename Postprocessor = identity>
-__global__ void ReduceSamplesKernel(Acc *out, const In *const *in,
+__global__ void ReduceSamplesKernel(Out *out, const In *const *in,
                                     int64_t sample_size, int num_samples,
                                     Reduction R = {},
                                     PreprocessorBank *pre = nullptr,
@@ -168,12 +140,19 @@ __global__ void ReduceSamplesKernel(Acc *out, const In *const *in,
   int64_t block_size = blockDim.x;
   int64_t grid_size = block_size * gridDim.x;
   for (int64_t ofs = threadIdx.x + blockIdx.x * block_size; ofs < sample_size; ofs += grid_size) {
-    red = {};
-    for (int i = 0; i < num_samples; i++) {
-      auto pp = pre[i].Get({ofs});
-      red.add(pp(in[i][ofs]), R);
+    red.reset();
+    if (pre) {
+      for (int i = 0; i < num_samples; i++) {
+        auto pp = pre[i].Get({ofs});
+        red.add(pp(in[i][ofs]), R);
+      }
+    } else {
+      auto pp = std::remove_reference_t<decltype(pre->Get({ofs}))>();
+      for (int i = 0; i < num_samples; i++) {
+        red.add(pp(in[i][ofs]), R);
+      }
     }
-    out[ofs] = post(red.result());
+    out[ofs] = ConvertSat<Out>(post(red.result()));
   }
 }
 
@@ -188,9 +167,9 @@ __global__ void ReduceSamplesKernel(Acc *out, const In *const *in,
  *                      per output sample
  * @param post          posptprocessing unary functor
  */
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction, typename PreprocessorBank, typename Postprocessor>
-__device__ void ReduceInnerSmall(Acc *out, const In *in, int64_t n_outer, int n_inner,
+__device__ void ReduceInnerSmall(Out *out, const In *in, int64_t n_outer, int n_inner,
                                  Reduction reduce,
                                  PreprocessorBank pre_bank, Postprocessor post) {
   const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
@@ -204,7 +183,7 @@ __device__ void ReduceInnerSmall(Acc *out, const In *in, int64_t n_outer, int n_
     red.reset();
     for (int i = 0; i < n_inner; i++)
       red.add(pre(__ldg(base + i)), reduce);
-    out[outer] = post(red.result());
+    out[outer] = ConvertSat<Out>(post(red.result()));
   }
 }
 
@@ -214,9 +193,9 @@ __device__ void ReduceInnerSmall(Acc *out, const In *in, int64_t n_outer, int n_
  * The reduction is done by a warp.
  * After sequential step, warp reduction is performed.
  */
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction, typename PreprocessorBank, typename Postprocessor>
-__device__ void ReduceInnerMedium(Acc *out, const In *in, int64_t n_outer, int n_inner,
+__device__ void ReduceInnerMedium(Out *out, const In *in, int64_t n_outer, int n_inner,
                                   Reduction reduce,
                                   PreprocessorBank pre_bank, Postprocessor post) {
   const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blockDim.y;
@@ -231,7 +210,7 @@ __device__ void ReduceInnerMedium(Acc *out, const In *in, int64_t n_outer, int n
     Acc v = red.result();
     WarpReduce(v, reduce);
     if (threadIdx.x == 0) {
-      out[outer] = post(v);
+      out[outer] = ConvertSat<Out>(post(v));
     }
   }
 }
@@ -245,9 +224,9 @@ __device__ void ReduceInnerMedium(Acc *out, const In *in, int64_t n_outer, int n
  * After this function is used, another level of reduction may be necessary,
  * depending on the value num_macroblocks.
  */
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction, typename PreprocessorBank, typename Postprocessor>
-__device__ void ReduceInnerLarge(Acc *out, const In *in, int64_t n_outer, int64_t n_inner,
+__device__ void ReduceInnerLarge(Out *out, const In *in, int64_t n_outer, int64_t n_inner,
                                  int num_macroblocks, int macroblock_size,
                                  Reduction reduce,
                                  PreprocessorBank pre_bank, Postprocessor post) {
@@ -287,7 +266,7 @@ __device__ void ReduceInnerLarge(Acc *out, const In *in, int64_t n_outer, int64_
       __syncthreads();      // make sure that the shared memory used by BlockReduce is ready
 
     if (BlockReduce(val, reduce))
-      out[idx] = post(val);
+      out[idx] = ConvertSat<Out>(post(val));
   }
 }
 
@@ -310,39 +289,39 @@ struct ReduceSampleDesc {
 };
 
 
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction, typename PreprocessorBank, typename Postprocessor>
-__device__ void ReduceInner(const ReduceSampleDesc<Acc, In> &sample,
+__device__ void ReduceInner(const ReduceSampleDesc<Out, In> &sample,
                             Reduction reduce,
                             PreprocessorBank pre_bank, Postprocessor post) {
   int64_t n_outer = sample.n_outer;
   int64_t n_reduced = sample.n_reduced;
-  Acc *out = sample.out;
+  Out *out = sample.out;
   const In *in = sample.in;
 
   if (n_reduced == 1) {
     ReduceNone(out, in, n_outer, pre_bank, post);
   } else if (n_reduced < 32 && sample.num_macroblocks == 1) {
-    ReduceInnerSmall(out, in, n_outer, n_reduced, reduce, pre_bank, post);
+    ReduceInnerSmall<Acc>(out, in, n_outer, n_reduced, reduce, pre_bank, post);
   } else if (n_reduced < 1024 && sample.num_macroblocks == 1) {
-    ReduceInnerMedium(out, in, n_outer, n_reduced, reduce, pre_bank, post);
+    ReduceInnerMedium<Acc>(out, in, n_outer, n_reduced, reduce, pre_bank, post);
   } else {
-    ReduceInnerLarge(out, in, n_outer, n_reduced,
+    ReduceInnerLarge<Acc>(out, in, n_outer, n_reduced,
                      sample.num_macroblocks, sample.macroblock_size,
                      reduce, pre_bank, post);
   }
 }
 
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction = reductions::sum,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
           typename Postprocessor = identity>
-__global__ void ReduceInnerKernel(const ReduceSampleDesc<Acc, In> *samples,
+__global__ void ReduceInnerKernel(const ReduceSampleDesc<Out, In> *samples,
                                   Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
                                   const Postprocessor *post = nullptr) {
   PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
   Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
-  ReduceInner(samples[blockIdx.y], reduce, pre_bank, postprocessor);
+  ReduceInner<Acc>(samples[blockIdx.y], reduce, pre_bank, postprocessor);
 }
 
 // Reduction over other dimensions (non-innermost)
@@ -350,10 +329,10 @@ __global__ void ReduceInnerKernel(const ReduceSampleDesc<Acc, In> *samples,
 /**
  * Each *thread* performs independent, full reduction
  */
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction, typename PreprocessorBank, typename Postprocessor>
 __device__
-void ReduceMiddleSmall(const ReduceSampleDesc<Acc, In> &sample,
+void ReduceMiddleSmall(const ReduceSampleDesc<Out, In> &sample,
                        Reduction reduce,
                        PreprocessorBank pre_bank, Postprocessor post) {
   int64_t n_outer = sample.n_outer;
@@ -362,7 +341,7 @@ void ReduceMiddleSmall(const ReduceSampleDesc<Acc, In> &sample,
   int64_t n_non_reduced = n_inner * n_outer;
   int64_t outer_stride = n_inner * n_reduced;
 
-  Acc *out = sample.out;
+  Out *out = sample.out;
   const In *in = sample.in;
   const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
   const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
@@ -378,7 +357,7 @@ void ReduceMiddleSmall(const ReduceSampleDesc<Acc, In> &sample,
     red.reset();
     for (int i = 0; i < n_reduced; i++)
       red.add(pre(__ldg(base + i * n_inner)), reduce);
-    out[idx] = post(red.result());
+    out[idx] = ConvertSat<Out>(post(red.result()));
   }
 }
 
@@ -395,14 +374,14 @@ namespace reduce_shared {
  * This function CANNOT work for inner extensts >32.
  * The macroblock size in reduced dimension is limited - see OnlineReducer for limits.
  */
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction, typename PreprocessorBank, typename Postprocessor>
-__device__ void ReduceMiddleLargeInnerSmall(const ReduceSampleDesc<Acc, In> &sample,
+__device__ void ReduceMiddleLargeInnerSmall(const ReduceSampleDesc<Out, In> &sample,
                                             Reduction r,
                                             PreprocessorBank pre_bank, Postprocessor post) {
   Acc (*shared_tmp)[33] = reinterpret_cast<Acc (*)[33]>(reduce_shared::shared_tmp);
 
-  Acc *out = sample.out;
+  Out *out = sample.out;
   const In *in = sample.in;
 
   const int n_inner = sample.n_inner;
@@ -524,7 +503,7 @@ __device__ void ReduceMiddleLargeInnerSmall(const ReduceSampleDesc<Acc, In> &sam
       // combine warps' partial results
       WarpReduce(acc, r);
       if (lane == 0) {
-        out[macroblock * n_inner + inner] = post(acc);
+        out[macroblock * n_inner + inner] = ConvertSat<Out>(post(acc));
       }
     }
   }
@@ -540,14 +519,14 @@ __device__ void ReduceMiddleLargeInnerSmall(const ReduceSampleDesc<Acc, In> &sam
  * This function is not indented for use with small inner extent.
  * The macroblock size in reduced dimension is limited - see OnlineReducer for limits.
  */
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction, typename PreprocessorBank, typename Postprocessor>
-__device__ void ReduceMiddleLargeInnerMedium(const ReduceSampleDesc<Acc, In> &sample,
+__device__ void ReduceMiddleLargeInnerMedium(const ReduceSampleDesc<Out, In> &sample,
                                              Reduction r,
                                              PreprocessorBank pre_bank, Postprocessor post) {
   Acc (*shared_tmp)[33] = reinterpret_cast<Acc (*)[33]>(reduce_shared::shared_tmp);
 
-  Acc *out = sample.out;
+  Out *out = sample.out;
   const In *in = sample.in;
 
   const int n_inner = sample.n_inner;
@@ -622,18 +601,18 @@ __device__ void ReduceMiddleLargeInnerMedium(const ReduceSampleDesc<Acc, In> &sa
       WarpReduce(v, r);
       if (lane == 0) {
         int inner = i + inner_base;
-        out[macroblock * n_inner + inner] = post(v);
+        out[macroblock * n_inner + inner] = ConvertSat<Out>(post(v));
       }
     }
   }
 }
 
 
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction = reductions::sum,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
           typename Postprocessor = identity>
-__global__ void ReduceMiddleKernel(const ReduceSampleDesc<Acc, In> *samples,
+__global__ void ReduceMiddleKernel(const ReduceSampleDesc<Out, In> *samples,
                                   Reduction reduce = {},
                                   const PreprocessorBank *pre = nullptr,
                                   const Postprocessor *post = nullptr) {
@@ -643,11 +622,11 @@ __global__ void ReduceMiddleKernel(const ReduceSampleDesc<Acc, In> *samples,
   Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
 
   if (sample.n_reduced < 1024 && sample.num_macroblocks == 1) {
-    ReduceMiddleSmall(sample, reduce, pre_bank, postprocessor);
+    ReduceMiddleSmall<Acc>(sample, reduce, pre_bank, postprocessor);
   } else if (sample.n_inner < 32) {
-    ReduceMiddleLargeInnerSmall(sample, reduce, pre_bank, postprocessor);
+    ReduceMiddleLargeInnerSmall<Acc>(sample, reduce, pre_bank, postprocessor);
   } else {
-    ReduceMiddleLargeInnerMedium(sample, reduce, pre_bank, postprocessor);
+    ReduceMiddleLargeInnerMedium<Acc>(sample, reduce, pre_bank, postprocessor);
   }
 }
 

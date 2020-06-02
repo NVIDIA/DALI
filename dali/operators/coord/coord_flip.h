@@ -49,8 +49,13 @@ class CoordFlip : public Operator<Backend> {
 
     DALI_ENFORCE(in_shape[0].size() == 2);
     ndim_ = in_shape[0][1];
-    DALI_ENFORCE(ndim_ >= 1 && ndim_ <= 3, make_string("Unexpected number of dimensions ", ndim_));
-
+    for (int i = 1; i < in_shape.size(); i++) {
+      DALI_ENFORCE(ndim_ == in_shape[i][1],
+          make_string(
+              "All samples are expected to have coordinates with same number of dimensions. Got : ",
+              in_shape));
+    }
+    DALI_ENFORCE(ndim_ <= 3, make_string("Unexpected number of dimensions ", ndim_));
     if (layout_.empty()) {
       switch (ndim_) {
         case 1:
@@ -60,16 +65,40 @@ class CoordFlip : public Operator<Backend> {
           layout_ = "xy";
           break;
         case 3:
-        default:
           layout_ = "xyz";
+          break;
+        default:
+          layout_ = "";
           break;
       }
     }
+
+    x_dim_ = 0;
+    if (ndim_ > 0) {
+      x_dim_ = layout_.find('x');
+      DALI_ENFORCE(x_dim_ >= 0, "Dimension \"x\" not found in the layout");
+    }
+
+    y_dim_ = 1;
+    if (ndim_ > 1) {
+      y_dim_ = layout_.find('y');
+      DALI_ENFORCE(y_dim_ >= 0, "Dimension \"y\" not found in the layout");
+    }
+
+    z_dim_ = 2;
+    if (ndim_ > 2) {
+      z_dim_ = layout_.find('z');
+      DALI_ENFORCE(z_dim_ >= 0, "Dimension \"z\" not found in the layout");
+    }
+
     return true;
   }
 
+
+
   TensorLayout layout_;
   int ndim_;
+  int x_dim_, y_dim_, z_dim_;
 };
 
 }  // namespace dali

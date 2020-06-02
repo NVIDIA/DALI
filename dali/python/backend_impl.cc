@@ -28,10 +28,18 @@
 #include "dali/util/half.hpp"
 #include "dali/core/device_guard.h"
 #include "dali/core/python_util.h"
-#include "dali/operators/operators.h"
+#include "dali/operators.h"
 
 namespace dali {
 namespace python {
+
+// add this alignment to work around a patchelf bug/feature which
+// changes TLS alignment and break DALI interoperability with CUDA RT
+alignas(0x1000) thread_local volatile bool __backend_impl_force_tls_align;
+
+void __backend_impl_force_tls_align_fun(void) {
+  __backend_impl_force_tls_align = 0;
+}
 
 using namespace pybind11::literals; // NOLINT
 
@@ -199,6 +207,7 @@ void ExposeTensor(py::module &m) {
     .def(py::init([](py::buffer b, string layout = "") {
           // We need to verify that hte input data is c contiguous
           // and of a type that we can work with in the backend
+          __backend_impl_force_tls_align_fun();
           py::buffer_info info = b.request();
 
           std::vector<Index> i_shape;
@@ -323,13 +332,13 @@ void ExposeTensor(py::module &m) {
     .def("copy_to_external",
         [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream, bool non_blocking) {
           void *ptr = ctypes_void_ptr(p);
-          cudaStream_t stream = static_cast<cudaStream_t>(
-            ctypes_void_ptr(cuda_stream));
-
+          cudaStream_t stream = cuda_stream.is_none()
+                ? UserStream::Get()->GetStream(t)
+                : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
           CopyToExternalTensor(t, ptr, GPU, stream, non_blocking);
         },
       "ptr"_a,
-      "cuda_stream"_a = 0,
+      "cuda_stream"_a = py::none(),
       "non_blocking"_a = false,
       R"code(
       Copy to external pointer in the GPU memory.
@@ -656,12 +665,13 @@ void ExposeTensorList(py::module &m) {
     .def("copy_to_external",
         [](TensorList<GPUBackend> &t, py::object p, py::object cuda_stream, bool non_blocking) {
           void *ptr = ctypes_void_ptr(p);
-          cudaStream_t stream = static_cast<cudaStream_t>(
-            ctypes_void_ptr(cuda_stream));
+          cudaStream_t stream = cuda_stream.is_none()
+                ? UserStream::Get()->GetStream(t)
+                : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
           CopyToExternalTensor(&t, ptr, GPU, stream, non_blocking);
         },
       "ptr"_a,
-      "cuda_stream"_a = 0,
+      "cuda_stream"_a = py::none(),
       "non_blocking"_a = false,
       R"code(
       Copy the contents of this `TensorList` to an external pointer

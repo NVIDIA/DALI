@@ -38,6 +38,7 @@ export BUILD_NVDEC=${BUILD_NVDEC:-ON}
 export BUILD_LIBSND=${BUILD_LIBSND:-ON}
 export BUILD_NVML=${BUILD_NVML:-ON}
 export BUILD_FFTS=${BUILD_FFTS:-ON}
+export BUILD_DUMMY_PKG=${BUILD_DUMMY_PKG:-OFF}
 export STRIP_BINARY=${STRIP_BINARY:-OFF}
 export VERBOSE_LOGS=${VERBOSE_LOGS:-OFF}
 export WERROR=${WERROR:-ON}
@@ -118,5 +119,11 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
 
         ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl
     fi
-fi
 
+    if [ "${BUILD_DUMMY_PKG}" = "ON" ]; then
+        pushd ../dali/python/dummy
+        mkdir -p /wheelhouse/dummy
+        source make_nvidia_dali_dummy.sh /wheelhouse/dummy
+        popd
+    fi
+fi

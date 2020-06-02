@@ -118,6 +118,7 @@ void WriteImageScaleBias(const T *img, int h, int w,
     }
     file << endl;
   }
+  DALI_ENFORCE(file.good(), make_string("Error writing to file: ", file_name));
 }
 
 /**

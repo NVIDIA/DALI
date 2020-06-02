@@ -19,10 +19,19 @@
 #include "dali/core/common.h"
 #include "dali/pipeline/data/allocator.h"
 #include "dali/pipeline/init.h"
-#include "dali/operators/operators.h"
+#include "dali/operators.h"
 #include "dali/pipeline/operator/op_spec.h"
 
+// add this alignment to work around a patchelf bug/feature which
+// changes TLS alignment and break DALI interoperability with CUDA RT
+alignas(0x1000) thread_local volatile bool __dali_bench_force_tls_align;
+
+void __dali_bench_force_tls_align_fun(void) {
+  __dali_bench_force_tls_align = 0;
+}
+
 int main(int argc, char **argv) {
+  __dali_bench_force_tls_align_fun();
   dali::InitOperatorsLib();
   dali::DALIInit(dali::OpSpec("CPUAllocator"),
       dali::OpSpec("PinnedCPUAllocator"),

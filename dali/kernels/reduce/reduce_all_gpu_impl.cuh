@@ -23,11 +23,11 @@
 namespace dali {
 namespace kernels {
 
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction = reductions::sum,
           typename Preprocess = dali::identity,
           typename Postprocess = dali::identity>
-__global__ void ReduceAllKernel(Acc *out, const In *in, int64_t n,
+__global__ void ReduceAllKernel(Out *out, const In *in, int64_t n,
                                 Reduction reduce = {},
                                 Preprocess pre = {},
                                 Postprocess post = {}) {
@@ -45,15 +45,15 @@ __global__ void ReduceAllKernel(Acc *out, const In *in, int64_t n,
     reduce(val, pre(in[idx]));
   }
   if (BlockReduce(val, reduce))
-    out[blockIdx.x] = post(val);
+    out[blockIdx.x] = ConvertSat<Out>(post(val));
 }
 
 
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction = reductions::sum,
           typename Preprocess = dali::identity,
           typename Postprocess = dali::identity>
-__global__ void ReduceAllBatchedKernel(Acc *out, const In *const *in, const int64_t *in_sizes,
+__global__ void ReduceAllBatchedKernel(Out *out, const In *const *in, const int64_t *in_sizes,
                                        Reduction reduce = {},
                                        const Preprocess *pre = nullptr,
                                        const Postprocess *post = nullptr) {
@@ -76,7 +76,7 @@ __global__ void ReduceAllBatchedKernel(Acc *out, const In *const *in, const int6
     reduce(val, preprocess(in[sample][idx]));
   }
   if (BlockReduce(val, reduce))
-    out[blockIdx.x + blockIdx.y * gridDim.x] = postprocess(val);
+    out[blockIdx.x + blockIdx.y * gridDim.x] = ConvertSat<Out>(postprocess(val));
 }
 
 /**
@@ -95,11 +95,11 @@ __global__ void ReduceAllBatchedKernel(Acc *out, const In *const *in, const int6
  * @param reduce      the reduction functor
  * @param pp          preprocessing to be applied to each value fetched from `in` before reducing
  */
-template <typename Acc, typename In,
+template <typename Acc, typename Out, typename In,
           typename Reduction = reductions::sum,
           typename Preprocess = dali::identity,
           typename Postprocess = dali::identity>
-__global__ void ReduceAllBlockwiseKernel(Acc *out, const In *in, int64_t sample_size,
+__global__ void ReduceAllBlockwiseKernel(Out *out, const In *in, int64_t sample_size,
                                          Reduction reduce = {},
                                          const Preprocess *pre = nullptr,
                                          const Postprocess *post = nullptr) {
@@ -117,7 +117,7 @@ __global__ void ReduceAllBlockwiseKernel(Acc *out, const In *in, int64_t sample_
     reduce(val, preprocess(in[offset]));
   }
   if (BlockReduce(val, reduce))
-    out[blockIdx.x + blockIdx.y * gridDim.x] = postprocess(val);
+    out[blockIdx.x + blockIdx.y * gridDim.x] = ConvertSat<Out>(postprocess(val));
 }
 
 

@@ -54,6 +54,7 @@ void dump_meta_file(std::vector<T> &input, const std::string path) {
   unsigned size = input.size();
   file.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
   file.write(reinterpret_cast<char*>(input.data()), size * sizeof(T));
+  DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 }
 
 template <typename T>
@@ -68,6 +69,7 @@ void dump_meta_file(std::vector<std::vector<T> > &input, const std::string path)
     file.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
     file.write(reinterpret_cast<char*>(v.data()), size * sizeof(T));
   }
+  DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 }
 
 void dump_filenames(const ImageIdPairs &image_id_pairs, const std::string path) {
@@ -76,12 +78,13 @@ void dump_filenames(const ImageIdPairs &image_id_pairs, const std::string path) 
   for (const auto &p : image_id_pairs) {
     file << p.first << std::endl;
   }
+  DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 }
 
 template <typename T>
 void load_meta_file(std::vector<T> &output, const std::string path) {
   std::ifstream file(path);
-  DALI_ENFORCE(file, "CocoReader meta file error while loading for path: " + path);
+  DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 
   unsigned size;
   file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
