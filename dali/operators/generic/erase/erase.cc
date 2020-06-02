@@ -33,7 +33,7 @@ The region is specified by an *anchor* (starting point) and a *shape* (dimension
 Only the relevant dimensions are specified.
 Non-specified dimensions are treated as if the whole range of the axis was provided.
 To specify multiple regions, *anchor* and *shape* represent multiple points consecutively
-(e.g. *anchor* = (y0, x0, y0, y1,...) and *shape* = (h0, w0, h1, w1,...)).
+(e.g. *anchor* = (y0, x0, y1, x1, ...) and *shape* = (h0, w0, h1, w1, ...)).
 The arguments anchor and shape are interpreted according to the value of the argument *axis_names*
 (or alternatively the value of the argument *axes*). If no *axis_names*/*axes* arguments are provided,
 all the dimensions except 'C' (channels) must be specified.

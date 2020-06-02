@@ -252,6 +252,7 @@ struct mat {
     static_assert(rhs_cols == cols && rhs_cols == rows,
                   "Operator *= can only be applied to square matrices");
     *this = *this * m;
+    return *this;
   }
 
   template <typename U, int rhs_cols>

@@ -15,6 +15,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from nvidia.dali.backend import TensorGPU, TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 from nvidia.dali import types
@@ -37,7 +38,7 @@ to_torch_type = {
     np.dtype(np.int64)   : torch.int64
 }
 
-def feed_ndarray(dali_tensor, arr):
+def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     """
     Copy contents of DALI tensor to PyTorch's Tensor.
 
@@ -47,13 +48,21 @@ def feed_ndarray(dali_tensor, arr):
                     Tensor from which to copy
     `arr` : torch.Tensor
             Destination of the copy
+    `cuda_stream` : torch.cuda.Stream or any value that can be casted to cudaStream_t
+                    CUDA stream to be used for the copy
+                    (if not provided, an internal user stream will be selected)
+                    In most cases, using pytorch's current stream is expected (for example,
+                    if we are copying to a tensor allocated with torch.zeros(...))
     """
     assert dali_tensor.shape() == list(arr.size()), \
             ("Shapes do not match: DALI tensor has size {0}"
             ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
     #turn raw int to a c void pointer
     c_type_pointer = ctypes.c_void_p(arr.data_ptr())
-    dali_tensor.copy_to_external(c_type_pointer)
+    if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
+        dali_tensor.copy_to_external(c_type_pointer, cuda_stream)
+    else:
+        dali_tensor.copy_to_external(c_type_pointer)
     return arr
 
 class DALIGenericIterator(object):
@@ -102,8 +111,8 @@ class DALIGenericIterator(object):
                  data from the current epoch is dropping padding samples or samples from
                  the next epoch. If set to False next epoch will end sooner as data from
                  it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one. For this happen, the option `pad_last_batch`
-                 in the reader need to be set to `True` as well.
+                 same length as the first one. For this to happen, the option ``pad_last_batch``
+                 in the reader needs to be set to ``True`` as well.
 
     Example
     -------
@@ -199,7 +208,6 @@ class DALIGenericIterator(object):
                 # check category and device
                 for category in self._output_categories:
                     category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category].dtype())]
-                    from nvidia.dali.backend import TensorGPU
                     if type(category_tensors[category]) is TensorGPU:
                         category_device[category] = torch_gpu_device
                     else:
@@ -217,11 +225,16 @@ class DALIGenericIterator(object):
 
             # Copy data from DALI Tensors to torch tensors
             for category, tensor in category_tensors.items():
-                  if self._dynamic_shape and tensor.shape() != list(pyt_tensors[category].size()):
-                      pyt_tensors[category] = torch.zeros(category_shapes[category],
-                                                          dtype=pyt_tensors[category].dtype,
-                                                          device=pyt_tensors[category].device)
-                  feed_ndarray(tensor, pyt_tensors[category])
+                if self._dynamic_shape and tensor.shape() != list(pyt_tensors[category].size()):
+                    pyt_tensors[category] = torch.zeros(category_shapes[category],
+                                                        dtype=pyt_tensors[category].dtype,
+                                                        device=pyt_tensors[category].device)
+                if isinstance(tensor, (TensorGPU, TensorListGPU)):
+                    # Using same cuda_stream used by torch.zeros to set the memory
+                    stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
+                    feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
+                else:
+                    feed_ndarray(tensor, pyt_tensors[category])
 
         for p in self._pipes:
             with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
@@ -332,7 +345,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                  data from the current epoch is dropping padding samples or samples from
                  the next epoch. If set to False next epoch will end sooner as data from
                  it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one.
+                 same length as the first one. For this to happen, the option ``pad_last_batch``
+                 in the reader needs to be set to ``True`` as well.
 
     Example
     -------

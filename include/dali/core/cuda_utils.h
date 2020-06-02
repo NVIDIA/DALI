@@ -16,6 +16,7 @@
 #define DALI_CORE_CUDA_UTILS_H_
 
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
+#include <cassert>
 #include <type_traits>
 #include "dali/core/float16.h"
 #include "dali/core/host_dev.h"
@@ -36,7 +37,7 @@ struct device_side_allocator {
   }
 };
 
-// moving and perfect forwwarding
+// moving and perfect forwarding
 
 template <typename T>
 constexpr std::remove_reference_t<T> &&
@@ -74,6 +75,25 @@ __host__ __device__ void cuda_swap(T &a, T &b) {
   a = cuda_move(b);
   b = cuda_move(tmp);
 }
+
+/**
+ * @brief Gets the maximum number of threads per block for given kernel function on current device
+ */
+template <typename KernelFunction>
+int MaxThreadsPerBlock(KernelFunction *f) {
+  static constexpr int kMaxDevices = 1024;
+  static int max_block_size[kMaxDevices] = {};
+  int device = 0;
+  cudaGetDevice(&device);
+  assert(device >= 0 && device < kMaxDevices);
+  if (!max_block_size[device]) {
+    cudaFuncAttributes attr = {};
+    CUDA_CALL(cudaFuncGetAttributes(&attr, f));
+    max_block_size[device] = attr.maxThreadsPerBlock;
+  }
+  return max_block_size[device];
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_CUDA_UTILS_H_

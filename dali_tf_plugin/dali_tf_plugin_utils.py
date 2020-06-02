@@ -112,7 +112,7 @@ def get_tf_build_flags():
             tf_lflags=" ".join(["-L" + tensorflow_path, "-ltensorflow_framework"])
 
     if tf_cflags is '' and tf_lflags is '':
-        raise ImportError('Could not find Tensorflow. Tensorflow must be installed before installing nvidia-dali-tf-plugin')
+        raise ImportError('Could not find Tensorflow. Tensorflow must be installed before installing NVIDIA DALI TF plugin')
     return (tf_cflags, tf_lflags)
 
 # Get compile and link flags for installed DALI

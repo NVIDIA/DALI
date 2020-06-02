@@ -17,7 +17,7 @@ if (BUILD_BENCHMARK)
   # Get basic benchmark sources that don't depend on any other options
   set(DALI_BENCHMARK_SRCS
     #"${CMAKE_CURRENT_SOURCE_DIR}/makecontiguous_bench.cc"
-    "${CMAKE_SOURCE_DIR}/dali/test/dali_test_config.cc"
+    "${PROJECT_SOURCE_DIR}/dali/test/dali_test_config.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/resnet50_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/resnet50_nvjpeg_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/dali_bench.cc"
@@ -28,6 +28,8 @@ if (BUILD_BENCHMARK)
     "${CMAKE_CURRENT_SOURCE_DIR}/crop_mirror_normalize_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/warp_affine_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/transpose_cpu_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/color_twist_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/slice_cpu_kernel_bench.cc"
   )
 
   if (BUILD_LMDB)
@@ -35,12 +37,14 @@ if (BUILD_BENCHMARK)
     list(APPEND DALI_BENCHMARK_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/caffe2_alexnet_bench.cc")
   endif()
 
-  set(benchmark_bin "dali_benchmark.bin")
-  add_executable(${benchmark_bin} "${DALI_BENCHMARK_SRCS}")
+  add_executable(dali_benchmark "${DALI_BENCHMARK_SRCS}")
 
-  target_link_libraries(${benchmark_bin} PRIVATE dali dali_operators benchmark ${DALI_LIBS})
+  target_link_libraries(dali_benchmark PRIVATE dali dali_operators benchmark ${DALI_LIBS})
+  target_link_libraries(dali_benchmark PRIVATE "-pie")
+  set_target_properties(dali_benchmark PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(dali_benchmark PROPERTIES OUTPUT_NAME "dali_benchmark.bin")
 
-  set_target_properties(${benchmark_bin} PROPERTIES
+  set_target_properties(dali_benchmark PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 
 endif()

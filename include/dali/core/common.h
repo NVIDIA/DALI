@@ -135,6 +135,13 @@ inline int NumberOfChannels(DALIImageType type) {
   name(name&&) = delete;                 \
   name& operator=(name&&) = delete
 
+// Helper to declare copy constructor & copy-assignment operator default
+#define DEFAULT_COPY_MOVE_ASSIGN(name)    \
+  name(const name&) = default;            \
+  name& operator=(const name&) = default; \
+  name(name&&) = default;                 \
+  name& operator=(name&&) = default
+
 // Util to declare anonymous variable
 #define CONCAT_1(var1, var2) var1##var2
 #define CONCAT_2(var1, var2) CONCAT_1(var1, var2)

@@ -179,6 +179,34 @@ TEST(Vec, Func) {
   EXPECT_EQ(f, ivec3(-1, 0, 2));
 }
 
+TEST(Vec, DivCeil) {
+  ivec3 a = {3, 5, 6};
+  ivec3 b = {2, 2, 2};
+  auto a_b = div_ceil(a, b);
+  ivec3 a_b_expected = {2, 3, 3};
+  EXPECT_EQ(a_b, a_b_expected);
+
+  ivec3 c = {3, 5, 6};
+  uvec3 d = {2, 2, 2};
+  auto c_d = div_ceil(c, d);
+  ivec3 c_d_expected = {2, 3, 3};
+  EXPECT_EQ(c_d, c_d_expected);
+}
+
+DEVICE_TEST(Dev_Vec, DivCeil, 1, 1) {
+  ivec3 a = {3, 5, 6};
+  ivec3 b = {2, 2, 2};
+  auto a_b = div_ceil(a, b);
+  ivec3 a_b_expected = {2, 3, 3};
+  DEV_EXPECT_EQ(a_b, a_b_expected);
+
+  ivec3 c = {3, 5, 6};
+  uvec3 d = {2, 2, 2};
+  auto c_d = div_ceil(c, d);
+  ivec3 c_d_expected = {2, 3, 3};
+  DEV_EXPECT_EQ(c_d, c_d_expected);
+}
+
 DEVICE_TEST(Dev_Vec, Func, 1, 1) {
   vec3 in = { -0.6f, 0.1f, 1.7f };
   vec3 a = floor(in);

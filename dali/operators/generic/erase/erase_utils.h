@@ -31,7 +31,7 @@ namespace dali {
 
 namespace detail {
 
-SmallVector<int, 6> GetAxes(const OpSpec &spec, TensorLayout layout) {
+static SmallVector<int, 6> GetAxes(const OpSpec &spec, TensorLayout layout) {
   SmallVector<int, 6> axes;
   if (spec.HasArgument("axis_names")) {
     axes = GetDimIndices(layout, spec.GetArgument<TensorLayout>("axis_names"));

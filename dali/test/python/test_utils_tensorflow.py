@@ -16,6 +16,7 @@ import tensorflow as tf
 from tensorflow.python.client import device_lib
 import nvidia.dali.plugin.tf as dali_tf
 from nose import SkipTest
+import math
 
 
 def skip_for_incompatible_tf():
@@ -26,8 +27,8 @@ def skip_for_incompatible_tf():
 def num_available_gpus():
     local_devices = device_lib.list_local_devices()
     num_gpus = sum(1 for device in local_devices if device.device_type == 'GPU')
-    if num_gpus not in [1, 2, 4, 8]:
-        raise RuntimeError('Unsupported number of GPUs. This test can run on: 1, 2, 4, 8 GPUs.')
+    if not math.log2(num_gpus).is_integer():
+        raise RuntimeError('Unsupported number of GPUs. This test can run on: 2^n GPUs.')
     return num_gpus
 
 
@@ -42,7 +43,7 @@ def dataset_options():
     options = tf.data.Options()
     try:
         options.experimental_optimization.apply_default_optimizations = False
-        options.experimental_optimization.autotune = False   
+        options.experimental_optimization.autotune = False
     except:
         print('Could not set TF Dataset Options')
 

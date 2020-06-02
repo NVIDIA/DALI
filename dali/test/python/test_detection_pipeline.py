@@ -249,13 +249,13 @@ class DetectionPipeline(Pipeline):
             saturation=saturation,
             contrast=contrast,
             brightness=brightness,
-            hue=0-hue)
+            hue=hue)
         image_legacy_twisted_gpu = self.twist_gpu(
             image_ssd_crop.gpu(),
             saturation=saturation,
             contrast=contrast,
             brightness=brightness,
-            hue=0-hue)
+            hue=hue)
 
         image_flipped_cpu = self.flip_cpu(image_resized_cpu)
         boxes_flipped_cpu = self.bbox_flip_cpu(boxes_ssd_crop)

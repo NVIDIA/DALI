@@ -60,7 +60,7 @@ def to_paddle_type(tensor):
     return dtype_map[dtype]
 
 
-def feed_ndarray(dali_tensor, ptr):
+def feed_ndarray(dali_tensor, ptr, cuda_stream = None):
     """
     Copy contents of DALI tensor to Paddle's Tensor.
 
@@ -70,9 +70,15 @@ def feed_ndarray(dali_tensor, ptr):
                     Tensor from which to copy
     `ptr` : LoDTensor data pointer
             Destination of the copy
+    `cuda_stream` : Any value that can be casted to cudaStream_t
+                    CUDA stream to be used for the copy
+                    (if not provided, an internal user stream will be selected)
     """
     c_type_pointer = ctypes.c_void_p(ptr)
-    dali_tensor.copy_to_external(c_type_pointer)
+    if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
+        dali_tensor.copy_to_external(c_type_pointer, cuda_stream)
+    else:
+        dali_tensor.copy_to_external(c_type_pointer)
     return ptr
 
 
@@ -171,8 +177,8 @@ class DALIGenericIterator(object):
                  data from the current epoch is dropping padding samples or samples from
                  the next epoch. If set to False next epoch will end sooner as data from
                  it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one. For this happen, the option `pad_last_batch`
-                 in the reader need to be set to `True` as well.
+                 same length as the first one. For this to happen, the option ``pad_last_batch``
+                 in the reader needs to be set to ``True`` as well.
 
     Example
     -------
@@ -440,7 +446,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                  data from the current epoch is dropping padding samples or samples from
                  the next epoch. If set to False next epoch will end sooner as data from
                  it was consumed but dropped. If set to True next epoch would be the
-                 same length as the first one.
+                 same length as the first one. For this to happen, the option ``pad_last_batch``
+                 in the reader needs to be set to ``True`` as well.
 
     Example
     -------

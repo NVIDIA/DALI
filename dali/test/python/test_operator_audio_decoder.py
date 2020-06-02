@@ -91,7 +91,7 @@ def rosa_resample(input, in_rate, out_rate):
 
 def test_decoded_vs_generated():
   pipeline = DecoderPipeline()
-  pipeline.build();
+  pipeline.build()
   idx = 0
   for iter in range(1):
     out = pipeline.run()
@@ -131,7 +131,7 @@ def test_decoded_vs_generated():
 
       rosa_in1 = plain.astype(np.float32)
       rosa1 = rosa_resample(rosa_in1, rates[idx], rate1)
-      rosa_in3 = rosa_in1 / 32767;
+      rosa_in3 = rosa_in1 / 32767
       rosa3 = rosa_resample(rosa_in3.mean(axis = 1, keepdims = 1), rates[idx], rate2)
 
       assert np.allclose(res, rosa1, rtol = 0, atol=32767 * 1e-3)

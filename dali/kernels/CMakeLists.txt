@@ -45,18 +45,20 @@ configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${CMAKE_BINARY_DIR}/${lib
 target_link_libraries(dali_kernels PRIVATE  -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
 
 if (BUILD_TEST)
-  set(test_bin "dali_kernel_test.bin")
   # TODO(janton): create a test_utils_lib with dali_test_config.cc and other common utilities
-  add_executable(${test_bin}
+  add_executable(dali_kernel_test
     ${DALI_KERNEL_TEST_SRCS}
     ${DALI_ROOT}/dali/test/dali_test_config.cc)
 
   # TODO(janton): Remove dependency with target `dali`
-  target_link_libraries(${test_bin} PUBLIC dali_kernels dali)
-  target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})
-  target_link_libraries(${test_bin} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
-  set_target_properties(${test_bin} PROPERTIES
+  target_link_libraries(dali_kernel_test PUBLIC dali_kernels dali)
+  target_link_libraries(dali_kernel_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
+  target_link_libraries(dali_kernel_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+  target_link_libraries(dali_kernel_test PRIVATE "-pie")
+  set_target_properties(dali_kernel_test PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(dali_kernel_test PROPERTIES OUTPUT_NAME "dali_kernel_test.bin")
+  set_target_properties(dali_kernel_test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 
-  add_check_gtest_target("check-kernel-gtest" ${test_bin} ${TEST_BINARY_DIR})
+  add_check_gtest_target("check-kernel-gtest" dali_kernel_test ${TEST_BINARY_DIR})
 endif()

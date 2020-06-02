@@ -28,16 +28,18 @@
 
 namespace dali {
 TypeInfo TypeFromNumpyStr(const std::string &format) {
-  if (format == "i8")
-    return TypeInfo::Create<int64_t>();
-  else if (format == "i4")
-    return TypeInfo::Create<int32_t>();
-  else if (format == "f4")
-    return TypeInfo::Create<float>();
-  else if (format == "f8")
-    return TypeInfo::Create<double>();
-  else
-    return TypeInfo();
+  if (format == "u1") return TypeInfo::Create<uint8_t>();
+  if (format == "u2") return TypeInfo::Create<uint16_t>();
+  if (format == "u4") return TypeInfo::Create<uint32_t>();
+  if (format == "u8") return TypeInfo::Create<uint64_t>();
+  if (format == "i1") return TypeInfo::Create<int8_t>();
+  if (format == "i2") return TypeInfo::Create<int16_t>();
+  if (format == "i4") return TypeInfo::Create<int32_t>();
+  if (format == "i8") return TypeInfo::Create<int64_t>();
+  if (format == "f2") return TypeInfo::Create<float16>();
+  if (format == "f4") return TypeInfo::Create<float>();
+  if (format == "f8") return TypeInfo::Create<double>();
+  DALI_FAIL("Unknown Numpy type string");
 }
 
 std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream> file,

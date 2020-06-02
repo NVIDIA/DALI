@@ -16,6 +16,9 @@ cmake_minimum_required(VERSION 3.13)
 # allow usage of check_symbol_exists() macro
 include(CheckCXXSymbolExists)
 
+include(cmake/Utils.cmake)
+include(cmake/CUDA_utils.cmake)
+
 if (POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
 endif()
@@ -23,6 +26,8 @@ endif()
 project(DALI CUDA CXX C)
 set(DALI_ROOT ${PROJECT_SOURCE_DIR})
 set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
+
+parse_cuda_version(${CUDA_VERSION} CUDA_VERSION_MAJOR CUDA_VERSION_MINOR CUDA_VERSION_PATCH CUDA_VERSION_SHORT CUDA_VERSION_SHORT_DIGIT_ONLY)
 
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
@@ -53,9 +58,6 @@ option(WERROR "Threat all warnings as errors" OFF)
 
 # FFmpeg is required when we are using NVDEC for video reader
 set(BUILD_FFMPEG ${BUILD_NVDEC})
-
-include(cmake/Utils.cmake)
-include(cmake/CUDA_utils.cmake)
 
 propagate_option(BUILD_NVTX)
 propagate_option(BUILD_PYTHON)
@@ -178,6 +180,7 @@ message(STATUS "Generated gencode flags: ${CUDA_gencode_flags}")
 # Add ptx & bin flags for cuda
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_gencode_flags} --compiler-options -fvisibility=hidden")
 
+
 # Include directories
 include_directories(
   "${PROJECT_SOURCE_DIR}"
@@ -197,3 +200,8 @@ file(WRITE ${CMAKE_BINARY_DIR}/dali/__init__.py "")
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/lint.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Install.cmake)
+
+add_library(DALI::dali ALIAS dali)
+add_library(DALI::dali_core ALIAS dali_core)
+add_library(DALI::dali_kernels ALIAS dali_kernels)
+add_library(DALI::dali_operators ALIAS dali_operators)
