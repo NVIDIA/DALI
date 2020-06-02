@@ -82,3 +82,8 @@ set(DALI_SYSTEM_LIBS rt pthread m dl)
 list(APPEND DALI_LIBS ${CUDART_LIB} ${DALI_SYSTEM_LIBS})
 
 list(APPEND DALI_EXCLUDES libprotobuf.a;libprotobuf-lite.a;libprotoc.a)
+
+##################################################################
+# OpenMP
+##################################################################
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")

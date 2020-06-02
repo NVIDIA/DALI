@@ -91,3 +91,8 @@ set(DALI_SYSTEM_LIBS "")
 list(APPEND DALI_LIBS ${Protobuf_LIBRARY} ${Protobuf_PROTOC_LIBRARIES} ${Protobuf_LITE_LIBRARIES})
 list(APPEND DALI_LIBS ${CUDART_LIB})
 list(APPEND DALI_EXCLUDES libprotobuf.a;libprotobuf-lite.a;libprotoc.a)
+
+##################################################################
+# OpenMP
+##################################################################
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas")
