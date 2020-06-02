@@ -324,15 +324,7 @@ using SLICE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<uint8_t, uint8_t, 2, 1, 1024, ArgsGen_HalfAllDims<uint8_t, 2>>,
     SliceTestArgs<uint8_t, uint8_t, 2, 100, 1024, ArgsGen_HalfAllDims<uint8_t, 2>>,
     SliceTestArgs<uint8_t, uint8_t, 3, 3, 256, ArgsGen_HalfAllDims<uint8_t, 3>>,
-    SliceTestArgs<int, int, 2, 1, 3, ArgsGen_ExtractCenterElement<int, 2>>
->;
-
-using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
-    SliceTestArgs<int, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>,
-    SliceTestArgs<float16, int, 3, 1, 2, ArgsGen_WholeTensor<int, 3>>,
-    SliceTestArgs<float16, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>,
-
-    // TODO(janton): Move to SLICE_TEST_TYPES once GPU implementation supports out of bounds slicing
+    SliceTestArgs<int, int, 2, 1, 3, ArgsGen_ExtractCenterElement<int, 2>>,
     SliceTestArgs<int, int, 1, 1, 20, ArgsGen_BiggerThanInputSlice<int, 1>>,
     SliceTestArgs<int, int, 2, 1, 20, ArgsGen_BiggerThanInputSlice<int, 2>>,
     SliceTestArgs<int, int, 1, 1, 21, ArgsGen_LeftSideOutOfBounds<int, 1>>,
@@ -343,7 +335,14 @@ using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad<int, 3>, 20, 20, 3>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad_ChFirst<int, 3>, 3, 20, 20>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim<int, 3>, 20, 20, 3>,
-    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim_ChFirst<int, 3>, 3, 20, 20>
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim_ChFirst<int, 3>, 3, 20, 20>,
+    SliceTestArgs<int, int, 3, 10, 20, ArgsGen_PadAlsoChDim_ChFirst<int, 3>, 3, 20, 20>
+>;
+
+using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
+    SliceTestArgs<int, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>,
+    SliceTestArgs<float16, int, 3, 1, 2, ArgsGen_WholeTensor<int, 3>>,
+    SliceTestArgs<float16, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>
 >;
 
 }  // namespace kernels
