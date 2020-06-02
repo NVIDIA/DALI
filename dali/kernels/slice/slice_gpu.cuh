@@ -94,6 +94,8 @@ DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_e
 /**
  * @brief General algorithm that allows for padding in any dimension
  * @remarks `in` refers to the beginning of the input (not the slice anchor)
+ * @remarks `AllDims=true` means that Dims refer to the actual number of dimensions,
+ *           meaning we haven't skipped last dimensions that have same input and output strides
  */
 template <int Dims, typename OutputType, typename InputType, bool AllDims = true>
 __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
