@@ -270,7 +270,7 @@ class NormalizeImplGPU {
 
     // this condition is false when the other Setup overload was used
     if (axes_.data() != axes.data())
-      axes_ = { axes_.begin(), axes_.end() };
+      axes_ = { axes.begin(), axes.end() };
     axis_mask_ = to_bit_mask<uint64_t>(axes_);
     if (scalar_base && scalar_scale) {
       assert(axis_mask_ == (1 << ndim_) - 1 &&

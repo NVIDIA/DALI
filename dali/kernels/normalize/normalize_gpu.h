@@ -97,6 +97,24 @@ class DLL_PUBLIC NormalizeGPU {
                            bool scalar_scale,
                            bool scale_is_stddev);
 
+  /**
+   * @brief Sets up the normalization
+   *
+   * @param data_shape      shape of the input and output tensor lists
+   * @param axes            indices of axes along which the parameters are broadcast;
+   *                        ignored if both scalar_base and scalar_scale are `true`
+   * @param scalar_base     if true, the Run overload with scalar `base` parameter must be used
+   * @param scalar_scale    if true, the Run overload with scalar `scale` parameter must be used
+   * @param scale_is_stddev if true, scale is interpreted as standard deviation and it's regularized
+   *                        and its reciprocal is used when scaling
+   */
+  KernelRequirements Setup(KernelContext &ctx,
+                           const TensorListShape<> &data_shape,
+                           span<const int> axes,
+                           bool scalar_base,
+                           bool scalar_scale,
+                           bool scale_is_stddev);
+
   ///@{
   /**
    * @brief Normalizes the data with base and scale given as tensor lists

@@ -67,6 +67,67 @@ TEST_F(CopyTest, HostDevDevHost) {
   Check(host, src);
 }
 
+TEST_F(CopyTest, ListNonContiguous) {
+  // contiguous blocks: 0-1, 2-3
+  const int part1 = 26;
+  const int part2 = 16;
+  const int N = part1 + part2;
+
+  TensorListShape<2> in_shape = {{
+    { 2, 3 },  // 6 +
+    { 4, 5 },  // 20 == 26
+    { 3, 4 },  // 12 +
+    { 2, 2 }   // 4  == 16
+  }};
+
+  TensorListShape<2> gpu_shape = {{
+    { 4, 4 },  // 16 +
+    { 2, 5 },  // 10 == 26
+    { 4, 4 },  // 16
+  }};
+
+  // requires sample merging
+  TensorListShape<1> out_shape = {{
+    TensorShape<1>{ 10 },
+    TensorShape<1>{ 22 },
+    TensorShape<1>{ 10 }
+  }};
+
+  int in_data[N], ref_data[N], out_data[N];
+  for (int i = 0; i < N; i++) {
+    in_data[i] = i+1;
+    out_data[i] = -1;
+  }
+
+  for (int i = 0; i < part1; i++)
+    ref_data[i] = i + 1 + part2;
+  for (int i = part1; i < N; i++)
+    ref_data[i] = i + 1 - part1;
+
+  auto gpu_data = memory::alloc_unique<int>(AllocType::GPU, kSize);
+  TensorListView<StorageCPU, int, 2> in;
+  TensorListView<StorageGPU, int, 2> gpu;
+  TensorListView<StorageCPU, int, 1> out, ref;
+
+  in.resize(4);
+  in.shape = in_shape;
+  in.data[0] = in_data + part2;
+  in.data[1] = in_data + part2 + 6;
+  in.data[2] = in_data;
+  in.data[3] = in_data + 12;
+
+  gpu = make_tensor_list_gpu(gpu_data.get(), gpu_shape);
+
+  out.resize(1);
+  out = make_tensor_list_cpu(out_data, out_shape);
+
+  ref = make_tensor_list_cpu(ref_data, out_shape);
+
+  copy(gpu, in);
+  copy(out, gpu);
+  Check(out, ref);
+}
+
 
 TEST_F(CopyTest, HostDevUnifiedHost) {
   float data_src[kSize];

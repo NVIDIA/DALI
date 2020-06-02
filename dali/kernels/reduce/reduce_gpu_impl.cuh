@@ -447,10 +447,11 @@ class ReduceImplGPU {
     using pp_t = std::remove_reference_t<decltype(GetPreprocessor<do_preprocess>(0, false))>;
     pp_t *pp = nullptr;
     if (!std::is_empty<pp_t>::value) {
+      bool batch = ReduceBatch();
       int N = in_shape_.num_samples();
       pp = wa.ParamBuffer<pp_t>(N);
       for (int i = 0; i < N; i++)
-        pp[i] = GetPreprocessor<do_preprocess>(i, false);
+        pp[i] = GetPreprocessor<do_preprocess>(batch ? 0 : i, batch);
     }
     return pp;
   }
@@ -460,10 +461,11 @@ class ReduceImplGPU {
     using pp_t = std::remove_reference_t<decltype(GetPostprocessor<do_postprocess>(0, false))>;
     pp_t *pp = nullptr;
     if (!std::is_empty<pp_t>::value) {
+      bool batch = ReduceBatch();
       int N = in_shape_.num_samples();
       pp = wa.ParamBuffer<pp_t>(N);
       for (int i = 0; i < N; i++)
-        pp[i] = GetPostprocessor<do_postprocess>(i, false);
+        pp[i] = GetPostprocessor<do_postprocess>(batch ? 0 : i, batch);
     }
     return pp;
   }
@@ -743,6 +745,7 @@ class ReduceImplGPU {
   void InitStages() {
     const int nsamples = in_shape_.num_samples();
     const int in_dim = in_shape_.sample_dim();
+    stages_.clear();
 
     // short-circuit special cases
     if (in_dim == 1) {
