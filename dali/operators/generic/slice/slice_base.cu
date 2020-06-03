@@ -27,6 +27,8 @@ void RunHelper(TensorList<GPUBackend>& output,
                const TensorList<GPUBackend>& input,
                const std::vector<std::vector<int64_t>>& slice_anchors,
                const std::vector<std::vector<int64_t>>& slice_shapes,
+               const std::vector<float> &fill_values,
+               int channel_dim,
                cudaStream_t stream,
                kernels::ScratchpadAllocator &scratch_alloc) {
   std::size_t number_of_dims = input.tensor_shape(0).size();
@@ -47,6 +49,14 @@ void RunHelper(TensorList<GPUBackend>& output,
         anchor[d] = slice_anchor[d];
         shape[d] = slice_shape[d];
       }
+
+      if (!fill_values.empty()) {
+        slice_args.fill_values.clear();
+        for (auto val : fill_values)
+          slice_args.fill_values.push_back(static_cast<OutputType>(val));
+        slice_args.channel_dim = channel_dim;
+      }
+
       slice_args.push_back({anchor, shape});
     }
 
@@ -79,11 +89,11 @@ void SliceBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   TYPE_SWITCH(input_type_, type2id, InputType, SLICE_TYPES, (
     if (input_type_ == output_type_) {
       detail::RunHelper<InputType, InputType>(
-        output, input, slice_anchors_, slice_shapes_, ws.stream(), scratch_alloc_);
+        output, input, slice_anchors_, slice_shapes_, fill_values_, channel_dim, ws.stream(), scratch_alloc_);
     } else {
       TYPE_SWITCH(output_type_, type2id, OutputType, (float, float16, uint8_t), (
         detail::RunHelper<OutputType, InputType>(
-          output, input, slice_anchors_, slice_shapes_, ws.stream(), scratch_alloc_);
+          output, input, slice_anchors_, slice_shapes_, fill_values_, channel_dim, ws.stream(), scratch_alloc_);
       ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
     }
   ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT

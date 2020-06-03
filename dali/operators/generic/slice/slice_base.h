@@ -52,11 +52,14 @@ class SliceBase : public Operator<Backend> {
     input_type_ = input.type().id();
     if (output_type_ == DALI_NO_TYPE)
       output_type_ = input_type_;
+    channel_dim_ = input.GetLayout().find('C');
   }
 
   virtual void DataDependentSetup(Workspace<Backend> &ws) = 0;
 
   std::vector<std::vector<int64_t>> slice_anchors_, slice_shapes_;
+  std::vector<float> fill_values_;
+  int channel_dim_ = -1;
   DALIDataType input_type_ = DALI_NO_TYPE;
   DALIDataType output_type_ = DALI_NO_TYPE;
 

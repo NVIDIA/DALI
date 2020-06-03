@@ -20,6 +20,7 @@ namespace dali {
 template <>
 void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace &ws) {
   slice_attr_.ProcessArguments(ws);
+  fill_values_ = slice_attr_.GetFillValues();
   const auto &images = ws.Input<GPUBackend>(kImagesInId);
   for (int data_idx = 0; data_idx < batch_size_; data_idx++) {
     const auto img_shape = images.tensor_shape(data_idx);

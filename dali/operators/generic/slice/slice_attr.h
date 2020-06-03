@@ -21,9 +21,10 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/util/crop_window.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/operators/generic/slice/out_of_bounds_policy.h"
+#include "dali/util/crop_window.h"
 
 namespace dali {
 
@@ -33,6 +34,7 @@ class SliceAttr {
       : batch_size__(spec.GetArgument<int>("batch_size"))
       , normalized_anchor_(spec.GetArgument<bool>("normalized_anchor"))
       , normalized_shape_(spec.GetArgument<bool>("normalized_shape"))
+      , out_of_bounds_policy_(GetOutOfBoundsPolicy(spec))
       , crop_window_generators_(batch_size__) {
     const bool has_axes_arg = spec.HasArgument("axes");
     const bool has_axis_names_arg = spec.HasArgument("axis_names");
@@ -44,6 +46,10 @@ class SliceAttr {
       // Process `axes` only if provided and `axis_names` isn't
       axes_ = spec.GetRepeatedArgument<int>("axes");
       axis_names_ = TensorLayout{};
+    }
+
+    if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
+      fill_values_ = spec.GetRepeatedArgument<float>("fill_values");
     }
   }
 
@@ -82,6 +88,10 @@ class SliceAttr {
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
     DALI_ENFORCE(data_idx < crop_window_generators_.size());
     return crop_window_generators_[data_idx];
+  }
+
+  const std::vector<float>& GetFillValues() const {
+    return fill_values_;
   }
 
  private:
@@ -126,7 +136,8 @@ class SliceAttr {
           slice.shape[dim] = slice_end - slice.anchor[dim];
           assert(slice.anchor[dim] + slice.shape[dim] <= shape[dim]);
         }
-        slice.IsInRange(shape);
+
+        ProcessSliceArgs(out_of_bounds_policy_, shape, slice.anchor, slice.shape);
         return slice;
       };
   }
@@ -143,9 +154,11 @@ class SliceAttr {
  private:
   size_t batch_size__;
   bool normalized_anchor_, normalized_shape_;
+  OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
   std::vector<CropWindowGenerator> crop_window_generators_;
   std::vector<int> axes_;
   TensorLayout axis_names_;
+  std::vector<float> fill_values_;
 };
 
 }  // namespace dali

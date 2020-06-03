@@ -26,7 +26,9 @@ template <typename OutputType, typename InputType>
 void RunHelper(Tensor<CPUBackend> &output,
                const Tensor<CPUBackend> &input,
                const std::vector<int64_t> &slice_anchor,
-               const std::vector<int64_t> &slice_shape) {
+               const std::vector<int64_t> &slice_shape,
+               const std::vector<float> &fill_values,
+               int channel_dim) {
   std::size_t number_of_dims = input.shape().size();
   VALUE_SWITCH(number_of_dims, NumDims, (1, 2, 3, 4), (
     kernels::KernelContext ctx;
@@ -38,6 +40,13 @@ void RunHelper(Tensor<CPUBackend> &output,
     for (std::size_t d = 0; d < NumDims; d++) {
       anchor[d] = slice_anchor[d];
       shape[d] = slice_shape[d];
+    }
+
+    if (!fill_values.empty()) {
+      slice_args.fill_values.clear();
+      for (auto val : fill_values)
+        slice_args.fill_values.push_back(static_cast<OutputType>(val));
+      slice_args.channel_dim = channel_dim;
     }
 
     kernels::SliceCPU<OutputType, InputType, NumDims> kernel;

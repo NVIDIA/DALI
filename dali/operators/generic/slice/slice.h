@@ -38,6 +38,7 @@ class Slice : public SliceBase<Backend> {
   using SliceBase<Backend>::output_type_;
   using SliceBase<Backend>::slice_anchors_;
   using SliceBase<Backend>::slice_shapes_;
+  using SliceBase<Backend>::fill_values_;
 
   void RunImpl(Workspace<Backend> &ws) override {
     SliceBase<Backend>::RunImpl(ws);
