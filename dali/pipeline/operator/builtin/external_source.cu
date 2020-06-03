@@ -21,6 +21,7 @@
 namespace dali {
 
 template <>
+template <typename DataType>
 struct ExternalSource<GPUBackend>::RecycleFunctor {
   RecycleFunctor() = default;
   RecycleFunctor(const RecycleFunctor &) {
@@ -33,13 +34,13 @@ struct ExternalSource<GPUBackend>::RecycleFunctor {
 
 
   RecycleFunctor(ExternalSource<GPUBackend> *owner, std::list<uptr_cuda_event_type> event,
-                 std::list<uptr_tl_type> ptr, std::list<uptr_cuda_event_type> internal_copy_to_gpu)
+                 std::list<DataType> ptr, std::list<uptr_cuda_event_type> internal_copy_to_gpu)
           : owner(owner), event(std::move(event)), copy_to_gpu(std::move(internal_copy_to_gpu)),
             ptr(std::move(ptr)) {}
 
   ExternalSource<GPUBackend> *owner;
   std::list<uptr_cuda_event_type> event, copy_to_gpu;
-  std::list<uptr_tl_type> ptr;
+  std::list<DataType> ptr;
   void operator()() {
     owner->RecycleBuffer(ptr, &event, &copy_to_gpu);
   }
@@ -47,15 +48,20 @@ struct ExternalSource<GPUBackend>::RecycleFunctor {
 
 template<>
 void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  std::list<uptr_tl_type> data;
+  std::list<uptr_tl_type> tensor_list_elm;
+  std::list<uptr_vt_type> vector_tensor_elm;
+  bool is_data_in_tl;
   std::list<uptr_cuda_event_type> cuda_event, internal_copy_to_storage;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     cv_.wait(busy_lock, [&data = data_in_tl_]{return !data.empty();});
-    auto is_data_in_tl = data_in_tl_.front();
+    is_data_in_tl = data_in_tl_.front();
     data_in_tl_.pop_front();
-    DALI_ENFORCE(is_data_in_tl, "Cannot feed non-contiguous data to GPU op.");
-    data = tl_data_.PopFront();
+    if (is_data_in_tl) {
+      tensor_list_elm = tl_data_.PopFront();
+    } else {
+      vector_tensor_elm = t_data_.PopFront();
+    }
     internal_copy_to_storage = copy_to_storage_events_.PopFront();
     cuda_event = cuda_events_.GetEmpty();
   }
@@ -63,11 +69,27 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
   cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
   CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));
-  output.Copy(*(data.front()), stream_used);
+  if (is_data_in_tl) {
+    output.Copy(*(tensor_list_elm.front()), stream_used);
+  } else {
+    TensorVector<GPUBackend> tv(vector_tensor_elm.front()->size());
+    auto& vector_of_tensors = *vector_tensor_elm.front();
+    for (int i = 0; i < tv.size(); ++i) {
+      tv[i].ShareData(&vector_of_tensors[i]);
+    }
+    output.Copy(tv, stream_used);
+  }
   // record an event so Recycle can synchronize on it
   cudaEventRecord(*cuda_event.front(), stream_used);
-  sync_worker_.DoWork(RecycleFunctor{this, std::move(cuda_event), std::move(data),
-                                     std::move(internal_copy_to_storage)});
+  if (is_data_in_tl) {
+    sync_worker_.DoWork(RecycleFunctor<uptr_tl_type>{this, std::move(cuda_event),
+                                                     std::move(tensor_list_elm),
+                                                     std::move(internal_copy_to_storage)});
+  } else {
+    sync_worker_.DoWork(RecycleFunctor<uptr_vt_type>{this, std::move(cuda_event),
+                                                     std::move(vector_tensor_elm),
+                                                     std::move(internal_copy_to_storage)});
+  }
 }
 
 DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<GPUBackend>, GPU);

@@ -253,6 +253,7 @@ class ExternalSource : public Operator<Backend> {
   detail::CachingList<uptr_vt_type> t_data_;
   detail::CachingList<uptr_cuda_event_type> cuda_events_, copy_to_storage_events_;
   std::list<bool> data_in_tl_;
+  template<typename DataType>
   struct RecycleFunctor;
 
   std::mutex busy_m_;

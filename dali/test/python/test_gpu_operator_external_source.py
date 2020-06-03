@@ -3,10 +3,12 @@ import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.backend as backend
+import cupy as cp
 import numpy as np
 from nose.tools import assert_raises
 from test_utils import check_output
 import random
+from collections import Iterable
 
 class TestIterator():
     def __init__(self, n, batch_size, dims = [2], as_tensor = False):
@@ -24,13 +26,13 @@ class TestIterator():
         return TestIterator(self.n, self.batch_size, self.dims, self.as_tensor)
 
     def __next__(self):
-        np.random.seed(12345 * self.i + 4321)
+        cp.random.seed(12345 * self.i + 4321)
         def generate(dim):
-            shape = np.random.randint(1, 10, [dim]).tolist()
+            shape = cp.random.randint(1, 10, [dim]).tolist()
             if self.as_tensor:
-                return np.random.ranf([self.batch_size] + shape)
+                return cp.random.ranf([self.batch_size] + shape)
             else:
-                return [np.random.ranf(shape) for _ in range(self.batch_size)]
+                return [cp.random.ranf(shape) for _ in range(self.batch_size)]
         if self.i < self.n:
             self.i += 1
             if isinstance(self.dims, (list, tuple)):
@@ -48,7 +50,16 @@ def run_and_check(pipe, ref_iterable):
     while True:
         try:
             pipe_out = pipe.run()
-            check_output(pipe_out, next(iter_ref))
+            data = next(iter_ref)
+            # convert cupy to numpy for the verification needs
+            if isinstance(data, Iterable):
+                if isinstance(data[0], Iterable):
+                    data = [[cp.asnumpy(d) for d in dd] for dd in data]
+                else:
+                    data = [cp.asnumpy(d) for d in data]
+            else:
+                 data = cp.asnumpy(data)
+            check_output(pipe_out, data)
             i += 1
         except StopIteration:
             break
@@ -93,10 +104,11 @@ def _test_iter_setup(use_fn_api, by_name, device):
 
     run_and_check(pipe, source)
 
+_test_iter_setup(False, False, "gpu")
 def test_iter_setup():
     for use_fn_api in [False, True]:
         for by_name in [False, True]:
-            for device in ["cpu", "gpu"]:
+            for device in ["gpu"]:
                 yield _test_iter_setup, use_fn_api, by_name, device
 
 def _test_external_source_callback(use_fn_api, device):
@@ -121,7 +133,7 @@ def _test_external_source_callback(use_fn_api, device):
 
 def test_external_source_callback():
     for use_fn_api in [False, True]:
-        for device in ["cpu", "gpu"]:
+        for device in ["gpu"]:
             yield _test_external_source_callback, use_fn_api, device
 
 def _test_external_source_callback_split(use_fn_api, device):
@@ -146,7 +158,7 @@ def _test_external_source_callback_split(use_fn_api, device):
 
 def test_external_source_callback_split():
     for use_fn_api in [False, True]:
-        for device in ["cpu", "gpu"]:
+        for device in ["gpu"]:
             yield _test_external_source_callback_split, use_fn_api, device
 
 
@@ -171,7 +183,7 @@ def _test_external_source_iter(use_fn_api, device):
 
 def test_external_source_iter():
     for use_fn_api in [False, True]:
-        for device in ["cpu", "gpu"]:
+        for device in ["gpu"]:
             yield _test_external_source_callback, use_fn_api, device
 
 def _test_external_source_iter_split(use_fn_api, device):
@@ -195,18 +207,18 @@ def _test_external_source_iter_split(use_fn_api, device):
 
 def test_external_source_iter_split():
     for use_fn_api in [False, True]:
-        for device in ["cpu", "gpu"]:
+        for device in ["gpu"]:
             yield _test_external_source_callback_split, use_fn_api, device
 
 def test_external_source_collection():
     pipe = Pipeline(1, 3, 0)
 
     batches = [
-        [np.array([1.5,2.5], dtype= np.float32)],
-        [np.array([-1, 3.5,4.5], dtype= np.float32)]
+        [cp.array([1.5,2.5], dtype= cp.float32)],
+        [cp.array([-1, 3.5,4.5], dtype= cp.float32)]
     ]
 
-    pipe.set_outputs(fn.external_source(batches))
+    pipe.set_outputs(fn.external_source(batches, device = "gpu"))
     pipe.build()
     run_and_check(pipe, batches)
 
@@ -215,22 +227,22 @@ def test_external_source_collection_cycling():
     pipe = Pipeline(1, 3, 0)
 
     batches = [
-        [np.array([1.5,2.5], dtype= np.float32)],
-        [np.array([-1, 3.5,4.5], dtype= np.float32)]
+        [cp.array([1.5,2.5], dtype= cp.float32)],
+        [cp.array([-1, 3.5,4.5], dtype= cp.float32)]
     ]
 
-    pipe.set_outputs(fn.external_source(batches, cycle = True))
+    pipe.set_outputs(fn.external_source(batches, device = "gpu", cycle = True))
     pipe.build()
 
     # epochs are cycles over the source iterable
     for _ in range(3):
         for batch in batches:
-            check_output(pipe.run(), batch)
+            check_output(pipe.run(), cp.asnumpy(batch))
 
 def test_external_source_with_iter():
     pipe = Pipeline(1, 3, 0)
 
-    pipe.set_outputs(fn.external_source(lambda i: [np.array([i + 1.5], dtype=np.float32)]))
+    pipe.set_outputs(fn.external_source(lambda i: [cp.array([i + 1.5], dtype=cp.float32)], device = "gpu"))
     pipe.build()
 
     for i in range(10):
@@ -241,9 +253,9 @@ def test_external_source_generator():
 
     def gen():
         for i in range(5):
-            yield [np.array([i + 1.5], dtype=np.float32)]
+            yield [cp.array([i + 1.5], dtype=cp.float32)]
 
-    pipe.set_outputs(fn.external_source(gen()))
+    pipe.set_outputs(fn.external_source(gen(), device = "gpu"))
     pipe.build()
 
     for i in range(5):
@@ -254,9 +266,9 @@ def test_external_source_gen_function_cycle():
 
     def gen():
         for i in range(5):
-            yield [np.array([i + 1.5], dtype=np.float32)]
+            yield [cp.array([i + 1.5], dtype=cp.float32)]
 
-    pipe.set_outputs(fn.external_source(gen, cycle = True))
+    pipe.set_outputs(fn.external_source(gen, device = "gpu", cycle = True))
     pipe.build()
 
     for _ in range(3):
@@ -264,15 +276,15 @@ def test_external_source_gen_function_cycle():
             check_output(pipe.run(), [np.array([i + 1.5], dtype=np.float32)])
 
 def test_external_source_generator_cycle_error():
-    _ = Pipeline(1, 3, 0)
+    pipe = Pipeline(1, 3, 0)
 
     def gen():
         for i in range(5):
-            yield [np.array([i + 1.5], dtype=np.float32)]
+            yield [cp.array([i + 1.5], dtype=cp.float32)]
 
-    fn.external_source(gen(), cycle = False)     # no cycle - OK
+    fn.external_source(gen(), device = "gpu", cycle = False)     # no cycle - OK
     with assert_raises(TypeError):
-        fn.external_source(gen(), cycle = True)  # cycle over generator - error expected
+        fn.external_source(gen(), device = "gpu", cycle = True)  # cycle over generator - error expected
 
 def test_external_source():
     class TestIterator():
@@ -287,8 +299,8 @@ def test_external_source():
             batch_1 = []
             batch_2 = []
             if self.i < self.n:
-                batch_1.append(np.arange(0, 1, dtype=np.float))
-                batch_2.append(np.arange(0, 1, dtype=np.float))
+                batch_1.append(cp.arange(0, 1, dtype=cp.float))
+                batch_2.append(cp.arange(0, 1, dtype=cp.float))
                 self.i += 1
                 return batch_1, batch_2
             else:
@@ -299,8 +311,8 @@ def test_external_source():
     class IterSetupPipeline(Pipeline):
         def __init__(self, iterator, num_threads, device_id):
             super(IterSetupPipeline, self).__init__(1, num_threads, device_id)
-            self.input_1 = ops.ExternalSource()
-            self.input_2 = ops.ExternalSource()
+            self.input_1 = ops.ExternalSource(device = "gpu")
+            self.input_2 = ops.ExternalSource(device = "gpu")
             self.iterator = iterator
 
         def define_graph(self):
@@ -331,7 +343,7 @@ def test_external_source_fail():
     class ExternalSourcePipeline(Pipeline):
         def __init__(self, batch_size, external_s_size, num_threads, device_id):
             super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.ExternalSource()
+            self.input = ops.ExternalSource(device = "gpu")
             self.batch_size_ = batch_size
             self.external_s_size_ = external_s_size
 
@@ -340,7 +352,7 @@ def test_external_source_fail():
             return [self.batch]
 
         def iter_setup(self):
-            batch = np.zeros([self.external_s_size_,4,5])
+            batch = cp.zeros([self.external_s_size_,4,5])
             self.feed_input(self.batch, batch)
 
     batch_size = 3
@@ -352,8 +364,8 @@ def test_external_source_fail_missing_output():
     class ExternalSourcePipeline(Pipeline):
         def __init__(self, batch_size, external_s_size, num_threads, device_id):
             super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.ExternalSource()
-            self.input_2 = ops.ExternalSource()
+            self.input = ops.ExternalSource(device = "gpu")
+            self.input_2 = ops.ExternalSource(device = "gpu")
             self.batch_size_ = batch_size
             self.external_s_size_ = external_s_size
 
@@ -363,7 +375,7 @@ def test_external_source_fail_missing_output():
             return [self.batch]
 
         def iter_setup(self):
-            batch = np.zeros([self.external_s_size_,4,5])
+            batch = cp.zeros([self.external_s_size_,4,5])
             self.feed_input(self.batch, batch)
             self.feed_input(self.batch_2, batch)
 
@@ -376,7 +388,7 @@ def test_external_source_fail_list():
     class ExternalSourcePipeline(Pipeline):
         def __init__(self, batch_size, external_s_size, num_threads, device_id):
             super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.ExternalSource()
+            self.input = ops.ExternalSource(device = "gpu")
             self.batch_size_ = batch_size
             self.external_s_size_ = external_s_size
 
@@ -387,7 +399,7 @@ def test_external_source_fail_list():
         def iter_setup(self):
             batch = []
             for _ in range(self.external_s_size_):
-                batch.append(np.zeros([3,4,5]))
+                batch.append(cp.zeros([3,4,5]))
             self.feed_input(self.batch, batch)
 
     batch_size = 3
@@ -402,7 +414,7 @@ def test_external_source_scalar_list():
     class ExternalSourcePipeline(Pipeline):
         def __init__(self, batch_size, external_data, num_threads, device_id, label_data):
             super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.ExternalSource()
+            self.input = ops.ExternalSource(device = "gpu")
             self.batch_size_ = batch_size
             self.external_data = external_data
             self.label_data_ = label_data
@@ -414,7 +426,7 @@ def test_external_source_scalar_list():
         def iter_setup(self):
             batch = []
             for elm in self.external_data:
-                batch.append(np.array(elm, dtype=np.uint8))
+                batch.append(cp.array(elm, dtype=cp.uint8))
             self.feed_input(self.batch, batch)
 
     batch_size = 3
@@ -431,7 +443,7 @@ def test_external_source_scalar_list():
         for _ in range(10):
             out = pipe.run()
             for i in range(batch_size):
-                assert out[0].as_array()[i] == external_data[i]
+                assert out[0].as_cpu().as_array()[i] == external_data[i]
         yield external_data_veri, external_data
 
 def test_external_source_gpu():
@@ -449,9 +461,9 @@ def test_external_source_gpu():
 
         def iter_setup(self):
             if use_list:
-                batch_data = [np.random.rand(100, 100, 3) for _ in range(self.batch_size)]
+                batch_data = [cp.random.rand(100, 100, 3) for _ in range(self.batch_size)]
             else:
-                batch_data = np.random.rand(self.batch_size, 100, 100, 3)
+                batch_data = cp.random.rand(self.batch_size, 100, 100, 3)
             self.feed_input(self.batch, batch_data)
 
     for batch_size in [1, 10]:

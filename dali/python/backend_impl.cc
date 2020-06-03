@@ -864,6 +864,15 @@ py::dict MetaToDict(const ReaderMeta &meta) {
   return d;
 }
 
+template <typename Backend>
+void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t stream) {
+  vector<Tensor<Backend>> tensors(list.size());
+  for (size_t i = 0; i < list.size(); ++i) {
+    tensors[i] = std::move(list[i].cast<Tensor<Backend>&>());
+  }
+  p->SetExternalInput(name, tensors, stream);
+}
+
 PYBIND11_MODULE(backend_impl, m) {
   dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
@@ -1064,11 +1073,26 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("num_threads", &Pipeline::num_threads)
     .def("device_id", &Pipeline::device_id)
     .def("SetExternalTLInput",
-        [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl) {
-          p->SetExternalInput(name, tl);
-        })
+        [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
+           py::object /*cuda_stream*/) {
+          p->SetExternalInput(name, tl, 0);
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none())
+    .def("SetExternalTLInput",
+        [](Pipeline *p, const string &name, const TensorList<GPUBackend> &tl,
+           py::object cuda_stream) {
+           cudaStream_t stream = cuda_stream.is_none()
+                                 ? UserStream::Get()->GetStream(tl)
+                                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+          p->SetExternalInput(name, tl, stream);
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none())
     .def("SetExternalTensorInput",
-        [](Pipeline *p, const string &name, py::list list) {
+        [](Pipeline *p, const string &name, py::list list, py::object cuda_stream) {
           // Note: This is a hack to get around weird casting
           // issues w/ pybind and a non-copyable type (dali::Tensor).
           // We cannot use pybind::cast<Tensor<CPUBackend>>
@@ -1077,14 +1101,25 @@ PYBIND11_MODULE(backend_impl, m) {
           // tries to call the deleted copy constructor for Tensor.
           // instead, we cast to a reference type and manually
           // move into the vector.
-          vector<Tensor<CPUBackend>> tensors(list.size());
           DALI_ENFORCE(p->batch_size() == static_cast<int>(list.size()),
              "Data list provided to feed_input needs to have batch_size length.");
-          for (size_t i = 0; i < list.size(); ++i) {
-            tensors[i] = std::move(list[i].cast<Tensor<CPUBackend>&>());
+
+          bool is_cpu_data = true;
+          // not the most beautiful  but at least it doesn't throw as plain cast<T>()
+          py::detail::make_caster<Tensor<CPUBackend>&> conv;
+          is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
+          if (is_cpu_data) {
+            FeedPipeline<CPUBackend>(p, name, list, 0);
+          } else {
+            cudaStream_t stream = cuda_stream.is_none()
+                                ? UserStream::Get()->GetStream(list[0].cast<Tensor<GPUBackend>&>())
+                                : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+            FeedPipeline<GPUBackend>(p, name, list, stream);
           }
-          p->SetExternalInput(name, tensors);
-        })
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none())
     .def("SerializeToProtobuf",
         [](Pipeline *p) -> py::bytes {
           string s = p->SerializeToProtobuf();

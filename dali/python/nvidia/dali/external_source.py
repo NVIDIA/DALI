@@ -53,10 +53,11 @@ class _CycleGenFunc():
             return next(self.it)
 
 class _ExternalSourceGroup(object):
-    def __init__(self, callback, is_multioutput, instances = []):
+    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
+        self._cuda_stream = cuda_stream
         if callback is not None:
             if callback.__code__.co_argcount not in [0, 1]:
                 raise TypeError("External source callback must be a callable with 0 or 1 argument")
@@ -76,11 +77,11 @@ class _ExternalSourceGroup(object):
         if self.is_multioutput:
             for op in self.instances:
                 data = callback_out[op._output_index]
-                pipeline.feed_input(op._name, data, op._layout)
+                pipeline.feed_input(op._name, data, op._layout, self._cuda_stream)
         else:
             data = callback_out
             op = self.instances[0]
-            pipeline.feed_input(op._name, data, op._layout)
+            pipeline.feed_input(op._name, data, op._layout, self._cuda_stream)
 
 def _is_generator_function(x):
     """Checks whether x is a generator function or a callable object
@@ -172,13 +173,20 @@ Keyword Args
     If provided, sets the layout of the data. When ``num_outputs > 1``, layout can be a list
     containing a distinct layout for each output. If the list has fewer elements than ``num_outputs``,
     only the first outputs have the layout set, the reset have it cleared.
+
+`cuda_stream` : Any value that can be casted to cudaStream_t
+    CUDA stream to be used for the copy (for the GPU input, for CPU is disregarded)
+    (if not provided, an internal user stream will be selected)
+    In most cases, using the default internal user stream or stream 0
+    is expected.
 """
 
-    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", **kwargs):
+    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", cuda_stream = None, **kwargs):
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
         self._device = device
         self._layout = layout
+        self._cuda_stream = cuda_stream
 
         callback = _get_callback_from_source(source, cycle)
 
@@ -209,7 +217,7 @@ Keyword Args
     def preserve(self):
         return False
 
-    def __call__(self, *, source = None, cycle = None, name = None, layout = None, **kwargs):
+    def __call__(self, *, source = None, cycle = None, name = None, layout = None, cuda_stream = None, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
 
@@ -230,6 +238,10 @@ Keyword Args
 
         if layout is not None and self._layout is not None:
             raise RuntimeError("`layout` already specified in constructor.")
+
+        if cuda_stream is not None and self._cuda_stream is not None:
+            raise RuntimeError("`cuda_stream` already specified in constructor.")
+
         if name is None:
             name = self._name
 
@@ -239,7 +251,7 @@ Keyword Args
         if self._num_outputs is not None:
             outputs = []
             kwargs = {}
-            group = _ExternalSourceGroup(callback, True)
+            group = _ExternalSourceGroup(callback, True, cuda_stream=self._cuda_stream)
             for i in range(self._num_outputs):
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
@@ -264,7 +276,7 @@ Keyword Args
             op_instance = _OperatorInstance([], self, **kwargs)
             op_instance._callback = callback
             op_instance._output_index = None
-            op_instance._group = _ExternalSourceGroup(callback, False, [op_instance])
+            op_instance._group = _ExternalSourceGroup(callback, False, [op_instance], cuda_stream=self._cuda_stream)
             op_instance._layout = self._layout if self._layout is not None else ""
             op_instance.generate_outputs()
 
