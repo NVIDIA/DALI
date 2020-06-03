@@ -27,8 +27,14 @@ Dali uses Turing optical flow hardware implementation: https://developer.nvidia.
 )code")
                 .NumInput(1, 2)
                 .NumOutput(1)
-                .AddOptionalArg(detail::kPresetArgName, R"code(Setting quality level of OF calculation.
- 0.0f ... 1.0f, where 1.0f is best quality, lowest speed)code", .0f, false)
+                .AddOptionalArg(detail::kPresetArgName, R"code(Speed/quality level of OF calculation:
+
+- 0.0 is the lowest speed and the best quality,
+- 0.5 is the medium speed and quality,
+- 1.0 is the fastest speed and the lowest quality.
+
+The lower the speed, the more additional pre-/post-processing is used to enchance the quality of OF result.
+)code", .0f, false)
                 .AddOptionalArg(detail::kOutputFormatArgName,
                                 R"code(Setting grid size for output vector.
 Value defines width of grid square (e.g. if value == 4, 4x4 grid is used).
