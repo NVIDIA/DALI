@@ -43,7 +43,8 @@ class HybridTrainPipe(Pipeline):
         self.input = ops.FileReader(file_root=data_dir,
                                     shard_id=FLAGS.local_rank,
                                     num_shards=FLAGS.world_size,
-                                    random_shuffle=True)
+                                    random_shuffle=True,
+                                    pad_last_batch=True)
         # set internal nvJPEG buffers size to handle full-sized ImageNet images
         # without additional reallocations
         device_memory_padding = 211025920
@@ -93,7 +94,8 @@ class HybridValPipe(Pipeline):
         self.input = ops.FileReader(file_root=data_dir,
                                     shard_id=0,  # XXX eval only on rank 0
                                     num_shards=1,
-                                    random_shuffle=False)
+                                    random_shuffle=False,
+                                    pad_last_batch=True)
         self.decode = ops.ImageDecoder(device="mixed", output_type=types.RGB)
         self.res = ops.Resize(device="gpu",
                               resize_shorter=256,
@@ -208,14 +210,14 @@ def main():
     pipe = HybridTrainPipe()
     pipe.build()
     sample_per_shard = len(pipe) // FLAGS.world_size
-    train_loader = DALIClassificationIterator(pipe, size=sample_per_shard)
+    train_loader = DALIClassificationIterator(pipe, reader_name="Reader",
+                                             fill_last_batch=False)
 
     if FLAGS.local_rank == 0:
         pipe = HybridValPipe()
         pipe.build()
-        val_loader = DALIClassificationIterator(pipe, size=len(pipe),
-                                                fill_last_batch=False,
-                                                last_batch_padded=True)
+        val_loader = DALIClassificationIterator(pipe, reader_name="Reader",
+                                                fill_last_batch=False)
 
     place = fluid.CUDAPlace(FLAGS.device_id)
     exe = fluid.Executor(place)

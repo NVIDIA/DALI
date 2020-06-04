@@ -712,23 +712,28 @@ OpNode * Pipeline::GetOperatorNode(const std::string& name) {
   return &(graph_.Node(name));
 }
 
-std::map<std::string, Index> Pipeline::EpochSize() {
-  std::map<std::string, Index> ret;
-  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::CPU, i);
-    Index epoch_size = current.op->epoch_size();
-    if (epoch_size != -1) {
-      ret.insert(make_pair(current.instance_name, epoch_size));
-    }
-  }
-  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::GPU, i);
-    Index epoch_size = current.op->epoch_size();
-    if (epoch_size != -1) {
-      ret.insert(make_pair(current.instance_name, epoch_size));
+std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
+  std::map<std::string, ReaderMeta> ret;
+  for (Index i = 0; i < graph_.NumOp(); ++i) {
+    const OpNode &current = graph_.Node(i);
+    ReaderMeta meta = current.op->GetReaderMeta();
+    if (meta) {
+      ret.insert(make_pair(current.instance_name, meta));
     }
   }
   return ret;
+}
+
+ReaderMeta Pipeline::GetReaderMeta(std::string name) {
+  ReaderMeta meta;
+  for (Index i = 0; i < graph_.NumOp(); ++i) {
+    const OpNode &current = graph_.Node(i);
+    if (current.instance_name == name) {
+      meta = current.op->GetReaderMeta();
+      break;
+    }
+  }
+  return meta;
 }
 
 void Pipeline::SaveGraphToDotFile(const std::string &filename, bool show_tensors, bool show_ids,
