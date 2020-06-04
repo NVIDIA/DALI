@@ -4,9 +4,15 @@ pip_packages="jupyter numpy matplotlib cupy"
 target_dir=./docs/examples
 
 test_body() {
-    jupyter nbconvert --to notebook --inplace --execute \
-                      --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                      --ExecutePreprocessor.timeout=300 custom_operations/gpu_python_operator.ipynb
+    test_files=(
+        "custom_operations/gpu_python_operator.ipynb"
+        "general/data_loading/external_input.ipynb"
+    )
+    for f in ${test_files[@]};
+        jupyter nbconvert --to notebook --inplace --execute \
+                        --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
+                        --ExecutePreprocessor.timeout=300 $f;
+    done
 }
 
 pushd ../..
