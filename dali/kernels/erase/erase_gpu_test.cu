@@ -246,22 +246,21 @@ struct EraseGpuKernelTest :
   }
 
   void CreateRegions() {
-    int min_erase_regions = 0;
+    TensorListShape<1> region_list_shape(batch_size_);
+    std::mt19937 gen(0);
     if (region_generation_ == RegionGen::NO_ERASE) {
-      max_erase_regions_ = 0;
       // no cover
+      region_list_shape = uniform_list_shape<1>(batch_size_, {0});
     } else if (region_generation_ == RegionGen::FULL_ERASE) {
       // full cover
-      min_erase_regions = 1;
-      max_erase_regions_ = 1;
+      region_list_shape = uniform_list_shape<1>(batch_size_, {1});
+    } else {
+      std::uniform_int_distribution<> n_regions(0, max_erase_regions_);
+      for (int i = 0; i < batch_size_; ++i) {
+        region_list_shape.set_tensor_shape(i, {n_regions(gen)});
+      }
     }
-    std::mt19937 gen(0);
-    std::uniform_int_distribution<> n_regions(min_erase_regions, max_erase_regions_+1);
-    auto regions_shape = TensorListShape<1>(batch_size_);
-    for (int i = 0; i < batch_size_; ++i) {
-      regions_shape.set_tensor_shape(i, {n_regions(gen)});
-    }
-    regions_.reshape(regions_shape);
+    regions_.reshape(region_list_shape);
     auto regions_cpu = regions_.cpu();
     if (region_generation_ == RegionGen::FULL_ERASE) {
       // full cover
