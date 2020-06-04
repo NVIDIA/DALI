@@ -68,6 +68,9 @@ void NumpyReader::GetDynamicSliceArg(TensorListShape<>& tls,
   }
 }
 
+// we need to override Prefetch in order to pass slicing parameters to
+// the loader if necessary. Currently, there is no other way of doing that then
+// using an accessor function.
 void NumpyReader::Prefetch() {
   // We actually prepare the next batch
   TimeRange tr("NumpyReader::Prefetch #" + to_string(curr_batch_producer_), TimeRange::kRed);
@@ -174,6 +177,8 @@ the list of files in the sub-directories of `file_root`.)code", "*.npy")
       R"code(If true, reader shuffles whole dataset after each epoch. It is exclusive with
 `stick_to_shard` and `random_shuffle`.)code",
       false)
+  .AddOptionalArg("target_io_bytes",
+      R"code(Gives a hint to the reader what chunk size is efficient for IO.)code", 0)
   .AddOptionalArg<int>("anchor", R"code(Specifies the anchor for sliced reads.\n
 If no anchor is specified, but shape is set, anchor=0 is assumed.)code",
       std::vector<int>(), true)
