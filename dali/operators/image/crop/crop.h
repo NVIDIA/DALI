@@ -30,95 +30,31 @@
 namespace dali {
 
 template <typename Backend>
-class Crop : public SliceBase<Backend>, protected CropAttr {
+class Crop : public SliceBase<Backend> {
  public:
   explicit inline Crop(const OpSpec &spec) :
     SliceBase<Backend>(spec),
-    CropAttr(spec),
-    C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
-  }
+    crop_attr_(spec) {}
 
  protected:
-  void RunImpl(Workspace<Backend> &ws) override {
-    SliceBase<Backend>::RunImpl(ws);
+  void DataDependentSetup(const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template InputRef<Backend>(0);
+    const TensorLayout in_layout = input.GetLayout();
+    DALI_ENFORCE(in_layout.ndim() == input.shape().sample_dim());
+    DALI_ENFORCE(ImageLayoutInfo::HasChannel(in_layout) &&
+      (ImageLayoutInfo::IsImage(in_layout) || VideoLayoutInfo::IsVideo(in_layout)),
+      "Unexpected data layout");
+
+    crop_attr_.ProcessArguments(ws);
   }
 
-  void SetupSharedSampleParams(Workspace<Backend> &ws) override {
-    CropAttr::ProcessArguments(ws);
-    SliceBase<Backend>::SetupSharedSampleParams(ws);
+  const CropWindowGenerator &GetCropWindowGenerator(std::size_t data_idx) const override {
+    return crop_attr_.GetCropWindowGenerator(data_idx);
   }
 
-  void DataDependentSetup(Workspace<Backend> &ws) override;
-
-  using SliceBase<Backend>::slice_anchors_;
-  using SliceBase<Backend>::slice_shapes_;
-  using SliceBase<Backend>::input_type_;
-  using SliceBase<Backend>::output_type_;
+  CropAttr crop_attr_;
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
-  std::size_t C_;
-
-  void SetupSample(int data_idx, const TensorLayout &layout, const TensorShape<> &shape) {
-    int64_t F = 1, D = 1, H, W, C;
-    DALI_ENFORCE(shape.size() >= 3 || shape.size() <= 5,
-      "Unexpected number of dimensions: " + std::to_string(shape.size()));
-    DALI_ENFORCE(layout.ndim() == shape.size());
-
-    int d_dim = layout.find('D');
-    int h_dim = layout.find('H');
-    int w_dim = layout.find('W');
-    int c_dim = layout.find('C');
-    int f_dim = layout.find('F');
-
-    DALI_ENFORCE(h_dim >= 0 && w_dim >= 0 && c_dim >= 0,
-      "Height, Width and Channel must be present in the layout. Got: " + layout.str());
-    if (d_dim >= 0)
-      D = shape[d_dim];
-    H = shape[h_dim];
-    W = shape[w_dim];
-    C = shape[c_dim];
-    if (f_dim >= 0)
-      F = shape[f_dim];
-
-    int spatial_ndim = ImageLayoutInfo::NumSpatialDims(layout);
-    assert(spatial_ndim >= 2);  // bug-check: should never occur with h_dim, w_dim >= 0
-
-    // Special case.
-    // This allows using crop_d to crop on the sequence dimension,
-    // by treating video inputs as a volume instead of a sequence
-    if (has_crop_d_ && F > 1 && D == 1) {
-      std::swap(d_dim, f_dim);
-      std::swap(D, F);
-      spatial_ndim++;
-    }
-
-    auto crop_window_gen = GetCropWindowGenerator(data_idx);
-    auto win = spatial_ndim == 3 ?
-      crop_window_gen({D, H, W}, "DHW") : crop_window_gen({H, W}, "HW");
-
-    int ndim = shape.sample_dim();
-    slice_anchors_[data_idx].resize(ndim);
-    slice_shapes_[data_idx].resize(ndim);
-
-    if (d_dim >= 0) {
-      slice_anchors_[data_idx][d_dim] = win.anchor[spatial_ndim - 3];
-      slice_shapes_[data_idx][d_dim] = win.shape[spatial_ndim - 3];
-    }
-
-    slice_anchors_[data_idx][h_dim] = win.anchor[spatial_ndim - 2];
-    slice_shapes_[data_idx][h_dim] = win.shape[spatial_ndim - 2];
-
-    slice_anchors_[data_idx][w_dim] = win.anchor[spatial_ndim - 1];
-    slice_shapes_[data_idx][w_dim] = win.shape[spatial_ndim - 1];
-
-    slice_anchors_[data_idx][c_dim] = 0;
-    slice_shapes_[data_idx][c_dim] = C;
-
-    if (f_dim >= 0) {
-      slice_anchors_[data_idx][f_dim] = 0;
-      slice_shapes_[data_idx][f_dim] = F;
-    }
-  }
 };
 
 }  // namespace dali

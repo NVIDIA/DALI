@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_GENERIC_SLICE_OUT_OF_BOUNDS_POLICY_H_
 #define DALI_OPERATORS_GENERIC_SLICE_OUT_OF_BOUNDS_POLICY_H_
 
+#include <string>
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/pipeline/operator/common.h"
@@ -27,7 +28,7 @@ namespace dali {
 enum class OutOfBoundsPolicy {
   Error,        // sampling out of bounds will throw an error
   TrimToShape,  // Slice shape will be trimmed to fit the input bounds (potentially empty output)
-  Pad,          // Slicing out of bounds will result in padding with zeroes or any other provided value(s)
+  Pad,  // Slicing out of bounds will result in padding with zeroes or any other provided value(s)
 };
 
 inline OutOfBoundsPolicy GetOutOfBoundsPolicy(const OpSpec &spec) {
@@ -51,7 +52,7 @@ inline OutOfBoundsPolicy GetOutOfBoundsPolicy(const OpSpec &spec) {
 }
 
 template <int Dims>
-void ProcessSliceArgs(OutOfBoundsPolicy policy, const TensorShape<Dims> &input_shape, 
+void ProcessSliceArgs(OutOfBoundsPolicy policy, const TensorShape<Dims> &input_shape,
                       TensorShape<Dims> &slice_anchor, TensorShape<Dims> &slice_shape) {
   DALI_ENFORCE(
       input_shape.size() == slice_anchor.size() && input_shape.size() == slice_shape.size(),
@@ -66,7 +67,7 @@ void ProcessSliceArgs(OutOfBoundsPolicy policy, const TensorShape<Dims> &input_s
         if (slice_anchor[d] < 0)
           slice_anchor[d] = 0;
         if (slice_anchor[d] + slice_shape[d] >= input_shape[d])
-          slice_shape[d] = std::max(0l, input_shape[d] - slice_anchor[d]); 
+          slice_shape[d] = std::max(0l, input_shape[d] - slice_anchor[d]);
       }
       break;
 
@@ -78,7 +79,8 @@ void ProcessSliceArgs(OutOfBoundsPolicy policy, const TensorShape<Dims> &input_s
             slice_end > input_shape[d]) {
           DALI_FAIL(make_string(
               "Slice can't be place out of bounds with current policy. Got: input_shape={",
-              input_shape, "}, slice_anchor={", slice_anchor, "}, slice_shape={", slice_shape, "}"));
+              input_shape, "}, slice_anchor={", slice_anchor, "}, slice_shape={", slice_shape,
+              "}"));
         }
       }
 

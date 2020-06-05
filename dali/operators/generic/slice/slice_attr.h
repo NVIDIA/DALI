@@ -23,7 +23,6 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/operators/generic/slice/out_of_bounds_policy.h"
 #include "dali/util/crop_window.h"
 
 namespace dali {
@@ -34,7 +33,6 @@ class SliceAttr {
       : batch_size__(spec.GetArgument<int>("batch_size"))
       , normalized_anchor_(spec.GetArgument<bool>("normalized_anchor"))
       , normalized_shape_(spec.GetArgument<bool>("normalized_shape"))
-      , out_of_bounds_policy_(GetOutOfBoundsPolicy(spec))
       , crop_window_generators_(batch_size__) {
     const bool has_axes_arg = spec.HasArgument("axes");
     const bool has_axis_names_arg = spec.HasArgument("axis_names");
@@ -47,13 +45,23 @@ class SliceAttr {
       axes_ = spec.GetRepeatedArgument<int>("axes");
       axis_names_ = TensorLayout{};
     }
+  }
 
-    if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
-      fill_values_ = spec.GetRepeatedArgument<float>("fill_values");
+  void ProcessArguments(const DeviceWorkspace &ws) {
+    DALI_ENFORCE(ws.NumInput() == 3,
+      "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
+    // slice args are CPU inputs
+    const auto &crop_anchor = ws.template Input<CPUBackend>(1);
+    const auto &crop_shape = ws.template Input<CPUBackend>(2);
+    for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
+      VerifyArgsShape(crop_anchor.tensor_shape(data_idx), crop_shape.tensor_shape(data_idx));
+      ProcessArgumentsHelper(data_idx,
+                             crop_anchor.template tensor<float>(data_idx),
+                             crop_shape.template tensor<float>(data_idx));
     }
   }
 
-  void ProcessArguments(MixedWorkspace &ws) {
+  void ProcessArguments(const HostWorkspace &ws) {
     DALI_ENFORCE(ws.NumInput() == 3,
       "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
@@ -64,15 +72,15 @@ class SliceAttr {
     }
   }
 
-  void ProcessArguments(DeviceWorkspace &ws) {
+
+  void ProcessArguments(const MixedWorkspace &ws) {
     DALI_ENFORCE(ws.NumInput() == 3,
       "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
-    const auto &crop_anchor = ws.Input<CPUBackend>(1);
-    const auto &crop_shape = ws.Input<CPUBackend>(2);
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
-      VerifyArgsShape(crop_anchor.tensor_shape(data_idx), crop_shape.tensor_shape(data_idx));
-      ProcessArgumentsHelper(data_idx, crop_anchor.tensor<float>(data_idx),
-                             crop_shape.tensor<float>(data_idx));
+      const auto &crop_anchor = ws.Input<CPUBackend>(1, data_idx);
+      const auto &crop_shape = ws.Input<CPUBackend>(2, data_idx);
+      VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
+      ProcessArgumentsHelper(data_idx, crop_anchor.data<float>(), crop_shape.data<float>());
     }
   }
 
@@ -88,10 +96,6 @@ class SliceAttr {
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
     DALI_ENFORCE(data_idx < crop_window_generators_.size());
     return crop_window_generators_[data_idx];
-  }
-
-  const std::vector<float>& GetFillValues() const {
-    return fill_values_;
   }
 
  private:
@@ -129,15 +133,10 @@ class SliceAttr {
             }
             slice_end = std::llround(anchor_val + shape_val);
           }
-          DALI_ENFORCE(slice_end <= shape[dim],
-            make_string("Slice end for dim ", dim, " is out of bounds:",
-                        slice_end, ">", shape[dim]));
           slice.anchor[dim] = std::llround(anchor_val);
           slice.shape[dim] = slice_end - slice.anchor[dim];
-          assert(slice.anchor[dim] + slice.shape[dim] <= shape[dim]);
         }
 
-        ProcessSliceArgs(out_of_bounds_policy_, shape, slice.anchor, slice.shape);
         return slice;
       };
   }
@@ -154,11 +153,9 @@ class SliceAttr {
  private:
   size_t batch_size__;
   bool normalized_anchor_, normalized_shape_;
-  OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
   std::vector<CropWindowGenerator> crop_window_generators_;
   std::vector<int> axes_;
   TensorLayout axis_names_;
-  std::vector<float> fill_values_;
 };
 
 }  // namespace dali

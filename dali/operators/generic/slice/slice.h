@@ -34,38 +34,15 @@ class Slice : public SliceBase<Backend> {
     , slice_attr_(spec) {}
 
  protected:
-  using SliceBase<Backend>::input_type_;
-  using SliceBase<Backend>::output_type_;
-  using SliceBase<Backend>::slice_anchors_;
-  using SliceBase<Backend>::slice_shapes_;
-  using SliceBase<Backend>::fill_values_;
-
-  void RunImpl(Workspace<Backend> &ws) override {
-    SliceBase<Backend>::RunImpl(ws);
+  void DataDependentSetup(const workspace_t<Backend> &ws) override {
+    slice_attr_.ProcessArguments(ws);
   }
 
-  void SetupSharedSampleParams(Workspace<Backend> &ws) override {
-    DALI_ENFORCE(ws.NumInput() == 3,
-      "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
-    SliceBase<Backend>::SetupSharedSampleParams(ws);
+  const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const override {
+    return slice_attr_.GetCropWindowGenerator(data_idx);
   }
-
-  void DataDependentSetup(Workspace<Backend> &ws) override;
 
  private:
-  inline TensorLayout GetDefaultLayout(int ndims) {
-    switch (ndims) {
-      case 2:
-        return "HW";
-      case 3:
-        return "HWC";
-      case 4:
-        return "DHWC";
-      default:
-        return "";
-    }
-  }
-
   SliceAttr slice_attr_;
 
   static const int kImagesInId = 0;

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/generic/slice/slice.h"
+#include "dali/kernels/slice/slice_cpu.h"
 
 namespace dali {
 
@@ -41,40 +42,19 @@ slice (x0, x1, x2, ...).)code")
     .AddOptionalArg("image_type",
       R"code(The color space of input and output image)code",
       DALI_RGB, false)
-    .AddOptionalArg("out_of_bounds_policy",  // TODO(janton): Move this to SliceAttr once we enable padding in ImageDecoderSlice
+    .AddOptionalArg("out_of_bounds_policy",
         R"code(Determines the policy when slicing out of bounds of the input.
 Supported values are:
 - \"error\" (default) : Attempting to slice outside of the bounds of the image will produce an error.
 - \"pad\": The input will be padded as needed with zeros or any other value specified with ``fill_values`` argument.
 - \"trim_to_shape\": The slice window will be resized so that it stays within the bounds of the input.
 a))code", "error")
-    .AddOptionalArg("fill_values",  // TODO(janton): Move this to SliceAttr once we enable padding in ImageDecoderSlice
+    .AddOptionalArg("fill_values",
         R"code(Determines padding values, only relevant if ``out_of_bounds_policy`` is set to \"pad\".
 If a scalar is provided, it will be used for all the channels. If multiple values are given, there should be as many values as
 channels (extent of dimension 'C' in the layout) in the output slice.)code", 0)
     .AddParent("SliceBase")
     .AddParent("SliceAttr");
-
-template <>
-void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace &ws) {
-  slice_attr_.ProcessArguments(ws);
-  fill_values_ = slice_attr_.GetFillValues();
-  const auto &images = ws.Input<CPUBackend>(kImagesInId);
-  auto data_idx = ws.data_idx();
-  auto crop_window_generator = slice_attr_.GetCropWindowGenerator(data_idx);
-  DALI_ENFORCE(crop_window_generator);
-  auto layout = InputLayout(ws, 0);
-  if (layout.empty())
-    layout = GetDefaultLayout(images.shape().size());
-  CropWindow win = crop_window_generator(images.shape(), layout);
-  slice_shapes_[data_idx] = std::vector<int64_t>(win.shape.begin(), win.shape.end());
-  slice_anchors_[data_idx] = std::vector<int64_t>(win.anchor.begin(), win.anchor.end());
-}
-
-template <>
-void Slice<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  SliceBase<CPUBackend>::RunImpl(ws);
-}
 
 DALI_REGISTER_OPERATOR(Slice, Slice<CPUBackend>, CPU);
 

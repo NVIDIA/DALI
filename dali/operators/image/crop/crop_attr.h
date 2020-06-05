@@ -32,7 +32,7 @@ namespace dali {
  * Responsible for accessing image type, starting points and size of crop area.
  */
 class CropAttr {
- protected:
+ public:
   static constexpr int kNoCrop = -1;
   explicit inline CropAttr(const OpSpec &spec)
     : spec__(spec)
@@ -103,35 +103,47 @@ class CropAttr {
     crop_window_generators_[data_idx] =
       [this, data_idx](const TensorShape<>& input_shape,
                        const TensorLayout& shape_layout) {
-        DALI_ENFORCE(shape_layout == "HW" || shape_layout == "DHW",
-          make_string("Unexpected input shape layout: ", shape_layout,
-            " (expected HW or DHW)"));
+        DALI_ENFORCE(input_shape.size() == shape_layout.size());
         CropWindow crop_window;
-        if (input_shape.size() == 3) {
-          auto crop_d = has_crop_d_ && crop_depth_[data_idx] > 0 ?
-            crop_depth_[data_idx] : input_shape[0];
-          auto crop_h = crop_height_[data_idx] > 0 ? crop_height_[data_idx] : input_shape[1];
-          auto crop_w = crop_width_[data_idx]  > 0 ? crop_width_[data_idx]  : input_shape[2];
-          TensorShape<> crop_shape = {crop_d, crop_h, crop_w};
-          crop_window.SetShape(crop_shape);
+        auto crop_shape = input_shape;
+        auto ndim = input_shape.size();
+        int d_dim = shape_layout.find('D');
+        int f_dim = shape_layout.find('F');
+        int h_dim = shape_layout.find('H');
+        int w_dim = shape_layout.find('W');
 
-          float anchor_norm[3] =
-            {crop_z_norm_[data_idx], crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
-          crop_window.SetAnchor(
-            CalculateAnchor(make_span(anchor_norm), crop_shape, input_shape));
-        } else if (input_shape.size() == 2) {
-          auto crop_h = crop_height_[data_idx] > 0 ? crop_height_[data_idx] : input_shape[0];
-          auto crop_w = crop_width_[data_idx]  > 0 ? crop_width_[data_idx]  : input_shape[1];
-          TensorShape<> crop_shape = {crop_h, crop_w};
-          crop_window.SetShape(crop_shape);
+        DALI_ENFORCE(h_dim >= 0 && w_dim >= 0,
+          "Height and Width must be present in the layout. Got: " + shape_layout.str());
 
-          float anchor_norm[2] = {crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
-          crop_window.SetAnchor(
-            CalculateAnchor(make_span(anchor_norm), crop_shape, input_shape));
-        } else {
-          DALI_FAIL("not supported number of dimensions (" +
-                    std::to_string(input_shape.size()) + ")");
+        SmallVector<float, 4> anchor_norm;
+        anchor_norm.resize(ndim, 0.5f);
+
+        if (h_dim >= 0 && crop_height_[data_idx] > 0) {
+          crop_shape[h_dim] = crop_height_[data_idx];
+          anchor_norm[h_dim] = crop_y_norm_[data_idx];
         }
+
+        if (w_dim >= 0 && crop_width_[data_idx] > 0) {
+          crop_shape[w_dim] = crop_width_[data_idx];
+          anchor_norm[w_dim] = crop_x_norm_[data_idx];
+        }
+
+        if (has_crop_d_) {
+          if (d_dim >= 0 && crop_depth_[data_idx] > 0) {
+            crop_shape[d_dim] = crop_depth_[data_idx];
+            anchor_norm[d_dim] = crop_z_norm_[data_idx];
+          } else if (d_dim < 0 && f_dim >= 0 && crop_depth_[data_idx] > 0) {
+            // Special case.
+            // This allows using crop_d to crop on the sequence dimension,
+            // by treating video inputs as a volume instead of a sequence
+            crop_shape[f_dim] = crop_depth_[data_idx];
+            anchor_norm[f_dim] = crop_z_norm_[data_idx];
+          }
+        }
+
+        crop_window.SetAnchor(CalculateAnchor(make_span(anchor_norm), crop_shape, input_shape));
+        crop_window.SetShape(crop_shape);
+        // TODO(janton): allow padding
         DALI_ENFORCE(crop_window.IsInRange(input_shape));
         return crop_window;
     };

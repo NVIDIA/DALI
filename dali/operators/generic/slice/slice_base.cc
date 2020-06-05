@@ -12,58 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/generic/slice/slice_base.h"
-#include <tuple>
 #include <vector>
-#include "dali/core/static_switch.h"
+#include <memory>
+#include "dali/operators/generic/slice/slice_base.h"
 #include "dali/kernels/slice/slice_cpu.h"
-#include "dali/pipeline/data/views.h"
 
 namespace dali {
-namespace detail {
-
-template <typename OutputType, typename InputType>
-void RunHelper(Tensor<CPUBackend> &output,
-               const Tensor<CPUBackend> &input,
-               const std::vector<int64_t> &slice_anchor,
-               const std::vector<int64_t> &slice_shape,
-               const std::vector<float> &fill_values,
-               int channel_dim) {
-  std::size_t number_of_dims = input.shape().size();
-  VALUE_SWITCH(number_of_dims, NumDims, (1, 2, 3, 4), (
-    kernels::KernelContext ctx;
-    auto in_view = view<const InputType, NumDims>(input);
-
-    kernels::SliceArgs<OutputType, NumDims> slice_args;
-    auto &anchor = slice_args.anchor;
-    auto &shape = slice_args.shape;
-    for (std::size_t d = 0; d < NumDims; d++) {
-      anchor[d] = slice_anchor[d];
-      shape[d] = slice_shape[d];
-    }
-
-    if (!fill_values.empty()) {
-      slice_args.fill_values.clear();
-      for (auto val : fill_values)
-        slice_args.fill_values.push_back(static_cast<OutputType>(val));
-      slice_args.channel_dim = channel_dim;
-    }
-
-    kernels::SliceCPU<OutputType, InputType, NumDims> kernel;
-    kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
-
-    output.set_type(TypeInfo::Create<OutputType>());
-    output.Resize(req.output_shapes[0][0].shape.to_vector());
-
-    auto out_view = view<OutputType, NumDims>(output);
-    kernel.Run(ctx, out_view, in_view, slice_args);
-  ), // NOLINT
-  (
-    DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims));
-  )); // NOLINT
-}
-
-}  // namespace detail
 
 DALI_SCHEMA(SliceBase)
     .DocStr(R"code(Base implementation for `Slice`, `Crop` and related operators)code")
@@ -73,27 +27,100 @@ DALI_SCHEMA(SliceBase)
 Supported types: `FLOAT`, `FLOAT16`, and `UINT8`)code",
       DALI_NO_TYPE);
 
+
+template <typename OutputType, typename InputType, int Dims>
+class SliceBaseCpu : public OpImplBase<CPUBackend> {
+ public:
+  using Kernel = kernels::SliceCPU<OutputType, InputType, Dims>;
+  using Args = kernels::SliceArgs<OutputType, Dims>;
+
+  explicit SliceBaseCpu(SliceBase<CPUBackend> &parent)
+      : parent_(parent) {}
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
+  void RunImpl(workspace_t<CPUBackend> &ws) override;
+
+ private:
+  SliceBase<CPUBackend> &parent_;
+  std::vector<Args> args_;
+  kernels::KernelManager kmgr_;
+};
+
+template <typename OutputType, typename InputType, int Dims>
+bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                                          const workspace_t<CPUBackend> &ws) {
+  parent_.FillArgs(args_, ws);
+  const auto &input = ws.template InputRef<CPUBackend>(0);
+  auto in_shape = input.shape();
+  int nsamples = in_shape.num_samples();
+  auto nthreads = ws.GetThreadPool().size();
+  assert(nsamples == static_cast<int>(args_.size()));
+  output_desc.resize(1);
+  output_desc[0].type = TypeInfo::Create<OutputType>();
+  output_desc[0].shape.resize(nsamples, Dims);
+
+  kmgr_.Resize<Kernel>(nthreads, nsamples);
+  kernels::KernelContext ctx;
+  auto in_view = view<const InputType, Dims>(input);
+  for (int i = 0; i < nsamples; i++) {
+    auto in_view = view<const InputType, Dims>(input[i]);
+    auto req = kmgr_.Setup<Kernel>(i, ctx, in_view, args_[i]);
+    output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
+  }
+  return true;
+}
+
+template <typename OutputType, typename InputType, int Dims>
+void SliceBaseCpu<OutputType, InputType, Dims>::RunImpl(workspace_t<CPUBackend> &ws) {
+  const auto &input = ws.template InputRef<CPUBackend>(0);
+  auto &output = ws.template OutputRef<CPUBackend>(0);
+  int nsamples = input.size();
+
+  auto& thread_pool = ws.GetThreadPool();
+  for (int i = 0; i < nsamples; i++) {
+    thread_pool.DoWorkWithID(
+      [this, &input, &output, i](int thread_id) {
+        auto in_view = view<const InputType, Dims>(input[i]);
+        auto out_view = view<OutputType, Dims>(output[i]);
+        kernels::KernelContext ctx;
+        kmgr_.Run<Kernel>(thread_id, i, ctx, out_view, in_view, args_[i]);
+      });
+  }
+  thread_pool.WaitForWork();
+  output.SetLayout(input.GetLayout());
+}
+
 template <>
-void SliceBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  this->DataDependentSetup(ws);
-  const auto &input = ws.Input<CPUBackend>(0);
-  auto &output = ws.Output<CPUBackend>(0);
-  auto data_idx = ws.data_idx();
+bool SliceBase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                      const workspace_t<CPUBackend> &ws) {
+  const auto &input = ws.template InputRef<CPUBackend>(0);
+  auto input_type = input.type().id();
+  auto ndim = input.shape().sample_dim();
+  if (!impl_ || input_type_ != input_type || ndim != ndim_) {
+    input_type_ = input_type;
+    ndim_ = ndim;
+    auto output_type = output_type_ == DALI_NO_TYPE ? input_type_ : output_type_;
+    VALUE_SWITCH(ndim_, Dims, SLICE_DIMS, (
+      TYPE_SWITCH(input_type_, type2id, InputType, SLICE_TYPES, (
+        if (input_type_ == output_type) {
+          using Impl = SliceBaseCpu<InputType, InputType, Dims>;
+          impl_ = std::make_unique<Impl>(*this);
+        } else {
+          TYPE_SWITCH(output_type, type2id, OutputType, (float, float16, uint8_t), (
+            using Impl = SliceBaseCpu<OutputType, InputType, Dims>;
+            impl_ = std::make_unique<Impl>(*this);
+          ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
+        }
+      ), DALI_FAIL(make_string("Not supported input type: ", input_type_)););  // NOLINT
+    ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
+  }
+  return impl_->SetupImpl(output_desc, ws);
+}
 
-  TYPE_SWITCH(input_type_, type2id, InputType, SLICE_TYPES, (
-    if (input_type_ == output_type_) {
-      detail::RunHelper<InputType, InputType>(
-        output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
-    } else {
-      TYPE_SWITCH(output_type_, type2id, OutputType, (float, float16, uint8_t), (
-        detail::RunHelper<OutputType, InputType>(
-          output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
-      ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
-    }
-  ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT
-
-
-  output.SetLayout(InputLayout(ws, 0));
+template <>
+void SliceBase<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+  assert(impl_ != nullptr);
+  impl_->RunImpl(ws);
 }
 
 }  // namespace dali
