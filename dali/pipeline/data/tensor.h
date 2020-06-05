@@ -275,13 +275,14 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes,
-                        const TensorShape<> &shape) {
+                        const TensorShape<> &shape,
+                        const TypeInfo &type = TypeInfo::Create<NoType>()) {
     DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_ = ptr;
     num_bytes_ = bytes;
-    type_ = TypeInfo::Create<NoType>();
+    type_ = type;
     Index new_size = volume(shape);
     shape_ = shape;
     size_ = new_size;
@@ -308,8 +309,9 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes, const TensorShape<> &shape) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape);
+  inline void ShareData(void *ptr, size_t bytes, const TensorShape<> &shape,
+                        const TypeInfo &type = TypeInfo::Create<NoType>()) {
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
   }
 
   /**
@@ -329,8 +331,9 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes) {
-    ShareData(ptr, bytes, { 0 });
+  inline void ShareData(void *ptr, size_t bytes,
+                        const TypeInfo &type = TypeInfo::Create<NoType>()) {
+    ShareData(ptr, bytes, { 0 }, type);
   }
 
   /**
