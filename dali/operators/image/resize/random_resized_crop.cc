@@ -55,14 +55,14 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
   auto &output = ws.Output<CPUBackend>(0);
 
-  RunCPU(output, input, ws.thread_idx());
+  RunResize(output, input, ws.thread_idx());
   output.SetLayout(input.GetLayout());
 }
 
 template<>
-void RandomResizedCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace &ws) {
+void RandomResizedCrop<CPUBackend>::SetupImpl(const HostWorkspace &ws) {
   auto &input = ws.Input<CPUBackend>(0);
-  auto& input_shape = input.shape();
+  auto &input_shape = input.shape();
   DALI_ENFORCE(input_shape.size() == 3,
       "Expects 3-dimensional image input.");
 
@@ -72,6 +72,7 @@ void RandomResizedCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace &ws)
 
   crops_[id] = GetCropWindowGenerator(id)({H, W}, "HW");
   resample_params_[ws.thread_idx()] = CalcResamplingParams(id);
+  SetupResize(output_shape, input_shape, input.layout(), resample_params_);
 }
 
 DALI_REGISTER_OPERATOR(RandomResizedCrop, RandomResizedCrop<CPUBackend>, CPU);

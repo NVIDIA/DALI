@@ -53,7 +53,7 @@ class ResizeAttr : protected ResizeCropMirrorAttr {
 template <typename Backend>
 class Resize : public Operator<Backend>
              , protected ResizeAttr
-             , protected ResizeBase {
+             , protected ResizeBase<Backend> {
  public:
   explicit Resize(const OpSpec &spec);
 
@@ -65,7 +65,17 @@ class Resize : public Operator<Backend>
   void RunImpl(Workspace<Backend> &ws) override;
   void SetupSharedSampleParams(Workspace<Backend> &ws) override;
 
+  kernels::ResamplingParams2D GetResamplingParams(const TransformMeta &meta) const {
+    kernels::ResamplingParams2D params;
+    params[0].output_size = meta.rsz_h;
+    params[1].output_size = meta.rsz_w;
+    params[0].min_filter = params[1].min_filter = this->min_filter_;
+    params[0].mag_filter = params[1].mag_filter = this->mag_filter_;
+    return params;
+  }
+
   USE_OPERATOR_MEMBERS();
+  std::vector<kernels::ResamplingParams2D> resample_params_;
   using Operator<Backend>::RunImpl;
   bool save_attrs_;
   int outputs_per_idx_;

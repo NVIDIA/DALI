@@ -31,12 +31,12 @@ namespace dali {
 
 template <typename Backend>
 class RandomResizedCrop : public Operator<Backend>
-                        , protected ResizeBase
+                        , protected ResizeBase<Backend>
                         , protected RandomCropAttr {
  public:
   explicit inline RandomResizedCrop(const OpSpec &spec)
       : Operator<Backend>(spec)
-      , ResizeBase(spec)
+      , ResizeBase<Backend>(spec)
       , RandomCropAttr(spec)
       , interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     GetSingleOrRepeatedArg(spec, size_, "size", 2);
@@ -69,7 +69,7 @@ class RandomResizedCrop : public Operator<Backend>
       resample_params_[i] = CalcResamplingParams(i);
   }
 
-  kernels::ResamplingParams2D CalcResamplingParams(int index) const {
+  kernels::ResamplingParams CalcResamplingParams(int index) const {
     auto &wnd = crops_[index];
     auto params = shared_params_;
     params[0].roi = kernels::ResamplingParams::ROI(wnd.anchor[0], wnd.anchor[0]+wnd.shape[0]);
@@ -81,13 +81,14 @@ class RandomResizedCrop : public Operator<Backend>
     crops_.resize(batch_size_);
     shared_params_[0].output_size = size_[0];
     shared_params_[1].output_size = size_[1];
-    shared_params_[0].min_filter = shared_params_[1].min_filter = min_filter_;
-    shared_params_[0].mag_filter = shared_params_[1].mag_filter = mag_filter_;
+    shared_params_[0].min_filter = shared_params_[1].min_filter = this->min_filter_;
+    shared_params_[0].mag_filter = shared_params_[1].mag_filter = this->mag_filter_;
   }
 
   std::vector<int> size_;
   DALIInterpType interp_type_;
   kernels::ResamplingParams2D shared_params_;
+  std::vector<kernels::ResamplingParams2D> resample_params_;
   std::vector<CropWindow> crops_;
 };
 

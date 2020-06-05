@@ -80,11 +80,10 @@ template<>
 Resize<CPUBackend>::Resize(const OpSpec &spec)
     : Operator<CPUBackend>(spec)
     , ResizeAttr(spec)
-    , ResizeBase(spec) {
+    , ResizeBase<CPUBackend>(spec) {
   per_sample_meta_.resize(num_threads_);
   resample_params_.resize(num_threads_);
-  out_shape_.resize(num_threads_);
-  Initialize(num_threads_);
+  InitializeCPU(num_threads_);
 
   save_attrs_ = spec_.HasArgument("save_attrs");
   outputs_per_idx_ = save_attrs_ ? 2 : 1;
@@ -111,7 +110,7 @@ void Resize<CPUBackend>::RunImpl(SampleWorkspace &ws) {
                  "Resize expects interleaved channel layout aka (N)HWC");
   }
 
-  RunCPU(output, input, thread_idx);
+  RunResize(output, input);
   output.SetLayout(input.GetLayout());
 
   if (save_attrs_) {

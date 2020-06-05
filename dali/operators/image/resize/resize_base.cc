@@ -19,9 +19,13 @@
 
 namespace dali {
 
-inline kernels::ResamplingFilterType interp2resample(DALIInterpType interp) {
+#if 0
+
+using namespace kernels;  // NOLINT
+
+inline ResamplingFilterType interp2resample(DALIInterpType interp) {
 #define DALI_MAP_INTERP_TO_RESAMPLE(interp, resample) case DALI_INTERP_##interp:\
-  return kernels::ResamplingFilterType::resample;
+  return ResamplingFilterType::resample;
 
   switch (interp) {
     DALI_MAP_INTERP_TO_RESAMPLE(NN, Nearest);
@@ -72,22 +76,126 @@ ResamplingFilterAttr::ResamplingFilterAttr(const OpSpec &spec) {
 
   temp_buffer_hint_ = spec.GetArgument<int64_t>("temp_buffer_hint");
 }
-void ResizeBase::SubdivideInput(const kernels::InListGPU<uint8_t, 3> &in) {
-  for (auto &mb : minibatches_) {
-    sample_range(mb.input, in, mb.start, mb.start + mb.count);
+
+template <typename Backend>
+ResizeBase<Backend>::ResizeBase(const OpSpec &spec) : ResamplingFilterAttr(spec) {}
+
+template <typename Backend>
+ResizeBase<Backend>::~ResizeBase() = default;
+
+template <>
+struct ResizeBase<GPUBackend>::Impl {
+  virtual void RunResize(TensorList<GPUBackend> &output,
+                         const TensorList<GPUBackend> &input,
+                         cudaStream_t stream) = 0;
+
+  virtual void Setup(const TensorListShape<> &in_shape,
+                     const TensorLayout &layout,
+                     span<const kernels::ResamplingParams> params) = 0;
+
+  virtual ~Impl() = default;
+};
+
+template <int out_dims, int in_dims>
+void GetVideoShapeAndParams(TensorListShape<out_dims> &frames_shape,
+                            std::vector<ResamplingParamsND<out_dim> &frame_params,
+                            const TensorListShape<in_dims> &seq_shape,
+                            const span<ResamplingParams> &seq_params,
+                            int frame_dim = 0,
+                            int channel_dim = in_dims - 1) {
+  assert(frame_dim >= 0);
+  assert(channel_dim != frame_dim && channel_dim < in_dims);
+  int N = seq.num_samples();
+  int total_frames = 0;
+
+  for (int i = 0; i < N; i++) {
+    total_frames += seq_shape.tensor_shape_span(i)[frame_dim];
+  }
+
+  params.reserve(total_frames);
+
+  assert(seq_shape.dim() == out_dims + 1 + (channel_dim >= 0));
+
+  for (int i = 0, flat_frame_idx = 0 = 0, i < N; i++) {
+    int F = seq_shape.tensor_shape_span(i)[frame_dim];
+    ResamplingParamsND<out_dims> frame_par;
+    for (int f = 0; f < F; f++) {
+      for (int d = 0, od = 0; d < seq_shape.dim(); d++) {
+        if (d != frame_dim && d != channel_dim)
+          frame_par[od++] = seq_params[flat_frame_idx * od + od];
+      }
+      frame_param.push_back(frame_par);
+    }
   }
 }
 
-void ResizeBase::SubdivideOutput(const kernels::OutListGPU<uint8_t, 3> &out) {
-  for (auto &mb : minibatches_) {
-    sample_range(mb.output, out, mb.start, mb.start + mb.count);
+template <int out_dims, int in_dims>
+void GetImageShapeAndParams(TensorListShape<out_dims> &frames_shape,
+                            std::vector<ResamplingParamsND<out_dims> &frame_params,
+                            const TensorListShape<in_dims> &seq_shape,
+                            const span<ResamplingParams> &seq_params,
+                            int channel_dim = in_dims - 1) {
+  int N = seq.num_samples();
+  for (int i = 0; i < N; i++) {
   }
 }
-void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
-                        const TensorList<GPUBackend> &input,
-                        cudaStream_t stream) {
+
+
+
+template <int ndim, typename Out, typename In>
+struct ResizeOpImplGPU : ResizeBase<GPUBackend>::Impl {
+  void RunResize(TensorList<GPUBackend> &output,
+                 const TensorList<GPUBackend> &input,
+                 cudaStream_t stream) override {
+
+  }
+
+  void Setup(const TensorListShape<> &in_shape,
+             const TensorLayout &layout,
+             span<const kernels::ResamplingParams> params) override {
+    if (IsVideo(layout)) {
+      GetVideoShapeAndParams(in_shape_, params_, in_shape, params,
+                             FrameDimIndex(layout), ChannelDimIndex(layout));
+    } else {
+      GetImageshapeAndParams(in_shape_, params_, in_shape, params, ChannelDimIndex(layout));
+    }
+  }
+
+  TensorListShape<ndim> in_shape_;
+  std::vector<ResamplingParamsND<ndim>> params_;
+
+  kernels::KernelManager kmgr_;
+
+  struct MiniBatch {
+    int start, count;
+    TensorListShape<> out_shape;
+    kernels::InListGPU<uint8_t, 3> input;
+    kernels::OutListGPU<uint8_t, 3> output;
+  };
+
+  std::vector<MiniBatch> minibatches_;
+
+  void ResizeBase::SubdivideInput(const kernels::InListGPU<uint8_t, 3> &in) {
+    for (auto &mb : minibatches_) {
+      sample_range(mb.input, in, mb.start, mb.start + mb.count);
+    }
+  }
+
+  void ResizeBase::SubdivideOutput(const kernels::OutListGPU<uint8_t, 3> &out) {
+    for (auto &mb : minibatches_) {
+      sample_range(mb.output, out, mb.start, mb.start + mb.count);
+    }
+  }
+};
+
+template <typename Backend>
+void ResizeBase::SetupResize(const workspace_t<Backend> &ws) {
   output.set_type(input.type());
 
+}
+
+template <>
+void ResizeBase<GPUBackend>::RunResize(DeviceWorkspace &ws) {
   using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
 
   auto in_view = view<const uint8_t, 3>(input);
@@ -126,37 +234,28 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
   }
 }
 
-void ResizeBase::Initialize(int num_threads) {
-  using Kernel = kernels::ResampleCPU<uint8_t, uint8_t>;
-  kmgr_.Resize<Kernel>(num_threads, num_threads);
-  out_shape_.resize(num_threads, 3);
-  resample_params_.resize(num_threads);
+template <>
+void ResizeBase<CPUBackend>::InitializeCPU(int num_threads) {
+  if (num_threads != num_threads_) {
+    impl_->reset();
+    num_threads_ = num_threads;
+  }
 }
 
-void ResizeBase::InitializeGPU(int batch_size, int mini_batch_size) {
-  DALI_ENFORCE(batch_size > 0, "Batch size must be positive");
-  DALI_ENFORCE(mini_batch_size > 0, "Mini-batch size must be positive");
-  const int num_minibatches = div_ceil(batch_size, mini_batch_size);
-  using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
-  kmgr_.Resize<Kernel>(1, num_minibatches);
-  minibatches_.resize(num_minibatches);
-
-  for (int i = 0; i < num_minibatches; i++) {
-    int start = batch_size * i / num_minibatches;
-    int end = (batch_size * (i + 1)) / num_minibatches;
-
-    minibatches_[i].start = start;
-    minibatches_[i].count = end-start;
+template <>
+void ResizeBase<GPUBackend>::InitializeGPU(int mini_batch_size) {
+  if (mini_batch_size != mini_batch_size_) {
+    impl_->reset();
+    mini_batch_size_ = mini_batch_size;
   }
 
   kmgr_.SetMemoryHint(kernels::AllocType::GPU, temp_buffer_hint_);
   kmgr_.ReserveMaxScratchpad(0);
 }
 
-void ResizeBase::RunCPU(Tensor<CPUBackend> &output,
-                        const Tensor<CPUBackend> &input,
-                        int thread_idx) {
-  using Kernel = kernels::ResampleCPU<uint8_t, uint8_t>;
+template<>
+void ResizeBase<CPUBackend>::RunResize(HostWorkspace &ws) {
+  /*using Kernel = kernels::ResampleCPU<uint8_t, uint8_t>;
   auto in_view = view<const uint8_t, 3>(input);
   kernels::KernelContext context;
   auto &req = kmgr_.Setup<Kernel>(
@@ -173,7 +272,13 @@ void ResizeBase::RunCPU(Tensor<CPUBackend> &output,
   auto out_view = view<uint8_t, 3>(output);
   kmgr_.Run<Kernel>(
       thread_idx, thread_idx, context,
-      out_view, in_view, resample_params_[thread_idx]);
+      out_view, in_view, resample_params_[thread_idx]);*/
 }
+
+
+template class DLL_PUBLIC ResizeBase<CPUBackend>;
+template class DLL_PUBLIC ResizeBase<GPUBackend>;
+
+#endif
 
 }  // namespace dali

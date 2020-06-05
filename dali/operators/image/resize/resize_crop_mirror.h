@@ -163,11 +163,11 @@ class ResizeCropMirrorAttr : protected CropAttr {
    * @param ws
    * @return const vector<Index> One matching shape for all inputs
    */
-  virtual const std::vector<Index> CheckShapes(const SampleWorkspace *ws) {
-    const auto &input = ws->Input<CPUBackend>(0);
+  virtual const std::vector<Index> CheckShapes(const SampleWorkspace &ws) {
+    const auto &input = ws.Input<CPUBackend>(0);
     // enforce that all shapes match
-    for (int i = 1; i < ws->NumInput(); ++i) {
-      DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
+    for (int i = 1; i < ws.NumInput(); ++i) {
+      DALI_ENFORCE(input.SameShape(ws.Input<CPUBackend>(i)));
     }
 
     DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
@@ -175,9 +175,9 @@ class ResizeCropMirrorAttr : protected CropAttr {
     return std::vector<Index>{input.shape().begin(), input.shape().end()};
   }
 
-  inline const TransformMeta GetTransfomMeta(const SampleWorkspace *ws, const OpSpec &spec) {
+  inline const TransformMeta GetTransfomMeta(const SampleWorkspace &ws, const OpSpec &spec) {
     const auto input_shape = CheckShapes(ws);
-    return GetTransformMeta(spec, input_shape, ws, ws->data_idx(), ResizeInfoNeeded());
+    return GetTransformMeta(spec, input_shape, ws, ws.data_idx(), ResizeInfoNeeded());
   }
 
   DALIInterpType getInterpType() const        { return interp_type_; }

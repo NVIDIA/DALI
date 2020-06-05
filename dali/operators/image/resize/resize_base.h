@@ -20,11 +20,13 @@
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/span.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/imgproc/resample/params.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
@@ -46,38 +48,76 @@ class DLL_PUBLIC ResamplingFilterAttr {
   size_t temp_buffer_hint_ = 0;
 };
 
+template <typename Backend>
 class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
  public:
-  explicit inline ResizeBase(const OpSpec &spec) : ResamplingFilterAttr(spec) {}
+  explicit ResizeBase(const OpSpec &spec);
+  ~ResizeBase();
 
-  DLL_PUBLIC void Initialize(int num_threads = 1);
-  DLL_PUBLIC void InitializeGPU(int batch_size, int minibatch_size);
+  void InitializeCPU(int num_threads);
+  void InitializeGPU(int minibatch_size);
 
-  DLL_PUBLIC void RunGPU(TensorList<GPUBackend> &output,
-                         const TensorList<GPUBackend> &input,
-                         cudaStream_t stream);
+  using Workspace = workspace_t<Backend>;
 
-  DLL_PUBLIC void RunCPU(Tensor<CPUBackend> &output,
-                         const Tensor<CPUBackend> &input,
-                         int thread_idx);
+  using input_type =  typename Workspace::template input_t<Backend>;
+  using output_type = typename Workspace::template output_t<Backend>;
 
-  std::vector<kernels::ResamplingParams2D> resample_params_;
-  TensorListShape<> out_shape_;
+  void RunResize(Workspace &ws, output_type &output, const input_type &input);
 
- protected:
-  kernels::KernelManager kmgr_;
+  /**
+   * @param ws        workspace object
+   * @param out_shape output shape, determined by params
+   * @param input     input; data is not accessed, only shape and metadata are relevant
+   * @param params    resampling parameters; this is a flattened array of size ndim*num_samples,
+   *                  each sample is described by ndim ResamplingParams, starting from outermost
+   *                  dimension (e.g. depth, height, width)
+   * @param out_type  desired output type
+   */
+  void SetupResize(const Workspace &ws,
+                   TensorListShape<> &out_shape,
+                   const input_type &input,
+                   span<const kernels::ResamplingParams> params,
+                   DALIDataType out_type);
 
-  struct MiniBatch {
-    int start, count;
-    TensorListShape<> out_shape;
-    kernels::InListGPU<uint8_t, 3> input;
-    kernels::OutListGPU<uint8_t, 3> output;
-  };
-  std::vector<MiniBatch> minibatches_;
 
-  void SubdivideInput(const kernels::InListGPU<uint8_t, 3> &in);
-  void SubdivideOutput(const kernels::OutListGPU<uint8_t, 3> &out);
+  /**
+   * @param ws        workspace object
+   * @param out_shape output shape, determined by params
+   * @param input     input; data is not accessed, only shape and metadata are relevant
+   * @param params    resampling parameters; this is a structured array of size num_samples,
+   *                  each sample is described by an array of ndim ResamplingParams, starting
+   *                  from outermost dimension (e.g. depth, height, width)
+   * @param out_type  desired output type
+   *
+   * @remarks ndim must match the number of spatial dimensions in input layout; if there's no
+   *          layout, then extra dimensions are treated as channels (innermost) and frames
+   *          (outermost)
+   */
+  template <int ndim>
+  void SetupResize(const Workspace &ws,
+                   TensorListShape<> &out_shape,
+                   const input_type &input,
+                   span<const kernels::ResamplingParams> params,
+                   DALIDataType out_type) {
+
+    int sdim = layout.empty() ? 0 : NumSpatialDims(layout);;
+    int input_dim = input.shape().sample_dim);
+    DALI_ENFORCE(sdim == input.dim() - 2 && sdim <= input.dim(), make_string(
+      "Resize: unexpected number of dimensions: ", input.dim()));
+    auto flat_params = make_span(&params.front()[0], &params.back()[ndim-1]);
+    SetupResize(ws, out_shape, input, flat_params, out_type);
+  }
+
+ private:
+  DALIDataType output_type_;
+  int mini_batch_size_ = 32;
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 };
+
+
+extern template class ResizeBase<CPUBackend>;
+extern template class ResizeBase<GPUBackend>;
 
 }  // namespace dali
 

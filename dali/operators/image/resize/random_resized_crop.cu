@@ -24,7 +24,7 @@ namespace dali {
 
 template<>
 void RandomResizedCrop<GPUBackend>::BackendInit() {
-  InitializeGPU(batch_size_, spec_.GetArgument<int>("minibatch_size"));
+  Initialize(spec_.GetArgument<int>("minibatch_size"));
 }
 
 template<>
@@ -37,7 +37,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   const int newW = size_[1];
 
   auto &output = ws.Output<GPUBackend>(0);
-  RunGPU(output, input, ws.stream());
+  RunResize(output, input, ws.stream());
   output.SetLayout(input.GetLayout());
 }
 
@@ -58,6 +58,8 @@ void RandomResizedCrop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws)
     crops_[i] = GetCropWindowGenerator(i)({H, W}, "HW");
   }
   CalcResamplingParams();
+  TensorListShape<> output_shape;
+  SetupResize(output_shape, input.shape(), input.layout(), resample_params_);
 }
 
 DALI_REGISTER_OPERATOR(RandomResizedCrop, RandomResizedCrop<GPUBackend>, GPU);
