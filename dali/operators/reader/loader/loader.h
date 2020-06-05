@@ -240,7 +240,7 @@ class Loader {
     slice_anchor_ = anchor;
     slice_shape_ = shape;
   }
-  
+
   int GetNumShards() {
     return num_shards_;
   }
