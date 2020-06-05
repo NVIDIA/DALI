@@ -107,12 +107,6 @@ test_np_shapes = [(), (11), (4, 7), (6, 2, 5), (1, 2, 7, 4)]
 rng = np.random.RandomState(12345)
     
 # test: compare reader with numpy
-
-# with different batch_size and num_threads
-#def test_debug():
-#     with tempfile.TemporaryDirectory() as test_data_root:
-#         yield check_array, test_data_root, (11), np.int32, False, True
-
 def test_types_and_shapes():
     with tempfile.TemporaryDirectory() as test_data_root:
         for fortran_order in [False, True]:
