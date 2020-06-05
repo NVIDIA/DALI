@@ -37,13 +37,19 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   void SetUp() override {
     DALISingleOpTest::SetUp();
     set_batch_size(10);
-    vt_.resize(this->batch_size_);
-    for (auto &vt : vt_) {
+    vt_cpu_.resize(this->batch_size_);
+    for (auto &vt : vt_cpu_) {
       vt.Reset();
       vt.set_pinned(false);
     }
-    tl_.Reset();
-    tl_.set_pinned(false);
+    vt_gpu_.resize(this->batch_size_);
+    for (auto &vt : vt_gpu_) {
+      vt.Reset();
+      vt.set_pinned(false);
+    }
+    tl_cpu_.Reset();
+    tl_cpu_.set_pinned(false);
+    tl_gpu_.Reset();
     fill_counter_ = 0;
     check_counter_ = 0;
   }
@@ -98,34 +104,83 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     return dynamic_cast<ExternalSource<GPUBackend> *>(this->graph_.Node(OpType::GPU, 0).op.get());
   }
 
-  template<typename T>
-  void FeedWithVector(T *src_op) {
-    for (int j = 0; j < this->batch_size_; ++j) {
-      auto &tensor = vt_[j];
-      tensor.set_type(TypeInfo::Create<int>());
-      tensor.Resize({10, 10});
-      auto data = tensor.template mutable_data<int>();
-      for (int i = 0; i < tensor.size(); ++i) {
-        data[i] = fill_counter_;
-      }
-       ++fill_counter_;
+  TensorShape<> GetRandShape(int dims) {
+    vector<Index> shape(dims, 0);
+    for (auto &val : shape) {
+      val = this->RandInt(1, 15);
     }
-    src_op->SetDataSource(vt_);
+    return shape;
   }
 
   template<typename T>
-  void FeedWithList(T *src_op) {
-    tl_.set_type(TypeInfo::Create<int>());
-    TensorListShape<> shape = uniform_list_shape(this->batch_size_, {10, 10});
-    tl_.Resize(shape);
+  void FeedWithCpuVector(T *src_op) {
+    int dims = this->RandInt(1, 4);
     for (int j = 0; j < this->batch_size_; ++j) {
-      auto data = tl_.template mutable_tensor<int>(j);
-      for (int i = 0; i < volume(tl_.tensor_shape(j)); ++i) {
+      auto &tensor = vt_cpu_[j];
+      tensor.set_type(TypeInfo::Create<int>());
+      auto shape = GetRandShape(dims);
+      tensor.Resize(shape);
+      auto data = tensor.template mutable_data<int>();
+      for (int i = 0; i < tensor.size(); ++i) {
         data[i] = fill_counter_;
+        ++fill_counter_;
       }
-      ++fill_counter_;
     }
-    src_op->SetDataSource(tl_);
+    src_op->SetDataSource(vt_cpu_);
+  }
+
+  template<typename T>
+  void FeedWithGpuVector(T *src_op) {
+    int dims = this->RandInt(1, 4);
+    for (int j = 0; j < this->batch_size_; ++j) {
+      Tensor<CPUBackend> tensor;
+      tensor.set_type(TypeInfo::Create<int>());
+      auto shape = GetRandShape(dims);
+      tensor.Resize(shape);
+      auto data = tensor.template mutable_data<int>();
+      for (int i = 0; i < tensor.size(); ++i) {
+        data[i] = fill_counter_;
+        ++fill_counter_;
+      }
+      vt_gpu_[j].Copy(tensor, 0);
+    }
+    cudaStreamSynchronize(0);
+    src_op->SetDataSource(vt_gpu_);
+  }
+
+  template<typename T>
+  void FeedWithCpuList(T *src_op) {
+    tl_cpu_.set_type(TypeInfo::Create<int>());
+    auto rand_shape = GetRandShape(this->RandInt(1, 4));
+    TensorListShape<> shape = uniform_list_shape(this->batch_size_, rand_shape);
+    tl_cpu_.Resize(shape);
+    for (int j = 0; j < this->batch_size_; ++j) {
+      auto data = tl_cpu_.template mutable_tensor<int>(j);
+      for (int i = 0; i < volume(tl_cpu_.tensor_shape(j)); ++i) {
+        data[i] = fill_counter_;
+        ++fill_counter_;
+      }
+    }
+    src_op->SetDataSource(tl_cpu_);
+  }
+
+  template<typename T>
+  void FeedWithGpuList(T *src_op) {
+    TensorList<CPUBackend> tensor_list;
+    tensor_list.set_type(TypeInfo::Create<int>());
+    auto rand_shape = GetRandShape(this->RandInt(1, 4));
+    TensorListShape<> shape = uniform_list_shape(this->batch_size_, rand_shape);
+    tensor_list.Resize(shape);
+    for (int j = 0; j < this->batch_size_; ++j) {
+      auto data = tensor_list.template mutable_tensor<int>(j);
+      for (int i = 0; i < volume(tensor_list.tensor_shape(j)); ++i) {
+        data[i] = fill_counter_;
+        ++fill_counter_;
+      }
+      tl_gpu_.Copy(tensor_list, 0);
+    }
+    cudaStreamSynchronize(0);
+    src_op->SetDataSource(tl_gpu_);
   }
 
   void RunExe() {
@@ -148,8 +203,8 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
         if (data[i] != check_counter_) {
           return false;
         }
+        ++check_counter_;
       }
-      ++check_counter_;
     }
     return true;
   }
@@ -157,8 +212,10 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   int batch_size_, num_threads_ = 1;
   std::unique_ptr<AsyncPipelinedExecutor> exe_;
   OpGraph graph_;
-  TensorList<CPUBackend> tl_;
-  std::vector<Tensor<CPUBackend>> vt_;
+  TensorList<CPUBackend> tl_cpu_;
+  std::vector<Tensor<CPUBackend>> vt_cpu_;
+  TensorList<GPUBackend> tl_gpu_;
+  std::vector<Tensor<GPUBackend>> vt_gpu_;
   int fill_counter_;
   int check_counter_;
 };
@@ -178,7 +235,7 @@ TYPED_TEST(ExternalSourceTest, FeedThenConsume) {
   auto *src_op = this->CreateCPUExe();
   ASSERT_NE(src_op, nullptr);
   for (int i = 0; i < TypeParam::loops; ++i) {
-    this->FeedWithList(src_op);
+    this->FeedWithCpuList(src_op);
   }
   for (int i = 0; i < TypeParam::loops; ++i) {
     this->RunExe();
@@ -190,7 +247,7 @@ TYPED_TEST(ExternalSourceTest, Interleaved) {
   auto *src_op = this->CreateCPUExe();
   ASSERT_NE(src_op, nullptr);
   for (int i = 0; i < TypeParam::loops; ++i) {
-    this->FeedWithList(src_op);
+    this->FeedWithCpuList(src_op);
     this->RunExe();
     EXPECT_TRUE(this->RunOutputs());
   }
@@ -200,7 +257,7 @@ TYPED_TEST(ExternalSourceTest, InterleavedVector) {
   auto *src_op = this->CreateCPUExe();
   ASSERT_NE(src_op, nullptr);
   for (int i = 0; i < TypeParam::loops; ++i) {
-    this->FeedWithVector(src_op);
+    this->FeedWithCpuVector(src_op);
     this->RunExe();
     EXPECT_TRUE(this->RunOutputs());
   }
@@ -210,7 +267,7 @@ TYPED_TEST(ExternalSourceTest, InterleavedGPU) {
   auto *src_op = this->CreateCPUExe();
   ASSERT_NE(src_op, nullptr);
   for (int i = 0; i < TypeParam::loops; ++i) {
-    this->FeedWithList(src_op);
+    this->FeedWithCpuList(src_op);
     this->RunExe();
     EXPECT_TRUE(this->RunOutputs());
   }
@@ -220,7 +277,7 @@ TYPED_TEST(ExternalSourceTest, FeedThenConsumeVector) {
   auto *src_op = this->CreateCPUExe();
   ASSERT_NE(src_op, nullptr);
   for (int i = 0; i < TypeParam::loops; ++i) {
-    this->FeedWithVector(src_op);
+    this->FeedWithCpuVector(src_op);
   }
 
   for (int i = 0; i < TypeParam::loops; ++i) {
@@ -233,7 +290,7 @@ TYPED_TEST(ExternalSourceTest, FeedThenConsumeGPU) {
   auto *src_op = this->CreateGPUExe();
   ASSERT_NE(src_op, nullptr);
   for (int i = 0; i < TypeParam::loops; ++i) {
-    this->FeedWithList(src_op);
+    this->FeedWithCpuList(src_op);
   }
 
   for (int i = 0; i < TypeParam::loops; ++i) {
@@ -246,11 +303,59 @@ TYPED_TEST(ExternalSourceTest, FeedThenConsumeGPUVector) {
   auto *src_op = this->CreateGPUExe();
   ASSERT_NE(src_op, nullptr);
   for (int i = 0; i < TypeParam::loops; ++i) {
-    this->FeedWithVector(src_op);
+    this->FeedWithCpuVector(src_op);
   }
 
   this->RunExe();
-  EXPECT_ANY_THROW(this->RunOutputs());
+  EXPECT_TRUE(this->RunOutputs());
+}
+
+TYPED_TEST(ExternalSourceTest, FeedThenConsumeGPU2GPU) {
+  auto *src_op = this->CreateGPUExe();
+  ASSERT_NE(src_op, nullptr);
+  for (int i = 0; i < TypeParam::loops; ++i) {
+    this->FeedWithGpuList(src_op);
+  }
+
+  for (int i = 0; i < TypeParam::loops; ++i) {
+    this->RunExe();
+    EXPECT_TRUE(this->RunOutputs());
+  }
+}
+
+TYPED_TEST(ExternalSourceTest, FeedThenConsumeGPU2GPUVector) {
+  auto *src_op = this->CreateGPUExe();
+  ASSERT_NE(src_op, nullptr);
+  for (int i = 0; i < TypeParam::loops; ++i) {
+    this->FeedWithGpuVector(src_op);
+  }
+
+  this->RunExe();
+  EXPECT_TRUE(this->RunOutputs());
+}
+
+TYPED_TEST(ExternalSourceTest, FeedThenConsumeGPU2CPU) {
+  auto *src_op = this->CreateCPUExe();
+  ASSERT_NE(src_op, nullptr);
+  for (int i = 0; i < TypeParam::loops; ++i) {
+    this->FeedWithGpuList(src_op);
+  }
+
+  for (int i = 0; i < TypeParam::loops; ++i) {
+    this->RunExe();
+    EXPECT_TRUE(this->RunOutputs());
+  }
+}
+
+TYPED_TEST(ExternalSourceTest, FeedThenConsumeGPU2CPUVector) {
+  auto *src_op = this->CreateCPUExe();
+  ASSERT_NE(src_op, nullptr);
+  for (int i = 0; i < TypeParam::loops; ++i) {
+    this->FeedWithGpuVector(src_op);
+  }
+
+  this->RunExe();
+  EXPECT_TRUE(this->RunOutputs());
 }
 
 TYPED_TEST(ExternalSourceTest, FeedThenConsumeMixed) {
@@ -258,9 +363,9 @@ TYPED_TEST(ExternalSourceTest, FeedThenConsumeMixed) {
   ASSERT_NE(src_op, nullptr);
   for (int i = 0; i < TypeParam::loops; ++i) {
     if (i % 2 == 0) {
-      this->FeedWithVector(src_op);
+      this->FeedWithCpuVector(src_op);
     } else {
-      this->FeedWithList(src_op);
+      this->FeedWithCpuList(src_op);
     }
   }
 
@@ -273,11 +378,11 @@ TYPED_TEST(ExternalSourceTest, FeedThenConsumeMixed) {
 TYPED_TEST(ExternalSourceTest, ConsumeOneThenFeeds) {
   auto *src_op = this->CreateCPUExe();
   ASSERT_NE(src_op, nullptr);
-  this->FeedWithList(src_op);
+  this->FeedWithCpuList(src_op);
 
   this->RunExe();
   for (int i = 1; i < TypeParam::loops; ++i) {
-    this->FeedWithList(src_op);
+    this->FeedWithCpuList(src_op);
   }
 
   EXPECT_TRUE(this->RunOutputs());
@@ -290,11 +395,11 @@ TYPED_TEST(ExternalSourceTest, ConsumeOneThenFeeds) {
 TYPED_TEST(ExternalSourceTest, ConsumeOneThenFeedsVector) {
   auto *src_op = this->CreateCPUExe();
   ASSERT_NE(src_op, nullptr);
-  this->FeedWithVector(src_op);
+  this->FeedWithCpuVector(src_op);
 
   this->RunExe();
   for (int i = 1; i < TypeParam::loops; ++i) {
-      this->FeedWithVector(src_op);
+      this->FeedWithCpuVector(src_op);
   }
 
   EXPECT_TRUE(this->RunOutputs());
@@ -307,14 +412,14 @@ TYPED_TEST(ExternalSourceTest, ConsumeOneThenFeedsVector) {
 TYPED_TEST(ExternalSourceTest, ConsumeOneThenFeedsMixed) {
   auto *src_op = this->CreateCPUExe();
   ASSERT_NE(src_op, nullptr);
-  this->FeedWithVector(src_op);
+  this->FeedWithCpuVector(src_op);
 
   this->RunExe();
   for (int i = 1; i < TypeParam::loops; ++i) {
     if (i % 2 == 0) {
-      this->FeedWithVector(src_op);
+      this->FeedWithCpuVector(src_op);
     } else {
-      this->FeedWithList(src_op);
+      this->FeedWithCpuList(src_op);
     }
   }
 
@@ -328,11 +433,11 @@ TYPED_TEST(ExternalSourceTest, ConsumeOneThenFeedsMixed) {
 TYPED_TEST(ExternalSourceTest, ConsumeOneThenFeedsGPU) {
   auto *src_op = this->CreateCPUExe();
   ASSERT_NE(src_op, nullptr);
-  this->FeedWithList(src_op);
+  this->FeedWithCpuList(src_op);
 
   this->RunExe();
   for (int i = 1; i < TypeParam::loops; ++i) {
-    this->FeedWithList(src_op);
+    this->FeedWithCpuList(src_op);
   }
 
   EXPECT_TRUE(this->RunOutputs());
