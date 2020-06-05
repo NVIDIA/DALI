@@ -370,10 +370,14 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC inline int batch_size() const { return batch_size_; }
 
   /**
-   * @brief Returns the map of (node name, node's epoch size)
-   * for all nodes that return a valid epoch size
+   * @brief Returns the map of (node name, reader meta) for all nodes that return a valid meta
    */
-  DLL_PUBLIC std::map<std::string, Index> EpochSize();
+  DLL_PUBLIC std::map<std::string, ReaderMeta> GetReaderMeta();
+
+  /**
+   * @brief Returns the reader meta for a node with given name
+   */
+  DLL_PUBLIC ReaderMeta GetReaderMeta(std::string name);
 
   /**
    * @brief Returns the number of threads used by the pipeline.

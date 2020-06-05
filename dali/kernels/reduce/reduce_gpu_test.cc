@@ -38,13 +38,13 @@ TEST(SumGPU, SplitStageBatch) {
   int axes[] = { 0, 2 };
 
   testing::ReductionKernelTest<SumGPU<uint64_t, uint8_t>, uint64_t, uint8_t> test;
-  test.Setup(in_shape, ref_out_shape, make_span(axes), false, true);
-  test.FillData(0, 255);
-  test.Run();
-
-  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), false, true, reductions::sum());
-
-  test.Check();
+  for (int iter = 0; iter < 3; iter++) {
+    test.Setup(in_shape, ref_out_shape, make_span(axes), false, true);
+    test.FillData(0, 255);
+    test.Run();
+    RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), false, true, reductions::sum());
+    test.Check();
+  }
 }
 
 }  // namespace kernels

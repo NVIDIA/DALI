@@ -42,6 +42,19 @@ KernelRequirements NormalizeGPU<Out, In>::Setup(
 }
 
 template <typename Out, typename In>
+KernelRequirements NormalizeGPU<Out, In>::Setup(
+      KernelContext &ctx,
+      const TensorListShape<> &data_shape,
+      span<const int> axes,
+      bool scalar_base,
+      bool scalar_scale,
+      bool scale_is_stddev) {
+  if (!impl_)
+    impl_ = std::make_unique<Impl>();
+  return impl_->Setup(ctx, data_shape, axes, scalar_base, scalar_scale, scale_is_stddev);
+}
+
+template <typename Out, typename In>
 void NormalizeGPU<Out, In>::Run(
       KernelContext &ctx,
       const OutListGPU<Out> &out, const InListGPU<In> &in,

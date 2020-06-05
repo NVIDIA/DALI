@@ -161,8 +161,15 @@ class DataReader : public Operator<Backend> {
     ConsumerAdvanceQueue();
   }
 
-  Index epoch_size() const override {
-    return loader_->SizePadded();
+  ReaderMeta GetReaderMeta() const override {
+    ReaderMeta ret;
+    ret.epoch_size = loader_->Size(false);
+    ret.epoch_size_padded = loader_->Size(true);
+    ret.number_of_shards = loader_->GetNumShards();
+    ret.shard_id = loader_->GetShardId();
+    ret.pad_last_batch = loader_->PadLastBatch();
+    ret.stick_to_shard = loader_->StickToShard();
+    return ret;
   }
 
   LoadTarget& GetSample(int sample_idx) {

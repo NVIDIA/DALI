@@ -174,8 +174,37 @@ Parameters
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         if name is not None:
-            return self._pipe.epoch_size(name)
-        return self._pipe.epoch_size()
+            return self._pipe.reader_meta(name)["epoch_size_padded"]
+        return {name : v["epoch_size_padded"] for k, v in self._pipe.reader_meta()}
+
+    def reader_meta(self, name = None):
+        """Returns provided reader metadata as a dictionary. If no name is provided if provides
+        a dictionary with data for all readers as {reader_name : meta}
+
+        Available metadata keys:
+
+        ``epoch_size``:        raw epoch size
+
+        ``epoch_size_padded``: epoch size with the padding at the end to be divisible by the number of shards
+
+        ``number_of_shards``:  number of shards
+
+        ``shard_id``:          shard id of given reader
+
+        ``pad_last_batch``:    if given reader should pad last batch
+
+        ``stick_to_shard``:    if given reader should stick to its shard
+
+        Parameters
+        ----------
+        name : str, optional, default = None
+            The reader which should be used to obtain shards_number.
+        """
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        if name is not None:
+            return self._pipe.reader_meta(name)
+        return self._pipe.reader_meta()
 
     @staticmethod
     def current():
@@ -252,7 +281,7 @@ Parameters
         self._api_type = type
 
     def _check_api_type(self, type):
-        if self._api_type == None:
+        if self._api_type is None:
             self._set_api_type(type)
         if type != self._api_type:
             raise RuntimeError("Mixing pipeline API type. Currently used: " + str(self._api_type) +
@@ -662,6 +691,17 @@ Parameters
 
         Additionally, you can pass file name, so that serialized pipeline will be written there.
         The file contents will be overwritten
+
+        Parameters
+        ----------
+        define_graph : allable
+                If specified, this function will be used instead of member :meth:`define_graph`.
+                This parameter must not be set, if the pipeline outputs are specified with
+                :meth:`set_outputs`.
+        filename : str
+                File, from where serialized pipeline will be writeen.
+        kwargs : dict
+                Refer to Pipeline constructor for full list of arguments.
         """
         if not self._prepared:
             self._prepare_graph(define_graph)

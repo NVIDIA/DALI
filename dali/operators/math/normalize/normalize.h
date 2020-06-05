@@ -33,9 +33,12 @@ namespace dali {
 #define DALI_NORMALIZE_OUTPUT_TYPES DALI_NORMALIZE_INPUT_TYPES
 
 template <typename Backend>
-class Normalize : public Operator<Backend> {
+class Normalize;
+
+template <typename Backend>
+class NormalizeBase : public Operator<Backend> {
  public:
-  explicit Normalize(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit NormalizeBase(const OpSpec &spec) : Operator<Backend>(spec) {
     has_tensor_mean_ = spec.HasTensorArgument("mean");
     has_scalar_mean_ = spec.HasArgument("mean") && !has_tensor_mean_;
     has_tensor_stddev_ = spec.HasTensorArgument("stddev");
@@ -64,6 +67,12 @@ class Normalize : public Operator<Backend> {
     }
   }
 
+  Normalize<Backend> &This() noexcept
+  { return static_cast<Normalize<Backend>&>(*this); }
+
+  const Normalize<Backend> &This() const noexcept
+  { return static_cast<const Normalize<Backend>&>(*this); }
+
   bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
@@ -76,26 +85,20 @@ class Normalize : public Operator<Backend> {
     SetupAxes(ws);
     TYPE_SWITCH(input_type_, type2id, InputType, DALI_NORMALIZE_INPUT_TYPES, (
       TYPE_SWITCH(output_type_, type2id, OutputType, DALI_NORMALIZE_OUTPUT_TYPES, (
-        SetupTyped<OutputType, InputType>(ws);
+        This().template SetupTyped<OutputType, InputType>(ws);
       ), (DALI_FAIL("Normalize: unsupported output type")))  // NOLINT
     ), (DALI_FAIL("Normalize: unsupported input type")));    // NOLINT
-    AllocTempStorage();
     return true;
   }
-
-  template <typename OutputType, typename InputType>
-  void SetupTyped(const workspace_t<Backend> &ws);
 
   void RunImpl(workspace_t<Backend> &ws) override {
     TYPE_SWITCH(input_type_, type2id, InputType, DALI_NORMALIZE_INPUT_TYPES, (
       TYPE_SWITCH(output_type_, type2id, OutputType, DALI_NORMALIZE_OUTPUT_TYPES, (
-        RunTyped<OutputType, InputType>(ws);
+        This().template RunTyped<OutputType, InputType>(ws);
       ), (DALI_FAIL("Normalize: ureachable code - Run without matching Setup?")))  // NOLINT
     ), (DALI_FAIL("Normalize: ureachable code - Run without matching Setup?")));   // NOLINT
   }
 
-  template <typename OutputType, typename InputType>
-  void RunTyped(workspace_t<Backend> &ws);
 
   void UseAllAxes() {
     int dim = data_shape_.sample_dim();
@@ -200,30 +203,12 @@ class Normalize : public Operator<Backend> {
   }
 
   void GetAxesFromParamShape() {
-    // 1. First mark all axes as reduced
-    // 2. For all samples, if parameter shape has an extent other than 1, mark the axis
-    //    of that extent as non-reduced.
-    //
-    // NOTE: It may happen, that the dimension was not really indended for reduction, but
-    // all input samples had extent of 1 - which is OK, because it doesn't change the result.
-    int dim = param_shape_.sample_dim();
-    int n = param_shape_.num_samples();
-    axis_mask_ = (1 << dim) - 1;
-    for (int i = 0; i < n; i++) {
-      for (int d = 0; d < dim; d++) {
-        if (param_shape_.tensor_shape_span(i)[d] != 1) {
-          // dimension not reduced in at least one sample - clear the axis reduction flag
-          axis_mask_ &= ~(1 << d);
-        }
-      }
-    }
-
-    // Collect the axis indices from the reduction mask
     axes_.clear();
-    for (int d = 0; d < dim; d++) {
-      if (axis_mask_ & (1 << d))
-        axes_.push_back(d);
+    for (int d = 0; d < param_shape_.sample_dim(); d++) {
+      if (is_degenerate_dim(param_shape_, d))
+          axes_.push_back(d);
     }
+    axis_mask_ = to_bit_mask(axes_);
   }
 
   void CheckParamShape() {
@@ -252,66 +237,22 @@ class Normalize : public Operator<Backend> {
     return axis_mask_ & (1 << axis);
   }
 
-  void AllocTempStorage() {
-    const TypeInfo &float_type = TypeTable::GetTypeInfo(DALI_FLOAT);
-    int n = data_shape_.num_samples();
-    const TensorListShape<> &tmp_shape = batch_norm_
-      ? uniform_list_shape(n, param_shape_[0])  // extend to all samples, to enable parallelism
-      : param_shape_;
-
-    if (ShouldCalcMean()) {
-      mean_.Resize(tmp_shape);
-    } else if (has_tensor_mean_) {
-      assert(!batch_norm_);
-      // use mean as-is
-      assert(param_shape_ == mean_input_.shape);
-    } else if (has_scalar_mean_) {
-      // need to broadcast mean to match required shape
-      if (is_uniform(param_shape_)) {
-        // if param_shape_ is uniform, we need only one tensor
-        mean_.Resize(TensorListShape<>({ param_shape_[0] }));
-      } else {
-        mean_.Resize(param_shape_);
-      }
-    }
-    if (ShouldCalcStdDev()) {
-      inv_stddev_.Resize(tmp_shape);
-    } else if (has_tensor_stddev_) {
-      assert(!batch_norm_);
-      // we need space to calculate inverse stddev
-      inv_stddev_.Resize(stddev_input_.shape);
-    } else {
-      assert(has_scalar_stddev_);
-      if (!IsFullReduction()) {
-        // need to broadcast stddev to match required shape
-        if (is_uniform(param_shape_)) {
-          // if param_shape_ is uniform, we need only one tensor
-          inv_stddev_.Resize(TensorListShape<>({ param_shape_[0] }));
-        } else {
-          inv_stddev_.Resize(param_shape_);
-        }
-      }
-    }
-    mean_.set_type(float_type);
-    inv_stddev_.set_type(float_type);
-  }
-
-  void FoldMeans();
-  void FoldStdDev();
-
-  kernels::KernelManager kmgr_;
-
-  using StorageTag = detail::storage_tag_map_t<Backend>;
-
   bool ShouldCalcMean() const noexcept { return !has_tensor_mean_ && !has_scalar_mean_; }
   bool ShouldCalcStdDev() const noexcept { return !has_tensor_stddev_ && !has_scalar_stddev_; }
   bool IsFullReduction() const noexcept {
     int ndim = data_shape_.sample_dim();
     return axis_mask_== ((1 << ndim) - 1);
   }
+
+ protected:
   TensorListShape<> data_shape_;
   TensorListShape<> param_shape_;
-  TensorListView<StorageTag, const float> mean_input_, stddev_input_;
+
+  // NOTE: StorageCPU, because these are argument inputs - this can be reworked
+  // when we have either GPU argument inputs or named regular inputs
+  TensorListView<StorageCPU, const float> mean_input_, stddev_input_;
+
+
   TensorList<Backend> mean_, inv_stddev_;
   bool has_tensor_mean_, has_tensor_stddev_ = false;
   bool has_scalar_mean_, has_scalar_stddev_ = false;

@@ -145,6 +145,7 @@ constexpr std::enable_if_t<std::is_integral<T>::value, int> ilog2(T x) {
  * @brief Returns an integer where bits at indicies in `bit_indices` are set to 1.
  * @remarks Indices that are outside the bit-width of OutType are ignored.
  */
+DALI_NO_EXEC_CHECK
 template <typename OutType = uint64_t, typename BitIndices>
 DALI_HOST_DEV DALI_FORCEINLINE
 OutType to_bit_mask(const BitIndices &bit_indices) {

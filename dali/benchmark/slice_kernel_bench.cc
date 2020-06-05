@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,10 +13,12 @@
 // limitations under the License.
 
 #include <benchmark/benchmark.h>
+#include <vector>
 #include "dali/benchmark/dali_bench.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
+#include "dali/kernels/scratch.h"
 
 namespace dali {
 
@@ -24,24 +26,22 @@ constexpr int Dims = 3;
 using InputType = float;
 using OutputType = float;
 
-class SliceBench : public DALIBenchmark {
+class SliceBenchCPU : public DALIBenchmark {
  public:
-  using Kernel = kernels::SliceCPU<OutputType, InputType, Dims>;
-  Kernel kernel;
-
   kernels::TestTensorList<InputType, Dims> test_data;
   kernels::TestTensorList<OutputType, Dims> out_data;
 
   void Setup(const TensorShape<Dims> &in_shape,
-             const TensorShape<Dims> &out_shape) {
-    test_data.reshape(uniform_list_shape<Dims>(1, in_shape));
+             const TensorShape<Dims> &out_shape,
+             int batch_size = 1) {
+    test_data.reshape(uniform_list_shape<Dims>(batch_size, in_shape));
     InputType num = 0;
     auto seq_gen = [&num]() { return num++; };
     Fill(test_data.cpu(), seq_gen);
-    out_data.reshape(uniform_list_shape<Dims>(1, out_shape));
+    out_data.reshape(uniform_list_shape<Dims>(batch_size, out_shape));
   }
 
-  void Run(benchmark::State& st) {
+  void RunCPU(benchmark::State& st) {
     int H = st.range(0);
     int W = st.range(1);
     int C = st.range(2);
@@ -61,8 +61,8 @@ class SliceBench : public DALIBenchmark {
     Kernel kernel;
 
     kernels::SliceArgs<OutputType, Dims> args;
-    args.anchor = out_shape;
-    args.shape = anchor;
+    args.anchor = anchor;
+    args.shape = out_shape;
 
     auto out_tv = out_data.cpu()[0];
     auto in_tv = test_data.cpu()[0];
@@ -77,42 +77,64 @@ class SliceBench : public DALIBenchmark {
   }
 };
 
-static void SliceKernelCPUArgs_OnlySlice(benchmark::internal::Benchmark *b) {
+static void SliceKernelArgs_OnlySlice_CPU(benchmark::internal::Benchmark *b) {
   for (int H = 1000; H >= 500; H /= 2) {
     int W = H, C = 3;
     int crop_h = 9 * H / 10;
     int crop_w = 9 * W / 10;
-    b->Args({H, W, C, 0, 0, 0, crop_h, crop_w, C});
+    b->Args({H, W, C, 0, 0, 0, crop_h, crop_w, C, 1});
   }
 }
 
-BENCHMARK_DEFINE_F(SliceBench, SliceCPU_OnlySlice)(benchmark::State& st) {
-  this->Run(st);
+BENCHMARK_DEFINE_F(SliceBenchCPU, Slice_CPU_OnlySlice)(benchmark::State& st) {
+  this->RunCPU(st);
 }
 
-BENCHMARK_REGISTER_F(SliceBench, SliceCPU_OnlySlice)->Iterations(1000)
+BENCHMARK_REGISTER_F(SliceBenchCPU, Slice_CPU_OnlySlice)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
-->Apply(SliceKernelCPUArgs_OnlySlice);
+->Apply(SliceKernelArgs_OnlySlice_CPU);
 
-static void SliceKernelCPUArgs_OnlyPad(benchmark::internal::Benchmark *b) {
+static void SliceKernelArgs_OnlyPad_CPU(benchmark::internal::Benchmark *b) {
   for (int H = 1000; H >= 500; H /= 2) {
     int W = H, C = 3;
     int crop_h = 9 * H / 10;
     int crop_w = 9 * W / 10;
     int anchor_h = H;
     int anchor_w = W;
-    b->Args({H, W, C, anchor_h, anchor_w, 0, crop_h, crop_w, C});
+    b->Args({H, W, C, anchor_h, anchor_w, 0, crop_h, crop_w, C, 1});
   }
 }
 
-BENCHMARK_DEFINE_F(SliceBench, SliceCPU_OnlyPad)(benchmark::State& st) {
-  this->Run(st);
+BENCHMARK_DEFINE_F(SliceBenchCPU, Slice_OnlyPad_CPU)(benchmark::State& st) {
+  this->RunCPU(st);
 }
 
-BENCHMARK_REGISTER_F(SliceBench, SliceCPU_OnlyPad)->Iterations(1000)
+BENCHMARK_REGISTER_F(SliceBenchCPU, Slice_OnlyPad_CPU)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
-->Apply(SliceKernelCPUArgs_OnlyPad);
+->Apply(SliceKernelArgs_OnlyPad_CPU);
+
+static void SliceKernelArgs_SliceAndPad_CPU(benchmark::internal::Benchmark *b) {
+  for (int H = 1000; H >= 500; H /= 2) {
+    int W = H, C = 3;
+    int crop_h = 9 * H / 10;
+    int crop_w = 9 * W / 10;
+    int anchor_h = H / 2;
+    int anchor_w = W / 2;
+    b->Args({H, W, C, anchor_h, anchor_w, 0, crop_h, crop_w, C, 1});
+    b->Args({H, W, C, anchor_h, anchor_w, 0, crop_h, crop_w, C, 10});
+  }
+}
+
+BENCHMARK_DEFINE_F(SliceBenchCPU, Slice_SliceAndPad_CPU)(benchmark::State& st) {
+  this->RunCPU(st);
+}
+
+BENCHMARK_REGISTER_F(SliceBenchCPU, Slice_SliceAndPad_CPU)->Iterations(1000)
+->Unit(benchmark::kMicrosecond)
+->UseRealTime()
+->Apply(SliceKernelArgs_SliceAndPad_CPU);
+
 
 }  // namespace dali

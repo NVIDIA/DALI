@@ -24,7 +24,7 @@ def get_dali_build_flags():
         dali_include_flags=" ".join(dali_sc.get_include_flags())
         dali_cflags=" ".join(dali_sc.get_compile_flags())
         dali_lflags=" ".join(dali_sc.get_link_flags())
-    except:
+    except BaseException:
         dali_path = get_module_path('nvidia/dali')
         if dali_path is not '':
             dali_include_flags=" ".join(["-I" + dali_path + "/include"])

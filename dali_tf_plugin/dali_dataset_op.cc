@@ -45,7 +45,7 @@
 #include "dali/c_api.h"
 #include "dali_shape_helper.h"
 
-#define DALI_CALL(FUNC)                                                    \
+#define TF_DALI_CALL(FUNC)                                                    \
 do {                                                                       \
   try {                                                                    \
     FUNC;                                                                  \
@@ -201,7 +201,7 @@ class DALIDatasetOp : public DatasetOpKernel {
     }
 
     Status InitPipeline(daliPipelineHandle *pipeline_handle) const {
-      DALI_CALL(daliCreatePipeline(
+      TF_DALI_CALL(daliCreatePipeline(
         pipeline_handle,
         pipeline_def_.pipeline.c_str(),
         pipeline_def_.pipeline.length(),
@@ -214,9 +214,9 @@ class DALIDatasetOp : public DatasetOpKernel {
         pipeline_def_.gpu_prefetch_queue_depth));
 
       if (!pipeline_def_.exec_separated) {
-        DALI_CALL(daliPrefetchUniform(pipeline_handle, pipeline_def_.prefetch_queue_depth));
+        TF_DALI_CALL(daliPrefetchUniform(pipeline_handle, pipeline_def_.prefetch_queue_depth));
       } else {
-        DALI_CALL(daliPrefetchSeparate(pipeline_handle, pipeline_def_.cpu_prefetch_queue_depth,
+        TF_DALI_CALL(daliPrefetchSeparate(pipeline_handle, pipeline_def_.cpu_prefetch_queue_depth,
                                        pipeline_def_.gpu_prefetch_queue_depth));
       }
       return Status::OK();
@@ -231,10 +231,10 @@ class DALIDatasetOp : public DatasetOpKernel {
                              bool *end_of_sequence) override {
         tensorflow::mutex_lock l(mu_);
 
-        DALI_CALL(daliShareOutput(&pipeline_handle_));
+        TF_DALI_CALL(daliShareOutput(&pipeline_handle_));
 
         auto num_outputs = 0;
-        DALI_CALL(num_outputs = daliGetNumOutput(&pipeline_handle_));
+        TF_DALI_CALL(num_outputs = daliGetNumOutput(&pipeline_handle_));
 
         for (int out_id = 0; out_id < num_outputs; ++out_id) {
           TensorShape output_shape;
@@ -306,14 +306,14 @@ class DALIDatasetOp : public DatasetOpKernel {
                   " for tensor " + std::to_string(out_id));
           }
 
-          DALI_CALL(daliCopyTensorNTo(&pipeline_handle_, dst, out_id, dataset()->device_type_,
+          TF_DALI_CALL(daliCopyTensorNTo(&pipeline_handle_, dst, out_id, dataset()->device_type_,
                                       dataset()->stream_, false));
         }
 
         *end_of_sequence = false;
 
-        DALI_CALL(daliOutputRelease(&pipeline_handle_));
-        DALI_CALL(daliRun(&pipeline_handle_));
+        TF_DALI_CALL(daliOutputRelease(&pipeline_handle_));
+        TF_DALI_CALL(daliRun(&pipeline_handle_));
 
         return Status::OK();
       }

@@ -191,7 +191,7 @@ TYPED_TEST(ReaderTest, LazyInitTest) {
   dummyfs.close();
 
   // This calls PrepareMetadataImpl
-  ASSERT_NO_THROW(lazy_pipe.EpochSize());
+  ASSERT_NO_THROW(lazy_pipe.GetReaderMeta());
 
   DeviceWorkspace ws;
   for (int i=0; i < 5; ++i) {
@@ -422,8 +422,10 @@ TYPED_TEST(ReaderTest, ResetLoaderTestNoPad) {
   tl_even.internal_size_ = 10;
   tl_odd.internal_size_ = 10;
 
-  ASSERT_EQ(tl_even.Size(), tl_even.SizePadded());
-  ASSERT_EQ(tl_odd.Size(), tl_odd.SizePadded());
+  ASSERT_EQ(tl_even.Size(), tl_even.Size(true));
+  ASSERT_EQ(tl_odd.Size(), tl_odd.Size(true));
+  ASSERT_EQ(tl_even.Size(), tl_even.Size(false));
+  ASSERT_EQ(tl_odd.Size(), tl_odd.Size(false));
 }
 
 TYPED_TEST(ReaderTest, ResetLoaderTestPad) {
@@ -455,11 +457,14 @@ TYPED_TEST(ReaderTest, ResetLoaderTestPad) {
   ASSERT_EQ(tl_even.Size(), tl_even.internal_size_);
   ASSERT_EQ(tl_odd.Size(), tl_odd.internal_size_);
 
-  ASSERT_EQ(tl_even.Size(), tl_even.SizePadded());
-  ASSERT_NE(tl_odd.Size(), tl_odd.SizePadded());
+  ASSERT_EQ(tl_even.Size(), tl_even.Size(true));
+  ASSERT_NE(tl_odd.Size(), tl_odd.Size(true));
 
-  ASSERT_EQ(tl_even.SizePadded(), tl_even.internal_size_);
-  ASSERT_EQ(tl_odd.SizePadded(),
+  ASSERT_EQ(tl_even.Size(), tl_even.Size(false));
+  ASSERT_EQ(tl_odd.Size(), tl_odd.Size(false));
+
+  ASSERT_EQ(tl_even.Size(true), tl_even.internal_size_);
+  ASSERT_EQ(tl_odd.Size(true),
             static_cast<Index>(std::ceil(tl_odd.internal_size_ * 1.0 / 3)) * 3);
 }
 

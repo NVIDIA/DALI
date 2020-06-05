@@ -332,7 +332,7 @@ extern template class StdDevGPU<float, float>;
  *
  * @see StdDevGPU
  */
-template <typename Out, typename In, typename Mean = In>
+template <typename Out, typename In, typename Mean = Out>
 class DLL_PUBLIC InvStdDevGPU {
  public:
   InvStdDevGPU();

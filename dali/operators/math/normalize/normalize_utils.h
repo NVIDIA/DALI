@@ -66,7 +66,7 @@ void SumSamples(const TensorListView<StorageCPU, T> &tlv) {
   SumArrays(tlv.data.data(), n, v);
 }
 
-int64_t ReducedVolume(const TensorListShape<> &shape, span<int> axes) {
+inline int64_t ReducedVolume(const TensorListShape<> &shape, span<const int> axes) {
   int64_t v = 0;
   for (int i = 0; i < shape.num_samples(); i++) {
     auto sample_shape = shape.tensor_shape_span(i);
@@ -99,10 +99,10 @@ void UniformFill(TensorList<CPUBackend> &tl, const T &value) {
  * @param epsilon a small positive value added to the variance
  * @param scale   a multiplier, applied to the final result
  */
-void CalcInvStdDev(const TensorListView<StorageCPU, float> &inv,
-                   const TensorListView<StorageCPU, const float> &stddev,
-                   float epsilon,
-                   float scale) {
+static void CalcInvStdDev(const TensorListView<StorageCPU, float> &inv,
+                          const TensorListView<StorageCPU, const float> &stddev,
+                          float epsilon,
+                          float scale) {
   assert(inv.shape == stddev.shape);
   for (int i = 0; i < inv.shape.num_samples(); i++) {
     int64_t v = volume(inv.shape.tensor_shape_span(i));

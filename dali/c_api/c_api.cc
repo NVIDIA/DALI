@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <map>
 
 #include "dali/core/cuda_stream.h"
 #include "dali/core/format.h"
@@ -427,4 +428,17 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
 
 void daliLoadLibrary(const char* lib_path) {
     dali::PluginManager::LoadLibrary(lib_path);
+}
+
+void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
+                           daliReaderMetadata* meta) {
+  DALI_ENFORCE(meta, "Provided pointer to meta cannot be NULL.");
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  dali::ReaderMeta returned_meta = pipeline->GetReaderMeta(reader_name);
+  meta->epoch_size = returned_meta.epoch_size;
+  meta->epoch_size_padded = returned_meta.epoch_size_padded;
+  meta->number_of_shards = returned_meta.number_of_shards;
+  meta->shard_id = returned_meta.shard_id;
+  meta->pad_last_batch = returned_meta.pad_last_batch;
+  meta->stick_to_shard = returned_meta.stick_to_shard;
 }

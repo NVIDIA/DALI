@@ -15,6 +15,7 @@
 #ifndef DALI_KERNELS_COMMON_UTILS_H_
 #define DALI_KERNELS_COMMON_UTILS_H_
 
+#include <utility>
 #include "dali/core/host_dev.h"
 
 namespace dali {
@@ -32,12 +33,27 @@ T Permute(const T& in, const U& permutation) {
 
 template <typename Shape>
 DALI_HOST_DEV
+void CalcStrides(Shape &strides, const Shape& shape) {
+  strides[strides.size() - 1] = 1;
+  for (int d = strides.size() - 2; d >= 0; d--) {
+    strides[d] = strides[d + 1] * shape[d + 1];
+  }
+}
+
+template <typename OutStrides, typename Shape>
+DALI_HOST_DEV
+void CalcStrides(OutStrides &out_strides, const Shape& shape) {
+  Shape strides = shape;  // strides has the same size as shape
+  CalcStrides(strides, shape);
+  for (int d = 0; d < static_cast<int>(strides.size()); d++)
+    out_strides[d] = strides[d];
+}
+
+template <typename Shape, typename OutShape = Shape>
+DALI_HOST_DEV
 Shape GetStrides(const Shape& shape) {
   Shape strides = shape;
-  strides[strides.size()-1] = 1;
-  for (int d = strides.size()-2; d >= 0; d--) {
-    strides[d] = strides[d+1] * shape[d+1];
-  }
+  CalcStrides(strides, shape);
   return strides;
 }
 

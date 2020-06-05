@@ -62,14 +62,14 @@ def get_train_pytorch_loader(args, num_workers, default_boxes):
 
 def get_train_dali_loader(args, default_boxes, local_seed):
     train_pipe = COCOPipeline(
-        default_boxes, 
+        default_boxes,
         args,
         seed=local_seed)
 
     train_loader = DALIGenericIterator(
-        train_pipe, 
-        ["images", "boxes", "labels"], 
-        118287 / args.N_gpu, 
+        train_pipe,
+        ["images", "boxes", "labels"],
+        reader_name="Reader",
         fill_last_batch=True)
 
     return train_loader
@@ -85,7 +85,7 @@ def get_train_loader(args, dboxes):
     if args.data_pipeline == 'no_dali':
         return get_train_pytorch_loader(args, args.num_workers, dboxes)
     elif args.data_pipeline == 'dali':
-        return get_train_dali_loader(args, dboxes, local_seed)    
+        return get_train_dali_loader(args, dboxes, local_seed)
 
 
 def get_val_dataset(args):
@@ -114,7 +114,7 @@ def get_val_dataloader(args):
         shuffle=False,  # Note: distributed sampler is shuffled :(
         sampler=val_sampler,
         num_workers=args.num_workers)
-        
+
     return val_dataloader, inv_map
 
 

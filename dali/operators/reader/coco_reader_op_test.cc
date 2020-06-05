@@ -84,7 +84,7 @@ class CocoReaderTest : public ::testing::Test {
     pipe.Build(Outputs(masks));
 
     if (!masks) {
-      ASSERT_EQ(pipe.EpochSize()["coco_reader"], expected_size);
+      ASSERT_EQ(pipe.GetReaderMeta("coco_reader").epoch_size, expected_size);
     }
 
     DeviceWorkspace ws;
@@ -504,7 +504,7 @@ TEST_F(CocoReaderTest, BigSizeThreshold) {
 
   pipe.Build(this->Outputs());
 
-  ASSERT_EQ(pipe.EpochSize()["coco_reader"], this->ImagesWithBigObjects());
+  ASSERT_EQ(pipe.GetReaderMeta("coco_reader").epoch_size, this->ImagesWithBigObjects());
 
   DeviceWorkspace ws;
   pipe.RunCPU();

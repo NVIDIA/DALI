@@ -853,6 +853,17 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetDeviceBufferGrowthFactor", Buffer<GPUBackend>::GetGrowthFactor);
 }
 
+py::dict MetaToDict(const ReaderMeta &meta) {
+  py::dict d;
+  d["epoch_size"] = meta.epoch_size;
+  d["epoch_size_padded"] = meta.epoch_size_padded;
+  d["number_of_shards"] = meta.number_of_shards;
+  d["shard_id"] = meta.shard_id;
+  d["pad_last_batch"] = meta.pad_last_batch;
+  d["stick_to_shard"] = meta.stick_to_shard;
+  return d;
+}
+
 PYBIND11_MODULE(backend_impl, m) {
   dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
@@ -1084,13 +1095,20 @@ PYBIND11_MODULE(backend_impl, m) {
         "show_tensors"_a = false,
         "show_ids"_a = false,
         "use_colors"_a = false)
-    .def("epoch_size", &Pipeline::EpochSize)
-    .def("epoch_size",
+    .def("reader_meta", [](Pipeline* p) {
+          std::map<std::string, ReaderMeta> meta_map = p->GetReaderMeta();
+          py::dict d;
+          for (auto const& value : meta_map) {
+            d[value.first.c_str()] = MetaToDict(value.second);
+          }
+          return d;
+        })
+    .def("reader_meta",
         [](Pipeline* p, const std::string& op_name) {
-          std::map<std::string, Index> sizes = p->EpochSize();
-          DALI_ENFORCE(sizes.find(op_name) != sizes.end(),
-              "Operator " + op_name + " does not expose valid epoch size.");
-          return sizes[op_name];
+          ReaderMeta meta = p->GetReaderMeta(op_name);
+          DALI_ENFORCE(meta,
+              "Operator " + op_name + "  not found or does not expose valid metadata.");
+          return MetaToDict(meta);
         });
 
 #define DALI_OPSPEC_ADDARG(T) \

@@ -224,18 +224,11 @@ class Loader {
   }
 
   // Give the size of the data accessed through the Loader
-  Index Size() {
+  Index Size(bool consider_padding = false) {
     if (!loading_flag_) {
       PrepareMetadata();
     }
-    return SizeImpl();
-  }
-  // Give the size of the data accessed externally from python
-  Index SizePadded() {
-    if (!loading_flag_) {
-      PrepareMetadata();
-    }
-    if (pad_last_batch_) {
+    if (pad_last_batch_ && consider_padding) {
       return num_samples(num_shards_, SizeImpl()) * num_shards_;
     } else {
       return SizeImpl();
@@ -246,6 +239,22 @@ class Loader {
   void SetSliceParameters(const TensorShape<>& anchor, const TensorShape<>& shape) {
     slice_anchor_ = anchor;
     slice_shape_ = shape;
+  }
+  
+  int GetNumShards() {
+    return num_shards_;
+  }
+
+  int GetShardId() {
+    return shard_id_;
+  }
+
+  int PadLastBatch() {
+    return pad_last_batch_;
+  }
+
+  int StickToShard() {
+    return stick_to_shard_;
   }
 
  protected:

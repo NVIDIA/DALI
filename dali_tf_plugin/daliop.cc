@@ -183,7 +183,8 @@ class DaliOp : public tf::OpKernel {
     std::vector<tf::Tensor*> data_output_tensors;
     // each sparse tensor need 3 tensors in total - values, indices and shape
     unsigned additional_sparse_tensors = std::accumulate(sparse_.begin(), sparse_.end(), 0) * 2;
-    unsigned dali_num_out = daliGetNumOutput(&pipe_handle_);
+    unsigned dali_num_out = 0;
+    TF_DALI_CALL(dali_num_out = daliGetNumOutput(&pipe_handle_));
     data_output_tensors.resize(dali_num_out + additional_sparse_tensors);
 
     OP_REQUIRES_OK(context, context->output_list("data", &outputs));
@@ -209,9 +210,9 @@ class DaliOp : public tf::OpKernel {
                                     + shapes_[i].DebugString() + " plugin `shapes` argument"));
         OP_REQUIRES_OK(context, outputs.allocate(j, data_output_shape, &data_output_tensors[j]));
       } else {
-        elms = daliNumTensors(&pipe_handle_, i);
+        TF_DALI_CALL(elms = daliNumTensors(&pipe_handle_, i));
         // maximum number of dimension + one additional to hold tensor list number
-        dims = daliMaxDimTensors(&pipe_handle_, i) + 1;
+        TF_DALI_CALL(dims = daliMaxDimTensors(&pipe_handle_, i) + 1);
         max_dims.resize(dims, 0);
         // first dim is number of elements in the tensor list
         max_dims[0] = elms;
@@ -262,7 +263,9 @@ class DaliOp : public tf::OpKernel {
       }
       void *dst = nullptr;
       tf::Tensor* out_tensor = data_output_tensors[j];
-      if (daliTensorSize(&pipe_handle_, i) > out_tensor->TotalBytes()) {
+      size_t dali_tensor_size = 0;
+      TF_DALI_CALL(dali_tensor_size = daliTensorSize(&pipe_handle_, i));
+      if (dali_tensor_size > out_tensor->TotalBytes()) {
         context->CtxFailure(__FILE__, __LINE__,
             tf::errors::InvalidArgument("Output " + std::to_string(i) +
               " has bigger size than allocated by TensorFlow - check if type requested matches" +
