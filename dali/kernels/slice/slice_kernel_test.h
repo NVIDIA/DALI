@@ -243,6 +243,22 @@ struct ArgsGen_CompletelyOutOfBounds{
 };
 
 template <typename OutputType, int Dims = 3>
+struct ArgsGen_SingleValuePad {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = -input_shape[0] / 2;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = 0;
+    args.shape[0] = 2 * input_shape[0];
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = input_shape[2];
+    args.fill_values = {128};
+    args.channel_dim = -1;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
 struct ArgsGen_MultiChannelPad {
   SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceArgs<OutputType, 3> args;
@@ -332,6 +348,7 @@ using SLICE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<int, int, 1, 1, 22, ArgsGen_RightSideOutOfBounds<int, 1>>,
     SliceTestArgs<int, int, 2, 1, 22, ArgsGen_RightSideOutOfBounds<int, 2>>,
     SliceTestArgs<int, int, 2, 1, 22, ArgsGen_CompletelyOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_SingleValuePad<int, 3>, 20, 20, 3>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad<int, 3>, 20, 20, 3>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad_ChFirst<int, 3>, 3, 20, 20>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim<int, 3>, 20, 20, 3>,
