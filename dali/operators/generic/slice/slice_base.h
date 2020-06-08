@@ -64,7 +64,6 @@ class SliceBase : public Operator<Backend> {
 
     slice_args.clear();
     slice_args.resize(nsamples);
-
     for (int i = 0; i < nsamples; i++) {
       auto crop_win_gen = this->GetCropWindowGenerator(i);
       assert(crop_win_gen);
@@ -75,18 +74,21 @@ class SliceBase : public Operator<Backend> {
       auto &args = slice_args[i];
       args.anchor = win.anchor.to_static<Dims>();
       args.shape = win.shape.to_static<Dims>();
-
+      args.channel_dim = -1;
       if (!fill_values_.empty()) {
         args.fill_values.clear();
         for (auto val : fill_values_)
           args.fill_values.push_back(static_cast<OutputType>(val));
-        DALI_ENFORCE((channel_dim >= 0 && channel_dim < Dims) || fill_values_.size() == 1,
-                     "Multi-channel fill_values was provided but channel dimension could not be "
-                     "found in layout");
-        args.channel_dim = channel_dim;
+        if (fill_values_.size() > 1) {
+          DALI_ENFORCE((channel_dim >= 0 && channel_dim < Dims),
+                        "Multi-channel fill_values was provided but channel dimension could not be "
+                        "found in layout");
+          args.channel_dim = channel_dim;
+        }
       }
     }
   }
+
 
  protected:
    /**

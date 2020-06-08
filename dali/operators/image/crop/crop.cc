@@ -42,7 +42,7 @@ a))code", "error")
     .AddOptionalArg("fill_values",
         R"code(Determines padding values, only relevant if ``out_of_bounds_policy`` is set to \"pad\".
 If a scalar is provided, it will be used for all the channels. If multiple values are given, there should be as many values as
-channels (extent of dimension 'C' in the layout) in the output slice.)code", 0)
+channels (extent of dimension 'C' in the layout) in the output slice.)code", std::vector<float>{0.f})
     .AddParent("CropAttr")
     .AddParent("SliceBase");
 

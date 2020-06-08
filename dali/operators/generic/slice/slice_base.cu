@@ -23,24 +23,21 @@ template <typename OutputType, typename InputType, int Dims>
 class SliceBaseGpu : public OpImplBase<GPUBackend> {
  public:
   using Kernel = kernels::SliceGPU<OutputType, InputType, Dims>;
-  using Args = kernels::SliceArgs<OutputType, Dims>;
-
-  explicit SliceBaseGpu(SliceBase<GPUBackend> &parent)
-    : parent_(parent) {}
+  using SliceArgs = kernels::SliceArgs<OutputType, Dims>;
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
   void RunImpl(workspace_t<GPUBackend> &ws) override;
 
+  std::vector<SliceArgs>& Args() { return args_; }
+
  private:
-  SliceBase<GPUBackend> &parent_;
-  std::vector<Args> args_;
+  std::vector<SliceArgs> args_;
   kernels::KernelManager kmgr_;
 };
 
 template <typename OutputType, typename InputType, int Dims>
 bool SliceBaseGpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                                           const workspace_t<GPUBackend> &ws) {
-  parent_.FillArgs(args_, ws);
   const auto &input = ws.template InputRef<GPUBackend>(0);
   auto in_shape = input.shape();
   int nsamples = in_shape.num_samples();
@@ -78,25 +75,30 @@ bool SliceBase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto ndim = input.shape().sample_dim();
 
   if (!impl_ || input_type_ != input_type || ndim != ndim_) {
+    impl_.reset();
     input_type_ = input_type;
     ndim_ = ndim;
-    auto output_type = output_type_;
-    if (output_type_ == DALI_NO_TYPE)
-      output_type = input_type_;
-    VALUE_SWITCH(ndim_, Dims, SLICE_DIMS, (
-      TYPE_SWITCH(input_type_, type2id, InputType, SLICE_TYPES, (
-        if (input_type_ == output_type) {
-          using Impl = SliceBaseGpu<InputType, InputType, Dims>;
-          impl_ = std::make_unique<Impl>(*this);
-        } else {
-          TYPE_SWITCH(output_type, type2id, OutputType, (float, float16, uint8_t), (
-            using Impl = SliceBaseGpu<OutputType, InputType, Dims>;
-            impl_ = std::make_unique<Impl>(*this);
-          ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
-        }
-      ), DALI_FAIL(make_string("Not supported input type: ", input_type_)););  // NOLINT
-    ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
   }
+  auto output_type = output_type_ == DALI_NO_TYPE ? input_type_ : output_type_;
+
+  VALUE_SWITCH(ndim_, Dims, SLICE_DIMS, (
+    TYPE_SWITCH(input_type_, type2id, InputType, SLICE_TYPES, (
+      if (input_type_ == output_type) {
+        using Impl = SliceBaseGpu<InputType, InputType, Dims>;
+        if (!impl_)
+          impl_ = std::make_unique<Impl>();
+        FillArgs(reinterpret_cast<Impl*>(impl_.get())->Args(), ws);
+      } else {
+        TYPE_SWITCH(output_type, type2id, OutputType, (float, float16, uint8_t), (
+          using Impl = SliceBaseGpu<OutputType, InputType, Dims>;
+          if (!impl_)
+            impl_ = std::make_unique<Impl>();
+          FillArgs(reinterpret_cast<Impl*>(impl_.get())->Args(), ws);
+        ), DALI_FAIL(make_string("Not supported output type: ", output_type));); // NOLINT
+      }
+    ), DALI_FAIL(make_string("Not supported input type: ", input_type_)););  // NOLINT
+  ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
+
   return impl_->SetupImpl(output_desc, ws);
 }
 

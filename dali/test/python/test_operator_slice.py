@@ -34,7 +34,8 @@ test_data_video = os.path.join(test_data_root, 'db', 'optical_flow', 'sintel_tra
 class SliceSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, pos_size_iter,
                  num_threads=1, device_id=0, num_gpus=1,
-                 axes=None, axis_names=None, normalized_anchor=True, normalized_shape=True):
+                 axes=None, axis_names=None, normalized_anchor=True, normalized_shape=True,
+                 extra_outputs=False, out_of_bounds_policy=None, fill_values=None):
         super(SliceSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
         self.device = device
@@ -44,22 +45,14 @@ class SliceSynthDataPipeline(Pipeline):
         self.inputs = ops.ExternalSource()
         self.input_crop_pos = ops.ExternalSource()
         self.input_crop_size = ops.ExternalSource()
-
-        if axis_names:
-            self.slice = ops.Slice(device = self.device,
-                                   normalized_anchor=normalized_anchor,
-                                   normalized_shape=normalized_shape,
-                                   axis_names = axis_names)
-        elif axes:
-            self.slice = ops.Slice(device = self.device,
-                                   normalized_anchor=normalized_anchor,
-                                   normalized_shape=normalized_shape,
-                                   axes = axes)
-        else:
-            self.slice = ops.Slice(device = self.device,
-                                   normalized_anchor=normalized_anchor,
-                                   normalized_shape=normalized_shape,
-)
+        self.extra_outputs = extra_outputs
+        self.slice = ops.Slice(device = self.device,
+                                normalized_anchor=normalized_anchor,
+                                normalized_shape=normalized_shape,
+                                axes = axes,
+                                axis_names = axis_names,
+                                out_of_bounds_policy=out_of_bounds_policy,
+                                fill_values=fill_values)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -67,7 +60,10 @@ class SliceSynthDataPipeline(Pipeline):
         self.crop_size = self.input_crop_size()
         data = self.data.gpu() if self.device == 'gpu' else self.data
         out = self.slice(data, self.crop_pos, self.crop_size)
-        return out
+        if self.extra_outputs:
+            return out, self.data, self.crop_pos, self.crop_size
+        else:
+            return out
 
     def iter_setup(self):
         data = self.iterator.next()
@@ -418,3 +414,84 @@ def test_slice_vs_numpy():
                 [(None, "WH"), (None, "HW"),
                 ((1,0), None), ((0,1), None)]:
                 yield check_slice_vs_numpy, device, batch_size, axes, axis_names
+
+def check_slice_with_pad_support(device, batch_size, axes, axis_names,
+                                 input_shape=(100, 200, 3), layout="HWC",
+                                 fill_values=(0x76, 0xb9, 0x00),
+                                 normalized_anchor=False, normalized_shape=False):
+    normalized_anchor = False
+    normalized_shape = False
+    eii = RandomDataIterator(batch_size, shape=input_shape)
+    eii_arg = SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,
+                                image_layout=layout, axes=axes, axis_names=axis_names,
+                                normalized_anchor=normalized_anchor,
+                                normalized_shape=normalized_shape,
+                                min_norm_anchor=-0.5, max_norm_anchor=-0.1,
+                                min_norm_shape=1.1, max_norm_shape=3.6)
+    pipe = SliceSynthDataPipeline(device, batch_size, layout, iter(eii), iter(eii_arg),
+                                  axes=axes, axis_names=axis_names,
+                                  normalized_anchor=normalized_anchor,
+                                  normalized_shape=normalized_shape,
+                                  out_of_bounds_policy='pad',
+                                  fill_values=fill_values,
+                                  extra_outputs=True)
+    if fill_values is None:
+        fill_values = 0
+    pipe.build()
+    for k in range(3):
+        outs = pipe.run()
+        out = outs[0]
+        in_data = outs[1]
+        anchor_data = outs[2]
+        shape_data = outs[3]
+        if isinstance(out, dali.backend_impl.TensorListGPU):
+            out = out.as_cpu()
+        assert(batch_size == len(out))
+        for idx in range(batch_size):
+            sample_in = in_data.at(idx)
+            sample_out = out.at(idx)
+            anchor = anchor_data.at(idx)
+            shape = shape_data.at(idx)
+
+            i_pad_before = 0
+            i_slice = 0
+            i_pad_after = 0
+            if anchor[0] < 0:
+                i_pad_before = -anchor[0]
+            elif anchor[0] >= sample_in.shape[0]:
+                i_pad_before = sample_out.shape[0]
+            if i_pad_before + sample_in.shape[0] < shape[0]:
+                i_pad_after = shape[0] - i_pad_before - sample_in.shape[0]
+            i_slice = sample_out.shape[0] - i_pad_before - i_pad_after
+
+            j_pad_before = 0
+            j_slice = 0
+            j_pad_after = 0
+            if anchor[1] < 0:
+                j_pad_before = -anchor[1]
+            elif anchor[0] >= sample_in.shape[1]:
+                j_pad_before = sample_out.shape[1]
+            if j_pad_before + sample_in.shape[1] < shape[1]:
+                j_pad_after = shape[1] - j_pad_before - sample_in.shape[1]
+            j_slice = sample_out.shape[1] - j_pad_before - j_pad_after
+
+            for i in range(sample_out.shape[0]):
+                for j in range(sample_out.shape[1]):
+                    if (i >= i_pad_before and j >= j_pad_before and i < i_pad_before + i_slice and j < j_pad_before + j_slice):
+                        assert((sample_out[i, j, :] == sample_in[int(anchor[0] + i), int(anchor[1] + j), :]).all())
+                    else:
+                        assert((sample_out[i, j, :] == fill_values).all())
+
+def test_slice_with_pad_support():
+    in_shape = (100, 200, 3)
+    axis_names = "HW"
+    axes = None
+    layout = "HWC"
+    out_of_bounds_policy = "pad"
+    for device in ['gpu', 'cpu']:
+        for batch_size in [1, 3]:
+            for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
+                for fill_values in [None, (0x76, 0xb0, 0x00)]:
+                    yield check_slice_with_pad_support, \
+                        device, batch_size, axes, axis_names, in_shape, \
+                        layout, fill_values, normalized_anchor, normalized_shape

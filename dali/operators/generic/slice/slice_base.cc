@@ -32,24 +32,21 @@ template <typename OutputType, typename InputType, int Dims>
 class SliceBaseCpu : public OpImplBase<CPUBackend> {
  public:
   using Kernel = kernels::SliceCPU<OutputType, InputType, Dims>;
-  using Args = kernels::SliceArgs<OutputType, Dims>;
-
-  explicit SliceBaseCpu(SliceBase<CPUBackend> &parent)
-      : parent_(parent) {}
+  using SliceArgs = kernels::SliceArgs<OutputType, Dims>;
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
+  std::vector<SliceArgs>& Args() { return args_; }
+
  private:
-  SliceBase<CPUBackend> &parent_;
-  std::vector<Args> args_;
+  std::vector<SliceArgs> args_;
   kernels::KernelManager kmgr_;
 };
 
 template <typename OutputType, typename InputType, int Dims>
 bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                                           const workspace_t<CPUBackend> &ws) {
-  parent_.FillArgs(args_, ws);
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto in_shape = input.shape();
   int nsamples = in_shape.num_samples();
@@ -96,24 +93,32 @@ bool SliceBase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto input_type = input.type().id();
   auto ndim = input.shape().sample_dim();
+
   if (!impl_ || input_type_ != input_type || ndim != ndim_) {
+    impl_.reset();
     input_type_ = input_type;
     ndim_ = ndim;
-    auto output_type = output_type_ == DALI_NO_TYPE ? input_type_ : output_type_;
-    VALUE_SWITCH(ndim_, Dims, SLICE_DIMS, (
-      TYPE_SWITCH(input_type_, type2id, InputType, SLICE_TYPES, (
-        if (input_type_ == output_type) {
-          using Impl = SliceBaseCpu<InputType, InputType, Dims>;
-          impl_ = std::make_unique<Impl>(*this);
-        } else {
-          TYPE_SWITCH(output_type, type2id, OutputType, (float, float16, uint8_t), (
-            using Impl = SliceBaseCpu<OutputType, InputType, Dims>;
-            impl_ = std::make_unique<Impl>(*this);
-          ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
-        }
-      ), DALI_FAIL(make_string("Not supported input type: ", input_type_)););  // NOLINT
-    ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
   }
+  auto output_type = output_type_ == DALI_NO_TYPE ? input_type_ : output_type_;
+
+  VALUE_SWITCH(ndim_, Dims, SLICE_DIMS, (
+    TYPE_SWITCH(input_type_, type2id, InputType, SLICE_TYPES, (
+      if (input_type_ == output_type) {
+        using Impl = SliceBaseCpu<InputType, InputType, Dims>;
+        if (!impl_)
+          impl_ = std::make_unique<Impl>();
+        FillArgs(reinterpret_cast<Impl*>(impl_.get())->Args(), ws);
+      } else {
+        TYPE_SWITCH(output_type, type2id, OutputType, (float, float16, uint8_t), (
+          using Impl = SliceBaseCpu<OutputType, InputType, Dims>;
+          if (!impl_)
+            impl_ = std::make_unique<Impl>();
+          FillArgs(reinterpret_cast<Impl*>(impl_.get())->Args(), ws);
+        ), DALI_FAIL(make_string("Not supported output type: ", output_type));); // NOLINT
+      }
+    ), DALI_FAIL(make_string("Not supported input type: ", input_type_)););  // NOLINT
+  ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
+
   return impl_->SetupImpl(output_desc, ws);
 }
 
