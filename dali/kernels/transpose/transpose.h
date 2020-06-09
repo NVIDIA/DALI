@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_COMMON_TRANSPOSE_H_
-#define DALI_KERNELS_COMMON_TRANSPOSE_H_
+#ifndef DALI_KERNELS_TRANSPOSE_TRANSPOSE_H_
+#define DALI_KERNELS_TRANSPOSE_TRANSPOSE_H_
 
 #include <type_traits>
 #include <utility>
@@ -243,4 +243,4 @@ void TransposeGrouped(const TensorView<StorageCPU, T> &dst,
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_COMMON_TRANSPOSE_H_
+#endif  // DALI_KERNELS_TRANSPOSE_TRANSPOSE_H_

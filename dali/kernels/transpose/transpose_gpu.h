@@ -1,4 +1,4 @@
-#// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_COMMON_TRANSPOSE_GPU_DEF_H_
-#define DALI_KERNELS_COMMON_TRANSPOSE_GPU_DEF_H_
+#ifndef DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_H_
+#define DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_H_
 
+#include "dali/core/tensor_view.h"
 
 namespace dali {
 namespace kernels {
 
-namespace transpose_impl {
+template <typename Out, typename In>
+class TransposeBatchGPU {
+ public:
+  KernelRequirements Setup(const TensorListShape<> &in_shape, span<const int> permutation) {
+  }
 
-static constexpr int kMaxNDim = 32;
-static constexpr int kTileSize = 32;
+ private:
 
-enum class TransposeMethod {
-  Copy = 0,
-  Generic,
-  Tiled,
-  Vector
 };
 
-}  // namespace transpose_impl
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_COMMON_TRANSPOSE_GPU_DEF_H_
+#endif  // DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_H_

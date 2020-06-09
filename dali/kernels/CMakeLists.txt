@@ -25,6 +25,7 @@ add_subdirectory(reduce)
 add_subdirectory(signal)
 add_subdirectory(slice)
 add_subdirectory(test)
+add_subdirectory(transpose)
 
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)

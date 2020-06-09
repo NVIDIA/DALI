@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_COMMON_TRANSPOSE_GPU_SETUP_CUH_
-#define DALI_KERNELS_COMMON_TRANSPOSE_GPU_SETUP_CUH_
+#ifndef DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_SETUP_CUH_
+#define DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_SETUP_CUH_
 
 #include <cuda_runtime.h>
 #include "dali/core/tensor_view.h"
 #include "dali/core/fast_div.h"
-#include "dali/kernels/common/transpose_gpu_impl.cuh"
+#include "dali/kernels/transpose/transpose_gpu_impl.cuh"
 #include "dali/kernels/common/utils.h"
 
 namespace dali {
@@ -100,12 +100,12 @@ inline void SimplifyPermute(
 }
 
 template <typename T>
-void InitTiledTranspose(TiledTransposeDesc<T> &desc, int grid_size,
+void InitTiledTranspose(TiledTransposeDesc<T> &desc,
                         same_as_t<T> *out, same_as_t<const T> *in,
-                        const TensorShape<> &shape, span<const int> perm) {
+                        const TensorShape<> &shape, span<const int> perm,
+                        int grid_size) {
 
   int ndim = shape.size();
-  desc.ndim = ndim;
 
   CalcStrides(desc.in_strides, shape);
 
@@ -116,12 +116,22 @@ void InitTiledTranspose(TiledTransposeDesc<T> &desc, int grid_size,
     desc.shape[i] = shape[i];
     desc.out_strides[perm[i]] = tmp_strides[i];
   }
+  int max_lanes = kTiledTransposeMaxVectorSize / sizeof(T);
+  int lanes = 1;
+  while (ndim > 0 && perm[ndim-1] == ndim-1) {
+    if (lanes * shape[ndim-1] > max_lanes)
+      break;
+    lanes *= shape[ndim-1];
+    ndim--;
+  }
+  desc.lanes = lanes;
+  desc.ndim = ndim;
 
   // Make sure that when transposing the last dimension, the last two can be transposed in tiles
   // and loaded and stored in contiguous transactions.
-  if (desc.out_strides[ndim-2] != 1) {
+  if (desc.out_strides[ndim-2] != lanes) {
     for (int i = 0; i < ndim-2; i++) {
-      if (desc.out_strides[i] == 1) {
+      if (desc.out_strides[i] == lanes) {
         std::rotate(desc.out_strides + i, desc.out_strides + i+1, desc.out_strides + ndim-1);
         std::rotate(desc.in_strides  + i, desc.in_strides  + i+1, desc.in_strides  + ndim-1);
         std::rotate(desc.shape       + i, desc.shape       + i+1, desc.shape       + ndim-1);
@@ -136,7 +146,7 @@ void InitTiledTranspose(TiledTransposeDesc<T> &desc, int grid_size,
   }
 
   desc.tiles_x = div_ceil(desc.shape[ndim - 1], kTileSize);
-  desc.tiles_y = div_ceil(desc.shape[ndim - 1], kTileSize);
+  desc.tiles_y = div_ceil(desc.shape[ndim - 2], kTileSize);
   desc.tiles_per_slice = desc.tiles_x * desc.tiles_y;
   desc.total_tiles = volume(non_tile_dims) * desc.tiles_per_slice;
   desc.tiles_per_block = div_ceil(desc.total_tiles, grid_size);
@@ -146,8 +156,54 @@ void InitTiledTranspose(TiledTransposeDesc<T> &desc, int grid_size,
 }
 
 
+template <typename T>
+void InitDeinterleave(DeinterleaveDesc<T> &desc,
+                      same_as_t<T> *out, same_as_t<const T> *in,
+                      const TensorShape<> &shape, span<const int> perm) {
+
+  int ndim = shape.size();
+
+  CalcStrides(desc.in_strides, shape);
+
+  TensorShape<> out_shape = Permute(shape, perm);
+  TensorShape<> tmp_strides;
+  CalcStrides(tmp_strides, out_shape);
+  for (int i = 0; i < ndim; i++) {
+    desc.out_strides[perm[i]] = tmp_strides[i];
+  }
+
+  desc.size = volume(shape);
+  desc.ndim = ndim;
+
+  desc.out = out;
+  desc.in = in;
+}
+
+template <typename T>
+void InitGenericTanspose(GenericTransposeDesc<T> &desc,
+                         same_as_t<T> *out, same_as_t<const T> *in,
+                         const TensorShape<> &shape, span<const int> perm) {
+
+  int ndim = shape.size();
+
+  TensorShape<> out_shape = Permute(shape, perm);
+  CalcStrides(desc.out_strides, out_shape);
+
+  TensorShape<> tmp_strides;
+  CalcStrides(tmp_strides, shape);
+  for (int i = 0; i < ndim; i++) {
+    desc.in_strides[i] = tmp_strides[perm[i]];
+  }
+
+  desc.size = volume(shape);
+  desc.ndim = ndim;
+
+  desc.out = out;
+  desc.in = in;
+}
+
 }  // namespace transpose_impl
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_COMMON_TRANSPOSE_GPU_SETUP_CUH_
+#endif  // DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_SETUP_CUH_

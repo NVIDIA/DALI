@@ -16,7 +16,7 @@
 #include <vector>
 
 #include "dali/core/span.h"
-#include "dali/kernels/common/transpose.h"
+#include "dali/kernels/transpose/transpose.h"
 
 namespace dali {
 

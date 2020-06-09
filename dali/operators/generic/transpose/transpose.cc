@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/kernels/common/transpose.h"
+#include "dali/kernels/transpose/transpose.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/operators/generic/transpose/transpose.h"
