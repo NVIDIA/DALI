@@ -15,16 +15,39 @@
 #ifndef DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_H_
 #define DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_H_
 
+#include <memory>
 #include "dali/core/tensor_view.h"
 
 namespace dali {
 namespace kernels {
 
-template <typename Out, typename In>
-class TransposeBatchGPU {
+class DLL_PUBLIC TransposeBatchGPU {
  public:
-  KernelRequirements Setup(const TensorListShape<> &in_shape, span<const int> permutation) {
+  TransposeBatchGPU();
+  ~TransposeBatchGPU();
+
+  KernelRequirements Setup(
+        KernelContext &ctx,
+        const TensorListShape<> &in_shape,
+        span<const int> permutation,
+        int element_size);
+
+  void Run(KernelContext &ctx, void *const *out, const void *const *in);
+
+  template <typename T>
+  void Run(KernelContext &ctx, const OutListGPU<T> &out, const InListGPU<T> &in) {
+    if (ElementSize() != sizeof(T))
+      throw std::logic_error("The transposition was configured for a different element size");
+    CheckShapes(in.shape, out.shape);
+    Run(ctx,
+        reinterpret_cast<void *const*>(out.data.data()),
+        reinterpret_cast<const void *const*>(in.data.data()));
   }
+
+ private:
+  void CheckShapes(const TensorListShape<> &in_shape, const TensorListShape<> &out_shape);
+  class Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 }  // namespace kernels

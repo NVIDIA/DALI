@@ -25,15 +25,6 @@ namespace dali {
 namespace kernels {
 namespace transpose_impl {
 
-
-struct TransposeInfo {
-  void                *out;
-  const void          *in;
-  TransposeMethod     method;
-  TensorShape<>       shape;
-  SmallVector<int, 6> perm;
-};
-
 template <typename T>
 struct TiledTransposeDesc {
   T *__restrict__ out;

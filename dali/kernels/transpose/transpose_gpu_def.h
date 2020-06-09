@@ -24,20 +24,11 @@ namespace transpose_impl {
 static constexpr int kMaxNDim = 32;
 static constexpr int kTileSize = 32;
 static constexpr int kTiledTransposeMaxVectorSize = 32;
-static constexpr int kVecTransposeMaxLanes = 32;
-
 
 static constexpr int kTiledTransposeMaxSharedMem =
   kTiledTransposeMaxVectorSize * kTileSize * (kTileSize+1);
 
 static_assert(kTiledTransposeMaxSharedMem <= 48<<10);  // not more than 48kB shm
-
-enum class TransposeMethod {
-  Copy = 0,
-  Generic,
-  Tiled,
-  Vector
-};
 
 }  // namespace transpose_impl
 }  // namespace kernels
