@@ -59,7 +59,7 @@ class SliceBase : public Operator<Backend> {
     int nsamples = in_shape.num_samples();
     auto in_layout = input.GetLayout();
     if (in_layout.empty())
-      in_layout = GetDefaultLayout(in_shape.size());
+      in_layout = GetDefaultLayout(in_shape.sample_dim());
     auto channel_dim = in_layout.find('C');
 
     slice_args.clear();
