@@ -101,7 +101,7 @@ TEST(TransposeTiled, Transpose1032) {
 
   copyH2D(in_gpu.data(), in.data(), size);
 
-  TransposeTiledSingle<<<grid_size, dim3(32, 16)>>>(desc);
+  TransposeTiledSingle<<<grid_size, dim3(32, 16), 0x8000>>>(desc);
   copyD2H(out.data(), out_gpu.data(), size);
   RefTranspose(ref.data(), in.data(), in_shape, perm, 4);
 
@@ -126,7 +126,7 @@ TEST(TransposeTiled, BuildDesc) {
   int grid_size = 1024;
   TiledTransposeDesc<int> desc;
   InitTiledTranspose(desc, grid_size, out_gpu, in_gpu, shape, make_span(perm));
-  TransposeTiledSingle<<<grid_size, dim3(32, 16)>>>(desc);
+  TransposeTiledSingle<<<grid_size, dim3(32, 16), 0x8000>>>(desc);
   copyD2H(out_cpu.data(), out_gpu.data(), size);
   RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm.data(), perm.size());
 

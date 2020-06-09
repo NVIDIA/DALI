@@ -51,8 +51,14 @@ struct TiledTransposeDesc {
   fast_div<uint32_t> tiles_per_slice;
 };
 
+namespace transpose_shared {
+  extern __shared__ uint8_t shared_tmp[];
+}  // namespace transpose_shared
+
 template <typename T>
 __device__ void TransposeTiled(const TiledTransposeDesc<T> &desc) {
+  T (*tmp)[kTileSize+1] = reinterpret_cast<T (*)[kTileSize+1]>(transpose_shared::shared_tmp);
+
   int ndim = desc.ndim;
 
   unsigned start_tile = blockIdx.x * desc.tiles_per_block;
@@ -95,7 +101,6 @@ __device__ void TransposeTiled(const TiledTransposeDesc<T> &desc) {
     // out_ofs += out_y + desc.out_strides[ndim-1] * out_x;
 
     __syncthreads();
-    __shared__ T tmp[kTileSize][kTileSize + 1];
     int tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-1] - pos[ndim-1]);
     int tile_h = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-2] - pos[ndim-2]);
     if (threadIdx.x < tile_w) {
