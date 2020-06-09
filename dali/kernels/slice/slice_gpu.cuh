@@ -125,7 +125,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
     uint64_t out_idx = idx;
 
     // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
-    // because know the stride is 1
+    // because know the strides are 1 (or we treat them as 1 if we fused dimensions)
     int i_c = 0;
     int i_d;
     bool out_of_bounds = false;
@@ -142,14 +142,12 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
     }
 
     constexpr int d = LastDim;
-    i_d = idx;  // We know that out_strides[d] is 1
-    if (AllDims) {
-      if (d == channel_dim)
-        i_c = i_d;
-    }
+    i_d = idx;  // out_strides[d] is 1
+    if (AllDims && d == channel_dim)
+      i_c = i_d;
     out_of_bounds |= is_out_of_bounds(inner_in_anchor + i_d, inner_in_extent);
     if (!out_of_bounds)
-      in_idx += i_d;  // We know that in_strides[d] is 1
+      in_idx += i_d;  // in_strides[d] is 1
 
     // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
     out[out_idx] = out_of_bounds ? __ldg(&fill_values[i_c]) : clamp<OutputType>(in[in_idx]);

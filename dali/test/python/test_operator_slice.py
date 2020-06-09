@@ -31,6 +31,28 @@ test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 test_data_video = os.path.join(test_data_root, 'db', 'optical_flow', 'sintel_trailer')
 
+#std::round has different behaviour than np.round so manually add 0.5 and truncate to int
+def roundint(num):
+    return int(np.float32(num) + (0.5 if np.float32(num) >= 0 else -0.5))
+
+def abs_slice_start_and_end(in_shape, slice_anchor, slice_shape, normalized_anchor, normalized_shape):
+    ndim = len(in_shape)
+    if normalized_anchor and normalized_shape:
+        start = [roundint(np.float32(in_shape[i]) * np.float32(slice_anchor[i])) for i in range(ndim)]
+        end = [roundint(np.float32(in_shape[i]) * np.float32(slice_anchor[i]+slice_shape[i])) for i in range(ndim)]
+    else:
+        if normalized_anchor:
+            start = [roundint(np.float32(in_shape[i]) * np.float32(slice_anchor[i])) for i in range(ndim)]
+        else:
+            start = [roundint(np.float32(slice_anchor[i])) for i in range(ndim)]
+
+        if normalized_shape:
+            end = [start[i] + roundint(np.float32(in_shape[i]) * np.float32(slice_shape[i])) for i in range(ndim)]
+        else:
+            end = [start[i] + roundint(np.float32(slice_shape[i])) for i in range(ndim)]
+    out_shape = [end[i]-start[i] for i in range(ndim)]
+    return start, end, out_shape
+
 class SliceSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, pos_size_iter,
                  num_threads=1, device_id=0, num_gpus=1,
@@ -47,12 +69,12 @@ class SliceSynthDataPipeline(Pipeline):
         self.input_crop_size = ops.ExternalSource()
         self.extra_outputs = extra_outputs
         self.slice = ops.Slice(device = self.device,
-                                normalized_anchor=normalized_anchor,
-                                normalized_shape=normalized_shape,
+                                normalized_anchor = normalized_anchor,
+                                normalized_shape = normalized_shape,
                                 axes = axes,
                                 axis_names = axis_names,
-                                out_of_bounds_policy=out_of_bounds_policy,
-                                fill_values=fill_values)
+                                out_of_bounds_policy = out_of_bounds_policy,
+                                fill_values = fill_values)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -87,40 +109,20 @@ class SlicePipeline(Pipeline):
         self.input_crop_size = ops.ExternalSource()
 
         if self.is_fused_decoder:
-            if axis_names:
-                self.decode = ops.ImageDecoderSlice(device = "cpu",
-                                                    output_type = types.RGB,
-                                                    normalized_anchor=normalized_anchor,
-                                                    normalized_shape=normalized_shape,
-                                                    axis_names = axis_names)
-            elif axes:
-                self.decode = ops.ImageDecoderSlice(device = "cpu",
-                                                    output_type = types.RGB,
-                                                    normalized_anchor=normalized_anchor,
-                                                    normalized_shape=normalized_shape,
-                                                    axes = axes)
-            else:
-                self.decode = ops.ImageDecoderSlice(device = "cpu",
-                                                    output_type = types.RGB,
-                                                    normalized_anchor=normalized_anchor,
-                                                    normalized_shape=normalized_shape)
+            self.decode = ops.ImageDecoderSlice(device = "cpu",
+                                                output_type = types.RGB,
+                                                normalized_anchor=normalized_anchor,
+                                                normalized_shape=normalized_shape,
+                                                axis_names = axis_names,
+                                                axes = axes)
         else:
             self.decode = ops.ImageDecoder(device = "cpu",
                                            output_type = types.RGB)
-            if axis_names:
-                self.slice = ops.Slice(device = self.device,
-                                       normalized_anchor=normalized_anchor,
-                                       normalized_shape=normalized_shape,
-                                       axis_names = axis_names)
-            elif axes:
-                self.slice = ops.Slice(device = self.device,
-                                       normalized_anchor=normalized_anchor,
-                                       normalized_shape=normalized_shape,
-                                       axes = axes)
-            else:
-                self.slice = ops.Slice(device = self.device,
-                                       normalized_anchor=normalized_anchor,
-                                       normalized_shape=normalized_shape)
+            self.slice = ops.Slice(device = self.device,
+                                   normalized_anchor=normalized_anchor,
+                                   normalized_shape=normalized_shape,
+                                   axis_names = axis_names,
+                                   axes = axes)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -233,26 +235,7 @@ def slice_func_helper(axes, axis_names, layout, normalized_anchor, normalized_sh
         full_slice_anchor[axis] = slice_anchor[idx]
         full_slice_shape[axis] = slice_shape[idx]
 
-    #std::round has different behaviour than np.round so manually add 0.5 and truncate to int
-    if normalized_anchor and normalized_shape:
-        start = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]) + 0.5)
-                 for i in range(len(shape))]
-        end = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]+full_slice_shape[i]) + 0.5)
-               for i in range(len(shape))]
-    else:
-        if normalized_anchor:
-            start = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]) + 0.5)
-                    for i in range(len(shape))]
-        else:
-            start = [int(np.float32(full_slice_anchor[i]) + 0.5)
-                    for i in range(len(shape))]
-
-        if normalized_shape:
-            end = [start[i] + int(np.float32(shape[i]) * np.float32(full_slice_shape[i]) + 0.5)
-                for i in range(len(shape))]
-        else:
-            end = [start[i] + int(np.float32(full_slice_shape[i]) + 0.5)
-                for i in range(len(shape))]
+    start, end, _ = abs_slice_start_and_end(shape, full_slice_anchor, full_slice_shape, normalized_anchor, normalized_shape)
 
     if len(full_slice_anchor) == 1:
         return image[start[0]:end[0]]
@@ -415,12 +398,19 @@ def test_slice_vs_numpy():
                 ((1,0), None), ((0,1), None)]:
                 yield check_slice_vs_numpy, device, batch_size, axes, axis_names
 
-def check_slice_with_pad_support(device, batch_size, axes, axis_names,
-                                 input_shape=(100, 200, 3), layout="HWC",
-                                 fill_values=(0x76, 0xb9, 0x00),
-                                 normalized_anchor=False, normalized_shape=False):
-    normalized_anchor = False
-    normalized_shape = False
+
+def check_slice_with_out_of_bounds_policy_support(device, batch_size, input_shape=(100, 200, 3),
+                                                  out_of_bounds_policy=None, fill_values=(0x76, 0xb9, 0x00),
+                                                  normalized_anchor=False, normalized_shape=False):
+    # This test case is written with HWC layout in mind and "HW" axes in slice arguments
+    axis_names = "HW"
+    naxes = len(axis_names)
+    axes = None
+    layout = "HWC"
+    assert(len(input_shape) == 3)
+    if fill_values is not None and len(fill_values) > 1:
+        assert(input_shape[2] == len(fill_values))
+
     eii = RandomDataIterator(batch_size, shape=input_shape)
     eii_arg = SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,
                                 image_layout=layout, axes=axes, axis_names=axis_names,
@@ -432,7 +422,7 @@ def check_slice_with_pad_support(device, batch_size, axes, axis_names,
                                   axes=axes, axis_names=axis_names,
                                   normalized_anchor=normalized_anchor,
                                   normalized_shape=normalized_shape,
-                                  out_of_bounds_policy='pad',
+                                  out_of_bounds_policy=out_of_bounds_policy,
                                   fill_values=fill_values,
                                   extra_outputs=True)
     if fill_values is None:
@@ -452,46 +442,47 @@ def check_slice_with_pad_support(device, batch_size, axes, axis_names,
             sample_out = out.at(idx)
             anchor = anchor_data.at(idx)
             shape = shape_data.at(idx)
+            in_shape = sample_in.shape
+            out_shape = sample_out.shape
 
-            i_pad_before = 0
-            i_slice = 0
-            i_pad_after = 0
-            if anchor[0] < 0:
-                i_pad_before = -anchor[0]
-            elif anchor[0] >= sample_in.shape[0]:
-                i_pad_before = sample_out.shape[0]
-            if i_pad_before + sample_in.shape[0] < shape[0]:
-                i_pad_after = shape[0] - i_pad_before - sample_in.shape[0]
-            i_slice = sample_out.shape[0] - i_pad_before - i_pad_after
+            abs_start, abs_end, abs_slice_shape = abs_slice_start_and_end(in_shape[:2], anchor, shape, normalized_anchor, normalized_shape)
+            if out_of_bounds_policy == 'pad':
+                assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
+            elif out_of_bounds_policy == 'trim_to_shape':
+                assert(all([out_shape[i] <= in_shape[i] for i in range(naxes)]))
+                for i in range(naxes):
+                    if abs_start[i] < 0:
+                        abs_start[i] = 0
+                    if abs_end[i] > in_shape[i]:
+                        abs_end[i] = in_shape[i]
+                    abs_slice_shape[i] = abs_end[i] - abs_start[i]
+                assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
+            else:
+                assert(False) # Wrong out_of_bounds_policy
 
-            j_pad_before = 0
-            j_slice = 0
-            j_pad_after = 0
-            if anchor[1] < 0:
-                j_pad_before = -anchor[1]
-            elif anchor[0] >= sample_in.shape[1]:
-                j_pad_before = sample_out.shape[1]
-            if j_pad_before + sample_in.shape[1] < shape[1]:
-                j_pad_after = shape[1] - j_pad_before - sample_in.shape[1]
-            j_slice = sample_out.shape[1] - j_pad_before - j_pad_after
+            pad_before = [-abs_start[i] if abs_start[i] < 0 else 0 for i in range(naxes)]
+            pad_after = [abs_end[i] - in_shape[i] if in_shape[i] < abs_end[i] else 0 for i in range(naxes)]
+            sliced = [abs_slice_shape[i] - pad_before[i] - pad_after[i] for i in range(naxes)]
 
-            for i in range(sample_out.shape[0]):
-                for j in range(sample_out.shape[1]):
-                    if (i >= i_pad_before and j >= j_pad_before and i < i_pad_before + i_slice and j < j_pad_before + j_slice):
-                        assert((sample_out[i, j, :] == sample_in[int(anchor[0] + i), int(anchor[1] + j), :]).all())
+            if out_of_bounds_policy == 'trim_to_shape':
+                assert(all([pad_before[i] == 0 for i in range(naxes)]))
+                assert(all([pad_after[i] == 0 for i in range(naxes)]))
+                assert(all([sliced[i] == out_shape[i] for i in range(naxes)]))
+
+            for i in range(out_shape[0]):
+                for j in range(out_shape[1]):
+                    if (i >= pad_before[0] and j >= pad_before[1] and i < pad_before[0] + sliced[0] and j < pad_before[1] + sliced[1]):
+                        assert((sample_out[i, j, :] == sample_in[abs_start[0] + i, abs_start[1] + j, :]).all())
                     else:
                         assert((sample_out[i, j, :] == fill_values).all())
 
-def test_slice_with_pad_support():
-    in_shape = (100, 200, 3)
-    axis_names = "HW"
-    axes = None
-    layout = "HWC"
-    out_of_bounds_policy = "pad"
-    for device in ['gpu', 'cpu']:
-        for batch_size in [1, 3]:
-            for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
-                for fill_values in [None, (0x76, 0xb0, 0x00)]:
-                    yield check_slice_with_pad_support, \
-                        device, batch_size, axes, axis_names, in_shape, \
-                        layout, fill_values, normalized_anchor, normalized_shape
+def test_slice_with_out_of_bounds_policy_support():
+    in_shape = (40, 80, 3)
+    for out_of_bounds_policy in ['pad', 'trim_to_shape']:
+        for device in ['gpu', 'cpu']:
+            for batch_size in [1, 3]:
+                for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
+                    for fill_values in [None, (0x76, 0xb0, 0x00)]:
+                        yield check_slice_with_out_of_bounds_policy_support, \
+                            device, batch_size, in_shape, out_of_bounds_policy, fill_values, \
+                            normalized_anchor, normalized_shape
