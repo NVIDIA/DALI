@@ -81,7 +81,7 @@ class CyclicWindowWrapper {
    * @brief Get pointer to the start of pixel `idx` in the buffer, taking into account the cyclic
    * wrapping
    */
-  T* GetElementOffset(int idx) {
+  T* GetElementOffset(int idx) const {
     assert(idx < elements_);
     if (start_ + idx < length_) {
       return data_ + (start_ + idx) * NumLanes();
@@ -95,7 +95,7 @@ class CyclicWindowWrapper {
    * at construction. The result is stored in pixel stored at `accum`.
    */
   template <typename W>
-  void CalculateDot(W* __restrict__ accum, const W* __restrict__ window) {
+  void CalculateDot(W* __restrict__ accum, const W* __restrict__ window) const {
     assert(elements_ == length_);
     for (int c = 0; c < NumLanes(); c++) {
       accum[c] = 0;
@@ -114,7 +114,7 @@ class CyclicWindowWrapper {
   }
 
   template <typename U, typename W>
-  void CalculateDot(U* __restrict__ output, const W* __restrict__ window, W scale) {
+  void CalculateDot(U* __restrict__ output, const W* __restrict__ window, W scale) const {
     std::array<W, max_lanes> tmp;
     CalculateDot(tmp.data(), window);
     for (int c = 0; c < NumLanes(); c++) {
@@ -122,22 +122,22 @@ class CyclicWindowWrapper {
     }
   }
 
-  int Size() {
+  int Size() const {
     return elements_;
   }
 
-  bool Empty() {
+  bool Empty() const {
     return elements_ == 0;
   }
 
  private:
-  void WrapPosition(int& pos) {
+  void WrapPosition(int& pos) const {
     if (pos == length_) {
       pos = 0;
     }
   }
 
-  int NumLanes() {
+  int NumLanes() const {
     return std::min(num_lanes_, max_lanes);
   }
 
