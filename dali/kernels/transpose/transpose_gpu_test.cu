@@ -1,4 +1,4 @@
-#// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -67,12 +67,13 @@ TEST(SimplifyPermute, Collapse) {
 
 
 template <typename T, typename Extent>
-void RefTranspose(T *out, const T *in, const uint64_t *out_strides, const uint64_t *in_strides, const Extent *shape, int ndim) {
+void RefTranspose(T *out, const uint64_t *out_strides,
+                  const T *in, const uint64_t *in_strides, const Extent *shape, int ndim) {
   if (ndim == 0) {
     *out = *in;
   } else {
     for (Extent i = 0; i < *shape; i++) {
-      RefTranspose(out, in, out_strides + 1, in_strides + 1, shape + 1, ndim - 1);
+      RefTranspose(out, out_strides + 1, in, in_strides + 1, shape + 1, ndim - 1);
       out += *out_strides;
       in += *in_strides;
     }
@@ -91,7 +92,7 @@ void RefTranspose(T *out, const T *in, const Extent *in_shape, const int *perm, 
     in_strides[i] = tmp_strides[perm[i]];
   }
 
-  RefTranspose(out, in, out_strides, in_strides, out_shape, ndim);
+  RefTranspose(out, out_strides, in, in_strides, out_shape, ndim);
 }
 
 namespace {
@@ -277,7 +278,6 @@ TEST(TransposeGeneric, AllPerm4D) {
     for (int i = 0; i < size; i++) {
       ASSERT_EQ(out_cpu[i], ref[i]) << " at " << i;
     }
-
   }
 }
 

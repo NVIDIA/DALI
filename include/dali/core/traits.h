@@ -53,11 +53,11 @@ inline std::false_type HasResize(...);
 
 /// @brief Inerits `true_type`, if `T::resize` can be called with given arguments
 template <typename T, typename... ResizeArgs>
-struct has_resize : decltype(HasResize((T*)0, ResizeArgs()...)) {};
+struct has_resize : decltype(HasResize((T*)0, ResizeArgs()...)) {};  // NOLINT
 
 /// @brief Inerits `true_type`, `if T::resize` can be called with an integer
 template <typename T>
-struct has_resize<T> : decltype(HasResize((T*)0, 1)) {};
+struct has_resize<T> : decltype(HasResize((T*)0, 1)) {};  // NOLINT
 
 }  // namespace dali
 

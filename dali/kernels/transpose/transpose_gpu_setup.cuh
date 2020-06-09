@@ -1,4 +1,4 @@
-#// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #define DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_SETUP_CUH_
 
 #include <cuda_runtime.h>
+#include <utility>
 #include "dali/core/tensor_view.h"
 #include "dali/core/fast_div.h"
 #include "dali/kernels/transpose/transpose_gpu_impl.cuh"
@@ -104,7 +105,6 @@ void InitTiledTranspose(TiledTransposeDesc<T> &desc,
                         same_as_t<T> *out, same_as_t<const T> *in,
                         const TensorShape<> &shape, span<const int> perm,
                         int grid_size) {
-
   int ndim = shape.size();
 
   CalcStrides(desc.in_strides, shape);
@@ -160,7 +160,6 @@ template <typename T>
 void InitDeinterleave(DeinterleaveDesc<T> &desc,
                       same_as_t<T> *out, same_as_t<const T> *in,
                       const TensorShape<> &shape, span<const int> perm) {
-
   int ndim = shape.size();
 
   CalcStrides(desc.in_strides, shape);
@@ -183,7 +182,6 @@ template <typename T>
 void InitGenericTanspose(GenericTransposeDesc<T> &desc,
                          same_as_t<T> *out, same_as_t<const T> *in,
                          const TensorShape<> &shape, span<const int> perm) {
-
   int ndim = shape.size();
 
   TensorShape<> out_shape = Permute(shape, perm);

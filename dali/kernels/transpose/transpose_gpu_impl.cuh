@@ -1,4 +1,4 @@
-#// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -178,7 +178,6 @@ __device__ void TransposeDeinterleave(const DeinterleaveDesc<T> &desc) {
   const T *in = desc.in;
 
   for (uint64_t in_ofs = start_ofs; in_ofs < desc.size; in_ofs += grid_stride) {
-
     uint64_t out_ofs = 0;
     uint64_t tmp_idx = in_ofs;
     for (int d = 0; d < ndim - 1; d++) {

@@ -25,9 +25,6 @@ class TransposeBatchGPU {
  public:
   KernelRequirements Setup(const TensorListShape<> &in_shape, span<const int> permutation) {
   }
-
- private:
-
 };
 
 }  // namespace kernels
