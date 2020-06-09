@@ -1,4 +1,4 @@
-FROM alpine
+FROM alpine as cuda
 
 # CUDA toolkit needs gcc to be callable during installation even if it does nothing
 RUN apk add curl perl && ln -s /bin/ls /bin/gcc
@@ -17,3 +17,6 @@ RUN CUDA_VERSION=9.0 && \
     mv lib64/libnvjpeg*.a* /usr/local/cuda/lib64/ && \
     mv include/nvjpeg.h /usr/local/cuda/include/ && \
     rm -rf /cuda-linux64-nvjpeg;
+
+FROM scratch
+COPY --from=cuda /usr/local/cuda /usr/local/cuda
