@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <vector>
-#include <memory>
 #include "dali/operators/generic/slice/slice_base.h"
+#include <memory>
+#include <queue>
+#include <vector>
 #include "dali/kernels/slice/slice_cpu.h"
 
 namespace dali {
@@ -42,6 +43,12 @@ class SliceBaseCpu : public OpImplBase<CPUBackend> {
  private:
   std::vector<SliceArgs> args_;
   kernels::KernelManager kmgr_;
+
+  // Priority queue used to schedule larger samples first to maximize CPU utilization
+  // (avoid posting a big sample last and have all the other threads idle while it's processed)
+  using VolumeSampleIdPair = std::pair<int64_t, int>;  // volume(out_shape), sample_idx
+  using SampleQueue = std::priority_queue<VolumeSampleIdPair, std::vector<VolumeSampleIdPair>>;
+  SampleQueue sample_queue_;
 };
 
 template <typename OutputType, typename InputType, int Dims>
@@ -59,10 +66,14 @@ bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
   kmgr_.Resize<Kernel>(nthreads, nsamples);
   kernels::KernelContext ctx;
   auto in_view = view<const InputType, Dims>(input);
+  assert(sample_queue_.empty());
   for (int i = 0; i < nsamples; i++) {
     auto in_view = view<const InputType, Dims>(input[i]);
     auto req = kmgr_.Setup<Kernel>(i, ctx, in_view, args_[i]);
-    output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
+    auto out_shape = req.output_shapes[0][0].shape;
+    output_desc[0].shape.set_tensor_shape(i, out_shape);
+    // Larger samples will be scheduled first
+    sample_queue_.push({volume(out_shape), i});
   }
   return true;
 }
@@ -72,15 +83,16 @@ void SliceBaseCpu<OutputType, InputType, Dims>::RunImpl(workspace_t<CPUBackend> 
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
   int nsamples = input.size();
-
   auto& thread_pool = ws.GetThreadPool();
-  for (int i = 0; i < nsamples; i++) {
+  while(!sample_queue_.empty()) {
+    int sample_idx = sample_queue_.top().second;
+    sample_queue_.pop();
     thread_pool.DoWorkWithID(
-      [this, &input, &output, i](int thread_id) {
-        auto in_view = view<const InputType, Dims>(input[i]);
-        auto out_view = view<OutputType, Dims>(output[i]);
+      [this, &input, &output, sample_idx](int thread_id) {
+        auto in_view = view<const InputType, Dims>(input[sample_idx]);
+        auto out_view = view<OutputType, Dims>(output[sample_idx]);
         kernels::KernelContext ctx;
-        kmgr_.Run<Kernel>(thread_id, i, ctx, out_view, in_view, args_[i]);
+        kmgr_.Run<Kernel>(thread_id, sample_idx, ctx, out_view, in_view, args_[sample_idx]);
       });
   }
   thread_pool.WaitForWork();
