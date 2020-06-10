@@ -15,10 +15,8 @@
 #ifndef DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_DEF_H_
 #define DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_DEF_H_
 
-
 namespace dali {
 namespace kernels {
-
 namespace transpose_impl {
 
 static constexpr int kMaxNDim = 32;

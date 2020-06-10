@@ -58,12 +58,12 @@ __device__ void TransposeTiledStatic(const TiledTransposeDesc<T> &desc) {
 
   unsigned start_tile = blockIdx.x * desc.tiles_per_block;
   unsigned end_tile = min(desc.total_tiles, start_tile + desc.tiles_per_block);
-  unsigned tile_in_slice;
+  unsigned tile_in_slice = start_tile;
   uint64_t fused_slice = ndim > 2
     ? div_mod(tile_in_slice, start_tile, desc.tiles_per_slice)
     : 0;
 
-  uint64_t pos[kMaxNDim];
+  uint64_t pos[ndim];  // NOLINT
 
   for (int d = ndim - 3; d >= 0; d--) {
     fused_slice = div_mod(pos[d], fused_slice, desc.shape[d]);
@@ -91,7 +91,6 @@ __device__ void TransposeTiledStatic(const TiledTransposeDesc<T> &desc) {
 
     in_ofs  += desc.in_strides[ndim-2]  * in_y  + desc.in_strides[ndim-1]  * in_x;
     out_ofs += desc.out_strides[ndim-2] * out_y + desc.out_strides[ndim-1] * out_x;
-
 
     __syncthreads();
     int tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-1] - pos[ndim-1]);

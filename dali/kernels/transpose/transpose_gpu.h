@@ -17,14 +17,15 @@
 
 #include <memory>
 #include "dali/core/tensor_view.h"
+#include "dali/kernels/kernel.h"
 
 namespace dali {
 namespace kernels {
 
-class DLL_PUBLIC TransposeBatchGPU {
+class DLL_PUBLIC TransposeGPU {
  public:
-  TransposeBatchGPU();
-  ~TransposeBatchGPU();
+  TransposeGPU();
+  ~TransposeGPU();
 
   KernelRequirements Setup(
         KernelContext &ctx,
@@ -36,16 +37,17 @@ class DLL_PUBLIC TransposeBatchGPU {
 
   template <typename T>
   void Run(KernelContext &ctx, const OutListGPU<T> &out, const InListGPU<T> &in) {
-    if (ElementSize() != sizeof(T))
-      throw std::logic_error("The transposition was configured for a different element size");
-    CheckShapes(in.shape, out.shape);
+    CheckShapes(in.shape, out.shape, sizeof(T));
     Run(ctx,
         reinterpret_cast<void *const*>(out.data.data()),
         reinterpret_cast<const void *const*>(in.data.data()));
   }
 
  private:
-  void CheckShapes(const TensorListShape<> &in_shape, const TensorListShape<> &out_shape);
+  void CheckShapes(const TensorListShape<> &in_shape,
+                  const TensorListShape<> &out_shape,
+                  int element_size);
+
   class Impl;
   std::unique_ptr<Impl> impl_;
 };

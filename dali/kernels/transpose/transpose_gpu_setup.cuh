@@ -102,9 +102,9 @@ inline void SimplifyPermute(
 
 template <typename T>
 void InitTiledTranspose(TiledTransposeDesc<T> &desc,
-                        same_as_t<T> *out, same_as_t<const T> *in,
                         const TensorShape<> &shape, span<const int> perm,
-                        int grid_size) {
+                        same_as_t<T> *out = nullptr, same_as_t<const T> *in = nullptr,
+                        int grid_size = 1) {
   int ndim = shape.size();
 
   CalcStrides(desc.in_strides, shape);
@@ -158,8 +158,8 @@ void InitTiledTranspose(TiledTransposeDesc<T> &desc,
 
 template <typename T>
 void InitDeinterleave(DeinterleaveDesc<T> &desc,
-                      same_as_t<T> *out, same_as_t<const T> *in,
-                      const TensorShape<> &shape, span<const int> perm) {
+                      const TensorShape<> &shape, span<const int> perm,
+                      same_as_t<T> *out = nullptr, same_as_t<const T> *in = nullptr) {
   int ndim = shape.size();
 
   CalcStrides(desc.in_strides, shape);
@@ -179,9 +179,9 @@ void InitDeinterleave(DeinterleaveDesc<T> &desc,
 }
 
 template <typename T>
-void InitGenericTanspose(GenericTransposeDesc<T> &desc,
-                         same_as_t<T> *out, same_as_t<const T> *in,
-                         const TensorShape<> &shape, span<const int> perm) {
+void InitGenericTranspose(GenericTransposeDesc<T> &desc,
+                         const TensorShape<> &shape, span<const int> perm,
+                         same_as_t<T> *out = nullptr, same_as_t<const T> *in = nullptr) {
   int ndim = shape.size();
 
   TensorShape<> out_shape = Permute(shape, perm);
@@ -192,9 +192,13 @@ void InitGenericTanspose(GenericTransposeDesc<T> &desc,
   for (int i = 0; i < ndim; i++) {
     desc.in_strides[i] = tmp_strides[perm[i]];
   }
+  if (ndim == 0) {
+    desc.out_strides[0] = 0;
+    desc.in_strides[0] = 1;
+  }
 
   desc.size = volume(shape);
-  desc.ndim = ndim;
+  desc.ndim = std::max(ndim, 1);
 
   desc.out = out;
   desc.in = in;

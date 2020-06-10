@@ -22,6 +22,8 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/test/test_tensors.h"
+#include "dali/core/cuda_event.h"
+#include "dali/kernels/transpose/transpose_test.h"
 
 namespace dali {
 namespace kernels {
@@ -65,66 +67,6 @@ TEST(SimplifyPermute, Collapse) {
   EXPECT_EQ(s_perm, ref_perm);
 }
 
-
-template <typename T, typename Extent>
-void RefTranspose(T *out, const uint64_t *out_strides,
-                  const T *in, const uint64_t *in_strides, const Extent *shape, int ndim) {
-  if (ndim == 0) {
-    *out = *in;
-  } else {
-    for (Extent i = 0; i < *shape; i++) {
-      RefTranspose(out, out_strides + 1, in, in_strides + 1, shape + 1, ndim - 1);
-      out += *out_strides;
-      in += *in_strides;
-    }
-  }
-}
-
-template <typename T, typename Extent>
-void RefTranspose(T *out, const T *in, const Extent *in_shape, const int *perm, int ndim) {
-  uint64_t out_strides[32], in_strides[32], tmp_strides[32], out_shape[32];
-  CalcStrides(tmp_strides, in_shape, ndim);
-  for (int i = 0; i < ndim; i++) {
-    out_shape[i] = in_shape[perm[i]];
-  }
-  CalcStrides(out_strides, out_shape, ndim);
-  for (int i = 0; i < ndim; i++) {
-    in_strides[i] = tmp_strides[perm[i]];
-  }
-
-  RefTranspose(out, out_strides, in, in_strides, out_shape, ndim);
-}
-
-namespace {
-// All 4-element permutations
-const int Permutations4[][4] = {
-  { 0, 1, 2, 3 },
-  { 0, 1, 3, 2 },
-  { 0, 2, 1, 3 },
-  { 0, 2, 3, 1 },
-  { 0, 3, 1, 2 },
-  { 0, 3, 2, 1 },
-  { 1, 0, 2, 3 },
-  { 1, 0, 3, 2 },
-  { 1, 2, 0, 3 },
-  { 1, 2, 3, 0 },
-  { 1, 3, 0, 2 },
-  { 1, 3, 2, 0 },
-  { 2, 0, 1, 3 },
-  { 2, 0, 3, 1 },
-  { 2, 1, 0, 3 },
-  { 2, 1, 3, 0 },
-  { 2, 3, 0, 1 },
-  { 2, 3, 1, 0 },
-  { 3, 0, 1, 2 },
-  { 3, 0, 2, 1 },
-  { 3, 1, 0, 2 },
-  { 3, 1, 2, 0 },
-  { 3, 2, 0, 1 },
-  { 3, 2, 1, 0 }
-};
-}  // namespace
-
 TEST(TransposeTiled, AllPerm4DInnermost) {
   TensorShape<> shape = { 19, 57, 37, 53 };  // a bunch of primes, just to make it harder
   int size = volume(shape);
@@ -138,7 +80,7 @@ TEST(TransposeTiled, AllPerm4DInnermost) {
   int grid_size = 2;
   ASSERT_LT(grid_size * 512, size) << "Weak test error: Grid too large to test grid loop";
 
-  for (auto &perm : Permutations4) {
+  for (auto &perm : testing::Permutations4) {
     if (perm[3] == 3)
       continue;  // innermost dim must be permuted
 
@@ -148,10 +90,10 @@ TEST(TransposeTiled, AllPerm4DInnermost) {
 
     TiledTransposeDesc<int> desc;
     memset(&desc, 0xCC, sizeof(desc));
-    InitTiledTranspose(desc, out_gpu, in_gpu, shape, make_span(perm), grid_size);
+    InitTiledTranspose(desc, shape, make_span(perm), out_gpu, in_gpu, grid_size);
     TransposeTiledSingle<<<grid_size, dim3(32, 16), kTiledTransposeMaxSharedMem>>>(desc);
     copyD2H(out_cpu.data(), out_gpu.data(), size);
-    RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm, 4);
+    testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm, 4);
 
     for (int i = 0; i < size; i++) {
       ASSERT_EQ(out_cpu[i], ref[i]) << " at " << i;
@@ -176,12 +118,12 @@ TEST(TransposeTiled, BuildDescVectorized) {
   int grid_size = 1024;
   TiledTransposeDesc<int> desc;
   memset(&desc, 0xCC, sizeof(desc));
-  InitTiledTranspose(desc, out_gpu, in_gpu, shape, make_span(perm), grid_size);
+  InitTiledTranspose(desc, shape, make_span(perm), out_gpu, in_gpu, grid_size);
   EXPECT_EQ(desc.lanes, 4) << "Lanes not detected";
   EXPECT_EQ(desc.ndim, 3) << "Number of dimensions should have shrunk in favor of lanes";
   TransposeTiledSingle<<<grid_size, dim3(32, 16), kTiledTransposeMaxSharedMem>>>(desc);
   copyD2H(out_cpu.data(), out_gpu.data(), size);
-  RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm.data(), perm.size());
+  testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm.data(), perm.size());
 
   for (int i = 0; i < size; i++) {
     ASSERT_EQ(out_cpu[i], ref[i]) << " at " << i;
@@ -202,7 +144,7 @@ TEST(TransposeDeinterleave, AllPerm4DInnermost) {
   int grid_size = 3;
   ASSERT_LT(grid_size * 512 * 3, size) << "Weak test error: Grid too large to test grid loop";
 
-  for (auto &perm : Permutations4) {
+  for (auto &perm : testing::Permutations4) {
     if (perm[3] == 3)
       continue;  // innermost dim must be permuted
 
@@ -212,10 +154,10 @@ TEST(TransposeDeinterleave, AllPerm4DInnermost) {
 
     DeinterleaveDesc<int> desc;
     memset(&desc, 0xCC, sizeof(desc));
-    InitDeinterleave(desc, out_gpu, in_gpu, shape, make_span(perm));
+    InitDeinterleave(desc, shape, make_span(perm), out_gpu, in_gpu);
     TransposeDeinterleaveSingle<<<grid_size, dim3(512)>>>(desc);
     copyD2H(out_cpu.data(), out_gpu.data(), size);
-    RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm, 4);
+    testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm, 4);
 
     for (int i = 0; i < size; i++) {
       ASSERT_EQ(out_cpu[i], ref[i]) << " at " << i;
@@ -233,10 +175,11 @@ TEST(TransposeGeneric, AllPerm4D) {
   out_gpu.resize(size);
   copyH2D(in_gpu.data(), in_cpu.data(), size);
 
-  int grid_size = 3;
-  ASSERT_LT(grid_size * 512, size) << "Weak test error: Grid too large to test grid loop";
+  int grid_size = 2048;
+  int block_size = 256;
+  ASSERT_LT(grid_size * block_size, size) << "Weak test error: Grid too large to test grid loop";
 
-  for (auto &perm : Permutations4) {
+  for (auto &perm : testing::Permutations4) {
     std::cerr << "Testing permutation "
       << perm[0] << " " << perm[1] << " " << perm[2] << " " << perm[3] << "  input shape "
       << shape << "\n";
@@ -244,10 +187,11 @@ TEST(TransposeGeneric, AllPerm4D) {
 
     GenericTransposeDesc<int> desc;
     memset(&desc, 0xCC, sizeof(desc));
-    InitGenericTanspose(desc, out_gpu, in_gpu, shape, make_span(perm));
-    TransposeGenericSingle<<<grid_size, dim3(512)>>>(desc);
+    InitGenericTranspose(desc, shape, make_span(perm), out_gpu, in_gpu);
+    TransposeGenericSingle<<<grid_size, block_size>>>(desc);
     copyD2H(out_cpu.data(), out_gpu.data(), size);
-    RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm, 4);
+
+    testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm, 4);
 
     for (int i = 0; i < size; i++) {
       ASSERT_EQ(out_cpu[i], ref[i]) << " at " << i;
@@ -271,8 +215,9 @@ TEST(TransposeGeneric, AllPerm4D) {
     std::cerr << " input shape " << simplified_shape << "\n";
 
     memset(&desc, 0xCC, sizeof(desc));
-    InitGenericTanspose(desc, out_gpu, in_gpu, simplified_shape, make_span(simplified_perm));
-    TransposeGenericSingle<<<grid_size, dim3(512)>>>(desc);
+    cudaMemset(out_gpu, 0xff, size*sizeof(int));
+    InitGenericTranspose(desc, simplified_shape, make_span(simplified_perm), out_gpu, in_gpu);
+    TransposeGenericSingle<<<grid_size, block_size>>>(desc);
     copyD2H(out_cpu.data(), out_gpu.data(), size);
 
     for (int i = 0; i < size; i++) {
@@ -280,7 +225,6 @@ TEST(TransposeGeneric, AllPerm4D) {
     }
   }
 }
-
 
 }  // namespace kernels
 }  // namespace dali
