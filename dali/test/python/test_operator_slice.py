@@ -26,6 +26,7 @@ from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import RandomDataIterator
 from math import floor
+from nose.tools import assert_raises
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -510,13 +511,8 @@ def check_slice_with_out_of_bounds_error(device, batch_size, input_shape=(100, 2
                                   out_of_bounds_policy="error")
 
     pipe.build()
-    exception_raised = False
-    try:
-        for k in range(3):
-            outs = pipe.run()
-    except:
-        exception_raised = True
-    assert(exception_raised)
+    with assert_raises(RuntimeError):
+        outs = pipe.run()
 
 def test_slice_with_out_of_bounds_error():
     in_shape = (40, 80, 3)

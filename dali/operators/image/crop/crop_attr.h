@@ -113,7 +113,7 @@ class CropAttr {
         int w_dim = shape_layout.find('W');
 
         DALI_ENFORCE(h_dim >= 0 && w_dim >= 0,
-          "Height and Width must be present in the layout. Got: " + shape_layout.str());
+          "[H]eight and [W]idth must be present in the layout. Got: " + shape_layout.str());
 
         SmallVector<float, 4> anchor_norm;
         anchor_norm.resize(ndim, 0.5f);
