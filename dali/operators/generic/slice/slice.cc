@@ -42,19 +42,9 @@ slice (x0, x1, x2, ...).)code")
     .AddOptionalArg("image_type",
       R"code(The color space of input and output image)code",
       DALI_RGB, false)
-    .AddOptionalArg("out_of_bounds_policy",
-        R"code(Determines the policy when slicing out of bounds of the input.
-Supported values are:
-- \"error\" (default) : Attempting to slice outside of the bounds of the image will produce an error.
-- \"pad\": The input will be padded as needed with zeros or any other value specified with ``fill_values`` argument.
-- \"trim_to_shape\": The slice window will be resized so that it stays within the bounds of the input.
-a))code", "error")
-    .AddOptionalArg("fill_values",
-        R"code(Determines padding values, only relevant if ``out_of_bounds_policy`` is set to \"pad\".
-If a scalar is provided, it will be used for all the channels. If multiple values are given, there should be as many values as
-channels (extent of dimension 'C' in the layout) in the output slice.)code", std::vector<float>{0.f})
     .AddParent("SliceBase")
-    .AddParent("SliceAttr");
+    .AddParent("SliceAttr")
+    .AddParent("OutOfBoundsAttr");
 
 DALI_REGISTER_OPERATOR(Slice, Slice<CPUBackend>, CPU);
 

@@ -84,8 +84,9 @@ void ProcessSliceArgs(OutOfBoundsPolicy policy, const TensorShape<Dims> &input_s
     case OutOfBoundsPolicy::Error:
     default:
       for (int d = 0; d < input_shape.size(); d++) {
-        if (is_out_of_bounds<false>(slice_anchor[d], input_shape[d]) ||                  // start within [0, extent)
-            is_out_of_bounds<true>(slice_anchor[d] + slice_shape[d], input_shape[d])) {  // end   within [0, extent]
+        // start within [0, extent), and end within [0, extent]
+        if (is_out_of_bounds<false>(slice_anchor[d], input_shape[d]) ||
+            is_out_of_bounds<true>(slice_anchor[d] + slice_shape[d], input_shape[d])) {
           DALI_FAIL(make_string(
               "Slice can't be place out of bounds with current policy. Got: input_shape={",
               input_shape, "}, slice_anchor={", slice_anchor, "}, slice_shape={", slice_shape,
