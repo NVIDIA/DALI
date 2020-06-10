@@ -16,11 +16,20 @@
 #define DALI_OPERATORS_GENERIC_SLICE_OUT_OF_BOUNDS_POLICY_H_
 
 #include <string>
+#include "dali/core/math_util.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
+
+template <bool inclusive_end>
+DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_extent) {
+  if (inclusive_end)  // check idx is within [0, data_extent]
+    return static_cast<uint64_t>(idx) > static_cast<uint64_t>(data_extent);
+  else                // check idx is within [0, data_extent)
+    return static_cast<uint64_t>(idx) >= static_cast<uint64_t>(data_extent);
+}
 
 /**
  * @brief Determines what to do if slice parameters point to outside of the input bounds
@@ -64,26 +73,25 @@ void ProcessSliceArgs(OutOfBoundsPolicy policy, const TensorShape<Dims> &input_s
 
     case OutOfBoundsPolicy::TrimToShape:
       for (int d = 0; d < input_shape.size(); d++) {
-        if (slice_anchor[d] < 0)
-          slice_anchor[d] = 0;
-        if (slice_anchor[d] + slice_shape[d] >= input_shape[d])
-          slice_shape[d] = std::max(0l, input_shape[d] - slice_anchor[d]);
+        auto slice_start = clamp<int64_t>(slice_anchor[d], 0, input_shape[d]);
+        auto slice_end   = clamp<int64_t>(slice_anchor[d] + slice_shape[d], 0, input_shape[d]);
+        assert(slice_end >= slice_start);
+        slice_anchor[d] = slice_start;
+        slice_shape[d] = slice_end - slice_start;
       }
       break;
 
     case OutOfBoundsPolicy::Error:
     default:
       for (int d = 0; d < input_shape.size(); d++) {
-        auto slice_end = slice_anchor[d] + slice_shape[d];
-        if (slice_anchor[d] < 0 || slice_anchor[d] > input_shape[d] || slice_end < 0 ||
-            slice_end > input_shape[d]) {
+        if (is_out_of_bounds<false>(slice_anchor[d], input_shape[d]) ||                  // start within [0, extent)
+            is_out_of_bounds<true>(slice_anchor[d] + slice_shape[d], input_shape[d])) {  // end   within [0, extent]
           DALI_FAIL(make_string(
               "Slice can't be place out of bounds with current policy. Got: input_shape={",
               input_shape, "}, slice_anchor={", slice_anchor, "}, slice_shape={", slice_shape,
               "}"));
         }
       }
-
     break;
   }
 }
