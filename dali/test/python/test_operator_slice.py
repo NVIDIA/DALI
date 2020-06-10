@@ -486,3 +486,42 @@ def test_slice_with_out_of_bounds_policy_support():
                         yield check_slice_with_out_of_bounds_policy_support, \
                             device, batch_size, in_shape, out_of_bounds_policy, fill_values, \
                             normalized_anchor, normalized_shape
+
+def check_slice_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200, 3),
+                                         normalized_anchor=False, normalized_shape=False):
+    # This test case is written with HWC layout in mind and "HW" axes in slice arguments
+    axis_names = "HW"
+    naxes = len(axis_names)
+    axes = None
+    layout = "HWC"
+    assert(len(input_shape) == 3)
+
+    eii = RandomDataIterator(batch_size, shape=input_shape)
+    eii_arg = SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,
+                                image_layout=layout, axes=axes, axis_names=axis_names,
+                                normalized_anchor=normalized_anchor,
+                                normalized_shape=normalized_shape,
+                                min_norm_anchor=-0.5, max_norm_anchor=-0.1,
+                                min_norm_shape=1.1, max_norm_shape=3.6)
+    pipe = SliceSynthDataPipeline(device, batch_size, layout, iter(eii), iter(eii_arg),
+                                  axes=axes, axis_names=axis_names,
+                                  normalized_anchor=normalized_anchor,
+                                  normalized_shape=normalized_shape,
+                                  out_of_bounds_policy="error")
+
+    pipe.build()
+    exception_raised = False
+    try:
+        for k in range(3):
+            outs = pipe.run()
+    except:
+        exception_raised = True
+    assert(exception_raised)
+
+def test_slice_with_out_of_bounds_error():
+    in_shape = (40, 80, 3)
+    for device in ['gpu', 'cpu']:
+        for batch_size in [1, 3]:
+            for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
+                yield check_slice_with_out_of_bounds_error, \
+                    device, batch_size, in_shape, normalized_anchor, normalized_shape
