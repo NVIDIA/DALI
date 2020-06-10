@@ -89,13 +89,17 @@ class CyclicWindowWrapper {
     }
     int window_idx = 0;
     for (int buf_idx = start_; buf_idx < length_; buf_idx++, window_idx++) {
+      auto data_offset = buf_idx * NumLanes();
+      auto w = window[window_idx];
       for (int c = 0; c < NumLanes(); c++) {
-        accum[c] += window[window_idx] * data_[buf_idx * NumLanes() + c];
+        accum[c] += w * data_[data_offset + c];
       }
     }
     for (int buf_idx = 0; buf_idx < end_; buf_idx++, window_idx++) {
+      auto data_offset = buf_idx * NumLanes();
+      auto w = window[window_idx];
       for (int c = 0; c < NumLanes(); c++) {
-        accum[c] += window[window_idx] * data_[buf_idx * NumLanes() + c];
+        accum[c] += w * data_[data_offset + c];
       }
     }
   }
@@ -163,13 +167,14 @@ void load_pixel_no_border(CyclicWindowWrapper<T, max_lanes>& cww, const T* in_pt
 }
 
 template <bool has_channels, typename Out, typename In, typename W, int ndim>
-void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size, int radius,
+void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size,
                       const TensorShape<ndim>& shape, const TensorShape<ndim>& strides, W scale) {
   constexpr int last_dim = has_channels ? ndim - 2 : ndim - 1;
   int channels = has_channels ? strides[last_dim] : 1;
   int64_t outer_elements = volume(&shape[0], &shape[last_dim]);
   int64_t axis_size = shape[last_dim];
   int64_t axis_stride = last_dim > 0 ? strides[last_dim - 1] : 0;
+  int radius = (window_size - 1) / 2;
   // N.B. this can be negative for window_size > axis_size + 1
   int64_t flat_x_limit = (axis_size - window_size + 1) * channels;
   for (int64_t o = 0; o < outer_elements; o++) {
@@ -177,6 +182,7 @@ void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size, 
     int64_t xout = 0;
     Out* out_axis = &out[o * axis_stride];
     const In* in_axis = &in[o * axis_stride];
+    // Left border
     for (; x0 < 0 && xout < axis_size; x0++, xout++) {
       for (int c = 0; c < channels; c++) {
         float acc = 0;
@@ -189,6 +195,7 @@ void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size, 
     }
     int64_t flat_x = x0 * channels;
     int64_t flat_xout = xout * channels;
+    // This loop won't execute if the window_size > axis_size
     for (; flat_x < flat_x_limit; flat_x++, flat_xout++) {
       float acc = 0;
       for (int k = 0; k < window_size; k++) {
@@ -199,6 +206,7 @@ void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size, 
     // get back from flat coordinates
     x0 = flat_x / channels;
     xout = flat_xout / channels;
+    // Right border
     for (; xout < axis_size; x0++, xout++) {
       for (int c = 0; c < channels; c++) {
         float acc = 0;
@@ -323,8 +331,8 @@ struct ConvolutionCpu {
 
     if (axis == ndim - has_channels - 1 &&
         static_cast<const void*>(out.data) != static_cast<const void*>(in.data)) {
-      ConvolveInnerDim<has_channels>(out.data, in.data, window.data, diameter, (diameter - 1) / 2,
-                                     in.shape, strides, scale);
+      ConvolveInnerDim<has_channels>(out.data, in.data, window.data, diameter, in.shape, strides,
+                                     scale);
     } else {
       ConvolveInplaceOuterLoop<axis, has_channels, kStripSize, Out, In, W, ndim>(
           out.data, in.data, window.data, in.shape, strides, diameter, input_window_buffer, scale);
