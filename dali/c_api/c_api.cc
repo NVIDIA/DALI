@@ -39,7 +39,7 @@ template<typename Backend>
 void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const void *data_ptr,
                       dali_data_type_t data_type, const int64_t *shapes, int sample_dim,
                       const char *layout_str, cudaStream_t stream = 0, bool sync = false,
-                      bool is_pinned = false) {
+                      bool is_pinned = false, int no_copy = 0) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
@@ -57,7 +57,7 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof);
   data.Resize(tl_shape, type_info);
   data.SetLayout(layout);
-  pipeline->SetExternalInput(name, data, stream, sync);
+  pipeline->SetExternalInput(name, data, stream, sync, no_copy);
 }
 
 
@@ -66,7 +66,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                              const void *const *data_ptr, dali_data_type_t data_type,
                              const int64_t *shapes, int64_t sample_dim, const char *layout_str,
                              cudaStream_t stream = 0, bool sync = false,
-                             bool is_pinned = false) {
+                             bool is_pinned = false, int no_copy = 0) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
@@ -86,7 +86,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     data[i].Resize(tl_shape[i], type_info);
     data[i].SetLayout(layout);
   }
-  pipeline->SetExternalInput(name, data, stream, sync);
+  pipeline->SetExternalInput(name, data, stream, sync, no_copy);
 }
 
 }  // namespace
@@ -169,9 +169,9 @@ void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
 
 void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name, device_type_t device,
                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
-                          int sample_dim, const char *layout_str, int is_pinned) {
+                          int sample_dim, const char *layout_str, int is_pinned, int no_copy) {
   daliSetExternalInputAsync(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
-                                 layout_str, pipe_handle->copy_stream, true, is_pinned);
+                                 layout_str, pipe_handle->copy_stream, true, is_pinned, no_copy);
 }
 
 
@@ -179,15 +179,15 @@ void daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name
                                device_type_t device, const void *data_ptr,
                                dali_data_type_t data_type, const int64_t *shapes,
                                int sample_dim, const char *layout_str, cudaStream_t stream,
-                               int sync, int is_pinned) {
+                               int sync, int is_pinned, int no_copy) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInput<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
-                                         layout_str, stream, sync, is_pinned);
+                                         layout_str, stream, sync, is_pinned, no_copy);
       return;
     case device_type_t::GPU:
       SetExternalInput<dali::GPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
-                                         layout_str, stream, sync, is_pinned);
+                                         layout_str, stream, sync, is_pinned, no_copy);
       return;
     default:
       DALI_FAIL(dali::make_string("Unknown device: ", device));
@@ -198,10 +198,11 @@ void daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name
 void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
-                                 int64_t sample_dim, const char *layout_str, int is_pinned) {
+                                 int64_t sample_dim, const char *layout_str, int is_pinned,
+                                 int no_cop) {
   daliSetExternalInputTensorsAsync(pipe_handle, name, device, data_ptr, data_type, shapes,
                                         sample_dim, layout_str, pipe_handle->copy_stream, true,
-                                        is_pinned);
+                                        is_pinned, no_cop);
 }
 
 
@@ -209,15 +210,17 @@ void daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const cha
                                       device_type_t device, const void *const *data_ptr,
                                       dali_data_type_t data_type, const int64_t *shapes,
                                       int64_t sample_dim, const char *layout_str,
-                                      cudaStream_t stream, int sync, int is_pinned) {
+                                      cudaStream_t stream, int sync, int is_pinned, int no_copy) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInputTensors<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
-                                                sample_dim, layout_str, stream, sync, is_pinned);
+                                                sample_dim, layout_str, stream, sync, is_pinned,
+                                                no_copy);
       return;
     case device_type_t::GPU:
       SetExternalInputTensors<dali::GPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
-                                                sample_dim, layout_str, stream, sync, is_pinned);
+                                                sample_dim, layout_str, stream, sync, is_pinned,
+                                                no_copy);
       return;
     default:
       DALI_FAIL(dali::make_string("Unknown device: ", device));

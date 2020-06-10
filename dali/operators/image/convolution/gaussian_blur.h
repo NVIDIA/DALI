@@ -36,7 +36,7 @@ class GaussianBlur : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(GaussianBlur);
 
  protected:
-  bool CanInferOutputs() const override {
+  bool CanInferOutputs(bool) const override {
     return true;
   }
 

@@ -63,7 +63,7 @@ class Pad : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override;
 
-  bool CanInferOutputs() const override {
+  bool CanInferOutputs(bool) const override {
     return true;
   }
 

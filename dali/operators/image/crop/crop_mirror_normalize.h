@@ -153,7 +153,7 @@ class CropMirrorNormalize : public Operator<Backend> {
 
   void RunImpl(workspace_t<Backend> &ws) override;
 
-  bool CanInferOutputs() const override {
+  bool CanInferOutputs(bool) const override {
     return true;
   }
 

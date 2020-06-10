@@ -137,13 +137,13 @@ class DLL_PUBLIC Pipeline {
 
   template<typename T, typename OperatorBackend>
   void SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr,
-                           cudaStream_t stream = 0, bool sync = false) {
+                           cudaStream_t stream = 0, bool sync = false, bool no_copy = false) {
     // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
     // The StorageBackend is hidden under `T` type.
     auto *source = dynamic_cast<ExternalSource<OperatorBackend> *>(op_ptr);
     DALI_ENFORCE(source != nullptr,
                  "Input name '" + name + "' is not marked as an external input.");
-    source->SetDataSource(tl, stream, sync);
+    source->SetDataSource(tl, stream, sync, no_copy);
   }
 
 
@@ -156,10 +156,11 @@ class DLL_PUBLIC Pipeline {
    * @param stream CUDA stream to use in case of GPUBackend
    * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
    *             to the internal buffer
+   * @param no_copy If no copy should be done inside the ExternalSource operator
    */
   template<typename TL>
   inline void SetExternalInputHelper(const string &name, const TL &tl, cudaStream_t stream = 0,
-                                     bool sync = false) {
+                                     bool sync = false, bool no_copy = false) {
     bool is_cpu_node = true;
     OpNodeId node_id;
 
@@ -180,9 +181,9 @@ class DLL_PUBLIC Pipeline {
     OperatorBase *op_ptr = &node.InstantiateOperator();
 
     if (is_cpu_node) {
-      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, stream, sync);
+      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, stream, sync, no_copy);
     } else {
-      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, stream, sync);
+      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, stream, sync, no_copy);
     }
   }
 
@@ -195,12 +196,13 @@ class DLL_PUBLIC Pipeline {
    * @param stream CUDA stream to use in case of GPUBackend
    * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
    *             to the internal buffer
+   * @param no_copy If no copy should be done inside the ExternalSource operator
    */
   template<typename Backend>
   DLL_PUBLIC inline void
   SetExternalInput(const string &name, const TensorList<Backend> &tl, cudaStream_t stream = 0,
-                   bool sync = false) {
-    SetExternalInputHelper(name, tl, stream, sync);
+                   bool sync = false, bool no_copy = false) {
+    SetExternalInputHelper(name, tl, stream, sync, no_copy);
   }
 
 
@@ -212,14 +214,14 @@ class DLL_PUBLIC Pipeline {
    * @param stream CUDA stream to use in case of GPUBackend
    * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
    *             to the internal buffer
+   * @param no_copy If no copy should be done inside the ExternalSource operator
    */
   template<typename Backend>
   DLL_PUBLIC inline void
   SetExternalInput(const string &name, const vector<Tensor<Backend>> &tl, cudaStream_t stream = 0,
-                   bool sync = false) {
-    SetExternalInputHelper(name, tl, stream, sync);
+                   bool sync = false, bool no_copy = false) {
+    SetExternalInputHelper(name, tl, stream, sync, no_copy);
   }
-
 
   /**
    * @brief Sets the external input with the input name to the input data
@@ -229,12 +231,13 @@ class DLL_PUBLIC Pipeline {
    * @param stream CUDA stream to use in case of GPUBackend
    * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
    *             to the internal buffer
+   * @param no_copy If no copy should be done inside the ExternalSource operator
    */
   template<typename Backend>
   DLL_PUBLIC inline void
   SetExternalInput(const string &name, const TensorVector<Backend> &tv, cudaStream_t stream = 0,
-                   bool sync = false) {
-    SetExternalInputHelper(name, tv, stream, sync);
+                   bool sync = false, bool no_copy = false) {
+    SetExternalInputHelper(name, tv, stream, sync, no_copy);
   }
 
   /**

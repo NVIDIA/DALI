@@ -21,7 +21,7 @@ class Dummy : public ::dali::Operator<Backend> {
   Dummy& operator=(Dummy&&) = delete;
 
  protected:
-  bool CanInferOutputs() const override {
+  bool CanInferOutputs(bool) const override {
     return true;
   }
 

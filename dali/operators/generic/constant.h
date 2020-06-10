@@ -71,7 +71,7 @@ class Constant : public Operator<Backend> {
     }
   }
 
-  bool CanInferOutputs() const override {
+  bool CanInferOutputs(bool) const override {
     // Return false, because we specifically don't want the executor to allocate
     // the storage for the output - even though we can infer the shape.
     return false;

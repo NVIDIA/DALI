@@ -61,7 +61,7 @@ class SequenceRearrange : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(SequenceRearrange);
 
  protected:
-  bool CanInferOutputs() const override {
+  bool CanInferOutputs(bool) const override {
     return true;
   }
 

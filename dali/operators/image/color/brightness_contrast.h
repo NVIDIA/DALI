@@ -70,7 +70,7 @@ class BrightnessContrastOp : public Operator<Backend> {
     }
   }
 
-  bool CanInferOutputs() const override {
+  bool CanInferOutputs(bool) const override {
     return true;
   }
 

@@ -161,13 +161,13 @@ daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
                           device_type_t device, const void *data_ptr,
                           dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str,
-                          cudaStream_t stream, int sync, int is_pinned);
+                          cudaStream_t stream, int sync, int is_pinned, int no_copy);
 
 DLL_PUBLIC void
 daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
                      device_type_t device, const void *data_ptr,
                      dali_data_type_t data_type, const int64_t *shapes,
-                     int sample_dim, const char *layout_str, int is_pinned);
+                     int sample_dim, const char *layout_str, int is_pinned, int no_copy);
 ///@}
 ///@{
 /**
@@ -205,13 +205,15 @@ daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const char *na
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str,
-                                 cudaStream_t stream, int sync, int is_pinned);
+                                 cudaStream_t stream, int sync, int is_pinned,
+                                 int no_copy);
 
 DLL_PUBLIC void
 daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                             device_type_t device, const void *const *data_ptr,
                             dali_data_type_t data_type, const int64_t *shapes,
-                            int64_t sample_dim, const char *layout_str, int is_pinned);
+                            int64_t sample_dim, const char *layout_str, int is_pinned,
+                            int no_copy);
 ///@}
 
 /**

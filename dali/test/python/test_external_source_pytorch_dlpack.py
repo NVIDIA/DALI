@@ -60,7 +60,6 @@ class TestIterator():
     next = __next__
 
 def asnumpy(x, device):
-    print(x)
     if x is None:
         return None
     if isinstance(x, list):
@@ -134,7 +133,6 @@ def test_iter_setup():
             for src_device in ["cpu", "gpu"]:
                 for gen_device in ["cpu", "cuda"]:
                     yield _test_iter_setup, use_fn_api, by_name, src_device, gen_device
-
 
 def _test_external_source_callback_torch_stream(src_device, gen_device):
     with torch.cuda.stream(torch.cuda.Stream()):

@@ -533,3 +533,108 @@ def test_external_source_gpu():
             pipe = ExternalSourcePipeline(batch_size, 3, 0, use_list)
             pipe.build()
             pipe.run()
+
+class TestIteratorZeroCopy():
+    def __init__(self, n, batch_size, dims = [2], as_tensor = False, num_keep_samples=2):
+        self.batch_size = batch_size
+        self.dims = dims
+        self.n = n
+        self.as_tensor = as_tensor
+        self.i = 0
+        self.data = []
+        self.num_keep_samples = num_keep_samples
+
+    def __len__(self):
+        return self.n
+
+    def __iter__(self):
+        # return a copy, so that the iteration number doesn't collide
+        return TestIteratorZeroCopy(self.n, self.batch_size, self.dims, self.as_tensor, self.num_keep_samples)
+
+    def __next__(self):
+        random_seed(12345 * self.i + 4321)
+        def generate(dim):
+            shape = random_int(1, 10, [dim]).tolist()
+            if self.as_tensor:
+                data = random_array([self.batch_size] + shape)
+            else:
+                data = [random_array(shape) for _ in range(self.batch_size)]
+            # it needs to keep data alive
+            self.data.append(data)
+
+            if len(self.data) > self.num_keep_samples:
+                self.data.pop(0)
+            return data
+        if self.i < self.n:
+            self.i += 1
+            if isinstance(self.dims, (list, tuple)):
+                return [generate(d) for d in self.dims]
+            else:
+                return generate(self.dims)
+        else:
+            self.i = 0
+            raise StopIteration
+    next = __next__
+
+def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additional_num_keep_samples):
+    batch_size = 7
+    prefetch_queue_depth = 4
+    class IterSetupPipeline(Pipeline):
+        def __init__(self, iterator, num_threads, device_id, device, prefetch_queue_depth=2):
+            super(IterSetupPipeline, self).__init__(
+                batch_size = iterator.batch_size,
+                num_threads = num_threads,
+                device_id = device_id,
+                prefetch_queue_depth=prefetch_queue_depth)
+
+            self.iterator = iterator
+            self._device = device
+
+        def define_graph(self):
+            if use_fn_api:
+                self.batch_1 = fn.external_source(device = self._device, name = "src1")
+                self.batch_2 = fn.external_source(device = self._device, name = "src2")
+            else:
+                input_1 = ops.ExternalSource(device = self._device)
+                input_2 = ops.ExternalSource(device = self._device)
+                self.batch_1 = input_1(name = "src1")
+                self.batch_2 = input_2(name = "src2")
+            return [self.batch_1, self.batch_2]
+
+        def iter_setup(self):
+            batch_1, batch_2 = next(self.iterator)
+            if by_name:
+                self.feed_input("src1", batch_1, no_copy=True)
+                self.feed_input("src2", batch_2, no_copy=True)
+            else:
+                self.feed_input(self.batch_1, batch_1, no_copy=True)
+                self.feed_input(self.batch_2, batch_2, no_copy=True)
+
+    iter_num = 5
+    # we don't have mixed stage so it is enough to keep only 2 * prefetch_queue_depth, but in the general
+    # case it should be 3 * prefetch_queue_depth
+    num_keep_samples = prefetch_queue_depth * 2 + additional_num_keep_samples
+    source = TestIteratorZeroCopy(iter_num, batch_size, [2, 3], as_tensor=as_tensor, num_keep_samples=num_keep_samples)
+    pipe = IterSetupPipeline(iter(source), 3, 0, device, prefetch_queue_depth)
+    pipe.build()
+
+    cupy_used = datapy != np
+    if (device == "cpu" and cupy_used) or (device == "gpu" and not cupy_used):
+        assert_raises(RuntimeError, pipe.run)
+    elif additional_num_keep_samples < 0:
+        # assert_raises doesn't work here
+        try:
+            run_and_check(pipe, source)
+            assert(False)
+        except AssertionError:
+            pass
+    else:
+        run_and_check(pipe, source)
+
+def test_iter_setup_zero_copy():
+    for use_fn_api in [False, True]:
+        for by_name in [False, True]:
+            for as_tensor in [False, True]:
+                for device in ["cpu", "gpu"]:
+                    for additional_num_keep_samples in [-1, 0, 1]:
+                        yield _test_iter_setup_zero_copy, use_fn_api, by_name, as_tensor, device, additional_num_keep_samples

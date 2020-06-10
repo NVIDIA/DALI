@@ -99,7 +99,7 @@ class MFCC : public Operator<Backend> {
   }
 
  protected:
-  bool CanInferOutputs() const override { return true; }
+  bool CanInferOutputs(bool) const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 

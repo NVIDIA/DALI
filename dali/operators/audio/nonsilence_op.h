@@ -144,7 +144,7 @@ class NonsilenceOperator : public Operator<Backend> {
           Operator<Backend>(spec) {}
 
 
-  bool CanInferOutputs() const override {
+  bool CanInferOutputs(bool) const override {
     return true;
   }
 

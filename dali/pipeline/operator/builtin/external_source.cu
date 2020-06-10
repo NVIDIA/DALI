@@ -48,22 +48,53 @@ struct ExternalSource<GPUBackend>::RecycleFunctor {
 template<>
 void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   std::list<uptr_tl_type> tensor_list_elm;
+  std::list<uptr_tv_type> tensor_vector_elm;
   std::list<uptr_cuda_event_type> cuda_event, internal_copy_to_storage;
+  ZeroCopyInfo copy_info;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
-    tensor_list_elm = tl_data_.PopFront();
-    internal_copy_to_storage = copy_to_storage_events_.PopFront();
-    cuda_event = cuda_events_.GetEmpty();
+    copy_info = zero_copy_.front();
+    zero_copy_.pop_front();
+    if (copy_info.is_tensor_vector && copy_info.is_zero_copy) {
+      tensor_vector_elm = tv_data_.PopFront();
+    } else {
+      tensor_list_elm = tl_data_.PopFront();
+    }
+    if (!copy_info.is_zero_copy) {
+      internal_copy_to_storage = copy_to_storage_events_.PopFront();
+      cuda_event = cuda_events_.GetEmpty();
+    }
   }
 
   auto &output = ws.Output<GPUBackend>(0);
-  cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
-  CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));
-  output.Copy(*(tensor_list_elm.front()), stream_used);
-  // record an event so Recycle can synchronize on it
-  cudaEventRecord(*cuda_event.front(), stream_used);
-  sync_worker_.DoWork(RecycleFunctor{this, std::move(cuda_event), std::move(tensor_list_elm),
-                                     std::move(internal_copy_to_storage)});
+  if (!copy_info.is_zero_copy) {
+    cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
+    CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));
+    output.Copy(*(tensor_list_elm.front()), stream_used);
+    // record an event so Recycle can synchronize on it
+    cudaEventRecord(*cuda_event.front(), stream_used);
+    sync_worker_.DoWork(RecycleFunctor{this, std::move(cuda_event), std::move(tensor_list_elm),
+                                       std::move(internal_copy_to_storage)});
+  } else {
+    if (copy_info.is_tensor_vector) {
+      // despite we share the input we need to do a copy internally to the continuous
+      // piece of memory it should not hurt that much as it is D2D inside the pipeline
+      cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
+      output.Copy(*(tensor_vector_elm.front()), stream_used);
+      // empty tensor_list_elm, it is up to the user to keep memory alive so we can keep copying
+      for (auto &t : *tensor_vector_elm.front()) {
+        t->Reset();
+      }
+      // recycle right away as tensor_list_elm is only sharing data
+      RecycleBuffer(tensor_vector_elm);
+    } else {
+      output.ShareData(tensor_list_elm.front().get());
+      // empty tensor_list_elm
+      tensor_list_elm.front()->Reset();
+      // recycle right away as tensor_list_elm is only sharing data
+      RecycleBuffer(tensor_list_elm);
+    }
+  }
 }
 
 DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<GPUBackend>, GPU);

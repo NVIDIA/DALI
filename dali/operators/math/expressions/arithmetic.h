@@ -304,7 +304,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
   }
 
  protected:
-  bool CanInferOutputs() const override {
+  bool CanInferOutputs(bool) const override {
     return true;
   }
 

@@ -126,9 +126,12 @@ class DLL_PUBLIC OperatorBase {
 
   /**
    * @brief If Operator can infer the output shapes it means that its output would use a single
-   * underlying allocation, especailly for CPU TensorVector will use contiguous mode.
+   * underlying allocation, especially for CPU TensorVector will use contiguous mode.
+   * `prerun` tell if the operator is queried during the runtime or during the pipeline build
+   * as the ability to infer outputs could depend on the runtime parameters
    */
-  DLL_PUBLIC virtual bool CanInferOutputs() const {
+  DLL_PUBLIC virtual bool CanInferOutputs(bool prerun = false) const {
+    (void) prerun;
     return false;
   }
 

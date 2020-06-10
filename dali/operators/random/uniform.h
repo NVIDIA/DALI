@@ -46,7 +46,7 @@ class Uniform : public Operator<CPUBackend> {
   using Operator<CPUBackend>::RunImpl;
 
  protected:
-  bool CanInferOutputs() const override {
+  bool CanInferOutputs(bool) const override {
     return true;
   }
 

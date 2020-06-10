@@ -34,7 +34,7 @@ class CoordFlip : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(CoordFlip);
 
  protected:
-  bool CanInferOutputs() const override {
+  bool CanInferOutputs(bool) const override {
     return true;
   }
 
