@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <vector>
+#include <utility>
 
 // general includes
 #include "dali/core/common.h"
@@ -61,9 +62,9 @@ void FuseShapes(TensorShape<>& in_shape, TensorShape<>& out_shape, TensorShape<>
   anc_new.insert(anc_new.begin(), anc_pos);
 
   // reset shapes
-  out_shape = TensorShape<>(out_new);
-  in_shape = TensorShape<>(in_new);
-  anchor = TensorShape<>(anc_new);
+  out_shape.shape = std::move(out_new);
+  in_shape.shape = std::move(in_new);
+  anchor.shape = std::move(anc_new);
 }
 
 // helper function to find larger strides for better IO performance
