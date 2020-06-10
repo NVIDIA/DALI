@@ -84,7 +84,7 @@ void SliceBaseCpu<OutputType, InputType, Dims>::RunImpl(workspace_t<CPUBackend> 
   auto &output = ws.template OutputRef<CPUBackend>(0);
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
-  while(!sample_queue_.empty()) {
+  while (!sample_queue_.empty()) {
     int sample_idx = sample_queue_.top().second;
     sample_queue_.pop();
     thread_pool.DoWorkWithID(
