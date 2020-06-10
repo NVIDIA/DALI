@@ -17,7 +17,7 @@ Prerequisites
 
 .. |driver link| replace:: **NVIDIA Driver**
 .. _driver link: https://www.nvidia.com/drivers
-.. |cuda link| replace:: **NVIDIA CUDA 9.0**
+.. |cuda link| replace:: **NVIDIA CUDA 10.0**
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
 .. |mxnet link| replace:: **MXNet 1.3**
 .. _mxnet link: http://mxnet.incubator.apache.org
@@ -27,10 +27,10 @@ Prerequisites
 .. _tf link: https://www.tensorflow.org
 
 1. Linux x64.
-2. |driver link|_ supporting `CUDA 9.0 <https://developer.nvidia.com/cuda-downloads>`__ or later (i.e., 384.xx or later driver releases).
+2. |driver link|_ supporting `CUDA 10.0 <https://developer.nvidia.com/cuda-downloads>`__ or later (i.e., 410.48 or later driver releases).
 3. One or more of the following deep learning frameworks:
 
-  - |mxnet link|_ ``mxnet-cu90`` or later.
+  - |mxnet link|_ ``mxnet-cu100`` or later.
   - |pytorch link|_ or later.
   - |tf link|_ or later.
 
@@ -39,17 +39,6 @@ Installation
 ^^^^^^^^^^^^
 
 Execute the following command to install latest DALI for specified CUDA version:
-
-* for CUDA 9:
-
-.. warning::
-
-  DALI 0.22 is the last official release that supports CUDA 9. After that the build will not be provided.
-  Please update your environment to CUDA version 10 or newer and use corresponding version of DALI.
-
-.. code-block:: bash
-
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda90
 
 * for CUDA 10:
 
@@ -66,18 +55,8 @@ Execute the following command to install latest DALI for specified CUDA version:
 DALI TensorFlow plugin (nvidia-dali-tf-plugin)
 """"""""""""""""""""""""""""""""""""""""""""""
 
-  DALI doesn't contain prebuilt versions of the DALI TensorFlow plugin. It needs to be installed as a separate package which will be built against the currently installed version of TensorFlow:
-
-.. warning::
-
-  DALI 0.22 is the last official release that supports CUDA 9. After that the build will not be provided.
-  Please update your environment to CUDA version 10 or newer and use corresponding version of DALI.
-
-* for CUDA 9:
-
-.. code-block:: bash
-
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cuda90
+DALI doesn't contain prebuilt versions of the DALI TensorFlow plugin. It needs to be installed as a separate package
+which will be built against the currently installed version of TensorFlow:
 
 * for CUDA 10:
 
@@ -159,19 +138,6 @@ Nightly builds
 ^^^^^^^^^^^^^^
 
 To access most recent nightly builds please use flowing release channel:
-
-* for CUDA 9:
-
-.. warning::
-
-  DALI 0.22 is the last official release that supports CUDA 9. After that the nightly builds for CUDA 9
-  will not be provided. Please update your environment to CUDA version 10 or newer
-  and use corresponding version of DALI.
-
-.. code-block:: bash
-
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-nightly-cuda90
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-tf-plugin-nightly-cuda90
 
 * for CUDA 10:
 

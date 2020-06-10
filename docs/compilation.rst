@@ -69,7 +69,7 @@ Compiling DALI from source (bare metal)
 Prerequisites
 ^^^^^^^^^^^^^
 
-.. |cuda link| replace:: **NVIDIA CUDA 9.0**
+.. |cuda link| replace:: **NVIDIA CUDA 10.0**
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
 .. |nvjpeg link| replace:: **nvJPEG library**
 .. _nvjpeg link: https://developer.nvidia.com/nvjpeg
