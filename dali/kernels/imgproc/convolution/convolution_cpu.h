@@ -42,10 +42,10 @@ class CyclicWindowWrapper {
   }
 
   /**
-   * @brief Drop one element consistine of `NumLanes()` lanes from the buffer, moving the start
+   * @brief Drop one element consisting of `NumLanes()` lanes from the buffer, moving the start
    *        element.
    */
-  void PopElement() {
+  void PopFront() {
     assert(elements_ > 0);
     elements_--;
     start_++;
@@ -56,22 +56,9 @@ class CyclicWindowWrapper {
    * @brief Add a window element, that has `NumLanes()` consecutive lanes and starting at `input`,
    * to the buffer.
    */
-  void PushElement(const T* __restrict__ input) {
+  void PushBack(const T* __restrict__ input) {
     assert(elements_ < length_);
     memcpy(data_ + end_ * NumLanes(), input, sizeof(T) * NumLanes());
-    elements_++;
-    end_++;
-    WrapPosition(end_);
-  }
-
-  /**
-   * @brief Add a window element to the buffer, that has `NumLanes()` lanes
-   */
-  void PushElement(span<const T> input) {
-    assert(elements_ < length_);
-    for (int c = 0; c < NumLanes(); c++) {
-      data_[end_ * NumLanes() + c] = input[c];
-    }
     elements_++;
     end_++;
     WrapPosition(end_);
@@ -152,7 +139,7 @@ class CyclicWindowWrapper {
 template <typename T, int max_lanes>
 void load_pixel_with_border(CyclicWindowWrapper<T, max_lanes>& cww, const T* in_ptr, int in_idx,
                             int stride, int axis_size) {
-  cww.PushElement(in_ptr + boundary::idx_reflect_101(in_idx, axis_size) * stride);
+  cww.PushBack(in_ptr + boundary::idx_reflect_101(in_idx, axis_size) * stride);
 }
 
 template <typename T, int max_lanes>
@@ -160,17 +147,19 @@ void reload_pixel_with_border(CyclicWindowWrapper<T, max_lanes>& cww, const T* i
                               int out_idx, int stride, int axis_size, int radius) {
   // out_idx is currently the center of the window
   // we won't look further than radius elements, so we will pick something from first half
-  // of the cyclic window
-  auto in_idx_clamped = boundary::idx_reflect_101(in_idx, axis_size);
+  // of the cyclic window.
+  auto input_idx_in_bounds = boundary::idx_reflect_101(in_idx, axis_size);
+  // remap from input_idx in image coordinate to window coordinates so we can take it from
+  // cyclic window buffer.
   auto window_start_idx = out_idx - radius;
-  auto in_window_idx = in_idx_clamped - window_start_idx;
-  cww.PushElement(cww.GetElementOffset(in_window_idx));
+  auto in_window_idx = input_idx_in_bounds - window_start_idx;
+  cww.PushBack(cww.GetElementOffset(in_window_idx));
 }
 
 template <typename T, int max_lanes>
 void load_pixel_no_border(CyclicWindowWrapper<T, max_lanes>& cww, const T* in_ptr, int in_idx,
                           int stride) {
-  cww.PushElement(in_ptr + in_idx * stride);
+  cww.PushBack(in_ptr + in_idx * stride);
 }
 
 template <bool has_channels, typename Out, typename In, typename W, int ndim>
@@ -255,7 +244,7 @@ void ConvolveInplaceAxisLoop(Out* out, const In* in, const W* window,
     load_pixel_no_border(input_window, in_ptr, in_idx, axis_stride);
     input_window.CalculateDot(out_ptr + out_idx * axis_stride, window, scale);
     // remove one element, to make space for next out_idx and in_idx
-    input_window.PopElement();
+    input_window.PopFront();
   }
   // finish the rest of output
   for (; out_idx < axis_size; out_idx++, in_idx++) {
@@ -263,7 +252,7 @@ void ConvolveInplaceAxisLoop(Out* out, const In* in, const W* window,
     // as it may happen that we already stored the element.u
     reload_pixel_with_border(input_window, in_ptr, in_idx, out_idx, axis_stride, axis_size, radius);
     input_window.CalculateDot(out_ptr + out_idx * axis_stride, window, scale);
-    input_window.PopElement();
+    input_window.PopFront();
   }
 }
 

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "dali/core/boundary.h"
+#include "dali/core/convert.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/convolution_cpu.h"
 #include "dali/kernels/scratch.h"
@@ -53,15 +54,15 @@ TYPED_TEST_P(CyclicWindowWrapperTest, FillAndCycle) {
   CyclicWindowWrapper<int, 16> cww(tmp_buffer, size, num_lanes);
   EXPECT_EQ(0, cww.Size());
   for (int i = 0; i < size; i++) {
-    cww.PushElement(input_buffer + i * num_lanes);
+    cww.PushBack(input_buffer + i * num_lanes);
     EXPECT_EQ(tmp_buffer + i * num_lanes, cww.GetElementOffset(i));
     for (int c = 0; c < num_lanes; c++) {
       EXPECT_EQ(input_buffer[i * num_lanes + c], cww.GetElementOffset(i)[c]);
     }
   }
   for (int i = 0; i < size; i++) {
-    cww.PopElement();
-    cww.PushElement(input_buffer + i * num_lanes);
+    cww.PopFront();
+    cww.PushBack(input_buffer + i * num_lanes);
     for (int j = 0; j < size; j++) {
       // we're starting at i + 1 as we did already one Pop & Push operation
       int element = (i + 1 + j) % size;
@@ -73,7 +74,7 @@ TYPED_TEST_P(CyclicWindowWrapperTest, FillAndCycle) {
   }
 }
 
-void baseline_dot(span<int> result, span<const int> input, span<const int> window, int in_offset) {
+void BaselineDot(span<int> result, span<const int> input, span<const int> window, int in_offset) {
   int num_lanes = result.size();
   int num_elements = window.size();
   ASSERT_EQ(input.size(), num_lanes * num_elements);
@@ -109,19 +110,19 @@ TYPED_TEST_P(CyclicWindowWrapperTest, DotProduct) {
 
   CyclicWindowWrapper<int, 16> cww(tmp_buffer, size, num_lanes);
   for (int i = 0; i < size; i++) {
-    cww.PushElement(input_buffer + i * num_lanes);
+    cww.PushBack(input_buffer + i * num_lanes);
   }
   cww.CalculateDot(result, window);
-  baseline_dot(make_span(baseline), make_span(input_buffer), make_span(window), 0);
+  BaselineDot(make_span(baseline), make_span(input_buffer), make_span(window), 0);
   for (int c = 0; c < num_lanes; c++) {
     EXPECT_EQ(baseline[c], result[c]);
   }
   for (int i = 0; i < size; i++) {
-    cww.PopElement();
-    cww.PushElement(input_buffer + i * num_lanes);
+    cww.PopFront();
+    cww.PushBack(input_buffer + i * num_lanes);
     cww.CalculateDot(result, window);
     // again we start here at i + 1 offset
-    baseline_dot(make_span(baseline), make_span(input_buffer), make_span(window), i + 1);
+    BaselineDot(make_span(baseline), make_span(input_buffer), make_span(window), i + 1);
     for (int c = 0; c < num_lanes; c++) {
       EXPECT_EQ(baseline[c], result[c]);
     }
@@ -138,15 +139,11 @@ void BaselineConvolveAxis(Out *out, const In *in, const W *window, int len, int 
                           int64_t stride) {
   for (int i = 0; i < len; i++) {
     for (int c = 0; c < channel_num; c++) {
-      out[i * stride + c] = 0;
+      W accum = {};
       for (int d = -r; d <= r; d++) {
-        if (i + d >= 0 && i + d < len) {
-          out[i * stride + c] += in[(i + d) * stride + c] * window[d + r];
-        } else {
-          out[i * stride + c] +=
-              in[boundary::idx_reflect_101(i + d, len) * stride + c] * window[d + r];
-        }
+          accum += in[boundary::idx_reflect_101(i + d, len) * stride + c] * window[d + r];
       }
+      out[i * stride + c] = ConvertSat<Out>(accum);
     }
   }
 }
@@ -283,30 +280,39 @@ struct ConvolutionCpuKernelTest : public ::testing::Test {
 
 TYPED_TEST_SUITE_P(ConvolutionCpuKernelTest);
 
-using ConvolutionTestValues = ::testing::Types<convolution_params<1, false, 0, 3, uint8_t, false>,
+using ConvolutionTestValues = ::testing::Types<convolution_params<1, false, 0, 1, uint8_t, false>,
+                                               convolution_params<1, false, 0, 3, uint8_t, false>,
                                                convolution_params<1, false, 0, 21, uint8_t, false>,
                                                convolution_params<1, false, 0, 51, uint8_t, false>,
+                                               convolution_params<2, true, 0, 1, uint8_t, false>,
                                                convolution_params<2, true, 0, 3, uint8_t, false>,
                                                convolution_params<2, true, 0, 21, uint8_t, false>,
                                                convolution_params<2, true, 0, 51, uint8_t, false>,
 
+                                               convolution_params<1, false, 0, 1, float, true>,
                                                convolution_params<1, false, 0, 3, float, true>,
                                                convolution_params<1, false, 0, 21, float, true>,
                                                convolution_params<1, false, 0, 51, float, true>,
+                                               convolution_params<2, true, 0, 1, float, true>,
                                                convolution_params<2, true, 0, 3, float, true>,
                                                convolution_params<2, true, 0, 21, float, true>,
                                                convolution_params<2, true, 0, 51, float, true>,
 
+                                               convolution_params<2, false, 0, 1, uint8_t, false>,
                                                convolution_params<2, false, 0, 3, uint8_t, false>,
+                                               convolution_params<2, false, 1, 1, uint8_t, false>,
                                                convolution_params<2, false, 1, 3, uint8_t, false>,
                                                convolution_params<3, true, 0, 3, uint8_t, false>,
                                                convolution_params<3, true, 1, 3, uint8_t, false>,
+
+                                               convolution_params<3, false, 1, 1, uint8_t, false>,
                                                convolution_params<3, false, 1, 3, uint8_t, false>,
                                                convolution_params<3, false, 1, 7, uint8_t, false>,
                                                convolution_params<3, false, 1, 11, uint8_t, false>,
                                                convolution_params<3, false, 1, 21, uint8_t, false>,
                                                convolution_params<3, false, 1, 101, uint8_t, false>,
 
+                                               convolution_params<3, false, 1, 1, float, true>,
                                                convolution_params<3, false, 1, 3, float, true>,
                                                convolution_params<3, false, 1, 21, float, true>,
                                                convolution_params<3, false, 1, 101, float, true>>;
