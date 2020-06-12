@@ -30,6 +30,8 @@ struct SliceArgs {
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
   SmallVector<T, 3> fill_values = {0, };
+  SmallVector<float, 3> mean;
+  SmallVector<float, 3> inv_stddev;
   int channel_dim = -1;
 };
 
