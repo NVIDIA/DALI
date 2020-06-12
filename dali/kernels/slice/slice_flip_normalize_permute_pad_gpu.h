@@ -27,6 +27,7 @@
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_cuda_impl.cuh"
+
 namespace dali {
 namespace kernels {
 
