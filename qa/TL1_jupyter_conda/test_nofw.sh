@@ -1,6 +1,7 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="jupyter numpy matplotlib pillow opencv-python librosa simpleaudio"
+# lock numba version as 0.50 changed module location and librosa hasn't catched up in 7.2 yet
+pip_packages="jupyter numpy matplotlib pillow opencv-python librosa simpleaudio numba==0.49"
 target_dir=./docs/examples
 
 # populate epilog and prolog with variants to enable/disable conda
