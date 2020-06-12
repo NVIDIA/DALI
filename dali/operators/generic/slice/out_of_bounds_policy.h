@@ -61,8 +61,8 @@ inline OutOfBoundsPolicy GetOutOfBoundsPolicy(const OpSpec &spec) {
 }
 
 template <int Dims>
-void ProcessSliceArgs(OutOfBoundsPolicy policy, const TensorShape<Dims> &input_shape,
-                      TensorShape<Dims> &slice_anchor, TensorShape<Dims> &slice_shape) {
+void ApplySliceBoundsPolicy(OutOfBoundsPolicy policy, const TensorShape<Dims> &input_shape,
+                            TensorShape<Dims> &slice_anchor, TensorShape<Dims> &slice_shape) {
   DALI_ENFORCE(
       input_shape.size() == slice_anchor.size() && input_shape.size() == slice_shape.size(),
       "Slice arguments should have the same number of dimensions as the input");

@@ -69,7 +69,7 @@ class SliceBase : public Operator<Backend> {
       assert(crop_win_gen);
 
       CropWindow win = crop_win_gen(in_shape[i], in_layout);
-      ProcessSliceArgs(out_of_bounds_policy_, in_shape[i], win.anchor, win.shape);
+      ApplySliceBoundsPolicy(out_of_bounds_policy_, in_shape[i], win.anchor, win.shape);
 
       auto &args = slice_args[i];
       args.anchor = win.anchor.to_static<Dims>();

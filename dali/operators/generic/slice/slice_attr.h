@@ -72,7 +72,6 @@ class SliceAttr {
     }
   }
 
-
   void ProcessArguments(const MixedWorkspace &ws) {
     DALI_ENFORCE(ws.NumInput() == 3,
       "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
