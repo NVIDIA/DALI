@@ -67,6 +67,57 @@ TEST(SimplifyPermute, Collapse) {
   EXPECT_EQ(s_perm, ref_perm);
 }
 
+TEST(TransposeGPU, GetTransposeMethod) {
+  {
+    TensorShape<> shape = { 640*480, 3 };
+    int perm[] = { 1, 0 };
+    EXPECT_EQ(GetTransposeMethod(shape.data(), perm, 2, sizeof(int)),
+              TransposeMethod::Deinterleave);
+  }
+  {
+    TensorShape<> shape = { 3, 640*480 };
+    int perm[] = { 1, 0 };  // interleave - no special case yet
+    EXPECT_EQ(GetTransposeMethod(shape.data(), perm, 2, sizeof(int)),
+              TransposeMethod::Generic);
+  }
+  {
+    TensorShape<> shape = { 640, 480 };
+    int perm[] = { 1, 0 };  // scalar tiled
+    EXPECT_EQ(GetTransposeMethod(shape.data(), perm, 2, sizeof(int)),
+              TransposeMethod::Tiled);
+  }
+  {
+    TensorShape<> shape = { 20, 640, 480 };
+    int perm[] = { 1, 2, 0 };  // scalar tiled
+    EXPECT_EQ(GetTransposeMethod(shape.data(), perm, 3, sizeof(int)),
+              TransposeMethod::Tiled);
+  }
+  {
+    TensorShape<> shape = { 640, 480, 3 };
+    int perm[] = { 1, 0, 2 };  // vectorized tiled
+    EXPECT_EQ(GetTransposeMethod(shape.data(), perm, 3, sizeof(int)),
+              TransposeMethod::Tiled);
+  }
+  {
+    TensorShape<> shape = { 640, 3, 480 };
+    int perm[] = { 1, 2, 0 };  // some mess
+    EXPECT_EQ(GetTransposeMethod(shape.data(), perm, 3, sizeof(int)),
+              TransposeMethod::Generic);
+  }
+  {
+    TensorShape<> shape = { 640, 480, 50 };
+    int perm[] = { 1, 0, 2 };  // generic stuff
+    EXPECT_EQ(GetTransposeMethod(shape.data(), perm, 3, sizeof(int)),
+              TransposeMethod::Generic);
+  }
+  {
+    TensorShape<> shape = { 640*480 };
+    int perm[] = { 0 };  // identity
+    EXPECT_EQ(GetTransposeMethod(shape.data(), perm, 1, sizeof(int)),
+              TransposeMethod::Copy);
+  }
+}
+
 TEST(TransposeTiled, AllPerm4DInnermost) {
   TensorShape<> shape = { 19, 57, 37, 53 };  // a bunch of primes, just to make it harder
   int size = volume(shape);
@@ -76,8 +127,10 @@ TEST(TransposeTiled, AllPerm4DInnermost) {
   in_gpu.resize(size);
   out_gpu.resize(size);
   copyH2D(in_gpu.data(), in_cpu.data(), size);
+  auto start = CUDAEvent::CreateWithFlags(0);
+  auto end = CUDAEvent::CreateWithFlags(0);
 
-  int grid_size = 2;
+  int grid_size = std::max(1, size / 512);
   ASSERT_LT(grid_size * 512, size) << "Weak test error: Grid too large to test grid loop";
 
   for (auto &perm : testing::Permutations4) {
@@ -91,9 +144,16 @@ TEST(TransposeTiled, AllPerm4DInnermost) {
     TiledTransposeDesc<int> desc;
     memset(&desc, 0xCC, sizeof(desc));
     InitTiledTranspose(desc, shape, make_span(perm), out_gpu, in_gpu, grid_size);
+    cudaEventRecord(start);
     TransposeTiledSingle<<<grid_size, dim3(32, 16), kTiledTransposeMaxSharedMem>>>(desc);
+    cudaEventRecord(end);
     copyD2H(out_cpu.data(), out_gpu.data(), size);
     testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm, 4);
+
+    float time;
+    cudaEventElapsedTime(&time, start, end);
+    time *= 1e+6;
+    std::cerr << 2*size*sizeof(int) / time << " GB/s" << "\n";
 
     for (int i = 0; i < size; i++) {
       ASSERT_EQ(out_cpu[i], ref[i]) << " at " << i;
@@ -132,7 +192,8 @@ TEST(TransposeTiled, BuildDescVectorized) {
 
 
 TEST(TransposeDeinterleave, AllPerm4DInnermost) {
-  TensorShape<> shape = { 19, 57, 37, 3 };  // small inner dimension
+  int channels = 3;
+  TensorShape<> shape = { 19, 157, 137, channels };  // small inner dimension
   int size = volume(shape);
   vector<int> in_cpu(size), out_cpu(size), ref(size);
   std::iota(in_cpu.begin(), in_cpu.end(), 0);
@@ -141,8 +202,13 @@ TEST(TransposeDeinterleave, AllPerm4DInnermost) {
   out_gpu.resize(size);
   copyH2D(in_gpu.data(), in_cpu.data(), size);
 
-  int grid_size = 3;
-  ASSERT_LT(grid_size * 512 * 3, size) << "Weak test error: Grid too large to test grid loop";
+  int block_size = 256;
+  int grid_size = std::max(1, size / (block_size * channels));
+  ASSERT_LT(grid_size * block_size * channels, size)
+      << "Weak test error: Grid too large to test grid loop";
+
+  auto start = CUDAEvent::CreateWithFlags(0);
+  auto end = CUDAEvent::CreateWithFlags(0);
 
   for (auto &perm : testing::Permutations4) {
     if (perm[3] == 3)
@@ -155,9 +221,17 @@ TEST(TransposeDeinterleave, AllPerm4DInnermost) {
     DeinterleaveDesc<int> desc;
     memset(&desc, 0xCC, sizeof(desc));
     InitDeinterleave(desc, shape, make_span(perm), out_gpu, in_gpu);
-    TransposeDeinterleaveSingle<<<grid_size, dim3(512)>>>(desc);
+    cudaEventRecord(start);
+    TransposeDeinterleaveSingle<<<grid_size, block_size>>>(desc);
+    cudaEventRecord(end);
     copyD2H(out_cpu.data(), out_gpu.data(), size);
     testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm, 4);
+
+    float time;
+    cudaEventElapsedTime(&time, start, end);
+    time *= 1e+6;
+    std::cerr << 2*size*sizeof(int) / time << " GB/s" << "\n";
+
 
     for (int i = 0; i < size; i++) {
       ASSERT_EQ(out_cpu[i], ref[i]) << " at " << i;

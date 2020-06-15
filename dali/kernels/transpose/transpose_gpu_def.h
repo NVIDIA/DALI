@@ -19,14 +19,15 @@ namespace dali {
 namespace kernels {
 namespace transpose_impl {
 
-static constexpr int kMaxNDim = 32;
+static constexpr int kMaxNDim = 16;
 static constexpr int kTileSize = 32;
 static constexpr int kTiledTransposeMaxVectorSize = 32;
 
 static constexpr int kTiledTransposeMaxSharedMem =
   kTiledTransposeMaxVectorSize * kTileSize * (kTileSize+1);
 
-static_assert(kTiledTransposeMaxSharedMem <= 48<<10);  // not more than 48kB shm
+static_assert(kTiledTransposeMaxSharedMem <= 48<<10,
+  "Tile won't fit in shared memory on some supported archs.");
 
 }  // namespace transpose_impl
 }  // namespace kernels

@@ -25,6 +25,20 @@ namespace dali {
 namespace kernels {
 namespace transpose_impl {
 
+/*
+The transpositions are implemented by calculating the input and output strides and either
+permuting the input strides (in deinterleave) or un-permuting the output strides (tiled, generic)
+- this makes the permutation itself not necessary, the strides define the permutation.
+
+Example:
+Input shape: 480 x 640 x 3
+Permutation: 2 0 1
+Output shape: 3 480 640
+
+Input strides: 1920 3 1
+Output strides: 640 1 307200
+*/
+
 template <typename T>
 struct TiledTransposeDesc {
   T *__restrict__ out;
@@ -50,14 +64,17 @@ namespace transpose_shared {
 
 
 template <int ndim, typename T>
-__device__ void TransposeTiledStatic(const TiledTransposeDesc<T> &desc) {
+__device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
+  unsigned start_tile = blockIdx.x * desc.tiles_per_block;
+  unsigned end_tile = min(desc.total_tiles, start_tile + desc.tiles_per_block);
+  if (start_tile >= end_tile)
+    return;
+
   T (*tmp)[kTileSize][kTileSize+1] =
       reinterpret_cast<T (*)[kTileSize][kTileSize+1]>(transpose_shared::shared_tmp);
 
   int lanes = desc.lanes;
 
-  unsigned start_tile = blockIdx.x * desc.tiles_per_block;
-  unsigned end_tile = min(desc.total_tiles, start_tile + desc.tiles_per_block);
   unsigned tile_in_slice = start_tile;
   uint64_t fused_slice = ndim > 2
     ? div_mod(tile_in_slice, start_tile, desc.tiles_per_slice)
@@ -77,8 +94,9 @@ __device__ void TransposeTiledStatic(const TiledTransposeDesc<T> &desc) {
   T *out = desc.out;
   const T *in = desc.in;
 
-  for (uint64_t tile = start_tile; tile < end_tile; tile++) {
+  for (uint64_t tile = start_tile;;) {
     uint64_t in_ofs = 0, out_ofs = 0;
+    #pragma unroll
     for (int d = 0; d < ndim - 2; d++) {
       in_ofs  += desc.in_strides[d] * pos[d];
       out_ofs += desc.out_strides[d] * pos[d];
@@ -92,14 +110,13 @@ __device__ void TransposeTiledStatic(const TiledTransposeDesc<T> &desc) {
     in_ofs  += desc.in_strides[ndim-2]  * in_y  + desc.in_strides[ndim-1]  * in_x;
     out_ofs += desc.out_strides[ndim-2] * out_y + desc.out_strides[ndim-1] * out_x;
 
-    __syncthreads();
     int tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-1] - pos[ndim-1]);
     int tile_h = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-2] - pos[ndim-2]);
     if (threadIdx.x < tile_w) {
       for (int ty = threadIdx.y, dy = 0; ty < tile_h; ty += blockDim.y, dy += blockDim.y) {
         #pragma unroll(4)
         for (int lane = 0; lane < lanes; lane++) {
-          tmp[lane][ty][threadIdx.x] = in[in_ofs + desc.in_strides[ndim-2]*dy + lane];
+          tmp[lane][ty][threadIdx.x] = __ldg(&in[in_ofs + desc.in_strides[ndim-2]*dy + lane]);
         }
       }
     }
@@ -113,6 +130,10 @@ __device__ void TransposeTiledStatic(const TiledTransposeDesc<T> &desc) {
       }
     }
 
+    if (++tile >= end_tile)
+      break;  // avoid advancing the offset and __syncthreads in last tile
+
+    #pragma unroll
     for (int d = ndim - 1; d >= 0; d--) {
       uint64_t delta = d < ndim-2 ? 1 : kTileSize;  // inner two dimensions are tiled
       pos[d] += delta;
@@ -120,6 +141,7 @@ __device__ void TransposeTiledStatic(const TiledTransposeDesc<T> &desc) {
         break;
       pos[d] = 0;
     }
+    __syncthreads();
   }
 }
 

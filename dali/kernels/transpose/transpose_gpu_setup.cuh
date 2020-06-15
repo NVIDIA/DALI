@@ -26,6 +26,18 @@ namespace dali {
 namespace kernels {
 namespace transpose_impl {
 
+enum class TransposeMethod {
+  Copy = 0,
+  Generic,
+  Tiled,
+  Deinterleave
+};
+
+DLL_PUBLIC TransposeMethod GetTransposeMethod(const int64_t *shape,
+                                              const int *perm,
+                                              int ndim,
+                                              int element_size);
+
 template <size_t static_size>
 inline void CollapseUnitDims(TensorShape<> &shape, SmallVector<int, static_size> &perm) {
   int ndim = shape.size();
@@ -104,7 +116,7 @@ template <typename T>
 void InitTiledTranspose(TiledTransposeDesc<T> &desc,
                         const TensorShape<> &shape, span<const int> perm,
                         same_as_t<T> *out = nullptr, same_as_t<const T> *in = nullptr,
-                        int grid_size = 1) {
+                        int grid_x_size = 0) {
   int ndim = shape.size();
 
   CalcStrides(desc.in_strides, shape);
@@ -149,10 +161,22 @@ void InitTiledTranspose(TiledTransposeDesc<T> &desc,
   desc.tiles_y = div_ceil(desc.shape[ndim - 2], kTileSize);
   desc.tiles_per_slice = desc.tiles_x * desc.tiles_y;
   desc.total_tiles = volume(non_tile_dims) * desc.tiles_per_slice;
-  desc.tiles_per_block = div_ceil(desc.total_tiles, grid_size);
+  // make sure that it's when grid_x_size is 0, the result is garbage
+  desc.tiles_per_block = grid_x_size ? div_ceil(desc.total_tiles, grid_x_size) : 0;
 
   desc.out = out;
   desc.in = in;
+}
+
+template <typename T>
+void UpdateTiledTranspose(TiledTransposeDesc<T> &desc,
+                          same_as_t<T> *out, same_as_t<const T> *in, int grid_x_size) {
+  assert(out != nullptr);
+  assert(in  != nullptr);
+  assert(grid_x_size > 0);
+  desc.out = out;
+  desc.in = in;
+  desc.tiles_per_block = grid_x_size ? div_ceil(desc.total_tiles, grid_x_size) : 0;
 }
 
 

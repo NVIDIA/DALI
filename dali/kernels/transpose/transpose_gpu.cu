@@ -25,13 +25,6 @@ namespace dali {
 namespace kernels {
 namespace transpose_impl {
 
-enum class TransposeMethod {
-  Copy = 0,
-  Generic,
-  Tiled,
-  Deinterleave
-};
-
 struct TransposeInfo {
   int                 element_size;
   TransposeMethod     method;
@@ -41,8 +34,7 @@ struct TransposeInfo {
 
 constexpr int kMaxDeinterleaveSize = 32;
 
-static bool UseTiledTranspose(
-    const int64_t *shape, const int *perm, int ndim, int element_size) {
+inline bool UseTiledTranspose(const int64_t *shape, const int *perm, int ndim) {
   int xdim = ndim-1;
   int ydim = 0;
   for (; ydim < xdim; ydim++) {
@@ -51,21 +43,23 @@ static bool UseTiledTranspose(
   }
   double tile_coverage = shape[xdim] * shape[ydim];
   tile_coverage /= align_up(shape[xdim], kTileSize) * align_up(shape[ydim], kTileSize);
-  return tile_coverage > 0.4;
+  return tile_coverage > 0.4;  // for now, it's an educated guess
 }
 
-static TransposeMethod GetTransposeMethod(
-    const int64_t *shape, const int *perm, int ndim, int element_size) {
+TransposeMethod GetTransposeMethod(const int64_t *shape,
+                                   const int *perm,
+                                   int ndim,
+                                   int element_size) {
   if (ndim == 1)
     return TransposeMethod::Copy;
   if (perm[ndim-1] == ndim - 1) {
     assert(ndim >= 3);
     if (shape[ndim-1] * element_size < kTiledTransposeMaxVectorSize) {
-      if (UseTiledTranspose(shape, perm, ndim-1, element_size))
+      if (UseTiledTranspose(shape, perm, ndim-1))
         return TransposeMethod::Tiled;
     }
   } else {
-    if (UseTiledTranspose(shape, perm, ndim, element_size))
+    if (UseTiledTranspose(shape, perm, ndim))
       return TransposeMethod::Tiled;
     else if (shape[ndim-1] * element_size <= kMaxDeinterleaveSize)
       return TransposeMethod::Deinterleave;
@@ -235,16 +229,29 @@ class TransposeGPU::Impl {
     if (!tiled_descs_.empty()) {
       int64_t max_tiles = 0;
       for (size_t i = 0; i < tiled_descs_.size(); i++) {
-        tiled_descs_[i].out = out[idx_tiled_[i]];
-        tiled_descs_[i].in =  in[idx_tiled_[i]];
         if (tiled_descs_[i].total_tiles > max_tiles)
           max_tiles = tiled_descs_[i].total_tiles;
+      }
+      int grid_x = max_tiles;
+      int threshold = 64 / tiled_descs_.size();
+      if (grid_x > threshold) {
+        grid_x = threshold + (grid_x - threshold) / 4;
+      }
+      for (size_t i = 0; i < tiled_descs_.size(); i++) {
+        UpdateTiledTranspose(tiled_descs_[i], out[idx_tiled_[i]], in[idx_tiled_[i]], grid_x);
       }
       auto *gpu_descs = reinterpret_cast<TiledTransposeDesc<T>*>(
         ctx.scratchpad->ToGPU(ctx.gpu.stream, tiled_descs_));
 
-      dim3 block(32, 8);
-      dim3 grid(max_tiles, tiled_descs_.size());
+      int max_threads = MaxThreadsPerBlock(TransposeTiledBatch<T>);
+      assert(max_threads >= kTileSize);
+
+      int block_y = 16;  // start with 32x16 block and try smaller until found
+      while (kTileSize * block_y > max_threads)
+        block_y >>= 1;
+
+      dim3 block(kTileSize, block_y);
+      dim3 grid(grid_x, tiled_descs_.size());
 
       const int shm_size = kTiledTransposeMaxSharedMem;
       TransposeTiledBatch<<<grid, block, shm_size, ctx.gpu.stream>>>(gpu_descs);
