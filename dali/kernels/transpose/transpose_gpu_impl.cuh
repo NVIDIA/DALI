@@ -21,23 +21,61 @@
 #include "dali/kernels/transpose/transpose_gpu_def.h"
 #include "dali/core/static_switch.h"
 
+/**
+ * @file
+ *
+ * This file contains the implementation of several transposition algorithms.
+ *
+ * Currently there are the following:
+ * - tiled
+ * - deinterleave
+ * - generic
+ *
+ * Tiled:
+ * Tiled algorithm is applied when the innermost dimension is permuted with a different one and
+ * the extent of both of these dimensions is large enough to occupy significant part of the tile.
+ * Tiled algorithm works by loading a square tile into shared memory and stored in a transposed
+ * fashion (threadIdx.x/y are swapped). This way a warp reads and writes contiguous chunk of
+ * memory. Other dimensions, if present, are handled generically.
+ *
+ * Deinterleave:
+ * Global thread index is a flattened index in all but the innermost dimensions - e.g. for HWC
+ * image it would be (y*W + x). The innermost dimensions (C in this case) is iterated by threads.
+ * This way the reads, while not exactly contiguous (they are separated by the number of channels),
+ * are close together and all but the first "channel" should already be in the cache.
+ * If the penultimate dimension has large enough extent, the reads should hit the cache and the
+ * writes should be contiguous.
+ *
+ * Generic:
+ * The input index is calculated from the output index by dividing the flattened output offset by
+ * output strides, reconstituting the position, and multiplying by respective output strides.
+ *
+ * All algorithms use fast_div wherever division is necessary.
+ *
+ * The axis permutation itself is not used - instead, the transpositions are implemented by
+ * calculating the input and output strides and either permuting the input strides
+ * (in generic case) or un-permuting the output strides (tiled, deinterleave).
+ *
+ * Example (deinterleave):
+ * Input shape: 480 x 640 x 3
+ * Permutation: 2 0 1
+ * Output shape: 3 480 640
+ *
+ * Input strides:  1920  3      1
+ * Output strides:  640  1 307200
+
+ * Example (generic):
+ * Input shape: 32 x 45 x 67
+ * Permutation: 2 0 1
+ * Output shape: 67 x 32 x 45
+ *
+ * Input strides:     1  3015  67
+ * Output strides: 1440    45   1
+ */
+
 namespace dali {
 namespace kernels {
 namespace transpose_impl {
-
-/*
-The transpositions are implemented by calculating the input and output strides and either
-permuting the input strides (in deinterleave) or un-permuting the output strides (tiled, generic)
-- this makes the permutation itself not necessary, the strides define the permutation.
-
-Example:
-Input shape: 480 x 640 x 3
-Permutation: 2 0 1
-Output shape: 3 480 640
-
-Input strides: 1920 3 1
-Output strides: 640 1 307200
-*/
 
 template <typename T>
 struct TiledTransposeDesc {
