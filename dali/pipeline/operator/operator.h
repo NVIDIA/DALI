@@ -197,7 +197,6 @@ class DLL_PUBLIC OperatorBase {
     } catch (...) {
       DALI_FAIL("Error occured when reading diagnostic parameter.");
     }
-
   }
 
   template<typename T>
