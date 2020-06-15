@@ -90,9 +90,23 @@ TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsTest) {
   ASSERT_EQ(this->value_, cnt);
 }
 
+
 TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsCollisionTest) {
   (this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_);
   EXPECT_THROW((this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_),
+               std::runtime_error);
+}
+
+
+TYPED_TEST(OperatorDiagnosticsTest, IncorrectTypeTest) {
+  (this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_);
+  EXPECT_THROW(this->operator_->template GetDiagnostic<long>(this->value_name_),  // NOLINT (long)
+               std::runtime_error);
+}
+
+
+TYPED_TEST(OperatorDiagnosticsTest, NonexistingParameterTest) {
+  EXPECT_THROW(this->operator_->template GetDiagnostic<TypeParam>(this->value_name_),
                std::runtime_error);
 }
 

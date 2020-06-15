@@ -180,4 +180,59 @@ TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode4T) {
   this->TiffTestDecode(4);
 }
 
+
+class HwDecoderUtilizationTest : public ::testing::Test {
+ public:
+  void SetUp() final {
+    dali::string list_root(testing::dali_extra_path() + "/db/single/jpeg");
+
+    pipeline_.AddOperator(
+            OpSpec("FileReader")
+                    .AddArg("device", "cpu")
+                    .AddArg("file_root", list_root)
+                    .AddOutput("compressed_images", "cpu")
+                    .AddOutput("labels", "cpu"));
+    auto decoder_spec =
+            OpSpec("ImageDecoder")
+                    .AddArg("device", "mixed")
+                    .AddArg("output_type", DALI_RGB)
+                    .AddArg("hw_decoder_load", .7f)
+                    .AddInput("compressed_images", "cpu")
+                    .AddOutput("images", "gpu");
+    pipeline_.AddOperator(decoder_spec, decoder_name_);
+
+    pipeline_.Build(outputs_);
+
+    auto node = pipeline_.GetOperatorNode(decoder_name_);
+    // TODO(mszolucha): this test is inaccurate in one scenario: when it's ran on a system with
+    //                  HW Decoder and the HW Decoder fails to open, test should fail.
+    //                  Fix: Add A100 check, when NVML API will be fully functional
+    if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+      GTEST_SKIP();
+    }
+  }
+
+
+  int batch_size_ = 47;
+  Pipeline pipeline_{batch_size_, 1, 0, -1, false, 2, false};
+  vector<std::pair<string, string>> outputs_ = {{"images", "gpu"}};
+  std::string decoder_name_ = "Lorem Ipsum";
+};
+
+
+TEST_F(HwDecoderUtilizationTest, UtilizationTest) {
+  this->pipeline_.RunCPU();
+  this->pipeline_.RunGPU();
+
+  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
+  auto nsamples_hw = node->op->GetDiagnostic<long long int>("nsamples_hw");  // NOLINT
+  auto nsamples_cuda = node->op->GetDiagnostic<long long int>("nsamples_cuda");  // NOLINT
+  auto nsamples_host = node->op->GetDiagnostic<long long int>("nsamples_host");  // NOLINT
+  EXPECT_EQ(nsamples_hw, 35) << "HW Decoder malfunction: incorrect number of images decoded in HW";
+  EXPECT_EQ(nsamples_cuda, 12);
+  EXPECT_EQ(nsamples_host, 0)
+                << "Image decoding malfuntion: all images should've been decoded by CUDA or HW";
+}
+
+
 }  // namespace dali

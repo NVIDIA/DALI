@@ -187,7 +187,17 @@ class DLL_PUBLIC OperatorBase {
 
   template<typename T>
   T GetDiagnostic(const std::string &name) const {
-    return *any_cast<T *>(diagnostics_.at(name));
+    try {
+      return *any_cast<T *>(diagnostics_.at(name));
+    } catch (dali::bad_any_cast &e) {
+      DALI_FAIL("Specified type of diagnostic parameter doesn't match the type "
+                "that this parameter was registered with.");
+    } catch (std::out_of_range &e) {
+      DALI_FAIL("Diagnostic parameter with specified name hasn't been registered.");
+    } catch (...) {
+      DALI_FAIL("Error occured when reading diagnostic parameter.");
+    }
+
   }
 
   template<typename T>
