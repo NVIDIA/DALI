@@ -400,6 +400,41 @@ def test_slice_vs_numpy():
                 yield check_slice_vs_numpy, device, batch_size, axes, axis_names
 
 
+def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start, abs_end, out_of_bounds_policy, fill_values, naxes=2):
+    in_shape = sample_in.shape
+    out_shape = sample_out.shape
+
+    if out_of_bounds_policy == 'pad':
+        assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
+    elif out_of_bounds_policy == 'trim_to_shape':
+        assert(all([out_shape[i] <= in_shape[i] for i in range(naxes)]))
+        for i in range(naxes):
+            if abs_start[i] < 0:
+                abs_start[i] = 0
+            if abs_end[i] > in_shape[i]:
+                abs_end[i] = in_shape[i]
+            abs_slice_shape[i] = abs_end[i] - abs_start[i]
+        print("Hey ", abs_slice_shape[:2], out_shape[:2])
+        assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
+    else:
+        assert(False) # Wrong out_of_bounds_policy
+
+    pad_before = [-abs_start[i] if abs_start[i] < 0 else 0 for i in range(naxes)]
+    pad_after = [abs_end[i] - in_shape[i] if in_shape[i] < abs_end[i] else 0 for i in range(naxes)]
+    sliced = [abs_slice_shape[i] - pad_before[i] - pad_after[i] for i in range(naxes)]
+
+    if out_of_bounds_policy == 'trim_to_shape':
+        assert(all([pad_before[i] == 0 for i in range(naxes)]))
+        assert(all([pad_after[i] == 0 for i in range(naxes)]))
+        assert(all([sliced[i] == out_shape[i] for i in range(naxes)]))
+
+    for i in range(out_shape[0]):
+        for j in range(out_shape[1]):
+            if (i >= pad_before[0] and j >= pad_before[1] and i < pad_before[0] + sliced[0] and j < pad_before[1] + sliced[1]):
+                assert((sample_out[i, j, :] == sample_in[abs_start[0] + i, abs_start[1] + j, :]).all())
+            else:
+                assert((sample_out[i, j, :] == fill_values).all())
+
 def check_slice_with_out_of_bounds_policy_support(device, batch_size, input_shape=(100, 200, 3),
                                                   out_of_bounds_policy=None, fill_values=(0x76, 0xb9, 0x00),
                                                   normalized_anchor=False, normalized_shape=False):
@@ -445,37 +480,10 @@ def check_slice_with_out_of_bounds_policy_support(device, batch_size, input_shap
             shape = shape_data.at(idx)
             in_shape = sample_in.shape
             out_shape = sample_out.shape
+            abs_start, abs_end, abs_slice_shape = abs_slice_start_and_end(
+                in_shape[:2], anchor, shape, normalized_anchor, normalized_shape)
+            check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start, abs_end, out_of_bounds_policy, fill_values)
 
-            abs_start, abs_end, abs_slice_shape = abs_slice_start_and_end(in_shape[:2], anchor, shape, normalized_anchor, normalized_shape)
-            if out_of_bounds_policy == 'pad':
-                assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
-            elif out_of_bounds_policy == 'trim_to_shape':
-                assert(all([out_shape[i] <= in_shape[i] for i in range(naxes)]))
-                for i in range(naxes):
-                    if abs_start[i] < 0:
-                        abs_start[i] = 0
-                    if abs_end[i] > in_shape[i]:
-                        abs_end[i] = in_shape[i]
-                    abs_slice_shape[i] = abs_end[i] - abs_start[i]
-                assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
-            else:
-                assert(False) # Wrong out_of_bounds_policy
-
-            pad_before = [-abs_start[i] if abs_start[i] < 0 else 0 for i in range(naxes)]
-            pad_after = [abs_end[i] - in_shape[i] if in_shape[i] < abs_end[i] else 0 for i in range(naxes)]
-            sliced = [abs_slice_shape[i] - pad_before[i] - pad_after[i] for i in range(naxes)]
-
-            if out_of_bounds_policy == 'trim_to_shape':
-                assert(all([pad_before[i] == 0 for i in range(naxes)]))
-                assert(all([pad_after[i] == 0 for i in range(naxes)]))
-                assert(all([sliced[i] == out_shape[i] for i in range(naxes)]))
-
-            for i in range(out_shape[0]):
-                for j in range(out_shape[1]):
-                    if (i >= pad_before[0] and j >= pad_before[1] and i < pad_before[0] + sliced[0] and j < pad_before[1] + sliced[1]):
-                        assert((sample_out[i, j, :] == sample_in[abs_start[0] + i, abs_start[1] + j, :]).all())
-                    else:
-                        assert((sample_out[i, j, :] == fill_values).all())
 
 def test_slice_with_out_of_bounds_policy_support():
     in_shape = (40, 80, 3)

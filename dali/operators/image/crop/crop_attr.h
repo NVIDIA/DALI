@@ -106,6 +106,7 @@ class CropAttr {
         DALI_ENFORCE(input_shape.size() == shape_layout.size());
         CropWindow crop_window;
         auto crop_shape = input_shape;
+
         auto ndim = input_shape.size();
         int d_dim = shape_layout.find('D');
         int f_dim = shape_layout.find('F');
@@ -143,15 +144,13 @@ class CropAttr {
 
         crop_window.SetAnchor(CalculateAnchor(make_span(anchor_norm), crop_shape, input_shape));
         crop_window.SetShape(crop_shape);
-        // TODO(janton): allow padding
-        DALI_ENFORCE(crop_window.IsInRange(input_shape));
         return crop_window;
     };
   }
 
   TensorShape<> CalculateAnchor(const span<float>& anchor_norm,
-                                         const TensorShape<>& crop_shape,
-                                         const TensorShape<>& input_shape) {
+                                const TensorShape<>& crop_shape,
+                                const TensorShape<>& input_shape) {
     DALI_ENFORCE(anchor_norm.size() == crop_shape.size()
               && anchor_norm.size() == input_shape.size());
 
@@ -161,9 +160,6 @@ class CropAttr {
       DALI_ENFORCE(anchor_norm[dim] >= 0.0f && anchor_norm[dim] <= 1.0f,
         "Anchor for dimension " + std::to_string(dim) + " (" + std::to_string(anchor_norm[dim]) +
         ") is out of range [0.0, 1.0]");
-      DALI_ENFORCE(crop_shape[dim] > 0 && crop_shape[dim] <= input_shape[dim],
-        "Crop shape for dimension " + std::to_string(dim) + " (" + std::to_string(crop_shape[dim]) +
-        ") is out of range [0, " + std::to_string(input_shape[dim]) + "]");
       anchor[dim] = std::roundf(anchor_norm[dim] * (input_shape[dim] - crop_shape[dim]));
     }
 
