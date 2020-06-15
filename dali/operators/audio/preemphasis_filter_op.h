@@ -18,7 +18,12 @@
 #include <random>
 #include <vector>
 #include "dali/core/convert.h"
+#include "dali/core/static_switch.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/operator.h"
+
+#define PREEMPH_TYPES \
+  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)
 
 namespace dali {
 namespace detail {
@@ -31,21 +36,29 @@ const int kNumOutputs = 1;
 template<typename Backend>
 class PreemphasisFilter : public Operator<Backend> {
  public:
+  explicit PreemphasisFilter(const OpSpec &spec)
+      : Operator<Backend>(spec), output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)) {}
+
   ~PreemphasisFilter() override = default;
-
   DISABLE_COPY_MOVE_ASSIGN(PreemphasisFilter);
-
- protected:
-  explicit PreemphasisFilter(const OpSpec &spec) :
-          Operator<Backend>(spec),
-          output_type_(spec.GetArgument<std::remove_const_t<decltype(this->output_type_)>>(
-                  arg_names::kDtype)) {}
-
 
   bool CanInferOutputs() const override {
     return true;
   }
 
+  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
+                 const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template InputRef<Backend>(0);
+    AcquireArguments(ws);
+    output_desc.resize(detail::kNumOutputs);
+    output_desc[0].shape = input.shape();
+    output_desc[0].type = TypeTable::GetTypeInfo(output_type_);
+    return true;
+  }
+
+  void RunImpl(workspace_t<Backend> &ws) override;
+
+ private:
   void AcquireArguments(const ArgumentWorkspace &ws) {
     this->GetPerSampleArgument(preemph_coeff_, detail::kCoeff, ws);
   }
@@ -53,24 +66,10 @@ class PreemphasisFilter : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
   std::vector<float> preemph_coeff_;
   const DALIDataType output_type_;
+
+  // Used for the GPU variant
+  Tensor<Backend> scratchpad_;
 };
-
-
-class PreemphasisFilterCpu : public PreemphasisFilter<CPUBackend> {
- public:
-  explicit PreemphasisFilterCpu(const OpSpec &spec) : PreemphasisFilter(spec) {}
-
-  ~PreemphasisFilterCpu() override = default;
-
-  DISABLE_COPY_MOVE_ASSIGN(PreemphasisFilterCpu);
-
- protected:
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const workspace_t<CPUBackend> &ws) override;
-
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
-};
-
 
 }  // namespace dali
 
