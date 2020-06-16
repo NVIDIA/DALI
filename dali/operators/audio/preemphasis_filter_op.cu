@@ -14,6 +14,7 @@
 
 #include "dali/operators/audio/preemphasis_filter_op.h"
 #include <vector>
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 
@@ -48,14 +49,19 @@ void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, Input
 
 class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
  public:
-  explicit PreemphasisFilterGPU(const OpSpec &spec) : PreemphasisFilter<GPUBackend>(spec) {}
+  explicit PreemphasisFilterGPU(const OpSpec &spec) : PreemphasisFilter<GPUBackend>(spec) {
+    // void is OK here, pointer sizes are the same size
+    int64_t sz = batch_size_ * sizeof(detail::SampleDescriptor<void, void>);
+    scratch_mem_.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+    scratch_mem_.Resize({sz});
+  }
   void RunImpl(workspace_t<GPUBackend> &ws) override;
 
  private:
   template <typename OutputType, typename InputType>
   void RunImplTyped(workspace_t<GPUBackend> &ws);
 
-  Tensor<GPUBackend> scratchpad_;
+  Tensor<GPUBackend> scratch_mem_;
 };
 
 template <typename OutputType, typename InputType>
@@ -73,10 +79,10 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
     sample.coeff = preemph_coeff_[sample_idx];
   }
 
-  scratchpad_.set_type(TypeInfo::Create<uint8_t>());
   int64_t sz = batch_size_ * sizeof(SampleDesc);
-  scratchpad_.Resize({sz});
-  auto sample_descs_gpu = reinterpret_cast<SampleDesc*>(scratchpad_.mutable_data<uint8_t>());
+  scratch_mem_.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+  scratch_mem_.Resize({sz});
+  auto sample_descs_gpu = reinterpret_cast<SampleDesc*>(scratch_mem_.mutable_data<uint8_t>());
   auto stream = ws.stream();
   CUDA_CALL(
     cudaMemcpyAsync(sample_descs_gpu, samples_cpu.data(), sz, cudaMemcpyHostToDevice, stream));
