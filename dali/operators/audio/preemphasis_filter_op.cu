@@ -52,38 +52,46 @@ class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
   void RunImpl(workspace_t<GPUBackend> &ws) override;
 
  private:
+  template <typename OutputType, typename InputType>
+  void RunImplTyped(workspace_t<GPUBackend> &ws);
+
   Tensor<GPUBackend> scratchpad_;
 };
 
-void PreemphasisFilterGPU::RunImpl(workspace_t<GPUBackend> &ws) {
+template <typename OutputType, typename InputType>
+void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
+  using SampleDesc = detail::SampleDescriptor<OutputType, InputType>;
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
+
+  std::vector<SampleDesc> samples_cpu(batch_size_);
+  for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
+    auto &sample = samples_cpu[sample_idx];
+    sample.in = input.tensor<InputType>(sample_idx);
+    sample.out = output.mutable_tensor<OutputType>(sample_idx);
+    sample.size = volume(input.tensor_shape(sample_idx));
+    sample.coeff = preemph_coeff_[sample_idx];
+  }
+
+  scratchpad_.set_type(TypeInfo::Create<uint8_t>());
+  int64_t sz = batch_size_ * sizeof(SampleDesc);
+  scratchpad_.Resize({sz});
+  auto sample_descs_gpu = reinterpret_cast<SampleDesc*>(scratchpad_.mutable_data<uint8_t>());
+  auto stream = ws.stream();
+  CUDA_CALL(
+    cudaMemcpyAsync(sample_descs_gpu, samples_cpu.data(), sz, cudaMemcpyHostToDevice, stream));
+
+  int block = 256;
+  auto blocks_per_sample = std::max(32, 1024 / batch_size_);
+  dim3 grid(blocks_per_sample, batch_size_);
+  detail::PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu);
+}
+
+void PreemphasisFilterGPU::RunImpl(workspace_t<GPUBackend> &ws) {
+  const auto &input = ws.template InputRef<GPUBackend>(0);
   TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
-      using SampleDesc = detail::SampleDescriptor<OutputType, InputType>;
-
-      std::vector<SampleDesc> samples_cpu(batch_size_);
-      for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
-        auto &sample = samples_cpu[sample_idx];
-        sample.in = input.tensor<InputType>(sample_idx);
-        sample.out = output.mutable_tensor<OutputType>(sample_idx);
-        sample.size = volume(input.tensor_shape(sample_idx));
-        sample.coeff = preemph_coeff_[sample_idx];
-      }
-
-      scratchpad_.set_type(TypeInfo::Create<uint8_t>());
-      int64_t sz = batch_size_ * sizeof(SampleDesc);
-      scratchpad_.Resize({sz});
-      auto sample_descs_gpu = reinterpret_cast<SampleDesc*>(scratchpad_.mutable_data<uint8_t>());
-      auto stream = ws.stream();
-      CUDA_CALL(
-        cudaMemcpyAsync(sample_descs_gpu, samples_cpu.data(), sz, cudaMemcpyHostToDevice, stream));
-
-      int block = 256;
-      auto blocks_per_sample = std::max(32, 1024 / batch_size_);
-      dim3 grid(blocks_per_sample, batch_size_);
-      detail::PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu);
-
+      RunImplTyped<OutputType, InputType>(ws);
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
 }
