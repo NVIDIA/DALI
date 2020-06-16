@@ -102,7 +102,7 @@ DALIError_t wrapSymbols(void) {
     }                                                \
     nvmlReturn_t ret = INTERNAL_FUNC(ARGS);          \
     if (ret != NVML_SUCCESS) {                       \
-      DALI_FAIL( #INTERNAL_FUNC "(...) failed: " +   \
+      DALI_FAIL(#INTERNAL_FUNC "(...) failed: " +    \
                 nvmlInternalErrorString(ret));       \
       return DALIError;                              \
     }                                                \
