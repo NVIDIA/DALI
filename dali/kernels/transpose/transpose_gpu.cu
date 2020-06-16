@@ -32,7 +32,8 @@ struct TransposeInfo {
   SmallVector<int, 6> perm;
 };
 
-constexpr int kMaxDeinterleaveSize = 32;
+constexpr int kMaxInterleaveSize = 32;
+constexpr int kMaxDeinterleaveSize = kMaxInterleaveSize;
 
 inline bool UseTiledTranspose(const int64_t *shape, const int *perm, int ndim) {
   int xdim = ndim-1;
@@ -63,6 +64,8 @@ TransposeMethod GetTransposeMethod(const int64_t *shape,
       return TransposeMethod::Tiled;
     else if (shape[ndim-1] * element_size <= kMaxDeinterleaveSize)
       return TransposeMethod::Deinterleave;
+    else if (shape[perm[ndim-1]] * element_size <= kMaxInterleaveSize)
+      return TransposeMethod::Interleave;
   }
   return TransposeMethod::Generic;
 }
@@ -172,6 +175,7 @@ class TransposeGPU::Impl {
             idx_deinterleave_.push_back(i);
           }
           break;
+        case TransposeMethod::Interleave:  // no specialized implementation yet
         case TransposeMethod::Copy:  // generic kernel does a good job at just copying
         default:
           {
@@ -283,9 +287,11 @@ class TransposeGPU::Impl {
       (
         using T = type_of_size<static_el_size>;
         return RunTyped(ctx, reinterpret_cast<T*const*>(out), reinterpret_cast<const T*const*>(in))
-      ), ( // NOLINT
+      ), (  // NOLINT
         throw std::range_error("Transpose: Unexpected tensor element size."
-                               "Must be one of (1,2,4,8,16)")));
+                               "Must be one of (1,2,4,8,16)")
+      )  // NOLINT
+    );   // NOLINT
   }
 
 

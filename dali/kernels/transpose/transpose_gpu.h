@@ -45,8 +45,8 @@ class DLL_PUBLIC TransposeGPU {
 
  private:
   void CheckShapes(const TensorListShape<> &in_shape,
-                  const TensorListShape<> &out_shape,
-                  int element_size);
+                   const TensorListShape<> &out_shape,
+                   int element_size);
 
   class Impl;
   std::unique_ptr<Impl> impl_;

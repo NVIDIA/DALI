@@ -76,9 +76,9 @@ TEST(TransposeGPU, GetTransposeMethod) {
   }
   {
     TensorShape<> shape = { 3, 640*480 };
-    int perm[] = { 1, 0 };  // interleave - no special case yet
+    int perm[] = { 1, 0 };  // interleave
     EXPECT_EQ(GetTransposeMethod(shape.data(), perm, 2, sizeof(int)),
-              TransposeMethod::Generic);
+              TransposeMethod::Interleave);
   }
   {
     TensorShape<> shape = { 640, 480 };

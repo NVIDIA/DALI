@@ -30,6 +30,7 @@ enum class TransposeMethod {
   Copy = 0,
   Generic,
   Tiled,
+  Interleave,
   Deinterleave
 };
 
