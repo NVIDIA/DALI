@@ -237,8 +237,17 @@ void ExposeTensor(py::module &m) {
           t->Resize(i_shape);
           return t;
         }),
+      "b"_a,
+      "layout"_a = "",
       R"code(
       Tensor residing in the CPU memory.
+
+      Parameters
+      ----------
+      b : object
+            the buffer to wrap into the TensorListCPU object
+      layout : str
+            Layout of the data
       )code")
     .def("shape", &py_shape<CPUBackend>,
          R"code(
@@ -302,7 +311,7 @@ void ExposeTensor(py::module &m) {
       layout : str
             Layout of the data
       device_id: int
-            Device of where this tensor resides
+            Device of where this tensor resides. If no is provided the current device is used.
       )code")
     .def("shape", &py_shape<GPUBackend>,
          R"code(
@@ -436,13 +445,17 @@ void ExposeTensorList(py::module &m) {
         t->Resize(i_shape);
         return t;
       }),
+      "b"_a,
+      "layout"_a = "",
       R"code(
       List of tensors residing in the CPU memory.
 
       Parameters
       ----------
-      b : the buffer to wrap into the TensorListCPU object
-      layout : the layout description
+      b : object
+            the buffer to wrap into the TensorListCPU object
+      layout : str
+            Layout of the data
       )code")
     .def("layout", [](TensorList<CPUBackend> &t) {
       return t.GetLayout().str();
@@ -618,7 +631,7 @@ void ExposeTensorList(py::module &m) {
       "layout"_a = "",
       "device_id"_a = -1,
       R"code(
-      List of tensors residing in the CPU memory.
+      List of tensors residing in the GPU memory.
 
       Parameters
       ----------
@@ -626,8 +639,8 @@ void ExposeTensorList(py::module &m) {
             Python object that implement CUDA Array Interface
       layout : str
             Layout of the data
-      device_id: int
-            Device of where this lists of tensors resides
+      device_id : int
+            Device of where this tensor resides. If no is provided the current device is used.
       )code")
     .def(py::init([]() {
           // Construct a default TensorList on GPU
@@ -866,11 +879,11 @@ py::dict MetaToDict(const ReaderMeta &meta) {
 
 template <typename Backend>
 void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t stream) {
-  vector<Tensor<Backend>> tensors(list.size());
+  TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
-    tensors[i] = std::move(list[i].cast<Tensor<Backend>&>());
+    tv[i] = std::move(list[i].cast<Tensor<Backend>&>());
   }
-  p->SetExternalInput(name, tensors, stream);
+  p->SetExternalInput(name, tv, stream);
 }
 
 PYBIND11_MODULE(backend_impl, m) {
@@ -1104,10 +1117,9 @@ PYBIND11_MODULE(backend_impl, m) {
           DALI_ENFORCE(p->batch_size() == static_cast<int>(list.size()),
              "Data list provided to feed_input needs to have batch_size length.");
 
-          bool is_cpu_data = true;
-          // not the most beautiful  but at least it doesn't throw as plain cast<T>()
+          // not the most beautiful but at least it doesn't throw as plain cast<T>()
           py::detail::make_caster<Tensor<CPUBackend>&> conv;
-          is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
+          bool is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
           if (is_cpu_data) {
             FeedPipeline<CPUBackend>(p, name, list, 0);
           } else {

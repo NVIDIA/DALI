@@ -51,7 +51,7 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   std::list<uptr_cuda_event_type> cuda_event, internal_copy_to_storage;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
-    cv_.wait(busy_lock, [&data = tl_data_]{return !data.IsEmpty();});
+    cv_.wait(busy_lock, [&data = tl_data_]{ return !data.IsEmpty(); });
     tensor_list_elm = tl_data_.PopFront();
     internal_copy_to_storage = copy_to_storage_events_.PopFront();
     cuda_event = cuda_events_.GetEmpty();

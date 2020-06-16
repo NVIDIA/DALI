@@ -151,6 +151,9 @@ Args
     If the source is a generator function, it is invoked and treated as an iterable - however,
     unlike a gnerator, it can be used with ``cycle``, in which case the function will be called
     again when the generator reaches end of iteration.
+    In the case of the GPU input, it is the user responsibility to not modify the
+    GPU memory content before it is consumed by DALI, or provide a stream that
+    the user uses to operate on this memory (so DALI would schedule a copy on it)
 
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists produced by the source function
@@ -175,8 +178,8 @@ Keyword Args
     only the first outputs have the layout set, the reset have it cleared.
 
 `cuda_stream` : Any value that can be casted to cudaStream_t
-    CUDA stream to be used for the copy (for the GPU input, for CPU is disregarded)
-    (if not provided, an internal user stream will be selected)
+    CUDA stream to be used for the copy (only relevant for GPU inputs)
+    If not provided, an internal stream will be selected.
     In most cases, using the default internal user stream or stream 0
     is expected.
 """
@@ -293,6 +296,9 @@ def external_source(source = None, num_outputs = None, *, cycle = None, name = N
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout)`` inside ``pipeline.iter_setup``.
+    In the case of the GPU input, it is the user responsibility to not modify the
+    GPU memory content before it is consumed by DALI, or provide a stream that
+    the user uses to operate on this memory (so DALI would schedule a copy on it)
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,

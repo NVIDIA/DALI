@@ -125,14 +125,13 @@ class ExternalSource : public Operator<Backend> {
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &t, cudaStream_t stream = 0) {
     if (std::is_same<SrcBackend, GPUBackend>::value && std::is_same<Backend, CPUBackend>::value) {
-      DALI_WARN("Incorrect Backends warning. Loading GPU-originated data into CPU " +
+      DALI_WARN("Incorrect Backends warning. Loading GPU-originated data into CPU "
                 "ExternalSource operator is discouraged and might be inefficient.");
     }
     DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(t.ntensor()),
-                 "Data list provided to ExternalSource needs to have batch_size = " +
-                  std::to_string(OperatorBase::batch_size_) + " length, found " +
-                  std::to_string(static_cast<int>(t.ntensor())) +
-                  " samples.");
+                 make_string("Data list provided to ExternalSource needs to have batch_size = ",
+                             OperatorBase::batch_size_, " length, found ",
+                             static_cast<int>(t.ntensor()), " samples."));
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
@@ -145,7 +144,11 @@ class ExternalSource : public Operator<Backend> {
     }
 
     data.front()->Copy(t, stream);
-    if (std::is_same<SrcBackend, GPUBackend>::value) {
+    // record event for:
+    // - GPU -> anything
+    // - pinned CPU -> GPU
+    if (std::is_same<SrcBackend, GPUBackend>::value ||
+        (t.is_pinned() && std::is_same<Backend, GPUBackend>::value)) {
       cudaEventRecord(*copy_to_storage_event.front(), stream);
     }
 
@@ -177,6 +180,15 @@ class ExternalSource : public Operator<Backend> {
     for (size_t i = 0; i < tv.size(); ++i) {
       tv[i].ShareData(const_cast<Tensor<SrcBackend>*>(&vect_of_tensors[i]));
     }
+    SetDataSourceHelper(tv, stream);
+  }
+
+  /**
+   * @brief Sets the data that should be passed out of the op
+   * on the next iteration.
+   */
+  template<typename SrcBackend>
+  inline void SetDataSource(const TensorVector<SrcBackend> &tv, cudaStream_t stream = 0) {
     SetDataSourceHelper(tv, stream);
   }
 

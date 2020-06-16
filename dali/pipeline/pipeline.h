@@ -212,6 +212,20 @@ class DLL_PUBLIC Pipeline {
     SetExternalInputHelper(name, tl, stream);
   }
 
+
+  /**
+   * @brief Sets the external input with the input name to the input data
+   * @tparam Backend
+   * @param name name of the input
+   * @param tl data
+   * @param stream CUDA stream to use in case of GPUBackend
+   */
+  template<typename Backend>
+  DLL_PUBLIC inline void
+  SetExternalInput(const string &name, const TensorVector<Backend> &tv, cudaStream_t stream = 0) {
+    SetExternalInputHelper(name, tv, stream);
+  }
+
   /**
    * @brief  Adds an Operator with the input specification to the pipeline. The
    * 'device' argument in the OpSpec determines whether the CPU or GPU version

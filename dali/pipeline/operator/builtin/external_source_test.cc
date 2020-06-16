@@ -105,15 +105,16 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   }
 
   TensorShape<> GetRandShape(int dims) {
-    vector<Index> shape(dims, 0);
+    TensorShape<> shape;
+    shape.resize(dims);
     for (auto &val : shape) {
       val = this->RandInt(1, 15);
     }
     return shape;
   }
 
-  template<typename T>
-  void FeedWithCpuVector(T *src_op) {
+  template<typename Backend>
+  void FeedWithCpuVector(ExternalSource<Backend> *src_op) {
     int dims = this->RandInt(1, 4);
     for (int j = 0; j < this->batch_size_; ++j) {
       auto &tensor = vt_cpu_[j];
@@ -129,8 +130,8 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     src_op->SetDataSource(vt_cpu_);
   }
 
-  template<typename T>
-  void FeedWithGpuVector(T *src_op) {
+  template<typename Backend>
+  void FeedWithGpuVector(ExternalSource<Backend> *src_op) {
     int dims = this->RandInt(1, 4);
     for (int j = 0; j < this->batch_size_; ++j) {
       Tensor<CPUBackend> tensor;
@@ -148,8 +149,8 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     src_op->SetDataSource(vt_gpu_);
   }
 
-  template<typename T>
-  void FeedWithCpuList(T *src_op) {
+  template<typename Backend>
+  void FeedWithCpuList(ExternalSource<Backend> *src_op) {
     tl_cpu_.set_type(TypeInfo::Create<int>());
     auto rand_shape = GetRandShape(this->RandInt(1, 4));
     TensorListShape<> shape = uniform_list_shape(this->batch_size_, rand_shape);
@@ -164,8 +165,8 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     src_op->SetDataSource(tl_cpu_);
   }
 
-  template<typename T>
-  void FeedWithGpuList(T *src_op) {
+  template<typename Backend>
+  void FeedWithGpuList(ExternalSource<Backend> *src_op) {
     TensorList<CPUBackend> tensor_list;
     tensor_list.set_type(TypeInfo::Create<int>());
     auto rand_shape = GetRandShape(this->RandInt(1, 4));

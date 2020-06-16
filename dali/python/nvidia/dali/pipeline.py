@@ -439,6 +439,9 @@ Parameters
 
     def feed_input(self, data_node, data, layout="", cuda_stream = None):
         """Bind a NumPy array (or a list thereof) to an output of ExternalSource.
+        In the case of the GPU input, it is the user responsibility to not modify the
+        GPU memory content before it is consumed by DALI, or provide a stream that
+        the user uses to operate on this memory (so DALI would schedule a copy on it)
 
         Parameters
         ----------
@@ -457,8 +460,8 @@ Parameters
             channel-last video it's "FHWC" and so on.
 
         `cuda_stream` : Any value that can be casted to cudaStream_t
-                    CUDA stream to be used for the copy (for the GPU input, for CPU is disregarded)
-                    (if not provided, an internal user stream will be selected)
+                    CUDA stream to be used for the copy (only relevant for GPU inputs)
+                    If not provided, an internal stream will be selected.
                     In most cases, using the default internal user stream or stream 0
                     is expected.
         """
@@ -473,6 +476,9 @@ Parameters
         from nvidia.dali.external_source import _check_data_batch
         _check_data_batch(data, self._batch_size, layout)
 
+        # __cuda_array_interface__ doesn't provide any way to pass the information about the device
+        # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
+        # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
         if isinstance(data, list):
             inputs = []
             for datum in data:

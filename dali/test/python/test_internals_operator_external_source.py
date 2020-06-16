@@ -12,6 +12,11 @@ datapy = np
 
 cupy_used = False
 
+# to use this it is enough to just import all functions from it by `from test_internals_operator_external_source import *`
+# nose will query for the methods available and will run them
+# the code for CPU and GPU input is 99% the same and the biggest difference is between importing numpy or cupy
+# so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
+
 def use_cupy():
     global cp
     global cupy_used
