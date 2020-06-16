@@ -46,8 +46,16 @@ void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, Input
 
 }  // namespace detail
 
-template <>
-void PreemphasisFilter<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
+class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
+ public:
+  explicit PreemphasisFilterGPU(const OpSpec &spec) : PreemphasisFilter<GPUBackend>(spec) {}
+  void RunImpl(workspace_t<GPUBackend> &ws) override;
+
+ private:
+  Tensor<GPUBackend> scratchpad_;
+};
+
+void PreemphasisFilterGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
   TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
@@ -80,6 +88,6 @@ void PreemphasisFilter<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
 }
 
-DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilter<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilterGPU, GPU);
 
 }  // namespace dali

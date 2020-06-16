@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
+#include <functional>
+#include <utility>
+#include <vector>
 #include "dali/operators/audio/preemphasis_filter_op.h"
 
 namespace dali {
@@ -26,16 +30,33 @@ This filter in simple form can be expressed by the formula::
     .AddOptionalArg(detail::kCoeff, R"code(Preemphasis coefficient `coeff`)code", 0.97f, true)
     .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code", DALI_FLOAT);
 
-template <>
-void PreemphasisFilter<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+class PreemphasisFilterCPU : public PreemphasisFilter<CPUBackend> {
+ public:
+  explicit PreemphasisFilterCPU(const OpSpec &spec) : PreemphasisFilter<CPUBackend>(spec) {}
+  void RunImpl(workspace_t<CPUBackend> &ws) override;
+
+ private:
+  using VolumeSampleIdPair = std::pair<int64_t, int>;  // volume(out_shape), sample_idx
+  std::vector<VolumeSampleIdPair> sample_ids_;
+};
+
+void PreemphasisFilterCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
+  auto shape = input.shape();
+  auto nsamples = shape.num_samples();
+
+  sample_ids_.clear();
+  sample_ids_.reserve(nsamples);
+  for (int sample_id = 0; sample_id < nsamples; sample_id++)
+    sample_ids_.emplace_back(volume(shape[sample_id]), sample_id);
+  std::sort(sample_ids_.begin(), sample_ids_.end(), std::greater<VolumeSampleIdPair>());
+
   TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
-      while (!sample_queue_.empty()) {
-        auto sample_id = sample_queue_.top().second;
-        sample_queue_.pop();
+      for (const auto &sample : sample_ids_) {
+        auto sample_id = sample.second;
         tp.DoWorkWithID(
           [this, &output, &input, sample_id](int thread_id) {
             const auto in_ptr = input[sample_id].data<InputType>();
@@ -61,6 +82,6 @@ void PreemphasisFilter<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   tp.WaitForWork();
 }
 
-DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilter<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilterCPU, CPU);
 
 }  // namespace dali
