@@ -52,40 +52,23 @@ class SliceBase : public Operator<Backend> {
   template <typename OutputType, int Dims>
   void FillArgs(std::vector<kernels::SliceArgs<OutputType, Dims>>& slice_args,
                 const workspace_t<Backend> &ws) {
-    this->DataDependentSetup(ws);
+    this->ProcessCroppingAttrs(ws);
     const auto &input = ws.template InputRef<Backend>(0);
     auto in_shape = input.shape();
-    int ndim = in_shape.sample_dim();
     int nsamples = in_shape.num_samples();
+    int ndim = in_shape.sample_dim();
     auto in_layout = input.GetLayout();
     if (in_layout.empty())
-      in_layout = GetDefaultLayout(in_shape.sample_dim());
-    auto channel_dim = in_layout.find('C');
-
+      in_layout = GetDefaultLayout(ndim);
     slice_args.clear();
-    slice_args.resize(nsamples);
+    slice_args.reserve(nsamples);
     for (int i = 0; i < nsamples; i++) {
       auto crop_win_gen = this->GetCropWindowGenerator(i);
       assert(crop_win_gen);
-
       CropWindow win = crop_win_gen(in_shape[i], in_layout);
       ApplySliceBoundsPolicy(out_of_bounds_policy_, in_shape[i], win.anchor, win.shape);
-
-      auto &args = slice_args[i];
-      args.anchor = win.anchor.to_static<Dims>();
-      args.shape = win.shape.to_static<Dims>();
-      args.channel_dim = -1;
-      if (!fill_values_.empty()) {
-        args.fill_values.clear();
-        for (auto val : fill_values_)
-          args.fill_values.push_back(static_cast<OutputType>(val));
-        if (fill_values_.size() > 1) {
-          DALI_ENFORCE((channel_dim >= 0 && channel_dim < Dims),
-                        "Multi-channel fill_values was provided but channel dimension could not be "
-                        "found in layout");
-          args.channel_dim = channel_dim;
-        }
-      }
+      slice_args.emplace_back(
+          ToSliceArgs<OutputType, Dims>(win, in_layout, make_cspan(fill_values_)));
     }
   }
 
@@ -94,7 +77,7 @@ class SliceBase : public Operator<Backend> {
    /**
    * @brief Implementation specific (Crop, Slice, ...)
    */
-  virtual void DataDependentSetup(const workspace_t<Backend> &ws) = 0;
+  virtual void ProcessCroppingAttrs(const workspace_t<Backend> &ws) = 0;
   virtual const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const = 0;
 
   bool CanInferOutputs() const override {
@@ -113,6 +96,29 @@ class SliceBase : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
  private:
+  template <typename OutputType, int Dims>
+  kernels::SliceArgs<OutputType, Dims> ToSliceArgs(const CropWindow &win,
+                                                   const TensorLayout &layout,
+                                                   span<const float> fill_values) {
+    kernels::SliceArgs<OutputType, Dims> args;
+    auto channel_dim = layout.find('C');
+    args.anchor = win.anchor.to_static<Dims>();
+    args.shape = win.shape.to_static<Dims>();
+    args.channel_dim = -1;
+    if (!fill_values_.empty()) {
+      args.fill_values.clear();
+      for (auto val : fill_values_)
+        args.fill_values.push_back(static_cast<OutputType>(val));
+      if (fill_values_.size() > 1) {
+        DALI_ENFORCE((channel_dim >= 0 && channel_dim < Dims),
+                      "Multi-channel fill_values was provided but channel dimension could not be "
+                      "found in layout");
+        args.channel_dim = channel_dim;
+      }
+    }
+    return args;
+  }
+
   inline TensorLayout GetDefaultLayout(int ndims) {
     switch (ndims) {
       case 2:

@@ -37,7 +37,7 @@ class Crop : public SliceBase<Backend> {
     crop_attr_(spec) {}
 
  protected:
-  void DataDependentSetup(const workspace_t<Backend> &ws) override {
+  void ProcessCroppingAttrs(const workspace_t<Backend> &ws) override {
     const auto &input = ws.template InputRef<Backend>(0);
     const TensorLayout in_layout = input.GetLayout();
     DALI_ENFORCE(in_layout.ndim() == input.shape().sample_dim());
