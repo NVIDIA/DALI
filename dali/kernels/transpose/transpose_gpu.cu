@@ -213,6 +213,39 @@ class TransposeGPU::Impl {
 
   template <typename T>
   void RunTyped(KernelContext &ctx, T *const *out, const T *const *in) {
+    RunTiled(ctx, out, in);
+    RunDeinterleave(ctx, out, in);
+    RunGeneric(ctx, out, in);
+  }
+
+  void Run(KernelContext &ctx, void *const *out, const void *const *in) {
+    VALUE_SWITCH(element_size_, static_el_size, (1, 2, 4, 8, 16),
+      (
+        using T = type_of_size<static_el_size>;
+        return RunTyped(ctx, reinterpret_cast<T*const*>(out), reinterpret_cast<const T*const*>(in))
+      ), (  // NOLINT
+        throw std::range_error("Transpose: Unexpected tensor element size."
+                               "Must be one of (1,2,4,8,16)")
+      )  // NOLINT
+    );   // NOLINT
+  }
+
+
+  template <typename T>
+  void AddDesc(const GenericTransposeDesc<T> &desc) {
+    generic_descs_.push_back(reinterpret_cast<const GenericTransposeDesc<void> &>(desc));
+  }
+  template <typename T>
+  void AddDesc(const DeinterleaveDesc<T> &desc) {
+    deinterleave_descs_.push_back(reinterpret_cast<const DeinterleaveDesc<void> &>(desc));
+  }
+  template <typename T>
+  void AddDesc(const TiledTransposeDesc<T> &desc) {
+    tiled_descs_.push_back(reinterpret_cast<const TiledTransposeDesc<void> &>(desc));
+  }
+
+  template <typename T>
+  void RunGeneric(KernelContext &ctx, T *const *out, const T *const *in) {
     if (!generic_descs_.empty()) {
       int64_t max_size = 0;
       int block_size = 256;
@@ -229,7 +262,10 @@ class TransposeGPU::Impl {
 
       TransposeGenericBatch<<<grid, block_size, 0, ctx.gpu.stream>>>(gpu_descs);
     }
+  }
 
+  template <typename T>
+  void RunTiled(KernelContext &ctx, T *const *out, const T *const *in) {
     if (!tiled_descs_.empty()) {
       int64_t max_tiles = 0;
       for (size_t i = 0; i < tiled_descs_.size(); i++) {
@@ -260,7 +296,10 @@ class TransposeGPU::Impl {
       const int shm_size = kTiledTransposeMaxSharedMem;
       TransposeTiledBatch<<<grid, block, shm_size, ctx.gpu.stream>>>(gpu_descs);
     }
+  }
 
+  template <typename T>
+  void RunDeinterleave(KernelContext &ctx, T *const *out, const T *const *in) {
     if (!deinterleave_descs_.empty()) {
       int64_t max_size = 0;
       int block_size = 256;
@@ -282,32 +321,6 @@ class TransposeGPU::Impl {
     }
   }
 
-  void Run(KernelContext &ctx, void *const *out, const void *const *in) {
-    VALUE_SWITCH(element_size_, static_el_size, (1, 2, 4, 8, 16),
-      (
-        using T = type_of_size<static_el_size>;
-        return RunTyped(ctx, reinterpret_cast<T*const*>(out), reinterpret_cast<const T*const*>(in))
-      ), (  // NOLINT
-        throw std::range_error("Transpose: Unexpected tensor element size."
-                               "Must be one of (1,2,4,8,16)")
-      )  // NOLINT
-    );   // NOLINT
-  }
-
-
-  template <typename T>
-  void AddDesc(const GenericTransposeDesc<T> &desc) {
-    generic_descs_.push_back(reinterpret_cast<const GenericTransposeDesc<void> &>(desc));
-  }
-  template <typename T>
-  void AddDesc(const DeinterleaveDesc<T> &desc) {
-    deinterleave_descs_.push_back(reinterpret_cast<const DeinterleaveDesc<void> &>(desc));
-  }
-  template <typename T>
-  void AddDesc(const TiledTransposeDesc<T> &desc) {
-    tiled_descs_.push_back(reinterpret_cast<const TiledTransposeDesc<void> &>(desc));
-  }
-
   int element_size_ = 0;
   TensorListShape<> in_shape_, out_shape_;
   std::vector<TransposeInfo> infos_;
@@ -324,8 +337,8 @@ TransposeGPU::TransposeGPU() {
 TransposeGPU::~TransposeGPU() = default;
 
 void TransposeGPU::CheckShapes(const TensorListShape<> &in_shape,
-                              const TensorListShape<> &out_shape,
-                              int element_size) {
+                               const TensorListShape<> &out_shape,
+                               int element_size) {
   assert(impl_ != nullptr);
   DALI_ENFORCE(impl_->in_shape_ == in_shape, "Input shape different than used in Setup");
   DALI_ENFORCE(impl_->out_shape_ == out_shape,
