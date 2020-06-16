@@ -33,10 +33,15 @@ void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, Input
   int64_t block_size = blockDim.x;
   int64_t block_start = block_size * blockIdx.x;
   int64_t grid_stride = block_size * gridDim.x;
-  for (int64_t k = block_start + threadIdx.x; k < sample.size; k += grid_stride) {
-    auto prev = cuda_max(k-1, 0l);
-    sample.out[k] = sample.in[k] - sample.coeff * sample.in[prev];
-  }
+
+  int64_t k = block_start + threadIdx.x;
+  if (k >= sample.size)
+    return;
+
+  sample.out[k] = sample.in[k] - sample.coeff * sample.in[cuda_max(0l, k-1)];
+  k += grid_stride;
+  for (; k < sample.size; k += grid_stride)
+    sample.out[k] = sample.in[k] - sample.coeff * sample.in[k-1];
 }
 
 }  // namespace detail

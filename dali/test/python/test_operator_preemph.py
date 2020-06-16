@@ -16,6 +16,7 @@ from __future__ import print_function
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import nvidia.dali.fn as fn
 import numpy as np
 from functools import partial
 from test_utils import compare_pipelines
@@ -36,7 +37,6 @@ class PreemphasisPipeline(Pipeline):
         super(PreemphasisPipeline, self).__init__(batch_size, num_threads, device_id, seed=SEED)
         self.device = device
         self.iterator = iterator
-        self.ext_src = ops.ExternalSource()
         self.per_sample_coeff = per_sample_coeff
         self.uniform = ops.Uniform(range=(0.5, 0.97), seed=1234)
         if self.per_sample_coeff:
@@ -45,17 +45,13 @@ class PreemphasisPipeline(Pipeline):
             self.preemph = ops.PreemphasisFilter(device=device, preemph_coeff=preemph_coeff)
 
     def define_graph(self):
-        self.data = self.ext_src()
-        out = self.data.gpu() if self.device == 'gpu' else self.data
+        data = fn.external_source(lambda: next(self.iterator))
+        out = data.gpu() if self.device == 'gpu' else data
         if self.per_sample_coeff:
             preemph_coeff_arg = self.uniform()
             return self.preemph(out, preemph_coeff=preemph_coeff_arg)
         else:
             return self.preemph(out)
-
-    def iter_setup(self):
-        data = self.iterator.next()
-        self.feed_input(self.data, data)
 
 class PreemphasisPythonPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, preemph_coeff=0.97, per_sample_coeff=False, num_threads=4, device_id=0):
@@ -63,7 +59,6 @@ class PreemphasisPythonPipeline(Pipeline):
                                                         exec_async=False, exec_pipelined=False)
         self.device = "cpu"
         self.iterator = iterator
-        self.ext_src = ops.ExternalSource()
         self.per_sample_coeff = per_sample_coeff
         self.uniform = ops.Uniform(range=(0.5, 0.97), seed=1234)
         if self.per_sample_coeff:
@@ -73,16 +68,12 @@ class PreemphasisPythonPipeline(Pipeline):
         self.preemph = ops.PythonFunction(function=function)
 
     def define_graph(self):
-        self.data = self.ext_src()
+        data = fn.external_source(lambda: next(self.iterator))
         if self.per_sample_coeff:
             coef = self.uniform()
-            return self.preemph(coef, self.data)
+            return self.preemph(coef, data)
         else:
-            return self.preemph(self.data)
-
-    def iter_setup(self):
-        data = self.iterator.next()
-        self.feed_input(self.data, data)
+            return self.preemph(data)
 
 def check_preemphasis_operator(device, batch_size, preemph_coeff, per_sample_coeff):
     eii1 = RandomlyShapedDataIterator(batch_size, min_shape=(100, ), max_shape=(10000, ), dtype=np.float32)

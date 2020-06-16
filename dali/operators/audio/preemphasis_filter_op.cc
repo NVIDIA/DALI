@@ -33,7 +33,9 @@ void PreemphasisFilter<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
-      for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+      while (!sample_queue_.empty()) {
+        auto sample_id = sample_queue_.top().second;
+        sample_queue_.pop();
         tp.DoWorkWithID(
           [this, &output, &input, sample_id](int thread_id) {
             const auto in_ptr = input[sample_id].data<InputType>();

@@ -17,6 +17,7 @@
 
 #include <random>
 #include <vector>
+#include <queue>
 #include "dali/core/convert.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/types.h"
@@ -51,8 +52,17 @@ class PreemphasisFilter : public Operator<Backend> {
     const auto &input = ws.template InputRef<Backend>(0);
     AcquireArguments(ws);
     output_desc.resize(detail::kNumOutputs);
-    output_desc[0].shape = input.shape();
+    auto shape = input.shape();
+    output_desc[0].shape = shape;
     output_desc[0].type = TypeTable::GetTypeInfo(output_type_);
+
+    if (std::is_same<CPUBackend, Backend>::value) {
+      assert(sample_queue_.empty());
+      for (int sample_id = 0; sample_id < shape.num_samples(); sample_id++) {
+        sample_queue_.push({volume(shape[sample_id]), sample_id});
+      }
+    }
+
     return true;
   }
 
@@ -69,6 +79,11 @@ class PreemphasisFilter : public Operator<Backend> {
 
   // Used for the GPU variant
   Tensor<Backend> scratchpad_;
+
+  // Used for the CPU variant
+  using VolumeSampleIdPair = std::pair<int64_t, int>;  // volume(out_shape), sample_idx
+  using SampleQueue = std::priority_queue<VolumeSampleIdPair, std::vector<VolumeSampleIdPair>>;
+  SampleQueue sample_queue_;
 };
 
 }  // namespace dali
