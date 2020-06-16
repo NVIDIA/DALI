@@ -18,6 +18,7 @@
 #include <random>
 #include <vector>
 #include <queue>
+#include <utility>
 #include "dali/core/convert.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/types.h"

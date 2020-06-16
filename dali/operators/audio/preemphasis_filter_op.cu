@@ -71,7 +71,7 @@ void PreemphasisFilter<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
       CUDA_CALL(
         cudaMemcpyAsync(sample_descs_gpu, samples_cpu.data(), sz, cudaMemcpyHostToDevice, stream));
 
-      int block = 1024;
+      int block = 256;
       auto blocks_per_sample = std::max(32, 1024 / batch_size_);
       dim3 grid(blocks_per_sample, batch_size_);
       detail::PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu);
