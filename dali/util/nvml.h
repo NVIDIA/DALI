@@ -122,13 +122,28 @@ inline void SetCPUAffinity(int core = -1) {
 
   int error = pthread_setaffinity_np(pthread_self(), sizeof(requested_set), &requested_set);
   if (error != 0) {
-      DALI_WARN("Setting affinity failed! Error code: " + to_string(error));
+    DALI_WARN("Setting affinity failed! Error code: " + to_string(error));
   }
 }
+
 
 inline void Shutdown() {
   std::lock_guard<std::mutex> lock(Mutex());
   DALI_CALL(wrapNvmlShutdown());
+}
+
+
+inline bool DoesHwDecoderExist() {
+  unsigned int device_count;
+  DALI_CALL(wrapNvmlDeviceGetCount_v2(&device_count));
+  for (unsigned int device_id = 0; device_id < device_count; device_id++) {
+    nvmlDevice_t device;
+    DALI_CALL(wrapNvmlDeviceGetHandleByIndex_v2(device_id, &device));
+    nvmlBrandType_t brand;
+    DALI_CALL(wrapNvmlDeviceGetBrand(device, &brand));
+    if (brand == NVML_BRAND_TESLA) return true;
+  }
+  return false;
 }
 
 }  // namespace nvml

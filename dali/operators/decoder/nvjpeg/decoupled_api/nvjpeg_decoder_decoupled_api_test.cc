@@ -15,6 +15,7 @@
 #include <limits>
 
 #include "dali/test/dali_test_decoder.h"
+#include "dali/util/nvml.h"
 
 namespace dali {
 
@@ -180,7 +181,6 @@ TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode4T) {
   this->TiffTestDecode(4);
 }
 
-
 class HwDecoderUtilizationTest : public ::testing::Test {
  public:
   void SetUp() final {
@@ -204,10 +204,10 @@ class HwDecoderUtilizationTest : public ::testing::Test {
     pipeline_.Build(outputs_);
 
     auto node = pipeline_.GetOperatorNode(decoder_name_);
-    // TODO(mszolucha): this test is inaccurate in one scenario: when it's ran on a system with
-    //                  HW Decoder and the HW Decoder fails to open, test should fail.
-    //                  Fix: Add A100 check, when NVML API will be fully functional
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+      if (nvml::DoesHwDecoderExist()) {
+        FAIL() << "HW Decoder exists in the system and failed to open";
+      }
       GTEST_SKIP();
     }
   }
