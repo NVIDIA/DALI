@@ -93,6 +93,7 @@ DALIError_t wrapSymbols(void) {
   return DALISuccess;
 }
 
+
 #define FUNC_BODY(INTERNAL_FUNC, ARGS...)            \
   do {                                               \
     if (INTERNAL_FUNC == NULL) {                     \
@@ -108,7 +109,7 @@ DALIError_t wrapSymbols(void) {
     return DALISuccess;                              \
   } while (false)
 
-    
+
 DALIError_t wrapNvmlInit(void) {
   if (nvmlInternalInit == NULL) {
     DALI_FAIL("lib wrapper not initialized.");
