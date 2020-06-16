@@ -44,6 +44,8 @@ static nvmlReturn_t (*nvmlInternalDeviceGetBrand)(nvmlDevice_t device, nvmlBrand
 static nvmlReturn_t (*nvmlInternalDeviceGetCount_v2)(unsigned int *deviceCount);
 static nvmlReturn_t (*nvmlInternalDeviceGetHandleByIndex_v2)(unsigned int index,
                                                              nvmlDevice_t* device);
+static nvmlReturn_t (*nvmlInternalDeviceGetArchitecture)(nvmlDevice_t device,
+                                                         nvmlDeviceArchitecture_t* arch);
 
 static const char* (*nvmlInternalErrorString)(nvmlReturn_t r);
 
@@ -85,12 +87,28 @@ DALIError_t wrapSymbols(void) {
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2", nvmlInternalDeviceGetHandleByIndex_v2);
+  LOAD_SYM(nvmlhandle, "nvmlDeviceGetArchitecture", nvmlInternalDeviceGetArchitecture);
 
   symbolsLoaded = 1;
   return DALISuccess;
 }
 
+#define FUNC_BODY(INTERNAL_FUNC, ARGS...)            \
+  do {                                               \
+    if (INTERNAL_FUNC == NULL) {                     \
+      DALI_FAIL("lib wrapper not initialized.");     \
+      return DALISuccess;                            \
+    }                                                \
+    nvmlReturn_t ret = INTERNAL_FUNC(ARGS);          \
+    if (ret != NVML_SUCCESS) {                       \
+      DALI_FAIL( #INTERNAL_FUNC "(...) failed: " +   \
+                nvmlInternalErrorString(ret));       \
+      return DALIError;                              \
+    }                                                \
+    return DALISuccess;                              \
+  } while (false)
 
+    
 DALIError_t wrapNvmlInit(void) {
   if (nvmlInternalInit == NULL) {
     DALI_FAIL("lib wrapper not initialized.");
@@ -220,46 +238,22 @@ DALIError_t wrapNvmlDeviceGetCpuAffinity(nvmlDevice_t device,
 }
 
 DALIError_t wrapNvmlDeviceGetBrand(nvmlDevice_t device, nvmlBrandType_t* type) {
-  if (nvmlInternalDeviceGetBrand == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalDeviceGetBrand(device, type);
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlDeviceGetBrand(...) failed: " +
-              nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalDeviceGetBrand, device, type);
 }
 
 DALIError_t wrapNvmlDeviceGetCount_v2(unsigned int* deviceCount) {
-  if (nvmlInternalDeviceGetCount_v2 == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalDeviceGetCount_v2(deviceCount);
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlDeviceGetCount_v2(...) failed: " +
-              nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalDeviceGetCount_v2, deviceCount);
 }
 
 DALIError_t wrapNvmlDeviceGetHandleByIndex_v2(unsigned int index, nvmlDevice_t* device) {
-  if (nvmlInternalDeviceGetHandleByIndex_v2 == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalDeviceGetHandleByIndex_v2(index, device);
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlDeviceGetHandleByIndex_v2(...) failed: " +
-              nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalDeviceGetHandleByIndex_v2, index, device);
 }
+
+DALIError_t wrapNvmlDeviceGetArchitecture(nvmlDevice_t device, nvmlDeviceArchitecture_t* arch) {
+  FUNC_BODY(nvmlInternalDeviceGetArchitecture, device, arch);
+}
+
+#undef FUNC_BODY
 
 
 }  // namespace nvml

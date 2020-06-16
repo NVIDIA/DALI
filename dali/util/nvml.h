@@ -141,7 +141,9 @@ inline bool DoesHwDecoderExist() {
     DALI_CALL(wrapNvmlDeviceGetHandleByIndex_v2(device_id, &device));
     nvmlBrandType_t brand;
     DALI_CALL(wrapNvmlDeviceGetBrand(device, &brand));
-    if (brand == NVML_BRAND_TESLA) return true;
+    nvmlDeviceArchitecture_t architecture;
+    DALI_CALL(wrapNvmlDeviceGetArchitecture(device, &architecture));
+    if (brand == NVML_BRAND_TESLA && architecture == NVML_DEVICE_ARCH_AMPERE) return true;
   }
   return false;
 }
