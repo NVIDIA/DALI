@@ -448,4 +448,30 @@ TYPED_TEST(ExternalSourceTest, ConsumeOneThenFeedsGPU) {
   }
 }
 
+TEST(ExternalSourceTestNoInput, Throw) {
+  OpGraph graph;
+  int batch_size = 1;
+  int num_threads = 1;
+
+  auto exe = std::make_unique<SimpleExecutor>(batch_size, num_threads, 0, 1);
+  exe->Init();
+
+  graph.AddOp(
+      OpSpec("ExternalSource")
+      .AddArg("device", "cpu")
+      .AddArg("device_id", 0)
+      .AddOutput("data_out", "cpu")
+      .AddArg("batch_size", batch_size)
+      .AddArg("num_threads", num_threads), "");
+
+  vector<string> outputs = {"data_out_cpu"};
+
+  exe->Build(&graph, outputs);
+  exe->RunCPU();
+  exe->RunMixed();
+  exe->RunGPU();
+  DeviceWorkspace ws;
+  ASSERT_THROW(exe->Outputs(&ws), std::runtime_error);
+}
+
 }  // namespace dali

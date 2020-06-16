@@ -103,6 +103,7 @@ class ExternalSource : public Operator<Backend> {
  public:
   inline explicit ExternalSource(const OpSpec &spec) :
     Operator<Backend>(spec),
+    blocking_(spec.GetArgument<bool>("blocking")),
     sync_worker_(spec.GetArgument<int>("device_id"), false) {
     output_name_ = spec.Output(0);
     sync_worker_.WaitForInit();
@@ -140,15 +141,21 @@ class ExternalSource : public Operator<Backend> {
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       data = tl_data_.GetEmpty();
+      // if it was not allocated already set_pinned to false
+      if (!data.front()->raw_data()) {
+        data.front()->set_pinned(false);
+      }
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
 
     data.front()->Copy(t, stream);
     // record event for:
-    // - GPU -> anything
+    // - GPU -> GPU
     // - pinned CPU -> GPU
-    if (std::is_same<SrcBackend, GPUBackend>::value ||
-        (t.is_pinned() && std::is_same<Backend, GPUBackend>::value)) {
+    // - GPU -> CPU is synchronous as we don't use pinned CPU buffers
+    // - CPU -> CPU is synchronous as well
+    if (std::is_same<Backend, GPUBackend>::value &&
+        (std::is_same<SrcBackend, GPUBackend>::value || t.is_pinned())) {
       cudaEventRecord(*copy_to_storage_event.front(), stream);
     }
 
@@ -235,6 +242,7 @@ class ExternalSource : public Operator<Backend> {
 
   std::mutex busy_m_;
   std::condition_variable cv_;
+  bool blocking_ = false;
 
   WorkerThread sync_worker_;
 };
