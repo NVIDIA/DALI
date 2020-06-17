@@ -24,7 +24,7 @@ import tempfile
 import nose.tools
 
 class NumpyReaderPipeline(Pipeline):
-    def __init__(self, path, batch_size, path_filter="*.npy",
+    def __init__(self, path, batch_size, file_list=None, path_filter="*.npy",
                  num_threads=1, device_id=0, num_gpus=1,
                  slice_anchor=None, slice_shape=None, io_size=0,
                  use_mmap = True):
@@ -33,21 +33,28 @@ class NumpyReaderPipeline(Pipeline):
                                                   device_id)
 
         self.input = None
-        if (slice_anchor is not None) and (slice_shape is not None):
+        if file_list is not None:
             self.input = ops.NumpyReader(file_root = path,
-                                         file_filter = path_filter,
-                                         anchor = slice_anchor,
-                                         shape = slice_shape,
-                                         shard_id = device_id,
+                                         file_list = file_list,
+		                                 shard_id = device_id,
                                          num_shards = num_gpus,
-                                         target_io_bytes = io_size,
                                          dont_use_mmap = not use_mmap)
         else:
-            self.input = ops.NumpyReader(file_root = path,
-                                         file_filter = path_filter,
-		                         shard_id = device_id,
-                                         num_shards = num_gpus,
-                                         dont_use_mmap = not use_mmap)
+            if (slice_anchor is not None) and (slice_shape is not None):
+                self.input = ops.NumpyReader(file_root = path,
+                                             file_filter = path_filter,
+                                             anchor = slice_anchor,
+                                             shape = slice_shape,
+                                             shard_id = device_id,
+                                             num_shards = num_gpus,
+                                             target_io_bytes = io_size,
+                                             dont_use_mmap = not use_mmap)
+            else:
+                self.input = ops.NumpyReader(file_root = path,
+                                             file_filter = path_filter,
+                                             shard_id = device_id,
+                                             num_shards = num_gpus,
+                                             dont_use_mmap = not use_mmap)
 
     def define_graph(self):
         inputs = self.input(name="Reader")
@@ -115,7 +122,6 @@ def test_types_and_shapes():
                     for shape in test_np_shapes:
                         yield check_array, test_data_root, shape, type, fortran_order, use_mmap
 
-
 def test_unsupported_types():
     with tempfile.TemporaryDirectory() as test_data_root:
         shape = test_np_shapes[1]
@@ -161,7 +167,39 @@ def test_batch():
         # clean up
         for f in files:
             f.close()
-            
+
+def test_list_batch():
+    with tempfile.TemporaryDirectory() as test_data_root:
+        # create temporary file to write list into
+        listfile = tempfile.NamedTemporaryFile(suffix='.txt', dir=test_data_root)
+        
+        # create files
+        num_samples = 20
+        batch_size = 4
+        files = create_numpy_file_list(listfile.name, test_data_root, num_samples, (5, 2, 8), np.float32, False)
+
+        # create pipe
+        for num_threads in [1, 2, 4, 8]:
+            pipe = NumpyReaderPipeline(path = test_data_root,
+                                       file_list = listfile.name,
+                                       batch_size = batch_size,
+                                       num_threads = num_threads,
+                                       device_id = 0)
+            pipe.build()
+
+            for batch in range(0, num_samples, batch_size):
+                pipe_out = pipe.run()
+                arr_rd = pipe_out[0].as_array()
+                arr_np = np.stack([np.load(x.name)
+                                   for x in files[batch:batch+batch_size]], axis=0)
+                
+                # compare
+                assert_array_equal(arr_rd, arr_np)
+
+        # clean up
+        listfile.close()
+        for f in files:
+            f.close()
 
 test_np_chunk_sizes = [0, 128, 4096]
 test_np_slice_shapes = [[12], (10, 10), (5, 20, 10), (4, 8, 3, 6)]
@@ -205,7 +243,7 @@ def test_static_fused_slice():
                             yield check_array_static_slice, test_data_root, shape, slice_anchor, slice_shape, typ, io_size, fortran_order, use_mmap
 
 
-# generic helper routines                
+# generic helper routines
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array
     arr = rng.random_sample(shape) * 10.
@@ -214,9 +252,23 @@ def create_numpy_file(filename, shape, typ, fortran_order):
         arr = np.asfortranarray(arr)
     np.save(filename, arr)
 
-def delete_numpy_file(filename):
-    if os.path.isfile(filename):
-        os.remove(filename)
+# create a list of numpy files
+def create_numpy_file_list(list_name, file_directory, num_samples, shape, typ, fortran_order):
+    # generate random array
+    filelist = []
+    for _ in range(num_samples):
+        tmpfile = tempfile.NamedTemporaryFile(suffix='.npy', dir=file_directory)
+        create_numpy_file(tmpfile.name, shape, typ, fortran_order)
+        filelist.append(tmpfile)
+        
+    # sort files
+    filelist.sort(key=lambda x: x.name)
+    
+    # write the list into a file
+    with open(list_name, 'w') as f:
+        f.write("\n".join([os.path.basename(x.name) for x in filelist]))
+    
+    return filelist
 
 def check_array(directory, shape, typ, fortran_order = False, use_mmap = True):
     # setup file
