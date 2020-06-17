@@ -19,8 +19,9 @@
 #include <utility>
 #include "dali/core/tensor_view.h"
 #include "dali/core/fast_div.h"
-#include "dali/kernels/transpose/transpose_gpu_impl.cuh"
 #include "dali/kernels/common/utils.h"
+#include "dali/kernels/transpose/transpose_gpu_impl.cuh"
+#include "dali/kernels/transpose/transpose_util.h"
 
 namespace dali {
 namespace kernels {
@@ -38,80 +39,6 @@ DLL_PUBLIC TransposeMethod GetTransposeMethod(const int64_t *shape,
                                               const int *perm,
                                               int ndim,
                                               int element_size);
-
-template <size_t static_size>
-inline void CollapseUnitDims(TensorShape<> &shape, SmallVector<int, static_size> &perm) {
-  int ndim = shape.size();
-  SmallVector<int, static_size> dim_map, out_perm;
-  TensorShape<> out_shape;
-  dim_map.resize(ndim, -1);
-  for (int i = 0; i < ndim; i++) {
-    if (shape[i] != 1) {
-      dim_map[i] = out_shape.size();
-      out_shape.shape.push_back(shape[i]);
-    }
-  }
-  for (int i = 0; i < ndim; i++) {
-    int m = dim_map[perm[i]];
-    if (m >= 0)
-      out_perm.push_back(m);
-  }
-  shape = std::move(out_shape);
-  perm = std::move(out_perm);
-}
-
-template <size_t static_size>
-inline void CollapseAdjacentDims(TensorShape<> &shape, SmallVector<int, static_size> &perm) {
-  int ndim = shape.size();
-
-  SmallVector<int, static_size> dim_map, inv_perm, out_perm;
-  TensorShape<> out_shape;
-
-  dim_map.resize(ndim, -1);
-
-  inv_perm.resize(ndim);
-  for (int i = 0; i < ndim; i++)
-    inv_perm[perm[i]] = i;
-
-  int nkeep = 0;
-  int64_t extent = 1;
-  int last = 0;
-  for (int i = 0; i < ndim; i++) {
-    if (inv_perm[i] != inv_perm[last] + i - last) {
-      dim_map[i] = nkeep++;
-      out_shape.shape.push_back(extent);
-      last = i;
-      extent = shape[i];
-    } else {
-      extent *= shape[i];
-    }
-    if (nkeep == 0) {
-      dim_map[i] = nkeep++;
-    }
-  }
-
-  out_shape.shape.push_back(extent);
-
-  for (int i = 0; i < ndim; i++) {
-    int pmap = dim_map[perm[i]];
-    if (pmap >= 0)
-      out_perm.push_back(pmap);
-  }
-
-  shape = std::move(out_shape);
-  perm = std::move(out_perm);
-}
-
-template <size_t static_size>
-inline void SimplifyPermute(
-    TensorShape<> &out_shape, SmallVector<int, static_size> &out_perm,
-    const int64_t *shape, const int *perm, int ndim) {
-  out_shape = { shape, shape + ndim };
-  out_perm = { perm, perm + ndim };
-
-  CollapseUnitDims(out_shape, out_perm);
-  CollapseAdjacentDims(out_shape, out_perm);
-}
 
 template <typename T>
 void InitTiledTranspose(TiledTransposeDesc<T> &desc,
