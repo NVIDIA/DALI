@@ -219,7 +219,7 @@ void parse_annotations(
             segm_coords.push_back(parser.GetDouble());
             coord_offset++;
           }
-          segm_meta.push_back(coord_offset - segm_meta.back());
+          segm_meta.push_back(coord_offset);
         }
       } else {
         parser.SkipValue();

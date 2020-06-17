@@ -29,7 +29,7 @@ Building Python wheel and (optionally) Docker image
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed, set the following environment variables:
 
 * PYVER - Python version. The default is ``3.6``.
-* CUDA_VERSION - CUDA toolkit version (9 for 9.0 or 10 for 10.0). The default is ``10``. If the version is prefixed with `.` then any value ``XX`` can be passed and the user needs to make sure that Dockerfile.cudaXX.deps is present in `docker/` directory.
+* CUDA_VERSION - CUDA toolkit version (10 for 10.0 or 11 for 11.0). The default is ``11``. If the version is prefixed with `.` then any value ``XX`` can be passed and the user needs to make sure that Dockerfile.cudaXX.deps is present in `docker/` directory.
 * NVIDIA_BUILD_ID - Custom ID of the build. The default is ``1234``.
 * CREATE_WHL - Create a standalone wheel. The default is ``YES``.
 * BUILD_TF_PLUGIN - Create a DALI TensorFlow plugin wheel as well. The default is ``NO``.
@@ -40,7 +40,6 @@ Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If n
 * STRIP_BINARY - when used with CMAKE_BUILD_TYPE equal to Debug, DevDebug, or RelWithDebInfo it produces bare wheel binary without any debug information and the second one with *_debug.whl name with this information included. In the case of the other build configurations, these two wheels will be identical.
 * BUILD_INHOST - ask docker to mount source code instead of copying it. Thank to that consecutive builds are resuing existing object files and are faster for the development. Uses $DALI_BUILD_DIR as a directory for build objects. The default is ``YES``.
 * REBUILD_BUILDERS - if builder docker images need to be rebuild or can be reused from the previous build. The default is ``NO``.
-* REBUILD_MANYLINUX - if manylinux base image need to be rebuild. The default is ``NO``.
 * DALI_BUILD_DIR - where DALI build should happen. It matters only bit the in-tree build where user may provide different path for every python/CUDA version. The default is ``build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}``.
 * ARCH - architecture that DALI is build for, currently only x86_64 is supported. The default is ``x86_64``.
 * WHL_PLATFORM_NAME - the name of the Python wheel platform tag. The default is ``manylinux1_x86_64``.
@@ -69,7 +68,7 @@ Compiling DALI from source (bare metal)
 Prerequisites
 ^^^^^^^^^^^^^
 
-.. |cuda link| replace:: **NVIDIA CUDA 9.0**
+.. |cuda link| replace:: **NVIDIA CUDA 10.0**
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
 .. |nvjpeg link| replace:: **nvJPEG library**
 .. _nvjpeg link: https://developer.nvidia.com/nvjpeg

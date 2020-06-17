@@ -33,25 +33,8 @@ DALI_SCHEMA(Crop)
         R"code(The color space of input and output image)code",
         DALI_RGB, false)
     .AddParent("CropAttr")
+    .AddParent("OutOfBoundsAttr")
     .AddParent("SliceBase");
-
-template <>
-void Crop<CPUBackend>::DataDependentSetup(SampleWorkspace &ws) {
-  const auto &input = ws.Input<CPUBackend>(0);
-
-  const TensorLayout in_layout = InputLayout(ws, 0);
-  DALI_ENFORCE(in_layout.ndim() == input.shape().sample_dim());
-  DALI_ENFORCE(ImageLayoutInfo::HasChannel(in_layout) &&
-    (ImageLayoutInfo::IsImage(in_layout) || VideoLayoutInfo::IsVideo(in_layout)),
-    "Unexpected data layout");
-  TensorLayout out_layout = in_layout;
-
-  auto data_idx = ws.data_idx();
-  SetupSample(data_idx, in_layout, input.shape());
-
-  auto &output = ws.Output<CPUBackend>(0);
-  output.SetLayout(out_layout);
-}
 
 // Register operator
 DALI_REGISTER_OPERATOR(Crop, Crop<CPUBackend>, CPU);

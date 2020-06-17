@@ -106,10 +106,18 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
   if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && anchor[Dims - 1] == 0 &&
       channel_dim != Dims - 1) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
-    SliceFunc<NextDims, OutputType, InputType, false>(out, in, out_strides, in_strides, anchor,
-                                                      in_shape, fill_values, channel_dim, offset,
-                                                      block_end);
+    SliceFunc<NextDims, OutputType, InputType, false>(
+        out, in, out_strides, in_strides, anchor, in_shape, fill_values, channel_dim, offset,
+        block_end);
     return;
+  }
+
+  constexpr int LastDim = Dims - 1;
+  int64_t inner_in_anchor = anchor[LastDim];
+  int64_t inner_in_extent = in_shape[LastDim];
+  if (!AllDims) {  // if we fused dimensions, adjust inner dimension's anchor and extent
+    inner_in_anchor = anchor[LastDim] * in_strides[LastDim];
+    inner_in_extent = Dims > 1 ? in_strides[LastDim - 1] : in_shape[LastDim] * in_strides[LastDim];
   }
 
   for (; offset < block_end; offset += blockDim.x) {
@@ -117,14 +125,14 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
     uint64_t out_idx = idx;
 
     // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
-    // because know the stride is 1
+    // because know the strides are 1 (or we treat them as 1 if we fused dimensions)
     int i_c = 0;
     int i_d;
     bool out_of_bounds = false;
     uint64_t in_idx = 0;
 
     #pragma unroll
-    for (int d = 0; d < Dims - AllDims; d++) {
+    for (int d = 0; d < Dims - 1; d++) {
       i_d = div_mod(idx, idx, out_strides[d]);
       if (d == channel_dim)
         i_c = i_d;
@@ -133,16 +141,13 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
         in_idx += i_d * in_strides[d];
     }
 
-    // Here we handle the last dimension (if we didn't in the main loop)
-    if (AllDims) {
-      constexpr int d = Dims - 1;
-      i_d = idx;  // We know that out_strides[d] is 1
-      if (d == channel_dim)
-        i_c = i_d;
-      out_of_bounds |= is_out_of_bounds(anchor[d] + i_d, in_shape[d]);
-      if (!out_of_bounds)
-        in_idx += i_d;  // We know that in_strides[d] is 1
-    }
+    constexpr int d = LastDim;
+    i_d = idx;  // out_strides[d] is 1
+    if (AllDims && d == channel_dim)
+      i_c = i_d;
+    out_of_bounds |= is_out_of_bounds(inner_in_anchor + i_d, inner_in_extent);
+    if (!out_of_bounds)
+      in_idx += i_d;  // in_strides[d] is 1
 
     // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
     out[out_idx] = out_of_bounds ? __ldg(&fill_values[i_c]) : clamp<OutputType>(in[in_idx]);

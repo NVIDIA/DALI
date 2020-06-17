@@ -110,8 +110,7 @@ template <typename T, int Dims>
 class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
  public:
   template <typename MelScale>
-  Impl(MelScale mel_scale, const MelFilterBankArgs &args, ScratchpadEstimator &se,
-       const TensorListShape<Dims> &in_shape)
+  Impl(MelScale mel_scale, const MelFilterBankArgs &args)
       : MelFilterImplBase<T, Dims>(mel_scale, args)
       , interval_ends_(args.nfilter+2) {
     double mel = mel_low_ + mel_delta_;
@@ -121,16 +120,19 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
       double freq = mel_scale.mel_to_hz(mel);
       interval_ends_[interval] = std::ceil(freq / hz_step_);
     }
+  }
+
+  void Setup(ScratchpadEstimator &se, const TensorListShape<Dims> &in_shape) {
     se.add<int>(AllocType::GPU, interval_ends_.size());
     se.add<T>(AllocType::GPU, weights_down_.size());
     if (args_.normalize)
       se.add<T>(AllocType::GPU, norm_factors_.size());
-
     fft_dim_ = in_shape[0][args_.axis];
+
     if (args_.axis == Dims - 1) {
-      SetupBlockDescsInnerFft(in_shape, se);
+      SetupBlockDescsInnerFft(se, in_shape);
     } else {
-      SetupBlockDescsOuterFft(in_shape, se);
+      SetupBlockDescsOuterFft(se, in_shape);
     }
   }
 
@@ -163,15 +165,15 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
   using MelFilterImplBase<T, Dims>::Args;
 
  private:
-  void SetupBlockDescsOuterFft(const TensorListShape<Dims> &in_shape, ScratchpadEstimator &se) {
+  void SetupBlockDescsOuterFft(ScratchpadEstimator &se, const TensorListShape<Dims> &in_shape) {
+    nframes_.clear();
+    nwindows_.clear();
+    block_descs_.clear();
     auto batch_size = in_shape.num_samples();
     for (int64_t ti = 0; ti < batch_size; ++ti) {
       const auto &tshape = in_shape.tensor_shape(ti);
-      if (args_.axis > 0)
-        nframes_.push_back(volume(tshape.data(), tshape.data() + args_.axis));
-      else
-        nframes_.push_back(1);
-      nwindows_.push_back(volume(tshape.data() + args_.axis + 1, tshape.data() + tshape.size()));
+      nframes_.push_back(volume(tshape.begin(), tshape.begin() + args_.axis));
+      nwindows_.push_back(volume(tshape.begin() + args_.axis + 1, tshape.end()));
       for (int64_t s = 0; s < nframes_.back(); ++s) {
         auto nblocks = div_ceil(nwindows_.back(), kBlockDim2);
         for (int64_t b = 0; b < nblocks; ++b) {
@@ -183,7 +185,10 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
     se.add<BlockDesc<T>>(AllocType::GPU, block_descs_.size());
   }
 
-  void SetupBlockDescsInnerFft(const TensorListShape<Dims> &in_shape, ScratchpadEstimator &se) {
+  void SetupBlockDescsInnerFft(ScratchpadEstimator &se, const TensorListShape<Dims> &in_shape) {
+    nframes_.clear();
+    nwindows_.clear();
+    block_descs_.clear();
     auto batch_size = in_shape.num_samples();
     for (int64_t ti = 0; ti < batch_size; ++ti) {
       const auto &tshape = in_shape.tensor_shape(ti);
@@ -263,14 +268,15 @@ KernelRequirements MelFilterBankGpu<T, Dims>::Setup(KernelContext &context,
     impl_.reset();
     switch (args.mel_formula) {
       case MelScaleFormula::HTK:
-        impl_ = std::make_unique<Impl>(HtkMelScale<T>(), args, se, in.shape);
+        impl_ = std::make_unique<Impl>(HtkMelScale<T>(), args);
         break;
       case MelScaleFormula::Slaney:
       default:
-        impl_ = std::make_unique<Impl>(SlaneyMelScale<T>(), args, se, in.shape);
+        impl_ = std::make_unique<Impl>(SlaneyMelScale<T>(), args);
         break;
     }
   }
+  impl_->Setup(se, in.shape);
   req.scratch_sizes = se.sizes;
   return req;
 }

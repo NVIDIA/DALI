@@ -194,10 +194,6 @@ void StftImplGPU::ValidateParams(ExecutionContext &ctx) {
     DALI_ENFORCE(out_shape[i] == ts,
         make_string("Unexpected output shape at sample ", i, ": ", out_shape[i], " expected ", ts));
   }
-
-  DALI_ENFORCE(ctx.window().num_elements() == 0 ||
-               ctx.window().num_elements() == transform_size(),
-               "The window must be either empty or have a size equal to the transform size.");
 }
 
 void StftImplGPU::Run(KernelContext &ctx,

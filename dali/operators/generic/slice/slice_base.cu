@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,82 +13,99 @@
 // limitations under the License.
 
 #include <vector>
-#include "dali/image/transform.h"
-#include "dali/kernels/slice/slice_gpu.cuh"
-#include "dali/core/static_switch.h"
+#include <memory>
 #include "dali/operators/generic/slice/slice_base.h"
-#include "dali/pipeline/data/views.h"
+#include "dali/kernels/slice/slice_gpu.cuh"
 
 namespace dali {
-namespace detail {
 
-template <typename OutputType, typename InputType>
-void RunHelper(TensorList<GPUBackend>& output,
-               const TensorList<GPUBackend>& input,
-               const std::vector<std::vector<int64_t>>& slice_anchors,
-               const std::vector<std::vector<int64_t>>& slice_shapes,
-               cudaStream_t stream,
-               kernels::ScratchpadAllocator &scratch_alloc) {
-  std::size_t number_of_dims = input.tensor_shape(0).size();
-  VALUE_SWITCH(number_of_dims, NumDims, (1, 2, 3, 4), (
-    kernels::SliceGPU<OutputType, InputType, NumDims> kernel;
+template <typename OutputType, typename InputType, int Dims>
+class SliceBaseGpu : public OpImplBase<GPUBackend> {
+ public:
+  using Kernel = kernels::SliceGPU<OutputType, InputType, Dims>;
+  using SliceArgs = kernels::SliceArgs<OutputType, Dims>;
 
-    kernels::KernelContext ctx;
-    ctx.gpu.stream = stream;
-    auto in_view = view<const InputType, NumDims>(input);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
+  void RunImpl(workspace_t<GPUBackend> &ws) override;
 
-    std::vector<kernels::SliceArgs<OutputType, NumDims>> slice_args;
-    slice_args.reserve(slice_anchors.size());
-    for (std::size_t i = 0; i < slice_anchors.size(); i++) {
-      std::array<int64_t, NumDims> anchor, shape;
-      const auto& slice_anchor = slice_anchors[i];
-      const auto& slice_shape = slice_shapes[i];
-      for (std::size_t d = 0; d < NumDims; d++) {
-        anchor[d] = slice_anchor[d];
-        shape[d] = slice_shape[d];
-      }
-      slice_args.push_back({anchor, shape});
-    }
+  std::vector<SliceArgs>& Args() { return args_; }
 
-    kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
+ private:
+  std::vector<SliceArgs> args_;
+  kernels::KernelManager kmgr_;
+};
 
-    output.set_type(TypeInfo::Create<OutputType>());
-    output.Resize(req.output_shapes[0]);
+template <typename OutputType, typename InputType, int Dims>
+bool SliceBaseGpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                                          const workspace_t<GPUBackend> &ws) {
+  const auto &input = ws.template InputRef<GPUBackend>(0);
+  auto in_shape = input.shape();
+  int nsamples = in_shape.num_samples();
 
-    scratch_alloc.Reserve(req.scratch_sizes);
-    auto scratchpad = scratch_alloc.GetScratchpad();
-    ctx.scratchpad = &scratchpad;
+  output_desc.resize(1);
+  output_desc[0].type = TypeInfo::Create<OutputType>();
+  output_desc[0].shape.resize(nsamples, Dims);
 
-    auto out_view = view<OutputType, NumDims>(output);
-    kernel.Run(ctx, out_view, in_view, slice_args);
-  ),  // NOLINT
-  (
-    DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims));
-  ));  // NOLINT
+  kmgr_.Resize<Kernel>(1, 1);
+  auto in_view = view<const InputType, Dims>(input);
+  kernels::KernelContext ctx;
+  auto req = kmgr_.Setup<Kernel>(0, ctx, in_view, args_);
+  output_desc[0].shape = req.output_shapes[0];
+  return true;
 }
 
-}  // namespace detail
+template <typename OutputType, typename InputType, int Dims>
+void SliceBaseGpu<OutputType, InputType, Dims>::RunImpl(workspace_t<GPUBackend> &ws) {
+  const auto &input = ws.template InputRef<GPUBackend>(0);
+  auto &output = ws.template OutputRef<GPUBackend>(0);
 
+  auto in_view = view<const InputType, Dims>(input);
+  auto out_view = view<OutputType, Dims>(output);
+  kernels::KernelContext ctx;
+  ctx.gpu.stream = ws.stream();
+  kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, args_);
+  output.SetLayout(input.GetLayout());
+}
 
 template <>
-void SliceBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  this->DataDependentSetup(ws);
-  const auto &input = ws.Input<GPUBackend>(0);
-  auto &output = ws.Output<GPUBackend>(0);
+bool SliceBase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                      const workspace_t<GPUBackend> &ws) {
+  const auto &input = ws.template InputRef<GPUBackend>(0);
+  auto input_type = input.type().id();
+  auto ndim = input.shape().sample_dim();
 
-  TYPE_SWITCH(input_type_, type2id, InputType, SLICE_TYPES, (
-    if (input_type_ == output_type_) {
-      detail::RunHelper<InputType, InputType>(
-        output, input, slice_anchors_, slice_shapes_, ws.stream(), scratch_alloc_);
-    } else {
-      TYPE_SWITCH(output_type_, type2id, OutputType, (float, float16, uint8_t), (
-        detail::RunHelper<OutputType, InputType>(
-          output, input, slice_anchors_, slice_shapes_, ws.stream(), scratch_alloc_);
-      ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
-    }
-  ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT
+  if (!impl_ || input_type_ != input_type || ndim != ndim_) {
+    impl_.reset();
+    input_type_ = input_type;
+    ndim_ = ndim;
+  }
+  auto output_type = output_type_ == DALI_NO_TYPE ? input_type_ : output_type_;
 
-  output.SetLayout(InputLayout(ws, 0));
+  VALUE_SWITCH(ndim_, Dims, SLICE_DIMS, (
+    TYPE_SWITCH(input_type_, type2id, InputType, SLICE_TYPES, (
+      if (input_type_ == output_type) {
+        using Impl = SliceBaseGpu<InputType, InputType, Dims>;
+        if (!impl_)
+          impl_ = std::make_unique<Impl>();
+        FillArgs(reinterpret_cast<Impl*>(impl_.get())->Args(), ws);
+      } else {
+        TYPE_SWITCH(output_type, type2id, OutputType, (float, float16, uint8_t), (
+          using Impl = SliceBaseGpu<OutputType, InputType, Dims>;
+          if (!impl_)
+            impl_ = std::make_unique<Impl>();
+          FillArgs(reinterpret_cast<Impl*>(impl_.get())->Args(), ws);
+        ), DALI_FAIL(make_string("Not supported output type: ", output_type));); // NOLINT
+      }
+    ), DALI_FAIL(make_string("Not supported input type: ", input_type_)););  // NOLINT
+  ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
+
+  return impl_->SetupImpl(output_desc, ws);
+}
+
+template <>
+void SliceBase<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
+  assert(impl_ != nullptr);
+  impl_->RunImpl(ws);
 }
 
 }  // namespace dali

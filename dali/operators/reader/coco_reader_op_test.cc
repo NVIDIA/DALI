@@ -358,15 +358,19 @@ class CocoReaderTest : public ::testing::Test {
   const int number_of_polygons_ = 9;
 
   std::vector<int> masks_meta_gt_ {
+    // image 0
     0, 0, 10,
+    // image 1
     0, 0, 6,
-    0, 6, 6,
+    0, 6, 12,
+    // image 2
     0, 0, 12,
+    // image 3
     0, 0, 6,
     1, 6, 20,
     2, 20, 28,
     3, 28, 38,
-    3, 38, 34,
+    3, 38, 44,
   };
 
   std::vector<float> masks_coords_gt_ {
