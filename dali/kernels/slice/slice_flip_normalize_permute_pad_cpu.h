@@ -20,6 +20,7 @@
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/static_switch.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
@@ -57,137 +58,280 @@ struct NormalizePolicy {
   }
 };
 
-template <typename OutputType, int Dims>
-inline void Pad(OutputType *output,
-                TensorShape<Dims> out_strides,
-                TensorShape<Dims> padded_out_shape,
-                float fill_value,
-                std::integral_constant<int, 1>) {
-  constexpr auto d = Dims - 1;
-  for (int64_t i = 0; i < padded_out_shape[d]; i++) {
-    *output = Convert<OutputType>(fill_value);
-    output += out_strides[d];
-  }
-}
+/**
+ * @brief Optimized special case for the last two dimensions whith channel-last configuration
+ */
+template <typename Policy, bool OutOfBounds, bool NeedPad, bool HasChannels,
+          typename OutputType, typename InputType>
+void SliceFlipNormalizePermutePadKernelImplChannelLast(OutputType *output,
+                                                       const InputType *input,
+                                                       const int64_t* in_strides,
+                                                       const int64_t* out_strides,
+                                                       const int64_t* anchor,
+                                                       const int64_t* in_shape,
+                                                       const int64_t* out_shape,
+                                                       const OutputType *fill_values,
+                                                       const float *mean,
+                                                       const float *inv_stddev,
+                                                       int channel_dim) {  // negative if no channel dim or already processed
+  constexpr int d = 0;
+  assert(channel_dim == 1);
+  int64_t out_nchannels = out_shape[channel_dim];
+  int64_t in_nchannels = in_shape[channel_dim];
+  int64_t npixels = out_shape[d];
 
-template <typename OutputType, int Dims, int DimsLeft>
-inline void Pad(OutputType *output,
-                TensorShape<Dims> out_strides,
-                TensorShape<Dims> padded_out_shape,
-                float fill_value,
-                std::integral_constant<int, DimsLeft>) {
-  constexpr auto d = Dims - DimsLeft;
-  for (int64_t i = 0; i < padded_out_shape[d]; i++) {
-    Pad(output, out_strides, padded_out_shape, fill_value,
-        std::integral_constant<int, DimsLeft - 1>());
-    output += out_strides[d];
-  }
-}
+  assert(in_strides[d + 1] == 1);
+  assert(in_strides[d] == in_shape[1]);
+  assert(out_strides[d + 1] == 1);
+  assert(out_strides[d] == out_shape[1]);
 
-template <typename Policy, bool IsNormalizationDim, typename OutputType, typename InputType,
-          int Dims>
-inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *input,
-                                          TensorShape<Dims> in_strides,
-                                          TensorShape<Dims> out_strides,
-                                          TensorShape<Dims> out_shape,
-                                          TensorShape<Dims> padded_out_shape,
-                                          const float *mean, const float *inv_stddev,
-                                          int normalization_dim,
-                                          float fill_value,
-                                          std::integral_constant<int, 1>) {
-  constexpr auto d = Dims - 1;
-  int64_t i = 0;
-  for (; i < out_shape[d]; i++) {
-    const int norm_idx = IsNormalizationDim ? i : 0;
-    Policy::Fill(*output, *input, mean + norm_idx, inv_stddev + norm_idx);
-    input += in_strides[d];
-    output += out_strides[d];
-  }
-
-  // pad
-  for (; i < padded_out_shape[d]; i++) {
-    *output = Convert<OutputType>(fill_value);
-    output += out_strides[d];
-  }
-}
-
-template <typename Policy, bool IsNormalizationDim, typename OutputType, typename InputType,
-          int Dims, int DimsLeft>
-inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *input,
-                                          TensorShape<Dims> in_strides,
-                                          TensorShape<Dims> out_strides,
-                                          TensorShape<Dims> out_shape,
-                                          TensorShape<Dims> padded_out_shape,
-                                          const float *mean, const float *inv_stddev,
-                                          int normalization_dim,
-                                          float fill_value,
-                                          std::integral_constant<int, DimsLeft>) {
-  constexpr auto d = Dims - DimsLeft;
-  const bool IsNextNormalizationDim = (d + 1 == normalization_dim);
-  int64_t i = 0;
-  if (IsNextNormalizationDim) {
-    for (; i < out_shape[d]; i++) {
-      SliceFlipNormalizePermuteImpl<Policy, true>(
-          output, input, in_strides, out_strides, out_shape, padded_out_shape, mean, inv_stddev,
-          normalization_dim, fill_value,
-          std::integral_constant<int, DimsLeft - 1>());
-      input += in_strides[d];
-      output += out_strides[d];
+  if (NeedPad) {
+    // If the whole row is out of bounds, just fill
+    if (OutOfBounds) {
+      PadFill(output, fill_values, npixels, out_nchannels);
+      return;
     }
-  } else {
-    for (; i < out_shape[d]; i++) {
-      const int norm_idx = IsNormalizationDim ? i : 0;
-      SliceFlipNormalizePermuteImpl<Policy, false>(
-          output, input, in_strides, out_strides, out_shape, padded_out_shape, mean + norm_idx,
-          inv_stddev + norm_idx, normalization_dim, fill_value,
-          std::integral_constant<int, DimsLeft - 1>());
-      input += in_strides[d];
-      output += out_strides[d];
+
+    // Calculate number of pixels to pad on the left and right, and the number of pixels to be
+    // copied
+    int64_t pad_pixels_before, copy_pixels, pad_pixels_after;
+    std::tie(pad_pixels_before, copy_pixels, pad_pixels_after) =
+        CalcPadCopyExtents(anchor[d], in_shape[d], out_shape[d]);
+
+    // Padding pixels on the left, if needed
+    if (pad_pixels_before > 0) {
+      PadFill(output, fill_values, pad_pixels_before, out_nchannels);
+      output += pad_pixels_before * out_strides[d];
+      input += pad_pixels_before * in_strides[d];
     }
-  }
 
-  for (; i < padded_out_shape[d]; i++) {
-    Pad(output, out_strides, padded_out_shape, fill_value,
-        std::integral_constant<int, DimsLeft - 1>());
-    output += out_strides[d];
-  }
-}
-
-template <typename OutputType, typename InputType, int Dims>
-void SliceFlipNormalizePermute(OutputType *output, const InputType *input,
-                               const TensorShape<Dims> &in_strides,
-                               const TensorShape<Dims> &out_strides,
-                               const TensorShape<Dims> &out_shape,
-                               const TensorShape<Dims> &padded_out_shape,
-                               const std::vector<float> &mean,
-                               const std::vector<float> &inv_stddev,
-                               int normalization_dim,
-                               float fill_value) {
-  DALI_ENFORCE(mean.size() == inv_stddev.size());
-  DALI_ENFORCE(mean.size() <= 1 || normalization_dim < Dims);
-  const bool should_normalize = !mean.empty();
-  const bool IsNextNormalizationDim = (0 == normalization_dim);
-  if (should_normalize) {
-    if (IsNextNormalizationDim) {
-      detail::SliceFlipNormalizePermuteImpl<NormalizePolicy, true>(
-          output, input, in_strides, out_strides, out_shape, padded_out_shape,
-          mean.data(), inv_stddev.data(), normalization_dim, fill_value,
-          std::integral_constant<int, Dims>());
+    bool channel_dim_unchanged = in_nchannels == out_nchannels && anchor[channel_dim] == 0;
+    if (channel_dim_unchanged) {
+      auto n = copy_pixels * out_nchannels;
+      for (int64_t i = 0; i < n; i++)
+        output[i] = input[i];
+      output += n;
+      input += n;
     } else {
-      detail::SliceFlipNormalizePermuteImpl<NormalizePolicy, false>(
-          output, input, in_strides, out_strides, out_shape, padded_out_shape,
-          mean.data(), inv_stddev.data(), normalization_dim, fill_value,
-          std::integral_constant<int, Dims>());
+      // Calculate number of channels to pad on the left, right and the number of channels to be
+      // copied
+      int64_t pad_channels_before, copy_channels, pad_channels_after;
+      std::tie(pad_channels_before, copy_channels, pad_channels_after) =
+          CalcPadCopyExtents(anchor[channel_dim], in_nchannels, out_nchannels);
+      int64_t anchor_channel_in = std::max<int64_t>(0, anchor[channel_dim]);
+      // Copy pixels with potential padding on the channel dimension
+      for (int64_t i = 0; i < copy_pixels; i++) {
+        int64_t out_c = 0;
+        for (; out_c < pad_channels_before; out_c++)
+          output[out_c] = fill_values[out_c];
+
+        for (int64_t in_c = 0; in_c < copy_channels; in_c++, out_c++)
+          Policy::Fill(output[out_c], input[anchor_channel_in + in_c], mean, inv_stddev);
+
+        for (; out_c < out_nchannels; out_c++)
+          output[out_c] = fill_values[out_c];
+
+        output += out_nchannels;
+        input += in_nchannels;
+      }
+    }
+
+    // Padding pixels on the right, if needed
+    if (pad_pixels_after > 0) {
+      PadFill(output, fill_values, pad_pixels_after, out_nchannels);
+      output += pad_pixels_after * out_strides[d];
+      input += pad_pixels_after * in_strides[d];
+    }
+  } else {  // NeedPad = false
+    assert(out_strides[d + 1] == 1);
+    assert(in_strides[d + 1] == 1);
+    for (int64_t i = 0; i < out_shape[d]; i++) {
+      auto *out_row = output + i * out_strides[d];
+      auto *in_row = input + i * in_strides[d];
+      for (int64_t j = 0; j < out_shape[d + 1]; j++) {
+        Policy::Fill(out_row[j], in_row[j], mean, inv_stddev);
+      }
+    }
+  }
+}
+
+template <typename Policy, bool OutOfBounds, bool NeedPad, bool HasChannels,
+          typename OutputType, typename InputType>
+void SliceFlipNormalizePermutePadKernelImpl(OutputType *output,
+                                            const InputType *input,
+                                            const int64_t* in_strides,
+                                            const int64_t* out_strides,
+                                            const int64_t* anchor,
+                                            const int64_t* in_shape,
+                                            const int64_t* out_shape,
+                                            const OutputType *fill_values,
+                                            const float *mean,
+                                            const float *inv_stddev,
+                                            int channel_dim,  // negative if no channel dim or already processed
+                                            std::integral_constant<int, 1>) {
+  constexpr int d = 0;
+  if (OutOfBounds) {
+    for (int i = 0; i < out_shape[d]; i++) {
+      output[i] = *fill_values;
+      if (HasChannels && d == channel_dim) {
+        fill_values++;
+        mean++;
+        inv_stddev++;
+      }
     }
   } else {
-    detail::SliceFlipNormalizePermuteImpl<ClampPolicy, false>(
-        output, input, in_strides, out_strides, out_shape, padded_out_shape,
-        nullptr, nullptr, 0, fill_value,
-        std::integral_constant<int, Dims>());
+    int in_idx = anchor[d];
+    int out_idx = 0;
+
+    if (NeedPad) {
+      // out of bounds (left side)
+      for (; in_idx < 0 && out_idx < out_shape[d]; in_idx++, out_idx++) {
+        *output = *fill_values;
+        output += out_strides[d];
+        input  += in_strides[d];
+        if (HasChannels && d == channel_dim) {
+          fill_values++;
+          mean++;
+          inv_stddev++;
+        }
+      }
+    }
+
+    // within input bounds
+    for (; in_idx < in_shape[d] && out_idx < out_shape[d]; in_idx++, out_idx++) {
+      Policy::Fill(*output, *input, mean, inv_stddev);
+      output += out_strides[d];
+      input  += in_strides[d];
+      if (HasChannels && d == channel_dim) {
+          fill_values++;
+          mean++;
+          inv_stddev++;
+      }
+    }
+
+    if (NeedPad) {
+      // out of bounds (right side)
+      for (; out_idx < out_shape[d]; in_idx++, out_idx++) {
+        *output = *fill_values;
+        output += out_strides[d];
+        input += in_strides[d];
+        if (HasChannels && d == channel_dim) {
+          fill_values++;
+          mean++;
+          inv_stddev++;
+        }
+      }
+    }
+  }
+}
+
+template <typename Policy, bool OutOfBounds, bool NeedPad, bool HasChannels,
+          typename OutputType, typename InputType, int DimsLeft>
+void SliceFlipNormalizePermutePadKernelImpl(OutputType *output,
+                                            const InputType *input,
+                                            const int64_t* in_strides,
+                                            const int64_t* out_strides,
+                                            const int64_t* anchor,
+                                            const int64_t* in_shape,
+                                            const int64_t* out_shape,
+                                            const OutputType *fill_values,
+                                            const float *mean,
+                                            const float *inv_stddev,
+                                            int channel_dim,  // negative if no channel dim or already processed
+                                            std::integral_constant<int, DimsLeft>) {
+  // Special case for last 2 dimensions with channel-last configuration and no flip
+  if (false && DimsLeft == 2 && channel_dim == 1 && in_strides[0] == in_shape[1] && in_strides[1] == 1) {
+    SliceFlipNormalizePermutePadKernelImplChannelLast<Policy, OutOfBounds, NeedPad, HasChannels>(
+        output, input, in_strides, out_strides, anchor, in_shape, out_shape, fill_values, mean,
+        inv_stddev, channel_dim);
+    return;
+  }
+
+  constexpr int d = 0;
+  int in_idx = anchor[d];
+  int out_idx = 0;
+
+  if (NeedPad) {
+    // out of bounds (left side)
+    for (; in_idx < 0 && out_idx < out_shape[d]; in_idx++, out_idx++) {
+      SliceFlipNormalizePermutePadKernelImpl<Policy, true, NeedPad, HasChannels>(
+          output, input, in_strides + 1, out_strides + 1, anchor + 1, in_shape + 1, out_shape + 1,
+          fill_values, mean, inv_stddev, channel_dim - 1, std::integral_constant<int, DimsLeft - 1>());
+      output += out_strides[d];
+      input  += in_strides[d];
+      if (HasChannels && d == channel_dim) {
+        fill_values++;
+        mean++;
+        inv_stddev++;
+      }
+    }
+  }
+
+  // within input bounds
+  for (; in_idx < in_shape[d] && out_idx < out_shape[d]; in_idx++, out_idx++) {
+    SliceFlipNormalizePermutePadKernelImpl<Policy, OutOfBounds, NeedPad, HasChannels>(
+        output, input, in_strides + 1, out_strides + 1, anchor + 1, in_shape + 1, out_shape + 1,
+        fill_values, mean, inv_stddev, channel_dim - 1, std::integral_constant<int, DimsLeft - 1>());
+    output += out_strides[d];
+    input  += in_strides[d];
+    if (HasChannels && d == channel_dim) {
+      fill_values++;
+      mean++;
+      inv_stddev++;
+    }
+  }
+
+  if (NeedPad) {
+    // out of bounds (right side)
+    for (; out_idx < out_shape[d]; in_idx++, out_idx++) {
+      SliceFlipNormalizePermutePadKernelImpl<Policy, true, NeedPad, HasChannels>(
+          output, input, in_strides + 1, out_strides + 1, anchor + 1, in_shape + 1, out_shape + 1,
+          fill_values, mean, inv_stddev, channel_dim - 1, std::integral_constant<int, DimsLeft - 1>());
+      output += out_strides[d];
+      input  += in_strides[d];
+      if (HasChannels && d == channel_dim) {
+        fill_values++;
+        mean++;
+        inv_stddev++;
+      }
+    }
   }
 }
 
 }  // namespace detail
+
+
+template <int Dims, typename OutputType, typename InputType>
+void SliceFlipNormalizePermutePadKernel(OutputType *output,
+                                        const InputType *input,
+                                        const TensorShape<Dims> &in_strides,
+                                        const TensorShape<Dims> &out_strides,
+                                        const TensorShape<Dims> &anchor,
+                                        const TensorShape<Dims> &in_shape,
+                                        const TensorShape<Dims> &out_shape,
+                                        const OutputType *fill_values = nullptr,
+                                        const float *mean = nullptr,
+                                        const float *inv_stddev = nullptr,
+                                        int channel_dim = -1) {  // negative if no channel dim or already processed
+  bool need_pad = NeedPad(Dims, anchor.data(), in_shape.data(), out_shape.data());
+  bool has_channels = channel_dim >= 0;
+  bool need_normalize = (mean != nullptr && inv_stddev != nullptr);
+  VALUE_SWITCH(need_pad ? 1 : 0, NeedPadInt, (0, 1), (
+    VALUE_SWITCH(has_channels ? 1 : 0, HasChannelsInt, (0, 1), (
+      constexpr bool NeedPad = static_cast<bool>(NeedPadInt);
+      constexpr bool HasChannels = static_cast<bool>(HasChannelsInt);
+      if (need_normalize) {
+        detail::SliceFlipNormalizePermutePadKernelImpl<detail::NormalizePolicy, false, NeedPad, HasChannels>(
+            output, input, in_strides.data(), out_strides.data(), anchor.data(), in_shape.data(),
+            out_shape.data(), fill_values, mean, inv_stddev, channel_dim, std::integral_constant<int, Dims>());
+      } else {
+        detail::SliceFlipNormalizePermutePadKernelImpl<detail::ClampPolicy, false, NeedPad, HasChannels>(
+            output, input, in_strides.data(), out_strides.data(), anchor.data(), in_shape.data(),
+            out_shape.data(), fill_values, mean, inv_stddev, channel_dim, std::integral_constant<int, Dims>());
+      }
+    ), ());
+  ), ());
+}
 
 template <typename OutputType, typename InputType, int Dims>
 class SliceFlipNormalizePermutePadCpu {
@@ -210,10 +354,31 @@ class SliceFlipNormalizePermutePadCpu {
            const InTensorCPU<InputType, Dims> &in,
            const Args &orig_args) {
     auto args = detail::ProcessArgs(orig_args, in.shape);
-    detail::SliceFlipNormalizePermute(
-        out.data, in.data + args.input_offset, args.in_strides,
-        args.out_strides, args.out_shape, args.padded_out_shape,
-        args.mean, args.inv_stddev, args.normalization_dim, args.padding_val);
+
+    SmallVector<OutputType, 4> fill_values;  // TODO(janton): fix
+    int nvalues = args.mean.size();
+    if (nvalues == 0)
+      nvalues = 1;
+    for (int i = 0; i < nvalues; i++)
+      fill_values.push_back(static_cast<OutputType>(args.padding_val));
+
+    int64_t in_size = volume(args.in_shape);
+    int64_t out_size = volume(args.out_shape);
+
+    std::cout << "in_data:";
+    for (int i = 0; i < in_size; i++)
+      std::cout << " " << in.data[i];
+    std::cout << "\n";
+
+    SliceFlipNormalizePermutePadKernel(out.data, in.data + args.input_offset, args.in_strides, args.out_strides,
+                                       args.anchor, args.in_shape, args.padded_out_shape,
+                                       fill_values.data(), args.mean.data(), args.inv_stddev.data(),
+                                       args.normalization_dim);
+
+    std::cout << "out_data:";
+    for (int i = 0; i < out_size; i++)
+      std::cout << " " << out.data[i];
+    std::cout << "\n";
   }
 };
 

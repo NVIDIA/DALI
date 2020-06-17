@@ -28,12 +28,13 @@ template <int Dims>
 struct SliceFlipNormalizePermutePadArgs {
   SliceFlipNormalizePermutePadArgs() = default;
 
-  template <typename Shape>
-  explicit SliceFlipNormalizePermutePadArgs(const Shape &_shape) {
+  template <typename OutShape, typename InShape>
+  explicit SliceFlipNormalizePermutePadArgs(const OutShape &out_sh, const InShape &in_sh) {
     for (int d = 0; d < Dims; d++) {
       anchor[d] = 0;
-      shape[d] = _shape[d];
-      padded_shape[d] = _shape[d];
+      shape[d] = out_sh[d];
+      padded_shape[d] = out_sh[d];
+      in_shape[d] = in_sh[d];
       flip[d] = false;
       permuted_dims[d] = d;
     }
@@ -42,6 +43,7 @@ struct SliceFlipNormalizePermutePadArgs {
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
   TensorShape<Dims> padded_shape;
+  TensorShape<Dims> in_shape;
   std::array<bool, Dims> flip;
   std::array<int, Dims> permuted_dims;
   int normalization_dim = Dims-1;
@@ -60,6 +62,8 @@ struct SliceFlipNormalizePermutePadProcessedArgs {
   TensorShape<Dims> out_shape;
   TensorShape<Dims> padded_out_shape;
   TensorShape<Dims> out_strides;
+  TensorShape<Dims> anchor;
+  TensorShape<Dims> in_shape;
   std::vector<float> mean;
   std::vector<float> inv_stddev;
   int normalization_dim;
@@ -94,9 +98,12 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
 
   processed_args.in_strides = permute(processed_args.in_strides, args.permuted_dims);
 
+  processed_args.in_shape = args.in_shape;
+  processed_args.anchor = args.anchor;
+
   DALI_ENFORCE(args.mean.size() == args.inv_stddev.size());
   const bool should_normalize = !args.mean.empty();
-  processed_args.normalization_dim = Dims + 1;
+  processed_args.normalization_dim = -1;
   if (should_normalize) {
     processed_args.mean = args.mean;
     processed_args.inv_stddev = args.inv_stddev;

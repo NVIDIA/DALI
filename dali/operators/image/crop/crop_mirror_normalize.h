@@ -50,11 +50,11 @@ T NextPowerOfTwo(T value) {
 // TODO(klecki): It probably could be written directly in that format
 template <int Dims>
 kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
-    TensorLayout input_layout, TensorLayout output_layout,
+    TensorShape<> input_shape, TensorLayout input_layout, TensorLayout output_layout,
     const std::vector<int64_t> &slice_anchor, const std::vector<int64_t> &slice_shape,
     bool horizontal_flip, bool pad_output, const std::vector<float> &mean,
     const std::vector<float> &inv_std_dev) {
-  kernels::SliceFlipNormalizePermutePadArgs<Dims> args(slice_shape);
+  kernels::SliceFlipNormalizePermutePadArgs<Dims> args(slice_shape, input_shape);
 
   for (int d = 0; d < Dims; d++) {
     args.anchor[d] = slice_anchor[d];
@@ -185,8 +185,8 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
         SetupSample(data_idx, input_layout_, in_shape.tensor_shape(data_idx));
         // convert the Operator representation to Kernel parameter representation
         kernel_sample_args[data_idx] = detail::GetKernelArgs<Dims>(
-          input_layout_, output_layout_, slice_anchors_[data_idx], slice_shapes_[data_idx],
-          mirror_[data_idx], pad_output_, mean_vec_, inv_std_vec_);
+          in_shape[data_idx], input_layout_, output_layout_, slice_anchors_[data_idx], 
+          slice_shapes_[data_idx], mirror_[data_idx], pad_output_, mean_vec_, inv_std_vec_);
       }
       // NOLINTNEXTLINE(whitespace/parens)
     ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims)););
