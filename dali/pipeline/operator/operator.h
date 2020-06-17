@@ -207,7 +207,7 @@ class DLL_PUBLIC OperatorBase {
     static_assert(is_arithmetic_or_half<remove_reference_t<T>>::value || is_enum<T>::value,
                   "The eligible diagnostic entry types are arithmetic types or enum");
     if (!diagnostics_.emplace(move(name), val).second) {
-      DALI_FAIL(make_string("Diagnostic with given name already exists"));
+      DALI_FAIL("Diagnostic with given name already exists");
     }
   }
 
