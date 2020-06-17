@@ -35,7 +35,15 @@ struct TransposeInfo {
 constexpr int kMaxInterleaveSize = 32;
 constexpr int kMaxDeinterleaveSize = kMaxInterleaveSize;
 
-inline bool UseTiledTranspose(const int64_t *shape, const int *perm, int ndim) {
+inline bool UseTiledTranspose(const int64_t *shape, const int *perm, int ndim, int element_size) {
+  if (perm[ndim-1] == ndim - 1) {
+    assert(ndim >= 3);
+    if (shape[ndim-1] * element_size >= kTiledTransposeMaxVectorSize)
+      return false;
+
+    ndim--;  // ignore last dimension - it will be treated as vector lanes
+  }
+
   int xdim = ndim-1;
   int ydim = 0;
   for (; ydim < xdim; ydim++) {
@@ -53,20 +61,17 @@ TransposeMethod GetTransposeMethod(const int64_t *shape,
                                    int element_size) {
   if (ndim == 1)
     return TransposeMethod::Copy;
-  if (perm[ndim-1] == ndim - 1) {
-    assert(ndim >= 3);
-    if (shape[ndim-1] * element_size < kTiledTransposeMaxVectorSize) {
-      if (UseTiledTranspose(shape, perm, ndim-1))
-        return TransposeMethod::Tiled;
-    }
-  } else {
-    if (UseTiledTranspose(shape, perm, ndim))
-      return TransposeMethod::Tiled;
-    else if (shape[ndim-1] * element_size <= kMaxDeinterleaveSize)
+
+  if (UseTiledTranspose(shape, perm, ndim, element_size))
+    return TransposeMethod::Tiled;
+
+  if (perm[ndim-1] != ndim - 1) {
+    if (shape[ndim-1] * element_size <= kMaxDeinterleaveSize)
       return TransposeMethod::Deinterleave;
     else if (shape[perm[ndim-1]] * element_size <= kMaxInterleaveSize)
       return TransposeMethod::Interleave;
   }
+
   return TransposeMethod::Generic;
 }
 
