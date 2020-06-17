@@ -122,8 +122,8 @@ template <typename T>
 void Transpose(const TensorView<StorageCPU, T> &dst, const TensorView<StorageCPU, const T> &src,
                span<const int> perm) {
   int N = src.shape.sample_dim();
-  if (N == 0) {
-    // We are a no-op, there is nothing to transpose
+  if (N == 0) {  // it's a scalar - just copy it
+    *dst.data = *src.data;
     return;
   }
   assert(dst.shape.sample_dim() == N);
@@ -156,7 +156,7 @@ void TransposeGrouped(const TensorView<StorageCPU, T> &dst,
   auto src_shape = src.shape;
   TensorShape<> collapsed_src_shape;
   SmallVector<int, DynamicTensorShapeContainer::static_size> collapsed_perm;
-  SimplifyPermute(collapsed_src_shape, collapsed_perm, src.shape, perm);
+  transpose_impl::SimplifyPermute(collapsed_src_shape, collapsed_perm, src.shape, perm);
   auto collapsed_dst_shape = Permute(collapsed_src_shape, collapsed_perm);
   Transpose(TensorView<StorageCPU, T>{dst.data, collapsed_dst_shape},
             TensorView<StorageCPU, const T>{src.data, collapsed_src_shape},

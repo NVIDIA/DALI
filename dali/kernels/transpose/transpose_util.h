@@ -22,6 +22,7 @@
 
 namespace dali {
 namespace kernels {
+namespace transpose_impl {
 
 template <size_t static_size>
 inline void CollapseUnitDims(TensorShape<> &shape, SmallVector<int, static_size> &perm) {
@@ -88,23 +89,24 @@ inline void CollapseAdjacentDims(TensorShape<> &shape, SmallVector<int, static_s
 
 template <size_t static_size>
 inline void SimplifyPermute(
-    TensorShape<> &out_shape, SmallVector<int, static_size> &out_perm,
+    TensorShape<> &simplified_shape, SmallVector<int, static_size> &simplified_perm,
     const int64_t *shape, const int *perm, int ndim) {
-  out_shape = { shape, shape + ndim };
-  out_perm = { perm, perm + ndim };
+  simplified_shape = { shape, shape + ndim };
+  simplified_perm = { perm, perm + ndim };
 
-  CollapseUnitDims(out_shape, out_perm);
-  CollapseAdjacentDims(out_shape, out_perm);
+  CollapseUnitDims(simplified_shape, simplified_perm);
+  CollapseAdjacentDims(simplified_shape, simplified_perm);
 }
 
 template <size_t static_size, int in_ndim>
 inline void SimplifyPermute(
-    TensorShape<> &out_shape, SmallVector<int, static_size> &out_perm,
+    TensorShape<> &simplified_shape, SmallVector<int, static_size> &simplified_perm,
     const TensorShape<in_ndim> &shape, span<const int> perm) {
   assert(static_cast<int>(perm.size()) == shape.size());
-  SimplifyPermute(out_shape, out_perm, shape.data(), perm.data(), shape.size());
+  SimplifyPermute(simplified_shape, simplified_perm, shape.data(), perm.data(), shape.size());
 }
 
+}  // namespace transpose_impl
 }  // namespace kernels
 }  // namespace dali
 
