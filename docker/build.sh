@@ -15,7 +15,6 @@ DALI_BUILD_FLAVOR=[default is empty]
 CMAKE_BUILD_TYPE=[default is Release]
 BUILD_INHOST=[create build dir with object outside docker, just mount it as a volume, default is YES]
 REBUILD_BUILDERS=[default is NO]
-REBUILD_MANYLINUX=[default is NO]
 DALI_BUILD_DIR=[default is build-docker-\${CMAKE_BUILD_TYPE}-\${PYV}-\${CUDA_VERSION}]
 ARCH=[default is x86_64]
 WHL_PLATFORM_NAME=[default is manylinux1_x86_64]
@@ -63,13 +62,12 @@ export DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}
 export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
 export BUILD_INHOST=${BUILD_INHOST:-YES}
 export REBUILD_BUILDERS=${REBUILD_BUILDERS:-NO}
-export REBUILD_MANYLINUX=${REBUILD_MANYLINUX:-NO}
 export BUILD_TF_PLUGIN=${BUILD_TF_PLUGIN:-NO}
 export PREBUILD_TF_PLUGINS=${PREBUILD_TF_PLUGINS:-YES}
 export DALI_BUILD_DIR=${DALI_BUILD_DIR:-build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}}_${ARCH}
-export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux1_x86_64}
+export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux2014_x86_64}
 #################################
-export BASE_NAME=manylinux3_${ARCH}
+export BASE_NAME=quay.io/pypa/manylinux2014_${ARCH}
 export DEPS_IMAGE=nvidia/dali:cu${CUDA_VERSION}_${ARCH}.deps
 export CUDA_DEPS_IMAGE=nvidia/dali:cuda${CUDA_VERSION}_${ARCH}.toolkit
 export BUILDER=nvidia/dali:py${PYV}_cu${CUDA_VERSION}_${ARCH}.build
@@ -85,17 +83,6 @@ export GIT_SHA=$(git rev-parse HEAD)
 export DALI_TIMESTAMP=$(date +%Y%m%d)
 
 set -o errexit
-
-# build manylinux3 if needed
-if [[ "$REBUILD_MANYLINUX" != "NO" || "$(docker images -q ${BASE_NAME} 2> /dev/null)" == "" ]]; then
-    pushd ../third_party/manylinux/
-    git checkout 96b47a25673b33c728e49099a3a6b1bf503a18c2 || echo -e "Did you forget to \`git clone --recursive\`? Try this:\n" \
-                                                                    "  git submodule sync --recursive && \n" \
-                                                                    "  git submodule update --init --recursive && \n"
-    git am ../../docker/0001-An-approximate-manylinux3_${ARCH}.patch
-    PLATFORM=$(uname -m) TRAVIS_COMMIT=latest ./build.sh
-    popd
-fi
 
 pushd ../
 # build deps image if needed

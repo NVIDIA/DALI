@@ -175,7 +175,7 @@ RUN VORBIS_VERSION=1.3.6 && cd /tmp                                             
     ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
                                              --host=aarch64-unknown-linux-gnu --prefix=/usr/aarch64-linux-gnu/ && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
-    cd /tmp && rm -rf libvorbis-$VORBIS_VERSION
+    cd /tmp && rm -rf vorbis-$VORBIS_VERSION
 
 # libsnd
 RUN LIBSND_VERSION=1.0.28 && cd /tmp                                                                           && \
