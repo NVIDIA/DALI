@@ -100,7 +100,7 @@ TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsCollisionTest) {
 
 TYPED_TEST(OperatorDiagnosticsTest, IncorrectTypeTest) {
   (this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_);
-  EXPECT_THROW(this->operator_->template GetDiagnostic<long>(this->value_name_),  // NOLINT (long)
+  EXPECT_THROW(this->operator_->template GetDiagnostic<int64_t>(this->value_name_),
                std::runtime_error);
 }
 
