@@ -133,17 +133,22 @@ inline void Shutdown() {
 }
 
 
-inline bool DoesHwDecoderExist() {
+inline bool HasHwDecoder(int device_idx) {
+  nvmlDevice_t device;
+  DALI_CALL(wrapNvmlDeviceGetHandleByIndex_v2(device_idx, &device));
+  nvmlBrandType_t brand;
+  DALI_CALL(wrapNvmlDeviceGetBrand(device, &brand));
+  nvmlDeviceArchitecture_t architecture;
+  DALI_CALL(wrapNvmlDeviceGetArchitecture(device, &architecture));
+  return brand == NVML_BRAND_TESLA && architecture == NVML_DEVICE_ARCH_AMPERE;
+}
+
+
+inline bool HasHwDecoder() {
   unsigned int device_count;
   DALI_CALL(wrapNvmlDeviceGetCount_v2(&device_count));
-  for (unsigned int device_id = 0; device_id < device_count; device_id++) {
-    nvmlDevice_t device;
-    DALI_CALL(wrapNvmlDeviceGetHandleByIndex_v2(device_id, &device));
-    nvmlBrandType_t brand;
-    DALI_CALL(wrapNvmlDeviceGetBrand(device, &brand));
-    nvmlDeviceArchitecture_t architecture;
-    DALI_CALL(wrapNvmlDeviceGetArchitecture(device, &architecture));
-    if (brand == NVML_BRAND_TESLA && architecture == NVML_DEVICE_ARCH_AMPERE) return true;
+  for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
+    if (HasHwDecoder(device_idx)) return true;
   }
   return false;
 }

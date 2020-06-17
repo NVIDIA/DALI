@@ -47,7 +47,8 @@ DLL_PUBLIC DALIError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetBrand(nvmlDevice_t device, nvmlBrandType_t* type);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCount_v2(unsigned int* deviceCount);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByIndex_v2(unsigned int index, nvmlDevice_t* device);
-DLL_PUBLIC DALIError_t wrapNvmlDeviceGetArchitecture(nvmlDevice_t device, nvmlDeviceArchitecture_t* arch);  // NOLINT
+DLL_PUBLIC DALIError_t wrapNvmlDeviceGetArchitecture(nvmlDevice_t device,
+                                                     nvmlDeviceArchitecture_t* arch);
 
 }  // namespace nvml
 

@@ -190,10 +190,12 @@ class DLL_PUBLIC OperatorBase {
     try {
       return *any_cast<T *>(diagnostics_.at(name));
     } catch (dali::bad_any_cast &e) {
-      DALI_FAIL("Specified type of diagnostic parameter doesn't match the type "
-                "that this parameter was registered with.");
+      DALI_FAIL(make_string("Specified type of diagnostic parameter (`", typeid(T).name(),
+                            "`) doesn't match the type that this parameter was registered with. ",
+                            e.what()));
     } catch (std::out_of_range &e) {
-      DALI_FAIL("Diagnostic parameter with specified name hasn't been registered.");
+      DALI_FAIL(make_string("Diagnostic parameter with specified name (`", name,
+                            "`) hasn't been registered. ", e.what()));
     } catch (...) {
       DALI_FAIL("Error occured when reading diagnostic parameter.");
     }
@@ -205,7 +207,7 @@ class DLL_PUBLIC OperatorBase {
     static_assert(is_arithmetic_or_half<remove_reference_t<T>>::value || is_enum<T>::value,
                   "The eligible diagnostic entry types are arithmetic types or enum");
     if (!diagnostics_.emplace(move(name), val).second) {
-      DALI_FAIL("Diagnostic with given name already exists");
+      DALI_FAIL(make_string("Diagnostic with given name already exists"));
     }
   }
 

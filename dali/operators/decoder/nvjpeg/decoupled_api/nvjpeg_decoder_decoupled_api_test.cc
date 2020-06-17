@@ -205,8 +205,13 @@ class HwDecoderUtilizationTest : public ::testing::Test {
 
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
-      if (nvml::DoesHwDecoderExist()) {
-        FAIL() << "HW Decoder exists in the system and failed to open";
+      try {
+        if (nvml::HasHwDecoder()) {
+          FAIL() << "HW Decoder exists in the system and failed to open";
+        }
+      } catch (const std::runtime_error &e) {
+        DALI_WARN(
+                make_string("NVML API is unsupported. Please update the CUDA driver. ", e.what()));
       }
       GTEST_SKIP();
     }

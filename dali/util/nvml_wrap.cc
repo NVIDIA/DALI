@@ -74,6 +74,16 @@ DALIError_t wrapSymbols(void) {
     *cast = tmp;                                                     \
   } while (0)
 
+  #define LOAD_SYM_WARN(handle, symbol, funcptr) do {                \
+    cast = reinterpret_cast<void**>(&funcptr);                       \
+    tmp = dlsym(handle, symbol);                                     \
+    if (tmp == NULL) {                                               \
+      DALI_WARN("dlsym failed on " + symbol + " - " + dlerror());    \
+    }                                                                \
+    *cast = tmp;                                                     \
+  } while (0)
+
+
   LOAD_SYM(nvmlhandle, "nvmlInit", nvmlInternalInit);
   LOAD_SYM(nvmlhandle, "nvmlShutdown", nvmlInternalShutdown);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetHandleByPciBusId", nvmlInternalDeviceGetHandleByPciBusId);
@@ -84,10 +94,10 @@ DALIError_t wrapSymbols(void) {
   LOAD_SYM(nvmlhandle, "nvmlSystemGetDriverVersion", nvmlInternalSystemGetDriverVersion);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetCpuAffinity", nvmlInternalDeviceGetCpuAffinity);
   LOAD_SYM(nvmlhandle, "nvmlErrorString", nvmlInternalErrorString);
-  LOAD_SYM(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand);
-  LOAD_SYM(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2);
-  LOAD_SYM(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2", nvmlInternalDeviceGetHandleByIndex_v2);
-  LOAD_SYM(nvmlhandle, "nvmlDeviceGetArchitecture", nvmlInternalDeviceGetArchitecture);
+  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand);
+  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2);
+  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2", nvmlInternalDeviceGetHandleByIndex_v2);
+  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetArchitecture", nvmlInternalDeviceGetArchitecture);
 
   symbolsLoaded = 1;
   return DALISuccess;
@@ -97,12 +107,11 @@ DALIError_t wrapSymbols(void) {
 #define FUNC_BODY(INTERNAL_FUNC, ARGS...)            \
   do {                                               \
     if (INTERNAL_FUNC == NULL) {                     \
-      DALI_FAIL("lib wrapper not initialized.");     \
-      return DALISuccess;                            \
+      return DALIError;                              \
     }                                                \
     nvmlReturn_t ret = INTERNAL_FUNC(ARGS);          \
     if (ret != NVML_SUCCESS) {                       \
-      DALI_FAIL(#INTERNAL_FUNC "(...) failed: " +    \
+      DALI_WARN(#INTERNAL_FUNC "(...) failed: " +    \
                 nvmlInternalErrorString(ret));       \
       return DALIError;                              \
     }                                                \
