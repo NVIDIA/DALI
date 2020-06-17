@@ -18,11 +18,14 @@ import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
+import math
 from numpy.testing import assert_array_equal, assert_allclose
 import os
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
+from test_utils import RandomlyShapedDataIterator
+import itertools
 
 def transpose_func(image, permutation=(1, 0, 2)):
     return image.transpose(permutation)
@@ -78,19 +81,25 @@ class PythonOpPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
-def check_transpose_vs_numpy(device, batch_size, shape, permutation):
-    eii1 = RandomDataIterator(batch_size, shape=shape)
-    eii2 = RandomDataIterator(batch_size, shape=shape)
-    compare_pipelines(TransposePipeline(device, batch_size, "HWC", iter(eii1), permutation=permutation),
-                      PythonOpPipeline(lambda x: transpose_func(x, permutation), batch_size, "HWC", iter(eii2)),
-                      batch_size=batch_size, N_iterations=10)
+def check_transpose_vs_numpy(device, batch_size, dim, total_volume, permutation):
+    max_shape = [int(math.pow(total_volume/batch_size, 1/dim))] * dim
+    print("Testing", device, "backend with batch of", batch_size, "max size", max_shape)
+    print("permutaiton ", permutation)
+    eii1 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
+    eii2 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
+    compare_pipelines(TransposePipeline(device, batch_size, "", iter(eii1), permutation=permutation),
+                      PythonOpPipeline(lambda x: transpose_func(x, permutation), batch_size, "", iter(eii2)),
+                      batch_size=batch_size, N_iterations=5)
+
+def all_permutations(n):
+    return itertools.permutations(range(n))
 
 def test_transpose_vs_numpy():
-    for device in {'cpu', 'gpu'}:
-        for batch_size in {1, 3}:
-            for shape in {(2048, 512, 1), (2048, 512, 3), (2048, 512, 8)}:
-                for permutation in ([0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]):
-                    yield check_transpose_vs_numpy, device, batch_size, shape, permutation
+    for device in ['cpu', 'gpu']:
+        for batch_size in [1, 3, 10, 100]:
+            for dim in range(2, 5):
+                for permutation in all_permutations(dim):
+                    yield check_transpose_vs_numpy, device, batch_size, dim, 1000000, permutation
 
 def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
                            transpose_layout, out_layout_arg):
@@ -127,3 +136,9 @@ def test_transpose_layout():
                      ((1, 0, 2), True, "HWC")]:
                     yield check_transpose_layout, device, batch_size, shape, \
                         in_layout, permutation, transpose_layout, out_layout_arg
+
+if __name__ == "__main__":
+    for f, *args in test_transpose_vs_numpy():
+        f(*args)
+    for f, *args in test_transpose_layout():
+        f(*args)

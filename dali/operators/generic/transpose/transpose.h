@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "dali/kernels/common/utils.h"
-#include "dali/operators/generic/transpose/cutt/cutt.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -42,12 +41,9 @@ using VecInt = SmallVector<int, kStaticShapeElements>;
 
 /**
  * @brief Remove dimensions equal to 1 and adjust the shape & permutation
- *
- * Optionally convert from Row Major to Column Major compatible description (required by cuTT)
  */
 template <typename ShapeT = int>
-void PrepareArguments(SmallVector<ShapeT, kStaticShapeElements> &shape, VecInt &perm,
-                      bool transpose = false) {
+void PrepareArguments(SmallVector<ShapeT, kStaticShapeElements> &shape, VecInt &perm) {
   DALI_ENFORCE(shape.size() == perm.size());
   const int N = shape.size();
 
@@ -87,10 +83,6 @@ void PrepareArguments(SmallVector<ShapeT, kStaticShapeElements> &shape, VecInt &
 
   perm = std::move(tmp_perm);
   shape = std::move(tmp_shape);
-
-  if (transpose) {
-    RowToColumnMajor(shape.data(), perm.data(), shape.size());
-  }
 }
 
 }  // namespace transpose_detail
@@ -127,9 +119,8 @@ class Transpose : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Transpose);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<Backend>(0);
+  template <typename InputType>
+  void SetOutputLayout(const InputType &input) {
     auto in_layout = input.GetLayout();
     auto sample_ndim = input.shape().sample_dim();
     DALI_ENFORCE(in_layout.ndim() == sample_ndim || in_layout.empty());
@@ -140,6 +131,13 @@ class Transpose : public Operator<Backend> {
     } else if (transpose_layout_ && !in_layout.empty()) {
       output_layout_ = kernels::Permute(in_layout, perm_);
     }
+  }
+
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template InputRef<Backend>(0);
+    SetOutputLayout(input);
 
     output_desc.resize(1);
     if (is_uniform(input.shape())) {
