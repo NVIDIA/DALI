@@ -210,10 +210,12 @@ class TransposeGPU::Impl {
       const TensorListShape<> &in_shape,
       span<const int> permutation,
       int element_size) {
+    KernelRequirements req;
     VALUE_SWITCH(element_size, static_el_size, (1, 2, 4, 8, 16),
-      (return SetupTyped<type_of_size<static_el_size>>(in_shape, permutation)),
+      (req = SetupTyped<type_of_size<static_el_size>>(in_shape, permutation)),
       (throw std::range_error("Transpose: Unexpected tensor element size."
                               "Must be one of (1,2,4,8,16)")));
+    return req;
   }
 
   template <typename T>
@@ -227,7 +229,7 @@ class TransposeGPU::Impl {
     VALUE_SWITCH(element_size_, static_el_size, (1, 2, 4, 8, 16),
       (
         using T = type_of_size<static_el_size>;
-        return RunTyped(ctx, reinterpret_cast<T*const*>(out), reinterpret_cast<const T*const*>(in))
+        RunTyped(ctx, reinterpret_cast<T*const*>(out), reinterpret_cast<const T*const*>(in))
       ), (  // NOLINT
         throw std::range_error("Transpose: Unexpected tensor element size."
                                "Must be one of (1,2,4,8,16)")
