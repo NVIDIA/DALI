@@ -26,68 +26,6 @@
 
 namespace dali {
 
-namespace transpose_detail {
-
-template <typename ShapeT>
-inline void RowToColumnMajor(ShapeT *dims, int *perm, size_t len) {
-  std::reverse(dims, dims + len);
-  std::reverse(perm, perm + len);
-  for (size_t i = 0; i < len; ++i) perm[i] = len - 1 - perm[i];
-}
-
-// enough to represent batches of 4D
-constexpr int kStaticShapeElements = 6;
-using VecInt = SmallVector<int, kStaticShapeElements>;
-
-/**
- * @brief Remove dimensions equal to 1 and adjust the shape & permutation
- */
-template <typename ShapeT = int>
-void PrepareArguments(SmallVector<ShapeT, kStaticShapeElements> &shape, VecInt &perm) {
-  DALI_ENFORCE(shape.size() == perm.size());
-  const int N = shape.size();
-
-  // This will be oterwise reduced to empty shape, and we still want to have some
-  // notion of non-empty shape left
-  if (volume(shape) == 1) {
-    shape = {1};
-    perm = {0};
-    return;
-  }
-
-  SmallVector<ShapeT, kStaticShapeElements> tmp_shape;
-  SmallVector<int, kStaticShapeElements> coord_map;
-  coord_map.resize(N);
-
-  // Skip all dimensions of shape that are equal to 1. `coord_map` will hold the new "index"
-  // for the dimensions that accounts for the skipped ones (valid only for the ones that are left)
-  for (int i = 0, skipped = 0; i < N; i++) {
-    if (shape[i] == 1) {
-      skipped++;
-    } else {
-      tmp_shape.push_back(shape[i]);
-    }
-    coord_map[i] = i - skipped;
-  }
-
-  VecInt tmp_perm;
-  for (int i = 0; i < N; i++) {
-    // We need to skip the elements of permutation which correspond to dimensions with extent = 1
-    if (shape[perm[i]] == 1) {
-      continue;
-    }
-    // otherwise we pass the element to the new perm and use the new index of this dimension,
-    // accounting for the skipped dims
-    tmp_perm.push_back(coord_map[perm[i]]);
-  }
-
-  perm = std::move(tmp_perm);
-  shape = std::move(tmp_shape);
-}
-
-}  // namespace transpose_detail
-
-
 template <typename Backend>
 class Transpose : public Operator<Backend> {
  public:

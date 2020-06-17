@@ -29,7 +29,7 @@ class TransposeGPU : public Transpose<GPUBackend> {
   using Kernel = kernels::TransposeGPU;
 
   explicit inline TransposeGPU(const OpSpec &spec) : Transpose(spec) {
-    kmgr.Resize<Kernel>(1, 1);
+    kmgr_.Resize<Kernel>(1, 1);
   }
 
   bool CanInferOutputs() const override {
@@ -49,7 +49,7 @@ class TransposeGPU : public Transpose<GPUBackend> {
 
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    auto &req = kmgr.Setup<Kernel>(0, ctx, input_shape, make_span(perm_), input.type().size());
+    auto &req = kmgr_.Setup<Kernel>(0, ctx, input_shape, make_span(perm_), input.type().size());
 
     descs[0].shape = req.output_shapes[0];
     descs[0].type = input.type();
@@ -62,12 +62,12 @@ class TransposeGPU : public Transpose<GPUBackend> {
     auto &output = ws.OutputRef<GPUBackend>(0);
 
     output.SetLayout(output_layout_);
-    GetData(in_data, input);
-    GetData(out_data, output);
+    GetData(in_data_, input);
+    GetData(out_data_, output);
 
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    kmgr.Run<Kernel>(0, 0, ctx, out_data.data(), in_data.data());
+    kmgr_.Run<Kernel>(0, 0, ctx, out_data_.data(), in_data_.data());
   }
 
  private:
@@ -87,9 +87,9 @@ class TransposeGPU : public Transpose<GPUBackend> {
     }
   }
 
-  kernels::KernelManager kmgr;
-  vector<const void *> in_data;
-  vector<void *> out_data;
+  kernels::KernelManager kmgr_;
+  vector<const void *> in_data_;
+  vector<void *> out_data_;
 };
 
 DALI_REGISTER_OPERATOR(Transpose, TransposeGPU, GPU);
