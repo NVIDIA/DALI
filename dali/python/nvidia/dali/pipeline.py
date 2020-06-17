@@ -437,8 +437,12 @@ Parameters
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def feed_input(self, data_node, data, layout=""):
+    def feed_input(self, data_node, data, layout="", cuda_stream = None):
         """Bind a NumPy array (or a list thereof) to an output of ExternalSource.
+        In the case of the GPU input, it is the user responsibility to modify the
+        provided GPU memory content only using provided stream (DALI schedules
+        a copy on it and all work is properly queued). If no stream is provided
+        feed_input blocks until the provided memory is copied to the internal buffer
 
         Parameters
         ----------
@@ -455,6 +459,12 @@ Parameters
             It should be a string of the length that matches the dimensionality of the data, batch
             dimension excluded. For a batch of channel-first images, this should be "CHW", for
             channel-last video it's "FHWC" and so on.
+
+        `cuda_stream` : Any value that can be casted to cudaStream_t
+                    CUDA stream to be used for the copy (only relevant for GPU inputs)
+                    If not provided, an internal stream will be selected.
+                    In most cases, using the default internal user stream or stream 0
+                    is expected.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -467,14 +477,26 @@ Parameters
         from nvidia.dali.external_source import _check_data_batch
         _check_data_batch(data, self._batch_size, layout)
 
+        # __cuda_array_interface__ doesn't provide any way to pass the information about the device
+        # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
+        # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
         if isinstance(data, list):
             inputs = []
             for datum in data:
-                inputs.append(Tensors.TensorCPU(datum, layout))
-            self._pipe.SetExternalTensorInput(name, inputs)
+                if hasattr(datum, "__cuda_array_interface__"):
+                    inp = Tensors.TensorGPU(datum, layout)
+                else:
+                    inp = Tensors.TensorCPU(datum, layout)
+                inputs.append(inp)
+            assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
+                   "Mixed input types are not support, all need to reside on the CPU or GPU"
+            self._pipe.SetExternalTensorInput(name, inputs, cuda_stream)
         else:
-            inp = Tensors.TensorListCPU(data, layout)
-            self._pipe.SetExternalTLInput(name, inp)
+            if hasattr(data, "__cuda_array_interface__"):
+                inp = Tensors.TensorListGPU(data, layout)
+            else:
+                inp = Tensors.TensorListCPU(data, layout)
+            self._pipe.SetExternalTLInput(name, inp, cuda_stream)
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""

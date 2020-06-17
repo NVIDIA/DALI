@@ -18,53 +18,32 @@ namespace dali {
 
 template<>
 void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  bool is_tl_data;
   std::list<uptr_tl_type> tensor_list_elm;
-  std::list<uptr_vt_type> vector_tensor_elm;
+  std::list<uptr_cuda_event_type> internal_copy_to_storage;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
-    cv_.wait(busy_lock, [&data = data_in_tl_]{return !data.empty();});
-    is_tl_data = data_in_tl_.front();
-    data_in_tl_.pop_front();
-    if (is_tl_data) {
-        DALI_ENFORCE(!tl_data_.IsEmpty(), "ExternalSource is empty. Need to feed data first.");
-        tensor_list_elm = tl_data_.PopFront();
-        DALI_ENFORCE(OperatorBase::batch_size_ ==
-                     static_cast<int>(tensor_list_elm.front()->ntensor()),
-          "Data list provided to ExternalSource needs to have batch_size = " +
-          std::to_string(batch_size_) + " length, found " +
-          std::to_string(static_cast<int>(tensor_list_elm.front()->ntensor())) + " samples.");
+    if (blocking_) {
+      cv_.wait(busy_lock, [&data = tl_data_] {return !data.IsEmpty(); });
     } else {
-        DALI_ENFORCE(!t_data_.IsEmpty(), "ExternalSource is empty. Need to feed data first.");
-        vector_tensor_elm = t_data_.PopFront();
-        DALI_ENFORCE(OperatorBase::batch_size_ ==
-                     static_cast<int>(vector_tensor_elm.front()->size()),
-          "Data list provided to ExternalSource needs to have batch_size length = " +
-          std::to_string(batch_size_) + " length, found " +
-          std::to_string(static_cast<int>(vector_tensor_elm.front()->size())) + " samples.");
+      if (tl_data_.IsEmpty()) {
+        DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
+      }
     }
+    tensor_list_elm = tl_data_.PopFront();
+    internal_copy_to_storage = copy_to_storage_events_.PopFront();
   }
   auto &thread_pool = ws.GetThreadPool();
   for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-    thread_pool.DoWorkWithID([&ws, data_idx, is_tl_data, &tensor_list_elm, &vector_tensor_elm]
+    thread_pool.DoWorkWithID([&ws, data_idx, &tensor_list_elm]
                              (int tid) {
       Tensor<CPUBackend> &output = ws.Output<CPUBackend>(0, data_idx);
       // HostWorkspace doesn't have any stream
       cudaStream_t stream = 0;
-      if (is_tl_data) {
-        output.Copy(*(tensor_list_elm.front()), data_idx, stream);
-      } else {
-        auto &data = (*(vector_tensor_elm.front()))[data_idx];
-        output.Copy(data, stream);
-      }
+      output.Copy(*(tensor_list_elm.front()), data_idx, stream);
     });
   }
   thread_pool.WaitForWork();
-  if (is_tl_data) {
-    RecycleBuffer(tensor_list_elm);
-  } else {
-    RecycleBuffer(vector_tensor_elm);
-  }
+  RecycleBuffer(tensor_list_elm, nullptr, &internal_copy_to_storage);
 }
 
 DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<CPUBackend>, CPU);
@@ -75,6 +54,9 @@ DALI_SCHEMA(_ExternalSource)
   for details.)code")
   .NumInput(0)
   .NumOutput(1)
+  .AddOptionalArg("blocking",
+      R"code(Whether external source should block until data is available or just
+fail when it is not)code", false)
   .MakeInternal();
 
 DALI_SCHEMA(ExternalSource)
@@ -88,6 +70,9 @@ should match the number of dimensions expected by the next operator in the pipel
 (e.g. HWC will expect 3-dimensional tensors
 where the last dimension represents the different channels).)code")
   .NumInput(0)
-  .NumOutput(1);
+  .NumOutput(1)
+  .AddOptionalArg("blocking",
+      R"code(Whether external source should block until data is available or just
+fail when it is not)code", false);
 
 }  // namespace dali

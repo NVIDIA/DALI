@@ -237,8 +237,17 @@ void ExposeTensor(py::module &m) {
           t->Resize(i_shape);
           return t;
         }),
+      "b"_a,
+      "layout"_a = "",
       R"code(
       Tensor residing in the CPU memory.
+
+      Parameters
+      ----------
+      b : object
+            the buffer to wrap into the TensorListCPU object
+      layout : str
+            Layout of the data
       )code")
     .def("shape", &py_shape<CPUBackend>,
          R"code(
@@ -302,7 +311,7 @@ void ExposeTensor(py::module &m) {
       layout : str
             Layout of the data
       device_id: int
-            Device of where this tensor resides
+            Device of where this tensor resides. If not provided, the current device is used.
       )code")
     .def("shape", &py_shape<GPUBackend>,
          R"code(
@@ -436,13 +445,17 @@ void ExposeTensorList(py::module &m) {
         t->Resize(i_shape);
         return t;
       }),
+      "b"_a,
+      "layout"_a = "",
       R"code(
       List of tensors residing in the CPU memory.
 
       Parameters
       ----------
-      b : the buffer to wrap into the TensorListCPU object
-      layout : the layout description
+      b : object
+            the buffer to wrap into the TensorListCPU object
+      layout : str
+            Layout of the data
       )code")
     .def("layout", [](TensorList<CPUBackend> &t) {
       return t.GetLayout().str();
@@ -618,7 +631,7 @@ void ExposeTensorList(py::module &m) {
       "layout"_a = "",
       "device_id"_a = -1,
       R"code(
-      List of tensors residing in the CPU memory.
+      List of tensors residing in the GPU memory.
 
       Parameters
       ----------
@@ -626,8 +639,8 @@ void ExposeTensorList(py::module &m) {
             Python object that implement CUDA Array Interface
       layout : str
             Layout of the data
-      device_id: int
-            Device of where this lists of tensors resides
+      device_id : int
+            Device of where this tensor resides. If not provided, the current device is used.
       )code")
     .def(py::init([]() {
           // Construct a default TensorList on GPU
@@ -864,6 +877,16 @@ py::dict MetaToDict(const ReaderMeta &meta) {
   return d;
 }
 
+template <typename Backend>
+void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t stream,
+                  bool sync = false) {
+  TensorVector<Backend> tv(list.size());
+  for (size_t i = 0; i < list.size(); ++i) {
+    tv[i] = std::move(list[i].cast<Tensor<Backend>&>());
+  }
+  p->SetExternalInput(name, tv, stream, sync);
+}
+
 PYBIND11_MODULE(backend_impl, m) {
   dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
@@ -1064,11 +1087,26 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("num_threads", &Pipeline::num_threads)
     .def("device_id", &Pipeline::device_id)
     .def("SetExternalTLInput",
-        [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl) {
-          p->SetExternalInput(name, tl);
-        })
+        [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
+           py::object /*cuda_stream*/) {
+          p->SetExternalInput(name, tl, 0, true);
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none())
+    .def("SetExternalTLInput",
+        [](Pipeline *p, const string &name, const TensorList<GPUBackend> &tl,
+           py::object cuda_stream) {
+           cudaStream_t stream = cuda_stream.is_none()
+                                 ? UserStream::Get()->GetStream(tl)
+                                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+          p->SetExternalInput(name, tl, stream, cuda_stream.is_none());
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none())
     .def("SetExternalTensorInput",
-        [](Pipeline *p, const string &name, py::list list) {
+        [](Pipeline *p, const string &name, py::list list, py::object cuda_stream) {
           // Note: This is a hack to get around weird casting
           // issues w/ pybind and a non-copyable type (dali::Tensor).
           // We cannot use pybind::cast<Tensor<CPUBackend>>
@@ -1077,14 +1115,24 @@ PYBIND11_MODULE(backend_impl, m) {
           // tries to call the deleted copy constructor for Tensor.
           // instead, we cast to a reference type and manually
           // move into the vector.
-          vector<Tensor<CPUBackend>> tensors(list.size());
           DALI_ENFORCE(p->batch_size() == static_cast<int>(list.size()),
              "Data list provided to feed_input needs to have batch_size length.");
-          for (size_t i = 0; i < list.size(); ++i) {
-            tensors[i] = std::move(list[i].cast<Tensor<CPUBackend>&>());
+
+          // not the most beautiful but at least it doesn't throw as plain cast<T>()
+          py::detail::make_caster<Tensor<CPUBackend>&> conv;
+          bool is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
+          if (is_cpu_data) {
+            FeedPipeline<CPUBackend>(p, name, list, 0, true);
+          } else {
+            cudaStream_t stream = cuda_stream.is_none()
+                                ? UserStream::Get()->GetStream(list[0].cast<Tensor<GPUBackend>&>())
+                                : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+            FeedPipeline<GPUBackend>(p, name, list, stream, cuda_stream.is_none());
           }
-          p->SetExternalInput(name, tensors);
-        })
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none())
     .def("SerializeToProtobuf",
         [](Pipeline *p) -> py::bytes {
           string s = p->SerializeToProtobuf();

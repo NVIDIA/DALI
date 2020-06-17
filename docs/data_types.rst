@@ -16,13 +16,13 @@ TensorListCPU
 ^^^^^^^^^^^^^
 .. autoclass:: TensorListCPU
    :members:
-   :special-members: __getitem__
+   :special-members: __getitem__, __init__
 
 TensorListGPU
 ^^^^^^^^^^^^^
 .. autoclass:: TensorListGPU
    :members:
-   :special-members: __getitem__
+   :special-members: __getitem__, __init__
 
 Tensor
 ------
@@ -32,12 +32,14 @@ TensorCPU
 .. autoclass:: TensorCPU
    :members:
    :undoc-members:
+   :special-members: __init__
 
 TensorGPU
 ^^^^^^^^^
 .. autoclass:: TensorGPU
    :members:
    :undoc-members:
+   :special-members: __init__
 
 
 .. _layout_str_doc:
