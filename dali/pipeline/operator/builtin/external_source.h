@@ -161,8 +161,8 @@ class ExternalSource : public Operator<Backend> {
     }
     // sync for pinned CPU -> GPU as well, because the user doesn't know when he can
     // reuse provided memory anyway
-    if (sync || (std::is_same<SrcBackend, GPUBackend>::value || batch.is_pinned())) {
-       CUDA_CALL(cudaStreamWaitEvent(stream, *copy_to_storage_event.front(), 0));
+    if (sync || (std::is_same<Backend, GPUBackend>::value && batch.is_pinned())) {
+       CUDA_CALL(cudaEventSynchronize(*copy_to_storage_event.front()));
     }
 
     {

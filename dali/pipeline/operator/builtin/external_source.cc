@@ -22,17 +22,16 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
   std::list<uptr_cuda_event_type> internal_copy_to_storage;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
-    cv_.wait(busy_lock, [&data = tl_data_, &blocking = blocking_] {
-        return !(data.IsEmpty() && blocking);
-      });
-    if (!blocking_ && tl_data_.IsEmpty()) {
-      DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
+    if (blocking_) {
+      cv_.wait(busy_lock, [&data = tl_data_] {return !data.IsEmpty(); });
+    } else {
+      if (tl_data_.IsEmpty()) {
+        DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
+      }
     }
     tensor_list_elm = tl_data_.PopFront();
     internal_copy_to_storage = copy_to_storage_events_.PopFront();
   }
-  cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
-  CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));
   auto &thread_pool = ws.GetThreadPool();
   for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
     thread_pool.DoWorkWithID([&ws, data_idx, &tensor_list_elm]

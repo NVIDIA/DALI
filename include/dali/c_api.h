@@ -139,7 +139,7 @@ DLL_PUBLIC void daliDeserializeDefault(daliPipelineHandle *pipe_handle,
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
- * @param sync If block until data provided is copied to the internal DALI buffer
+ * @param sync Whether to block until the provided data is copied to the internal DALI buffer
  */
 DLL_PUBLIC void
 daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
@@ -182,7 +182,7 @@ daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
- * @param sync If block until data provided is copied to the internal DALI buffer
+ * @param sync Whether to block until the provided data is copied to the internal DALI buffer
  */
 DLL_PUBLIC void
 daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const char *name,
