@@ -311,7 +311,7 @@ void ExposeTensor(py::module &m) {
       layout : str
             Layout of the data
       device_id: int
-            Device of where this tensor resides. If no is provided the current device is used.
+            Device of where this tensor resides. If not provided, the current device is used.
       )code")
     .def("shape", &py_shape<GPUBackend>,
          R"code(
@@ -640,7 +640,7 @@ void ExposeTensorList(py::module &m) {
       layout : str
             Layout of the data
       device_id : int
-            Device of where this tensor resides. If no is provided the current device is used.
+            Device of where this tensor resides. If not provided, the current device is used.
       )code")
     .def(py::init([]() {
           // Construct a default TensorList on GPU
@@ -878,12 +878,13 @@ py::dict MetaToDict(const ReaderMeta &meta) {
 }
 
 template <typename Backend>
-void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t stream) {
+void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t stream,
+                  bool sync = false) {
   TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     tv[i] = std::move(list[i].cast<Tensor<Backend>&>());
   }
-  p->SetExternalInput(name, tv, stream);
+  p->SetExternalInput(name, tv, stream, sync);
 }
 
 PYBIND11_MODULE(backend_impl, m) {
@@ -1088,7 +1089,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
            py::object /*cuda_stream*/) {
-          p->SetExternalInput(name, tl, 0);
+          p->SetExternalInput(name, tl, 0, true);
         },
         "name"_a,
         "list"_a,
@@ -1099,7 +1100,7 @@ PYBIND11_MODULE(backend_impl, m) {
            cudaStream_t stream = cuda_stream.is_none()
                                  ? UserStream::Get()->GetStream(tl)
                                  : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          p->SetExternalInput(name, tl, stream);
+          p->SetExternalInput(name, tl, stream, cuda_stream.is_none());
         },
         "name"_a,
         "list"_a,
@@ -1121,12 +1122,12 @@ PYBIND11_MODULE(backend_impl, m) {
           py::detail::make_caster<Tensor<CPUBackend>&> conv;
           bool is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
           if (is_cpu_data) {
-            FeedPipeline<CPUBackend>(p, name, list, 0);
+            FeedPipeline<CPUBackend>(p, name, list, 0, true);
           } else {
             cudaStream_t stream = cuda_stream.is_none()
                                 ? UserStream::Get()->GetStream(list[0].cast<Tensor<GPUBackend>&>())
                                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-            FeedPipeline<GPUBackend>(p, name, list, stream);
+            FeedPipeline<GPUBackend>(p, name, list, stream, cuda_stream.is_none());
           }
         },
         "name"_a,

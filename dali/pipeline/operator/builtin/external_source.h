@@ -124,15 +124,16 @@ class ExternalSource : public Operator<Backend> {
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
-  inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &t, cudaStream_t stream = 0) {
+  inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, cudaStream_t stream = 0,
+                                  bool sync = false) {
     if (std::is_same<SrcBackend, GPUBackend>::value && std::is_same<Backend, CPUBackend>::value) {
       DALI_WARN("Incorrect Backends warning. Loading GPU-originated data into CPU "
                 "ExternalSource operator is discouraged and might be inefficient.");
     }
-    DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(t.ntensor()),
+    DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(batch.ntensor()),
                  make_string("Data list provided to ExternalSource needs to have batch_size = ",
                              OperatorBase::batch_size_, " length, found ",
-                             static_cast<int>(t.ntensor()), " samples."));
+                             static_cast<int>(batch.ntensor()), " samples."));
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
@@ -148,15 +149,20 @@ class ExternalSource : public Operator<Backend> {
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
 
-    data.front()->Copy(t, stream);
+    data.front()->Copy(batch, stream);
     // record event for:
     // - GPU -> GPU
     // - pinned CPU -> GPU
     // - GPU -> CPU is synchronous as we don't use pinned CPU buffers
     // - CPU -> CPU is synchronous as well
     if (std::is_same<Backend, GPUBackend>::value &&
-        (std::is_same<SrcBackend, GPUBackend>::value || t.is_pinned())) {
+        (std::is_same<SrcBackend, GPUBackend>::value || batch.is_pinned())) {
       cudaEventRecord(*copy_to_storage_event.front(), stream);
+    }
+    // sync for pinned CPU -> GPU as well, because the user doesn't know when he can
+    // reuse provided memory anyway
+    if (sync || (std::is_same<SrcBackend, GPUBackend>::value || batch.is_pinned())) {
+       CUDA_CALL(cudaStreamWaitEvent(stream, *copy_to_storage_event.front(), 0));
     }
 
     {
@@ -172,8 +178,9 @@ class ExternalSource : public Operator<Backend> {
    * on the next iteration.
    */
   template<typename SrcBackend>
-  inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0) {
-    SetDataSourceHelper(tl, stream);
+  inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0,
+                            bool sync = false) {
+    SetDataSourceHelper(tl, stream, sync);
   }
 
   /**
@@ -182,12 +189,12 @@ class ExternalSource : public Operator<Backend> {
    */
   template<typename SrcBackend>
   inline void SetDataSource(const vector<Tensor<SrcBackend>> &vect_of_tensors,
-                            cudaStream_t stream = 0) {
+                            cudaStream_t stream = 0, bool sync = false) {
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
     for (size_t i = 0; i < tv.size(); ++i) {
       tv[i].ShareData(const_cast<Tensor<SrcBackend>*>(&vect_of_tensors[i]));
     }
-    SetDataSourceHelper(tv, stream);
+    SetDataSourceHelper(tv, stream, sync);
   }
 
   /**
@@ -195,8 +202,9 @@ class ExternalSource : public Operator<Backend> {
    * on the next iteration.
    */
   template<typename SrcBackend>
-  inline void SetDataSource(const TensorVector<SrcBackend> &tv, cudaStream_t stream = 0) {
-    SetDataSourceHelper(tv, stream);
+  inline void SetDataSource(const TensorVector<SrcBackend> &tv, cudaStream_t stream = 0,
+                            bool sync = false) {
+    SetDataSourceHelper(tv, stream, sync);
   }
 
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);

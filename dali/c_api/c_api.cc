@@ -38,7 +38,7 @@ bool dali_initialized = false;
 template<typename Backend>
 void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const void *data_ptr,
                       dali_data_type_t data_type, const int64_t *shapes, int sample_dim,
-                      const char *layout_str, cudaStream_t stream = 0) {
+                      const char *layout_str, cudaStream_t stream = 0, bool sync = false) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
@@ -55,7 +55,7 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof);
   data.Resize(tl_shape, type_info);
   data.SetLayout(layout);
-  pipeline->SetExternalInput(name, data, stream);
+  pipeline->SetExternalInput(name, data, stream, sync);
 }
 
 
@@ -63,7 +63,7 @@ template<typename Backend>
 void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                              const void *const *data_ptr, dali_data_type_t data_type,
                              const int64_t *shapes, int64_t sample_dim, const char *layout_str,
-                             cudaStream_t stream = 0) {
+                             cudaStream_t stream = 0, bool sync = false) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
@@ -71,7 +71,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
   if (layout_str != nullptr) {
     layout = dali::TensorLayout(layout_str);
   }
-  std::vector<dali::Tensor<Backend>> data(pipeline->batch_size());
+  dali::TensorVector<Backend> data(pipeline->batch_size());
   const auto &type_info = dali::TypeTable::GetTypeInfo(static_cast<dali::DALIDataType>(data_type));
   auto elem_sizeof = type_info.size();
   for (int i = 0; i < pipeline->batch_size(); i++) {
@@ -82,7 +82,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     data[i].Resize(tl_shape[i], type_info);
     data[i].SetLayout(layout);
   }
-  pipeline->SetExternalInput(name, data, stream);
+  pipeline->SetExternalInput(name, data, stream, sync);
 }
 
 }  // namespace
@@ -165,23 +165,23 @@ void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name, dev
                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str) {
   daliSetExternalInputAsync(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
-                                 layout_str, pipe_handle->copy_stream);
-  CUDA_CALL(cudaStreamSynchronize(pipe_handle->copy_stream));
+                                 layout_str, pipe_handle->copy_stream, true);
 }
 
 
 void daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
                                     device_type_t device, const void *data_ptr,
                                     dali_data_type_t data_type, const int64_t *shapes,
-                                    int sample_dim, const char *layout_str, cudaStream_t stream) {
+                                    int sample_dim, const char *layout_str, cudaStream_t stream,
+                                    int sync) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInput<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
-                                         layout_str, stream);
+                                         layout_str, stream, sync);
       return;
     case device_type_t::GPU:
       SetExternalInput<dali::GPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
-                                         layout_str, stream);
+                                         layout_str, stream, sync);
       return;
     default:
       DALI_FAIL(dali::make_string("Unknown device: ", device));
@@ -194,8 +194,7 @@ void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *na
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str) {
   daliSetExternalInputTensorsAsync(pipe_handle, name, device, data_ptr, data_type, shapes,
-                                        sample_dim, layout_str, pipe_handle->copy_stream);
-  CUDA_CALL(cudaStreamSynchronize(pipe_handle->copy_stream));
+                                        sample_dim, layout_str, pipe_handle->copy_stream, true);
 }
 
 
@@ -203,15 +202,15 @@ void daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const cha
                                            device_type_t device, const void *const *data_ptr,
                                            dali_data_type_t data_type, const int64_t *shapes,
                                            int64_t sample_dim, const char *layout_str,
-                                           cudaStream_t stream) {
+                                           cudaStream_t stream, int sync) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInputTensors<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
-                                                sample_dim, layout_str, stream);
+                                                sample_dim, layout_str, stream, sync);
       return;
     case device_type_t::GPU:
       SetExternalInputTensors<dali::GPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
-                                                sample_dim, layout_str, stream);
+                                                sample_dim, layout_str, stream, sync);
       return;
     default:
       DALI_FAIL(dali::make_string("Unknown device: ", device));

@@ -149,11 +149,12 @@ Args
     If the source is a callable and has a positional argument, it is assumed to be the current
     iteration number and consecutive calls will be ``source(0)``, ``source(1)``, etc.
     If the source is a generator function, it is invoked and treated as an iterable - however,
-    unlike a gnerator, it can be used with ``cycle``, in which case the function will be called
+    unlike a generator, it can be used with ``cycle``, in which case the function will be called
     again when the generator reaches end of iteration.
-    In the case of the GPU input, it is the user responsibility to not modify the
-    GPU memory content before it is consumed by DALI, or provide a stream that
-    the user uses to operate on this memory (so DALI would schedule a copy on it)
+    In the case of the GPU input, it is the user responsibility to modify the
+    provided GPU memory content only using provided stream (DALI schedules a copy on it
+    and all work is properly queued). If no stream is provided feeding input blocks until the
+    provided memory is copied to the internal buffer
 
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists produced by the source function
@@ -296,9 +297,10 @@ def external_source(source = None, num_outputs = None, *, cycle = None, name = N
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout)`` inside ``pipeline.iter_setup``.
-    In the case of the GPU input, it is the user responsibility to not modify the
-    GPU memory content before it is consumed by DALI, or provide a stream that
-    the user uses to operate on this memory (so DALI would schedule a copy on it)
+    In the case of the GPU input, it is the user responsibility to modify the
+    provided GPU memory content only using provided stream (DALI schedules a copy on it
+    and all work is properly queued). If no stream is provided feeding input blocks until the
+    provided memory is copied to the internal buffer
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,

@@ -138,13 +138,13 @@ class DLL_PUBLIC Pipeline {
 
   template<typename T, typename OperatorBackend>
   void SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr,
-                           cudaStream_t stream = 0) {
+                           cudaStream_t stream = 0, bool sync = false) {
     // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
     // The StorageBackend is hidden under `T` type.
     auto *source = dynamic_cast<ExternalSource<OperatorBackend> *>(op_ptr);
     DALI_ENFORCE(source != nullptr,
                  "Input name '" + name + "' is not marked as an external input.");
-    source->SetDataSource(tl, stream);
+    source->SetDataSource(tl, stream, sync);
   }
 
 
@@ -155,9 +155,12 @@ class DLL_PUBLIC Pipeline {
    * @param name name of the input
    * @param tl data
    * @param stream CUDA stream to use in case of GPUBackend
+   * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
+   *             to the internal buffer
    */
   template<typename TL>
-  inline void SetExternalInputHelper(const string &name, const TL &tl, cudaStream_t stream = 0) {
+  inline void SetExternalInputHelper(const string &name, const TL &tl, cudaStream_t stream = 0,
+                                     bool sync = false) {
     bool is_cpu_node = true;
     OpNodeId node_id;
 
@@ -178,9 +181,9 @@ class DLL_PUBLIC Pipeline {
     OperatorBase *op_ptr = &node.InstantiateOperator();
 
     if (is_cpu_node) {
-      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, stream);
+      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, stream, sync);
     } else {
-      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, stream);
+      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, stream, sync);
     }
   }
 
@@ -191,11 +194,14 @@ class DLL_PUBLIC Pipeline {
    * @param name name of the input
    * @param tl data
    * @param stream CUDA stream to use in case of GPUBackend
+   * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
+   *             to the internal buffer
    */
   template<typename Backend>
   DLL_PUBLIC inline void
-  SetExternalInput(const string &name, const TensorList<Backend> &tl, cudaStream_t stream = 0) {
-    SetExternalInputHelper(name, tl, stream);
+  SetExternalInput(const string &name, const TensorList<Backend> &tl, cudaStream_t stream = 0,
+                   bool sync = false) {
+    SetExternalInputHelper(name, tl, stream, sync);
   }
 
 
@@ -205,11 +211,14 @@ class DLL_PUBLIC Pipeline {
    * @param name name of the input
    * @param tl data
    * @param stream CUDA stream to use in case of GPUBackend
+   * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
+   *             to the internal buffer
    */
   template<typename Backend>
   DLL_PUBLIC inline void
-  SetExternalInput(const string &name, const vector<Tensor<Backend>> &tl, cudaStream_t stream = 0) {
-    SetExternalInputHelper(name, tl, stream);
+  SetExternalInput(const string &name, const vector<Tensor<Backend>> &tl, cudaStream_t stream = 0,
+                   bool sync = false) {
+    SetExternalInputHelper(name, tl, stream, sync);
   }
 
 
@@ -219,11 +228,14 @@ class DLL_PUBLIC Pipeline {
    * @param name name of the input
    * @param tl data
    * @param stream CUDA stream to use in case of GPUBackend
+   * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
+   *             to the internal buffer
    */
   template<typename Backend>
   DLL_PUBLIC inline void
-  SetExternalInput(const string &name, const TensorVector<Backend> &tv, cudaStream_t stream = 0) {
-    SetExternalInputHelper(name, tv, stream);
+  SetExternalInput(const string &name, const TensorVector<Backend> &tv, cudaStream_t stream = 0,
+                   bool sync = false) {
+    SetExternalInputHelper(name, tv, stream, sync);
   }
 
   /**

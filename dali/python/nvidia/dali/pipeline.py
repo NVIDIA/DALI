@@ -439,9 +439,10 @@ Parameters
 
     def feed_input(self, data_node, data, layout="", cuda_stream = None):
         """Bind a NumPy array (or a list thereof) to an output of ExternalSource.
-        In the case of the GPU input, it is the user responsibility to not modify the
-        GPU memory content before it is consumed by DALI, or provide a stream that
-        the user uses to operate on this memory (so DALI would schedule a copy on it)
+        In the case of the GPU input, it is the user responsibility to modify the
+        provided GPU memory content only using provided stream (DALI schedules
+        a copy on it and all work is properly queued). If no stream is provided
+        feed_input blocks until the provided memory is copied to the internal buffer
 
         Parameters
         ----------
