@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_COMMON_TRANSPOSE_H_
-#define DALI_KERNELS_COMMON_TRANSPOSE_H_
+#ifndef DALI_KERNELS_TRANSPOSE_TRANSPOSE_H_
+#define DALI_KERNELS_TRANSPOSE_TRANSPOSE_H_
 
 #include <type_traits>
 #include <utility>
@@ -22,6 +22,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/utils.h"
+#include "dali/kernels/transpose/transpose_util.h"
 
 namespace dali {
 namespace kernels {
@@ -110,83 +111,6 @@ void TransposeImpl(T *dst, const T *src, int level, int max_levels, span<const i
   }
 }
 
-/**
- * @brief Find blocks of consecutive numbers in the permutation that would be transposed together
- *
- * For example [0, 1, 5, 2, 3, 4] has following blocks: [[0, 1], [5], [2, 3, 4]]
- * and the result would be: {{0, 1}, {2, 2}, {3, 5}}
- *
- * @return List of starting and ending position of blocks(both ends inclusive)
- */
-inline SmallVector<std::pair<int, int>, 6> PermutationBlocks(span<const int> perm) {
-  if (perm.empty()) {
-    return {};
-  }
-  SmallVector<std::pair<int, int>, 6> result;
-  int current_start = 0;
-  int current_end = 0;
-  for (int i = 0; i < perm.size() - 1; i++) {
-    if (perm[i] == perm[i + 1] - 1) {
-      current_end = i + 1;
-    } else {
-      result.push_back({current_start, current_end});
-      current_start = i + 1;
-      current_end = i + 1;
-    }
-  }
-  // We wouldn't add the last one in any case
-  result.emplace_back(current_start, current_end);
-  return result;
-}
-
-/**
- * @brief Based on the blocks returned from PermutationBlocks, collapse the blocks
- *        in the perm and re-enumerate them.
- *
- * @param perm Permutation to collapse
- * @param perm_blocks Description of consecutive blocks in perm
- * @return Collapsed permutation
- */
-inline std::vector<int> CollapsePermutation(span<const int> perm,
-                                            span<const std::pair<int, int>> perm_blocks) {
-  std::vector<int> result;
-  std::vector<int> removed;
-  result.reserve(perm_blocks.size());
-  removed.reserve(perm.size() - perm_blocks.size());
-  for (auto &block : perm_blocks) {
-    result.push_back(perm[block.first]);
-    for (int i = block.first + 1; i <= block.second; i++) {
-      removed.push_back(perm[i]);
-    }
-  }
-  // Re-enumerate elements in permutation, reducing every element as many times as we
-  // had smaller elements removed, so we still have contiguous numbers in the permutation
-  for (auto &elem : result) {
-    int original_elem = elem;
-    for (auto removed_elem : removed) {
-      if (original_elem > removed_elem) {
-        elem--;
-      }
-    }
-  }
-  return result;
-}
-
-/**
- * @brief Convert permutation blocks [first_idx_in_perm, last_idx_in_perm] to
- *        description of shape blocks: {starting_dimension_idx, length}
- */
-inline SmallVector<std::pair<int, int>, 6>
-  PermToShapeBlocks(span<const int> perm, span<const std::pair<int, int>> perm_blocks) {
-  SmallVector<std::pair<int, int>, 6> shape_blocks;
-  shape_blocks.reserve(perm_blocks.size());
-  for (auto &range : perm_blocks) {
-    shape_blocks.push_back({perm[range.first], perm[range.second] - perm[range.first] + 1});
-  }
-  std::sort(shape_blocks.begin(), shape_blocks.end());
-  return shape_blocks;
-}
-
 }  // namespace transpose_impl
 
 /**
@@ -198,8 +122,8 @@ template <typename T>
 void Transpose(const TensorView<StorageCPU, T> &dst, const TensorView<StorageCPU, const T> &src,
                span<const int> perm) {
   int N = src.shape.sample_dim();
-  if (N == 0) {
-    // We are a no-op, there is nothing to transpose
+  if (N == 0) {  // it's a scalar - just copy it
+    *dst.data = *src.data;
     return;
   }
   assert(dst.shape.sample_dim() == N);
@@ -230,10 +154,9 @@ void TransposeGrouped(const TensorView<StorageCPU, T> &dst,
                       const TensorView<StorageCPU, const T> &src, span<const int> perm) {
   int N = src.shape.sample_dim();
   auto src_shape = src.shape;
-  auto perm_blocks = transpose_impl::PermutationBlocks(perm);
-  auto collapsed_perm = transpose_impl::CollapsePermutation(perm, make_cspan(perm_blocks));
-  auto shape_blocks = transpose_impl::PermToShapeBlocks(perm, make_cspan(perm_blocks));
-  auto collapsed_src_shape = collapse_dims(src_shape, make_cspan(shape_blocks));
+  TensorShape<> collapsed_src_shape;
+  SmallVector<int, DynamicTensorShapeContainer::static_size> collapsed_perm;
+  transpose_impl::SimplifyPermute(collapsed_src_shape, collapsed_perm, src.shape, perm);
   auto collapsed_dst_shape = Permute(collapsed_src_shape, collapsed_perm);
   Transpose(TensorView<StorageCPU, T>{dst.data, collapsed_dst_shape},
             TensorView<StorageCPU, const T>{src.data, collapsed_src_shape},
@@ -243,4 +166,4 @@ void TransposeGrouped(const TensorView<StorageCPU, T> &dst,
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_COMMON_TRANSPOSE_H_
+#endif  // DALI_KERNELS_TRANSPOSE_TRANSPOSE_H_

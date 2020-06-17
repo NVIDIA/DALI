@@ -42,6 +42,23 @@ using remove_cv_t = std::remove_cv_t<T>;
 template <bool Value, typename Type = void>
 using enable_if_t = std::enable_if_t<Value, Type>;
 
+
+// check if the type has `resize` function callable with given arguments
+
+template <typename T, typename... ResizeArgs,
+          typename resize_result = decltype(std::declval<T&>().resize(ResizeArgs()...))>
+inline std::true_type HasResize(T *, ResizeArgs... args);
+
+inline std::false_type HasResize(...);
+
+/// @brief Inerits `true_type`, if `T::resize` can be called with given arguments
+template <typename T, typename... ResizeArgs>
+struct has_resize : decltype(HasResize((T*)0, ResizeArgs()...)) {};  // NOLINT
+
+/// @brief Inerits `true_type`, `if T::resize` can be called with an integer
+template <typename T>
+struct has_resize<T> : decltype(HasResize((T*)0, 1)) {};  // NOLINT
+
 }  // namespace dali
 
 #endif  // DALI_CORE_TRAITS_H_

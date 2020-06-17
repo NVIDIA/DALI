@@ -16,7 +16,7 @@
 #include <numeric>
 
 #include "dali/kernels/alloc_type.h"
-#include "dali/kernels/common/transpose.h"
+#include "dali/kernels/transpose/transpose.h"
 
 namespace dali {
 
