@@ -680,7 +680,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   // HW/CUDA Utilization test counters
-  long long int nsamples_hw_ = 0, nsamples_cuda_ = 0, nsamples_host_ = 0;  // NOLINT
+  int64_t nsamples_hw_ = 0, nsamples_cuda_ = 0, nsamples_host_ = 0;
 };
 
 }  // namespace dali

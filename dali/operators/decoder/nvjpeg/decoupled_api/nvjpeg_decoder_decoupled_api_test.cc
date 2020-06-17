@@ -230,9 +230,9 @@ TEST_F(HwDecoderUtilizationTest, UtilizationTest) {
   this->pipeline_.RunGPU();
 
   auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
-  auto nsamples_hw = node->op->GetDiagnostic<long long int>("nsamples_hw");  // NOLINT
-  auto nsamples_cuda = node->op->GetDiagnostic<long long int>("nsamples_cuda");  // NOLINT
-  auto nsamples_host = node->op->GetDiagnostic<long long int>("nsamples_host");  // NOLINT
+  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
   EXPECT_EQ(nsamples_hw, 35) << "HW Decoder malfunction: incorrect number of images decoded in HW";
   EXPECT_EQ(nsamples_cuda, 12);
   EXPECT_EQ(nsamples_host, 0)
