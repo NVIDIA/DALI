@@ -342,7 +342,7 @@ class SliceFlipNormalizePermutePadCpu {
                            const InTensorCPU<InputType, Dims> &in,
                            const Args &args) {
     KernelRequirements req;
-    TensorShape<Dims> out_shape(args.padded_shape);
+    TensorShape<Dims> out_shape(args.shape);
     CheckValidOutputShape(in.shape, out_shape, args);
     out_shape = permute(out_shape, args.permuted_dims);
     req.output_shapes.push_back(uniform_list_shape<Dims>(1, out_shape));
@@ -355,30 +355,30 @@ class SliceFlipNormalizePermutePadCpu {
            const Args &orig_args) {
     auto args = detail::ProcessArgs(orig_args, in.shape);
 
+    int nvalues = args.fill_values.size();
     SmallVector<OutputType, 4> fill_values;  // TODO(janton): fix
-    int nvalues = args.mean.size();
-    if (nvalues == 0)
-      nvalues = 1;
-    for (int i = 0; i < nvalues; i++)
-      fill_values.push_back(static_cast<OutputType>(args.padding_val));
+    assert(!args.fill_values.empty());
+    for (auto value : args.fill_values)
+      fill_values.push_back(static_cast<OutputType>(value));
 
     int64_t in_size = volume(args.in_shape);
     int64_t out_size = volume(args.out_shape);
 
     std::cout << "in_data:";
     for (int i = 0; i < in_size; i++)
-      std::cout << " " << in.data[i];
+      std::cout << " " << (int) in.data[i];
     std::cout << "\n";
 
     SliceFlipNormalizePermutePadKernel(out.data, in.data + args.input_offset, args.in_strides, args.out_strides,
-                                       args.anchor, args.in_shape, args.padded_out_shape,
+                                       args.anchor, args.in_shape, args.out_shape,
                                        fill_values.data(), args.mean.data(), args.inv_stddev.data(),
-                                       args.normalization_dim);
+                                       args.channel_dim);
 
     std::cout << "out_data:";
     for (int i = 0; i < out_size; i++)
-      std::cout << " " << out.data[i];
+      std::cout << " " << (int) out.data[i];
     std::cout << "\n";
+
   }
 };
 
