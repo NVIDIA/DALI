@@ -70,8 +70,8 @@ struct SeparableConvolutionCpuImpl<Out, In, W, 1, has_channels> {
   void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> out,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<TensorView<StorageCPU, const W, 1>, axes>& windows,
-           const std::array<W, axes>& scales = uniform_array<axes, W>(1.f)) {
-    conv_.Run(ctx, out, in, windows[0], scales[0]);
+           W scale = 1) {
+    conv_.Run(ctx, out, in, windows[0], scale);
   }
 
   ConvolutionCpu<Out, In, W, ndim, 0, has_channels> conv_;
@@ -104,12 +104,12 @@ struct SeparableConvolutionCpuImpl<Out, In, W, 2, has_channels> {
   void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> out,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<TensorView<StorageCPU, const W, 1>, axes>& windows,
-           const std::array<W, axes>& scales = uniform_array<axes, W>(1.f)) {
+           W scale = 1) {
     auto *tmp = ctx.scratchpad->Allocate<Intermediate>(AllocType::Host, volume(in.shape));
     auto intermediate = TensorView<StorageCPU, Intermediate, ndim>(tmp, in.shape);
 
-    conv_innermost_.Run(ctx, intermediate, in, windows[1], scales[1]);
-    conv_outermost_.Run(ctx, out, intermediate, windows[0], scales[0]);
+    conv_innermost_.Run(ctx, intermediate, in, windows[1]);
+    conv_outermost_.Run(ctx, out, intermediate, windows[0], scale);
   }
 
   ConvolutionCpu<Intermediate, In, W, ndim, 1, has_channels> conv_innermost_;
@@ -145,13 +145,13 @@ struct SeparableConvolutionCpuImpl<Out, In, W, 3, has_channels> {
   void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> out,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<TensorView<StorageCPU, const W, 1>, axes>& windows,
-           const std::array<W, axes>& scales = uniform_array<axes, W>(1.f)) {
+           W scale = 1) {
     auto* tmp = ctx.scratchpad->Allocate<Intermediate>(AllocType::Host, volume(in.shape));
     auto intermediate = TensorView<StorageCPU, Intermediate, ndim>(tmp, in.shape);
 
-    conv_innermost_.Run(ctx, intermediate, in, windows[2], scales[2]);
-    conv_middle_.Run(ctx, intermediate, intermediate, windows[1], scales[1]);
-    conv_outermost_.Run(ctx, out, intermediate, windows[0], scales[0]);
+    conv_innermost_.Run(ctx, intermediate, in, windows[2]);
+    conv_middle_.Run(ctx, intermediate, intermediate, windows[1]);
+    conv_outermost_.Run(ctx, out, intermediate, windows[0], scale);
   }
 
   ConvolutionCpu<Intermediate, In, W, ndim, 2, has_channels> conv_innermost_;
