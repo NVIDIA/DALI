@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include "dali/kernels/transpose/transpose.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_layout.h"
@@ -34,8 +35,12 @@ class TransposeCPU : public Transpose<CPUBackend> {
     output.SetLayout(output_layout_);
     auto& thread_pool = ws.GetThreadPool();
     auto input_type = input.type().id();
+
+    SortWorkBySize(output.shape());
+
     TYPE_SWITCH(input_type, type2id, T, TRANSPOSE_ALLOWED_TYPES, (
-      for (int i = 0; i < batch_size_; i++) {
+      for (auto vol_idx : vol_idx_) {
+        int i = vol_idx.second;
         thread_pool.DoWorkWithID([this, &input, &output, i](int thread_id) {
           TensorShape<> src_ts = input.shape()[i];
           auto dst_ts = permute(src_ts, perm_);
@@ -47,6 +52,18 @@ class TransposeCPU : public Transpose<CPUBackend> {
     DALI_FAIL("Input type not supported."));
     thread_pool.WaitForWork();
   }
+
+ private:
+  void SortWorkBySize(const TensorListShape<> &out_shape) {
+    int N = out_shape.num_samples();
+    vol_idx_.resize(N);
+    for (int i = 0; i < N; i++) {
+      // { -volume, index } will sord descending by volume and ascending by index
+      vol_idx_[i] = { -volume(out_shape.tensor_shape_span(i)), i };
+    }
+    std::sort(vol_idx_.begin(), vol_idx_.end());
+  }
+  vector<std::pair<int64_t, int>> vol_idx_;
 };
 
 DALI_REGISTER_OPERATOR(Transpose, TransposeCPU, CPU);
