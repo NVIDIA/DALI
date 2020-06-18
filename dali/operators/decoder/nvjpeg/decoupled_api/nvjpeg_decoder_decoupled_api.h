@@ -78,7 +78,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         nvjpegCreate(NVJPEG_BACKEND_HARDWARE, NULL, &handle_) == NVJPEG_STATUS_SUCCESS) {
       LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
       NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
-      using_hw_decoder_ = true;
       in_data_.reserve(batch_size_);
       in_lengths_.reserve(batch_size_);
       nvjpeg_destinations_.reserve(batch_size_);
@@ -123,8 +122,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     CUDA_CALL(cudaEventCreate(&hw_decode_event_));
     CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
-
-    RegisterTestCounters();
   }
 
   ~nvJPEGDecoder() override {
@@ -538,8 +535,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     output.Resize(output_shape_);
     output.SetLayout("HWC");
 
-    UpdateTestCounters(samples_hw_batched_.size(), samples_single_.size(), samples_host_.size());
-
     ProcessImagesCache(ws);
     ProcessImagesCuda(ws);
     ProcessImagesHost(ws);
@@ -649,7 +644,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   int device_id_;
 
-  bool using_hw_decoder_ = false;
   float hw_decoder_load_ = 0.0f;
   int hw_decoder_bs_ = 0;
 
@@ -660,27 +654,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   ThreadPool thread_pool_;
   static constexpr int kOutputDim = 3;
-
- private:
-  void UpdateTestCounters(int nsamples_hw, int nsamples_cuda, int nsamples_host) {
-    nsamples_hw_ += nsamples_hw;
-    nsamples_cuda_ += nsamples_cuda;
-    nsamples_host_ += nsamples_host;
-  }
-
-
-  /**
-   * Registers counters, used only for unit-test reasons.
-   */
-  void RegisterTestCounters() {
-    RegisterDiagnostic("nsamples_hw", &nsamples_hw_);
-    RegisterDiagnostic("nsamples_cuda", &nsamples_cuda_);
-    RegisterDiagnostic("nsamples_host", &nsamples_host_);
-    RegisterDiagnostic("using_hw_decoder", &using_hw_decoder_);
-  }
-
-  // HW/CUDA Utilization test counters
-  int64_t nsamples_hw_ = 0, nsamples_cuda_ = 0, nsamples_host_ = 0;
 };
 
 }  // namespace dali
