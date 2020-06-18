@@ -15,6 +15,7 @@
 #include <limits>
 
 #include "dali/test/dali_test_decoder.h"
+#include "dali/util/nvml.h"
 
 namespace dali {
 
@@ -179,5 +180,64 @@ TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode3T) {
 TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode4T) {
   this->TiffTestDecode(4);
 }
+
+class HwDecoderUtilizationTest : public ::testing::Test {
+ public:
+  void SetUp() final {
+    dali::string list_root(testing::dali_extra_path() + "/db/single/jpeg");
+
+    pipeline_.AddOperator(
+            OpSpec("FileReader")
+                    .AddArg("device", "cpu")
+                    .AddArg("file_root", list_root)
+                    .AddOutput("compressed_images", "cpu")
+                    .AddOutput("labels", "cpu"));
+    auto decoder_spec =
+            OpSpec("ImageDecoder")
+                    .AddArg("device", "mixed")
+                    .AddArg("output_type", DALI_RGB)
+                    .AddArg("hw_decoder_load", .7f)
+                    .AddInput("compressed_images", "cpu")
+                    .AddOutput("images", "gpu");
+    pipeline_.AddOperator(decoder_spec, decoder_name_);
+
+    pipeline_.Build(outputs_);
+
+    auto node = pipeline_.GetOperatorNode(decoder_name_);
+    if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+      try {
+        if (nvml::HasHwDecoder()) {
+          FAIL() << "HW Decoder exists in the system and failed to open";
+        }
+      } catch (const std::runtime_error &e) {
+        DALI_WARN(
+                make_string("NVML API is unsupported. Please update the CUDA driver. ", e.what()));
+      }
+      GTEST_SKIP();
+    }
+  }
+
+
+  int batch_size_ = 47;
+  Pipeline pipeline_{batch_size_, 1, 0, -1, false, 2, false};
+  vector<std::pair<string, string>> outputs_ = {{"images", "gpu"}};
+  std::string decoder_name_ = "Lorem Ipsum";
+};
+
+
+TEST_F(HwDecoderUtilizationTest, UtilizationTest) {
+  this->pipeline_.RunCPU();
+  this->pipeline_.RunGPU();
+
+  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
+  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  EXPECT_EQ(nsamples_hw, 35) << "HW Decoder malfunction: incorrect number of images decoded in HW";
+  EXPECT_EQ(nsamples_cuda, 12);
+  EXPECT_EQ(nsamples_host, 0)
+                << "Image decoding malfuntion: all images should've been decoded by CUDA or HW";
+}
+
 
 }  // namespace dali

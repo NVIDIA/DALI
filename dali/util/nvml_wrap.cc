@@ -40,6 +40,13 @@ static nvmlReturn_t (*nvmlInternalDeviceGetCpuAffinity)(nvmlDevice_t device,
                                                         unsigned int cpuSetSize,
                                                         unsigned long* cpuSet);  // NOLINT(*)
 
+static nvmlReturn_t (*nvmlInternalDeviceGetBrand)(nvmlDevice_t device, nvmlBrandType_t *type);
+static nvmlReturn_t (*nvmlInternalDeviceGetCount_v2)(unsigned int *deviceCount);
+static nvmlReturn_t (*nvmlInternalDeviceGetHandleByIndex_v2)(unsigned int index,
+                                                             nvmlDevice_t* device);
+static nvmlReturn_t (*nvmlInternalDeviceGetArchitecture)(nvmlDevice_t device,
+                                                         nvmlDeviceArchitecture_t* arch);
+
 static const char* (*nvmlInternalErrorString)(nvmlReturn_t r);
 
 DALIError_t wrapSymbols(void) {
@@ -67,6 +74,16 @@ DALIError_t wrapSymbols(void) {
     *cast = tmp;                                                     \
   } while (0)
 
+  #define LOAD_SYM_WARN(handle, symbol, funcptr) do {                \
+    cast = reinterpret_cast<void**>(&funcptr);                       \
+    tmp = dlsym(handle, symbol);                                     \
+    if (tmp == NULL) {                                               \
+      DALI_WARN("dlsym failed on " + symbol + " - " + dlerror());    \
+    }                                                                \
+    *cast = tmp;                                                     \
+  } while (0)
+
+
   LOAD_SYM(nvmlhandle, "nvmlInit", nvmlInternalInit);
   LOAD_SYM(nvmlhandle, "nvmlShutdown", nvmlInternalShutdown);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetHandleByPciBusId", nvmlInternalDeviceGetHandleByPciBusId);
@@ -77,10 +94,29 @@ DALIError_t wrapSymbols(void) {
   LOAD_SYM(nvmlhandle, "nvmlSystemGetDriverVersion", nvmlInternalSystemGetDriverVersion);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetCpuAffinity", nvmlInternalDeviceGetCpuAffinity);
   LOAD_SYM(nvmlhandle, "nvmlErrorString", nvmlInternalErrorString);
+  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand);
+  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2);
+  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2", nvmlInternalDeviceGetHandleByIndex_v2);
+  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetArchitecture", nvmlInternalDeviceGetArchitecture);
 
   symbolsLoaded = 1;
   return DALISuccess;
 }
+
+
+#define FUNC_BODY(INTERNAL_FUNC, ARGS...)            \
+  do {                                               \
+    if (INTERNAL_FUNC == NULL) {                     \
+      return DALIError;                              \
+    }                                                \
+    nvmlReturn_t ret = INTERNAL_FUNC(ARGS);          \
+    if (ret != NVML_SUCCESS) {                       \
+      DALI_WARN(#INTERNAL_FUNC "(...) failed: " +    \
+                nvmlInternalErrorString(ret));       \
+      return DALIError;                              \
+    }                                                \
+    return DALISuccess;                              \
+  } while (false)
 
 
 DALIError_t wrapNvmlInit(void) {
@@ -210,6 +246,25 @@ DALIError_t wrapNvmlDeviceGetCpuAffinity(nvmlDevice_t device,
   }
   return DALISuccess;
 }
+
+DALIError_t wrapNvmlDeviceGetBrand(nvmlDevice_t device, nvmlBrandType_t* type) {
+  FUNC_BODY(nvmlInternalDeviceGetBrand, device, type);
+}
+
+DALIError_t wrapNvmlDeviceGetCount_v2(unsigned int* deviceCount) {
+  FUNC_BODY(nvmlInternalDeviceGetCount_v2, deviceCount);
+}
+
+DALIError_t wrapNvmlDeviceGetHandleByIndex_v2(unsigned int index, nvmlDevice_t* device) {
+  FUNC_BODY(nvmlInternalDeviceGetHandleByIndex_v2, index, device);
+}
+
+DALIError_t wrapNvmlDeviceGetArchitecture(nvmlDevice_t device, nvmlDeviceArchitecture_t* arch) {
+  FUNC_BODY(nvmlInternalDeviceGetArchitecture, device, arch);
+}
+
+#undef FUNC_BODY
+
 
 }  // namespace nvml
 
