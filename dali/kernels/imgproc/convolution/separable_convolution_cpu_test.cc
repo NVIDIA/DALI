@@ -28,7 +28,8 @@
 namespace dali {
 namespace kernels {
 
-void InitTriangleWindow(const TensorView<StorageCPU, float, 1> &window) {
+template <typename T>
+void InitTriangleWindow(const TensorView<StorageCPU, T, 1> &window) {
   int radius = window.num_elements() / 2;
   for (int i = 0; i < radius; i++) {
     *window(i) = i + 1;
@@ -145,6 +146,10 @@ TEST(SeparableConvolutionTest, Dim2WithChannels) {
   InitTriangleWindow(kernel_window_1_v);
 
   SeparableConvolutionCpu<int, int, float, 3, true> kernel;
+  static_assert(
+      std::is_same<typename SeparableConvolutionCpu<int, int, float, 3, true>::Intermediate,
+                   float>::value,
+      "Unexpected intermediate type");
   KernelContext ctx;
 
   auto req = kernel.Setup(ctx, data_shape[0], window_dims);
@@ -191,6 +196,10 @@ TEST(SeparableConvolutionTest, Dim2NoChannels) {
   InitTriangleWindow(kernel_window_1_v);
 
   SeparableConvolutionCpu<int, int, float, 2, false> kernel;
+  static_assert(
+      std::is_same<typename SeparableConvolutionCpu<int, int, float, 2, false>::Intermediate,
+                   float>::value,
+      "Unexpected intermediate type");
   KernelContext ctx;
 
   auto req = kernel.Setup(ctx, data_shape[0].first<2>(), window_dims);
@@ -209,10 +218,10 @@ TEST(SeparableConvolutionTest, Dim2NoChannels) {
 
 TEST(SeparableConvolutionTest, Dim3WithChannels) {
   std::array<int, 3> window_dims = {5, 7, 3};
-  TestTensorList<float, 1> kernel_window_0, kernel_window_1, kernel_window_2;
-  TestTensorList<int, 4> input;
-  TestTensorList<float, 4> intermediate_0, intermediate_1;
-  TestTensorList<float, 4> output, baseline_output;
+  TestTensorList<uint16_t, 1> kernel_window_0, kernel_window_1, kernel_window_2;
+  TestTensorList<int16_t, 4> input;
+  TestTensorList<int, 4> intermediate_0, intermediate_1;
+  TestTensorList<int16_t, 4> output, baseline_output;
 
   TensorListShape<4> data_shape = uniform_list_shape<4>(1, {14, 20, 16, 3});
 
@@ -240,7 +249,12 @@ TEST(SeparableConvolutionTest, Dim3WithChannels) {
   InitTriangleWindow(kernel_window_1_v);
   InitTriangleWindow(kernel_window_2_v);
 
-  SeparableConvolutionCpu<float, int, float, 4, true> kernel;
+  SeparableConvolutionCpu<int16_t, int16_t, uint16_t, 4, true> kernel;
+  static_assert(
+      std::is_same<
+          typename SeparableConvolutionCpu<int16_t, int16_t, uint16_t, 4, true>::Intermediate,
+          int>::value,
+      "Unexpected intermediate type");
   KernelContext ctx;
 
   auto req = kernel.Setup(ctx, data_shape[0], window_dims);
@@ -294,6 +308,10 @@ TEST(SeparableConvolutionTest, Dim3NoChannels) {
   InitTriangleWindow(kernel_window_2_v);
 
   SeparableConvolutionCpu<float, int, float, 3, false> kernel;
+  static_assert(
+      std::is_same<typename SeparableConvolutionCpu<float, int, float, 3, false>::Intermediate,
+                   float>::value,
+      "Unexpected intermediate type");
   KernelContext ctx;
 
   auto req = kernel.Setup(ctx, data_shape[0].first<3>(), window_dims);

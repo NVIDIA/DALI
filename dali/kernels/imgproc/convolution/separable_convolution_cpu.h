@@ -39,24 +39,13 @@ namespace kernels {
  *
  * Specialized for 1, 2 or 3 axes, to not go overboard with TMP for generic solutions
  *
- * TODO(klecki): For more dimension, fusing a permute step when writing the result
+ * N.B. For more dimension, fusing a permute step when writing the result
  * could allow for processing all steps with innermost, contiguous dimension.
  * For example DHWC->DWHC->HWDC->DHWC, while applying convolutions for W, H, D respectively.
+ * This might be faster, but vectorization on outer dims would still probably win.
  */
 template <typename Out, typename In, typename W, int ndim, bool has_channels = true>
 struct SeparableConvolutionCpu;
-
-template <typename Out, typename W, int ndim>
-std::enable_if_t<!std::is_same<Out, W>::value, TensorView<StorageCPU, W, ndim>> GetInterStageView(
-    const TensorView<StorageCPU, Out, ndim>& out, W* scratch) {
-  return {scratch, out.shape};
-}
-
-template <typename W, int ndim>
-TensorView<StorageCPU, W, ndim> GetInterStageView(const TensorView<StorageCPU, W, ndim>& out,
-                                                  W* scratch) {
-  return out;
-}
 
 template <typename Out, typename In, typename W, int axes, bool has_channels>
 struct SeparableConvolutionCpuImpl;
@@ -86,21 +75,20 @@ struct SeparableConvolutionCpuImpl<Out, In, W, 1, has_channels> {
   }
 
   ConvolutionCpu<Out, In, W, ndim, 0, has_channels> conv_;
-  static_assert(std::is_same<W, float>::value,
-                "Only floats as intermediate values are currently supported.");
 };
 
 template <typename Out, typename In, typename W, bool has_channels>
 struct SeparableConvolutionCpuImpl<Out, In, W, 2, has_channels> {
   static constexpr int axes = 2;
   static constexpr int ndim = has_channels ? 3 : 2;
+  using Intermediate = decltype(std::declval<W>() * std::declval<In>());
 
   KernelRequirements Setup(KernelContext& ctx, const TensorShape<ndim>& in_shape,
                            const std::array<int, axes>& window_sizes) {
     KernelRequirements req;
 
     ScratchpadEstimator se;
-    se.add<W>(AllocType::Host, volume(in_shape));
+    se.add<Intermediate>(AllocType::Host, volume(in_shape));
     req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(uniform_list_shape<ndim>(1, in_shape));
 
@@ -117,30 +105,29 @@ struct SeparableConvolutionCpuImpl<Out, In, W, 2, has_channels> {
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<TensorView<StorageCPU, const W, 1>, axes>& windows,
            const std::array<W, axes>& scales = uniform_array<axes, W>(1.f)) {
-    auto *tmp = ctx.scratchpad->Allocate<W>(AllocType::Host, volume(in.shape));
-    auto intermediate = GetInterStageView(out, tmp);
+    auto *tmp = ctx.scratchpad->Allocate<Intermediate>(AllocType::Host, volume(in.shape));
+    auto intermediate = TensorView<StorageCPU, Intermediate, ndim>(tmp, in.shape);
 
     conv_innermost_.Run(ctx, intermediate, in, windows[1], scales[1]);
     conv_outermost_.Run(ctx, out, intermediate, windows[0], scales[0]);
   }
 
-  ConvolutionCpu<W, In, W, ndim, 1, has_channels> conv_innermost_;
-  ConvolutionCpu<Out, W, W, ndim, 0, has_channels> conv_outermost_;
-  static_assert(std::is_same<W, float>::value,
-                "Only floats as intermediate values are currently supported.");
+  ConvolutionCpu<Intermediate, In, W, ndim, 1, has_channels> conv_innermost_;
+  ConvolutionCpu<Out, Intermediate, W, ndim, 0, has_channels> conv_outermost_;
 };
 
 template <typename Out, typename In, typename W, bool has_channels>
 struct SeparableConvolutionCpuImpl<Out, In, W, 3, has_channels> {
   static constexpr int axes = 3;
   static constexpr int ndim = has_channels ? 4 : 3;
+  using Intermediate = decltype(std::declval<W>() * std::declval<In>());
 
   KernelRequirements Setup(KernelContext& ctx, const TensorShape<ndim>& in_shape,
                            const std::array<int, axes>& window_sizes) {
     KernelRequirements req;
 
     ScratchpadEstimator se;
-    se.add<W>(AllocType::Host, volume(in_shape));
+    se.add<Intermediate>(AllocType::Host, volume(in_shape));
     req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(uniform_list_shape<ndim>(1, in_shape));
 
@@ -159,17 +146,17 @@ struct SeparableConvolutionCpuImpl<Out, In, W, 3, has_channels> {
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<TensorView<StorageCPU, const W, 1>, axes>& windows,
            const std::array<W, axes>& scales = uniform_array<axes, W>(1.f)) {
-    auto* tmp = ctx.scratchpad->Allocate<W>(AllocType::Host, volume(in.shape));
-    auto intermediate = GetInterStageView(out, tmp);
+    auto* tmp = ctx.scratchpad->Allocate<Intermediate>(AllocType::Host, volume(in.shape));
+    auto intermediate = TensorView<StorageCPU, Intermediate, ndim>(tmp, in.shape);
 
     conv_innermost_.Run(ctx, intermediate, in, windows[2], scales[2]);
     conv_middle_.Run(ctx, intermediate, intermediate, windows[1], scales[1]);
     conv_outermost_.Run(ctx, out, intermediate, windows[0], scales[0]);
   }
 
-  ConvolutionCpu<W, In, W, ndim, 2, has_channels> conv_innermost_;
-  ConvolutionCpu<W, W, W, ndim, 1, has_channels> conv_middle_;
-  ConvolutionCpu<Out, W, W, ndim, 0, has_channels> conv_outermost_;
+  ConvolutionCpu<Intermediate, In, W, ndim, 2, has_channels> conv_innermost_;
+  ConvolutionCpu<Intermediate, Intermediate, W, ndim, 1, has_channels> conv_middle_;
+  ConvolutionCpu<Out, Intermediate, W, ndim, 0, has_channels> conv_outermost_;
 };
 
 template <typename Out, typename In, typename W>
