@@ -63,6 +63,7 @@ REGISTER_OP("Dali")
   .Attr("cpu_prefetch_queue_depth: int = 2")
   .Attr("sparse: list(bool) = []")
   .Attr("batch_size: int = -1")
+  .Attr("get_memory_stats: bool = false")
   .Output("data: dtypes")
   .Attr("dtypes: list({half, float, uint8, int16, int32, int64}) >= 1")
   // To prevent replacing DALI op with constant tensor during TF constant folding process
@@ -103,6 +104,7 @@ class DaliOp : public tf::OpKernel {
     int batch_size;
     bool exec_separated;
     int cpu_prefetch_queue_depth;
+    bool get_memory_stats;
 
     OP_REQUIRES_OK(context, context->GetAttr("shapes", &shapes_));
     OP_REQUIRES_OK(context, context->GetAttr("dtypes", &types_));
@@ -115,6 +117,7 @@ class DaliOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size));
     OP_REQUIRES_OK(context, context->GetAttr("cpu_prefetch_queue_depth",
                                              &cpu_prefetch_queue_depth));
+    OP_REQUIRES_OK(context, context->GetAttr("get_memory_stats", &get_memory_stats));
 
     // TF doing constant propagation runs all operators on the CPU first, so we need to provide
     // ability to copy memory from the GPU pipeline to the CPU seamlessly
@@ -140,7 +143,8 @@ class DaliOp : public tf::OpKernel {
                    exec_separated,
                    prefetch_queue_depth_,
                    cpu_prefetch_queue_depth,
-                   prefetch_queue_depth_));
+                   prefetch_queue_depth_,
+                   get_memory_stats));
 
 #if USE_TF_ALLOCATOR
     SetupTFAllocator(device_id_);

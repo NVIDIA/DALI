@@ -1039,6 +1039,11 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_pipelined"_a = true,
         "exec_separated"_a = false,
         "exec_async"_a = true)
+    .def("DumpOperatorOutputMemoryStatistics",
+        [](Pipeline *p, bool get_memory_stats) {
+          p->DumpOperatorOutputMemoryStatistics(get_memory_stats);
+        },
+        "get_memory_stats"_a = true)
     .def("SetQueueSizes",
         [](Pipeline *p, int cpu_size, int gpu_size) {
           p->SetQueueSizes(cpu_size, gpu_size);

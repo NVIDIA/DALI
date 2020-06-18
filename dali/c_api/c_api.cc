@@ -109,7 +109,8 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                         int separated_execution,
                         int prefetch_queue_depth,
                         int cpu_prefetch_queue_depth,
-                        int gpu_prefetch_queue_depth) {
+                        int gpu_prefetch_queue_depth,
+                        int get_memory_stats) {
   bool se = separated_execution != 0;
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length),
                                                    batch_size, num_threads, device_id, true,
@@ -118,6 +119,7 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle,
   if (se) {
     pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
   }
+  pipeline->DumpOperatorOutputMemoryStatistics(get_memory_stats);
   pipeline->Build();
   auto ws = std::make_unique<dali::DeviceWorkspace>();
   auto stream = dali::CUDAStream::Create(true);

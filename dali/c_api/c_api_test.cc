@@ -166,7 +166,7 @@ TYPED_TEST(CApiTest, FileReaderPipe) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   dali::DeviceWorkspace ws;
@@ -223,7 +223,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -280,7 +280,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -340,7 +340,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -404,7 +404,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);

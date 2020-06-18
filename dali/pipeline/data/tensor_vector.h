@@ -113,6 +113,22 @@ class TensorVector {
     return tensors_.size();
   }
 
+  size_t nbytes() const noexcept {
+    size_t total_nbytes = 0;
+    for (const auto &t : tensors_) {
+      total_nbytes += t->nbytes();
+    }
+    return total_nbytes;
+  }
+
+  size_t capacity() const noexcept {
+    size_t total_capacity = 0;
+    for (const auto &t : tensors_) {
+      total_capacity += t->capacity();
+    }
+    return total_capacity;
+  }
+
   TensorListShape<> shape() const {
     if (state_ == State::contiguous) {
       return tl_->shape();

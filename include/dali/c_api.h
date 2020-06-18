@@ -101,7 +101,8 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                                    int separated_execution,
                                    int prefetch_queue_depth,
                                    int cpu_prefetch_queue_depth,
-                                   int gpu_prefetch_queue_depth);
+                                   int gpu_prefetch_queue_depth,
+                                   int get_memory_stats);
 
 /**
  * Convenient overload. Use it, if the Pipeline should inherit its parameters

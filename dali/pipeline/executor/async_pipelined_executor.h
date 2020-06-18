@@ -36,9 +36,11 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
                                            size_t bytes_per_sample_hint, bool set_affinity = false,
                                            int max_num_stream = -1,
                                            int default_cuda_stream_priority = 0,
-                                           QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
+                                           QueueSizes prefetch_queue_depth = QueueSizes{2, 2},
+                                           bool get_memory_stats = false)
       : PipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint, set_affinity,
-                          max_num_stream, default_cuda_stream_priority, prefetch_queue_depth),
+                          max_num_stream, default_cuda_stream_priority, prefetch_queue_depth,
+                          get_memory_stats),
         cpu_thread_(device_id, set_affinity),
         mixed_thread_(device_id, set_affinity),
         gpu_thread_(device_id, set_affinity),
