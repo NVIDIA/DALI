@@ -122,35 +122,13 @@ inline void SetCPUAffinity(int core = -1) {
 
   int error = pthread_setaffinity_np(pthread_self(), sizeof(requested_set), &requested_set);
   if (error != 0) {
-    DALI_WARN("Setting affinity failed! Error code: " + to_string(error));
+      DALI_WARN("Setting affinity failed! Error code: " + to_string(error));
   }
 }
-
 
 inline void Shutdown() {
   std::lock_guard<std::mutex> lock(Mutex());
   DALI_CALL(wrapNvmlShutdown());
-}
-
-
-inline bool HasHwDecoder(int device_idx) {
-  nvmlDevice_t device;
-  DALI_CALL(wrapNvmlDeviceGetHandleByIndex_v2(device_idx, &device));
-  nvmlBrandType_t brand;
-  DALI_CALL(wrapNvmlDeviceGetBrand(device, &brand));
-  nvmlDeviceArchitecture_t architecture;
-  DALI_CALL(wrapNvmlDeviceGetArchitecture(device, &architecture));
-  return brand == NVML_BRAND_TESLA && architecture == NVML_DEVICE_ARCH_AMPERE;
-}
-
-
-inline bool HasHwDecoder() {
-  unsigned int device_count;
-  DALI_CALL(wrapNvmlDeviceGetCount_v2(&device_count));
-  for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
-    if (HasHwDecoder(device_idx)) return true;
-  }
-  return false;
 }
 
 }  // namespace nvml
