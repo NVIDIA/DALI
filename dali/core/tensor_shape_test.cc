@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_view.h"
+#include "dali/core/tensor_shape_print.h"
 
 namespace dali {
 namespace kernels {
@@ -1140,6 +1141,30 @@ TEST(TensorListShapeTest, CollapseDims_Static) {
   EXPECT_EQ(out, ref);
   auto out_dyn = collapse_dims(in, { { 0, 2 }, { 2, 1 }, { 3, 3 }, { 6, 1 } });
   EXPECT_EQ(out_dyn, ref);
+}
+
+TEST(TensorListshapeTest, PermuteSamples) {
+  TensorListShape<> tl = {{
+    { 1, 2 }, { 3, 4 }, { 5, 6 }
+  }};
+  TensorListShape<2> ref = {{
+    { 5, 6 }, { 1, 2 }, { 3, 4 }
+  }};
+  int perm[] = { 2, 0, 1 };
+  auto permuted = permute_samples<2>(tl, perm);
+  EXPECT_EQ(ref, permuted) << "Actual:\n" << permuted << "\nexpected:\n" << ref;
+}
+
+TEST(TensorListshapeTest, PermuteDims) {
+  TensorListShape<4> tl = {{
+    { 1, 2, 3, 4 }, { 5, 6, 7, 8 }
+  }};
+  TensorListShape<4> ref = {{
+    { 3, 2, 4, 1 }, { 7, 6, 8, 5 }
+  }};
+  int perm[] = { 2, 1, 3, 0 };
+  auto permuted = permute_dims(tl, perm);
+  EXPECT_EQ(ref, permuted) << "Actual:\n" << permuted << "\nexpected:\n" << ref;
 }
 
 TEST(TensorTest, WontCompile) {

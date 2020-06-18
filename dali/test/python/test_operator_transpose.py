@@ -84,7 +84,7 @@ class PythonOpPipeline(Pipeline):
 def check_transpose_vs_numpy(device, batch_size, dim, total_volume, permutation):
     max_shape = [int(math.pow(total_volume/batch_size, 1/dim))] * dim
     print("Testing", device, "backend with batch of", batch_size, "max size", max_shape)
-    print("permutaiton ", permutation)
+    print("permutation ", permutation)
     eii1 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
     eii2 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
     compare_pipelines(TransposePipeline(device, batch_size, "", iter(eii1), permutation=permutation),

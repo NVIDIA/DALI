@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ class TransposeCPU : public Transpose<CPUBackend> {
       for (int i = 0; i < batch_size_; i++) {
         thread_pool.DoWorkWithID([this, &input, &output, i](int thread_id) {
           TensorShape<> src_ts = input.shape()[i];
-          auto dst_ts = kernels::Permute(src_ts, perm_);
+          auto dst_ts = permute(src_ts, perm_);
           kernels::TransposeGrouped(TensorView<StorageCPU, T>{output[i].mutable_data<T>(), dst_ts},
                                     TensorView<StorageCPU, const T>{input[i].data<T>(), src_ts},
                                     make_cspan(perm_));

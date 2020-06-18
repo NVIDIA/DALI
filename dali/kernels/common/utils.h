@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,16 +22,6 @@
 namespace dali {
 namespace kernels {
 
-template <typename T, typename U>
-T Permute(const T& in, const U& permutation) {
-  T out = in;
-  for (size_t i = 0; i < dali::size(permutation); i++) {
-    auto idx = permutation[i];
-    out[i] = in[idx];
-  }
-  return out;
-}
-
 template <typename Stride, typename Extent>
 inline void CalcStrides(Stride *strides, const Extent *shape, int ndim) {
   if (ndim > 0) {
@@ -44,22 +34,12 @@ inline void CalcStrides(Stride *strides, const Extent *shape, int ndim) {
   }
 }
 
-DALI_NO_EXEC_CHECK
-template <typename T, typename Size>
-DALI_HOST_DEV
-inline std::enable_if_t<has_resize<T>::value> ResizeIfPossible(T &object, Size size) {
-  object.resize(size);
-}
-
-template <typename T, typename Size>
-DALI_HOST_DEV
-inline std::enable_if_t<!has_resize<T>::value> ResizeIfPossible(T &object, Size size) {}
 
 template <typename Strides, typename Shape>
 DALI_HOST_DEV
 void CalcStrides(Strides &strides, const Shape& shape) {
   int ndim = dali::size(shape);
-  ResizeIfPossible(strides, ndim);  // no-op if strides is a plain array or std::array
+  resize_if_possible(strides, ndim);  // no-op if strides is a plain array or std::array
   if (ndim > 0) {
     int64_t v = 1;
     for (int d = ndim - 1; d > 0; d--) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,21 +38,12 @@ class TransposeGPU : public Transpose<GPUBackend> {
 
  protected:
   bool SetupImpl(vector<OutputDesc> &descs, const DeviceWorkspace &ws) override {
-    const auto &input = ws.InputRef<GPUBackend>(0);
-    SetOutputLayout(input);
-    const auto &input_shape = input.shape();
-    int dim = input_shape.sample_dim();
-    int pdim = perm_.size();
-    DALI_ENFORCE(dim == pdim, make_string("Input has different dimensionality (", dim,
-        ") than the length of permutation (", pdim, ")"));
-    descs.resize(1);
+    Transpose<GPUBackend>::SetupImpl(descs, ws);
+    const auto &input = ws.template InputRef<GPUBackend>(0);
 
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    auto &req = kmgr_.Setup<Kernel>(0, ctx, input_shape, make_span(perm_), input.type().size());
-
-    descs[0].shape = req.output_shapes[0];
-    descs[0].type = input.type();
+    kmgr_.Setup<Kernel>(0, ctx, input.shape(), make_span(perm_), input.type().size());
 
     return true;
   }

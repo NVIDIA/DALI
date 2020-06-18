@@ -66,25 +66,6 @@ struct SliceFlipNormalizePermutePadProcessedArgs {
   float padding_val = 0.0f;
 };
 
-template <typename Container, typename Permutation>
-Container permute(const Container &container, const Permutation &source_indices) {
-  auto permuted_container = container;
-  for (int d = 0, n = size(source_indices); d < n; d++) {
-    permuted_container[d] = container[source_indices[d]];
-  }
-  return permuted_container;
-}
-
-template <typename Permutation>
-Permutation inverse_permutation(const Permutation &permutation) {
-  Permutation inv_perm = permutation;
-  for (int d = 0, n = size(permutation); d < n; d++) {
-    auto perm_d = permutation[d];
-    inv_perm[perm_d] = d;
-  }
-  return inv_perm;
-}
-
 template <int Dims, typename Shape>
 SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
     const SliceFlipNormalizePermutePadArgs<Dims> &args,
@@ -95,9 +76,8 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
   processed_args.in_strides = GetStrides(in_shape);
 
   auto slice_shape = args.shape;
-  processed_args.out_shape = detail::permute(slice_shape, args.permuted_dims);
-  processed_args.padded_out_shape =
-    detail::permute(args.padded_shape, args.permuted_dims);
+  permute(processed_args.out_shape, slice_shape, args.permuted_dims);
+  permute(processed_args.padded_out_shape, args.padded_shape, args.permuted_dims);
   processed_args.padding_val = args.padding_val;
   processed_args.out_strides = GetStrides(processed_args.padded_out_shape);
 
@@ -112,7 +92,7 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
     }
   }
 
-  processed_args.in_strides = detail::permute(processed_args.in_strides, args.permuted_dims);
+  processed_args.in_strides = permute(processed_args.in_strides, args.permuted_dims);
 
   DALI_ENFORCE(args.mean.size() == args.inv_stddev.size());
   const bool should_normalize = !args.mean.empty();
@@ -123,7 +103,7 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
     const bool is_scalar_norm = args.mean.size() == 1;
     if (!is_scalar_norm) {
       processed_args.normalization_dim =
-        detail::inverse_permutation(args.permuted_dims)[args.normalization_dim];
+        inverse_permutation(args.permuted_dims)[args.normalization_dim];
       DALI_ENFORCE(args.mean.size() ==
                    static_cast<size_t>(processed_args.out_shape[processed_args.normalization_dim]));
     }

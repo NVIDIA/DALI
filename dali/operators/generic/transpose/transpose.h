@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #include <vector>
 #include <utility>
 
-#include "dali/kernels/common/utils.h"
+#include "dali/core/permute.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -67,28 +67,23 @@ class Transpose : public Operator<Backend> {
       DALI_ENFORCE(output_layout_.ndim() == sample_ndim);
       output_layout_ = output_layout_arg_;
     } else if (transpose_layout_ && !in_layout.empty()) {
-      output_layout_ = kernels::Permute(in_layout, perm_);
+      output_layout_ = permute(in_layout, perm_);
     }
   }
-
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const workspace_t<Backend> &ws) override {
     const auto &input = ws.template InputRef<Backend>(0);
     SetOutputLayout(input);
 
+    const auto &input_shape = input.shape();
+    int dim = input_shape.sample_dim();
+    int pdim = perm_.size();
+    DALI_ENFORCE(dim == pdim, make_string("Input has different dimensionality (", dim,
+        ") than the length of the permutation (", pdim, ")"));
+
     output_desc.resize(1);
-    if (is_uniform(input.shape())) {
-      auto permuted_dims = kernels::Permute(input.shape()[0], perm_);
-      output_desc[0].shape = uniform_list_shape(batch_size_, permuted_dims);
-    } else {
-      TensorListShape<> tl_shape(batch_size_, input.shape().sample_dim());
-      for (int i = 0; i < batch_size_; ++i) {
-        auto in_shape = input.shape().tensor_shape(i);
-        tl_shape.set_tensor_shape(i, kernels::Permute(in_shape, perm_));
-      }
-      output_desc[0].shape = tl_shape;
-    }
+    permute_dims(output_desc[0].shape, input_shape, make_span(perm_));
     output_desc[0].type = input.type();
 
     return true;
