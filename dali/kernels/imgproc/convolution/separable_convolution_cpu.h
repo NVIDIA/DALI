@@ -27,7 +27,7 @@ namespace dali {
 namespace kernels {
 
 /**
- * @brief Apply convolution in all axes, starting from the innermost to outermost.
+ * @brief Apply convolution in all spatial axes, starting from the innermost to outermost.
  *        If channel axis is pressent, the convolution is not applied there.
  *
  * If `Out` is same as `W` the intermediate stages are written to out,
@@ -48,11 +48,11 @@ template <typename Out, typename In, typename W, int ndim, bool has_channels = t
 struct SeparableConvolutionCpu;
 
 template <typename Out, typename In, typename W, int axes, bool has_channels>
-struct SeparableConvolutionCpuImpl;
+struct SeparableConvolutionCpu;
 
 
 template <typename Out, typename In, typename W, bool has_channels>
-struct SeparableConvolutionCpuImpl<Out, In, W, 1, has_channels> {
+struct SeparableConvolutionCpu<Out, In, W, 1, has_channels> {
   static constexpr int axes = 1;
   static constexpr int ndim = has_channels ? 2 : 1;
 
@@ -78,7 +78,7 @@ struct SeparableConvolutionCpuImpl<Out, In, W, 1, has_channels> {
 };
 
 template <typename Out, typename In, typename W, bool has_channels>
-struct SeparableConvolutionCpuImpl<Out, In, W, 2, has_channels> {
+struct SeparableConvolutionCpu<Out, In, W, 2, has_channels> {
   static constexpr int axes = 2;
   static constexpr int ndim = has_channels ? 3 : 2;
   using Intermediate = decltype(std::declval<W>() * std::declval<In>());
@@ -117,7 +117,7 @@ struct SeparableConvolutionCpuImpl<Out, In, W, 2, has_channels> {
 };
 
 template <typename Out, typename In, typename W, bool has_channels>
-struct SeparableConvolutionCpuImpl<Out, In, W, 3, has_channels> {
+struct SeparableConvolutionCpu<Out, In, W, 3, has_channels> {
   static constexpr int axes = 3;
   static constexpr int ndim = has_channels ? 4 : 3;
   using Intermediate = decltype(std::declval<W>() * std::declval<In>());
@@ -158,30 +158,6 @@ struct SeparableConvolutionCpuImpl<Out, In, W, 3, has_channels> {
   ConvolutionCpu<Intermediate, Intermediate, W, ndim, 1, has_channels> conv_middle_;
   ConvolutionCpu<Out, Intermediate, W, ndim, 0, has_channels> conv_outermost_;
 };
-
-template <typename Out, typename In, typename W>
-struct SeparableConvolutionCpu<Out, In, W, 1, false>
-    : public SeparableConvolutionCpuImpl<Out, In, W, 1, false> {};
-
-template <typename Out, typename In, typename W>
-struct SeparableConvolutionCpu<Out, In, W, 2, true>
-    : public SeparableConvolutionCpuImpl<Out, In, W, 1, true> {};
-
-template <typename Out, typename In, typename W>
-struct SeparableConvolutionCpu<Out, In, W, 2, false>
-    : public SeparableConvolutionCpuImpl<Out, In, W, 2, false> {};
-
-template <typename Out, typename In, typename W>
-struct SeparableConvolutionCpu<Out, In, W, 3, true>
-    : public SeparableConvolutionCpuImpl<Out, In, W, 2, true> {};
-
-template <typename Out, typename In, typename W>
-struct SeparableConvolutionCpu<Out, In, W, 3, false>
-    : public SeparableConvolutionCpuImpl<Out, In, W, 3, false> {};
-
-template <typename Out, typename In, typename W>
-struct SeparableConvolutionCpu<Out, In, W, 4, true>
-    : public SeparableConvolutionCpuImpl<Out, In, W, 3, true> {};
 
 }  // namespace kernels
 }  // namespace dali
