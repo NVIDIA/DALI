@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 #include <unordered_map>
+#include <mutex>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -43,6 +44,11 @@
 
 namespace dali {
 
+struct DLL_PUBLIC ExecutorMeta {
+  size_t real_size;
+  size_t reserved;
+};
+using ExecutorMetaMap = std::unordered_map<std::string, std::vector<ExecutorMeta>>;
 
 namespace detail {
 // This is stream callback used on GPU stream to indicate that GPU work for this
@@ -64,6 +70,8 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void ShareOutputs(DeviceWorkspace *ws) = 0;
   DLL_PUBLIC virtual void ReleaseOutputs() = 0;
   DLL_PUBLIC virtual void SetCompletionCallback(ExecutorCallback cb) = 0;
+  DLL_PUBLIC virtual void EnableMemoryStats(bool get_memory_stats = false) = 0;
+  DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
 
  protected:
   // virtual to allow the TestPruneWholeGraph test in gcc
@@ -85,8 +93,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DLL_PUBLIC inline Executor(int batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
                              int max_num_stream = -1, int default_cuda_stream_priority = 0,
-                             QueueSizes prefetch_queue_depth = QueueSizes{2, 2},
-                             bool get_memory_stats = false)
+                             QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : batch_size_(batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
@@ -97,23 +104,16 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
         mixed_op_stream_(0),
-        gpu_op_stream_(0),
-        get_memory_stats_(get_memory_stats) {
+        gpu_op_stream_(0) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
 
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
   }
 
-  ~Executor() {
-    if (get_memory_stats_) {
-      std::cout << "Operator memory statistics" << std::endl;
-      PrintStats(cpu_memory_stats_);
-      PrintStats(mixed_memory_stats_);
-      PrintStats(gpu_memory_stats_);
-    }
+  DLL_PUBLIC void EnableMemoryStats(bool get_memory_stats = false) override {
+    get_memory_stats_ = get_memory_stats;
   }
-
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
   DLL_PUBLIC void Init() override {}
   DLL_PUBLIC void RunCPU() override;
@@ -123,6 +123,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DLL_PUBLIC void ShareOutputs(DeviceWorkspace *ws) override;
   DLL_PUBLIC void ReleaseOutputs() override;
   DLL_PUBLIC void SetCompletionCallback(ExecutorCallback cb) override;
+  DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() override;
 
   DLL_PUBLIC void ShutdownQueue() {
     QueuePolicy::SignalStop();
@@ -131,29 +132,13 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
-  struct mem_stats {
-    size_t real_size;
-    size_t reserved;
-  };
-
-  using mem_stats_map = std::unordered_map<std::string, std::vector<mem_stats>>;
-
-  void PrintStats(mem_stats_map &memory_stats) {
-    for (auto const& stats : memory_stats) {
-      std::cout << "Operator: " << stats.first << ", ";
-      for (size_t i = 0; i < stats.second.size(); ++i) {
-        std::cout << "output [" << i << "] : " << stats.second[i].real_size << " (reserved "
-                  << stats.second[i].reserved << " )" << " B,";
-      }
-      std::cout << std::endl;
-    }
-  }
-
   template <typename W>
-  inline void FillStats(mem_stats_map &memory_stats, W ws, std::string op_name) {
+  inline void FillStats(ExecutorMetaMap &memory_stats, W ws, std::string op_name,
+                       std::mutex &write_mutex) {
     if (get_memory_stats_) {
         size_t out_size = 0;
         size_t reserved_size = 0;
+        std::lock_guard<std::mutex> lck(write_mutex);
         auto &stats = memory_stats[op_name];
         stats.resize(ws.NumOutput(), {0, 0});
         for (int i = 0; i < ws.NumOutput(); ++i) {
@@ -266,7 +251,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   QueueSizes queue_sizes_;
   std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
   cudaStream_t mixed_op_stream_, gpu_op_stream_;
-  bool get_memory_stats_;
   // MixedOpId -> queue_idx -> cudaEvent_t
   // To introduce dependency from MIXED to GPU Ops
   MixedOpEventMap mixed_op_events_;
@@ -275,8 +259,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   // in some edge cases where there are no operators
   std::vector<cudaEvent_t> mixed_callback_events_;
 
-  bool get_memory_stats = false;
-  mem_stats_map cpu_memory_stats_, mixed_memory_stats_, gpu_memory_stats_;
+  std::atomic<bool> get_memory_stats_ = ATOMIC_VAR_INIT(false);;
+  ExecutorMetaMap cpu_memory_stats_, mixed_memory_stats_, gpu_memory_stats_;
+  std::mutex cpu_memory_stats_mutex_;
+  std::mutex mixed_memory_stats_mutex_;
+  std::mutex gpu_memory_stats_mutex_;
 
  private:
   template <typename Workspace>
@@ -322,6 +309,23 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetCompletionCallback(ExecutorCallb
       event = event_pool_.GetEvent();
     }
   }
+}
+
+template<typename map>
+void AppendToMap(map &ret, map &in_stats, std::mutex &mutex) {
+  const std::lock_guard<std::mutex> lock(mutex);
+  for (auto const& stats : in_stats) {
+    ret.emplace(stats);
+  }
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+ExecutorMetaMap Executor<WorkspacePolicy, QueuePolicy>::GetExecutorMeta() {
+  ExecutorMetaMap ret;
+  AppendToMap(ret, cpu_memory_stats_, cpu_memory_stats_mutex_);
+  AppendToMap(ret, mixed_memory_stats_, mixed_memory_stats_mutex_);
+  AppendToMap(ret, gpu_memory_stats_, gpu_memory_stats_mutex_);
+  return ret;
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -405,7 +409,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
 
     try {
       RunHelper(op_node, ws);
-      FillStats(cpu_memory_stats_, ws, op_node.instance_name);
+      FillStats(cpu_memory_stats_, ws, "CPU_" + op_node.instance_name, cpu_memory_stats_mutex_);
     } catch (std::exception &e) {
       HandleError(e.what());
     } catch (...) {
@@ -440,7 +444,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
       TimeRange tr("[Executor] Run Mixed op " + op_node.instance_name,
           TimeRange::kOrange);
       RunHelper(op_node, ws);
-      FillStats(mixed_memory_stats_, ws, op_node.instance_name);
+      FillStats(mixed_memory_stats_, ws,  "MIXED_" + op_node.instance_name,
+                mixed_memory_stats_mutex_);
       if (ws.has_stream() && ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
       }
@@ -498,7 +503,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
       TimeRange tr("[Executor] Run GPU op " + op_node.instance_name,
           TimeRange::knvGreen);
       RunHelper(op_node, ws);
-      FillStats(gpu_memory_stats_, ws, op_node.instance_name);
+      FillStats(gpu_memory_stats_, ws, "GPU_" + op_node.instance_name, gpu_memory_stats_mutex_);
       if (ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
       }

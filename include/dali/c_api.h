@@ -71,6 +71,17 @@ typedef struct {
 } daliReaderMetadata;
 
 
+/*
+ * Need to keep that in sync with ExecutorMeta from executor.h
+ */
+typedef struct {
+  char *operator_name;         // operator name, user need to free the memory
+  size_t out_num;              // number of the operator outputs
+  size_t *real_size;           // real size of the operator output, user need to free the memory
+  size_t *reserved;            // reserved size of the operator output, user need to free the memory
+} daliExecutorMetadata;
+
+
 /**
  * @brief DALI initialization
  *
@@ -327,9 +338,23 @@ DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
 
 /**
  * @brief Returns the named reader metadata
+ *  @param reader_name Name of the reader to query
+ *  @param meta Pointer to metadata to be filled by the function
  */
 DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
                                       daliReaderMetadata* meta);
+/**
+ * @brief Returns obtains the executor statistics
+ *  @param operator_meta Pointer to the memory allocated by the function with operator_meta_num
+ *                       number of metadata entries. The user need to free that memory, as well
+ *                       as the memory inside the metadata
+ *  @param operator_meta_num Pointer to the variable which will tell how many meta entries
+ *                           (operators) have been files
+ */
+DLL_PUBLIC void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle,
+                                        daliExecutorMetadata **operator_meta,
+                                        size_t *operator_meta_num);
+
 
 #ifdef __cplusplus
 }

@@ -48,6 +48,7 @@ The purpose of this functionality is to enable the user to fine-tune the process
 DALI uses intermediate buffers to pass data between operators in the processing graph. With DALI, the memory is never freed but just enlarged when present buffers are not sufficient to hold the data. However, in some cases, even this limited number of allocations still could affect DALI performance. Hence, if the user knows how much memory each operator buffer needs, then it is possible to provide a hint to presize buffers before the first run.
 Two parameters are available: First, the ``bytes_per_sample`` pipeline argument, which accepts one value that is used globally across all operators for all buffers.
 The second parameter is the ``bytes_per_sample_hint`` per operator argument, which accepts one value or a list of values. When one value is provided it is used for all output buffers for a given operator. When a list is provided then each buffer is presized to the corresponding size.
+To learn how much memory outputs of each operator need, the user may create the pipeline with ``get_memory_stats`` set to ``True`` and then query the pipeline for the operator output memory occupation by calling ``executor_meta`` method on the pipeline.
 
 Prefetching queue depth
 -----------------------

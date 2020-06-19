@@ -104,7 +104,6 @@ class DaliOp : public tf::OpKernel {
     int batch_size;
     bool exec_separated;
     int cpu_prefetch_queue_depth;
-    bool get_memory_stats;
 
     OP_REQUIRES_OK(context, context->GetAttr("shapes", &shapes_));
     OP_REQUIRES_OK(context, context->GetAttr("dtypes", &types_));
@@ -117,7 +116,7 @@ class DaliOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size));
     OP_REQUIRES_OK(context, context->GetAttr("cpu_prefetch_queue_depth",
                                              &cpu_prefetch_queue_depth));
-    OP_REQUIRES_OK(context, context->GetAttr("get_memory_stats", &get_memory_stats));
+    OP_REQUIRES_OK(context, context->GetAttr("get_memory_stats", &get_memory_stats_));
 
     // TF doing constant propagation runs all operators on the CPU first, so we need to provide
     // ability to copy memory from the GPU pipeline to the CPU seamlessly
@@ -144,7 +143,7 @@ class DaliOp : public tf::OpKernel {
                    prefetch_queue_depth_,
                    cpu_prefetch_queue_depth,
                    prefetch_queue_depth_,
-                   get_memory_stats));
+                   get_memory_stats_));
 
 #if USE_TF_ALLOCATOR
     SetupTFAllocator(device_id_);
@@ -163,6 +162,28 @@ class DaliOp : public tf::OpKernel {
   }
 
   ~DaliOp() override {
+    if (get_memory_stats_) {
+      size_t N;
+      daliExecutorMetadata *meta;
+      daliGetExecutorMetadata(&pipe_handle_, &meta, &N);
+      std::cout << "DALI operator memory statistics: "  << std::endl;
+      for (size_t i = 0; i < N; ++i) {
+        std::cout << "Operator " << meta[i].operator_name;
+        for (size_t j = 0; j < meta[i].out_num; ++j) {
+          std::cout << "   output [ " << j << " ] : "
+                    << meta[i].real_size[j] << "B allocated "
+                    << meta[i].reserved[j] << "B reserved";
+          if (j != meta[i].out_num - 1) {
+            std::cout << ",";
+          }
+        }
+        std::cout << std::endl;
+        free(meta[i].operator_name);
+        free(meta[i].real_size);
+        free(meta[i].reserved);
+      }
+      free(meta);
+    }
     daliDeletePipeline(&pipe_handle_);
   }
 
@@ -343,6 +364,7 @@ class DaliOp : public tf::OpKernel {
   int prefetch_queue_depth_;
   device_type_t device_type_;
   std::vector<bool> sparse_;
+  bool get_memory_stats_;
 };
 
 using tf::int64;
