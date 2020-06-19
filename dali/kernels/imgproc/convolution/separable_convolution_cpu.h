@@ -44,12 +44,8 @@ namespace kernels {
  * For example DHWC->DWHC->HWDC->DHWC, while applying convolutions for W, H, D respectively.
  * This might be faster, but vectorization on outer dims would still probably win.
  */
-template <typename Out, typename In, typename W, int ndim, bool has_channels = true>
+template <typename Out, typename In, typename W, int axes, bool has_channels = false>
 struct SeparableConvolutionCpu;
-
-template <typename Out, typename In, typename W, int axes, bool has_channels>
-struct SeparableConvolutionCpu;
-
 
 template <typename Out, typename In, typename W, bool has_channels>
 struct SeparableConvolutionCpu<Out, In, W, 1, has_channels> {
