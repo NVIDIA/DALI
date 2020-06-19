@@ -71,7 +71,7 @@ class SliceFlipNormalizePermutePadGpu {
     for (int i = 0; i < in_shapes.size(); i++) {
       TensorShape<Dims> out_shape(args[i].padded_shape);
       CheckValidOutputShape(in_shapes[i], out_shape, args[i]);
-      out_shape = detail::permute(out_shape, args[i].permuted_dims);
+      out_shape = permute(out_shape, args[i].permuted_dims);
       output_shapes.set_tensor_shape(i, out_shape);
     }
     req.output_shapes = { output_shapes };

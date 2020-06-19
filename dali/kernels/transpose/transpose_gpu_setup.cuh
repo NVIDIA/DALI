@@ -49,7 +49,7 @@ void InitTiledTranspose(TiledTransposeDesc<T> &desc,
 
   CalcStrides(desc.in_strides, shape);
 
-  TensorShape<> out_shape = Permute(shape, perm);
+  TensorShape<> out_shape = permute(shape, perm);
   TensorShape<> tmp_strides;
   CalcStrides(tmp_strides, out_shape);
   for (int i = 0; i < ndim; i++) {
@@ -116,7 +116,7 @@ void InitDeinterleave(DeinterleaveDesc<T> &desc,
 
   CalcStrides(desc.in_strides, shape);
 
-  TensorShape<> out_shape = Permute(shape, perm);
+  TensorShape<> out_shape = permute(shape, perm);
   TensorShape<> tmp_strides;
   CalcStrides(tmp_strides, out_shape);
   for (int i = 0; i < ndim; i++) {
@@ -136,14 +136,13 @@ void InitGenericTranspose(GenericTransposeDesc<T> &desc,
                          same_as_t<T> *out = nullptr, same_as_t<const T> *in = nullptr) {
   int ndim = shape.size();
 
-  TensorShape<> out_shape = Permute(shape, perm);
+  TensorShape<> out_shape = permute(shape, perm);
   CalcStrides(desc.out_strides, out_shape);
 
   TensorShape<> tmp_strides;
   CalcStrides(tmp_strides, shape);
-  for (int i = 0; i < ndim; i++) {
-    desc.in_strides[i] = tmp_strides[perm[i]];
-  }
+  permute(desc.in_strides, tmp_strides, perm);
+
   if (ndim == 0) {
     desc.out_strides[0] = 0;
     desc.in_strides[0] = 1;

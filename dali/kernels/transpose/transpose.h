@@ -157,7 +157,7 @@ void TransposeGrouped(const TensorView<StorageCPU, T> &dst,
   TensorShape<> collapsed_src_shape;
   SmallVector<int, DynamicTensorShapeContainer::static_size> collapsed_perm;
   transpose_impl::SimplifyPermute(collapsed_src_shape, collapsed_perm, src.shape, perm);
-  auto collapsed_dst_shape = Permute(collapsed_src_shape, collapsed_perm);
+  auto collapsed_dst_shape = permute(collapsed_src_shape, collapsed_perm);
   Transpose(TensorView<StorageCPU, T>{dst.data, collapsed_dst_shape},
             TensorView<StorageCPU, const T>{src.data, collapsed_src_shape},
             make_cspan(collapsed_perm));

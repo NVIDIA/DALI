@@ -200,7 +200,7 @@ class SliceFlipNormalizePermutePadCpu {
     KernelRequirements req;
     TensorShape<Dims> out_shape(args.padded_shape);
     CheckValidOutputShape(in.shape, out_shape, args);
-    out_shape = detail::permute(out_shape, args.permuted_dims);
+    out_shape = permute(out_shape, args.permuted_dims);
     req.output_shapes.push_back(uniform_list_shape<Dims>(1, out_shape));
     return req;
   }

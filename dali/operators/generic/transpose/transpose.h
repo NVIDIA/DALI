@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,80 +21,10 @@
 #include <vector>
 #include <utility>
 
-#include "dali/kernels/common/utils.h"
-#include "dali/operators/generic/transpose/cutt/cutt.h"
+#include "dali/core/permute.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
-
-namespace transpose_detail {
-
-template <typename ShapeT>
-inline void RowToColumnMajor(ShapeT *dims, int *perm, size_t len) {
-  std::reverse(dims, dims + len);
-  std::reverse(perm, perm + len);
-  for (size_t i = 0; i < len; ++i) perm[i] = len - 1 - perm[i];
-}
-
-// enough to represent batches of 4D
-constexpr int kStaticShapeElements = 6;
-using VecInt = SmallVector<int, kStaticShapeElements>;
-
-/**
- * @brief Remove dimensions equal to 1 and adjust the shape & permutation
- *
- * Optionally convert from Row Major to Column Major compatible description (required by cuTT)
- */
-template <typename ShapeT = int>
-void PrepareArguments(SmallVector<ShapeT, kStaticShapeElements> &shape, VecInt &perm,
-                      bool transpose = false) {
-  DALI_ENFORCE(shape.size() == perm.size());
-  const int N = shape.size();
-
-  // This will be oterwise reduced to empty shape, and we still want to have some
-  // notion of non-empty shape left
-  if (volume(shape) == 1) {
-    shape = {1};
-    perm = {0};
-    return;
-  }
-
-  SmallVector<ShapeT, kStaticShapeElements> tmp_shape;
-  SmallVector<int, kStaticShapeElements> coord_map;
-  coord_map.resize(N);
-
-  // Skip all dimensions of shape that are equal to 1. `coord_map` will hold the new "index"
-  // for the dimensions that accounts for the skipped ones (valid only for the ones that are left)
-  for (int i = 0, skipped = 0; i < N; i++) {
-    if (shape[i] == 1) {
-      skipped++;
-    } else {
-      tmp_shape.push_back(shape[i]);
-    }
-    coord_map[i] = i - skipped;
-  }
-
-  VecInt tmp_perm;
-  for (int i = 0; i < N; i++) {
-    // We need to skip the elements of permutation which correspond to dimensions with extent = 1
-    if (shape[perm[i]] == 1) {
-      continue;
-    }
-    // otherwise we pass the element to the new perm and use the new index of this dimension,
-    // accounting for the skipped dims
-    tmp_perm.push_back(coord_map[perm[i]]);
-  }
-
-  perm = std::move(tmp_perm);
-  shape = std::move(tmp_shape);
-
-  if (transpose) {
-    RowToColumnMajor(shape.data(), perm.data(), shape.size());
-  }
-}
-
-}  // namespace transpose_detail
-
 
 template <typename Backend>
 class Transpose : public Operator<Backend> {
@@ -127,9 +57,8 @@ class Transpose : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Transpose);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<Backend>(0);
+  template <typename InputType>
+  void SetOutputLayout(const InputType &input) {
     auto in_layout = input.GetLayout();
     auto sample_ndim = input.shape().sample_dim();
     DALI_ENFORCE(in_layout.ndim() == sample_ndim || in_layout.empty());
@@ -138,21 +67,23 @@ class Transpose : public Operator<Backend> {
       DALI_ENFORCE(output_layout_.ndim() == sample_ndim);
       output_layout_ = output_layout_arg_;
     } else if (transpose_layout_ && !in_layout.empty()) {
-      output_layout_ = kernels::Permute(in_layout, perm_);
+      output_layout_ = permute(in_layout, perm_);
     }
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template InputRef<Backend>(0);
+    SetOutputLayout(input);
+
+    const auto &input_shape = input.shape();
+    int dim = input_shape.sample_dim();
+    int pdim = perm_.size();
+    DALI_ENFORCE(dim == pdim, make_string("Input has different dimensionality (", dim,
+        ") than the length of the permutation (", pdim, ")"));
 
     output_desc.resize(1);
-    if (is_uniform(input.shape())) {
-      auto permuted_dims = kernels::Permute(input.shape()[0], perm_);
-      output_desc[0].shape = uniform_list_shape(batch_size_, permuted_dims);
-    } else {
-      TensorListShape<> tl_shape(batch_size_, input.shape().sample_dim());
-      for (int i = 0; i < batch_size_; ++i) {
-        auto in_shape = input.shape().tensor_shape(i);
-        tl_shape.set_tensor_shape(i, kernels::Permute(in_shape, perm_));
-      }
-      output_desc[0].shape = tl_shape;
-    }
+    permute_dims(output_desc[0].shape, input_shape, make_span(perm_));
     output_desc[0].type = input.type();
 
     return true;

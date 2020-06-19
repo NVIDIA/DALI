@@ -18,6 +18,7 @@
 #include <type_traits>
 #include <array>
 #include <vector>
+#include "dali/core/host_dev.h"
 
 namespace dali {
 
@@ -58,6 +59,17 @@ struct has_resize : decltype(HasResize((T*)0, ResizeArgs()...)) {};  // NOLINT
 /// @brief Inerits `true_type`, `if T::resize` can be called with an integer
 template <typename T>
 struct has_resize<T> : decltype(HasResize((T*)0, 1)) {};  // NOLINT
+
+DALI_NO_EXEC_CHECK
+template <typename T, typename Size>
+DALI_HOST_DEV
+inline std::enable_if_t<has_resize<T>::value> resize_if_possible(T &object, Size size) {
+  object.resize(size);
+}
+
+template <typename T, typename Size>
+DALI_HOST_DEV
+inline std::enable_if_t<!has_resize<T>::value> resize_if_possible(T &object, Size size) {}
 
 }  // namespace dali
 

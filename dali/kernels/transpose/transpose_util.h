@@ -24,6 +24,21 @@ namespace dali {
 namespace kernels {
 namespace transpose_impl {
 
+template <int ndim1, int ndim2>
+void Permute(TensorListShape<ndim1> &out, const TensorListShape<ndim2> &in,
+             span<const int> permutation) {
+  dali::detail::check_compatible_ndim<ndim1, ndim2>();
+  int N = in.num_samples();
+  int ndim = in.sample_dim();
+  out.resize(N, ndim);
+  assert(permutation.size() == ndim);
+  for (int i = 0; i < N; i++) {
+    for (int d = 0; d < ndim; d++) {
+      out.tensor_shape_span(i)[d] = in.tensor_shape_span(i)[permutation[d]];
+    }
+  }
+}
+
 template <size_t static_size>
 inline void CollapseUnitDims(TensorShape<> &shape, SmallVector<int, static_size> &perm) {
   int ndim = shape.size();

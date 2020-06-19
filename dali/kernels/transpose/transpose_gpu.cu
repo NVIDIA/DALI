@@ -118,21 +118,6 @@ struct type_of_size_helper<16> : same_as<int4> {};
 template <int size>
 using type_of_size = typename type_of_size_helper<size>::type;
 
-template <int ndim1, int ndim2>
-void Permute(TensorListShape<ndim1> &out, const TensorListShape<ndim2> &in,
-             span<const int> permutation) {
-  dali::detail::check_compatible_ndim<ndim1, ndim2>();
-  int N = in.num_samples();
-  int ndim = in.sample_dim();
-  out.resize(N, ndim);
-  assert(permutation.size() == ndim);
-  for (int i = 0; i < N; i++) {
-    for (int d = 0; d < ndim; d++) {
-      out.tensor_shape_span(i)[d] = in.tensor_shape_span(i)[permutation[d]];
-    }
-  }
-}
-
 class TransposeGPU::Impl {
  public:
   template <typename T>
@@ -143,8 +128,7 @@ class TransposeGPU::Impl {
     int ndim = in_shape_.sample_dim();
     element_size_ = sizeof(T);
     in_shape_ = in_shape;
-    out_shape_.resize(N, ndim);
-    Permute(out_shape_, in_shape_, permutation);
+    permute_dims(out_shape_, in_shape_, permutation);
 
     infos_.resize(N);
     GetTransposeInfo(infos_.data(), sizeof(T), in_shape, permutation);
