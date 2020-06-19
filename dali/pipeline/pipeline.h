@@ -315,8 +315,22 @@ class DLL_PUBLIC Pipeline {
    * @param get_memory_stats If DALI should print operator output buffer statistics.
    * Usefull for `bytes_per_sample_hint` operator parameter.
    */
-  DLL_PUBLIC void DumpOperatorOutputMemoryStatistics(bool get_memory_stats = true) {
+  DLL_PUBLIC void EnableOperatorOutputMemoryStatistics(bool get_memory_stats = true) {
     get_memory_stats_ = get_memory_stats;
+    if (executor_) {
+      executor_->EnableMemoryStats(get_memory_stats_);
+    }
+  }
+
+  /**
+   * @brief Obtains the executor statistics
+   */
+  DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() {
+    if (executor_) {
+      return  executor_->GetExecutorMeta();
+    } else {
+      return {};
+    }
   }
 
   /**

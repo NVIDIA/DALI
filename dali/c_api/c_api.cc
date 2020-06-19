@@ -119,7 +119,7 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle,
   if (se) {
     pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
   }
-  pipeline->DumpOperatorOutputMemoryStatistics(get_memory_stats);
+  pipeline->EnableOperatorOutputMemoryStatistics(get_memory_stats);
   pipeline->Build();
   auto ws = std::make_unique<dali::DeviceWorkspace>();
   auto stream = dali::CUDAStream::Create(true);
@@ -443,3 +443,33 @@ void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_n
   meta->pad_last_batch = returned_meta.pad_last_batch;
   meta->stick_to_shard = returned_meta.stick_to_shard;
 }
+
+void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle, daliExecutorMetadata **operator_meta,
+                             size_t *operator_meta_num) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  auto returned_meta = pipeline->GetExecutorMeta();
+  *operator_meta_num = returned_meta.size();
+  *operator_meta = (daliExecutorMetadata*) malloc(sizeof(daliExecutorMetadata) *
+                                                  returned_meta.size());
+
+  int i = 0;
+  for (const auto &stat : returned_meta) {
+    auto op_name_size = stat.first.size();
+    (*operator_meta)[i].operator_name = (char*) malloc(sizeof(char) * (op_name_size + 1));
+    stat.first.copy((*operator_meta)[i].operator_name, op_name_size);
+    (*operator_meta)[i].operator_name[op_name_size] = '\0';
+
+    auto num_outputs = stat.second.size();
+    (*operator_meta)[i].out_num = num_outputs;
+    (*operator_meta)[i].real_size = (size_t*) malloc(sizeof(size_t) * num_outputs);
+    (*operator_meta)[i].reserved = (size_t*) malloc(sizeof(size_t) * num_outputs);
+
+    for (size_t j = 0; j < num_outputs; ++j) {
+      const auto &entry = stat.second[j];
+      (*operator_meta)[i].real_size[j] = entry.real_size;
+      (*operator_meta)[i].reserved[j] = entry.reserved;
+    }
+    ++i;
+  }
+}
+

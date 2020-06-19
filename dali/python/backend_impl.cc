@@ -866,7 +866,7 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetDeviceBufferGrowthFactor", Buffer<GPUBackend>::GetGrowthFactor);
 }
 
-py::dict MetaToDict(const ReaderMeta &meta) {
+py::dict ReaderMetaToDict(const ReaderMeta &meta) {
   py::dict d;
   d["epoch_size"] = meta.epoch_size;
   d["epoch_size_padded"] = meta.epoch_size_padded;
@@ -874,6 +874,23 @@ py::dict MetaToDict(const ReaderMeta &meta) {
   d["shard_id"] = meta.shard_id;
   d["pad_last_batch"] = meta.pad_last_batch;
   d["stick_to_shard"] = meta.stick_to_shard;
+  return d;
+}
+
+py::dict ExecutorMetaToDict(const ExecutorMetaMap &meta) {
+  py::dict d;
+  for (const auto &stat : meta) {
+    py::dict op_dict;
+    py::list real_memory_size;
+    py::list reserver_memory_size;
+    for (const auto &entry : stat.second) {
+      real_memory_size.append(entry.real_size);
+      reserver_memory_size.append(entry.reserved);
+    }
+    op_dict["real_memory_size"] = real_memory_size;
+    op_dict["reserver_memory_size"] = reserver_memory_size;
+    d[stat.first.c_str()] = op_dict;
+  }
   return d;
 }
 
@@ -1039,11 +1056,16 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_pipelined"_a = true,
         "exec_separated"_a = false,
         "exec_async"_a = true)
-    .def("DumpOperatorOutputMemoryStatistics",
+    .def("EnableOperatorOutputMemoryStatistics",
         [](Pipeline *p, bool get_memory_stats) {
-          p->DumpOperatorOutputMemoryStatistics(get_memory_stats);
+          p->EnableOperatorOutputMemoryStatistics(get_memory_stats);
         },
         "get_memory_stats"_a = true)
+    .def("executor_meta",
+        [](Pipeline *p) {
+          auto ret = p->GetExecutorMeta();
+          return ExecutorMetaToDict(ret);
+        })
     .def("SetQueueSizes",
         [](Pipeline *p, int cpu_size, int gpu_size) {
           p->SetQueueSizes(cpu_size, gpu_size);
@@ -1152,7 +1174,7 @@ PYBIND11_MODULE(backend_impl, m) {
           std::map<std::string, ReaderMeta> meta_map = p->GetReaderMeta();
           py::dict d;
           for (auto const& value : meta_map) {
-            d[value.first.c_str()] = MetaToDict(value.second);
+            d[value.first.c_str()] = ReaderMetaToDict(value.second);
           }
           return d;
         })
@@ -1161,7 +1183,7 @@ PYBIND11_MODULE(backend_impl, m) {
           ReaderMeta meta = p->GetReaderMeta(op_name);
           DALI_ENFORCE(meta,
               "Operator " + op_name + "  not found or does not expose valid metadata.");
-          return MetaToDict(meta);
+          return ReaderMetaToDict(meta);
         });
 
 #define DALI_OPSPEC_ADDARG(T) \

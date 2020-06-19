@@ -167,11 +167,11 @@ int Pipeline::AddOperator(const OpSpec &spec, const std::string& inst_name) {
 }
 
 int Pipeline::AddOperator(const OpSpec &spec, int logical_id) {
-  return AddOperator(spec, "<no name>", logical_id);
+  return AddOperator(spec, make_string("<no name>_", logical_id), logical_id);
 }
 
 int Pipeline::AddOperator(const OpSpec &spec) {
-  return AddOperator(spec, "<no name>", GetNextLogicalId());
+  return AddOperator(spec, GetNextLogicalId());
 }
 
 
@@ -430,8 +430,8 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
 
   executor_ = GetExecutor(pipelined_execution_, separated_execution_, async_execution_, batch_size_,
                           num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
-                          max_num_stream_, default_cuda_stream_priority_, prefetch_queue_depth_,
-                          get_memory_stats_);
+                          max_num_stream_, default_cuda_stream_priority_, prefetch_queue_depth_);
+  executor_->EnableMemoryStats(get_memory_stats_);
   executor_->Init();
 
   // Creating the graph

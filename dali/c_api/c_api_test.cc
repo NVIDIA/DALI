@@ -445,4 +445,30 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
 }
 
+TYPED_TEST(CApiTest, TestExecutorMeta) {
+  auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
+  auto serialized = pipe_ptr->SerializeToProtobuf();
+
+  pipe_ptr.reset();
+  daliPipelineHandle handle;
+  daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
+                     device_id, false, prefetch_queue_depth, prefetch_queue_depth,
+                     prefetch_queue_depth, true);
+
+  daliRun(&handle);
+  daliOutput(&handle);
+
+  size_t N;
+  daliExecutorMetadata *meta;
+  daliGetExecutorMetadata(&handle, &meta, &N);
+  EXPECT_EQ(N, 4);
+  for (size_t i = 0; i < N; ++i) {
+    free(meta[i].operator_name);
+    free(meta[i].real_size);
+    free(meta[i].reserved);
+  }
+  free(meta);
+  CUDA_CALL(cudaDeviceSynchronize());
+}
+
 }  // namespace dali

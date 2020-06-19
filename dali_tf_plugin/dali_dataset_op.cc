@@ -137,7 +137,7 @@ class DALIDatasetOp : public DatasetOpKernel {
       daliPipelineHandle pipeline_handle;
       TF_CHECK_OK(InitPipeline(&pipeline_handle));
       return absl::make_unique<Iterator>(Iterator::Params{this, strings::StrCat(prefix, "::DALI")},
-                                         pipeline_handle);
+                                         pipeline_handle, pipeline_def_.get_memory_stats);
     }
 
     const DataTypeVector &output_dtypes() const override {
@@ -229,8 +229,10 @@ class DALIDatasetOp : public DatasetOpKernel {
 
     class Iterator : public DatasetIterator<Dataset> {
      public:
-      explicit Iterator(const Params &params, daliPipelineHandle pipeline_handle)
-          : DatasetIterator<Dataset>(params), pipeline_handle_(pipeline_handle) {}
+      explicit Iterator(const Params &params, daliPipelineHandle pipeline_handle,
+                        bool get_memory_stats = false)
+          : DatasetIterator<Dataset>(params), pipeline_handle_(pipeline_handle),
+            get_memory_stats_(get_memory_stats) {}
 
       Status GetNextInternal(IteratorContext *context, std::vector<Tensor> *out_tensors,
                              bool *end_of_sequence) override {
@@ -324,6 +326,28 @@ class DALIDatasetOp : public DatasetOpKernel {
       }
 
       ~Iterator() {
+        if (get_memory_stats_) {
+          size_t N;
+          daliExecutorMetadata *meta;
+          daliGetExecutorMetadata(&pipeline_handle_, &meta, &N);
+          std::cout << "DALI operator memory statistics: "  << std::endl;
+          for (size_t i = 0; i < N; ++i) {
+            std::cout << "Operator " << meta[i].operator_name;
+            for (size_t j = 0; j < meta[i].out_num; ++j) {
+              std::cout << "   output [ " << j << " ] : "
+                        << meta[i].real_size[j] << "B allocated "
+                        << meta[i].reserved[j] << "B reserved";
+              if (j != meta[i].out_num - 1) {
+                std::cout << ",";
+              }
+            }
+            std::cout << std::endl;
+            free(meta[i].operator_name);
+            free(meta[i].real_size);
+            free(meta[i].reserved);
+          }
+          free(meta);
+        }
         daliDeletePipeline(&pipeline_handle_);
       }
 
@@ -450,6 +474,7 @@ class DALIDatasetOp : public DatasetOpKernel {
 
       tensorflow::mutex mu_;
       daliPipelineHandle pipeline_handle_;
+      bool get_memory_stats_;
     };  //Iterator
   };   //Dataset
 };
@@ -475,6 +500,7 @@ REGISTER_OP("DALIDataset")
   .Attr("prefetch_queue_depth: int")
   .Attr("cpu_prefetch_queue_depth: int")
   .Attr("gpu_prefetch_queue_depth: int")
+  .Attr("get_memory_stats: bool = false")
   .Attr("output_shapes: list(shape) >= 1")
   .Attr("output_dtypes: list({bool, half, float, uint8, uint16, uint32, uint64, int8, int16, int32, int64}) >= 1")
   .Output("handle: variant")
