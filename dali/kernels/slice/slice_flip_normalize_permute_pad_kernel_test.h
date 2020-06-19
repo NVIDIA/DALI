@@ -83,48 +83,53 @@ class SliceFlipNormalizePermutePadTest : public ::testing::Test {
       const auto out_shape = out.tensor_shape(i);
       auto out_strides = GetStrides(out_shape);
 
+      auto fill_values = args[i].fill_values;
+      auto channel_dim = args[i].channel_dim;
+
       // normalization
       auto mean = args[i].mean;
       auto inv_stddev = args[i].inv_stddev;
       ASSERT_EQ(mean.size(), inv_stddev.size());
+      bool need_normalize = !mean.empty();
+      if (mean.size() > 1 && fill_values.size() == 1) {
+        for (size_t i = 1; i < mean.size(); i++)
+          fill_values.push_back(fill_values[0]);
+      }
+      int per_ch_arg_size = std::max(mean.size(), fill_values.size());
+      if (per_ch_arg_size > 1 && channel_dim == -1) {
+        channel_dim = Dims - 1;
+      }
 
-      // Very naive implementation just for test purposes
-      size_t total_size = volume(out_shape);
-      for (size_t out_idx = 0; out_idx < total_size; out_idx++) {
-        size_t idx = out_idx;
-        size_t in_idx = 0;
-        bool is_zero_pad = false;
+      // Naive implementation just for test purposes
+      int i_c = 0;
+      int64_t total_size = volume(out_shape);
+      for (int64_t out_idx = 0; out_idx < total_size; out_idx++) {
+        int64_t idx = out_idx;
+        int64_t in_idx = 0;
+        bool out_of_bounds = false;
         for (int d = 0; d < Dims; d++) {
-          auto perm_d = permuted_dims[d];
           int i_d = idx / out_strides[d];
-          is_zero_pad = is_zero_pad ||
-            (out_shape[d] > slice_shape[perm_d] && i_d >= slice_shape[perm_d]);
           idx = idx % out_strides[d];
-          auto offset = flip[perm_d] ?
-            (anchor[perm_d] + slice_shape[perm_d] - 1 - i_d) * in_strides[perm_d] :
-            (anchor[perm_d] + i_d) * in_strides[perm_d];
-          in_idx += offset;
+          auto perm_d = permuted_dims[d];
+          if (d == channel_dim) {
+            i_c = i_d;
+            ASSERT_EQ(in_shape[perm_d], per_ch_arg_size);
+            ASSERT_TRUE(i_c >= 0 && i_c < per_ch_arg_size);
+          }
+          int in_i_d = flip[perm_d] ? anchor[perm_d] + slice_shape[perm_d] - 1 - i_d : anchor[perm_d] + i_d;
+          out_of_bounds |= in_i_d < 0 || in_i_d >= in_shape[perm_d];
+          if (!out_of_bounds) 
+            in_idx += in_i_d * in_strides[perm_d];
         }
 
-        OutputType output_value = 0;
-        if (!is_zero_pad) {
-          if (!mean.empty() && !inv_stddev.empty()) {
-            auto c = mean.size() == 1 ? 0 : out_idx % out_shape[Dims - 1];
-            float fpout = (static_cast<float>(in_tensor[in_idx]) - mean[c]) * inv_stddev[c];
-            if (std::is_integral<OutputType>::value) {
-              output_value = clamp<OutputType>(std::roundf(fpout));
-            } else {
-              output_value = clamp<OutputType>(fpout);
-            }
-          } else {
-            if (std::is_integral<OutputType>::value && std::is_floating_point<InputType>::value) {
-              output_value = clamp<OutputType>(std::roundf(in_tensor[in_idx]));
-            } else {
-              output_value = clamp<OutputType>(in_tensor[in_idx]);
-            }
-          }
+        if (out_of_bounds) {
+          out_tensor[out_idx] = fill_values[i_c];
+        } else if (need_normalize) {
+          float fpout = (static_cast<float>(in_tensor[in_idx]) - mean[i_c]) * inv_stddev[i_c];
+          out_tensor[out_idx] = ConvertSat<OutputType>(fpout);
+        } else {
+          out_tensor[out_idx] = ConvertSat<OutputType>(in_tensor[in_idx]);
         }
-        out_tensor[out_idx] = output_value;
       }
     }
   }
@@ -204,6 +209,7 @@ struct SliceFlipNormPermArgsGen_NormalizeOnly {
       args.mean[i] = 3.5f + 0.1f * i;
       args.inv_stddev[i] = 1 / (8.0f + 0.1f * i);
     }
+    args.channel_dim = Dims - 1;
     return args;
   }
 };
@@ -223,8 +229,9 @@ struct SliceFlipNormPermArgsGen_NormalizeAndFlipDim {
   SliceFlipNormalizePermutePadArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceFlipNormalizePermutePadArgs<Dims> args(input_shape, input_shape);
     args.flip[FlipDim] = true;
-    args.mean.resize(args.shape[Dims-1], 3.5f);
-    args.inv_stddev.resize(args.shape[Dims-1], 1.0/3.5f);
+    args.mean.resize(args.shape[Dims - 1], 3.5f);
+    args.inv_stddev.resize(args.shape[Dims - 1], 1.0/3.5f);
+    args.channel_dim = Dims - 1;
     return args;
   }
 };
@@ -302,8 +309,9 @@ struct SliceFlipNormPermArgsGen_SliceFlipNormalizePermute_PermuteHWC2CHW {
           break;
       }
     }
-    args.mean.resize(args.shape[Dims-1], 50.0f);
-    args.inv_stddev.resize(args.shape[Dims-1], 1.0/100.0f);
+    args.mean.resize(args.shape[Dims - 1], 50.0f);
+    args.inv_stddev.resize(args.shape[Dims - 1], 1.0/100.0f);
+    args.channel_dim = Dims - 1;
     return args;
   }
 };

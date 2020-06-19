@@ -71,7 +71,7 @@ __device__ void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ out,
                                               const float *__restrict__ norm_add,
                                               const float *__restrict__ norm_mul, int channel_dim,
                                               uint64_t offset, uint64_t block_end) {
-  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1]) {
+  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && channel_dim != Dims - 1) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
     SliceFlipNormalizePermuteFunc<NeedNormalize, NextDims, OutputType, InputType>(
         out, in, out_strides, in_strides, norm_add, norm_mul, channel_dim, offset, block_end);
@@ -94,17 +94,9 @@ __device__ void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ out,
     in_idx += idx;  // remaining dims have equal strides
     if (NeedNormalize) {
       float fpout = fmaf(static_cast<float>(in[in_idx]), norm_mul[i_c], norm_add[i_c]);
-      if (std::is_integral<OutputType>::value) {
-        out[out_idx] = clamp<OutputType>(__float2int_rn(fpout));
-      } else {
-        out[out_idx] = clamp<OutputType>(fpout);
-      }
+      out[out_idx] = ConvertSat<OutputType>(fpout);
     } else {
-      if (std::is_integral<OutputType>::value && std::is_floating_point<InputType>::value) {
-        out[out_idx] = clamp<OutputType>(__float2int_rn(in[in_idx]));
-      } else {
-        out[out_idx] = clamp<OutputType>(in[in_idx]);
-      }
+      out[out_idx] = ConvertSat<OutputType>(in[in_idx]);
     }
   }
 }
@@ -144,7 +136,8 @@ __device__ void SliceFlipNormalizePermutePadFunc(OutputType *__restrict__ out, c
   int64_t inner_in_extent = in_shape[LastDim];
   if (!AllDims) {  // if we fused dimensions, adjust inner dimension's anchor and extent
     inner_in_anchor = anchor[LastDim] * in_strides[LastDim];
-    inner_in_extent = Dims > 1 ? in_strides[LastDim - 1] : in_shape[LastDim] * in_strides[LastDim];
+    // inner_in_extent = Dims > 1 ? in_strides[LastDim - 1] : in_shape[LastDim] * in_strides[LastDim];
+    inner_in_extent = in_shape[LastDim] * in_strides[LastDim];
   }
 
   for (; offset < block_end; offset += blockDim.x) {
@@ -170,28 +163,20 @@ __device__ void SliceFlipNormalizePermutePadFunc(OutputType *__restrict__ out, c
 
     constexpr int d = LastDim;
     i_d = idx;  // out_strides[d] is 1
+    idx = 0;
     if (AllDims && d == channel_dim)
       i_c = i_d;
     out_of_bounds |= is_out_of_bounds(inner_in_anchor + i_d, inner_in_extent);
     if (!out_of_bounds)
-      in_idx += i_d;  // in_strides[d] is 1
+      in_idx += i_d * in_strides[d];  // in_strides[d] is NOT 1 if we have permuted dims
 
-    // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
     if (out_of_bounds) {
       out[out_idx] = fill_values[i_c];
     } else if (NeedNormalize) {
       float fpout = fmaf(static_cast<float>(in[in_idx]), norm_mul[i_c], norm_add[i_c]);
-      if (std::is_integral<OutputType>::value) {
-        out[out_idx] = clamp<OutputType>(__float2int_rn(fpout));
-      } else {
-        out[out_idx] = clamp<OutputType>(fpout);
-      }
+      out[out_idx] = ConvertSat<OutputType>(fpout);
     } else {
-      if (std::is_integral<OutputType>::value && std::is_floating_point<InputType>::value) {
-        out[out_idx] = clamp<OutputType>(__float2int_rn(in[in_idx]));
-      } else {
-        out[out_idx] = clamp<OutputType>(in[in_idx]);
-      }
+      out[out_idx] = ConvertSat<OutputType>(in[in_idx]);
     }
   }
 }

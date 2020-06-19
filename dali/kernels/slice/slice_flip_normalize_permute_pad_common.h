@@ -48,7 +48,7 @@ struct SliceFlipNormalizePermutePadArgs {
   std::vector<float> mean;
   std::vector<float> inv_stddev;
   std::vector<float> fill_values;
-  int channel_dim = - 1;
+  int channel_dim = -1;
 };
 
 namespace detail {
@@ -97,8 +97,23 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
   processed_args.anchor = permute(args.anchor, args.permuted_dims);
 
   DALI_ENFORCE(args.mean.size() == args.inv_stddev.size());
-  const bool should_normalize = !args.mean.empty();
+  bool should_normalize = !args.mean.empty();
   processed_args.channel_dim = -1;
+  bool has_channels = args.mean.size() > 1 || processed_args.fill_values.size() > 1;
+  if (has_channels) {
+    int channel_dim = args.channel_dim < 0 ? Dims - 1 : args.channel_dim;
+    processed_args.channel_dim = inverse_permutation(args.permuted_dims)[channel_dim];
+    auto nchannels = static_cast<size_t>(processed_args.in_shape[channel_dim]);
+    if (should_normalize)
+      DALI_ENFORCE(args.mean.size() == nchannels);
+    if (processed_args.fill_values.size() == 1) {
+      for (size_t i = 1; i < nchannels; i++) {
+        processed_args.fill_values.push_back(processed_args.fill_values[0]);
+      }
+    }
+    DALI_ENFORCE(processed_args.fill_values.size() == nchannels);
+  }
+
   if (should_normalize) {
     processed_args.mean = args.mean;
     processed_args.inv_stddev = args.inv_stddev;

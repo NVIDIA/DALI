@@ -213,6 +213,7 @@ class SliceFlipNormalizePermutePadGpu {
       sample_desc.norm_add = norm_add_gpu + i * norm_args_size_;
       sample_desc.norm_mul = norm_mul_gpu + i * norm_args_size_;
       sample_desc.fill_values = fill_values_gpu + i * norm_args_size_;
+      sample_desc.channel_dim = channel_dim;
       sample_desc.in = in.tensor_data(i) + processed_args.input_offset;
       sample_desc.out = out.tensor_data(i);
       sample_desc.need_pad =
@@ -235,11 +236,11 @@ class SliceFlipNormalizePermutePadGpu {
     }
 
     auto *sample_descs_gpu = context.scratchpad->ToGPU(
-        context.gpu.stream, make_span(sample_descs_cpu, num_samples * sizeof(detail::SampleDesc<Dims>)));
+        context.gpu.stream, make_span(sample_descs_cpu, num_samples));
     CUDA_CALL(cudaGetLastError());
 
     auto *block_descs_gpu = context.scratchpad->ToGPU(
-        context.gpu.stream, make_span(block_descs_cpu, block_count_ * sizeof(detail::BlockDesc)));
+        context.gpu.stream, make_span(block_descs_cpu, block_count_));
     CUDA_CALL(cudaGetLastError());
 
     VALUE_SWITCH(need_pad ? 1 : 0, NeedPadInt, (0, 1), (
