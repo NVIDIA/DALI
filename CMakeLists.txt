@@ -15,6 +15,7 @@
 cmake_minimum_required(VERSION 3.13)
 # allow usage of check_symbol_exists() macro
 include(CheckCXXSymbolExists)
+include(CheckCXXCompilerFlag)
 
 include(cmake/Utils.cmake)
 include(cmake/CUDA_utils.cmake)
@@ -28,6 +29,9 @@ set(DALI_ROOT ${PROJECT_SOURCE_DIR})
 set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
 
 parse_cuda_version(${CUDA_VERSION} CUDA_VERSION_MAJOR CUDA_VERSION_MINOR CUDA_VERSION_PATCH CUDA_VERSION_SHORT CUDA_VERSION_SHORT_DIGIT_ONLY)
+
+check_cxx_compiler_flag(-fopenmp      CXX_HAVE_OMP)
+check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
@@ -160,6 +164,13 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
       set(CMAKE_CUDA_HOST_COMPILER ${PATH_TO_GCC})
     endif()
   endif()
+endif()
+
+# OpenMP SIMD support
+if(CXX_HAVE_OMP_SIMD)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp-simd")
+else()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas")
 endif()
 
 # Discover what architectures does nvcc support

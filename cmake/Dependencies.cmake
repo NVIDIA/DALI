@@ -108,8 +108,3 @@ list(APPEND DALI_EXCLUDES libsupc++.a;libstdc++.a;libstdc++_nonshared.a;)
 if(BUILD_NVOF)
   include_directories(${PROJECT_SOURCE_DIR}/third_party/turing_of)
 endif()
-
-##################################################################
-# OpenMP
-##################################################################
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
