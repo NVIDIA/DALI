@@ -253,7 +253,7 @@ def test_external_source_collection_cycling():
     for _ in range(3):
         for batch in batches:
             if cupy_used:
-                batch = cp.asnumpy(batch)
+                batch = [cp.asnumpy(x) for x in batch]
             check_output(pipe.run(), batch)
 
 def test_external_source_with_iter():
