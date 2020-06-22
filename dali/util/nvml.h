@@ -132,18 +132,27 @@ inline void Shutdown() {
   DALI_CALL(wrapNvmlShutdown());
 }
 
-
+/**
+ * Checks, if hardware decoder is available for the provided device
+ *
+ * @throws std::runtime_error
+ */
 inline bool HasHwDecoder(int device_idx) {
   nvmlDevice_t device;
   DALI_CALL(wrapNvmlDeviceGetHandleByIndex_v2(device_idx, &device));
   nvmlBrandType_t brand;
   DALI_CALL(wrapNvmlDeviceGetBrand(device, &brand));
-  nvmlDeviceArchitecture_t architecture;
-  DALI_CALL(wrapNvmlDeviceGetArchitecture(device, &architecture));
-  return brand == NVML_BRAND_TESLA && architecture == NVML_DEVICE_ARCH_AMPERE;
+  const int kAmpereComputeCapability = 8;
+  int cc_M, cc_m;
+  DALI_CALL(wrapNvmlDeviceGetCudaComputeCapability(device, &cc_M, &cc_m));
+  return brand == NVML_BRAND_TESLA && cc_M >= kAmpereComputeCapability;
 }
 
-
+/**
+ * Checks, if hardware decoder is available in all possible devices
+ *
+ * @throws std::runtime_error
+ */
 inline bool HasHwDecoder() {
   unsigned int device_count;
   DALI_CALL(wrapNvmlDeviceGetCount_v2(&device_count));

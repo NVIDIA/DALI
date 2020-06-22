@@ -43,11 +43,19 @@ static nvmlReturn_t (*nvmlInternalDeviceGetCpuAffinity)(nvmlDevice_t device,
 static nvmlReturn_t (*nvmlInternalDeviceGetBrand)(nvmlDevice_t device, nvmlBrandType_t *type);
 static nvmlReturn_t (*nvmlInternalDeviceGetCount_v2)(unsigned int *deviceCount);
 static nvmlReturn_t (*nvmlInternalDeviceGetHandleByIndex_v2)(unsigned int index,
-                                                             nvmlDevice_t* device);
-static nvmlReturn_t (*nvmlInternalDeviceGetArchitecture)(nvmlDevice_t device,
-                                                         nvmlDeviceArchitecture_t* arch);
+                                                             nvmlDevice_t *device);
+static nvmlReturn_t (*nvmlInternalDeviceGetCudaComputeCapability)(nvmlDevice_t device,
+                                                                  int *major, int *minor);
 
 static const char* (*nvmlInternalErrorString)(nvmlReturn_t r);
+
+namespace {
+bool is_driver_sufficient(int min_version) {
+  int driver_version;
+  CUDA_CALL(cudaDriverGetVersion(&driver_version));
+  return driver_version >= min_version;
+}
+}  // namespace
 
 DALIError_t wrapSymbols(void) {
   if (symbolsLoaded)
@@ -74,15 +82,15 @@ DALIError_t wrapSymbols(void) {
     *cast = tmp;                                                     \
   } while (0)
 
-  #define LOAD_SYM_WARN(handle, symbol, funcptr) do {                \
-    cast = reinterpret_cast<void**>(&funcptr);                       \
-    tmp = dlsym(handle, symbol);                                     \
-    if (tmp == NULL) {                                               \
-      DALI_WARN("dlsym failed on " + symbol + " - " + dlerror());    \
-    }                                                                \
-    *cast = tmp;                                                     \
+  #define LOAD_SYM_MIN_DRIVER(handle, symbol, funcptr, min_driver_v) do {  \
+    if (!is_driver_sufficient(min_driver_v)) break;                        \
+    cast = reinterpret_cast<void**>(&funcptr);                             \
+    tmp = dlsym(handle, symbol);                                           \
+    if (tmp == NULL) {                                                     \
+      DALI_FAIL("dlsym failed on " + symbol + " - " + dlerror());          \
+    }                                                                      \
+    *cast = tmp;                                                           \
   } while (0)
-
 
   LOAD_SYM(nvmlhandle, "nvmlInit", nvmlInternalInit);
   LOAD_SYM(nvmlhandle, "nvmlShutdown", nvmlInternalShutdown);
@@ -94,10 +102,12 @@ DALIError_t wrapSymbols(void) {
   LOAD_SYM(nvmlhandle, "nvmlSystemGetDriverVersion", nvmlInternalSystemGetDriverVersion);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetCpuAffinity", nvmlInternalDeviceGetCpuAffinity);
   LOAD_SYM(nvmlhandle, "nvmlErrorString", nvmlInternalErrorString);
-  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand);
-  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2);
-  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2", nvmlInternalDeviceGetHandleByIndex_v2);
-  LOAD_SYM_WARN(nvmlhandle, "nvmlDeviceGetArchitecture", nvmlInternalDeviceGetArchitecture);
+  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand, 450);
+  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2, 450);
+  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2",
+                      nvmlInternalDeviceGetHandleByIndex_v2, 450);
+  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCudaComputeCapability",
+                      nvmlInternalDeviceGetCudaComputeCapability, 450);
 
   symbolsLoaded = 1;
   return DALISuccess;
@@ -259,8 +269,8 @@ DALIError_t wrapNvmlDeviceGetHandleByIndex_v2(unsigned int index, nvmlDevice_t* 
   FUNC_BODY(nvmlInternalDeviceGetHandleByIndex_v2, index, device);
 }
 
-DALIError_t wrapNvmlDeviceGetArchitecture(nvmlDevice_t device, nvmlDeviceArchitecture_t* arch) {
-  FUNC_BODY(nvmlInternalDeviceGetArchitecture, device, arch);
+DALIError_t wrapNvmlDeviceGetCudaComputeCapability(nvmlDevice_t device, int *major, int *minor) {
+  FUNC_BODY(nvmlInternalDeviceGetCudaComputeCapability, device, major, minor);
 }
 
 #undef FUNC_BODY

@@ -21,6 +21,7 @@
 #ifndef DALI_UTIL_NVML_WRAP_H_
 #define DALI_UTIL_NVML_WRAP_H_
 #include <nvml.h>
+#include <cuda_runtime_api.h>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -47,8 +48,8 @@ DLL_PUBLIC DALIError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetBrand(nvmlDevice_t device, nvmlBrandType_t* type);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCount_v2(unsigned int* deviceCount);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByIndex_v2(unsigned int index, nvmlDevice_t* device);
-DLL_PUBLIC DALIError_t wrapNvmlDeviceGetArchitecture(nvmlDevice_t device,
-                                                     nvmlDeviceArchitecture_t* arch);
+DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCudaComputeCapability(nvmlDevice_t device,
+                                                              int* major, int* minor);
 
 }  // namespace nvml
 
