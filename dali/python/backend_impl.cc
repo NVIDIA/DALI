@@ -882,13 +882,19 @@ py::dict ExecutorMetaToDict(const ExecutorMetaMap &meta) {
   for (const auto &stat : meta) {
     py::dict op_dict;
     py::list real_memory_size;
-    py::list reserver_memory_size;
+    py::list reserved_memory_size;
+    py::list max_real_memory_size;
+    py::list max_reserved_memory_size;
     for (const auto &entry : stat.second) {
       real_memory_size.append(entry.real_size);
-      reserver_memory_size.append(entry.reserved);
+      max_real_memory_size.append(entry.max_real_size);
+      reserved_memory_size.append(entry.reserved);
+      max_reserved_memory_size.append(entry.max_reserved);
     }
     op_dict["real_memory_size"] = real_memory_size;
-    op_dict["reserver_memory_size"] = reserver_memory_size;
+    op_dict["max_real_memory_size"] = max_real_memory_size;
+    op_dict["reserved_memory_size"] = reserved_memory_size;
+    op_dict["max_reserved_memory_size"] = max_reserved_memory_size;
     d[stat.first.c_str()] = op_dict;
   }
   return d;
@@ -1056,12 +1062,12 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_pipelined"_a = true,
         "exec_separated"_a = false,
         "exec_async"_a = true)
-    .def("EnableOperatorOutputMemoryStatistics",
+    .def("EnableExecutorMemoryStats",
         [](Pipeline *p, bool get_memory_stats) {
-          p->EnableOperatorOutputMemoryStatistics(get_memory_stats);
+          p->EnableExecutorMemoryStats(get_memory_stats);
         },
         "get_memory_stats"_a = true)
-    .def("executor_meta",
+    .def("executor_statistics",
         [](Pipeline *p) {
           auto ret = p->GetExecutorMeta();
           return ExecutorMetaToDict(ret);

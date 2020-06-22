@@ -46,7 +46,9 @@ namespace dali {
 
 struct DLL_PUBLIC ExecutorMeta {
   size_t real_size;
+  size_t max_real_size;
   size_t reserved;
+  size_t max_reserved;
 };
 using ExecutorMetaMap = std::unordered_map<std::string, std::vector<ExecutorMeta>>;
 
@@ -54,6 +56,9 @@ namespace detail {
 // This is stream callback used on GPU stream to indicate that GPU work for this
 // pipeline run is finished
 static void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData);
+
+// helper function to concatenate ExecutorMetaMap maps
+static void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mutex &mutex);
 
 }  // namespace detail
 
@@ -104,7 +109,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
         mixed_op_stream_(0),
-        gpu_op_stream_(0) {
+        gpu_op_stream_(0),
+        get_memory_stats_(false) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
 
@@ -132,27 +138,57 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
+
+  template<typename backend>
+  inline void GetMaxSizes(TensorList<backend> &in, size_t &max_out_size,
+                          size_t &max_reserved_size) {
+    auto out_size = in.nbytes();
+    auto reserved_size = in.capacity();
+    max_out_size = std::max<size_t>(std::ceil((out_size * 1.0) / in.ntensor()), max_out_size);
+    max_reserved_size = std::max<size_t>(std::ceil((reserved_size * 1.0) / in.ntensor()),
+                                         max_reserved_size);
+  }
+  template<typename backend>
+  inline void GetMaxSizes(TensorVector<backend> &in, size_t &max_out_size,
+                          size_t &max_reserved_size) {
+    for (size_t j = 0; j < in.ntensor(); ++j) {
+      max_out_size = std::max(in[j].nbytes(), max_out_size);
+      max_reserved_size = std::max(in[j].capacity(), max_reserved_size);
+    }
+  }
+
   template <typename W>
   inline void FillStats(ExecutorMetaMap &memory_stats, W ws, std::string op_name,
-                       std::mutex &write_mutex) {
+                        std::mutex &write_mutex) {
     if (get_memory_stats_) {
         size_t out_size = 0;
+        size_t max_out_size = 0;
         size_t reserved_size = 0;
+        size_t max_reserved_size = 0;
         std::lock_guard<std::mutex> lck(write_mutex);
         auto &stats = memory_stats[op_name];
         stats.resize(ws.NumOutput(), {0, 0});
+
         for (int i = 0; i < ws.NumOutput(); ++i) {
           out_size = 0;
+          max_out_size = 0;
           reserved_size = 0;
+          max_reserved_size = 0;
           if (ws.template OutputIsType<CPUBackend>(i)) {
-            out_size = ws.template OutputRef<CPUBackend>(i).nbytes();
-            reserved_size = ws.template OutputRef<CPUBackend>(i).capacity();
+            auto &out = ws.template OutputRef<CPUBackend>(i);
+            out_size = out.nbytes();
+            reserved_size = out.capacity();
+            GetMaxSizes(out, max_out_size, max_reserved_size);
           } else {
-            out_size = ws.template OutputRef<GPUBackend>(i).nbytes();
-            reserved_size = ws.template OutputRef<GPUBackend>(i).capacity();
+            auto &out = ws.template OutputRef<GPUBackend>(i);
+            out_size = out.nbytes();
+            reserved_size = out.capacity();
+            GetMaxSizes(out, max_out_size, max_reserved_size);
           }
           stats[i].real_size = std::max(out_size, stats[i].real_size);
+          stats[i].max_real_size = std::max(max_out_size, stats[i].max_real_size);
           stats[i].reserved = std::max(reserved_size, stats[i].reserved);
+          stats[i].max_reserved = std::max(max_reserved_size, stats[i].max_reserved);
         }
       }
   }
@@ -259,7 +295,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   // in some edge cases where there are no operators
   std::vector<cudaEvent_t> mixed_callback_events_;
 
-  std::atomic<bool> get_memory_stats_ = ATOMIC_VAR_INIT(false);;
+  std::atomic<bool> get_memory_stats_;
   ExecutorMetaMap cpu_memory_stats_, mixed_memory_stats_, gpu_memory_stats_;
   std::mutex cpu_memory_stats_mutex_;
   std::mutex mixed_memory_stats_mutex_;
@@ -311,20 +347,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetCompletionCallback(ExecutorCallb
   }
 }
 
-template<typename map>
-void AppendToMap(map &ret, map &in_stats, std::mutex &mutex) {
-  const std::lock_guard<std::mutex> lock(mutex);
-  for (auto const& stats : in_stats) {
-    ret.emplace(stats);
-  }
-}
-
 template <typename WorkspacePolicy, typename QueuePolicy>
 ExecutorMetaMap Executor<WorkspacePolicy, QueuePolicy>::GetExecutorMeta() {
   ExecutorMetaMap ret;
-  AppendToMap(ret, cpu_memory_stats_, cpu_memory_stats_mutex_);
-  AppendToMap(ret, mixed_memory_stats_, mixed_memory_stats_mutex_);
-  AppendToMap(ret, gpu_memory_stats_, gpu_memory_stats_mutex_);
+  detail::AppendToMap(ret, cpu_memory_stats_, cpu_memory_stats_mutex_);
+  detail::AppendToMap(ret, mixed_memory_stats_, mixed_memory_stats_mutex_);
+  detail::AppendToMap(ret, gpu_memory_stats_, gpu_memory_stats_mutex_);
   return ret;
 }
 
@@ -790,6 +818,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputQueuesForGraph() {
 
 using SimpleExecutor = Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
 
+
 namespace detail {
 
 void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData) {
@@ -797,8 +826,12 @@ void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userDa
   (*callback)();
 }
 
-}  // namespace detail
+void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mutex &mutex) {
+  const std::lock_guard<std::mutex> lock(mutex);
+  ret.insert(in_stats.begin(), in_stats.end());
+}
 
+}  // namespace detail
 
 }  // namespace dali
 

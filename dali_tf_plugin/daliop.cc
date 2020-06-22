@@ -172,17 +172,16 @@ class DaliOp : public tf::OpKernel {
         for (size_t j = 0; j < meta[i].out_num; ++j) {
           std::cout << "   output [ " << j << " ] : "
                     << meta[i].real_size[j] << "B allocated "
-                    << meta[i].reserved[j] << "B reserved";
+                    << meta[i].max_real_size[j] << "B max allocated "
+                    << meta[i].reserved[j] << "B reserved"
+                    << meta[i].max_reserved[j] << "B max reserved";
           if (j != meta[i].out_num - 1) {
             std::cout << ",";
           }
         }
         std::cout << std::endl;
-        free(meta[i].operator_name);
-        free(meta[i].real_size);
-        free(meta[i].reserved);
       }
-      free(meta);
+      daliFreeExecutorMetadata(meta, N);
     }
     daliDeletePipeline(&pipe_handle_);
   }

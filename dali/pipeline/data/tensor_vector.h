@@ -114,6 +114,10 @@ class TensorVector {
   }
 
   size_t nbytes() const noexcept {
+    if (state_ == State::contiguous) {
+      return tl_->nbytes();
+    }
+    // else
     size_t total_nbytes = 0;
     for (const auto &t : tensors_) {
       total_nbytes += t->nbytes();
@@ -122,6 +126,10 @@ class TensorVector {
   }
 
   size_t capacity() const noexcept {
+    if (state_ == State::contiguous) {
+      return tl_->capacity();
+    }
+    // else
     size_t total_capacity = 0;
     for (const auto &t : tensors_) {
       total_capacity += t->capacity();

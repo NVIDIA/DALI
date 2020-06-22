@@ -25,7 +25,7 @@ from numpy.testing import assert_array_equal, assert_allclose
 import os
 import random
 from PIL import Image
-from math import floor
+from math import floor, ceil
 import sys
 
 from test_utils import check_batch
@@ -1558,20 +1558,29 @@ def test_executor_meta():
                                  seed = random_seed)
     test_pipe.build()
     test_pipe.run()
-    meta = test_pipe.executor_meta()
+    meta = test_pipe.executor_statistics()
     # all operators (CaffeReader, ImageDecoderRandomCrop, Resize, CropMirrorNormalize, CoinFlip) + make_continuous
     assert(len(meta) == 6)
     for k in meta.keys():
         if "CropMirrorNormalize" in k:
             crop_meta = meta[k]
-    assert(crop_meta["real_memory_size"] == crop_meta["reserver_memory_size"])
+    assert(crop_meta["real_memory_size"] == crop_meta["reserved_memory_size"])
     # size of crop * num_of_channels * batch_size * data_size
     assert(crop_meta["real_memory_size"][0] == 224 * 224 * 3 * batch_size * 4)
     for k in meta.keys():
         if "CoinFlip" in k:
             coin_meta = meta[k]
-    assert(coin_meta["real_memory_size"] == coin_meta["reserver_memory_size"])
+    assert(coin_meta["real_memory_size"] == coin_meta["reserved_memory_size"])
     # batch_size * data_size
     assert(coin_meta["real_memory_size"][0] == batch_size * 4)
-    for _, v in meta.items():
-        assert(v["real_memory_size"] <= v["reserver_memory_size"])
+    for k, v in meta.items():
+        assert(v["real_memory_size"] <= v["reserved_memory_size"])
+        def calc_avg_max(val):
+            return [int(ceil(v / batch_size)) for v in val]
+        # for CPU the biggest tensor is usually bigger than the average, for the GPU max is the average
+        if "CPU" in k:
+            assert(calc_avg_max(v["real_memory_size"]) <= v["max_real_memory_size"])
+            assert(calc_avg_max(v["reserved_memory_size"]) <= v["max_reserved_memory_size"])
+        else:
+            assert(calc_avg_max(v["real_memory_size"]) == v["max_real_memory_size"])
+            assert(calc_avg_max(v["reserved_memory_size"]) == v["max_reserved_memory_size"])

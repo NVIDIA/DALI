@@ -310,15 +310,15 @@ class DLL_PUBLIC Pipeline {
   }
 
   /**
-   * @brief Set if the DALI pipeline should operator output buffer statistics
+   * @brief Set if the DALI pipeline should gather executor statistics of the operator ouput sizes
    *
-   * @param get_memory_stats If DALI should print operator output buffer statistics.
+   * @param memory_stats_enabled If statistics should be gathered
    * Usefull for `bytes_per_sample_hint` operator parameter.
    */
-  DLL_PUBLIC void EnableOperatorOutputMemoryStatistics(bool get_memory_stats = true) {
-    get_memory_stats_ = get_memory_stats;
+  DLL_PUBLIC void EnableExecutorMemoryStats(bool memory_stats_enabled = true) {
+    memory_stats_enabled_ = memory_stats_enabled;
     if (executor_) {
-      executor_->EnableMemoryStats(get_memory_stats_);
+      executor_->EnableMemoryStats(memory_stats_enabled_);
     }
   }
 
@@ -514,7 +514,7 @@ class DLL_PUBLIC Pipeline {
   int next_logical_id_ = 0;
   int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_;
-  bool get_memory_stats_ = false;
+  bool memory_stats_enabled_ = false;
 
   std::vector<int64_t> seed_;
   int original_seed_;

@@ -457,18 +457,19 @@ TYPED_TEST(CApiTest, TestExecutorMeta) {
 
   daliRun(&handle);
   daliOutput(&handle);
+  CUDA_CALL(cudaDeviceSynchronize());
 
   size_t N;
   daliExecutorMetadata *meta;
   daliGetExecutorMetadata(&handle, &meta, &N);
   EXPECT_EQ(N, 4);
-  for (size_t i = 0; i < N; ++i) {
-    free(meta[i].operator_name);
-    free(meta[i].real_size);
-    free(meta[i].reserved);
+  for (size_t i = 0; i< N; ++i) {
+    auto &meta_entry = meta[i];
+    for (size_t j = 0; j < meta_entry.out_num; ++j) {
+      EXPECT_LE(meta_entry.real_size[j], meta_entry.reserved[j]);
+    }
   }
-  free(meta);
-  CUDA_CALL(cudaDeviceSynchronize());
+  daliFreeExecutorMetadata(meta, N);
 }
 
 }  // namespace dali

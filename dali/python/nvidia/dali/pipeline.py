@@ -183,21 +183,27 @@ Parameters
             return self._pipe.reader_meta(name)["epoch_size_padded"]
         return {name : v["epoch_size_padded"] for k, v in self._pipe.reader_meta()}
 
-    def executor_meta(self):
+    def executor_statistics(self):
         """Returns provided pipeline executor statistics metadata as a dictionary.
-        Each key in the dictionary is the operator name
+        Each key in the dictionary is the operator name. To enable it use ``executor_statistics``
 
         Available metadata keys for each operator:
 
         ``real_memory_size``:     list of memory sizes that is used by each output of the operator;
                                   index in the list corresponds to the output index
 
-        ``reserver_memory_size``: list of memory sizes that is reserved for each of the operator outputs
+        ``max_real_memory_size``: list of maximum tensor size that is used by each output of the operator;
+                                  index in the list corresponds to the output index
+
+        ``reserved_memory_size``: list of memory sizes that is reserved for each of the operator outputs
+                                  index in the list corresponds to the output index
+
+        ``max_reserved_memory_size``: list of maximum memory sizes per tensor that is reserved for each of the operator outputs
                                   index in the list corresponds to the output index
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        return self._pipe.executor_meta()
+        return self._pipe.executor_statistics()
 
     def reader_meta(self, name = None):
         """Returns provided reader metadata as a dictionary. If no name is provided if provides
@@ -348,10 +354,10 @@ Parameters
                                 self._bytes_per_sample,
                                 self._set_affinity,
                                 self._max_streams,
-                                self._default_cuda_stream_priority,)
+                                self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
-        self._pipe.EnableOperatorOutputMemoryStatistics(self._get_memory_stats)
+        self._pipe.EnableExecutorMemoryStats(self._get_memory_stats)
 
         if define_graph is not None:
             if self._graph_out is not None:
@@ -809,7 +815,7 @@ Parameters
         pipeline._pipe.SetExecutionTypes(pipeline._exec_pipelined, pipeline._exec_separated,
                                          pipeline._exec_async)
         pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
-        pipeline._pipe.EnableOperatorOutputMemoryStatistics(pipeline._get_memory_stats)
+        pipeline._pipe.EnableExecutorMemoryStats(pipeline._get_memory_stats)
         pipeline._prepared = True
         pipeline._pipe.Build()
         pipeline._built = True
@@ -836,7 +842,7 @@ Parameters
                                 self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
-        self._pipe.EnableOperatorOutputMemoryStatistics(self._get_memory_stats)
+        self._pipe.EnableExecutorMemoryStats(self._get_memory_stats)
         self._prepared = True
         self._pipe.Build()
         self._built = True

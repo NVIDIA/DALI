@@ -110,7 +110,7 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                         int prefetch_queue_depth,
                         int cpu_prefetch_queue_depth,
                         int gpu_prefetch_queue_depth,
-                        int get_memory_stats) {
+                        int enable_memory_stats) {
   bool se = separated_execution != 0;
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length),
                                                    batch_size, num_threads, device_id, true,
@@ -119,7 +119,7 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle,
   if (se) {
     pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
   }
-  pipeline->EnableOperatorOutputMemoryStatistics(get_memory_stats);
+  pipeline->EnableExecutorMemoryStats(enable_memory_stats);
   pipeline->Build();
   auto ws = std::make_unique<dali::DeviceWorkspace>();
   auto stream = dali::CUDAStream::Create(true);
@@ -455,22 +455,36 @@ void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle, daliExecutorMetada
   int i = 0;
   for (const auto &stat : returned_meta) {
     auto op_name_size = stat.first.size();
-    (*operator_meta)[i].operator_name = static_cast<char*>(malloc(sizeof(char) *
-                                                                 (op_name_size + 1)));
-    stat.first.copy((*operator_meta)[i].operator_name, op_name_size);
-    (*operator_meta)[i].operator_name[op_name_size] = '\0';
+    auto &op_meta = (*operator_meta)[i];
+    op_meta.operator_name = static_cast<char*>(malloc(sizeof(char) * (op_name_size + 1)));
+    stat.first.copy(op_meta.operator_name, op_name_size);
+    op_meta.operator_name[op_name_size] = '\0';
 
     auto num_outputs = stat.second.size();
-    (*operator_meta)[i].out_num = num_outputs;
-    (*operator_meta)[i].real_size = static_cast<size_t*>(malloc(sizeof(size_t) * num_outputs));
-    (*operator_meta)[i].reserved = static_cast<size_t*>(malloc(sizeof(size_t) * num_outputs));
+    op_meta.out_num = num_outputs;
+    op_meta.real_size = static_cast<size_t*>(malloc(sizeof(size_t) * num_outputs));
+    op_meta.max_real_size = static_cast<size_t*>(malloc(sizeof(size_t) * num_outputs));
+    op_meta.reserved = static_cast<size_t*>(malloc(sizeof(size_t) * num_outputs));
+    op_meta.max_reserved = static_cast<size_t*>(malloc(sizeof(size_t) * num_outputs));
 
     for (size_t j = 0; j < num_outputs; ++j) {
       const auto &entry = stat.second[j];
-      (*operator_meta)[i].real_size[j] = entry.real_size;
-      (*operator_meta)[i].reserved[j] = entry.reserved;
+      op_meta.real_size[j] = entry.real_size;
+      op_meta.max_real_size[j] = entry.max_real_size;
+      op_meta.reserved[j] = entry.reserved;
+      op_meta.max_reserved[j] = entry.max_reserved;
     }
     ++i;
   }
 }
 
+void daliFreeExecutorMetadata(daliExecutorMetadata *operator_meta, size_t operator_meta_num) {
+  for (size_t i = 0; i < operator_meta_num; ++i) {
+    free(operator_meta[i].operator_name);
+    free(operator_meta[i].real_size);
+    free(operator_meta[i].max_real_size);
+    free(operator_meta[i].reserved);
+    free(operator_meta[i].max_reserved);
+  }
+  free(operator_meta);
+}

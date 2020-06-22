@@ -78,7 +78,9 @@ typedef struct {
   char *operator_name;         // operator name, user need to free the memory
   size_t out_num;              // number of the operator outputs
   size_t *real_size;           // real size of the operator output, user need to free the memory
+  size_t *max_real_size;       // the biggest size of the tensor in the batch
   size_t *reserved;            // reserved size of the operator output, user need to free the memory
+  size_t *max_reserved;        // the biggest reserved memory size for the tensor in the batch
 } daliExecutorMetadata;
 
 
@@ -113,7 +115,7 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                                    int prefetch_queue_depth,
                                    int cpu_prefetch_queue_depth,
                                    int gpu_prefetch_queue_depth,
-                                   int get_memory_stats);
+                                   int enable_memory_stats);
 
 /**
  * Convenient overload. Use it, if the Pipeline should inherit its parameters
@@ -344,10 +346,10 @@ DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
 DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
                                       daliReaderMetadata* meta);
 /**
- * @brief Returns obtains the executor statistics
+ * @brief Obtains the executor statistics
  *  @param operator_meta Pointer to the memory allocated by the function with operator_meta_num
- *                       number of metadata entries. The user need to free that memory, as well
- *                       as the memory inside the metadata
+ *                       number of metadata entries. To free returned metadata use
+ *                       `daliFreeExecutorMetadata` function
  *  @param operator_meta_num Pointer to the variable which will tell how many meta entries
  *                           (operators) have been files
  */
@@ -355,6 +357,14 @@ DLL_PUBLIC void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle,
                                         daliExecutorMetadata **operator_meta,
                                         size_t *operator_meta_num);
 
+/**
+ * @brief Frees executor metadata obtained from daliGetExecutorMetadata
+ *  @param operator_meta Pointer to the memory with metadata allocated by the
+ *                       `daliGetExecutorMetadata`
+ *  @param operator_meta_num Number of metadata entries provided by `daliGetExecutorMetadata`
+ */
+DLL_PUBLIC void daliFreeExecutorMetadata(daliExecutorMetadata *operator_meta,
+                                         size_t operator_meta_num);
 
 #ifdef __cplusplus
 }
