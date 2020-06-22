@@ -21,7 +21,6 @@
 #ifndef DALI_UTIL_NVML_WRAP_H_
 #define DALI_UTIL_NVML_WRAP_H_
 #include <nvml.h>
-#include <cuda_runtime_api.h>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
