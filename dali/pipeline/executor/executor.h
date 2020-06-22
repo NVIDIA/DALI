@@ -138,21 +138,36 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
-  template<typename backend>
-  inline void GetMaxSizes(TensorList<backend> &in, size_t &max_out_size,
-                          size_t &max_reserved_size) {
+  template<typename T>
+  inline void GetMaxSizesCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
     auto out_size = in.nbytes();
     auto reserved_size = in.capacity();
     max_out_size = std::max<size_t>(std::ceil((out_size * 1.0) / in.ntensor()), max_out_size);
     max_reserved_size = std::max<size_t>(std::ceil((reserved_size * 1.0) / in.ntensor()),
                                          max_reserved_size);
   }
-  template<typename backend>
-  inline void GetMaxSizes(TensorVector<backend> &in, size_t &max_out_size,
-                          size_t &max_reserved_size) {
+
+  template<typename T>
+  inline void GetMaxSizesNonCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
     for (size_t j = 0; j < in.ntensor(); ++j) {
       max_out_size = std::max(in[j].nbytes(), max_out_size);
       max_reserved_size = std::max(in[j].capacity(), max_reserved_size);
+    }
+  }
+
+  template<typename backend>
+  inline void GetMaxSizes(TensorList<backend> &in, size_t &max_out_size,
+                          size_t &max_reserved_size) {
+    GetMaxSizesCont(in, max_out_size, max_reserved_size);
+  }
+
+  template<typename backend>
+  inline void GetMaxSizes(TensorVector<backend> &in, size_t &max_out_size,
+                          size_t &max_reserved_size) {
+    if (in.IsContiguous()) {
+      GetMaxSizesCont(in, max_out_size, max_reserved_size);
+    } else {
+      GetMaxSizesNonCont(in, max_out_size, max_reserved_size);
     }
   }
 
