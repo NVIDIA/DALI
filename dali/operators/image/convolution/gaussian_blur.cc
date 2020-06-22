@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "dali/core/static_switch.h"
@@ -31,7 +33,8 @@ constexpr static const char* kWindowSizeArgName = "window_size";
 
 DALI_SCHEMA(GaussianBlur)
     .DocStr(R"code(Apply Gaussian Blur to the input.
-Separable convolution with Gaussian Kernel is used to calculate the output.
+Separable convolution with Gaussian kernels is used, proceeding from innermost to outermost
+dimension to calculate the output.
 
 User can specify the sigma or kernel window size.
 If only the sigma is provided, the radius is of kernel is calculated ``ceil(3 * sigma)``,
@@ -84,7 +87,7 @@ void GetGeneralizedArg(span<T> result, const std::string name, int sample_idx, c
                              " is expected to be 1D, got: ", tensor.shape().sample_dim(), "."));
     DALI_ENFORCE(tensor.shape()[0] == 1 || tensor.shape()[0] == argument_length,
                  make_string("Argument ", name, " for sample ", sample_idx,
-                             " is expected to have shape equal {1} or {", argument_length,
+                             " is expected to have shape equal to {1} or {", argument_length,
                              "}, got: ", tensor.shape(), "."));
     if (tensor.shape()[0] == 1) {
       for (int i = 0; i < argument_length; i++) {
@@ -145,7 +148,7 @@ GaussianDimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
     DALI_ENFORCE(ImageLayoutInfo::IsChannelLast(layout),
                  "Only input data with no channels or channel-last is supported.");
   }
-  bool is_sequence = layout.find('F') >= 0;
+  bool is_sequence = VideoLayoutInfo::IsSequence(layout);
   if (is_sequence) {
     axes_start++;
     axes_count--;
@@ -204,25 +207,37 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     auto in_shape = input.shape();
     auto& thread_pool = ws.GetThreadPool();
 
+    // TODO(klecki): Swap to priority thread_pool task scheduling
+    std::vector<std::pair<int64_t, int>> volume_idx_vec(input.shape().num_samples());
     for (int i = 0; i < input.shape().num_samples(); i++) {
+      const auto& shape = input[i].shape();
+      auto elem_volume = volume(shape.begin() + dim_desc_.usable_axes_start, shape.end());
+      volume_idx_vec[i] = {elem_volume, i};
+    }
+    std::sort(volume_idx_vec.begin(), volume_idx_vec.end(),
+              std::greater<std::pair<int64_t, int>>());
+
+    for (const auto &sample_order : volume_idx_vec) {
+      auto sample_idx = sample_order.second;
       int seq_elements = 1;
       int64_t stride = 0;
       if (dim_desc_.is_sequence) {
-        auto shape = input[i].shape();
+        const auto& shape = input[sample_idx].shape();
         seq_elements = shape[0];
         stride = volume(shape.begin() + 1, shape.end());
       }
       for (int elem_idx = 0; elem_idx < seq_elements; elem_idx++) {
-        thread_pool.DoWorkWithID([this, &input, &output, i, elem_idx, stride](int thread_id) {
-          auto gaussian_windows = windows_[i].GetWindows();
-          auto elem_shape = input[i].shape().template last<ndim>();
+        thread_pool.DoWorkWithID([this, &input, &output, sample_idx, elem_idx,
+                                  stride](int thread_id) {
+          auto gaussian_windows = windows_[sample_idx].GetWindows();
+          auto elem_shape = input[sample_idx].shape().template last<ndim>();
           auto in_view = TensorView<StorageCPU, const T, ndim>{
-              input[i].template data<T>() + stride * elem_idx, elem_shape};
+              input[sample_idx].template data<T>() + stride * elem_idx, elem_shape};
           auto out_view = TensorView<StorageCPU, T, ndim>{
-              output[i].template mutable_data<T>() + stride * elem_idx, elem_shape};
+              output[sample_idx].template mutable_data<T>() + stride * elem_idx, elem_shape};
           // I need a context for that particular run (or rather matching the thread & scratchpad)
           auto ctx = ctx_;
-          kmgr_.Run<Kernel>(thread_id, i, ctx, out_view, in_view, gaussian_windows);
+          kmgr_.Run<Kernel>(thread_id, sample_idx, ctx, out_view, in_view, gaussian_windows);
         });
       }
     }

@@ -77,15 +77,15 @@ def get_gpu_num():
     return len(out_list)
 
 
+# If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
 def check_batch(batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None):
 
     def is_error(mean_err, max_err, eps, max_allowed_error):
         if max_allowed_error is not None:
             if max_err > max_allowed_error:
                 return True
-        else:
-            if mean_err > eps:
-                return True
+        elif mean_err > eps:
+            return True
         return False
 
     import_numpy()

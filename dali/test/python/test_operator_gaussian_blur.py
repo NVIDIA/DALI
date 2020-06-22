@@ -27,6 +27,7 @@ from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataItera
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
+test_iters = 4
 
 def to_batch(tl, batch_size):
     return [np.array(tl[i]) for i in range(batch_size)]
@@ -90,13 +91,14 @@ def check_gaussian_blur(batch_size, sigma, window_size, op_type="cpu"):
         pipe.set_outputs(blurred, decoded)
     pipe.build()
 
-    result, input = pipe.run()
-    if op_type == "gpu":
-        result = result.as_cpu()
-        input = input.as_cpu()
-    input = to_batch(input, batch_size)
-    baseline_cv = [gaussian_cv(img, sigma, window_size) for img in input]
-    check_batch(result, baseline_cv, batch_size, max_allowed_error=1)
+    for _ in range(test_iters):
+        result, input = pipe.run()
+        if op_type == "gpu":
+            result = result.as_cpu()
+            input = input.as_cpu()
+        input = to_batch(input, batch_size)
+        baseline_cv = [gaussian_cv(img, sigma, window_size) for img in input]
+        check_batch(result, baseline_cv, batch_size, max_allowed_error=1)
 
 
 def test_image_gaussian_blur():
@@ -122,14 +124,15 @@ def check_generic_gaussian_blur(
         pipe.set_outputs(blurred, input)
     pipe.build()
 
-    result, input = pipe.run()
-    if op_type == "gpu":
-        result = result.as_cpu()
-        input = input.as_cpu()
-    input = to_batch(input, batch_size)
-    baseline = [gaussian_baseline(img, sigma, window_size, axes, "F" in layout, dtype=dtype) for img in input]
-    max_error = 1 if dtype != np.float32 else 1e-07
-    check_batch(result, baseline, batch_size, max_allowed_error=max_error)
+    for _ in range(test_iters):
+        result, input = pipe.run()
+        if op_type == "gpu":
+            result = result.as_cpu()
+            input = input.as_cpu()
+        input = to_batch(input, batch_size)
+        baseline = [gaussian_baseline(img, sigma, window_size, axes, "F" in layout, dtype=dtype) for img in input]
+        max_error = 1 if dtype != np.float32 else 1e-07
+        check_batch(result, baseline, batch_size, max_allowed_error=max_error)
 
 
 def test_generic_gaussian_blur():
@@ -177,19 +180,20 @@ def check_per_sample_gaussian_blur(
         pipe.set_outputs(blurred, input, sigma, window_size)
     pipe.build()
 
-    result, input, sigma, window_size = pipe.run()
-    if op_type == "gpu":
-        result = result.as_cpu()
-        input = input.as_cpu()
-    input = to_batch(input, batch_size)
-    sigma = to_batch(sigma, batch_size)
-    window_size = to_batch(window_size, batch_size)
-    baseline = []
-    for i in range(batch_size):
-        sigma_arg = sigma[i] if sigma is not None else None
-        window_arg = window_size[i] if window_size_dim is not None else None
-        baseline.append(gaussian_baseline(input[i], sigma_arg, window_arg, axes, "F" in layout))
-    check_batch(result, baseline, batch_size, max_allowed_error=1)
+    for _ in range(test_iters):
+        result, input, sigma, window_size = pipe.run()
+        if op_type == "gpu":
+            result = result.as_cpu()
+            input = input.as_cpu()
+        input = to_batch(input, batch_size)
+        sigma = to_batch(sigma, batch_size)
+        window_size = to_batch(window_size, batch_size)
+        baseline = []
+        for i in range(batch_size):
+            sigma_arg = sigma[i] if sigma is not None else None
+            window_arg = window_size[i] if window_size_dim is not None else None
+            baseline.append(gaussian_baseline(input[i], sigma_arg, window_arg, axes, "F" in layout))
+        check_batch(result, baseline, batch_size, max_allowed_error=1)
 
 # TODO(klecki): consider checking mixed ArgumentInput/Scalar value cases
 def test_per_sample_gaussian_blur():
