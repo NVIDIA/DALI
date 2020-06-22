@@ -430,7 +430,7 @@ def test_gluon_iterator_sparse_batch():
     for it in dali_train_iter:
         labels, ids = it[0] # gpu 0
         # labels should be a sparse batch: a list of per-sample NDArray's
-        # ids should be a dense batch: a single NDarray reprenseting the batch
+        # ids should be a dense batch: a single NDarray representing the batch
         assert isinstance(labels, (tuple,list))
         assert len(labels) == batch_size
         assert isinstance(labels[0], NDArray)

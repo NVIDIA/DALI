@@ -204,7 +204,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
                 pyt_tensors = dict()
                 for category in self._output_categories:
-                    pyt_tensors[category] = torch.zeros(category_shapes[category],
+                    pyt_tensors[category] = torch.empty(category_shapes[category],
                                                         dtype=category_torch_type[category],
                                                         device=category_device[category])
 
@@ -215,7 +215,7 @@ class DALIGenericIterator(_DaliBaseIterator):
             # Copy data from DALI Tensors to torch tensors
             for category, tensor in category_tensors.items():
                 if self._dynamic_shape and tensor.shape() != list(pyt_tensors[category].size()):
-                    pyt_tensors[category] = torch.zeros(category_shapes[category],
+                    pyt_tensors[category] = torch.empty(category_shapes[category],
                                                         dtype=pyt_tensors[category].dtype,
                                                         device=pyt_tensors[category].device)
                 if isinstance(tensor, (TensorGPU, TensorListGPU)):

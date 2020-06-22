@@ -21,6 +21,7 @@ from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 import mxnet as mx
 import ctypes
 import numpy as np
+from collections import Iterable
 
 
 ##################################################
@@ -94,13 +95,6 @@ class _DALIMXNetIteratorBase(mx.io.DataIter, _DaliBaseIterator):
         """
         _DaliBaseIterator.reset(self)
 
-def non_empty(shape):
-    for s in shape:
-        if s == 0:
-            return False
-
-    return True
-
 def get_mx_array(shape, ctx=None, dtype=None):
     # WAR
     # ToDo (jlisiecki) - fix when upstream MXNet fixes this
@@ -108,10 +102,11 @@ def get_mx_array(shape, ctx=None, dtype=None):
     # which from our point of view is the same
     if dtype == np.longlong:
         dtype = np.int64
-    if non_empty(shape):
-        return mx.nd.zeros(shape, ctx, dtype)
-    else:
-        return mx.nd.empty(shape, ctx, dtype)
+    # mx.nd.empy doesn't handle scalaras as shape
+    if not isinstance(shape, Iterable):
+        shape = [shape]
+
+    return mx.nd.empty(shape, ctx, dtype)
 
 
 ###################################################
@@ -492,7 +487,7 @@ class SmartArray(object):
         new_size = np.prod(shape)
 
         if new_size > self._data.size:
-            self._data = mx.nd.zeros(new_size, self._data.context, dtype=self._data.dtype)
+            self._data = get_mx_array(new_size, self._data.context, dtype=self._data.dtype)
             self._view = self._data
         elif new_size < self._data.size:
             self._view = self._data[:new_size]
@@ -695,11 +690,11 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
             dtype = np.dtype(first_t.dtype())
             device = mx_gpu_device if type(first_t) is TensorGPU else mx_cpu_device
             if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG:
-                new_batch.append(SmartArray(mx.nd.zeros(shapes[j], device, dtype=dtype)))
+                new_batch.append(SmartArray(get_mx_array(shapes[j], device, dtype=dtype)))
             else:
                 l = []
                 for sample_idx in range(self.batch_size):
-                    l.append(SmartArray(mx.nd.zeros(shapes[j][sample_idx], device, dtype=dtype)))
+                    l.append(SmartArray(get_mx_array(shapes[j][sample_idx], device, dtype=dtype)))
                 new_batch.append(l)
         return new_batch
 
