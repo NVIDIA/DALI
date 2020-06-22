@@ -15,10 +15,10 @@
  *
  ************************************************************************/
 
+#include <dlfcn.h>
 #include "dali/util/nvml_wrap.h"
 #include "dali/core/cuda_error.h"
 
-#include <dlfcn.h>
 
 namespace dali {
 
