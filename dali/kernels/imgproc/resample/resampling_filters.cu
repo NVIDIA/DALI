@@ -120,8 +120,10 @@ ResamplingFilter ResamplingFilters::Gaussian(float sigma) const noexcept {
   return flt;
 }
 
-ResamplingFilter ResamplingFilters::Lanczos3() const noexcept {
-  return filters[Idx_Lanczos3];
+ResamplingFilter ResamplingFilters::Lanczos3(float radius) const noexcept {
+  auto flt = filters[Idx_Lanczos3];
+  flt.rescale(2.0f * std::max(3.0f, radius));
+  return flt;
 }
 
 ResamplingFilter ResamplingFilters::Triangular(float radius) const noexcept {

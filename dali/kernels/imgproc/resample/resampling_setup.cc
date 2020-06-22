@@ -31,7 +31,7 @@ ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const Fil
     case ResamplingFilterType::Cubic:
       return filters->Cubic();
     case ResamplingFilterType::Lanczos3:
-      return filters->Lanczos3();
+      return filters->Lanczos3(params.radius);
     default:
       return { nullptr, 0, 0, 0 };
   }

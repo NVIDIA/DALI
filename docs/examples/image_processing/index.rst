@@ -9,6 +9,7 @@ Image Processing
    color_space_conversion.ipynb
    decoder_examples.ipynb
    hsv_example.ipynb
+   interp_types.ipynb
    warp_3D.ipynb
    warp.ipynb
-   
+

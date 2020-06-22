@@ -39,7 +39,7 @@ constexpr FilterDesc lin() {
 }
 
 constexpr FilterDesc lanczos() {
-  return { ResamplingFilterType::Lanczos3, 0 };
+  return { ResamplingFilterType::Lanczos3, 1 };
 }
 
 constexpr FilterDesc cubic() {
