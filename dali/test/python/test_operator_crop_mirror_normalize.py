@@ -453,3 +453,6 @@ def test_cmn_crop_sequence_length():
                         yield check_cmn_crop_sequence_length, device, batch_size, dtype, \
                             input_layout, input_shape, output_layout, mirror_probability, \
                             mean, std, should_pad
+
+
+check_cmn_random_data_vs_numpy('gpu', 8, types.FLOAT, "HWC", (200, 300, 3), 'CHW', 1.0, [127.5], [57.375], True)

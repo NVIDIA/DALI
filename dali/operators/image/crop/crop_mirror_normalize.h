@@ -62,8 +62,9 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
 
   int channel_dim_idx = ImageLayoutInfo::ChannelDimIndex(input_layout);
   assert(channel_dim_idx >= 0);
+  auto &nchannels = args.shape[channel_dim_idx];
   if (pad_output) {
-    args.shape[channel_dim_idx] = NextPowerOfTwo(args.shape[channel_dim_idx]);
+    nchannels = NextPowerOfTwo(nchannels);
   }
 
   if (horizontal_flip) {
@@ -81,7 +82,15 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
   if (should_normalize) {
     args.mean = mean;
     args.inv_stddev = inv_std_dev;
-    args.channel_dim = channel_dim_idx;
+    args.channel_dim = -1;
+    auto norm_arg_size = args.mean.size(); 
+    if (norm_arg_size > 1) {
+      args.channel_dim = channel_dim_idx;
+      for (int i = args.mean.size(); i < nchannels; i++) {
+        args.mean.push_back(0.0f);
+        args.inv_stddev.push_back(0.0f);
+      }
+    }
   }
 
   return args;

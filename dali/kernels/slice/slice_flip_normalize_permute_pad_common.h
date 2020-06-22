@@ -103,7 +103,7 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
   if (has_channels) {
     int channel_dim = args.channel_dim < 0 ? Dims - 1 : args.channel_dim;
     processed_args.channel_dim = inverse_permutation(args.permuted_dims)[channel_dim];
-    auto nchannels = static_cast<size_t>(processed_args.in_shape[channel_dim]);
+    auto nchannels = static_cast<size_t>(processed_args.out_shape[processed_args.channel_dim]);
     if (should_normalize)
       DALI_ENFORCE(args.mean.size() == nchannels);
     if (processed_args.fill_values.size() == 1) {

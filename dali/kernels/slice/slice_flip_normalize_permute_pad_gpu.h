@@ -194,7 +194,7 @@ class SliceFlipNormalizePermutePadGpu {
         context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
 
     int channel_dim = -1;
-    bool need_pad = false;
+    bool need_pad = false, need_flip = false;
     std::vector<size_t> sample_sizes(in.size());
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);
@@ -208,6 +208,7 @@ class SliceFlipNormalizePermutePadGpu {
       auto &sample_desc = sample_descs_cpu[i];
       sample_desc.in_strides = processed_args.in_strides;
       for (int d = 0; d < Dims; d++) sample_desc.out_strides[d] = processed_args.out_strides[d];
+      sample_desc.out_shape = processed_args.out_shape;
       sample_desc.in_shape = processed_args.in_shape;
       sample_desc.anchor = processed_args.anchor;
       sample_desc.norm_add = norm_add_gpu + i * norm_args_size_;
@@ -220,6 +221,10 @@ class SliceFlipNormalizePermutePadGpu {
           NeedPad(Dims, processed_args.anchor.data(), processed_args.in_shape.data(),
                   processed_args.out_shape.data());
       need_pad |= sample_desc.need_pad;
+      sample_desc.need_flip = false;
+      for (int d = 0; d < Dims; d++) 
+        sample_desc.need_flip |= processed_args.in_strides[d] < 0;
+      need_flip |= sample_desc.need_flip;
       sample_sizes[i] = volume(processed_args.out_shape);
     }
 
@@ -244,12 +249,15 @@ class SliceFlipNormalizePermutePadGpu {
     CUDA_CALL(cudaGetLastError());
 
     VALUE_SWITCH(need_pad ? 1 : 0, NeedPadInt, (0, 1), (
-      VALUE_SWITCH(need_normalize_ ? 1 : 0, NeedNormalizeInt, (0, 1), (
-        constexpr bool NeedPad = static_cast<bool>(NeedPadInt);
-        constexpr bool NeedNormalize = static_cast<bool>(NeedNormalizeInt);
-        auto grid = block_count_;
-        detail::SliceFlipNormalizePermutePadKernel<NeedPad, NeedNormalize, OutputType, InputType, Dims>
-          <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs_gpu, block_descs_gpu);
+      VALUE_SWITCH(need_flip ? 1 : 0, NeedFlipInt, (0, 1), (
+        VALUE_SWITCH(need_normalize_ ? 1 : 0, NeedNormalizeInt, (0, 1), (
+          constexpr bool NeedPad = static_cast<bool>(NeedPadInt);
+          constexpr bool NeedFlip = static_cast<bool>(NeedFlipInt);
+          constexpr bool NeedNormalize = static_cast<bool>(NeedNormalizeInt);
+          auto grid = block_count_;
+          detail::SliceFlipNormalizePermutePadKernel<NeedPad, NeedFlip, NeedNormalize, OutputType, InputType, Dims>
+            <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs_gpu, block_descs_gpu);
+        ), ());
       ), ());
     ), ());
   }

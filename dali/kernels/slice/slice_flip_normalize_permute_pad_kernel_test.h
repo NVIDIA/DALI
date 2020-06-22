@@ -111,7 +111,7 @@ class SliceFlipNormalizePermutePadTest : public ::testing::Test {
           int i_d = idx / out_strides[d];
           idx = idx % out_strides[d];
           auto perm_d = permuted_dims[d];
-          if (d == channel_dim) {
+          if (perm_d == channel_dim) {
             i_c = i_d;
             ASSERT_EQ(in_shape[perm_d], per_ch_arg_size);
             ASSERT_TRUE(i_c >= 0 && i_c < per_ch_arg_size);
@@ -316,11 +316,179 @@ struct SliceFlipNormPermArgsGen_SliceFlipNormalizePermute_PermuteHWC2CHW {
   }
 };
 
+template <typename OutputType, int Dims, bool flip_0 = true, bool flip_1 = true>
+struct SliceFlipNormPermArgsGen_SlicePadFlip {
+  SliceFlipNormalizePermutePadArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims> args(input_shape, input_shape);
+    args.anchor[0] = input_shape[0]/2;
+    args.flip[0] = true;
+    args.anchor[1] = input_shape[1]/2;
+    args.flip[1] = true;
+    return args;
+  }
+};
+
+
+template <typename OutputType, int Dims, bool MultiChannel = true>
+struct SliceFlipNormPermArgsGen_SlicePadFlipNormalizePermute_PermuteHWC2CHW {
+  SliceFlipNormalizePermutePadArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims> args(input_shape, input_shape);
+    for (int d = 0; d < Dims; d++) {
+      args.anchor[d] = d == 0 || d == 1 ? input_shape[d]/2 : 0;
+      args.shape[d] = input_shape[d];
+      args.flip[d] = d == 0 || d == 1;
+      switch (d) {
+        case 0:
+          args.permuted_dims[d] = 2;
+          break;
+        case 1:
+          args.permuted_dims[d] = 0;
+          break;
+        case 2:
+          args.permuted_dims[d] = 1;
+          break;
+        default:
+          args.permuted_dims[d] = d;
+          break;
+      }
+    }
+    if (MultiChannel) {
+      int perm_channel_dim = args.permuted_dims[Dims - 1];
+      int nchannels = args.shape[perm_channel_dim];
+      args.mean.resize(nchannels, 50.0f);
+      args.inv_stddev.resize(nchannels, 1.0/100.0f);
+      args.fill_values.resize(nchannels, 0.5f);
+      args.channel_dim = Dims - 1;
+    } else {
+      args.mean = {50.0f};
+      args.inv_stddev = {1.0/100.0f};
+      args.fill_values = {0.5f};
+      args.channel_dim = -1;
+    }
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims>
+struct SliceFlipNormPermArgsGen_SlicePadPermuteAll {
+  SliceFlipNormalizePermutePadArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims> args(input_shape, input_shape);
+    for (int d = 0; d < Dims; d++) {
+      args.anchor[d] = input_shape[d]/2;
+      args.shape[d] = input_shape[d];
+      switch (d) {
+        case 0:
+          args.permuted_dims[d] = 2;
+          break;
+        case 1:
+          args.permuted_dims[d] = 0;
+          break;
+        case 2:
+          args.permuted_dims[d] = 1;
+          break;
+        default:
+          args.permuted_dims[d] = d;
+          break;
+      }
+    }
+    args.fill_values = {0.5f};
+    args.channel_dim = -1;
+    return args;
+  }
+};
+
+
+template <typename OutputType, int Dims, bool MultiChannel = true>
+struct SliceFlipNormPermArgsGen_SlicePadNormalizePermute_PermuteHWC2CHW {
+  SliceFlipNormalizePermutePadArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims> args(input_shape, input_shape);
+    for (int d = 0; d < Dims; d++) {
+      args.anchor[d] = d == 0 || d == 1 ? input_shape[d]/2 : 0;
+      args.shape[d] = input_shape[d];
+      args.flip[d] = false;
+      switch (d) {
+        case 0:
+          args.permuted_dims[d] = 2;
+          break;
+        case 1:
+          args.permuted_dims[d] = 0;
+          break;
+        case 2:
+          args.permuted_dims[d] = 1;
+          break;
+        default:
+          args.permuted_dims[d] = d;
+          break;
+      }
+    }
+    if (MultiChannel) {
+      int perm_channel_dim = args.permuted_dims[Dims - 1];
+      int nchannels = args.shape[perm_channel_dim];
+      args.mean.resize(nchannels, 50.0f);
+      args.inv_stddev.resize(nchannels, 1.0/100.0f);
+      args.fill_values.resize(nchannels, 0.5f);
+      args.channel_dim = Dims - 1;
+    } else {
+      args.mean = {50.0f};
+      args.inv_stddev = {1.0/100.0f};
+      args.fill_values = {0.5f};
+      args.channel_dim = -1;
+    }
+    return args;
+  }
+};
+
 template <typename OutputType, int Dims, int PaddedDim, int PadSize>
 struct SliceFlipNormPermArgsGen_OnlyPad_GivenDim {
   SliceFlipNormalizePermutePadArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceFlipNormalizePermutePadArgs<Dims> args(input_shape, input_shape);
     args.shape[PaddedDim] += PadSize;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims, int FlipDim>
+struct SliceFlipNormPermArgsGen_FlipPad_GivenDim {
+  SliceFlipNormalizePermutePadArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims> args(input_shape, input_shape);
+    args.flip[FlipDim] = true;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_SingleValuePad_PermuteHWC2CHW {
+  SliceFlipNormalizePermutePadArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims> args(input_shape, input_shape);
+    args.anchor[0] = -input_shape[0] / 2;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = 0;
+    args.shape[0] = 2 * input_shape[0];
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = input_shape[2];
+    args.fill_values = {0.5f};
+    args.channel_dim = -1;
+    args.permuted_dims[0] = 2;
+    args.permuted_dims[1] = 0;
+    args.permuted_dims[2] = 1;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_SliceNormalizeFlip_PadChannels {
+  SliceFlipNormalizePermutePadArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims> args(input_shape, input_shape);
+    args.anchor[0] = input_shape[0] / 4;
+    args.anchor[1] = input_shape[1] / 4;
+    args.anchor[2] = 0;
+    args.shape[0] = input_shape[0]/2;
+    args.shape[1] = input_shape[1]/2;
+    args.shape[2] = input_shape[2] + 1;
+    args.flip[0] = true;
+    args.mean = {127.0f};
+    args.inv_stddev = {1/127.0f};
+    args.channel_dim = -1;
     return args;
   }
 };
@@ -360,10 +528,32 @@ using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES = ::testing::Types<
       SliceFlipNormPermArgsGen_PermuteAndSliceHalf_PermuteHW<float, 2>, 2, 10>,
     SliceTestArgs<int, float, 3, 1, 2,
       SliceFlipNormPermArgsGen_SliceFlipNormalizePermute_PermuteHWC2CHW<float, 3>, 2, 2>,
+    SliceTestArgs<int, float, 2, 1, 2,
+      SliceFlipNormPermArgsGen_SlicePadFlip<float, 2, false, true>, 2, 2>,
+    SliceTestArgs<int, float, 2, 1, 2,
+      SliceFlipNormPermArgsGen_SlicePadFlip<float, 2, true, false>, 2, 2>,
+    SliceTestArgs<int, float, 3, 1, 2,
+      SliceFlipNormPermArgsGen_SlicePadFlip<float, 3, true, true>, 2, 2>,
+    SliceTestArgs<int, float, 3, 1, 2,
+      SliceFlipNormPermArgsGen_SlicePadNormalizePermute_PermuteHWC2CHW<float, 3>, 2, 2>,
+    SliceTestArgs<int, float, 3, 1, 2,
+      SliceFlipNormPermArgsGen_SlicePadNormalizePermute_PermuteHWC2CHW<float, 3, false>, 2, 2>,
+    SliceTestArgs<int, float, 3, 1, 2,
+      SliceFlipNormPermArgsGen_SlicePadFlipNormalizePermute_PermuteHWC2CHW<float, 3>, 2, 2>,
+    SliceTestArgs<int, float, 3, 1, 2,
+      SliceFlipNormPermArgsGen_SlicePadFlipNormalizePermute_PermuteHWC2CHW<float, 3, false>, 2, 2>,
+    SliceTestArgs<int, float, 3, 1, 2,
+      SliceFlipNormPermArgsGen_SlicePadPermuteAll<float, 3>, 2, 2>,
     SliceTestArgs<int, uint8_t, 3, 1, 3,
       SliceFlipNormPermArgsGen_PermuteAndSliceHalf_PermuteHW<uint8_t, 3>, 1000, 1000>,
     SliceTestArgs<uint8_t, float, 3, 1, 3,
       SliceFlipNormPermArgsGen_PermuteAndSliceHalf_PermuteHW<float, 3>, 1000, 1000>,
+    SliceTestArgs<uint8_t, float, 3, 1, 2,
+      SliceFlipNormPermArgsGen_FlipPad_GivenDim<float, 3, 0>, 2, 2>,
+    SliceTestArgs<uint8_t, float, 3, 1, 2,
+      SliceFlipNormPermArgsGen_FlipPad_GivenDim<float, 3, 1>, 2, 2>,
+    SliceTestArgs<uint8_t, float, 3, 1, 2,
+      SliceFlipNormPermArgsGen_FlipPad_GivenDim<float, 3, 2>, 2, 2>,
     SliceTestArgs<uint8_t, float, 3, 1, 2,
       SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 2, 1>, 2, 2>,
     SliceTestArgs<uint8_t, float, 3, 1, 3,
@@ -373,7 +563,11 @@ using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<uint8_t, float, 3, 1, 3,
       SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 0, 10>, 10, 10>,
     SliceTestArgs<int, bool, 3, 1, 2,
-      SliceFlipNormPermArgsGen_SliceOnly<bool, 3>>
+      SliceFlipNormPermArgsGen_SliceOnly<bool, 3>>,
+    SliceTestArgs<int, float, 3, 1, 10,
+      ArgsGen_SingleValuePad_PermuteHWC2CHW<float, 3>, 10, 10>,
+    SliceTestArgs<int, float, 3, 1, 10,
+      ArgsGen_SliceNormalizeFlip_PadChannels<float, 3>, 10, 10>
 >;
 
 using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES_CPU_ONLY = ::testing::Types<
