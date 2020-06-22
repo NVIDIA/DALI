@@ -1063,10 +1063,10 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_separated"_a = false,
         "exec_async"_a = true)
     .def("EnableExecutorMemoryStats",
-        [](Pipeline *p, bool get_memory_stats) {
-          p->EnableExecutorMemoryStats(get_memory_stats);
+        [](Pipeline *p, bool enable_memory_stats) {
+          p->EnableExecutorMemoryStats(enable_memory_stats);
         },
-        "get_memory_stats"_a = true)
+        "enable_memory_stats"_a = true)
     .def("executor_statistics",
         [](Pipeline *p) {
           auto ret = p->GetExecutorMeta();

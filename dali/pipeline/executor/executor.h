@@ -75,7 +75,7 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void ShareOutputs(DeviceWorkspace *ws) = 0;
   DLL_PUBLIC virtual void ReleaseOutputs() = 0;
   DLL_PUBLIC virtual void SetCompletionCallback(ExecutorCallback cb) = 0;
-  DLL_PUBLIC virtual void EnableMemoryStats(bool get_memory_stats = false) = 0;
+  DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
   DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
 
  protected:
@@ -110,15 +110,15 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
         queue_sizes_(prefetch_queue_depth),
         mixed_op_stream_(0),
         gpu_op_stream_(0),
-        get_memory_stats_(false) {
+        enable_memory_stats_(false) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
 
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
   }
 
-  DLL_PUBLIC void EnableMemoryStats(bool get_memory_stats = false) override {
-    get_memory_stats_ = get_memory_stats;
+  DLL_PUBLIC void EnableMemoryStats(bool enable_memory_stats = false) override {
+    enable_memory_stats_ = enable_memory_stats;
   }
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
   DLL_PUBLIC void Init() override {}
@@ -138,7 +138,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
-
   template<typename backend>
   inline void GetMaxSizes(TensorList<backend> &in, size_t &max_out_size,
                           size_t &max_reserved_size) {
@@ -160,7 +159,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   template <typename W>
   inline void FillStats(ExecutorMetaMap &memory_stats, W ws, std::string op_name,
                         std::mutex &write_mutex) {
-    if (get_memory_stats_) {
+    if (enable_memory_stats_) {
         size_t out_size = 0;
         size_t max_out_size = 0;
         size_t reserved_size = 0;
@@ -295,7 +294,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   // in some edge cases where there are no operators
   std::vector<cudaEvent_t> mixed_callback_events_;
 
-  std::atomic<bool> get_memory_stats_;
+  std::atomic<bool> enable_memory_stats_;
   ExecutorMetaMap cpu_memory_stats_, mixed_memory_stats_, gpu_memory_stats_;
   std::mutex cpu_memory_stats_mutex_;
   std::mutex mixed_memory_stats_mutex_;

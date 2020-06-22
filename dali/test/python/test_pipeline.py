@@ -1532,7 +1532,7 @@ def test_ref_count():
 def test_executor_meta():
     class TestPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
-            super(TestPipeline, self).__init__(batch_size, num_threads, device_id, get_memory_stats=True)
+            super(TestPipeline, self).__init__(batch_size, num_threads, device_id, enable_memory_stats=True)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
             self.decode = ops.ImageDecoderRandomCrop(device = "mixed", output_type = types.RGB, seed=seed)
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)

@@ -431,7 +431,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   executor_ = GetExecutor(pipelined_execution_, separated_execution_, async_execution_, batch_size_,
                           num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
                           max_num_stream_, default_cuda_stream_priority_, prefetch_queue_depth_);
-  executor_->EnableMemoryStats(memory_stats_enabled_);
+  executor_->EnableMemoryStats(enable_memory_stats_);
   executor_->Init();
 
   // Creating the graph
