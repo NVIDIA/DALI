@@ -102,12 +102,12 @@ DALIError_t wrapSymbols(void) {
   LOAD_SYM(nvmlhandle, "nvmlSystemGetDriverVersion", nvmlInternalSystemGetDriverVersion);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetCpuAffinity", nvmlInternalDeviceGetCpuAffinity);
   LOAD_SYM(nvmlhandle, "nvmlErrorString", nvmlInternalErrorString);
-  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand, 450);
-  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2, 450);
+  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand, 11000);
+  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2, 11000);
   LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2",
-                      nvmlInternalDeviceGetHandleByIndex_v2, 450);
+                      nvmlInternalDeviceGetHandleByIndex_v2, 11000);
   LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCudaComputeCapability",
-                      nvmlInternalDeviceGetCudaComputeCapability, 450);
+                      nvmlInternalDeviceGetCudaComputeCapability, 11000);
 
   symbolsLoaded = 1;
   return DALISuccess;
