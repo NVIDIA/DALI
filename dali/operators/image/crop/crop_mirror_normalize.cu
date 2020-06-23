@@ -25,7 +25,7 @@ template <>
 bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                                 const DeviceWorkspace &ws) {
   output_desc.resize(1);
-  SetupAndInitialize(ws);
+  SetupCommonImpl(ws);
   const auto &input = ws.InputRef<GPUBackend>(0);
   int ndim = input.shape().sample_dim();
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (

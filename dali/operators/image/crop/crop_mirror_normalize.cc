@@ -55,7 +55,8 @@ normalization only.
   .AddOptionalArg("std",
     R"code(Standard deviation values for image normalization.)code",
     std::vector<float>{1.0f})
-  .AddParent("CropAttr");
+  .AddParent("CropAttr")
+  .AddParent("OutOfBoundsAttr");
 
 DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<CPUBackend>, CPU);
 
@@ -63,7 +64,7 @@ template <>
 bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                                 const HostWorkspace &ws) {
   output_desc.resize(1);
-  SetupAndInitialize(ws);
+  SetupCommonImpl(ws);
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto in_shape = input.shape();
   int ndim = in_shape.sample_dim();

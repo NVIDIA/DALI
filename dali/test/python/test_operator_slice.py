@@ -400,12 +400,19 @@ def test_slice_vs_numpy():
                 yield check_slice_vs_numpy, device, batch_size, axes, axis_names
 
 
-def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start, abs_end, out_of_bounds_policy, fill_values, naxes=2):
+def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start, abs_end, out_of_bounds_policy, fill_values, naxes=2, mean = None, std = None, flip = None, permute = None):
     in_shape = sample_in.shape
     out_shape = sample_out.shape
+    ndim = len(out_shape)
+    orig_nchannels = in_shape[2]
+    out_ch_dim = permute.index(2) if permute is not None else 2
+    out_nchannels = out_shape[out_ch_dim]
 
     if out_of_bounds_policy == 'pad':
-        assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
+        if permute is not None:
+            assert(all([abs_slice_shape[permute[i]] == out_shape[i] for i in range(ndim) if permute[i] < naxes]))
+        else:
+            assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
     elif out_of_bounds_policy == 'trim_to_shape':
         assert(all([out_shape[i] <= in_shape[i] for i in range(naxes)]))
         for i in range(naxes):
@@ -414,8 +421,10 @@ def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start
             if abs_end[i] > in_shape[i]:
                 abs_end[i] = in_shape[i]
             abs_slice_shape[i] = abs_end[i] - abs_start[i]
-        print("Hey ", abs_slice_shape[:2], out_shape[:2])
-        assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
+        if permute is not None:
+            assert(all([abs_slice_shape[permute[i]] == out_shape[i] for i in range(ndim) if permute[i] < naxes]))
+        else:
+            assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
     else:
         assert(False) # Wrong out_of_bounds_policy
 
@@ -426,14 +435,50 @@ def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start
     if out_of_bounds_policy == 'trim_to_shape':
         assert(all([pad_before[i] == 0 for i in range(naxes)]))
         assert(all([pad_after[i] == 0 for i in range(naxes)]))
-        assert(all([sliced[i] == out_shape[i] for i in range(naxes)]))
+        if permute is not None:
+            assert(all([sliced[permute[i]] == out_shape[i] for i in range(ndim) if permute[i] < naxes]))
+        else:
+            assert(all([sliced[i] == out_shape[i] for i in range(naxes)]))
 
-    for i in range(out_shape[0]):
-        for j in range(out_shape[1]):
-            if (i >= pad_before[0] and j >= pad_before[1] and i < pad_before[0] + sliced[0] and j < pad_before[1] + sliced[1]):
-                assert((sample_out[i, j, :] == sample_in[abs_start[0] + i, abs_start[1] + j, :]).all())
-            else:
-                assert((sample_out[i, j, :] == fill_values).all())
+    pos_start = [abs_start[i] if abs_start[i] >= 0 else 0 for i in range(naxes)]
+    # Ignore padded channels (to next power of two) if needed
+    in_sliced = sample_in[pos_start[0] : pos_start[0] + sliced[0], pos_start[1] : pos_start[1] + sliced[1], :]
+    slice_shape = (abs_slice_shape[0], abs_slice_shape[1], out_nchannels)
+    expected = np.zeros(slice_shape, dtype=np.float32)
+    expected[:pad_before[0], :, :orig_nchannels] = np.full((pad_before[0], slice_shape[1], orig_nchannels), fill_values)
+    expected[:, :pad_before[1], :orig_nchannels] = np.full((slice_shape[0], pad_before[1], orig_nchannels), fill_values)
+    expected[slice_shape[0]-pad_after[0]:, :, :orig_nchannels] = np.full((pad_after[0], slice_shape[1], orig_nchannels), fill_values)
+    expected[:, slice_shape[1]-pad_after[1]:, :orig_nchannels] = np.full((slice_shape[0], pad_after[1], orig_nchannels), fill_values)
+    expected[pad_before[0] : pad_before[0] + sliced[0], pad_before[1] : pad_before[1] + sliced[1], :orig_nchannels]
+    if mean is not None and std is not None:
+        expected[pad_before[0] : pad_before[0] + sliced[0], pad_before[1] : pad_before[1] + sliced[1], :orig_nchannels] = \
+            (in_sliced - mean) / std
+    else:
+        expected[pad_before[0] : pad_before[0] + sliced[0], pad_before[1] : pad_before[1] + sliced[1], :orig_nchannels] = \
+            in_sliced
+    
+    for d in range(len(flip)):
+        if flip[d]:
+            expected = np.flip(expected, d)
+   
+    if permute is not None:
+        expected = np.transpose(expected, permute)
+
+    np.testing.assert_allclose(sample_out, expected, atol=1e-07)
+
+#    out_pad_before = sample_out[:pad_before[0], :pad_before[1], :orig_nchannels]
+#    out_pad_after = sample_out[pad_before[0]+sliced[0]:, pad_before[1]+sliced[1]:, :orig_nchannels]
+
+#    if pad_before[0] > 0 or pad_before[1] > 0:
+#        out_pad_before0 = sample_out[:pad_before[0], :, :orig_nchannels]
+#        np.testing.assert_array_equal(out_pad_before0, np.full(out_pad_before0.shape, fill_values))
+#        out_pad_before1 = sample_out[:, :pad_before[1], :orig_nchannels]
+#        np.testing.assert_array_equal(out_pad_before1, np.full(out_pad_before1.shape, fill_values))
+#    if pad_after[0] > 0 or pad_after[1] > 0:
+#        out_pad_after0 = sample_out[out_shape[0]-pad_after[0]:, :, :orig_nchannels]
+#        np.testing.assert_array_equal(out_pad_after0, np.full(out_pad_after0.shape, fill_values))
+#        out_pad_after1 = sample_out[:, out_shape[1]-pad_after[1]:, :orig_nchannels]
+#        np.testing.assert_array_equal(out_pad_after1, np.full(out_pad_after1.shape, fill_values))
 
 def check_slice_with_out_of_bounds_policy_support(device, batch_size, input_shape=(100, 200, 3),
                                                   out_of_bounds_policy=None, fill_values=(0x76, 0xb9, 0x00),
