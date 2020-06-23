@@ -38,7 +38,7 @@ class SliceFlipNormalizePermutePadGpu {
   static constexpr size_t kBlockDim = 512;
   static constexpr size_t kBlockSize = 64 * kBlockDim;
   size_t block_count_ = 0;
-  
+
   int norm_args_size_ = -1;
   bool has_channels_ = false;
   bool need_normalize_ = false;
@@ -64,8 +64,10 @@ class SliceFlipNormalizePermutePadGpu {
         has_channels_ = norm_args_size_ > 1;
       }
 
-      if (sample_args.mean.size() != norm_args_size_ || sample_args.inv_stddev.size() != norm_args_size_)
-        throw std::invalid_argument("Normalization arguments should have the same size for all the samples");
+      if (sample_args.mean.size() != norm_args_size_ ||
+          sample_args.inv_stddev.size() != norm_args_size_)
+        throw std::invalid_argument(
+            "Normalization arguments should have the same size for all the samples");
 
       if (has_channels_) {
         if (sample_args.channel_dim < 0 || sample_args.channel_dim >= Dims)
@@ -73,7 +75,8 @@ class SliceFlipNormalizePermutePadGpu {
               "Channel dim must be valid for multi-channel normalization arguments");
         if (norm_args_size_ != sample_args.shape[sample_args.channel_dim])
           throw std::invalid_argument(
-              "The number of normalization arguments should match the number of channels in the output slice");
+              "The number of normalization arguments should match the number of channels in the "
+              "output slice");
       }
     }
     if (need_normalize_) {
@@ -141,7 +144,7 @@ class SliceFlipNormalizePermutePadGpu {
   }
 
   void Run(KernelContext &context,
-           OutListGPU<OutputType, Dims> &out,
+           const OutListGPU<OutputType, Dims> &out,
            const InListGPU<InputType, Dims> &in,
            const std::vector<Args> &args) {
     const auto num_samples = in.size();
@@ -149,8 +152,10 @@ class SliceFlipNormalizePermutePadGpu {
     float *norm_add_cpu = nullptr, *norm_mul_cpu = nullptr;
     float *norm_add_gpu = nullptr, *norm_mul_gpu = nullptr;
     if (need_normalize_) {
-      norm_add_cpu = context.scratchpad->Allocate<float>(AllocType::Host, num_samples * norm_args_size_);
-      norm_mul_cpu = context.scratchpad->Allocate<float>(AllocType::Host, num_samples * norm_args_size_);
+      norm_add_cpu =
+          context.scratchpad->Allocate<float>(AllocType::Host, num_samples * norm_args_size_);
+      norm_mul_cpu =
+          context.scratchpad->Allocate<float>(AllocType::Host, num_samples * norm_args_size_);
       for (int i = 0; i < num_samples; i++) {
         auto &sample_args = args[i];
         auto *norm_add_data = norm_add_cpu + i * norm_args_size_;
@@ -168,7 +173,6 @@ class SliceFlipNormalizePermutePadGpu {
       norm_mul_gpu = context.scratchpad->ToGPU(
           context.gpu.stream, make_span(norm_mul_cpu, num_samples * norm_args_size_));
       CUDA_CALL(cudaGetLastError());
-
     }
 
     OutputType *fill_values_cpu =
@@ -222,7 +226,7 @@ class SliceFlipNormalizePermutePadGpu {
                   processed_args.out_shape.data());
       need_pad |= sample_desc.need_pad;
       sample_desc.need_flip = false;
-      for (int d = 0; d < Dims; d++) 
+      for (int d = 0; d < Dims; d++)
         sample_desc.need_flip |= processed_args.in_strides[d] < 0;
       need_flip |= sample_desc.need_flip;
       sample_sizes[i] = volume(processed_args.out_shape);
@@ -255,11 +259,12 @@ class SliceFlipNormalizePermutePadGpu {
           constexpr bool NeedFlip = static_cast<bool>(NeedFlipInt);
           constexpr bool NeedNormalize = static_cast<bool>(NeedNormalizeInt);
           auto grid = block_count_;
-          detail::SliceFlipNormalizePermutePadKernel<NeedPad, NeedFlip, NeedNormalize, OutputType, InputType, Dims>
+          detail::SliceFlipNormalizePermutePadKernel
+            <NeedPad, NeedFlip, NeedNormalize, OutputType, InputType, Dims>
             <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs_gpu, block_descs_gpu);
-        ), ());
-      ), ());
-    ), ());
+        ), ());  // NOLINT
+      ), ());  // NOLINT
+    ), ());  // NOLINT
   }
 };
 

@@ -116,9 +116,10 @@ class SliceFlipNormalizePermutePadTest : public ::testing::Test {
             ASSERT_EQ(in_shape[perm_d], per_ch_arg_size);
             ASSERT_TRUE(i_c >= 0 && i_c < per_ch_arg_size);
           }
-          int in_i_d = flip[perm_d] ? anchor[perm_d] + slice_shape[perm_d] - 1 - i_d : anchor[perm_d] + i_d;
+          int in_i_d = flip[perm_d] ? anchor[perm_d] + slice_shape[perm_d] - 1 - i_d
+                                    : anchor[perm_d] + i_d;
           out_of_bounds |= in_i_d < 0 || in_i_d >= in_shape[perm_d];
-          if (!out_of_bounds) 
+          if (!out_of_bounds)
             in_idx += in_i_d * in_strides[perm_d];
         }
 

@@ -44,20 +44,15 @@ inline void Fill(OutputType &destination, InputType element,
   }
 }
 
-template <bool NeedNormalize, bool NeedPad, bool HasChannels, bool OutOfBounds,
-          typename OutputType, typename InputType>
-void SliceFlipNormalizePermutePadKernelImpl(OutputType *output,
-                                            const InputType *input,
-                                            const int64_t* in_strides,
-                                            const int64_t* out_strides,
-                                            const int64_t* anchor,
-                                            const int64_t* in_shape,
-                                            const int64_t* out_shape,
-                                            const OutputType *fill_values,
-                                            const float *mean,
-                                            const float *inv_stddev,
-                                            int channel_dim,  // negative if no channel dim or already processed
-                                            std::integral_constant<int, 1>) {
+template <bool NeedNormalize, bool NeedPad, bool HasChannels, bool OutOfBounds, typename OutputType,
+          typename InputType>
+void SliceFlipNormalizePermutePadKernelImpl(
+    OutputType *output, const InputType *input, const int64_t *in_strides,
+    const int64_t *out_strides, const int64_t *anchor, const int64_t *in_shape,
+    const int64_t *out_shape, const OutputType *fill_values, const float *mean,
+    const float *inv_stddev,
+    int channel_dim,  // negative if no channel dim or already processed
+    std::integral_constant<int, 1>) {
   constexpr int d = 0;
   if (OutOfBounds) {
     for (int i = 0; i < out_shape[d]; i++) {
@@ -70,9 +65,9 @@ void SliceFlipNormalizePermutePadKernelImpl(OutputType *output,
     }
   } else {
     int64_t pad_before, slice, pad_after;
-    std::tie(pad_before, slice, pad_after) = CalcPadCopyExtents(anchor[d], in_shape[d], out_shape[d]);
-    if (in_strides[d] < 0)
-      std::swap(pad_before, pad_after);
+    std::tie(pad_before, slice, pad_after) =
+        CalcPadCopyExtents(anchor[d], in_shape[d], out_shape[d]);
+    if (in_strides[d] < 0) std::swap(pad_before, pad_after);
 
     if (NeedPad) {
       // out of bounds (left side)
@@ -116,21 +111,16 @@ void SliceFlipNormalizePermutePadKernelImpl(OutputType *output,
   }
 }
 
-template <bool NeedNormalize, bool NeedPad, bool HasChannels, bool OutOfBounds,
-          typename OutputType, typename InputType, int DimsLeft>
-void SliceFlipNormalizePermutePadKernelImpl(OutputType *output,
-                                            const InputType *input,
-                                            const int64_t* in_strides,
-                                            const int64_t* out_strides,
-                                            const int64_t* anchor,
-                                            const int64_t* in_shape,
-                                            const int64_t* out_shape,
-                                            const OutputType *fill_values,
-                                            const float *mean,
-                                            const float *inv_stddev,
-                                            int channel_dim,  // negative if no channel dim or already processed
-                                            std::integral_constant<int, DimsLeft>) {
-  constexpr int d = 0;  
+template <bool NeedNormalize, bool NeedPad, bool HasChannels, bool OutOfBounds, typename OutputType,
+          typename InputType, int DimsLeft>
+void SliceFlipNormalizePermutePadKernelImpl(
+    OutputType *output, const InputType *input, const int64_t *in_strides,
+    const int64_t *out_strides, const int64_t *anchor, const int64_t *in_shape,
+    const int64_t *out_shape, const OutputType *fill_values, const float *mean,
+    const float *inv_stddev,
+    int channel_dim,  // negative if no channel dim or already processed
+    std::integral_constant<int, DimsLeft>) {
+  constexpr int d = 0;
   int64_t pad_before, slice, pad_after;
   std::tie(pad_before, slice, pad_after) = CalcPadCopyExtents(anchor[d], in_shape[d], out_shape[d]);
   if (in_strides[d] < 0)
@@ -142,7 +132,8 @@ void SliceFlipNormalizePermutePadKernelImpl(OutputType *output,
       constexpr bool NewOutOfBounds = true;
       SliceFlipNormalizePermutePadKernelImpl<NeedNormalize, NeedPad, HasChannels, NewOutOfBounds>(
           output, input, in_strides + 1, out_strides + 1, anchor + 1, in_shape + 1, out_shape + 1,
-          fill_values, mean, inv_stddev, channel_dim - 1, std::integral_constant<int, DimsLeft - 1>());
+          fill_values, mean, inv_stddev, channel_dim - 1,
+          std::integral_constant<int, DimsLeft - 1>());
       output += out_strides[d];
       input  += in_strides[d];
       if (HasChannels && d == channel_dim) {
@@ -157,7 +148,8 @@ void SliceFlipNormalizePermutePadKernelImpl(OutputType *output,
   for (int64_t i = 0; i < slice; i++) {
     SliceFlipNormalizePermutePadKernelImpl<NeedNormalize, NeedPad, HasChannels, OutOfBounds>(
         output, input, in_strides + 1, out_strides + 1, anchor + 1, in_shape + 1, out_shape + 1,
-        fill_values, mean, inv_stddev, channel_dim - 1, std::integral_constant<int, DimsLeft - 1>());
+        fill_values, mean, inv_stddev, channel_dim - 1,
+        std::integral_constant<int, DimsLeft - 1>());
     output += out_strides[d];
     input  += in_strides[d];
     if (HasChannels && d == channel_dim) {
@@ -173,7 +165,8 @@ void SliceFlipNormalizePermutePadKernelImpl(OutputType *output,
       constexpr bool NewOutOfBounds = true;
       SliceFlipNormalizePermutePadKernelImpl<NeedNormalize, NeedPad, HasChannels, NewOutOfBounds>(
           output, input, in_strides + 1, out_strides + 1, anchor + 1, in_shape + 1, out_shape + 1,
-          fill_values, mean, inv_stddev, channel_dim - 1, std::integral_constant<int, DimsLeft - 1>());
+          fill_values, mean, inv_stddev, channel_dim - 1,
+          std::integral_constant<int, DimsLeft - 1>());
       output += out_strides[d];
       input  += in_strides[d];
       if (HasChannels && d == channel_dim) {
@@ -187,19 +180,14 @@ void SliceFlipNormalizePermutePadKernelImpl(OutputType *output,
 
 }  // namespace detail
 
-
 template <int Dims, typename OutputType, typename InputType>
-void SliceFlipNormalizePermutePadKernel(OutputType *output,
-                                        const InputType *input,
-                                        const TensorShape<Dims> &in_strides,
-                                        const TensorShape<Dims> &out_strides,
-                                        const TensorShape<Dims> &anchor,
-                                        const TensorShape<Dims> &in_shape,
-                                        const TensorShape<Dims> &out_shape,
-                                        const OutputType *fill_values = nullptr,
-                                        const float *mean = nullptr,
-                                        const float *inv_stddev = nullptr,
-                                        int channel_dim = -1) {  // negative if no channel dim or already processed
+void SliceFlipNormalizePermutePadKernel(
+    OutputType *output, const InputType *input, const TensorShape<Dims> &in_strides,
+    const TensorShape<Dims> &out_strides, const TensorShape<Dims> &anchor,
+    const TensorShape<Dims> &in_shape, const TensorShape<Dims> &out_shape,
+    const OutputType *fill_values = nullptr, const float *mean = nullptr,
+    const float *inv_stddev = nullptr,
+    int channel_dim = -1) {  // negative if no channel dim or already processed
   bool need_pad = NeedPad(Dims, anchor.data(), in_shape.data(), out_shape.data());
   bool has_channels = channel_dim >= 0;
   bool need_normalize = (mean != nullptr && inv_stddev != nullptr);
@@ -210,12 +198,14 @@ void SliceFlipNormalizePermutePadKernel(OutputType *output,
         constexpr bool NeedPad = static_cast<bool>(NeedPadInt);
         constexpr bool HasChannels = static_cast<bool>(HasChannelsInt);
         constexpr bool OutOfBounds = false;
-        detail::SliceFlipNormalizePermutePadKernelImpl<NeedNormalize, NeedPad, HasChannels, OutOfBounds>(
+        detail::SliceFlipNormalizePermutePadKernelImpl
+          <NeedNormalize, NeedPad, HasChannels, OutOfBounds>(
             output, input, in_strides.data(), out_strides.data(), anchor.data(), in_shape.data(),
-            out_shape.data(), fill_values, mean, inv_stddev, channel_dim, std::integral_constant<int, Dims>());
-      ), ());
-    ), ());
-  ), ());
+            out_shape.data(), fill_values, mean, inv_stddev, channel_dim,
+            std::integral_constant<int, Dims>());
+      ), ());  // NOLINT
+    ), ());  // NOLINT
+  ), ());  // NOLINT
 }
 
 template <typename OutputType, typename InputType, int Dims>
@@ -235,7 +225,7 @@ class SliceFlipNormalizePermutePadCpu {
   }
 
   void Run(KernelContext &context,
-           OutTensorCPU<OutputType, Dims> &out,
+           const OutTensorCPU<OutputType, Dims> &out,
            const InTensorCPU<InputType, Dims> &in,
            const Args &orig_args) {
     auto args = detail::ProcessArgs(orig_args, in.shape);
@@ -248,22 +238,11 @@ class SliceFlipNormalizePermutePadCpu {
 
     int64_t in_size = volume(args.in_shape);
     int64_t out_size = volume(args.out_shape);
-/*
-    std::cout << "in_data:";
-    for (int i = 0; i < in_size; i++)
-      std::cout << " " << (int) in.data[i];
-    std::cout << "\n";
-*/
-    SliceFlipNormalizePermutePadKernel(out.data, in.data + args.input_offset, args.in_strides, args.out_strides,
-                                       args.anchor, args.in_shape, args.out_shape,
+
+    SliceFlipNormalizePermutePadKernel(out.data, in.data + args.input_offset, args.in_strides,
+                                       args.out_strides, args.anchor, args.in_shape, args.out_shape,
                                        fill_values.data(), args.mean.data(), args.inv_stddev.data(),
                                        args.channel_dim);
-/*
-    std::cout << "out_data:";
-    for (int i = 0; i < out_size; i++)
-      std::cout << " " << (int) out.data[i];
-    std::cout << "\n";
-*/
   }
 };
 

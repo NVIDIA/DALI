@@ -78,7 +78,7 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> ToSliceFlipNormalizePermutePadAr
   }
   args.mean = {mean.data(), mean.data() + mean.size()};
   args.inv_stddev = {inv_stddev.data(), inv_stddev.data() + inv_stddev.size()};
-  auto norm_arg_size = args.mean.size(); 
+  auto norm_arg_size = args.mean.size();
   if (norm_arg_size > 1) {
     args.channel_dim = channel_dim_idx;
     if (pad_channels) {  // The kernel expects as many values as number of channels in the output
@@ -92,7 +92,8 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> ToSliceFlipNormalizePermutePadAr
   if (horizontal_flip) {
     int horizontal_dim_idx = input_layout.find('W');
     DALI_ENFORCE(horizontal_dim_idx >= 0,
-        make_string("[H]orizontal dimension not found in the input layout. Got: ", input_layout.str()));
+                 make_string("[H]orizontal dimension not found in the input layout. Got: ",
+                             input_layout.str()));
     args.flip[horizontal_dim_idx] = true;
   }
 
@@ -226,7 +227,8 @@ class CropMirrorNormalize : public Operator<Backend> {
         assert(crop_win_gen);
         CropWindow crop_window = crop_win_gen(in_shape[data_idx], input_layout_);
         bool horizontal_flip = this->spec_.template GetArgument<int>("mirror", &ws, data_idx);
-        ApplySliceBoundsPolicy(out_of_bounds_policy_, in_shape[data_idx], crop_window.anchor, crop_window.shape);
+        ApplySliceBoundsPolicy(out_of_bounds_policy_, in_shape[data_idx], crop_window.anchor,
+                               crop_window.shape);
         kernel_sample_args.emplace_back(
           detail::ToSliceFlipNormalizePermutePadArgs<Dims>(
             in_shape[data_idx], input_layout_, output_layout_, crop_window, horizontal_flip,

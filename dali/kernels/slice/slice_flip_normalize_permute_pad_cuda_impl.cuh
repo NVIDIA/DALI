@@ -113,22 +113,21 @@ DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_e
  * @remarks `AllDims=true` means that Dims refer to the actual number of dimensions,
  *           meaning we haven't skipped last dimensions that have same input and output strides
  */
-template <bool NeedNormalize, int Dims, typename OutputType, typename InputType, bool AllDims = true>
-__device__ void SliceNormalizePermutePadFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
-                                             const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
-                                             const int64_t *out_shape, const int64_t *in_shape, const int64_t *anchor,
-                                             const OutputType *__restrict__ fill_values, 
-                                             const float *__restrict__ norm_add, 
-                                             const float *__restrict__ norm_mul, 
-                                             int channel_dim,
-                                             uint64_t offset, uint64_t block_end) {
+template <bool NeedNormalize, int Dims, typename OutputType, typename InputType,
+          bool AllDims = true>
+__device__ void SliceNormalizePermutePadFunc(
+    OutputType *__restrict__ out, const InputType *__restrict__ in,
+    const fast_div<uint64_t> *out_strides, const int64_t *in_strides, const int64_t *out_shape,
+    const int64_t *in_shape, const int64_t *anchor, const OutputType *__restrict__ fill_values,
+    const float *__restrict__ norm_add, const float *__restrict__ norm_mul, int channel_dim,
+    uint64_t offset, uint64_t block_end) {
   if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] &&
       out_shape[Dims - 1] == in_shape[Dims - 1] && anchor[Dims - 1] == 0 &&
       channel_dim != Dims - 1) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
     SliceNormalizePermutePadFunc<NeedNormalize, NextDims, OutputType, InputType, false>(
-        out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values, norm_add, norm_mul,
-        channel_dim, offset, block_end);
+        out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values, norm_add,
+        norm_mul, channel_dim, offset, block_end);
     return;
   }
 
@@ -189,14 +188,12 @@ __device__ void SliceNormalizePermutePadFunc(OutputType *__restrict__ out, const
  * @remarks `in` refers to the slice anchor start
  */
 template <bool NeedNormalize, int Dims, typename OutputType, typename InputType>
-__device__ void SliceFlipNormalizePermutePadFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
-                                                 const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
-                                                 const int64_t *out_shape, const int64_t *in_shape, const int64_t *anchor,
-                                                 const OutputType *__restrict__ fill_values, 
-                                                 const float *__restrict__ norm_add, 
-                                                 const float *__restrict__ norm_mul, 
-                                                 int channel_dim,
-                                                 uint64_t offset, uint64_t block_end) {
+__device__ void SliceFlipNormalizePermutePadFunc(
+    OutputType *__restrict__ out, const InputType *__restrict__ in,
+    const fast_div<uint64_t> *out_strides, const int64_t *in_strides, const int64_t *out_shape,
+    const int64_t *in_shape, const int64_t *anchor, const OutputType *__restrict__ fill_values,
+    const float *__restrict__ norm_add, const float *__restrict__ norm_mul, int channel_dim,
+    uint64_t offset, uint64_t block_end) {
   for (; offset < block_end; offset += blockDim.x) {
     uint64_t idx = offset;
     uint64_t out_idx = idx;
@@ -213,7 +210,8 @@ __device__ void SliceFlipNormalizePermutePadFunc(OutputType *__restrict__ out, c
       i_d = div_mod(idx, idx, out_strides[d]);
       if (d == channel_dim)
         i_c = i_d;
-      auto in_i_d = in_strides[d] < 0 ? anchor[d] + out_shape[d] - 1 - i_d : anchor[d] + i_d; 
+      auto in_i_d = in_strides[d] < 0 ? anchor[d] + out_shape[d] - 1 - i_d
+                                      : anchor[d] + i_d;
       out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
       if (!out_of_bounds)
         in_idx += i_d * in_strides[d];
@@ -224,7 +222,8 @@ __device__ void SliceFlipNormalizePermutePadFunc(OutputType *__restrict__ out, c
     idx = 0;
     if (d == channel_dim)
       i_c = i_d;
-    auto in_i_d = in_strides[d] < 0 ? anchor[d] + out_shape[d] - 1 - i_d : anchor[d] + i_d; 
+    auto in_i_d = in_strides[d] < 0 ? anchor[d] + out_shape[d] - 1 - i_d
+                                    : anchor[d] + i_d;
     out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
     if (!out_of_bounds)
       in_idx += i_d * in_strides[d];
@@ -240,8 +239,10 @@ __device__ void SliceFlipNormalizePermutePadFunc(OutputType *__restrict__ out, c
   }
 }
 
-template <bool NeedPad, bool NeedFlip, bool NeedNormalize, typename OutputType, typename InputType, int Dims>
-__global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *samples, const BlockDesc *blocks) {
+template <bool NeedPad, bool NeedFlip, bool NeedNormalize, typename OutputType, typename InputType,
+          int Dims>
+__global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *samples,
+                                                   const BlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
   uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x;
   uint64_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
