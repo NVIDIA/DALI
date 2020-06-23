@@ -106,7 +106,7 @@ class MultichannelSynthPipeline(Pipeline):
                                                std = 255.,
                                                mean = 0.,
                                                output_layout = "HWC",
-                                               output_dtype = types.FLOAT)
+                                               dtype = types.FLOAT)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -204,7 +204,7 @@ class MultichannelPipeline(Pipeline):
         self.cmn = ops.CropMirrorNormalize(device = self.device,
                                            std = 255., mean = 0.,
                                            output_layout = "HWC",
-                                           output_dtype = types.FLOAT)
+                                           dtype = types.FLOAT)
 
     def define_graph(self):
         encoded_data, _ = self.reader()

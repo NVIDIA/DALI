@@ -251,7 +251,7 @@ class Warp : public Operator<Backend> {
  public:
   explicit Warp(const OpSpec &spec) : Operator<Backend>(spec) {
     border_clamp_ = !spec.HasArgument("fill_value");
-    spec.TryGetArgument(output_type_arg_, "output_dtype");
+    spec.TryGetArgument(output_type_arg_, "dtype");
   }
 
   int SpatialDim() const {

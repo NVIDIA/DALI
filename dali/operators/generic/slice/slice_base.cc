@@ -23,8 +23,8 @@ namespace dali {
 DALI_SCHEMA(SliceBase)
     .DocStr(R"code(Base implementation for `Slice`, `Crop` and related operators)code")
     .MakeInternal()
-    .AddOptionalArg("output_dtype",
-      R"code(Output data type. By default same data type as the input will be used.
+    .AddOptionalArg("dtype",
+       R"code(Output data type. By default same data type as the input will be used.
 Supported types: `FLOAT`, `FLOAT16`, and `UINT8`)code",
       DALI_NO_TYPE);
 

@@ -159,14 +159,14 @@ class DetectionPipeline(Pipeline):
             mean=mean,
             std=std,
             mirror=0,
-            output_dtype=types.FLOAT)
+            dtype=types.FLOAT)
         self.normalize_gpu = ops.CropMirrorNormalize(
             device="gpu",
             crop=crop_size,
             mean=mean,
             std=std,
             mirror=0,
-            output_dtype=types.FLOAT)
+            dtype=types.FLOAT)
 
         self.twist_cpu = ops.ColorTwist(device="cpu")
         self.twist_gpu = ops.ColorTwist(device="gpu")

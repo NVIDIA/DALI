@@ -89,7 +89,7 @@ def test_mxnet_iterator_model_fit():
             self.res = ops.RandomResizedCrop(device="cpu", size =(224,224))
 
             self.cmnp = ops.CropMirrorNormalize(device="cpu",
-                                                output_dtype=types.FLOAT,
+                                                dtype=types.FLOAT,
                                                 output_layout=types.NCHW,
                                                 crop=(224, 224),
                                                 image_type=types.RGB,
@@ -601,7 +601,7 @@ class CustomPipe(Pipeline):
         self.res = ops.RandomResizedCrop(device="gpu", size =(224, 224))
 
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
-                                            output_dtype=types.FLOAT,
+                                            dtype=types.FLOAT,
                                             output_layout=types.NCHW,
                                             crop=(224, 224),
                                             image_type=types.RGB,

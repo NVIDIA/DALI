@@ -20,7 +20,7 @@ class VideoReaderPipeline(Pipeline):
         self.reader = ops.VideoReader(device="gpu", filenames=files, sequence_length=sequence_length,
                                      normalized=False, random_shuffle=True, image_type=types.RGB,
                                      dtype=types.UINT8, initial_fill=16, pad_last_batch=True)
-        self.crop = ops.Crop(device="gpu", crop=crop_size, output_dtype=types.FLOAT)
+        self.crop = ops.Crop(device="gpu", crop=crop_size, dtype=types.FLOAT)
         self.uniform = ops.Uniform(range=(0.0, 1.0))
         self.transpose = ops.Transpose(device="gpu", perm=[3, 0, 1, 2])
 

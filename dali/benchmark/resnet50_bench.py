@@ -46,7 +46,7 @@ class C2Pipe(Pipeline):
         self.decode = ops.ImageDecoder(device = 'cpu', output_type = types.RGB)
         self.rcm = ops.FastResizeCropMirror(crop = (224, 224))
         self.np = ops.CropMirrorNormalize(device = "gpu",
-                                          output_dtype = types.FLOAT16,
+                                          dtype = types.FLOAT16,
                                           mean = [128., 128., 128.],
                                           std = [1., 1., 1.],
                                           image_type = types.RGB)
@@ -81,7 +81,7 @@ class HybridPipe(Pipeline):
                                  image_type = types.RGB,
                                  interp_type = types.INTERP_LINEAR)
         self.cmnp = ops.CropMirrorNormalize(device = "gpu",
-                                            output_dtype = types.FLOAT16,
+                                            dtype = types.FLOAT16,
                                             crop = (224, 224),
                                             image_type = types.RGB,
                                             mean = [128., 128., 128.],

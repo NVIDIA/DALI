@@ -96,7 +96,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
   explicit inline CropMirrorNormalize(const OpSpec &spec)
       : Operator<Backend>(spec),
         CropAttr(spec),
-        output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
+        output_type_(spec.GetArgument<DALIDataType>("dtype")),
         output_layout_(spec.GetArgument<TensorLayout>("output_layout")),
         pad_output_(spec.GetArgument<bool>("pad_output")),
         slice_anchors_(batch_size_),

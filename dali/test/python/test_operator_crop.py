@@ -204,13 +204,13 @@ class CropCastPipeline(Pipeline):
                                 crop_pos_x = 0.3,
                                 crop_pos_y = 0.2,
                                 image_type = types.RGB,
-                                output_dtype = types.FLOAT)
+                                dtype = types.FLOAT)
             self.crop2 = ops.Crop(device = self.device,
                                   crop = (224, 224),
                                   crop_pos_x = 0.0,
                                   crop_pos_y = 0.0,
                                   image_type = types.RGB,
-                                  output_dtype = types.UINT8)
+                                  dtype = types.UINT8)
         else:
             self.crop = ops.Crop(device = self.device,
                     crop = (224, 224),
@@ -359,7 +359,7 @@ def test_crop_3d_vs_python_op_crop():
                yield check_crop_3d_vs_python_op_crop, device, batch_size, layout, shape
 
 
-def check_crop_sequence_length(device, batch_size, output_dtype, input_layout, input_shape):
+def check_crop_sequence_length(device, batch_size, dtype, input_layout, input_shape):
     crop_z, crop_y, crop_x = (0.1, 0.2, 0.3)
 
     if input_layout == "FHWC":
@@ -398,10 +398,10 @@ def test_cmn_crop_sequence_length():
                      ("FCHW", (10, 3, 60, 80))}
     for device in ['cpu']:
         for batch_size in [8]:
-            for output_dtype in [types.FLOAT]:
+            for dtype in [types.FLOAT]:
                 for input_layout, input_shape in input_configs:
                     assert len(input_layout) == len(input_shape)
-                    yield check_crop_sequence_length, device, batch_size, output_dtype, \
+                    yield check_crop_sequence_length, device, batch_size, dtype, \
                         input_layout, input_shape
 
 class CropSynthPipe(Pipeline):
