@@ -1588,20 +1588,21 @@ def test_executor_meta():
             assert(calc_avg_max(v["real_memory_size"]) == v["max_real_memory_size"])
             assert(calc_avg_max(v["reserved_memory_size"]) == v["max_reserved_memory_size"])
 
+
 def trigger_output_dtype_deprecated_warning():
     batch_size = 10
-    shape=(120, 60, 3)
+    shape = (120, 60, 3)
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     data = RandomDataIterator(batch_size, shape=shape, dtype=np.uint8)
     with pipe:
         input = fn.external_source(data, layout="HWC")
         cmn = fn.crop_mirror_normalize(input, device="cpu",
-                                                output_dtype=types.FLOAT,
-                                                output_layout="HWC",
-                                                crop=(32, 32),
-                                                image_type=types.RGB,
-                                                mean=[128., 128., 128.],
-                                                std=[1., 1., 1.])
+                                       output_dtype=types.FLOAT,
+                                       output_layout="HWC",
+                                       crop=(32, 32),
+                                       image_type=types.RGB,
+                                       mean=[128., 128., 128.],
+                                       std=[1., 1., 1.])
         pipe.set_outputs(cmn)
     pipe.build()
 
@@ -1621,23 +1622,22 @@ def test_output_dtype_deprecation():
         assert ("Argument name 'output_dtype' for operator CropMirrorNormalize is deprecated. " +
                 "Use 'dtype' instead.") == str(w[-1].message)
 
+
 @raises(TypeError)
 def test_output_dtype_both_error():
     batch_size = 10
-    shape=(120, 60, 3)
+    shape = (120, 60, 3)
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     data = RandomDataIterator(batch_size, shape=shape, dtype=np.uint8)
     with pipe:
         input = fn.external_source(data, layout="HWC")
         cmn = fn.crop_mirror_normalize(input, device="cpu",
-                                                output_dtype=types.FLOAT,
-                                            dtype=types.FLOAT,
-                                                output_layout="HWC",
-                                                crop=(32, 32),
-                                                image_type=types.RGB,
-                                                mean=[128., 128., 128.],
-                                                std=[1., 1., 1.])
+                                       output_dtype=types.FLOAT,
+                                       dtype=types.FLOAT,
+                                       output_layout="HWC",
+                                       crop=(32, 32),
+                                       image_type=types.RGB,
+                                       mean=[128., 128., 128.],
+                                       std=[1., 1., 1.])
         pipe.set_outputs(cmn)
     pipe.build()
-
-
