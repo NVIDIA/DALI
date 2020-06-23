@@ -236,9 +236,6 @@ class SliceFlipNormalizePermutePadCpu {
     for (auto value : args.fill_values)
       fill_values.push_back(static_cast<OutputType>(value));
 
-    int64_t in_size = volume(args.in_shape);
-    int64_t out_size = volume(args.out_shape);
-
     SliceFlipNormalizePermutePadKernel(out.data, in.data + args.input_offset, args.in_strides,
                                        args.out_strides, args.anchor, args.in_shape, args.out_shape,
                                        fill_values.data(), args.mean.data(), args.inv_stddev.data(),

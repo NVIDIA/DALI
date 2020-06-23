@@ -159,6 +159,7 @@ class CropMirrorNormalize : public Operator<Backend> {
     if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
       fill_values_ = spec.GetRepeatedArgument<float>("fill_values");
     }
+<<<<<<< HEAD
 
     if (std::is_same<Backend, GPUBackend>::value) {
       kmgr_.Resize(1, 1);
@@ -166,6 +167,8 @@ class CropMirrorNormalize : public Operator<Backend> {
       kmgr_.Resize(num_threads_, batch_size_);
     }
 >>>>>>> Add CMN tests
+=======
+>>>>>>> cleanup
   }
 
   inline ~CropMirrorNormalize() override = default;
@@ -185,7 +188,7 @@ class CropMirrorNormalize : public Operator<Backend> {
     if (output_type_ == DALI_NO_TYPE)
       output_type_ = input_type_;
 
-    const auto &in_shape = input.shape();  // This can be a copy
+    auto in_shape = input.shape();
     input_layout_ = this->InputLayout(ws, 0);
     DALI_ENFORCE(ImageLayoutInfo::IsImage(input_layout_),
       ("Unsupported layout: '" + input_layout_.str() + "' for input 0 '" +
@@ -240,10 +243,13 @@ class CropMirrorNormalize : public Operator<Backend> {
     ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims)););
 =======
     ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
+<<<<<<< HEAD
 
     auto &output = ws.template OutputRef<Backend>(0);
     output.SetLayout(output_layout_);
 >>>>>>> Add CMN tests
+=======
+>>>>>>> cleanup
   }
 
   CropAttr crop_attr_;

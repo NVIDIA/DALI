@@ -75,11 +75,14 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
 
   processed_args.input_offset = 0;
   processed_args.in_strides = GetStrides(in_shape);
+  int channel_dim = args.channel_dim < 0 ? Dims - 1 : args.channel_dim;
+  int out_channel_dim = inverse_permutation(args.permuted_dims)[channel_dim];
 
   auto slice_shape = args.shape;
   permute(processed_args.out_shape, slice_shape, args.permuted_dims);
   processed_args.fill_values = args.fill_values;
   processed_args.out_strides = GetStrides(processed_args.out_shape);
+  processed_args.channel_dim = -1;
 
   // Flip operation is implemented by manipulating the anchor and the sign of the input strides
   for (int d = 0; d < Dims; d++) {
@@ -98,12 +101,10 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
 
   DALI_ENFORCE(args.mean.size() == args.inv_stddev.size());
   bool should_normalize = !args.mean.empty();
-  processed_args.channel_dim = -1;
   bool has_channels = args.mean.size() > 1 || processed_args.fill_values.size() > 1;
   if (has_channels) {
-    int channel_dim = args.channel_dim < 0 ? Dims - 1 : args.channel_dim;
-    processed_args.channel_dim = inverse_permutation(args.permuted_dims)[channel_dim];
-    auto nchannels = static_cast<size_t>(processed_args.out_shape[processed_args.channel_dim]);
+    processed_args.channel_dim = out_channel_dim;
+    size_t nchannels = processed_args.out_shape[out_channel_dim];
     if (should_normalize)
       DALI_ENFORCE(args.mean.size() == nchannels);
     if (processed_args.fill_values.size() == 1) {
@@ -119,11 +120,9 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
     processed_args.inv_stddev = args.inv_stddev;
     const bool is_scalar_norm = args.mean.size() == 1;
     if (!is_scalar_norm) {
-      int channel_dim = args.channel_dim < 0 ? Dims - 1 : args.channel_dim;
-      processed_args.channel_dim =
-        inverse_permutation(args.permuted_dims)[channel_dim];
-      DALI_ENFORCE(args.mean.size() ==
-                   static_cast<size_t>(processed_args.out_shape[processed_args.channel_dim]));
+      processed_args.channel_dim = out_channel_dim;
+      size_t nchannels = processed_args.out_shape[out_channel_dim];
+      DALI_ENFORCE(args.mean.size() == nchannels);
     }
   }
   return processed_args;
