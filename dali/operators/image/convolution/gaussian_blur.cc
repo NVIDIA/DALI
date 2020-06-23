@@ -62,9 +62,12 @@ The same input can be provided as per-sample tensors.
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .AddOptionalArg(kWindowSizeArgName, "The diameter of kernel.", std::vector<int>{0}, true)
-    .AddOptionalArg<float>(kSigmaArgName, R"code(Sigma value for Gaussian Kernel.)code",
-                           std::vector<float>{0.f}, true);
+    .AddOptionalArg<int>(kWindowSizeArgName, "The diameter of kernel.", std::vector<int>{0}, true)
+    .AddOptionalArg<float>(kSigmaArgName, "Sigma value for Gaussian Kernel.",
+                           std::vector<float>{0.f}, true)
+    .AddOptionalArg(
+        "dtype", "Output data type; if not set, the input type is used. Supported type: `FLOAT`.",
+        DALI_NO_TYPE);
 
 /**
  * @brief Fill the result span with the argument which can be provided as:
@@ -173,14 +176,16 @@ GaussianDimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
 
 // axes here is dimension of element processed by kernel - in case of sequence it's 1 less than the
 // actual dim
-template <typename T, int axes, bool has_channels>
+template <typename Out, typename In, int axes, bool has_channels>
 class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
  public:
-  using Kernel = kernels::SeparableConvolutionCpu<T, T, float, axes, has_channels>;
+  using Kernel = kernels::SeparableConvolutionCpu<Out, In, float, axes, has_channels>;
   static constexpr int ndim = Kernel::ndim;
 
   explicit GaussianBlurOpCpu(const OpSpec& spec, const GaussianDimDesc& dim_desc)
-      : spec_(spec), batch_size_(spec.GetArgument<int>("batch_size")), dim_desc_(dim_desc) {}
+      : spec_(spec),
+        batch_size_(spec.GetArgument<int>("batch_size")),
+        dim_desc_(dim_desc) {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template InputRef<CPUBackend>(0);
@@ -188,7 +193,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     auto nthreads = ws.GetThreadPool().size();
 
     output_desc.resize(1);
-    output_desc[0].type = input.type();
+    output_desc[0].type = TypeInfo::Create<Out>();
     output_desc[0].shape.resize(nsamples, input.shape().sample_dim());
 
     params_.resize(nsamples);
@@ -239,10 +244,10 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
                                   stride](int thread_id) {
           auto gaussian_windows = windows_[sample_idx].GetWindows();
           auto elem_shape = input[sample_idx].shape().template last<ndim>();
-          auto in_view = TensorView<StorageCPU, const T, ndim>{
-              input[sample_idx].template data<T>() + stride * elem_idx, elem_shape};
-          auto out_view = TensorView<StorageCPU, T, ndim>{
-              output[sample_idx].template mutable_data<T>() + stride * elem_idx, elem_shape};
+          auto in_view = TensorView<StorageCPU, const In, ndim>{
+              input[sample_idx].template data<In>() + stride * elem_idx, elem_shape};
+          auto out_view = TensorView<StorageCPU, Out, ndim>{
+              output[sample_idx].template mutable_data<Out>() + stride * elem_idx, elem_shape};
           // I need a context for that particular run (or rather matching the thread & scratchpad)
           auto ctx = ctx_;
           kmgr_.Run<Kernel>(thread_id, sample_idx, ctx, out_view, in_view, gaussian_windows);
@@ -255,11 +260,11 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
  private:
   OpSpec spec_;
   int batch_size_ = 0;
+  GaussianDimDesc dim_desc_;
 
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
 
-  GaussianDimDesc dim_desc_;
   std::vector<GaussianSampleParams<axes>> params_;
   std::vector<GaussianWindows<axes>> windows_;
 };
@@ -270,13 +275,21 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
   const auto& input = ws.template InputRef<CPUBackend>(0);
   auto layout = input.GetLayout();
   auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
+  dtype_ = dtype_ != DALI_NO_TYPE ? dtype_ : input.type().id();
+  DALI_ENFORCE(dtype_ == input.type().id() || dtype_ == DALI_FLOAT,
+               "Unsupported output data type. Output type can be same as input (inferred "
+               "automatically) or set to float.");
 
   // clang-format off
-  TYPE_SWITCH(input.type().id(), type2id, T, GAUSSIAN_BLUR_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type().id(), type2id, In, GAUSSIAN_BLUR_SUPPORTED_TYPES, (
     VALUE_SWITCH(dim_desc.usable_axes_count, AXES, GAUSSIAN_BLUR_SUPPORTED_AXES, (
       VALUE_SWITCH(static_cast<int>(dim_desc.has_channels), HAS_CHANNELS, (0, 1), (
-        constexpr bool has_channels = HAS_CHANNELS;
-        impl_ = std::make_unique<GaussianBlurOpCpu<T, AXES, has_channels>>(spec_, dim_desc);
+        constexpr bool has_ch = HAS_CHANNELS;
+        if (dtype_ == input.type().id()) {
+          impl_ = std::make_unique<GaussianBlurOpCpu<In, In, AXES, has_ch>>(spec_, dim_desc);
+        } else {
+          impl_ = std::make_unique<GaussianBlurOpCpu<float, In, AXES, has_ch>>(spec_, dim_desc);
+        }
       ), (DALI_FAIL("Got value different than {0, 1} when converting bool to int."))); // NOLINT
     ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT

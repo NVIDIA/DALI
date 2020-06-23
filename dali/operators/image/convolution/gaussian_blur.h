@@ -30,7 +30,8 @@ namespace dali {
 template <typename Backend>
 class GaussianBlur : public Operator<Backend> {
  public:
-  inline explicit GaussianBlur(const OpSpec& spec) : Operator<Backend>(spec) {}
+  inline explicit GaussianBlur(const OpSpec& spec)
+      : Operator<Backend>(spec), dtype_(spec.GetArgument<DALIDataType>("dtype")) {}
 
   DISABLE_COPY_MOVE_ASSIGN(GaussianBlur);
 
@@ -44,6 +45,7 @@ class GaussianBlur : public Operator<Backend> {
   void RunImpl(workspace_t<Backend>& ws) override;
 
  private:
+  DALIDataType dtype_ = DALI_NO_TYPE;
   USE_OPERATOR_MEMBERS();
   std::unique_ptr<OpImplBase<Backend>> impl_;
 };

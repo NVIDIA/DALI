@@ -120,14 +120,23 @@ def count_skip_axes(layout):
     else:
         return 0
 
+
 def check_generic_gaussian_blur(
-        batch_size, sigma, window_size, shape, layout, axes, op_type="cpu", dtype=np.uint8):
+        batch_size, sigma, window_size, shape, layout, axes, op_type="cpu", in_dtype=np.uint8,
+        out_dtype=types.NO_TYPE):
     decoder_device = "cpu" if op_type == "cpu" else "mixed"
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-    data = RandomlyShapedDataIterator(batch_size, max_shape=shape, dtype=dtype)
+    data = RandomlyShapedDataIterator(batch_size, max_shape=shape, dtype=in_dtype)
+    # Extract the numpy type from DALI, we can have float32 or the same as input
+    if out_dtype == types.NO_TYPE:
+        result_type = in_dtype
+    elif dali_type(in_dtype) == out_dtype:
+        result_type = in_dtype
+    else:
+        result_type = np.float32
     with pipe:
         input = fn.external_source(data, layout=layout)
-        blurred = fn.gaussian_blur(input, sigma=sigma, window_size=window_size)
+        blurred = fn.gaussian_blur(input, sigma=sigma, window_size=window_size, dtype=out_dtype)
         pipe.set_outputs(blurred, input)
     pipe.build()
 
@@ -138,30 +147,33 @@ def check_generic_gaussian_blur(
             input = input.as_cpu()
         input = to_batch(input, batch_size)
         skip_axes = count_skip_axes(layout)
-        baseline = [gaussian_baseline(img, sigma, window_size, axes, skip_axes, dtype=dtype) for img in input]
-        max_error = 1 if dtype != np.float32 else 1e-07
+        baseline = [
+            gaussian_baseline(img, sigma, window_size, axes, skip_axes, dtype=result_type)
+            for img in input]
+        max_error = 1 if result_type != np.float32 else 1e-04
         check_batch(result, baseline, batch_size, max_allowed_error=max_error)
 
 
 def test_generic_gaussian_blur():
     for dev in ["cpu"]:
-        for t in [np.uint8, np.int32, np.float32]:
-            for shape, layout, axes in [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
-                                        ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
-                                        ((3, 30, 20), "CWH", 2),
-                                        ((5, 20, 30, 3), "FHWC", 2),
-                                        ((5, 10, 10, 7, 3), "FDHWC", 3),
-                                        ((5, 3, 20, 30), "FCHW", 2),
-                                        ((3, 5, 10, 10, 7), "CFDHW", 3)]:
-                for sigma in [1.0, [1.0, 2.0, 3.0]]:
-                    for window_size in [3, 5, [7, 5, 9], [3, 5, 9], None]:
-                        if isinstance(sigma, list):
-                            sigma = sigma[0:axes]
-                        if isinstance(window_size, list):
-                            window_size = window_size[0:axes]
-                        yield check_generic_gaussian_blur, 10, sigma, window_size, shape, layout, axes, dev, t
+        for t_in in [np.uint8, np.int32, np.float32]:
+            for t_out in [types.NO_TYPE, types.FLOAT, dali_type(t_in)]:
+                for shape, layout, axes in [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
+                                            ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
+                                            ((3, 30, 20), "CWH", 2),
+                                            ((5, 20, 30, 3), "FHWC", 2),
+                                            ((5, 10, 10, 7, 3), "FDHWC", 3),
+                                            ((5, 3, 20, 30), "FCHW", 2),
+                                            ((3, 5, 10, 10, 7), "CFDHW", 3)]:
+                    for sigma in [1.0, [1.0, 2.0, 3.0]]:
+                        for window_size in [3, 5, [7, 5, 9], [3, 5, 9], None]:
+                            if isinstance(sigma, list):
+                                sigma = sigma[0:axes]
+                            if isinstance(window_size, list):
+                                window_size = window_size[0:axes]
+                            yield check_generic_gaussian_blur, 10, sigma, window_size, shape, layout, axes, dev, t_in, t_out
                 for window_size in [11, 15]:
-                    yield check_generic_gaussian_blur, 10, None, window_size, shape, layout, axes, dev, t
+                    yield check_generic_gaussian_blur, 10, None, window_size, shape, layout, axes, dev, t_in, t_out
 
 
 def check_per_sample_gaussian_blur(
@@ -223,8 +235,8 @@ def test_per_sample_gaussian_blur():
 
 
 @raises(RuntimeError)
-def check_fail_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, op_type):
-    check_generic_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, op_type)
+def check_fail_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, op_type, in_dtype=np.uint8, out_dtype=types.NO_TYPE):
+    check_generic_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, op_type, in_dtype, out_dtype)
 
 def test_fail_gaussian_blur():
     for dev in ["cpu"]:
