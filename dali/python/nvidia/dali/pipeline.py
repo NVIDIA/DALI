@@ -92,11 +92,16 @@ Parameters
     unrestricted number of streams is assumed).
 `default_cuda_stream_priority` : int, optional, default = 0
     CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
+`enable_memory_stats`: bool, optional, default = False
+    If DALI should print operator output buffer statistics.
+    Usefull for `bytes_per_sample_hint` operator parameter.
 """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
                  exec_async=True, bytes_per_sample=0,
-                 set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0):
+                 set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
+                 *,
+                 enable_memory_stats=False):
         self._sinks = []
         self._batch_size = batch_size
         self._num_threads = num_threads
@@ -121,6 +126,7 @@ Parameters
         self._skip_api_check = False
         self._graph_out = None
         self._input_callbacks = None
+        self._enable_memory_stats = enable_memory_stats
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
@@ -176,6 +182,28 @@ Parameters
         if name is not None:
             return self._pipe.reader_meta(name)["epoch_size_padded"]
         return {name : v["epoch_size_padded"] for k, v in self._pipe.reader_meta()}
+
+    def executor_statistics(self):
+        """Returns provided pipeline executor statistics metadata as a dictionary.
+        Each key in the dictionary is the operator name. To enable it use ``executor_statistics``
+
+        Available metadata keys for each operator:
+
+        ``real_memory_size``:     list of memory sizes that is used by each output of the operator;
+                                  index in the list corresponds to the output index
+
+        ``max_real_memory_size``: list of maximum tensor size that is used by each output of the operator;
+                                  index in the list corresponds to the output index
+
+        ``reserved_memory_size``: list of memory sizes that is reserved for each of the operator outputs
+                                  index in the list corresponds to the output index
+
+        ``max_reserved_memory_size``: list of maximum memory sizes per tensor that is reserved for each of the operator outputs
+                                  index in the list corresponds to the output index
+        """
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        return self._pipe.executor_statistics()
 
     def reader_meta(self, name = None):
         """Returns provided reader metadata as a dictionary. If no name is provided if provides
@@ -329,6 +357,7 @@ Parameters
                                 self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
+        self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
 
         if define_graph is not None:
             if self._graph_out is not None:
@@ -786,6 +815,7 @@ Parameters
         pipeline._pipe.SetExecutionTypes(pipeline._exec_pipelined, pipeline._exec_separated,
                                          pipeline._exec_async)
         pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
+        pipeline._pipe.EnableExecutorMemoryStats(pipeline._enable_memory_stats)
         pipeline._prepared = True
         pipeline._pipe.Build()
         pipeline._built = True
@@ -812,6 +842,7 @@ Parameters
                                 self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
+        self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
         self._prepared = True
         self._pipe.Build()
         self._built = True

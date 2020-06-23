@@ -165,7 +165,7 @@ TYPED_TEST(CApiTest, FileReaderPipe) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   dali::DeviceWorkspace ws;
@@ -222,7 +222,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -279,7 +279,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -339,7 +339,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -403,7 +403,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -442,6 +442,33 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
+}
+
+TYPED_TEST(CApiTest, TestExecutorMeta) {
+  auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
+  auto serialized = pipe_ptr->SerializeToProtobuf();
+
+  pipe_ptr.reset();
+  daliPipelineHandle handle;
+  daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
+                     device_id, false, prefetch_queue_depth, prefetch_queue_depth,
+                     prefetch_queue_depth, true);
+
+  daliRun(&handle);
+  daliOutput(&handle);
+  CUDA_CALL(cudaDeviceSynchronize());
+
+  size_t N;
+  daliExecutorMetadata *meta;
+  daliGetExecutorMetadata(&handle, &meta, &N);
+  EXPECT_EQ(N, 4);
+  for (size_t i = 0; i< N; ++i) {
+    auto &meta_entry = meta[i];
+    for (size_t j = 0; j < meta_entry.out_num; ++j) {
+      EXPECT_LE(meta_entry.real_size[j], meta_entry.reserved[j]);
+    }
+  }
+  daliFreeExecutorMetadata(meta, N);
 }
 
 }  // namespace dali

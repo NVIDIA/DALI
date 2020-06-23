@@ -25,7 +25,7 @@ from numpy.testing import assert_array_equal, assert_allclose
 import os
 import random
 from PIL import Image
-from math import floor
+from math import floor, ceil
 import sys
 
 from test_utils import check_batch
@@ -212,7 +212,7 @@ def test_pipeline_simple_sync_no_prefetch():
     pipe = HybridPipe(batch_size=batch_size)
     pipe.build()
     for _ in range(n_iters):
-        out = pipe.run()
+        __ = pipe.run()
 
 def test_use_twice():
     batch_size = 128
@@ -653,86 +653,6 @@ def test_type_conversion():
         arg1_cpu = pipe_out[3].as_cpu().as_tensor()
         assert_array_equal(orig_cpu, int_cpu)
         assert_array_equal(orig_cpu, arg1_cpu)
-
-def test_crop():
-    class CMNvsCropPipe(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id):
-            super(CMNvsCropPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
-            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
-            self.cmn = ops.CropMirrorNormalize(device = "gpu",
-                                                output_layout = types.NHWC,
-                                                output_dtype = types.FLOAT,
-                                                crop = (224, 224),
-                                                image_type = types.RGB,
-                                                mean = [0., 0., 0.],
-                                                std = [1., 1., 1.])
-            self.crop = ops.Crop(device = "gpu",
-                                 crop = (224, 224),
-                                 image_type = types.RGB)
-            self.uniform = ops.Uniform(range = (0.0, 1.0))
-            self.cast = ops.Cast(device = "gpu",
-                                 dtype = types.INT32)
-
-        def define_graph(self):
-            inputs, labels = self.input()
-            images = self.decode(inputs)
-            crop_x = self.uniform()
-            crop_y = self.uniform()
-            output_cmn = self.cmn(images, crop_pos_x = crop_x, crop_pos_y = crop_y)
-            output_crop = self.crop(images, crop_pos_x = crop_x, crop_pos_y = crop_y)
-            output_cmn = self.cast(output_cmn)
-            output_crop = self.cast(output_crop)
-            return (output_cmn, output_crop, labels.gpu())
-
-    batch_size = 8
-    iterations = 8
-
-    pipe = CMNvsCropPipe(batch_size=batch_size, num_threads=2, device_id = 0)
-    pipe.build()
-
-    for _ in range(iterations):
-        pipe_out = pipe.run()
-        cmn_img_batch_cpu = pipe_out[0].as_cpu()
-        crop_img_batch_cpu = pipe_out[1].as_cpu()
-        for b in range(batch_size):
-            img_cmn = cmn_img_batch_cpu.at(b)
-            img_crop = crop_img_batch_cpu.at(b)
-            assert(np.array_equal(img_cmn, img_crop))
-
-def test_transpose():
-    class TransposePipe(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id):
-            super(TransposePipe, self).__init__(batch_size, num_threads, device_id, seed=12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
-            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
-            self.crop = ops.Crop(device = "gpu",
-                                 crop = (224, 224),
-                                 image_type = types.RGB)
-            self.transpose = ops.Transpose(device="gpu", perm=[2, 0, 1])
-
-        def define_graph(self):
-            imgs, labels = self.input()
-            output = self.decode(imgs)
-            cropped = self.crop(output)
-            transposed = self.transpose(cropped)
-            return (cropped, transposed, labels.gpu())
-
-    batch_size = 8
-    iterations = 8
-
-    pipe = TransposePipe(batch_size=batch_size, num_threads=2, device_id = 0)
-    pipe.build()
-
-    for _ in range(iterations):
-        pipe_out = pipe.run()
-        images = pipe_out[0].as_cpu().as_array()
-        images_transposed = pipe_out[1].as_cpu().as_array()
-
-        for b in range(batch_size):
-            np_transposed = images[b].transpose((2, 0, 1))
-            np_transposed = np.ascontiguousarray(np_transposed)
-            assert(np.array_equal(np_transposed, images_transposed[b]))
 
 def test_equal_ImageDecoderCrop_ImageDecoder():
     """
@@ -1608,3 +1528,59 @@ def test_ref_count():
     assert sys.getrefcount(pipe) == 2
     pipe.build()
     assert sys.getrefcount(pipe) == 2
+
+def test_executor_meta():
+    class TestPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
+            super(TestPipeline, self).__init__(batch_size, num_threads, device_id, enable_memory_stats=True)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
+            self.decode = ops.ImageDecoderRandomCrop(device = "mixed", output_type = types.RGB, seed=seed)
+            self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
+            self.cmnp = ops.CropMirrorNormalize(device = "gpu",
+                                                output_dtype = types.FLOAT,
+                                                crop = (224, 224),
+                                                image_type = types.RGB,
+                                                mean = [128., 128., 128.],
+                                                std = [1., 1., 1.])
+            self.coin = ops.CoinFlip(seed = seed)
+
+        def define_graph(self):
+            self.jpegs, self.labels = self.input()
+            images = self.decode(self.jpegs)
+            resized_images = self.res(images)
+            mirror = self.coin()
+            output = self.cmnp(resized_images, mirror = mirror)
+            return (output, resized_images, self.labels)
+
+    random_seed = 123456
+    batch_size = 10
+    test_pipe = TestPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,
+                                 seed = random_seed)
+    test_pipe.build()
+    test_pipe.run()
+    meta = test_pipe.executor_statistics()
+    # all operators (CaffeReader, ImageDecoderRandomCrop, Resize, CropMirrorNormalize, CoinFlip) + make_continuous
+    assert(len(meta) == 6)
+    for k in meta.keys():
+        if "CropMirrorNormalize" in k:
+            crop_meta = meta[k]
+    assert(crop_meta["real_memory_size"] == crop_meta["reserved_memory_size"])
+    # size of crop * num_of_channels * batch_size * data_size
+    assert(crop_meta["real_memory_size"][0] == 224 * 224 * 3 * batch_size * 4)
+    for k in meta.keys():
+        if "CoinFlip" in k:
+            coin_meta = meta[k]
+    assert(coin_meta["real_memory_size"] == coin_meta["reserved_memory_size"])
+    # batch_size * data_size
+    assert(coin_meta["real_memory_size"][0] == batch_size * 4)
+    for k, v in meta.items():
+        assert(v["real_memory_size"] <= v["reserved_memory_size"])
+        def calc_avg_max(val):
+            return [int(ceil(v / batch_size)) for v in val]
+        # for CPU the biggest tensor is usually bigger than the average, for the GPU max is the average
+        if "CPU" in k:
+            assert(calc_avg_max(v["real_memory_size"]) <= v["max_real_memory_size"])
+            assert(calc_avg_max(v["reserved_memory_size"]) <= v["max_reserved_memory_size"])
+        else:
+            assert(calc_avg_max(v["real_memory_size"]) == v["max_real_memory_size"])
+            assert(calc_avg_max(v["reserved_memory_size"]) == v["max_reserved_memory_size"])

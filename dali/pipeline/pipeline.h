@@ -95,7 +95,6 @@ class DLL_PUBLIC Pipeline {
          default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
   }
 
-
   DLL_PUBLIC Pipeline(const string &serialized_pipe, int batch_size = -1, int num_threads = -1,
                       int device_id = -1, bool pipelined_execution = true,
                       int prefetch_queue_depth = 2, bool async_execution = true,
@@ -310,6 +309,29 @@ class DLL_PUBLIC Pipeline {
     async_execution_ = async_execution;
   }
 
+  /**
+   * @brief Set if the DALI pipeline should gather executor statistics of the operator ouput sizes
+   *
+   * @param enable_memory_stats If statistics should be gathered
+   * Usefull for `bytes_per_sample_hint` operator parameter.
+   */
+  DLL_PUBLIC void EnableExecutorMemoryStats(bool enable_memory_stats = true) {
+    enable_memory_stats_ = enable_memory_stats;
+    if (executor_) {
+      executor_->EnableMemoryStats(enable_memory_stats_);
+    }
+  }
+
+  /**
+   * @brief Obtains the executor statistics
+   */
+  DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() {
+    if (executor_) {
+      return  executor_->GetExecutorMeta();
+    } else {
+      return {};
+    }
+  }
 
   /**
    * @brief Set queue sizes for Pipeline using Separated Queues
@@ -492,6 +514,7 @@ class DLL_PUBLIC Pipeline {
   int next_logical_id_ = 0;
   int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_;
+  bool enable_memory_stats_ = false;
 
   std::vector<int64_t> seed_;
   int original_seed_;
