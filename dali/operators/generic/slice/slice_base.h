@@ -42,7 +42,7 @@ class SliceBase : public Operator<Backend> {
  public:
   explicit inline SliceBase(const OpSpec &spec)
       : Operator<Backend>(spec),
-        output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
+        output_type_(spec.GetArgument<DALIDataType>("dtype")),
         out_of_bounds_policy_(GetOutOfBoundsPolicy(spec)) {
     if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
       fill_values_ = spec.GetRepeatedArgument<float>("fill_values");

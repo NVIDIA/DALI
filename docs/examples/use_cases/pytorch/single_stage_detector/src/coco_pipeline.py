@@ -70,7 +70,7 @@ class COCOPipeline(Pipeline):
             resize_y=300,
             min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
 
-        output_dtype = types.FLOAT16 if args.fp16 else types.FLOAT
+        dtype = types.FLOAT16 if args.fp16 else types.FLOAT
 
         self.normalize = ops.CropMirrorNormalize(
             device="gpu",
@@ -78,7 +78,7 @@ class COCOPipeline(Pipeline):
             mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
             std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
             mirror=0,
-            output_dtype=output_dtype,
+            dtype=dtype,
             output_layout=types.NCHW,
             pad_output=False)
 

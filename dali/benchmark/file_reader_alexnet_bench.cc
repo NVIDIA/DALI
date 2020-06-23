@@ -92,7 +92,7 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
   pipe.AddOperator(
       OpSpec("CropMirrorNormalize")
       .AddArg("device", "gpu")
-      .AddArg("output_type", DALI_FLOAT16)
+      .AddArg("dtype", DALI_FLOAT16)
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
       .AddInput("resized", "gpu")

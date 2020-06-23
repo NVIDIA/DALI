@@ -86,7 +86,7 @@ class HybridTrainPipe(Pipeline):
             device="gpu",
             mean=[104., 117., 123.],
             std=[1., 1., 1.],
-            output_dtype=types.FLOAT,
+            dtype=types.FLOAT,
             output_layout=types.NCHW,
             pad_output=False)
 

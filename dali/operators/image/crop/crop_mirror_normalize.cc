@@ -35,7 +35,7 @@ normalization only.
   .NumOutput(1)
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg("output_dtype",
+  .AddOptionalArg("dtype",
     R"code(Output data type. Supported types: `FLOAT` and `FLOAT16`)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",
     R"code(Output tensor data layout)code", TensorLayout("CHW"))

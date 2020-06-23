@@ -15,6 +15,7 @@
 import glob
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import nvidia.dali as dali
@@ -27,6 +28,8 @@ import random
 from PIL import Image
 from math import floor, ceil
 import sys
+import warnings
+from nose.tools import raises
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
@@ -249,14 +252,14 @@ def test_cropmirrornormalize_layout():
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_nhwc = ops.CropMirrorNormalize(device = "gpu",
-                                                     output_dtype = types.FLOAT,
+                                                     dtype = types.FLOAT,
                                                      output_layout = types.NHWC,
                                                      crop = (224, 224),
                                                      image_type = types.RGB,
                                                      mean = [128., 128., 128.],
                                                      std = [1., 1., 1.])
             self.cmnp_nchw = ops.CropMirrorNormalize(device = "gpu",
-                                                     output_dtype = types.FLOAT,
+                                                     dtype = types.FLOAT,
                                                      output_layout = types.NCHW,
                                                      crop = (224, 224),
                                                      image_type = types.RGB,
@@ -297,7 +300,7 @@ def test_cropmirrornormalize_pad():
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_pad  = ops.CropMirrorNormalize(device = "gpu",
-                                                     output_dtype = types.FLOAT,
+                                                     dtype = types.FLOAT,
                                                      output_layout = layout,
                                                      crop = (224, 224),
                                                      image_type = types.RGB,
@@ -305,7 +308,7 @@ def test_cropmirrornormalize_pad():
                                                      std = [1., 1., 1.],
                                                      pad_output = True)
             self.cmnp      = ops.CropMirrorNormalize(device = "gpu",
-                                                     output_dtype = types.FLOAT,
+                                                     dtype = types.FLOAT,
                                                      output_layout = layout,
                                                      crop = (224, 224),
                                                      image_type = types.RGB,
@@ -357,7 +360,7 @@ def test_cropmirrornormalize_multiple_inputs():
             self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.decode2 = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = device,
-                                                output_dtype = types.FLOAT,
+                                                dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
                                                 crop = (224, 224),
                                                 image_type = types.RGB,
@@ -398,7 +401,7 @@ def test_seed():
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
-                                                output_dtype = types.FLOAT,
+                                                dtype = types.FLOAT,
                                                 crop = (224, 224),
                                                 image_type = types.RGB,
                                                 mean = [128., 128., 128.],
@@ -438,7 +441,7 @@ def test_as_array():
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
-                                                output_dtype = types.FLOAT,
+                                                dtype = types.FLOAT,
                                                 crop = (224, 224),
                                                 image_type = types.RGB,
                                                 mean = [128., 128., 128.],
@@ -479,7 +482,7 @@ def test_seed_serialize():
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
-                                                output_dtype = types.FLOAT,
+                                                dtype = types.FLOAT,
                                                 crop = (224, 224),
                                                 image_type = types.RGB,
                                                 mean = [128., 128., 128.],
@@ -564,7 +567,7 @@ def test_warpaffine():
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
-                                                output_dtype = types.FLOAT,
+                                                dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
                                                 crop = (224, 224),
                                                 image_type = types.RGB,
@@ -605,21 +608,21 @@ def test_type_conversion():
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp_all = ops.CropMirrorNormalize(device = "gpu",
-                                                    output_dtype = types.FLOAT,
+                                                    dtype = types.FLOAT,
                                                     output_layout = types.NHWC,
                                                     crop = (224, 224),
                                                     image_type = types.RGB,
                                                     mean = [128., 128., 128.],
                                                     std = [1., 1., 1.])
             self.cmnp_int = ops.CropMirrorNormalize(device = "gpu",
-                                                    output_dtype = types.FLOAT,
+                                                    dtype = types.FLOAT,
                                                     output_layout = types.NHWC,
                                                     crop = (224, 224),
                                                     image_type = types.RGB,
                                                     mean = [128, 128, 128],
                                                     std = [1., 1, 1])  # Left 1 of the arguments as float to test whether mixing types works
             self.cmnp_1arg = ops.CropMirrorNormalize(device = "gpu",
-                                                     output_dtype = types.FLOAT,
+                                                     dtype = types.FLOAT,
                                                      output_layout = types.NHWC,
                                                      crop = (224, 224),
                                                      image_type = types.RGB,
@@ -721,7 +724,7 @@ def test_equal_ImageDecoderRandomCrop_ImageDecoder():
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.res = ops.RandomResizedCrop(device="gpu", size =(224,224), seed=seed)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
-                                                output_dtype = types.FLOAT,
+                                                dtype = types.FLOAT,
                                                 crop = (224, 224),
                                                 image_type = types.RGB,
                                                 mean = [128., 128., 128.],
@@ -743,7 +746,7 @@ def test_equal_ImageDecoderRandomCrop_ImageDecoder():
             self.decode = ops.ImageDecoderRandomCrop(device = "mixed", output_type = types.RGB, seed=seed)
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
-                                                output_dtype = types.FLOAT,
+                                                dtype = types.FLOAT,
                                                 crop = (224, 224),
                                                 image_type = types.RGB,
                                                 mean = [128., 128., 128.],
@@ -1295,7 +1298,7 @@ class DupPipeline(Pipeline):
         self.decode = ops.ImageDecoder(device = "mixed" if first_out_device == "mixed" else "cpu", output_type = types.RGB)
         if self.second_out_device:
             self.cmnp = ops.CropMirrorNormalize(device = second_out_device,
-                                                output_dtype = types.FLOAT,
+                                                dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
                                                 crop = (224, 224),
                                                 image_type = types.RGB,
@@ -1584,3 +1587,57 @@ def test_executor_meta():
         else:
             assert(calc_avg_max(v["real_memory_size"]) == v["max_real_memory_size"])
             assert(calc_avg_max(v["reserved_memory_size"]) == v["max_reserved_memory_size"])
+
+
+def trigger_output_dtype_deprecated_warning():
+    batch_size = 10
+    shape = (120, 60, 3)
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    data = RandomDataIterator(batch_size, shape=shape, dtype=np.uint8)
+    with pipe:
+        input = fn.external_source(data, layout="HWC")
+        cmn = fn.crop_mirror_normalize(input, device="cpu",
+                                       output_dtype=types.FLOAT,
+                                       output_layout="HWC",
+                                       crop=(32, 32),
+                                       image_type=types.RGB,
+                                       mean=[128., 128., 128.],
+                                       std=[1., 1., 1.])
+        pipe.set_outputs(cmn)
+    pipe.build()
+
+    result, = pipe.run()
+    assert result.as_array().dtype == np.float32
+
+
+def test_output_dtype_deprecation():
+    with warnings.catch_warnings(record=True) as w:
+        # Cause all warnings to always be triggered.
+        warnings.simplefilter("always")
+        # Trigger a warning.
+        trigger_output_dtype_deprecated_warning()
+        # Verify DeprecationWarning
+        assert len(w) == 1
+        assert issubclass(w[-1].category, DeprecationWarning)
+        assert ("Argument name 'output_dtype' for operator CropMirrorNormalize is deprecated. " +
+                "Use 'dtype' instead.") == str(w[-1].message)
+
+
+@raises(TypeError)
+def test_output_dtype_both_error():
+    batch_size = 10
+    shape = (120, 60, 3)
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    data = RandomDataIterator(batch_size, shape=shape, dtype=np.uint8)
+    with pipe:
+        input = fn.external_source(data, layout="HWC")
+        cmn = fn.crop_mirror_normalize(input, device="cpu",
+                                       output_dtype=types.FLOAT,
+                                       dtype=types.FLOAT,
+                                       output_layout="HWC",
+                                       crop=(32, 32),
+                                       image_type=types.RGB,
+                                       mean=[128., 128., 128.],
+                                       std=[1., 1., 1.])
+        pipe.set_outputs(cmn)
+    pipe.build()

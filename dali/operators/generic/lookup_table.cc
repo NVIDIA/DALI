@@ -79,7 +79,7 @@ Note: Only integer types can be used as input to this operator.)code")
   .NumOutput(1)
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg("output_dtype",
+  .AddOptionalArg("dtype",
     R"code(Output data type.)code",
     DALI_FLOAT)
   .AddOptionalArg("default_value",

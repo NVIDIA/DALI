@@ -42,13 +42,13 @@ class LookupTablePipeline(Pipeline):
             keys = [k for k in dictionary.keys()]
             values = [dictionary[k] for k in keys]
             self.lookup = ops.LookupTable(device = self.device,
-                                        output_dtype = types.FLOAT,
+                                        dtype = types.FLOAT,
                                         default_value = default_value,
                                         keys = keys,
                                         values = values)
         else:
             self.lookup = ops.LookupTable(device = self.device,
-                                          output_dtype = types.FLOAT,
+                                          dtype = types.FLOAT,
                                           default_value = default_value)
 
     def define_graph(self):

@@ -105,7 +105,7 @@ class RotatePipeline(Pipeline):
           self.cast = None
 
         self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42);
-        self.rotate = ops.Rotate(device = device, size=fixed_size, fill_value = 42, output_dtype = output_type)
+        self.rotate = ops.Rotate(device = device, size=fixed_size, fill_value = 42, dtype = output_type)
 
     def define_graph(self):
         self.jpegs, self.labels = self.input(name = "Reader")

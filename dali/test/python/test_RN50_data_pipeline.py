@@ -57,7 +57,7 @@ class CommonPipeline(Pipeline):
         out_type = types.FLOAT16 if fp16 else types.FLOAT
 
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
-                                            output_dtype=out_type,
+                                            dtype=out_type,
                                             output_layout=layout,
                                             crop=(224, 224),
                                             image_type=types.RGB,

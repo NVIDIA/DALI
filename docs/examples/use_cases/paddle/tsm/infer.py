@@ -43,7 +43,7 @@ class VideoPipe(Pipeline):
             shard_id=0, num_shards=1, random_shuffle=False, pad_last_batch=True)
         self.cmnp = ops.CropMirrorNormalize(
             device="gpu",
-            output_dtype=types.FLOAT,
+            dtype=types.FLOAT,
             output_layout=types.NFCHW,
             crop=(target_size, target_size),
             image_type=types.RGB,

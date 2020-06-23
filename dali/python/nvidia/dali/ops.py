@@ -18,6 +18,7 @@ import sys
 import copy
 from itertools import count
 import threading
+import warnings
 from nvidia.dali import backend as _b
 from nvidia.dali.types import \
         _type_name_convert_to_string, _type_convert_value, \
@@ -402,6 +403,22 @@ def python_op_factory(name, op_device = "cpu"):
                 self._preserve = False
             self._spec.AddArg("preserve", self._preserve)
             self._preserve = self._preserve or self._schema.IsNoPrune()
+
+            if "output_dtype" in kwargs.keys():
+                if "dtype" in kwargs.keys():
+                    raise TypeError(
+                        ("Operator {} got an unexpected 'output_dtype' argument when " +
+                         "'dtype' is already provided").format(type(self).__name__))
+                # show only this warning
+                with warnings.catch_warnings():
+                    warnings.simplefilter("default")
+                    warnings.warn(
+                        ("Argument name 'output_dtype' for operator {} is deprecated. " +
+                         "Use 'dtype' instead.").format(type(self).__name__),
+                        DeprecationWarning, stacklevel=2)
+                kwargs["dtype"] = kwargs["output_dtype"]
+                del kwargs["output_dtype"]
+
 
             # Store the specified arguments
             for key, value in kwargs.items():

@@ -120,7 +120,7 @@ class HybridTrainPipe(Pipeline):
                               resize_y=crop,
                               interp_type=types.INTERP_TRIANGULAR)
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
-                                            output_dtype=types.FLOAT,
+                                            dtype=types.FLOAT,
                                             output_layout=types.NCHW,
                                             crop=(crop, crop),
                                             image_type=types.RGB,
@@ -154,7 +154,7 @@ class HybridValPipe(Pipeline):
                               resize_shorter=size,
                               interp_type=types.INTERP_TRIANGULAR)
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
-                                            output_dtype=types.FLOAT,
+                                            dtype=types.FLOAT,
                                             output_layout=types.NCHW,
                                             crop=(crop, crop),
                                             image_type=types.RGB,
