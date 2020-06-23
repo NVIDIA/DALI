@@ -20,6 +20,7 @@ from nvidia.dali import types
 from threading import local as tls
 from . import data_node as _data_node
 import warnings
+import re
 pipeline_tls = tls()
 
 from .data_node import DataNode
@@ -477,6 +478,9 @@ Parameters
         from nvidia.dali.external_source import _check_data_batch
         _check_data_batch(data, self._batch_size, layout)
 
+        def _is_cupy_array(value):
+            return re.match('.*cupy\..*\.ndarray.*', str(type(value)))
+
         # __cuda_array_interface__ doesn't provide any way to pass the information about the device
         # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
         # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
@@ -484,6 +488,9 @@ Parameters
             inputs = []
             for datum in data:
                 if hasattr(datum, "__cuda_array_interface__"):
+                    if cuda_stream is None and _is_cupy_array(datum):
+                        import cupy
+                        cuda_stream = cupy.cuda.get_current_stream()
                     inp = Tensors.TensorGPU(datum, layout)
                 else:
                     inp = Tensors.TensorCPU(datum, layout)
@@ -493,6 +500,9 @@ Parameters
             self._pipe.SetExternalTensorInput(name, inputs, cuda_stream)
         else:
             if hasattr(data, "__cuda_array_interface__"):
+                if cuda_stream is None and _is_cupy_array(data):
+                    import cupy
+                    cuda_stream = cupy.cuda.get_current_stream()
                 inp = Tensors.TensorListGPU(data, layout)
             else:
                 inp = Tensors.TensorListCPU(data, layout)
