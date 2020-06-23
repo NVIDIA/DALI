@@ -66,14 +66,14 @@ def gaussian_cv(image, sigma, window_size):
     return np.uint8(blurred + 0.5)
 
 
-def gaussian_baseline(image, sigma, window_size, axes=2, is_sequence=False, dtype=np.uint8):
+def gaussian_baseline(image, sigma, window_size, axes=2, skip_axes=0, dtype=np.uint8):
     sigma_xyz = to_cv_sigma(sigma, axes)
     win_xyz = to_cv_win_size(window_size, axes, sigma)
     filters = [cv2.getGaussianKernel(win_xyz[i], sigma_xyz[i]) for i in range(axes)]
     filters = [np.float32(f).squeeze() for f in filters]
     filters.reverse()
     for i in reversed(range(axes)):
-        axis = i if not is_sequence else i + 1
+        axis = i + skip_axes
         image = convolve1d(np.float32(image), filters[i], axis, mode="mirror")
     if dtype == np.float32:
         return image
@@ -112,6 +112,13 @@ def test_image_gaussian_blur():
         for window_size in [11, 15]:
             yield check_gaussian_blur, 10, None, window_size, dev
 
+def count_skip_axes(layout):
+    if layout.startswith("FC") or layout.startswith("CF"):
+        return 2
+    elif layout.startswith("F") or layout.startswith("C"):
+        return 1
+    else:
+        return 0
 
 def check_generic_gaussian_blur(
         batch_size, sigma, window_size, shape, layout, axes, op_type="cpu", dtype=np.uint8):
@@ -130,7 +137,8 @@ def check_generic_gaussian_blur(
             result = result.as_cpu()
             input = input.as_cpu()
         input = to_batch(input, batch_size)
-        baseline = [gaussian_baseline(img, sigma, window_size, axes, "F" in layout, dtype=dtype) for img in input]
+        skip_axes = count_skip_axes(layout)
+        baseline = [gaussian_baseline(img, sigma, window_size, axes, skip_axes, dtype=dtype) for img in input]
         max_error = 1 if dtype != np.float32 else 1e-07
         check_batch(result, baseline, batch_size, max_allowed_error=max_error)
 
@@ -140,8 +148,11 @@ def test_generic_gaussian_blur():
         for t in [np.uint8, np.int32, np.float32]:
             for shape, layout, axes in [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
                                         ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
+                                        ((3, 30, 20), "CWH", 2),
                                         ((5, 20, 30, 3), "FHWC", 2),
-                                        ((5, 10, 10, 7, 3), "FDHWC", 3)]:
+                                        ((5, 10, 10, 7, 3), "FDHWC", 3),
+                                        ((5, 3, 20, 30), "FCHW", 2),
+                                        ((3, 5, 10, 10, 7), "CFDHW", 3)]:
                 for sigma in [1.0, [1.0, 2.0, 3.0]]:
                     for window_size in [3, 5, [7, 5, 9], [3, 5, 9], None]:
                         if isinstance(sigma, list):
@@ -192,7 +203,8 @@ def check_per_sample_gaussian_blur(
         for i in range(batch_size):
             sigma_arg = sigma[i] if sigma is not None else None
             window_arg = window_size[i] if window_size_dim is not None else None
-            baseline.append(gaussian_baseline(input[i], sigma_arg, window_arg, axes, "F" in layout))
+            skip_axes = count_skip_axes(layout)
+            baseline.append(gaussian_baseline(input[i], sigma_arg, window_arg, axes, skip_axes))
         check_batch(result, baseline, batch_size, max_allowed_error=1)
 
 # TODO(klecki): consider checking mixed ArgumentInput/Scalar value cases
@@ -200,7 +212,9 @@ def test_per_sample_gaussian_blur():
     for dev in ["cpu"]:
         for shape, layout, axes in [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
                                     ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
-                                    ((5, 20, 30, 3), "FHWC", 2), ((5, 10, 10, 7, 3), "FDHWC", 3)]:
+                                    ((3, 30, 20), "CWH", 2), ((5, 20, 30, 3), "FHWC", 2),
+                                    ((5, 10, 10, 7, 3), "FDHWC", 3), ((5, 3, 20, 30), "FCHW", 2),
+                                    ((3, 5, 10, 10, 7), "CFDHW", 3)]:
             for sigma_dim in [None, 1, axes]:
                 for window_size_dim in [None, 1, axes]:
                     if sigma_dim is None and window_size_dim is None:
@@ -216,7 +230,9 @@ def test_fail_gaussian_blur():
     for dev in ["cpu"]:
         # Check layout and channel placement errors
         for shape, layout, axes in [((20, 20, 30, 3), "DHCW", 3), ((5, 20, 30, 3), "HFWC", 2),
-                                    ((5, 10, 10, 10, 7, 3), "FWXYZC", 4)]:
+                                    ((5, 10, 10, 10, 7, 3), "FWXYZC", 4),
+                                    ((5, 3, 20, 3, 30), "FCHCW", 2),
+                                    ((5, 3, 20, 3, 30), "FCCHW", 2)]:
             yield check_fail_gaussian_blur, 10, 1.0, 11, shape, layout, axes, dev
         # Negative, disallowed or both unspecified values of sigma and window size
         yield check_fail_gaussian_blur, 10, 0.0, 0, (100, 20, 3), "HWC", 3, dev

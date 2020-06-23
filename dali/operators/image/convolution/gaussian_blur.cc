@@ -51,6 +51,7 @@ or per data axis.
 When specifying the sigma or window size per axis, they are provided same as layouts: from outermost
 to innermost.
 The channel ``C`` and frame ``F`` dimensions are not considered data axes.
+If channels are present only channel-first or channel-last inputs are supported.
 
 For example, with ``HWC`` input, user can provide ``sigma=1.0`` or ``sigma=(1.0, 2.0)`` as there
 are two data axes H and W.
@@ -142,25 +143,32 @@ GaussianDimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
   // not-empty layout
   int axes_start = 0;
   int axes_count = ndim;
-  bool has_channels = ImageLayoutInfo::HasChannel(layout);
+  bool has_channels = ImageLayoutInfo::IsChannelLast(layout);
   if (has_channels) {
     axes_count--;
-    DALI_ENFORCE(ImageLayoutInfo::IsChannelLast(layout),
-                 "Only input data with no channels or channel-last is supported.");
   }
-  bool is_sequence = VideoLayoutInfo::IsSequence(layout);
-  if (is_sequence) {
+  // Skip possible occurrences of 'C' or 'F' at the beggining
+  TensorLayout layout_tmp = layout;
+  while (ImageLayoutInfo::IsChannelFirst(layout_tmp) || VideoLayoutInfo::IsSequence(layout_tmp)) {
     axes_start++;
     axes_count--;
-    DALI_ENFORCE(
-        layout.find('F') == 0,
-        make_string("For sequence inputs frames 'F' should be the first dimension, got layout: \"",
-                    layout.str(), "\"."));
+    layout_tmp = layout_tmp.sub(1);
   }
+  if (!has_channels) {
+    DALI_ENFORCE(!ImageLayoutInfo::HasChannel(layout_tmp),
+                 make_string("Only channel-first or channel-last layouts are supported, got: ",
+                             layout, "."));
+  }
+  DALI_ENFORCE(
+      !VideoLayoutInfo::HasSequence(layout_tmp),
+      make_string("For sequences, layout should begin with 'F' or 'CF', got: ", layout, "."));
+  DALI_ENFORCE(
+      axes_start <= 2,
+      make_string("Found more the one occurrence of 'F' or 'C' axes in layout: ", layout, "."));
   DALI_ENFORCE(axes_count <= kMaxDim,
                make_string("Too many dimensions, found: ", axes_count,
                            " data axes, maximum supported is: ", kMaxDim, "."));
-  return {axes_start, axes_count, has_channels, is_sequence};
+  return {axes_start, axes_count, has_channels, axes_start != 0};
 }
 
 // axes here is dimension of element processed by kernel - in case of sequence it's 1 less than the
@@ -223,8 +231,8 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
       int64_t stride = 0;
       if (dim_desc_.is_sequence) {
         const auto& shape = input[sample_idx].shape();
-        seq_elements = shape[0];
-        stride = volume(shape.begin() + 1, shape.end());
+        seq_elements = volume(shape.begin(), shape.begin() + dim_desc_.usable_axes_start);
+        stride = volume(shape.begin() + dim_desc_.usable_axes_start, shape.end());
       }
       for (int elem_idx = 0; elem_idx < seq_elements; elem_idx++) {
         thread_pool.DoWorkWithID([this, &input, &output, sample_idx, elem_idx,
