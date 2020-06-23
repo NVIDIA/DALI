@@ -118,12 +118,11 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline) {
     EXPECT_EQ(daliNumTensors(&handle, output), batch_size);
     for (int elem = 0; elem < batch_size; elem++) {
       auto *shape = daliShapeAtSample(&handle, output, elem);
-      int idx = 0;
-      auto ref_shape = ws.Output<Backend>(output).shape()[idx];
-      for (; shape[idx] != 0; idx++) {
-        EXPECT_EQ(shape[idx], ref_shape[idx]);
-      }
-      EXPECT_EQ(idx, ref_shape.sample_dim());
+      auto ref_shape = ws.Output<Backend>(output).shape()[elem];
+      int D = ref_shape.size();
+      for (int d = 0; d < D; d++)
+        EXPECT_EQ(shape[d], ref_shape[d]);
+      EXPECT_EQ(shape[D], 0) << "Shapes in C API are 0-terminated";
       free(shape);
     }
 
