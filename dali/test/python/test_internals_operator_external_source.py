@@ -257,13 +257,14 @@ def test_external_source_collection_cycling():
             check_output(pipe.run(), batch)
 
 def test_external_source_with_iter():
-    pipe = Pipeline(1, 3, 0)
+    for attempt in range(10):
+        pipe = Pipeline(1, 3, 0)
 
-    pipe.set_outputs(fn.external_source(lambda i: [datapy.array([i + 1.5], dtype=datapy.float32)]))
-    pipe.build()
+        pipe.set_outputs(fn.external_source(lambda i: [datapy.array([attempt * 100 + i * 10 + 1.5], dtype=datapy.float32)]))
+        pipe.build()
 
-    for i in range(10):
-        check_output(pipe.run(), [np.array([i + 1.5], dtype=np.float32)])
+        for i in range(10):
+            check_output(pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])
 
 def test_external_source_generator():
     pipe = Pipeline(1, 3, 0)

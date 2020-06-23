@@ -18,3 +18,18 @@
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
 from test_internals_operator_external_source import *
 use_cupy()
+
+# extra tests, GPU-specific
+import cupy
+datapy=cupy
+
+def test_external_source_with_iter_cupy_stream():
+    with cupy.cuda.Stream(non_blocking=True):
+        for attempt in range(10):
+            pipe = Pipeline(1, 3, 0)
+
+            pipe.set_outputs(fn.external_source(lambda i: [datapy.array([attempt * 100 + i * 10 + 1.5], dtype=datapy.float32)]))
+            pipe.build()
+
+            for i in range(10):
+                check_output(pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])

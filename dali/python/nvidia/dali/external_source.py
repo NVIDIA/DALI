@@ -178,11 +178,13 @@ Keyword Args
     containing a distinct layout for each output. If the list has fewer elements than ``num_outputs``,
     only the first outputs have the layout set, the reset have it cleared.
 
-`cuda_stream` : Any value that can be casted to cudaStream_t
-    CUDA stream to be used for the copy (only relevant for GPU inputs)
-    If not provided, an internal stream will be selected.
-    In most cases, using the default internal user stream or stream 0
-    is expected.
+`cuda_stream` : a cuda stream, which is going to be used for copying data to/from GPU source.
+    If not set, best effort will be taken to maintain correctness - i.e. default streams
+    will be used for recognized libraries.
+
+    Special values:
+     *  0 - use default CUDA stream
+     * -1 - use internal stream
 """
 
     def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", cuda_stream = None, **kwargs):

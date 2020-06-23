@@ -20,7 +20,7 @@ from nvidia.dali import types
 from threading import local as tls
 from . import data_node as _data_node
 import warnings
-import re
+import ctypes
 pipeline_tls = tls()
 
 from .data_node import DataNode
@@ -33,6 +33,23 @@ def _show_deprecation_warning(deprecated, in_favor_of):
         warnings.warn("{} is deprecated, please use {} instead".format(deprecated, in_favor_of),
                       Warning, stacklevel=2)
 
+def _raw_cuda_stream(stream_obj):
+    if hasattr(stream_obj, "cuda_stream"):  # torch
+        return stream_obj.cuda_stream
+    elif hasattr(stream_obj, "ptr"):  # cupy
+        return stream_obj.ptr
+    else:
+        return stream_obj
+
+def _get_default_stream_for_array(array):
+    if types._is_torch_tensor(array):
+        import torch
+        return torch.cuda.current_stream().cuda_stream
+    elif types._is_cupy_array(array):
+        import cupy
+        return cupy.cuda.get_current_stream().ptr
+    else:
+        return None
 
 class Pipeline(object):
     """Pipeline class is the base of all DALI data pipelines. The pipeline
@@ -478,8 +495,13 @@ Parameters
         from nvidia.dali.external_source import _check_data_batch
         _check_data_batch(data, self._batch_size, layout)
 
-        def _is_cupy_array(value):
-            return re.match('.*cupy\..*\.ndarray.*', str(type(value)))
+        infer_stream = False
+        if cuda_stream is None:
+            infer_stream = True
+        if cuda_stream == -1:
+            cuda_stream = None
+        else:
+            cuda_stream = _raw_cuda_stream(cuda_stream);
 
         # __cuda_array_interface__ doesn't provide any way to pass the information about the device
         # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
@@ -488,25 +510,23 @@ Parameters
             inputs = []
             for datum in data:
                 if hasattr(datum, "__cuda_array_interface__"):
-                    if cuda_stream is None and _is_cupy_array(datum):
-                        import cupy
-                        cuda_stream = cupy.cuda.get_current_stream()
+                    if infer_stream and cuda_stream is None:
+                        cuda_stream = _get_default_stream_for_array(datum)
                     inp = Tensors.TensorGPU(datum, layout)
                 else:
                     inp = Tensors.TensorCPU(datum, layout)
                 inputs.append(inp)
             assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
                    "Mixed input types are not support, all need to reside on the CPU or GPU"
-            self._pipe.SetExternalTensorInput(name, inputs, cuda_stream)
+            self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream))
         else:
             if hasattr(data, "__cuda_array_interface__"):
-                if cuda_stream is None and _is_cupy_array(data):
-                    import cupy
-                    cuda_stream = cupy.cuda.get_current_stream()
+                if infer_stream and cuda_stream is None:
+                    cuda_stream = _get_default_stream_for_array(data)
                 inp = Tensors.TensorListGPU(data, layout)
             else:
                 inp = Tensors.TensorListCPU(data, layout)
-            self._pipe.SetExternalTLInput(name, inp, cuda_stream)
+            self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream))
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""

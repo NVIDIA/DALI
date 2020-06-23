@@ -14,6 +14,7 @@
 
 #pylint: disable=no-name-in-module,unused-import
 from enum import Enum, unique
+import re
 
 from nvidia.dali.backend_impl.types import *
 try:
@@ -256,6 +257,11 @@ def _is_torch_tensor(value):
 
 def _is_numpy_array(value):
     return 'numpy.ndarray' in str(type(value))
+
+_cupy_array_type_regex = re.compile('.*cupy\..*\.ndarray.*')
+
+def _is_cupy_array(value):
+    return _cupy_array_type_regex.match(str(type(value)))
 
 # common type names used by numpy, torch and possibly
 _type_name_to_dali_type = {
