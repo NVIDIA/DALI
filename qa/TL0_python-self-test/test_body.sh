@@ -21,8 +21,7 @@ test_no_fw() {
 
 test_cupy() {
     nosetests --verbose test_backend_impl_gpu.py
-    # use this weird name to avoid being caught by test_operator_*.py
-    nosetests --verbose test_operator_external_source_cupy.py
+    nosetests --verbose test_external_source_cupy.py
 }
 
 
