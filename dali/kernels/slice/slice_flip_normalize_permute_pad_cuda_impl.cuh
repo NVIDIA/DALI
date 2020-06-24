@@ -61,71 +61,28 @@ struct BlockDesc {
   uint64_t size;
 };
 
-/**
- * @brief Simplified algorithm when no padding is necessary
- * @remarks `in` refers to the slice anchor start
- */
-template <bool NeedNormalize, int Dims, typename OutputType, typename InputType>
-__device__ void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ out,
-                                              const InputType *__restrict__ in,
-                                              const fast_div<uint64_t> *out_strides,
-                                              const int64_t *in_strides,
-                                              const float *__restrict__ norm_add,
-                                              const float *__restrict__ norm_mul, int channel_dim,
-                                              uint64_t offset, uint64_t block_end) {
-  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && channel_dim != Dims - 1) {
-    const int NextDims = Dims > 1 ? Dims - 1 : 1;
-    SliceFlipNormalizePermuteFunc<NeedNormalize, NextDims, OutputType, InputType>(
-        out, in, out_strides, in_strides, norm_add, norm_mul, channel_dim, offset, block_end);
-    return;
-  }
-
-  for (; offset < block_end; offset += blockDim.x) {
-    uint64_t idx = offset;
-    uint64_t out_idx = idx;
-    uint64_t in_idx = 0;
-
-    int i_c = 0;
-    #pragma unroll
-    for (int d = 0; d < Dims; d++) {
-      int i_d = div_mod(idx, idx, out_strides[d]);
-      in_idx += i_d * in_strides[d];
-      if (d == channel_dim)
-        i_c = i_d;
-    }
-    in_idx += idx;  // remaining dims have equal strides
-    if (NeedNormalize) {
-      float fpout = fmaf(static_cast<float>(in[in_idx]), norm_mul[i_c], norm_add[i_c]);
-      out[out_idx] = ConvertSat<OutputType>(fpout);
-    } else {
-      out[out_idx] = ConvertSat<OutputType>(in[in_idx]);
-    }
-  }
-}
-
 DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_extent) {
   // check idx < 0 and idx >= data_extent at once
   return static_cast<uint64_t>(idx) >= static_cast<uint64_t>(data_extent);
 }
 
 /**
- * @brief General algorithm without support for flip (simpler)
- * @remarks `AllDims=true` means that Dims refer to the actual number of dimensions,
- *           meaning we haven't skipped last dimensions that have same input and output strides
+ * @brief General algorithm that allows for padding in any dimension
+ * @remarks `in` refers to the slice anchor start
  */
-template <bool NeedNormalize, int Dims, typename OutputType, typename InputType,
-          bool AllDims = true>
-__device__ void SliceNormalizePermutePadFunc(
-    OutputType *__restrict__ out, const InputType *__restrict__ in,
+template <bool NeedFlip, bool NeedNormalize, bool NeedPad, int Dims,
+          typename Out, typename In, bool AllDims = true>
+__device__ void SliceFlipNormalizePermutePadFunc(
+    Out *__restrict__ out, const In *__restrict__ in,
     const fast_div<uint64_t> *out_strides, const int64_t *in_strides, const int64_t *out_shape,
-    const int64_t *in_shape, const int64_t *anchor, const OutputType *__restrict__ fill_values,
+    const int64_t *in_shape, const int64_t *anchor, const Out *__restrict__ fill_values,
     const float *__restrict__ norm_add, const float *__restrict__ norm_mul, int channel_dim,
     uint64_t offset, uint64_t block_end) {
-  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] &&
-      out_shape[Dims - 1] == in_shape[Dims - 1] && anchor[Dims - 1] == 0 &&
-      channel_dim != Dims - 1) {
+  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && anchor[Dims - 1] == 0 &&
+      out_shape[Dims - 1] == in_shape[Dims - 1] && channel_dim != Dims - 1 &&
+      (!NeedFlip || (in_strides[Dims - 1] < 0) == (in_strides[Dims - 2] < 0))) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
-    SliceNormalizePermutePadFunc<NeedNormalize, NextDims, OutputType, InputType, false>(
+    SliceFlipNormalizePermutePadFunc<NeedFlip, NeedNormalize, NeedPad, NextDims, Out, In, false>(
         out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values, norm_add,
         norm_mul, channel_dim, offset, block_end);
     return;
@@ -134,9 +91,11 @@ __device__ void SliceNormalizePermutePadFunc(
   constexpr int LastDim = Dims - 1;
   int64_t inner_in_anchor = anchor[LastDim];
   int64_t inner_in_extent = in_shape[LastDim];
+  int64_t inner_out_extent = out_shape[LastDim];
   if (!AllDims) {  // if we fused dimensions, adjust inner dimension's anchor and extent
     inner_in_anchor = anchor[LastDim] * in_strides[LastDim];
     inner_in_extent = in_shape[LastDim] * in_strides[LastDim];
+    inner_out_extent = out_shape[LastDim] * in_strides[LastDim];
   }
 
   for (; offset < block_end; offset += blockDim.x) {
@@ -155,123 +114,71 @@ __device__ void SliceNormalizePermutePadFunc(
       i_d = div_mod(idx, idx, out_strides[d]);
       if (d == channel_dim)
         i_c = i_d;
-      out_of_bounds |= is_out_of_bounds(anchor[d] + i_d, in_shape[d]);
-      if (!out_of_bounds)
-        in_idx += i_d * in_strides[d];
-    }
-
-    constexpr int d = LastDim;
-    i_d = idx;  // out_strides[d] is treated as 1
-    idx = 0;
-    if (AllDims && d == channel_dim)
-      i_c = i_d;
-    out_of_bounds |= is_out_of_bounds(inner_in_anchor + i_d, inner_in_extent);
-
-    // in_strides[d] to be used if AllDims = false (potentially permuting dims)
-    // Not used (in purpose) when fusing dimensions
-    if (!out_of_bounds)
-      in_idx += AllDims ? i_d * in_strides[d] : i_d;
-
-    if (out_of_bounds) {
-      out[out_idx] = fill_values[i_c];
-    } else if (NeedNormalize) {
-      float fpout = fmaf(static_cast<float>(in[in_idx]), norm_mul[i_c], norm_add[i_c]);
-      out[out_idx] = ConvertSat<OutputType>(fpout);
-    } else {
-      out[out_idx] = ConvertSat<OutputType>(in[in_idx]);
-    }
-  }
-}
-
-/**
- * @brief General algorithm that allows for padding in any dimension
- * @remarks `in` refers to the slice anchor start
- */
-template <bool NeedNormalize, int Dims, typename OutputType, typename InputType>
-__device__ void SliceFlipNormalizePermutePadFunc(
-    OutputType *__restrict__ out, const InputType *__restrict__ in,
-    const fast_div<uint64_t> *out_strides, const int64_t *in_strides, const int64_t *out_shape,
-    const int64_t *in_shape, const int64_t *anchor, const OutputType *__restrict__ fill_values,
-    const float *__restrict__ norm_add, const float *__restrict__ norm_mul, int channel_dim,
-    uint64_t offset, uint64_t block_end) {
-  for (; offset < block_end; offset += blockDim.x) {
-    uint64_t idx = offset;
-    uint64_t out_idx = idx;
-
-    // We can avoid division in the last dimension because know the strides are 1
-    // (or we treat them as 1 if we fused dimensions)
-    int i_c = 0;
-    int i_d;
-    bool out_of_bounds = false;
-    uint64_t in_idx = 0;
-
-    #pragma unroll
-    for (int d = 0; d < Dims - 1; d++) {
-      i_d = div_mod(idx, idx, out_strides[d]);
-      if (d == channel_dim)
-        i_c = i_d;
-      auto in_i_d = in_strides[d] < 0 ? anchor[d] + out_shape[d] - 1 - i_d
-                                      : anchor[d] + i_d;
-      out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
-      if (!out_of_bounds)
-        in_idx += i_d * in_strides[d];
+      if (NeedPad) {
+        auto in_i_d = NeedFlip && in_strides[d] < 0 ? anchor[d] + out_shape[d] - 1 - i_d
+                                                    : anchor[d] + i_d;
+        out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
+      }
+      in_idx += i_d * in_strides[d];
     }
 
     constexpr int d = Dims - 1;
     i_d = idx;  // out_strides[d] is treated as 1
     idx = 0;
-    if (d == channel_dim)
+    if (AllDims && d == channel_dim)
       i_c = i_d;
-    auto in_i_d = in_strides[d] < 0 ? anchor[d] + out_shape[d] - 1 - i_d
-                                    : anchor[d] + i_d;
-    out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
-    if (!out_of_bounds)
-      in_idx += i_d * in_strides[d];
 
-    if (out_of_bounds) {
+    if (NeedPad) {
+      auto in_i_d = NeedFlip && in_strides[d] < 0 ? inner_in_anchor + inner_out_extent - 1 - i_d
+                                                  : inner_in_anchor + i_d;
+      out_of_bounds |= is_out_of_bounds(in_i_d, inner_in_extent);
+    }
+
+    // in_strides[d] to be used if AllDims = false (potentially permuting dims)
+    // Not used (in purpose) when fusing dimensions
+    in_idx += AllDims ? i_d * in_strides[d] : i_d;
+
+    if (NeedPad && out_of_bounds) {
       out[out_idx] = fill_values[i_c];
     } else if (NeedNormalize) {
       float fpout = fmaf(static_cast<float>(in[in_idx]), norm_mul[i_c], norm_add[i_c]);
-      out[out_idx] = ConvertSat<OutputType>(fpout);
+      out[out_idx] = ConvertSat<Out>(fpout);
     } else {
-      out[out_idx] = ConvertSat<OutputType>(in[in_idx]);
+      out[out_idx] = ConvertSat<Out>(in[in_idx]);
     }
   }
 }
 
-template <bool NeedPad, bool NeedFlip, bool NeedNormalize, typename OutputType, typename InputType,
-          int Dims>
+template <bool NeedPad, bool NeedFlip, bool NeedNormalize, typename Out, typename In, int Dims>
 __global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *samples,
                                                    const BlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
   uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x;
   uint64_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
   auto sample = samples[sampleIdx];
-  auto *out = static_cast<OutputType*>(sample.out);
-  auto *in = static_cast<const InputType*>(sample.in);
+  auto *out = static_cast<Out*>(sample.out);
+  auto *in = static_cast<const In*>(sample.in);
   auto *out_strides = sample.out_strides;
   auto *in_strides = sample.in_strides.data();
   auto channel_dim = sample.channel_dim;
   auto *norm_add = sample.norm_add;
   auto *norm_mul = sample.norm_mul;
-  if (NeedPad && sample.need_pad) {
-    auto *out_shape = sample.out_shape.data();
-    auto *in_shape = sample.in_shape.data();
-    auto *anchor = sample.anchor.data();
-    auto *fill_values = static_cast<const OutputType*>(sample.fill_values);
-    if (NeedFlip && sample.need_flip) {
-      SliceFlipNormalizePermutePadFunc<NeedNormalize, Dims>(
+  auto *out_shape = sample.out_shape.data();
+  auto *in_shape = sample.in_shape.data();
+  auto *anchor = sample.anchor.data();
+  auto *fill_values = static_cast<const Out*>(sample.fill_values);
+  bool need_pad = NeedPad && sample.need_pad;
+  bool need_flip = NeedFlip && sample.need_flip;
+
+  VALUE_SWITCH(need_pad ? 1 : 0, NeedPadInt, (0, 1), (
+    VALUE_SWITCH(need_flip ? 1 : 0, NeedFlipInt, (0, 1), (
+      constexpr bool SampleNeedPad = static_cast<bool>(NeedPadInt);
+      constexpr bool SampleNeedFlip = static_cast<bool>(NeedFlipInt);
+      SliceFlipNormalizePermutePadFunc<SampleNeedFlip, NeedNormalize, SampleNeedPad, Dims>(
           out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values, norm_add,
           norm_mul, channel_dim, offset, block_end);
-    } else {
-      SliceNormalizePermutePadFunc<NeedNormalize, Dims>(
-          out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values, norm_add,
-          norm_mul, channel_dim, offset, block_end);
-    }
-  } else {
-    SliceFlipNormalizePermuteFunc<NeedNormalize, Dims>(out, in, out_strides, in_strides, norm_add,
-                                                       norm_mul, channel_dim, offset, block_end);
-  }
+    ), ());  // NOLINT
+  ), ());  // NOLINT
 }
 
 }  // namespace detail
