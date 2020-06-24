@@ -28,6 +28,8 @@
 
 namespace dali {
 
+using namespace gaussian_blur;  // NOLINT
+
 constexpr static const char* kSigmaArgName = "sigma";
 constexpr static const char* kWindowSizeArgName = "window_size";
 
@@ -109,9 +111,9 @@ void GetGeneralizedArg(span<T> result, const std::string name, int sample_idx, c
 }
 
 template <int axes>
-GaussianSampleParams<axes> GetSampleParams(int sample, const OpSpec& spec,
-                                           const ArgumentWorkspace& ws) {
-  GaussianSampleParams<axes> params;
+GaussianBlurParams<axes> GetSampleParams(int sample, const OpSpec& spec,
+                                         const ArgumentWorkspace& ws) {
+  GaussianBlurParams<axes> params;
   GetGeneralizedArg<float>(make_span(params.sigmas), kSigmaArgName, sample, spec, ws);
   GetGeneralizedArg<int>(make_span(params.window_sizes), kWindowSizeArgName, sample, spec, ws);
   for (int i = 0; i < axes; i++) {
@@ -126,15 +128,15 @@ GaussianSampleParams<axes> GetSampleParams(int sample, const OpSpec& spec,
                  make_string("`window_size` must have non-negative values, got ",
                              params.window_sizes[i], " for sample: ", sample, ", axis : ", i, "."));
     if (params.window_sizes[i] == 0 && params.sigmas[i] > 0.f) {
-      params.window_sizes[i] = GaussianSigmaToDiameter(params.sigmas[i]);
+      params.window_sizes[i] = SigmaToDiameter(params.sigmas[i]);
     } else if (params.sigmas[i] == 0.f && params.window_sizes[i] > 0) {
-      params.sigmas[i] = GaussianDiameterToSigma(params.window_sizes[i]);
+      params.sigmas[i] = DiameterToSigma(params.window_sizes[i]);
     }
   }
   return params;
 }
 
-GaussianDimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
+DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
   static constexpr int kMaxDim = 3;
   if (layout.empty()) {
     // assuming plain data with no channels
@@ -182,10 +184,8 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
   using Kernel = kernels::SeparableConvolutionCpu<Out, In, float, axes, has_channels>;
   static constexpr int ndim = Kernel::ndim;
 
-  explicit GaussianBlurOpCpu(const OpSpec& spec, const GaussianDimDesc& dim_desc)
-      : spec_(spec),
-        batch_size_(spec.GetArgument<int>("batch_size")),
-        dim_desc_(dim_desc) {}
+  explicit GaussianBlurOpCpu(const OpSpec& spec, const DimDesc& dim_desc)
+      : spec_(spec), batch_size_(spec.GetArgument<int>("batch_size")), dim_desc_(dim_desc) {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template InputRef<CPUBackend>(0);
@@ -230,7 +230,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     std::sort(volume_idx_vec.begin(), volume_idx_vec.end(),
               std::greater<std::pair<int64_t, int>>());
 
-    for (const auto &sample_order : volume_idx_vec) {
+    for (const auto& sample_order : volume_idx_vec) {
       auto sample_idx = sample_order.second;
       int seq_elements = 1;
       int64_t stride = 0;
@@ -240,18 +240,19 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
         stride = volume(shape.begin() + dim_desc_.usable_axes_start, shape.end());
       }
       for (int elem_idx = 0; elem_idx < seq_elements; elem_idx++) {
-        thread_pool.DoWorkWithID([this, &input, &output, sample_idx, elem_idx,
-                                  stride](int thread_id) {
-          auto gaussian_windows = windows_[sample_idx].GetWindows();
-          auto elem_shape = input[sample_idx].shape().template last<ndim>();
-          auto in_view = TensorView<StorageCPU, const In, ndim>{
-              input[sample_idx].template data<In>() + stride * elem_idx, elem_shape};
-          auto out_view = TensorView<StorageCPU, Out, ndim>{
-              output[sample_idx].template mutable_data<Out>() + stride * elem_idx, elem_shape};
-          // I need a context for that particular run (or rather matching the thread & scratchpad)
-          auto ctx = ctx_;
-          kmgr_.Run<Kernel>(thread_id, sample_idx, ctx, out_view, in_view, gaussian_windows);
-        });
+        thread_pool.DoWorkWithID(
+            [this, &input, &output, sample_idx, elem_idx, stride](int thread_id) {
+              auto gaussian_windows = windows_[sample_idx].GetWindows();
+              auto elem_shape = input[sample_idx].shape().template last<ndim>();
+              auto in_view = TensorView<StorageCPU, const In, ndim>{
+                  input[sample_idx].template data<In>() + stride * elem_idx, elem_shape};
+              auto out_view = TensorView<StorageCPU, Out, ndim>{
+                  output[sample_idx].template mutable_data<Out>() + stride * elem_idx, elem_shape};
+              // I need a context for that particular run (or rather matching the thread &
+              // scratchpad)
+              auto ctx = ctx_;
+              kmgr_.Run<Kernel>(thread_id, sample_idx, ctx, out_view, in_view, gaussian_windows);
+            });
       }
     }
     thread_pool.WaitForWork();
@@ -260,12 +261,12 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
  private:
   OpSpec spec_;
   int batch_size_ = 0;
-  GaussianDimDesc dim_desc_;
+  DimDesc dim_desc_;
 
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
 
-  std::vector<GaussianSampleParams<axes>> params_;
+  std::vector<GaussianBlurParams<axes>> params_;
   std::vector<GaussianWindows<axes>> windows_;
 };
 

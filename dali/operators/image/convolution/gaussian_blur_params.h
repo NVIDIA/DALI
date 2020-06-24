@@ -48,7 +48,7 @@ struct GaussianBlurParams {
 
   bool IsUniform() const {
     for (int i = 1; i < axes; i++) {
-      if (sigmas[i - 1] != sigmas[i] || window_sizes[i - 1] != window_sizes[i]) {
+      if (sigmas[0] != sigmas[i] || window_sizes[0] != window_sizes[i]) {
         return false;
       }
     }
