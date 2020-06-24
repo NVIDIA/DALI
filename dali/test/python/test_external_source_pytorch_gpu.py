@@ -26,7 +26,7 @@ from test_utils import check_output
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
 
-def test_external_source_with_iter_torch_stream():
+def test_external_source_callback_torch_stream():
     with torch.cuda.stream(torch.cuda.Stream()):
         for attempt in range(10):
             t0 = torch.tensor([attempt * 100 + 1.5], dtype=torch.float32).cuda()
