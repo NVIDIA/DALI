@@ -17,7 +17,7 @@
 #include "dali/operators/generic/pad.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/kernels/slice/slice_gpu.cuh"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_gpu.h"
 
 namespace dali {
 
@@ -33,8 +33,8 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
-      using Kernel = kernels::SliceGPU<T, T, Dims>;
-      using Args = kernels::SliceArgs<T, Dims>;
+      using Kernel = kernels::SliceFlipNormalizePermutePadGpu<T, T, Dims>;
+      using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
 
       kernels::KernelContext ctx;
       ctx.gpu.stream = ws.stream();
@@ -60,8 +60,8 @@ void Pad<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   int ndim = input.shape().sample_dim();
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
-      using Kernel = kernels::SliceGPU<T, T, Dims>;
-      using Args = kernels::SliceArgs<T, Dims>;
+      using Kernel = kernels::SliceFlipNormalizePermutePadGpu<T, T, Dims>;
+      using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
 
       auto in_view = view<const T, Dims>(input);
       auto out_view = view<T, Dims>(output);

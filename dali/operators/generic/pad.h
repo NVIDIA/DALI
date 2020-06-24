@@ -78,6 +78,17 @@ class Pad : public Operator<Backend> {
   template <typename Args>
   std::vector<Args>& FillArgs(TensorListShape<> in_shape, TensorLayout in_layout) {
     int nsamples = in_shape.num_samples();
+    if (!kernel_sample_args_.has_value()) {
+      kernel_sample_args_ = std::vector<Args>();
+    }
+
+    auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+    kernel_sample_args.clear();
+    kernel_sample_args.reserve(nsamples);
+    for (int i = 0; i < nsamples; i++) {
+      kernel_sample_args.emplace_back(in_shape[i]);
+    }
+
     int ndim = in_shape.sample_dim();
 
     for (auto axis : axes_) {
@@ -129,14 +140,6 @@ class Pad : public Operator<Backend> {
       }
     }
 
-    if (!kernel_sample_args_.has_value()) {
-      kernel_sample_args_ = std::vector<Args>();
-    }
-
-    auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-    kernel_sample_args.clear();
-    kernel_sample_args.resize(nsamples);
-
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       auto &sample_args = kernel_sample_args[sample_idx];
       const auto &sample_shape = in_shape[sample_idx];
@@ -149,7 +152,7 @@ class Pad : public Operator<Backend> {
 
       for (int i = 0; i < naxes; i++) {
         auto axis = axes_[i];
-        auto &extent = sample_args.shape[axis];
+        auto &extent = sample_args.padded_shape[axis];
         // Adjust padded extent only if it is bigger than the sample's extent
         // That is, we are not cropping the image
         if (padded_shape[axis] > extent)

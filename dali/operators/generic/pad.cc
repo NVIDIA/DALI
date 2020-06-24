@@ -17,7 +17,7 @@
 
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_layout.h"
-#include "dali/kernels/slice/slice_cpu.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_cpu.h"
 #include "dali/operators/generic/pad.h"
 #include "dali/pipeline/data/views.h"
 
@@ -168,8 +168,8 @@ bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
-      using Kernel = kernels::SliceCPU<T, T, Dims>;
-      using Args = kernels::SliceArgs<T, Dims>;
+      using Kernel = kernels::SliceFlipNormalizePermutePadCpu<T, T, Dims>;
+      using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
 
       kmgr_.Resize<Kernel>(nthreads, nsamples);
       output_desc[0].type = TypeInfo::Create<T>();
@@ -198,8 +198,8 @@ void Pad<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
 
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
-      using Kernel = kernels::SliceCPU<T, T, Dims>;
-      using Args = kernels::SliceArgs<T, Dims>;
+      using Kernel = kernels::SliceFlipNormalizePermutePadCpu<T, T, Dims>;
+      using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
 
       for (int i = 0; i < nsamples; i++) {
         thread_pool.DoWorkWithID(

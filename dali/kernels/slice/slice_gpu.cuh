@@ -38,16 +38,15 @@ struct SliceSampleDesc {
   void *__restrict__ out;
   const void *__restrict__ in;
 
-  TensorShape<Dims> out_shape;
-  TensorShape<Dims> in_shape;
-  TensorShape<Dims> anchor;
-
   const void *__restrict__ fill_values;
   int channel_dim;
   bool need_pad;
 
-  fast_div<uint64_t> out_strides[Dims];
   TensorShape<Dims> in_strides;
+  fast_div<uint64_t> out_strides[Dims];
+
+  TensorShape<Dims> anchor;
+  TensorShape<Dims> in_shape;
 };
 
 struct BlockDesc {
@@ -101,15 +100,15 @@ DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_e
 template <int Dims, typename OutputType, typename InputType, bool AllDims = true>
 __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
                           const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
-                          const int64_t *out_shape, const int64_t *in_shape, const int64_t *anchor,
+                          const int64_t *anchor, const int64_t *in_shape,
                           const OutputType *__restrict__ fill_values, int channel_dim,
                           uint64_t offset, uint64_t block_end) {
-  if (Dims > 1 && anchor[Dims - 1] == 0 && in_shape[Dims - 1] == out_shape[Dims - 1] &&
+  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && anchor[Dims - 1] == 0 &&
       channel_dim != Dims - 1) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
-    SliceFunc<NextDims, OutputType, InputType, false>(out, in, out_strides, in_strides, out_shape,
-                                                      in_shape, anchor, fill_values, channel_dim,
-                                                      offset, block_end);
+    SliceFunc<NextDims, OutputType, InputType, false>(
+        out, in, out_strides, in_strides, anchor, in_shape, fill_values, channel_dim, offset,
+        block_end);
     return;
   }
 
@@ -168,11 +167,10 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDes
   if (SupportPad && sample.need_pad) {
     auto *anchor = sample.anchor.data();
     auto *in_shape = sample.in_shape.data();
-    auto *out_shape = sample.out_shape.data();
     auto *fill_values = static_cast<const OutputType*>(sample.fill_values);
     auto channel_dim = sample.channel_dim;
-    SliceFunc<Dims>(out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values,
-                    channel_dim, offset, block_end);
+    SliceFunc<Dims>(out, in, out_strides, in_strides, anchor, in_shape, fill_values, channel_dim,
+                    offset, block_end);
   } else {
     SliceFuncNoPad<Dims>(out, in, out_strides, in_strides, offset, block_end);
   }
@@ -284,7 +282,6 @@ class SliceGPU {
       CalcStrides(sample_desc.out_strides, out_shape);
       sample_desc.anchor = anchor;
       sample_desc.in_shape = in_shape;
-      sample_desc.out_shape = out_shape;
 
       const InputType *in_data = in.tensor_data(i);
       // `sample_desc.in` is expected to point to the slice anchor
