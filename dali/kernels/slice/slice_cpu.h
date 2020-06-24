@@ -30,29 +30,6 @@ namespace kernels {
 namespace detail {
 
 /**
- * @brief Fills output with nchannel values repeatedly
- */
-template <typename T>
-void Fill(T *output, const T *fill_values, int64_t npixels, int64_t nchannels) {
-  int64_t n = npixels * nchannels;
-  int64_t i = 0;
-  for (; i < nchannels; i++)
-    output[i] = fill_values[i];
-  for (; i < n; i++)
-    output[i] = output[i - nchannels];
-}
-
-inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t anchor,
-                                                                int64_t in_extent,
-                                                                int64_t out_extent) {
-  int64_t pad_before = std::min(out_extent, std::max<int64_t>(0, -anchor));
-  int64_t to_copy = std::max<int64_t>(
-      0, std::min(in_extent - std::max<int64_t>(0, anchor), out_extent - pad_before));
-  int64_t pad_after = out_extent - pad_before - to_copy;
-  return std::tuple<int64_t, int64_t, int64_t>{pad_before, to_copy, pad_after};
-}
-
-/**
  * @brief Optimized special case for the last two dimensions whith channel-last configuration
  */
 template <typename OutputType, typename InputType, bool OutOfBounds, bool NeedPad>
@@ -76,7 +53,7 @@ void SliceKernelImplChannelLast(OutputType *output,
   if (NeedPad) {
     // If the whole row is out of bounds, just fill
     if (OutOfBounds) {
-      Fill(output, fill_values, npixels, out_nchannels);
+      PadFill(output, fill_values, npixels, out_nchannels);
       return;
     }
 
@@ -88,7 +65,7 @@ void SliceKernelImplChannelLast(OutputType *output,
 
     // Padding pixels on the left, if needed
     if (pad_pixels_before > 0) {
-      Fill(output, fill_values, pad_pixels_before, out_nchannels);
+      PadFill(output, fill_values, pad_pixels_before, out_nchannels);
       output += pad_pixels_before * out_strides[d];
     }
 
@@ -128,7 +105,7 @@ void SliceKernelImplChannelLast(OutputType *output,
 
     // Padding pixels on the right, if needed
     if (pad_pixels_after > 0) {
-      Fill(output, fill_values, pad_pixels_after, out_nchannels);
+      PadFill(output, fill_values, pad_pixels_after, out_nchannels);
       output += pad_pixels_after * out_strides[d];
     }
   } else {  // NeedPad = false
