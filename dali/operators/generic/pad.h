@@ -144,7 +144,8 @@ class Pad : public Operator<Backend> {
         sample_args.anchor[d] = 0;
         sample_args.shape[d] = sample_shape[d];
       }
-      sample_args.fill_values.push_back(fill_value_);
+      sample_args.fill_values.resize(1);
+      sample_args.fill_values[0] = fill_value_;
 
       for (int i = 0; i < naxes; i++) {
         auto axis = axes_[i];
