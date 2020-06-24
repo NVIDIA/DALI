@@ -497,6 +497,14 @@ Parameters
         else:
             cuda_stream = types._raw_cuda_stream(cuda_stream)
 
+        def to_numpy(x):
+            if types._is_mxnet_array(x):
+                return x.asnumpy()
+            elif types._is_torch_tensor(x):
+                return x.numpy()
+            else:
+                return x
+
         # __cuda_array_interface__ doesn't provide any way to pass the information about the device
         # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
         # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
@@ -504,10 +512,13 @@ Parameters
             inputs = []
             for datum in data:
                 if hasattr(datum, "__cuda_array_interface__"):
+                    print("CUDA source")
                     if infer_stream:
-                        cuda_stream = _get_default_stream_for_array(datum)
+                        #cuda_stream = _get_default_stream_for_array(datum)
+                        print("stream: ", cuda_stream)
                     inp = Tensors.TensorGPU(datum, layout)
                 else:
+                    datum = to_numpy(datum)
                     inp = Tensors.TensorCPU(datum, layout)
                 inputs.append(inp)
             assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
@@ -515,10 +526,13 @@ Parameters
             self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream))
         else:
             if hasattr(data, "__cuda_array_interface__"):
+                print("CUDA source")
                 if infer_stream:
-                    cuda_stream = _get_default_stream_for_array(data)
+                    #cuda_stream = _get_default_stream_for_array(data)
+                    print("stream: ", cuda_stream)
                 inp = Tensors.TensorListGPU(data, layout)
             else:
+                data = to_numpy(data)
                 inp = Tensors.TensorListCPU(data, layout)
             self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream))
 

@@ -295,7 +295,7 @@ Keyword Args
 def _is_external_source_with_callback(op_instance):
     return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
 
-def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None):
+def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None, cuda_stream = None):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout)`` inside ``pipeline.iter_setup``.
@@ -315,7 +315,7 @@ The data can be provided by the ``source`` function or iterable, or it can be pr
                 "`external_source` nodes.")
 
     op = ExternalSource(device = device, num_outputs = num_outputs,
-                        source = source, cycle = cycle, layout = layout)
+                        source = source, cycle = cycle, layout = layout, cuda_stream = cuda_stream)
     return op(name = name)
 
 external_source.__doc__ += ExternalSource._args_doc

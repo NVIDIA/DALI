@@ -8,6 +8,7 @@ test_body() {
     nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*pytorch' test_pytorch_operator.py
     nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*pytorch' test_dltensor_operator.py
     nosetests --verbose test_torch_pipeline_rnnt.py
+    nosetests --verbose test_operator_external_source_pytorch.py
 }
 
 pushd ../..

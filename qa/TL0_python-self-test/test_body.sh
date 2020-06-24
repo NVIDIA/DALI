@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 test_nose() {
-    for test_script in $(ls test_operator_*.py test_pipeline*.py test_functional_api.py test_backend_impl.py); do
+    for test_script in $(ls test_operator_*.py test_pipeline*.py test_external_source_numpy.py test_functional_api.py test_backend_impl.py); do
         nosetests --verbose --attr '!slow' ${test_script}
     done
 }
@@ -22,7 +22,7 @@ test_no_fw() {
 test_cupy() {
     nosetests --verbose test_backend_impl_gpu.py
     # use this weird name to avoid being caught by test_operator_*.py
-    nosetests --verbose test_gpu_operator_external_source.py
+    nosetests --verbose test_operator_external_source_cupy.py
 }
 
 

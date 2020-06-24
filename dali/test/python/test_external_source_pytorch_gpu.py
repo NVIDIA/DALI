@@ -16,4 +16,30 @@
 # nose will query for the methods available and will run them
 # the test_internals_operator_external_source is 99% the same for cupy and numpy tests
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
-from test_internals_operator_external_source import *
+
+from test_external_source_impl import *
+use_torch(True)
+
+# extra tests, GPU-specific
+import torch
+from test_utils import check_output
+import nvidia.dali.fn as fn
+from nvidia.dali.pipeline import Pipeline
+
+def test_external_source_with_iter_torch_stream():
+    with torch.cuda.stream(torch.cuda.Stream()):
+        for attempt in range(10):
+            t0 = torch.tensor([attempt * 100 + 1.5], dtype=torch.float32).cuda()
+            increment = torch.tensor([10], dtype=torch.float32).cuda()
+            pipe = Pipeline(1, 3, 0)
+
+            def gen_batch():
+                nonlocal t0
+                t0 += increment
+                return [t0]
+
+            pipe.set_outputs(fn.external_source(gen_batch, cuda_stream = -1))
+            pipe.build()
+
+            for i in range(10):
+                check_output(pipe.run(), [np.array([attempt * 100 + (i + 1) * 10 + 1.5], dtype=np.float32)])
