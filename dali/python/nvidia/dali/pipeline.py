@@ -473,7 +473,8 @@ Parameters
             dimension excluded. For a batch of channel-first images, this should be "CHW", for
             channel-last video it's "FHWC" and so on.
 
-        cuda_stream : a cuda stream, which is going to be used for copying data to GPU or from a GPU
+        cuda_stream : optional, `cudaStream_t` or an object convertible to `cudaStream_t`, e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
+            The CUDA stream, which is going to be used for copying data to GPU or from a GPU
             source. If not set, best effort will be taken to maintain correctness - i.e. if the data
             is provided as a tensor/array from a recognized library (CuPy, PyTorch), the library's
             current stream is used. This should work in typical scenarios, but advanced use cases
@@ -481,8 +482,8 @@ Parameters
             explicitly.
 
             Special values:
-            *  0 - use default CUDA stream
-            * -1 - use DALI's internal stream
+              *  0 - use default CUDA stream
+              * -1 - use DALI's internal stream
 
             If internal stream is used, the call to ``feed_input`` will block until the copy to
             internal buffer is complete, since there's no way to synchronize with this stream to

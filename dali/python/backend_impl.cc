@@ -132,14 +132,13 @@ TensorShape<> FillTensorData(const py::object object, TensorType *t, int device_
                 cu_a_interface.contains("data") &&
                 PyTuple_Check(cu_a_interface["data"].ptr()) &&
                 cu_a_interface["data"].cast<py::tuple>().size() >= 2 &&
-                cu_a_interface.contains("version") &&
-                // see https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
-                // this set of atributes is tagged as version 2
-                cu_a_interface["version"].cast<int>() >= 2,
+                cu_a_interface.contains("version"),
                 "Provided object doesn't have required cuda array interface "
                 "protocol fields of necessary type.");
   DALI_ENFORCE(!cu_a_interface.contains("strides") || cu_a_interface["strides"].is_none(),
                 "Strided data is not supported");
+  DALI_ENFORCE(!cu_a_interface.contains("mask") || cu_a_interface["mask"].is_none(),
+                "Masked tensors are not supported");
 
   // Create the Tensor and wrap the data
   TensorShape<> shape = shape_from_py(cu_a_interface["shape"].cast<py::tuple>());
