@@ -70,7 +70,7 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream = None):
                     Tensor from which to copy
     `ptr` : LoDTensor data pointer
             Destination of the copy
-    `cuda_stream` : Any value that can be caste to cudaStream_t
+    `cuda_stream` : cudaStream_t handle or any value that can be cast to cudaStream_t
                     CUDA stream to be used for the copy
                     (if not provided, an internal user stream will be selected)
     """

@@ -48,7 +48,7 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
                     Tensor from which to copy
     `arr` : mxnet.nd.NDArray
             Destination of the copy
-    `cuda_stream` : Any value that can be cast to cudaStream_t
+    `cuda_stream` : cudaStream_t handle or any value that can be cast to cudaStream_t.
                     CUDA stream to be used for the copy
                     (if not provided, an internal user stream will be selected)
                     In most cases, using the default internal user stream or stream 0

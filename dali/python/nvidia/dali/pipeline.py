@@ -448,11 +448,9 @@ Parameters
         self._built = True
 
     def feed_input(self, data_node, data, layout="", cuda_stream = None):
-        """Bind a NumPy array (or a list thereof) to an output of ExternalSource.
-        In the case of the GPU input, it is the user responsibility to modify the
-        provided GPU memory content only using provided stream (DALI schedules
-        a copy on it and all work is properly queued). If no stream is provided
-        feed_input blocks until the provided memory is copied to the internal buffer
+        """Pass a mutlidimensional array (or a list thereof) to an output of ExternalSource.
+        In the case of the GPU input, the data must be modified on the same stream as the one
+        used by feed_input. See ``cuda_stream`` parameter for details.
 
         Parameters
         ----------
@@ -466,6 +464,7 @@ Parameters
               * MXNet ndarray (CPU)
               * PyTorch tensor (CPU or GPU)
               * CuPy array (GPU)
+              * objects implementing ``__cuda_array_interface__``
             The data to be used as the output of the ExternalSource referred to by `data_node`.
 
         layout : str
@@ -474,13 +473,20 @@ Parameters
             dimension excluded. For a batch of channel-first images, this should be "CHW", for
             channel-last video it's "FHWC" and so on.
 
-        `cuda_stream` : a cuda stream, which is going to be used for copying data to/from GPU source.
-            If not set, best effort will be taken to maintain correctness - i.e. default streams
-            will be used for recognized libraries.
+        cuda_stream : a cuda stream, which is going to be used for copying data to GPU or from a GPU
+            source. If not set, best effort will be taken to maintain correctness - i.e. if the data
+            is provided as a tensor/array from a recognized library (CuPy, PyTorch), the library's
+            current stream is used. This should work in typical scenarios, but advanced use cases
+            (and code using unsupported libraries) may still need to supply the stream handle
+            explicitly.
 
             Special values:
-              *  0 - use default CUDA stream
-              * -1 - use internal stream
+            *  0 - use default CUDA stream
+            * -1 - use DALI's internal stream
+
+            If internal stream is used, the call to ``feed_input`` will block until the copy to
+            internal buffer is complete, since there's no way to synchronize with this stream to
+            prevent overwriting the array with new data in another stream.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")

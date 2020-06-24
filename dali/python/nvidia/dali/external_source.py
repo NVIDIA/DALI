@@ -178,15 +178,20 @@ Keyword Args
     containing a distinct layout for each output. If the list has fewer elements than ``num_outputs``,
     only the first outputs have the layout set, the reset have it cleared.
 
-`cuda_stream` : a cuda stream, which is going to be used for copying data to/from GPU source.
-    If not set, best effort will be taken to maintain correctness - i.e. if the data is provided
-    as a tensor/array from a recognized library (CuPy, PyTorch), the library's current stream is
-    used. This should work in typical scenarios, but advanced use cases (and code using unsupported
-    libraries) may still need to supply the stream handle explicitly.
+`cuda_stream` : a cuda stream, which is going to be used for copying data to GPU or from a GPU
+    source. If not set, best effort will be taken to maintain correctness - i.e. if the data
+    is provided as a tensor/array from a recognized library (CuPy, PyTorch), the library's
+    current stream is used. This should work in typical scenarios, but advanced use cases
+    (and code using unsupported libraries) may still need to supply the stream handle
+    explicitly.
 
     Special values:
-     *  0 - use default CUDA stream
-     * -1 - use internal stream
+    *  0 - use default CUDA stream
+    * -1 - use DALI's internal stream
+
+    If internal stream is used, the call to ``feed_input`` will block until the copy to internal
+    buffer is complete, since there's no way to synchronize with this stream to prevent
+    overwriting the array with new data in another stream.
 """
 
     def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", cuda_stream = None, **kwargs):
