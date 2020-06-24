@@ -28,7 +28,7 @@
 #include "dali/operators/image/convolution/gaussian_blur_params.h"
 
 namespace dali {
-namespace kernels {
+namespace gaussian_blur {
 
 // TODO(klecki): OpenCV have special cases of precomputed values for for kernels of sizes 1-7 and
 // sigma = 0
@@ -37,15 +37,15 @@ TEST(GaussianBlurTest, FillGaussian) {
       {1, 0},     {3, 0},    {5, 0},      {7, 0},     {9, 0},    {11, 0},    {13, 0},
       {15, 0},    {101, 0},  {0, 0.025f}, {0, 0.25f}, {0, 0.5f}, {0, 0.75f}, {0, 1.f},
       {0, 1.25f}, {0, 1.5f}, {0, 2.f},    {0, 3.f},   {0, 5.f},  {0, 16.f}};
-  TestTensorList<float, 1> window;
+  kernels::TestTensorList<float, 1> window;
   for (const auto &size_sigma : size_sigma_pairs) {
     int size;
     float sigma;
     std::tie(size, sigma) = size_sigma;
     if (size == 0) {
-      size = GaussianSigmaToDiameter(sigma);
+      size = SigmaToDiameter(sigma);
     } else if (sigma == 0.f) {
-      sigma = GaussianDiameterToSigma(size);
+      sigma = DiameterToSigma(size);
     }
     TensorListShape<1> shape({TensorShape<1>{size}});
     window.reshape(shape);
@@ -178,5 +178,5 @@ TEST(GaussianWindowsTest, NoChangeNonUniform) {
   }
 }
 
-}  // namespace kernels
+}  // namespace gaussian_blur
 }  // namespace dali

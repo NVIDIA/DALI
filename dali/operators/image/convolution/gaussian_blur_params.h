@@ -17,22 +17,24 @@
 
 #include <vector>
 
+#include "dali/core/dev_array.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
+namespace gaussian_blur {
 
-int GaussianSigmaToDiameter(float sigma) {
+int SigmaToDiameter(float sigma) {
   return 2 * ceilf(sigma * 3) + 1;
 }
 
-float GaussianDiameterToSigma(int diameter) {
+float DiameterToSigma(int diameter) {
   // Based on OpenCV
   int radius = (diameter - 1) / 2;
   return (radius - 1) * 0.3 + 0.8;
 }
 
-struct GaussianDimDesc {
+struct DimDesc {
   int usable_axes_start;
   int usable_axes_count;
   bool has_channels;
@@ -41,8 +43,8 @@ struct GaussianDimDesc {
 
 template <int axes>
 struct GaussianSampleParams {
-  std::array<int, axes> window_sizes;
-  std::array<float, axes> sigmas;
+  DeviceArray<int, axes> window_sizes;
+  DeviceArray<float, axes> sigmas;
 
   bool IsUniform() const {
     for (int i = 1; i < axes; i++) {
@@ -66,8 +68,8 @@ void FillGaussian(const TensorView<StorageCPU, float, 1> &window, float sigma) {
   int r = (window.num_elements() - 1) / 2;
   // 1 / sqrt(2 * pi * sigma^2) * exp(-(x^2) / (2 * sigma^2))
   // the 1 / sqrt(2 * pi * sigma^2) coefficient disappears as we normalize the sum to 1.
-  double exp_scale = 0.5 / (sigma * sigma);
-  double sum = 0.;
+  float exp_scale = 0.5f / (sigma * sigma);
+  float sum = 0.f;
   // Calculate first half
   for (int x = -r; x < 0; x++) {
     *window(x + r) = exp(-(x * x * exp_scale));
@@ -76,7 +78,7 @@ void FillGaussian(const TensorView<StorageCPU, float, 1> &window, float sigma) {
   // Total sum, it's symmetric with `1` in the center.
   sum *= 2.;
   sum += 1.0;
-  double scale = 1. / sum;
+  float scale = 1.f / sum;
   // place center, scaled element
   *window(r) = scale;
   // scale all elements so they sum up to 1, duplicate the second half
@@ -135,6 +137,7 @@ class GaussianWindows {
   std::vector<float> memory;
 };
 
+}  // namespace gaussian_blur
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_IMAGE_CONVOLUTION_GAUSSIAN_BLUR_PARAMS_H_
