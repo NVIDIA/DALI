@@ -316,29 +316,23 @@ class CudaHttpPackage(CudaPackage):
 
 all_packages = [PlainPackage("opencv-python", ["4.2.0.32"]),
                 CudaPackage("cupy",
-                        { "90"  : ["7.3.0"],
-                          "100" : ["7.3.0"] },
+                        { "100" : ["7.5.0"] },
                         "cupy-cuda{cuda_v}"),
                 CudaPackage("mxnet",
-                        { "90"  : ["1.6.0"],
-                          "100" : ["1.5.1"] },
+                        { "100" : ["1.5.1"] },
                         "mxnet-cu{cuda_v}"),
                 CudaPackage("tensorflow-gpu",
-                        { "90"  : [PckgVer("1.12.0", python_max_ver="3.7")],
-                          "100" : [
-                              PckgVer("1.15.2",  python_max_ver="3.7"), 
+                        { "100" : [
+                              PckgVer("1.15.2",  python_max_ver="3.7"),
                               PckgVer("2.1.1",  python_max_ver="3.7"),
-                              "2.2.0"] 
+                              "2.2.0"]
                         }),
                 CudaHttpPackage("torch",
-                        { "90"  : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.1.0-{platform}.whl"],
-                          "100" : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.4.0+cu{cuda_v}-{platform}.whl"] }),
+                        { "100" : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.4.0+cu{cuda_v}-{platform}.whl"] }),
                 CudaHttpPackage("torchvision",
-                        { "90"  : ["https://download.pytorch.org/whl/cu{cuda_v}/torchvision-0.3.0-{platform}.whl"],
-                          "100" : ["https://download.pytorch.org/whl/cu{cuda_v}/torchvision-0.5.0+cu{cuda_v}-{platform}.whl"] }),
+                        { "100" : ["https://download.pytorch.org/whl/cu{cuda_v}/torchvision-0.5.0+cu{cuda_v}-{platform}.whl"] }),
                 CudaHttpPackage("paddle",
-                        { "90"  : ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda9-cudnn7-openblas/paddlepaddle_gpu-latest-{platform}.whl"],
-                          "100" : ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda10-cudnn7-openblas/paddlepaddle_gpu-latest-{platform}.whl"] })
+                        { "100" : ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda10-cudnn7-openblas/paddlepaddle_gpu-latest-{platform}.whl"] })
                ]
 
 all_packages_keys = [pckg.key for pckg in all_packages]
