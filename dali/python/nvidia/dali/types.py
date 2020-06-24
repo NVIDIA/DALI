@@ -259,7 +259,9 @@ def _is_numpy_array(value):
     return 'numpy.ndarray' in str(type(value))
 
 def _raw_cuda_stream(stream_obj):
-    if hasattr(stream_obj, "cuda_stream"):  # torch
+    if stream_obj is None:
+        return None
+    elif hasattr(stream_obj, "cuda_stream"):  # torch
         return stream_obj.cuda_stream
     elif hasattr(stream_obj, "ptr"):  # cupy
         return stream_obj.ptr
