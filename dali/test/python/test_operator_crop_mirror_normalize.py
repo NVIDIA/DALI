@@ -556,8 +556,3 @@ def test_slice_with_out_of_bounds_error():
         for batch_size in [1, 3]:
             yield check_cmn_with_out_of_bounds_error, \
                 device, batch_size, in_shape
-
-
-if __name__ == "__main__":
-    for f, *args in test_cmn_with_out_of_bounds_policy_support():
-        f(*args)

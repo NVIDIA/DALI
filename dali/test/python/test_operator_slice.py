@@ -466,20 +466,6 @@ def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start
 
     np.testing.assert_allclose(sample_out, expected, atol=1e-07)
 
-#    out_pad_before = sample_out[:pad_before[0], :pad_before[1], :orig_nchannels]
-#    out_pad_after = sample_out[pad_before[0]+sliced[0]:, pad_before[1]+sliced[1]:, :orig_nchannels]
-
-#    if pad_before[0] > 0 or pad_before[1] > 0:
-#        out_pad_before0 = sample_out[:pad_before[0], :, :orig_nchannels]
-#        np.testing.assert_array_equal(out_pad_before0, np.full(out_pad_before0.shape, fill_values))
-#        out_pad_before1 = sample_out[:, :pad_before[1], :orig_nchannels]
-#        np.testing.assert_array_equal(out_pad_before1, np.full(out_pad_before1.shape, fill_values))
-#    if pad_after[0] > 0 or pad_after[1] > 0:
-#        out_pad_after0 = sample_out[out_shape[0]-pad_after[0]:, :, :orig_nchannels]
-#        np.testing.assert_array_equal(out_pad_after0, np.full(out_pad_after0.shape, fill_values))
-#        out_pad_after1 = sample_out[:, out_shape[1]-pad_after[1]:, :orig_nchannels]
-#        np.testing.assert_array_equal(out_pad_after1, np.full(out_pad_after1.shape, fill_values))
-
 def check_slice_with_out_of_bounds_policy_support(device, batch_size, input_shape=(100, 200, 3),
                                                   out_of_bounds_policy=None, fill_values=(0x76, 0xb9, 0x00),
                                                   normalized_anchor=False, normalized_shape=False):

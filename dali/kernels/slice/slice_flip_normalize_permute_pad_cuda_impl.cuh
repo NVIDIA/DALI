@@ -143,8 +143,8 @@ __device__ void SliceNormalizePermutePadFunc(
     uint64_t idx = offset;
     uint64_t out_idx = idx;
 
-    // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
-    // because know the strides are 1 (or we treat them as 1 if we fused dimensions)
+    // We can avoid division in the last dimension because know the strides are 1
+    // (or we treat them as 1 if we fused dimensions)
     int i_c = 0;
     int i_d;
     bool out_of_bounds = false;
@@ -198,8 +198,8 @@ __device__ void SliceFlipNormalizePermutePadFunc(
     uint64_t idx = offset;
     uint64_t out_idx = idx;
 
-    // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
-    // because know the strides are 1 (or we treat them as 1 if we fused dimensions)
+    // We can avoid division in the last dimension because know the strides are 1
+    // (or we treat them as 1 if we fused dimensions)
     int i_c = 0;
     int i_d;
     bool out_of_bounds = false;
