@@ -63,10 +63,7 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     ptr = ctypes.c_void_p()
     mx.base._LIB.MXNDArrayGetData(arr.handle, ctypes.byref(ptr))
 
-    if hasattr(cuda_stream, "cuda_stream"):  # torch
-        cuda_stream = cuda_stream.cuda_stream
-    elif hasattr(cuda_stream, "ptr"):  # cupy
-        cuda_stream = cuda_stream.ptr
+    cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     # Copy data from DALI tensor to ptr
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):

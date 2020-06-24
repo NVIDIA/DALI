@@ -20,15 +20,14 @@ from test_internals_operator_external_source import *
 use_cupy()
 
 # extra tests, GPU-specific
-import cupy
-datapy=cupy
+import cupy as cp
 
 def test_external_source_with_iter_cupy_stream():
     with cupy.cuda.Stream(non_blocking=True):
         for attempt in range(10):
             pipe = Pipeline(1, 3, 0)
 
-            pipe.set_outputs(fn.external_source(lambda i: [datapy.array([attempt * 100 + i * 10 + 1.5], dtype=datapy.float32)]))
+            pipe.set_outputs(fn.external_source(lambda i: [cp.array([attempt * 100 + i * 10 + 1.5], dtype=cp.float32)]))
             pipe.build()
 
             for i in range(10):

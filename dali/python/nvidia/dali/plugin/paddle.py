@@ -75,10 +75,7 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream = None):
                     (if not provided, an internal user stream will be selected)
     """
 
-    if hasattr(cuda_stream, "cuda_stream"):  # torch
-        cuda_stream = cuda_stream.cuda_stream
-    elif hasattr(cuda_stream, "ptr"):  # cupy
-        cuda_stream = cuda_stream.ptr
+    cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     c_type_pointer = ctypes.c_void_p(ptr)
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):

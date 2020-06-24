@@ -57,10 +57,8 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     assert dali_tensor.shape() == list(arr.size()), \
             ("Shapes do not match: DALI tensor has size {0}"
             ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
-    if cuda_stream is torch.cuda.Stream:
-        cuda_stream = cuda_stream.cuda_stream
-    elif hasattr(cuda_stream, "ptr"):  # cupy
-        cuda_stream = cuda_stream.ptr
+    cuda_stream = types._raw_cuda_stream(cuda_stream)
+
     # turn raw int to a c void pointer
     c_type_pointer = ctypes.c_void_p(arr.data_ptr())
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):

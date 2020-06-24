@@ -33,14 +33,6 @@ def _show_deprecation_warning(deprecated, in_favor_of):
         warnings.warn("{} is deprecated, please use {} instead".format(deprecated, in_favor_of),
                       Warning, stacklevel=2)
 
-def _raw_cuda_stream(stream_obj):
-    if hasattr(stream_obj, "cuda_stream"):  # torch
-        return stream_obj.cuda_stream
-    elif hasattr(stream_obj, "ptr"):  # cupy
-        return stream_obj.ptr
-    else:
-        return stream_obj
-
 def _get_default_stream_for_array(array):
     if types._is_torch_tensor(array):
         import torch
@@ -478,11 +470,13 @@ Parameters
             dimension excluded. For a batch of channel-first images, this should be "CHW", for
             channel-last video it's "FHWC" and so on.
 
-        `cuda_stream` : Any value that can be casted to cudaStream_t
-                    CUDA stream to be used for the copy (only relevant for GPU inputs)
-                    If not provided, an internal stream will be selected.
-                    In most cases, using the default internal user stream or stream 0
-                    is expected.
+        `cuda_stream` : a cuda stream, which is going to be used for copying data to/from GPU source.
+            If not set, best effort will be taken to maintain correctness - i.e. default streams
+            will be used for recognized libraries.
+
+            Special values:
+            *  0 - use default CUDA stream
+            * -1 - use internal stream
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -501,7 +495,7 @@ Parameters
         if cuda_stream == -1:
             cuda_stream = None
         else:
-            cuda_stream = _raw_cuda_stream(cuda_stream);
+            cuda_stream = types._raw_cuda_stream(cuda_stream)
 
         # __cuda_array_interface__ doesn't provide any way to pass the information about the device
         # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
@@ -510,7 +504,7 @@ Parameters
             inputs = []
             for datum in data:
                 if hasattr(datum, "__cuda_array_interface__"):
-                    if infer_stream and cuda_stream is None:
+                    if infer_stream:
                         cuda_stream = _get_default_stream_for_array(datum)
                     inp = Tensors.TensorGPU(datum, layout)
                 else:
@@ -521,7 +515,7 @@ Parameters
             self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream))
         else:
             if hasattr(data, "__cuda_array_interface__"):
-                if infer_stream and cuda_stream is None:
+                if infer_stream:
                     cuda_stream = _get_default_stream_for_array(data)
                 inp = Tensors.TensorListGPU(data, layout)
             else:
