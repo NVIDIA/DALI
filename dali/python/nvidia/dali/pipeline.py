@@ -457,12 +457,16 @@ Parameters
         Parameters
         ----------
         data_node : :class:`DataNode` or str
-            The :class:`DataNode` returned by a call to ExternalSource or a name of the
-            :class:`nvidia.dali.ops.ExternalSource`
+            The name of the :class:`nvidia.dali.ops.ExternalSource` node or a :class:`DataNode`
+            object returned by a call to that ExternalSource.
 
-        data : numpy.ndarray or a list thereof
+        data : an ndarray or a list thereof
+            The array(s) may be one of:
+              * NumPy ndarray (CPU)
+              * MXNet ndarray (CPU)
+              * PyTorch tensor (CPU or GPU)
+              * CuPy array (GPU)
             The data to be used as the output of the ExternalSource referred to by `data_node`.
-            In case of GPU external sources, this must be a ``numpy.ndarray``.
 
         layout : str
             The description of the data layout (or empty string, if not specified).
@@ -475,8 +479,8 @@ Parameters
             will be used for recognized libraries.
 
             Special values:
-            *  0 - use default CUDA stream
-            * -1 - use internal stream
+              *  0 - use default CUDA stream
+              * -1 - use internal stream
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")

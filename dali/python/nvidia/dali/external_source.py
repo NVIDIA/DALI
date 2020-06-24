@@ -153,8 +153,8 @@ Args
     again when the generator reaches end of iteration.
     In the case of the GPU input, it is the user responsibility to modify the
     provided GPU memory content only using provided stream (DALI schedules a copy on it
-    and all work is properly queued). If no stream is provided feeding input blocks until the
-    provided memory is copied to the internal buffer
+    and all work is properly queued). If no stream is provided, DALI will use a default, with
+    best-effort approach at correctness (see ``cuda_stream`` argument documentation for details).
 
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists produced by the source function
@@ -179,8 +179,10 @@ Keyword Args
     only the first outputs have the layout set, the reset have it cleared.
 
 `cuda_stream` : a cuda stream, which is going to be used for copying data to/from GPU source.
-    If not set, best effort will be taken to maintain correctness - i.e. default streams
-    will be used for recognized libraries.
+    If not set, best effort will be taken to maintain correctness - i.e. if the data is provided
+    as a tensor/array from a recognized library (CuPy, PyTorch), the library's current stream is
+    used. This should work in typical scenarios, but advanced use cases (and code using unsupported
+    libraries) may still need to supply the stream handle explicitly.
 
     Special values:
      *  0 - use default CUDA stream
