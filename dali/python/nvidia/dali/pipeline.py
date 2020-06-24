@@ -512,10 +512,8 @@ Parameters
             inputs = []
             for datum in data:
                 if hasattr(datum, "__cuda_array_interface__"):
-                    print("CUDA source")
                     if infer_stream:
-                        #cuda_stream = _get_default_stream_for_array(datum)
-                        print("stream: ", cuda_stream)
+                        cuda_stream = _get_default_stream_for_array(datum)
                     inp = Tensors.TensorGPU(datum, layout)
                 else:
                     datum = to_numpy(datum)
@@ -526,10 +524,8 @@ Parameters
             self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream))
         else:
             if hasattr(data, "__cuda_array_interface__"):
-                print("CUDA source")
                 if infer_stream:
-                    #cuda_stream = _get_default_stream_for_array(data)
-                    print("stream: ", cuda_stream)
+                    cuda_stream = _get_default_stream_for_array(data)
                 inp = Tensors.TensorListGPU(data, layout)
             else:
                 data = to_numpy(data)

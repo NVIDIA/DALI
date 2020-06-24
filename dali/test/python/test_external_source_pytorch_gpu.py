@@ -38,7 +38,7 @@ def test_external_source_with_iter_torch_stream():
                 t0 += increment
                 return [t0]
 
-            pipe.set_outputs(fn.external_source(gen_batch, cuda_stream = -1))
+            pipe.set_outputs(fn.external_source(gen_batch))
             pipe.build()
 
             for i in range(10):
