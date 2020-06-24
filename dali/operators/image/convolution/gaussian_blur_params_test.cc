@@ -78,7 +78,7 @@ void CheckNonUniformWindows(const std::array<TensorView<StorageCPU, const float,
 
 template <size_t axes, int axes_params = axes>
 void CheckMatchingShapes(const std::array<TensorView<StorageCPU, const float, 1>, axes> &views,
-                         const GaussianSampleParams<axes_params> &params) {
+                         const GaussianBlurParams<axes_params> &params) {
   for (size_t i = 0; i < axes; i++) {
     EXPECT_EQ(params.window_sizes[i], views[i].shape[0]);
   }
@@ -87,7 +87,7 @@ void CheckMatchingShapes(const std::array<TensorView<StorageCPU, const float, 1>
 TEST(GaussianWindowsTest, InitUniform) {
   constexpr int axes = 2;
   GaussianWindows<axes> windows;
-  GaussianSampleParams<axes> params_uniform = {{7, 7}, {1.0f, 1.0f}};
+  GaussianBlurParams<axes> params_uniform = {{7, 7}, {1.0f, 1.0f}};
   windows.PrepareWindows(params_uniform);
   auto views = windows.GetWindows();
   CheckUniformWindows(views);
@@ -97,7 +97,7 @@ TEST(GaussianWindowsTest, InitUniform) {
 TEST(GaussianWindowsTest, InitNonUniformSigma) {
   constexpr int axes = 2;
   GaussianWindows<axes> windows;
-  GaussianSampleParams<axes> params = {{7, 7}, {1.0f, 2.0f}};
+  GaussianBlurParams<axes> params = {{7, 7}, {1.0f, 2.0f}};
   windows.PrepareWindows(params);
   auto views = windows.GetWindows();
   CheckNonUniformWindows(views);
@@ -107,7 +107,7 @@ TEST(GaussianWindowsTest, InitNonUniformSigma) {
 TEST(GaussianWindowsTest, InitNonUniformShape) {
   constexpr int axes = 2;
   GaussianWindows<axes> windows;
-  GaussianSampleParams<axes> params = {{7, 9}, {1.0f, 1.0f}};
+  GaussianBlurParams<axes> params = {{7, 9}, {1.0f, 1.0f}};
   windows.PrepareWindows(params);
   auto views = windows.GetWindows();
   CheckNonUniformWindows(views);
@@ -117,8 +117,8 @@ TEST(GaussianWindowsTest, InitNonUniformShape) {
 TEST(GaussianWindowsTest, Uniform2NonUniform) {
   constexpr int axes = 2;
   GaussianWindows<axes> windows;
-  GaussianSampleParams<axes> params_uniform = {{7, 7}, {1.0f, 1.0f}};
-  GaussianSampleParams<axes> params_non_uniform = {{7, 14}, {2.0f, 1.0f}};
+  GaussianBlurParams<axes> params_uniform = {{7, 7}, {1.0f, 1.0f}};
+  GaussianBlurParams<axes> params_non_uniform = {{7, 14}, {2.0f, 1.0f}};
 
   windows.PrepareWindows(params_uniform);
   auto views_uniform = windows.GetWindows();
@@ -134,8 +134,8 @@ TEST(GaussianWindowsTest, Uniform2NonUniform) {
 TEST(GaussianWindowsTest, NonUniform2Uniform) {
   constexpr int axes = 2;
   GaussianWindows<axes> windows;
-  GaussianSampleParams<axes> params_uniform = {{7, 7}, {1.0f, 1.0f}};
-  GaussianSampleParams<axes> params_non_uniform = {{7, 14}, {2.0f, 1.0f}};
+  GaussianBlurParams<axes> params_uniform = {{7, 7}, {1.0f, 1.0f}};
+  GaussianBlurParams<axes> params_non_uniform = {{7, 14}, {2.0f, 1.0f}};
 
   windows.PrepareWindows(params_non_uniform);
   auto views_non_uniform = windows.GetWindows();
@@ -151,7 +151,7 @@ TEST(GaussianWindowsTest, NonUniform2Uniform) {
 TEST(GaussianWindowsTest, NoChangeUniform) {
   constexpr int axes = 2;
   GaussianWindows<axes> windows;
-  GaussianSampleParams<axes> params_uniform = {{7, 7}, {1.0f, 1.0f}};
+  GaussianBlurParams<axes> params_uniform = {{7, 7}, {1.0f, 1.0f}};
 
   windows.PrepareWindows(params_uniform);
   auto views_uniform_0 = windows.GetWindows();
@@ -166,7 +166,7 @@ TEST(GaussianWindowsTest, NoChangeUniform) {
 TEST(GaussianWindowsTest, NoChangeNonUniform) {
   constexpr int axes = 2;
   GaussianWindows<axes> windows;
-  GaussianSampleParams<axes> params_non_uniform = {{7, 14}, {2.0f, 1.0f}};
+  GaussianBlurParams<axes> params_non_uniform = {{7, 14}, {2.0f, 1.0f}};
 
   windows.PrepareWindows(params_non_uniform);
   auto views_non_uniform_0 = windows.GetWindows();

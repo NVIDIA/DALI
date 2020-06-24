@@ -42,7 +42,7 @@ struct DimDesc {
 };
 
 template <int axes>
-struct GaussianSampleParams {
+struct GaussianBlurParams {
   DeviceArray<int, axes> window_sizes;
   DeviceArray<float, axes> sigmas;
 
@@ -55,11 +55,11 @@ struct GaussianSampleParams {
     return true;
   }
 
-  bool operator==(const GaussianSampleParams<axes> &other) const {
+  bool operator==(const GaussianBlurParams<axes> &other) const {
     return window_sizes == other.window_sizes && sigmas == other.sigmas;
   }
 
-  bool operator!=(const GaussianSampleParams<axes> &other) const {
+  bool operator!=(const GaussianBlurParams<axes> &other) const {
     return !(*this == other);
   }
 };
@@ -96,7 +96,7 @@ class GaussianWindows {
     previous.window_sizes = uniform_array<axes>(0);
   }
 
-  void PrepareWindows(const GaussianSampleParams<axes> &params) {
+  void PrepareWindows(const GaussianBlurParams<axes> &params) {
     bool changed = previous != params;
     if (!changed)
       return;
@@ -133,7 +133,7 @@ class GaussianWindows {
 
  private:
   std::array<TensorView<StorageCPU, const float, 1>, axes> precomputed_window;
-  GaussianSampleParams<axes> previous;
+  GaussianBlurParams<axes> previous;
   std::vector<float> memory;
 };
 
