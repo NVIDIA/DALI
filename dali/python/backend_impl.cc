@@ -113,31 +113,34 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
 }
 
 template<typename SrcBackend>
-TensorListShape<> CreateShape(TensorShape<> &shape, TensorList<SrcBackend>*) {
-  std::vector<Index> tensor_shape(shape.size()-1);
-  for (int i = 1; i < shape.size(); ++i) {
-    tensor_shape[i-1] = shape[i];
-  }
-  return uniform_list_shape(shape[0], tensor_shape);
+const TensorListShape<> ConvertShape(const TensorShape<> &shape,
+                                      TensorList<SrcBackend> *shape_type_placeholder) {
+  return uniform_list_shape(shape[0], shape.last(shape.size()-1));
 }
 
 template<typename SrcBackend>
-TensorShape<> CreateShape(TensorShape<> &shape, Tensor<SrcBackend>*) {
+const TensorShape<> &ConvertShape(const TensorShape<> &shape,
+                                  Tensor<SrcBackend> *shape_type_placeholder) {
   return shape;
 }
 
 template<typename TStrides, typename TShape>
-void CheckStrides(TStrides &strides, TShape &shape, size_t type_size,
-                  size_t strides_size, size_t shape_size) {
-  DALI_ENFORCE(strides_size == shape_size,
+void CheckContiguousTensor(const TStrides &strides, size_t num_strides,
+                           const TShape &shape, size_t num_extents, size_t element_size) {
+  DALI_ENFORCE(num_strides == num_extents,
     "There should be exactly as many strides as there are extents in array shape.");
-  int64_t stride_from_shape = type_size;
-  for (int i = strides_size - 1; i >= 0; i--) {
+  int64_t stride_from_shape = element_size;
+  for (int i = num_strides - 1; i >= 0; i--) {
     DALI_ENFORCE(strides[i] == stride_from_shape,
         make_string("Strided data not supported. Dimension ", i, " has stride ", strides[i],
         " whereas densely packed data of this shape would have a stride ", stride_from_shape));
     stride_from_shape *= shape[i];
   }
+}
+
+template<typename TStrides, typename TShape>
+void CheckContiguousTensor(const TStrides &strides, const TShape &shape, size_t element_size) {
+  CheckContiguousTensor(strides, dali::size(strides), shape, dali::size(shape), element_size);
 }
 
 template<typename SrcBackend, template<typename> class SourceDataType>
@@ -158,12 +161,12 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
     shape[i] = dl_tensor.shape[i];
   }
 
-  CheckStrides(dl_tensor.strides, dl_tensor.shape, 1, dl_tensor.ndim, dl_tensor.ndim);
+  CheckContiguousTensor(dl_tensor.strides, dl_tensor.ndim, dl_tensor.shape, dl_tensor.ndim, 1);
   size_t bytes = volume(shape) * dali_type.size();
 
   // empty lambda that just captures dlm_tensor_ptr unique ptr that would be destructed when
   // shared ptr is destroyed
-  auto typed_shape = CreateShape(shape, batch);
+  auto typed_shape = ConvertShape(shape, batch);
   batch->ShareData(shared_ptr<void>(dl_tensor.data,
                                     [dlm_tensor_ptr = move(dlm_tensor_ptr)](void*) {}),
                                     bytes, typed_shape, dali_type);
@@ -221,10 +224,10 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
 
   if (cu_a_interface.contains("strides") && !cu_a_interface["strides"].is_none()) {
     TensorShape<> strides = shape_from_py(cu_a_interface["strides"].cast<py::tuple>());
-    CheckStrides(strides, shape, type.size(), strides.size(), shape.size());
+    CheckContiguousTensor(strides, shape, type.size());
   }
 
-  auto typed_shape = CreateShape(shape, batch);
+  auto typed_shape = ConvertShape(shape, batch);
   batch->ShareData(PyLong_AsVoidPtr(cu_a_interface["data"].cast<py::tuple>()[0].ptr()), bytes,
                    typed_shape, type);
   batch->SetLayout(layout);
@@ -280,8 +283,7 @@ void ExposeTensor(py::module &m) {
       "ptr"_a,
       R"code(
       Check if provided python object represent a valid DLPack capsule.
-      It returns a two element tuple, if this is a valid DLPack object, and if data
-      resides on the GPU.
+      It returns a tuple of two boolean values: one indicating if this is a valid DLPack object, and the other if the data
 
       Parameters
       ----------
@@ -344,8 +346,7 @@ void ExposeTensor(py::module &m) {
           size_t bytes = volume(i_shape) * info.itemsize;
 
           // Validate the stride
-          CheckStrides(info.strides, info.shape, info.itemsize, info.strides.size(),
-                       info.shape.size());
+          CheckContiguousTensor(info.strides, info.shape, info.itemsize);
 
           // Create the Tensor and wrap the data
           auto t = new Tensor<CPUBackend>;
@@ -584,8 +585,7 @@ void ExposeTensorList(py::module &m) {
         size_t bytes = volume(tensor_shape)*i_shape.size()*info.itemsize;
 
         // Validate the stride
-        CheckStrides(info.strides, info.shape, info.itemsize, info.strides.size(),
-                     info.shape.size());
+        CheckContiguousTensor(info.strides, info.shape, info.itemsize);
 
         // Create the Tensor and wrap the data
         auto t = new TensorList<CPUBackend>;

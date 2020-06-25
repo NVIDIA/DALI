@@ -47,6 +47,10 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     });
   }
   thread_pool.WaitForWork();
+  // as we copy element by element and the output is continuous we need to set layout for the whole
+  // output not each element(view)
+  auto &output = ws.template OutputRef<CPUBackend>(0);
+  output.SetLayout(tensor_list_elm.front()->GetLayout());
   RecycleBuffer(tensor_list_elm, nullptr, &internal_copy_to_storage);
 }
 

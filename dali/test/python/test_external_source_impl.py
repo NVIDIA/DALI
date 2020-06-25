@@ -35,7 +35,7 @@ def _to_numpy(x):
     assert(False)
 
 def cast_to(x, dtype):
-    return x.astype(type)
+    return x.astype(dtype)
 
 def asnumpy(x):
     if x is None:
@@ -523,9 +523,9 @@ def test_external_source_gpu():
 
         def iter_setup(self):
             if use_list:
-                batch_data = [cast_to(random_array([100, 100, 3]), datapy.uint8) for _ in range(self.batch_size)]
+                batch_data = [cast_to(random_array([100, 100, 3]) * 256, datapy.uint8) for _ in range(self.batch_size)]
             else:
-                batch_data = cast_to(random_array([self.batch_size, 100, 100, 3]), datapy.uint8)
+                batch_data = cast_to(random_array([self.batch_size, 100, 100, 3]) * 256, datapy.uint8)
             self.feed_input(self.batch, batch_data, layout="HWC")
 
     for batch_size in [1, 10]:

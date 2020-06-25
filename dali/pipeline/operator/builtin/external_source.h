@@ -57,7 +57,7 @@ class CachingList {
     return full_data_.empty();
   }
 
-  T &PeakFront() {
+  T &PeekFront() {
     return full_data_.front();
   }
 
@@ -226,8 +226,8 @@ class ExternalSource : public Operator<Backend> {
           DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
         }
       }
-      output_desc[0].shape = tl_data_.PeakFront()->shape();
-      output_desc[0].type = tl_data_.PeakFront()->type();
+      output_desc[0].shape = tl_data_.PeekFront()->shape();
+      output_desc[0].type = tl_data_.PeekFront()->type();
     }
     return true;
   }

@@ -276,7 +276,7 @@ class Tensor : public Buffer<Backend> {
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes,
                         const TensorShape<> &shape,
-                        const TypeInfo &type = TypeInfo::Create<NoType>()) {
+                        const TypeInfo &type = {}) {
     DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
 
     // Save our new pointer and bytes. Reset our type, shape, and size
