@@ -35,10 +35,8 @@ constexpr static const char* kWindowSizeArgName = "window_size";
 
 DALI_SCHEMA(GaussianBlur)
     .DocStr(R"code(Apply Gaussian Blur to the input.
-Separable convolution with Gaussian kernels is used, proceeding from innermost to outermost
-dimension to calculate the output.
 
-User can specify the sigma or kernel window size.
+User can specify sigma, kernel window size or both.
 If only the sigma is provided, the radius is of kernel is calculated ``ceil(3 * sigma)``,
 thus the kernel window size is ``2 * ceil(3 * sigma) + 1``.
 
@@ -127,9 +125,9 @@ GaussianBlurParams<axes> GetSampleParams(int sample, const OpSpec& spec,
     DALI_ENFORCE(params.window_sizes[i] >= 0,
                  make_string("`window_size` must have non-negative values, got ",
                              params.window_sizes[i], " for sample: ", sample, ", axis : ", i, "."));
-    if (params.window_sizes[i] == 0 && params.sigmas[i] > 0.f) {
+    if (params.window_sizes[i] == 0) {
       params.window_sizes[i] = SigmaToDiameter(params.sigmas[i]);
-    } else if (params.sigmas[i] == 0.f && params.window_sizes[i] > 0) {
+    } else if (params.sigmas[i] == 0.f) {
       params.sigmas[i] = DiameterToSigma(params.window_sizes[i]);
     }
   }
@@ -199,7 +197,6 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     params_.resize(nsamples);
     windows_.resize(nsamples);
 
-    kmgr_.template Initialize<Kernel>();
     kmgr_.template Resize<Kernel>(nthreads, nsamples);
 
     for (int i = 0; i < nsamples; i++) {
@@ -278,8 +275,7 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
   auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
   dtype_ = dtype_ != DALI_NO_TYPE ? dtype_ : input.type().id();
   DALI_ENFORCE(dtype_ == input.type().id() || dtype_ == DALI_FLOAT,
-               "Unsupported output data type. Output type can be same as input (inferred "
-               "automatically) or set to float.");
+               "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
 
   // clang-format off
   TYPE_SWITCH(input.type().id(), type2id, In, GAUSSIAN_BLUR_SUPPORTED_TYPES, (
