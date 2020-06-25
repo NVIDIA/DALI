@@ -176,10 +176,10 @@ void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name, dev
 
 
 void daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
-                                    device_type_t device, const void *data_ptr,
-                                    dali_data_type_t data_type, const int64_t *shapes,
-                                    int sample_dim, const char *layout_str, cudaStream_t stream,
-                                    int sync, int is_pinned) {
+                               device_type_t device, const void *data_ptr,
+                               dali_data_type_t data_type, const int64_t *shapes,
+                               int sample_dim, const char *layout_str, cudaStream_t stream,
+                               int sync, int is_pinned) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInput<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
@@ -206,10 +206,10 @@ void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *na
 
 
 void daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const char *name,
-                                           device_type_t device, const void *const *data_ptr,
-                                           dali_data_type_t data_type, const int64_t *shapes,
-                                           int64_t sample_dim, const char *layout_str,
-                                           cudaStream_t stream, int sync, int is_pinned) {
+                                      device_type_t device, const void *const *data_ptr,
+                                      dali_data_type_t data_type, const int64_t *shapes,
+                                      int64_t sample_dim, const char *layout_str,
+                                      cudaStream_t stream, int sync, int is_pinned) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInputTensors<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
