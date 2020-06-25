@@ -449,7 +449,7 @@ struct VideoLayoutInfo : ImageLayoutInfo {
   /** @brief Returns true, if 'F' (frame) dimension is first */
   DALI_HOST_DEV
   static bool IsSequence(const TensorLayout &tl) {
-    return FrameDimIndex(tl) == 0;
+    return FrameDimIndex(tl) == 0 || (HasSampleDim(tl) && FrameDimIndex(tl) == 1);
   }
 
   /** @brief Returns true, if 'F' (frame) dimension is present */
