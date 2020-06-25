@@ -132,20 +132,30 @@ TensorShape<> FillTensorData(const py::object object, TensorType *t, int device_
                 cu_a_interface.contains("data") &&
                 PyTuple_Check(cu_a_interface["data"].ptr()) &&
                 cu_a_interface["data"].cast<py::tuple>().size() >= 2 &&
-                cu_a_interface.contains("version") &&
-                // see https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
-                // this set of atributes is tagged as version 2
-                cu_a_interface["version"].cast<int>() >= 2,
+                cu_a_interface.contains("version"),
                 "Provided object doesn't have required cuda array interface "
                 "protocol fields of necessary type.");
-  DALI_ENFORCE(!cu_a_interface.contains("strides") || cu_a_interface["strides"].is_none(),
-                "Strided data is not supported");
+  DALI_ENFORCE(!cu_a_interface.contains("mask") || cu_a_interface["mask"].is_none(),
+                "Masked tensors are not supported");
 
   // Create the Tensor and wrap the data
   TensorShape<> shape = shape_from_py(cu_a_interface["shape"].cast<py::tuple>());
 
   TypeInfo type = TypeFromFormatStr(cu_a_interface["typestr"].cast<py::str>());
   size_t bytes = volume(shape) * type.size();
+
+  if (cu_a_interface.contains("strides") && !cu_a_interface["strides"].is_none()) {
+    TensorShape<> strides = shape_from_py(cu_a_interface["strides"].cast<py::tuple>());
+    DALI_ENFORCE(strides.size() == shape.size(),
+      "There should be exactly as many strides as there are extents in array shape.");
+    int64_t stride_from_shape = type.size();
+    for (int i = strides.size() - 1; i >= 0; i--) {
+      DALI_ENFORCE(strides[i] == stride_from_shape,
+          make_string("Strided data not supported. Dimension ", i, " has stride ", strides[i],
+          " whereas densely packed data of this shape would have a stride ", stride_from_shape));
+      stride_from_shape *= shape[i];
+    }
+  }
 
   t->ShareData(PyLong_AsVoidPtr(cu_a_interface["data"].cast<py::tuple>()[0].ptr()), bytes);
   t->set_type(type);

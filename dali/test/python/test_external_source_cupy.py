@@ -16,5 +16,19 @@
 # nose will query for the methods available and will run them
 # the test_internals_operator_external_source is 99% the same for cupy and numpy tests
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
-from test_internals_operator_external_source import *
+from test_external_source_impl import *
 use_cupy()
+
+# extra tests, GPU-specific
+import cupy as cp
+
+def test_external_source_with_iter_cupy_stream():
+    with cp.cuda.Stream(non_blocking=True):
+        for attempt in range(10):
+            pipe = Pipeline(1, 3, 0)
+
+            pipe.set_outputs(fn.external_source(lambda i: [cp.array([attempt * 100 + i * 10 + 1.5], dtype=cp.float32)]))
+            pipe.build()
+
+            for i in range(10):
+                check_output(pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])

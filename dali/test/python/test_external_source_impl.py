@@ -10,20 +10,55 @@ import random
 from collections import Iterable
 datapy = np
 
-cupy_used = False
+make_array = np.array
 
 # to use this it is enough to just import all functions from it by `from test_internals_operator_external_source import *`
 # nose will query for the methods available and will run them
 # the code for CPU and GPU input is 99% the same and the biggest difference is between importing numpy or cupy
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
 
+def _to_numpy(x):
+    assert(False)
+
+def asnumpy(x):
+    if x is None:
+        return None
+    if isinstance(x, list):
+        return [asnumpy(y) for y in x]
+    if isinstance(x, np.ndarray):
+        return x
+    return _to_numpy(x)
+
 def use_cupy():
     global cp
-    global cupy_used
     global datapy
+    global make_array
+    global _to_numpy
     import cupy as cp
-    cupy_used = True
     datapy = cp
+    make_array = cp.array
+    _to_numpy = cp.asnumpy
+
+random_seed = datapy.random.seed
+random_array = datapy.random.ranf
+random_int = datapy.random.randint
+
+def use_torch(gpu):
+    global torch
+    global datapy
+    global _to_numpy
+    import torch
+    datapy = torch
+    def torch2numpy(tensor):
+        return np.array(tensor.cpu())
+    _to_numpy = torch2numpy
+    global random_array
+    def make_torch_tensor(*args, **kwargs):
+        t = torch.tensor(*args, **kwargs)
+        return t.cuda() if gpu else t
+    random_array = lambda shape: make_torch_tensor(np.random.ranf(shape))
+    global make_array
+    make_array = make_torch_tensor
 
 class TestIterator():
     def __init__(self, n, batch_size, dims = [2], as_tensor = False):
@@ -41,13 +76,13 @@ class TestIterator():
         return TestIterator(self.n, self.batch_size, self.dims, self.as_tensor)
 
     def __next__(self):
-        datapy.random.seed(12345 * self.i + 4321)
+        random_seed(12345 * self.i + 4321)
         def generate(dim):
-            shape = datapy.random.randint(1, 10, [dim]).tolist()
+            shape = random_int(1, 10, [dim]).tolist()
             if self.as_tensor:
-                return datapy.random.ranf([self.batch_size] + shape)
+                return random_array([self.batch_size] + shape)
             else:
-                return [datapy.random.ranf(shape) for _ in range(self.batch_size)]
+                return [random_array(shape) for _ in range(self.batch_size)]
         if self.i < self.n:
             self.i += 1
             if isinstance(self.dims, (list, tuple)):
@@ -66,15 +101,7 @@ def run_and_check(pipe, ref_iterable):
         try:
             pipe_out = pipe.run()
             data = next(iter_ref)
-            if cupy_used:
-                # convert cupy to numpy for the verification needs
-                if isinstance(data, Iterable):
-                    if isinstance(data[0], Iterable):
-                        data = [[cp.asnumpy(d) for d in dd] for dd in data]
-                    else:
-                        data = [cp.asnumpy(d) for d in data]
-                else:
-                    data = cp.asnumpy(data)
+            data = asnumpy(data)
             check_output(pipe_out, data)
             i += 1
         except StopIteration:
@@ -229,8 +256,8 @@ def test_external_source_collection():
     pipe = Pipeline(1, 3, 0)
 
     batches = [
-        [datapy.array([1.5,2.5], dtype= datapy.float32)],
-        [datapy.array([-1, 3.5,4.5], dtype= datapy.float32)]
+        [make_array([1.5,2.5], dtype=datapy.float32)],
+        [make_array([-1, 3.5,4.5], dtype=datapy.float32)]
     ]
 
     pipe.set_outputs(fn.external_source(batches))
@@ -242,8 +269,8 @@ def test_external_source_collection_cycling():
     pipe = Pipeline(1, 3, 0)
 
     batches = [
-        [datapy.array([1.5,2.5], dtype= datapy.float32)],
-        [datapy.array([-1, 3.5,4.5], dtype= datapy.float32)]
+        [make_array([1.5,2.5], dtype=datapy.float32)],
+        [make_array([-1, 3.5,4.5], dtype=datapy.float32)]
     ]
 
     pipe.set_outputs(fn.external_source(batches, cycle = True))
@@ -252,25 +279,25 @@ def test_external_source_collection_cycling():
     # epochs are cycles over the source iterable
     for _ in range(3):
         for batch in batches:
-            if cupy_used:
-                batch = [cp.asnumpy(x) for x in batch]
+            batch = asnumpy(batch)
             check_output(pipe.run(), batch)
 
 def test_external_source_with_iter():
-    pipe = Pipeline(1, 3, 0)
+    for attempt in range(10):
+        pipe = Pipeline(1, 3, 0)
 
-    pipe.set_outputs(fn.external_source(lambda i: [datapy.array([i + 1.5], dtype=datapy.float32)]))
-    pipe.build()
+        pipe.set_outputs(fn.external_source(lambda i: [make_array([attempt * 100 + i * 10 + 1.5], dtype=datapy.float32)]))
+        pipe.build()
 
-    for i in range(10):
-        check_output(pipe.run(), [np.array([i + 1.5], dtype=np.float32)])
+        for i in range(10):
+            check_output(pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])
 
 def test_external_source_generator():
     pipe = Pipeline(1, 3, 0)
 
     def gen():
         for i in range(5):
-            yield [datapy.array([i + 1.5], dtype=datapy.float32)]
+            yield [make_array([i + 1.5], dtype=datapy.float32)]
 
     pipe.set_outputs(fn.external_source(gen()))
     pipe.build()
@@ -283,7 +310,7 @@ def test_external_source_gen_function_cycle():
 
     def gen():
         for i in range(5):
-            yield [datapy.array([i + 1.5], dtype=datapy.float32)]
+            yield [make_array([i + 1.5], dtype=datapy.float32)]
 
     pipe.set_outputs(fn.external_source(gen, cycle = True))
     pipe.build()
@@ -297,7 +324,7 @@ def test_external_source_generator_cycle_error():
 
     def gen():
         for i in range(5):
-            yield [datapy.array([i + 1.5], dtype=datapy.float32)]
+            yield [make_array([i + 1.5], dtype=datapy.float32)]
 
     fn.external_source(gen(), cycle = False)     # no cycle - OK
     with assert_raises(TypeError):
@@ -316,8 +343,8 @@ def test_external_source():
             batch_1 = []
             batch_2 = []
             if self.i < self.n:
-                batch_1.append(datapy.arange(0, 1, dtype=datapy.float))
-                batch_2.append(datapy.arange(0, 1, dtype=datapy.float))
+                batch_1.append(datapy.arange(0, 1, dtype=datapy.float32))
+                batch_2.append(datapy.arange(0, 1, dtype=datapy.float32))
                 self.i += 1
                 return batch_1, batch_2
             else:
@@ -443,7 +470,7 @@ def test_external_source_scalar_list():
         def iter_setup(self):
             batch = []
             for elm in self.external_data:
-                batch.append(datapy.array(elm, dtype=datapy.uint8))
+                batch.append(make_array(elm, dtype=datapy.uint8))
             self.feed_input(self.batch, batch)
 
     batch_size = 3
@@ -454,7 +481,6 @@ def test_external_source_scalar_list():
         lists.append([label_data + i])
         scalars.append(label_data + i * 10)
     for external_data in [lists, scalars]:
-        print(external_data)
         pipe = ExternalSourcePipeline(batch_size, external_data, 3, 0, label_data)
         pipe.build()
         for _ in range(10):
@@ -478,9 +504,9 @@ def test_external_source_gpu():
 
         def iter_setup(self):
             if use_list:
-                batch_data = [datapy.random.rand(100, 100, 3) for _ in range(self.batch_size)]
+                batch_data = [random_array([100, 100, 3]) for _ in range(self.batch_size)]
             else:
-                batch_data = datapy.random.rand(self.batch_size, 100, 100, 3)
+                batch_data = random_array([self.batch_size, 100, 100, 3])
             self.feed_input(self.batch, batch_data)
 
     for batch_size in [1, 10]:

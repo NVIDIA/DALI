@@ -20,6 +20,7 @@ from nvidia.dali import types
 from threading import local as tls
 from . import data_node as _data_node
 import warnings
+import ctypes
 pipeline_tls = tls()
 
 from .data_node import DataNode
@@ -32,6 +33,15 @@ def _show_deprecation_warning(deprecated, in_favor_of):
         warnings.warn("{} is deprecated, please use {} instead".format(deprecated, in_favor_of),
                       Warning, stacklevel=2)
 
+def _get_default_stream_for_array(array):
+    if types._is_torch_tensor(array):
+        import torch
+        return torch.cuda.current_stream().cuda_stream
+    elif types._is_cupy_array(array):
+        import cupy
+        return cupy.cuda.get_current_stream().ptr
+    else:
+        return None
 
 class Pipeline(object):
     """Pipeline class is the base of all DALI data pipelines. The pipeline
@@ -467,21 +477,24 @@ Parameters
         self._built = True
 
     def feed_input(self, data_node, data, layout="", cuda_stream = None):
-        """Bind a NumPy array (or a list thereof) to an output of ExternalSource.
-        In the case of the GPU input, it is the user responsibility to modify the
-        provided GPU memory content only using provided stream (DALI schedules
-        a copy on it and all work is properly queued). If no stream is provided
-        feed_input blocks until the provided memory is copied to the internal buffer
+        """Pass a mutlidimensional array (or a list thereof) to an output of ExternalSource.
+        In the case of the GPU input, the data must be modified on the same stream as the one
+        used by feed_input. See ``cuda_stream`` parameter for details.
 
         Parameters
         ----------
         data_node : :class:`DataNode` or str
-            The :class:`DataNode` returned by a call to ExternalSource or a name of the
-            :class:`nvidia.dali.ops.ExternalSource`
+            The name of the :class:`nvidia.dali.ops.ExternalSource` node or a :class:`DataNode`
+            object returned by a call to that ExternalSource.
 
-        data : numpy.ndarray or a list thereof
+        data : an ndarray or a list thereof
+            The array(s) may be one of:
+              * NumPy ndarray (CPU)
+              * MXNet ndarray (CPU)
+              * PyTorch tensor (CPU or GPU)
+              * CuPy array (GPU)
+              * objects implementing ``__cuda_array_interface__``
             The data to be used as the output of the ExternalSource referred to by `data_node`.
-            In case of GPU external sources, this must be a ``numpy.ndarray``.
 
         layout : str
             The description of the data layout (or empty string, if not specified).
@@ -489,11 +502,21 @@ Parameters
             dimension excluded. For a batch of channel-first images, this should be "CHW", for
             channel-last video it's "FHWC" and so on.
 
-        `cuda_stream` : Any value that can be casted to cudaStream_t
-                    CUDA stream to be used for the copy (only relevant for GPU inputs)
-                    If not provided, an internal stream will be selected.
-                    In most cases, using the default internal user stream or stream 0
-                    is expected.
+        cuda_stream : optional, `cudaStream_t` or an object convertible to `cudaStream_t`, e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
+            The CUDA stream, which is going to be used for copying data to GPU or from a GPU
+            source. If not set, best effort will be taken to maintain correctness - i.e. if the data
+            is provided as a tensor/array from a recognized library (CuPy, PyTorch), the library's
+            current stream is used. This should work in typical scenarios, but advanced use cases
+            (and code using unsupported libraries) may still need to supply the stream handle
+            explicitly.
+
+            Special values:
+              *  0 - use default CUDA stream
+              * -1 - use DALI's internal stream
+
+            If internal stream is used, the call to ``feed_input`` will block until the copy to
+            internal buffer is complete, since there's no way to synchronize with this stream to
+            prevent overwriting the array with new data in another stream.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -506,6 +529,22 @@ Parameters
         from nvidia.dali.external_source import _check_data_batch
         _check_data_batch(data, self._batch_size, layout)
 
+        infer_stream = False
+        if cuda_stream is None:
+            infer_stream = True
+        if cuda_stream == -1:
+            cuda_stream = None
+        else:
+            cuda_stream = types._raw_cuda_stream(cuda_stream)
+
+        def to_numpy(x):
+            if types._is_mxnet_array(x):
+                return x.asnumpy()
+            elif types._is_torch_tensor(x):
+                return x.numpy()
+            else:
+                return x
+
         # __cuda_array_interface__ doesn't provide any way to pass the information about the device
         # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
         # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
@@ -513,19 +552,25 @@ Parameters
             inputs = []
             for datum in data:
                 if hasattr(datum, "__cuda_array_interface__"):
+                    if infer_stream:
+                        cuda_stream = _get_default_stream_for_array(datum)
                     inp = Tensors.TensorGPU(datum, layout)
                 else:
+                    datum = to_numpy(datum)
                     inp = Tensors.TensorCPU(datum, layout)
                 inputs.append(inp)
             assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
                    "Mixed input types are not support, all need to reside on the CPU or GPU"
-            self._pipe.SetExternalTensorInput(name, inputs, cuda_stream)
+            self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream))
         else:
             if hasattr(data, "__cuda_array_interface__"):
+                if infer_stream:
+                    cuda_stream = _get_default_stream_for_array(data)
                 inp = Tensors.TensorListGPU(data, layout)
             else:
+                data = to_numpy(data)
                 inp = Tensors.TensorListCPU(data, layout)
-            self._pipe.SetExternalTLInput(name, inp, cuda_stream)
+            self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream))
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""

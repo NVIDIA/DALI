@@ -153,8 +153,8 @@ Args
     again when the generator reaches end of iteration.
     In the case of the GPU input, it is the user responsibility to modify the
     provided GPU memory content only using provided stream (DALI schedules a copy on it
-    and all work is properly queued). If no stream is provided feeding input blocks until the
-    provided memory is copied to the internal buffer
+    and all work is properly queued). If no stream is provided, DALI will use a default, with
+    best-effort approach at correctness (see ``cuda_stream`` argument documentation for details).
 
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists produced by the source function
@@ -178,11 +178,21 @@ Keyword Args
     containing a distinct layout for each output. If the list has fewer elements than ``num_outputs``,
     only the first outputs have the layout set, the reset have it cleared.
 
-`cuda_stream` : Any value that can be casted to cudaStream_t
-    CUDA stream to be used for the copy (only relevant for GPU inputs)
-    If not provided, an internal stream will be selected.
-    In most cases, using the default internal user stream or stream 0
-    is expected.
+`cuda_stream` : optional, `cudaStream_t` or an object convertible to `cudaStream_t`, e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
+    The CUDA stream, which is going to be used for copying data to GPU or from a GPU
+    source. If not set, best effort will be taken to maintain correctness - i.e. if the data
+    is provided as a tensor/array from a recognized library (CuPy, PyTorch), the library's
+    current stream is used. This should work in typical scenarios, but advanced use cases
+    (and code using unsupported libraries) may still need to supply the stream handle
+    explicitly.
+
+    Special values:
+      *  0 - use default CUDA stream
+      * -1 - use DALI's internal stream
+
+    If internal stream is used, the call to ``feed_input`` will block until the copy to internal
+    buffer is complete, since there's no way to synchronize with this stream to prevent
+    overwriting the array with new data in another stream.
 """
 
     def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", cuda_stream = None, **kwargs):
@@ -293,7 +303,7 @@ Keyword Args
 def _is_external_source_with_callback(op_instance):
     return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
 
-def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None):
+def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None, cuda_stream = None):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout)`` inside ``pipeline.iter_setup``.
@@ -313,7 +323,7 @@ The data can be provided by the ``source`` function or iterable, or it can be pr
                 "`external_source` nodes.")
 
     op = ExternalSource(device = device, num_outputs = num_outputs,
-                        source = source, cycle = cycle, layout = layout)
+                        source = source, cycle = cycle, layout = layout, cuda_stream = cuda_stream)
     return op(name = name)
 
 external_source.__doc__ += ExternalSource._args_doc

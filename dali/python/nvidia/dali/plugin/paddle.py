@@ -70,13 +70,16 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream = None):
                     Tensor from which to copy
     `ptr` : LoDTensor data pointer
             Destination of the copy
-    `cuda_stream` : Any value that can be casted to cudaStream_t
+    `cuda_stream` : cudaStream_t handle or any value that can be cast to cudaStream_t
                     CUDA stream to be used for the copy
                     (if not provided, an internal user stream will be selected)
     """
+
+    cuda_stream = types._raw_cuda_stream(cuda_stream)
+
     c_type_pointer = ctypes.c_void_p(ptr)
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
-        dali_tensor.copy_to_external(c_type_pointer, cuda_stream)
+        dali_tensor.copy_to_external(c_type_pointer, None if cuda_stream is None else ctypes.c_void_p(cuda_stream))
     else:
         dali_tensor.copy_to_external(c_type_pointer)
     return ptr

@@ -16,4 +16,4 @@
 # nose will query for the methods available and will run them
 # the test_internals_operator_external_source is 99% the same for cupy and numpy tests
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
-from test_internals_operator_external_source import *
+from test_external_source_impl import *

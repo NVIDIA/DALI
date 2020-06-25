@@ -48,7 +48,7 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
                     Tensor from which to copy
     `arr` : torch.Tensor
             Destination of the copy
-    `cuda_stream` : torch.cuda.Stream or any value that can be casted to cudaStream_t
+    `cuda_stream` : torch.cuda.Stream, cudaStream_t or any value that can be cast to cudaStream_t.
                     CUDA stream to be used for the copy
                     (if not provided, an internal user stream will be selected)
                     In most cases, using pytorch's current stream is expected (for example,
@@ -57,10 +57,12 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     assert dali_tensor.shape() == list(arr.size()), \
             ("Shapes do not match: DALI tensor has size {0}"
             ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
-    #turn raw int to a c void pointer
+    cuda_stream = types._raw_cuda_stream(cuda_stream)
+
+    # turn raw int to a c void pointer
     c_type_pointer = ctypes.c_void_p(arr.data_ptr())
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
-        dali_tensor.copy_to_external(c_type_pointer, cuda_stream)
+        dali_tensor.copy_to_external(c_type_pointer, None if cuda_stream is None else ctypes.c_void_p(cuda_stream))
     else:
         dali_tensor.copy_to_external(c_type_pointer)
     return arr
