@@ -158,11 +158,15 @@ DEVICE_TEST(TensorLayout_Dev, SampleLayout, 1, 1) {
 
 DEVICE_TEST(TensorLayout_Dev, VideoLayout, 1, 1) {
   DEV_EXPECT_TRUE(VideoLayoutInfo::IsVideo("NFCHW"));
+  DEV_EXPECT_TRUE(VideoLayoutInfo::IsVideo("FCHW"));
   DEV_EXPECT_FALSE(VideoLayoutInfo::IsStillImage("NFCHW"));
   DEV_EXPECT_TRUE(VideoLayoutInfo::IsChannelFirst("NFCHW"));
   DEV_EXPECT_FALSE(VideoLayoutInfo::IsChannelFirst("NFHWC"));
   DEV_EXPECT_EQ(VideoLayoutInfo::FrameDimIndex("NFCHW"), 1);
   DEV_EXPECT_FALSE(VideoLayoutInfo::IsSequence("NDCHW"));
+  DEV_EXPECT_TRUE(VideoLayoutInfo::IsSequence("FDCHW"));
+  DEV_EXPECT_FALSE(VideoLayoutInfo::IsSequence("DFCHW"));
+  DEV_EXPECT_TRUE(VideoLayoutInfo::HasSequence("DFCHW"));
   DEV_EXPECT_TRUE(VideoLayoutInfo::IsStillImage("NDCHW"));
 }
 

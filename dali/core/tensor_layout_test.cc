@@ -213,11 +213,15 @@ TEST(TensorLayout, SampleLayout) {
 
 TEST(TensorLayout, VideoLayout) {
   EXPECT_TRUE(VideoLayoutInfo::IsVideo("NFCHW"));
+  EXPECT_TRUE(VideoLayoutInfo::IsVideo("FCHW"));
   EXPECT_FALSE(VideoLayoutInfo::IsStillImage("NFCHW"));
   EXPECT_TRUE(VideoLayoutInfo::IsChannelFirst("NFCHW"));
   EXPECT_FALSE(VideoLayoutInfo::IsChannelFirst("NFHWC"));
   EXPECT_EQ(VideoLayoutInfo::FrameDimIndex("NFCHW"), 1);
   EXPECT_FALSE(VideoLayoutInfo::IsSequence("NDCHW"));
+  EXPECT_TRUE(VideoLayoutInfo::IsSequence("FDCHW"));
+  EXPECT_FALSE(VideoLayoutInfo::IsSequence("DFCHW"));
+  EXPECT_TRUE(VideoLayoutInfo::HasSequence("DFCHW"));
   EXPECT_TRUE(VideoLayoutInfo::IsStillImage("NDCHW"));
   EXPECT_EQ(VideoLayoutInfo::GetFrameLayout("FCHW"), TensorLayout("CHW"));
   EXPECT_EQ(VideoLayoutInfo::GetFrameLayout("NFHWC"), TensorLayout("NHWC"));
