@@ -19,8 +19,6 @@
 
 namespace dali {
 
-#if 0
-
 using namespace kernels;  // NOLINT
 
 inline ResamplingFilterType interp2resample(DALIInterpType interp) {
@@ -98,7 +96,7 @@ struct ResizeBase<GPUBackend>::Impl {
 
 template <int out_dims, int in_dims>
 void GetVideoShapeAndParams(TensorListShape<out_dims> &frames_shape,
-                            std::vector<ResamplingParamsND<out_dim> &frame_params,
+                            std::vector<ResamplingParamsND<out_dims>> &frame_params,
                             const TensorListShape<in_dims> &seq_shape,
                             const span<ResamplingParams> &seq_params,
                             int frame_dim = 0,
@@ -278,7 +276,5 @@ void ResizeBase<CPUBackend>::RunResize(HostWorkspace &ws) {
 
 template class DLL_PUBLIC ResizeBase<CPUBackend>;
 template class DLL_PUBLIC ResizeBase<GPUBackend>;
-
-#endif
 
 }  // namespace dali

@@ -59,8 +59,8 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
 
   using Workspace = workspace_t<Backend>;
 
-  using input_type =  typename Workspace::template input_t<Backend>;
-  using output_type = typename Workspace::template output_t<Backend>;
+  using input_type =  typename Workspace::template input_t<Backend>::element_type;
+  using output_type = typename Workspace::template output_t<Backend>::element_type;
 
   void RunResize(Workspace &ws, output_type &output, const input_type &input);
 
@@ -97,11 +97,11 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
   void SetupResize(const Workspace &ws,
                    TensorListShape<> &out_shape,
                    const input_type &input,
-                   span<const kernels::ResamplingParams> params,
+                   span<const kernels::ResamplingParamsND<ndim>> params,
                    DALIDataType out_type) {
-
+    auto layout = input.layout();
     int sdim = layout.empty() ? 0 : NumSpatialDims(layout);;
-    int input_dim = input.shape().sample_dim);
+    int input_dim = input.shape().sample_dim();
     DALI_ENFORCE(sdim == input.dim() - 2 && sdim <= input.dim(), make_string(
       "Resize: unexpected number of dimensions: ", input.dim()));
     auto flat_params = make_span(&params.front()[0], &params.back()[ndim-1]);

@@ -50,9 +50,8 @@ void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws) {
     auto input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
 
-    per_sample_meta_[i] = GetTransformMeta(spec_, input_shape, &ws, i, ResizeInfoNeeded());
-    resample_params_[i] = detail::GetResamplingParams(
-      per_sample_meta_[i], min_filter_, mag_filter_);
+    per_sample_meta_[i] = GetTransformMeta(spec_, input_shape, ws, i, ResizeInfoNeeded());
+    resample_params_[i] = GetResamplingParams(per_sample_meta_[i]);
   }
 }
 
@@ -61,7 +60,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
 
-  RunResize(output, input, ws.stream());
+  RunResize(ws, output, input);
   output.SetLayout(input.GetLayout());
 
   // Setup and output the resize attributes if necessary
