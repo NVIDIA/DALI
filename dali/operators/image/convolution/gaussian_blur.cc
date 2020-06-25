@@ -37,7 +37,7 @@ DALI_SCHEMA(GaussianBlur)
     .DocStr(R"code(Apply Gaussian Blur to the input.
 
 User can specify sigma, kernel window size or both.
-If only the sigma is provided, the radius is of kernel is calculated ``ceil(3 * sigma)``,
+If only the sigma is provided, the radius of kernel is calculated as ``ceil(3 * sigma)``,
 thus the kernel window size is ``2 * ceil(3 * sigma) + 1``.
 
 If only the kernel window size is provided, the sigma is calculated using the following formula::
