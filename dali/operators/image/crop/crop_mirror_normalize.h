@@ -18,16 +18,16 @@
 #include <cstring>
 #include <utility>
 #include <vector>
-
 #include "dali/core/any.h"
 #include "dali/core/common.h"
+#include "dali/core/format.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
-#include "dali/pipeline/operator/common.h"
 #include "dali/operators/image/crop/crop_attr.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
 #define CMN_IN_TYPES (uint8_t, int16_t, uint16_t, int32_t, float, float16)
@@ -132,12 +132,6 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
       if (inv_std_vec_.size() == 1)
         inv_std_vec_.resize(args_size, inv_std_vec_[0]);
     }
-
-    if (std::is_same<Backend, GPUBackend>::value) {
-      kmgr_.Resize(1, 1);
-    } else {
-      kmgr_.Resize(num_threads_, batch_size_);
-    }
   }
 
   inline ~CropMirrorNormalize() override = default;
@@ -145,7 +139,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
 
-  void RunImpl(Workspace<Backend> &ws) override;
+  void RunImpl(workspace_t<Backend> &ws) override;
 
   bool CanInferOutputs() const override {
     return true;
@@ -194,12 +188,8 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
           input_layout_, output_layout_, slice_anchors_[data_idx], slice_shapes_[data_idx],
           mirror_[data_idx], pad_output_, mean_vec_, inv_std_vec_);
       }
-
       // NOLINTNEXTLINE(whitespace/parens)
     ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims)););
-
-    auto &output = ws.template OutputRef<Backend>(0);
-    output.SetLayout(output_layout_);
   }
 
   // Calculate slice window and anchor for given data_idx
