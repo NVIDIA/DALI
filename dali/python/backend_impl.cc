@@ -1292,6 +1292,10 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsNoPrune", &OpSchema::IsNoPrune)
     .def("IsDeprecated", &OpSchema::IsDeprecated)
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf)
+    .def("IsDeprecatedArg", &OpSchema::IsDeprecatedArg)
+    .def("DeprecatedArgMsg", &OpSchema::DeprecatedArgMsg)
+    .def("DeprecatedArgRenamedTo", &OpSchema::DeprecatedArgRenamedTo)
+    .def("DeprecatedArgIgnore", &OpSchema::DeprecatedArgIgnore)
     .def("GetSupportedLayouts", &OpSchema::GetSupportedLayouts);
 
   ExposeTensorLayout(types_m);

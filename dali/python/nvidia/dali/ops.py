@@ -404,29 +404,25 @@ def python_op_factory(name, op_device = "cpu"):
             self._spec.AddArg("preserve", self._preserve)
             self._preserve = self._preserve or self._schema.IsNoPrune()
 
-            if "output_dtype" in kwargs.keys():
-                if "dtype" in kwargs.keys():
-                    raise TypeError(
-                        ("Operator {} got an unexpected 'output_dtype' argument when " +
-                         "'dtype' is already provided").format(type(self).__name__))
-                # show only this warning
-                with warnings.catch_warnings():
-                    warnings.simplefilter("default")
-                    warnings.warn(
-                        ("Argument name 'output_dtype' for operator {} is deprecated. " +
-                         "Use 'dtype' instead.").format(type(self).__name__),
-                        DeprecationWarning, stacklevel=2)
-                kwargs["dtype"] = kwargs["output_dtype"]
-                del kwargs["output_dtype"]
+            # Check for any deprecated arguments that should be replaced or removed
+            arg_names = list(kwargs.keys())
+            for arg_name in arg_names:
+                if not self._schema.IsDeprecatedArg(arg_name):
+                    continue
+                msg = self._schema.DeprecatedArgMsg(arg_name)
+                new_name = self._schema.DeprecatedArgRenamedTo(arg_name)
+                ignore = self._schema.DeprecatedArgIgnore(arg_name)
+                if new_name:
+                    msg += " Use \"{}\" instead.".format(new_name)
+                    kwargs[new_name] = kwargs[arg_name]
+                    del kwargs[arg_name]
+                elif ignore:
+                    msg += " The argument is no longer used and should be removed."
+                    del kwargs[arg_name]
 
-            if "image_type" in kwargs.keys() and name in ("Crop", "Slice", "CropMirrorNormalize"):
                 with warnings.catch_warnings():
                     warnings.simplefilter("default")
-                    warnings.warn(
-                        ("Argument name 'image_type' for operator {} is deprecated. " +
-                         "It should be removed from the argument list, as it is not necessary.").format(type(self).__name__),
-                        DeprecationWarning, stacklevel=2)
-                del kwargs["image_type"]
+                    warnings.warn(msg, DeprecationWarning, stacklevel=2)
 
             # Store the specified arguments
             for key, value in kwargs.items():

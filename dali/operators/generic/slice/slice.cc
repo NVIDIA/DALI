@@ -39,6 +39,7 @@ slice (x0, x1, x2, ...).)code")
 (s0, s1, s2, ...).)code")
     .AllowSequences()
     .SupportVolumetric()
+    .AddDeprecatedArg("image_type", "", "", true)
     .AddParent("SliceBase")
     .AddParent("SliceAttr")
     .AddParent("OutOfBoundsAttr");
