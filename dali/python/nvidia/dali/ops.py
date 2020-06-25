@@ -419,6 +419,14 @@ def python_op_factory(name, op_device = "cpu"):
                 kwargs["dtype"] = kwargs["output_dtype"]
                 del kwargs["output_dtype"]
 
+            if "image_type" in kwargs.keys() and name in ("Crop", "Slice", "CropMirrorNormalize"):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("default")
+                    warnings.warn(
+                        ("Argument name 'image_type' for operator {} is deprecated. " +
+                         "It should be removed from the argument list, as it is not necessary.").format(type(self).__name__),
+                        DeprecationWarning, stacklevel=2)
+                del kwargs["image_type"]
 
             # Store the specified arguments
             for key, value in kwargs.items():

@@ -28,10 +28,6 @@ DALI_SCHEMA(Crop)
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .AddOptionalArg(
-        "image_type",
-        R"code(The color space of input and output image)code",
-        DALI_RGB, false)
     .AddParent("CropAttr")
     .AddParent("OutOfBoundsAttr")
     .AddParent("SliceBase");

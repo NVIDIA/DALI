@@ -60,7 +60,6 @@ class TestPipeline(Pipeline):
         self.cmn = ops.CropMirrorNormalize(
             device = device,
             output_dtype = types.FLOAT,
-            image_type = types.RGB,
             mean = [128., 128., 128.],
             std = [1., 1., 1.])
         self.cast = ops.Cast(

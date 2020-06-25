@@ -47,7 +47,6 @@ class CropMirrorNormalizePipeline(Pipeline):
                                            crop = (224, 224),
                                            crop_pos_x = 0.3,
                                            crop_pos_y = 0.2,
-                                           image_type = types.RGB,
                                            mean = mean,
                                            std = std,
                                            pad_output = pad_output)
@@ -93,7 +92,6 @@ class NoCropPipeline(Pipeline):
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         if not self.decoder_only:
             self.cast = ops.CropMirrorNormalize(device = self.device,
-                                               image_type = types.RGB,
                                                dtype = types.FLOAT,
                                                output_layout = "HWC")
         else:
@@ -299,7 +297,6 @@ class CMNRandomDataPipeline(Pipeline):
                                                crop_pos_x = 0.3,
                                                crop_pos_y = 0.2,
                                                crop_pos_z = 0.1,
-                                               image_type = types.RGB,
                                                mean = mean,
                                                std = std,
                                                pad_output = pad_output)
@@ -311,7 +308,6 @@ class CMNRandomDataPipeline(Pipeline):
                                                crop_w = 32,
                                                crop_pos_x = 0.3,
                                                crop_pos_y = 0.2,
-                                               image_type = types.RGB,
                                                mean = mean,
                                                std = std,
                                                pad_output = pad_output)

@@ -39,9 +39,6 @@ slice (x0, x1, x2, ...).)code")
 (s0, s1, s2, ...).)code")
     .AllowSequences()
     .SupportVolumetric()
-    .AddOptionalArg("image_type",
-      R"code(The color space of input and output image)code",
-      DALI_RGB, false)
     .AddParent("SliceBase")
     .AddParent("SliceAttr")
     .AddParent("OutOfBoundsAttr");

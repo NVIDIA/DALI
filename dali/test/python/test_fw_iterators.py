@@ -92,7 +92,6 @@ def test_mxnet_iterator_model_fit():
                                                 dtype=types.FLOAT,
                                                 output_layout=types.NCHW,
                                                 crop=(224, 224),
-                                                image_type=types.RGB,
                                                 mean=[0.485 * 255,0.456 * 255,0.406 * 255],
                                                 std=[0.229 * 255,0.224 * 255,0.225 * 255])
             self.coin = ops.CoinFlip(probability=0.5)
@@ -604,7 +603,6 @@ class CustomPipe(Pipeline):
                                             dtype=types.FLOAT,
                                             output_layout=types.NCHW,
                                             crop=(224, 224),
-                                            image_type=types.RGB,
                                             mean=[0.485 * 255,0.456 * 255,0.406 * 255],
                                             std=[0.229 * 255,0.224 * 255,0.225 * 255])
 

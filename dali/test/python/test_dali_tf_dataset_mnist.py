@@ -58,7 +58,6 @@ class MnistPipeline(Pipeline):
         self.cmn = ops.CropMirrorNormalize(
             device=device,
             output_dtype=types.FLOAT,
-            image_type=types.GRAY,
             mean=[0.],
             std=[255.],
             output_layout="CHW")
