@@ -456,7 +456,7 @@ def test_cmn_crop_sequence_length():
                             input_layout, input_shape, output_layout, mirror_probability, \
                             mean, std, should_pad
 
-def check_cmn_with_out_of_bounds_policy_support(device, batch_size, output_dtype, input_layout, input_shape, output_layout, 
+def check_cmn_with_out_of_bounds_policy_support(device, batch_size, dtype, input_layout, input_shape, output_layout, 
                                                 mirror_probability, mean, std, should_pad,
                                                 out_of_bounds_policy=None, fill_values=(0x76, 0xb9, 0x00)):
     # This test case is written with HWC layout in mind and "HW" axes in slice arguments
@@ -472,7 +472,7 @@ def check_cmn_with_out_of_bounds_policy_support(device, batch_size, output_dtype
     crop_w = input_shape[1] * 2
 
     pipe = CMNRandomDataPipeline(device, batch_size, input_layout, iter(eii),
-                                 output_dtype = output_dtype, output_layout = output_layout,
+                                 dtype = dtype, output_layout = output_layout,
                                  mirror_probability = mirror_probability, mean = mean, std = std, pad_output = should_pad,
                                  crop_w = crop_w, crop_h = crop_h,
                                  crop_pos_x = crop_x, crop_pos_y = crop_y,
@@ -516,7 +516,7 @@ def check_cmn_with_out_of_bounds_policy_support(device, batch_size, output_dtype
 def test_cmn_with_out_of_bounds_policy_support():
     in_shape = (40, 80, 3)
     in_layout = "HWC"
-    output_dtype = types.FLOAT
+    dtype = types.FLOAT
     mean = [0.485 * 255, 0.456 * 255, 0.406 * 255]
     std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
     fill_values = (0x76, 0xb0, 0x00)
@@ -527,7 +527,7 @@ def test_cmn_with_out_of_bounds_policy_support():
                     for mirror_probability in [0.5]:
                         for should_pad in [False, True]:
                             yield check_cmn_with_out_of_bounds_policy_support, \
-                                device, batch_size, output_dtype, in_layout, in_shape, out_layout, mirror_probability, mean, std, should_pad, \
+                                device, batch_size, dtype, in_layout, in_shape, out_layout, mirror_probability, mean, std, should_pad, \
                                 out_of_bounds_policy, fill_values
 
 def check_cmn_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200, 3)):
@@ -540,7 +540,7 @@ def check_cmn_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200
     crop_h = input_shape[0] * 2
     crop_w = input_shape[1] * 2
     pipe = CMNRandomDataPipeline(device, batch_size, layout, iter(eii),
-                                 output_dtype = types.FLOAT, output_layout = layout,
+                                 dtype = types.FLOAT, output_layout = layout,
                                  mirror_probability = 0.5, mean = [127.], std = [127.], pad_output = True,
                                  crop_w = crop_w, crop_h = crop_h,
                                  crop_pos_x = crop_x, crop_pos_y = crop_y,
