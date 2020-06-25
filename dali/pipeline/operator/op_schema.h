@@ -462,38 +462,33 @@ class DLL_PUBLIC OpSchema {
 
   /**
    * @brief Marks an argument as deprecated in favor of a new argument
-   * @remarks There are three ways to deprecate an argument
-   *          1. renamed_to provided, means the argument has been renamed and we can safely
-   *              propagate the value to the new argument name.
-   *          2. renamed_to not provided and ignore==true, means the operator will not use the
-   *              argument at all and it can be safely discarded.
-   *          3. renamed_to not provided and ignore==false, means the operator will still use the
-   *              deprecated argument until it is finally removed completely from the schema.
+   *
+   * Providing renamed_to means the argument has been renamed and we can safely
+   * propagate the value to the new argument name.
    */
   DLL_PUBLIC inline OpSchema &DeprecateArgInFavorOf(const std::string& arg_name,
                                                     std::string renamed_to,
                                                     std::string msg = {}) {
     if (msg.empty())
-      msg = DefaultDeprecatedArgMsg(arg_name);
+      msg = DefaultDeprecatedArgMsg(arg_name, renamed_to, false);
     deprecated_arguments_[arg_name] = {std::move(msg), std::move(renamed_to), false};
     return *this;
   }
 
   /**
-   * @brief Marks an argument as deprecated in favor of a new argument
+   * @brief Marks an argument as deprecated
    * @remarks There are three ways to deprecate an argument
-   *          1. renamed_to provided, means the argument has been renamed and we can safely
-   *              propagate the value to the new argument name.
-   *          2. renamed_to not provided and ignore==true, means the operator will not use the
+   *          1. removed==true, means the operator will not use the
    *              argument at all and it can be safely discarded.
-   *          3. renamed_to not provided and ignore==false, means the operator will still use the
+   *          2. removed==false, means the operator will still use the
    *              deprecated argument until it is finally removed completely from the schema.
+   *          3. For renaming the argument see DeprecateArgInFavorOf
    */
   DLL_PUBLIC inline OpSchema &DeprecateArg(const std::string& arg_name,
                                            bool removed,
                                            std::string msg = {}) {
     if (msg.empty())
-      msg = DefaultDeprecatedArgMsg(arg_name);
+      msg = DefaultDeprecatedArgMsg(arg_name, {}, removed);
     deprecated_arguments_[arg_name] = {std::move(msg), {}, removed};
     return *this;
   }
@@ -805,9 +800,17 @@ class DLL_PUBLIC OpSchema {
       std::to_string(max_num_input_) + ").\nWas NumInput called?");
   }
 
-  inline std::string DefaultDeprecatedArgMsg(const std::string &arg_name) const {
-    return make_string("Argument '", arg_name, "' for operator '", name_,
-                       "' is now deprecated.");
+  inline std::string DefaultDeprecatedArgMsg(const std::string &arg_name,
+                                             const std::string &renamed_to,
+                                             bool removed) const {
+    std::stringstream ss;
+    ss << "Argument '" << arg_name << "' for operator '" << name_ << "' is now deprecated.";
+    if (!renamed_to.empty()) {
+      ss << " Use '" << renamed_to << "' instead.";
+    } else if (removed) {
+      ss << " The argument is no longer used and should be removed.";
+    }
+    return ss.str();
   }
 
   /**

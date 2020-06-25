@@ -415,14 +415,11 @@ def python_op_factory(name, op_device = "cpu"):
                 msg = meta['msg']
                 if new_name:
                     if new_name in kwargs:
-                        raise TypeError("Operator {} got an unexpected 'output_dtype' argument when 'dtype' is already provided".format(type(self).__name__))
-                    if msg:
-                        msg += " " if msg.endswith('.') else ". "
-                    msg += "Use \'{}\' instead.".format(new_name)
+                        raise TypeError("Operator {} got an unexpected '{}' deprecated argument when '{}' was already provided".format(
+                            type(self).__name__, arg_name, new_name))
                     kwargs[new_name] = kwargs[arg_name]
                     del kwargs[arg_name]
                 elif removed:
-                    msg += " The argument is no longer used and should be removed."
                     del kwargs[arg_name]
 
                 with warnings.catch_warnings():

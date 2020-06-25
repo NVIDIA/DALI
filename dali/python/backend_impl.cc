@@ -1301,7 +1301,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsDeprecated", &OpSchema::IsDeprecated)
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf)
     .def("IsDeprecatedArg", &OpSchema::IsDeprecatedArg)
-    .def("DeprecatedArgMeta", 
+    .def("DeprecatedArgMeta",
         [](OpSchema *schema, const std::string &arg_name) {
           auto meta = schema->DeprecatedArgMeta(arg_name);
           return DeprecatedArgMetaToDict(meta);
