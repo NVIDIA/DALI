@@ -213,7 +213,7 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
 
         self.get_nonsilent_region = ops.NonsilentRegion(device="cpu", cutoff_db=silence_threshold)
         self.trim_silence = ops.Slice(device="cpu", normalized_anchor=False, normalized_shape=False,
-                                      axes=[0], image_type=types.ANY_DATA)
+                                      axes=[0])
         self.to_float = ops.Cast(dtype=types.FLOAT)
 
     @staticmethod

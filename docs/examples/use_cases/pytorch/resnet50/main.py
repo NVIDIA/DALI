@@ -123,7 +123,6 @@ class HybridTrainPipe(Pipeline):
                                             dtype=types.FLOAT,
                                             output_layout=types.NCHW,
                                             crop=(crop, crop),
-                                            image_type=types.RGB,
                                             mean=[0.485 * 255,0.456 * 255,0.406 * 255],
                                             std=[0.229 * 255,0.224 * 255,0.225 * 255])
         self.coin = ops.CoinFlip(probability=0.5)
@@ -157,7 +156,6 @@ class HybridValPipe(Pipeline):
                                             dtype=types.FLOAT,
                                             output_layout=types.NCHW,
                                             crop=(crop, crop),
-                                            image_type=types.RGB,
                                             mean=[0.485 * 255,0.456 * 255,0.406 * 255],
                                             std=[0.229 * 255,0.224 * 255,0.225 * 255])
 

@@ -876,6 +876,14 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetDeviceBufferGrowthFactor", Buffer<GPUBackend>::GetGrowthFactor);
 }
 
+py::dict DeprecatedArgMetaToDict(const DeprecatedArgDef & meta) {
+  py::dict d;
+  d["msg"] = meta.msg;
+  d["removed"] = meta.removed;
+  d["renamed_to"] = meta.renamed_to;
+  return d;
+}
+
 py::dict ReaderMetaToDict(const ReaderMeta &meta) {
   py::dict d;
   d["epoch_size"] = meta.epoch_size;
@@ -1292,6 +1300,12 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsNoPrune", &OpSchema::IsNoPrune)
     .def("IsDeprecated", &OpSchema::IsDeprecated)
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf)
+    .def("IsDeprecatedArg", &OpSchema::IsDeprecatedArg)
+    .def("DeprecatedArgMeta",
+        [](OpSchema *schema, const std::string &arg_name) {
+          auto meta = schema->DeprecatedArgMeta(arg_name);
+          return DeprecatedArgMetaToDict(meta);
+        })
     .def("GetSupportedLayouts", &OpSchema::GetSupportedLayouts);
 
   ExposeTensorLayout(types_m);

@@ -48,8 +48,7 @@ class C2Pipe(Pipeline):
         self.np = ops.CropMirrorNormalize(device = "gpu",
                                           dtype = types.FLOAT16,
                                           mean = [128., 128., 128.],
-                                          std = [1., 1., 1.],
-                                          image_type = types.RGB)
+                                          std = [1., 1., 1.])
         self.uniform = ops.Uniform(range = (0., 1.))
         self.resize_uniform = ops.Uniform(range = (256., 480.))
         self.mirror = ops.CoinFlip(probability = 0.5)
@@ -83,7 +82,6 @@ class HybridPipe(Pipeline):
         self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                             dtype = types.FLOAT16,
                                             crop = (224, 224),
-                                            image_type = types.RGB,
                                             mean = [128., 128., 128.],
                                             std = [1., 1., 1.])
         self.uniform = ops.Uniform(range = (0., 1.))

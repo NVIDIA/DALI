@@ -35,6 +35,8 @@ normalization only.
   .NumOutput(1)
   .AllowSequences()
   .SupportVolumetric()
+  .DeprecateArg("image_type", true)  // deprecated since 0.24dev
+  .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("dtype",
     R"code(Output data type. Supported types: `FLOAT` and `FLOAT16`)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",
@@ -53,9 +55,6 @@ normalization only.
   .AddOptionalArg("std",
     R"code(Standard deviation values for image normalization.)code",
     std::vector<float>{1.0f})
-  .AddOptionalArg("image_type",
-    R"code(The color space of input and output image)code",
-    DALI_RGB, false)
   .AddParent("CropAttr");
 
 DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<CPUBackend>, CPU);

@@ -51,8 +51,7 @@ class CropPipeline(Pipeline):
             self.crop = ops.Crop(device = self.device,
                                  crop = crop_shape,
                                  crop_pos_x = crop_x,
-                                 crop_pos_y = crop_y,
-                                 image_type = types.RGB)
+                                 crop_pos_y = crop_y)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -98,8 +97,7 @@ class CropSequencePipeline(Pipeline):
         self.crop = ops.Crop(device = self.device,
                              crop = (224, 224),
                              crop_pos_x = 0.3,
-                             crop_pos_y = 0.2,
-                             image_type = types.RGB)
+                             crop_pos_y = 0.2)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -203,20 +201,17 @@ class CropCastPipeline(Pipeline):
                                 crop = (224, 224),
                                 crop_pos_x = 0.3,
                                 crop_pos_y = 0.2,
-                                image_type = types.RGB,
                                 dtype = types.FLOAT)
             self.crop2 = ops.Crop(device = self.device,
                                   crop = (224, 224),
                                   crop_pos_x = 0.0,
                                   crop_pos_y = 0.0,
-                                  image_type = types.RGB,
                                   dtype = types.UINT8)
         else:
             self.crop = ops.Crop(device = self.device,
                     crop = (224, 224),
                     crop_pos_x = 0.3,
-                    crop_pos_y = 0.2,
-                    image_type = types.RGB)
+                    crop_pos_y = 0.2)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -268,8 +263,7 @@ class Crop3dPipeline(Pipeline):
                              crop_pos_x = 0.3,
                              crop_d = D * 0.91,
                              crop_h = H * 0.85,
-                             crop_w = W * 0.75,
-                             image_type = types.RGB)
+                             crop_w = W * 0.75)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -419,7 +413,6 @@ class CropSynthPipe(Pipeline):
                                 crop = crop_shape,
                                 crop_pos_x = crop_x,
                                 crop_pos_y = crop_y,
-                                image_type = types.RGB,
                                 out_of_bounds_policy = out_of_bounds_policy,
                                 fill_values = fill_values)
 

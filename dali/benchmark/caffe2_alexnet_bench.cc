@@ -222,7 +222,6 @@ BENCHMARK_DEFINE_F(C2Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
       .AddArg("device", "gpu")
       .AddArg("dtype", DALI_FLOAT16)
       .AddArg("crop", vector<float>{224, 224})
-      .AddArg("image_type", img_type)
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
       .AddInput("images", "gpu")

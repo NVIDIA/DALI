@@ -44,7 +44,6 @@ class CommonPipeline(Pipeline):
         self.cmn = ops.CropMirrorNormalize(device = "gpu",
                                            output_dtype = types.FLOAT,
                                            crop = (227, 227),
-                                           image_type = types.RGB,
                                            mean = [128., 128., 128.],
                                            std = [1., 1., 1.])
         self.uniform = ops.Uniform(range = (0.0, 1.0))

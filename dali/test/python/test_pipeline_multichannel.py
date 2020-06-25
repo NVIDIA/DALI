@@ -95,8 +95,7 @@ class MultichannelSynthPipeline(Pipeline):
             self.crop = ops.Crop(device = self.device,
                                  crop = (220, 224),
                                  crop_pos_x = 0.3,
-                                 crop_pos_y = 0.2,
-                                 image_type = types.ANY_DATA)
+                                 crop_pos_y = 0.2)
         if self.tested_operator == 'transpose' or not self.tested_operator:
             self.transpose = ops.Transpose(device = self.device,
                                            perm = (1, 0, 2),
@@ -194,8 +193,7 @@ class MultichannelPipeline(Pipeline):
 
         self.crop = ops.Crop(device = self.device,
                              crop_h = 220, crop_w = 224,
-                             crop_pos_x = 0.3, crop_pos_y = 0.2,
-                             image_type = types.ANY_DATA)
+                             crop_pos_x = 0.3, crop_pos_y = 0.2)
 
         self.transpose = ops.Transpose(device = self.device,
                                        perm = (1, 0, 2),

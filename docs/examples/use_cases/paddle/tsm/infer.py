@@ -46,7 +46,6 @@ class VideoPipe(Pipeline):
             dtype=types.FLOAT,
             output_layout=types.NFCHW,
             crop=(target_size, target_size),
-            image_type=types.RGB,
             mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
             std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
 

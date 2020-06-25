@@ -255,14 +255,12 @@ def test_cropmirrornormalize_layout():
                                                      dtype = types.FLOAT,
                                                      output_layout = types.NHWC,
                                                      crop = (224, 224),
-                                                     image_type = types.RGB,
                                                      mean = [128., 128., 128.],
                                                      std = [1., 1., 1.])
             self.cmnp_nchw = ops.CropMirrorNormalize(device = "gpu",
                                                      dtype = types.FLOAT,
                                                      output_layout = types.NCHW,
                                                      crop = (224, 224),
-                                                     image_type = types.RGB,
                                                      mean = [128., 128., 128.],
                                                      std = [1., 1., 1.])
 
@@ -303,7 +301,6 @@ def test_cropmirrornormalize_pad():
                                                      dtype = types.FLOAT,
                                                      output_layout = layout,
                                                      crop = (224, 224),
-                                                     image_type = types.RGB,
                                                      mean = [128., 128., 128.],
                                                      std = [1., 1., 1.],
                                                      pad_output = True)
@@ -311,7 +308,6 @@ def test_cropmirrornormalize_pad():
                                                      dtype = types.FLOAT,
                                                      output_layout = layout,
                                                      crop = (224, 224),
-                                                     image_type = types.RGB,
                                                      mean = [128., 128., 128.],
                                                      std = [1., 1., 1.],
                                                      pad_output = False)
@@ -363,7 +359,6 @@ def test_cropmirrornormalize_multiple_inputs():
                                                 dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
                                                 crop = (224, 224),
-                                                image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
 
@@ -403,7 +398,6 @@ def test_seed():
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 dtype = types.FLOAT,
                                                 crop = (224, 224),
-                                                image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.coin = ops.CoinFlip()
@@ -443,7 +437,6 @@ def test_as_array():
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 dtype = types.FLOAT,
                                                 crop = (224, 224),
-                                                image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.coin = ops.CoinFlip()
@@ -484,7 +477,6 @@ def test_seed_serialize():
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 dtype = types.FLOAT,
                                                 crop = (224, 224),
-                                                image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.coin = ops.CoinFlip()
@@ -570,7 +562,6 @@ def test_warpaffine():
                                                 dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
                                                 crop = (224, 224),
-                                                image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.affine = ops.WarpAffine(device = "gpu",
@@ -610,22 +601,19 @@ def test_type_conversion():
             self.cmnp_all = ops.CropMirrorNormalize(device = "gpu",
                                                     dtype = types.FLOAT,
                                                     output_layout = types.NHWC,
-                                                    crop = (224, 224),
-                                                    image_type = types.RGB,
+                                                    crop = (224, 224),                                                    
                                                     mean = [128., 128., 128.],
                                                     std = [1., 1., 1.])
             self.cmnp_int = ops.CropMirrorNormalize(device = "gpu",
                                                     dtype = types.FLOAT,
                                                     output_layout = types.NHWC,
                                                     crop = (224, 224),
-                                                    image_type = types.RGB,
                                                     mean = [128, 128, 128],
                                                     std = [1., 1, 1])  # Left 1 of the arguments as float to test whether mixing types works
             self.cmnp_1arg = ops.CropMirrorNormalize(device = "gpu",
                                                      dtype = types.FLOAT,
                                                      output_layout = types.NHWC,
                                                      crop = (224, 224),
-                                                     image_type = types.RGB,
                                                      mean = 128,
                                                      std = 1)
             self.uniform = ops.Uniform(range = (0,1))
@@ -726,7 +714,6 @@ def test_equal_ImageDecoderRandomCrop_ImageDecoder():
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 dtype = types.FLOAT,
                                                 crop = (224, 224),
-                                                image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.coin = ops.CoinFlip(seed = seed)
@@ -748,7 +735,6 @@ def test_equal_ImageDecoderRandomCrop_ImageDecoder():
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 dtype = types.FLOAT,
                                                 crop = (224, 224),
-                                                image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.coin = ops.CoinFlip(seed = seed)
@@ -1301,7 +1287,6 @@ class DupPipeline(Pipeline):
                                                 dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
                                                 crop = (224, 224),
-                                                image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
 
@@ -1542,7 +1527,6 @@ def test_executor_meta():
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
                                                 crop = (224, 224),
-                                                image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.coin = ops.CoinFlip(seed = seed)
@@ -1600,7 +1584,26 @@ def trigger_output_dtype_deprecated_warning():
                                        output_dtype=types.FLOAT,
                                        output_layout="HWC",
                                        crop=(32, 32),
+                                       mean=[128., 128., 128.],
+                                       std=[1., 1., 1.])
+        pipe.set_outputs(cmn)
+    pipe.build()
+
+    result, = pipe.run()
+    assert result.as_array().dtype == np.float32
+
+def trigger_image_type_deprecated_warning():
+    batch_size = 10
+    shape = (120, 60, 3)
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    data = RandomDataIterator(batch_size, shape=shape, dtype=np.uint8)
+    with pipe:
+        input = fn.external_source(data, layout="HWC")
+        cmn = fn.crop_mirror_normalize(input, device="cpu",
+                                       dtype=types.FLOAT,
                                        image_type=types.RGB,
+                                       output_layout="HWC",
+                                       crop=(32, 32),
                                        mean=[128., 128., 128.],
                                        std=[1., 1., 1.])
         pipe.set_outputs(cmn)
@@ -1619,9 +1622,21 @@ def test_output_dtype_deprecation():
         # Verify DeprecationWarning
         assert len(w) == 1
         assert issubclass(w[-1].category, DeprecationWarning)
-        assert ("Argument name 'output_dtype' for operator CropMirrorNormalize is deprecated. " +
+        print(str(w[-1].message))
+        assert ("Argument 'output_dtype' for operator 'CropMirrorNormalize' is now deprecated. " +
                 "Use 'dtype' instead.") == str(w[-1].message)
 
+def test_image_type_deprecation():
+    with warnings.catch_warnings(record=True) as w:
+        # Cause all warnings to always be triggered.
+        warnings.simplefilter("always")
+        # Trigger a warning.
+        trigger_image_type_deprecated_warning()
+        # Verify DeprecationWarning
+        assert len(w) == 1
+        assert issubclass(w[-1].category, DeprecationWarning)
+        assert ("Argument 'image_type' for operator 'CropMirrorNormalize' is now deprecated. " +
+                "The argument is no longer used and should be removed.") == str(w[-1].message)
 
 @raises(TypeError)
 def test_output_dtype_both_error():
@@ -1636,7 +1651,6 @@ def test_output_dtype_both_error():
                                        dtype=types.FLOAT,
                                        output_layout="HWC",
                                        crop=(32, 32),
-                                       image_type=types.RGB,
                                        mean=[128., 128., 128.],
                                        std=[1., 1., 1.])
         pipe.set_outputs(cmn)
