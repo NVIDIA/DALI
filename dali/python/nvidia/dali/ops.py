@@ -409,16 +409,19 @@ def python_op_factory(name, op_device = "cpu"):
             for arg_name in arg_names:
                 if not self._schema.IsDeprecatedArg(arg_name):
                     continue
-                msg = self._schema.DeprecatedArgMsg(arg_name)
-                new_name = self._schema.DeprecatedArgRenamedTo(arg_name)
-                ignore = self._schema.DeprecatedArgIgnore(arg_name)
+                meta = self._schema.DeprecatedArgMeta(arg_name)
+                new_name = meta['renamed_to']
+                removed = meta['removed']
+                msg = meta['msg']
                 if new_name:
+                    if new_name in kwargs:
+                        raise TypeError("Operator {} got an unexpected 'output_dtype' argument when 'dtype' is already provided".format(type(self).__name__))
                     if msg:
-                      msg += " " if msg.endswith('.') else ". "
-                    msg += "Use \"{}\" instead.".format(new_name)
+                        msg += " " if msg.endswith('.') else ". "
+                    msg += "Use \'{}\' instead.".format(new_name)
                     kwargs[new_name] = kwargs[arg_name]
                     del kwargs[arg_name]
-                elif ignore:
+                elif removed:
                     msg += " The argument is no longer used and should be removed."
                     del kwargs[arg_name]
 

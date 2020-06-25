@@ -35,8 +35,8 @@ normalization only.
   .NumOutput(1)
   .AllowSequences()
   .SupportVolumetric()
-  .AddDeprecatedArg("image_type", "", "", true)
-  .AddDeprecatedArg("output_dtype", "", "dtype", false)
+  .DeprecateArg("image_type", true)  // deprecated since 0.24dev
+  .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("dtype",
     R"code(Output data type. Supported types: `FLOAT` and `FLOAT16`)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",

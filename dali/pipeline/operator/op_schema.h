@@ -47,10 +47,10 @@ struct DefaultedArgumentDef {
   Value *default_value;
 };
 
-struct DeprecatedArgumentDef {
-  std::string deprecated_str;
+struct DeprecatedArgDef {
+  std::string msg;
   std::string renamed_to;
-  bool ignore = true;
+  bool removed;
 };
 
 class DLL_PUBLIC OpSchema {
@@ -460,11 +460,41 @@ class DLL_PUBLIC OpSchema {
     return *this;
   }
 
-  DLL_PUBLIC inline OpSchema &AddDeprecatedArg(const std::string& arg_name,
-                                               const std::string& deprecation_str,
-                                               const std::string& renamed_to,
-                                               bool ignore = true) {
-    deprecated_arguments_[arg_name] = {deprecation_str, renamed_to, ignore};
+  /**
+   * @brief Marks an argument as deprecated in favor of a new argument
+   * @remarks There are three ways to deprecate an argument
+   *          1. renamed_to provided, means the argument has been renamed and we can safely
+   *              propagate the value to the new argument name.
+   *          2. renamed_to not provided and ignore==true, means the operator will not use the
+   *              argument at all and it can be safely discarded.
+   *          3. renamed_to not provided and ignore==false, means the operator will still use the
+   *              deprecated argument until it is finally removed completely from the schema.
+   */
+  DLL_PUBLIC inline OpSchema &DeprecateArgInFavorOf(const std::string& arg_name,
+                                                    std::string renamed_to,
+                                                    std::string msg = {}) {
+    if (msg.empty())
+      msg = DefaultDeprecatedArgMsg(arg_name);
+    deprecated_arguments_[arg_name] = {std::move(msg), std::move(renamed_to), false};
+    return *this;
+  }
+
+  /**
+   * @brief Marks an argument as deprecated in favor of a new argument
+   * @remarks There are three ways to deprecate an argument
+   *          1. renamed_to provided, means the argument has been renamed and we can safely
+   *              propagate the value to the new argument name.
+   *          2. renamed_to not provided and ignore==true, means the operator will not use the
+   *              argument at all and it can be safely discarded.
+   *          3. renamed_to not provided and ignore==false, means the operator will still use the
+   *              deprecated argument until it is finally removed completely from the schema.
+   */
+  DLL_PUBLIC inline OpSchema &DeprecateArg(const std::string& arg_name,
+                                           bool removed,
+                                           std::string msg = {}) {
+    if (msg.empty())
+      msg = DefaultDeprecatedArgMsg(arg_name);
+    deprecated_arguments_[arg_name] = {std::move(msg), {}, removed};
     return *this;
   }
 
@@ -659,28 +689,11 @@ class DLL_PUBLIC OpSchema {
     return deprecated_arguments_.find(arg_name) != deprecated_arguments_.end();
   }
 
-  DLL_PUBLIC inline std::string DeprecatedArgMsg(const std::string& arg_name) const  {
+  DLL_PUBLIC inline const DeprecatedArgDef& DeprecatedArgMeta(const std::string& arg_name) const  {
     auto it = deprecated_arguments_.find(arg_name);
     DALI_ENFORCE(it != deprecated_arguments_.end(),
       make_string("Argument \"", arg_name, "\" is not marked as a deprecated argument"));
-    if (!it->second.deprecated_str.empty())
-      return it->second.deprecated_str;
-    return make_string("Argument \"", arg_name, "\" for operator \"", name_,
-                       "\" is now deprecated.");
-  }
-
-  DLL_PUBLIC inline std::string DeprecatedArgRenamedTo(const std::string& arg_name) const  {
-    auto it = deprecated_arguments_.find(arg_name);
-    DALI_ENFORCE(it != deprecated_arguments_.end(),
-      make_string("Argument \"", arg_name, "\" is not marked as a deprecated argument"));
-    return it->second.renamed_to;
-  }
-
-  DLL_PUBLIC inline bool DeprecatedArgIgnore(const std::string& arg_name) const  {
-    auto it = deprecated_arguments_.find(arg_name);
-    DALI_ENFORCE(it != deprecated_arguments_.end(),
-      make_string("Argument \"", arg_name, "\" is not marked as a deprecated argument"));
-    return it->second.ignore;
+    return it->second;
   }
 
   DLL_PUBLIC inline bool HasOutputFn() const {
@@ -792,6 +805,11 @@ class DLL_PUBLIC OpSchema {
       std::to_string(max_num_input_) + ").\nWas NumInput called?");
   }
 
+  inline std::string DefaultDeprecatedArgMsg(const std::string &arg_name) const {
+    return make_string("Argument '", arg_name, "' for operator '", name_,
+                       "' is now deprecated.");
+  }
+
   /**
    * @brief Add internal argument to schema. It always has a value.
    */
@@ -854,7 +872,7 @@ class DLL_PUBLIC OpSchema {
   std::map<std::string, RequiredArgumentDef> arguments_;
   std::map<std::string, DefaultedArgumentDef> optional_arguments_;
   std::map<std::string, DefaultedArgumentDef> internal_arguments_;
-  std::map<std::string, DeprecatedArgumentDef> deprecated_arguments_;
+  std::map<std::string, DeprecatedArgDef> deprecated_arguments_;
   std::vector<std::unique_ptr<Value> > optional_arguments_unq_;
   std::vector<std::unique_ptr<Value> > internal_arguments_unq_;
   std::vector<std::vector<TensorLayout>> input_layouts_;
