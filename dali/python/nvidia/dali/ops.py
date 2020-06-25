@@ -413,7 +413,9 @@ def python_op_factory(name, op_device = "cpu"):
                 new_name = self._schema.DeprecatedArgRenamedTo(arg_name)
                 ignore = self._schema.DeprecatedArgIgnore(arg_name)
                 if new_name:
-                    msg += " Use \"{}\" instead.".format(new_name)
+                    if msg:
+                      msg += " " if msg.endswith('.') else ". "
+                    msg += "Use \"{}\" instead.".format(new_name)
                     kwargs[new_name] = kwargs[arg_name]
                     del kwargs[arg_name]
                 elif ignore:
