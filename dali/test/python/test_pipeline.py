@@ -601,7 +601,8 @@ def test_type_conversion():
             self.cmnp_all = ops.CropMirrorNormalize(device = "gpu",
                                                     dtype = types.FLOAT,
                                                     output_layout = types.NHWC,
-                                                    crop = (224, 224),                                                    mean = [128., 128., 128.],
+                                                    crop = (224, 224),                                                    
+                                                    mean = [128., 128., 128.],
                                                     std = [1., 1., 1.])
             self.cmnp_int = ops.CropMirrorNormalize(device = "gpu",
                                                     dtype = types.FLOAT,
