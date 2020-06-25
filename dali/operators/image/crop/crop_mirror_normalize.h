@@ -145,8 +145,6 @@ class CropMirrorNormalize : public Operator<Backend> {
       if (inv_std_vec_.size() == 1)
         inv_std_vec_.resize(args_size, inv_std_vec_[0]);
     }
-<<<<<<< HEAD
-=======
 
     should_normalize_ =
         !std::all_of(mean_vec_.begin(), mean_vec_.end(), [](float x) { return x == 0.0f; }) ||
@@ -159,16 +157,6 @@ class CropMirrorNormalize : public Operator<Backend> {
     if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
       fill_values_ = spec.GetRepeatedArgument<float>("fill_values");
     }
-<<<<<<< HEAD
-
-    if (std::is_same<Backend, GPUBackend>::value) {
-      kmgr_.Resize(1, 1);
-    } else {
-      kmgr_.Resize(num_threads_, batch_size_);
-    }
->>>>>>> Add CMN tests
-=======
->>>>>>> cleanup
   }
 
   inline ~CropMirrorNormalize() override = default;
@@ -238,18 +226,7 @@ class CropMirrorNormalize : public Operator<Backend> {
             pad_output_, make_cspan(mean_vec_), make_cspan(inv_std_vec_),
             make_cspan(fill_values_)));
       }
-<<<<<<< HEAD
-      // NOLINTNEXTLINE(whitespace/parens)
-    ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims)););
-=======
     ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
-<<<<<<< HEAD
-
-    auto &output = ws.template OutputRef<Backend>(0);
-    output.SetLayout(output_layout_);
->>>>>>> Add CMN tests
-=======
->>>>>>> cleanup
   }
 
   CropAttr crop_attr_;
