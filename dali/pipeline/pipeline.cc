@@ -442,9 +442,10 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
     try {
       graph_.AddOp(op_spec, inst_name);
     } catch (std::exception &e) {
-      throw std::runtime_error("Critical error in pipeline: "
-          + std::string(e.what())
-          + "\nCurrent pipeline object is no longer valid.");
+      throw std::runtime_error(
+          make_string("Critical error when building Pipeline, for Operator: ", op_spec.name(),
+                      ", instance name: \"", inst_name, "\" encountered:\n", e.what(),
+                      "\nCurrent pipeline object is no longer valid."));
     } catch (...) {
       throw std::runtime_error("Unknown Critical error in pipeline");
     }
@@ -536,7 +537,7 @@ void Pipeline::Outputs(DeviceWorkspace *ws) {
     try {
       executor_->Outputs(ws);
     } catch (std::exception &e) {
-      throw std::runtime_error("Critical error in pipeline: "
+      throw std::runtime_error("Critical error in pipeline:\n"
           + std::string(e.what())
           + "\nCurrent pipeline object is no longer valid.");
     } catch (...) {
@@ -550,7 +551,7 @@ void Pipeline::ShareOutputs(DeviceWorkspace *ws) {
     try {
       executor_->ShareOutputs(ws);
     } catch (std::exception &e) {
-      throw std::runtime_error("Critical error in pipeline: "
+      throw std::runtime_error("Critical error in pipeline:\n"
           + std::string(e.what())
           + "\nCurrent pipeline object is no longer valid.");
     } catch (...) {
@@ -564,7 +565,7 @@ void Pipeline::ReleaseOutputs() {
     try {
       executor_->ReleaseOutputs();
     } catch (std::exception &e) {
-      throw std::runtime_error("Critical error in pipeline: "
+      throw std::runtime_error("Critical error in pipeline:\n"
           + std::string(e.what())
           + "\nCurrent pipeline object is no longer valid.");
     } catch (...) {

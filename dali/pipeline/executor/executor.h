@@ -207,7 +207,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
       }
   }
 
-  void HandleError(const char *message = "Unknown exception") {
+  void HandleError(const std::string& message = "Unknown exception") {
     exec_error_ = true;
     ShutdownQueue();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
@@ -453,7 +453,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
       RunHelper(op_node, ws);
       FillStats(cpu_memory_stats_, ws, "CPU_" + op_node.instance_name, cpu_memory_stats_mutex_);
     } catch (std::exception &e) {
-      HandleError(e.what());
+      // TODO: move the whole Critical error bla bla here?
+      HandleError(make_string("Error when executing CPU Operator ", op_node.op->name(),
+                              ", instance name: \"", op_node.instance_name, "\" encountered:\n",
+                              e.what()));
     } catch (...) {
       HandleError();
     }
@@ -478,25 +481,28 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   // iterations of a stage of the pipeline.
   CUDA_CALL(cudaEventSynchronize(mixed_stage_event_));
 
-  try {
     for (int i = 0; i < graph_->NumOp(OpType::MIXED); ++i) {
       OpNode &op_node = graph_->Node(OpType::MIXED, i);
-      typename WorkspacePolicy::template ws_t<OpType::MIXED> ws =
-          WorkspacePolicy::template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
-      TimeRange tr("[Executor] Run Mixed op " + op_node.instance_name,
-          TimeRange::kOrange);
-      RunHelper(op_node, ws);
-      FillStats(mixed_memory_stats_, ws,  "MIXED_" + op_node.instance_name,
-                mixed_memory_stats_mutex_);
-      if (ws.has_stream() && ws.has_event()) {
-        CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+      try {
+        typename WorkspacePolicy::template ws_t<OpType::MIXED> ws =
+            WorkspacePolicy::template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
+        TimeRange tr("[Executor] Run Mixed op " + op_node.instance_name,
+            TimeRange::kOrange);
+        RunHelper(op_node, ws);
+        FillStats(mixed_memory_stats_, ws,  "MIXED_" + op_node.instance_name,
+                  mixed_memory_stats_mutex_);
+        if (ws.has_stream() && ws.has_event()) {
+          CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+        }
+      } catch (std::exception &e) {
+        HandleError(make_string("Error when executing Mixed Operator ", op_node.op->name(),
+                                ", instance name: \"", op_node.instance_name, "\" encountered:\n",
+                                e.what()));
+        HandleError(e.what()); // TODO move this try catch inside?
+      } catch (...) {
+        HandleError();
       }
     }
-  } catch (std::exception &e) {
-    HandleError(e.what());
-  } catch (...) {
-    HandleError();
-  }
 
   if (callback_) {
     // Record event that will allow to call the callback after whole run of this pipeline is
@@ -531,30 +537,32 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   // iterations of a stage of the pipeline.
   CUDA_CALL(cudaEventSynchronize(gpu_stage_event_));
 
-  try {
     for (int i = 0; i < graph_->NumOp(OpType::GPU); ++i) {
       OpNode &op_node = graph_->Node(OpType::GPU, i);
-      typename WorkspacePolicy::template ws_t<OpType::GPU> ws =
-          WorkspacePolicy::template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
-      auto parent_events = ws.ParentEvents();
+      try {
+        typename WorkspacePolicy::template ws_t<OpType::GPU> ws =
+            WorkspacePolicy::template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
+        auto parent_events = ws.ParentEvents();
 
-      for (auto &event : parent_events) {
-        CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
-      }
+        for (auto &event : parent_events) {
+          CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
+        }
 
-      TimeRange tr("[Executor] Run GPU op " + op_node.instance_name,
-          TimeRange::knvGreen);
-      RunHelper(op_node, ws);
-      FillStats(gpu_memory_stats_, ws, "GPU_" + op_node.instance_name, gpu_memory_stats_mutex_);
-      if (ws.has_event()) {
-        CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+        TimeRange tr("[Executor] Run GPU op " + op_node.instance_name,
+            TimeRange::knvGreen);
+        RunHelper(op_node, ws);
+        FillStats(gpu_memory_stats_, ws, "GPU_" + op_node.instance_name, gpu_memory_stats_mutex_);
+        if (ws.has_event()) {
+          CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+        }
+      } catch (std::exception &e) {
+        HandleError(make_string("Error when executing GPU Operator ", op_node.op->name(),
+                                ", instance name: \"", op_node.instance_name, "\" encountered:\n",
+                                e.what()));
+      } catch (...) {
+        HandleError();
       }
     }
-  } catch (std::exception &e) {
-    HandleError(e.what());
-  } catch (...) {
-    HandleError();
-  }
 
   // Update the ready queue to signal that all the work
   // in the `gpu_idxs` set of output buffers has been
@@ -599,6 +607,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   ws->Clear();
 
   if (exec_error_ || QueuePolicy::IsStopSignaled()) {
+    // TODO collect all errors:
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     std::string error = errors_.empty() ? "Unknown error" : errors_.front();
     throw std::runtime_error(error);
