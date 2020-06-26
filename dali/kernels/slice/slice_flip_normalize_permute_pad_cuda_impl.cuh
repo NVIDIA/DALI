@@ -124,7 +124,6 @@ __device__ void SliceFlipNormalizePermutePadFunc(
 
     constexpr int d = Dims - 1;
     i_d = idx;  // out_strides[d] is treated as 1
-    idx = 0;
     if (AllDims && d == channel_dim)
       i_c = i_d;
 

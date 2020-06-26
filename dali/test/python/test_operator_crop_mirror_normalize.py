@@ -426,8 +426,8 @@ def check_cmn_crop_sequence_length(device, batch_size, dtype, input_layout, inpu
     expected_out_shape = (crop_d, 3, crop_h, crop_w) if output_layout == "FCHW" else (crop_d, crop_h, crop_w, 3)
 
     for i in range(batch_size):
-        assert(out_data.at(i).shape == expected_out_shape), \
-            "Shape mismatch {} != {}".format(out_data.at(i).shape, expected_out_shape)
+        assert(out_data[i].shape == expected_out_shape), \
+            "Shape mismatch {} != {}".format(out_data[i].shape, expected_out_shape)
 
 # Tests cropping along the sequence dimension as if it was depth
 def test_cmn_crop_sequence_length():
@@ -500,9 +500,9 @@ def check_cmn_with_out_of_bounds_policy_support(device, batch_size, dtype, input
 
         assert(batch_size == len(out))
         for idx in range(batch_size):
-            sample_in = in_data.at(idx)
-            sample_out = out.at(idx)
-            mirror = mirror_data.at(idx)
+            sample_in = in_data[idx]
+            sample_out = out[idx]
+            mirror = mirror_data[idx]
             flip = [0, mirror[0]]
             in_shape = list(sample_in.shape)
             out_shape = list(sample_out.shape)
