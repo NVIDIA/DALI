@@ -1299,7 +1299,7 @@ PYBIND11_MODULE(backend_impl, m) {
         "name"_a,
         "list"_a,
         "cuda_stream"_a = py::none(),
-        "bool"_a = false)
+        "no_copy"_a = false)
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<GPUBackend> &tl,
            py::object cuda_stream, bool no_copy) {
@@ -1311,7 +1311,7 @@ PYBIND11_MODULE(backend_impl, m) {
         "name"_a,
         "list"_a,
         "cuda_stream"_a = py::none(),
-        "bool"_a = false)
+        "no_copy"_a = false)
     .def("SetExternalTensorInput",
         [](Pipeline *p, const string &name, py::list list, py::object cuda_stream, bool no_copy) {
           // Note: This is a hack to get around weird casting

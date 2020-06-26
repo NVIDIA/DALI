@@ -520,10 +520,15 @@ Parameters
             internal buffer is complete, since there's no way to synchronize with this stream to
             prevent overwriting the array with new data in another stream.
 
-        `no_copy` : If DALI should copy the buffer then feed_input is called
-            If set to true it is the user responsibility to keep buffer alive and unmodified
-            until it is used in the pipeline. The rule of thumb is to keep alive 3
-            (number of DALI stages) * prefetch_queue_depth
+        ``no_copy` : If DALI should copy the buffer when feed_input is called
+            If ``no_copy`` is set to true instead of making a copy of the provided buffer,
+            DALI passes the user's memory directly in the Pipeline.
+            It is user's responsibility to keep the buffer alive and unmodified
+            until it is used in the pipeline.
+
+            The buffer can be modified again after the outputs of the iteration it was used in were
+            consumed, which can happen ``prefetch_queue_depth`` * ``gpu_queue_depth`` iterations
+            after the ``feed_input`` call.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")

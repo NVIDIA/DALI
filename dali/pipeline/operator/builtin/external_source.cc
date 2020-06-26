@@ -21,7 +21,6 @@ template<>
 void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
   std::list<uptr_tl_type> tensor_list_elm;
   std::list<uptr_tv_type> tensor_vector_elm;
-  std::list<uptr_cuda_event_type> internal_copy_to_storage;
   ZeroCopyInfo copy_info;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
@@ -31,9 +30,6 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
       tensor_vector_elm = tv_data_.PopFront();
     } else {
       tensor_list_elm = tl_data_.PopFront();
-    }
-    if (!copy_info.is_zero_copy) {
-      internal_copy_to_storage = copy_to_storage_events_.PopFront();
     }
   }
   if (copy_info.is_zero_copy && !copy_info.is_tensor_vector) {

@@ -302,7 +302,9 @@ class ExternalSource : public Operator<Backend> {
         if (!tl_elm.front()->raw_data()) {
           tl_elm.front()->set_pinned(false);
         }
-        copy_to_storage_event = copy_to_storage_events_.GetEmpty();
+        if (std::is_same<Backend, GPUBackend>::value) {
+          copy_to_storage_event = copy_to_storage_events_.GetEmpty();
+        }
       }
     }
 
@@ -319,7 +321,7 @@ class ExternalSource : public Operator<Backend> {
       }
       // sync for pinned CPU -> GPU as well, because the user doesn't know when he can
       // reuse provided memory anyway
-      if (sync || (std::is_same<Backend, GPUBackend>::value && batch.is_pinned())) {
+      if (std::is_same<Backend, GPUBackend>::value && (sync || batch.is_pinned())) {
         CUDA_CALL(cudaEventSynchronize(*copy_to_storage_event.front()));
       }
 
@@ -327,7 +329,9 @@ class ExternalSource : public Operator<Backend> {
       {
         std::lock_guard<std::mutex> busy_lock(busy_m_);
         tl_data_.AddBack(tl_elm);
-        copy_to_storage_events_.AddBack(copy_to_storage_event);
+        if (std::is_same<Backend, GPUBackend>::value) {
+          copy_to_storage_events_.AddBack(copy_to_storage_event);
+        }
       }
     }
     cv_.notify_one();

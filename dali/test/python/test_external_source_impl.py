@@ -611,8 +611,8 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
                 self.feed_input(self.batch_2, batch_2, no_copy=True)
 
     iter_num = 5
-    # we don't have mixed stage so it is enough to keep only 2 * prefetch_queue_depth, but in the general
-    # case it should be 3 * prefetch_queue_depth
+    # we don't have mixed stage so it is enough to keep only ``prefetch_queue_depth`` * ``gpu_queue_depth``
+    # but here they are equal
     num_keep_samples = prefetch_queue_depth * 2 + additional_num_keep_samples
     source = TestIteratorZeroCopy(iter_num, batch_size, [2, 3], as_tensor=as_tensor, num_keep_samples=num_keep_samples)
     pipe = IterSetupPipeline(iter(source), 3, 0, device, prefetch_queue_depth)
