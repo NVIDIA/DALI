@@ -322,8 +322,8 @@ The data can be provided by the ``source`` function or iterable, or it can be pr
                 "provide data. To feed multiple external sources in `feed_input`, use multiple "
                 "`external_source` nodes.")
 
-    op = ExternalSource(device = device, num_outputs = num_outputs,
-                        source = source, cycle = cycle, layout = layout, cuda_stream = cuda_stream)
+    op = ExternalSource(device = device, num_outputs = num_outputs, source = source,
+                        cycle = cycle, layout = layout, cuda_stream = cuda_stream)
     return op(name = name)
 
 external_source.__doc__ += ExternalSource._args_doc

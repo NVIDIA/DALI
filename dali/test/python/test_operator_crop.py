@@ -54,7 +54,7 @@ class CropPipeline(Pipeline):
                                  crop_pos_y = crop_y)
 
     def define_graph(self):
-        inputs, labels = self.input(name="Reader")
+        inputs, _ = self.input(name="Reader")
 
         if self.is_fused_decoder:
             images = self.decode(inputs)

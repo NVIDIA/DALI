@@ -137,8 +137,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * list.
    */
   DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape, const TypeInfo &new_type) {
-    if (new_shape == shape_) return;
-
     // Calculate the new size
     Index num_tensor = new_shape.size(), new_size = 0;
     offsets_.resize(num_tensor);
@@ -219,14 +217,15 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * the user to manage the lifetime of the allocation such that it
    * persist while it is in use by the Tensor.
    */
-  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes) {
+  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const TensorListShape<> &shape,
+                        const TypeInfo &type = {}) {
     DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
 
     // Save our new pointer and bytes. Reset our type, shape, and size
-    data_.reset(ptr, [](void *) {});
+    data_ = ptr;
     num_bytes_ = bytes;
-    type_ = TypeInfo::Create<NoType>();
-    shape_ = TensorListShape<>();
+    type_ = type;
+    shape_ = shape;
     offsets_.clear();
     size_ = 0;
     device_ = -1;
@@ -237,6 +236,50 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     // If the input pointer stores a non-zero size allocation, mark
     // that we are sharing our underlying data
     shares_data_ = num_bytes_ > 0 ? true : false;
+  }
+
+  /**
+   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
+   * if the size of the allocation is zero, the TensorList is reset to
+   * a default state and is NOT marked as sharing data.
+   *
+   * After wrapping the allocation, the TensorLists size is set to 0,
+   * and its type is reset to NoType.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or the call will fail.
+   * Size can be set to 0 and type to NoType as intermediate step.
+   *
+   * The TensorList object assumes no ownership of the input allocation,
+   * and will not de-allocate it when it is done using it. It is up to
+   * the user to manage the lifetime of the allocation such that it
+   * persist while it is in use by the Tensor.
+   */
+  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, const TensorListShape<> &shape,
+                                   const TypeInfo &type = TypeInfo::Create<NoType>()) {
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
+  }
+
+  /**
+   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
+   * if the size of the allocation is zero, the TensorList is reset to
+   * a default state and is NOT marked as sharing data.
+   *
+   * After wrapping the allocation, the TensorLists size is set to 0,
+   * and its type is reset to NoType.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or the call will fail.
+   * Size can be set to 0 and type to NoType as intermediate step.
+   *
+   * The TensorList object assumes no ownership of the input allocation,
+   * and will not de-allocate it when it is done using it. It is up to
+   * the user to manage the lifetime of the allocation such that it
+   * persist while it is in use by the Tensor.
+   */
+  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes,
+                                   const TypeInfo &type = TypeInfo::Create<NoType>()) {
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, TensorListShape<>{}, type);
   }
 
   DLL_PUBLIC void Reset() {

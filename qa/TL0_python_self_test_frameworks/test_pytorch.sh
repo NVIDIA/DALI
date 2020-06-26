@@ -10,6 +10,8 @@ test_body() {
     nosetests --verbose test_torch_pipeline_rnnt.py
     nosetests --verbose test_external_source_pytorch_cpu.py
     nosetests --verbose test_external_source_pytorch_gpu.py
+    nosetests --verbose test_external_source_pytorch_dlpack.py
+    nosetests --verbose test_backend_impl_torch_dlpack.py
 }
 
 pushd ../..

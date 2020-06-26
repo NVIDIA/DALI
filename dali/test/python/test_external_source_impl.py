@@ -1,3 +1,17 @@
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
@@ -19,6 +33,9 @@ make_array = np.array
 
 def _to_numpy(x):
     assert(False)
+
+def cast_to(x, dtype):
+    return x.astype(dtype)
 
 def asnumpy(x):
     if x is None:
@@ -47,6 +64,7 @@ def use_torch(gpu):
     global torch
     global datapy
     global _to_numpy
+    global cast_to
     import torch
     datapy = torch
     def torch2numpy(tensor):
@@ -56,6 +74,9 @@ def use_torch(gpu):
     def make_torch_tensor(*args, **kwargs):
         t = torch.tensor(*args, **kwargs)
         return t.cuda() if gpu else t
+    def torch_cast(x, dtype):
+        return x.type(dtype)
+    cast_to = torch_cast
     random_array = lambda shape: make_torch_tensor(np.random.ranf(shape))
     global make_array
     make_array = make_torch_tensor
@@ -451,17 +472,13 @@ def test_external_source_fail_list():
     pipe.build()
     assert_raises(RuntimeError, pipe.run)
 
-def external_data_veri(external_data):
-    pass
-
-def test_external_source_scalar_list():
+def external_data_veri(external_data, batch_size):
     class ExternalSourcePipeline(Pipeline):
-        def __init__(self, batch_size, external_data, num_threads, device_id, label_data):
+        def __init__(self, batch_size, external_data, num_threads, device_id):
             super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
             self.input = ops.ExternalSource()
             self.batch_size_ = batch_size
             self.external_data = external_data
-            self.label_data_ = label_data
 
         def define_graph(self):
             self.batch = self.input()
@@ -473,6 +490,14 @@ def test_external_source_scalar_list():
                 batch.append(make_array(elm, dtype=datapy.uint8))
             self.feed_input(self.batch, batch)
 
+    pipe = ExternalSourcePipeline(batch_size, external_data, 3, 0)
+    pipe.build()
+    for _ in range(10):
+        out = pipe.run()
+        for i in range(batch_size):
+            assert out[0].as_array()[i] == external_data[i]
+
+def test_external_source_scalar_list():
     batch_size = 3
     label_data = 10
     lists = []
@@ -481,13 +506,7 @@ def test_external_source_scalar_list():
         lists.append([label_data + i])
         scalars.append(label_data + i * 10)
     for external_data in [lists, scalars]:
-        pipe = ExternalSourcePipeline(batch_size, external_data, 3, 0, label_data)
-        pipe.build()
-        for _ in range(10):
-            out = pipe.run()
-            for i in range(batch_size):
-                assert out[0].as_array()[i] == external_data[i]
-        yield external_data_veri, external_data
+        yield external_data_veri, external_data, batch_size
 
 def test_external_source_gpu():
     class ExternalSourcePipeline(Pipeline):
@@ -504,17 +523,13 @@ def test_external_source_gpu():
 
         def iter_setup(self):
             if use_list:
-                batch_data = [random_array([100, 100, 3]) for _ in range(self.batch_size)]
+                batch_data = [cast_to(random_array([100, 100, 3]) * 256, datapy.uint8) for _ in range(self.batch_size)]
             else:
-                batch_data = random_array([self.batch_size, 100, 100, 3])
-            self.feed_input(self.batch, batch_data)
+                batch_data = cast_to(random_array([self.batch_size, 100, 100, 3]) * 256, datapy.uint8)
+            self.feed_input(self.batch, batch_data, layout="HWC")
 
     for batch_size in [1, 10]:
         for use_list in (True, False):
             pipe = ExternalSourcePipeline(batch_size, 3, 0, use_list)
             pipe.build()
-            try:
-                pipe.run()
-            except RuntimeError:
-                if not use_list:
-                    assert(1), "For tensor list GPU external source should fail"
+            pipe.run()

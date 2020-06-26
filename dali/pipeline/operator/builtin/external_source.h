@@ -57,6 +57,10 @@ class CachingList {
     return full_data_.empty();
   }
 
+  T &PeekFront() {
+    return full_data_.front();
+  }
+
   std::list<T> PopFront() {
     std::list<T> tmp;
     tmp.splice(tmp.begin(), full_data_, full_data_.begin());
@@ -211,7 +215,25 @@ class ExternalSource : public Operator<Backend> {
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    return false;
+    TensorListShape<> shape;
+    output_desc.resize(1);
+    {
+      std::unique_lock<std::mutex> busy_lock(busy_m_);
+      if (blocking_) {
+        cv_.wait(busy_lock, [&data = tl_data_] {return !data.IsEmpty(); });
+      } else {
+        if (tl_data_.IsEmpty()) {
+          DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
+        }
+      }
+      output_desc[0].shape = tl_data_.PeekFront()->shape();
+      output_desc[0].type = tl_data_.PeekFront()->type();
+    }
+    return true;
+  }
+
+  bool CanInferOutputs()  const override {
+    return true;
   }
 
   /*
@@ -253,6 +275,9 @@ class ExternalSource : public Operator<Backend> {
   bool blocking_ = false;
 
   WorkerThread sync_worker_;
+
+  using VolumeSampleIdPair = std::pair<int64_t, int>;  // volume, sample_idx
+  std::vector<VolumeSampleIdPair> sample_ids_;
 };
 
 }  // namespace dali

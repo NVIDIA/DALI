@@ -231,7 +231,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
     pipe_ptr->SetExternalInput(input_name, input);
     daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                               input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
-                              input_shape.sample_dim(), nullptr, cuda_stream, false);
+                              input_shape.sample_dim(), nullptr, cuda_stream, false, false);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -251,7 +251,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   pipe_ptr->SetExternalInput(input_name, input);
   daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                             input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
-                            input_shape.sample_dim(), "HWC", cuda_stream, false);
+                            input_shape.sample_dim(), "HWC", cuda_stream, false, false);
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
@@ -289,7 +289,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
     daliSetExternalInputTensorsAsync(&handle, input_name.c_str(),
                                      backend_to_device_type<TypeParam>::value, data_ptrs.data(),
                                      dali_data_type_t::DALI_UINT8, input_shape.data(),
-                                     input_shape.sample_dim(), nullptr, cuda_stream, false);
+                                     input_shape.sample_dim(), nullptr, cuda_stream, false, false);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -310,7 +310,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   daliSetExternalInputTensorsAsync(&handle, input_name.c_str(),
                                    backend_to_device_type<TypeParam>::value, data_ptrs.data(),
                                    dali_data_type_t::DALI_UINT8, input_shape.data(),
-                                   input_shape.sample_dim(), "HWC", cuda_stream, false);
+                                   input_shape.sample_dim(), "HWC", cuda_stream, false, false);
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
@@ -349,7 +349,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
     pipe_ptr->SetExternalInput(input_name, input);
     daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
                          input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
-                         input_shape.sample_dim(), nullptr);
+                         input_shape.sample_dim(), nullptr, false);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -370,7 +370,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   pipe_ptr->SetExternalInput(input_name, input);
   daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
                        input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
-                       input_shape.sample_dim(), "HWC");
+                       input_shape.sample_dim(), "HWC", false);
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
@@ -414,7 +414,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
     daliSetExternalInputTensors(&handle, input_name.c_str(),
                                 backend_to_device_type<DataBackend>::value, data_ptrs.data(),
                                 dali_data_type_t::DALI_UINT8, input_shape.data(),
-                                input_shape.sample_dim(), nullptr);
+                                input_shape.sample_dim(), nullptr, false);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -436,7 +436,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   daliSetExternalInputTensors(&handle, input_name.c_str(),
                               backend_to_device_type<DataBackend>::value, data_ptrs.data(),
                               dali_data_type_t::DALI_UINT8, input_shape.data(),
-                              input_shape.sample_dim(), "HWC");
+                              input_shape.sample_dim(), "HWC", false);
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
