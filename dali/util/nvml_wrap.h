@@ -50,6 +50,11 @@ DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByIndex_v2(unsigned int index, nvm
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCudaComputeCapability(nvmlDevice_t device,
                                                               int* major, int* minor);
 
+/**
+ * Checks, whether CUDA11-proper NVML functions have been successfully loaded
+ */
+DLL_PUBLIC bool wrapHasCuda11NvmlFunctions();
+
 }  // namespace nvml
 
 }  // namespace dali

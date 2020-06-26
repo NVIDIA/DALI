@@ -162,6 +162,13 @@ inline bool HasHwDecoder() {
   return false;
 }
 
+/**
+ * Checks, whether CUDA11-proper NVML functions have been successfully loaded
+ */
+inline bool HasCuda11NvmlFunctions() {
+  return wrapHasCuda11NvmlFunctions();
+}
+
 }  // namespace nvml
 }  // namespace dali
 
