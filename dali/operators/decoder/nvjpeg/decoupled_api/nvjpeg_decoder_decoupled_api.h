@@ -380,9 +380,11 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         bool hw_decode = false;
 #if NVJPEG_VER_MAJOR >= 11
         if (!crop_generator && state_hw_batched_ != nullptr) {
-          nvjpegJpegStreamParseHeader(handle_, input_data, in_size, hw_decoder_jpeg_stream_);
+          NVJPEG_CALL(nvjpegJpegStreamParseHeader(handle_, input_data, in_size,
+                                                  hw_decoder_jpeg_stream_));
           int is_supported = -1;
-          nvjpegDecodeBatchedSupported(handle_, hw_decoder_jpeg_stream_, &is_supported);
+          NVJPEG_CALL(nvjpegDecodeBatchedSupported(handle_, hw_decoder_jpeg_stream_,
+                                                   &is_supported));
           hw_decode = is_supported == 0;
           if (!hw_decode) {
             LOG_LINE << "Sample \"" << data.file_name
@@ -422,7 +424,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                              data.roi.shape[1], data.roi.shape[0]));
       } else {
         output_shape_.set_tensor_shape(i, data.shape);
-        nvjpegDecodeParamsSetROI(data.params, 0, 0, -1, -1);
+        NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, 0, 0, -1, -1));
       }
 
       data.is_progressive = IsProgressiveJPEG(input_data, in_size);

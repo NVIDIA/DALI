@@ -410,7 +410,9 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
         DALI_FAIL("Error initializing BSF.");
       }
 
-      avcodec_parameters_copy(codecpar(stream), file.bsf_ctx_->par_out);
+      if (avcodec_parameters_copy(codecpar(stream), file.bsf_ctx_->par_out) < 0) {
+        DALI_FAIL("Cannot save BSF parameters.");
+      }
 #else
       auto raw_bsf_ctx_ = av_bitstream_filter_init(filtername);
       if (!raw_bsf_ctx_) {

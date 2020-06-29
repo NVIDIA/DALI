@@ -165,8 +165,9 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         info->crop_window = crop_generator(shape, "HW");
         auto &crop_window = info->crop_window;
         DALI_ENFORCE(crop_window.IsInRange(shape));
-        nvjpegDecodeParamsSetROI(decode_params_[data_idx],
-          crop_window.anchor[1], crop_window.anchor[0], crop_window.shape[1], crop_window.shape[0]);
+        NVJPEG_CALL(nvjpegDecodeParamsSetROI(decode_params_[data_idx],
+                                             crop_window.anchor[1], crop_window.anchor[0],
+                                             crop_window.shape[1], crop_window.shape[0]));
         info->widths[0] = crop_window.shape[1];
         info->heights[0] = crop_window.shape[0];
       }

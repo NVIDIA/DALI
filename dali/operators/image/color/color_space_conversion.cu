@@ -115,7 +115,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
 
   cudaStream_t old_stream = nppGetStream();
   auto stream = ws.stream();
-  nppSetStream(stream);
+  DALI_CHECK_NPP(nppSetStream(stream));
 
   if (InputLayout(ws, 0) == "HWC") {
     // RGB -> BGR || BGR -> RGB
@@ -215,7 +215,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     }
   }
 
-  nppSetStream(old_stream);
+  DALI_CHECK_NPP(nppSetStream(old_stream));
 }
 
 DALI_REGISTER_OPERATOR(ColorSpaceConversion, ColorSpaceConversion<GPUBackend>, GPU);
