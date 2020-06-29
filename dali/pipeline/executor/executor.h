@@ -207,6 +207,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
       }
   }
 
+  void HandleError(const std::string &stage, const std::string &op_name,
+                   const std::string &instance_name, const std::string &message) {
+    HandleError(make_string("Error when executing ", stage, " Operator ", op_name,
+                            ", instance name: \"", instance_name, "\", encountered:\n", message));
+  }
+
   void HandleError(const std::string& message = "Unknown exception") {
     exec_error_ = true;
     ShutdownQueue();
@@ -453,10 +459,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
       RunHelper(op_node, ws);
       FillStats(cpu_memory_stats_, ws, "CPU_" + op_node.instance_name, cpu_memory_stats_mutex_);
     } catch (std::exception &e) {
-      // TODO: move the whole Critical error bla bla here?
-      HandleError(make_string("Error when executing CPU Operator ", op_node.op->name(),
-                              ", instance name: \"", op_node.instance_name, "\" encountered:\n",
-                              e.what()));
+      HandleError("CPU", op_node.spec.name(), op_node.instance_name, e.what());
     } catch (...) {
       HandleError();
     }
@@ -494,11 +497,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
         if (ws.has_stream() && ws.has_event()) {
           CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
         }
+        CUDA_CALL(cudaGetLastError());
       } catch (std::exception &e) {
-        HandleError(make_string("Error when executing Mixed Operator ", op_node.op->name(),
-                                ", instance name: \"", op_node.instance_name, "\" encountered:\n",
-                                e.what()));
-        HandleError(e.what()); // TODO move this try catch inside?
+        HandleError("Mixed", op_node.spec.name(), op_node.instance_name, e.what());
       } catch (...) {
         HandleError();
       }
@@ -555,10 +556,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
         if (ws.has_event()) {
           CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
         }
+        CUDA_CALL(cudaGetLastError());
       } catch (std::exception &e) {
-        HandleError(make_string("Error when executing GPU Operator ", op_node.op->name(),
-                                ", instance name: \"", op_node.instance_name, "\" encountered:\n",
-                                e.what()));
+        HandleError("GPU", op_node.spec.name(), op_node.instance_name, e.what());
       } catch (...) {
         HandleError();
       }
@@ -607,7 +607,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   ws->Clear();
 
   if (exec_error_ || QueuePolicy::IsStopSignaled()) {
-    // TODO collect all errors:
+    // TODO(klecki) collect all errors
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     std::string error = errors_.empty() ? "Unknown error" : errors_.front();
     throw std::runtime_error(error);

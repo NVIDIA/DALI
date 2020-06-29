@@ -205,14 +205,13 @@ void OpGraph::InstantiateOperators() {
       try {
         op_nodes_[op_id].InstantiateOperator();
       } catch (std::exception &e) {
-        throw std::runtime_error(
-            make_string("Critical error when building Pipeline, for Operator: ", op_nodes_[op_id].spec.name(),
-                        ", instance name: \"",  op_nodes_[op_id].instance_name, "\" encountered:\n", e.what(),
-                        "\nCurrent pipeline object is no longer valid."));
+        throw std::runtime_error(make_string(
+            "Critical error when building Pipeline:\nError when constructing Operator: ",
+            op_nodes_[op_id].spec.name(), ", instance name: \"", op_nodes_[op_id].instance_name,
+            "\", encountered:\n", e.what(), "\nCurrent pipeline object is no longer valid."));
       } catch (...) {
-        throw std::runtime_error("Unknown Critical error in pipeline");
+        throw std::runtime_error("Unknown critical error when building Pipeline.");
       }
-
     }
   }
 }

@@ -234,7 +234,7 @@ def test_per_sample_gaussian_blur():
                     yield check_per_sample_gaussian_blur, 10, sigma_dim, window_size_dim, shape, layout, axes, dev
 
 
-# @raises(RuntimeError)
+@raises(RuntimeError)
 def check_fail_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, op_type, in_dtype=np.uint8, out_dtype=types.NO_TYPE):
     check_generic_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, op_type, in_dtype, out_dtype)
 

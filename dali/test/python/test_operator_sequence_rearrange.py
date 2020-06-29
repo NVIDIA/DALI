@@ -82,7 +82,7 @@ def test_sequence_rearrange():
                 for layout in ["FHW"[:len(shape)], ""]:
                     yield check_sequence_rearrange, 5, shape, new_order, per_sample, dev, layout
 
-# @raises(RuntimeError)
+@raises(RuntimeError)
 def check_fail_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True, op_type="cpu", layout=""):
     check_sequence_rearrange(batch_size, shape, reorders, persample_reorder, op_type, layout)
 
