@@ -50,6 +50,7 @@ struct SampleDesc {
   int channel_dim;
   bool need_pad;
   bool need_flip;
+  int effective_ndim;
 
   fast_div<uint64_t> out_strides[Dims];
   TensorShape<Dims> in_strides;
@@ -77,25 +78,13 @@ __device__ void SliceFlipNormalizePermutePadFunc(
     const fast_div<uint64_t> *out_strides, const int64_t *in_strides, const int64_t *out_shape,
     const int64_t *in_shape, const int64_t *anchor, const Out *__restrict__ fill_values,
     const float *__restrict__ norm_add, const float *__restrict__ norm_mul, int channel_dim,
-    uint64_t offset, uint64_t block_end) {
-  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1] && anchor[Dims - 1] == 0 &&
-      out_shape[Dims - 1] == in_shape[Dims - 1] && channel_dim != Dims - 1 &&
-      (!NeedFlip || (in_strides[Dims - 1] < 0) == (in_strides[Dims - 2] < 0))) {
+    int effective_ndim, uint64_t offset, uint64_t block_end) {
+  if (Dims > effective_ndim) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
     SliceFlipNormalizePermutePadFunc<NeedFlip, NeedNormalize, NeedPad, NextDims, Out, In, false>(
         out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values, norm_add,
-        norm_mul, channel_dim, offset, block_end);
+        norm_mul, channel_dim, effective_ndim, offset, block_end);
     return;
-  }
-
-  constexpr int LastDim = Dims - 1;
-  int64_t inner_in_anchor = anchor[LastDim];
-  int64_t inner_in_extent = in_shape[LastDim];
-  int64_t inner_out_extent = out_shape[LastDim];
-  if (!AllDims) {  // if we fused dimensions, adjust inner dimension's anchor and extent
-    inner_in_anchor = anchor[LastDim] * in_strides[LastDim];
-    inner_in_extent = in_shape[LastDim] * in_strides[LastDim];
-    inner_out_extent = out_shape[LastDim] * in_strides[LastDim];
   }
 
   for (; offset < block_end; offset += blockDim.x) {
@@ -128,9 +117,9 @@ __device__ void SliceFlipNormalizePermutePadFunc(
       i_c = i_d;
 
     if (NeedPad) {
-      auto in_i_d = NeedFlip && in_strides[d] < 0 ? inner_in_anchor + inner_out_extent - 1 - i_d
-                                                  : inner_in_anchor + i_d;
-      out_of_bounds |= is_out_of_bounds(in_i_d, inner_in_extent);
+      auto in_i_d = NeedFlip && in_strides[d] < 0 ? anchor[d] + out_shape[d] - 1 - i_d
+                                                  : anchor[d] + i_d;
+      out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
     }
 
     // in_strides[d] to be used if AllDims = false (potentially permuting dims)
@@ -168,6 +157,7 @@ __global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *sampl
   auto *fill_values = static_cast<const Out*>(sample.fill_values);
   bool need_pad = NeedPad && sample.need_pad;
   bool need_flip = NeedFlip && sample.need_flip;
+  int effective_ndim = sample.effective_ndim;
 
   VALUE_SWITCH(need_pad ? 1 : 0, NeedPadInt, (0, 1), (
     VALUE_SWITCH(need_flip ? 1 : 0, NeedFlipInt, (0, 1), (
@@ -175,7 +165,7 @@ __global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *sampl
       constexpr bool SampleNeedFlip = static_cast<bool>(NeedFlipInt);
       SliceFlipNormalizePermutePadFunc<SampleNeedFlip, NeedNormalize, SampleNeedPad, Dims>(
           out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values, norm_add,
-          norm_mul, channel_dim, offset, block_end);
+          norm_mul, channel_dim, effective_ndim, offset, block_end);
     ), ());  // NOLINT
   ), ());  // NOLINT
 }
