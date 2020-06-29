@@ -304,7 +304,6 @@ class CMNRandomDataPipeline(Pipeline):
                                             crop_pos_x = crop_pos_x,
                                             crop_pos_y = crop_pos_y,
                                             crop_pos_z = crop_pos_z,
-                                            image_type = types.RGB,
                                             mean = mean,
                                             std = std,
                                             pad_output = pad_output,
@@ -426,8 +425,8 @@ def check_cmn_crop_sequence_length(device, batch_size, dtype, input_layout, inpu
     expected_out_shape = (crop_d, 3, crop_h, crop_w) if output_layout == "FCHW" else (crop_d, crop_h, crop_w, 3)
 
     for i in range(batch_size):
-        assert(out_data[i].shape == expected_out_shape), \
-            "Shape mismatch {} != {}".format(out_data[i].shape, expected_out_shape)
+        assert(out_data.at(i).shape == expected_out_shape), \
+            "Shape mismatch {} != {}".format(out_data.at(i).shape, expected_out_shape)
 
 # Tests cropping along the sequence dimension as if it was depth
 def test_cmn_crop_sequence_length():
@@ -500,9 +499,9 @@ def check_cmn_with_out_of_bounds_policy_support(device, batch_size, dtype, input
 
         assert(batch_size == len(out))
         for idx in range(batch_size):
-            sample_in = in_data[idx]
-            sample_out = out[idx]
-            mirror = mirror_data[idx]
+            sample_in = in_data.at(idx)
+            sample_out = out.at(idx)
+            mirror = mirror_data.at(idx)
             flip = [0, mirror[0]]
             in_shape = list(sample_in.shape)
             out_shape = list(sample_out.shape)
@@ -515,7 +514,7 @@ def check_cmn_with_out_of_bounds_policy_support(device, batch_size, dtype, input
 
 def test_cmn_with_out_of_bounds_policy_support():
     in_shape = (40, 80, 3)
-    in_layout = "HWC"
+    in_layout = 'HWC'
     dtype = types.FLOAT
     mean = [0.485 * 255, 0.456 * 255, 0.406 * 255]
     std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
@@ -523,7 +522,7 @@ def test_cmn_with_out_of_bounds_policy_support():
     for out_of_bounds_policy in ['pad', 'trim_to_shape']:
         for device in ['gpu', 'cpu']:
             for batch_size in [1, 3]:
-                for out_layout in ["HWC", "CHW"]:
+                for out_layout in ['HWC', 'CHW']:
                     for mirror_probability in [0.5]:
                         for should_pad in [False, True]:
                             yield check_cmn_with_out_of_bounds_policy_support, \

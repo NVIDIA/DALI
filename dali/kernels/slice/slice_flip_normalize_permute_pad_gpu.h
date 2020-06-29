@@ -166,13 +166,10 @@ class SliceFlipNormalizePermutePadGpu {
         }
       }
 
-      norm_add_gpu = context.scratchpad->ToGPU(
-          context.gpu.stream, make_span(norm_add_cpu, num_samples * norm_args_size_));
-      CUDA_CALL(cudaGetLastError());
-
-      norm_mul_gpu = context.scratchpad->ToGPU(
-          context.gpu.stream, make_span(norm_mul_cpu, num_samples * norm_args_size_));
-      CUDA_CALL(cudaGetLastError());
+      std::tie(norm_add_gpu, norm_mul_gpu) = context.scratchpad->ToContiguousGPU(
+          context.gpu.stream,
+          make_span(norm_add_cpu, num_samples * norm_args_size_),
+          make_span(norm_mul_cpu, num_samples * norm_args_size_));
     }
 
     OutputType *fill_values_cpu =
@@ -189,7 +186,6 @@ class SliceFlipNormalizePermutePadGpu {
     }
     OutputType *fill_values_gpu = context.scratchpad->ToGPU(
         context.gpu.stream, make_span(fill_values_cpu, num_samples * nfill_values_));
-    CUDA_CALL(cudaGetLastError());
 
     // Host memory
     auto *sample_descs_cpu =
@@ -230,7 +226,7 @@ class SliceFlipNormalizePermutePadGpu {
         sample_desc.need_flip |= processed_args.in_strides[d] < 0;
       need_flip |= sample_desc.need_flip;
 
-      // We the last dimension with the previous if:
+      // We fuse the last dimension with the previous IF:
       // 1. There are at least 2 dimensions
       // 2. Last dimension is not sliced/padded/permuted
       // 3. Last dimension is not the channel dimension
@@ -267,20 +263,16 @@ class SliceFlipNormalizePermutePadGpu {
       }
     }
 
-    auto *sample_descs_gpu = context.scratchpad->ToGPU(
-        context.gpu.stream, make_span(sample_descs_cpu, num_samples));
-    CUDA_CALL(cudaGetLastError());
+    detail::SampleDesc<Dims> *sample_descs_gpu = nullptr;
+    detail::BlockDesc *block_descs_gpu = nullptr;
+    std::tie(sample_descs_gpu, block_descs_gpu) = context.scratchpad->ToContiguousGPU(
+        context.gpu.stream,
+        make_span(sample_descs_cpu, num_samples),
+        make_span(block_descs_cpu, block_count_));
 
-    auto *block_descs_gpu = context.scratchpad->ToGPU(
-        context.gpu.stream, make_span(block_descs_cpu, block_count_));
-    CUDA_CALL(cudaGetLastError());
-
-    VALUE_SWITCH(need_pad ? 1 : 0, NeedPadInt, (0, 1), (
-      VALUE_SWITCH(need_flip ? 1 : 0, NeedFlipInt, (0, 1), (
-        VALUE_SWITCH(need_normalize_ ? 1 : 0, NeedNormalizeInt, (0, 1), (
-          constexpr bool NeedPad = static_cast<bool>(NeedPadInt);
-          constexpr bool NeedFlip = static_cast<bool>(NeedFlipInt);
-          constexpr bool NeedNormalize = static_cast<bool>(NeedNormalizeInt);
+    VALUE_SWITCH(need_pad ? 1 : 0, NeedPad, (false, true), (
+      VALUE_SWITCH(need_flip ? 1 : 0, NeedFlip, (false, true), (
+        VALUE_SWITCH(need_normalize_ ? 1 : 0, NeedNormalize, (false, true), (
           auto grid = block_count_;
           detail::SliceFlipNormalizePermutePadKernel
             <NeedPad, NeedFlip, NeedNormalize, OutputType, InputType, Dims>
@@ -288,6 +280,8 @@ class SliceFlipNormalizePermutePadGpu {
         ), ());  // NOLINT
       ), ());  // NOLINT
     ), ());  // NOLINT
+
+    CUDA_CALL(cudaGetLastError());
   }
 };
 

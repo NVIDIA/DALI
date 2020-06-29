@@ -110,8 +110,9 @@ void SliceFlipNormalizePermutePadKernelImpl(
     // out of bounds (left side)
     if (pad_before > 0) {
       if (HasChannels && d == channel_dim) {
-        for (int64_t i = 0; i < pad_before; i++)
+        for (int64_t i = 0; i < pad_before; i++) {
           *output++ = *fill_values++;
+        }
         mean       += pad_before;
         inv_stddev += pad_before;
       } else {
@@ -221,10 +222,8 @@ void SliceFlipNormalizePermutePadKernel(
   bool need_pad = NeedPad(Dims, anchor.data(), in_shape.data(), out_shape.data());
   bool has_channels = channel_dim >= 0;
   bool need_normalize = (mean != nullptr && inv_stddev != nullptr);
-  VALUE_SWITCH(need_normalize ? 1 : 0, NeedNormalizeInt, (0, 1), (
-    VALUE_SWITCH(has_channels ? 1 : 0, HasChannelsInt, (0, 1), (
-      constexpr bool NeedNormalize = static_cast<bool>(NeedNormalizeInt);
-      constexpr bool HasChannels = static_cast<bool>(HasChannelsInt);
+  VALUE_SWITCH(need_normalize ? 1 : 0, NeedNormalize, (false, true), (
+    VALUE_SWITCH(has_channels ? 1 : 0, HasChannels, (false, true), (
       if (need_pad) {
         constexpr bool OutOfBounds = false;
         detail::SliceFlipNormalizePermutePadKernelImpl<NeedNormalize, HasChannels, OutOfBounds>(
