@@ -601,7 +601,7 @@ def test_type_conversion():
             self.cmnp_all = ops.CropMirrorNormalize(device = "gpu",
                                                     dtype = types.FLOAT,
                                                     output_layout = types.NHWC,
-                                                    crop = (224, 224),                                                    
+                                                    crop = (224, 224),
                                                     mean = [128., 128., 128.],
                                                     std = [1., 1., 1.])
             self.cmnp_int = ops.CropMirrorNormalize(device = "gpu",
@@ -1655,3 +1655,41 @@ def test_output_dtype_both_error():
                                        std=[1., 1., 1.])
         pipe.set_outputs(cmn)
     pipe.build()
+
+def test_epoch_size():
+    class ReaderPipeline(Pipeline):
+        def __init__(self, batch_size):
+            super(ReaderPipeline, self).__init__(batch_size, num_threads=1, device_id=0, prefetch_queue_depth=1)
+            self.input_mxnet = ops.MXNetReader(path = os.path.join(recordio_db_folder, "train.rec"),
+                                            index_path = os.path.join(recordio_db_folder, "train.idx"),
+                                            shard_id = 0,
+                                            num_shards = 1,
+                                            prefetch_queue_depth = 1)
+            self.input_caffe = ops.CaffeReader(path = caffe_db_folder,
+                                            shard_id = 0,
+                                            num_shards = 1,
+                                            prefetch_queue_depth = 1)
+            self.input_caffe2 = ops.Caffe2Reader(path = c2lmdb_db_folder,
+                                            shard_id = 0,
+                                            num_shards = 1,
+                                            prefetch_queue_depth = 1)
+            self.input_file = ops.FileReader(file_root = jpeg_folder,
+                                        shard_id = 0,
+                                        num_shards = 1,
+                                        prefetch_queue_depth = 1)
+
+        def define_graph(self):
+            jpegs_mxnet, _ = self.input_mxnet(name="mxnet_reader")
+            jpegs_caffe, _ = self.input_caffe(name="caffe_reader")
+            jpegs_caffe2, _ = self.input_caffe2(name="caffe2_reader")
+            jpegs_file, _ = self.input_file(name="file_reader")
+            return jpegs_mxnet, jpegs_caffe, jpegs_caffe2, jpegs_file
+    pipe = ReaderPipeline(1)
+    pipe.build()
+    meta =pipe.reader_meta()
+    assert(len(meta) == 4)
+    assert(pipe.epoch_size("mxnet_reader") != 0)
+    assert(pipe.epoch_size("caffe_reader") != 0)
+    assert(pipe.epoch_size("caffe2_reader") != 0)
+    assert(pipe.epoch_size("file_reader") != 0)
+    assert(len(pipe.epoch_size()) == 4)

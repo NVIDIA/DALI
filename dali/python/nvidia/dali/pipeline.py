@@ -192,7 +192,8 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         if name is not None:
             return self._pipe.reader_meta(name)["epoch_size_padded"]
-        return {name : v["epoch_size_padded"] for k, v in self._pipe.reader_meta()}
+        meta = self._pipe.reader_meta()
+        return {k : v["epoch_size_padded"] for k, v in meta.items()}
 
     def executor_statistics(self):
         """Returns provided pipeline executor statistics metadata as a dictionary.
