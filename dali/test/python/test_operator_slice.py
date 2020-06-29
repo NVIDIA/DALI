@@ -456,10 +456,11 @@ def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start
     else:
         expected[pad_before[0] : pad_before[0] + sliced[0], pad_before[1] : pad_before[1] + sliced[1], :orig_nchannels] = \
             in_sliced
-    
-    for d in range(len(flip)):
-        if flip[d]:
-            expected = np.flip(expected, d)
+
+    if flip is not None:
+        for d in range(len(flip)):
+            if flip[d]:
+                expected = np.flip(expected, d)
    
     if permute is not None:
         expected = np.transpose(expected, permute)
