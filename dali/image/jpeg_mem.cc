@@ -370,9 +370,10 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   if (flags.crop && cinfo.output_scanline < cinfo.output_height) {
     // Skip the rest of scanlines, required by jpeg_destroy_decompress.
     JDIMENSION skip_count = cinfo.output_height - flags.crop_y - flags.crop_height;
-    DALI_ENFORCE(jpeg_skip_scanlines(&cinfo, skip_count) == skip_count);
-    // After this, cinfo.output_height must be equal to cinfo.output_height;
+    jpeg_skip_scanlines(&cinfo, skip_count);
+    // After this, cinfo.output_height must be equal to cinfo.output_scanline;
     // otherwise, jpeg_destroy_decompress would fail.
+    DALI_ENFORCE(cinfo.output_height == cinfo.output_scanline);
   }
 #endif
 
