@@ -39,11 +39,13 @@ class SliceFlipNormalizePermutePadGpu {
   static constexpr size_t kBlockSize = 64 * kBlockDim;
   size_t block_count_ = 0;
 
+  using ProcessedArgs = detail::SliceFlipNormalizePermutePadProcessedArgs<Dims>;
+  std::vector<ProcessedArgs> processed_args_;
   int norm_args_size_ = -1;
   bool has_channels_ = false;
   bool need_normalize_ = false;
-  bool default_fill_values_ = false;
   int nfill_values_ = 0;
+  int channel_dim_ = -1;
 
  public:
   using Args = SliceFlipNormalizePermutePadArgs<Dims>;
@@ -57,28 +59,36 @@ class SliceFlipNormalizePermutePadGpu {
     norm_args_size_ = -1;
     has_channels_ = false;
     need_normalize_ = false;
-    for (const auto& sample_args : args) {
-      if (norm_args_size_ == -1) {
+    nfill_values_ = 0;
+    channel_dim_ = -1;
+
+    processed_args_.clear();
+    processed_args_.reserve(args.size());
+    for (int i = 0; i < num_samples; i++) {
+      auto in_shape = in.tensor_shape(i);
+      processed_args_.emplace_back(detail::ProcessArgs(args[i], in_shape));
+      auto &sample_args = processed_args_.back();
+      if (i == 0) {
         norm_args_size_ = sample_args.mean.size();
+        nfill_values_ = sample_args.fill_values.size();
         need_normalize_ = norm_args_size_ > 0;
-        has_channels_ = norm_args_size_ > 1;
-      }
-
-      if (sample_args.mean.size() != norm_args_size_ ||
-          sample_args.inv_stddev.size() != norm_args_size_)
-        throw std::invalid_argument(
-            "Normalization arguments should have the same size for all the samples");
-
-      if (has_channels_) {
-        if (sample_args.channel_dim < 0 || sample_args.channel_dim >= Dims)
+        has_channels_ = norm_args_size_ > 1 || nfill_values_ > 1;
+        channel_dim_ = sample_args.channel_dim;
+      } else {
+        // Checking all the samples are consistent
+        if (norm_args_size_ != sample_args.mean.size() ||
+            norm_args_size_ != sample_args.inv_stddev.size())
           throw std::invalid_argument(
-              "Channel dim must be valid for multi-channel normalization arguments");
-        if (norm_args_size_ != sample_args.shape[sample_args.channel_dim])
+              "Normalization arguments should have the same size for all the samples");
+        if (nfill_values_ != sample_args.fill_values.size())
           throw std::invalid_argument(
-              "The number of normalization arguments should match the number of channels in the "
-              "output slice");
+              "Fill values should have the same size for all the samples");
+        if (channel_dim_ != sample_args.channel_dim)
+          throw std::invalid_argument(
+              "channel dim should be the same for all the samples");
       }
     }
+
     if (need_normalize_) {
       se.add<float>(AllocType::Host, num_samples * norm_args_size_);
       se.add<float>(AllocType::Host, num_samples * norm_args_size_);
@@ -86,34 +96,7 @@ class SliceFlipNormalizePermutePadGpu {
       se.add<float>(AllocType::GPU,  num_samples * norm_args_size_);
     }
 
-    nfill_values_ = 0;
-    for (const auto& sample_args : args) {
-      if (nfill_values_ == 0) {
-        nfill_values_ = sample_args.fill_values.size();
-      } else {
-        if (nfill_values_ != sample_args.fill_values.size())
-          throw std::invalid_argument(
-              "The number of fill values should be the same for all the samples");
-      }
-    }
-    if (nfill_values_ == 0) {
-      default_fill_values_ = true;
-      nfill_values_ = norm_args_size_;
-    } else if (nfill_values_ > 1) {
-      if (norm_args_size_ > 0 && norm_args_size_ != nfill_values_)
-        throw std::invalid_argument(
-            "Number of channels for fill values doesn't match the number of channels in the "
-            "normalization arguments");
-      for (const auto &sample_args : args) {
-        if (sample_args.channel_dim < 0 || sample_args.channel_dim >= Dims)
-          throw std::invalid_argument(
-              "Channel dim must be valid for multi-channel fill values");
-        if (nfill_values_ != sample_args.shape[sample_args.channel_dim])
-          throw std::invalid_argument(
-              "The number of fill values should match the number of channels in the output slice");
-      }
-    }
-
+    assert(nfill_values_ > 0);
     se.add<OutputType>(AllocType::Host, num_samples * nfill_values_);
     se.add<OutputType>(AllocType::GPU, num_samples * nfill_values_);
 
@@ -147,6 +130,7 @@ class SliceFlipNormalizePermutePadGpu {
            const OutListGPU<OutputType, Dims> &out,
            const InListGPU<InputType, Dims> &in,
            const std::vector<Args> &args) {
+    (void) args;
     const auto num_samples = in.size();
 
     float *norm_add_cpu = nullptr, *norm_mul_cpu = nullptr;
@@ -157,7 +141,7 @@ class SliceFlipNormalizePermutePadGpu {
       norm_mul_cpu =
           context.scratchpad->Allocate<float>(AllocType::Host, num_samples * norm_args_size_);
       for (int i = 0; i < num_samples; i++) {
-        auto &sample_args = args[i];
+        auto &sample_args = processed_args_[i];
         auto *norm_add_data = norm_add_cpu + i * norm_args_size_;
         auto *norm_mul_data = norm_mul_cpu + i * norm_args_size_;
         for (int d = 0; d < norm_args_size_; d++) {
@@ -172,17 +156,14 @@ class SliceFlipNormalizePermutePadGpu {
           make_span(norm_mul_cpu, num_samples * norm_args_size_));
     }
 
+    assert(nfill_values_ > 0);
     OutputType *fill_values_cpu =
         context.scratchpad->Allocate<OutputType>(AllocType::Host, num_samples * nfill_values_);
     for (int i = 0; i < num_samples; i++) {
       auto *fill_values = fill_values_cpu + i * nfill_values_;
-      if (default_fill_values_) {
-        for (int d = 0; d < nfill_values_; d++)
-          fill_values[d] = OutputType(0);
-      } else {
-        for (int d = 0; d < nfill_values_; d++)
-          fill_values[d] = args[i].fill_values[d];
-      }
+      auto &sample_args = processed_args_[i];
+      for (int d = 0; d < nfill_values_; d++)
+        fill_values[d] = sample_args.fill_values[d];
     }
     OutputType *fill_values_gpu = context.scratchpad->ToGPU(
         context.gpu.stream, make_span(fill_values_cpu, num_samples * nfill_values_));
@@ -193,18 +174,11 @@ class SliceFlipNormalizePermutePadGpu {
     auto *block_descs_cpu =
         context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
 
-    int channel_dim = -1;
     bool need_pad = false, need_flip = false;
     std::vector<size_t> sample_sizes(in.size());
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);
-      auto processed_args = detail::ProcessArgs(args[i], in_shape);
-      if (has_channels_) {
-        if (i == 0)
-          channel_dim = processed_args.channel_dim;
-        else if (channel_dim != processed_args.channel_dim)
-          throw std::invalid_argument("Channel dim should be the same for every sample");
-      }
+      auto &processed_args = processed_args_[i];
       auto &sample_desc = sample_descs_cpu[i];
       sample_desc.in_strides = processed_args.in_strides;
       for (int d = 0; d < Dims; d++) sample_desc.out_strides[d] = processed_args.out_strides[d];
@@ -214,7 +188,7 @@ class SliceFlipNormalizePermutePadGpu {
       sample_desc.norm_add = norm_add_gpu + i * norm_args_size_;
       sample_desc.norm_mul = norm_mul_gpu + i * norm_args_size_;
       sample_desc.fill_values = fill_values_gpu + i * norm_args_size_;
-      sample_desc.channel_dim = channel_dim;
+      sample_desc.channel_dim = processed_args.channel_dim;
       sample_desc.in = in.tensor_data(i) + processed_args.input_offset;
       sample_desc.out = out.tensor_data(i);
       sample_desc.need_pad =
@@ -240,6 +214,7 @@ class SliceFlipNormalizePermutePadGpu {
              (sample_desc.in_strides[last_dim] < 0) == (sample_desc.in_strides[last_dim - 1] < 0)) {
         last_dim--;
       }
+
       if (last_dim < Dims - 1) {
         auto stride = sample_desc.in_strides[last_dim];  // same as out_strides[last_dim]
         sample_desc.anchor[last_dim]    *= stride;

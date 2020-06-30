@@ -99,32 +99,36 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
   processed_args.in_shape = permute(args.in_shape, args.permuted_dims);
   processed_args.anchor = permute(args.anchor, args.permuted_dims);
 
-  DALI_ENFORCE(args.mean.size() == args.inv_stddev.size());
   bool should_normalize = !args.mean.empty();
   bool has_channels = args.mean.size() > 1 || processed_args.fill_values.size() > 1;
+  int per_channel_arg_size = std::max(args.mean.size(), processed_args.fill_values.size());
+  int nchannels = 0;
   if (has_channels) {
+    DALI_ENFORCE(channel_dim >= 0 && channel_dim < Dims,
+      "Channel dim must be valid for multi-channel normalization arguments");
     processed_args.channel_dim = out_channel_dim;
-    size_t nchannels = processed_args.out_shape[out_channel_dim];
-    if (should_normalize)
-      DALI_ENFORCE(args.mean.size() == nchannels);
-    if (processed_args.fill_values.size() == 1) {
-      for (size_t i = 1; i < nchannels; i++) {
-        processed_args.fill_values.push_back(processed_args.fill_values[0]);
-      }
-    }
-    DALI_ENFORCE(processed_args.fill_values.size() == nchannels);
+    nchannels = processed_args.out_shape[out_channel_dim];
   }
 
   if (should_normalize) {
     processed_args.mean = args.mean;
     processed_args.inv_stddev = args.inv_stddev;
-    const bool is_scalar_norm = args.mean.size() == 1;
-    if (!is_scalar_norm) {
-      processed_args.channel_dim = out_channel_dim;
-      size_t nchannels = processed_args.out_shape[out_channel_dim];
-      DALI_ENFORCE(args.mean.size() == nchannels);
-    }
+    if (processed_args.mean.size() == 1 && per_channel_arg_size > 1)
+      processed_args.mean.resize(per_channel_arg_size, processed_args.mean[0]);
+    else if (processed_args.inv_stddev.size() == 1 && per_channel_arg_size > 1)
+      processed_args.inv_stddev.resize(per_channel_arg_size, processed_args.inv_stddev[0]);
   }
+
+  int fill_values_size = processed_args.fill_values.size();
+  if (fill_values_size == 0) {
+    processed_args.fill_values.resize(std::max(1, per_channel_arg_size), 0.0f);
+  } else if (fill_values_size == 1 && per_channel_arg_size > 1) {
+    processed_args.fill_values.resize(per_channel_arg_size, processed_args.fill_values[0]);
+  } else if (fill_values_size < per_channel_arg_size) {
+    processed_args.fill_values.resize(per_channel_arg_size, 0.0f);
+  }
+  DALI_ENFORCE(per_channel_arg_size == 1 || per_channel_arg_size == nchannels,
+    "The number of per-channel arguments should match the number of channels in the output slice");
   return processed_args;
 }
 }  // namespace detail

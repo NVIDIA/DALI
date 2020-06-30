@@ -59,30 +59,24 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> ToSliceFlipNormalizePermutePadAr
   int channel_dim_idx = ImageLayoutInfo::ChannelDimIndex(input_layout);
   assert(channel_dim_idx >= 0);
   auto &nchannels = args.shape[channel_dim_idx];
-  if (pad_channels) {
-    nchannels = NextPowerOfTwo(nchannels);
-  }
 
-  if (!fill_values.empty()) {
-    args.fill_values.clear();
-    for (auto val : fill_values)
-      args.fill_values.push_back(val);
-    if (args.fill_values.size() > 1) {
-      args.channel_dim = channel_dim_idx;
-      if (pad_channels) {  // The kernel expects as many values as number of channels in the output
-        for (int i = args.fill_values.size(); i < nchannels; i++) {
-          args.fill_values.push_back(0.0f);
-        }
-      }
-    }
-  }
+  auto norm_arg_size = mean.size();
+  DALI_ENFORCE(norm_arg_size == inv_stddev.size());
+  auto fill_values_size = fill_values.size();
+
+  args.fill_values = {fill_values.data(), fill_values.data() + fill_values.size()};
   args.mean = {mean.data(), mean.data() + mean.size()};
   args.inv_stddev = {inv_stddev.data(), inv_stddev.data() + inv_stddev.size()};
-  auto norm_arg_size = args.mean.size();
-  if (norm_arg_size > 1) {
+
+  auto arg_per_ch_size = std::max(norm_arg_size, fill_values_size);
+  if (arg_per_ch_size > 1) {
     args.channel_dim = channel_dim_idx;
-    if (pad_channels) {  // The kernel expects as many values as number of channels in the output
-      for (int i = args.mean.size(); i < nchannels; i++) {
+  }
+
+  if (pad_channels) {
+    nchannels = NextPowerOfTwo(nchannels);  // modifies args.shape
+    if (norm_arg_size > 1) {
+      for (int c = norm_arg_size; c < nchannels; c++) {
         args.mean.push_back(0.0f);
         args.inv_stddev.push_back(0.0f);
       }
