@@ -60,8 +60,11 @@ do
 
             # If we just installed tensorflow, we need to reinstall DALI TF plugin
             if [[ "$inst" == *tensorflow* ]]; then
-                # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
+                # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or nvidia-dali-tf-plugin-nightly
+                # Different DALI can be installed as a dependency of nvidia-dali so uninstall it too
                 pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
+                pip uninstall -y `pip list | grep nvidia-dali | cut -d " " -f1` || true
+                pip install /opt/dali/nvidia_dali*.whl
                 pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
             fi
         fi
@@ -80,7 +83,7 @@ do
             exit ${RV}
         fi
         # remove packages
-        remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION})
+        remove=$($topdir/qa/setup_packages.py -r -u $pip_packages --cuda ${CUDA_VERSION})
         if [ -n "$remove" ]; then
            pip uninstall -y $remove
         fi
