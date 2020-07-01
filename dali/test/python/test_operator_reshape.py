@@ -298,7 +298,7 @@ def main():
     test[0](*test[1:])
   for test in test_reshape_arg_input():
     test[0](*test[1:])
-  for test in test_reinterpret_default():
+  for test in test_reinterpret_default_shape():
     test[0](*test[1:])
   for test in test_reinterpret_with_wildcard_shape():
     test[0](*test[1:])
