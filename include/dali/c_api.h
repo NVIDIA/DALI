@@ -83,6 +83,8 @@ typedef struct {
   size_t *max_reserved;        // the biggest reserved memory size for the tensor in the batch
 } daliExecutorMetadata;
 
+#define DALI_ext_sync 1 << 0
+#define DALI_ext_pinned 1 << 1
 
 /**
  * @brief DALI initialization
@@ -153,21 +155,20 @@ DLL_PUBLIC void daliDeserializeDefault(daliPipelineHandle *pipe_handle,
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
- * @param sync Whether to block until the provided data is copied to the internal DALI buffer
- * @param is_pinned Wheather the provided memory is page-locked (pinned)
+ * @param flags Extra flags, check DALI_ext_sync, DALI_ext_pinned
  */
 DLL_PUBLIC void
 daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
                           device_type_t device, const void *data_ptr,
                           dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str,
-                          cudaStream_t stream, int sync, int is_pinned);
+                          cudaStream_t stream, unsigned int flags);
 
 DLL_PUBLIC void
 daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
                      device_type_t device, const void *data_ptr,
                      dali_data_type_t data_type, const int64_t *shapes,
-                     int sample_dim, const char *layout_str, int is_pinned);
+                     int sample_dim, const char *layout_str, unsigned int flags);
 ///@}
 ///@{
 /**
@@ -197,21 +198,20 @@ daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
- * @param sync Whether to block until the provided data is copied to the internal DALI buffer
- * @param is_pinned Wheather the provided memory is page-locked (pinned)
+ * @param flags Extra flags, check DALI_ext_sync, DALI_ext_pinned
  */
 DLL_PUBLIC void
 daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const char *name,
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str,
-                                 cudaStream_t stream, int sync, int is_pinned);
+                                 cudaStream_t stream, unsigned int flags);
 
 DLL_PUBLIC void
 daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                             device_type_t device, const void *const *data_ptr,
                             dali_data_type_t data_type, const int64_t *shapes,
-                            int64_t sample_dim, const char *layout_str, int is_pinned);
+                            int64_t sample_dim, const char *layout_str, unsigned int flags);
 ///@}
 
 /**
