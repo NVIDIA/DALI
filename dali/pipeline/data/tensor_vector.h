@@ -290,6 +290,40 @@ class TensorVector {
     }
   }
 
+  void Reset() {
+    if (IsContiguous()) {
+      type_ = {};
+      tensors_.resize(0);
+      views_count_ = 0;
+      tl_->Reset();
+    } else {
+      type_ = {};
+      for (auto &t : tensors_) {
+        t->Reset();
+      }
+    }
+  }
+
+  template <typename SrcBackend>
+  void Copy(const TensorList<SrcBackend> &in_tl, cudaStream_t stream) {
+    SetContiguous(true);
+    tl_->Copy(in_tl, stream);
+
+    tensors_.clear();
+    views_count_ = 0;
+    UpdateViews();
+  }
+
+  template <typename SrcBackend>
+  void Copy(const TensorVector<SrcBackend> &in_tv, cudaStream_t stream) {
+    SetContiguous(true);
+    tl_->Copy(in_tv, stream);
+
+    tensors_.clear();
+    views_count_ = 0;
+    UpdateViews();
+  }
+
   void ShareData(TensorList<Backend> *in_tl) {
     SetContiguous(true);
     pinned_ = in_tl->is_pinned();
@@ -298,6 +332,18 @@ class TensorVector {
     tensors_.clear();
     views_count_ = 0;
     UpdateViews();
+  }
+
+  void ShareWith(TensorList<Backend> *in_tl) const {
+    if (IsContiguous()) {
+      in_tl->ShareData(tl_.get());
+      for (size_t i = 0; i < size(); ++i) {
+        in_tl->SetMeta(i, this->GetMeta(i));
+      }
+      in_tl->SetLayout(this->GetLayout());
+    } else {
+      DALI_FAIL("Cannot share non contiguous TensorVector with TensorList");
+    }
   }
 
   void ShareData(TensorVector<Backend> *tv) {
@@ -388,6 +434,11 @@ class TensorVector {
   // pinned status and type info should be uniform
   bool pinned_ = true;
   TypeInfo type_ = TypeInfo();
+
+  // So we can access the members of other TensorVectors
+  // with different template types
+  template <typename InBackend>
+  friend class TensorVector;
 };
 
 }  // namespace dali

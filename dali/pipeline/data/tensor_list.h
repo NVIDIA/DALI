@@ -256,7 +256,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * persist while it is in use by the Tensor.
    */
   DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, const TensorListShape<> &shape,
-                                   const TypeInfo &type = TypeInfo::Create<NoType>()) {
+                                   const TypeInfo &type = {}) {
     ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
   }
 

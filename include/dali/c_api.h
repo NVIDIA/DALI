@@ -83,9 +83,6 @@ typedef struct {
   size_t *max_reserved;        // the biggest reserved memory size for the tensor in the batch
 } daliExecutorMetadata;
 
-#define DALI_ext_sync 1 << 0
-#define DALI_ext_pinned 1 << 1
-
 /**
  * @brief DALI initialization
  *
@@ -128,6 +125,19 @@ DLL_PUBLIC void daliDeserializeDefault(daliPipelineHandle *pipe_handle,
                                        int length);
 /// }@
 /// @{
+
+enum {
+  DALI_ext_default = 0,
+  /**
+   * If memory transfer should be synchronous - applies to GPU memory
+   */
+  DALI_ext_force_sync = (1<<0),
+  /**
+   * If provided CPU memory is page-locked
+   */
+  DALI_ext_pinned = (1<<1)
+};
+
 /**
  * @brief Feed the data to ExternalSource as contiguous memory.
  *
@@ -155,7 +165,7 @@ DLL_PUBLIC void daliDeserializeDefault(daliPipelineHandle *pipe_handle,
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
- * @param flags Extra flags, check DALI_ext_sync, DALI_ext_pinned
+ * @param flags Extra flags, check DALI_ext_force_sync, DALI_ext_pinned
  */
 DLL_PUBLIC void
 daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
@@ -171,6 +181,7 @@ daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
                      int sample_dim, const char *layout_str, unsigned int flags);
 ///@}
 ///@{
+
 /**
  * @brief Feed the data to ExternalSource as a set of separate buffers.
  *
@@ -198,7 +209,7 @@ daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
- * @param flags Extra flags, check DALI_ext_sync, DALI_ext_pinned
+ * @param flags Extra flags, check DALI_ext_force_sync, DALI_ext_pinned
  */
 DLL_PUBLIC void
 daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const char *name,

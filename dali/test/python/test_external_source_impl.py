@@ -25,6 +25,9 @@ from collections import Iterable
 datapy = np
 
 make_array = np.array
+random_seed = np.random.seed
+random_array = np.random.ranf
+random_int = np.random.randint
 
 # to use this it is enough to just import all functions from it by `from test_internals_operator_external_source import *`
 # nose will query for the methods available and will run them
@@ -51,14 +54,16 @@ def use_cupy():
     global datapy
     global make_array
     global _to_numpy
+    global random_seed
+    global random_array
+    global random_int
     import cupy as cp
     datapy = cp
     make_array = cp.array
     _to_numpy = cp.asnumpy
-
-random_seed = datapy.random.seed
-random_array = datapy.random.ranf
-random_int = datapy.random.randint
+    random_seed = datapy.random.seed
+    random_array = datapy.random.ranf
+    random_int = datapy.random.randint
 
 def use_torch(gpu):
     global torch
@@ -79,6 +84,7 @@ def use_torch(gpu):
     cast_to = torch_cast
     random_array = lambda shape: make_torch_tensor(np.random.ranf(shape))
     global make_array
+
     make_array = make_torch_tensor
 
 class TestIterator():
@@ -610,7 +616,7 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
                 self.feed_input(self.batch_1, batch_1)
                 self.feed_input(self.batch_2, batch_2)
 
-    iter_num = 5
+    iter_num = 10
     # we don't have mixed stage so it is enough to keep only ``prefetch_queue_depth`` * ``gpu_queue_depth``
     # but here they are equal
     num_keep_samples = prefetch_queue_depth * 2 + additional_num_keep_samples

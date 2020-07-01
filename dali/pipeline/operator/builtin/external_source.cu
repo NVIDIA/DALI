@@ -48,21 +48,17 @@ struct ExternalSource<GPUBackend>::RecycleFunctor {
 template<>
 void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   std::list<uptr_tl_type> tensor_list_elm;
-  std::list<uptr_tv_type> tensor_vector_elm;
   std::list<uptr_cuda_event_type> cuda_event, internal_copy_to_storage;
-  ZeroCopyInfo copy_info;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
-    copy_info = zero_copy_.front();
-    zero_copy_.pop_front();
-    if (copy_info.is_tensor_vector && no_copy_) {
-      tensor_vector_elm = tv_data_.PopFront();
-    } else {
-      tensor_list_elm = tl_data_.PopFront();
-    }
-    if (!no_copy_) {
+    tensor_list_elm = tl_data_.PopFront();
+    // even with no_copy we may have copied from TensorVector to TensorList and we
+    // need to sync with that
+    if (!no_copy_ || !tensor_list_elm.front()->shares_data()) {
       internal_copy_to_storage = copy_to_storage_events_.PopFront();
-      cuda_event = cuda_events_.GetEmpty();
+      if (!no_copy_) {
+        cuda_event = cuda_events_.GetEmpty();
+      }
     }
   }
 
@@ -76,17 +72,27 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     sync_worker_.DoWork(RecycleFunctor{this, std::move(cuda_event), std::move(tensor_list_elm),
                                        std::move(internal_copy_to_storage)});
   } else {
-    if (copy_info.is_tensor_vector) {
-      // despite we share the input we need to do a copy internally to the continuous
-      // piece of memory it should not hurt that much as it is D2D inside the pipeline
+    // if we copied from GPU TensorVector to TensorList we need to sync with that copy
+    if (!tensor_list_elm.front()->shares_data()) {
       cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
-      output.Copy(*(tensor_vector_elm.front()), stream_used);
-      // empty tensor_list_elm, it is up to the user to keep memory alive so we can keep copying
-      for (auto &t : *tensor_vector_elm.front()) {
-        t->Reset();
-      }
-      // recycle right away as tensor_list_elm is only sharing data
-      RecycleBuffer(tensor_vector_elm);
+      CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));
+      // make a shared pointer which will recycle buffer upon destruction. So when pipeline
+      // no longer needs that buffer we can return it to the pool
+      void * ptr = tensor_list_elm.front()->raw_mutable_data();
+      int device_id = tensor_list_elm.front()->device_id();
+      output.ShareData(shared_ptr<void>(ptr, [
+                          this,
+                          tensor_list = std::move(tensor_list_elm),
+                          copy_to_storage = std::move(internal_copy_to_storage)](void*) {
+                         RecycleBuffer(*(const_cast<std::list<uptr_tl_type>*>(&tensor_list)),
+                                       nullptr,
+                                       const_cast<std::list<uptr_cuda_event_type>*>
+                                                  (&copy_to_storage));
+                       }),
+                       tensor_list_elm.front()->capacity(),
+                       tensor_list_elm.front()->shape(),
+                       tensor_list_elm.front()->type());
+      output.set_device_id(device_id);
     } else {
       output.ShareData(tensor_list_elm.front().get());
       // empty tensor_list_elm

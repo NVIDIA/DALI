@@ -56,7 +56,7 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof);
   data.Resize(tl_shape, type_info);
   data.SetLayout(layout);
-  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_sync);
+  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_force_sync);
 }
 
 
@@ -84,7 +84,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     data[i].Resize(tl_shape[i], type_info);
     data[i].SetLayout(layout);
   }
-  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_sync);
+  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_force_sync);
 }
 
 }  // namespace
@@ -169,7 +169,7 @@ void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name, dev
                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str, unsigned int flags) {
   daliSetExternalInputAsync(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
-                                 layout_str, pipe_handle->copy_stream, flags | DALI_ext_sync);
+                                 layout_str, pipe_handle->copy_stream, flags | DALI_ext_force_sync);
 }
 
 
@@ -199,7 +199,7 @@ void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *na
                                  int64_t sample_dim, const char *layout_str, unsigned int flags) {
   daliSetExternalInputTensorsAsync(pipe_handle, name, device, data_ptr, data_type, shapes,
                                         sample_dim, layout_str, pipe_handle->copy_stream,
-                                        flags | DALI_ext_sync);
+                                        flags | DALI_ext_force_sync);
 }
 
 

@@ -17,10 +17,12 @@
 # the test_internals_operator_external_source is 99% the same for cupy and numpy tests
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
 from test_external_source_impl import *
+from test_utils import check_output_pattern
 use_cupy()
 
 # extra tests, GPU-specific
 import cupy as cp
+import os
 
 def test_external_source_with_iter_cupy_stream():
     with cp.cuda.Stream(non_blocking=True):
@@ -32,3 +34,45 @@ def test_external_source_with_iter_cupy_stream():
 
             for i in range(10):
                 check_output(pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])
+import sys
+def discard_stderr():
+    """
+    Discards error output of a routine if invoked as:
+
+    with discard_stderr():
+        ...
+    """
+    with open(os.devnull, 'w') as bit_bucket:
+        try:
+            stderr_fileno = sys.stderr.fileno()
+            old_stderr = os.dup(stderr_fileno)
+            try:
+                os.dup2(bit_bucket.fileno(), stderr_fileno)
+                yield
+            finally:
+                os.dup2(old_stderr, stderr_fileno)
+        except AttributeError:
+            # On some systems is stderr not a file descriptor but actually a virtual pipeline
+            # that can not be copied
+            yield
+
+def test_external_source_mixed_continuous():
+    batch_size = 2
+    iterations = 4
+    def generator(i):
+        if i % 2:
+            return cp.array([100 + i * 10 + 1.5] * batch_size, dtype=cp.float32)
+        else:
+            return batch_size * [cp.array([100 + i * 10 + 1.5], dtype=cp.float32)]
+
+    pipe = Pipeline(batch_size, 3, 0)
+
+    pipe.set_outputs(fn.external_source(device="gpu", source=generator, no_copy=True))
+    pipe.build()
+
+    pattern = "ExternalSource operator should not mix continuous and noncontinuous inputs. " \
+              "In such case additional memory that gather provided data in continuous space " \
+              "will be trashed."
+    with check_output_pattern(pattern):
+        for _ in range(iterations):
+            pipe.run()

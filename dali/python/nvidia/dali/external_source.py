@@ -198,7 +198,7 @@ Keyword Args
 fail when it is not
 
 ``no_copy` : If DALI should copy the buffer when feed_input is called
-    If ``no_copy`` is set to true instead of making a copy of the provided buffer,
+    If true, then instead of making a copy of the provided buffer,
     DALI passes the user's memory directly in the Pipeline.
     It is user's responsibility to keep the buffer alive and unmodified
     until it is used in the pipeline.
@@ -206,6 +206,10 @@ fail when it is not
     The buffer can be modified again after the outputs of the iteration it was used in were
     consumed, which can happen ``prefetch_queue_depth`` * ``gpu_queue_depth`` iterations
     after the ``feed_input`` call.
+
+    It works for continuous and non-continuous buffers without an additional copy, with one
+    exception for the non-continuous GPU buffer. In that case, an internal continuous copy
+    is created asynchronously.
 """
 
     def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", cuda_stream = None, **kwargs):
