@@ -592,11 +592,11 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
 
         def define_graph(self):
             if use_fn_api:
-                self.batch_1 = fn.external_source(device = self._device, name = "src1")
-                self.batch_2 = fn.external_source(device = self._device, name = "src2")
+                self.batch_1 = fn.external_source(device = self._device, name = "src1", no_copy=True)
+                self.batch_2 = fn.external_source(device = self._device, name = "src2", no_copy=True)
             else:
-                input_1 = ops.ExternalSource(device = self._device)
-                input_2 = ops.ExternalSource(device = self._device)
+                input_1 = ops.ExternalSource(device = self._device, no_copy=True)
+                input_2 = ops.ExternalSource(device = self._device, no_copy=True)
                 self.batch_1 = input_1(name = "src1")
                 self.batch_2 = input_2(name = "src2")
             return [self.batch_1, self.batch_2]
@@ -604,11 +604,11 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
         def iter_setup(self):
             batch_1, batch_2 = next(self.iterator)
             if by_name:
-                self.feed_input("src1", batch_1, no_copy=True)
-                self.feed_input("src2", batch_2, no_copy=True)
+                self.feed_input("src1", batch_1)
+                self.feed_input("src2", batch_2)
             else:
-                self.feed_input(self.batch_1, batch_1, no_copy=True)
-                self.feed_input(self.batch_2, batch_2, no_copy=True)
+                self.feed_input(self.batch_1, batch_1)
+                self.feed_input(self.batch_2, batch_2)
 
     iter_num = 5
     # we don't have mixed stage so it is enough to keep only ``prefetch_queue_depth`` * ``gpu_queue_depth``

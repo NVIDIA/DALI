@@ -109,6 +109,7 @@ class ExternalSource : public Operator<Backend> {
   inline explicit ExternalSource(const OpSpec &spec) :
     Operator<Backend>(spec),
     blocking_(spec.GetArgument<bool>("blocking")),
+    no_copy_(spec.GetArgument<bool>("no_copy")),
     sync_worker_(spec.GetArgument<int>("device_id"), false) {
     output_name_ = spec.Output(0);
     sync_worker_.WaitForInit();
@@ -134,8 +135,8 @@ class ExternalSource : public Operator<Backend> {
    */
   template<typename SrcBackend>
   inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0,
-                            bool sync = false, bool no_copy = false) {
-    SetDataSourceHelper(tl, stream, sync, no_copy);
+                            bool sync = false) {
+    SetDataSourceHelper(tl, stream, sync);
   }
 
   /**
@@ -144,12 +145,12 @@ class ExternalSource : public Operator<Backend> {
    */
   template<typename SrcBackend>
   inline void SetDataSource(const vector<Tensor<SrcBackend>> &vect_of_tensors,
-                            cudaStream_t stream = 0, bool sync = false, bool no_copy = false) {
+                            cudaStream_t stream = 0, bool sync = false) {
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
     for (size_t i = 0; i < tv.size(); ++i) {
       tv[i].ShareData(const_cast<Tensor<SrcBackend>*>(&vect_of_tensors[i]));
     }
-    SetDataSourceHelper(tv, stream, sync, no_copy);
+    SetDataSourceHelper(tv, stream, sync);
   }
 
   /**
@@ -158,14 +159,17 @@ class ExternalSource : public Operator<Backend> {
    */
   template<typename SrcBackend>
   inline void SetDataSource(const TensorVector<SrcBackend> &tv, cudaStream_t stream = 0,
-                            bool sync = false, bool no_copy = false) {
-    SetDataSourceHelper(tv, stream, sync, no_copy);
+                            bool sync = false) {
+    SetDataSourceHelper(tv, stream, sync);
   }
 
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    if (no_copy_) {
+      return false;
+    }
     TensorListShape<> shape;
     output_desc.resize(1);
     {
@@ -178,38 +182,14 @@ class ExternalSource : public Operator<Backend> {
         }
       }
       // for zero copy we don't want any shape inference to avoid any data allocation ahead
-      // when the data is continuous and can be just passed through
-      if (zero_copy_.front().is_zero_copy) {
-        if (!zero_copy_.front().is_tensor_vector) {
-          return false;
-        } else {
-          output_desc[0].shape = tv_data_.PeekFront()->shape();
-          output_desc[0].type = tv_data_.PeekFront()->type();
-        }
-      } else {
-        output_desc[0].shape = tl_data_.PeekFront()->shape();
-        output_desc[0].type = tl_data_.PeekFront()->type();
-      }
+      output_desc[0].shape = tl_data_.PeekFront()->shape();
+      output_desc[0].type = tl_data_.PeekFront()->type();
     }
     return true;
   }
 
   bool CanInferOutputs(bool prerun) const override {
-    if (prerun) {
-      return false;
-    }
-    std::unique_lock<std::mutex> busy_lock(const_cast<std::mutex&>(busy_m_));
-    if (blocking_) {
-      const_cast<std::condition_variable&>(cv_).wait(busy_lock, [&data = zero_copy_]
-                                                                { return !data.empty(); });
-    } else {
-      if (zero_copy_.empty()) {
-        DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
-      }
-    }
-    // for zero copy we don't want any shape inference to avoid any data allocation ahead
-    // when the data is continuous and can be just passed through
-    return !(zero_copy_.front().is_zero_copy && !zero_copy_.front().is_tensor_vector);
+    return !no_copy_;
   }
 
   /*
@@ -273,7 +253,7 @@ class ExternalSource : public Operator<Backend> {
 
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, cudaStream_t stream = 0,
-                                  bool sync = false, bool no_copy = false) {
+                                  bool sync = false) {
     bool is_gpu_src = std::is_same<SrcBackend, GPUBackend>::value;
     bool is_gpu_dst = std::is_same<Backend, GPUBackend>::value;
     if (is_gpu_src && !is_gpu_dst) {
@@ -292,9 +272,9 @@ class ExternalSource : public Operator<Backend> {
     std::list<uptr_cuda_event_type> copy_to_storage_event;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
-      zero_copy_.push_back({no_copy, std::is_same<SourceDataType<SrcBackend>,
-                                           TensorVector<SrcBackend>>::value});
-      if (no_copy) {
+      zero_copy_.push_back({std::is_same<SourceDataType<SrcBackend>,
+                            TensorVector<SrcBackend>>::value});
+      if (no_copy_) {
         ShareData(batch);
       } else {
         tl_elm = tl_data_.GetEmpty();
@@ -308,7 +288,7 @@ class ExternalSource : public Operator<Backend> {
       }
     }
 
-    if (!no_copy) {
+    if (!no_copy_) {
       tl_elm.front()->Copy(batch, stream);
       // record event for:
       // - GPU -> GPU
@@ -346,9 +326,9 @@ class ExternalSource : public Operator<Backend> {
   std::mutex busy_m_;
   std::condition_variable cv_;
   bool blocking_ = true;
+  bool no_copy_ = false;
 
   struct ZeroCopyInfo {
-    bool is_zero_copy;
     bool is_tensor_vector;
   };
 

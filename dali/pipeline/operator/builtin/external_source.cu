@@ -55,19 +55,19 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     copy_info = zero_copy_.front();
     zero_copy_.pop_front();
-    if (copy_info.is_tensor_vector && copy_info.is_zero_copy) {
+    if (copy_info.is_tensor_vector && no_copy_) {
       tensor_vector_elm = tv_data_.PopFront();
     } else {
       tensor_list_elm = tl_data_.PopFront();
     }
-    if (!copy_info.is_zero_copy) {
+    if (!no_copy_) {
       internal_copy_to_storage = copy_to_storage_events_.PopFront();
       cuda_event = cuda_events_.GetEmpty();
     }
   }
 
   auto &output = ws.Output<GPUBackend>(0);
-  if (!copy_info.is_zero_copy) {
+  if (!no_copy_) {
     cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
     CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));
     output.Copy(*(tensor_list_elm.front()), stream_used);

@@ -26,13 +26,13 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     copy_info = zero_copy_.front();
     zero_copy_.pop_front();
-    if (copy_info.is_tensor_vector && copy_info.is_zero_copy) {
+    if (copy_info.is_tensor_vector && no_copy_) {
       tensor_vector_elm = tv_data_.PopFront();
     } else {
       tensor_list_elm = tl_data_.PopFront();
     }
   }
-  if (copy_info.is_zero_copy && !copy_info.is_tensor_vector) {
+  if (no_copy_ && !copy_info.is_tensor_vector) {
     TensorVector<CPUBackend> &output = ws.template OutputRef<CPUBackend>(0);
     output.ShareData(tensor_list_elm.front().get());
     // empty tensor_list_elm
@@ -44,7 +44,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     sample_ids_.clear();
     sample_ids_.reserve(batch_size_);
 
-    if (copy_info.is_zero_copy && copy_info.is_tensor_vector) {
+    if (no_copy_ && copy_info.is_tensor_vector) {
       auto shape = tensor_vector_elm.front()->shape();
       for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
         sample_ids_.emplace_back(volume(shape[sample_id]), sample_id);
@@ -57,12 +57,13 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     }
     std::sort(sample_ids_.begin(), sample_ids_.end(), std::greater<VolumeSampleIdPair>());
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      thread_pool.DoWorkWithID([&ws, data_idx, &tensor_list_elm, &tensor_vector_elm, copy_info]
+      thread_pool.DoWorkWithID([&ws, data_idx, &tensor_list_elm, &tensor_vector_elm, copy_info,
+                                no_copy = no_copy_]
                                (int tid) {
         Tensor<CPUBackend> &output = ws.Output<CPUBackend>(0, data_idx);
         // HostWorkspace doesn't have any stream
         cudaStream_t stream = 0;
-        if (copy_info.is_zero_copy && copy_info.is_tensor_vector) {
+        if (no_copy && copy_info.is_tensor_vector) {
           output.Copy((*(tensor_vector_elm.front()))[data_idx], stream);
           (*tensor_vector_elm.front())[data_idx].Reset();
         } else {
@@ -75,7 +76,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     // for the whole output not each element(view)
     auto &output = ws.template OutputRef<CPUBackend>(0);
     output.SetLayout(tensor_list_elm.front()->GetLayout());
-    if (copy_info.is_zero_copy && copy_info.is_tensor_vector) {
+    if (no_copy_ && copy_info.is_tensor_vector) {
       RecycleBuffer(tensor_vector_elm);
     } else {
       RecycleBuffer(tensor_list_elm);
@@ -94,6 +95,16 @@ DALI_SCHEMA(_ExternalSource)
   .AddOptionalArg("blocking",
       R"code(Whether external source should block until data is available or just
 fail when it is not)code", true)
+  .AddOptionalArg("no_copy",
+      R"code(If DALI should copy the buffer when feed_input is called
+If ``no_copy`` is set to true instead of making a copy of the provided buffer,
+DALI passes the user's memory directly in the Pipeline.
+It is user's responsibility to keep the buffer alive and unmodified
+until it is used in the pipeline.
+
+The buffer can be modified again after the outputs of the iteration it was used in were
+consumed, which can happen ``prefetch_queue_depth`` * ``gpu_queue_depth`` iterations
+after the ``feed_input`` call.)code", false)
   .MakeInternal();
 
 DALI_SCHEMA(ExternalSource)
@@ -110,6 +121,16 @@ where the last dimension represents the different channels).)code")
   .NumOutput(1)
   .AddOptionalArg("blocking",
       R"code(Whether external source should block until data is available or just
-fail when it is not)code", false);
+fail when it is not)code", false)
+  .AddOptionalArg("no_copy",
+      R"code(If DALI should copy the buffer when feed_input is called
+If ``no_copy`` is set to true instead of making a copy of the provided buffer,
+DALI passes the user's memory directly in the Pipeline.
+It is user's responsibility to keep the buffer alive and unmodified
+until it is used in the pipeline.
+
+The buffer can be modified again after the outputs of the iteration it was used in were
+consumed, which can happen ``prefetch_queue_depth`` * ``gpu_queue_depth`` iterations
+after the ``feed_input`` call.)code", false);
 
 }  // namespace dali

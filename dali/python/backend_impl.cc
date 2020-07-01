@@ -1074,12 +1074,12 @@ py::dict ExecutorMetaToDict(const ExecutorMetaMap &meta) {
 
 template <typename Backend>
 void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t stream,
-                  bool sync = false, bool no_copy = false) {
+                  bool sync = false) {
   TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     tv[i] = std::move(list[i].cast<Tensor<Backend>&>());
   }
-  p->SetExternalInput(name, tv, stream, sync, no_copy);
+  p->SetExternalInput(name, tv, stream, sync);
 }
 
 PYBIND11_MODULE(backend_impl, m) {
@@ -1293,27 +1293,25 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("device_id", &Pipeline::device_id)
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
-           py::object /*cuda_stream*/, bool no_copy) {
-          p->SetExternalInput(name, tl, 0, true, no_copy);
+           py::object /*cuda_stream*/) {
+          p->SetExternalInput(name, tl, 0, true);
         },
         "name"_a,
         "list"_a,
-        "cuda_stream"_a = py::none(),
-        "no_copy"_a = false)
+        "cuda_stream"_a = py::none())
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<GPUBackend> &tl,
-           py::object cuda_stream, bool no_copy) {
+           py::object cuda_stream) {
            cudaStream_t stream = cuda_stream.is_none()
                                  ? UserStream::Get()->GetStream(tl)
                                  : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          p->SetExternalInput(name, tl, stream, cuda_stream.is_none(), no_copy);
+          p->SetExternalInput(name, tl, stream, cuda_stream.is_none());
         },
         "name"_a,
         "list"_a,
-        "cuda_stream"_a = py::none(),
-        "no_copy"_a = false)
+        "cuda_stream"_a = py::none())
     .def("SetExternalTensorInput",
-        [](Pipeline *p, const string &name, py::list list, py::object cuda_stream, bool no_copy) {
+        [](Pipeline *p, const string &name, py::list list, py::object cuda_stream) {
           // Note: This is a hack to get around weird casting
           // issues w/ pybind and a non-copyable type (dali::Tensor).
           // We cannot use pybind::cast<Tensor<CPUBackend>>
@@ -1329,18 +1327,17 @@ PYBIND11_MODULE(backend_impl, m) {
           py::detail::make_caster<Tensor<CPUBackend>&> conv;
           bool is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
           if (is_cpu_data) {
-            FeedPipeline<CPUBackend>(p, name, list, 0, true, no_copy);
+            FeedPipeline<CPUBackend>(p, name, list, 0, true);
           } else {
             cudaStream_t stream = cuda_stream.is_none()
                                 ? UserStream::Get()->GetStream(list[0].cast<Tensor<GPUBackend>&>())
                                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-            FeedPipeline<GPUBackend>(p, name, list, stream, cuda_stream.is_none(), no_copy);
+            FeedPipeline<GPUBackend>(p, name, list, stream, cuda_stream.is_none());
           }
         },
         "name"_a,
         "list"_a,
-        "cuda_stream"_a = py::none(),
-        "no_copy"_a = false)
+        "cuda_stream"_a = py::none())
     .def("SerializeToProtobuf",
         [](Pipeline *p) -> py::bytes {
           string s = p->SerializeToProtobuf();

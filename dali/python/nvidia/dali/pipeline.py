@@ -478,7 +478,7 @@ Parameters
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def feed_input(self, data_node, data, layout="", cuda_stream = None, no_copy = False):
+    def feed_input(self, data_node, data, layout="", cuda_stream = None):
         """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
         In the case of the GPU input, the data must be modified on the same stream as the one
         used by feed_input. See ``cuda_stream`` parameter for details.
@@ -519,16 +519,6 @@ Parameters
             If internal stream is used, the call to ``feed_input`` will block until the copy to
             internal buffer is complete, since there's no way to synchronize with this stream to
             prevent overwriting the array with new data in another stream.
-
-        ``no_copy` : If DALI should copy the buffer when feed_input is called
-            If ``no_copy`` is set to true instead of making a copy of the provided buffer,
-            DALI passes the user's memory directly in the Pipeline.
-            It is user's responsibility to keep the buffer alive and unmodified
-            until it is used in the pipeline.
-
-            The buffer can be modified again after the outputs of the iteration it was used in were
-            consumed, which can happen ``prefetch_queue_depth`` * ``gpu_queue_depth`` iterations
-            after the ``feed_input`` call.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -577,7 +567,7 @@ Parameters
                 inputs.append(inp)
             assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
                    "Mixed input types are not support, all need to reside on the CPU or GPU"
-            self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream), no_copy)
+            self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream))
         else:
             info = CheckDLPackCapsule(data)
             if not info[0]:
@@ -589,7 +579,7 @@ Parameters
             else:
                 data = to_numpy(data)
                 inp = Tensors.TensorListCPU(data, layout)
-            self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream), no_copy)
+            self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream))
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""

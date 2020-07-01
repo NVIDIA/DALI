@@ -53,12 +53,11 @@ class _CycleGenFunc():
             return next(self.it)
 
 class _ExternalSourceGroup(object):
-    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None, no_copy=False):
+    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
         self._cuda_stream = cuda_stream
-        self._no_copy = no_copy
         if callback is not None:
             if callback.__code__.co_argcount not in [0, 1]:
                 raise TypeError("External source callback must be a callable with 0 or 1 argument")
@@ -78,11 +77,11 @@ class _ExternalSourceGroup(object):
         if self.is_multioutput:
             for op in self.instances:
                 data = callback_out[op._output_index]
-                pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self._no_copy)
+                pipeline.feed_input(op._name, data, op._layout, self._cuda_stream)
         else:
             data = callback_out
             op = self.instances[0]
-            pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self._no_copy)
+            pipeline.feed_input(op._name, data, op._layout, self._cuda_stream)
 
 def _is_generator_function(x):
     """Checks whether x is a generator function or a callable object
@@ -195,6 +194,9 @@ Keyword Args
     buffer is complete, since there's no way to synchronize with this stream to prevent
     overwriting the array with new data in another stream.
 
+``blocking`` : optional, Whether external source should block until data is available or just
+fail when it is not
+
 ``no_copy` : If DALI should copy the buffer when feed_input is called
     If ``no_copy`` is set to true instead of making a copy of the provided buffer,
     DALI passes the user's memory directly in the Pipeline.
@@ -206,13 +208,12 @@ Keyword Args
     after the ``feed_input`` call.
 """
 
-    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", cuda_stream = None, no_copy = False, **kwargs):
+    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", cuda_stream = None, **kwargs):
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
         self._device = device
         self._layout = layout
         self._cuda_stream = cuda_stream
-        self._no_copy = no_copy
 
         callback = _get_callback_from_source(source, cycle)
 
@@ -277,7 +278,7 @@ Keyword Args
         if self._num_outputs is not None:
             outputs = []
             kwargs = {}
-            group = _ExternalSourceGroup(callback, True, cuda_stream=self._cuda_stream, no_copy=self._no_copy)
+            group = _ExternalSourceGroup(callback, True, cuda_stream=self._cuda_stream)
             for i in range(self._num_outputs):
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
@@ -302,7 +303,7 @@ Keyword Args
             op_instance = _OperatorInstance([], self, **kwargs)
             op_instance._callback = callback
             op_instance._output_index = None
-            op_instance._group = _ExternalSourceGroup(callback, False, [op_instance], cuda_stream=self._cuda_stream, no_copy=self._no_copy)
+            op_instance._group = _ExternalSourceGroup(callback, False, [op_instance], cuda_stream=self._cuda_stream)
             op_instance._layout = self._layout if self._layout is not None else ""
             op_instance.generate_outputs()
 
@@ -315,7 +316,7 @@ Keyword Args
 def _is_external_source_with_callback(op_instance):
     return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
 
-def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None, cuda_stream = None, no_copy = False):
+def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None, cuda_stream = None, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout, cuda_stream, no_copy)`` inside ``pipeline.iter_setup``.
@@ -334,7 +335,7 @@ The data can be provided by the ``source`` function or iterable, or it can be pr
                 "`external_source` nodes.")
 
     op = ExternalSource(device = device, num_outputs = num_outputs, source = source,
-                        cycle = cycle, layout = layout, cuda_stream = cuda_stream, no_copy = no_copy)
+                        cycle = cycle, layout = layout, cuda_stream = cuda_stream, **kwargs)
     return op(name = name)
 
 external_source.__doc__ += ExternalSource._args_doc
