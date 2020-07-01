@@ -291,12 +291,10 @@ class TensorVector {
   }
 
   void ShareData(TensorList<Backend> *in_tl) {
-    state_ = State::contiguous;
+    SetContiguous(true);
     pinned_ = in_tl->is_pinned();
-
     tl_->ShareData(in_tl);
 
-    int N = in_tl->ntensor();
     tensors_.clear();
     views_count_ = 0;
     UpdateViews();

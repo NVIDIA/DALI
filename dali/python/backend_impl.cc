@@ -1340,7 +1340,7 @@ PYBIND11_MODULE(backend_impl, m) {
         "name"_a,
         "list"_a,
         "cuda_stream"_a = py::none(),
-        "bool"_a = false)
+        "no_copy"_a = false)
     .def("SerializeToProtobuf",
         [](Pipeline *p) -> py::bytes {
           string s = p->SerializeToProtobuf();
