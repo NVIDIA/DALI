@@ -300,7 +300,7 @@ def main():
     test[0](*test[1:])
   for test in test_reinterpret_default_shape():
     test[0](*test[1:])
-  for test in test_reinterpret_with_wildcard_shape():
+  for test in test_reinterpret_wildcard_shape():
     test[0](*test[1:])
 
 if __name__ == '__main__':
