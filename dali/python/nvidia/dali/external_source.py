@@ -11,7 +11,7 @@ def _check_data_batch(data, batch_size, layout):
             dim = len(data[0].shape)
             for t in data:
                 if len(t.shape) != dim:
-                    raise RuntimeErrorError("All tensors in a batch must have the same number of dimensions")
+                    raise RuntimeError("All tensors in a batch must have the same number of dimensions")
             if layout != "" and dim != len(layout):
                 raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
     else:
