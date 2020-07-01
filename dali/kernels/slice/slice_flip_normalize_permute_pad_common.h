@@ -28,27 +28,27 @@ template <int Dims>
 struct SliceFlipNormalizePermutePadArgs {
   SliceFlipNormalizePermutePadArgs() = default;
 
-  template <typename Shape>
-  explicit SliceFlipNormalizePermutePadArgs(const Shape &_shape) {
+  template <typename OutShape, typename InShape>
+  explicit SliceFlipNormalizePermutePadArgs(const OutShape &out_sh, const InShape &in_sh) {
     for (int d = 0; d < Dims; d++) {
       anchor[d] = 0;
-      shape[d] = _shape[d];
-      padded_shape[d] = _shape[d];
+      shape[d] = out_sh[d];
+      in_shape[d] = in_sh[d];
       flip[d] = false;
       permuted_dims[d] = d;
     }
+    fill_values.push_back(0.0f);
   }
 
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
-  TensorShape<Dims> padded_shape;
+  TensorShape<Dims> in_shape;
   std::array<bool, Dims> flip;
   std::array<int, Dims> permuted_dims;
-  int normalization_dim = Dims-1;
-  int normalization_index = 0;
-  std::vector<float> mean;
-  std::vector<float> inv_stddev;
-  float padding_val = 0.0f;
+  SmallVector<float, 4> mean;
+  SmallVector<float, 4> inv_stddev;
+  SmallVector<float, 4> fill_values;
+  int channel_dim = -1;
 };
 
 namespace detail {
@@ -58,12 +58,13 @@ struct SliceFlipNormalizePermutePadProcessedArgs {
   size_t input_offset;
   TensorShape<Dims> in_strides;
   TensorShape<Dims> out_shape;
-  TensorShape<Dims> padded_out_shape;
   TensorShape<Dims> out_strides;
-  std::vector<float> mean;
-  std::vector<float> inv_stddev;
-  int normalization_dim;
-  float padding_val = 0.0f;
+  TensorShape<Dims> anchor;
+  TensorShape<Dims> in_shape;
+  SmallVector<float, 4> mean;
+  SmallVector<float, 4> inv_stddev;
+  SmallVector<float, 4> fill_values;
+  int channel_dim = - 1;
 };
 
 template <int Dims, typename Shape>
@@ -74,12 +75,14 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
 
   processed_args.input_offset = 0;
   processed_args.in_strides = GetStrides(in_shape);
+  int channel_dim = args.channel_dim < 0 ? Dims - 1 : args.channel_dim;
+  int out_channel_dim = inverse_permutation(args.permuted_dims)[channel_dim];
 
   auto slice_shape = args.shape;
   permute(processed_args.out_shape, slice_shape, args.permuted_dims);
-  permute(processed_args.padded_out_shape, args.padded_shape, args.permuted_dims);
-  processed_args.padding_val = args.padding_val;
-  processed_args.out_strides = GetStrides(processed_args.padded_out_shape);
+  processed_args.fill_values = args.fill_values;
+  processed_args.out_strides = GetStrides(processed_args.out_shape);
+  processed_args.channel_dim = -1;
 
   // Flip operation is implemented by manipulating the anchor and the sign of the input strides
   for (int d = 0; d < Dims; d++) {
@@ -93,21 +96,39 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
   }
 
   processed_args.in_strides = permute(processed_args.in_strides, args.permuted_dims);
+  processed_args.in_shape = permute(args.in_shape, args.permuted_dims);
+  processed_args.anchor = permute(args.anchor, args.permuted_dims);
 
-  DALI_ENFORCE(args.mean.size() == args.inv_stddev.size());
-  const bool should_normalize = !args.mean.empty();
-  processed_args.normalization_dim = Dims + 1;
+  bool should_normalize = !args.mean.empty();
+  bool has_channels = args.mean.size() > 1 || processed_args.fill_values.size() > 1;
+  int per_channel_arg_size = std::max(args.mean.size(), processed_args.fill_values.size());
+  int nchannels = 0;
+  if (has_channels) {
+    DALI_ENFORCE(channel_dim >= 0 && channel_dim < Dims,
+      "Channel dim must be valid for multi-channel normalization arguments");
+    processed_args.channel_dim = out_channel_dim;
+    nchannels = processed_args.out_shape[out_channel_dim];
+  }
+
   if (should_normalize) {
     processed_args.mean = args.mean;
     processed_args.inv_stddev = args.inv_stddev;
-    const bool is_scalar_norm = args.mean.size() == 1;
-    if (!is_scalar_norm) {
-      processed_args.normalization_dim =
-        inverse_permutation(args.permuted_dims)[args.normalization_dim];
-      DALI_ENFORCE(args.mean.size() ==
-                   static_cast<size_t>(processed_args.out_shape[processed_args.normalization_dim]));
-    }
+    if (processed_args.mean.size() == 1 && per_channel_arg_size > 1)
+      processed_args.mean.resize(per_channel_arg_size, processed_args.mean[0]);
+    else if (processed_args.inv_stddev.size() == 1 && per_channel_arg_size > 1)
+      processed_args.inv_stddev.resize(per_channel_arg_size, processed_args.inv_stddev[0]);
   }
+
+  int fill_values_size = processed_args.fill_values.size();
+  if (fill_values_size == 0) {
+    processed_args.fill_values.resize(std::max(1, per_channel_arg_size), 0.0f);
+  } else if (fill_values_size == 1 && per_channel_arg_size > 1) {
+    processed_args.fill_values.resize(per_channel_arg_size, processed_args.fill_values[0]);
+  } else if (fill_values_size < per_channel_arg_size) {
+    processed_args.fill_values.resize(per_channel_arg_size, 0.0f);
+  }
+  DALI_ENFORCE(per_channel_arg_size == 1 || per_channel_arg_size == nchannels,
+    "The number of per-channel arguments should match the number of channels in the output slice");
   return processed_args;
 }
 }  // namespace detail

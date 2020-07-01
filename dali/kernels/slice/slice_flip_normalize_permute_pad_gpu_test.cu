@@ -50,11 +50,11 @@ class SliceFlipNormalizePermutePadGpuTest : public SliceFlipNormalizePermutePadT
 
     TensorListShape<> output_shapes = req.output_shapes[0];
     for (int i = 0; i < output_shapes.size(); i++) {
-      auto padded_out_shape = args[i].padded_shape;
-      auto expected_shape = padded_out_shape;
+      auto out_shape = args[i].shape;
+      auto expected_shape = out_shape;
       for (int d = 0; d < Dims; d++) {
         int perm_d = args[i].permuted_dims[d];
-        expected_shape[d] = padded_out_shape[perm_d];
+        expected_shape[d] = out_shape[perm_d];
       }
       AssertExpectedDimensions(output_shapes[i], expected_shape);
     }

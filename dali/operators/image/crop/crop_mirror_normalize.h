@@ -21,11 +21,13 @@
 #include "dali/core/any.h"
 #include "dali/core/common.h"
 #include "dali/core/format.h"
+#include "dali/core/util.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
+#include "dali/operators/generic/slice/out_of_bounds_policy.h"
 #include "dali/operators/image/crop/crop_attr.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
@@ -38,52 +40,52 @@ namespace dali {
 
 namespace detail {
 
-template <typename T>
-T NextPowerOfTwo(T value) {
-  T power = 1;
-  while (power < value)
-    power <<= 1;
-  return power;
-}
-
-// Rewrite Operator data as arguments for kernel
-// TODO(klecki): It probably could be written directly in that format
 template <int Dims>
-kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
-    TensorLayout input_layout, TensorLayout output_layout,
-    const std::vector<int64_t> &slice_anchor, const std::vector<int64_t> &slice_shape,
-    bool horizontal_flip, bool pad_output, const std::vector<float> &mean,
-    const std::vector<float> &inv_std_dev) {
-  kernels::SliceFlipNormalizePermutePadArgs<Dims> args(slice_shape);
-
-  for (int d = 0; d < Dims; d++) {
-    args.anchor[d] = slice_anchor[d];
-  }
+kernels::SliceFlipNormalizePermutePadArgs<Dims> ToSliceFlipNormalizePermutePadArgs(
+    TensorShape<> input_shape, TensorLayout input_layout, TensorLayout output_layout,
+    const CropWindow &win, bool horizontal_flip, bool pad_channels, span<const float> mean,
+    span<const float> inv_stddev, span<const float> fill_values) {
+  kernels::SliceFlipNormalizePermutePadArgs<Dims> args(win.shape.to_static<Dims>(), input_shape);
+  args.anchor = win.anchor.to_static<Dims>();
+  args.channel_dim = -1;
 
   int channel_dim_idx = ImageLayoutInfo::ChannelDimIndex(input_layout);
   assert(channel_dim_idx >= 0);
-  if (pad_output) {
-    args.padded_shape[channel_dim_idx] = NextPowerOfTwo(args.shape[channel_dim_idx]);
+  auto &nchannels = args.shape[channel_dim_idx];
+
+  auto norm_arg_size = mean.size();
+  DALI_ENFORCE(norm_arg_size == inv_stddev.size());
+  auto fill_values_size = fill_values.size();
+
+  args.fill_values = fill_values;
+  args.mean = mean;
+  args.inv_stddev = inv_stddev;
+
+  auto arg_per_ch_size = std::max(norm_arg_size, fill_values_size);
+  if (arg_per_ch_size > 1) {
+    args.channel_dim = channel_dim_idx;
+  }
+
+  if (pad_channels) {
+    nchannels = next_pow2(nchannels);  // modifies args.shape
+    if (norm_arg_size > 1) {
+      for (int c = norm_arg_size; c < nchannels; c++) {
+        args.mean.push_back(0.0f);
+        args.inv_stddev.push_back(0.0f);
+      }
+    }
   }
 
   if (horizontal_flip) {
     int horizontal_dim_idx = input_layout.find('W');
-    assert(horizontal_dim_idx >= 0);
+    DALI_ENFORCE(horizontal_dim_idx >= 0,
+                 make_string("[H]orizontal dimension not found in the input layout. Got: ",
+                             input_layout.str()));
     args.flip[horizontal_dim_idx] = true;
   }
 
-  // Check if permutation is needed
+  // Calculate permutation, if needed
   args.permuted_dims = GetLayoutMapping<Dims>(input_layout, output_layout);
-
-  const bool should_normalize =
-      !std::all_of(mean.begin(), mean.end(), [](float x) { return x == 0.0f; }) ||
-      !std::all_of(inv_std_dev.begin(), inv_std_dev.end(), [](float x) { return x == 1.0f; });
-  if (should_normalize) {
-    args.mean = mean;
-    args.inv_stddev = inv_std_dev;
-    args.normalization_dim = channel_dim_idx;
-  }
-
   return args;
 }
 
@@ -91,17 +93,15 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
 
 
 template <typename Backend>
-class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
+class CropMirrorNormalize : public Operator<Backend> {
  public:
   explicit inline CropMirrorNormalize(const OpSpec &spec)
       : Operator<Backend>(spec),
-        CropAttr(spec),
+        crop_attr_(spec),
         output_type_(spec.GetArgument<DALIDataType>("dtype")),
         output_layout_(spec.GetArgument<TensorLayout>("output_layout")),
         pad_output_(spec.GetArgument<bool>("pad_output")),
-        slice_anchors_(batch_size_),
-        slice_shapes_(batch_size_),
-        mirror_(batch_size_) {
+        out_of_bounds_policy_(GetOutOfBoundsPolicy(spec)) {
     if (!spec.TryGetRepeatedArgument(mean_vec_, "mean")) {
       mean_vec_ = { spec.GetArgument<float>("mean") };
     }
@@ -132,6 +132,18 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
       if (inv_std_vec_.size() == 1)
         inv_std_vec_.resize(args_size, inv_std_vec_[0]);
     }
+
+    should_normalize_ =
+        !std::all_of(mean_vec_.begin(), mean_vec_.end(), [](float x) { return x == 0.0f; }) ||
+        !std::all_of(inv_std_vec_.begin(), inv_std_vec_.end(), [](float x) { return x == 1.0f; });
+    if (!should_normalize_) {
+      mean_vec_.clear();
+      inv_std_vec_.clear();
+    }
+
+    if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
+      fill_values_ = spec.GetRepeatedArgument<float>("fill_values");
+    }
   }
 
   inline ~CropMirrorNormalize() override = default;
@@ -145,15 +157,13 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     return true;
   }
 
-  // Propagate input -> output type and layout
-  // Gather the CropAttr (obtain arguments from Spec/ArgumentWorkspace)
-  void SetupAndInitialize(const workspace_t<Backend> &ws) {
+  void SetupCommonImpl(const workspace_t<Backend> &ws) {
     const auto &input = ws.template InputRef<Backend>(0);
     input_type_ = input.type().id();
     if (output_type_ == DALI_NO_TYPE)
       output_type_ = input_type_;
 
-    const auto &in_shape = input.shape();  // This can be a copy
+    auto in_shape = input.shape();
     input_layout_ = this->InputLayout(ws, 0);
     DALI_ENFORCE(ImageLayoutInfo::IsImage(input_layout_),
       ("Unsupported layout: '" + input_layout_.str() + "' for input 0 '" +
@@ -167,96 +177,46 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
       DALI_ENFORCE(output_layout_.is_permutation_of(input_layout_),
         "The requested output layout is not a permutation of input layout.");
 
-    CropAttr::ProcessArguments(ws);
+    int ndim = in_shape.sample_dim();
+    int nsamples = in_shape.size();
+    DALI_ENFORCE(ndim >= 3 || ndim <= 5,
+      make_string("Unexpected number of dimensions: ", ndim));
+    DALI_ENFORCE(input_layout_.ndim() == ndim);
+    int spatial_ndim = ImageLayoutInfo::NumSpatialDims(input_layout_);
+    DALI_ENFORCE(spatial_ndim == 2 || spatial_ndim == 3,
+      "Only 2D or 3D images and sequences of images are supported");
+    DALI_ENFORCE(ImageLayoutInfo::HasChannel(input_layout_),
+      "This operator expects an explicit channel dimension, even for monochrome images");
 
-    int number_of_dims = in_shape.sample_dim();
-    VALUE_SWITCH(number_of_dims, Dims, CMN_NDIMS,
+    crop_attr_.ProcessArguments(ws);
+
+    VALUE_SWITCH(ndim, Dims, CMN_NDIMS,
     (
       using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
       // We won't change the underlying type after the first allocation
-      if (!kernel_sample_args_.has_value()) {
-        kernel_sample_args_ = std::vector<Args>(batch_size_);
-      }
+      if (!kernel_sample_args_.has_value())
+        kernel_sample_args_ = std::vector<Args>(nsamples);
       auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-
+      kernel_sample_args.clear();
+      kernel_sample_args.reserve(nsamples);
       // Set internal info for each sample based on CropAttr
-      for (int data_idx = 0; data_idx < batch_size_; data_idx++) {
-        mirror_[data_idx] = this->spec_.template GetArgument<int>("mirror", &ws, data_idx);
-        SetupSample(data_idx, input_layout_, in_shape.tensor_shape(data_idx));
-        // convert the Operator representation to Kernel parameter representation
-        kernel_sample_args[data_idx] = detail::GetKernelArgs<Dims>(
-          input_layout_, output_layout_, slice_anchors_[data_idx], slice_shapes_[data_idx],
-          mirror_[data_idx], pad_output_, mean_vec_, inv_std_vec_);
+      for (int data_idx = 0; data_idx < nsamples; data_idx++) {
+        auto crop_win_gen = crop_attr_.GetCropWindowGenerator(data_idx);
+        assert(crop_win_gen);
+        CropWindow crop_window = crop_win_gen(in_shape[data_idx], input_layout_);
+        bool horizontal_flip = this->spec_.template GetArgument<int>("mirror", &ws, data_idx);
+        ApplySliceBoundsPolicy(out_of_bounds_policy_, in_shape[data_idx], crop_window.anchor,
+                               crop_window.shape);
+        kernel_sample_args.emplace_back(
+          detail::ToSliceFlipNormalizePermutePadArgs<Dims>(
+            in_shape[data_idx], input_layout_, output_layout_, crop_window, horizontal_flip,
+            pad_output_, make_cspan(mean_vec_), make_cspan(inv_std_vec_),
+            make_cspan(fill_values_)));
       }
-      // NOLINTNEXTLINE(whitespace/parens)
-    ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims)););
+    ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
   }
 
-  // Calculate slice window and anchor for given data_idx
-  void SetupSample(int data_idx, TensorLayout layout, const TensorShape<> &shape) {
-    Index F = 1, D = 1, H, W, C;
-    DALI_ENFORCE(shape.size() >= 3 || shape.size() <= 5,
-      "Unexpected number of dimensions: " + std::to_string(shape.size()));
-    DALI_ENFORCE(layout.ndim() == shape.size());
-    int spatial_ndim = ImageLayoutInfo::NumSpatialDims(layout);
-    DALI_ENFORCE(spatial_ndim == 2 || spatial_ndim == 3,
-      "Only 2D or 3D images and sequences of images are supported");
-    DALI_ENFORCE(ImageLayoutInfo::HasChannel(layout),
-      "This operator expects an explicit channel dimension, even for monochrome images");
-
-    int h_dim = layout.find('H');
-    int w_dim = layout.find('W');
-    int c_dim = layout.find('C');
-    int f_dim = layout.find('F');
-    int d_dim = layout.find('D');
-
-    DALI_ENFORCE(h_dim >= 0 && w_dim >= 0 && c_dim >= 0,
-      "Height, Width and Channel must be present in the layout. Got: " + layout.str());
-
-    H = shape[h_dim];
-    W = shape[w_dim];
-    C = shape[c_dim];
-    if (f_dim >= 0)
-      F = shape[f_dim];
-    if (d_dim >= 0)
-      D = shape[d_dim];
-
-    // Special case.
-    // This allows using crop_d to crop on the sequence dimension,
-    // by treating video inputs as a volume instead of a sequence
-    if (has_crop_d_ && F > 1 && D == 1) {
-      std::swap(d_dim, f_dim);
-      std::swap(D, F);
-      spatial_ndim++;
-    }
-
-    auto crop_window_gen = GetCropWindowGenerator(data_idx);
-    auto win = spatial_ndim == 3 ?
-      crop_window_gen({D, H, W}, "DHW") : crop_window_gen({H, W}, "HW");
-
-    int ndim = shape.sample_dim();
-    slice_anchors_[data_idx].resize(ndim);
-    slice_shapes_[data_idx].resize(ndim);
-
-    if (d_dim >= 0) {
-      slice_anchors_[data_idx][d_dim] = win.anchor[spatial_ndim - 3];
-      slice_shapes_[data_idx][d_dim] = win.shape[spatial_ndim - 3];
-    }
-
-    slice_anchors_[data_idx][h_dim] = win.anchor[spatial_ndim - 2];
-    slice_shapes_[data_idx][h_dim] = win.shape[spatial_ndim - 2];
-
-    slice_anchors_[data_idx][w_dim] = win.anchor[spatial_ndim - 1];
-    slice_shapes_[data_idx][w_dim] = win.shape[spatial_ndim - 1];
-
-    slice_anchors_[data_idx][c_dim] = 0;
-    slice_shapes_[data_idx][c_dim] = C;
-
-    if (f_dim >= 0) {
-      slice_anchors_[data_idx][f_dim] = 0;
-      slice_shapes_[data_idx][f_dim] = F;
-    }
-  }
+  CropAttr crop_attr_;
 
   DALIDataType input_type_ = DALI_NO_TYPE;
   DALIDataType output_type_ = DALI_NO_TYPE;
@@ -266,11 +226,11 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
 
   // Whether to pad output to 4 channels
   bool pad_output_;
-
-  std::vector<std::vector<int64_t>> slice_anchors_, slice_shapes_;
-
+  bool should_normalize_;
   std::vector<float> mean_vec_, inv_std_vec_;
-  std::vector<int> mirror_;
+
+  std::vector<float> fill_values_;
+  OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
 
   kernels::KernelManager kmgr_;
   any kernel_sample_args_;
