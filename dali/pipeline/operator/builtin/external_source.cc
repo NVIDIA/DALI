@@ -32,28 +32,31 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
       tensor_list_elm = tl_data_.PopFront();
     }
   }
-  if (no_copy_ && !copy_info.is_tensor_vector) {
+  if (no_copy_) {
     TensorVector<CPUBackend> &output = ws.template OutputRef<CPUBackend>(0);
-    output.ShareData(tensor_list_elm.front().get());
-    // empty tensor_list_elm
-    tensor_list_elm.front()->Reset();
-    RecycleBuffer(tensor_list_elm);
+    if (copy_info.is_tensor_vector) {
+      output.ShareData(tensor_vector_elm.front().get());
+      // empty tensor_vector_elm
+      for (auto &t : *tensor_vector_elm.front()) {
+        t.reset();
+      }
+      // tensor_vector_elm.front()->Reset();
+      RecycleBuffer(tensor_vector_elm);
+    } else {
+      output.ShareData(tensor_list_elm.front().get());
+      // empty tensor_list_elm
+      tensor_list_elm.front()->Reset();
+      RecycleBuffer(tensor_list_elm);
+    }
   } else {
     auto &thread_pool = ws.GetThreadPool();
     // sort by the work size
     sample_ids_.clear();
     sample_ids_.reserve(batch_size_);
 
-    if (no_copy_ && copy_info.is_tensor_vector) {
-      auto shape = tensor_vector_elm.front()->shape();
-      for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
-        sample_ids_.emplace_back(volume(shape[sample_id]), sample_id);
-      }
-    } else {
-      for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
-        sample_ids_.emplace_back(volume(tensor_list_elm.front()->tensor_shape(sample_id)),
-                                 sample_id);
-      }
+    for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
+      sample_ids_.emplace_back(volume(tensor_list_elm.front()->tensor_shape(sample_id)),
+                                sample_id);
     }
     std::sort(sample_ids_.begin(), sample_ids_.end(), std::greater<VolumeSampleIdPair>());
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
@@ -63,12 +66,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
         Tensor<CPUBackend> &output = ws.Output<CPUBackend>(0, data_idx);
         // HostWorkspace doesn't have any stream
         cudaStream_t stream = 0;
-        if (no_copy && copy_info.is_tensor_vector) {
-          output.Copy((*(tensor_vector_elm.front()))[data_idx], stream);
-          (*tensor_vector_elm.front())[data_idx].Reset();
-        } else {
-          output.Copy(*(tensor_list_elm.front()), data_idx, stream);
-        }
+        output.Copy(*(tensor_list_elm.front()), data_idx, stream);
       });
     }
     thread_pool.WaitForWork();
@@ -76,11 +74,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     // for the whole output not each element(view)
     auto &output = ws.template OutputRef<CPUBackend>(0);
     output.SetLayout(tensor_list_elm.front()->GetLayout());
-    if (no_copy_ && copy_info.is_tensor_vector) {
-      RecycleBuffer(tensor_vector_elm);
-    } else {
-      RecycleBuffer(tensor_list_elm);
-    }
+    RecycleBuffer(tensor_list_elm);
   }
 }
 
