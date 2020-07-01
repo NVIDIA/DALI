@@ -65,52 +65,31 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
   void RunResize(Workspace &ws, output_type &output, const input_type &input);
 
   /**
-   * @param ws        workspace object
-   * @param out_shape output shape, determined by params
-   * @param input     input; data is not accessed, only shape and metadata are relevant
-   * @param params    resampling parameters; this is a flattened array of size ndim*num_samples,
-   *                  each sample is described by ndim ResamplingParams, starting from outermost
-   *                  dimension (e.g. depth, height, width)
-   * @param out_type  desired output type
-   */
-  void SetupResize(const Workspace &ws,
-                   TensorListShape<> &out_shape,
-                   const input_type &input,
-                   span<const kernels::ResamplingParams> params,
-                   DALIDataType out_type);
-
-
-  /**
-   * @param ws        workspace object
-   * @param out_shape output shape, determined by params
-   * @param input     input; data is not accessed, only shape and metadata are relevant
-   * @param params    resampling parameters; this is a structured array of size num_samples,
-   *                  each sample is described by an array of ndim ResamplingParams, starting
-   *                  from outermost dimension (e.g. depth, height, width)
-   * @param out_type  desired output type
+   * @param ws                workspace object
+   * @param out_shape         output shape, determined by params
+   * @param input             input; data is not accessed, only shape and metadata are relevant
+   * @param params            resampling parameters; this is a flattened array of size
+   *                          `spatial_ndim*num_samples`, each sample is described by spatial_ndim
+   *                          ResamplingParams, starting from outermost spatial dimension
+   *                          (i.e. [depthwise,] vertical, horizontal)
+   * @param out_type          desired output type
+   * @param first_spatial_dim index of the first resized dim
+   * @param spatial_ndim      number of resized dimensions - these need to form a
+   *                          contiguous block in th layout
    *
-   * @remarks ndim must match the number of spatial dimensions in input layout; if there's no
-   *          layout, then extra dimensions are treated as channels (innermost) and frames
-   *          (outermost)
+   * @return number of spatial dimensions
    */
-  template <int ndim>
-  void SetupResize(const Workspace &ws,
-                   TensorListShape<> &out_shape,
-                   const input_type &input,
-                   span<const kernels::ResamplingParamsND<ndim>> params,
-                   DALIDataType out_type) {
-    auto layout = input.layout();
-    int sdim = layout.empty() ? 0 : NumSpatialDims(layout);;
-    int input_dim = input.shape().sample_dim();
-    DALI_ENFORCE(sdim == input.dim() - 2 && sdim <= input.dim(), make_string(
-      "Resize: unexpected number of dimensions: ", input.dim()));
-    auto flat_params = make_span(&params.front()[0], &params.back()[ndim-1]);
-    SetupResize(ws, out_shape, input, flat_params, out_type);
-  }
+  int SetupResize(const Workspace &ws,
+                  TensorListShape<> &out_shape,
+                  const input_type &input,
+                  span<const kernels::ResamplingParams> params,
+                  DALIDataType out_type,
+                  int first_spatial_dim,
+                  int spatial_ndim);
 
  private:
   DALIDataType output_type_;
-  int mini_batch_size_ = 32;
+  int minibatch_size_ = 32;
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

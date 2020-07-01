@@ -38,7 +38,7 @@ DALI_SCHEMA(RandomResizedCrop)
 template<>
 void RandomResizedCrop<CPUBackend>::BackendInit() {
   InitializeCPU(num_threads_);
-  out_shape_.resize(num_threads_);
+  out_size_.resize(num_threads_);
 }
 
 template<>

@@ -92,6 +92,8 @@ struct PreallocatedScratchpad : Scratchpad {
   }
 
   void *Alloc(AllocType alloc, size_t bytes, size_t alignment) override {
+    if (bytes == 0)
+      return nullptr;
     auto &A = allocs[(size_t)alloc];
     uintptr_t ptr = reinterpret_cast<uintptr_t>(A.next());
     // Calculate the padding needed to satisfy alignmnent requirements

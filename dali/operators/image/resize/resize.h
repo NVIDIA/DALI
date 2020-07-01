@@ -58,28 +58,40 @@ class Resize : public Operator<Backend>
   explicit Resize(const OpSpec &spec);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    return false;
-  }
+  bool CanInferOutputs() const override { return true; }
 
-  void RunImpl(Workspace<Backend> &ws) override;
-  void SetupSharedSampleParams(Workspace<Backend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
 
-  kernels::ResamplingParams2D GetResamplingParams(const TransformMeta &meta) const {
-    kernels::ResamplingParams2D params;
-    params[0].output_size = meta.rsz_h;
-    params[1].output_size = meta.rsz_w;
-    params[0].min_filter = params[1].min_filter = this->min_filter_;
-    params[0].mag_filter = params[1].mag_filter = this->mag_filter_;
-    return params;
-  }
+  void RunImpl(workspace_t<Backend> &ws) override;
 
   USE_OPERATOR_MEMBERS();
   std::vector<kernels::ResamplingParams2D> resample_params_;
   using Operator<Backend>::RunImpl;
   bool save_attrs_;
-  int outputs_per_idx_;
+  DALIDataType out_type_;
 };
+
+template <typename Backend>
+bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                const workspace_t<Backend> &ws) {
+  output_desc.resize(save_attrs_ ? 2 : 1);
+  auto &input = ws.template InputRef<Backend>(0);
+  if (!ws.TryGetArgument(out_type_, "dtype")) {
+    out_type_ = input.type().id();
+  }
+
+  output_desc[0].type = out_type_;
+
+  DALI_ENFORCE(ws.NumOutput() == 1 || ws.NumOutput() == 2,
+    "Resize and produce 1 or 2 outputs - if there are two outputs, the 2nd one receives the ",
+    "original size of the images.");
+  SetupResize(ws, output_desc[0].shape);
+  if (save_attrs_) {
+    NumSpatialDims(input.layout);
+  }
+  return true;
+}
+
 
 }  // namespace dali
 

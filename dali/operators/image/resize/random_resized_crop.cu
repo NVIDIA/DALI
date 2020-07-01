@@ -37,7 +37,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   const int newW = size_[1];
 
   auto &output = ws.Output<GPUBackend>(0);
-  RunResize(output, input, ws.stream());
+  RunResize(ws, output, input);
   output.SetLayout(input.GetLayout());
 }
 
@@ -59,7 +59,7 @@ void RandomResizedCrop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws)
   }
   CalcResamplingParams();
   TensorListShape<> output_shape;
-  SetupResize(output_shape, input.shape(), input.layout(), resample_params_);
+  SetupResize(output_shape, input.shape(), input.GetLayout(), resample_params_);
 }
 
 DALI_REGISTER_OPERATOR(RandomResizedCrop, RandomResizedCrop<GPUBackend>, GPU);

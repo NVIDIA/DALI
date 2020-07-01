@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/image/resize/resize_attr.h"
+#include "dali/pipeline/operator/common.h"
 
 namespace dali {
 
@@ -73,6 +74,22 @@ ResizeAttr::ResizeAttr(const OpSpec &spec) {
                 "Options `resize_{shorter,longer}` and other means of specifying size "
                 "are mutually exclusive for schema \"" + spec.name() + "\"");
 
+}
+
+
+void ResizeAttr::PrepareParams(const OpSpec &spec, const ArgumentWorkspace &ws,
+                               const TensorListshape<> &input_shape,
+                               TensorLayout input_layout = {}) {
+  if (input_layout.empty()) {
+    switch (input_shape.sample_dim()) {
+
+    }
+  }
+  if (has_size_) {
+    GetShapeArgument(out_size_, spec, "size", ws);
+  } else if (has_resize_x
+
+  }
 }
 
 }  // namespace dali

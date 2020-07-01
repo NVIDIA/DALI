@@ -18,8 +18,6 @@
 #include <vector>
 
 #include "dali/operators/image/resize/resize.h"
-#include "dali/core/static_switch.h"
-#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
@@ -29,30 +27,10 @@ Resize<GPUBackend>::Resize(const OpSpec &spec)
     , ResizeAttr(spec)
     , ResizeBase<GPUBackend>(spec) {
   save_attrs_ = spec_.HasArgument("save_attrs");
-  outputs_per_idx_ = save_attrs_ ? 2 : 1;
 
   ResizeAttr::SetBatchSize(batch_size_);
   InitializeGPU(spec_.GetArgument<int>("minibatch_size"));
   resample_params_.resize(batch_size_);
-}
-
-template<>
-void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws) {
-  auto &input = ws.Input<GPUBackend>(0);
-
-  DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
-  if (!input.GetLayout().empty()) {
-    DALI_ENFORCE(ImageLayoutInfo::IsChannelLast(input.GetLayout()),
-                 "Resize expects interleaved channel layout (aka channel-last or NHWC)");
-  }
-
-  for (int i = 0; i < batch_size_; ++i) {
-    auto input_shape = input.tensor_shape(i);
-    DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
-
-    per_sample_meta_[i] = GetTransformMeta(spec_, input_shape, ws, i, ResizeInfoNeeded());
-    resample_params_[i] = GetResamplingParams(per_sample_meta_[i]);
-  }
 }
 
 template<>

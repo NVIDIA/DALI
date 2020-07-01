@@ -70,7 +70,7 @@ DALI_SCHEMA(Resize)
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("save_attrs"));
   })
-  .InputLayout(0, "HWC")
+  .InputLayout(0, {"HWC", "FHWC" /*, "DHWC", "FDHWC" */ })
   .AddOptionalArg("save_attrs",
       R"code(Save reshape attributes for testing.)code", false)
   .AddParent("ResizeAttr")
@@ -86,31 +86,15 @@ Resize<CPUBackend>::Resize(const OpSpec &spec)
   InitializeCPU(num_threads_);
 
   save_attrs_ = spec_.HasArgument("save_attrs");
-  outputs_per_idx_ = save_attrs_ ? 2 : 1;
 }
 
 template <>
-void Resize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace &ws) {
+void Resize<CPUBackend>::RunImpl(HostWorkspace &ws) {
   const int thread_idx = ws.thread_idx();
-  per_sample_meta_[thread_idx] = GetTransfomMeta(&ws, spec_);
-  resample_params_[thread_idx] = detail::GetResamplingParams(
-    per_sample_meta_[thread_idx], min_filter_, mag_filter_);
-}
+  const auto &input = ws.InputRef<CPUBackend>(0);
+  auto &output = ws.OutputRef<CPUBackend>(0);
 
-template <>
-void Resize<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  const int thread_idx = ws.thread_idx();
-  const auto &input = ws.Input<CPUBackend>(0);
-  auto &output = ws.Output<CPUBackend>(0);
-
-  DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
-  DALI_ENFORCE(input.ndim() == 3, "Resize expects 3-dimensional tensor input.");
-  if (!input.GetLayout().empty()) {
-    DALI_ENFORCE(ImageLayoutInfo::IsChannelLast(input.GetLayout()),
-                 "Resize expects interleaved channel layout aka (N)HWC");
-  }
-
-  RunResize(output, input);
+  RunResize(ws, output, input);
   output.SetLayout(input.GetLayout());
 
   if (save_attrs_) {

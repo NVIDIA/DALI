@@ -88,7 +88,7 @@ void GetPerSampleArgument(std::vector<T> &output,
 }
 
 template <int ndim>
-void GetShapeArgument(TensorListShape<ndim> &output,
+void GetShapeArgument(TensorListShape<ndim> &out_tls,
                       const OpSpec &spec,
                       const std::string &argument_name,
                       const ArgumentWorkspace &ws,
@@ -100,39 +100,42 @@ void GetShapeArgument(TensorListShape<ndim> &output,
     const auto &arg = ws.ArgumentInput(argument_name);
     auto argview = view<const int>(arg);
     int N = argview.shape.num_samples();
-    DALI_ENFORCE(N == batch_size, make_string("Unexpected number of samples in argument \"",
-      argument_name, "\" (expected ", batch_size, ")"));
+    DALI_ENFORCE(N == batch_size, make_string("Unexpected number of samples in argument `",
+      argument_name, "` (expected: ", batch_size, ")"));
     DALI_ENFORCE(is_uniform(argview.shape), "A tensor list shape must have the same dimensionality "
       "for all samples.");
     TensorListShape<ndim> tls;
     if (argview.shape.sample_dim() == 0) {
       DALI_ENFORCE(ndim < 0 || ndim == 1, "A list of scalars can only describe a shape of a 1D "
         "tensor list");
-      tls.resize(N, 1);
+      out_tls.resize(N, 1);
       for (int i = 0; i < N; i++)
         tls.tensor_shape_span(i)[0] = *argview.data[i];
     } else {
-      DALI_ENFORCE(argview.shape.sample_dim() == 1, "Shapes must be 1D tensors with extent equal to "
-       "shape dimensionality (or scalars for 1D shapes)");
+      DALI_ENFORCE(argview.shape.sample_dim() == 1, "Shapes must be 1D tensors with extent equal "
+       "to shape dimensionality (or scalars for 1D shapes)");
       int D = argview.shape[0][0];
       DALI_ENFORCE(ndim < 0 || D == ndim, make_string(D, " element tensor cannot describe an ",
         ndim, "D shape."));
-      tls.resize(N, D);
+      out_tls.resize(N, D);
       for (int i = 0; i < N; i++)
         for (int d = 0; d < D; d++)
-          tls.tensor_shape_span(i)[d] = argview.data[i][d];
+          out_tls.tensor_shape_span(i)[d] = argview.data[i][d];
     }
   } else {
+    // If the argument is specified as a vector, it represents a uniform tensor list shape.
     std::vector<int> tsvec;
     if (ndim > 0) {
       // we have the luxury of knowing ndim ahead of time, so we can broadcast a scalar
       GetSingleOrRepeatedArg<int>(spec, tsvec, argument_name, ndim);
     } else {
+      // in dynamic use case, we get the dimensionality from the number of values
       tsvec = spec.GetRepeatedArgument<int>(argument_name);
     }
-    return uniform_list_shape<ndim>(batch_size, tsvec);
+    out_tls = uniform_list_shape<ndim>(batch_size, tsvec);
   }
 }
 
 }  // namespace dali
+
 #endif  // DALI_PIPELINE_OPERATOR_COMMON_H_

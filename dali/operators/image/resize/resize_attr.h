@@ -35,10 +35,11 @@ class ResizeAttr {
 
   void PrepareParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                      const TensorListshape<> &input_shape,
-                     const TensorLayout &input_layout = {});
+                     TensorLayout input_layout = {});
 
   vector<ResizeParams> params_;
-  TensorListShape<> out_shape_;
+  /// Output size - only spatial dimensions (no channels, frames, etc.)
+  TensorListShape<> out_size_;
 
   bool has_size_ = false;
   bool has_mode_ = false;
