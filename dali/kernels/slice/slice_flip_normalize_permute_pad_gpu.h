@@ -79,13 +79,11 @@ class SliceFlipNormalizePermutePadGpu {
         if (norm_args_size_ != sample_args.mean.size() ||
             norm_args_size_ != sample_args.inv_stddev.size())
           throw std::invalid_argument(
-              "Normalization arguments should have the same size for all the samples");
+            "Normalization arguments should have the same size for all the samples");
         if (nfill_values_ != sample_args.fill_values.size())
-          throw std::invalid_argument(
-              "Fill values should have the same size for all the samples");
+          throw std::invalid_argument("Fill values should have the same size for all the samples");
         if (channel_dim_ != sample_args.channel_dim)
-          throw std::invalid_argument(
-              "channel dim should be the same for all the samples");
+          throw std::invalid_argument("channel dim should be the same for all the samples");
       }
     }
 
@@ -168,7 +166,6 @@ class SliceFlipNormalizePermutePadGpu {
     OutputType *fill_values_gpu = context.scratchpad->ToGPU(
         context.gpu.stream, make_span(fill_values_cpu, num_samples * nfill_values_));
 
-    // Host memory
     auto *sample_descs_cpu =
         context.scratchpad->Allocate<detail::SampleDesc<Dims>>(AllocType::Host, num_samples);
     auto *block_descs_cpu =

@@ -155,8 +155,9 @@ __global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *sampl
   VALUE_SWITCH(NeedPad && sample.need_pad, SampleNeedPad, (false, true), (
     VALUE_SWITCH(NeedFlip && sample.need_flip, SampleNeedFlip, (false, true), (
       SliceFlipNormalizePermutePadFunc<SampleNeedFlip, NeedNormalize, SampleNeedPad, Dims>(
-          out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values, sample.norm_add,
-          sample.norm_mul, sample.channel_dim, sample.effective_ndim, offset, block_end);
+          out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values,
+          sample.norm_add, sample.norm_mul, sample.channel_dim, sample.effective_ndim,
+          offset, block_end);
     ), ());  // NOLINT
   ), ());  // NOLINT
 }
