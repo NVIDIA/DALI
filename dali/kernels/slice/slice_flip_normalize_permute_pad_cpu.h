@@ -222,6 +222,7 @@ void SliceFlipNormalizePermutePadKernel(
   bool need_pad = NeedPad(Dims, anchor.data(), in_shape.data(), out_shape.data());
   bool has_channels = channel_dim >= 0;
   bool need_normalize = (mean != nullptr && inv_stddev != nullptr);
+  // Convert switch argument to `int` to avoid compiler warning about unreachable case label
   VALUE_SWITCH(need_normalize ? 1 : 0, NeedNormalize, (false, true), (
     VALUE_SWITCH(has_channels ? 1 : 0, HasChannels, (false, true), (
       if (need_pad) {
@@ -261,17 +262,14 @@ class SliceFlipNormalizePermutePadCpu {
            const InTensorCPU<InputType, Dims> &in,
            const Args &orig_args) {
     auto args = detail::ProcessArgs(orig_args, in.shape);
-
-    int nvalues = args.fill_values.size();
+    auto *mean = args.mean.empty() ? nullptr : args.mean.data();
+    auto *inv_stddev = args.inv_stddev.empty() ? nullptr : args.inv_stddev.data();
     SmallVector<OutputType, 4> fill_values;
-    assert(!args.fill_values.empty());
     for (auto value : args.fill_values)
       fill_values.push_back(static_cast<OutputType>(value));
-
     SliceFlipNormalizePermutePadKernel(out.data, in.data + args.input_offset, args.in_strides,
                                        args.out_strides, args.anchor, args.in_shape, args.out_shape,
-                                       fill_values.data(), args.mean.data(), args.inv_stddev.data(),
-                                       args.channel_dim);
+                                       fill_values.data(), mean, inv_stddev, args.channel_dim);
   }
 };
 

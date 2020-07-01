@@ -175,7 +175,6 @@ class SliceFlipNormalizePermutePadGpu {
         context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
 
     bool need_pad = false, need_flip = false;
-    std::vector<size_t> sample_sizes(in.size());
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);
       auto &processed_args = processed_args_[i];
@@ -222,14 +221,12 @@ class SliceFlipNormalizePermutePadGpu {
         sample_desc.out_shape[last_dim] *= stride;
       }
       sample_desc.effective_ndim = last_dim + 1;
-
-      sample_sizes[i] = volume(processed_args.out_shape);
     }
 
     size_t block_idx = 0;
     for (int i = 0; i < num_samples; i++) {
       size_t offset = 0;
-      size_t remaining = sample_sizes[i];
+      size_t remaining = volume(processed_args_[i].out_shape);
       while (remaining > 0) {
         size_t size = remaining < kBlockSize ? remaining : kBlockSize;
         block_descs_cpu[block_idx++] = {i, offset, size};

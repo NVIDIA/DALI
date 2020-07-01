@@ -295,20 +295,11 @@ class CMNRandomDataPipeline(Pipeline):
         
         if layout.count('D') <= 0 and not (crop_seq_as_depth and layout.count('F') > 0):
             crop_d = None
-        self.cmn = ops.CropMirrorNormalize(device = self.device,
-                                            dtype = dtype,
-                                            output_layout = output_layout,
-                                            crop_d = crop_d,
-                                            crop_h = crop_h,
-                                            crop_w = crop_w,
-                                            crop_pos_x = crop_pos_x,
-                                            crop_pos_y = crop_pos_y,
-                                            crop_pos_z = crop_pos_z,
-                                            mean = mean,
-                                            std = std,
-                                            pad_output = pad_output,
-                                            out_of_bounds_policy = out_of_bounds_policy,
-                                            fill_values = fill_values)
+        self.cmn = ops.CropMirrorNormalize(device=self.device, dtype=dtype, output_layout=output_layout,
+                                           crop_d=crop_d, crop_h=crop_h, crop_w=crop_w,
+                                           crop_pos_x=crop_pos_x, crop_pos_y=crop_pos_y, crop_pos_z=crop_pos_z,
+                                           mean=mean, std=std, pad_output=pad_output,
+                                           out_of_bounds_policy=out_of_bounds_policy, fill_values=fill_values)
         self.coin = ops.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
@@ -463,20 +454,15 @@ def check_cmn_with_out_of_bounds_policy_support(device, batch_size, dtype, input
     assert(len(input_shape) == 3)
     if fill_values is not None and len(fill_values) > 1:
         assert(input_shape[2] == len(fill_values))
-
     eii = RandomDataIterator(batch_size, shape=input_shape)
-    crop_y = 0.5
-    crop_x = 0.5
-    crop_h = input_shape[0] * 2
-    crop_w = input_shape[1] * 2
-
+    crop_y, crop_x = 0.5, 0.5
+    crop_h, crop_w = input_shape[0] * 2, input_shape[1] * 2
     pipe = CMNRandomDataPipeline(device, batch_size, input_layout, iter(eii),
                                  dtype = dtype, output_layout = output_layout,
                                  mirror_probability = mirror_probability, mean = mean, std = std, pad_output = should_pad,
                                  crop_w = crop_w, crop_h = crop_h,
                                  crop_pos_x = crop_x, crop_pos_y = crop_y,
                                  out_of_bounds_policy = out_of_bounds_policy, fill_values = fill_values, extra_outputs = True)
-
     permute = None
     if output_layout != input_layout:
         permute = []
@@ -534,17 +520,14 @@ def check_cmn_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200
     layout = "HWC"
     assert(len(input_shape) == 3)
     eii = RandomDataIterator(batch_size, shape=input_shape)
-    crop_y = 0.5
-    crop_x = 0.5
-    crop_h = input_shape[0] * 2
-    crop_w = input_shape[1] * 2
+    crop_y, crop_x = 0.5, 0.5
+    crop_h, crop_w = input_shape[0] * 2, input_shape[1] * 2
     pipe = CMNRandomDataPipeline(device, batch_size, layout, iter(eii),
                                  dtype = types.FLOAT, output_layout = layout,
                                  mirror_probability = 0.5, mean = [127.], std = [127.], pad_output = True,
                                  crop_w = crop_w, crop_h = crop_h,
                                  crop_pos_x = crop_x, crop_pos_y = crop_y,
                                  out_of_bounds_policy="error")
-
     pipe.build()
     with assert_raises(RuntimeError):
         outs = pipe.run()

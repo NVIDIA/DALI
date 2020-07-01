@@ -441,21 +441,13 @@ def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start
             assert(all([sliced[i] == out_shape[i] for i in range(naxes)]))
 
     pos_start = [abs_start[i] if abs_start[i] >= 0 else 0 for i in range(naxes)]
-    # Ignore padded channels (to next power of two) if needed
     in_sliced = sample_in[pos_start[0] : pos_start[0] + sliced[0], pos_start[1] : pos_start[1] + sliced[1], :]
     slice_shape = (abs_slice_shape[0], abs_slice_shape[1], out_nchannels)
     expected = np.zeros(slice_shape, dtype=np.float32)
-    expected[:pad_before[0], :, :orig_nchannels] = np.full((pad_before[0], slice_shape[1], orig_nchannels), fill_values)
-    expected[:, :pad_before[1], :orig_nchannels] = np.full((slice_shape[0], pad_before[1], orig_nchannels), fill_values)
-    expected[slice_shape[0]-pad_after[0]:, :, :orig_nchannels] = np.full((pad_after[0], slice_shape[1], orig_nchannels), fill_values)
-    expected[:, slice_shape[1]-pad_after[1]:, :orig_nchannels] = np.full((slice_shape[0], pad_after[1], orig_nchannels), fill_values)
-    expected[pad_before[0] : pad_before[0] + sliced[0], pad_before[1] : pad_before[1] + sliced[1], :orig_nchannels]
-    if mean is not None and std is not None:
-        expected[pad_before[0] : pad_before[0] + sliced[0], pad_before[1] : pad_before[1] + sliced[1], :orig_nchannels] = \
-            (in_sliced - mean) / std
-    else:
-        expected[pad_before[0] : pad_before[0] + sliced[0], pad_before[1] : pad_before[1] + sliced[1], :orig_nchannels] = \
-            in_sliced
+    expected[:, :, :orig_nchannels] = np.full((slice_shape[0], slice_shape[1], orig_nchannels), fill_values)
+    should_normalize = mean is not None and std is not None
+    expected[pad_before[0] : pad_before[0] + sliced[0], pad_before[1] : pad_before[1] + sliced[1], :orig_nchannels] = \
+        (in_sliced - mean) / std if should_normalize else in_sliced
 
     if flip is not None:
         for d in range(len(flip)):

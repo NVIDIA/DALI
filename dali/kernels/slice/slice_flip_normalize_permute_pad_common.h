@@ -45,9 +45,9 @@ struct SliceFlipNormalizePermutePadArgs {
   TensorShape<Dims> in_shape;
   std::array<bool, Dims> flip;
   std::array<int, Dims> permuted_dims;
-  std::vector<float> mean;
-  std::vector<float> inv_stddev;
-  std::vector<float> fill_values;
+  SmallVector<float, 4> mean;
+  SmallVector<float, 4> inv_stddev;
+  SmallVector<float, 4> fill_values;
   int channel_dim = -1;
 };
 
@@ -61,9 +61,9 @@ struct SliceFlipNormalizePermutePadProcessedArgs {
   TensorShape<Dims> out_strides;
   TensorShape<Dims> anchor;
   TensorShape<Dims> in_shape;
-  std::vector<float> mean;
-  std::vector<float> inv_stddev;
-  std::vector<float> fill_values;
+  SmallVector<float, 4> mean;
+  SmallVector<float, 4> inv_stddev;
+  SmallVector<float, 4> fill_values;
   int channel_dim = - 1;
 };
 

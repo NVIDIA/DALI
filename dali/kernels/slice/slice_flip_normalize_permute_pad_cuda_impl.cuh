@@ -148,22 +148,15 @@ __global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *sampl
   auto *in = static_cast<const In*>(sample.in);
   auto *out_strides = sample.out_strides;
   auto *in_strides = sample.in_strides.data();
-  auto channel_dim = sample.channel_dim;
-  auto *norm_add = sample.norm_add;
-  auto *norm_mul = sample.norm_mul;
   auto *out_shape = sample.out_shape.data();
   auto *in_shape = sample.in_shape.data();
   auto *anchor = sample.anchor.data();
   auto *fill_values = static_cast<const Out*>(sample.fill_values);
-  bool need_pad = NeedPad && sample.need_pad;
-  bool need_flip = NeedFlip && sample.need_flip;
-  int effective_ndim = sample.effective_ndim;
-
-  VALUE_SWITCH(need_pad ? 1 : 0, SampleNeedPad, (false, true), (
-    VALUE_SWITCH(need_flip ? 1 : 0, SampleNeedFlip, (false, true), (
+  VALUE_SWITCH(NeedPad && sample.need_pad, SampleNeedPad, (false, true), (
+    VALUE_SWITCH(NeedFlip && sample.need_flip, SampleNeedFlip, (false, true), (
       SliceFlipNormalizePermutePadFunc<SampleNeedFlip, NeedNormalize, SampleNeedPad, Dims>(
-          out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values, norm_add,
-          norm_mul, channel_dim, effective_ndim, offset, block_end);
+          out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values, sample.norm_add,
+          sample.norm_mul, sample.channel_dim, sample.effective_ndim, offset, block_end);
     ), ());  // NOLINT
   ), ());  // NOLINT
 }

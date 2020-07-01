@@ -21,6 +21,7 @@
 #include "dali/core/any.h"
 #include "dali/core/common.h"
 #include "dali/core/format.h"
+#include "dali/core/util.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
@@ -39,14 +40,6 @@ namespace dali {
 
 namespace detail {
 
-template <typename T>
-T NextPowerOfTwo(T value) {
-  T power = 1;
-  while (power < value)
-    power <<= 1;
-  return power;
-}
-
 template <int Dims>
 kernels::SliceFlipNormalizePermutePadArgs<Dims> ToSliceFlipNormalizePermutePadArgs(
     TensorShape<> input_shape, TensorLayout input_layout, TensorLayout output_layout,
@@ -64,9 +57,9 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> ToSliceFlipNormalizePermutePadAr
   DALI_ENFORCE(norm_arg_size == inv_stddev.size());
   auto fill_values_size = fill_values.size();
 
-  args.fill_values = {fill_values.data(), fill_values.data() + fill_values.size()};
-  args.mean = {mean.data(), mean.data() + mean.size()};
-  args.inv_stddev = {inv_stddev.data(), inv_stddev.data() + inv_stddev.size()};
+  args.fill_values = fill_values;
+  args.mean = mean;
+  args.inv_stddev = inv_stddev;
 
   auto arg_per_ch_size = std::max(norm_arg_size, fill_values_size);
   if (arg_per_ch_size > 1) {
@@ -74,7 +67,7 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> ToSliceFlipNormalizePermutePadAr
   }
 
   if (pad_channels) {
-    nchannels = NextPowerOfTwo(nchannels);  // modifies args.shape
+    nchannels = next_pow2(nchannels);  // modifies args.shape
     if (norm_arg_size > 1) {
       for (int c = norm_arg_size; c < nchannels; c++) {
         args.mean.push_back(0.0f);
