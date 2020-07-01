@@ -194,7 +194,7 @@ class TestArgumentInput_Producer : public Operator<CPUBackend> {
  public:
   explicit TestArgumentInput_Producer(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  bool CanInferOutputs(bool) const override {
+  bool CanInferOutputs() const override {
     return true;
   }
 
@@ -239,7 +239,7 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
  public:
   explicit TestArgumentInput_Consumer(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  bool CanInferOutputs(bool) const override {
+  bool CanInferOutputs() const override {
     return true;
   }
 

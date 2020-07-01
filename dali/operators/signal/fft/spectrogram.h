@@ -31,7 +31,7 @@ class DLL_PUBLIC Spectrogram : public Operator<Backend> {
   DLL_PUBLIC ~Spectrogram() override = default;
 
  protected:
-  bool CanInferOutputs(bool) const override { return true; }
+  bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     assert(impl_ != nullptr);

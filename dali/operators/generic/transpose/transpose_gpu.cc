@@ -32,7 +32,7 @@ class TransposeGPU : public Transpose<GPUBackend> {
     kmgr_.Resize<Kernel>(1, 1);
   }
 
-  bool CanInferOutputs(bool) const override {
+  bool CanInferOutputs() const override {
     return true;
   }
 

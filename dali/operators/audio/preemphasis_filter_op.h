@@ -41,7 +41,7 @@ class PreemphasisFilter : public Operator<Backend> {
   ~PreemphasisFilter() override = default;
   DISABLE_COPY_MOVE_ASSIGN(PreemphasisFilter);
 
-  bool CanInferOutputs(bool) const override {
+  bool CanInferOutputs() const override {
     return true;
   }
 

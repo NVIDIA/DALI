@@ -60,7 +60,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   void RunImpl(workspace_t<Backend> &ws) override;
 
 
-  bool CanInferOutputs(bool) const override {
+  bool CanInferOutputs() const override {
     return true;
   }
 

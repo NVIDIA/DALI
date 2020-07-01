@@ -73,7 +73,7 @@ class NormalizeBase : public Operator<Backend> {
   const Normalize<Backend> &This() const noexcept
   { return static_cast<const Normalize<Backend>&>(*this); }
 
-  bool CanInferOutputs(bool) const override { return true; }
+  bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
     const auto &input = ws.template InputRef<Backend>(0);

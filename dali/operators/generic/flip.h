@@ -40,7 +40,7 @@ class Flip: public Operator<Backend> {
     return true;
   }
 
-  bool CanInferOutputs(bool) const override {
+  bool CanInferOutputs() const override {
     return true;
   }
 

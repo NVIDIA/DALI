@@ -188,7 +188,8 @@ class ExternalSource : public Operator<Backend> {
     return true;
   }
 
-  bool CanInferOutputs(bool prerun) const override {
+  bool CanInferOutputs() const override {
+    // when it passes through no shape inference is needed
     return !no_copy_;
   }
 

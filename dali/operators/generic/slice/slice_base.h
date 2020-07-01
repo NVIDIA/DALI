@@ -80,7 +80,7 @@ class SliceBase : public Operator<Backend> {
   virtual void ProcessCroppingAttrs(const workspace_t<Backend> &ws) = 0;
   virtual const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const = 0;
 
-  bool CanInferOutputs(bool) const override {
+  bool CanInferOutputs() const override {
     return true;
   }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;

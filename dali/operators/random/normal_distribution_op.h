@@ -50,7 +50,7 @@ class NormalDistribution : public Operator<Backend> {
   }
 
 
-  bool CanInferOutputs(bool) const override {
+  bool CanInferOutputs() const override {
     return true;
   }
 

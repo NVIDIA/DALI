@@ -262,7 +262,7 @@ class Warp : public Operator<Backend> {
     return border_clamp_;
   }
 
-  bool CanInferOutputs(bool) const override {
+  bool CanInferOutputs() const override {
     return true;
   }
 

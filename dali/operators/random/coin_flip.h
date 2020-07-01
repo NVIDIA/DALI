@@ -37,7 +37,7 @@ class CoinFlip : public Operator<CPUBackend> {
   using Operator<CPUBackend>::RunImpl;
 
  protected:
-  bool CanInferOutputs(bool) const override {
+  bool CanInferOutputs() const override {
     return true;
   }
 
