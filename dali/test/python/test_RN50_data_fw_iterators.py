@@ -220,7 +220,7 @@ Iterators = {
     "paddle": [import_paddle]
 }
 
-assert(args.framework in Iterators, "Error, framework {} not supported".format(args.framework))
+assert args.framework in Iterators, "Error, framework {} not supported".format(args.framework)
 for imports in Iterators[args.framework]:
     IteratorClass = imports()
     test_fw_iter(IteratorClass, args)
