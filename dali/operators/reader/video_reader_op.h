@@ -35,6 +35,27 @@
 
 namespace dali {
 
+namespace detail {
+
+inline kernels::ResamplingFilterType interp2resample(DALIInterpType interp) {
+#define DALI_MAP_INTERP_TO_RESAMPLE(interp, resample) case DALI_INTERP_##interp:\
+  return kernels::ResamplingFilterType::resample;
+
+  switch (interp) {
+    DALI_MAP_INTERP_TO_RESAMPLE(NN, Nearest);
+    DALI_MAP_INTERP_TO_RESAMPLE(LINEAR, Linear);
+    DALI_MAP_INTERP_TO_RESAMPLE(CUBIC, Cubic);
+    DALI_MAP_INTERP_TO_RESAMPLE(LANCZOS3, Lanczos3);
+    DALI_MAP_INTERP_TO_RESAMPLE(GAUSSIAN, Gaussian);
+    DALI_MAP_INTERP_TO_RESAMPLE(TRIANGULAR, Triangular);
+  default:
+    DALI_FAIL("Unknown interpolation type");
+  }
+#undef DALI_MAP_INTERP_TO_RESAMPLE
+}
+
+}
+
 class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
  public:
   explicit VideoReader(const OpSpec &spec)
@@ -48,7 +69,9 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     channels_(spec.GetArgument<int>("channels")),
     tl_shape_(batch_size_, sequence_dim),
     dtype_(spec.GetArgument<DALIDataType>("dtype")),
-    resize_(spec.GetArgument<bool>("resize")) {
+    resize_(spec.GetArgument<bool>("resize")),
+    resize_x_(spec.GetArgument<float>("resize_x")),
+    resize_y_(spec.GetArgument<float>("resize_y")) {
     DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));
 
     int arg_count = !filenames_.empty() + !file_root_.empty() + !file_list_.empty();
@@ -70,6 +93,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
      DALI_ENFORCE(enable_label_output_ || !enable_timestamps_,
                   "timestamps can be enabled only when "
                   "`file_list` or `file_root` argument is passed");
+
+     resampling_type_ = detail::interp2resample(spec_.GetArgument<DALIInterpType>("interp_type"));
 
     // TODO(spanev): support rescale
     // TODO(spanev): Factor out the constructor body to make VideoReader compatible with lazy_init.
@@ -111,7 +136,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
     // Creating shape of the output
     if (resize_) {
-      TensorShape<> sequence_shape {count_, 300, 300, channels_};
+      TensorShape<> sequence_shape {count_, resize_y_, resize_x_, channels_};
       for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
         tl_shape_.set_tensor_shape(data_idx, sequence_shape);
       }
@@ -156,12 +181,14 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
         TensorList<GPUBackend> input;
         TensorList<GPUBackend> output;
 
+        int64_t after_resize_frame_size = resize_x_*resize_y_*prefetched_sequence.channels;
+
         input.ShareData(
           current_sequence, 
           sizeof(uint8)*prefetched_sequence.count*prefetched_sequence.height*prefetched_sequence.width*prefetched_sequence.channels);
         output.ShareData(
           sequence_output,  
-          sizeof(uint8)*prefetched_sequence.count*300*300*prefetched_sequence.channels);
+          sizeof(uint8)*prefetched_sequence.count*after_resize_frame_size);
 
         TensorListShape<> input_shape;
         TensorListShape<> output_shape;
@@ -172,7 +199,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
         TensorShape<3> input_tensor_shape(
             prefetched_sequence.height, prefetched_sequence.width, prefetched_sequence.channels);
         TensorShape<3> output_tensor_shape(
-            300, 300, prefetched_sequence.channels);
+            resize_y_, resize_x_, prefetched_sequence.channels);
 
         for (int i = 0; i < prefetched_sequence.count; ++i) {
           input_shape.set_tensor_shape(i, input_tensor_shape);
@@ -201,10 +228,10 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
         // resample_params.resize(prefetched_sequence.count);
         for (int i  = 0; i < prefetched_sequence.count; ++i) {
           kernels::ResamplingParams2D params;
-          params[0].output_size = 300;
-          params[1].output_size = 300;
-          params[0].min_filter = params[1].min_filter = dali::kernels::ResamplingFilterType::Linear;
-          params[0].mag_filter = params[1].mag_filter = dali::kernels::ResamplingFilterType::Linear;
+          params[0].output_size = resize_y_;
+          params[1].output_size = resize_x_;
+          params[0].min_filter = params[1].min_filter = resampling_type_;
+          params[0].mag_filter = params[1].mag_filter = resampling_type_;
           
           resample_params.push_back(params);
         }
@@ -272,6 +299,9 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   bool enable_label_output_;
 
   bool resize_;
+  float resize_x_;
+  float resize_y_;
+  kernels::ResamplingFilterType resampling_type_;
 
   USE_READER_OPERATOR_MEMBERS(GPUBackend, SequenceWrapper);
 };

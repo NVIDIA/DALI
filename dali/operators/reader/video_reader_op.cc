@@ -96,7 +96,17 @@ This parameter can be used trade off memory usage with performance.)code",
 numbers instead of timestamp. If floating point values are given, then
 start frame number is ceiling of the number and end frame number is floor of
 the number. Frame numbers start from 0.)code", false)
+// Arguments related to resize  
   .AddOptionalArg("resize",
        R"code(Resize video while loading)code", false)
+  .AddOptionalArg("resize_x", R"code(The length of the X dimension of the resized image.
+If the `resize_y` is left at 0, then the op will keep
+the aspect ratio of the original image.)code", 0.f, true)
+  .AddOptionalArg("resize_y", R"code(The length of the Y dimension of the resized image.
+If the `resize_x` is left at 0, then the op will keep
+the aspect ratio of the original image.)code", 0.f, true)
+  .AddOptionalArg("interp_type",
+       R"code(Type of interpolation used.)code",
+      DALI_INTERP_LINEAR)
   .AddParent("LoaderBase");
 }  // namespace dali
