@@ -63,6 +63,7 @@ REGISTER_OP("Dali")
   .Attr("cpu_prefetch_queue_depth: int = 2")
   .Attr("sparse: list(bool) = []")
   .Attr("batch_size: int = -1")
+  .Attr("bytes_per_sample_hint = 0")
   .Attr("enable_memory_stats: bool = false")
   .Output("data: dtypes")
   .Attr("dtypes: list({half, float, uint8, int16, int32, int64}) >= 1")
@@ -116,6 +117,7 @@ class DaliOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size));
     OP_REQUIRES_OK(context, context->GetAttr("cpu_prefetch_queue_depth",
                                              &cpu_prefetch_queue_depth));
+    OP_REQUIRES_OK(context, context->GetAttr("bytes_per_sample_hint", &bytes_per_sample_hint_));
     OP_REQUIRES_OK(context, context->GetAttr("enable_memory_stats", &enable_memory_stats_));
 
     // TF doing constant propagation runs all operators on the CPU first, so we need to provide
@@ -143,6 +145,7 @@ class DaliOp : public tf::OpKernel {
                    prefetch_queue_depth_,
                    cpu_prefetch_queue_depth,
                    prefetch_queue_depth_,
+                   bytes_per_sample_hint_,
                    enable_memory_stats_));
 
 #if USE_TF_ALLOCATOR
@@ -364,6 +367,7 @@ class DaliOp : public tf::OpKernel {
   device_type_t device_type_;
   std::vector<bool> sparse_;
   bool enable_memory_stats_;
+  int bytes_per_sample_hint_;
 };
 
 using tf::int64;
