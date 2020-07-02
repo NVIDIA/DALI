@@ -23,10 +23,13 @@
 #include <memory>
 #include <numeric>
 #include <atomic>
-
+#include <mutex>
+#include <shared_mutex>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
+#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_memory.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
+#include "dali/kernels/alloc.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
@@ -34,84 +37,6 @@
 #include "dali/core/device_guard.h"
 
 namespace dali {
-
-namespace memory {
-
-using Buffer = std::pair<void*, size_t>;
-using BufferPool = std::map<std::thread::id, std::vector<Buffer>>;
-static BufferPool device_buffer_pool_;
-static BufferPool pinned_buffer_pool_;
-
-static int DeviceNew(void **ptr, size_t size) {
-  std::thread::id this_id = std::this_thread::get_id();
-  std::cout << "Requesting device memory for Thread " << this_id << ": " << size << " bytes, ptr = ";
-  auto it = device_buffer_pool_.find(this_id);
-  assert(it != device_buffer_pool_.end());
-  auto &buffers = it->second;
-  auto buf = buffers.back();
-  buffers.pop_back();
-  if (size == buf.second) {
-    *ptr = buf.first;
-  } else {
-    std::cout << "Different size, invoking cudaMalloc\n"; 
-    CUDA_CALL(cudaMalloc(ptr, size));
-  }
-  std::cout << *ptr << "\n";
-  return 0;
-}
-
-static int DeviceDelete(void *ptr) {
-  std::thread::id this_id = std::this_thread::get_id();
-  std::cout << "Thread " << this_id << " deleting device memory: ptr = " << ptr << "\n";
-  CUDA_CALL(cudaFree(ptr));
-  return 0;
-}
-
-static nvjpegDevAllocator_t GetDeviceAllocator() {
-  nvjpegDevAllocator_t allocator;
-  allocator.dev_malloc = &memory::DeviceNew;
-  allocator.dev_free = &memory::DeviceDelete;
-  return allocator;
-}
-
-static int PinnedNew(void** ptr, size_t size, unsigned int flags) {
-  std::thread::id this_id = std::this_thread::get_id();
-  std::cout << "Requesting pinned memory for Thread " << this_id << ": " << size << " bytes, ptr = ";
-  assert(flags == 0);
-  auto it = pinned_buffer_pool_.find(this_id);
-  assert(it != pinned_buffer_pool_.end());
-  auto &buffers = it->second;
-  auto buf = buffers.back();
-  buffers.pop_back();
-  if (size == buf.second) {
-    *ptr = buf.first;
-  } else {
-    std::cout << "Different size, invoking cudaHostAlloc\n"; 
-    CUDA_CALL(cudaHostAlloc(ptr, size, flags));
-  }
-  std::cout << *ptr << "\n";
-  return 0;
-}
-
-static int PinnedDelete(void *ptr) {
-  std::thread::id this_id = std::this_thread::get_id();
-  std::cout << "Thread " << this_id << " deleting pinned memory: ptr = " << ptr << "\n";
-  CUDA_CALL(cudaFreeHost(ptr));
-  return 0;
-}
-
-static nvjpegPinnedAllocator_t GetPinnedAllocator() {
-  nvjpegPinnedAllocator_t allocator;
-  allocator.pinned_malloc = &memory::PinnedNew;
-  allocator.pinned_free = &memory::PinnedDelete;
-  return allocator;
-}
-
-static nvjpegDevAllocator_t    device_allocator = GetDeviceAllocator();
-static nvjpegPinnedAllocator_t pinned_allocator = GetPinnedAllocator();
-
-}  // namespace memory
-
 
 using ImageInfo = EncodedImageInfo<int>;
 
@@ -131,6 +56,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     decode_events_(num_threads_),
     thread_page_ids_(num_threads_),
     device_id_(spec.GetArgument<int>("device_id")),
+    device_allocator_(nvjpeg_memory::GetDeviceAllocator()),
+    pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()),
     thread_pool_(num_threads_,
                  spec.GetArgument<int>("device_id"),
                  spec.GetArgument<bool>("affine") /* pin threads */) {
@@ -161,12 +88,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       nvjpeg_destinations_.reserve(batch_size_);
     } else {
       LOG_LINE << "NVJPEG_BACKEND_HARDWARE is either disabled or not supported" << std::endl;
-      std::cout << "Creating nvjpeg handle\n";
-      NVJPEG_CALL(nvjpegCreateEx(NVJPEG_BACKEND_DEFAULT, 
-                                 &memory::device_allocator,
-                                 &memory::pinned_allocator, 
-                                 NVJPEG_FLAGS_DEFAULT, &handle_));
-//      NVJPEG_CALL(nvjpegCreateSimple(&handle_));
+      NVJPEG_CALL(nvjpegCreateSimple(&handle_));
     }
 #else
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
@@ -177,24 +99,22 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     std::cout << "Padding device=" << device_memory_padding << " host=" << host_memory_padding << "\n";
     NVJPEG_CALL(nvjpegSetDeviceMemoryPadding(device_memory_padding, handle_));
     NVJPEG_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
-    if (device_memory_padding) {
+    nvjpegDevAllocator_t* device_allocator_ptr = nullptr; 
+    nvjpegPinnedAllocator_t* pinned_allocator_ptr = nullptr; 
+    if (device_memory_padding > 0) {
+      device_allocator_ptr = &device_allocator_;
       for (auto thread_id : thread_pool_.GetThreadIds()) {
         std::cout << "Allocating device memory for Thread " << thread_id << ": " << device_memory_padding << " bytes, ptr = ";
-        void *tmp = nullptr;
-        CUDA_CALL(cudaMalloc(&tmp, device_memory_padding));
-        memory::device_buffer_pool_[thread_id].emplace_back(tmp, device_memory_padding);
-        std::cout << tmp << "\n";
+        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::GPU, device_memory_padding);
       }
     }
 
-    if (host_memory_padding) {
+    if (host_memory_padding > 0) {
+      pinned_allocator_ptr = &pinned_allocator_;
       for (auto thread_id : thread_pool_.GetThreadIds()) {
         for (int i = 0; i < 2; i++) {
           std::cout << "Allocating pinned memory for Thread " << thread_id << ": " << host_memory_padding << " bytes, ptr = ";
-          void *tmp = nullptr;
-          CUDA_CALL(cudaHostAlloc(&tmp, host_memory_padding, 0));
-          memory::pinned_buffer_pool_[thread_id].emplace_back(tmp, host_memory_padding);
-          std::cout << tmp << "\n";
+          nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
         }
       }
     }
@@ -208,10 +128,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &hw_decoder_jpeg_stream_));
 
     for (auto &buffer : pinned_buffers_) {
-      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, &memory::pinned_allocator, &buffer));
+      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, pinned_allocator_ptr, &buffer));
     }
     for (auto &buffer : device_buffers_) {
-      NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, &memory::device_allocator, &buffer));
+      NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, device_allocator_ptr, &buffer));
     }
     for (auto &stream : streams_) {
       CUDA_CALL(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking,
@@ -269,9 +189,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
       NVJPEG_CALL(nvjpegDestroy(handle_));
 
+      // Free any remaining buffers and remove the thread entry from the global map
       for (auto thread_id : thread_pool_.GetThreadIds()) {
-        memory::device_buffer_pool_.erase(thread_id);
-        memory::pinned_buffer_pool_.erase(thread_id);
+        nvjpeg_memory::DeleteAllBuffers(thread_id);
       }
 
     } catch (const std::exception &e) {
@@ -764,6 +684,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   std::vector<const unsigned char*> in_data_;
   std::vector<size_t> in_lengths_;
   std::vector<nvjpegImage_t> nvjpeg_destinations_;
+
+  // Allocators
+  nvjpegDevAllocator_t device_allocator_;
+  nvjpegPinnedAllocator_t pinned_allocator_;
 
   ThreadPool thread_pool_;
   static constexpr int kOutputDim = 3;
