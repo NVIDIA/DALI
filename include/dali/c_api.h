@@ -104,6 +104,9 @@ DLL_PUBLIC void daliInitialize();
  * gpu_prefetch_queue_depth and cpu_prefetch_queue_depth are ignored.
  * When separated_execution is not equal to 0, cpu_prefetch_queue_depth and
  * gpu_prefetch_queue_depth are considered and prefetch_queue_depth is ignored.
+ *
+ * @param bytes_per_sample_hint Specifies, how much memory (in bytes) should be pre-allocated
+ *                              for the input and output buffers in every operator.
  */
 DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                                    const char *serialized_pipeline,
@@ -115,6 +118,7 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                                    int prefetch_queue_depth,
                                    int cpu_prefetch_queue_depth,
                                    int gpu_prefetch_queue_depth,
+                                   int bytes_per_sample_hint,
                                    int enable_memory_stats);
 
 /**

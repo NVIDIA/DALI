@@ -114,11 +114,13 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                         int prefetch_queue_depth,
                         int cpu_prefetch_queue_depth,
                         int gpu_prefetch_queue_depth,
+                        int bytes_per_sample_hint,
                         int enable_memory_stats) {
   bool se = separated_execution != 0;
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length),
                                                    batch_size, num_threads, device_id, true,
-                                                   prefetch_queue_depth, true);
+                                                   prefetch_queue_depth, true,
+                                                   bytes_per_sample_hint);
   pipeline->SetExecutionTypes(true, se, true);
   if (se) {
     pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
