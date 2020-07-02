@@ -96,5 +96,7 @@ This parameter can be used trade off memory usage with performance.)code",
 numbers instead of timestamp. If floating point values are given, then
 start frame number is ceiling of the number and end frame number is floor of
 the number. Frame numbers start from 0.)code", false)
+  .AddOptionalArg("resize",
+       R"code(Resize video while loading)code", false)
   .AddParent("LoaderBase");
 }  // namespace dali
