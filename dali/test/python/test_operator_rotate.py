@@ -179,10 +179,3 @@ def test_gpu_vs_cpu():
   for test in run_cases("gpu", "cpu", 1):
     yield test
 
-def main():
-  test_cpu_vs_cv()
-  test_gpu_vs_cv()
-  test_gpu_vs_cpu()
-
-if __name__ == '__main__':
-  main()

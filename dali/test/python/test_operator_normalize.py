@@ -393,13 +393,3 @@ def test_types():
                 yield _run_test, device, batch_size, dim, axes, None, False, out_type, in_type, shift, scale
 
 import nvidia.dali.fn as fn
-
-def main():
-    for test in test_cpu_up_to_5D_all_axis_combinations():
-        test[0](*test[1:])
-
-    for test in test_types():
-        test[0](*test[1:])
-
-if __name__ == '__main__':
-    main()

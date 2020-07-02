@@ -162,14 +162,3 @@ def test_constant_fn():
 def test_scalar_constant_promotion():
     yield _test_scalar_constant_promotion, "cpu"
     yield _test_scalar_constant_promotion, "gpu"
-
-def main():
-    _test_op("cpu")
-    _test_op("gpu")
-    for test in test_constant_fn():
-        test[0](*test[1:])
-    _test_scalar_constant_promotion("cpu")
-    _test_scalar_constant_promotion("gpu")
-
-if __name__ == '__main__':
-  main()

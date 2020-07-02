@@ -289,19 +289,3 @@ def _test_reinterpret_wildcard_shape(device):
 def test_reinterpret_wildcard_shape():
     for device in ["cpu", "gpu"]:
         yield _test_reinterpret_wildcard_shape, device
-
-
-def main():
-  for test in test_reshape_arg():
-    test[0](*test[1:])
-  for test in test_reshape_input():
-    test[0](*test[1:])
-  for test in test_reshape_arg_input():
-    test[0](*test[1:])
-  for test in test_reinterpret_default_shape():
-    test[0](*test[1:])
-  for test in test_reinterpret_wildcard_shape():
-    test[0](*test[1:])
-
-if __name__ == '__main__':
-  main()

@@ -127,7 +127,7 @@ def crop_contains(crop_anchor, crop_shape, point):
     assert(len(crop_shape) == ndim)
     assert(len(point) == ndim)
 
-    point = np.array(point)    
+    point = np.array(point)
     crop_anchor = np.array(crop_anchor)
     crop_shape = np.array(crop_shape)
 
@@ -333,16 +333,3 @@ def test_random_bbox_crop_overlap():
                     for use_labels in [True, False]:
                         yield check_random_bbox_crop_overlap, \
                                 batch_size, ndim, crop_shape, input_shape, use_labels
-
-def main():
-    for test in test_random_bbox_crop_fixed_shape():
-        test[0](*test[1:])
-
-    for test in test_random_bbox_crop_variable_shape():
-        test[0](*test[1:])
-
-    for test in test_random_bbox_crop_overlap():
-        test[0](*test[1:])
-
-if __name__ == '__main__':
-  main()
