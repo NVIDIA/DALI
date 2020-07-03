@@ -14,8 +14,10 @@
 
 #include "nvjpeg_memory.h"
 #include <nvjpeg.h>
+#include <atomic>
 #include <cassert>
-#include <iostream> // TODO(janton) remove
+#include <iostream>
+#include <fstream>
 #include <map>
 #include <vector>
 #include <mutex>
@@ -40,9 +42,52 @@ struct Buffer {
   size_t size;
 };
 
-using BufferPool = std::map<std::thread::id, std::map<AllocType, std::vector<Buffer>>>;
+using BufferPool = std::map<std::thread::id,
+                            std::array<std::vector<Buffer>, static_cast<size_t>(AllocType::Count)>>;
 std::shared_timed_mutex buffer_pool_mutex_;
 BufferPool buffer_pool_;
+
+struct MemoryStats {
+  size_t nallocs = 0;
+  size_t biggest_alloc = 0;
+};
+std::array<MemoryStats, static_cast<size_t>(AllocType::Count)> mem_stats_;
+std::mutex mem_stats_mutex_;
+std::atomic<bool> mem_stats_enabled_ = {true};
+
+void SetEnableMemStats(bool enabled) {
+  mem_stats_enabled_ = enabled;
+}
+
+void AddMemStats(AllocType alloc_type, size_t size) {
+  if (mem_stats_enabled_) {
+    std::lock_guard<std::mutex> lock(mem_stats_mutex_);
+    auto &stats = mem_stats_[static_cast<size_t>(alloc_type)];
+    stats.nallocs++;
+    if (size > stats.biggest_alloc)
+      stats.biggest_alloc = size;
+  }
+}
+
+void PrintMemStats() {
+  if (mem_stats_enabled_) {
+    std::lock_guard<std::mutex> lock(mem_stats_mutex_);
+
+    const char* log_filename = std::getenv("DALI_LOG_FILE");
+    std::ofstream log_file;
+    if (log_filename) log_file.open(log_filename);
+    std::ostream& out = log_filename ? log_file : std::cout;
+    out << std::dec;  // Don't want numbers printed as hex
+    out << "#################### NVJPEG STATS ####################" << std::endl;
+    auto &device_mem_stats = mem_stats_[static_cast<size_t>(AllocType::GPU)];
+    out << "Device memory: " << device_mem_stats.nallocs
+        << " allocations, largest = " << device_mem_stats.biggest_alloc << " bytes\n";
+    auto &pinned_mem_stats = mem_stats_[static_cast<size_t>(AllocType::Pinned)];
+    out << "Host (pinned) memory: " << pinned_mem_stats.nallocs
+        << " allocations, largest = " << pinned_mem_stats.biggest_alloc << " bytes\n";
+    out << "################## END NVJPEG STATS ##################" << std::endl;
+  }
+}
 
 void* GetBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
   std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
@@ -50,7 +95,7 @@ void* GetBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
   assert(it != buffer_pool_.end());
   lock.unlock();
 
-  auto &buffers = it->second[alloc_type];
+  auto &buffers = it->second[static_cast<size_t>(alloc_type)];
   if (!buffers.empty()) {
     auto buf = std::move(buffers.back());
     buffers.pop_back();
@@ -58,6 +103,7 @@ void* GetBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
       return buf.ptr.release();
   }
   // Couldn't find a preallocated buffer, proceed to allocate
+  AddMemStats(alloc_type, size);
   return kernels::memory::Allocate(alloc_type, size);
 }
 
@@ -66,8 +112,9 @@ void AddBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
   auto& thread_buffer_pool = buffer_pool_[thread_id];
   lock.unlock();
 
-  auto &buffers = thread_buffer_pool[alloc_type];
+  auto &buffers = thread_buffer_pool[static_cast<size_t>(alloc_type)];
   buffers.emplace_back(kernels::memory::alloc_unique<char>(alloc_type, size), alloc_type, size);
+  AddMemStats(alloc_type, size);
 }
 
 void DeleteAllBuffers(std::thread::id thread_id) {
@@ -75,31 +122,21 @@ void DeleteAllBuffers(std::thread::id thread_id) {
 }
 
 static int DeviceNew(void **ptr, size_t size) {
-  std::thread::id this_id = std::this_thread::get_id();
-  std::cout << "Requesting device memory for Thread " << this_id << ": " << size << " bytes, ptr = ";
-  *ptr = GetBuffer(this_id, AllocType::GPU, size);
-  std::cout << *ptr << "\n";
+  *ptr = GetBuffer(std::this_thread::get_id(), AllocType::GPU, size);
   return 0;
 }
 
 static int DeviceDelete(void *ptr) {
-  std::thread::id this_id = std::this_thread::get_id();
-  std::cout << "Thread " << this_id << " deleting device memory: ptr = " << ptr << "\n";
   CUDA_CALL(cudaFree(ptr));
   return 0;
 }
 
 static int PinnedNew(void **ptr, size_t size, unsigned int flags) {
-  std::thread::id this_id = std::this_thread::get_id();
-  std::cout << "Requesting pinned memory for Thread " << this_id << ": " << size << " bytes, ptr = ";
-  *ptr = GetBuffer(this_id, AllocType::Pinned, size);
-  std::cout << *ptr << "\n";
+  *ptr = GetBuffer(std::this_thread::get_id(), AllocType::Pinned, size);
   return 0;
 }
 
 static int PinnedDelete(void *ptr) {
-  std::thread::id this_id = std::this_thread::get_id();
-  std::cout << "Thread " << this_id << " deleting pinned memory: ptr = " << ptr << "\n";
   CUDA_CALL(cudaFreeHost(ptr));
   return 0;
 }

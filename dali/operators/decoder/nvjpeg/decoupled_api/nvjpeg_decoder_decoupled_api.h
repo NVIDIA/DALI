@@ -23,7 +23,6 @@
 #include <memory>
 #include <numeric>
 #include <atomic>
-#include <mutex>
 #include <shared_mutex>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
@@ -96,26 +95,22 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     size_t device_memory_padding = spec.GetArgument<Index>("device_memory_padding");
     size_t host_memory_padding = spec.GetArgument<Index>("host_memory_padding");
-    std::cout << "Padding device=" << device_memory_padding << " host=" << host_memory_padding << "\n";
     NVJPEG_CALL(nvjpegSetDeviceMemoryPadding(device_memory_padding, handle_));
     NVJPEG_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
-    nvjpegDevAllocator_t* device_allocator_ptr = nullptr; 
-    nvjpegPinnedAllocator_t* pinned_allocator_ptr = nullptr; 
-    if (device_memory_padding > 0) {
-      device_allocator_ptr = &device_allocator_;
-      for (auto thread_id : thread_pool_.GetThreadIds()) {
-        std::cout << "Allocating device memory for Thread " << thread_id << ": " << device_memory_padding << " bytes, ptr = ";
+
+    nvjpegDevAllocator_t* device_allocator_ptr = device_memory_padding > 0 ? &device_allocator_ : nullptr;
+    nvjpegPinnedAllocator_t* pinned_allocator_ptr = host_memory_padding > 0 ? &pinned_allocator_ : nullptr;
+
+    if (device_memory_padding > 0 || host_memory_padding > 0)
+      nvjpeg_memory::SetEnableMemStats(spec.GetArgument<bool>("memory_stats"));
+
+    for (auto thread_id : thread_pool_.GetThreadIds()) {
+      if (device_memory_padding > 0) {
         nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::GPU, device_memory_padding);
       }
-    }
-
-    if (host_memory_padding > 0) {
-      pinned_allocator_ptr = &pinned_allocator_;
-      for (auto thread_id : thread_pool_.GetThreadIds()) {
-        for (int i = 0; i < 2; i++) {
-          std::cout << "Allocating pinned memory for Thread " << thread_id << ": " << host_memory_padding << " bytes, ptr = ";
-          nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
-        }
+      if (host_memory_padding > 0) {
+        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
+        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
       }
     }
 
@@ -194,6 +189,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         nvjpeg_memory::DeleteAllBuffers(thread_id);
       }
 
+      nvjpeg_memory::PrintMemStats();
     } catch (const std::exception &e) {
       // If destroying nvJPEG resources failed we are leaking something so terminate
       std::cerr << "Fatal error: exception in ~nvJPEGDecoder():\n" << e.what() << std::endl;

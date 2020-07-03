@@ -61,6 +61,13 @@ in runtime. Ignored when `split_stages` is false.)code",
       R"code(Enables fast IDCT in CPU based decompressor when GPU implementation cannot handle given image.
 According to libjpeg-turbo documentation, decompression performance is improved by 4-14% with very little
 loss in quality.)code",
+      false)
+  .AddOptionalArg("memory_stats",
+      R"code(**`mixed` backend only** Print debug information about nvJPEG allocations.
+The information about the largest allocation might be useful to determine suitable values for
+`device_memory_padding` and `host_memory_padding` for a given dataset.
+
+Note: The statistics are global for the whole process (and not per operator instance).)code",
       false);
 
 DALI_SCHEMA(ImageDecoder)

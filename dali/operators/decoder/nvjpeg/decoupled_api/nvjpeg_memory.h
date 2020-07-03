@@ -27,6 +27,10 @@ void* GetBuffer(std::thread::id thread_id, kernels::AllocType alloc_type, size_t
 void AddBuffer(std::thread::id thread_id, kernels::AllocType alloc_type, size_t size);
 void DeleteAllBuffers(std::thread::id thread_id);
 
+void SetEnableMemStats(bool enabled);
+void AddMemStats(kernels::AllocType alloc_type, size_t size);
+void PrintMemStats();
+
 nvjpegDevAllocator_t GetDeviceAllocator();
 nvjpegPinnedAllocator_t GetPinnedAllocator();
 
