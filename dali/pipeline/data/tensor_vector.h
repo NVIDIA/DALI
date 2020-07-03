@@ -325,6 +325,7 @@ class TensorVector {
   }
 
   void ShareData(TensorList<Backend> *in_tl) {
+    DALI_ENFORCE(in_tl != nullptr, "Input TensorList is nullptr");
     SetContiguous(true);
     pinned_ = in_tl->is_pinned();
     tl_->ShareData(in_tl);
@@ -335,6 +336,7 @@ class TensorVector {
   }
 
   void ShareWith(TensorList<Backend> *in_tl) const {
+    DALI_ENFORCE(in_tl != nullptr, "Input TensorList is nullptr");
     if (IsContiguous()) {
       in_tl->ShareData(tl_.get());
       for (size_t i = 0; i < size(); ++i) {
@@ -347,6 +349,7 @@ class TensorVector {
   }
 
   void ShareData(TensorVector<Backend> *tv) {
+    DALI_ENFORCE(tv != nullptr, "Input TensorVector is nullptr");
     state_ = tv->state_;
     pinned_ = tv->pinned_;
 
@@ -375,7 +378,7 @@ class TensorVector {
   void UpdateViews() {
     // Return if we do not have a valid allocation
     if (!IsValidType(tl_->type())) return;
-    if (!tl_->raw_data()) return;
+    // we need to be able to share empty view as well so don't check if tl_ has any data
     type_ = tl_->type();
 
     tensors_.resize(tl_->ntensor());

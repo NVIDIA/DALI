@@ -219,7 +219,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const TensorListShape<> &shape,
                         const TypeInfo &type = {}) {
-    DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
+    // don't check ptr as we want to share empty data as well
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_ = ptr;
