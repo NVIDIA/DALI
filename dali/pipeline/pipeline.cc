@@ -134,9 +134,12 @@ void Pipeline::Init(int batch_size, int num_threads, int device_id, int64_t seed
     this->prefetch_queue_depth_ = prefetch_queue_depth;
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
 
-    int lowest_cuda_stream_priority, highest_cuda_stream_priority;
-    CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lowest_cuda_stream_priority,
-                                               &highest_cuda_stream_priority));
+    int lowest_cuda_stream_priority = 0, highest_cuda_stream_priority = 0;
+    // do it only for the GPU pipeline
+    if (device_id >= 0) {
+      CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lowest_cuda_stream_priority,
+                                                 &highest_cuda_stream_priority));
+    }
     const auto min_priority_value =
         std::min(lowest_cuda_stream_priority, highest_cuda_stream_priority);
     const auto max_priority_value =
@@ -187,6 +190,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
 
   // we modify spec so copy it
   OpSpec spec = const_spec;
+  auto operator_name = spec.name();
   // Take a copy of the passed OpSpec for serialization purposes before any modification
   this->op_specs_for_serialization_.push_back({inst_name, spec, logical_id});
 
@@ -196,6 +200,9 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     "Invalid device argument \"" +  device +
     "\". Valid options are \"cpu\", \"gpu\" or \"mixed\"");
 
+  DALI_ENFORCE(device != "gpu" || device_id_ >= 0, make_string("Cannot add a GPU operator ",
+               operator_name, " for the invalid device_id ", device_id_, "."));
+
   if (device == "support") {
     DALI_WARN("\"support\" device is deprecated; use \"cpu\" or leave blank instead");
     device = "cpu";
@@ -203,7 +210,6 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
   }
 
   // If necessary, split ImageDecoder operator in two separated stages (CPU and Mixed-GPU)
-  auto operator_name = spec.name();
   bool split_stages = false;
   bool is_hybrid_decoder = device == "mixed" &&
     (has_prefix(operator_name, "ImageDecoder"));
@@ -254,6 +260,9 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
           "inputs. CPU op cannot follow GPU op. " + error_str);
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
           "only on gpu. CPU op cannot follow GPU op. " + error_str);
+      DALI_ENFORCE((!it->second.has_gpu && device == "mixed") || device_id_ >= 0 || device == "cpu",
+                    make_string("Cannot add a mixed operator ", operator_name,
+                    " with the GPU output for the invalid device_id ", device_id_, "."));
     } else if (input_device == "cpu") {
       // device == gpu
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "

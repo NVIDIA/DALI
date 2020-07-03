@@ -53,6 +53,9 @@ inline void Init() {
  *        respecting previously set mask.
  */
 inline void GetNVMLAffinityMask(cpu_set_t * mask, size_t num_cpus) {
+  if (!wrapIsInitialized()) {
+    return;
+  }
   int device_idx;
   CUDA_CALL(cudaGetDevice(&device_idx));
 

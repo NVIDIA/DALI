@@ -177,7 +177,10 @@ inline void SetupStreamsAndEvents<OpType::MIXED>(
   // between mixed ops and the previous iterations
   // gpu ops.
   ws.set_stream(mixed_op_stream);
-  ws.set_event(mixed_op_events[node.partition_index][idxs[OpType::MIXED]]);
+  // for the CPU only pipeline there is no CUDA events
+  if (mixed_op_events.size() > 0) {
+    ws.set_event(mixed_op_events[node.partition_index][idxs[OpType::MIXED]]);
+  }
 }
 
 template <>

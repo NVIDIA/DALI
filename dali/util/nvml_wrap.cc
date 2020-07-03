@@ -95,6 +95,11 @@ bool wrapHasCuda11NvmlFunctions() {
   #endif
 }
 
+
+bool wrapIsInitialized(void) {
+  return symbolsLoaded;
+}
+
 DALIError_t wrapSymbols(void) {
   if (symbolsLoaded)
     return DALISuccess;
@@ -185,7 +190,20 @@ DALIError_t wrapNvmlInit(void) {
 }
 
 DALIError_t wrapNvmlShutdown(void) {
-  FUNC_BODY(nvmlInternalShutdown);
+  if (nvmlInternalInit == NULL) {
+    return DALISuccess;
+  }
+  if (nvmlInternalShutdown == NULL) {
+    DALI_FAIL("lib wrapper not initialized.");
+    return DALIError;
+  }
+  nvmlReturn_t ret = nvmlInternalShutdown();
+  if (ret != NVML_SUCCESS) {
+    DALI_FAIL("nvmlShutdown() failed: " +
+      nvmlInternalErrorString(ret));
+    return DALIError;
+  }
+  return DALISuccess;
 }
 
 DALIError_t wrapNvmlDeviceGetHandleByPciBusId(const char* pciBusId, nvmlDevice_t* device) {

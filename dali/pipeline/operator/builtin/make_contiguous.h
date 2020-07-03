@@ -67,6 +67,10 @@ class MakeContiguous : public Operator<MixedBackend> {
 
     if (ws.OutputIsType<CPUBackend>(0)) {
       auto &output = ws.Output<CPUBackend>(0);
+      // we don't need a pinned CPU output
+      if (!output.raw_data()) {
+        output.set_pinned(false);
+      }
       output.Resize(output_shape);
       output.SetLayout(layout);
       output.set_type(type);
