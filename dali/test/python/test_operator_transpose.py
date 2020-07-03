@@ -137,8 +137,3 @@ def test_transpose_layout():
                     yield check_transpose_layout, device, batch_size, shape, \
                         in_layout, permutation, transpose_layout, out_layout_arg
 
-if __name__ == "__main__":
-    for f, *args in test_transpose_vs_numpy():
-        f(*args)
-    for f, *args in test_transpose_layout():
-        f(*args)
