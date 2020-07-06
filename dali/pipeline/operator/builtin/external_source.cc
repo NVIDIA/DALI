@@ -23,6 +23,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     tensor_vector_elm = tv_data_.PopFront();
+    state_.pop_front();
   }
   if (no_copy_) {
     TensorVector<CPUBackend> &output = ws.template OutputRef<CPUBackend>(0);
@@ -50,7 +51,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
       });
     }
     thread_pool.WaitForWork();
-    // as we copy element by element and the output is continuous we need to set layout
+    // as we copy element by element and the output is contiguous we need to set layout
     // for the whole output not each element(view)
     auto &output = ws.template OutputRef<CPUBackend>(0);
     output.SetLayout(tensor_vector_elm.front()->GetLayout());
@@ -70,19 +71,19 @@ DALI_SCHEMA(_ExternalSource)
       R"code(Whether external source should block until data is available or just
 fail when it is not)code", true)
   .AddOptionalArg("no_copy",
-      R"code(If DALI should copy the buffer when feed_input is called
-If true, then instead of making a copy of the provided buffer,
-DALI passes the user's memory directly in the Pipeline.
-It is user's responsibility to keep the buffer alive and unmodified
-until it is used in the pipeline.
+      R"code(Whether DALI should copy the buffer when feed_input is called
+If True, DALI passes the user memory directly to the Pipeline, instead of copying.
+It is the user's responsibility to keep the buffer alive and unmodified
+until it isconsumed by the pipeline.
 
-The buffer can be modified again after the outputs of the iteration it was used in were
-consumed, which can happen ``prefetch_queue_depth`` * ``gpu_queue_depth`` iterations
-after the ``feed_input`` call.
+The buffer can be modified or freed again after the relevant iteration output has been consumed.
+Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
+(when they are not equal) iterations following the``feed_input`` call.
 
-It works for continuous and non-continuous buffers without an additional copy, with one
-exception for the non-continuous GPU buffer. In that case, an internal continuous copy
-is created asynchronously.)code", false)
+Provided memory must match the specified `device` parameter of the operator.
+For CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
+For GPU to not do any copies the provided buffer must be contiguous. If user provides a list
+of separate Tensors there will be an additional internal copy made.)code", false)
   .MakeInternal();
 
 DALI_SCHEMA(ExternalSource)
@@ -101,18 +102,18 @@ where the last dimension represents the different channels).)code")
       R"code(Whether external source should block until data is available or just
 fail when it is not)code", false)
   .AddOptionalArg("no_copy",
-      R"code(If DALI should copy the buffer when feed_input is called
-If true, then instead of making a copy of the provided buffer,
-DALI passes the user's memory directly in the Pipeline.
-It is user's responsibility to keep the buffer alive and unmodified
-until it is used in the pipeline.
+      R"code(Whether DALI should copy the buffer when feed_input is called
+If True, DALI passes the user memory directly to the Pipeline, instead of copying.
+It is the user's responsibility to keep the buffer alive and unmodified
+until it is consumed by the pipeline.
 
-The buffer can be modified again after the outputs of the iteration it was used in were
-consumed, which can happen ``prefetch_queue_depth`` * ``gpu_queue_depth`` iterations
-after the ``feed_input`` call.
+The buffer can be modified or freed again after the relevant iteration output has been consumed.
+Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
+(when they are not equal) iterations following the``feed_input`` call.
 
-It works for continuous and non-continuous buffers without an additional copy, with one
-exception for the non-continuous GPU buffer. In that case, an internal continuous copy
-is created asynchronously.)code", false);
+Provided memory must match the specified `device` parameter of the operator.
+For CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
+For GPU to not do any copies the provided buffer must be contiguous. If user provides a list
+of separate Tensors there will be an additional internal copy made.)code", false);
 
 }  // namespace dali

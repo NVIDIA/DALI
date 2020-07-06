@@ -34,27 +34,6 @@ def test_external_source_with_iter_cupy_stream():
 
             for i in range(10):
                 check_output(pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])
-import sys
-def discard_stderr():
-    """
-    Discards error output of a routine if invoked as:
-
-    with discard_stderr():
-        ...
-    """
-    with open(os.devnull, 'w') as bit_bucket:
-        try:
-            stderr_fileno = sys.stderr.fileno()
-            old_stderr = os.dup(stderr_fileno)
-            try:
-                os.dup2(bit_bucket.fileno(), stderr_fileno)
-                yield
-            finally:
-                os.dup2(old_stderr, stderr_fileno)
-        except AttributeError:
-            # On some systems is stderr not a file descriptor but actually a virtual pipeline
-            # that can not be copied
-            yield
 
 def test_external_source_mixed_continuous():
     batch_size = 2
@@ -70,9 +49,9 @@ def test_external_source_mixed_continuous():
     pipe.set_outputs(fn.external_source(device="gpu", source=generator, no_copy=True))
     pipe.build()
 
-    pattern = "ExternalSource operator should not mix continuous and noncontinuous inputs. " \
-              "In such case additional memory that gather provided data in continuous space " \
-              "will be trashed."
+    pattern = "ExternalSource operator should not mix contiguous and noncontiguous inputs. " \
+              "In such a case the internal memory used to gather data in a contiguous chunk of " \
+              "memory would be trashed."
     with check_output_pattern(pattern):
         for _ in range(iterations):
             pipe.run()

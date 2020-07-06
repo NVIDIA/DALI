@@ -562,21 +562,23 @@ class TestIteratorZeroCopy():
         def generate(dim):
             shape = random_int(1, 10, [dim]).tolist()
             if self.as_tensor:
-                data = random_array([self.batch_size] + shape)
+                return random_array([self.batch_size] + shape)
             else:
-                data = [random_array(shape) for _ in range(self.batch_size)]
+                return [random_array(shape) for _ in range(self.batch_size)]
+
+        if self.i < self.n:
+            self.i += 1
+            if isinstance(self.dims, (list, tuple)):
+                data = [generate(d) for d in self.dims]
+            else:
+                data = generate(self.dims)
+
             # it needs to keep data alive
             self.data.append(data)
 
             if len(self.data) > self.num_keep_samples:
                 self.data.pop(0)
             return data
-        if self.i < self.n:
-            self.i += 1
-            if isinstance(self.dims, (list, tuple)):
-                return [generate(d) for d in self.dims]
-            else:
-                return generate(self.dims)
         else:
             self.i = 0
             raise StopIteration
@@ -584,7 +586,7 @@ class TestIteratorZeroCopy():
 
 def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additional_num_keep_samples):
     batch_size = 7
-    prefetch_queue_depth = 4
+    prefetch_queue_depth = 5
     class IterSetupPipeline(Pipeline):
         def __init__(self, iterator, num_threads, device_id, device, prefetch_queue_depth=2):
             super(IterSetupPipeline, self).__init__(
@@ -619,7 +621,7 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
     iter_num = 10
     # we don't have mixed stage so it is enough to keep only ``prefetch_queue_depth`` * ``gpu_queue_depth``
     # but here they are equal
-    num_keep_samples = prefetch_queue_depth * 2 + additional_num_keep_samples
+    num_keep_samples = prefetch_queue_depth + additional_num_keep_samples
     source = TestIteratorZeroCopy(iter_num, batch_size, [2, 3], as_tensor=as_tensor, num_keep_samples=num_keep_samples)
     pipe = IterSetupPipeline(iter(source), 3, 0, device, prefetch_queue_depth)
     pipe.build()
@@ -627,13 +629,16 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
     cupy_used = datapy != np
     if (device == "cpu" and cupy_used) or (device == "gpu" and not cupy_used):
         assert_raises(RuntimeError, pipe.run)
-    elif additional_num_keep_samples < 0:
-        # assert_raises doesn't work here
+    elif additional_num_keep_samples < 0 and not (device == "gpu" and cupy_used and not as_tensor):
+        # for the GPU2GPU non continuous input DALI makes an internal copy on provided stream so no
+        # data needs to be preserved by the user
+        # assert_raises doesn't work here for the assertions from the test_utils.py
+        if_raised = False
         try:
             run_and_check(pipe, source)
-            assert(False)
         except AssertionError:
-            pass
+            if_raised = True
+        assert(if_raised)
     else:
         run_and_check(pipe, source)
 
@@ -642,5 +647,6 @@ def test_iter_setup_zero_copy():
         for by_name in [False, True]:
             for as_tensor in [False, True]:
                 for device in ["cpu", "gpu"]:
-                    for additional_num_keep_samples in [-1, 0, 1]:
+                    # make it -2 as -1 sometimes works, sometimes not due to being close to the limit
+                    for additional_num_keep_samples in [-4, 0, 1]:
                         yield _test_iter_setup_zero_copy, use_fn_api, by_name, as_tensor, device, additional_num_keep_samples

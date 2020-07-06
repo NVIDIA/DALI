@@ -388,7 +388,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
   /**
    * @brief Checks whether the TensorList is
-   * continuous. It returns true if and only if
+   * contiguous. It returns true if and only if
    * all of the stored Tensors are densely packed in memory.
    */
   inline bool IsContinuousTensor() const {

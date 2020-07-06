@@ -749,7 +749,7 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns a tensor that is a view of this `TensorList` cast to the given shape.
 
-      This function can only be called if `TensorList` is continuous in memory and
+      This function can only be called if `TensorList` is contiguous in memory and
       the volumes of requested `Tensor` and `TensorList` matches.
       )code",
       py::return_value_policy::reference_internal)
@@ -916,7 +916,7 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns a tensor that is a view of this `TensorList` cast to the given shape.
 
-      This function can only be called if `TensorList` is continuous in memory and
+      This function can only be called if `TensorList` is contiguous in memory and
       the volumes of requested `Tensor` and `TensorList` matches.
       )code",
       py::return_value_policy::reference_internal)

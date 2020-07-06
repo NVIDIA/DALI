@@ -44,7 +44,7 @@ struct CudaEventWrapper : CUDAEvent {
  * - PopFront moves the element from the front and removes it from the full list, the behavior
  * is undefined when the list is empty
  * - Recycle moves passed element to the free list
- * - AddBack moves element to the full list
+ * - PushBack moves element to the full list
  * - IsEmpty checks if the full list is empty
  * All functions operate on one element list as transferring elements between list is a very low cost
  * operation, which doesn't involve any memory allocation, while adding an element to the list requires
@@ -81,7 +81,7 @@ class CachingList {
     return tmp;
   }
 
-  void AddBack(std::list<T> &elm) {
+  void PushBack(std::list<T> &elm) {
     full_data_.splice(full_data_.end(), elm, elm.begin());
   }
 
@@ -167,6 +167,7 @@ class ExternalSource : public Operator<Backend> {
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    // for zero copy we don't want any shape inference to avoid any data allocation ahead
     if (no_copy_) {
       return false;
     }
@@ -181,8 +182,6 @@ class ExternalSource : public Operator<Backend> {
           DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
         }
       }
-      state_.pop_front();
-      // for zero copy we don't want any shape inference to avoid any data allocation ahead
       if (std::is_same<Backend, GPUBackend>::value) {
         output_desc[0].shape = tl_data_.PeekFront()->shape();
         output_desc[0].type = tl_data_.PeekFront()->type();
@@ -237,56 +236,65 @@ class ExternalSource : public Operator<Backend> {
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
-  inline std::enable_if_t<!std::is_same<SrcBackend, Backend>::value, bool>
-  ShareData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
-    DALI_FAIL("No_copy is supported only for the same data source device type as operator.");
-    return false;
+  inline std::enable_if_t<!std::is_same<SrcBackend, Backend>::value, void>
+  ShareUserData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
+    DALI_FAIL("no_copy is supported only for the same data source device type as operator.");
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
-                          std::is_same<SrcBackend, CPUBackend>::value, bool>
-  ShareData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
+                          std::is_same<SrcBackend, CPUBackend>::value, void>
+  ShareUserData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
+    std::lock_guard<std::mutex> busy_lock(busy_m_);
+    state_.push_back({});
     auto tv_elm = tv_data_.GetEmpty();
     tv_elm.front()->ShareData(const_cast<SourceDataType<CPUBackend>*>(&t));
-    tv_data_.AddBack(tv_elm);
-    return false;
+    tv_data_.PushBack(tv_elm);
   }
 
   template<typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
-                          std::is_same<SrcBackend, GPUBackend>::value, bool>
-  ShareData(const TensorVector<SrcBackend> &t, cudaStream_t stream = 0) {
+                          std::is_same<SrcBackend, GPUBackend>::value, void>
+  ShareUserData(const TensorVector<SrcBackend> &t, cudaStream_t stream = 0) {
+    std::lock_guard<std::mutex> busy_lock(busy_m_);
     auto tl_elm = tl_data_.GetEmpty();
     if (t.IsContiguous()) {
       t.ShareWith(const_cast<TensorList<Backend>*>(tl_elm.front().get()));
-      gpu_noncontinuous_zero_copy = true;
+      gpu_noncontiguous_zero_copy = true;
+      state_.push_back({});
     } else {
-      // it is not continuous so we need to copy
+      // it is not contiguous so we need to copy
       tl_elm.front()->Copy(t, stream);
-      if (gpu_noncontinuous_zero_copy) {
-        DALI_WARN("ExternalSource operator should not mix continuous and noncontinuous inputs. "
-                  "In such case additional memory that gather provided data in continuous space "
-                  "will be trashed.");
+
+      std::list<uptr_cuda_event_type> copy_to_storage_event;
+      copy_to_storage_event = copy_to_storage_events_.GetEmpty();
+      cudaEventRecord(*copy_to_storage_event.front(), stream);
+      copy_to_storage_events_.PushBack(copy_to_storage_event);
+
+      if (gpu_noncontiguous_zero_copy) {
+        DALI_WARN("ExternalSource operator should not mix contiguous and noncontiguous inputs. "
+                  "In such a case the internal memory used to gather data in a contiguous chunk "
+                  "of memory would be trashed.");
       }
+      state_.push_back({true});
     }
-    tl_data_.AddBack(tl_elm);
-    return !t.IsContiguous();
+    tl_data_.PushBack(tl_elm);
   }
 
   template<typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
-                          std::is_same<SrcBackend, GPUBackend>::value, bool>
-   ShareData(const TensorList<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
+                          std::is_same<SrcBackend, GPUBackend>::value, void>
+   ShareUserData(const TensorList<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
+    std::lock_guard<std::mutex> busy_lock(busy_m_);
+    state_.push_back({});
     auto tl_elm = tl_data_.GetEmpty();
     tl_elm.front()->ShareData(const_cast<TensorList<Backend>*>(&t));
-    tl_data_.AddBack(tl_elm);
-    gpu_noncontinuous_zero_copy = true;
-    return false;
+    tl_data_.PushBack(tl_elm);
+    gpu_noncontiguous_zero_copy = true;
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
-  inline void CopyData(const SourceDataType<SrcBackend> &batch, cudaStream_t stream = 0,
+  inline void CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t stream = 0,
                        bool sync = false);
 
   template<typename SrcBackend, template<typename> class SourceDataType>
@@ -295,31 +303,22 @@ class ExternalSource : public Operator<Backend> {
     bool is_gpu_src = std::is_same<SrcBackend, GPUBackend>::value;
     bool is_gpu_dst = std::is_same<Backend, GPUBackend>::value;
     if (is_gpu_src && !is_gpu_dst) {
-      DALI_WARN("Incorrect Backends warning. Loading GPU-originated data into CPU "
+      DALI_WARN("Warning: Loading GPU-originated data into CPU "
                 "ExternalSource operator is discouraged and might be inefficient.");
     }
     DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(batch.ntensor()),
-                 "Data list provided to ExternalSource needs to have batch_size = " +
-                  std::to_string(OperatorBase::batch_size_) + " length, found " +
-                  std::to_string(static_cast<int>(batch.ntensor())) +
-                  " samples.");
+                 make_string("Data list provided to ExternalSource needs to have batch_size = ",
+                             OperatorBase::batch_size_, " length, found ", batch.ntensor(),
+                             " samples."));
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
     std::list<uptr_tl_type> tl_elm;
     std::list<uptr_tl_type> tv_elm;
     if (no_copy_) {
-      std::lock_guard<std::mutex> busy_lock(busy_m_);
-      state_.push_back({});
-      auto copied = ShareData(batch, stream);
-      if (copied && std::is_same<SourceDataType<SrcBackend>, TensorVector<GPUBackend>>::value) {
-        std::list<uptr_cuda_event_type> copy_to_storage_event;
-        copy_to_storage_event = copy_to_storage_events_.GetEmpty();
-        cudaEventRecord(*copy_to_storage_event.front(), stream);
-        copy_to_storage_events_.AddBack(copy_to_storage_event);
-      }
+      ShareUserData(batch, stream);
     } else {
-      CopyData(batch, stream, sync);
+      CopyUserData(batch, stream, sync);
     }
     cv_.notify_one();
   }
@@ -335,15 +334,15 @@ class ExternalSource : public Operator<Backend> {
   bool blocking_ = true;
   bool no_copy_ = false;
 
-  // now it only indicates that there is a data in the ExternalSource, in the future
-  // a per sample metadata could be stored there
-  struct ExtenralSourceState {
-    bool dummy;
+  // now it only indicates that there is data in the ExternalSource, in the future
+  // a per sample metadata could be stored here
+  struct ExternalSourceState  {
+    bool copied_shared_data = false;
   };
 
-  std::list<ExtenralSourceState> state_;
+  std::list<ExternalSourceState > state_;
 
-  bool gpu_noncontinuous_zero_copy = false;
+  bool gpu_noncontiguous_zero_copy = false;
 
   WorkerThread sync_worker_;
 
@@ -353,7 +352,7 @@ class ExternalSource : public Operator<Backend> {
 
 template<>
 template<typename SrcBackend, template<typename> class SourceDataType>
-inline void ExternalSource<CPUBackend>::CopyData(const SourceDataType<SrcBackend> &batch,
+inline void ExternalSource<CPUBackend>::CopyUserData(const SourceDataType<SrcBackend> &batch,
                                                  cudaStream_t /*stream = 0*/,
                                                  bool /*sync = false*/) {
   std::list<uptr_tv_type> tv_elm;
@@ -370,14 +369,14 @@ inline void ExternalSource<CPUBackend>::CopyData(const SourceDataType<SrcBackend
   tv_elm.front()->Copy(batch, stream);
   {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    tv_data_.AddBack(tv_elm);
+    tv_data_.PushBack(tv_elm);
     state_.push_back({});
   }
 }
 
 template<>
 template<typename SrcBackend, template<typename> class SourceDataType>
-inline void ExternalSource<GPUBackend>::CopyData(const SourceDataType<SrcBackend> &batch,
+inline void ExternalSource<GPUBackend>::CopyUserData(const SourceDataType<SrcBackend> &batch,
                                                  cudaStream_t stream, bool sync) {
   std::list<uptr_cuda_event_type> copy_to_storage_event;
   std::list<uptr_tl_type> tl_elm;
@@ -401,8 +400,8 @@ inline void ExternalSource<GPUBackend>::CopyData(const SourceDataType<SrcBackend
 
   {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    tl_data_.AddBack(tl_elm);
-    copy_to_storage_events_.AddBack(copy_to_storage_event);
+    tl_data_.PushBack(tl_elm);
+    copy_to_storage_events_.PushBack(copy_to_storage_event);
     state_.push_back({});
   }
 }
