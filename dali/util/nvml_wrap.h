@@ -44,11 +44,20 @@ DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCpuAffinity(nvmlDevice_t device,
                                                     unsigned int cpuSetSize,
                                                     unsigned long* cpuSet);  // NOLINT(runtime/int)
 DLL_PUBLIC DALIError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device);
+
+#if (CUDART_VERSION >= 11000)
+
+DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCpuAffinityWithinScope(nvmlDevice_t device,
+                                                               unsigned int nodeSetSize,
+                                                               unsigned long *nodeSet,  // NOLINT(*)
+                                                               nvmlAffinityScope_t scope);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetBrand(nvmlDevice_t device, nvmlBrandType_t* type);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCount_v2(unsigned int* deviceCount);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByIndex_v2(unsigned int index, nvmlDevice_t* device);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCudaComputeCapability(nvmlDevice_t device,
                                                               int* major, int* minor);
+
+#endif
 
 /**
  * Checks, whether CUDA11-proper NVML functions have been successfully loaded

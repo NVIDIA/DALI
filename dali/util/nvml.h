@@ -60,7 +60,12 @@ inline void GetNVMLAffinityMask(cpu_set_t * mask, size_t num_cpus) {
   auto * nvml_mask = nvml_mask_container.data();
   nvmlDevice_t device;
   DALI_CALL(wrapNvmlDeviceGetHandleByIndex(device_idx, &device));
-  DALI_CALL(wrapNvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
+  #if (CUDART_VERSION >= 11000)
+    DALI_CALL(wrapNvmlDeviceGetCpuAffinityWithinScope(device, cpu_set_size, nvml_mask,
+                                                      NVML_AFFINITY_SCOPE_SOCKET));
+  #else
+    DALI_CALL(wrapNvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
+  #endif
 
   // Convert it to cpu_set_t
   cpu_set_t nvml_set;
@@ -132,6 +137,7 @@ inline void Shutdown() {
   DALI_CALL(wrapNvmlShutdown());
 }
 
+#if (CUDART_VERSION >= 11000)
 /**
  * Checks, if hardware decoder is available for the provided device
  *
@@ -161,6 +167,7 @@ inline bool HasHwDecoder() {
   }
   return false;
 }
+#endif
 
 /**
  * Checks, whether CUDA11-proper NVML functions have been successfully loaded
