@@ -295,9 +295,6 @@ class check_output_pattern():
         self.is_regexp_ = is_regexp
 
     def __enter__(self):
-        print(sys.stdout)
-        print(type(sys.stdout))
-        print(dir(sys.stdout))
         self.bucket_out_ = tempfile.TemporaryFile(mode='w+')
         self.bucket_err_ = tempfile.TemporaryFile(mode='w+')
         self.stdout_fileno_ = 1
@@ -317,7 +314,6 @@ class check_output_pattern():
 
         pattern_found = False
         if self.is_regexp_:
-            print(our_data)
             pattern = re.compile(self.pattern_)
             pattern_found = pattern.search(our_data) or pattern.search(err_data)
         else:
