@@ -34,6 +34,8 @@ random_int = np.random.randint
 # the code for CPU and GPU input is 99% the same and the biggest difference is between importing numpy or cupy
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
 
+cpu_input = True
+
 def _to_numpy(x):
     assert(False)
 
@@ -64,6 +66,8 @@ def use_cupy():
     random_seed = datapy.random.seed
     random_array = datapy.random.ranf
     random_int = datapy.random.randint
+    global cpu_input
+    cpu_input = False
 
 def use_torch(gpu):
     global torch
@@ -86,6 +90,8 @@ def use_torch(gpu):
     global make_array
 
     make_array = make_torch_tensor
+    global cpu_input
+    cpu_input = not gpu
 
 class TestIterator():
     def __init__(self, n, batch_size, dims = [2], as_tensor = False):
@@ -576,8 +582,17 @@ class TestIteratorZeroCopy():
             # it needs to keep data alive
             self.data.append(data)
 
+            def add_one(x):
+                if isinstance(x, list):
+                    for elm in x:
+                        elm = add_one(elm)
+                else:
+                    x += 1
+                return x
             if len(self.data) > self.num_keep_samples:
-                self.data.pop(0)
+                tmp = self.data.pop(0)
+                # change poped data to make sure it is corrupted
+                tmp = add_one(tmp)
             return data
         else:
             self.i = 0
@@ -619,18 +634,17 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
                 self.feed_input(self.batch_2, batch_2)
 
     iter_num = 10
-    # we don't have mixed stage so it is enough to keep only ``prefetch_queue_depth`` * ``gpu_queue_depth``
-    # but here they are equal
+    # it is enough to keep only ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
+    # (when they are not equal), but they are equal in this case
     num_keep_samples = prefetch_queue_depth + additional_num_keep_samples
     source = TestIteratorZeroCopy(iter_num, batch_size, [2, 3], as_tensor=as_tensor, num_keep_samples=num_keep_samples)
     pipe = IterSetupPipeline(iter(source), 3, 0, device, prefetch_queue_depth)
     pipe.build()
 
-    cupy_used = datapy != np
-    if (device == "cpu" and cupy_used) or (device == "gpu" and not cupy_used):
+    if (device == "cpu" and not cpu_input) or (device == "gpu" and cpu_input):
         assert_raises(RuntimeError, pipe.run)
-    elif additional_num_keep_samples < 0 and not (device == "gpu" and cupy_used and not as_tensor):
-        # for the GPU2GPU non continuous input DALI makes an internal copy on provided stream so no
+    elif additional_num_keep_samples < 0 and not (device == "gpu" and not cpu_input and not as_tensor):
+        # for the GPU2GPU non contiguous input DALI makes an internal copy on provided stream so no
         # data needs to be preserved by the user
         # assert_raises doesn't work here for the assertions from the test_utils.py
         if_raised = False
@@ -647,6 +661,6 @@ def test_iter_setup_zero_copy():
         for by_name in [False, True]:
             for as_tensor in [False, True]:
                 for device in ["cpu", "gpu"]:
-                    # make it -2 as -1 sometimes works, sometimes not due to being close to the limit
+                    # make it -5 as -1 sometimes works, sometimes not due to being close to the limit
                     for additional_num_keep_samples in [-4, 0, 1]:
                         yield _test_iter_setup_zero_copy, use_fn_api, by_name, as_tensor, device, additional_num_keep_samples

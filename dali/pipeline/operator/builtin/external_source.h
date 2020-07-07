@@ -236,14 +236,14 @@ class ExternalSource : public Operator<Backend> {
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
-  inline std::enable_if_t<!std::is_same<SrcBackend, Backend>::value, void>
+  inline std::enable_if_t<!std::is_same<SrcBackend, Backend>::value>
   ShareUserData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
     DALI_FAIL("no_copy is supported only for the same data source device type as operator.");
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
-                          std::is_same<SrcBackend, CPUBackend>::value, void>
+                          std::is_same<SrcBackend, CPUBackend>::value>
   ShareUserData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({});
@@ -254,13 +254,13 @@ class ExternalSource : public Operator<Backend> {
 
   template<typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
-                          std::is_same<SrcBackend, GPUBackend>::value, void>
+                          std::is_same<SrcBackend, GPUBackend>::value>
   ShareUserData(const TensorVector<SrcBackend> &t, cudaStream_t stream = 0) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     auto tl_elm = tl_data_.GetEmpty();
     if (t.IsContiguous()) {
       t.ShareWith(const_cast<TensorList<Backend>*>(tl_elm.front().get()));
-      gpu_noncontiguous_zero_copy = true;
+      zero_copy_noncontiguous_gpu_input_ = true;
       state_.push_back({});
     } else {
       // it is not contiguous so we need to copy
@@ -271,7 +271,7 @@ class ExternalSource : public Operator<Backend> {
       cudaEventRecord(*copy_to_storage_event.front(), stream);
       copy_to_storage_events_.PushBack(copy_to_storage_event);
 
-      if (gpu_noncontiguous_zero_copy) {
+      if (zero_copy_noncontiguous_gpu_input_) {
         DALI_WARN("ExternalSource operator should not mix contiguous and noncontiguous inputs. "
                   "In such a case the internal memory used to gather data in a contiguous chunk "
                   "of memory would be trashed.");
@@ -283,14 +283,14 @@ class ExternalSource : public Operator<Backend> {
 
   template<typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
-                          std::is_same<SrcBackend, GPUBackend>::value, void>
+                          std::is_same<SrcBackend, GPUBackend>::value>
    ShareUserData(const TensorList<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({});
     auto tl_elm = tl_data_.GetEmpty();
     tl_elm.front()->ShareData(const_cast<TensorList<Backend>*>(&t));
     tl_data_.PushBack(tl_elm);
-    gpu_noncontiguous_zero_copy = true;
+    zero_copy_noncontiguous_gpu_input_ = true;
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
@@ -334,15 +334,22 @@ class ExternalSource : public Operator<Backend> {
   bool blocking_ = true;
   bool no_copy_ = false;
 
-  // now it only indicates that there is data in the ExternalSource, in the future
-  // a per sample metadata could be stored here
-  struct ExternalSourceState  {
+  /*
+   * now it only indicates that there is data in the ExternalSource, in the future
+   * a per sample metadata could be stored here
+   */
+  struct ExternalSourceState {
     bool copied_shared_data = false;
   };
 
   std::list<ExternalSourceState > state_;
 
-  bool gpu_noncontiguous_zero_copy = false;
+  /*
+   * indicates that user provide noncontiguous GPU input with zero copy option so DALI needs
+   * to create an internal copy, it is used to raise a warning when the user mixes contiguous and
+   * noncontiguous GPU inputs with zero copy what trashed GPU allocated memory
+   */
+  bool zero_copy_noncontiguous_gpu_input_ = false;
 
   WorkerThread sync_worker_;
 
@@ -353,8 +360,8 @@ class ExternalSource : public Operator<Backend> {
 template<>
 template<typename SrcBackend, template<typename> class SourceDataType>
 inline void ExternalSource<CPUBackend>::CopyUserData(const SourceDataType<SrcBackend> &batch,
-                                                 cudaStream_t /*stream = 0*/,
-                                                 bool /*sync = false*/) {
+                                                     cudaStream_t /*stream = 0*/,
+                                                     bool /*sync = false*/) {
   std::list<uptr_tv_type> tv_elm;
   {
     std::lock_guard<std::mutex> busy_lock(busy_m_);

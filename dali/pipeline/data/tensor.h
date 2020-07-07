@@ -349,7 +349,7 @@ class Tensor : public Buffer<Backend> {
     DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
     DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
         "the input TensorList must have a valid data type.");
-    DALI_ENFORCE(tl->IsContinuousTensor(),
+    DALI_ENFORCE(tl->IsContiguousTensor(),
       "All tensors in the input TensorList must be contiguous in memory.");
     Index product = tl->shape().num_elements();
     DALI_ENFORCE(product == volume(new_shape),

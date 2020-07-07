@@ -35,7 +35,7 @@ def test_external_source_with_iter_cupy_stream():
             for i in range(10):
                 check_output(pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])
 
-def test_external_source_mixed_continuous():
+def test_external_source_mixed_contiguous():
     batch_size = 2
     iterations = 4
     def generator(i):

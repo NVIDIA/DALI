@@ -391,7 +391,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * contiguous. It returns true if and only if
    * all of the stored Tensors are densely packed in memory.
    */
-  inline bool IsContinuousTensor() const {
+  inline bool IsContiguousTensor() const {
     if (ntensor() == 0 || size_ == 0) {
       return true;
     }
