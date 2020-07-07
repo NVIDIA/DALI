@@ -13,18 +13,20 @@
 // limitations under the License.
 
 #include <cstdlib>
-
+#include <utility>
 #include "dali/pipeline/util/thread_pool.h"
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
 #endif
+#include "dali/core/format.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
 
 namespace dali {
 
 ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity)
-    : threads_(num_thread), running_(true), work_complete_(true), active_threads_(0) {
+    : threads_(num_thread), running_(true), work_complete_(true), adding_work_(false)
+    , active_threads_(0) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
 #if NVML_ENABLED
   nvml::Init();
@@ -58,13 +60,16 @@ ThreadPool::~ThreadPool() {
 #endif
 }
 
-void ThreadPool::DoWorkWithID(Work work) {
-  {
-    // Add work to the queue
-    std::lock_guard<std::mutex> lock(mutex_);
-    work_queue_.push(work);
-    work_complete_ = false;
-  }
+void ThreadPool::AddWork(Work work, int64_t priority) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  work_queue_.push({priority, std::move(work)});
+  work_complete_ = false;
+  adding_work_ = true;
+}
+
+void ThreadPool::DoWorkWithID(Work work, int64_t priority) {
+  AddWork(std::move(work), priority);
+  adding_work_ = false;
   // Signal a thread to complete the work
   condition_.notify_one();
 }
@@ -79,11 +84,19 @@ void ThreadPool::WaitForWork(bool checkForErrors) {
     for (size_t i = 0; i < threads_.size(); ++i) {
       if (!tl_errors_[i].empty()) {
         // Throw the first error that occurred
-        string error = "Error in thread " + std::to_string(i) + ": " + tl_errors_[i].front();
+        string error = make_string("Error in thread ", i, ": ", tl_errors_[i].front());
         tl_errors_[i].pop();
         throw std::runtime_error(error);
       }
     }
+  }
+}
+
+void ThreadPool::RunAll(bool wait) {
+  adding_work_ = false;
+  condition_.notify_all();
+  if (wait) {
+    WaitForWork();
   }
 }
 
@@ -129,13 +142,13 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
   while (running_) {
     // Block on the condition to wait for work
     std::unique_lock<std::mutex> lock(mutex_);
-    condition_.wait(lock, [this] { return !(running_ && work_queue_.empty()); });
+    condition_.wait(lock, [this] { return !running_ || (!work_queue_.empty() && !adding_work_); });
     // If we're no longer running, exit the run loop
     if (!running_) break;
 
     // Get work from the queue & mark
     // this thread as active
-    Work work = work_queue_.front();
+    Work work = std::move(work_queue_.top().second);
     work_queue_.pop();
     bool should_wake_next = !work_queue_.empty();
     ++active_threads_;
