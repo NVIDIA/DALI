@@ -23,12 +23,35 @@ namespace dali {
 
 namespace nvjpeg_memory {
 
+/**
+ * @brief Returns a buffer of at least the requested size, preferrably from the preallocated pool
+ *        If no buffer that satisfies the requested arguments, an allocation will take place
+ */
 void* GetBuffer(std::thread::id thread_id, kernels::AllocType alloc_type, size_t size);
+
+/**
+ * @brief Adds a new buffer to the pool of a given thread id, to be consumed later by ``GetBuffer``
+ */
 void AddBuffer(std::thread::id thread_id, kernels::AllocType alloc_type, size_t size);
+
+/**
+ * @brief Deletes all the buffers associated with a given thread id
+ */
 void DeleteAllBuffers(std::thread::id thread_id);
 
+/**
+ * @brief Enables/disables nvJPEG allocation statistics collection
+ */
 void SetEnableMemStats(bool enabled);
+
+/**
+ * @brief Adds an allocation to the statistics
+ */
 void AddMemStats(kernels::AllocType alloc_type, size_t size);
+
+/**
+ * @brief Prints nvJPEG memory allocation statistics
+ */
 void PrintMemStats();
 
 nvjpegDevAllocator_t GetDeviceAllocator();

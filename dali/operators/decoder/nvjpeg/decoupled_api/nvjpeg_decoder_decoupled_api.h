@@ -101,8 +101,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     nvjpegDevAllocator_t* device_allocator_ptr = device_memory_padding > 0 ? &device_allocator_ : nullptr;
     nvjpegPinnedAllocator_t* pinned_allocator_ptr = host_memory_padding > 0 ? &pinned_allocator_ : nullptr;
 
-    if (device_memory_padding > 0 || host_memory_padding > 0)
-      nvjpeg_memory::SetEnableMemStats(spec.GetArgument<bool>("memory_stats"));
+    nvjpeg_memory::SetEnableMemStats(spec.GetArgument<bool>("memory_stats"));
 
     for (auto thread_id : thread_pool_.GetThreadIds()) {
       if (device_memory_padding > 0) {
