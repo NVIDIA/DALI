@@ -42,9 +42,12 @@ class DLL_PUBLIC ThreadPool {
    * @brief Adds work to the queue with optional priority.
    *        The work only gets queued and it will only start after invoking
    *        `RunAll` (wakes up all threads to complete all remaining works) or
-   *        `RunWork` (wakes up a single thread to complete one work unit).
+   *        `DoWorkWithID` (wakes up a single thread to complete one work unit).
+   * @remarks if finished_adding_work == true, the thread pool will proceed picking
+   *          tasks from its queue, otherwise it will hold execution until `RunAll`
+   *          is invoked.
    */
-  DLL_PUBLIC void AddWork(Work work, int64_t priority = 0);
+  DLL_PUBLIC void AddWork(Work work, int64_t priority = 0, bool finished_adding_work = false);
 
   /**
    * @brief Adds work to the queue with optional priority and wakes up a single
@@ -81,7 +84,6 @@ class DLL_PUBLIC ThreadPool {
       return a.first < b.first;
     }
   };
-  std::queue<Work> work_queue__;
   std::priority_queue<PrioritizedWork, std::vector<PrioritizedWork>, SortByPriority> work_queue_;
 
   bool running_;

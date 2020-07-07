@@ -60,16 +60,15 @@ ThreadPool::~ThreadPool() {
 #endif
 }
 
-void ThreadPool::AddWork(Work work, int64_t priority) {
+void ThreadPool::AddWork(Work work, int64_t priority, bool finished_adding_work) {
   std::lock_guard<std::mutex> lock(mutex_);
   work_queue_.push({priority, std::move(work)});
   work_complete_ = false;
-  adding_work_ = true;
+  adding_work_ = !finished_adding_work;
 }
 
 void ThreadPool::DoWorkWithID(Work work, int64_t priority) {
-  AddWork(std::move(work), priority);
-  adding_work_ = false;
+  AddWork(std::move(work), priority, true);
   // Signal a thread to complete the work
   condition_.notify_one();
 }
@@ -93,7 +92,10 @@ void ThreadPool::WaitForWork(bool checkForErrors) {
 }
 
 void ThreadPool::RunAll(bool wait) {
-  adding_work_ = false;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    adding_work_ = false;
+  }
   condition_.notify_all();
   if (wait) {
     WaitForWork();
