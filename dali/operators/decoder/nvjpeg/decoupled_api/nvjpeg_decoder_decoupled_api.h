@@ -23,7 +23,6 @@
 #include <memory>
 #include <numeric>
 #include <atomic>
-#include <shared_mutex>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_memory.h"
@@ -98,8 +97,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     NVJPEG_CALL(nvjpegSetDeviceMemoryPadding(device_memory_padding, handle_));
     NVJPEG_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
 
-    nvjpegDevAllocator_t* device_allocator_ptr = device_memory_padding > 0 ? &device_allocator_ : nullptr;
-    nvjpegPinnedAllocator_t* pinned_allocator_ptr = host_memory_padding > 0 ? &pinned_allocator_ : nullptr;
+    nvjpegDevAllocator_t *device_allocator_ptr = device_memory_padding > 0 ?
+        &device_allocator_ : nullptr;
+    nvjpegPinnedAllocator_t *pinned_allocator_ptr = host_memory_padding > 0 ?
+        &pinned_allocator_ : nullptr;
 
     nvjpeg_memory::SetEnableMemStats(spec.GetArgument<bool>("memory_stats"));
 
