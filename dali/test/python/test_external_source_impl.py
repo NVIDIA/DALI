@@ -649,7 +649,11 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
         # assert_raises doesn't work here for the assertions from the test_utils.py
         if_raised = False
         try:
-            run_and_check(pipe, source)
+            # this tests bases on the race condition. Running it 5 times make this race more
+            # likely to happen and tests pass in CI under high CPU load
+            iterations = 5
+            for _ in range(iterations):
+                run_and_check(pipe, source)
         except AssertionError:
             if_raised = True
         assert(if_raised)
