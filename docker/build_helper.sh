@@ -51,6 +51,8 @@ export CUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}
 export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux2014_x86_64}
 export PATH=/usr/local/cuda/bin:${PATH}
 
+# use all avialble pythons
+
 LD_LIBRARY_PATH="${PWD}:${LD_LIBRARY_PATH}" && \
 cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DARCH=${ARCH}                               \
@@ -81,7 +83,7 @@ make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 
 if [ "${BUILD_PYTHON}" = "ON" ]; then
     pip wheel -v dali/python \
-        --build-option --python-tag=$(basename /opt/python/cp${PYV}-*) \
+        --build-option --python-tag=py3-none \
         --build-option --plat-name=${WHL_PLATFORM_NAME} \
         --build-option --build-number=${NVIDIA_BUILD_ID}
 

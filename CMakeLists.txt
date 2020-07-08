@@ -60,6 +60,8 @@ option(VERBOSE_LOGS "Adds verbose loging to DALI" OFF)
 
 option(WERROR "Threat all warnings as errors" OFF)
 
+set (PYTHON_VERSIONS "3.5;3.6;3.7;3.8")
+
 # FFmpeg is required when we are using NVDEC for video reader
 set(BUILD_FFMPEG ${BUILD_NVDEC})
 

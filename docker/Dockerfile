@@ -5,17 +5,17 @@ ARG DEPS_IMAGE_NAME
 # clean builder without source code inside
 FROM ${DEPS_IMAGE_NAME} as builder
 
-ARG PYVER=2.7
-ARG PYV=27
+ARG PYVER=3.7
+ARG PYV=37
 
 ENV PYVER=${PYVER} PYV=${PYV} PYTHONPATH=/opt/python/v
 
 ENV PYBIN=${PYTHONPATH}/bin \
     PYLIB=${PYTHONPATH}/lib
 
-ENV PATH=/usr/local/cuda/bin:${PYBIN}:${PATH} \
-    LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:${PYLIB}:${LD_LIBRARY_PATH} \
-    LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:${PYLIB}:${LIBRARY_PATH}
+ENV PATH=/opt/python/cp35-cp35m/bin:/opt/python/cp36-cp36/bin:/opt/python/cp37-cp37m/bin:/opt/python/cp38-cp38/bin:/usr/local/cuda/bin:${PYBIN}:${PATH} \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp35-cp35m/lib:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:${PYLIB}:${LD_LIBRARY_PATH} \
+    LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp35-cp35m/lib:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:${PYLIB}:${LIBRARY_PATH}
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 

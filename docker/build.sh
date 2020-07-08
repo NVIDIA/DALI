@@ -95,7 +95,7 @@ fi
 # build builder image if needed
 if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${BUILDER} 2> /dev/null)" == "" ]]; then
     echo "Build light image:" ${BUILDER}
-    docker build -t ${BUILDER} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
+    docker build -t ${BUILDER} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}" --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
                                --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" --build-arg "GIT_SHA=${GIT_SHA}" --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
                                --build-arg "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" --target builder -f docker/Dockerfile .
 fi
@@ -106,14 +106,12 @@ if [[ "$BUILD_TF_PLUGIN" == "YES" && "${PREBUILD_TF_PLUGINS}" == "YES" && ("$REB
     docker build -t ${BUILDER_DALI_TF_BASE_MANYLINUX1} \
            --build-arg "TF_CUSTOM_OP_IMAGE=${TF_CUSTOM_OP_IMAGE_MANYLINUX1}" \
            --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" \
-           --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" \
            -f docker/Dockerfile.customopbuilder.clean .
     echo "Build DALI TF base (manylinux2010)"
     TF_CUSTOM_OP_IMAGE_MANYLINUX2010="tensorflow/tensorflow:custom-op-gpu-ubuntu16"
     docker build -t ${BUILDER_DALI_TF_BASE_MANYLINUX2010} \
            --build-arg "TF_CUSTOM_OP_IMAGE=${TF_CUSTOM_OP_IMAGE_MANYLINUX2010}" \
            --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" \
-           --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" \
            -f docker/Dockerfile.customopbuilder.clean .
 
 fi
@@ -154,7 +152,6 @@ if [ "$BUILD_INHOST" == "YES" ]; then
 else
     echo "Build image:" ${BUILDER_WHL}
     docker build -t ${BUILDER_WHL} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}"             \
-                                   --build-arg "PYVER=${PYVER}"                            \
                                    --build-arg "PYV=${PYV}"                                \
                                    --build-arg "ARCH=${ARCH}"                              \
                                    --build-arg "WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME}"    \
@@ -189,10 +186,10 @@ fi
 if [ "$CREATE_RUNNER" == "YES" ]; then
     echo "Runner image:" ${RUN_IMG}
     echo "You can run this image with DALI installed inside, keep in mind to install neccessary FW package as well"
-    if [ ${CUDA_VERSION} == "9" ] ; then
-        export CUDA_IMAGE_NAME="nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04"
-    elif [ ${CUDA_VERSION} == "10" ] ; then
-        export CUDA_IMAGE_NAME="nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04"
+    if [ ${CUDA_VERSION} == "10" ] ; then
+        export CUDA_IMAGE_NAME="nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04"
+    elif [ ${CUDA_VERSION} == "11" ] ; then
+        export CUDA_IMAGE_NAME="nvidia/cuda:11.0-cudnn8-devel-ubuntu18.04"
     else
         echo "**************************************************************"
         echo "Not supported CUDA version"

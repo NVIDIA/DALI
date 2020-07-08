@@ -23,6 +23,12 @@ setup(name='nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
       packages=find_packages(),
       include_package_data=True,
       zip_safe=False,
+      classifiers=[
+          'Programming Language :: Python :: 3.5',
+          'Programming Language :: Python :: 3.6',
+          'Programming Language :: Python :: 3.7',
+          'Programming Language :: Python :: 3.8',
+          ],
       py_modules = [
           'rec2idx',
           ],

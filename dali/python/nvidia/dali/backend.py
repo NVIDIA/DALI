@@ -22,7 +22,6 @@ import sys
 # for importing the DALI c++ extensions, we can do it here
 
 default_plugins = [
-    'libpython_function_plugin.so'
 ]
 
 def deprecation_warning(what):

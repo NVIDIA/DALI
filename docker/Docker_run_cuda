@@ -1,5 +1,5 @@
 ARG BUILD_IMAGE_NAME
-ARG CUDA_IMAGE_NAME=nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
+ARG CUDA_IMAGE_NAME=nvidia/cuda:11.0-cudnn8-devel-ubuntu18.04
 FROM ${BUILD_IMAGE_NAME} AS builder
 FROM ${CUDA_IMAGE_NAME}
 
@@ -25,7 +25,7 @@ RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
     python get-pip.py && \
     rm get-pip.py
 
-COPY --from=builder /wheelhouse/nvidia_dali-*${PYV}-* /opt/dali/
+COPY --from=builder /wheelhouse/nvidia_dali-* /opt/dali/
 COPY --from=builder /wheelhouse/nvidia-dali-tf-plugin-*.tar.gz /opt/dali/
 
 RUN pip install /opt/dali/*.whl

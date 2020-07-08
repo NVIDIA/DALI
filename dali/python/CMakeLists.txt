@@ -16,15 +16,51 @@
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_PYTHON_BACKEND_SRCS)
 
-pybind11_add_module(dali_python MODULE ${DALI_PYTHON_BACKEND_SRCS})
-target_link_libraries(dali_python PUBLIC dali dali_operators dali_kernels dali_core ${CUDART_LIB})
-target_link_libraries(dali_python PRIVATE ${CUDA_LIBRARIES})
-target_link_libraries(dali_python PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+add_custom_target(dali_python ALL)
 
-set_target_properties(dali_python
-        PROPERTIES
-          LIBRARY_OUTPUT_DIRECTORY ${DALI_LIBRARY_OUTPUT_DIR}
-          OUTPUT_NAME backend_impl)
+foreach(PYVER ${PYTHON_VERSIONS})
+
+    # check if listed python versions are accesible
+    execute_process(
+        COMMAND python${PYVER} -c "print('test', end='')"
+        OUTPUT_VARIABLE PYTHON_EXISTS)
+
+    if ("${PYTHON_EXISTS}" STREQUAL "test")
+        execute_process(
+            COMMAND python${PYVER}-config --extension-suffix
+            OUTPUT_VARIABLE PYTHON_SUFIX)
+        # remove newline and the extension
+        string(REPLACE ".so\n" "" PYTHON_SUFIX ${PYTHON_SUFIX})
+
+        execute_process(
+            COMMAND python${PYVER}-config --includes
+            OUTPUT_VARIABLE PYTHON_INCLUDES)
+        # split and make it a list
+        string(REPLACE "-I" "" PYTHON_INCLUDES ${PYTHON_INCLUDES})
+        string(REPLACE "\n" "" PYTHON_INCLUDES ${PYTHON_INCLUDES})
+        separate_arguments(PYTHON_INCLUDES)
+
+        add_library(dali_python_${PYVER} SHARED ${DALI_PYTHON_BACKEND_SRCS})
+        target_link_libraries(dali_python_${PYVER} PUBLIC dali dali_operators dali_kernels dali_core ${CUDART_LIB})
+        target_link_libraries(dali_python_${PYVER} PRIVATE ${CUDA_LIBRARIES})
+        target_link_libraries(dali_python_${PYVER} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+
+        set_target_properties(dali_python_${PYVER}
+                              PROPERTIES
+                              LIBRARY_OUTPUT_DIRECTORY ${DALI_LIBRARY_OUTPUT_DIR}
+                              PREFIX ""
+                              OUTPUT_NAME backend_impl${PYTHON_SUFIX})
+        target_compile_definitions(dali_python_${PYVER} PRIVATE "-Ddali_python_EXPORTS")
+        target_include_directories(dali_python_${PYVER} PRIVATE "${CMAKE_SOURCE_DIR}/third_party/pybind11/include")
+        # add includes
+        foreach(incl_dir ${PYTHON_INCLUDES})
+            target_include_directories(dali_python_${PYVER} PRIVATE ${incl_dir})
+        endforeach(incl_dir)
+
+        add_dependencies(dali_python dali_python_${PYVER})
+    endif()
+
+endforeach(PYVER)
 
 if (DALI_BUILD_FLAVOR)
   set(DALI_FLAVOR "${DALI_BUILD_FLAVOR} ")

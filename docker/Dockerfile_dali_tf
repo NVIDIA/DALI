@@ -22,6 +22,6 @@ COPY cmake ./cmake
 COPY dali_tf_plugin ./dali_tf_plugin
 
 COPY dali_tf_plugin/whl whl
-RUN pip install whl/*cp${PYV}*.whl && rm -rf whl
+RUN pip install whl/*.whl && rm -rf whl
 
 WORKDIR /opt/dali/dali_tf_plugin
