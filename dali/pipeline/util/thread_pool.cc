@@ -91,6 +91,15 @@ int ThreadPool::size() const {
   return threads_.size();
 }
 
+std::vector<std::thread::id> ThreadPool::GetThreadIds() const {
+  std::vector<std::thread::id> tids;
+  tids.reserve(threads_.size());
+  for (const auto &thread : threads_)
+    tids.emplace_back(thread.get_id());
+  return tids;
+}
+
+
 void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
   DeviceGuard g(device_id);
   try {

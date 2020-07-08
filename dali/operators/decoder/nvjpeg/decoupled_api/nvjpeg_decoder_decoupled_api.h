@@ -23,10 +23,11 @@
 #include <memory>
 #include <numeric>
 #include <atomic>
-
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
+#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_memory.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
+#include "dali/kernels/alloc.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
@@ -53,6 +54,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     decode_events_(num_threads_),
     thread_page_ids_(num_threads_),
     device_id_(spec.GetArgument<int>("device_id")),
+    device_allocator_(nvjpeg_memory::GetDeviceAllocator()),
+    pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()),
     thread_pool_(num_threads_,
                  spec.GetArgument<int>("device_id"),
                  spec.GetArgument<bool>("affine") /* pin threads */) {
@@ -95,6 +98,23 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     NVJPEG_CALL(nvjpegSetDeviceMemoryPadding(device_memory_padding, handle_));
     NVJPEG_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
 
+    nvjpegDevAllocator_t *device_allocator_ptr = device_memory_padding > 0 ?
+        &device_allocator_ : nullptr;
+    nvjpegPinnedAllocator_t *pinned_allocator_ptr = host_memory_padding > 0 ?
+        &pinned_allocator_ : nullptr;
+
+    nvjpeg_memory::SetEnableMemStats(spec.GetArgument<bool>("memory_stats"));
+
+    for (auto thread_id : thread_pool_.GetThreadIds()) {
+      if (device_memory_padding > 0) {
+        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::GPU, device_memory_padding);
+      }
+      if (host_memory_padding > 0) {
+        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
+        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
+      }
+    }
+
     // GPU
     // create the handles, streams and events we'll use
     // We want to use nvJPEG default device allocator
@@ -104,10 +124,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &hw_decoder_jpeg_stream_));
 
     for (auto &buffer : pinned_buffers_) {
-      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &buffer));
+      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, pinned_allocator_ptr, &buffer));
     }
     for (auto &buffer : device_buffers_) {
-      NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, nullptr, &buffer));
+      NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, device_allocator_ptr, &buffer));
     }
     for (auto &stream : streams_) {
       CUDA_CALL(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking,
@@ -166,6 +186,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(cudaStreamDestroy(hw_decode_stream_));
 
       NVJPEG_CALL(nvjpegDestroy(handle_));
+
+      // Free any remaining buffers and remove the thread entry from the global map
+      for (auto thread_id : thread_pool_.GetThreadIds()) {
+        nvjpeg_memory::DeleteAllBuffers(thread_id);
+      }
+
+      nvjpeg_memory::PrintMemStats();
     } catch (const std::exception &e) {
       // If destroying nvJPEG resources failed we are leaking something so terminate
       std::cerr << "Fatal error: exception in ~nvJPEGDecoder():\n" << e.what() << std::endl;
@@ -659,6 +686,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   std::vector<const unsigned char*> in_data_;
   std::vector<size_t> in_lengths_;
   std::vector<nvjpegImage_t> nvjpeg_destinations_;
+
+  // Allocators
+  nvjpegDevAllocator_t device_allocator_;
+  nvjpegPinnedAllocator_t pinned_allocator_;
 
   ThreadPool thread_pool_;
   static constexpr int kOutputDim = 3;

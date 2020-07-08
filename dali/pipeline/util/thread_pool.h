@@ -44,6 +44,8 @@ class DLL_PUBLIC ThreadPool {
 
   DLL_PUBLIC int size() const;
 
+  DLL_PUBLIC std::vector<std::thread::id> GetThreadIds() const;
+
   DISABLE_COPY_MOVE_ASSIGN(ThreadPool);
 
  private:
