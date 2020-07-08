@@ -193,6 +193,23 @@ Keyword Args
     If internal stream is used, the call to ``feed_input`` will block until the copy to internal
     buffer is complete, since there's no way to synchronize with this stream to prevent
     overwriting the array with new data in another stream.
+
+``blocking`` : optional, Whether external source should block until data is available or just
+fail when it is not
+
+``no_copy` : Whether DALI should copy the buffer when feed_input is called
+    If True, DALI passes the user memory directly to the Pipeline, instead of copying.
+    It is the user's responsibility to keep the buffer alive and unmodified
+    until it is consumed by the pipeline.
+
+    The buffer can be modified or freed again after the relevant iteration output has been consumed.
+    Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
+    (when they are not equal) iterations following the``feed_input`` call.
+
+    Provided memory must match the specified `device` parameter of the operator.
+    For CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
+    For GPU to not do any copies the provided buffer must be contiguous. If user provides a list
+    of separate Tensors there will be an additional internal copy made.
 """
 
     def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", cuda_stream = None, **kwargs):
@@ -303,15 +320,14 @@ Keyword Args
 def _is_external_source_with_callback(op_instance):
     return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
 
-def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None, cuda_stream = None):
+def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None, cuda_stream = None, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
-``pipeline.feed_input(name, data, layout)`` inside ``pipeline.iter_setup``.
+``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
     In the case of the GPU input, it is the user responsibility to modify the
     provided GPU memory content only using provided stream (DALI schedules a copy on it
     and all work is properly queued). If no stream is provided feeding input blocks until the
     provided memory is copied to the internal buffer
-
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
     which is more performant.
@@ -323,7 +339,7 @@ The data can be provided by the ``source`` function or iterable, or it can be pr
                 "`external_source` nodes.")
 
     op = ExternalSource(device = device, num_outputs = num_outputs, source = source,
-                        cycle = cycle, layout = layout, cuda_stream = cuda_stream)
+                        cycle = cycle, layout = layout, cuda_stream = cuda_stream, **kwargs)
     return op(name = name)
 
 external_source.__doc__ += ExternalSource._args_doc

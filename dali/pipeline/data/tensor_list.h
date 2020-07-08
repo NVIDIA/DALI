@@ -219,7 +219,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const TensorListShape<> &shape,
                         const TypeInfo &type = {}) {
-    DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
+    // don't check ptr as we want to share empty data as well
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_ = ptr;
@@ -256,7 +256,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * persist while it is in use by the Tensor.
    */
   DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, const TensorListShape<> &shape,
-                                   const TypeInfo &type = TypeInfo::Create<NoType>()) {
+                                   const TypeInfo &type = {}) {
     ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
   }
 
@@ -388,10 +388,10 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
   /**
    * @brief Checks whether the TensorList is
-   * continuous. It returns true if and only if
+   * contiguous. It returns true if and only if
    * all of the stored Tensors are densely packed in memory.
    */
-  inline bool IsContinuousTensor() const {
+  inline bool IsContiguousTensor() const {
     if (ntensor() == 0 || size_ == 0) {
       return true;
     }

@@ -277,7 +277,7 @@ class Tensor : public Buffer<Backend> {
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes,
                         const TensorShape<> &shape,
                         const TypeInfo &type = {}) {
-    DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
+    // don't check ptr as we want to share empty data as well
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_ = ptr;
@@ -349,8 +349,8 @@ class Tensor : public Buffer<Backend> {
     DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
     DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
         "the input TensorList must have a valid data type.");
-    DALI_ENFORCE(tl->IsContinuousTensor(),
-      "All tensors in the input TensorList must be continuous in memory.");
+    DALI_ENFORCE(tl->IsContiguousTensor(),
+      "All tensors in the input TensorList must be contiguous in memory.");
     Index product = tl->shape().num_elements();
     DALI_ENFORCE(product == volume(new_shape),
       "Requested shape need to have the same volume as the tensor list.");
