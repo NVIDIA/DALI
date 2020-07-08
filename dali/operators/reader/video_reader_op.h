@@ -73,7 +73,6 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
                   "timestamps can be enabled only when "
                   "`file_list` or `file_root` argument is passed");
 
-    // TODO(spanev): support rescale
     // TODO(spanev): Factor out the constructor body to make VideoReader compatible with lazy_init.
       try {
         loader_ = InitLoader<VideoLoader>(spec, filenames_);
@@ -109,8 +108,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   virtual void SetOutputShape(TensorList<GPUBackend> &output, DeviceWorkspace &ws) {
     TensorListShape<> output_shape(batch_size_, sequence_dim);
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      auto sequence_shape = GetSample(data_idx).sequence.shape();
-      output_shape.set_tensor_shape(data_idx, sequence_shape);
+      output_shape.set_tensor_shape(
+        data_idx, GetSample(data_idx).sequence.shape());
     }
     output.Resize(output_shape);
   }
@@ -142,9 +141,12 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   }
 
   virtual void ProcessSingleVideo(
-    int data_idx, TensorList<GPUBackend> &video_output, void *single_video_output, SequenceWrapper &prefetched_video, DeviceWorkspace &ws) {
+    int data_idx,
+    TensorList<GPUBackend> &video_output,
+    SequenceWrapper &prefetched_video,
+    DeviceWorkspace &ws) {
     video_output.type().Copy<GPUBackend, GPUBackend>(
-      single_video_output,
+      video_output.raw_mutable_tensor(data_idx),
       prefetched_video.sequence.raw_data(),
       prefetched_video.sequence.size(),
       ws.stream());
@@ -178,10 +180,9 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     PrepareAdditionalOutputs(ws);
 
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      auto* single_video_output = video_output.raw_mutable_tensor(data_idx);
       auto& prefetched_video = GetSample(data_idx);
 
-      ProcessSingleVideo(data_idx, video_output, single_video_output, prefetched_video, ws);
+      ProcessSingleVideo(data_idx, video_output, prefetched_video, ws);
       ProcessAdditionalOutputs(data_idx, prefetched_video, ws.stream());
     }
   }

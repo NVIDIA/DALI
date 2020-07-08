@@ -42,85 +42,66 @@ class VideoReaderResize : public VideoReader, protected ResizeAttr, protected Re
   explicit VideoReaderResize(const OpSpec &spec)
       : VideoReader(spec),
         ResizeAttr(spec),
-        ResizeBase(spec) {
-
+        ResizeBase(spec),
+        per_video_transform_metas_(batch_size_) {
+    DALI_ENFORCE(dtype_ == DALI_UINT8, "Data type must be UINT8.");
     ResizeAttr::SetBatchSize(count_);
-    InitializeGPU(count_, spec_.GetArgument<int>("minibatch_size"));
+    ResizeBase::InitializeGPU(count_, spec_.GetArgument<int>("minibatch_size"));
     resample_params_.resize(count_);
   }
 
   inline ~VideoReaderResize() override = default;
 
  protected:
-  void SetupSharedSampleParams(DeviceWorkspace &ws) override {
-  }
+  void SetupSharedSampleParams(DeviceWorkspace &ws) override {}
 
   void SetOutputShape(TensorList<GPUBackend> &output, DeviceWorkspace &ws) override {
     TensorListShape<> output_shape(batch_size_, sequence_dim);
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      auto transform_meta = GetTransformMeta(
-        spec_, GetSample(data_idx).sequence.shape(), &ws, data_idx, ResizeInfoNeeded());
-      TensorShape<> sequence_shape{count_, transform_meta.rsz_h, transform_meta.rsz_w, channels_};
+      per_video_transform_metas_[data_idx] = GetTransformMeta(
+          spec_, GetSample(data_idx).frame_shape(), &ws, data_idx, ResizeInfoNeeded());
+      TensorShape<> sequence_shape{count_, per_video_transform_metas_[data_idx].rsz_h,
+                                   per_video_transform_metas_[data_idx].rsz_w, channels_};
       output_shape.set_tensor_shape(data_idx, sequence_shape);
     }
     output.Resize(output_shape);
   }
 
+  void ShareSingleOutput(
+    int data_idx, TensorList<GPUBackend> &batch_output, TensorList<GPUBackend> &single_output) {
+    auto* raw_output = batch_output.raw_mutable_tensor(data_idx);
+    int64_t after_resize_frame_size = 
+      per_video_transform_metas_[data_idx].rsz_h *
+      per_video_transform_metas_[data_idx].rsz_w * 
+      channels_;
+    single_output.ShareData(
+      raw_output, sizeof(uint8) * count_ * after_resize_frame_size);
+
+  }
+
   void ProcessSingleVideo(
-    int data_idx, 
-    TensorList<GPUBackend> &video_output, 
-    void *single_video_output,
-    SequenceWrapper &prefetched_video, 
+    int data_idx,
+    TensorList<GPUBackend> &video_output,
+    SequenceWrapper &prefetched_video,
     DeviceWorkspace &ws) override {
-    void *current_sequence = prefetched_video.sequence.raw_mutable_data();
 
-    TensorShape<3> input_tensor_shape(
-      prefetched_video.height, prefetched_video.width, prefetched_video.channels);
-
-    resample_params_.clear();
-
-    auto transform_meta = GetTransformMeta(
-      spec_, input_tensor_shape, &ws, data_idx, ResizeInfoNeeded());
-
-    for (int i = 0; i < prefetched_video.count; ++i) {
-      resample_params_.push_back(GetResamplingParams(transform_meta));
-    }
+    std::fill_n(
+      resample_params_.begin(), 
+      count_, 
+      GetResamplingParams(per_video_transform_metas_[data_idx]));
 
     TensorList<GPUBackend> input;
+    prefetched_video.share_frames(input);
+
     TensorList<GPUBackend> output;
+    ShareSingleOutput(data_idx, video_output, output);
 
-    int64_t after_resize_frame_size = transform_meta.rsz_h * transform_meta.rsz_w * channels_;
-
-    input.ShareData(current_sequence, sizeof(uint8) * prefetched_video.count *
-                                          prefetched_video.height * prefetched_video.width *
-                                          channels_);
-    output.ShareData(single_video_output,
-                     sizeof(uint8) * prefetched_video.count * after_resize_frame_size);
-
-    TensorListShape<> input_shape;
-
-    input_shape.resize(prefetched_video.count, 3);
-    out_shape_.resize(prefetched_video.count, 3);
-
-    
-    TensorShape<3> output_tensor_shape(
-      transform_meta.rsz_w, transform_meta.rsz_h, prefetched_video.channels);
-
-    for (int i = 0; i < prefetched_video.count; ++i) {
-      input_shape.set_tensor_shape(i, input_tensor_shape);
-      out_shape_.set_tensor_shape(i, output_tensor_shape);
-    }
-
-    input.set_type(TypeInfo::Create<uint8>());
-    output.set_type(TypeInfo::Create<uint8>());
-
-    input.Resize(input_shape);
-    output.Resize(out_shape_);
-
-    RunGPU(output, input, ws.stream());
+    ResizeBase::RunGPU(output, input, ws.stream());
   }
 
  private:
+  vector<TransformMeta> per_video_transform_metas_;
+
   kernels::ResamplingParams2D GetResamplingParams(const TransformMeta &meta) const {
     kernels::ResamplingParams2D params;
     params[0].output_size = meta.rsz_h;

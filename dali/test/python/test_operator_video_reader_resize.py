@@ -22,7 +22,7 @@ from PIL import Image as Image
 
 video_directory = os.path.join(
     os.environ['DALI_EXTRA_PATH'], "db", "video", "sintel", "video_files")
-# video_directory = '/tmp/video_resolution/'
+video_directory_multiple_resolutions = '/tmp/video_resolution/'
 
 video_files = [video_directory + '/' + f for f in os.listdir(video_directory)]
 
@@ -48,6 +48,13 @@ video_reader_params = {
     'random_shuffle': False
 }
 
+video_reader_params_multiple_resolutions = {
+    'device': 'gpu',
+    'file_root': video_directory_multiple_resolutions,
+    'sequence_length': 32,
+    'random_shuffle': False
+}
+
 resize_params = {
     'resize_x': 300,
     'resize_y': 200,
@@ -64,6 +71,8 @@ def video_reader_pipeline_base(
     with pipeline:
         outputs = video_reader(
             **video_reader_params, **resize_params)
+        if type(outputs) == list:
+            outputs = outputs[0]
         pipeline.set_outputs(outputs)
     pipeline.build()
 
@@ -136,3 +145,14 @@ def test_video_resize(batch_size=16):
 
     compare_video_resize_pipelines(
         pipeline, gt_pipeline, batch_size, video_reader_params['sequence_length'])
+
+
+# def test_video_resize_multiple_resolutions(batch_size=16):
+#     pipeline = video_reader_resize_pipeline(
+#         batch_size, video_reader_params_multiple_resolutions, resize_params)
+
+#     gt_pipeline = ground_truth_pipeline(
+#         batch_size, video_reader_params_multiple_resolutions, resize_params)
+
+#     compare_video_resize_pipelines(
+#         pipeline, gt_pipeline, batch_size, video_reader_params['sequence_length'])
