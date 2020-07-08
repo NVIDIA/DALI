@@ -25,12 +25,13 @@ namespace nvjpeg_memory {
 
 /**
  * @brief Returns a buffer of at least the requested size, preferrably from the preallocated pool
- *        If no buffer that satisfies the requested arguments, an allocation will take place
+ *        If no buffer that satisfies the requested arguments already exists in the pool, an allocation
+ *        will take place
  */
 void* GetBuffer(std::thread::id thread_id, kernels::AllocType alloc_type, size_t size);
 
 /**
- * @brief Adds a new buffer to the pool of a given thread id, to be consumed later by ``GetBuffer``
+ * @brief Adds a new buffer to the pool for a given thread id, to be consumed later by ``GetBuffer``
  */
 void AddBuffer(std::thread::id thread_id, kernels::AllocType alloc_type, size_t size);
 
