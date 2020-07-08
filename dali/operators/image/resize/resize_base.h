@@ -64,7 +64,7 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
   std::vector<kernels::ResamplingParams2D> resample_params_;
   TensorListShape<> out_shape_;
 
- private:
+ protected:
   kernels::KernelManager kmgr_;
 
   struct MiniBatch {

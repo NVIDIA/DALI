@@ -21,39 +21,22 @@
 #include "dali/operators/reader/reader_op.h"
 #include "dali/operators/reader/loader/video_loader.h"
 
-#include "dali/core/common.h"
-#include "dali/core/error_handling.h"
-#include "dali/kernels/scratch.h"
-#include "dali/kernels/kernel.h"
-#include "dali/kernels/imgproc/resample/params.h"
-#include "dali/kernels/kernel_manager.h"
-#include "dali/pipeline/operator/op_spec.h"
-#include "dali/kernels/imgproc/resample.h"
-#include "dali/kernels/imgproc/resample_cpu.h"
-#include "dali/operators/image/resize/resize_base.h"
-#include "dali/pipeline/data/views.h"
 
 namespace dali {
-
 namespace detail {
-
-inline kernels::ResamplingFilterType interp2resample(DALIInterpType interp) {
-#define DALI_MAP_INTERP_TO_RESAMPLE(interp, resample) case DALI_INTERP_##interp:\
-  return kernels::ResamplingFilterType::resample;
-
-  switch (interp) {
-    DALI_MAP_INTERP_TO_RESAMPLE(NN, Nearest);
-    DALI_MAP_INTERP_TO_RESAMPLE(LINEAR, Linear);
-    DALI_MAP_INTERP_TO_RESAMPLE(CUBIC, Cubic);
-    DALI_MAP_INTERP_TO_RESAMPLE(LANCZOS3, Lanczos3);
-    DALI_MAP_INTERP_TO_RESAMPLE(GAUSSIAN, Gaussian);
-    DALI_MAP_INTERP_TO_RESAMPLE(TRIANGULAR, Triangular);
-  default:
-    DALI_FAIL("Unknown interpolation type");
-  }
-#undef DALI_MAP_INTERP_TO_RESAMPLE
+inline int VideoReaderOutputFn(const OpSpec &spec) {
+    std::string file_root = spec.GetArgument<std::string>("file_root");
+    std::string file_list = spec.GetArgument<std::string>("file_list");
+    bool enable_frame_num = spec.GetArgument<bool>("enable_frame_num");
+    bool enable_timestamps = spec.GetArgument<bool>("enable_timestamps");
+    int num_outputs = 1;
+    if (!file_root.empty() || !file_list.empty()) {
+        num_outputs++;
+        if (enable_frame_num) num_outputs++;
+        if (enable_timestamps) num_outputs++;
+    }
+    return num_outputs;
 }
-
 }
 
 class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
@@ -67,11 +50,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     enable_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
     count_(spec.GetArgument<int>("sequence_length")),
     channels_(spec.GetArgument<int>("channels")),
-    tl_shape_(batch_size_, sequence_dim),
-    dtype_(spec.GetArgument<DALIDataType>("dtype")),
-    resize_(spec.GetArgument<bool>("resize")),
-    resize_x_(spec.GetArgument<float>("resize_x")),
-    resize_y_(spec.GetArgument<float>("resize_y")) {
+    dtype_(spec.GetArgument<DALIDataType>("dtype")) {
     DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));
 
     int arg_count = !filenames_.empty() + !file_root_.empty() + !file_list_.empty();
@@ -93,8 +72,6 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
      DALI_ENFORCE(enable_label_output_ || !enable_timestamps_,
                   "timestamps can be enabled only when "
                   "`file_list` or `file_root` argument is passed");
-
-     resampling_type_ = detail::interp2resample(spec_.GetArgument<DALIInterpType>("interp_type"));
 
     // TODO(spanev): support rescale
     // TODO(spanev): Factor out the constructor body to make VideoReader compatible with lazy_init.
@@ -121,164 +98,93 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   void SetupSharedSampleParams(DeviceWorkspace &ws) override {
   }
 
-  void RunImpl(DeviceWorkspace &ws) override {
-    auto& tl_sequence_output = ws.Output<GPUBackend>(0);
-    TensorList<GPUBackend> *label_output = NULL;
-    TensorList<GPUBackend> *frame_num_output = NULL;
-    TensorList<GPUBackend> *timestamp_output = NULL;
-
-    // Setting output type
+  void SetOutputType(TensorList<GPUBackend> &output) {
     if (dtype_ == DALI_FLOAT) {
-      tl_sequence_output.set_type(TypeInfo::Create<float>());
+      output.set_type(TypeInfo::Create<float>());
     } else {  // dtype_ == DALI_UINT8
-      tl_sequence_output.set_type(TypeInfo::Create<uint8>());
+      output.set_type(TypeInfo::Create<uint8>());
     }
+  }
 
-    // Creating shape of the output
-    if (resize_) {
-      TensorShape<> sequence_shape {count_, resize_y_, resize_x_, channels_};
-      for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-        tl_shape_.set_tensor_shape(data_idx, sequence_shape);
-      }
-    } else {
-      // Is this for handling multiple resolutions?
-      for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-        auto sequence_shape = GetSample(data_idx).sequence.shape();
-        tl_shape_.set_tensor_shape(data_idx, sequence_shape);
-      }
+  virtual void SetOutputShape(TensorList<GPUBackend> &output, DeviceWorkspace &ws) {
+    TensorListShape<> output_shape(batch_size_, sequence_dim);
+    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+      auto sequence_shape = GetSample(data_idx).sequence.shape();
+      output_shape.set_tensor_shape(data_idx, sequence_shape);
     }
+    output.Resize(output_shape);
+  }
 
-    // Setting output shape and layout
-    tl_sequence_output.Resize(tl_shape_);
-    tl_sequence_output.SetLayout("FHWC");
+  void PrepareVideoOutput(TensorList<GPUBackend> &output, DeviceWorkspace &ws) {
+    SetOutputType(output);
+    SetOutputShape(output, ws);
+    output.SetLayout("FHWC");
+  }
 
+  void PrepareAdditionalOutputs(DeviceWorkspace &ws) {
     if (enable_label_output_) {
       int output_index = 1;
-      label_output = &ws.Output<GPUBackend>(output_index++);
-      label_output->set_type(TypeInfo::Create<int>());
-      label_output->Resize(label_shape_);
+      label_output_ = &ws.Output<GPUBackend>(output_index++);
+      label_output_->set_type(TypeInfo::Create<int>());
+      label_output_->Resize(label_shape_);
       if (enable_frame_num_) {
-        frame_num_output = &ws.Output<GPUBackend>(output_index++);
-        frame_num_output->set_type(TypeInfo::Create<int>());
-        frame_num_output->Resize(frame_num_shape_);
+        frame_num_output_ = &ws.Output<GPUBackend>(output_index++);
+        frame_num_output_->set_type(TypeInfo::Create<int>());
+        frame_num_output_->Resize(frame_num_shape_);
       }
 
       if (enable_timestamps_) {
-        timestamp_output = &ws.Output<GPUBackend>(output_index++);
-        timestamp_output->set_type(TypeInfo::Create<double>());
-        timestamp_output->Resize(timestamp_shape_);
-      }
-    }
-
-    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      auto* sequence_output = tl_sequence_output.raw_mutable_tensor(data_idx);
-      auto& prefetched_sequence = GetSample(data_idx);
-
-      if (resize_) {
-        // Process one sample (video) as a batch of images in Resize operator here
-        void *current_sequence = prefetched_sequence.sequence.raw_mutable_data();
-
-        TensorList<GPUBackend> input;
-        TensorList<GPUBackend> output;
-
-        int64_t after_resize_frame_size = resize_x_*resize_y_*prefetched_sequence.channels;
-
-        input.ShareData(
-          current_sequence, 
-          sizeof(uint8)*prefetched_sequence.count*prefetched_sequence.height*prefetched_sequence.width*prefetched_sequence.channels);
-        output.ShareData(
-          sequence_output,  
-          sizeof(uint8)*prefetched_sequence.count*after_resize_frame_size);
-
-        TensorListShape<> input_shape;
-        TensorListShape<> output_shape;
-
-        input_shape.resize(prefetched_sequence.count, 3);
-        output_shape.resize(prefetched_sequence.count, 3);
-
-        TensorShape<3> input_tensor_shape(
-            prefetched_sequence.height, prefetched_sequence.width, prefetched_sequence.channels);
-        TensorShape<3> output_tensor_shape(
-            resize_y_, resize_x_, prefetched_sequence.channels);
-
-        for (int i = 0; i < prefetched_sequence.count; ++i) {
-          input_shape.set_tensor_shape(i, input_tensor_shape);
-          output_shape.set_tensor_shape(i, output_tensor_shape);
-        }
-
-        input.set_type(TypeInfo::Create<uint8>());
-        output.set_type(TypeInfo::Create<uint8>());
-        
-        input.Resize(input_shape);
-        output.Resize(output_shape);
-
-        auto in_view = view<const uint8_t, 3>(input);
-        auto out_view = view<uint8_t, 3>(output);
-
-        using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
-        kernels::KernelManager kmgr;
-        kmgr.Resize<Kernel>(1, 1);
-        kmgr.SetMemoryHint(kernels::AllocType::GPU, 0);
-        kmgr.ReserveMaxScratchpad(0);
-
-        kernels::KernelContext context;
-        context.gpu.stream = ws.stream();
-
-        std::vector<kernels::ResamplingParams2D> resample_params;
-        // resample_params.resize(prefetched_sequence.count);
-        for (int i  = 0; i < prefetched_sequence.count; ++i) {
-          kernels::ResamplingParams2D params;
-          params[0].output_size = resize_y_;
-          params[1].output_size = resize_x_;
-          params[0].min_filter = params[1].min_filter = resampling_type_;
-          params[0].mag_filter = params[1].mag_filter = resampling_type_;
-          
-          resample_params.push_back(params);
-        }
-
-        auto &req = kmgr.Setup<Kernel>(
-          0, 
-          context,
-          in_view, 
-          make_span(resample_params.data(), prefetched_sequence.count));
-
-        kmgr.Run<Kernel>(
-          0, 
-          0, 
-          context,
-          out_view, 
-          in_view, 
-          make_span(resample_params.data(), prefetched_sequence.count));
-        
-      } else {
-        // Copying output data to its place in workspace
-        tl_sequence_output.type().Copy<GPUBackend, GPUBackend>(
-          sequence_output,
-          prefetched_sequence.sequence.raw_data(),
-          prefetched_sequence.sequence.size(),
-          ws.stream());
-      }
-
-      if (enable_label_output_) {
-        auto *label = label_output->mutable_tensor<int>(data_idx);
-        CUDA_CALL(cudaMemcpyAsync(label, &prefetched_sequence.label, sizeof(int),
-                                  cudaMemcpyDefault, ws.stream()));
-        if (enable_frame_num_) {
-          auto *frame_num = frame_num_output->mutable_tensor<int>(data_idx);
-          CUDA_CALL(cudaMemcpyAsync(frame_num, &prefetched_sequence.first_frame_idx,
-                                    sizeof(int), cudaMemcpyDefault, ws.stream()));
-        }
-        if (enable_timestamps_) {
-          auto *timestamp = timestamp_output->mutable_tensor<double>(data_idx);
-          timestamp_output->type().Copy<GPUBackend, CPUBackend>(timestamp,
-                                                  prefetched_sequence.timestamps.data(),
-                                                  prefetched_sequence.timestamps.size(),
-                                                  ws.stream());
-        }
+        timestamp_output_ = &ws.Output<GPUBackend>(output_index++);
+        timestamp_output_->set_type(TypeInfo::Create<double>());
+        timestamp_output_->Resize(timestamp_shape_);
       }
     }
   }
 
+  virtual void ProcessSingleVideo(
+    int data_idx, TensorList<GPUBackend> &video_output, void *single_video_output, SequenceWrapper &prefetched_video, DeviceWorkspace &ws) {
+    video_output.type().Copy<GPUBackend, GPUBackend>(
+      single_video_output,
+      prefetched_video.sequence.raw_data(),
+      prefetched_video.sequence.size(),
+      ws.stream());
+  }
+
+  void ProcessAdditionalOutputs(int data_idx, SequenceWrapper &prefetched_video, cudaStream_t stream) {
+    if (enable_label_output_) {
+      auto *label = label_output_->mutable_tensor<int>(data_idx);
+      CUDA_CALL(cudaMemcpyAsync(
+        label, &prefetched_video.label, sizeof(int), cudaMemcpyDefault, stream));
+      if (enable_frame_num_) {
+        auto *frame_num = frame_num_output_->mutable_tensor<int>(data_idx);
+        CUDA_CALL(cudaMemcpyAsync(
+          frame_num, &prefetched_video.first_frame_idx, sizeof(int), cudaMemcpyDefault, stream));
+      }
+      if (enable_timestamps_) {
+        auto *timestamp = timestamp_output_->mutable_tensor<double>(data_idx);
+        timestamp_output_->type().Copy<GPUBackend, CPUBackend>(
+          timestamp,
+          prefetched_video.timestamps.data(),
+          prefetched_video.timestamps.size(),
+          stream);
+      }
+    }
+  }
+
+  void RunImpl(DeviceWorkspace &ws) override {
+    auto& video_output = ws.Output<GPUBackend>(0);
+
+    PrepareVideoOutput(video_output, ws);
+    PrepareAdditionalOutputs(ws);
+
+    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+      auto* single_video_output = video_output.raw_mutable_tensor(data_idx);
+      auto& prefetched_video = GetSample(data_idx);
+
+      ProcessSingleVideo(data_idx, video_output, single_video_output, prefetched_video, ws);
+      ProcessAdditionalOutputs(data_idx, prefetched_video, ws.stream());
+    }
+  }
 
   static constexpr int sequence_dim = 4;
   std::vector<std::string> filenames_;
@@ -289,18 +195,16 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   int count_;
   int channels_;
 
-  TensorListShape<> tl_shape_;
   TensorListShape<> label_shape_;
   TensorListShape<> timestamp_shape_;
   TensorListShape<> frame_num_shape_;
 
+  TensorList<GPUBackend> *label_output_ = NULL;
+  TensorList<GPUBackend> *frame_num_output_ = NULL;
+  TensorList<GPUBackend> *timestamp_output_ = NULL;
+
   DALIDataType dtype_;
   bool enable_label_output_;
-
-  bool resize_;
-  float resize_x_;
-  float resize_y_;
-  kernels::ResamplingFilterType resampling_type_;
 
   USE_READER_OPERATOR_MEMBERS(GPUBackend, SequenceWrapper);
 };
