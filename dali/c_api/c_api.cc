@@ -38,7 +38,7 @@ bool dali_initialized = false;
 template<typename Backend>
 void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const void *data_ptr,
                       dali_data_type_t data_type, const int64_t *shapes, int sample_dim,
-                      const char *layout_str, cudaStream_t stream = 0, bool sync = false) {
+                      const char *layout_str, cudaStream_t stream = 0, unsigned int flags = 0) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
@@ -52,10 +52,11 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   // We cast away the const from data_ptr, as there is no other way of passing it to the
   // TensorList, as we must also set the shape and type metadata.
   // It is passed further as const TensorList, so it's data cannot be modified.
+  data.set_pinned(flags & DALI_ext_pinned);
   data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof);
   data.Resize(tl_shape, type_info);
   data.SetLayout(layout);
-  pipeline->SetExternalInput(name, data, stream, sync);
+  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_force_sync);
 }
 
 
@@ -63,7 +64,7 @@ template<typename Backend>
 void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                              const void *const *data_ptr, dali_data_type_t data_type,
                              const int64_t *shapes, int64_t sample_dim, const char *layout_str,
-                             cudaStream_t stream = 0, bool sync = false) {
+                             cudaStream_t stream = 0, unsigned int flags = 0) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
@@ -78,11 +79,12 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     // We cast away the const from data_ptr, as there is no other way of passing it to the
     // Tensor as we must also set the shape and type metadata.
     // The vector that we pass to pipeline is const.
+    data[i].set_pinned(flags & DALI_ext_pinned);
     data[i].ShareData(const_cast<void *>(data_ptr[i]), tl_shape[i].num_elements() * elem_sizeof);
     data[i].Resize(tl_shape[i], type_info);
     data[i].SetLayout(layout);
   }
-  pipeline->SetExternalInput(name, data, stream, sync);
+  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_force_sync);
 }
 
 }  // namespace
@@ -165,25 +167,25 @@ void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
 
 void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name, device_type_t device,
                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
-                          int sample_dim, const char *layout_str) {
+                          int sample_dim, const char *layout_str, unsigned int flags) {
   daliSetExternalInputAsync(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
-                                 layout_str, pipe_handle->copy_stream, true);
+                                 layout_str, pipe_handle->copy_stream, flags | DALI_ext_force_sync);
 }
 
 
 void daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
-                                    device_type_t device, const void *data_ptr,
-                                    dali_data_type_t data_type, const int64_t *shapes,
-                                    int sample_dim, const char *layout_str, cudaStream_t stream,
-                                    int sync) {
+                               device_type_t device, const void *data_ptr,
+                               dali_data_type_t data_type, const int64_t *shapes,
+                               int sample_dim, const char *layout_str, cudaStream_t stream,
+                               unsigned int flags) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInput<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
-                                         layout_str, stream, sync);
+                                         layout_str, stream, flags);
       return;
     case device_type_t::GPU:
       SetExternalInput<dali::GPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
-                                         layout_str, stream, sync);
+                                         layout_str, stream, flags);
       return;
     default:
       DALI_FAIL(dali::make_string("Unknown device: ", device));
@@ -194,25 +196,26 @@ void daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name
 void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
-                                 int64_t sample_dim, const char *layout_str) {
+                                 int64_t sample_dim, const char *layout_str, unsigned int flags) {
   daliSetExternalInputTensorsAsync(pipe_handle, name, device, data_ptr, data_type, shapes,
-                                        sample_dim, layout_str, pipe_handle->copy_stream, true);
+                                        sample_dim, layout_str, pipe_handle->copy_stream,
+                                        flags | DALI_ext_force_sync);
 }
 
 
 void daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const char *name,
-                                           device_type_t device, const void *const *data_ptr,
-                                           dali_data_type_t data_type, const int64_t *shapes,
-                                           int64_t sample_dim, const char *layout_str,
-                                           cudaStream_t stream, int sync) {
+                                      device_type_t device, const void *const *data_ptr,
+                                      dali_data_type_t data_type, const int64_t *shapes,
+                                      int64_t sample_dim, const char *layout_str,
+                                      cudaStream_t stream, unsigned int flags) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInputTensors<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
-                                                sample_dim, layout_str, stream, sync);
+                                                sample_dim, layout_str, stream, flags);
       return;
     case device_type_t::GPU:
       SetExternalInputTensors<dali::GPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
-                                                sample_dim, layout_str, stream, sync);
+                                                sample_dim, layout_str, stream, flags);
       return;
     default:
       DALI_FAIL(dali::make_string("Unknown device: ", device));

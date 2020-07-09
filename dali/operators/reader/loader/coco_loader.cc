@@ -143,6 +143,7 @@ void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_in
     }
     image_infos.emplace_back(std::move(image_info));
   }
+  DALI_ENFORCE(parser.IsValid(), "Error parsing JSON file.");
 }
 
 void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids) {

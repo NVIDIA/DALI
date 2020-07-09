@@ -23,10 +23,11 @@
 #include <memory>
 #include <numeric>
 #include <atomic>
-
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
+#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_memory.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
+#include "dali/kernels/alloc.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
@@ -53,6 +54,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     decode_events_(num_threads_),
     thread_page_ids_(num_threads_),
     device_id_(spec.GetArgument<int>("device_id")),
+    device_allocator_(nvjpeg_memory::GetDeviceAllocator()),
+    pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()),
     thread_pool_(num_threads_,
                  spec.GetArgument<int>("device_id"),
                  spec.GetArgument<bool>("affine") /* pin threads */) {
@@ -78,6 +81,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         nvjpegCreate(NVJPEG_BACKEND_HARDWARE, NULL, &handle_) == NVJPEG_STATUS_SUCCESS) {
       LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
       NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
+      using_hw_decoder_ = true;
       in_data_.reserve(batch_size_);
       in_lengths_.reserve(batch_size_);
       nvjpeg_destinations_.reserve(batch_size_);
@@ -94,6 +98,23 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     NVJPEG_CALL(nvjpegSetDeviceMemoryPadding(device_memory_padding, handle_));
     NVJPEG_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
 
+    nvjpegDevAllocator_t *device_allocator_ptr = device_memory_padding > 0 ?
+        &device_allocator_ : nullptr;
+    nvjpegPinnedAllocator_t *pinned_allocator_ptr = host_memory_padding > 0 ?
+        &pinned_allocator_ : nullptr;
+
+    nvjpeg_memory::SetEnableMemStats(spec.GetArgument<bool>("memory_stats"));
+
+    for (auto thread_id : thread_pool_.GetThreadIds()) {
+      if (device_memory_padding > 0) {
+        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::GPU, device_memory_padding);
+      }
+      if (host_memory_padding > 0) {
+        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
+        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
+      }
+    }
+
     // GPU
     // create the handles, streams and events we'll use
     // We want to use nvJPEG default device allocator
@@ -103,10 +124,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &hw_decoder_jpeg_stream_));
 
     for (auto &buffer : pinned_buffers_) {
-      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &buffer));
+      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, pinned_allocator_ptr, &buffer));
     }
     for (auto &buffer : device_buffers_) {
-      NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, nullptr, &buffer));
+      NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, device_allocator_ptr, &buffer));
     }
     for (auto &stream : streams_) {
       CUDA_CALL(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking,
@@ -122,6 +143,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     CUDA_CALL(cudaEventCreate(&hw_decode_event_));
     CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
+
+    RegisterTestCounters();
   }
 
   ~nvJPEGDecoder() override {
@@ -163,6 +186,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(cudaStreamDestroy(hw_decode_stream_));
 
       NVJPEG_CALL(nvjpegDestroy(handle_));
+
+      // Free any remaining buffers and remove the thread entry from the global map
+      for (auto thread_id : thread_pool_.GetThreadIds()) {
+        nvjpeg_memory::DeleteAllBuffers(thread_id);
+      }
+
+      nvjpeg_memory::PrintMemStats();
     } catch (const std::exception &e) {
       // If destroying nvJPEG resources failed we are leaking something so terminate
       std::cerr << "Fatal error: exception in ~nvJPEGDecoder():\n" << e.what() << std::endl;
@@ -380,9 +410,11 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         bool hw_decode = false;
 #if NVJPEG_VER_MAJOR >= 11
         if (!crop_generator && state_hw_batched_ != nullptr) {
-          nvjpegJpegStreamParseHeader(handle_, input_data, in_size, hw_decoder_jpeg_stream_);
+          NVJPEG_CALL(nvjpegJpegStreamParseHeader(handle_, input_data, in_size,
+                                                  hw_decoder_jpeg_stream_));
           int is_supported = -1;
-          nvjpegDecodeBatchedSupported(handle_, hw_decoder_jpeg_stream_, &is_supported);
+          NVJPEG_CALL(nvjpegDecodeBatchedSupported(handle_, hw_decoder_jpeg_stream_,
+                                                   &is_supported));
           hw_decode = is_supported == 0;
           if (!hw_decode) {
             LOG_LINE << "Sample \"" << data.file_name
@@ -422,7 +454,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                              data.roi.shape[1], data.roi.shape[0]));
       } else {
         output_shape_.set_tensor_shape(i, data.shape);
-        nvjpegDecodeParamsSetROI(data.params, 0, 0, -1, -1);
+        NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, 0, 0, -1, -1));
       }
 
       data.is_progressive = IsProgressiveJPEG(input_data, in_size);
@@ -535,6 +567,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     output.Resize(output_shape_);
     output.SetLayout("HWC");
 
+    UpdateTestCounters(samples_hw_batched_.size(), samples_single_.size(), samples_host_.size());
+
     ProcessImagesCache(ws);
     ProcessImagesCuda(ws);
     ProcessImagesHost(ws);
@@ -644,6 +678,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   int device_id_;
 
+  bool using_hw_decoder_ = false;
   float hw_decoder_load_ = 0.0f;
   int hw_decoder_bs_ = 0;
 
@@ -652,8 +687,33 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   std::vector<size_t> in_lengths_;
   std::vector<nvjpegImage_t> nvjpeg_destinations_;
 
+  // Allocators
+  nvjpegDevAllocator_t device_allocator_;
+  nvjpegPinnedAllocator_t pinned_allocator_;
+
   ThreadPool thread_pool_;
   static constexpr int kOutputDim = 3;
+
+ private:
+  void UpdateTestCounters(int nsamples_hw, int nsamples_cuda, int nsamples_host) {
+    nsamples_hw_ += nsamples_hw;
+    nsamples_cuda_ += nsamples_cuda;
+    nsamples_host_ += nsamples_host;
+  }
+
+
+  /**
+   * Registers counters, used only for unit-test reasons.
+   */
+  void RegisterTestCounters() {
+    RegisterDiagnostic("nsamples_hw", &nsamples_hw_);
+    RegisterDiagnostic("nsamples_cuda", &nsamples_cuda_);
+    RegisterDiagnostic("nsamples_host", &nsamples_host_);
+    RegisterDiagnostic("using_hw_decoder", &using_hw_decoder_);
+  }
+
+  // HW/CUDA Utilization test counters
+  int64_t nsamples_hw_ = 0, nsamples_cuda_ = 0, nsamples_host_ = 0;
 };
 
 }  // namespace dali

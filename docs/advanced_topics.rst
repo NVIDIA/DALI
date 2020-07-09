@@ -32,10 +32,10 @@ GPU and host pinned memory allocation and freeing require device synchronization
 
 In contrast, ordinary host memory is relatively cheap to allocate and free. To reduce host memory consumption, the buffers may shrink if the new requested size is smaller than a specified fraction of the old size (called shrink threshold). It can be adjusted to any value between 0 (never shrink) and 1 (always shrink), with the default being 0.9. The value can be controlled either via environment variable `DALI_HOST_BUFFER_SHRINK_THRESHOLD` or set in Python using `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
 
-During processing, DALI works on batches of samples. For GPU and some CPU Operators, the batch is stored as continuous allocation which is processed in one go, which reduces the number of necessary allocations.
+During processing, DALI works on batches of samples. For GPU and some CPU Operators, the batch is stored as contiguous allocation which is processed in one go, which reduces the number of necessary allocations.
 For some CPU Operators, that cannot calculate their output size ahead of time, the batch is instead stored as a vector of separately allocated samples.
 
-For example, if your batch consists of nine 480p images and one 4K image in random order, the single continuous allocation would be able to accommodate all possible combinations of such batches.
+For example, if your batch consists of nine 480p images and one 4K image in random order, the single contiguous allocation would be able to accommodate all possible combinations of such batches.
 On the other hand, the CPU batch presented as separate buffers will need to keep a 4K allocation for every sample after several iterations.
 In effect, GPU buffers are allocated to house transformation results is as large as the largest possible batch, while the CPU buffers can be as large as batch size multiplied by the size of the largest sample. Note that even though the CPU processes one sample at a time per thread, a vector of samples needs to reside in the memory.
 
@@ -51,7 +51,7 @@ DALI uses intermediate buffers to pass data between operators in the processing 
 Two parameters are available: First, the ``bytes_per_sample`` pipeline argument, which accepts one value that is used globally across all operators for all buffers.
 The second parameter is the ``bytes_per_sample_hint`` per operator argument, which accepts one value or a list of values. When one value is provided it is used for all output buffers for a given operator. When a list is provided then each buffer is presized to the corresponding size.
 
-To learn how much memory outputs of each operator need, the user may create the pipeline with ``enable_memory_stats`` set to ``True`` and then query the pipeline for the operator's output memory statistics by calling ``executor_meta`` method on the pipeline. The ``max_real_memory_size`` value tells what is the biggest tensor in the batch for the outputs that allocate memory per sample, not for the whole batch at the time, or average tensor size when the allocation is continuous. Usually this value is the one that should be provided to ``bytes_per_sample_hint``.
+To learn how much memory outputs of each operator need, the user may create the pipeline with ``enable_memory_stats`` set to ``True`` and then query the pipeline for the operator's output memory statistics by calling ``executor_meta`` method on the pipeline. The ``max_real_memory_size`` value tells what is the biggest tensor in the batch for the outputs that allocate memory per sample, not for the whole batch at the time, or average tensor size when the allocation is contiguous. Usually this value is the one that should be provided to ``bytes_per_sample_hint``.
 
 Prefetching queue depth
 -----------------------

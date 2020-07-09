@@ -126,7 +126,7 @@ class DLL_PUBLIC OperatorBase {
 
   /**
    * @brief If Operator can infer the output shapes it means that its output would use a single
-   * underlying allocation, especailly for CPU TensorVector will use contiguous mode.
+   * underlying allocation, especially for CPU TensorVector will use contiguous mode.
    */
   DLL_PUBLIC virtual bool CanInferOutputs() const {
     return false;
@@ -187,7 +187,18 @@ class DLL_PUBLIC OperatorBase {
 
   template<typename T>
   T GetDiagnostic(const std::string &name) const {
-    return *any_cast<T *>(diagnostics_.at(name));
+    try {
+      return *any_cast<T *>(diagnostics_.at(name));
+    } catch (dali::bad_any_cast &e) {
+      DALI_FAIL(make_string("Specified type of diagnostic parameter (`", typeid(T).name(),
+                            "`) doesn't match the type that this parameter was registered with. ",
+                            e.what()));
+    } catch (std::out_of_range &e) {
+      DALI_FAIL(make_string("Diagnostic parameter with specified name (`", name,
+                            "`) hasn't been registered. ", e.what()));
+    } catch (...) {
+      DALI_FAIL("Error occured when reading diagnostic parameter.");
+    }
   }
 
   template<typename T>

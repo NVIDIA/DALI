@@ -39,12 +39,22 @@ N.B.: Hybrid Huffman decoder still uses mostly the CPU.)code",
   .AddOptionalArg("device_memory_padding",
       R"code(**`mixed` backend only** Padding for nvJPEG's device memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
-is encountered and internal buffer needs to be reallocated to decode it.)code",
+is encountered and the internal buffer needs to be reallocated to decode it.
+
+If a value bigger than 0 is provided, the operator will pre-allocate one device buffer of the
+requested size per thread. If chosen correctly, no more allocations will occur during the pipeline
+execution. One way to find the ideal value is to do a full run over the dataset with the argument
+``memory_stats`` set to True and then copy the "biggest" allocation value printed in the statistics.)code",
       16*1024*1024)
   .AddOptionalArg("host_memory_padding",
       R"code(**`mixed` backend only** Padding for nvJPEG's host memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
-is encountered and internal buffer needs to be reallocated to decode it.)code",
+is encountered and internal buffer needs to be reallocated to decode it.
+
+If a value bigger than 0 is provided, the operator will pre-allocate two (because of double-buffering)
+host pinned buffers of the requested size per thread. If chosen correctly, no more allocations will occur
+during the pipeline execution. One way to find the ideal value is to do a full run over the dataset with the
+argument ``memory_stats`` set to True and then copy the "biggest" allocation value printed in the statistics.)code",
       8*1024*1024)  // based on ImageNet heuristics (8MB)
   .AddOptionalArg("affine",
       R"code(**`mixed` backend only** If internal threads should be affined to CPU cores)code",
@@ -61,6 +71,14 @@ in runtime. Ignored when `split_stages` is false.)code",
       R"code(Enables fast IDCT in CPU based decompressor when GPU implementation cannot handle given image.
 According to libjpeg-turbo documentation, decompression performance is improved by 4-14% with very little
 loss in quality.)code",
+      false)
+  .AddOptionalArg("memory_stats",
+      R"code(**`mixed` backend only** Print debug information about nvJPEG allocations.
+The information about the largest allocation might be useful to determine suitable values for
+`device_memory_padding` and `host_memory_padding` for a given dataset.
+
+Note: The statistics are global for the whole process (and not per operator instance) and include
+the allocations made during construction (when the padding hints are non-zero).)code",
       false);
 
 DALI_SCHEMA(ImageDecoder)

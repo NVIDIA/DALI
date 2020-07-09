@@ -107,11 +107,11 @@ def get_tf_build_flags():
         tf_lflags=" ".join(tensorflow.sysconfig.get_link_flags())
     except:
         tensorflow_path = get_module_path('tensorflow')
-        if tensorflow_path is not '':
+        if tensorflow_path != '':
             tf_cflags=" ".join(["-I" + tensorflow_path + "/include",  "-I" + tensorflow_path + "/include/external/nsync/public", "-D_GLIBCXX_USE_CXX11_ABI=0"])
             tf_lflags=" ".join(["-L" + tensorflow_path, "-ltensorflow_framework"])
 
-    if tf_cflags is '' and tf_lflags is '':
+    if tf_cflags == '' and tf_lflags == '':
         raise ImportError('Could not find Tensorflow. Tensorflow must be installed before installing NVIDIA DALI TF plugin')
     return (tf_cflags, tf_lflags)
 
@@ -128,10 +128,10 @@ def get_dali_build_flags():
         dali_lflags=" ".join(dali_sc.get_link_flags())
     except:
         dali_path = get_module_path('nvidia/dali')
-        if dali_path is not '':
+        if dali_path != '':
             dali_cflags=" ".join(["-I" + dali_path + "/include"])
             dali_lflags=" ".join(["-L" + dali_path, "-ldali"])
-    if dali_cflags is '' and dali_lflags is '':
+    if dali_cflags == '' and dali_lflags == '':
         raise ImportError('Could not find DALI.')
     return (dali_cflags, dali_lflags)
 

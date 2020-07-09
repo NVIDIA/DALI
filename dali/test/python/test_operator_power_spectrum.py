@@ -101,6 +101,3 @@ def test_operator_power_spectrum():
                                       (8, 1, (2, 8, 2))]:
                 yield check_operator_power_spectrum, device, batch_size, shape, nfft, axis
 
-if __name__ == "__main__":
-    check_operator_power_spectrum(device='cpu', batch_size=3, input_shape=(2, 1024),
-                                      nfft=1024, axis=1)

@@ -158,13 +158,3 @@ def test_operator_natural_logarithm():
 @raises(RuntimeError)
 def test_invalid_reference():
     NLDaliPipeline(None, 1, 0.0).build()
-
-def main():
-  for test in test_operator_to_decibels_vs_python():
-      test[0](*test[1:])
-
-  for test in test_operator_natural_logarithm():
-      test[0](*test[1:])
-
-if __name__ == '__main__':
-  main()

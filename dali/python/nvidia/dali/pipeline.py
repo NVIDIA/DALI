@@ -17,6 +17,7 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
+from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
 import warnings
@@ -191,7 +192,8 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         if name is not None:
             return self._pipe.reader_meta(name)["epoch_size_padded"]
-        return {name : v["epoch_size_padded"] for k, v in self._pipe.reader_meta()}
+        meta = self._pipe.reader_meta()
+        return {k : v["epoch_size_padded"] for k, v in meta.items()}
 
     def executor_statistics(self):
         """Returns provided pipeline executor statistics metadata as a dictionary.
@@ -477,7 +479,7 @@ Parameters
         self._built = True
 
     def feed_input(self, data_node, data, layout="", cuda_stream = None):
-        """Pass a mutlidimensional array (or a list thereof) to an output of ExternalSource.
+        """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
         In the case of the GPU input, the data must be modified on the same stream as the one
         used by feed_input. See ``cuda_stream`` parameter for details.
 
@@ -487,7 +489,7 @@ Parameters
             The name of the :class:`nvidia.dali.ops.ExternalSource` node or a :class:`DataNode`
             object returned by a call to that ExternalSource.
 
-        data : an ndarray or a list thereof
+        data : an ndarray or DLPack or a list thereof
             The array(s) may be one of:
               * NumPy ndarray (CPU)
               * MXNet ndarray (CPU)
@@ -527,7 +529,6 @@ Parameters
             name = data_node.name
 
         from nvidia.dali.external_source import _check_data_batch
-        _check_data_batch(data, self._batch_size, layout)
 
         infer_stream = False
         if cuda_stream is None:
@@ -550,8 +551,13 @@ Parameters
         # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
         if isinstance(data, list):
             inputs = []
+            checked = False
             for datum in data:
-                if hasattr(datum, "__cuda_array_interface__"):
+                info = CheckDLPackCapsule(datum)
+                if not info[0] and not checked:
+                    _check_data_batch(data, self._batch_size, layout)
+                    checked = True
+                if hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
                     if infer_stream:
                         cuda_stream = _get_default_stream_for_array(datum)
                     inp = Tensors.TensorGPU(datum, layout)
@@ -563,7 +569,10 @@ Parameters
                    "Mixed input types are not support, all need to reside on the CPU or GPU"
             self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream))
         else:
-            if hasattr(data, "__cuda_array_interface__"):
+            info = CheckDLPackCapsule(data)
+            if not info[0]:
+                _check_data_batch(data, self._batch_size, layout)
+            if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
                 if infer_stream:
                     cuda_stream = _get_default_stream_for_array(data)
                 inp = Tensors.TensorListGPU(data, layout)

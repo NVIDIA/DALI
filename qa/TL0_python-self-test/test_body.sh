@@ -19,13 +19,6 @@ test_no_fw() {
     test_py
 }
 
-test_cupy() {
-    nosetests --verbose test_backend_impl_gpu.py
-    nosetests --verbose test_external_source_cupy.py
-}
-
-
 run_all() {
   test_no_fw
-  test_cupy
 }

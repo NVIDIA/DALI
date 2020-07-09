@@ -97,9 +97,3 @@ def test_operator_coord_flip():
                 for center_x, center_y, center_z in [(0.5, 0.5, 0.5), (0.0, 1.0, -0.5)]:
                     yield check_operator_coord_flip, device, batch_size, layout, shape, center_x, center_y, center_z
 
-def main():
-  for test in test_operator_coord_flip():
-      test[0](*test[1:])
-
-if __name__ == '__main__':
-  main()

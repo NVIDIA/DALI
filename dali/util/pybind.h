@@ -217,11 +217,17 @@ py::list TensorListToDLPackView(TensorList<Backend> &tensors) {
   return result;
 }
 
-static DLMTensorPtr DLMTensorPtrFromCapsule(py::capsule &capsule) {
+static DLManagedTensor* DLMTensorRawPtrFromCapsule(py::capsule &capsule, bool consume = true) {
   DALI_ENFORCE(std::string(capsule.name()) == DLTENSOR_NAME,
       "Invalid DLPack tensor capsule. Notice that a dl tensor can be consumed only once");
-  PyCapsule_SetName(capsule.ptr(), USED_DLTENSOR_NAME);
-  return {static_cast<DLManagedTensor*>(capsule), DLMTensorPtrDeleter};
+  if (consume) {
+    PyCapsule_SetName(capsule.ptr(), USED_DLTENSOR_NAME);
+  }
+  return static_cast<DLManagedTensor*>(capsule);
+}
+
+static DLMTensorPtr DLMTensorPtrFromCapsule(py::capsule &capsule) {
+  return {DLMTensorRawPtrFromCapsule(capsule), DLMTensorPtrDeleter};
 }
 
 }  // namespace dali
