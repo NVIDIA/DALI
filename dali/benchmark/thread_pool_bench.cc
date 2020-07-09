@@ -41,7 +41,7 @@ BENCHMARK_DEFINE_F(ThreadPoolBench, DoWorkWithID)(benchmark::State& st) {
     for (int i = 0; i < batch_size; i++) {
         auto size = this->RandInt(work_size_min, work_size_max);
         thread_pool.DoWorkWithID(
-          [this, &data, size, &total_count](int thread_id){
+          [&data, size, &total_count](int thread_id){
             std::vector<uint8_t> other_data;
             for (int i = 0; i < size; i++) {
               other_data.push_back(data[i%data.size()]);
@@ -79,7 +79,7 @@ BENCHMARK_DEFINE_F(ThreadPoolBench, AddWork)(benchmark::State& st) {
     for (int i = 0; i < batch_size; i++) {
         auto size = this->RandInt(work_size_min, work_size_max);
         thread_pool.AddWork(
-          [this, &data, size, &total_count](int thread_id){
+          [&data, size, &total_count](int thread_id){
             std::vector<uint8_t> other_data;
             for (int i = 0; i < size; i++) {
               other_data.push_back(data[i%data.size()]);
