@@ -40,7 +40,7 @@ struct TransformMeta {
     int rsz_h, rsz_w;
     std::pair<int, int> crop;
     int mirror;
-  };
+};
 
 
 /**
