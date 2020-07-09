@@ -8,20 +8,9 @@ import nvidia.dali.types as types
 from nvidia.dali.pipeline import Pipeline
 from PIL import Image as Image
 
-video_directory = os.path.join(
-    os.environ['DALI_EXTRA_PATH'], "db", "video", "sintel", "video_files")
+
+video_directory = '/tmp/labelled_videos/'
 video_directory_multiple_resolutions = '/tmp/video_resolution/'
-
-video_files = [video_directory + '/' + f for f in os.listdir(video_directory)]
-
-
-def save_frame(frame, sample_id, frame_id, msg):
-    if type(frame) != np.ndarray:
-        frame = frame.as_array()[0]
-    frame_image = Image.fromarray(frame)
-    frame_image.save(
-        '/home/awolant/Projects/test_video/{}_{}_{}.jpeg'.format(msg, sample_id, frame_id))
-
 
 pipeline_params = {
     'num_threads': 8,
@@ -29,26 +18,54 @@ pipeline_params = {
     'seed': 0
 }
 
-video_reader_params = {
+
+video_reader_params = [{
     'device': 'gpu',
-    'filenames': video_files,
+    'file_root': video_directory,
     'sequence_length': 32,
     'random_shuffle': False
-}
-
-video_reader_params_multiple_resolutions = {
+}, {
     'device': 'gpu',
     'file_root': video_directory_multiple_resolutions,
-    'sequence_length': 32,
+    'sequence_length': 4,
     'random_shuffle': False
-}
+}]
 
-resize_params = {
+
+resize_params = [{
     'resize_x': 300,
     'resize_y': 200,
     'interp_type': types.DALIInterpType.INTERP_CUBIC,
     'minibatch_size': 8
-}
+}, {
+    'resize_x': 300,
+    'interp_type': types.DALIInterpType.INTERP_CUBIC,
+    'minibatch_size': 8
+}, {
+    'resize_x': 300,
+    'resize_y': 200,
+    'interp_type': types.DALIInterpType.INTERP_LANCZOS3,
+    'minibatch_size': 8
+}, {
+    'resize_shorter': 300,
+    'interp_type': types.DALIInterpType.INTERP_CUBIC,
+    'minibatch_size': 8
+}, {
+    'resize_longer': 500,
+    'interp_type': types.DALIInterpType.INTERP_CUBIC,
+    'minibatch_size': 8
+}, {
+    'resize_x': 300,
+    'resize_y': 200,
+    'min_filter': types.DALIInterpType.INTERP_CUBIC,
+    'mag_filter': types.DALIInterpType.INTERP_TRIANGULAR,
+    'minibatch_size': 8
+}, {
+    'resize_x': 300,
+    'resize_y': 200,
+    'interp_type': types.DALIInterpType.INTERP_CUBIC,
+    'minibatch_size': 4
+}]
 
 
 def video_reader_pipeline_base(
@@ -79,8 +96,7 @@ def video_reader_pipeline(batch_size, video_reader_params):
 
 def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
     def get_next_frame():
-        pipeline = video_reader_pipeline(
-            batch_size, video_reader_params)
+        pipeline = video_reader_pipeline(batch_size, video_reader_params)
 
         pipe_out = pipeline.run()
         sequences_out = pipe_out[0].as_cpu().as_array()
@@ -112,6 +128,7 @@ def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_leng
         gt_sample = gt_pipeline.run()[0].as_cpu().as_array()
         for frame_id in range(video_length):
             frame = sample[frame_id]
+            print(frame.shape)
             gt_frame = gt_sample[frame_id]
 
             if gt_frame.shape == frame.shape:
@@ -120,11 +137,8 @@ def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_leng
                 assert (gt_frame.shape == frame.shape), "Shapes are not equal: {} != {}".format(
                     gt_frame.shape, frame.shape)
 
-            # save_frame(gt_frame, global_sample_id, frame_id, 'gt')
-            # save_frame(frame, global_sample_id, frame_id, 'frame')
 
-
-def test_video_resize(batch_size=16):
+def run_for_params(batch_size, video_reader_params, resize_params):
     pipeline = video_reader_resize_pipeline(
         batch_size, video_reader_params, resize_params)
 
@@ -133,3 +147,9 @@ def test_video_resize(batch_size=16):
 
     compare_video_resize_pipelines(
         pipeline, gt_pipeline, batch_size, video_reader_params['sequence_length'])
+
+
+def test_video_resize(batch_size=16):
+    for vp in video_reader_params:
+        for rp in resize_params:
+            yield run_for_params, batch_size, vp, rp
