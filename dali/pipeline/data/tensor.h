@@ -490,6 +490,7 @@ class Tensor : public Buffer<Backend> {
       num_bytes_ = t.num_bytes_;
       device_ = t.device_;
       meta_ = std::move(t.meta_);
+      pinned_ = t.pinned_;
 
       t.shape_ = TensorShape<>();
       t.backend_ = Backend();
