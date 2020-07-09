@@ -16,6 +16,17 @@
 #include "dali/pipeline/data/views.h"
 
 namespace dali {
+namespace detail {
+  kernels::ResamplingParams2D GetResamplingParams(
+    const TransformMeta &meta, kernels::FilterDesc min_filter, kernels::FilterDesc mag_filter) {
+    kernels::ResamplingParams2D params;
+    params[0].output_size = meta.rsz_h;
+    params[1].output_size = meta.rsz_w;
+    params[0].min_filter = params[1].min_filter = min_filter;
+    params[0].mag_filter = params[1].mag_filter = mag_filter;
+    return params;
+  }
+}  // namespace detail
 
 DALI_SCHEMA(ResizeAttr)
   .AddOptionalArg("image_type",
@@ -83,7 +94,8 @@ template <>
 void Resize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace &ws) {
   const int thread_idx = ws.thread_idx();
   per_sample_meta_[thread_idx] = GetTransfomMeta(&ws, spec_);
-  resample_params_[thread_idx] = GetResamplingParams(per_sample_meta_[thread_idx]);
+  resample_params_[thread_idx] = detail::GetResamplingParams(
+    per_sample_meta_[thread_idx], min_filter_, mag_filter_);
 }
 
 template <>

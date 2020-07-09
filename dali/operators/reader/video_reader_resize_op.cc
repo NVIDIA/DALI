@@ -34,15 +34,6 @@ Returns a batch of sequences of `sequence_length` frames of shape [N, F, H, W, C
 number of frames). Supports only constant frame rate videos.)code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderOutputFn)
-  .AddOptionalArg("resize_x", R"code(The length of the X dimension of the resized image.
-If the `resize_y` is left at 0, then the op will keep
-the aspect ratio of the original image.)code", 0.f, true)
-  .AddOptionalArg("resize_y", R"code(The length of the Y dimension of the resized image.
-If the `resize_x` is left at 0, then the op will keep
-the aspect ratio of the original image.)code", 0.f, true)
-  .AddOptionalArg("interp_type",
-       R"code(Type of interpolation used.)code",
-      DALI_INTERP_LINEAR)
   .AddParent("VideoReader")
   .AddParent("ResizeAttr")
   .AddParent("ResamplingFilterAttr");

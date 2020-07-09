@@ -35,6 +35,14 @@ enum t_idInfo : uint32_t {
   t_mirrorVert
 };
 
+struct TransformMeta {
+    int H, W, C;
+    int rsz_h, rsz_w;
+    std::pair<int, int> crop;
+    int mirror;
+  };
+
+
 /**
  * @brief Stores parameters for resize+crop+mirror
  */
@@ -60,13 +68,6 @@ class ResizeCropMirrorAttr : protected CropAttr {
                    "max_size has to be either a scalar or a size 2 array.");
     }
   }
-
-  struct TransformMeta {
-    int H, W, C;
-    int rsz_h, rsz_w;
-    std::pair<int, int> crop;
-    int mirror;
-  };
 
  protected:
   inline const TransformMeta GetTransformMeta(const OpSpec &spec,

@@ -51,7 +51,7 @@ void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws) {
     DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
 
     per_sample_meta_[i] = GetTransformMeta(spec_, input_shape, &ws, i, ResizeInfoNeeded());
-    resample_params_[i] = GetResamplingParams(per_sample_meta_[i]);
+    resample_params_[i] = detail::GetResamplingParams(per_sample_meta_[i], min_filter_, mag_filter_);
   }
 }
 

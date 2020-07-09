@@ -1,24 +1,12 @@
 import os
-import numpy as np
 from functools import partial
 
-import nvidia.dali as dali
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
-import nvidia.dali.types as types
-
-from PIL import Image as Image
-
-
-import os
 import numpy as np
-
 import nvidia.dali as dali
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-
+from nvidia.dali.pipeline import Pipeline
 from PIL import Image as Image
-
 
 video_directory = os.path.join(
     os.environ['DALI_EXTRA_PATH'], "db", "video", "sintel", "video_files")
@@ -122,7 +110,7 @@ def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_leng
         global_sample_id = global_sample_id + 1
         sample = batch.at(sample_id)
         gt_sample = gt_pipeline.run()[0].as_cpu().as_array()
-        for frame_id in range(video_reader_params['sequence_length']):
+        for frame_id in range(video_length):
             frame = sample[frame_id]
             gt_frame = gt_sample[frame_id]
 
@@ -145,14 +133,3 @@ def test_video_resize(batch_size=16):
 
     compare_video_resize_pipelines(
         pipeline, gt_pipeline, batch_size, video_reader_params['sequence_length'])
-
-
-# def test_video_resize_multiple_resolutions(batch_size=16):
-#     pipeline = video_reader_resize_pipeline(
-#         batch_size, video_reader_params_multiple_resolutions, resize_params)
-
-#     gt_pipeline = ground_truth_pipeline(
-#         batch_size, video_reader_params_multiple_resolutions, resize_params)
-
-#     compare_video_resize_pipelines(
-#         pipeline, gt_pipeline, batch_size, video_reader_params['sequence_length'])
