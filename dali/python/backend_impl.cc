@@ -349,7 +349,7 @@ void ExposeTensor(py::module &m) {
 
           // Create the Tensor and wrap the data
           auto t = new Tensor<CPUBackend>;
-          t->set_pinned(false);
+          t->set_pinned(is_pinned);
           TypeInfo type = TypeFromFormatStr(info.format);
           t->ShareData(info.ptr, bytes, type);
           t->SetLayout(layout);
@@ -1077,7 +1077,8 @@ void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t s
                   bool sync = false) {
   TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
-    tv[i] = std::move(list[i].cast<Tensor<Backend>&>());
+    auto &t = list[i].cast<Tensor<Backend>&>();
+    tv[i] = std::move(t);
   }
   p->SetExternalInput(name, tv, stream, sync);
 }

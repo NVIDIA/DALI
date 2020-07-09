@@ -388,7 +388,9 @@ DLL_PUBLIC constexpr double Buffer<Backend>::kMaxGrowthFactor;
   using Buffer<Backend>::size_;        \
   using Buffer<Backend>::shares_data_; \
   using Buffer<Backend>::num_bytes_;   \
-  using Buffer<Backend>::device_
+  using Buffer<Backend>::device_;      \
+  using Buffer<Backend>::pinned_
+
 
 }  // namespace dali
 

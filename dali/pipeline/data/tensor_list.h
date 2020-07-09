@@ -198,6 +198,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
     // copy metadata
     meta_ = other->meta_;
+    layout_ = other->layout_;
   }
 
   /**
@@ -288,6 +289,24 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     offsets_.clear();
     meta_.clear();
     tensor_views_.clear();
+  }
+
+  /**
+   * @brief Swaps the content of two TensorLists
+   */
+  DLL_PUBLIC inline void Swap(TensorList<Backend> *other) {
+    std::swap(data_, other->data_);
+    std::swap(shape_, other->shape_);
+    std::swap(size_, other->size_);
+    std::swap(offsets_, other->offsets_);
+    std::swap(type_, other->type_);
+    std::swap(num_bytes_, other->num_bytes_);
+    std::swap(device_, other->device_);
+    std::swap(tensor_views_, other->tensor_views_);
+    std::swap(shares_data_, other->shares_data_);
+    std::swap(Buffer<Backend>::pinned_, other->pinned_);
+    std::swap(meta_, other->meta_);
+    std::swap(layout_, other->layout_);
   }
 
   /**

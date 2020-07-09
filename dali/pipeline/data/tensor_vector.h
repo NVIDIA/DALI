@@ -351,7 +351,7 @@ class TensorVector {
   void ShareData(TensorVector<Backend> *tv) {
     DALI_ENFORCE(tv != nullptr, "Input TensorVector is nullptr");
     state_ = tv->state_;
-    pinned_ = tv->pinned_;
+    pinned_ = tv->is_pinned();
 
     if (tv->tl_->raw_data()) {
       tl_->ShareData(tv->tl_.get());
@@ -373,6 +373,24 @@ class TensorVector {
         tensors_[i]->ShareData(tv->tensors_[i].get());
       }
     }
+  }
+
+  void Swap(TensorVector<Backend> *tv) {
+    std::swap(state_, tv->state_);
+    std::swap(pinned_, tv->pinned_);
+    std::swap(tl_, tv->tl_);
+    std::swap(type_, tv->type_);
+    if (views_count_) {
+      tensors_.clear();
+      views_count_ = 0;
+    }
+    if (tv->views_count_) {
+      tv->tensors_.clear();
+      tv->views_count_ = 0;
+    }
+    std::swap(tensors_, tv->tensors_);
+    UpdateViews();
+    tv->UpdateViews();
   }
 
   void UpdateViews() {
