@@ -96,7 +96,7 @@ void ThreadPool::RunAll(bool wait) {
     std::lock_guard<std::mutex> lock(mutex_);
     adding_work_ = false;
   }
-  condition_.notify_all();
+  condition_.notify_one();  // other threads will be waken up if needed
   if (wait) {
     WaitForWork();
   }
