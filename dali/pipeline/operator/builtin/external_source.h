@@ -293,9 +293,58 @@ class ExternalSource : public Operator<Backend> {
     zero_copy_noncontiguous_gpu_input_ = true;
   }
 
-  template<typename SrcBackend, template<typename> class SourceDataType>
-  inline void CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t stream = 0,
-                       bool sync = false);
+  template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
+  inline std::enable_if_t<std::is_same<B, CPUBackend>::value>
+  CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t /*stream*/, bool /*sync*/) {
+    std::list<uptr_tv_type> tv_elm;
+    {
+      std::lock_guard<std::mutex> busy_lock(busy_m_);
+      tv_elm = tv_data_.GetEmpty();
+    }
+    // if it was not allocated already set_pinned to false
+    if (!tv_elm.front()->size()) {
+      tv_elm.front()->set_pinned(false);
+    }
+    // HostWorkspace doesn't have any stream
+    cudaStream_t stream = 0;
+    tv_elm.front()->Copy(batch, stream);
+    {
+      std::lock_guard<std::mutex> busy_lock(busy_m_);
+      tv_data_.PushBack(tv_elm);
+      state_.push_back({});
+    }
+  }
+
+  template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
+  inline std::enable_if_t<std::is_same<B, GPUBackend>::value>
+  CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t stream, bool sync) {
+    std::list<uptr_cuda_event_type> copy_to_storage_event;
+    std::list<uptr_tl_type> tl_elm;
+    {
+      std::lock_guard<std::mutex> busy_lock(busy_m_);
+      tl_elm = tl_data_.GetEmpty();
+      copy_to_storage_event = copy_to_storage_events_.GetEmpty();
+    }
+    tl_elm.front()->Copy(batch, stream);
+    // record event for:
+    // - GPU -> GPU
+    // - pinned CPU -> GPU
+    if (std::is_same<SrcBackend, GPUBackend>::value || batch.is_pinned()) {
+      cudaEventRecord(*copy_to_storage_event.front(), stream);
+    }
+    // sync for pinned CPU -> GPU as well, because the user doesn't know when he can
+    // reuse provided memory anyway
+    if (sync || batch.is_pinned()) {
+      CUDA_CALL(cudaEventSynchronize(*copy_to_storage_event.front()));
+    }
+
+    {
+      std::lock_guard<std::mutex> busy_lock(busy_m_);
+      tl_data_.PushBack(tl_elm);
+      copy_to_storage_events_.PushBack(copy_to_storage_event);
+      state_.push_back({});
+    }
+  }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, cudaStream_t stream = 0,
@@ -356,62 +405,6 @@ class ExternalSource : public Operator<Backend> {
   using VolumeSampleIdPair = std::pair<int64_t, int>;  // volume, sample_idx
   std::vector<VolumeSampleIdPair> sample_ids_;
 };
-
-template<>
-template<typename SrcBackend, template<typename> class SourceDataType>
-inline void ExternalSource<CPUBackend>::CopyUserData(const SourceDataType<SrcBackend> &batch,
-                                                     cudaStream_t /*stream = 0*/,
-                                                     bool /*sync = false*/) {
-  std::list<uptr_tv_type> tv_elm;
-  {
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
-    tv_elm = tv_data_.GetEmpty();
-  }
-  // if it was not allocated already set_pinned to false
-  if (!tv_elm.front()->size()) {
-    tv_elm.front()->set_pinned(false);
-  }
-  // HostWorkspace doesn't have any stream
-  cudaStream_t stream = 0;
-  tv_elm.front()->Copy(batch, stream);
-  {
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
-    tv_data_.PushBack(tv_elm);
-    state_.push_back({});
-  }
-}
-
-template<>
-template<typename SrcBackend, template<typename> class SourceDataType>
-inline void ExternalSource<GPUBackend>::CopyUserData(const SourceDataType<SrcBackend> &batch,
-                                                 cudaStream_t stream, bool sync) {
-  std::list<uptr_cuda_event_type> copy_to_storage_event;
-  std::list<uptr_tl_type> tl_elm;
-  {
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
-    tl_elm = tl_data_.GetEmpty();
-    copy_to_storage_event = copy_to_storage_events_.GetEmpty();
-  }
-  tl_elm.front()->Copy(batch, stream);
-  // record event for:
-  // - GPU -> GPU
-  // - pinned CPU -> GPU
-  if (std::is_same<SrcBackend, GPUBackend>::value || batch.is_pinned()) {
-    cudaEventRecord(*copy_to_storage_event.front(), stream);
-  }
-  // sync for pinned CPU -> GPU as well, because the user doesn't know when he can
-  // reuse provided memory anyway
-  if (sync || batch.is_pinned()) {
-    CUDA_CALL(cudaEventSynchronize(*copy_to_storage_event.front()));
-  }
-
-  {
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
-    tl_data_.PushBack(tl_elm);
-    copy_to_storage_events_.PushBack(copy_to_storage_event);
-    state_.push_back({});
-  }
-}
 
 }  // namespace dali
 
