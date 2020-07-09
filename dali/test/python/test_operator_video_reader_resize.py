@@ -6,7 +6,6 @@ import nvidia.dali as dali
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from nvidia.dali.pipeline import Pipeline
-from PIL import Image as Image
 
 
 video_directory = '/tmp/labelled_videos/'

@@ -55,7 +55,7 @@ class VideoReaderResize : public VideoReader, protected ResizeAttr, protected Re
     output.Resize(output_shape);
   }
 
-  void ShareSingleOutput(int data_idx, TensorList<GPUBackend> &batch_output,
+  void ShareSingleOutputAsTensorList(int data_idx, TensorList<GPUBackend> &batch_output,
                          TensorList<GPUBackend> &single_output) {
     auto *raw_output = batch_output.raw_mutable_tensor(data_idx);
     int64_t after_resize_frame_size = per_video_transform_metas_[data_idx].rsz_h *
@@ -80,7 +80,7 @@ class VideoReaderResize : public VideoReader, protected ResizeAttr, protected Re
     prefetched_video.share_frames(input);
 
     TensorList<GPUBackend> output;
-    ShareSingleOutput(data_idx, video_output, output);
+    ShareSingleOutputAsTensorList(data_idx, video_output, output);
 
     ResizeBase::RunGPU(output, input, ws.stream());
   }

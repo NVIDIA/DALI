@@ -31,7 +31,8 @@ DALI_SCHEMA(VideoReaderResize)
 Load and decode H264 video codec with FFmpeg and NVDECODE, NVIDIA GPU's hardware-accelerated video decoding.
 The video codecs can be contained in most of container file formats. FFmpeg is used to parse video containers.
 Returns a batch of sequences of `sequence_length` frames of shape [N, F, H, W, C] (N being the batch size and F the
-number of frames). Supports only constant frame rate videos.)code")
+number of frames). Supports only constant frame rate videos. It resizes video based on provided params. It supports
+features of `Resize` operator.)code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderOutputFn)
   .AddParent("VideoReader")
