@@ -58,8 +58,9 @@ option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON)
 option(BUILD_FFTS "Build with ffts support" ON)
 option(VERBOSE_LOGS "Adds verbose loging to DALI" OFF)
 
-option(WERROR "Threat all warnings as errors" OFF)
+option(WERROR "Treat all warnings as errors" OFF)
 
+# ; creates a list here
 set (PYTHON_VERSIONS "3.5;3.6;3.7;3.8")
 
 # FFmpeg is required when we are using NVDEC for video reader

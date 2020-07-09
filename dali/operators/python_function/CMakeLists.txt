@@ -16,47 +16,10 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(PYTHON_FUNCTION_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
 
-add_custom_target(${dali_python_function_lib} ALL)
-
-foreach(PYVER ${PYTHON_VERSIONS})
-
-    # check if listed python versions are accesible
-    execute_process(
-        COMMAND python${PYVER} -c "print('test', end='')"
-        OUTPUT_VARIABLE PYTHON_EXISTS)
-
-    if ("${PYTHON_EXISTS}" STREQUAL "test")
-        execute_process(
-            COMMAND python${PYVER}-config --extension-suffix
-            OUTPUT_VARIABLE PYTHON_SUFIX)
-        # remove newline and the extension
-        string(REPLACE ".so\n" "" PYTHON_SUFIX ${PYTHON_SUFIX})
-
-        execute_process(
-            COMMAND python${PYVER}-config --includes
-            OUTPUT_VARIABLE PYTHON_INCLUDES)
-        # split and make it a list
-        string(REPLACE "-I" "" PYTHON_INCLUDES ${PYTHON_INCLUDES})
-        string(REPLACE "\n" "" PYTHON_INCLUDES ${PYTHON_INCLUDES})
-        separate_arguments(PYTHON_INCLUDES)
-
-        add_library(${dali_python_function_lib}_${PYVER} SHARED ${PYTHON_FUNCTION_SRCS})
-        target_link_libraries(${dali_python_function_lib}_${PYVER} PUBLIC dali)
-        target_link_libraries(${dali_python_function_lib}_${PYVER} PRIVATE ${DALI_LIBS})
-        target_link_libraries(${dali_python_function_lib}_${PYVER} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
-
-        set_target_properties(${dali_python_function_lib}_${PYVER}
-                                PROPERTIES
-                                LIBRARY_OUTPUT_DIRECTORY ${DALI_LIBRARY_OUTPUT_DIR}
-                                PREFIX ""
-                                OUTPUT_NAME ${dali_python_function_lib}${PYTHON_SUFIX})
-        target_include_directories(${dali_python_function_lib}_${PYVER} PRIVATE "${CMAKE_SOURCE_DIR}/third_party/pybind11/include")
-        # add includes
-        foreach(incl_dir ${PYTHON_INCLUDES})
-            target_include_directories(${dali_python_function_lib}_${PYVER} PRIVATE ${incl_dir})
-        endforeach(incl_dir)
-
-        add_dependencies(${dali_python_function_lib} ${dali_python_function_lib}_${PYVER})
-    endif()
-
-endforeach(PYVER)
+build_per_python_lib(TARGET_NAME ${dali_python_function_lib}
+                     OUTPUT_NAME ${dali_python_function_lib}
+                     OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
+                     PUBLIC_LIBS dali
+                     PRIV_LIBS ${DALI_LIBS}
+                     EXCLUDE_LIBS ${exclude_libs}
+                     SRC ${PYTHON_FUNCTION_SRCS})

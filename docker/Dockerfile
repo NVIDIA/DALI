@@ -5,8 +5,8 @@ ARG DEPS_IMAGE_NAME
 # clean builder without source code inside
 FROM ${DEPS_IMAGE_NAME} as builder
 
-ARG PYVER=3.7
-ARG PYV=37
+ARG PYVER=3.6
+ARG PYV=36
 
 ENV PYVER=${PYVER} PYV=${PYV} PYTHONPATH=/opt/python/v
 
