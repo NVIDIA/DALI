@@ -95,7 +95,7 @@ struct SequenceWrapper {
   void share_frames(TensorList<GPUBackend> &frames) {
     void *current_sequence = sequence.raw_mutable_data();
     frames.ShareData(
-      current_sequence, 
+      current_sequence,
       sequence.type().size() * count * height * width * channels);
 
     TensorListShape<> shape;

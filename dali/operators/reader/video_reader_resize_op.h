@@ -37,7 +37,8 @@
 
 namespace dali {
 
-class VideoReaderResize : public VideoReader, protected ResizeAttr, protected ResizeBase {
+class VideoReaderResize :
+  public VideoReader, protected ResizeAttr, protected ResizeBase {
  public:
   explicit VideoReaderResize(const OpSpec &spec)
       : VideoReader(spec),
@@ -70,13 +71,12 @@ class VideoReaderResize : public VideoReader, protected ResizeAttr, protected Re
   void ShareSingleOutput(
     int data_idx, TensorList<GPUBackend> &batch_output, TensorList<GPUBackend> &single_output) {
     auto* raw_output = batch_output.raw_mutable_tensor(data_idx);
-    int64_t after_resize_frame_size = 
+    int64_t after_resize_frame_size =
       per_video_transform_metas_[data_idx].rsz_h *
-      per_video_transform_metas_[data_idx].rsz_w * 
+      per_video_transform_metas_[data_idx].rsz_w *
       channels_;
     single_output.ShareData(
       raw_output, sizeof(uint8) * count_ * after_resize_frame_size);
-
   }
 
   void ProcessSingleVideo(
@@ -84,10 +84,9 @@ class VideoReaderResize : public VideoReader, protected ResizeAttr, protected Re
     TensorList<GPUBackend> &video_output,
     SequenceWrapper &prefetched_video,
     DeviceWorkspace &ws) override {
-
     std::fill_n(
-      resample_params_.begin(), 
-      count_, 
+      resample_params_.begin(),
+      count_,
       GetResamplingParams(per_video_transform_metas_[data_idx]));
 
     TensorList<GPUBackend> input;

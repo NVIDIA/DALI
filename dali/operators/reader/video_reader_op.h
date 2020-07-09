@@ -37,7 +37,7 @@ inline int VideoReaderOutputFn(const OpSpec &spec) {
     }
     return num_outputs;
 }
-}
+}  // namespace detail
 
 class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
  public:
@@ -152,7 +152,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
       ws.stream());
   }
 
-  void ProcessAdditionalOutputs(int data_idx, SequenceWrapper &prefetched_video, cudaStream_t stream) {
+  void ProcessAdditionalOutputs(
+    int data_idx, SequenceWrapper &prefetched_video, cudaStream_t stream) {
     if (enable_label_output_) {
       auto *label = label_output_->mutable_tensor<int>(data_idx);
       CUDA_CALL(cudaMemcpyAsync(
