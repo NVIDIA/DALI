@@ -41,7 +41,12 @@ struct ExternalSource<GPUBackend>::RecycleFunctor {
   std::list<uptr_cuda_event_type> event, copy_to_gpu;
   std::list<uptr_tl_type> ptr;
   void operator()() {
-    owner->RecycleBuffer(ptr, &event, &copy_to_gpu);
+    std::list<uptr_cuda_event_type> *event_ptr = nullptr;
+    std::list<uptr_cuda_event_type> *copy_to_gpu_ptr = nullptr;
+    if (event.size()) event_ptr = &event;
+    if (copy_to_gpu.size()) copy_to_gpu_ptr = &copy_to_gpu;
+
+    owner->RecycleBuffer(ptr, event_ptr, copy_to_gpu_ptr);
   }
 };
 
@@ -80,21 +85,18 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   } else if (state_info.copied_shared_data) {
     // make a shared pointer which will recycle buffer upon destruction. So when pipeline
     // no longer needs that buffer we can return it to the pool
-    void * ptr = tensor_list_elm.front()->raw_mutable_data();
+    void *ptr = tensor_list_elm.front()->raw_mutable_data();
     int device_id = tensor_list_elm.front()->device_id();
 
     auto tmp_capacity = tensor_list_elm.front()->capacity();
     auto tmp_shape = tensor_list_elm.front()->shape();
     auto tmp_type = tensor_list_elm.front()->type();
-    auto tmp_shr_ptr = shared_ptr<void>(ptr, [
-                          this,
-                          tensor_list = std::move(tensor_list_elm),
-                          copy_to_storage = std::move(internal_copy_to_storage)](void*) {
-                          RecycleBuffer(*(const_cast<std::list<uptr_tl_type>*>(&tensor_list)),
-                                        nullptr,
-                                        const_cast<std::list<uptr_cuda_event_type>*>
-                                                  (&copy_to_storage));
-                       });
+    RecycleFunctor funct{this, std::move(cuda_event), std::move(tensor_list_elm),
+                            std::move(internal_copy_to_storage)};
+    auto tmp_shr_ptr = shared_ptr<void>(ptr, [functor = std::move(funct)] (void*) mutable {  // NOLINT (*)
+                                              functor();
+                                              });
+
     output.ShareData(tmp_shr_ptr, tmp_capacity, tmp_shape, tmp_type);
     output.set_device_id(device_id);
   } else {
