@@ -77,7 +77,8 @@ Samples are padded in the first axis to match the extent of the largest sample a
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `shape` = (1,), `align` = (2,)
 
 Samples are padded in the first axis to match the alignments requirements only.
-Note that we are setting the minimum extent to 1 to avoid any padding other than the necessary for aligment.
+Note that we are setting the minimum extent (``shape``) to 1 to avoid any padding other than the necessary
+for alignment.
 
 ::
 
@@ -173,7 +174,7 @@ Specifying -1 for an axis restores the default behavior of extending the axis to
 
 If the provided extent is smaller than the one of the sample, no padding will be applied, except what
 is needed to match required alignment. That is, in order to disable padding in a given axis (except the
-necessary to match any provided aligment) we can specify a value of 1.)code",
+necessary for aligment) we can specify a value of 1.)code",
     vector<int>());
 
 template <>
