@@ -30,6 +30,10 @@
 #include "dali/kernels/imgproc/resample/params.h"
 
 namespace dali {
+namespace detail {
+  kernels::ResamplingParams2D GetResamplingParams(
+    const TransformMeta &meta, kernels::FilterDesc min_filter, kernels::FilterDesc mag_filter);
+}  // namespace detail
 
 class ResizeAttr : protected ResizeCropMirrorAttr {
  public:
@@ -60,15 +64,6 @@ class Resize : public Operator<Backend>
 
   void RunImpl(Workspace<Backend> &ws) override;
   void SetupSharedSampleParams(Workspace<Backend> &ws) override;
-
-  kernels::ResamplingParams2D GetResamplingParams(const TransformMeta &meta) const {
-    kernels::ResamplingParams2D params;
-    params[0].output_size = meta.rsz_h;
-    params[1].output_size = meta.rsz_w;
-    params[0].min_filter = params[1].min_filter = min_filter_;
-    params[0].mag_filter = params[1].mag_filter = mag_filter_;
-    return params;
-  }
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;

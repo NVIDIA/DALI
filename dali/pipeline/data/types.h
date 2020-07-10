@@ -284,6 +284,11 @@ class DLL_PUBLIC TypeTable {
     return id_it->second;
   }
 
+  template <typename T>
+  DLL_PUBLIC static const TypeInfo& GetTypeInfoFromStatic() {
+    return GetTypeInfo(GetTypeID<T>());
+  }
+
  private:
   // TypeTable should only be referenced through its static members
   TypeTable() {}
