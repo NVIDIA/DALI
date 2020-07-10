@@ -82,13 +82,14 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
   output.SetLayout(InputLayout(ws, 0));
+  auto out_shape = output.shape();
   auto& tp = ws.GetThreadPool();
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
               for (int sample_id = 0; sample_id < input.shape().num_samples(); sample_id++) {
-                tp.DoWorkWithID([&, sample_id](int thread_id) {
+                tp.AddWork([&, sample_id](int thread_id) {
                     kernels::KernelContext ctx;
                     auto tvin = view<const InputType, 3>(input[sample_id]);
                     auto tvout = view<OutputType, 3>(output[sample_id]);
@@ -97,12 +98,12 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                       brightness_[sample_id], brightness_shift_[sample_id], contrast_[sample_id]);
                     kernel_manager_.Run<Kernel>(thread_id, sample_id, ctx, tvout, tvin,
                                                 add, mul);
-                });
+                }, out_shape.tensor_size(sample_id));
               }
           }
       ), DALI_FAIL("Unsupported output type"))  // NOLINT
   ), DALI_FAIL("Unsupported input type"))  // NOLINT
-  tp.WaitForWork();
+  tp.RunAll();
 }
 
 }  // namespace dali

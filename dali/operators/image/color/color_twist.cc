@@ -167,6 +167,7 @@ bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWo
 void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
+  auto out_shape = output.shape();
   output.SetLayout(InputLayout(ws, 0));
   auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
@@ -174,18 +175,18 @@ void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
           {
               using Kernel = TheKernel<OutputType, InputType>;
               for (int i = 0; i < input.shape().num_samples(); i++) {
-                tp.DoWorkWithID([&, i](int thread_id) {
+                tp.AddWork([&, i](int thread_id) {
                   kernels::KernelContext ctx;
                   auto tvin = view<const InputType, 3>(input[i]);
                   auto tvout = view<OutputType, 3>(output[i]);
                   kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
                                               tmatrices_[i], toffsets_[i]);
-                });
+                }, out_shape.tensor_size(i));
               }
           }
       ), DALI_FAIL("Unsupported output type"))  // NOLINT
   ), DALI_FAIL("Unsupported input type"))  // NOLINT
-  tp.WaitForWork();
+  tp.RunAll();
 }
 
 

@@ -152,13 +152,13 @@ class WarpOpImpl : public OpImplInterface<Backend> {
 
     auto output = view<OutputType, tensor_ndim>(ws.template OutputRef<Backend>(0));
     input_ = view<const InputType,  tensor_ndim>(ws.template InputRef<Backend>(0));
-
+    auto out_shape = output.shape;
 
     ThreadPool &pool = ws.GetThreadPool();
     auto interp_types = param_provider_->InterpTypes();
 
     for (int i = 0; i < input_.num_samples(); i++) {
-      pool.DoWorkWithID([&, i](int tid) {
+      pool.AddWork([&, i](int tid) {
         DALIInterpType interp_type = interp_types.size() > 1 ? interp_types[i] : interp_types[0];
         auto context = GetContext(ws);
         kmgr_.Run<Kernel>(
@@ -169,9 +169,9 @@ class WarpOpImpl : public OpImplInterface<Backend> {
             param_provider_->OutputSizes()[i],
             interp_type,
             param_provider_->Border());
-      });
+      }, out_shape.tensor_size(i));
     }
-    pool.WaitForWork(true);
+    pool.RunAll();
   }
 
   void RunBackend(DeviceWorkspace &ws) {

@@ -38,9 +38,6 @@ class PreemphasisFilterCPU : public PreemphasisFilter<CPUBackend> {
  private:
   template <typename OutputType, typename InputType>
   void RunImplTyped(workspace_t<CPUBackend> &ws);
-
-  using VolumeSampleIdPair = std::pair<int64_t, int>;  // volume(out_shape), sample_idx
-  std::vector<VolumeSampleIdPair> sample_ids_;
 };
 
 template <typename OutputType, typename InputType>
@@ -51,15 +48,8 @@ void PreemphasisFilterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   auto shape = input.shape();
   auto nsamples = shape.num_samples();
 
-  sample_ids_.clear();
-  sample_ids_.reserve(nsamples);
-  for (int sample_id = 0; sample_id < nsamples; sample_id++)
-    sample_ids_.emplace_back(volume(shape[sample_id]), sample_id);
-  std::sort(sample_ids_.begin(), sample_ids_.end(), std::greater<VolumeSampleIdPair>());
-
-  for (const auto &sample : sample_ids_) {
-    auto sample_id = sample.second;
-    tp.DoWorkWithID(
+  for (int sample_id = 0; sample_id < nsamples; sample_id++) {
+    tp.AddWork(
       [this, &output, &input, sample_id](int thread_id) {
         const auto in_ptr = input[sample_id].data<InputType>();
         auto out_ptr = output[sample_id].mutable_data<OutputType>();
@@ -77,9 +67,9 @@ void PreemphasisFilterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
             out_ptr[j] = ConvertSat<OutputType>(in_ptr[j] - coeff * in_ptr[j - 1]);
           }
         }
-      });
+      }, shape.tensor_size(sample_id));
   }
-  tp.WaitForWork();
+  tp.RunAll();
 }
 
 void PreemphasisFilterCPU::RunImpl(workspace_t<CPUBackend> &ws) {

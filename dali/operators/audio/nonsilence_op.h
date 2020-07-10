@@ -207,9 +207,9 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
     auto &output_begin = ws.OutputRef<CPUBackend>(0);
     auto &output_length = ws.OutputRef<CPUBackend>(1);
     auto &tp = ws.GetThreadPool();
-
+    auto in_shape = input.shape();
     for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
-      tp.DoWorkWithID(
+      tp.AddWork(
               [&, sample_id](int thread_id) {
                   detail::Args<InputType> args;
                   args.input = view<const InputType, 1>(input[sample_id]);
@@ -226,9 +226,9 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
                   auto len_ptr = output_length[sample_id].mutable_data<int>();
                   *beg_ptr = res.first;
                   *len_ptr = res.second;
-              });
+              }, in_shape.tensor_size(sample_id));
     }
-    tp.WaitForWork();
+    tp.RunAll();
   }
 
 

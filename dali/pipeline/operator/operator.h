@@ -336,15 +336,16 @@ class Operator<CPUBackend> : public OperatorBase {
     // This is implemented, as a default, using the RunImpl that accepts SampleWorkspace,
     // allowing for fallback to old per-sample implementations.
 
+    auto &thread_pool = ws.GetThreadPool();
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      auto &thread_pool = ws.GetThreadPool();
-      thread_pool.DoWorkWithID([this, &ws, data_idx](int tid) {
+      thread_pool.AddWork([this, &ws, data_idx](int tid) {
         SampleWorkspace sample;
         ws.GetSample(&sample, data_idx, tid);
         this->SetupSharedSampleParams(sample);
         this->RunImpl(sample);
-      });
+      }, -data_idx);  // -data_idx for FIFO order
     }
+    thread_pool.RunAll();
   }
 
   /**

@@ -195,23 +195,23 @@ void Pad<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   int nsamples = input.size();
   int ndim = input.shape().sample_dim();
   auto& thread_pool = ws.GetThreadPool();
-
+  auto out_shape = output.shape();
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
       using Kernel = kernels::SliceCPU<T, T, Dims>;
       using Args = kernels::SliceArgs<T, Dims>;
 
       for (int i = 0; i < nsamples; i++) {
-        thread_pool.DoWorkWithID(
+        thread_pool.AddWork(
           [this, &input, &output, i](int thread_id) {
             kernels::KernelContext ctx;
             auto in_view = view<const T, Dims>(input[i]);
             auto out_view = view<T, Dims>(output[i]);
             auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
             kmgr_.Run<Kernel>(thread_id, i, ctx, out_view, in_view, kernel_sample_args[i]);
-          });
+          }, out_shape.tensor_size(i));
       }
-      thread_pool.WaitForWork();
+      thread_pool.RunAll();
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim)));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 }

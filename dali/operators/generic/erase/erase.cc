@@ -178,17 +178,17 @@ void EraseImplCpu<T, Dims>::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
-
+  auto out_shape = output.shape();
   for (int i = 0; i < nsamples; i++) {
-    thread_pool.DoWorkWithID(
+    thread_pool.AddWork(
       [this, &input, &output, i](int thread_id) {
         kernels::KernelContext ctx;
         auto in_view = view<const T, Dims>(input[i]);
         auto out_view = view<T, Dims>(output[i]);
         kmgr_.Run<EraseKernel>(thread_id, i, ctx, out_view, in_view, args_[i]);
-      });
+      }, out_shape.tensor_size(i));
   }
-  thread_pool.WaitForWork();
+  thread_pool.RunAll();
 }
 
 template <>

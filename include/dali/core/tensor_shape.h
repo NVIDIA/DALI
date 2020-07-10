@@ -522,6 +522,13 @@ struct TensorListShapeBase {
   TensorListShape<DynamicDimensions> last(int count) const;
 
   /**
+   * @brief Return the total size or extent of `sample`
+   */
+  int64_t tensor_size(int64_t sample) const {
+    return volume(tensor_shape_span(sample));
+  }
+
+  /**
    * @brief Return a span containing the shape of `sample`
    */
   span<int64_t, sample_ndim == DynamicDimensions ?

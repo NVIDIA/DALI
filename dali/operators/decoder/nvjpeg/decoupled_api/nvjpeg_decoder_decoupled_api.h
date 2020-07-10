@@ -494,12 +494,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       auto *output_data = output.mutable_tensor<uint8_t>(i);
       const auto &in = ws.Input<CPUBackend>(0, i);
       ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
-      thread_pool_.DoWorkWithID(
+      thread_pool_.AddWork(
         [this, sample, &in, output_data, shape](int tid) {
           SampleWorker(sample->sample_idx, sample->file_name, in.size(), tid,
             in.data<uint8_t>(), output_data, streams_[tid]);
           CacheStore(sample->file_name, output_data, shape, streams_[tid]);
-        });
+        }, GetTaskPrioritySeq());
     }
   }
 
@@ -510,12 +510,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       auto *output_data = output.mutable_tensor<uint8_t>(i);
       const auto &in = ws.Input<CPUBackend>(0, i);
       ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
-      thread_pool_.DoWorkWithID(
+      thread_pool_.AddWork(
         [this, sample, &in, output_data, shape](int tid) {
           HostFallback<StorageGPU>(in.data<uint8_t>(), in.size(), output_image_type_, output_data,
                                    streams_[tid], sample->file_name, sample->roi, use_fast_idct_);
           CacheStore(sample->file_name, output_data, shape, streams_[tid]);
-        });
+        }, GetTaskPrioritySeq());
     }
   }
 
@@ -569,9 +569,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     UpdateTestCounters(samples_hw_batched_.size(), samples_single_.size(), samples_host_.size());
 
+    ResetTaskPrioritySeq();
     ProcessImagesCache(ws);
+
     ProcessImagesCuda(ws);
     ProcessImagesHost(ws);
+    thread_pool_.RunAll(false);  // don't block
+
     ProcessImagesHw(ws);
 
     thread_pool_.WaitForWork();
@@ -695,6 +699,21 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   static constexpr int kOutputDim = 3;
 
  private:
+  /**
+   * @brief Resets task priority count
+   */
+  void ResetTaskPrioritySeq() {
+    task_priority_seq_ = 0;
+  }
+
+  /**
+   * @brief Gets the next task priority to ensure FIFO execution in the thread pool (descencing integers)
+   */
+  int64_t GetTaskPrioritySeq() {
+    return task_priority_seq_--;
+  }
+
+
   void UpdateTestCounters(int nsamples_hw, int nsamples_cuda, int nsamples_host) {
     nsamples_hw_ += nsamples_hw;
     nsamples_cuda_ += nsamples_cuda;
@@ -714,6 +733,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // HW/CUDA Utilization test counters
   int64_t nsamples_hw_ = 0, nsamples_cuda_ = 0, nsamples_host_ = 0;
+
+  // Used to ensure the work in the thread pool is picked FIFO
+  int64_t task_priority_seq_ = 0;
 };
 
 }  // namespace dali

@@ -134,7 +134,7 @@ void MFCC<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
     VALUE_SWITCH(in_shape.sample_dim(), Dims, MFCC_SUPPORTED_NDIMS, (
       using DctKernel = kernels::signal::dct::Dct1DCpu<T, T, Dims>;
       for (int i = 0; i < input.shape().num_samples(); i++) {
-        thread_pool.DoWorkWithID(
+        thread_pool.AddWork(
           [this, &input, &output, i](int thread_id) {
             kernels::KernelContext ctx;
             auto in_view = view<const T, Dims>(input[i]);
@@ -144,12 +144,12 @@ void MFCC<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
               assert(static_cast<int64_t>(lifter_coeffs_.size()) >= out_view.shape[args_.axis]);
               detail::ApplyLifter(out_view, args_.axis, lifter_coeffs_.data());
             }
-          });
+          }, in_shape.tensor_size(i));
       }
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 
-  thread_pool.WaitForWork();
+  thread_pool.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(MFCC, MFCC<CPUBackend>, CPU);

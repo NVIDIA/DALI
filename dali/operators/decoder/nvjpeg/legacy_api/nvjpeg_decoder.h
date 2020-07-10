@@ -301,22 +301,22 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
             GetOutputPitch(output_type_) * info.widths[0];
         }
 
-        thread_pool_.DoWorkWithID(std::bind(
-              [this, info, data, in_size, output_data, file_name](int idx, int tid) {
-                DecodeSingleSampleHost(idx,
-                                       batched_image_idx_[idx],
-                                       tid,
-                                       handle_,
-                                       states_[0],
-                                       info,
-                                       data, in_size,
-                                       output_data,
-                                       streams_[0],
-                                       file_name);
-              }, i, std::placeholders::_1));
+        thread_pool_.AddWork(
+            [this, info, data, in_size, output_data, file_name, i](int tid) {
+              DecodeSingleSampleHost(idx,
+                                      batched_image_idx_[i],
+                                      tid,
+                                      handle_,
+                                      states_[0],
+                                      info,
+                                      data, in_size,
+                                      output_data,
+                                      streams_[0],
+                                      file_name);
+            }, -i);  // -i for FIFO order
       }
       // Sync thread-based work, assemble outputs and call batched
-      thread_pool_.WaitForWork();
+      thread_pool_.RunAll();
 
       // Mixed work
       NVJPEG_CALL_EX(nvjpegDecodeBatchedPhaseTwo(handle_,
@@ -349,7 +349,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         const ImageCache::ImageShape output_shape = output_shape_[j].to_static<3>();
         auto info = output_info_[j];
 
-        thread_pool_.DoWorkWithID(
+        thread_pool_.AddWork(
           [this, info, data, in_size, output_data, output_shape, file_name, j](int tid) {
             const int stream_idx = tid;
             int idx = j;
@@ -366,7 +366,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
               file_name);
 
             CacheStore(file_name, output_data, output_shape, streams_[stream_idx]);
-          });
+          }, -idx);  // -idx for FIFO order
       }
       LoadDeferred(ws.stream());
       // Make sure work is finished being submitted

@@ -221,12 +221,13 @@ bool SpectrogramImplCpu::SetupImpl(std::vector<OutputDesc> &out_desc,
 void SpectrogramImplCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
+  auto out_shape = output.shape();
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
   auto view_window_fn = make_tensor_cpu<1>(window_fn_.data(), window_length_);
 
   for (int i = 0; i < nsamples; i++) {
-    thread_pool.DoWorkWithID(
+    thread_pool.AddWork(
       [this, &input, &output, view_window_fn, i](int thread_id) {
         kernels::KernelContext ctx;
 
@@ -248,7 +249,7 @@ void SpectrogramImplCpu::RunImpl(workspace_t<CPUBackend> &ws) {
           view<OutputType, WindowsDims>(output[i]),
           view<const InputType, WindowsDims>(win_out),
           fft_args_);
-    });
+    }, out_shape.tensor_size(i));
   }
 
   thread_pool.WaitForWork();

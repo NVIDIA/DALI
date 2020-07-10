@@ -86,17 +86,17 @@ void PowerSpectrum<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
     using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, Dims>;
 
     for (int i = 0; i < input.shape().num_samples(); i++) {
-      thread_pool.DoWorkWithID(
+      thread_pool.AddWork(
         [this, &input, &output, i](int thread_id) {
           kernels::KernelContext ctx;
           auto in_view = view<const InputType, Dims>(input[i]);
           auto out_view = view<OutputType, Dims>(output[i]);
           kmgr_.Run<FftKernel>(thread_id, i, ctx, out_view, in_view, fft_args_);
-        });
+        }, in_shape.tensor_size(i));
     }
   ), DALI_FAIL(make_string("Not supported number of dimensions: ", in_shape.size())));  // NOLINT
 
-  thread_pool.WaitForWork();
+  thread_pool.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(PowerSpectrum, PowerSpectrum<CPUBackend>, CPU);
