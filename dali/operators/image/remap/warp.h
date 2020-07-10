@@ -152,7 +152,6 @@ class WarpOpImpl : public OpImplInterface<Backend> {
 
     auto output = view<OutputType, tensor_ndim>(ws.template OutputRef<Backend>(0));
     input_ = view<const InputType,  tensor_ndim>(ws.template InputRef<Backend>(0));
-    auto out_shape = output.shape;
 
     ThreadPool &pool = ws.GetThreadPool();
     auto interp_types = param_provider_->InterpTypes();
@@ -169,7 +168,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
             param_provider_->OutputSizes()[i],
             interp_type,
             param_provider_->Border());
-      }, out_shape.tensor_size(i));
+      }, output.shape.tensor_size(i));
     }
     pool.RunAll();
   }

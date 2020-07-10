@@ -232,6 +232,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
 
   auto &input = ws.InputRef<CPUBackend>(0);
   TensorListView<StorageCPU, const InputType> in_view = view<const InputType>(input);
+  auto in_shape = input.shape();
 
   auto &output = ws.OutputRef<CPUBackend>(0);
   TensorListView<StorageCPU, OutputType> out_view = view<OutputType>(output);
@@ -306,7 +307,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
           mean.Setup(mutable_mean[i], in_view[i], make_span(axes_));
           // Reset per-sample values, but don't postprocess
           mean.Run(true, false);
-        }, volume(in_view[i].shape));
+        }, in_shape.tensor_size(i));
       }
       tp.RunAll();
       // Aggregate and postprocess now
@@ -321,7 +322,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
           stddev.Setup(mutable_stddev[i], in_view[i], make_span(axes_), sample_mean);
           // Reset per-sample values, but don't postprocess
           stddev.Run(true, false);
-        }, volume(in_view[i].shape));
+        }, in_shape.tensor_size(i));
       }
       tp.RunAll();
       // Aggregate and postprocess now - use inverse square root.
@@ -367,7 +368,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
       using Kernel = kernels::NormalizeCPU<OutputType, InputType, float>;
       kmgr_.Run<Kernel>(thread_idx, i, ctx,
           out_view[i], in_view[i], sample_mean, sample_inv_stddev, shift_);
-    }, volume(in_view[i].shape));
+    }, in_shape.tensor_size(i));
   }
 
   tp.RunAll();

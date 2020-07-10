@@ -499,7 +499,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           SampleWorker(sample->sample_idx, sample->file_name, in.size(), tid,
             in.data<uint8_t>(), output_data, streams_[tid]);
           CacheStore(sample->file_name, output_data, shape, streams_[tid]);
-        }, GetTaskPrioritySeq());
+        }, GetTaskPrioritySeq());  // FIFO order, since the samples were already ordered
     }
   }
 
@@ -515,7 +515,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           HostFallback<StorageGPU>(in.data<uint8_t>(), in.size(), output_image_type_, output_data,
                                    streams_[tid], sample->file_name, sample->roi, use_fast_idct_);
           CacheStore(sample->file_name, output_data, shape, streams_[tid]);
-        }, GetTaskPrioritySeq());
+        }, GetTaskPrioritySeq());  // FIFO order, since the samples were already ordered
     }
   }
 

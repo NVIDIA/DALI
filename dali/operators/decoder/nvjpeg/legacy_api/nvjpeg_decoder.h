@@ -313,7 +313,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                       output_data,
                                       streams_[0],
                                       file_name);
-            }, -i);  // -i for FIFO order
+            }, -i);  // -i for FIFO order, since the samples were already ordered
       }
       // Sync thread-based work, assemble outputs and call batched
       thread_pool_.RunAll();
@@ -366,7 +366,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
               file_name);
 
             CacheStore(file_name, output_data, output_shape, streams_[stream_idx]);
-          }, -idx);  // -idx for FIFO order
+          }, -idx);  // -idx for FIFO order, since the samples were already ordered
       }
       LoadDeferred(ws.stream());
       // Make sure work is finished being submitted

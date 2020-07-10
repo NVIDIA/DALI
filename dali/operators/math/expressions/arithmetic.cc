@@ -36,7 +36,7 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
                                        {extent_idx, extent_idx + 1});
         }
       }
-    }, -task_idx);  // Descending numbers for FIFO execution
+    }, -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks
   }
   pool.RunAll();
 }
