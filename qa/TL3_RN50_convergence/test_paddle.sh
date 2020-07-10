@@ -8,7 +8,7 @@ function CLEAN_AND_EXIT {
     exit $1
 }
 
-export USE_CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*) | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1/')
+export USE_CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*) | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1\2/')
 pip install $(python /opt/dali/qa/setup_packages.py -i 0 -u paddle --cuda ${USE_CUDA_VERSION})
 
 cd /opt/dali/docs/examples/use_cases/paddle/resnet50
