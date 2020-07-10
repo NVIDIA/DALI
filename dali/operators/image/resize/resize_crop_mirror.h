@@ -36,10 +36,10 @@ enum t_idInfo : uint32_t {
 };
 
 struct TransformMeta {
-    int H, W, C;
-    int rsz_h, rsz_w;
-    std::pair<int, int> crop;
-    int mirror;
+  int H, W, C;
+  int rsz_h, rsz_w;
+  std::pair<int, int> crop;
+  int mirror;
 };
 
 

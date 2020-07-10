@@ -41,8 +41,6 @@ class VideoReaderResize : public VideoReader, protected ResizeAttr, protected Re
   inline ~VideoReaderResize() override = default;
 
  protected:
-  void SetupSharedSampleParams(DeviceWorkspace &ws) override {}
-
   void SetOutputShape(TensorList<GPUBackend> &output, DeviceWorkspace &ws) override {
     TensorListShape<> output_shape(batch_size_, sequence_dim);
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {

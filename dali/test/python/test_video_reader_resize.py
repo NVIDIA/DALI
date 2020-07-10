@@ -109,10 +109,7 @@ def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_leng
     for i in range(iterations):
         batch, = pipeline.run()
         batch = batch.as_cpu()
-        gt_batch = list(gt_pipeline.run())
-
-        for i in range(video_length):
-            gt_batch[i] = gt_batch[i].as_cpu()
+        gt_batch = [out.as_cpu() for out in gt_pipeline.run()]
 
         for sample_id in range(batch_size):
             sample = batch.at(sample_id)
@@ -120,11 +117,9 @@ def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_leng
                 frame = sample[frame_id]
                 gt_frame = gt_batch[frame_id].at(sample_id)
 
-                if gt_frame.shape == frame.shape:
-                    assert (gt_frame == frame).all(), "Images are not equal"
-                else:
-                    assert (gt_frame.shape == frame.shape), "Shapes are not equal: {} != {}".format(
+                assert (gt_frame.shape == frame.shape), "Shapes are not equal: {} != {}".format(
                         gt_frame.shape, frame.shape)
+                assert (gt_frame == frame).all(), "Images are not equal"
 
 
 def run_for_params(batch_size, video_reader_params, resize_params):

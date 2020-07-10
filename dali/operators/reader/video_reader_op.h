@@ -99,9 +99,9 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
   void SetOutputType(TensorList<GPUBackend> &output) {
     if (dtype_ == DALI_FLOAT) {
-      output.set_type(TypeInfo::Create<float>());
+      output.set_type(TypeTable::GetTypeInfoFromStatic<float>());
     } else {  // dtype_ == DALI_UINT8
-      output.set_type(TypeInfo::Create<uint8>());
+      output.set_type(TypeTable::GetTypeInfoFromStatic<uint8>());
     }
   }
 
@@ -124,17 +124,17 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     if (enable_label_output_) {
       int output_index = 1;
       label_output_ = &ws.Output<GPUBackend>(output_index++);
-      label_output_->set_type(TypeInfo::Create<int>());
+      label_output_->set_type(TypeTable::GetTypeInfoFromStatic<int>());
       label_output_->Resize(label_shape_);
       if (enable_frame_num_) {
         frame_num_output_ = &ws.Output<GPUBackend>(output_index++);
-        frame_num_output_->set_type(TypeInfo::Create<int>());
+        frame_num_output_->set_type(TypeTable::GetTypeInfoFromStatic<int>());
         frame_num_output_->Resize(frame_num_shape_);
       }
 
       if (enable_timestamps_) {
         timestamp_output_ = &ws.Output<GPUBackend>(output_index++);
-        timestamp_output_->set_type(TypeInfo::Create<double>());
+        timestamp_output_->set_type(TypeTable::GetTypeInfoFromStatic<double>());
         timestamp_output_->Resize(timestamp_shape_);
       }
     }
