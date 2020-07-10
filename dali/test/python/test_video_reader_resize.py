@@ -26,7 +26,7 @@ video_reader_params = [{
 }, {
     'device': 'gpu',
     'file_root': video_directory_multiple_resolutions,
-    'sequence_length': 4,
+    'sequence_length': 32,
     'random_shuffle': False
 }]
 
@@ -67,13 +67,12 @@ resize_params = [{
 }]
 
 
-def video_reader_pipeline_base(
-        video_reader, batch_size, video_reader_params, resize_params={}):
+def video_reader_resize_pipeline(batch_size, video_reader_params, resize_params):
     pipeline = dali.pipeline.Pipeline(
         batch_size=batch_size, **pipeline_params)
 
     with pipeline:
-        outputs = video_reader(
+        outputs = dali.fn.video_reader_resize(
             **video_reader_params, **resize_params)
         if type(outputs) == list:
             outputs = outputs[0]
@@ -83,58 +82,50 @@ def video_reader_pipeline_base(
     return pipeline
 
 
-def video_reader_resize_pipeline(batch_size, video_reader_params, resize_params):
-    return video_reader_pipeline_base(
-        dali.fn.video_reader_resize, batch_size, video_reader_params, resize_params)
-
-
-def video_reader_pipeline(batch_size, video_reader_params):
-    return video_reader_pipeline_base(
-        dali.fn.video_reader, batch_size, video_reader_params)
-
-
 def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
-    def get_next_frame():
-        pipeline = video_reader_pipeline(batch_size, video_reader_params)
+    video_length = video_reader_params['sequence_length']
+    class VideoReaderPipeline(Pipeline):
+        def __init__(self):
+            super(VideoReaderPipeline, self).__init__(batch_size, **pipeline_params)
+            
+            self.reader = ops.VideoReader(**video_reader_params)
+            self.element_extract = ops.ElementExtract(device='gpu', element_map=list(range(video_length)))
+            self.resize = ops.Resize(device='gpu', **resize_params)
 
-        pipe_out = pipeline.run()
-        sequences_out = pipe_out[0].as_cpu().as_array()
-        for sample in range(batch_size):
-            yield [sequences_out[sample]]
+        def define_graph(self):
+            video, _ = self.reader(name='Reader')
+            resized_frames = self.element_extract(video)
 
-    gt_pipeline = dali.pipeline.Pipeline(
-        batch_size=video_reader_params['sequence_length'], **pipeline_params)
+            for i in range(video_length):
+                resized_frames[i] = self.resize(resized_frames[i])
+            return resized_frames
 
-    with gt_pipeline:
-        resized_frame = dali.fn.external_source(
-            source=get_next_frame, num_outputs=1)
-        resized_frame = resized_frame[0].gpu()
-        resized_frame = dali.fn.resize(
-            resized_frame, **resize_params)
-        gt_pipeline.set_outputs(resized_frame)
-    gt_pipeline.build()
+    pipeline = VideoReaderPipeline()
+    pipeline.build()
 
-    return gt_pipeline
+    return pipeline
 
 
-def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_length):
-    global_sample_id = 0
-    batch, = pipeline.run()
-    batch = batch.as_cpu()
-    for sample_id in range(batch_size):
-        global_sample_id = global_sample_id + 1
-        sample = batch.at(sample_id)
-        gt_sample = gt_pipeline.run()[0].as_cpu().as_array()
-        for frame_id in range(video_length):
-            frame = sample[frame_id]
-            print(frame.shape)
-            gt_frame = gt_sample[frame_id]
+def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_length, iterations=16):
+    for i in range(iterations):
+        batch, = pipeline.run()
+        batch = batch.as_cpu()
+        gt_batch = list(gt_pipeline.run())
 
-            if gt_frame.shape == frame.shape:
-                assert (gt_frame == frame).all(), "Images are not equal"
-            else:
-                assert (gt_frame.shape == frame.shape), "Shapes are not equal: {} != {}".format(
-                    gt_frame.shape, frame.shape)
+        for i in range(video_length):
+            gt_batch[i] = gt_batch[i].as_cpu()
+
+        for sample_id in range(batch_size):
+            sample = batch.at(sample_id)
+            for frame_id in range(video_length):
+                frame = sample[frame_id]
+                gt_frame = gt_batch[frame_id].at(sample_id)
+
+                if gt_frame.shape == frame.shape:
+                    assert (gt_frame == frame).all(), "Images are not equal"
+                else:
+                    assert (gt_frame.shape == frame.shape), "Shapes are not equal: {} != {}".format(
+                        gt_frame.shape, frame.shape)
 
 
 def run_for_params(batch_size, video_reader_params, resize_params):
@@ -148,7 +139,7 @@ def run_for_params(batch_size, video_reader_params, resize_params):
         pipeline, gt_pipeline, batch_size, video_reader_params['sequence_length'])
 
 
-def test_video_resize(batch_size=16):
+def test_video_resize(batch_size=2):
     for vp in video_reader_params:
         for rp in resize_params:
             yield run_for_params, batch_size, vp, rp
