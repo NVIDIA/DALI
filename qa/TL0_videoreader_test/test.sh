@@ -48,7 +48,7 @@ test_body() {
 
     echo $(pwd)
     nosetests --verbose ../../../../dali/test/python/test_video_pipeline.py
-    nosetests --verbose ../../../../dali/test/python/test_operator_video_reader_resize.py
+    nosetests --verbose ../../../../dali/test/python/test_video_reader_resize.py
 }
 
 pushd ../..
