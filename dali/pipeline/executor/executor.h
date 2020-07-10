@@ -212,14 +212,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
     const auto &op_name =
         op_node.spec.name()[0] == '_' ? op_node.spec.name().substr(1) : op_node.spec.name();
 
-    // handle operator name already present in error message
-    int err_msg_start = 0;
-    if (message.rfind(op_name, 0) == 0 &&
-        message.rfind(": ", op_name.length()) == op_name.length()) {
-      err_msg_start = op_name.length() + 2;
-    }
-    const auto &err_message = err_msg_start == 0 ? message : message.substr(err_msg_start);
-
     bool need_instance_name = false;
     for (int op_id = 0; op_id < graph_->NumOp(); op_id++) {
       if (op_id != op_node.id && graph_->Node(op_id).spec.name() == op_node.spec.name()) {
@@ -230,10 +222,10 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
     if (need_instance_name) {
       HandleError(make_string("Error when executing ", stage, " operator ", op_name,
                               ", instance name: \"", op_node.instance_name, "\", encountered:\n",
-                              err_message));
+                              message));
     } else {
       HandleError(make_string("Error when executing ", stage, " operator ", op_name,
-                              " encountered:\n", err_message));
+                              " encountered:\n", message));
     }
   }
 
