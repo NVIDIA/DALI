@@ -95,9 +95,8 @@ def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
         def define_graph(self):
             video, _ = self.reader(name='Reader')
             resized_frames = self.element_extract(video)
+            resized_frames = self.resize(resized_frames)
 
-            for i in range(video_length):
-                resized_frames[i] = self.resize(resized_frames[i])
             return resized_frames
 
     pipeline = VideoReaderPipeline()
