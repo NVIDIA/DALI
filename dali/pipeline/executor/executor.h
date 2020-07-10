@@ -207,10 +207,34 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
       }
   }
 
-  void HandleError(const std::string &stage, const std::string &op_name,
-                   const std::string &instance_name, const std::string &message) {
-    HandleError(make_string("Error when executing ", stage, " Operator ", op_name,
-                            ", instance name: \"", instance_name, "\", encountered:\n", message));
+  void HandleError(const std::string &stage, const OpNode &op_node, const std::string &message) {
+    // handle internal Operator names that start with underscore
+    const auto &op_name =
+        op_node.spec.name()[0] == '_' ? op_node.spec.name().substr(1) : op_node.spec.name();
+
+    // handle operator name already present in error message
+    int err_msg_start = 0;
+    if (message.rfind(op_name, 0) == 0 &&
+        message.rfind(": ", op_name.length()) == op_name.length()) {
+      err_msg_start = op_name.length() + 2;
+    }
+    const auto &err_message = err_msg_start == 0 ? message : message.substr(err_msg_start);
+
+    bool need_instance_name = false;
+    for (int op_id = 0; op_id < graph_->NumOp(); op_id++) {
+      if (op_id != op_node.id && graph_->Node(op_id).spec.name() == op_node.spec.name()) {
+        need_instance_name = true;
+        break;
+      }
+    }
+    if (need_instance_name) {
+      HandleError(make_string("Error when executing ", stage, " operator ", op_name,
+                              ", instance name: \"", op_node.instance_name, "\", encountered:\n",
+                              err_message));
+    } else {
+      HandleError(make_string("Error when executing ", stage, " operator ", op_name,
+                              " encountered:\n", err_message));
+    }
   }
 
   void HandleError(const std::string& message = "Unknown exception") {
@@ -459,7 +483,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
       RunHelper(op_node, ws);
       FillStats(cpu_memory_stats_, ws, "CPU_" + op_node.instance_name, cpu_memory_stats_mutex_);
     } catch (std::exception &e) {
-      HandleError("CPU", op_node.spec.name(), op_node.instance_name, e.what());
+      HandleError("CPU", op_node, e.what());
     } catch (...) {
       HandleError();
     }
@@ -499,7 +523,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
         }
         CUDA_CALL(cudaGetLastError());
       } catch (std::exception &e) {
-        HandleError("Mixed", op_node.spec.name(), op_node.instance_name, e.what());
+        HandleError("Mixed", op_node, e.what());
       } catch (...) {
         HandleError();
       }
@@ -558,7 +582,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
         }
         CUDA_CALL(cudaGetLastError());
       } catch (std::exception &e) {
-        HandleError("GPU", op_node.spec.name(), op_node.instance_name, e.what());
+        HandleError("GPU", op_node, e.what());
       } catch (...) {
         HandleError();
       }
