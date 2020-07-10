@@ -47,9 +47,9 @@ Samples are padded in the first axis to match the extent of the largest sample.
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `shape` = (7,)
 
-::
-
 Samples are padded in the first axis to a minimum extent of 7.
+
+::
 
   input  = [[3,   4,   2,   5,   4],
             [2,   2],
@@ -90,6 +90,9 @@ for alignment.
             [3, 199,   5,  -1]]
 
 - `2-D` samples, `fill_value` = 42, `axes` = (1,)
+
+Samples are padded in the second axis  to match the extent of the largest sample, and uses a custom fill
+value (42 instead of the default 0).
 
 ::
 
