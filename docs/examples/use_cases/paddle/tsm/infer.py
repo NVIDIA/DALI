@@ -40,13 +40,12 @@ class VideoPipe(Pipeline):
         self.input = ops.VideoReader(
             device="gpu", filenames=video_files,
             sequence_length=sequence_length, stride=stride,
-            shard_id=0, num_shards=1, random_shuffle=False)
+            shard_id=0, num_shards=1, random_shuffle=False, pad_last_batch=True)
         self.cmnp = ops.CropMirrorNormalize(
             device="gpu",
-            output_dtype=types.FLOAT,
+            dtype=types.FLOAT,
             output_layout=types.NFCHW,
             crop=(target_size, target_size),
-            image_type=types.RGB,
             mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
             std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
 
@@ -73,7 +72,7 @@ def main():
     pipeline = VideoPipe(video_files, seg_num, target_size, FLAGS.stride)
 
     video_loader = DALIGenericIterator(
-        pipeline, ['image'], len(video_files), dynamic_shape=True)
+        pipeline, ['image'], reader_name="Reader", dynamic_shape=True)
 
     exe = fluid.Executor(fluid.CUDAPlace(0))
     startup_prog = fluid.Program()

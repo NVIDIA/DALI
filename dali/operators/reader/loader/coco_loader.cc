@@ -143,6 +143,7 @@ void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_in
     }
     image_infos.emplace_back(std::move(image_info));
   }
+  DALI_ENFORCE(parser.IsValid(), "Error parsing JSON file.");
 }
 
 void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids) {
@@ -219,7 +220,7 @@ void parse_annotations(
             segm_coords.push_back(parser.GetDouble());
             coord_offset++;
           }
-          segm_meta.push_back(coord_offset - segm_meta.back());
+          segm_meta.push_back(coord_offset);
         }
       } else {
         parser.SkipValue();

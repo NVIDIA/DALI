@@ -240,6 +240,7 @@ TiffImage_Libtiff::TiffImage_Libtiff(const uint8_t *encoded_buffer,
                    &detail::BufDecoderHelper::size,
                    &detail::BufDecoderHelper::map,
                    /*unmap=*/0));
+  DALI_ENFORCE(tif_, "Cannot open TIFF file.");
 
   LIBTIFF_CALL(
     TIFFGetField(tif_.get(), TIFFTAG_IMAGELENGTH, &shape_[0]));

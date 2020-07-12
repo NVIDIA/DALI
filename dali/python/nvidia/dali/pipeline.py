@@ -17,9 +17,11 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
+from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
 import warnings
+import ctypes
 pipeline_tls = tls()
 
 from .data_node import DataNode
@@ -32,6 +34,15 @@ def _show_deprecation_warning(deprecated, in_favor_of):
         warnings.warn("{} is deprecated, please use {} instead".format(deprecated, in_favor_of),
                       Warning, stacklevel=2)
 
+def _get_default_stream_for_array(array):
+    if types._is_torch_tensor(array):
+        import torch
+        return torch.cuda.current_stream().cuda_stream
+    elif types._is_cupy_array(array):
+        import cupy
+        return cupy.cuda.get_current_stream().ptr
+    else:
+        return None
 
 class Pipeline(object):
     """Pipeline class is the base of all DALI data pipelines. The pipeline
@@ -92,11 +103,16 @@ Parameters
     unrestricted number of streams is assumed).
 `default_cuda_stream_priority` : int, optional, default = 0
     CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
+`enable_memory_stats`: bool, optional, default = False
+    If DALI should print operator output buffer statistics.
+    Usefull for `bytes_per_sample_hint` operator parameter.
 """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
                  exec_async=True, bytes_per_sample=0,
-                 set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0):
+                 set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
+                 *,
+                 enable_memory_stats=False):
         self._sinks = []
         self._batch_size = batch_size
         self._num_threads = num_threads
@@ -121,6 +137,7 @@ Parameters
         self._skip_api_check = False
         self._graph_out = None
         self._input_callbacks = None
+        self._enable_memory_stats = enable_memory_stats
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
@@ -174,8 +191,60 @@ Parameters
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         if name is not None:
-            return self._pipe.epoch_size(name)
-        return self._pipe.epoch_size()
+            return self._pipe.reader_meta(name)["epoch_size_padded"]
+        meta = self._pipe.reader_meta()
+        return {k : v["epoch_size_padded"] for k, v in meta.items()}
+
+    def executor_statistics(self):
+        """Returns provided pipeline executor statistics metadata as a dictionary.
+        Each key in the dictionary is the operator name. To enable it use ``executor_statistics``
+
+        Available metadata keys for each operator:
+
+        ``real_memory_size``:     list of memory sizes that is used by each output of the operator;
+                                  index in the list corresponds to the output index
+
+        ``max_real_memory_size``: list of maximum tensor size that is used by each output of the operator;
+                                  index in the list corresponds to the output index
+
+        ``reserved_memory_size``: list of memory sizes that is reserved for each of the operator outputs
+                                  index in the list corresponds to the output index
+
+        ``max_reserved_memory_size``: list of maximum memory sizes per tensor that is reserved for each of the operator outputs
+                                  index in the list corresponds to the output index
+        """
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        return self._pipe.executor_statistics()
+
+    def reader_meta(self, name = None):
+        """Returns provided reader metadata as a dictionary. If no name is provided if provides
+        a dictionary with data for all readers as {reader_name : meta}
+
+        Available metadata keys:
+
+        ``epoch_size``:        raw epoch size
+
+        ``epoch_size_padded``: epoch size with the padding at the end to be divisible by the number of shards
+
+        ``number_of_shards``:  number of shards
+
+        ``shard_id``:          shard id of given reader
+
+        ``pad_last_batch``:    if given reader should pad last batch
+
+        ``stick_to_shard``:    if given reader should stick to its shard
+
+        Parameters
+        ----------
+        name : str, optional, default = None
+            The reader which should be used to obtain shards_number.
+        """
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        if name is not None:
+            return self._pipe.reader_meta(name)
+        return self._pipe.reader_meta()
 
     @staticmethod
     def current():
@@ -252,7 +321,7 @@ Parameters
         self._api_type = type
 
     def _check_api_type(self, type):
-        if self._api_type == None:
+        if self._api_type is None:
             self._set_api_type(type)
         if type != self._api_type:
             raise RuntimeError("Mixing pipeline API type. Currently used: " + str(self._api_type) +
@@ -300,6 +369,7 @@ Parameters
                                 self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
+        self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
 
         if define_graph is not None:
             if self._graph_out is not None:
@@ -408,24 +478,47 @@ Parameters
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def feed_input(self, data_node, data, layout=""):
-        """Bind a NumPy array (or a list thereof) to an output of ExternalSource.
+    def feed_input(self, data_node, data, layout="", cuda_stream = None):
+        """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
+        In the case of the GPU input, the data must be modified on the same stream as the one
+        used by feed_input. See ``cuda_stream`` parameter for details.
 
         Parameters
         ----------
         data_node : :class:`DataNode` or str
-            The :class:`DataNode` returned by a call to ExternalSource or a name of the
-            :class:`nvidia.dali.ops.ExternalSource`
+            The name of the :class:`nvidia.dali.ops.ExternalSource` node or a :class:`DataNode`
+            object returned by a call to that ExternalSource.
 
-        data : numpy.ndarray or a list thereof
+        data : an ndarray or DLPack or a list thereof
+            The array(s) may be one of:
+              * NumPy ndarray (CPU)
+              * MXNet ndarray (CPU)
+              * PyTorch tensor (CPU or GPU)
+              * CuPy array (GPU)
+              * objects implementing ``__cuda_array_interface__``
             The data to be used as the output of the ExternalSource referred to by `data_node`.
-            In case of GPU external sources, this must be a ``numpy.ndarray``.
 
         layout : str
             The description of the data layout (or empty string, if not specified).
             It should be a string of the length that matches the dimensionality of the data, batch
             dimension excluded. For a batch of channel-first images, this should be "CHW", for
             channel-last video it's "FHWC" and so on.
+
+        cuda_stream : optional, `cudaStream_t` or an object convertible to `cudaStream_t`, e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
+            The CUDA stream, which is going to be used for copying data to GPU or from a GPU
+            source. If not set, best effort will be taken to maintain correctness - i.e. if the data
+            is provided as a tensor/array from a recognized library (CuPy, PyTorch), the library's
+            current stream is used. This should work in typical scenarios, but advanced use cases
+            (and code using unsupported libraries) may still need to supply the stream handle
+            explicitly.
+
+            Special values:
+              *  0 - use default CUDA stream
+              * -1 - use DALI's internal stream
+
+            If internal stream is used, the call to ``feed_input`` will block until the copy to
+            internal buffer is complete, since there's no way to synchronize with this stream to
+            prevent overwriting the array with new data in another stream.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -436,16 +529,57 @@ Parameters
             name = data_node.name
 
         from nvidia.dali.external_source import _check_data_batch
-        _check_data_batch(data, self._batch_size, layout)
 
+        infer_stream = False
+        if cuda_stream is None:
+            infer_stream = True
+        if cuda_stream == -1:
+            cuda_stream = None
+        else:
+            cuda_stream = types._raw_cuda_stream(cuda_stream)
+
+        def to_numpy(x):
+            if types._is_mxnet_array(x):
+                return x.asnumpy()
+            elif types._is_torch_tensor(x):
+                return x.numpy()
+            else:
+                return x
+
+        # __cuda_array_interface__ doesn't provide any way to pass the information about the device
+        # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
+        # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
         if isinstance(data, list):
             inputs = []
+            checked = False
             for datum in data:
-                inputs.append(Tensors.TensorCPU(datum, layout))
-            self._pipe.SetExternalTensorInput(name, inputs)
+                info = CheckDLPackCapsule(datum)
+                if not info[0] and not checked:
+                    _check_data_batch(data, self._batch_size, layout)
+                    checked = True
+                if hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
+                    if infer_stream:
+                        cuda_stream = _get_default_stream_for_array(datum)
+                    inp = Tensors.TensorGPU(datum, layout)
+                else:
+                    datum = to_numpy(datum)
+                    inp = Tensors.TensorCPU(datum, layout)
+                inputs.append(inp)
+            assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
+                   "Mixed input types are not support, all need to reside on the CPU or GPU"
+            self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream))
         else:
-            inp = Tensors.TensorListCPU(data, layout)
-            self._pipe.SetExternalTLInput(name, inp)
+            info = CheckDLPackCapsule(data)
+            if not info[0]:
+                _check_data_batch(data, self._batch_size, layout)
+            if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
+                if infer_stream:
+                    cuda_stream = _get_default_stream_for_array(data)
+                inp = Tensors.TensorListGPU(data, layout)
+            else:
+                data = to_numpy(data)
+                inp = Tensors.TensorListCPU(data, layout)
+            self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream))
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""
@@ -662,6 +796,17 @@ Parameters
 
         Additionally, you can pass file name, so that serialized pipeline will be written there.
         The file contents will be overwritten
+
+        Parameters
+        ----------
+        define_graph : allable
+                If specified, this function will be used instead of member :meth:`define_graph`.
+                This parameter must not be set, if the pipeline outputs are specified with
+                :meth:`set_outputs`.
+        filename : str
+                File, from where serialized pipeline will be writeen.
+        kwargs : dict
+                Refer to Pipeline constructor for full list of arguments.
         """
         if not self._prepared:
             self._prepare_graph(define_graph)
@@ -724,6 +869,7 @@ Parameters
         pipeline._pipe.SetExecutionTypes(pipeline._exec_pipelined, pipeline._exec_separated,
                                          pipeline._exec_async)
         pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
+        pipeline._pipe.EnableExecutorMemoryStats(pipeline._enable_memory_stats)
         pipeline._prepared = True
         pipeline._pipe.Build()
         pipeline._built = True
@@ -750,6 +896,7 @@ Parameters
                                 self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
+        self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
         self._prepared = True
         self._pipe.Build()
         self._built = True

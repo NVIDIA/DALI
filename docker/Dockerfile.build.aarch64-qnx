@@ -43,12 +43,6 @@ RUN dpkg -i $REPO_DEBS && \
    && rm -rf /var/lib/apt/lists/* \
    && rm -rf /tmp/cuda-packages.txt
 
-# Boost
-RUN BOOST_VERSION=1_66_0 \
-   && cd /usr/local \
-   && curl -L https://dl.bintray.com/boostorg/release/1.66.0/source/boost_${BOOST_VERSION}.tar.gz | tar -xzf - \
-   && ln -s ../boost_${BOOST_VERSION}/boost include/boost
-
 # CMake
 RUN CMAKE_VERSION=3.13 && \
     CMAKE_BUILD=3.13.5 && \
@@ -202,7 +196,7 @@ RUN VORBIS_VERSION=1.3.6 && cd /tmp                                             
            CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
            --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le                            && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
-    cd /tmp && rm -rf libvorbis-$VORBIS_VERSION
+    cd /tmp && rm -rf vorbis-$VORBIS_VERSION
 
 # libsnd
 # libsnd cannot find /usr/aarch64-unknown-nto-qnx/aarch64le/include for FLAC so add it manually

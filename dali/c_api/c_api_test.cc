@@ -118,12 +118,11 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline) {
     EXPECT_EQ(daliNumTensors(&handle, output), batch_size);
     for (int elem = 0; elem < batch_size; elem++) {
       auto *shape = daliShapeAtSample(&handle, output, elem);
-      int idx = 0;
-      auto ref_shape = ws.Output<Backend>(output).shape()[idx];
-      for (; shape[idx] != 0; idx++) {
-        EXPECT_EQ(shape[idx], ref_shape[idx]);
-      }
-      EXPECT_EQ(idx, ref_shape.sample_dim());
+      auto ref_shape = ws.Output<Backend>(output).shape()[elem];
+      int D = ref_shape.size();
+      for (int d = 0; d < D; d++)
+        EXPECT_EQ(shape[d], ref_shape[d]);
+      EXPECT_EQ(shape[D], 0) << "Shapes in C API are 0-terminated";
       free(shape);
     }
 
@@ -166,7 +165,7 @@ TYPED_TEST(CApiTest, FileReaderPipe) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   dali::DeviceWorkspace ws;
@@ -223,7 +222,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -232,7 +231,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
     pipe_ptr->SetExternalInput(input_name, input);
     daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                               input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
-                              input_shape.sample_dim(), nullptr, cuda_stream);
+                              input_shape.sample_dim(), nullptr, cuda_stream, DALI_ext_default);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -252,7 +251,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   pipe_ptr->SetExternalInput(input_name, input);
   daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                             input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
-                            input_shape.sample_dim(), "HWC", cuda_stream);
+                            input_shape.sample_dim(), "HWC", cuda_stream, DALI_ext_default);
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
@@ -280,7 +279,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -290,7 +289,8 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
     daliSetExternalInputTensorsAsync(&handle, input_name.c_str(),
                                      backend_to_device_type<TypeParam>::value, data_ptrs.data(),
                                      dali_data_type_t::DALI_UINT8, input_shape.data(),
-                                     input_shape.sample_dim(), nullptr, cuda_stream);
+                                     input_shape.sample_dim(), nullptr, cuda_stream,
+                                     DALI_ext_default);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -311,7 +311,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   daliSetExternalInputTensorsAsync(&handle, input_name.c_str(),
                                    backend_to_device_type<TypeParam>::value, data_ptrs.data(),
                                    dali_data_type_t::DALI_UINT8, input_shape.data(),
-                                   input_shape.sample_dim(), "HWC", cuda_stream);
+                                   input_shape.sample_dim(), "HWC", cuda_stream, DALI_ext_default);
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
@@ -340,7 +340,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -350,7 +350,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
     pipe_ptr->SetExternalInput(input_name, input);
     daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
                          input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
-                         input_shape.sample_dim(), nullptr);
+                         input_shape.sample_dim(), nullptr, DALI_ext_default);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -371,7 +371,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   pipe_ptr->SetExternalInput(input_name, input);
   daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
                        input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
-                       input_shape.sample_dim(), "HWC");
+                       input_shape.sample_dim(), "HWC", DALI_ext_default);
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
@@ -404,7 +404,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth);
+                     prefetch_queue_depth, false);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -415,7 +415,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
     daliSetExternalInputTensors(&handle, input_name.c_str(),
                                 backend_to_device_type<DataBackend>::value, data_ptrs.data(),
                                 dali_data_type_t::DALI_UINT8, input_shape.data(),
-                                input_shape.sample_dim(), nullptr);
+                                input_shape.sample_dim(), nullptr, DALI_ext_default);
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -437,12 +437,39 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   daliSetExternalInputTensors(&handle, input_name.c_str(),
                               backend_to_device_type<DataBackend>::value, data_ptrs.data(),
                               dali_data_type_t::DALI_UINT8, input_shape.data(),
-                              input_shape.sample_dim(), "HWC");
+                              input_shape.sample_dim(), "HWC", DALI_ext_default);
   daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
+}
+
+TYPED_TEST(CApiTest, TestExecutorMeta) {
+  auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
+  auto serialized = pipe_ptr->SerializeToProtobuf();
+
+  pipe_ptr.reset();
+  daliPipelineHandle handle;
+  daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
+                     device_id, false, prefetch_queue_depth, prefetch_queue_depth,
+                     prefetch_queue_depth, true);
+
+  daliRun(&handle);
+  daliOutput(&handle);
+  CUDA_CALL(cudaDeviceSynchronize());
+
+  size_t N;
+  daliExecutorMetadata *meta;
+  daliGetExecutorMetadata(&handle, &meta, &N);
+  EXPECT_EQ(N, 4);
+  for (size_t i = 0; i< N; ++i) {
+    auto &meta_entry = meta[i];
+    for (size_t j = 0; j < meta_entry.out_num; ++j) {
+      EXPECT_LE(meta_entry.real_size[j], meta_entry.reserved[j]);
+    }
+  }
+  daliFreeExecutorMetadata(meta, N);
 }
 
 }  // namespace dali

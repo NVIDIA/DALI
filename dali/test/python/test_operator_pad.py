@@ -149,10 +149,3 @@ def test_pad_fail():
 
     pipe.build()
     assert_raises(RuntimeError, pipe.run)
-
-def main():
-  for test in test_slice_synth_data_vs_numpy():
-    test[0](*test[1:])
-
-if __name__ == '__main__':
-  main()

@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <map>
 
 #include "dali/core/cuda_stream.h"
 #include "dali/core/format.h"
@@ -37,7 +38,7 @@ bool dali_initialized = false;
 template<typename Backend>
 void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const void *data_ptr,
                       dali_data_type_t data_type, const int64_t *shapes, int sample_dim,
-                      const char *layout_str, cudaStream_t stream = 0) {
+                      const char *layout_str, cudaStream_t stream = 0, unsigned int flags = 0) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
@@ -51,10 +52,11 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   // We cast away the const from data_ptr, as there is no other way of passing it to the
   // TensorList, as we must also set the shape and type metadata.
   // It is passed further as const TensorList, so it's data cannot be modified.
+  data.set_pinned(flags & DALI_ext_pinned);
   data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof);
   data.Resize(tl_shape, type_info);
   data.SetLayout(layout);
-  pipeline->SetExternalInput(name, data, stream);
+  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_force_sync);
 }
 
 
@@ -62,7 +64,7 @@ template<typename Backend>
 void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                              const void *const *data_ptr, dali_data_type_t data_type,
                              const int64_t *shapes, int64_t sample_dim, const char *layout_str,
-                             cudaStream_t stream = 0) {
+                             cudaStream_t stream = 0, unsigned int flags = 0) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * pipeline->batch_size());
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), pipeline->batch_size(), sample_dim);
@@ -70,18 +72,19 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
   if (layout_str != nullptr) {
     layout = dali::TensorLayout(layout_str);
   }
-  std::vector<dali::Tensor<Backend>> data(pipeline->batch_size());
+  dali::TensorVector<Backend> data(pipeline->batch_size());
   const auto &type_info = dali::TypeTable::GetTypeInfo(static_cast<dali::DALIDataType>(data_type));
   auto elem_sizeof = type_info.size();
   for (int i = 0; i < pipeline->batch_size(); i++) {
     // We cast away the const from data_ptr, as there is no other way of passing it to the
     // Tensor as we must also set the shape and type metadata.
     // The vector that we pass to pipeline is const.
+    data[i].set_pinned(flags & DALI_ext_pinned);
     data[i].ShareData(const_cast<void *>(data_ptr[i]), tl_shape[i].num_elements() * elem_sizeof);
     data[i].Resize(tl_shape[i], type_info);
     data[i].SetLayout(layout);
   }
-  pipeline->SetExternalInput(name, data, stream);
+  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_force_sync);
 }
 
 }  // namespace
@@ -108,7 +111,8 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                         int separated_execution,
                         int prefetch_queue_depth,
                         int cpu_prefetch_queue_depth,
-                        int gpu_prefetch_queue_depth) {
+                        int gpu_prefetch_queue_depth,
+                        int enable_memory_stats) {
   bool se = separated_execution != 0;
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length),
                                                    batch_size, num_threads, device_id, true,
@@ -117,6 +121,7 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle,
   if (se) {
     pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
   }
+  pipeline->EnableExecutorMemoryStats(enable_memory_stats);
   pipeline->Build();
   auto ws = std::make_unique<dali::DeviceWorkspace>();
   auto stream = dali::CUDAStream::Create(true);
@@ -162,25 +167,25 @@ void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
 
 void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name, device_type_t device,
                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
-                          int sample_dim, const char *layout_str) {
+                          int sample_dim, const char *layout_str, unsigned int flags) {
   daliSetExternalInputAsync(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
-                                 layout_str, pipe_handle->copy_stream);
-  CUDA_CALL(cudaStreamSynchronize(pipe_handle->copy_stream));
+                                 layout_str, pipe_handle->copy_stream, flags | DALI_ext_force_sync);
 }
 
 
 void daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
-                                    device_type_t device, const void *data_ptr,
-                                    dali_data_type_t data_type, const int64_t *shapes,
-                                    int sample_dim, const char *layout_str, cudaStream_t stream) {
+                               device_type_t device, const void *data_ptr,
+                               dali_data_type_t data_type, const int64_t *shapes,
+                               int sample_dim, const char *layout_str, cudaStream_t stream,
+                               unsigned int flags) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInput<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
-                                         layout_str, stream);
+                                         layout_str, stream, flags);
       return;
     case device_type_t::GPU:
       SetExternalInput<dali::GPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
-                                         layout_str, stream);
+                                         layout_str, stream, flags);
       return;
     default:
       DALI_FAIL(dali::make_string("Unknown device: ", device));
@@ -191,26 +196,26 @@ void daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name
 void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
-                                 int64_t sample_dim, const char *layout_str) {
+                                 int64_t sample_dim, const char *layout_str, unsigned int flags) {
   daliSetExternalInputTensorsAsync(pipe_handle, name, device, data_ptr, data_type, shapes,
-                                        sample_dim, layout_str, pipe_handle->copy_stream);
-  CUDA_CALL(cudaStreamSynchronize(pipe_handle->copy_stream));
+                                        sample_dim, layout_str, pipe_handle->copy_stream,
+                                        flags | DALI_ext_force_sync);
 }
 
 
 void daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const char *name,
-                                           device_type_t device, const void *const *data_ptr,
-                                           dali_data_type_t data_type, const int64_t *shapes,
-                                           int64_t sample_dim, const char *layout_str,
-                                           cudaStream_t stream) {
+                                      device_type_t device, const void *const *data_ptr,
+                                      dali_data_type_t data_type, const int64_t *shapes,
+                                      int64_t sample_dim, const char *layout_str,
+                                      cudaStream_t stream, unsigned int flags) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInputTensors<dali::CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
-                                                sample_dim, layout_str, stream);
+                                                sample_dim, layout_str, stream, flags);
       return;
     case device_type_t::GPU:
       SetExternalInputTensors<dali::GPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
-                                                sample_dim, layout_str, stream);
+                                                sample_dim, layout_str, stream, flags);
       return;
     default:
       DALI_FAIL(dali::make_string("Unknown device: ", device));
@@ -435,4 +440,62 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
 
 void daliLoadLibrary(const char* lib_path) {
     dali::PluginManager::LoadLibrary(lib_path);
+}
+
+void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
+                           daliReaderMetadata* meta) {
+  DALI_ENFORCE(meta, "Provided pointer to meta cannot be NULL.");
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  dali::ReaderMeta returned_meta = pipeline->GetReaderMeta(reader_name);
+  meta->epoch_size = returned_meta.epoch_size;
+  meta->epoch_size_padded = returned_meta.epoch_size_padded;
+  meta->number_of_shards = returned_meta.number_of_shards;
+  meta->shard_id = returned_meta.shard_id;
+  meta->pad_last_batch = returned_meta.pad_last_batch;
+  meta->stick_to_shard = returned_meta.stick_to_shard;
+}
+
+void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle, daliExecutorMetadata **operator_meta,
+                             size_t *operator_meta_num) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  auto returned_meta = pipeline->GetExecutorMeta();
+  *operator_meta_num = returned_meta.size();
+  *operator_meta = static_cast<daliExecutorMetadata*>(malloc(sizeof(daliExecutorMetadata) *
+                                                     returned_meta.size()));
+
+  int i = 0;
+  for (const auto &stat : returned_meta) {
+    auto op_name_size = stat.first.size();
+    auto &op_meta = (*operator_meta)[i];
+    op_meta.operator_name = static_cast<char*>(malloc(sizeof(char) * (op_name_size + 1)));
+    stat.first.copy(op_meta.operator_name, op_name_size);
+    op_meta.operator_name[op_name_size] = '\0';
+
+    auto num_outputs = stat.second.size();
+    op_meta.out_num = num_outputs;
+    op_meta.real_size = static_cast<size_t*>(malloc(sizeof(size_t) * num_outputs));
+    op_meta.max_real_size = static_cast<size_t*>(malloc(sizeof(size_t) * num_outputs));
+    op_meta.reserved = static_cast<size_t*>(malloc(sizeof(size_t) * num_outputs));
+    op_meta.max_reserved = static_cast<size_t*>(malloc(sizeof(size_t) * num_outputs));
+
+    for (size_t j = 0; j < num_outputs; ++j) {
+      const auto &entry = stat.second[j];
+      op_meta.real_size[j] = entry.real_size;
+      op_meta.max_real_size[j] = entry.max_real_size;
+      op_meta.reserved[j] = entry.reserved;
+      op_meta.max_reserved[j] = entry.max_reserved;
+    }
+    ++i;
+  }
+}
+
+void daliFreeExecutorMetadata(daliExecutorMetadata *operator_meta, size_t operator_meta_num) {
+  for (size_t i = 0; i < operator_meta_num; ++i) {
+    free(operator_meta[i].operator_name);
+    free(operator_meta[i].real_size);
+    free(operator_meta[i].max_real_size);
+    free(operator_meta[i].reserved);
+    free(operator_meta[i].max_reserved);
+  }
+  free(operator_meta);
 }

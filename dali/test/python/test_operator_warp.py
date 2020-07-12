@@ -94,10 +94,10 @@ class WarpPipeline(Pipeline):
 
         if use_input:
           self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.batch_size, 10))
-          self.warp = ops.WarpAffine(device = device, size=static_size, fill_value = 42, output_dtype = output_type)
+          self.warp = ops.WarpAffine(device = device, size=static_size, fill_value = 42, dtype = output_type)
         else:
           warp_matrix = (0.1, 0.9, 10, 0.8, -0.2, -20)
-          self.warp = ops.WarpAffine(device = device, size=static_size, matrix = warp_matrix, fill_value = 42, output_dtype = output_type)
+          self.warp = ops.WarpAffine(device = device, size=static_size, matrix = warp_matrix, fill_value = 42, dtype = output_type)
 
         self.iter = 0
 
@@ -207,13 +207,3 @@ def test_gpu_vs_cpu():
         gpu_pipeline.build();
 
         compare(cpu_pipeline, gpu_pipeline, 1)
-
-
-
-def main():
-  test_cpu_vs_cv()
-  test_gpu_vs_cv()
-  test_gpu_vs_cpu()
-
-if __name__ == '__main__':
-  main()

@@ -22,6 +22,7 @@ from functools import partial
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
+from test_utils import RandomlyShapedDataIterator
 import math
 import librosa as librosa
 
@@ -94,11 +95,12 @@ class MelFilterBankPythonPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data)
 
-def check_operator_mel_filter_bank_vs_python(device, batch_size, input_shape,
+def check_operator_mel_filter_bank_vs_python(device, batch_size, max_shape,
                                              nfilter, sample_rate, freq_low, freq_high,
                                              normalize, mel_formula):
-    eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
-    eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    min_shape = [max_shape[0], 1]
+    eii1 = RandomlyShapedDataIterator(batch_size, min_shape=min_shape, max_shape=max_shape, dtype=np.float32)
+    eii2 = RandomlyShapedDataIterator(batch_size, min_shape=min_shape, max_shape=max_shape, dtype=np.float32)
     compare_pipelines(
         MelFilterBankPipeline(device, batch_size, iter(eii1),
                               nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,

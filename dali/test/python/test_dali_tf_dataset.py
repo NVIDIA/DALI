@@ -49,7 +49,7 @@ class TestPipeline(Pipeline):
             ratio=False,
             save_img_ids=True)
         self.decode = ops.ImageDecoder(
-            device = 'mixed' if device is 'gpu' else 'cpu',
+            device = 'mixed' if device == 'gpu' else 'cpu',
             output_type = types.RGB)
         self.resize = ops.Resize(
             device = device,
@@ -60,7 +60,6 @@ class TestPipeline(Pipeline):
         self.cmn = ops.CropMirrorNormalize(
             device = device,
             output_dtype = types.FLOAT,
-            image_type = types.RGB,
             mean = [128., 128., 128.],
             std = [1., 1., 1.])
         self.cast = ops.Cast(
@@ -75,7 +74,7 @@ class TestPipeline(Pipeline):
         images = self.resize(images)
         output = self.cmn(
             images)
-        if self.device is 'gpu':
+        if self.device == 'gpu':
             im_ids = im_ids.gpu()
         im_ids_16 = self.cast(im_ids)
         reshaped = self.reshape(im_ids)
@@ -124,7 +123,7 @@ def _test_tf_dataset(device, device_id = 0):
     standalone_pipeline.build()
     standalone_results = []
     for _ in range(iterations):
-        if device is 'gpu':
+        if device == 'gpu':
             standalone_results.append(
                 tuple(result.as_cpu().as_array() for result in standalone_pipeline.run()))
         else:

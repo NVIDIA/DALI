@@ -17,6 +17,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
+import os
 import glob
 import argparse
 import time
@@ -56,10 +57,9 @@ class CommonPipeline(Pipeline):
         out_type = types.FLOAT16 if fp16 else types.FLOAT
 
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
-                                            output_dtype=out_type,
+                                            dtype=out_type,
                                             output_layout=layout,
                                             crop=(224, 224),
-                                            image_type=types.RGB,
                                             mean=[0.485 * 255,0.456 * 255,0.406 * 255],
                                             std=[0.229 * 255,0.224 * 255,0.225 * 255])
         self.coin = ops.CoinFlip(probability=0.5)
@@ -210,6 +210,18 @@ parser.add_argument('--read_shuffle', action='store_true',
                     help='Shuffle data when reading')
 parser.add_argument('--simulate_N_gpus', default=None, type=int, metavar='N',
                     help='Used to simulate small shard as it would be in a multi gpu setup with this number of gpus. If provided, each gpu will see a shard size as if we were in a multi gpu setup with this number of gpus')
+parser.add_argument('--remove_default_pipeline_paths', action='store_true',
+                    help="For all data pipeline types, remove the default values")
+parser.add_argument('--file_read_pipeline_paths', default=None, type=str, metavar='N',
+                    help='Add custom FileReadPipeline paths. Separate multiple paths by commas')
+parser.add_argument('--mxnet_reader_pipeline_paths', default=None, type=str, metavar='N',
+                    help='Add custom MXNetReaderPipeline paths. For a given path, a .rec and .idx extension will be appended. Separate multiple paths by commas')
+parser.add_argument('--caffe_read_pipeline_paths', default=None, type=str, metavar='N',
+                    help='Add custom CaffeReadPipeline paths. Separate multiple paths by commas')
+parser.add_argument('--caffe2_read_pipeline_paths', default=None, type=str, metavar='N',
+                    help='Add custom Caffe2ReadPipeline paths. Separate multiple paths by commas')
+parser.add_argument('--tfrecord_pipeline_paths', default=None, type=str, metavar='N',
+                    help='Add custom TFRecordPipeline paths. For a given path, a second path with an .idx extension will be added for the required idx file(s). Separate multiple paths by commas')
 args = parser.parse_args()
 
 N = args.gpus             # number of GPUs
@@ -221,6 +233,40 @@ if args.separate_queue:
     PREFETCH = {'cpu_size': args.cpu_size , 'gpu_size': args.gpu_size}
 FP16 = args.fp16
 NHWC = args.nhwc
+
+if args.remove_default_pipeline_paths:
+    for pipe_name in test_data.keys():
+        test_data[pipe_name] = []
+
+if args.file_read_pipeline_paths:
+    paths = args.file_read_pipeline_paths.split(',')
+    for path in paths:
+        test_data[FileReadPipeline].append([path])
+
+if args.mxnet_reader_pipeline_paths:
+    paths = args.mxnet_reader_pipeline_paths.split(',')
+    for path in paths:
+        path_expanded = [path + '.rec', path + '.idx']
+        test_data[MXNetReaderPipeline].append(path_expanded)
+
+if args.caffe_read_pipeline_paths:
+    paths = args.caffe_read_pipeline_paths.split(',')
+    for path in paths:
+        test_data[CaffeReadPipeline].append([path])
+
+if args.caffe2_read_pipeline_paths:
+    paths = args.caffe2_read_pipeline_paths.split(',')
+    for path in paths:
+        test_data[Caffe2ReadPipeline].append([path])
+
+if args.tfrecord_pipeline_paths:
+    paths = args.tfrecord_pipeline_paths.split(',')
+    for path in paths:
+        idx_split_path, idx_split_file = os.path.split(path)
+        idx_split_path = idx_split_path + '.idx'
+        idx_path = os.path.join(idx_split_path, idx_split_file)
+        path_expanded = [path, idx_path]
+        test_data[TFRecordPipeline].append(path_expanded)
 
 DECODER_TYPE = args.decoder_type
 CACHED_DECODING = DECODER_TYPE == 'cached'

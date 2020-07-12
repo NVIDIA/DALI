@@ -29,6 +29,7 @@
 #include "dali/core/device_guard.h"
 #include "dali/core/python_util.h"
 #include "dali/operators.h"
+#include "dali/pipeline/data/dltensor.h"
 
 namespace dali {
 namespace python {
@@ -111,8 +112,84 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   return d;
 }
 
+template<typename SrcBackend>
+const TensorListShape<> ConvertShape(const TensorShape<> &shape,
+                                      TensorList<SrcBackend> *shape_type_placeholder) {
+  return uniform_list_shape(shape[0], shape.last(shape.size()-1));
+}
+
+template<typename SrcBackend>
+const TensorShape<> &ConvertShape(const TensorShape<> &shape,
+                                  Tensor<SrcBackend> *shape_type_placeholder) {
+  return shape;
+}
+
+template<typename TStrides, typename TShape>
+void CheckContiguousTensor(const TStrides &strides, size_t num_strides,
+                           const TShape &shape, size_t num_extents, size_t element_size) {
+  DALI_ENFORCE(num_strides == num_extents,
+    "There should be exactly as many strides as there are extents in array shape.");
+  int64_t stride_from_shape = element_size;
+  for (int i = num_strides - 1; i >= 0; i--) {
+    DALI_ENFORCE(strides[i] == stride_from_shape,
+        make_string("Strided data not supported. Dimension ", i, " has stride ", strides[i],
+        " whereas densely packed data of this shape would have a stride ", stride_from_shape));
+    stride_from_shape *= shape[i];
+  }
+}
+
+template<typename TStrides, typename TShape>
+void CheckContiguousTensor(const TStrides &strides, const TShape &shape, size_t element_size) {
+  CheckContiguousTensor(strides, dali::size(strides), shape, dali::size(shape), element_size);
+}
+
+template<typename SrcBackend, template<typename> class SourceDataType>
+void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch, string layout) {
+  auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(capsule);
+  const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
+  DALI_ENFORCE((std::is_same<SrcBackend, GPUBackend>::value &&
+                  dl_tensor.ctx.device_type == kDLGPU) ||
+               (std::is_same<SrcBackend, CPUBackend>::value &&
+                  dl_tensor.ctx.device_type == kDLCPU),
+               "DLPack device type doesn't match Tensor type");
+
+  auto dali_type = TypeTable::GetTypeInfo(DLToDALIType(dl_tensor.dtype));
+  TensorShape<> shape;
+  shape.resize(dl_tensor.ndim);
+  for (ssize_t i = 0; i < dl_tensor.ndim; ++i) {
+    shape[i] = dl_tensor.shape[i];
+  }
+
+  CheckContiguousTensor(dl_tensor.strides, dl_tensor.ndim, dl_tensor.shape, dl_tensor.ndim, 1);
+  size_t bytes = volume(shape) * dali_type.size();
+
+  // empty lambda that just captures dlm_tensor_ptr unique ptr that would be destructed when
+  // shared ptr is destroyed
+  auto typed_shape = ConvertShape(shape, batch);
+  batch->ShareData(shared_ptr<void>(dl_tensor.data,
+                                    [dlm_tensor_ptr = move(dlm_tensor_ptr)](void*) {}),
+                                    bytes, typed_shape, dali_type);
+
+  // according to the docs kDLCPUPinned = kDLCPU | kDLGPU so test it as a the first option
+  if (dl_tensor.ctx.device_type == kDLCPUPinned) {
+    batch->set_device_id(-1);
+    batch->set_pinned(true);
+  } else if (dl_tensor.ctx.device_type == kDLCPU) {
+    batch->set_device_id(-1);
+  } else if (dl_tensor.ctx.device_type == kDLGPU) {
+    batch->set_device_id(dl_tensor.ctx.device_id);
+  } else {
+    DALI_FAIL(make_string("Not supported DLPack device type: ", dl_tensor.ctx.device_type, "."));
+  }
+
+  batch->SetLayout(layout);
+
+  batch->Resize(typed_shape);
+}
+
 template <typename TensorType>
-TensorShape<> FillTensorData(const py::object object, TensorType *t, int device_id, string layout) {
+void FillTensorFromCudaArray(const py::object object, TensorType *batch, int device_id,
+                             string layout) {
   PyObject *p_ptr = object.ptr();
   if (!PyObject_HasAttr(p_ptr, PyUnicode_FromString("__cuda_array_interface__"))) {
     DALI_FAIL("Provided object doesn't support cuda array interface protocol")
@@ -132,14 +209,11 @@ TensorShape<> FillTensorData(const py::object object, TensorType *t, int device_
                 cu_a_interface.contains("data") &&
                 PyTuple_Check(cu_a_interface["data"].ptr()) &&
                 cu_a_interface["data"].cast<py::tuple>().size() >= 2 &&
-                cu_a_interface.contains("version") &&
-                // see https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
-                // this set of atributes is tagged as version 2
-                cu_a_interface["version"].cast<int>() >= 2,
+                cu_a_interface.contains("version"),
                 "Provided object doesn't have required cuda array interface "
                 "protocol fields of necessary type.");
-  DALI_ENFORCE(!cu_a_interface.contains("strides") || cu_a_interface["strides"].is_none(),
-                "Strided data is not supported");
+  DALI_ENFORCE(!cu_a_interface.contains("mask") || cu_a_interface["mask"].is_none(),
+                "Masked tensors are not supported");
 
   // Create the Tensor and wrap the data
   TensorShape<> shape = shape_from_py(cu_a_interface["shape"].cast<py::tuple>());
@@ -147,15 +221,21 @@ TensorShape<> FillTensorData(const py::object object, TensorType *t, int device_
   TypeInfo type = TypeFromFormatStr(cu_a_interface["typestr"].cast<py::str>());
   size_t bytes = volume(shape) * type.size();
 
-  t->ShareData(PyLong_AsVoidPtr(cu_a_interface["data"].cast<py::tuple>()[0].ptr()), bytes);
-  t->set_type(type);
-  t->SetLayout(layout);
+  if (cu_a_interface.contains("strides") && !cu_a_interface["strides"].is_none()) {
+    TensorShape<> strides = shape_from_py(cu_a_interface["strides"].cast<py::tuple>());
+    CheckContiguousTensor(strides, shape, type.size());
+  }
+
+  auto typed_shape = ConvertShape(shape, batch);
+  batch->ShareData(PyLong_AsVoidPtr(cu_a_interface["data"].cast<py::tuple>()[0].ptr()), bytes,
+                   typed_shape, type);
+  batch->SetLayout(layout);
   // it is for __cuda_array_interface__ so device_id < 0 is not a valid value
   if (device_id < 0) {
     CUDA_CALL(cudaGetDevice(&device_id));
   }
-  t->set_device_id(device_id);
-  return shape;
+  batch->set_device_id(device_id);
+  batch->Resize(typed_shape);
 }
 
 void ExposeTensorLayout(py::module &m) {
@@ -183,7 +263,51 @@ void ExposeTensorLayout(py::module &m) {
 }
 
 void ExposeTensor(py::module &m) {
+  m.def("CheckDLPackCapsule",
+        [](py::object &p) {
+          py::list list;
+          if (PyCapsule_CheckExact(p.ptr())) {
+            py::capsule capsule = py::reinterpret_borrow<py::capsule>(p);
+            // do not consume capsule
+            auto dlm_tensor_ptr = DLMTensorRawPtrFromCapsule(capsule, false);
+            const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
+            list.append(dl_tensor.ctx.device_type == kDLGPU || dl_tensor.ctx.device_type == kDLCPU);
+            list.append(dl_tensor.ctx.device_type == kDLGPU);
+          } else {
+            list.append(false);
+            list.append(false);
+          }
+          return py::cast<py::tuple>(list);
+        },
+      "ptr"_a,
+      R"code(
+      Check if provided python object represent a valid DLPack capsule.
+      It returns a tuple of two boolean values: one indicating if this is a valid DLPack object, and the other if the data
+
+      Parameters
+      ----------
+      p : python object
+          Python object to be checked
+      )code");
+
   py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
+    .def(py::init([](py::capsule &capsule, string layout = "") {
+          auto t = new Tensor<CPUBackend>;
+          FillTensorFromDlPack(capsule, t, layout);
+          return t;
+        }),
+      "object"_a,
+      "layout"_a = "",
+      R"code(
+      DLPack of Tensor residing in the CPU memory.
+
+      Parameters
+      ----------
+      object : DLPack object
+            Python DLPack object
+      layout : str
+            Layout of the data
+      )code")
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
             "buffer info for tensor w/ invalid type.");
@@ -204,7 +328,7 @@ void ExposeTensor(py::module &m) {
               FormatStrFromType(t.type()),
               t.ndim(), shape, stride);
         })
-    .def(py::init([](py::buffer b, string layout = "") {
+    .def(py::init([](py::buffer b, string layout = "", bool is_pinned = false) {
           // We need to verify that hte input data is c contiguous
           // and of a type that we can work with in the backend
           __backend_impl_force_tls_align_fun();
@@ -221,24 +345,31 @@ void ExposeTensor(py::module &m) {
           size_t bytes = volume(i_shape) * info.itemsize;
 
           // Validate the stride
-          ssize_t dim_prod = 1;
-          for (int i = info.strides.size()-1; i >= 0; --i) {
-            DALI_ENFORCE(info.strides[i] == info.itemsize*dim_prod,
-                "Strided data not supported. Detected on dimension " + std::to_string(i));
-            dim_prod *= info.shape[i];
-          }
+          CheckContiguousTensor(info.strides, info.shape, info.itemsize);
 
           // Create the Tensor and wrap the data
           auto t = new Tensor<CPUBackend>;
+          t->set_pinned(false);
           TypeInfo type = TypeFromFormatStr(info.format);
-          t->ShareData(info.ptr, bytes);
-          t->set_type(type);
+          t->ShareData(info.ptr, bytes, type);
           t->SetLayout(layout);
           t->Resize(i_shape);
           return t;
         }),
+      "b"_a,
+      "layout"_a = "",
+      "is_pinned"_a = false,
       R"code(
       Tensor residing in the CPU memory.
+
+      Parameters
+      ----------
+      b : object
+            the buffer to wrap into the TensorListCPU object
+      layout : str
+            Layout of the data
+      is_pinned : bool
+            If provided memory is page-locked (pinned)
       )code")
     .def("shape", &py_shape<CPUBackend>,
          R"code(
@@ -283,10 +414,26 @@ void ExposeTensor(py::module &m) {
       )code");
 
   py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
+    .def(py::init([](py::capsule &capsule, string layout = "") {
+          auto t = new Tensor<GPUBackend>;
+          FillTensorFromDlPack(capsule, t, layout);
+          return t;
+        }),
+      "object"_a,
+      "layout"_a = "",
+      R"code(
+      DLPack of Tensor residing in the GPU memory.
+
+      Parameters
+      ----------
+      object : DLPack object
+            Python DLPack object
+      layout : str
+            Layout of the data
+      )code")
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = new Tensor<GPUBackend>;
-          auto shape = FillTensorData(object, t, device_id, layout);
-          t->Resize(shape);
+          FillTensorFromCudaArray(object, t, device_id, layout);
           return t;
         }),
       "object"_a,
@@ -302,7 +449,7 @@ void ExposeTensor(py::module &m) {
       layout : str
             Layout of the data
       device_id: int
-            Device of where this tensor resides
+            Device of where this tensor resides. If not provided, the current device is used.
       )code")
     .def("shape", &py_shape<GPUBackend>,
          R"code(
@@ -404,7 +551,24 @@ py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
 
 void ExposeTensorList(py::module &m) {
   py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
-    .def(py::init([](py::buffer b, string layout = "") {
+    .def(py::init([](py::capsule &capsule, string layout = "") {
+            auto t = new TensorList<CPUBackend>;
+            FillTensorFromDlPack(capsule, t, layout);
+            return t;
+          }),
+        "object"_a,
+        "layout"_a = "",
+        R"code(
+        List of tensors residing in the CPU memory.
+
+        Parameters
+        ----------
+        object : DLPack object
+              Python DLPack object representing TensorList
+        layout : str
+              Layout of the data
+        )code")
+    .def(py::init([](py::buffer b, string layout = "", bool is_pinned = false) {
         // We need to verify that the input data is C_CONTIGUOUS
         // and of a type that we can work with in the backend
         py::buffer_info info = b.request();
@@ -420,29 +584,31 @@ void ExposeTensorList(py::module &m) {
         size_t bytes = volume(tensor_shape)*i_shape.size()*info.itemsize;
 
         // Validate the stride
-        ssize_t dim_prod = 1;
-        for (int i = info.strides.size()-1; i >= 0; --i) {
-          DALI_ENFORCE(info.strides[i] == info.itemsize*dim_prod,
-              "Strided data not supported. Detected on dimension " + std::to_string(i));
-          dim_prod *= info.shape[i];
-        }
+        CheckContiguousTensor(info.strides, info.shape, info.itemsize);
 
         // Create the Tensor and wrap the data
         auto t = new TensorList<CPUBackend>;
+        t->set_pinned(false);
         TypeInfo type = TypeFromFormatStr(info.format);
-        t->ShareData(info.ptr, bytes);
-        t->set_type(type);
+        t->ShareData(info.ptr, bytes, type);
         t->SetLayout(layout);
         t->Resize(i_shape);
         return t;
       }),
+      "b"_a,
+      "layout"_a = "",
+      "is_pinned"_a = false,
       R"code(
       List of tensors residing in the CPU memory.
 
       Parameters
       ----------
-      b : the buffer to wrap into the TensorListCPU object
-      layout : the layout description
+      b : object
+            the buffer to wrap into the TensorListCPU object
+      layout : str
+            Layout of the data
+      is_pinned : bool
+            If provided memory is page-locked (pinned)
       )code")
     .def("layout", [](TensorList<CPUBackend> &t) {
       return t.GetLayout().str();
@@ -583,7 +749,7 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns a tensor that is a view of this `TensorList` cast to the given shape.
 
-      This function can only be called if `TensorList` is continuous in memory and
+      This function can only be called if `TensorList` is contiguous in memory and
       the volumes of requested `Tensor` and `TensorList` matches.
       )code",
       py::return_value_policy::reference_internal)
@@ -603,22 +769,33 @@ void ExposeTensorList(py::module &m) {
       )code");
 
   py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
+    .def(py::init([](py::capsule &capsule, string layout = "") {
+            auto t = new TensorList<GPUBackend>;
+            FillTensorFromDlPack(capsule, t, layout);
+            return t;
+          }),
+        "object"_a,
+        "layout"_a = "",
+        R"code(
+        List of tensors residing in the GPU memory.
+
+        Parameters
+        ----------
+        object : DLPack object
+              Python DLPack object representing TensorList
+        layout : str
+              Layout of the data
+        )code")
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = new TensorList<GPUBackend>;
-          auto shape = FillTensorData(object, t, device_id, layout);
-          std::vector<Index> tensor_shape(shape.size()-1);
-          for (int i = 1; i < shape.size(); ++i) {
-            tensor_shape[i-1] = shape[i];
-          }
-          auto tl_shape = uniform_list_shape(shape[0], tensor_shape);
-          t->Resize(tl_shape);
+          FillTensorFromCudaArray(object, t, device_id, layout);
           return t;
         }),
       "object"_a,
       "layout"_a = "",
       "device_id"_a = -1,
       R"code(
-      List of tensors residing in the CPU memory.
+      List of tensors residing in the GPU memory.
 
       Parameters
       ----------
@@ -626,8 +803,8 @@ void ExposeTensorList(py::module &m) {
             Python object that implement CUDA Array Interface
       layout : str
             Layout of the data
-      device_id: int
-            Device of where this lists of tensors resides
+      device_id : int
+            Device of where this tensor resides. If not provided, the current device is used.
       )code")
     .def(py::init([]() {
           // Construct a default TensorList on GPU
@@ -739,7 +916,7 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns a tensor that is a view of this `TensorList` cast to the given shape.
 
-      This function can only be called if `TensorList` is continuous in memory and
+      This function can only be called if `TensorList` is contiguous in memory and
       the volumes of requested `Tensor` and `TensorList` matches.
       )code",
       py::return_value_policy::reference_internal)
@@ -851,6 +1028,58 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetHostBufferShrinkThreshold", Buffer<CPUBackend>::GetShrinkThreshold);
   m.def("GetHostBufferGrowthFactor", Buffer<CPUBackend>::GetGrowthFactor);
   m.def("GetDeviceBufferGrowthFactor", Buffer<GPUBackend>::GetGrowthFactor);
+}
+
+py::dict DeprecatedArgMetaToDict(const DeprecatedArgDef & meta) {
+  py::dict d;
+  d["msg"] = meta.msg;
+  d["removed"] = meta.removed;
+  d["renamed_to"] = meta.renamed_to;
+  return d;
+}
+
+py::dict ReaderMetaToDict(const ReaderMeta &meta) {
+  py::dict d;
+  d["epoch_size"] = meta.epoch_size;
+  d["epoch_size_padded"] = meta.epoch_size_padded;
+  d["number_of_shards"] = meta.number_of_shards;
+  d["shard_id"] = meta.shard_id;
+  d["pad_last_batch"] = meta.pad_last_batch;
+  d["stick_to_shard"] = meta.stick_to_shard;
+  return d;
+}
+
+py::dict ExecutorMetaToDict(const ExecutorMetaMap &meta) {
+  py::dict d;
+  for (const auto &stat : meta) {
+    py::dict op_dict;
+    py::list real_memory_size;
+    py::list reserved_memory_size;
+    py::list max_real_memory_size;
+    py::list max_reserved_memory_size;
+    for (const auto &entry : stat.second) {
+      real_memory_size.append(entry.real_size);
+      max_real_memory_size.append(entry.max_real_size);
+      reserved_memory_size.append(entry.reserved);
+      max_reserved_memory_size.append(entry.max_reserved);
+    }
+    op_dict["real_memory_size"] = real_memory_size;
+    op_dict["max_real_memory_size"] = max_real_memory_size;
+    op_dict["reserved_memory_size"] = reserved_memory_size;
+    op_dict["max_reserved_memory_size"] = max_reserved_memory_size;
+    d[stat.first.c_str()] = op_dict;
+  }
+  return d;
+}
+
+template <typename Backend>
+void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t stream,
+                  bool sync = false) {
+  TensorVector<Backend> tv(list.size());
+  for (size_t i = 0; i < list.size(); ++i) {
+    tv[i] = std::move(list[i].cast<Tensor<Backend>&>());
+  }
+  p->SetExternalInput(name, tv, stream, sync);
 }
 
 PYBIND11_MODULE(backend_impl, m) {
@@ -1005,6 +1234,16 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_pipelined"_a = true,
         "exec_separated"_a = false,
         "exec_async"_a = true)
+    .def("EnableExecutorMemoryStats",
+        [](Pipeline *p, bool enable_memory_stats) {
+          p->EnableExecutorMemoryStats(enable_memory_stats);
+        },
+        "enable_memory_stats"_a = true)
+    .def("executor_statistics",
+        [](Pipeline *p) {
+          auto ret = p->GetExecutorMeta();
+          return ExecutorMetaToDict(ret);
+        })
     .def("SetQueueSizes",
         [](Pipeline *p, int cpu_size, int gpu_size) {
           p->SetQueueSizes(cpu_size, gpu_size);
@@ -1053,11 +1292,26 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("num_threads", &Pipeline::num_threads)
     .def("device_id", &Pipeline::device_id)
     .def("SetExternalTLInput",
-        [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl) {
-          p->SetExternalInput(name, tl);
-        })
+        [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
+           py::object /*cuda_stream*/) {
+          p->SetExternalInput(name, tl, 0, true);
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none())
+    .def("SetExternalTLInput",
+        [](Pipeline *p, const string &name, const TensorList<GPUBackend> &tl,
+           py::object cuda_stream) {
+           cudaStream_t stream = cuda_stream.is_none()
+                                 ? UserStream::Get()->GetStream(tl)
+                                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+          p->SetExternalInput(name, tl, stream, cuda_stream.is_none());
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none())
     .def("SetExternalTensorInput",
-        [](Pipeline *p, const string &name, py::list list) {
+        [](Pipeline *p, const string &name, py::list list, py::object cuda_stream) {
           // Note: This is a hack to get around weird casting
           // issues w/ pybind and a non-copyable type (dali::Tensor).
           // We cannot use pybind::cast<Tensor<CPUBackend>>
@@ -1066,14 +1320,24 @@ PYBIND11_MODULE(backend_impl, m) {
           // tries to call the deleted copy constructor for Tensor.
           // instead, we cast to a reference type and manually
           // move into the vector.
-          vector<Tensor<CPUBackend>> tensors(list.size());
           DALI_ENFORCE(p->batch_size() == static_cast<int>(list.size()),
              "Data list provided to feed_input needs to have batch_size length.");
-          for (size_t i = 0; i < list.size(); ++i) {
-            tensors[i] = std::move(list[i].cast<Tensor<CPUBackend>&>());
+
+          // not the most beautiful but at least it doesn't throw as plain cast<T>()
+          py::detail::make_caster<Tensor<CPUBackend>&> conv;
+          bool is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
+          if (is_cpu_data) {
+            FeedPipeline<CPUBackend>(p, name, list, 0, true);
+          } else {
+            cudaStream_t stream = cuda_stream.is_none()
+                                ? UserStream::Get()->GetStream(list[0].cast<Tensor<GPUBackend>&>())
+                                : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+            FeedPipeline<GPUBackend>(p, name, list, stream, cuda_stream.is_none());
           }
-          p->SetExternalInput(name, tensors);
-        })
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none())
     .def("SerializeToProtobuf",
         [](Pipeline *p) -> py::bytes {
           string s = p->SerializeToProtobuf();
@@ -1084,13 +1348,20 @@ PYBIND11_MODULE(backend_impl, m) {
         "show_tensors"_a = false,
         "show_ids"_a = false,
         "use_colors"_a = false)
-    .def("epoch_size", &Pipeline::EpochSize)
-    .def("epoch_size",
+    .def("reader_meta", [](Pipeline* p) {
+          std::map<std::string, ReaderMeta> meta_map = p->GetReaderMeta();
+          py::dict d;
+          for (auto const& value : meta_map) {
+            d[value.first.c_str()] = ReaderMetaToDict(value.second);
+          }
+          return d;
+        })
+    .def("reader_meta",
         [](Pipeline* p, const std::string& op_name) {
-          std::map<std::string, Index> sizes = p->EpochSize();
-          DALI_ENFORCE(sizes.find(op_name) != sizes.end(),
-              "Operator " + op_name + " does not expose valid epoch size.");
-          return sizes[op_name];
+          ReaderMeta meta = p->GetReaderMeta(op_name);
+          DALI_ENFORCE(meta,
+              "Operator " + op_name + "  not found or does not expose valid metadata.");
+          return ReaderMetaToDict(meta);
         });
 
 #define DALI_OPSPEC_ADDARG(T) \
@@ -1183,6 +1454,12 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsNoPrune", &OpSchema::IsNoPrune)
     .def("IsDeprecated", &OpSchema::IsDeprecated)
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf)
+    .def("IsDeprecatedArg", &OpSchema::IsDeprecatedArg)
+    .def("DeprecatedArgMeta",
+        [](OpSchema *schema, const std::string &arg_name) {
+          auto meta = schema->DeprecatedArgMeta(arg_name);
+          return DeprecatedArgMetaToDict(meta);
+        })
     .def("GetSupportedLayouts", &OpSchema::GetSupportedLayouts);
 
   ExposeTensorLayout(types_m);

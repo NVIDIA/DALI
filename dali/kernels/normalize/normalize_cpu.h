@@ -37,6 +37,7 @@ namespace normalize_impl {
 template <typename Out, typename In, typename Param>
 void normalize(Out *out, const In *in, int64_t count,
                const Param *mean, const Param *scale, Param shift) {
+  #pragma omp simd
   for (int64_t i = 0; i < count; i++) {
     out[i] = ConvertSat<Out>((in[i] - mean[i]) * scale[i] + shift);
   }
@@ -45,6 +46,7 @@ void normalize(Out *out, const In *in, int64_t count,
 template <typename Out, typename In, typename Param>
 void normalize(Out *out, const In *in, int64_t count,
                Param mean, Param scale, Param shift) {
+  #pragma omp simd
   for (int64_t i = 0; i < count; i++) {
     out[i] = ConvertSat<Out>((in[i] - mean) * scale + shift);
   }
@@ -53,9 +55,10 @@ void normalize(Out *out, const In *in, int64_t count,
 template <typename Out, typename In, typename Param>
 void normalize_inner(Out *out, const In *in, int64_t nouter, int64_t ninner,
                      const Param *mean, const Param *scale, Param shift) {
-  for (int64_t i = 0, k = 0; i < nouter; i++) {
-    for (int64_t j = 0; j < ninner; j++, k++) {
-      out[k] = ConvertSat<Out>((in[k] - mean[j]) * scale[j] + shift);
+  for (int64_t i = 0, k = 0; i < nouter; i++, k += ninner) {
+    #pragma omp simd
+    for (int64_t j = 0; j < ninner; j++) {
+      out[k + j] = ConvertSat<Out>((in[k + j] - mean[j]) * scale[j] + shift);
     }
   }
 }
@@ -63,10 +66,11 @@ void normalize_inner(Out *out, const In *in, int64_t nouter, int64_t ninner,
 template <typename Out, typename In, typename Param>
 void normalize_outer(Out *out, const In *in, int64_t nouter, int64_t ninner,
                      const Param *mean, const Param *scale, Param shift) {
-  for (int64_t i = 0, k = 0; i < nouter; i++) {
+  for (int64_t i = 0, k = 0; i < nouter; i++, k += ninner) {
     Param m = mean[i], d = scale[i];
-    for (int64_t j = 0; j < ninner; j++, k++) {
-      out[k] = ConvertSat<Out>((in[k] - m) * d + shift);
+    #pragma omp simd
+    for (int64_t j = 0; j < ninner; j++) {
+      out[k + j] = ConvertSat<Out>((in[k + j] - m) * d + shift);
     }
   }
 }

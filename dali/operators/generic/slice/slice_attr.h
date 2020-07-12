@@ -21,9 +21,9 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/util/crop_window.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/util/crop_window.h"
 
 namespace dali {
 
@@ -47,7 +47,21 @@ class SliceAttr {
     }
   }
 
-  void ProcessArguments(MixedWorkspace &ws) {
+  void ProcessArguments(const DeviceWorkspace &ws) {
+    DALI_ENFORCE(ws.NumInput() == 3,
+      "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
+    // slice args are CPU inputs
+    const auto &crop_anchor = ws.template Input<CPUBackend>(1);
+    const auto &crop_shape = ws.template Input<CPUBackend>(2);
+    for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
+      VerifyArgsShape(crop_anchor.tensor_shape(data_idx), crop_shape.tensor_shape(data_idx));
+      ProcessArgumentsHelper(data_idx,
+                             crop_anchor.template tensor<float>(data_idx),
+                             crop_shape.template tensor<float>(data_idx));
+    }
+  }
+
+  void ProcessArguments(const HostWorkspace &ws) {
     DALI_ENFORCE(ws.NumInput() == 3,
       "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
@@ -58,15 +72,14 @@ class SliceAttr {
     }
   }
 
-  void ProcessArguments(DeviceWorkspace &ws) {
+  void ProcessArguments(const MixedWorkspace &ws) {
     DALI_ENFORCE(ws.NumInput() == 3,
       "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
-    const auto &crop_anchor = ws.Input<CPUBackend>(1);
-    const auto &crop_shape = ws.Input<CPUBackend>(2);
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
-      VerifyArgsShape(crop_anchor.tensor_shape(data_idx), crop_shape.tensor_shape(data_idx));
-      ProcessArgumentsHelper(data_idx, crop_anchor.tensor<float>(data_idx),
-                             crop_shape.tensor<float>(data_idx));
+      const auto &crop_anchor = ws.Input<CPUBackend>(1, data_idx);
+      const auto &crop_shape = ws.Input<CPUBackend>(2, data_idx);
+      VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
+      ProcessArgumentsHelper(data_idx, crop_anchor.data<float>(), crop_shape.data<float>());
     }
   }
 
@@ -119,14 +132,10 @@ class SliceAttr {
             }
             slice_end = std::llround(anchor_val + shape_val);
           }
-          DALI_ENFORCE(slice_end <= shape[dim],
-            make_string("Slice end for dim ", dim, " is out of bounds:",
-                        slice_end, ">", shape[dim]));
           slice.anchor[dim] = std::llround(anchor_val);
           slice.shape[dim] = slice_end - slice.anchor[dim];
-          assert(slice.anchor[dim] + slice.shape[dim] <= shape[dim]);
         }
-        slice.IsInRange(shape);
+
         return slice;
       };
   }

@@ -46,7 +46,7 @@ inline float DefaultFilterRadius(ResamplingFilterType type, float in_size, float
   case ResamplingFilterType::Cubic:
     return 2;
   case ResamplingFilterType::Lanczos3:
-    return 3;
+    return in_size > out_size ? (3*in_size/out_size) : 3;
   default:
     return 1;
   }

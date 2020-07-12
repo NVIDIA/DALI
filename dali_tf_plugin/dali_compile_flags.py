@@ -24,13 +24,13 @@ def get_dali_build_flags():
         dali_include_flags=" ".join(dali_sc.get_include_flags())
         dali_cflags=" ".join(dali_sc.get_compile_flags())
         dali_lflags=" ".join(dali_sc.get_link_flags())
-    except:
+    except BaseException:
         dali_path = get_module_path('nvidia/dali')
-        if dali_path is not '':
+        if dali_path != '':
             dali_include_flags=" ".join(["-I" + dali_path + "/include"])
             dali_cflags=" ".join(["-I" + dali_path + "/include", "-D_GLIBCXX_USE_CXX11_ABI=0"])
             dali_lflags=" ".join(["-L" + dali_path, "-ldali"])
-    if dali_include_flags is '' and dali_cflags is '' and dali_lflags is '':
+    if dali_include_flags == '' and dali_cflags == '' and dali_lflags == '':
         raise ImportError('Could not find DALI.')
     return (dali_include_flags, dali_cflags, dali_lflags)
 

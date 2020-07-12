@@ -27,7 +27,8 @@ Channel dimension should be excluded (e.g. for RGB images specify (480,640), not
   .AddOptionalArg("fill_value", R"(Value used to fill areas that are outside source image.
 If not specified, source coordinates are clamped and the border pixel is repeated.)",
       0.0f)
-  .AddOptionalArg("output_dtype",
+  .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
+  .AddOptionalArg("dtype",
       R"code(Output data type. By default, same as input type)code",
       DALI_NO_TYPE)
   .AddOptionalArg("interp_type",

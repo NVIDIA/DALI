@@ -16,6 +16,7 @@
 #define DALI_KERNELS_SLICE_SLICE_KERNEL_UTILS_H_
 
 #include <vector>
+#include <tuple>
 #include <utility>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -38,11 +39,6 @@ void CheckValidOutputShape(const TensorShape<Dims>& in_sample_shape,
                            const TensorShape<Dims>& out_sample_shape,
                            const Args& args) {
   for (size_t d = 0; d < Dims; d++) {
-    DALI_ENFORCE(
-      args.anchor[d] >= 0 && (args.anchor[d] + args.shape[d]) <= in_sample_shape[d],
-      "Slice dimension " + std::to_string(d) + " is out of bounds : anchor["
-      + std::to_string(args.anchor[d]) + "] size[" + std::to_string(args.shape[d])
-      + "] input dimension size[" + std::to_string(in_sample_shape[d]) + "]");
     DALI_ENFORCE(args.shape[d] <= out_sample_shape[d],
       "Output shape dimension " + std::to_string(d) + " is too small");
   }
@@ -67,6 +63,40 @@ TensorListShape<Dims> GetOutputShapes(const TensorListShape<Dims>& in_shapes,
       output_shapes.set_tensor_shape(i, out_sample_shape);
     }
     return output_shapes;
+}
+
+template <typename Anchor, typename InShape, typename OutShape>
+inline bool NeedPad(int ndim,
+                    const Anchor &anchor,
+                    const InShape &in_shape,
+                    const OutShape &out_shape) {
+  bool need_pad = false;
+  for (int d = 0; d < ndim && !need_pad; d++)
+    need_pad = (anchor[d] < 0) || ((anchor[d] + out_shape[d]) > in_shape[d]);
+  return need_pad;
+}
+
+/**
+ * @brief Fills output with nchannel values repeatedly
+ */
+template <typename T>
+void PadFill(T *output, const T *fill_values, int64_t npixels, int64_t nchannels) {
+  int64_t n = npixels * nchannels;
+  int64_t i = 0;
+  for (; i < nchannels; i++)
+    output[i] = fill_values[i];
+  for (; i < n; i++)
+    output[i] = output[i - nchannels];
+}
+
+inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t anchor,
+                                                                int64_t in_extent,
+                                                                int64_t out_extent) {
+  int64_t pad_before = std::min(out_extent, std::max<int64_t>(0, -anchor));
+  int64_t to_copy = std::max<int64_t>(
+      0, std::min(in_extent - std::max<int64_t>(0, anchor), out_extent - pad_before));
+  int64_t pad_after = out_extent - pad_before - to_copy;
+  return std::tuple<int64_t, int64_t, int64_t>{pad_before, to_copy, pad_after};
 }
 
 }  // namespace kernels

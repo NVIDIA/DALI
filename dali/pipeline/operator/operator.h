@@ -38,6 +38,20 @@
 
 namespace dali {
 
+struct DLL_PUBLIC ReaderMeta {
+  Index epoch_size = -1;          // raw epoch size
+  Index epoch_size_padded = -1;   // epoch size with the padding at the end
+  int number_of_shards = -1;      // number of shards
+  int shard_id = -1;              // shard id of given reader
+  int pad_last_batch = -1;        // if given reader should pad last batch
+  int stick_to_shard = -1;        // if given reader should stick to its shard
+
+  DLL_PUBLIC operator bool() const {
+    return epoch_size != -1 && epoch_size_padded != -1 && number_of_shards != -1 &&
+           shard_id != -1 && pad_last_batch != -1 && stick_to_shard != -1;
+  }
+};
+
 /**
  * Names for most commonly used arguments, to keep consistency between arg naming amongst operators.
  */
@@ -112,7 +126,7 @@ class DLL_PUBLIC OperatorBase {
 
   /**
    * @brief If Operator can infer the output shapes it means that its output would use a single
-   * underlying allocation, especailly for CPU TensorVector will use contiguous mode.
+   * underlying allocation, especially for CPU TensorVector will use contiguous mode.
    */
   DLL_PUBLIC virtual bool CanInferOutputs() const {
     return false;
@@ -149,11 +163,13 @@ class DLL_PUBLIC OperatorBase {
   }
 
   /**
-   * @brief For reader Ops, returns the size of the dataset
+   * @brief For reader Ops, returns the metadata of the reader and dataset,
+   * See ReaderMeta strucutre for the data returned
    * For all other Ops, returns -1
    */
-  DLL_PUBLIC virtual Index epoch_size() const {
-    return -1;
+
+  DLL_PUBLIC virtual ReaderMeta GetReaderMeta() const {
+    return {};
   }
 
   template <typename Workspace>
@@ -171,7 +187,18 @@ class DLL_PUBLIC OperatorBase {
 
   template<typename T>
   T GetDiagnostic(const std::string &name) const {
-    return *any_cast<T *>(diagnostics_.at(name));
+    try {
+      return *any_cast<T *>(diagnostics_.at(name));
+    } catch (dali::bad_any_cast &e) {
+      DALI_FAIL(make_string("Specified type of diagnostic parameter (`", typeid(T).name(),
+                            "`) doesn't match the type that this parameter was registered with. ",
+                            e.what()));
+    } catch (std::out_of_range &e) {
+      DALI_FAIL(make_string("Diagnostic parameter with specified name (`", name,
+                            "`) hasn't been registered. ", e.what()));
+    } catch (...) {
+      DALI_FAIL("Error occured when reading diagnostic parameter.");
+    }
   }
 
   template<typename T>

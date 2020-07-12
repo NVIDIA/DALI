@@ -243,6 +243,22 @@ struct ArgsGen_CompletelyOutOfBounds{
 };
 
 template <typename OutputType, int Dims = 3>
+struct ArgsGen_SingleValuePad {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = -input_shape[0] / 2;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = 0;
+    args.shape[0] = 2 * input_shape[0];
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = input_shape[2];
+    args.fill_values = {128};
+    args.channel_dim = -1;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
 struct ArgsGen_MultiChannelPad {
   SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceArgs<OutputType, 3> args;
@@ -285,6 +301,22 @@ struct ArgsGen_PadAlsoChDim {
     args.shape[0] = 2 * input_shape[0];
     args.shape[1] = 2 * input_shape[1];
     args.shape[2] = input_shape[2] + 1;
+    args.fill_values = {100};
+    args.channel_dim = -1;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_PadAlsoChDim_MultiChannelFillValues {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = -input_shape[0] / 2;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = 0;
+    args.shape[0] = 2 * input_shape[0];
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = input_shape[2] + 1;
     args.fill_values = {100, 110, 120, 128};
     args.channel_dim = 2;
     return args;
@@ -292,7 +324,39 @@ struct ArgsGen_PadAlsoChDim {
 };
 
 template <typename OutputType, int Dims = 3>
+struct ArgsGen_PadOnlyChDim {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = 0;
+    args.anchor[1] = 0;
+    args.anchor[2] = 0;
+    args.shape[0] = input_shape[0];
+    args.shape[1] = input_shape[1];
+    args.shape[2] = input_shape[2] + 1;
+    args.fill_values = {100};
+    args.channel_dim = -1;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
 struct ArgsGen_PadAlsoChDim_ChFirst {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = 0;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = -input_shape[2] / 2;
+    args.shape[0] = input_shape[0] + 1;
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = 2 * input_shape[2];
+    args.fill_values = {100};
+    args.channel_dim = -1;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_PadAlsoChDim_ChFirst_MultiChannelFillValues {
   SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceArgs<OutputType, 3> args;
     args.anchor[0] = 0;
@@ -324,15 +388,7 @@ using SLICE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<uint8_t, uint8_t, 2, 1, 1024, ArgsGen_HalfAllDims<uint8_t, 2>>,
     SliceTestArgs<uint8_t, uint8_t, 2, 100, 1024, ArgsGen_HalfAllDims<uint8_t, 2>>,
     SliceTestArgs<uint8_t, uint8_t, 3, 3, 256, ArgsGen_HalfAllDims<uint8_t, 3>>,
-    SliceTestArgs<int, int, 2, 1, 3, ArgsGen_ExtractCenterElement<int, 2>>
->;
-
-using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
-    SliceTestArgs<int, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>,
-    SliceTestArgs<float16, int, 3, 1, 2, ArgsGen_WholeTensor<int, 3>>,
-    SliceTestArgs<float16, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>,
-
-    // TODO(janton): Move to SLICE_TEST_TYPES once GPU implementation supports out of bounds slicing
+    SliceTestArgs<int, int, 2, 1, 3, ArgsGen_ExtractCenterElement<int, 2>>,
     SliceTestArgs<int, int, 1, 1, 20, ArgsGen_BiggerThanInputSlice<int, 1>>,
     SliceTestArgs<int, int, 2, 1, 20, ArgsGen_BiggerThanInputSlice<int, 2>>,
     SliceTestArgs<int, int, 1, 1, 21, ArgsGen_LeftSideOutOfBounds<int, 1>>,
@@ -340,10 +396,22 @@ using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
     SliceTestArgs<int, int, 1, 1, 22, ArgsGen_RightSideOutOfBounds<int, 1>>,
     SliceTestArgs<int, int, 2, 1, 22, ArgsGen_RightSideOutOfBounds<int, 2>>,
     SliceTestArgs<int, int, 2, 1, 22, ArgsGen_CompletelyOutOfBounds<int, 2>>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_SingleValuePad<int, 3>, 20, 20, 3>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad<int, 3>, 20, 20, 3>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad_ChFirst<int, 3>, 3, 20, 20>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim<int, 3>, 20, 20, 3>,
-    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim_ChFirst<int, 3>, 3, 20, 20>
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim_MultiChannelFillValues<int, 3>, 20, 20, 3>,  // NOLINT
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadOnlyChDim<int, 3>, 20, 20, 3>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim_ChFirst<int, 3>, 3, 20, 20>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim_ChFirst_MultiChannelFillValues<int, 3>, 3, 20, 20>,  // NOLINT
+    SliceTestArgs<int, int, 3, 10, 20, ArgsGen_PadAlsoChDim_ChFirst<int, 3>, 3, 20, 20>,
+    SliceTestArgs<int, int, 3, 10, 20, ArgsGen_PadAlsoChDim_ChFirst_MultiChannelFillValues<int, 3>, 3, 20, 20>  // NOLINT
+>;
+
+using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
+    SliceTestArgs<int, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>,
+    SliceTestArgs<float16, int, 3, 1, 2, ArgsGen_WholeTensor<int, 3>>,
+    SliceTestArgs<float16, float16, 3, 1, 2, ArgsGen_WholeTensor<float16, 3>>
 >;
 
 }  // namespace kernels

@@ -39,12 +39,22 @@ N.B.: Hybrid Huffman decoder still uses mostly the CPU.)code",
   .AddOptionalArg("device_memory_padding",
       R"code(**`mixed` backend only** Padding for nvJPEG's device memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
-is encountered and internal buffer needs to be reallocated to decode it.)code",
+is encountered and the internal buffer needs to be reallocated to decode it.
+
+If a value bigger than 0 is provided, the operator will pre-allocate one device buffer of the
+requested size per thread. If chosen correctly, no more allocations will occur during the pipeline
+execution. One way to find the ideal value is to do a full run over the dataset with the argument
+``memory_stats`` set to True and then copy the "biggest" allocation value printed in the statistics.)code",
       16*1024*1024)
   .AddOptionalArg("host_memory_padding",
       R"code(**`mixed` backend only** Padding for nvJPEG's host memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
-is encountered and internal buffer needs to be reallocated to decode it.)code",
+is encountered and internal buffer needs to be reallocated to decode it.
+
+If a value bigger than 0 is provided, the operator will pre-allocate two (because of double-buffering)
+host pinned buffers of the requested size per thread. If chosen correctly, no more allocations will occur
+during the pipeline execution. One way to find the ideal value is to do a full run over the dataset with the
+argument ``memory_stats`` set to True and then copy the "biggest" allocation value printed in the statistics.)code",
       8*1024*1024)  // based on ImageNet heuristics (8MB)
   .AddOptionalArg("affine",
       R"code(**`mixed` backend only** If internal threads should be affined to CPU cores)code",
@@ -61,13 +71,33 @@ in runtime. Ignored when `split_stages` is false.)code",
       R"code(Enables fast IDCT in CPU based decompressor when GPU implementation cannot handle given image.
 According to libjpeg-turbo documentation, decompression performance is improved by 4-14% with very little
 loss in quality.)code",
+      false)
+  .AddOptionalArg("memory_stats",
+      R"code(**`mixed` backend only** Print debug information about nvJPEG allocations.
+The information about the largest allocation might be useful to determine suitable values for
+`device_memory_padding` and `host_memory_padding` for a given dataset.
+
+Note: The statistics are global for the whole process (and not per operator instance) and include
+the allocations made during construction (when the padding hints are non-zero).)code",
       false);
 
 DALI_SCHEMA(ImageDecoder)
-  .DocStr(R"code(Decode images. For jpeg images, the implementation will be based on nvJPEG
-library or libjpeg-turbo depending on the selected backend (`mixed` and `cpu` respectively).
-Other image formats are decoded with OpenCV or other specific libraries (e.g. libtiff).
-The Output of the decoder is in `HWC` ordering.)code")
+  .DocStr(R"code(Decode images
+
+For jpeg images, the implementation will use *nvJPEG* library or *libjpeg-turbo* depending on the
+selected backend (*mixed* and *cpu* respectively). Other image formats are decoded with *OpenCV* or
+other specific libraries (e.g. *libtiff*).
+
+If used with *mixed* device, the operator will use a dedicated hardware decoder if available.
+
+The output of the decoder is in *HWC* layout.
+
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM.)code")
+  .AddOptionalArg("hw_decoder_load",
+      R"code(**`mixed` backend only** Determines the percentage of the workload that will be
+offloaded to the hardware decoder, if available. The optimal workload will depend on the number of
+threads given to the DALI pipeline and should be found empirically.)code",
+      0.65f)
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -76,20 +106,40 @@ The Output of the decoder is in `HWC` ordering.)code")
 // Fused
 
 DALI_SCHEMA(ImageDecoderCrop)
-  .DocStr(R"code(Decode images with a fixed cropping window size and variable anchor.
-When possible, will make use of partial decoding (e.g. libjpeg-turbo, nvJPEG).
-When not supported, will decode the whole image and then crop.
-Output of the decoder is in `HWC` ordering.)code")
+  .DocStr(R"code(Decode images and extract a fixed region-of-interest (ROI) specified by a constant
+window dimensions and a variable anchor.
+
+When possible, it will make use of region-of-interest decoding APIs (e.g. *libjpeg-turbo*, *nvJPEG*)
+thus optimizing decoding time and memory usage. When not supported, it will decode the whole image
+and then crop the selected ROI.
+
+Note: ROI decoding is currently not compatible with hardware based decoding.
+Using *ImageDecoderCrop* will automatically disable hardware accelerated decoding.
+To make use of the hardware decoder, use *ImageDecoder* and *Crop* operators instead.
+
+The output of the decoder is in *HWC* layout.
+
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
   .AddParent("CropAttr");
 
 DALI_SCHEMA(ImageDecoderRandomCrop)
-  .DocStr(R"code(Decode images with a random cropping anchor/window.
-When possible, will make use of partial decoding (e.g. libjpeg-turbo, nvJPEG).
-When not supported, will decode the whole image and then crop.
-Output of the decoder is in `HWC` ordering.)code")
+  .DocStr(R"code(Decode images and extract a random region-of-interest (ROI) with window dimensions
+generated from within a range of valid *aspect_ratio* and *area* values.
+
+When possible, it will make use of region-of-interest decoding APIs (e.g. *libjpeg-turbo*, *nvJPEG*)
+thus optimizing decoding time and memory usage. When not supported, it will decode the whole image
+and then crop the selected ROI.
+
+Note: ROI decoding is currently not compatible with hardware based decoding.
+Using *ImageDecoderRandomCrop* will automatically disable hardware accelerated decoding.
+To make use of the hardware decoder, use *ImageDecoder* and *RandomResizedCrop* operators instead.
+
+The output of the decoder is in *HWC* layout.
+
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -97,7 +147,9 @@ Output of the decoder is in `HWC` ordering.)code")
 
 
 DALI_SCHEMA(ImageDecoderSlice)
-  .DocStr(R"code(Decode images on the host with a cropping window of given size and anchor.
+  .DocStr(R"code(Decode images and extract an externally provided region-of-interest (ROI) specified
+by an anchor and a shape of the ROI.
+
 Inputs must be supplied as 3 separate tensors in a specific order: `data`
 containing input data, `anchor` containing either normalized or absolute coordinates
 (depending on the value of `normalized_anchor`) for the starting point of the
@@ -106,11 +158,22 @@ slice (x0, x1, x2, ...), and `shape` containing either normalized or absolute co
 (s0, s1, s2, ...). Both `anchor` and `shape` coordinates must be within the interval
 [0.0, 1.0] for normalized coordinates, or within the image shape for absolute
 coordinates. Both `anchor` and `shape` inputs will provide as many dimensions as specified
-with arguments `axis_names` or `axes`. By default `ImageDecoderSlice` operator uses normalized
-coordinates and `WH` order for the slice arguments.
-When possible, will make use of partial decoding (e.g. libjpeg-turbo, nvJPEG).
-When not supported, will decode the whole image and then crop.
-Output of the decoder is in `HWC` ordering.)code")
+with arguments `axis_names` or `axes`.
+
+By default `ImageDecoderSlice` operator uses normalized coordinates and `WH` order for the slice
+arguments.
+
+When possible, it will make use of region-of-interest decoding APIs (e.g. *libjpeg-turbo*, *nvJPEG*)
+thus optimizing decoding time and memory usage. When not supported, it will decode the whole image
+and then crop the selected ROI.
+
+Note: ROI decoding is currently not compatible with hardware based decoding.
+Using *ImageDecoderSlice* will automatically disable hardware accelerated decoding.
+To make use of the hardware decoder, use *ImageDecoder* and *Slice* operators instead.
+
+The output of the decoder is in *HWC* layout.
+
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM.)code")
   .NumInput(3)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")

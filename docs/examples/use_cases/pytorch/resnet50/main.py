@@ -98,9 +98,10 @@ class HybridTrainPipe(Pipeline):
                                               device_id,
                                               seed=12 + device_id)
         self.input = ops.FileReader(file_root=data_dir,
-                                    shard_id=shard_id,
-                                    num_shards=num_shards,
-                                    random_shuffle=True)
+                                    shard_id=args.local_rank,
+                                    num_shards=args.world_size,
+                                    random_shuffle=True,
+                                    pad_last_batch=True)
         #let user decide which pipeline works him bets for RN version he runs
         dali_device = 'cpu' if dali_cpu else 'gpu'
         decoder_device = 'cpu' if dali_cpu else 'mixed'
@@ -119,10 +120,9 @@ class HybridTrainPipe(Pipeline):
                               resize_y=crop,
                               interp_type=types.INTERP_TRIANGULAR)
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
-                                            output_dtype=types.FLOAT,
+                                            dtype=types.FLOAT,
                                             output_layout=types.NCHW,
                                             crop=(crop, crop),
-                                            image_type=types.RGB,
                                             mean=[0.485 * 255,0.456 * 255,0.406 * 255],
                                             std=[0.229 * 255,0.224 * 255,0.225 * 255])
         self.coin = ops.CoinFlip(probability=0.5)
@@ -144,18 +144,18 @@ class HybridValPipe(Pipeline):
                                             device_id,
                                             seed=12 + device_id)
         self.input = ops.FileReader(file_root=data_dir,
-                                    shard_id=shard_id,
-                                    num_shards=num_shards,
-                                    random_shuffle=False)
+                                    shard_id=args.local_rank,
+                                    num_shards=args.world_size,
+                                    random_shuffle=False,
+                                    pad_last_batch=True)
         self.decode = ops.ImageDecoder(device="mixed", output_type=types.RGB)
         self.res = ops.Resize(device="gpu",
                               resize_shorter=size,
                               interp_type=types.INTERP_TRIANGULAR)
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
-                                            output_dtype=types.FLOAT,
+                                            dtype=types.FLOAT,
                                             output_layout=types.NCHW,
                                             crop=(crop, crop),
-                                            image_type=types.RGB,
                                             mean=[0.485 * 255,0.456 * 255,0.406 * 255],
                                             std=[0.229 * 255,0.224 * 255,0.225 * 255])
 
@@ -319,7 +319,7 @@ def main():
                            shard_id=args.local_rank,
                            num_shards=args.world_size)
     pipe.build()
-    train_loader = DALIClassificationIterator(pipe, size=int(pipe.epoch_size("Reader") / args.world_size))
+    train_loader = DALIClassificationIterator(pipe, reader_name="Reader", fill_last_batch=False)
 
     pipe = HybridValPipe(batch_size=args.batch_size,
                          num_threads=args.workers,
@@ -330,7 +330,7 @@ def main():
                          shard_id=args.local_rank,
                          num_shards=args.world_size)
     pipe.build()
-    val_loader = DALIClassificationIterator(pipe, size=int(pipe.epoch_size("Reader") / args.world_size))
+    val_loader = DALIClassificationIterator(pipe, reader_name="Reader", fill_last_batch=False)
 
     if args.evaluate:
         validate(val_loader, model, criterion)

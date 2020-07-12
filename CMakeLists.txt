@@ -15,6 +15,7 @@
 cmake_minimum_required(VERSION 3.13)
 # allow usage of check_symbol_exists() macro
 include(CheckCXXSymbolExists)
+include(CheckCXXCompilerFlag)
 
 include(cmake/Utils.cmake)
 include(cmake/CUDA_utils.cmake)
@@ -28,6 +29,9 @@ set(DALI_ROOT ${PROJECT_SOURCE_DIR})
 set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
 
 parse_cuda_version(${CUDA_VERSION} CUDA_VERSION_MAJOR CUDA_VERSION_MINOR CUDA_VERSION_PATCH CUDA_VERSION_SHORT CUDA_VERSION_SHORT_DIGIT_ONLY)
+
+check_cxx_compiler_flag(-fopenmp      CXX_HAVE_OMP)
+check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
@@ -162,6 +166,13 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   endif()
 endif()
 
+# OpenMP SIMD support
+if(CXX_HAVE_OMP_SIMD)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp-simd")
+else()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas")
+endif()
+
 # Discover what architectures does nvcc support
 CUDA_find_supported_arch_values(CUDA_supported_archs ${CUDA_known_archs})
 message(STATUS "CUDA supported archs: ${CUDA_supported_archs}")
@@ -178,7 +189,7 @@ CUDA_get_gencode_args(CUDA_gencode_flags ${CUDA_targeted_archs})
 message(STATUS "Generated gencode flags: ${CUDA_gencode_flags}")
 
 # Add ptx & bin flags for cuda
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_gencode_flags} --compiler-options -fvisibility=hidden")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_gencode_flags} --compiler-options -fvisibility=hidden --Wno-deprecated-gpu-targets")
 
 
 # Include directories

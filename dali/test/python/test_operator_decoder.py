@@ -22,14 +22,16 @@ from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
+from test_utils import check_output_pattern
 
 class DecoderPipeline(Pipeline):
-    def __init__(self, data_path, batch_size, num_threads, device_id, device, use_fast_idct=False):
+    def __init__(self, data_path, batch_size, num_threads, device_id, device, use_fast_idct=False, memory_stats=False):
         super(DecoderPipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth=1)
         self.input = ops.FileReader(file_root = data_path,
                                     shard_id = 0,
                                     num_shards = 1)
-        self.decode = ops.ImageDecoder(device = device, output_type = types.RGB, use_fast_idct=use_fast_idct)
+        self.decode = ops.ImageDecoder(device = device, output_type = types.RGB, use_fast_idct=use_fast_idct,
+                                       memory_stats=memory_stats)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -42,8 +44,8 @@ missnamed_path = 'db/single/missnamed'
 test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp'}
 test_missnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 
-def run_decode(data_path, batch, device, threads):
-    pipe = DecoderPipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device)
+def run_decode(data_path, batch, device, threads, memory_stats=False):
+    pipe = DecoderPipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, memory_stats=memory_stats)
     pipe.build()
     iters = pipe.epoch_size("Reader")
     for _ in range(iters):
@@ -92,8 +94,24 @@ def check_FastDCT_body(batch_size, img_type, device):
                       # average difference should be no bigger by off-by-3
                       batch_size=batch_size, N_iterations=3, eps=3)
 
-def check_FastDCT():
+def test_FastDCT():
     for device in {'cpu', 'mixed'}:
         for batch_size in {1, 8}:
             for img_type in test_good_path:
               yield check_FastDCT_body, batch_size, img_type, device
+
+def test_image_decoder_memory_stats():
+    device = 'mixed'
+    img_type = 'jpeg'
+    def check(img_type, size, device, threads):
+        data_path = os.path.join(test_data_root, good_path, img_type)
+        # largest allocation should match our (in this case) memory padding settings
+        # (assuming no reallocation was needed here as the hint is big enough)
+        pattern = 'Device memory: \d+ allocations, largest = 16777216 bytes\n' + \
+                  'Host \(pinned\) memory: \d+ allocations, largest = 8388608 bytes\n'
+        with check_output_pattern(pattern):
+            run_decode(data_path, size, device, threads, memory_stats=True)
+
+    for threads in {1, 2, 3, 4}:
+        for size in {1, 10}:
+            yield check, img_type, size, device, threads

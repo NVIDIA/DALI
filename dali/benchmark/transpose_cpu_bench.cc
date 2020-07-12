@@ -16,7 +16,7 @@
 #include <numeric>
 
 #include "dali/kernels/alloc_type.h"
-#include "dali/kernels/common/transpose.h"
+#include "dali/kernels/transpose/transpose.h"
 
 namespace dali {
 
@@ -74,7 +74,7 @@ class TransposeFixture : public benchmark::Fixture {
       if (dim++ < 4) elem *= st.range(1);
     }
     perm_ = std::get<1>(test_case);
-    dst_shape_ = kernels::Permute(src_shape_, perm_);
+    dst_shape_ = permute(src_shape_, perm_);
     auto total_size = volume(src_shape_);
     dst_mem_.resize(total_size);
     src_mem_.resize(total_size);

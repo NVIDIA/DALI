@@ -85,18 +85,18 @@ class OperatorBench : public DALIBenchmark {
   }
 
   template <typename T>
-  void RunGPU(benchmark::State& st, const OpSpec &op_spec,
-              int batch_size = 128,
-              int H = 1080, int W = 1920, int C = 3,
+  void RunGPU(benchmark::State &st, const OpSpec &op_spec, int batch_size = 128,
+              TensorShape<> shape = {1080, 1920, 3}, TensorLayout layout = "HWC",
               bool fill_in_data = false) {
-    const int N = W * H * C;
+    const int N = volume(shape);
+    assert(layout.size() == shape.size());
 
     auto op_ptr = InstantiateOperator(op_spec);
 
     auto data_in_cpu = std::make_shared<TensorList<CPUBackend>>();
     data_in_cpu->set_type(TypeInfo::Create<T>());
-    data_in_cpu->Resize(uniform_list_shape(batch_size, {H, W, C}));
-    data_in_cpu->SetLayout("HWC");
+    data_in_cpu->Resize(uniform_list_shape(batch_size, shape));
+    data_in_cpu->SetLayout(layout);
     if (fill_in_data) {
       for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
         auto *ptr = data_in_cpu->template mutable_tensor<T>(sample_idx);
@@ -125,6 +125,13 @@ class OperatorBench : public DALIBenchmark {
       st.counters["FPS"] = benchmark::Counter(batch_size * num_batches,
         benchmark::Counter::kIsRate);
     }
+  }
+
+  template <typename T>
+  void RunGPU(benchmark::State& st, const OpSpec &op_spec,
+              int batch_size = 128, int H = 1080, int W = 1920, int C = 3,
+              bool fill_in_data = false) {
+    RunGPU<T>(st, op_spec, batch_size, {H, W, C}, "HWC", fill_in_data);
   }
 };
 

@@ -97,9 +97,8 @@ class HybridPipe(dali.pipeline.Pipeline):
 
         self.normalize = dali.ops.CropMirrorNormalize(
             device="gpu",
-            output_dtype=dali.types.FLOAT,
+            dtype=dali.types.FLOAT,
             crop=(height, width),
-            image_type=dali.types.RGB,
             mean=[123.68, 116.78, 103.94],
             output_layout="HWC")
         self.mirror = dali.ops.CoinFlip()

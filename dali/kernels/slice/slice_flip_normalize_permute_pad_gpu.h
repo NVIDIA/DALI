@@ -23,10 +23,12 @@
 #include "dali/core/cuda_error.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/static_switch.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_cuda_impl.cuh"
+
 namespace dali {
 namespace kernels {
 
@@ -37,6 +39,14 @@ class SliceFlipNormalizePermutePadGpu {
   static constexpr size_t kBlockSize = 64 * kBlockDim;
   size_t block_count_ = 0;
 
+  using ProcessedArgs = detail::SliceFlipNormalizePermutePadProcessedArgs<Dims>;
+  std::vector<ProcessedArgs> processed_args_;
+  int norm_args_size_ = -1;
+  bool has_channels_ = false;
+  bool need_normalize_ = false;
+  int nfill_values_ = 0;
+  int channel_dim_ = -1;
+
  public:
   using Args = SliceFlipNormalizePermutePadArgs<Dims>;
   KernelRequirements Setup(KernelContext &context,
@@ -45,19 +55,55 @@ class SliceFlipNormalizePermutePadGpu {
     KernelRequirements req;
     ScratchpadEstimator se;
     const size_t num_samples = in.size();
+
+    norm_args_size_ = -1;
+    has_channels_ = false;
+    need_normalize_ = false;
+    nfill_values_ = 0;
+    channel_dim_ = -1;
+
+    processed_args_.clear();
+    processed_args_.reserve(args.size());
+    for (int i = 0; i < num_samples; i++) {
+      auto in_shape = in.tensor_shape(i);
+      processed_args_.emplace_back(detail::ProcessArgs(args[i], in_shape));
+      auto &sample_args = processed_args_.back();
+      if (i == 0) {
+        norm_args_size_ = sample_args.mean.size();
+        nfill_values_ = sample_args.fill_values.size();
+        need_normalize_ = norm_args_size_ > 0;
+        has_channels_ = norm_args_size_ > 1 || nfill_values_ > 1;
+        channel_dim_ = sample_args.channel_dim;
+      } else {
+        // Checking all the samples are consistent
+        if (norm_args_size_ != sample_args.mean.size() ||
+            norm_args_size_ != sample_args.inv_stddev.size())
+          throw std::invalid_argument(
+            "Normalization arguments should have the same size for all the samples");
+        if (nfill_values_ != sample_args.fill_values.size())
+          throw std::invalid_argument("Fill values should have the same size for all the samples");
+        if (channel_dim_ != sample_args.channel_dim)
+          throw std::invalid_argument("channel dim should be the same for all the samples");
+      }
+    }
+
+    if (need_normalize_) {
+      se.add<float>(AllocType::Host, num_samples * norm_args_size_);
+      se.add<float>(AllocType::Host, num_samples * norm_args_size_);
+      se.add<float>(AllocType::GPU,  num_samples * norm_args_size_);
+      se.add<float>(AllocType::GPU,  num_samples * norm_args_size_);
+    }
+
+    assert(nfill_values_ > 0);
+    se.add<OutputType>(AllocType::Host, num_samples * nfill_values_);
+    se.add<OutputType>(AllocType::GPU, num_samples * nfill_values_);
+
     se.add<detail::SampleDesc<Dims>>(AllocType::Host, num_samples);
     se.add<detail::SampleDesc<Dims>>(AllocType::GPU, num_samples);
 
-    DALI_ENFORCE(args[0].mean.size() == args[0].inv_stddev.size());
-    size_t norm_args_size = args[0].mean.size();
-    if (norm_args_size > 0) {
-      se.add<float>(AllocType::Host, 2 * norm_args_size);
-      se.add<float>(AllocType::GPU,  2 * norm_args_size);
-    }
-
     block_count_ = 0;
     for (auto &elem : args) {
-      size_t sample_size = volume(elem.padded_shape);
+      size_t sample_size = volume(elem.shape);
       block_count_ += std::ceil(
         sample_size / static_cast<float>(kBlockSize));
     }
@@ -69,9 +115,9 @@ class SliceFlipNormalizePermutePadGpu {
     auto in_shapes = in.shape;
     TensorListShape<Dims> output_shapes(in_shapes.size(), Dims);
     for (int i = 0; i < in_shapes.size(); i++) {
-      TensorShape<Dims> out_shape(args[i].padded_shape);
+      TensorShape<Dims> out_shape(args[i].shape);
       CheckValidOutputShape(in_shapes[i], out_shape, args[i]);
-      out_shape = detail::permute(out_shape, args[i].permuted_dims);
+      out_shape = permute(out_shape, args[i].permuted_dims);
       output_shapes.set_tensor_shape(i, out_shape);
     }
     req.output_shapes = { output_shapes };
@@ -79,54 +125,105 @@ class SliceFlipNormalizePermutePadGpu {
   }
 
   void Run(KernelContext &context,
-           OutListGPU<OutputType, Dims> &out,
+           const OutListGPU<OutputType, Dims> &out,
            const InListGPU<InputType, Dims> &in,
            const std::vector<Args> &args) {
+    (void) args;
     const auto num_samples = in.size();
 
-    auto mean_data = args[0].mean;
-    auto inv_stddev_data = args[0].inv_stddev;
-    DALI_ENFORCE(mean_data.size() == inv_stddev_data.size());
+    float *norm_add_cpu = nullptr, *norm_mul_cpu = nullptr;
+    float *norm_add_gpu = nullptr, *norm_mul_gpu = nullptr;
+    if (need_normalize_) {
+      norm_add_cpu =
+          context.scratchpad->Allocate<float>(AllocType::Host, num_samples * norm_args_size_);
+      norm_mul_cpu =
+          context.scratchpad->Allocate<float>(AllocType::Host, num_samples * norm_args_size_);
+      for (int i = 0; i < num_samples; i++) {
+        auto &sample_args = processed_args_[i];
+        auto *norm_add_data = norm_add_cpu + i * norm_args_size_;
+        auto *norm_mul_data = norm_mul_cpu + i * norm_args_size_;
+        for (int d = 0; d < norm_args_size_; d++) {
+          norm_add_data[d] = -sample_args.mean[d] * sample_args.inv_stddev[d];
+          norm_mul_data[d] = sample_args.inv_stddev[d];
+        }
+      }
 
-    detail::SampleDesc<Dims>* sample_descs_cpu =
-      context.scratchpad->Allocate<detail::SampleDesc<Dims>>(AllocType::Host,
-                                                             num_samples);
-    float *norm_add_cpu = mean_data.empty() ? nullptr :
-      context.scratchpad->Allocate<float>(AllocType::Host, mean_data.size());
-    float *norm_mul_cpu = inv_stddev_data.empty() ? nullptr :
-      context.scratchpad->Allocate<float>(AllocType::Host, inv_stddev_data.size());
-    detail::BlockDesc *block_descs_cpu =
-      context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
-
-    for (size_t i = 0; i < mean_data.size(); i++) {
-      norm_add_cpu[i] = -mean_data[i] * inv_stddev_data[i];
-      norm_mul_cpu[i] = inv_stddev_data[i];
+      std::tie(norm_add_gpu, norm_mul_gpu) = context.scratchpad->ToContiguousGPU(
+          context.gpu.stream,
+          make_span(norm_add_cpu, num_samples * norm_args_size_),
+          make_span(norm_mul_cpu, num_samples * norm_args_size_));
     }
-    int normalization_dim = Dims + 1;
-    std::vector<size_t> sample_sizes(in.size());
+
+    assert(nfill_values_ > 0);
+    OutputType *fill_values_cpu =
+        context.scratchpad->Allocate<OutputType>(AllocType::Host, num_samples * nfill_values_);
+    for (int i = 0; i < num_samples; i++) {
+      auto *fill_values = fill_values_cpu + i * nfill_values_;
+      auto &sample_args = processed_args_[i];
+      for (int d = 0; d < nfill_values_; d++)
+        fill_values[d] = sample_args.fill_values[d];
+    }
+    OutputType *fill_values_gpu = context.scratchpad->ToGPU(
+        context.gpu.stream, make_span(fill_values_cpu, num_samples * nfill_values_));
+
+    auto *sample_descs_cpu =
+        context.scratchpad->Allocate<detail::SampleDesc<Dims>>(AllocType::Host, num_samples);
+    auto *block_descs_cpu =
+        context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
+
+    bool need_pad = false, need_flip = false;
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);
-      auto processed_args = detail::ProcessArgs(args[i], in_shape);
-      if (i == 0) {
-        normalization_dim = processed_args.normalization_dim;
-      } else {
-        DALI_ENFORCE(normalization_dim == processed_args.normalization_dim);
-      }
+      auto &processed_args = processed_args_[i];
       auto &sample_desc = sample_descs_cpu[i];
       sample_desc.in_strides = processed_args.in_strides;
-      sample_desc.out_strides = processed_args.out_strides;
+      for (int d = 0; d < Dims; d++) sample_desc.out_strides[d] = processed_args.out_strides[d];
       sample_desc.out_shape = processed_args.out_shape;
-      sample_desc.padded_out_shape = processed_args.padded_out_shape;
-      sample_desc.padding_val = processed_args.padding_val;
+      sample_desc.in_shape = processed_args.in_shape;
+      sample_desc.anchor = processed_args.anchor;
+      sample_desc.norm_add = norm_add_gpu + i * norm_args_size_;
+      sample_desc.norm_mul = norm_mul_gpu + i * norm_args_size_;
+      sample_desc.fill_values = fill_values_gpu + i * norm_args_size_;
+      sample_desc.channel_dim = processed_args.channel_dim;
       sample_desc.in = in.tensor_data(i) + processed_args.input_offset;
       sample_desc.out = out.tensor_data(i);
-      sample_sizes[i] = volume(processed_args.padded_out_shape);
+      sample_desc.need_pad =
+          NeedPad(Dims, processed_args.anchor.data(), processed_args.in_shape.data(),
+                  processed_args.out_shape.data());
+      need_pad |= sample_desc.need_pad;
+      sample_desc.need_flip = false;
+      for (int d = 0; d < Dims; d++)
+        sample_desc.need_flip |= processed_args.in_strides[d] < 0;
+      need_flip |= sample_desc.need_flip;
+
+      // We fuse the last dimension with the previous IF:
+      // 1. There are at least 2 dimensions
+      // 2. Last dimension is not sliced/padded/permuted
+      // 3. Last dimension is not the channel dimension
+      // 4. The last two dimensions are either both flipped or not flipped
+      int last_dim = Dims - 1;
+      while (last_dim > 0 &&
+             sample_desc.out_strides[last_dim] == sample_desc.in_strides[last_dim] &&
+             sample_desc.anchor[last_dim] == 0 &&
+             sample_desc.out_shape[last_dim] == sample_desc.in_shape[last_dim] &&
+             sample_desc.channel_dim != last_dim &&
+             (sample_desc.in_strides[last_dim] < 0) == (sample_desc.in_strides[last_dim - 1] < 0)) {
+        last_dim--;
+      }
+
+      if (last_dim < Dims - 1) {
+        auto stride = sample_desc.in_strides[last_dim];  // same as out_strides[last_dim]
+        sample_desc.anchor[last_dim]    *= stride;
+        sample_desc.in_shape[last_dim]  *= stride;
+        sample_desc.out_shape[last_dim] *= stride;
+      }
+      sample_desc.effective_ndim = last_dim + 1;
     }
 
     size_t block_idx = 0;
     for (int i = 0; i < num_samples; i++) {
       size_t offset = 0;
-      size_t remaining = sample_sizes[i];
+      size_t remaining = volume(processed_args_[i].out_shape);
       while (remaining > 0) {
         size_t size = remaining < kBlockSize ? remaining : kBlockSize;
         block_descs_cpu[block_idx++] = {i, offset, size};
@@ -135,42 +232,25 @@ class SliceFlipNormalizePermutePadGpu {
       }
     }
 
-    detail::SampleDesc<Dims> *sample_descs =
-      context.scratchpad->Allocate<detail::SampleDesc<Dims>>(
-        AllocType::GPU, num_samples);
+    detail::SampleDesc<Dims> *sample_descs_gpu = nullptr;
+    detail::BlockDesc *block_descs_gpu = nullptr;
+    std::tie(sample_descs_gpu, block_descs_gpu) = context.scratchpad->ToContiguousGPU(
+        context.gpu.stream,
+        make_span(sample_descs_cpu, num_samples),
+        make_span(block_descs_cpu, block_count_));
 
-    float *norm_add = mean_data.empty() ? nullptr :
-      context.scratchpad->Allocate<float>(
-        AllocType::GPU, mean_data.size());
+    VALUE_SWITCH(need_pad ? 1 : 0, NeedPad, (false, true), (
+      VALUE_SWITCH(need_flip ? 1 : 0, NeedFlip, (false, true), (
+        VALUE_SWITCH(need_normalize_ ? 1 : 0, NeedNormalize, (false, true), (
+          auto grid = block_count_;
+          detail::SliceFlipNormalizePermutePadKernel
+            <NeedPad, NeedFlip, NeedNormalize, OutputType, InputType, Dims>
+            <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs_gpu, block_descs_gpu);
+        ), ());  // NOLINT
+      ), ());  // NOLINT
+    ), ());  // NOLINT
 
-    float *norm_mul = inv_stddev_data.empty() ? nullptr :
-      context.scratchpad->Allocate<float>(
-        AllocType::GPU, inv_stddev_data.size());
-
-    detail::BlockDesc *block_descs =
-      context.scratchpad->Allocate<detail::BlockDesc>(
-        AllocType::GPU, block_count_);
-
-    // Memory is allocated contiguously, so we launch only one cudaMemcpyAsync
-    size_t total_bytes = num_samples * sizeof(detail::SampleDesc<Dims>)
-      + mean_data.size() * sizeof(float)
-      + inv_stddev_data.size() * sizeof(float)
-      + block_count_ * sizeof(detail::BlockDesc);
-    cudaMemcpyAsync(sample_descs, sample_descs_cpu,
-                    total_bytes,
-                    cudaMemcpyHostToDevice,
-                    context.gpu.stream);
-
-    const auto grid = block_count_;
-    if (norm_add != nullptr && norm_mul != nullptr) {
-      detail::SliceFlipNormalizePermutePadKernel<OutputType, InputType, Dims, true>
-          <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs, norm_add,
-                                                       norm_mul, normalization_dim);
-    } else {
-      detail::SliceFlipNormalizePermutePadKernel<OutputType, InputType, Dims, false>
-          <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs, norm_add,
-                                                       norm_mul, normalization_dim);
-    }
+    CUDA_CALL(cudaGetLastError());
   }
 };
 

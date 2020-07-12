@@ -25,26 +25,25 @@ template <>
 bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                                 const DeviceWorkspace &ws) {
   output_desc.resize(1);
-  SetupAndInitialize(ws);
-  const auto &input = ws.Input<GPUBackend>(0);
-  auto &output = ws.OutputRef<GPUBackend>(0);
-  std::size_t number_of_dims = input.shape().sample_dim();
+  SetupCommonImpl(ws);
+  const auto &input = ws.InputRef<GPUBackend>(0);
+  int ndim = input.shape().sample_dim();
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, CMN_OUT_TYPES, (
-      VALUE_SWITCH(number_of_dims, Dims, CMN_NDIMS, (
+      VALUE_SWITCH(ndim, Dims, CMN_NDIMS, (
         using Kernel = kernels::SliceFlipNormalizePermutePadGpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
         output_desc[0].type = TypeInfo::Create<OutputType>();
         output_desc[0].shape.resize(batch_size_, Dims);
-        kmgr_.Initialize<Kernel>();
+        kmgr_.Resize<Kernel>(1, 1);
 
         kernels::KernelContext ctx;
         ctx.gpu.stream = ws.stream();
         auto in_view = view<const InputType, Dims>(input);
         auto &req = kmgr_.Setup<Kernel>(0, ctx, in_view, kernel_sample_args);
         output_desc[0].shape = req.output_shapes[0];
-      ), DALI_FAIL(make_string("Not supported number of dimensions:", number_of_dims));); // NOLINT
+      ), DALI_FAIL(make_string("Not supported number of dimensions:", ndim));); // NOLINT
     ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
   ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT
   return true;
@@ -52,13 +51,13 @@ bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
 
 template<>
 void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  const auto &input = ws.Input<GPUBackend>(0);
-  auto &output = ws.Output<GPUBackend>(0);
-
-  std::size_t number_of_dims = input.shape().sample_dim();
+  const auto &input = ws.InputRef<GPUBackend>(0);
+  auto &output = ws.OutputRef<GPUBackend>(0);
+  output.SetLayout(output_layout_);
+  int ndim = input.shape().sample_dim();
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, CMN_OUT_TYPES, (
-      VALUE_SWITCH(number_of_dims, Dims, CMN_NDIMS, (
+      VALUE_SWITCH(ndim, Dims, CMN_NDIMS, (
         using Kernel = kernels::SliceFlipNormalizePermutePadGpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         auto in_view = view<const InputType, Dims>(input);
@@ -67,7 +66,7 @@ void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
         ctx.gpu.stream = ws.stream();
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
         kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, kernel_sample_args);
-      ), DALI_FAIL(make_string("Not supported number of dimensions:", number_of_dims));); // NOLINT
+      ), DALI_FAIL(make_string("Not supported number of dimensions:", ndim));); // NOLINT
     ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
   ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT
 }

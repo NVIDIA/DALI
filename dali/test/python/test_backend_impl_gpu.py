@@ -98,9 +98,19 @@ def test_cuda_array_interface_tensor_gpu_direct_creation():
     tensor = TensorGPU(arr, "NHWC")
     assert(cp.allclose(arr, cp.asanyarray(tensor)))
 
+def test_dlpack_tensor_gpu_direct_creation():
+    arr = cp.random.rand(3, 5, 6)
+    tensor = TensorGPU(arr.toDlpack())
+    assert(cp.allclose(arr, cp.asanyarray(tensor)))
+
 def test_cuda_array_interface_tensor_gpu_to_cpu():
     arr = cp.random.rand(3, 5, 6)
     tensor = TensorGPU(arr, "NHWC")
+    assert(np.allclose(arr.get(), tensor.as_cpu()))
+
+def test_dlpack_tensor_gpu_to_cpu():
+    arr = cp.random.rand(3, 5, 6)
+    tensor = TensorGPU(arr.toDlpack(), "NHWC")
     assert(np.allclose(arr.get(), tensor.as_cpu()))
 
 def test_cuda_array_interface_tensor_gpu_to_cpu_device_id():
@@ -113,10 +123,20 @@ def test_cuda_array_interface_tensor_list_gpu_direct_creation():
     tensor_list = TensorListGPU(arr, "NHWC")
     assert(cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor())))
 
+def test_dlpack_tensor_list_gpu_direct_creation():
+    arr = cp.random.rand(3, 5, 6)
+    tensor_list = TensorListGPU(arr.toDlpack(), "NHWC")
+    assert(cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor())))
+
 def test_cuda_array_interface_tensor_list_gpu_to_cpu():
     arr = cp.random.rand(3, 5, 6)
     tensor_list = TensorListGPU(arr, "NHWC")
     assert(np.allclose(arr.get(), tensor_list.as_cpu().as_tensor()))
+
+def test_dlpack_tensor_list_gpu_to_cpu():
+    arr = cp.random.rand(3, 5, 6)
+    tensor_list = TensorListGPU(arr.toDlpack(), "NHWC")
+    assert(cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor())))
 
 def test_cuda_array_interface_tensor_list_gpu_to_cpu_device_id():
     arr = cp.random.rand(3, 5, 6)
@@ -130,8 +150,18 @@ def check_cuda_array_types(t):
 
 def test_cuda_array_interface_types():
     for t in [cp.bool_, cp.int8, cp.int16, cp.int32, cp.int64, cp.uint8,
-              cp.uint16, cp.uint32, cp.uint64, cp.float32, cp.float16]:
+              cp.uint16, cp.uint32, cp.uint64, cp.float64, cp.float32, cp.float16]:
         yield check_cuda_array_types, t
+
+def check_dlpack_types(t):
+    arr = cp.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
+    tensor = TensorGPU(arr.toDlpack(), "NHWC")
+    assert(cp.allclose(arr, cp.asanyarray(tensor)))
+
+def test_dlpack_interface_types():
+    for t in [cp.int8, cp.int16, cp.int32, cp.int64, cp.uint8,
+              cp.uint16, cp.uint32, cp.uint64, cp.float64, cp.float32, cp.float16]:
+        yield check_dlpack_types, t
 
 @raises(RuntimeError)
 def test_cuda_array_interface_tensor_gpu_create_from_numpy():

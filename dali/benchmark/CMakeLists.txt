@@ -29,7 +29,10 @@ if (BUILD_BENCHMARK)
     "${CMAKE_CURRENT_SOURCE_DIR}/warp_affine_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/transpose_cpu_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/color_twist_bench.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/slice_cpu_kernel_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/slice_kernel_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/slice_kernel_bench.cu"
+    "${CMAKE_CURRENT_SOURCE_DIR}/preemphasis_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/thread_pool_bench.cc"
   )
 
   if (BUILD_LMDB)
@@ -40,6 +43,7 @@ if (BUILD_BENCHMARK)
   add_executable(dali_benchmark "${DALI_BENCHMARK_SRCS}")
 
   target_link_libraries(dali_benchmark PRIVATE dali dali_operators benchmark ${DALI_LIBS})
+  target_link_libraries(dali_benchmark PRIVATE "-pie")
   set_target_properties(dali_benchmark PROPERTIES POSITION_INDEPENDENT_CODE ON)
   set_target_properties(dali_benchmark PROPERTIES OUTPUT_NAME "dali_benchmark.bin")
 

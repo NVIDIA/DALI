@@ -26,15 +26,39 @@ from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import RandomDataIterator
 from math import floor
+from nose.tools import assert_raises
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 test_data_video = os.path.join(test_data_root, 'db', 'optical_flow', 'sintel_trailer')
 
+#std::round has different behaviour than np.round so manually add 0.5 and truncate to int
+def roundint(num):
+    return int(np.float32(num) + (0.5 if np.float32(num) >= 0 else -0.5))
+
+def abs_slice_start_and_end(in_shape, slice_anchor, slice_shape, normalized_anchor, normalized_shape):
+    ndim = len(in_shape)
+    if normalized_anchor and normalized_shape:
+        start = [roundint(np.float32(in_shape[i]) * np.float32(slice_anchor[i])) for i in range(ndim)]
+        end = [roundint(np.float32(in_shape[i]) * np.float32(slice_anchor[i]+slice_shape[i])) for i in range(ndim)]
+    else:
+        if normalized_anchor:
+            start = [roundint(np.float32(in_shape[i]) * np.float32(slice_anchor[i])) for i in range(ndim)]
+        else:
+            start = [roundint(np.float32(slice_anchor[i])) for i in range(ndim)]
+
+        if normalized_shape:
+            end = [start[i] + roundint(np.float32(in_shape[i]) * np.float32(slice_shape[i])) for i in range(ndim)]
+        else:
+            end = [start[i] + roundint(np.float32(slice_shape[i])) for i in range(ndim)]
+    out_shape = [end[i]-start[i] for i in range(ndim)]
+    return start, end, out_shape
+
 class SliceSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, pos_size_iter,
                  num_threads=1, device_id=0, num_gpus=1,
-                 axes=None, axis_names=None, normalized_anchor=True, normalized_shape=True):
+                 axes=None, axis_names=None, normalized_anchor=True, normalized_shape=True,
+                 extra_outputs=False, out_of_bounds_policy=None, fill_values=None):
         super(SliceSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
         self.device = device
@@ -44,22 +68,14 @@ class SliceSynthDataPipeline(Pipeline):
         self.inputs = ops.ExternalSource()
         self.input_crop_pos = ops.ExternalSource()
         self.input_crop_size = ops.ExternalSource()
-
-        if axis_names:
-            self.slice = ops.Slice(device = self.device,
-                                   normalized_anchor=normalized_anchor,
-                                   normalized_shape=normalized_shape,
-                                   axis_names = axis_names)
-        elif axes:
-            self.slice = ops.Slice(device = self.device,
-                                   normalized_anchor=normalized_anchor,
-                                   normalized_shape=normalized_shape,
-                                   axes = axes)
-        else:
-            self.slice = ops.Slice(device = self.device,
-                                   normalized_anchor=normalized_anchor,
-                                   normalized_shape=normalized_shape,
-)
+        self.extra_outputs = extra_outputs
+        self.slice = ops.Slice(device = self.device,
+                                normalized_anchor = normalized_anchor,
+                                normalized_shape = normalized_shape,
+                                axes = axes,
+                                axis_names = axis_names,
+                                out_of_bounds_policy = out_of_bounds_policy,
+                                fill_values = fill_values)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -67,7 +83,10 @@ class SliceSynthDataPipeline(Pipeline):
         self.crop_size = self.input_crop_size()
         data = self.data.gpu() if self.device == 'gpu' else self.data
         out = self.slice(data, self.crop_pos, self.crop_size)
-        return out
+        if self.extra_outputs:
+            return out, self.data, self.crop_pos, self.crop_size
+        else:
+            return out
 
     def iter_setup(self):
         data = self.iterator.next()
@@ -91,40 +110,20 @@ class SlicePipeline(Pipeline):
         self.input_crop_size = ops.ExternalSource()
 
         if self.is_fused_decoder:
-            if axis_names:
-                self.decode = ops.ImageDecoderSlice(device = "cpu",
-                                                    output_type = types.RGB,
-                                                    normalized_anchor=normalized_anchor,
-                                                    normalized_shape=normalized_shape,
-                                                    axis_names = axis_names)
-            elif axes:
-                self.decode = ops.ImageDecoderSlice(device = "cpu",
-                                                    output_type = types.RGB,
-                                                    normalized_anchor=normalized_anchor,
-                                                    normalized_shape=normalized_shape,
-                                                    axes = axes)
-            else:
-                self.decode = ops.ImageDecoderSlice(device = "cpu",
-                                                    output_type = types.RGB,
-                                                    normalized_anchor=normalized_anchor,
-                                                    normalized_shape=normalized_shape)
+            self.decode = ops.ImageDecoderSlice(device = "cpu",
+                                                output_type = types.RGB,
+                                                normalized_anchor=normalized_anchor,
+                                                normalized_shape=normalized_shape,
+                                                axis_names = axis_names,
+                                                axes = axes)
         else:
             self.decode = ops.ImageDecoder(device = "cpu",
                                            output_type = types.RGB)
-            if axis_names:
-                self.slice = ops.Slice(device = self.device,
-                                       normalized_anchor=normalized_anchor,
-                                       normalized_shape=normalized_shape,
-                                       axis_names = axis_names)
-            elif axes:
-                self.slice = ops.Slice(device = self.device,
-                                       normalized_anchor=normalized_anchor,
-                                       normalized_shape=normalized_shape,
-                                       axes = axes)
-            else:
-                self.slice = ops.Slice(device = self.device,
-                                       normalized_anchor=normalized_anchor,
-                                       normalized_shape=normalized_shape)
+            self.slice = ops.Slice(device = self.device,
+                                   normalized_anchor=normalized_anchor,
+                                   normalized_shape=normalized_shape,
+                                   axis_names = axis_names,
+                                   axes = axes)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -237,26 +236,7 @@ def slice_func_helper(axes, axis_names, layout, normalized_anchor, normalized_sh
         full_slice_anchor[axis] = slice_anchor[idx]
         full_slice_shape[axis] = slice_shape[idx]
 
-    #std::round has different behaviour than np.round so manually add 0.5 and truncate to int
-    if normalized_anchor and normalized_shape:
-        start = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]) + 0.5)
-                 for i in range(len(shape))]
-        end = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]+full_slice_shape[i]) + 0.5)
-               for i in range(len(shape))]
-    else:
-        if normalized_anchor:
-            start = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]) + 0.5)
-                    for i in range(len(shape))]
-        else:
-            start = [int(np.float32(full_slice_anchor[i]) + 0.5)
-                    for i in range(len(shape))]
-
-        if normalized_shape:
-            end = [start[i] + int(np.float32(shape[i]) * np.float32(full_slice_shape[i]) + 0.5)
-                for i in range(len(shape))]
-        else:
-            end = [start[i] + int(np.float32(full_slice_shape[i]) + 0.5)
-                for i in range(len(shape))]
+    start, end, _ = abs_slice_start_and_end(shape, full_slice_anchor, full_slice_shape, normalized_anchor, normalized_shape)
 
     if len(full_slice_anchor) == 1:
         return image[start[0]:end[0]]
@@ -418,3 +398,158 @@ def test_slice_vs_numpy():
                 [(None, "WH"), (None, "HW"),
                 ((1,0), None), ((0,1), None)]:
                 yield check_slice_vs_numpy, device, batch_size, axes, axis_names
+
+
+def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start, abs_end, out_of_bounds_policy, fill_values, naxes=2, mean = None, std = None, flip = None, permute = None):
+    in_shape = sample_in.shape
+    out_shape = sample_out.shape
+    ndim = len(out_shape)
+    orig_nchannels = in_shape[2]
+    out_ch_dim = permute.index(2) if permute is not None else 2
+    out_nchannels = out_shape[out_ch_dim]
+
+    if out_of_bounds_policy == 'pad':
+        if permute is not None:
+            assert(all([abs_slice_shape[permute[i]] == out_shape[i] for i in range(ndim) if permute[i] < naxes]))
+        else:
+            assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
+    elif out_of_bounds_policy == 'trim_to_shape':
+        assert(all([out_shape[i] <= in_shape[i] for i in range(naxes)]))
+        for i in range(naxes):
+            if abs_start[i] < 0:
+                abs_start[i] = 0
+            if abs_end[i] > in_shape[i]:
+                abs_end[i] = in_shape[i]
+            abs_slice_shape[i] = abs_end[i] - abs_start[i]
+        if permute is not None:
+            assert(all([abs_slice_shape[permute[i]] == out_shape[i] for i in range(ndim) if permute[i] < naxes]))
+        else:
+            assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
+    else:
+        assert(False) # Wrong out_of_bounds_policy
+
+    pad_before = [-abs_start[i] if abs_start[i] < 0 else 0 for i in range(naxes)]
+    pad_after = [abs_end[i] - in_shape[i] if in_shape[i] < abs_end[i] else 0 for i in range(naxes)]
+    sliced = [abs_slice_shape[i] - pad_before[i] - pad_after[i] for i in range(naxes)]
+
+    if out_of_bounds_policy == 'trim_to_shape':
+        assert(all([pad_before[i] == 0 for i in range(naxes)]))
+        assert(all([pad_after[i] == 0 for i in range(naxes)]))
+        if permute is not None:
+            assert(all([sliced[permute[i]] == out_shape[i] for i in range(ndim) if permute[i] < naxes]))
+        else:
+            assert(all([sliced[i] == out_shape[i] for i in range(naxes)]))
+
+    pos_start = [abs_start[i] if abs_start[i] >= 0 else 0 for i in range(naxes)]
+    in_sliced = sample_in[pos_start[0] : pos_start[0] + sliced[0], pos_start[1] : pos_start[1] + sliced[1], :]
+    slice_shape = (abs_slice_shape[0], abs_slice_shape[1], out_nchannels)
+    expected = np.zeros(slice_shape, dtype=np.float32)
+    expected[:, :, :orig_nchannels] = np.full((slice_shape[0], slice_shape[1], orig_nchannels), fill_values)
+    should_normalize = mean is not None and std is not None
+    expected[pad_before[0] : pad_before[0] + sliced[0], pad_before[1] : pad_before[1] + sliced[1], :orig_nchannels] = \
+        (in_sliced - mean) / std if should_normalize else in_sliced
+
+    if flip is not None:
+        for d in range(len(flip)):
+            if flip[d]:
+                expected = np.flip(expected, d)
+   
+    if permute is not None:
+        expected = np.transpose(expected, permute)
+
+    np.testing.assert_allclose(sample_out, expected, atol=1e-07)
+
+def check_slice_with_out_of_bounds_policy_support(device, batch_size, input_shape=(100, 200, 3),
+                                                  out_of_bounds_policy=None, fill_values=(0x76, 0xb9, 0x00),
+                                                  normalized_anchor=False, normalized_shape=False):
+    # This test case is written with HWC layout in mind and "HW" axes in slice arguments
+    axis_names = "HW"
+    naxes = len(axis_names)
+    axes = None
+    layout = "HWC"
+    assert(len(input_shape) == 3)
+    if fill_values is not None and len(fill_values) > 1:
+        assert(input_shape[2] == len(fill_values))
+
+    eii = RandomDataIterator(batch_size, shape=input_shape)
+    eii_arg = SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,
+                                image_layout=layout, axes=axes, axis_names=axis_names,
+                                normalized_anchor=normalized_anchor,
+                                normalized_shape=normalized_shape,
+                                min_norm_anchor=-0.5, max_norm_anchor=-0.1,
+                                min_norm_shape=1.1, max_norm_shape=3.6)
+    pipe = SliceSynthDataPipeline(device, batch_size, layout, iter(eii), iter(eii_arg),
+                                  axes=axes, axis_names=axis_names,
+                                  normalized_anchor=normalized_anchor,
+                                  normalized_shape=normalized_shape,
+                                  out_of_bounds_policy=out_of_bounds_policy,
+                                  fill_values=fill_values,
+                                  extra_outputs=True)
+    if fill_values is None:
+        fill_values = 0
+    pipe.build()
+    for k in range(3):
+        outs = pipe.run()
+        out = outs[0]
+        in_data = outs[1]
+        anchor_data = outs[2]
+        shape_data = outs[3]
+        if isinstance(out, dali.backend_impl.TensorListGPU):
+            out = out.as_cpu()
+        assert(batch_size == len(out))
+        for idx in range(batch_size):
+            sample_in = in_data.at(idx)
+            sample_out = out.at(idx)
+            anchor = anchor_data.at(idx)
+            shape = shape_data.at(idx)
+            in_shape = sample_in.shape
+            out_shape = sample_out.shape
+            abs_start, abs_end, abs_slice_shape = abs_slice_start_and_end(
+                in_shape[:2], anchor, shape, normalized_anchor, normalized_shape)
+            check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start, abs_end, out_of_bounds_policy, fill_values)
+
+
+def test_slice_with_out_of_bounds_policy_support():
+    in_shape = (40, 80, 3)
+    for out_of_bounds_policy in ['pad', 'trim_to_shape']:
+        for device in ['gpu', 'cpu']:
+            for batch_size in [1, 3]:
+                for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
+                    for fill_values in [None, (0x76, 0xb0, 0x00)]:
+                        yield check_slice_with_out_of_bounds_policy_support, \
+                            device, batch_size, in_shape, out_of_bounds_policy, fill_values, \
+                            normalized_anchor, normalized_shape
+
+def check_slice_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200, 3),
+                                         normalized_anchor=False, normalized_shape=False):
+    # This test case is written with HWC layout in mind and "HW" axes in slice arguments
+    axis_names = "HW"
+    naxes = len(axis_names)
+    axes = None
+    layout = "HWC"
+    assert(len(input_shape) == 3)
+
+    eii = RandomDataIterator(batch_size, shape=input_shape)
+    eii_arg = SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,
+                                image_layout=layout, axes=axes, axis_names=axis_names,
+                                normalized_anchor=normalized_anchor,
+                                normalized_shape=normalized_shape,
+                                min_norm_anchor=-0.5, max_norm_anchor=-0.1,
+                                min_norm_shape=1.1, max_norm_shape=3.6)
+    pipe = SliceSynthDataPipeline(device, batch_size, layout, iter(eii), iter(eii_arg),
+                                  axes=axes, axis_names=axis_names,
+                                  normalized_anchor=normalized_anchor,
+                                  normalized_shape=normalized_shape,
+                                  out_of_bounds_policy="error")
+
+    pipe.build()
+    with assert_raises(RuntimeError):
+        outs = pipe.run()
+
+def test_slice_with_out_of_bounds_error():
+    in_shape = (40, 80, 3)
+    for device in ['gpu', 'cpu']:
+        for batch_size in [1, 3]:
+            for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
+                yield check_slice_with_out_of_bounds_error, \
+                    device, batch_size, in_shape, normalized_anchor, normalized_shape

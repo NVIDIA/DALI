@@ -59,7 +59,7 @@ class Scratchpad {
    * @brief Allocates storage for a Tensor of elements `T` and given `shape`
    *        in the memory of type `alloc_type`.
    */
-  template <AllocType alloc_type, typename T, size_t dim>
+  template <AllocType alloc_type, typename T, int dim>
   TensorView<AllocBackend<alloc_type>, T, dim> AllocTensor(TensorShape<dim> shape) {
     return { Allocate<T>(alloc_type, volume(shape)), std::move(shape) };
   }
@@ -68,23 +68,21 @@ class Scratchpad {
    * @brief Allocates storage for a TensorList of elements `T` and given `shape`
    *        in the memory of type `alloc_type`.
    */
-  template <AllocType alloc_type, typename T, size_t dim>
+  template <AllocType alloc_type, typename T, int dim>
   TensorListView<AllocBackend<alloc_type>, T, dim>
   AllocTensorList(const std::vector<TensorShape<dim>> &shape) {
-    TensorListView<AllocBackend<alloc_type>, T, dim> tlv(nullptr, shape);
-    tlv.data = Allocate<T>(alloc_type, tlv.total_size());
-    return tlv;
+    return AllocTensorList<alloc_type, T, dim>(TensorListShape<dim>(shape));
   }
 
   /**
    * @brief Allocates storage for a TensorList of elements `T` and given `shape`
    *        in the memory of type `alloc_type`.
    */
-  template <AllocType alloc_type, typename T, size_t dim>
+  template <AllocType alloc_type, typename T, int dim>
   TensorListView<AllocBackend<alloc_type>, T, dim>
   AllocTensorList(TensorListShape<dim> shape) {
-    TensorListView<AllocBackend<alloc_type>, T, dim> tlv(nullptr, std::move(shape));
-    tlv.data = Allocate<T>(alloc_type, tlv.total_size());
+    T *data = Allocate<T>(alloc_type, shape.num_elements());
+    TensorListView<AllocBackend<alloc_type>, T, dim> tlv(data, std::move(shape));
     return tlv;
   }
 

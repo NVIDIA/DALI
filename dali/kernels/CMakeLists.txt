@@ -25,6 +25,7 @@ add_subdirectory(reduce)
 add_subdirectory(signal)
 add_subdirectory(slice)
 add_subdirectory(test)
+add_subdirectory(transpose)
 
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
@@ -54,6 +55,7 @@ if (BUILD_TEST)
   target_link_libraries(dali_kernel_test PUBLIC dali_kernels dali)
   target_link_libraries(dali_kernel_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   target_link_libraries(dali_kernel_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+  target_link_libraries(dali_kernel_test PRIVATE "-pie")
   set_target_properties(dali_kernel_test PROPERTIES POSITION_INDEPENDENT_CODE ON)
   set_target_properties(dali_kernel_test PROPERTIES OUTPUT_NAME "dali_kernel_test.bin")
   set_target_properties(dali_kernel_test PROPERTIES

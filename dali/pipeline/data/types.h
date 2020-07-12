@@ -33,18 +33,6 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_layout.h"
 
-// Workaround missing "is_trivially_copyable" in libstdc++ for g++ < 5.0.
-// We have to first include some standard library headers, so to have __GLIBCXX__ symbol,
-// and we have to exclude the specific version used in manylinux for our CI, because
-// clang always defines __GNUC__ to 4. __GLIBCXX__ is not a linear ordering based on
-// version of library but the date of the release so we can have 4.9.4 > 5.1.
-#if __GLIBCXX__ == 20150212 || (__cplusplus && __GNUC__ < 5 && !__clang__)
-#include <boost/type_traits/has_trivial_copy.hpp>
-#define IS_TRIVIALLY_COPYABLE(T) ::boost::has_trivial_copy<T>::value
-#else
-#define IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
-#endif
-
 #ifdef DALI_BUILD_PROTO3
 #include "dali/operators/reader/parser/tf_feature.h"
 #endif  // DALI_BUILD_PROTO3
@@ -70,14 +58,14 @@ namespace detail {
 typedef void (*Copier)(void *, const void*, Index);
 
 template <typename T>
-inline std::enable_if_t<IS_TRIVIALLY_COPYABLE(T)>
+inline std::enable_if_t<std::is_trivially_copyable<T>::value>
 CopyFunc(void *dst, const void *src, Index n) {
   // T is trivially copyable, we can copy using raw memcopy
   std::memcpy(dst, src, n*sizeof(T));
 }
 
 template <typename T>
-inline std::enable_if_t<!IS_TRIVIALLY_COPYABLE(T)>
+inline std::enable_if_t<!std::is_trivially_copyable<T>::value>
 CopyFunc(void *dst, const void *src, Index n) {
   T *typed_dst = static_cast<T*>(dst);
   const T* typed_src = static_cast<const T*>(src);
@@ -294,6 +282,11 @@ class DLL_PUBLIC TypeTable {
     DALI_ENFORCE(id_it != inst.type_info_map_.end(),
         "Type with id " + to_string((size_t)dtype) + " was not registered.");
     return id_it->second;
+  }
+
+  template <typename T>
+  DLL_PUBLIC static const TypeInfo& GetTypeInfoFromStatic() {
+    return GetTypeInfo(GetTypeID<T>());
   }
 
  private:

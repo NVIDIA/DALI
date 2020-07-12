@@ -122,13 +122,51 @@ inline void SetCPUAffinity(int core = -1) {
 
   int error = pthread_setaffinity_np(pthread_self(), sizeof(requested_set), &requested_set);
   if (error != 0) {
-      DALI_WARN("Setting affinity failed! Error code: " + to_string(error));
+    DALI_WARN("Setting affinity failed! Error code: " + to_string(error));
   }
 }
+
 
 inline void Shutdown() {
   std::lock_guard<std::mutex> lock(Mutex());
   DALI_CALL(wrapNvmlShutdown());
+}
+
+/**
+ * Checks, if hardware decoder is available for the provided device
+ *
+ * @throws std::runtime_error
+ */
+inline bool HasHwDecoder(int device_idx) {
+  nvmlDevice_t device;
+  DALI_CALL(wrapNvmlDeviceGetHandleByIndex_v2(device_idx, &device));
+  nvmlBrandType_t brand;
+  DALI_CALL(wrapNvmlDeviceGetBrand(device, &brand));
+  const int kAmpereComputeCapability = 8;
+  int cc_M, cc_m;
+  DALI_CALL(wrapNvmlDeviceGetCudaComputeCapability(device, &cc_M, &cc_m));
+  return brand == NVML_BRAND_TESLA && cc_M >= kAmpereComputeCapability;
+}
+
+/**
+ * Checks, if hardware decoder is available in all possible devices
+ *
+ * @throws std::runtime_error
+ */
+inline bool HasHwDecoder() {
+  unsigned int device_count;
+  DALI_CALL(wrapNvmlDeviceGetCount_v2(&device_count));
+  for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
+    if (HasHwDecoder(device_idx)) return true;
+  }
+  return false;
+}
+
+/**
+ * Checks, whether CUDA11-proper NVML functions have been successfully loaded
+ */
+inline bool HasCuda11NvmlFunctions() {
+  return wrapHasCuda11NvmlFunctions();
 }
 
 }  // namespace nvml

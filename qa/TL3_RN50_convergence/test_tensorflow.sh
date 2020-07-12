@@ -22,6 +22,8 @@ LOG=dali.log
 OUT=${LOG%.log}.dir
 
 SECONDS=0
+export TF_XLA_FLAGS="--tf_xla_enable_lazy_compilation=false"
+
 mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
     python -u resnet.py --layers=50 \
     --data_dir=$DATA_SET_DIR --data_idx_dir=idx-files/ \

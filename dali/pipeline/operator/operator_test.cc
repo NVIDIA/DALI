@@ -41,7 +41,7 @@ TEST(InstantiateOperator, InvalidOperatorName) {
 
 TEST(InstantiateOperator, RunMethodIsAccessible) {
   HostWorkspace ws;
-  auto op = InstantiateOperator(MakeOpSpec("Crop"));
+  auto op = InstantiateOperator(MakeOpSpec("ImageDecoder"));
   // We just want to test that Run method is visible (exported to the so file)
   // It is expected that the call throws as the worspace is empty
   ASSERT_THROW(op->Run(ws), std::runtime_error);
@@ -90,9 +90,23 @@ TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsTest) {
   ASSERT_EQ(this->value_, cnt);
 }
 
+
 TYPED_TEST(OperatorDiagnosticsTest, DiagnosticsCollisionTest) {
   (this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_);
   EXPECT_THROW((this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_),
+               std::runtime_error);
+}
+
+
+TYPED_TEST(OperatorDiagnosticsTest, IncorrectTypeTest) {
+  (this->operator_)->RegisterDiagnostic(this->value_name_, &this->value_);
+  EXPECT_THROW(this->operator_->template GetDiagnostic<int64_t>(this->value_name_),
+               std::runtime_error);
+}
+
+
+TYPED_TEST(OperatorDiagnosticsTest, NonexistingParameterTest) {
+  EXPECT_THROW(this->operator_->template GetDiagnostic<TypeParam>(this->value_name_),
                std::runtime_error);
 }
 

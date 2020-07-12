@@ -23,6 +23,7 @@
 #include <vector>
 #include "dali/core/span.h"
 #include "dali/core/util.h"
+#include "dali/core/permute.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/cuda_utils.h"
@@ -1314,6 +1315,67 @@ TensorListShape<out_ndim> collapse_dims(const TensorListShape<ndim> &shape,
   return result;
 }
 
+/**
+ * @brief Permtues the samples in the tensor list shape `in` according to `sample_order`
+ *        and stores the result in `out`.
+ */
+template <int out_ndim, int in_ndim, typename Permutation>
+void permute_samples(TensorListShape<out_ndim> &out,
+                     const TensorListShape<in_ndim> &in,
+                     const Permutation &sample_order) {
+  detail::check_compatible_ndim<out_ndim, in_ndim>();
+  int N = in.num_samples();
+  int D = in.sample_dim();
+  out.resize(N, D);
+  assert(N == static_cast<int>(dali::size(sample_order)));
+  for (int i = 0; i < N; i++) {
+    auto out_sample = out.tensor_shape_span(i);
+    auto in_sample = in.tensor_shape_span(sample_order[i]);
+    for (int d = 0; d < D; d++) {
+      out_sample[d] = in_sample[d];
+    }
+  }
+}
+
+/**
+ * @brief Permtues the extents of shapes in the tensor list shape `in` according to
+ *        `axis_order` and stores the result in `out`.
+ */
+template <int out_ndim, int in_ndim, typename Permutation>
+void permute_dims(TensorListShape<out_ndim> &out,
+                  const TensorListShape<in_ndim> &in,
+                  const Permutation &axis_order) {
+  detail::check_compatible_ndim<out_ndim, in_ndim>();
+  int N = in.num_samples();
+  int D = in.sample_dim();
+  out.resize(N, D);
+  assert(D == static_cast<int>(dali::size(axis_order)));
+  for (int i = 0; i < N; i++) {
+    auto out_sample = out.tensor_shape_span(i);
+    auto in_sample = in.tensor_shape_span(i);
+    permute(out_sample, in_sample, axis_order);
+  }
+}
+
+/**
+ * @brief Returns tensor list shape with samples permuted according to `sample_order`
+ */
+template <int out_ndim = InferDimensions, int in_ndim, typename Permutation>
+auto permute_samples(const TensorListShape<in_ndim> &in, const Permutation &sample_order) {
+  TensorListShape<(out_ndim == InferDimensions ? in_ndim : out_ndim)> out;
+  permute_samples(out, in, sample_order);
+  return out;
+}
+
+/**
+ * @brief Returns tensor list shape with extents of shapes permuted according to `sample_order`
+ */
+template <int out_ndim = InferDimensions, int in_ndim, typename Permutation>
+auto permute_dims(const TensorListShape<in_ndim> &in, const Permutation &axis_order) {
+  TensorListShape<(out_ndim == InferDimensions ? in_ndim : out_ndim)> out;
+  permute_dims(out, in, axis_order);
+  return out;
+}
 
 }  // namespace dali
 

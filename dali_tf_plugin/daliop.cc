@@ -63,6 +63,7 @@ REGISTER_OP("Dali")
   .Attr("cpu_prefetch_queue_depth: int = 2")
   .Attr("sparse: list(bool) = []")
   .Attr("batch_size: int = -1")
+  .Attr("enable_memory_stats: bool = false")
   .Output("data: dtypes")
   .Attr("dtypes: list({half, float, uint8, int16, int32, int64}) >= 1")
   // To prevent replacing DALI op with constant tensor during TF constant folding process
@@ -115,6 +116,7 @@ class DaliOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size));
     OP_REQUIRES_OK(context, context->GetAttr("cpu_prefetch_queue_depth",
                                              &cpu_prefetch_queue_depth));
+    OP_REQUIRES_OK(context, context->GetAttr("enable_memory_stats", &enable_memory_stats_));
 
     // TF doing constant propagation runs all operators on the CPU first, so we need to provide
     // ability to copy memory from the GPU pipeline to the CPU seamlessly
@@ -140,7 +142,8 @@ class DaliOp : public tf::OpKernel {
                    exec_separated,
                    prefetch_queue_depth_,
                    cpu_prefetch_queue_depth,
-                   prefetch_queue_depth_));
+                   prefetch_queue_depth_,
+                   enable_memory_stats_));
 
 #if USE_TF_ALLOCATOR
     SetupTFAllocator(device_id_);
@@ -159,6 +162,27 @@ class DaliOp : public tf::OpKernel {
   }
 
   ~DaliOp() override {
+    if (enable_memory_stats_) {
+      size_t N;
+      daliExecutorMetadata *meta;
+      daliGetExecutorMetadata(&pipe_handle_, &meta, &N);
+      std::cout << "DALI operator memory statistics: "  << std::endl;
+      for (size_t i = 0; i < N; ++i) {
+        std::cout << "Operator " << meta[i].operator_name;
+        for (size_t j = 0; j < meta[i].out_num; ++j) {
+          std::cout << "   output [ " << j << " ] : "
+                    << meta[i].real_size[j] << "B allocated "
+                    << meta[i].max_real_size[j] << "B max allocated "
+                    << meta[i].reserved[j] << "B reserved"
+                    << meta[i].max_reserved[j] << "B max reserved";
+          if (j != meta[i].out_num - 1) {
+            std::cout << ",";
+          }
+        }
+        std::cout << std::endl;
+      }
+      daliFreeExecutorMetadata(meta, N);
+    }
     daliDeletePipeline(&pipe_handle_);
   }
 
@@ -183,7 +207,8 @@ class DaliOp : public tf::OpKernel {
     std::vector<tf::Tensor*> data_output_tensors;
     // each sparse tensor need 3 tensors in total - values, indices and shape
     unsigned additional_sparse_tensors = std::accumulate(sparse_.begin(), sparse_.end(), 0) * 2;
-    unsigned dali_num_out = daliGetNumOutput(&pipe_handle_);
+    unsigned dali_num_out = 0;
+    TF_DALI_CALL(dali_num_out = daliGetNumOutput(&pipe_handle_));
     data_output_tensors.resize(dali_num_out + additional_sparse_tensors);
 
     OP_REQUIRES_OK(context, context->output_list("data", &outputs));
@@ -209,9 +234,9 @@ class DaliOp : public tf::OpKernel {
                                     + shapes_[i].DebugString() + " plugin `shapes` argument"));
         OP_REQUIRES_OK(context, outputs.allocate(j, data_output_shape, &data_output_tensors[j]));
       } else {
-        elms = daliNumTensors(&pipe_handle_, i);
+        TF_DALI_CALL(elms = daliNumTensors(&pipe_handle_, i));
         // maximum number of dimension + one additional to hold tensor list number
-        dims = daliMaxDimTensors(&pipe_handle_, i) + 1;
+        TF_DALI_CALL(dims = daliMaxDimTensors(&pipe_handle_, i) + 1);
         max_dims.resize(dims, 0);
         // first dim is number of elements in the tensor list
         max_dims[0] = elms;
@@ -262,7 +287,9 @@ class DaliOp : public tf::OpKernel {
       }
       void *dst = nullptr;
       tf::Tensor* out_tensor = data_output_tensors[j];
-      if (daliTensorSize(&pipe_handle_, i) > out_tensor->TotalBytes()) {
+      size_t dali_tensor_size = 0;
+      TF_DALI_CALL(dali_tensor_size = daliTensorSize(&pipe_handle_, i));
+      if (dali_tensor_size > out_tensor->TotalBytes()) {
         context->CtxFailure(__FILE__, __LINE__,
             tf::errors::InvalidArgument("Output " + std::to_string(i) +
               " has bigger size than allocated by TensorFlow - check if type requested matches" +
@@ -336,6 +363,7 @@ class DaliOp : public tf::OpKernel {
   int prefetch_queue_depth_;
   device_type_t device_type_;
   std::vector<bool> sparse_;
+  bool enable_memory_stats_;
 };
 
 using tf::int64;

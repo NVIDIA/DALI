@@ -95,7 +95,6 @@ class DLL_PUBLIC Pipeline {
          default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
   }
 
-
   DLL_PUBLIC Pipeline(const string &serialized_pipe, int batch_size = -1, int num_threads = -1,
                       int device_id = -1, bool pipelined_execution = true,
                       int prefetch_queue_depth = 2, bool async_execution = true,
@@ -138,13 +137,13 @@ class DLL_PUBLIC Pipeline {
 
   template<typename T, typename OperatorBackend>
   void SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr,
-                           cudaStream_t stream = 0) {
+                           cudaStream_t stream = 0, bool sync = false) {
     // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
     // The StorageBackend is hidden under `T` type.
     auto *source = dynamic_cast<ExternalSource<OperatorBackend> *>(op_ptr);
     DALI_ENFORCE(source != nullptr,
                  "Input name '" + name + "' is not marked as an external input.");
-    source->SetDataSource(tl, stream);
+    source->SetDataSource(tl, stream, sync);
   }
 
 
@@ -155,9 +154,12 @@ class DLL_PUBLIC Pipeline {
    * @param name name of the input
    * @param tl data
    * @param stream CUDA stream to use in case of GPUBackend
+   * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
+   *             to the internal buffer
    */
   template<typename TL>
-  inline void SetExternalInputHelper(const string &name, const TL &tl, cudaStream_t stream = 0) {
+  inline void SetExternalInputHelper(const string &name, const TL &tl, cudaStream_t stream = 0,
+                                     bool sync = false) {
     bool is_cpu_node = true;
     OpNodeId node_id;
 
@@ -178,9 +180,9 @@ class DLL_PUBLIC Pipeline {
     OperatorBase *op_ptr = &node.InstantiateOperator();
 
     if (is_cpu_node) {
-      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, stream);
+      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, stream, sync);
     } else {
-      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, stream);
+      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, stream, sync);
     }
   }
 
@@ -191,11 +193,14 @@ class DLL_PUBLIC Pipeline {
    * @param name name of the input
    * @param tl data
    * @param stream CUDA stream to use in case of GPUBackend
+   * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
+   *             to the internal buffer
    */
   template<typename Backend>
   DLL_PUBLIC inline void
-  SetExternalInput(const string &name, const TensorList<Backend> &tl, cudaStream_t stream = 0) {
-    SetExternalInputHelper(name, tl, stream);
+  SetExternalInput(const string &name, const TensorList<Backend> &tl, cudaStream_t stream = 0,
+                   bool sync = false) {
+    SetExternalInputHelper(name, tl, stream, sync);
   }
 
 
@@ -205,11 +210,14 @@ class DLL_PUBLIC Pipeline {
    * @param name name of the input
    * @param tl data
    * @param stream CUDA stream to use in case of GPUBackend
+   * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
+   *             to the internal buffer
    */
   template<typename Backend>
   DLL_PUBLIC inline void
-  SetExternalInput(const string &name, const vector<Tensor<Backend>> &tl, cudaStream_t stream = 0) {
-    SetExternalInputHelper(name, tl, stream);
+  SetExternalInput(const string &name, const TensorVector<Backend> &tv, cudaStream_t stream = 0,
+                   bool sync = false) {
+    SetExternalInputHelper(name, tv, stream, sync);
   }
 
   /**
@@ -284,6 +292,29 @@ class DLL_PUBLIC Pipeline {
     async_execution_ = async_execution;
   }
 
+  /**
+   * @brief Set if the DALI pipeline should gather executor statistics of the operator ouput sizes
+   *
+   * @param enable_memory_stats If statistics should be gathered
+   * Usefull for `bytes_per_sample_hint` operator parameter.
+   */
+  DLL_PUBLIC void EnableExecutorMemoryStats(bool enable_memory_stats = true) {
+    enable_memory_stats_ = enable_memory_stats;
+    if (executor_) {
+      executor_->EnableMemoryStats(enable_memory_stats_);
+    }
+  }
+
+  /**
+   * @brief Obtains the executor statistics
+   */
+  DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() {
+    if (executor_) {
+      return  executor_->GetExecutorMeta();
+    } else {
+      return {};
+    }
+  }
 
   /**
    * @brief Set queue sizes for Pipeline using Separated Queues
@@ -370,10 +401,14 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC inline int batch_size() const { return batch_size_; }
 
   /**
-   * @brief Returns the map of (node name, node's epoch size)
-   * for all nodes that return a valid epoch size
+   * @brief Returns the map of (node name, reader meta) for all nodes that return a valid meta
    */
-  DLL_PUBLIC std::map<std::string, Index> EpochSize();
+  DLL_PUBLIC std::map<std::string, ReaderMeta> GetReaderMeta();
+
+  /**
+   * @brief Returns the reader meta for a node with given name
+   */
+  DLL_PUBLIC ReaderMeta GetReaderMeta(std::string name);
 
   /**
    * @brief Returns the number of threads used by the pipeline.
@@ -472,6 +507,7 @@ class DLL_PUBLIC Pipeline {
   int next_logical_id_ = 0;
   int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_;
+  bool enable_memory_stats_ = false;
 
   std::vector<int64_t> seed_;
   int original_seed_;

@@ -101,11 +101,31 @@ samples in the batch.
     "improve usage of the output type's dynamic range. If dtype is an integral type, out of range "
     "values are clamped, and non-integer values are rounded to nearest integer.", DALI_FLOAT);
 
+template <>
+class Normalize<CPUBackend> : public NormalizeBase<CPUBackend> {
+ public:
+  explicit Normalize(const OpSpec &spec) : NormalizeBase<CPUBackend>(spec) {}
+
+ private:
+  friend class NormalizeBase<CPUBackend>;
+
+  template <typename OutputType, typename InputType>
+  void SetupTyped(const HostWorkspace &ws);
+
+  template <typename OutputType, typename InputType>
+  void RunTyped(HostWorkspace &ws);
+
+  void AllocTempStorage();
+  void FoldMeans();
+  void FoldStdDev();
+
+  kernels::KernelManager kmgr_;
+};
+
 DALI_REGISTER_OPERATOR(Normalize, Normalize<CPUBackend>, CPU);
 
 using namespace normalize;  // NOLINT
 
-template <>
 template <typename OutputType, typename InputType>
 void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
@@ -119,9 +139,54 @@ void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
   for (int i = 0; i < nsamples; i++) {
     kmgr_.Setup<Kernel>(i, ctx, data_shape_[i], param_shape_[batch_norm_ ? 0 : i]);
   }
+  AllocTempStorage();
 }
 
-template <>
+void Normalize<CPUBackend>::AllocTempStorage() {
+  const TypeInfo &float_type = TypeTable::GetTypeInfo(DALI_FLOAT);
+  int n = data_shape_.num_samples();
+  const TensorListShape<> &tmp_shape = batch_norm_
+    ? uniform_list_shape(n, param_shape_[0])  // extend to all samples, to enable parallelism
+    : param_shape_;
+
+  if (ShouldCalcMean()) {
+    mean_.Resize(tmp_shape);
+  } else if (has_tensor_mean_) {
+    assert(!batch_norm_);
+    // use mean as-is
+    assert(param_shape_ == mean_input_.shape);
+  } else if (has_scalar_mean_) {
+    // need to broadcast mean to match required shape
+    if (is_uniform(param_shape_)) {
+      // if param_shape_ is uniform, we need only one tensor
+      mean_.Resize(TensorListShape<>({ param_shape_[0] }));
+    } else {
+      mean_.Resize(param_shape_);
+    }
+  }
+  if (ShouldCalcStdDev()) {
+    inv_stddev_.Resize(tmp_shape);
+  } else if (has_tensor_stddev_) {
+    assert(!batch_norm_);
+    // we need space to calculate inverse stddev
+    inv_stddev_.Resize(stddev_input_.shape);
+  } else {
+    assert(has_scalar_stddev_);
+    if (!IsFullReduction()) {
+      // need to broadcast stddev to match required shape
+      if (is_uniform(param_shape_)) {
+        // if param_shape_ is uniform, we need only one tensor
+        inv_stddev_.Resize(TensorListShape<>({ param_shape_[0] }));
+      } else {
+        inv_stddev_.Resize(param_shape_);
+      }
+    }
+  }
+  mean_.set_type(float_type);
+  inv_stddev_.set_type(float_type);
+}
+
+
 void Normalize<CPUBackend>::FoldMeans() {
   assert(mean_.ntensor() > 0);
   SumSamples(view<float>(mean_));
@@ -138,7 +203,6 @@ void Normalize<CPUBackend>::FoldMeans() {
   }
 }
 
-template <>
 void Normalize<CPUBackend>::FoldStdDev() {
   assert(inv_stddev_.ntensor() > 0);
   SumSamples(view<float>(inv_stddev_));
@@ -162,7 +226,6 @@ void Normalize<CPUBackend>::FoldStdDev() {
   ScaleRSqrtKeepZero(sample0.data, elems, epsilon_, rdiv, scale);
 }
 
-template <>
 template <typename OutputType, typename InputType>
 void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   ThreadPool &tp = ws.GetThreadPool();

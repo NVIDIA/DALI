@@ -188,14 +188,14 @@ TEST(MeanImplGPU, SplitStage) {
   int axes[] = { 0, 2 };
 
   testing::ReductionKernelTest<MeanImplGPU<float, uint8_t, uint64_t>, float, uint8_t> test;
-  test.Setup(in_shape, ref_out_shape, make_span(axes), true, false);
-  EXPECT_GE(test.kernel.GetNumStages(), 4);  // both reduced axes must be split
-  test.FillData(0, 255);
-  test.Run();
-
-  RefMean<int64_t>(test.ref.cpu(), test.in.cpu(), make_span(axes), true, false);
-
-  test.Check(EqualEpsRel(1e-5, 1e-6));
+  for (int iter = 0; iter < 3; iter++) {
+    test.Setup(in_shape, ref_out_shape, make_span(axes), true, false);
+    EXPECT_GE(test.kernel.GetNumStages(), 4);  // both reduced axes must be split
+    test.FillData(0, 255);
+    test.Run();
+    RefMean<int64_t>(test.ref.cpu(), test.in.cpu(), make_span(axes), true, false);
+    test.Check(EqualEpsRel(1e-5, 1e-6));
+  }
 }
 
 
@@ -212,14 +212,15 @@ TEST(MeanImplGPU, BatchMean) {
   int axes[] = { 0, 2 };
 
   testing::ReductionKernelTest<MeanImplGPU<float, uint8_t, uint64_t>, float, uint8_t> test;
-  test.Setup(in_shape, ref_out_shape, make_span(axes), false, true);
-  EXPECT_GE(test.kernel.GetNumStages(), 4);  // both reduced axes must be split
-  test.FillData(0, 255);
-  test.Run();
+  for (int iter = 0; iter < 3; iter++) {
+    test.Setup(in_shape, ref_out_shape, make_span(axes), false, true);
+    EXPECT_GE(test.kernel.GetNumStages(), 4);  // both reduced axes must be split
+    test.FillData(0, 255);
+    test.Run();
 
-  RefMean<int64_t>(test.ref.cpu(), test.in.cpu(), make_span(axes), false, true);
-
-  test.Check(EqualEpsRel(1e-5, 1e-6));
+    RefMean<int64_t>(test.ref.cpu(), test.in.cpu(), make_span(axes), false, true);
+    test.Check(EqualEpsRel(1e-5, 1e-6));
+  }
 }
 
 TEST(StdDevImplGPU, Outer_Inner_SplitStage) {
@@ -247,15 +248,16 @@ TEST(StdDevImplGPU, Outer_Inner_SplitStage) {
   *mean_cpu[2](0, 0, 0) = 70;
 
   testing::ReductionKernelTest<StdDevImplGPU<float, int16_t>, float, int16_t> test;
-  test.Setup(in_shape, ref_out_shape, make_span(axes), true, false);
-  EXPECT_GE(test.kernel.GetNumStages(), 4);  // both reduced axes must be split
-  test.FillData(-100, 100);
+  for (int iter = 0; iter < 3; iter++) {
+    test.Setup(in_shape, ref_out_shape, make_span(axes), true, false);
+    EXPECT_GE(test.kernel.GetNumStages(), 4);  // both reduced axes must be split
+    test.FillData(-100, 100);
 
-  test.Run(fake_mean.gpu());
+    test.Run(fake_mean.gpu());
 
-  test.ref = RefStdDev(test.in.cpu(), mean_cpu);
-
-  test.Check(EqualEpsRel(1e-5, 1e-6));
+    test.ref = RefStdDev(test.in.cpu(), mean_cpu);
+    test.Check(EqualEpsRel(1e-5, 1e-6));
+  }
 }
 
 
@@ -280,15 +282,16 @@ TEST(StdDevImplGPU, Middle_Inner_Sample) {
   }
 
   testing::ReductionKernelTest<StdDevImplGPU<float, int16_t>, float, int16_t> test;
-  test.Setup(in_shape, ref_out_shape, make_span(axes), true, false);
-  EXPECT_GE(test.kernel.GetNumStages(), 2);  // both reduced axes must be split
-  test.FillData(-100, 100);
+  for (int iter = 0; iter < 3; iter++) {
+    test.Setup(in_shape, ref_out_shape, make_span(axes), true, false);
+    EXPECT_GE(test.kernel.GetNumStages(), 2);  // both reduced axes must be split
+    test.FillData(-100, 100);
 
-  test.Run(fake_mean.gpu());
+    test.Run(fake_mean.gpu());
 
-  test.ref = RefStdDev(test.in.cpu(), mean_cpu);
-
-  test.Check(EqualEpsRel(1e-5, 1e-6));
+    test.ref = RefStdDev(test.in.cpu(), mean_cpu);
+    test.Check(EqualEpsRel(1e-5, 1e-6));
+  }
 }
 
 TEST(StdDevImplGPU, Middle_Inner_Batch) {
@@ -313,15 +316,16 @@ TEST(StdDevImplGPU, Middle_Inner_Batch) {
   *mean_cpu[0](1, 0, 2, 0) = 60;
 
   testing::ReductionKernelTest<StdDevImplGPU<float, int16_t>, float, int16_t> test;
-  test.Setup(in_shape, ref_out_shape, make_span(axes), true, true);
-  EXPECT_GE(test.kernel.GetNumStages(), 2);  // both reduced axes must be split
-  test.FillData(-100, 100);
+  for (int iter = 0; iter < 3; iter++) {
+    test.Setup(in_shape, ref_out_shape, make_span(axes), true, true);
+    EXPECT_GE(test.kernel.GetNumStages(), 2);  // both reduced axes must be split
+    test.FillData(-100, 100);
 
-  test.Run(fake_mean.gpu());
+    test.Run(fake_mean.gpu());
 
-  test.ref = RefStdDev(test.in.cpu(), mean_cpu);
-
-  test.Check(EqualEpsRel(1e-5, 1e-6));
+    test.ref = RefStdDev(test.in.cpu(), mean_cpu);
+    test.Check(EqualEpsRel(1e-5, 1e-6));
+  }
 }
 
 
@@ -344,15 +348,16 @@ TEST(InvStdDevImplGPU, Outer_Batch_Regularized) {
   }
 
   testing::ReductionKernelTest<InvStdDevImplGPU<float, int16_t>, float, int16_t> test;
-  test.Setup(in_shape, ref_out_shape, make_span(axes), true, true);
-  EXPECT_GE(test.kernel.GetNumStages(), 2);  // both reduced axes must be split
-  test.FillData(-100, 100);
+  for (int iter = 0; iter < 3; iter++) {
+    test.Setup(in_shape, ref_out_shape, make_span(axes), true, true);
+    EXPECT_GE(test.kernel.GetNumStages(), 2);  // both reduced axes must be split
+    test.FillData(-100, 100);
 
-  test.Run(fake_mean.gpu(), 1, 12000);
+    test.Run(fake_mean.gpu(), 1, 12000);
 
-  test.ref = RefStdDev(test.in.cpu(), mean_cpu, 1, 12000, true);
-
-  test.Check(EqualEpsRel(1e-5, 1e-6));
+    test.ref = RefStdDev(test.in.cpu(), mean_cpu, 1, 12000, true);
+    test.Check(EqualEpsRel(1e-5, 1e-6));
+  }
 }
 
 

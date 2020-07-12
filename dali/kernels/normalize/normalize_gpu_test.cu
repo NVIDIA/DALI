@@ -246,29 +246,31 @@ class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
   void RunTest() {
     kmgr_.Resize<Kernel>(1, 1);
     KernelContext ctx;
-    auto req = kmgr_.Setup<Kernel>(0, ctx, data_shape_, param_shape_,
-                                   use_scalar_base_, use_scalar_scale_, scale_is_stddev_);
-    ASSERT_EQ(req.output_shapes.size(), 1u);
-    ASSERT_EQ(req.output_shapes[0], data_shape_);
-    out_.reshape(data_shape_);
-    ref_.reshape(data_shape_);
+    for (int iter = 0; iter < 3; iter++) {
+      auto req = kmgr_.Setup<Kernel>(0, ctx, data_shape_, param_shape_,
+                                    use_scalar_base_, use_scalar_scale_, scale_is_stddev_);
+      ASSERT_EQ(req.output_shapes.size(), 1u);
+      ASSERT_EQ(req.output_shapes[0], data_shape_);
+      out_.reshape(data_shape_);
+      ref_.reshape(data_shape_);
 
-    Launch(ctx);
+      Launch(ctx);
 
-    int param_samples = param_shape_.num_samples();
-    auto ref_base  = use_scalar_base_
-                     ? ScalarTLV(scalar_base_,  param_samples, data_shape_.sample_dim())
-                     : base_.cpu();
-    auto ref_scale = use_scalar_scale_
-                     ? ScalarTLV(scalar_scale_, param_samples, data_shape_.sample_dim())
-                     : scale_.cpu();
-    RefNormalize(ref_.cpu(), in_.cpu(), ref_base, ref_scale,
-                 global_scale_, shift_, scale_is_stddev_, epsilon_);
+      int param_samples = param_shape_.num_samples();
+      auto ref_base  = use_scalar_base_
+                      ? ScalarTLV(scalar_base_,  param_samples, data_shape_.sample_dim())
+                      : base_.cpu();
+      auto ref_scale = use_scalar_scale_
+                      ? ScalarTLV(scalar_scale_, param_samples, data_shape_.sample_dim())
+                      : scale_.cpu();
+      RefNormalize(ref_.cpu(), in_.cpu(), ref_base, ref_scale,
+                  global_scale_, shift_, scale_is_stddev_, epsilon_);
 
-    if (scale_is_stddev_ && !std::is_integral<Out>::value)
-      Check(out_.cpu(), ref_.cpu(), EqualEpsRel(1e-6, 1e-6));
-    else
-      Check(out_.cpu(), ref_.cpu(), EqualUlp(4));
+      if (scale_is_stddev_ && !std::is_integral<Out>::value)
+        Check(out_.cpu(), ref_.cpu(), EqualEpsRel(1e-6, 1e-6));
+      else
+        Check(out_.cpu(), ref_.cpu(), EqualUlp(4));
+    }
   }
 
   void RunPerf() {

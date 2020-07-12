@@ -12,58 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <functional>
 #include "dali/pipeline/operator/builtin/external_source.h"
 
 namespace dali {
 
 template<>
 void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  bool is_tl_data;
-  std::list<uptr_tl_type> tensor_list_elm;
-  std::list<uptr_vt_type> vector_tensor_elm;
+  std::list<uptr_tv_type> tensor_vector_elm;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
-    cv_.wait(busy_lock, [&data = data_in_tl_]{return !data.empty();});
-    is_tl_data = data_in_tl_.front();
-    data_in_tl_.pop_front();
-    if (is_tl_data) {
-        DALI_ENFORCE(!tl_data_.IsEmpty(), "ExternalSource is empty. Need to feed data first.");
-        tensor_list_elm = tl_data_.PopFront();
-        DALI_ENFORCE(OperatorBase::batch_size_ ==
-                     static_cast<int>(tensor_list_elm.front()->ntensor()),
-          "Data list provided to ExternalSource needs to have batch_size = " +
-          std::to_string(batch_size_) + " length, found " +
-          std::to_string(static_cast<int>(tensor_list_elm.front()->ntensor())) + " samples.");
-    } else {
-        DALI_ENFORCE(!t_data_.IsEmpty(), "ExternalSource is empty. Need to feed data first.");
-        vector_tensor_elm = t_data_.PopFront();
-        DALI_ENFORCE(OperatorBase::batch_size_ ==
-                     static_cast<int>(vector_tensor_elm.front()->size()),
-          "Data list provided to ExternalSource needs to have batch_size length = " +
-          std::to_string(batch_size_) + " length, found " +
-          std::to_string(static_cast<int>(vector_tensor_elm.front()->size())) + " samples.");
-    }
+    tensor_vector_elm = tv_data_.PopFront();
+    state_.pop_front();
   }
-  auto &thread_pool = ws.GetThreadPool();
-  for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-    thread_pool.DoWorkWithID([&ws, data_idx, is_tl_data, &tensor_list_elm, &vector_tensor_elm]
-                             (int tid) {
-      Tensor<CPUBackend> &output = ws.Output<CPUBackend>(0, data_idx);
-      // HostWorkspace doesn't have any stream
-      cudaStream_t stream = 0;
-      if (is_tl_data) {
-        output.Copy(*(tensor_list_elm.front()), data_idx, stream);
-      } else {
-        auto &data = (*(vector_tensor_elm.front()))[data_idx];
-        output.Copy(data, stream);
-      }
-    });
-  }
-  thread_pool.WaitForWork();
-  if (is_tl_data) {
-    RecycleBuffer(tensor_list_elm);
+  if (no_copy_) {
+    TensorVector<CPUBackend> &output = ws.template OutputRef<CPUBackend>(0);
+    output.ShareData(tensor_vector_elm.front().get());
+    // empty tensor_vector_elm
+    tensor_vector_elm.front()->Reset();
+    RecycleBuffer(tensor_vector_elm);
   } else {
-    RecycleBuffer(vector_tensor_elm);
+    auto &thread_pool = ws.GetThreadPool();
+    // sort by the work size
+    sample_ids_.clear();
+    sample_ids_.reserve(batch_size_);
+
+    const auto &shapes = tensor_vector_elm.front()->shape();
+    for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
+      sample_ids_.emplace_back(volume(shapes[sample_id]), sample_id);
+    }
+    std::sort(sample_ids_.begin(), sample_ids_.end(), std::greater<VolumeSampleIdPair>());
+    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+      thread_pool.DoWorkWithID([&ws, data_idx, &tensor_vector_elm] (int tid) {
+        Tensor<CPUBackend> &output = ws.Output<CPUBackend>(0, data_idx);
+        // HostWorkspace doesn't have any stream
+        cudaStream_t stream = 0;
+        output.Copy((*tensor_vector_elm.front())[data_idx], stream);
+      });
+    }
+    thread_pool.WaitForWork();
+    // as we copy element by element and the output is contiguous we need to set layout
+    // for the whole output not each element(view)
+    auto &output = ws.template OutputRef<CPUBackend>(0);
+    output.SetLayout(tensor_vector_elm.front()->GetLayout());
+    RecycleBuffer(tensor_vector_elm);
   }
 }
 
@@ -75,6 +67,23 @@ DALI_SCHEMA(_ExternalSource)
   for details.)code")
   .NumInput(0)
   .NumOutput(1)
+  .AddOptionalArg("blocking",
+      R"code(Whether external source should block until data is available or just
+fail when it is not)code", true)
+  .AddOptionalArg("no_copy",
+      R"code(Whether DALI should copy the buffer when feed_input is called
+If True, DALI passes the user memory directly to the Pipeline, instead of copying.
+It is the user's responsibility to keep the buffer alive and unmodified
+until it isconsumed by the pipeline.
+
+The buffer can be modified or freed again after the relevant iteration output has been consumed.
+Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
+(when they are not equal) iterations following the``feed_input`` call.
+
+Provided memory must match the specified `device` parameter of the operator.
+For CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
+For GPU to not do any copies the provided buffer must be contiguous. If user provides a list
+of separate Tensors there will be an additional internal copy made.)code", false)
   .MakeInternal();
 
 DALI_SCHEMA(ExternalSource)
@@ -88,6 +97,23 @@ should match the number of dimensions expected by the next operator in the pipel
 (e.g. HWC will expect 3-dimensional tensors
 where the last dimension represents the different channels).)code")
   .NumInput(0)
-  .NumOutput(1);
+  .NumOutput(1)
+  .AddOptionalArg("blocking",
+      R"code(Whether external source should block until data is available or just
+fail when it is not)code", false)
+  .AddOptionalArg("no_copy",
+      R"code(Whether DALI should copy the buffer when feed_input is called
+If True, DALI passes the user memory directly to the Pipeline, instead of copying.
+It is the user's responsibility to keep the buffer alive and unmodified
+until it is consumed by the pipeline.
+
+The buffer can be modified or freed again after the relevant iteration output has been consumed.
+Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
+(when they are not equal) iterations following the``feed_input`` call.
+
+Provided memory must match the specified `device` parameter of the operator.
+For CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
+For GPU to not do any copies the provided buffer must be contiguous. If user provides a list
+of separate Tensors there will be an additional internal copy made.)code", false);
 
 }  // namespace dali

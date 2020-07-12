@@ -58,6 +58,31 @@ typedef enum {
 } dali_data_type_t;
 
 
+/*
+ * Need to keep that in sync with ReaderMeta from operator.h
+ */
+typedef struct {
+  int64_t epoch_size;          // raw epoch size
+  int64_t epoch_size_padded;   // epoch size with the padding at the end
+  int number_of_shards;        // number of shards
+  int shard_id;                // shard id of given reader
+  int pad_last_batch;          // if given reader should pad last batch
+  int stick_to_shard;          // if given reader should stick to its shard
+} daliReaderMetadata;
+
+
+/*
+ * Need to keep that in sync with ExecutorMeta from executor.h
+ */
+typedef struct {
+  char *operator_name;         // operator name, user need to free the memory
+  size_t out_num;              // number of the operator outputs
+  size_t *real_size;           // real size of the operator output, user need to free the memory
+  size_t *max_real_size;       // the biggest size of the tensor in the batch
+  size_t *reserved;            // reserved size of the operator output, user need to free the memory
+  size_t *max_reserved;        // the biggest reserved memory size for the tensor in the batch
+} daliExecutorMetadata;
+
 /**
  * @brief DALI initialization
  *
@@ -88,7 +113,8 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                                    int separated_execution,
                                    int prefetch_queue_depth,
                                    int cpu_prefetch_queue_depth,
-                                   int gpu_prefetch_queue_depth);
+                                   int gpu_prefetch_queue_depth,
+                                   int enable_memory_stats);
 
 /**
  * Convenient overload. Use it, if the Pipeline should inherit its parameters
@@ -99,6 +125,19 @@ DLL_PUBLIC void daliDeserializeDefault(daliPipelineHandle *pipe_handle,
                                        int length);
 /// }@
 /// @{
+
+enum {
+  DALI_ext_default = 0,
+  /**
+   * If memory transfer should be synchronous - applies to GPU memory
+   */
+  DALI_ext_force_sync = (1<<0),
+  /**
+   * If provided CPU memory is page-locked
+   */
+  DALI_ext_pinned = (1<<1)
+};
+
 /**
  * @brief Feed the data to ExternalSource as contiguous memory.
  *
@@ -126,21 +165,23 @@ DLL_PUBLIC void daliDeserializeDefault(daliPipelineHandle *pipe_handle,
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
+ * @param flags Extra flags, check DALI_ext_force_sync, DALI_ext_pinned
  */
 DLL_PUBLIC void
 daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
                           device_type_t device, const void *data_ptr,
                           dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str,
-                          cudaStream_t stream);
+                          cudaStream_t stream, unsigned int flags);
 
 DLL_PUBLIC void
 daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
                      device_type_t device, const void *data_ptr,
                      dali_data_type_t data_type, const int64_t *shapes,
-                     int sample_dim, const char *layout_str);
+                     int sample_dim, const char *layout_str, unsigned int flags);
 ///@}
 ///@{
+
 /**
  * @brief Feed the data to ExternalSource as a set of separate buffers.
  *
@@ -168,19 +209,20 @@ daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
+ * @param flags Extra flags, check DALI_ext_force_sync, DALI_ext_pinned
  */
 DLL_PUBLIC void
 daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const char *name,
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str,
-                                 cudaStream_t stream);
+                                 cudaStream_t stream, unsigned int flags);
 
 DLL_PUBLIC void
 daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                             device_type_t device, const void *const *data_ptr,
                             dali_data_type_t data_type, const int64_t *shapes,
-                            int64_t sample_dim, const char *layout_str);
+                            int64_t sample_dim, const char *layout_str, unsigned int flags);
 ///@}
 
 /**
@@ -314,6 +356,34 @@ DLL_PUBLIC void daliDeletePipeline(daliPipelineHandle *pipe_handle);
  * @brief Load plugin library
  */
 DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
+
+/**
+ * @brief Returns the named reader metadata
+ *  @param reader_name Name of the reader to query
+ *  @param meta Pointer to metadata to be filled by the function
+ */
+DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
+                                      daliReaderMetadata* meta);
+/**
+ * @brief Obtains the executor statistics
+ *  @param operator_meta Pointer to the memory allocated by the function with operator_meta_num
+ *                       number of metadata entries. To free returned metadata use
+ *                       `daliFreeExecutorMetadata` function
+ *  @param operator_meta_num Pointer to the variable which will tell how many meta entries
+ *                           (operators) have been files
+ */
+DLL_PUBLIC void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle,
+                                        daliExecutorMetadata **operator_meta,
+                                        size_t *operator_meta_num);
+
+/**
+ * @brief Frees executor metadata obtained from daliGetExecutorMetadata
+ *  @param operator_meta Pointer to the memory with metadata allocated by the
+ *                       `daliGetExecutorMetadata`
+ *  @param operator_meta_num Number of metadata entries provided by `daliGetExecutorMetadata`
+ */
+DLL_PUBLIC void daliFreeExecutorMetadata(daliExecutorMetadata *operator_meta,
+                                         size_t operator_meta_num);
 
 #ifdef __cplusplus
 }

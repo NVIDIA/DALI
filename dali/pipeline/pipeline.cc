@@ -167,11 +167,11 @@ int Pipeline::AddOperator(const OpSpec &spec, const std::string& inst_name) {
 }
 
 int Pipeline::AddOperator(const OpSpec &spec, int logical_id) {
-  return AddOperator(spec, "<no name>", logical_id);
+  return AddOperator(spec, make_string("__", spec.name(), "_", logical_id), logical_id);
 }
 
 int Pipeline::AddOperator(const OpSpec &spec) {
-  return AddOperator(spec, "<no name>", GetNextLogicalId());
+  return AddOperator(spec, GetNextLogicalId());
 }
 
 
@@ -431,6 +431,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   executor_ = GetExecutor(pipelined_execution_, separated_execution_, async_execution_, batch_size_,
                           num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
                           max_num_stream_, default_cuda_stream_priority_, prefetch_queue_depth_);
+  executor_->EnableMemoryStats(enable_memory_stats_);
   executor_->Init();
 
   // Creating the graph
@@ -712,23 +713,28 @@ OpNode * Pipeline::GetOperatorNode(const std::string& name) {
   return &(graph_.Node(name));
 }
 
-std::map<std::string, Index> Pipeline::EpochSize() {
-  std::map<std::string, Index> ret;
-  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::CPU, i);
-    Index epoch_size = current.op->epoch_size();
-    if (epoch_size != -1) {
-      ret.insert(make_pair(current.instance_name, epoch_size));
-    }
-  }
-  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
-    const OpNode &current = graph_.Node(OpType::GPU, i);
-    Index epoch_size = current.op->epoch_size();
-    if (epoch_size != -1) {
-      ret.insert(make_pair(current.instance_name, epoch_size));
+std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
+  std::map<std::string, ReaderMeta> ret;
+  for (Index i = 0; i < graph_.NumOp(); ++i) {
+    const OpNode &current = graph_.Node(i);
+    ReaderMeta meta = current.op->GetReaderMeta();
+    if (meta) {
+      ret.insert(make_pair(current.instance_name, meta));
     }
   }
   return ret;
+}
+
+ReaderMeta Pipeline::GetReaderMeta(std::string name) {
+  ReaderMeta meta;
+  for (Index i = 0; i < graph_.NumOp(); ++i) {
+    const OpNode &current = graph_.Node(i);
+    if (current.instance_name == name) {
+      meta = current.op->GetReaderMeta();
+      break;
+    }
+  }
+  return meta;
 }
 
 const std::string &Pipeline::output_device(int id) const {

@@ -35,7 +35,9 @@ normalization only.
   .NumOutput(1)
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg("output_dtype",
+  .DeprecateArg("image_type", true)  // deprecated since 0.24dev
+  .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
+  .AddOptionalArg("dtype",
     R"code(Output data type. Supported types: `FLOAT` and `FLOAT16`)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",
     R"code(Output tensor data layout)code", TensorLayout("CHW"))
@@ -53,7 +55,8 @@ normalization only.
   .AddOptionalArg("std",
     R"code(Standard deviation values for image normalization.)code",
     std::vector<float>{1.0f})
-  .AddParent("Crop");
+  .AddParent("CropAttr")
+  .AddParent("OutOfBoundsAttr");
 
 DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<CPUBackend>, CPU);
 
@@ -61,27 +64,29 @@ template <>
 bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                                 const HostWorkspace &ws) {
   output_desc.resize(1);
-  SetupAndInitialize(ws);
+  SetupCommonImpl(ws);
   const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
-  std::size_t number_of_dims = input.shape().sample_dim();
+  auto in_shape = input.shape();
+  int ndim = in_shape.sample_dim();
+  int nsamples = in_shape.size();
+  auto nthreads = ws.GetThreadPool().size();
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, CMN_OUT_TYPES, (
-      VALUE_SWITCH(number_of_dims, Dims, CMN_NDIMS, (
+      VALUE_SWITCH(ndim, Dims, CMN_NDIMS, (
         using Kernel = kernels::SliceFlipNormalizePermutePadCpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         output_desc[0].type = TypeInfo::Create<OutputType>();
-        output_desc[0].shape.resize(batch_size_, Dims);
-        kmgr_.Initialize<Kernel>();
+        output_desc[0].shape.resize(nsamples, Dims);
+        kmgr_.Resize<Kernel>(nthreads, nsamples);
         // Do the kernel setup
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-        for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
+        for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
           auto in_view = view<const InputType, Dims>(input[sample_idx]);
           kernels::KernelContext ctx;
           auto &req = kmgr_.Setup<Kernel>(sample_idx, ctx, in_view, kernel_sample_args[sample_idx]);
           output_desc[0].shape.set_tensor_shape(sample_idx, req.output_shapes[0][0].shape);
         }
-      ), DALI_FAIL(make_string("Not supported number of dimensions:", number_of_dims));); // NOLINT
+      ), DALI_FAIL(make_string("Not supported number of dimensions:", ndim));); // NOLINT
     ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
   ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT
 
@@ -89,26 +94,31 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
 }
 
 template <>
-void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  const auto &input = ws.Input<CPUBackend>(0);
-  auto &output = ws.Output<CPUBackend>(0);
-  auto data_idx = ws.data_idx();
-  auto sample_idx = data_idx;
-  std::size_t number_of_dims = input.shape().sample_dim();
-
+void CropMirrorNormalize<CPUBackend>::RunImpl(HostWorkspace &ws) {
+  const auto &input = ws.InputRef<CPUBackend>(0);
+  auto &output = ws.OutputRef<CPUBackend>(0);
+  output.SetLayout(output_layout_);
+  auto in_shape = input.shape();
+  int ndim = in_shape.sample_dim();
+  int nsamples = in_shape.size();
+  auto& thread_pool = ws.GetThreadPool();
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, CMN_OUT_TYPES, (
-      VALUE_SWITCH(number_of_dims, Dims, CMN_NDIMS, (
+      VALUE_SWITCH(ndim, Dims, CMN_NDIMS, (
         using Kernel = kernels::SliceFlipNormalizePermutePadCpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
-        auto in_view = view<const InputType, Dims>(input);
-        auto out_view = view<OutputType, Dims>(output);
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-        auto &args = kernel_sample_args[sample_idx];
-        kernels::KernelContext ctx;
-        kmgr_.Run<Kernel>(ws.thread_idx(), sample_idx, ctx, out_view, in_view, args);
-
-      ), DALI_FAIL(make_string("Not supported number of dimensions:", number_of_dims));); // NOLINT
+        for (int sample_id = 0; sample_id < nsamples; sample_id++) {
+          thread_pool.DoWorkWithID(
+            [this, &input, &output, &kernel_sample_args, sample_id](int thread_id) {
+              auto in_view = view<const InputType, Dims>(input[sample_id]);
+              auto out_view = view<OutputType, Dims>(output[sample_id]);
+              auto &args = kernel_sample_args[sample_id];
+              kernels::KernelContext ctx;
+              kmgr_.Run<Kernel>(thread_id, sample_id, ctx, out_view, in_view, args);
+            });
+        }
+      ), DALI_FAIL(make_string("Not supported number of dimensions:", ndim));); // NOLINT
     ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
   ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT
 }

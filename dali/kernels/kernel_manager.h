@@ -88,23 +88,23 @@ class DLL_PUBLIC KernelManager {
   using ScratchSizes = std::array<size_t, NumAllocTypes>;
 
   /**
-   * @brief Creates `num_threads` scratcapads and `num_instances` slots for kernels
+   * @brief Creates `num_threads` scratchpads and `num_instances` slots for kernels
    *
    * @param num_threads -    number of threads that can concurrently use the kernels in the
    *                         manager, assuming that each threads uses its unique
-   *                         zero-based inde
+   *                         zero-based index
    * @param num_instances -  number of Kernel instances to be created; typically corresponds
    *                         to number of samples (for per-sample kernels) or minibatches
    */
   void Resize(size_t num_threads, size_t num_instances);
 
   /**
-   * @brief Creates `num_threads` scratcapads and `num_instances` kernels of type Kernel
+   * @brief Creates `num_threads` scratchpads and `num_instances` kernels of type Kernel
    *        constructed with `args...`.
    *
    * @param num_threads   -  number of threads that can concurrently use the kernels in the
    *                         manager, assuming that each threads uses its unique
-   *                         zero-based inde
+   *                         zero-based index
    * @param num_instances -  number of Kernel instances to be created; typically corresponds
    *                         to number of samples (for per-sample kernels) or minibatches
    * @param args           - arguments passed to Kernel's constructor upon creation.

@@ -53,12 +53,11 @@ class MnistPipeline(Pipeline):
         self.device = device
         self.reader = ops.Caffe2Reader(path=path, random_shuffle=True, shard_id=shard_id, num_shards=num_shards)
         self.decode = ops.ImageDecoder(
-            device='mixed' if device is 'gpu' else 'cpu',
+            device='mixed' if device == 'gpu' else 'cpu',
             output_type=types.GRAY)
         self.cmn = ops.CropMirrorNormalize(
             device=device,
             output_dtype=types.FLOAT,
-            image_type=types.GRAY,
             mean=[0.],
             std=[255.],
             output_layout="CHW")
@@ -66,7 +65,7 @@ class MnistPipeline(Pipeline):
     def define_graph(self):
         inputs, labels = self.reader(name="Reader")
         images = self.decode(inputs)
-        if self.device is 'gpu':
+        if self.device == 'gpu':
             labels = labels.gpu()
         images = self.cmn(images)
 

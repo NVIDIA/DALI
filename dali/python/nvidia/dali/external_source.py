@@ -11,7 +11,7 @@ def _check_data_batch(data, batch_size, layout):
             dim = len(data[0].shape)
             for t in data:
                 if len(t.shape) != dim:
-                    raise RuntimeErrorError("All tensors in a batch must have the same number of dimensions")
+                    raise RuntimeError("All tensors in a batch must have the same number of dimensions")
             if layout != "" and dim != len(layout):
                 raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
     else:
@@ -53,10 +53,11 @@ class _CycleGenFunc():
             return next(self.it)
 
 class _ExternalSourceGroup(object):
-    def __init__(self, callback, is_multioutput, instances = []):
+    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
+        self._cuda_stream = cuda_stream
         if callback is not None:
             if callback.__code__.co_argcount not in [0, 1]:
                 raise TypeError("External source callback must be a callable with 0 or 1 argument")
@@ -76,11 +77,11 @@ class _ExternalSourceGroup(object):
         if self.is_multioutput:
             for op in self.instances:
                 data = callback_out[op._output_index]
-                pipeline.feed_input(op._name, data, op._layout)
+                pipeline.feed_input(op._name, data, op._layout, self._cuda_stream)
         else:
             data = callback_out
             op = self.instances[0]
-            pipeline.feed_input(op._name, data, op._layout)
+            pipeline.feed_input(op._name, data, op._layout, self._cuda_stream)
 
 def _is_generator_function(x):
     """Checks whether x is a generator function or a callable object
@@ -148,8 +149,12 @@ Args
     If the source is a callable and has a positional argument, it is assumed to be the current
     iteration number and consecutive calls will be ``source(0)``, ``source(1)``, etc.
     If the source is a generator function, it is invoked and treated as an iterable - however,
-    unlike a gnerator, it can be used with ``cycle``, in which case the function will be called
+    unlike a generator, it can be used with ``cycle``, in which case the function will be called
     again when the generator reaches end of iteration.
+    In the case of the GPU input, it is the user responsibility to modify the
+    provided GPU memory content only using provided stream (DALI schedules a copy on it
+    and all work is properly queued). If no stream is provided, DALI will use a default, with
+    best-effort approach at correctness (see ``cuda_stream`` argument documentation for details).
 
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists produced by the source function
@@ -172,13 +177,47 @@ Keyword Args
     If provided, sets the layout of the data. When ``num_outputs > 1``, layout can be a list
     containing a distinct layout for each output. If the list has fewer elements than ``num_outputs``,
     only the first outputs have the layout set, the reset have it cleared.
+
+`cuda_stream` : optional, `cudaStream_t` or an object convertible to `cudaStream_t`, e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
+    The CUDA stream, which is going to be used for copying data to GPU or from a GPU
+    source. If not set, best effort will be taken to maintain correctness - i.e. if the data
+    is provided as a tensor/array from a recognized library (CuPy, PyTorch), the library's
+    current stream is used. This should work in typical scenarios, but advanced use cases
+    (and code using unsupported libraries) may still need to supply the stream handle
+    explicitly.
+
+    Special values:
+      *  0 - use default CUDA stream
+      * -1 - use DALI's internal stream
+
+    If internal stream is used, the call to ``feed_input`` will block until the copy to internal
+    buffer is complete, since there's no way to synchronize with this stream to prevent
+    overwriting the array with new data in another stream.
+
+``blocking`` : optional, Whether external source should block until data is available or just
+fail when it is not
+
+``no_copy` : Whether DALI should copy the buffer when feed_input is called
+    If True, DALI passes the user memory directly to the Pipeline, instead of copying.
+    It is the user's responsibility to keep the buffer alive and unmodified
+    until it is consumed by the pipeline.
+
+    The buffer can be modified or freed again after the relevant iteration output has been consumed.
+    Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
+    (when they are not equal) iterations following the``feed_input`` call.
+
+    Provided memory must match the specified `device` parameter of the operator.
+    For CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
+    For GPU to not do any copies the provided buffer must be contiguous. If user provides a list
+    of separate Tensors there will be an additional internal copy made.
 """
 
-    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", **kwargs):
+    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", cuda_stream = None, **kwargs):
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
         self._device = device
         self._layout = layout
+        self._cuda_stream = cuda_stream
 
         callback = _get_callback_from_source(source, cycle)
 
@@ -209,7 +248,7 @@ Keyword Args
     def preserve(self):
         return False
 
-    def __call__(self, *, source = None, cycle = None, name = None, layout = None, **kwargs):
+    def __call__(self, *, source = None, cycle = None, name = None, layout = None, cuda_stream = None, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
 
@@ -230,6 +269,10 @@ Keyword Args
 
         if layout is not None and self._layout is not None:
             raise RuntimeError("`layout` already specified in constructor.")
+
+        if cuda_stream is not None and self._cuda_stream is not None:
+            raise RuntimeError("`cuda_stream` already specified in constructor.")
+
         if name is None:
             name = self._name
 
@@ -239,7 +282,7 @@ Keyword Args
         if self._num_outputs is not None:
             outputs = []
             kwargs = {}
-            group = _ExternalSourceGroup(callback, True)
+            group = _ExternalSourceGroup(callback, True, cuda_stream=self._cuda_stream)
             for i in range(self._num_outputs):
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
@@ -264,7 +307,7 @@ Keyword Args
             op_instance = _OperatorInstance([], self, **kwargs)
             op_instance._callback = callback
             op_instance._output_index = None
-            op_instance._group = _ExternalSourceGroup(callback, False, [op_instance])
+            op_instance._group = _ExternalSourceGroup(callback, False, [op_instance], cuda_stream=self._cuda_stream)
             op_instance._layout = self._layout if self._layout is not None else ""
             op_instance.generate_outputs()
 
@@ -277,11 +320,14 @@ Keyword Args
 def _is_external_source_with_callback(op_instance):
     return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
 
-def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None):
+def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None, cuda_stream = None, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
-``pipeline.feed_input(name, data, layout)`` inside ``pipeline.iter_setup``.
-
+``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
+    In the case of the GPU input, it is the user responsibility to modify the
+    provided GPU memory content only using provided stream (DALI schedules a copy on it
+    and all work is properly queued). If no stream is provided feeding input blocks until the
+    provided memory is copied to the internal buffer
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
     which is more performant.
@@ -292,8 +338,8 @@ The data can be provided by the ``source`` function or iterable, or it can be pr
                 "provide data. To feed multiple external sources in `feed_input`, use multiple "
                 "`external_source` nodes.")
 
-    op = ExternalSource(device = device, num_outputs = num_outputs,
-                        source = source, cycle = cycle, layout = layout)
+    op = ExternalSource(device = device, num_outputs = num_outputs, source = source,
+                        cycle = cycle, layout = layout, cuda_stream = cuda_stream, **kwargs)
     return op(name = name)
 
 external_source.__doc__ += ExternalSource._args_doc

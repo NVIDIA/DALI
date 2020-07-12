@@ -15,6 +15,7 @@
 #ifndef DALI_CORE_UTIL_H_
 #define DALI_CORE_UTIL_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -145,6 +146,7 @@ constexpr std::enable_if_t<std::is_integral<T>::value, int> ilog2(T x) {
  * @brief Returns an integer where bits at indicies in `bit_indices` are set to 1.
  * @remarks Indices that are outside the bit-width of OutType are ignored.
  */
+DALI_NO_EXEC_CHECK
 template <typename OutType = uint64_t, typename BitIndices>
 DALI_HOST_DEV DALI_FORCEINLINE
 OutType to_bit_mask(const BitIndices &bit_indices) {
@@ -342,6 +344,14 @@ static_assert(all_of<true, true, true>::value,
               "Should return true_type when all the values are true.");
 static_assert(!all_of<true, false, true>::value,
               "Should return false_type when any of the values is false.");
+
+
+template <size_t N, typename T>
+std::array<T, N> uniform_array(const T& t) {
+  std::array<T, N> result;
+  result.fill(t);
+  return result;
+}
 
 }  // namespace dali
 

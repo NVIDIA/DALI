@@ -33,10 +33,9 @@ class RN50Pipeline(Pipeline):
         out_type = types.FLOAT16 if fp16 else types.FLOAT
 
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
-                                            output_dtype=out_type,
+                                            dtype=out_type,
                                             output_layout=layout,
                                             crop=(224, 224),
-                                            image_type=types.RGB,
                                             mean=[0.485 * 255,0.456 * 255,0.406 * 255],
                                             std=[0.229 * 255,0.224 * 255,0.225 * 255])
         self.coin = ops.CoinFlip(probability=0.5)
@@ -221,7 +220,7 @@ Iterators = {
     "paddle": [import_paddle]
 }
 
-assert(args.framework in Iterators, "Error, framework {} not supported".format(args.framework))
+assert args.framework in Iterators, "Error, framework {} not supported".format(args.framework)
 for imports in Iterators[args.framework]:
     IteratorClass = imports()
     test_fw_iter(IteratorClass, args)

@@ -18,6 +18,7 @@
 #include <type_traits>
 #include <array>
 #include <vector>
+#include "dali/core/host_dev.h"
 
 namespace dali {
 
@@ -41,6 +42,34 @@ using remove_cv_t = std::remove_cv_t<T>;
 
 template <bool Value, typename Type = void>
 using enable_if_t = std::enable_if_t<Value, Type>;
+
+
+// check if the type has `resize` function callable with given arguments
+
+template <typename T, typename... ResizeArgs,
+          typename resize_result = decltype(std::declval<T&>().resize(ResizeArgs()...))>
+inline std::true_type HasResize(T *, ResizeArgs... args);
+
+inline std::false_type HasResize(...);
+
+/// @brief Inerits `true_type`, if `T::resize` can be called with given arguments
+template <typename T, typename... ResizeArgs>
+struct has_resize : decltype(HasResize((T*)0, ResizeArgs()...)) {};  // NOLINT
+
+/// @brief Inerits `true_type`, `if T::resize` can be called with an integer
+template <typename T>
+struct has_resize<T> : decltype(HasResize((T*)0, 1)) {};  // NOLINT
+
+DALI_NO_EXEC_CHECK
+template <typename T, typename Size>
+DALI_HOST_DEV
+inline std::enable_if_t<has_resize<T>::value> resize_if_possible(T &object, Size size) {
+  object.resize(size);
+}
+
+template <typename T, typename Size>
+DALI_HOST_DEV
+inline std::enable_if_t<!has_resize<T>::value> resize_if_possible(T &object, Size size) {}
 
 }  // namespace dali
 

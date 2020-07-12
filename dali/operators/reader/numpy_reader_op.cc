@@ -14,7 +14,7 @@
 
 #include <string>
 
-#include "dali/kernels/common/transpose.h"
+#include "dali/kernels/transpose/transpose.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/reader/numpy_reader_op.h"
 

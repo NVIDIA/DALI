@@ -275,13 +275,14 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes,
-                        const TensorShape<> &shape) {
-    DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
+                        const TensorShape<> &shape,
+                        const TypeInfo &type = {}) {
+    // don't check ptr as we want to share empty data as well
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_ = ptr;
     num_bytes_ = bytes;
-    type_ = TypeInfo::Create<NoType>();
+    type_ = type;
     Index new_size = volume(shape);
     shape_ = shape;
     size_ = new_size;
@@ -308,8 +309,9 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes, const TensorShape<> &shape) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape);
+  inline void ShareData(void *ptr, size_t bytes, const TensorShape<> &shape,
+                        const TypeInfo &type = TypeInfo::Create<NoType>()) {
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
   }
 
   /**
@@ -329,8 +331,9 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes) {
-    ShareData(ptr, bytes, { 0 });
+  inline void ShareData(void *ptr, size_t bytes,
+                        const TypeInfo &type = TypeInfo::Create<NoType>()) {
+    ShareData(ptr, bytes, { 0 }, type);
   }
 
   /**
@@ -346,8 +349,8 @@ class Tensor : public Buffer<Backend> {
     DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
     DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
         "the input TensorList must have a valid data type.");
-    DALI_ENFORCE(tl->IsContinuousTensor(),
-      "All tensors in the input TensorList must be continuous in memory.");
+    DALI_ENFORCE(tl->IsContiguousTensor(),
+      "All tensors in the input TensorList must be contiguous in memory.");
     Index product = tl->shape().num_elements();
     DALI_ENFORCE(product == volume(new_shape),
       "Requested shape need to have the same volume as the tensor list.");

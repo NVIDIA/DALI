@@ -72,7 +72,7 @@ struct DLL_PUBLIC ResamplingFilters {
 
   DLL_PUBLIC ResamplingFilter Cubic() const noexcept;
   DLL_PUBLIC ResamplingFilter Gaussian(float sigma) const noexcept;
-  DLL_PUBLIC ResamplingFilter Lanczos3() const noexcept;
+  DLL_PUBLIC ResamplingFilter Lanczos3(float radius = 3.0f) const noexcept;
   DLL_PUBLIC ResamplingFilter Triangular(float radius) const noexcept;
 
   std::vector<ResamplingFilter> filters;

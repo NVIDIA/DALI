@@ -20,10 +20,12 @@ import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
 
+import tempfile
 import subprocess
 import os
 import sys
 import random
+import re
 
 def get_dali_extra_path():
   try:
@@ -76,7 +78,18 @@ def get_gpu_num():
     out_list = [elm for elm in out_list if len(elm) > 0]
     return len(out_list)
 
-def check_batch(batch1, batch2, batch_size, eps = 1e-07):
+
+# If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
+def check_batch(batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None):
+
+    def is_error(mean_err, max_err, eps, max_allowed_error):
+        if max_allowed_error is not None:
+            if max_err > max_allowed_error:
+                return True
+        elif mean_err > eps:
+            return True
+        return False
+
     import_numpy()
     if isinstance(batch1, dali.backend_impl.TensorListGPU):
         batch1 = batch1.as_cpu()
@@ -84,33 +97,38 @@ def check_batch(batch1, batch2, batch_size, eps = 1e-07):
         batch2 = batch2.as_cpu()
 
     for i in range(batch_size):
+        # This allows to handle list of Tensors, list of np arrays and TensorLists
+        left = np.array(batch1[i])
+        right = np.array(batch2[i])
         is_failed = False
-        assert(batch1.at(i).shape == batch2.at(i).shape), \
-            "Shape mismatch {} != {}".format(batch1.at(i).shape, batch2.at(i).shape)
-        assert(batch1.at(i).size == batch2.at(i).size), \
-            "Size mismatch {} != {}".format(batch1.at(i).size, batch2.at(i).size)
-        if batch1.at(i).size != 0:
+        assert(left.shape == right.shape), \
+            "Shape mismatch {} != {}".format(left.shape, right.shape)
+        assert(left.size == right.size), \
+            "Size mismatch {} != {}".format(left.size, right.size)
+        if left.size != 0:
             try:
                 # abs doesn't handle overflow for uint8, so get minimal value of a-b and b-a
-                diff1 = np.abs(batch1.at(i) - batch2.at(i))
-                diff2 = np.abs(batch2.at(i) - batch1.at(i))
-                err = np.mean( np.minimum(diff2, diff1) )
-                max_err = np.max( np.minimum(diff2, diff1))
-                min_err = np.min( np.minimum(diff2, diff1))
+                diff1 = np.abs(left - right)
+                diff2 = np.abs(right - left)
+                absdiff = np.minimum(diff2, diff1)
+                err = np.mean(absdiff)
+                max_err = np.max(absdiff)
+                min_err = np.min(absdiff)
+                total_errors = np.sum(absdiff != 0)
             except:
                 is_failed = True
-            if is_failed or err > eps:
+            if is_failed or is_error(err, max_err, eps, max_allowed_error):
+                error_msg = ("Mean error: [{}], Min error: [{}], Max error: [{}]" +
+                                "\n Total error count: [{}], Tensor size: [{}], Error calculation failed: [{}]").format(
+                    err, min_err, max_err, total_errors, absdiff.size, is_failed)
                 try:
-
-                    print("failed[{}] mean_err[{}] min_err[{}] max_err[{}]".format(
-                        is_failed, err, min_err, max_err))
-                    save_image(batch1.at(i), "err_1.png")
-                    save_image(batch2.at(i), "err_2.png")
+                    save_image(left, "err_1.png")
+                    save_image(right, "err_2.png")
                 except:
                     print("Batch at {} can't be saved as an image".format(i))
-                    print(batch1.at(i))
-                    print(batch2.at(i))
-                assert(False)
+                    print(left)
+                    print(right)
+                assert False, error_msg
 
 def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps = 1e-07):
     pipe1.build()
@@ -153,11 +171,13 @@ class RandomDataIterator(object):
 
 class RandomlyShapedDataIterator(object):
     import_numpy()
-    def __init__(self, batch_size, max_shape=(10, 600, 800, 3), seed=12345):
+    def __init__(self, batch_size, min_shape=None, max_shape=(10, 600, 800, 3), seed=12345, dtype=np.uint8):
         self.batch_size = batch_size
         self.test_data = []
+        self.min_shape = min_shape
         self.max_shape = max_shape
-        np.random.seed(seed)
+        self.dtype = dtype
+        self.seed = seed
 
     def __iter__(self):
         self.i = 0
@@ -165,14 +185,25 @@ class RandomlyShapedDataIterator(object):
         return self
 
     def __next__(self):
+        np.random.seed(self.seed)
+        random.seed(self.seed)
         self.test_data = []
         for _ in range(self.batch_size):
             # Scale between 0.5 and 1.0
-            shape = [int(self.max_shape[dim] * (0.5 + random.random()*0.5)) for dim in range(len(self.max_shape))]
-            self.test_data.append(np.array(np.random.rand(*shape) * 255,
-                                  dtype = np.uint8))
+            if self.min_shape is None:
+                shape = [int(self.max_shape[dim] * (0.5 + random.random()*0.5)) for dim in range(len(self.max_shape))]
+            else:
+                shape = [random.randint(min_s, max_s) for min_s, max_s in zip(self.min_shape, self.max_shape)]
+            if self.dtype == np.float32:
+                self.test_data.append(
+                    np.array(np.random.rand(*shape) * (1.0), dtype=self.dtype) - 0.5)
+            else:
+                self.test_data.append(
+                    np.array(np.random.rand(*shape) * 255, dtype=self.dtype))
+
         batch = self.test_data
         self.i = (self.i + 1) % self.n
+        self.seed = self.seed + 12345678;
         return (batch)
 
     next = __next__
@@ -257,3 +288,36 @@ def py_buffer_from_address(address, shape, dtype, gpu = False):
         global cp
         import cupy as cp
         return cp.asanyarray(holder)
+
+class check_output_pattern():
+    def __init__(self, pattern, is_regexp=True):
+        self.pattern_ = pattern
+        self.is_regexp_ = is_regexp
+
+    def __enter__(self):
+        self.bucket_out_ = tempfile.TemporaryFile(mode='w+')
+        self.bucket_err_ = tempfile.TemporaryFile(mode='w+')
+        self.stdout_fileno_ = 1
+        self.stderr_fileno_ = 2
+        self.old_stdout_ = os.dup(self.stdout_fileno_)
+        self.old_stderr_ = os.dup(self.stderr_fileno_)
+        os.dup2(self.bucket_out_.fileno(), self.stdout_fileno_)
+        os.dup2(self.bucket_err_.fileno(), self.stderr_fileno_)
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        self.bucket_out_.seek(0)
+        self.bucket_err_.seek(0)
+        os.dup2(self.old_stdout_, self.stdout_fileno_)
+        os.dup2(self.old_stderr_, self.stderr_fileno_)
+        our_data = self.bucket_out_.read()
+        err_data = self.bucket_err_.read()
+
+        pattern_found = False
+        if self.is_regexp_:
+            pattern = re.compile(self.pattern_)
+            pattern_found = pattern.search(our_data) or pattern.search(err_data)
+        else:
+            pattern_found = self.pattern_ in our_data or self.pattern_ in err_data,
+
+        assert pattern_found, \
+            "Pattern: ``{}`` \n not found in out: \n``{}`` \n and in err: \n ```{}```".format(self.pattern_, our_data, err_data)

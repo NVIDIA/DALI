@@ -13,6 +13,7 @@
 # limitations under the License.
 
 add_subdirectory(color_manipulation)
+add_subdirectory(convolution)
 add_subdirectory(pointwise)
 add_subdirectory(resample)
 

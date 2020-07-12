@@ -18,6 +18,7 @@ import sys
 import copy
 from itertools import count
 import threading
+import warnings
 from nvidia.dali import backend as _b
 from nvidia.dali.types import \
         _type_name_convert_to_string, _type_convert_value, \
@@ -402,6 +403,28 @@ def python_op_factory(name, op_device = "cpu"):
                 self._preserve = False
             self._spec.AddArg("preserve", self._preserve)
             self._preserve = self._preserve or self._schema.IsNoPrune()
+
+            # Check for any deprecated arguments that should be replaced or removed
+            arg_names = list(kwargs.keys())
+            for arg_name in arg_names:
+                if not self._schema.IsDeprecatedArg(arg_name):
+                    continue
+                meta = self._schema.DeprecatedArgMeta(arg_name)
+                new_name = meta['renamed_to']
+                removed = meta['removed']
+                msg = meta['msg']
+                if new_name:
+                    if new_name in kwargs:
+                        raise TypeError("Operator {} got an unexpected '{}' deprecated argument when '{}' was already provided".format(
+                            type(self).__name__, arg_name, new_name))
+                    kwargs[new_name] = kwargs[arg_name]
+                    del kwargs[arg_name]
+                elif removed:
+                    del kwargs[arg_name]
+
+                with warnings.catch_warnings():
+                    warnings.simplefilter("default")
+                    warnings.warn(msg, DeprecationWarning, stacklevel=2)
 
             # Store the specified arguments
             for key, value in kwargs.items():
