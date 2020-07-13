@@ -283,7 +283,7 @@ endfunction()
 # if it is accesible during the build time. The library sufix is provided and specific for each python version
 #
 # supported options:
-# TARGET_NAME - umbrela target name used for this build. Two more targets are created TARGET_NAME_public and
+# TARGET_NAME - umbrella target name used for this build. Two more targets are created TARGET_NAME_public and
 #               TARGET_NAME_private which can be used to set flags and additonal linking commands to all
 #               targets created by this function (these targets support only INTERFACE type of property)
 # OUTPUT_NAME - library name used for this build
@@ -299,14 +299,19 @@ function(build_per_python_lib)
 
     add_custom_target(${PYTHON_LIB_ARG_TARGET_NAME} ALL)
 
-    add_custom_command(
-      OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_LIB_ARG_TARGET_NAME}_dummy.cc"
-      COMMAND touch "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_LIB_ARG_TARGET_NAME}_dummy.cc"
-      VERBATIM )
+    # global per target interface library, common for all python variants
     add_library(${PYTHON_LIB_ARG_TARGET_NAME}_public INTERFACE)
     add_library(${PYTHON_LIB_ARG_TARGET_NAME}_private INTERFACE)
-    target_sources(${PYTHON_LIB_ARG_TARGET_NAME}_private INTERFACE "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_LIB_ARG_TARGET_NAME}_dummy.cc")
-    target_sources(${PYTHON_LIB_ARG_TARGET_NAME}_private INTERFACE "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_LIB_ARG_TARGET_NAME}_dummy.cc")
+
+    target_sources(${PYTHON_LIB_ARG_TARGET_NAME}_private INTERFACE ${PYTHON_LIB_ARG_SRC})
+
+    target_link_libraries(${PYTHON_LIB_ARG_TARGET_NAME}_public INTERFACE ${PYTHON_LIB_ARG_PUBLIC_LIBS})
+    target_link_libraries(${PYTHON_LIB_ARG_TARGET_NAME}_private INTERFACE ${PYTHON_LIB_ARG_PRIV_LIBS})
+    target_link_libraries(${PYTHON_LIB_ARG_TARGET_NAME}_private INTERFACE "-Wl,--exclude-libs,${PYTHON_LIB_ARG_EXCLUDE_LIBS}")
+
+    target_include_directories(${PYTHON_LIB_ARG_TARGET_NAME}_private
+                               INTERFACE "${PYBIND11_INCLUDE_DIR}"
+                               INTERFACE "${pybind11_INCLUDE_DIR}")
 
     foreach(PYVER ${PYTHON_VERSIONS})
 
@@ -331,19 +336,13 @@ function(build_per_python_lib)
             string(REPLACE "\n" "" PYTHON_INCLUDES ${PYTHON_INCLUDES})
             separate_arguments(PYTHON_INCLUDES)
 
-            add_library(${PYTHON_LIB_TARGET_FOR_PYVER} SHARED ${PYTHON_LIB_ARG_SRC})
-            target_link_libraries(${PYTHON_LIB_TARGET_FOR_PYVER} PUBLIC ${PYTHON_LIB_ARG_PUBLIC_LIBS})
-            target_link_libraries(${PYTHON_LIB_TARGET_FOR_PYVER} PRIVATE ${PYTHON_LIB_ARG_PRIV_LIBS})
-            target_link_libraries(${PYTHON_LIB_TARGET_FOR_PYVER} PRIVATE "-Wl,--exclude-libs,${PYTHON_LIB_ARG_EXCLUDE_LIBS}")
+            add_library(${PYTHON_LIB_TARGET_FOR_PYVER} SHARED)
 
             set_target_properties(${PYTHON_LIB_TARGET_FOR_PYVER}
                                     PROPERTIES
                                     LIBRARY_OUTPUT_DIRECTORY ${PYTHON_LIB_ARG_OUTPUT_DIR}
                                     PREFIX "${PYTHON_LIB_ARG_PREFIX}"
                                     OUTPUT_NAME ${PYTHON_LIB_ARG_OUTPUT_NAME}${PYTHON_SUFIX})
-            target_include_directories(${PYTHON_LIB_TARGET_FOR_PYVER}
-                                       PRIVATE "${PYBIND11_INCLUDE_DIR}"
-                                       PRIVATE "${pybind11_INCLUDE_DIR}")
             # add includes
             foreach(incl_dir ${PYTHON_INCLUDES})
                 target_include_directories(${PYTHON_LIB_TARGET_FOR_PYVER} PRIVATE ${incl_dir})
