@@ -283,11 +283,15 @@ endfunction()
 # if it is accesible during the build time. The library sufix is provided and specific for each python version
 #
 # supported options:
-# TARGET_NAME - umbrella target name used for this build. Two more targets are created TARGET_NAME_public and
-#               TARGET_NAME_private which can be used to set flags and additonal linking commands to all
-#               targets created by this function (these targets support only INTERFACE type of property)
+# <TARGET_NAME> - umbrella target name used for this set of libraries; two additional targets are created,
+#              which can be used to set PUBLIC and PRIVATE target properties, respectively:
+#              TARGET_NAME_public
+#              TARGET_NAME_private.
+#              Properties for these targets, such as link dependencies, includes or compilation flags,
+#              must be set with INTERFACE keyword, but they are propagated as PUBLIC/PRIVATE
+#              properties to all version-specific libraries.
 # OUTPUT_NAME - library name used for this build
-# PREFIX - library prefix, if no provided there library will be named as ${TARGET_NAME}.python_specific_extension
+# PREFIX - library prefix, if none is provided, the library will be named ${TARGET_NAME}.python_specific_extension
 # OUTPUT_DIR - ouptut directory of the build library
 # PUBLIC_LIBS - list of libraries that should be linked in as a public one
 # PRIV_LIBS - list of libraries that should be linked in as a private one
@@ -295,8 +299,10 @@ endfunction()
 function(build_per_python_lib)
     set(oneValueArgs TARGET_NAME OUTPUT_NAME OUTPUT_DIR PREFIX)
     set(multiValueArgs PRIV_LIBS PUBLIC_LIBS SRC EXCLUDE_LIBS)
-    cmake_parse_arguments(PARSE_ARGV 0 PYTHON_LIB_ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
 
+    cmake_parse_arguments(PARSE_ARGV 1 PYTHON_LIB_ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
+
+    set(PYTHON_LIB_ARG_TARGET_NAME ${ARGV0})
     add_custom_target(${PYTHON_LIB_ARG_TARGET_NAME} ALL)
 
     # global per target interface library, common for all python variants

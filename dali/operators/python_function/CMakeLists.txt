@@ -16,7 +16,7 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(PYTHON_FUNCTION_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
 
-build_per_python_lib(TARGET_NAME ${dali_python_function_lib}
+build_per_python_lib(${dali_python_function_lib}
                      OUTPUT_NAME ${dali_python_function_lib}
                      OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
                      PUBLIC_LIBS dali

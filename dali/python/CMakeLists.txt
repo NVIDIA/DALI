@@ -16,7 +16,7 @@
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_PYTHON_BACKEND_SRCS)
 
-build_per_python_lib(TARGET_NAME dali_python
+build_per_python_lib(dali_python
                      OUTPUT_NAME backend_impl
                      OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
                      PUBLIC_LIBS dali dali_operators dali_kernels dali_core ${CUDART_LIB}
