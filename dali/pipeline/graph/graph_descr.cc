@@ -206,8 +206,8 @@ void OpGraph::InstantiateOperators() {
         op_nodes_[op_id].InstantiateOperator();
       } catch (std::exception &e) {
         bool use_instance_name = false;
-        for (size_t i = 0; i < op_nodes_.size(); i++) {
-          if (op_id != i && op_nodes_[op_id].spec.name() == op_nodes_[i].spec.name()) {
+        for (const auto& other_node : op_nodes_) {
+          if (op_id != other_node.id && op_nodes_[op_id].spec.name() == other_node.spec.name()) {
             use_instance_name = true;
             break;
           }
