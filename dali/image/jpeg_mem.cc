@@ -173,7 +173,7 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
     return nullptr;
   }
 
-  jpeg_start_decompress(&cinfo);
+  DALI_ENFORCE(jpeg_start_decompress(&cinfo));
 
   JDIMENSION target_output_width = cinfo.output_width;
   JDIMENSION target_output_height = cinfo.output_height;
@@ -369,10 +369,11 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
 #if defined(LIBJPEG_TURBO_VERSION)
   if (flags.crop && cinfo.output_scanline < cinfo.output_height) {
     // Skip the rest of scanlines, required by jpeg_destroy_decompress.
-    jpeg_skip_scanlines(&cinfo,
-                        cinfo.output_height - flags.crop_y - flags.crop_height);
-    // After this, cinfo.output_height must be equal to cinfo.output_height;
+    JDIMENSION skip_count = cinfo.output_height - flags.crop_y - flags.crop_height;
+    jpeg_skip_scanlines(&cinfo, skip_count);
+    // After this, cinfo.output_height must be equal to cinfo.output_scanline;
     // otherwise, jpeg_destroy_decompress would fail.
+    DALI_ENFORCE(cinfo.output_height == cinfo.output_scanline);
   }
 #endif
 
@@ -437,7 +438,7 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   // Handle errors in JPEG
   switch (error) {
     case JPEGERRORS_OK:
-      jpeg_finish_decompress(&cinfo);
+      DALI_ENFORCE(jpeg_finish_decompress(&cinfo));
       break;
     case JPEGERRORS_UNEXPECTED_END_OF_DATA:
     case JPEGERRORS_BAD_PARAM:
@@ -591,8 +592,8 @@ bool GetImageInfo(const void* srcdata, int datasize, int* width, int* height,
   jpeg_create_decompress(&cinfo);
   SetSrc(&cinfo, srcdata, datasize, false);
 
-  jpeg_read_header(&cinfo, TRUE);
-  jpeg_start_decompress(&cinfo);  // required to transfer image size to cinfo
+  DALI_ENFORCE(jpeg_read_header(&cinfo, TRUE) == JPEG_HEADER_OK);
+  DALI_ENFORCE(jpeg_start_decompress(&cinfo));  // required to transfer image size to cinfo
   if (width) *width = cinfo.output_width;
   if (height) *height = cinfo.output_height;
   if (components) *components = cinfo.output_components;

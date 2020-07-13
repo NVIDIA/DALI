@@ -32,19 +32,7 @@ The video codecs can be contained in most of container file formats. FFmpeg is u
 Returns a batch of sequences of `sequence_length` frames of shape [N, F, H, W, C] (N being the batch size and F the
 number of frames). Supports only constant frame rate videos.)code")
   .NumInput(0)
-  .OutputFn([](const OpSpec &spec) {
-      std::string file_root = spec.GetArgument<std::string>("file_root");
-      std::string file_list = spec.GetArgument<std::string>("file_list");
-      bool enable_frame_num = spec.GetArgument<bool>("enable_frame_num");
-      bool enable_timestamps = spec.GetArgument<bool>("enable_timestamps");
-      int num_outputs = 1;
-      if (!file_root.empty() || !file_list.empty()) {
-        num_outputs++;
-        if (enable_frame_num) num_outputs++;
-        if (enable_timestamps) num_outputs++;
-      }
-      return num_outputs;
-    })
+  .OutputFn(detail::VideoReaderOutputFn)
   .AddOptionalArg("filenames",
       R"code(File names of the video files to load.
 This option is mutually exclusive with `file_root` and `file_list`.)code",

@@ -54,7 +54,7 @@ class DALILoader():
 
 
 def get_loader(args, ds_type):
-    if ds_type is not 'train' and ds_type is not 'val':
+    if ds_type not in ('train', 'val'):
         raise ValueError("ds_type has to be either 'train' or 'val'")
 
     if args.loader == 'pytorch':

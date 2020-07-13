@@ -144,8 +144,7 @@ void CheckContiguousTensor(const TStrides &strides, const TShape &shape, size_t 
 }
 
 template<typename SrcBackend, template<typename> class SourceDataType>
-void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch,
-                                   string layout) {
+void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch, string layout) {
   auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(capsule);
   const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
   DALI_ENFORCE((std::is_same<SrcBackend, GPUBackend>::value &&
@@ -750,7 +749,7 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns a tensor that is a view of this `TensorList` cast to the given shape.
 
-      This function can only be called if `TensorList` is continuous in memory and
+      This function can only be called if `TensorList` is contiguous in memory and
       the volumes of requested `Tensor` and `TensorList` matches.
       )code",
       py::return_value_policy::reference_internal)
@@ -917,7 +916,7 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns a tensor that is a view of this `TensorList` cast to the given shape.
 
-      This function can only be called if `TensorList` is continuous in memory and
+      This function can only be called if `TensorList` is contiguous in memory and
       the volumes of requested `Tensor` and `TensorList` matches.
       )code",
       py::return_value_policy::reference_internal)

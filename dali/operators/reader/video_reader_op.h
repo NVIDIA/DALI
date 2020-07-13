@@ -21,7 +21,23 @@
 #include "dali/operators/reader/reader_op.h"
 #include "dali/operators/reader/loader/video_loader.h"
 
+
 namespace dali {
+namespace detail {
+inline int VideoReaderOutputFn(const OpSpec &spec) {
+    std::string file_root = spec.GetArgument<std::string>("file_root");
+    std::string file_list = spec.GetArgument<std::string>("file_list");
+    bool enable_frame_num = spec.GetArgument<bool>("enable_frame_num");
+    bool enable_timestamps = spec.GetArgument<bool>("enable_timestamps");
+    int num_outputs = 1;
+    if (!file_root.empty() || !file_list.empty()) {
+        num_outputs++;
+        if (enable_frame_num) num_outputs++;
+        if (enable_timestamps) num_outputs++;
+    }
+    return num_outputs;
+}
+}  // namespace detail
 
 class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
  public:
@@ -34,7 +50,6 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     enable_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
     count_(spec.GetArgument<int>("sequence_length")),
     channels_(spec.GetArgument<int>("channels")),
-    tl_shape_(batch_size_, sequence_dim),
     dtype_(spec.GetArgument<DALIDataType>("dtype")) {
     DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));
 
@@ -58,7 +73,6 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
                   "timestamps can be enabled only when "
                   "`file_list` or `file_root` argument is passed");
 
-    // TODO(spanev): support rescale
     // TODO(spanev): Factor out the constructor body to make VideoReader compatible with lazy_init.
       try {
         loader_ = InitLoader<VideoLoader>(spec, filenames_);
@@ -83,75 +97,97 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   void SetupSharedSampleParams(DeviceWorkspace &ws) override {
   }
 
-  void RunImpl(DeviceWorkspace &ws) override {
-    auto& tl_sequence_output = ws.Output<GPUBackend>(0);
-    TensorList<GPUBackend> *label_output = NULL;
-    TensorList<GPUBackend> *frame_num_output = NULL;
-    TensorList<GPUBackend> *timestamp_output = NULL;
-
+  void SetOutputType(TensorList<GPUBackend> &output) {
     if (dtype_ == DALI_FLOAT) {
-      tl_sequence_output.set_type(TypeInfo::Create<float>());
+      output.set_type(TypeTable::GetTypeInfoFromStatic<float>());
     } else {  // dtype_ == DALI_UINT8
-      tl_sequence_output.set_type(TypeInfo::Create<uint8>());
-    }
-
-    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      auto sequence_shape = GetSample(data_idx).sequence.shape();
-      tl_shape_.set_tensor_shape(data_idx, sequence_shape);
-    }
-
-    tl_sequence_output.Resize(tl_shape_);
-    tl_sequence_output.SetLayout("FHWC");
-
-    if (enable_label_output_) {
-      int output_index = 1;
-      label_output = &ws.Output<GPUBackend>(output_index++);
-      label_output->set_type(TypeInfo::Create<int>());
-      label_output->Resize(label_shape_);
-      if (enable_frame_num_) {
-        frame_num_output = &ws.Output<GPUBackend>(output_index++);
-        frame_num_output->set_type(TypeInfo::Create<int>());
-        frame_num_output->Resize(frame_num_shape_);
-      }
-
-      if (enable_timestamps_) {
-        timestamp_output = &ws.Output<GPUBackend>(output_index++);
-        timestamp_output->set_type(TypeInfo::Create<double>());
-        timestamp_output->Resize(timestamp_shape_);
-      }
-    }
-
-    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      auto* sequence_output = tl_sequence_output.raw_mutable_tensor(data_idx);
-
-      auto& prefetched_sequence = GetSample(data_idx);
-      tl_sequence_output.type().Copy<GPUBackend, GPUBackend>(sequence_output,
-                                  prefetched_sequence.sequence.raw_data(),
-                                  prefetched_sequence.sequence.size(),
-                                  ws.stream());
-
-        if (enable_label_output_) {
-          auto *label = label_output->mutable_tensor<int>(data_idx);
-          CUDA_CALL(cudaMemcpyAsync(label, &prefetched_sequence.label, sizeof(int),
-                                    cudaMemcpyDefault, ws.stream()));
-          if (enable_frame_num_) {
-            auto *frame_num = frame_num_output->mutable_tensor<int>(data_idx);
-            CUDA_CALL(cudaMemcpyAsync(frame_num, &prefetched_sequence.first_frame_idx,
-                                      sizeof(int), cudaMemcpyDefault, ws.stream()));
-          }
-          if (enable_timestamps_) {
-            auto *timestamp = timestamp_output->mutable_tensor<double>(data_idx);
-            timestamp_output->type().Copy<GPUBackend, CPUBackend>(timestamp,
-                                                   prefetched_sequence.timestamps.data(),
-                                                   prefetched_sequence.timestamps.size(),
-                                                   ws.stream());
-          }
-        }
+      output.set_type(TypeTable::GetTypeInfoFromStatic<uint8>());
     }
   }
 
+  virtual void SetOutputShape(TensorList<GPUBackend> &output, DeviceWorkspace &ws) {
+    TensorListShape<> output_shape(batch_size_, sequence_dim);
+    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+      output_shape.set_tensor_shape(
+        data_idx, GetSample(data_idx).sequence.shape());
+    }
+    output.Resize(output_shape);
+  }
 
- private:
+  void PrepareVideoOutput(TensorList<GPUBackend> &output, DeviceWorkspace &ws) {
+    SetOutputType(output);
+    SetOutputShape(output, ws);
+    output.SetLayout("FHWC");
+  }
+
+  void PrepareAdditionalOutputs(DeviceWorkspace &ws) {
+    if (enable_label_output_) {
+      int output_index = 1;
+      label_output_ = &ws.Output<GPUBackend>(output_index++);
+      label_output_->set_type(TypeTable::GetTypeInfoFromStatic<int>());
+      label_output_->Resize(label_shape_);
+      if (enable_frame_num_) {
+        frame_num_output_ = &ws.Output<GPUBackend>(output_index++);
+        frame_num_output_->set_type(TypeTable::GetTypeInfoFromStatic<int>());
+        frame_num_output_->Resize(frame_num_shape_);
+      }
+
+      if (enable_timestamps_) {
+        timestamp_output_ = &ws.Output<GPUBackend>(output_index++);
+        timestamp_output_->set_type(TypeTable::GetTypeInfoFromStatic<double>());
+        timestamp_output_->Resize(timestamp_shape_);
+      }
+    }
+  }
+
+  virtual void ProcessSingleVideo(
+    int data_idx,
+    TensorList<GPUBackend> &video_output,
+    SequenceWrapper &prefetched_video,
+    DeviceWorkspace &ws) {
+    video_output.type().Copy<GPUBackend, GPUBackend>(
+      video_output.raw_mutable_tensor(data_idx),
+      prefetched_video.sequence.raw_data(),
+      prefetched_video.sequence.size(),
+      ws.stream());
+  }
+
+  void ProcessAdditionalOutputs(
+    int data_idx, SequenceWrapper &prefetched_video, cudaStream_t stream) {
+    if (enable_label_output_) {
+      auto *label = label_output_->mutable_tensor<int>(data_idx);
+      CUDA_CALL(cudaMemcpyAsync(
+        label, &prefetched_video.label, sizeof(int), cudaMemcpyDefault, stream));
+      if (enable_frame_num_) {
+        auto *frame_num = frame_num_output_->mutable_tensor<int>(data_idx);
+        CUDA_CALL(cudaMemcpyAsync(
+          frame_num, &prefetched_video.first_frame_idx, sizeof(int), cudaMemcpyDefault, stream));
+      }
+      if (enable_timestamps_) {
+        auto *timestamp = timestamp_output_->mutable_tensor<double>(data_idx);
+        timestamp_output_->type().Copy<GPUBackend, CPUBackend>(
+          timestamp,
+          prefetched_video.timestamps.data(),
+          prefetched_video.timestamps.size(),
+          stream);
+      }
+    }
+  }
+
+  void RunImpl(DeviceWorkspace &ws) override {
+    auto& video_output = ws.Output<GPUBackend>(0);
+
+    PrepareVideoOutput(video_output, ws);
+    PrepareAdditionalOutputs(ws);
+
+    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+      auto& prefetched_video = GetSample(data_idx);
+
+      ProcessSingleVideo(data_idx, video_output, prefetched_video, ws);
+      ProcessAdditionalOutputs(data_idx, prefetched_video, ws.stream());
+    }
+  }
+
   static constexpr int sequence_dim = 4;
   std::vector<std::string> filenames_;
   std::string file_root_;
@@ -161,10 +197,13 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   int count_;
   int channels_;
 
-  TensorListShape<> tl_shape_;
   TensorListShape<> label_shape_;
   TensorListShape<> timestamp_shape_;
   TensorListShape<> frame_num_shape_;
+
+  TensorList<GPUBackend> *label_output_ = NULL;
+  TensorList<GPUBackend> *frame_num_output_ = NULL;
+  TensorList<GPUBackend> *timestamp_output_ = NULL;
 
   DALIDataType dtype_;
   bool enable_label_output_;

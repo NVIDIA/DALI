@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function, division
 import math
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
@@ -195,7 +194,6 @@ def test_mxnet_iterator_empty_array():
         for d, t in zip(batch[0].data, np_types):
             shape = d.asnumpy().shape
             assert shape[0] == batch_size
-            print(shape)
             assert np.array_equal(shape[1:], test_data_shape)
             assert d.asnumpy().dtype == t
 
@@ -225,7 +223,6 @@ def test_mxnet_iterator_last_batch_pad_last_batch():
     assert len(next_img_ids_list) > data_size
     assert len(next_img_ids_list_set) == data_size
     assert len(set(next_mirrored_data)) == 1
-
 
 def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator

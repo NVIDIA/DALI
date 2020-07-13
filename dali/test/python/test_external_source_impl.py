@@ -25,11 +25,16 @@ from collections import Iterable
 datapy = np
 
 make_array = np.array
+random_seed = np.random.seed
+random_array = np.random.ranf
+random_int = np.random.randint
 
 # to use this it is enough to just import all functions from it by `from test_internals_operator_external_source import *`
 # nose will query for the methods available and will run them
 # the code for CPU and GPU input is 99% the same and the biggest difference is between importing numpy or cupy
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
+
+cpu_input = True
 
 def _to_numpy(x):
     assert(False)
@@ -51,14 +56,18 @@ def use_cupy():
     global datapy
     global make_array
     global _to_numpy
+    global random_seed
+    global random_array
+    global random_int
     import cupy as cp
     datapy = cp
     make_array = cp.array
     _to_numpy = cp.asnumpy
-
-random_seed = datapy.random.seed
-random_array = datapy.random.ranf
-random_int = datapy.random.randint
+    random_seed = datapy.random.seed
+    random_array = datapy.random.ranf
+    random_int = datapy.random.randint
+    global cpu_input
+    cpu_input = False
 
 def use_torch(gpu):
     global torch
@@ -79,7 +88,10 @@ def use_torch(gpu):
     cast_to = torch_cast
     random_array = lambda shape: make_torch_tensor(np.random.ranf(shape))
     global make_array
+
     make_array = make_torch_tensor
+    global cpu_input
+    cpu_input = not gpu
 
 class TestIterator():
     def __init__(self, n, batch_size, dims = [2], as_tensor = False):
@@ -533,3 +545,126 @@ def test_external_source_gpu():
             pipe = ExternalSourcePipeline(batch_size, 3, 0, use_list)
             pipe.build()
             pipe.run()
+
+class TestIteratorZeroCopy():
+    def __init__(self, n, batch_size, dims = [2], as_tensor = False, num_keep_samples=2):
+        self.batch_size = batch_size
+        self.dims = dims
+        self.n = n
+        self.as_tensor = as_tensor
+        self.i = 0
+        self.data = []
+        self.num_keep_samples = num_keep_samples
+
+    def __len__(self):
+        return self.n
+
+    def __iter__(self):
+        # return a copy, so that the iteration number doesn't collide
+        return TestIteratorZeroCopy(self.n, self.batch_size, self.dims, self.as_tensor, self.num_keep_samples)
+
+    def __next__(self):
+        random_seed(12345 * self.i + 4321)
+        def generate(dim):
+            shape = random_int(1, 10, [dim]).tolist()
+            if self.as_tensor:
+                return random_array([self.batch_size] + shape)
+            else:
+                return [random_array(shape) for _ in range(self.batch_size)]
+
+        if self.i < self.n:
+            self.i += 1
+            if isinstance(self.dims, (list, tuple)):
+                data = [generate(d) for d in self.dims]
+            else:
+                data = generate(self.dims)
+
+            # it needs to keep data alive
+            self.data.append(data)
+
+            def add_one(x):
+                if isinstance(x, list):
+                    for elm in x:
+                        elm = add_one(elm)
+                else:
+                    x += 1
+                return x
+            if len(self.data) > self.num_keep_samples:
+                tmp = self.data.pop(0)
+                # change poped data to make sure it is corrupted
+                tmp = add_one(tmp)
+            return data
+        else:
+            self.i = 0
+            raise StopIteration
+    next = __next__
+
+def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additional_num_keep_samples):
+    batch_size = 7
+    prefetch_queue_depth = 5
+    class IterSetupPipeline(Pipeline):
+        def __init__(self, iterator, num_threads, device_id, device, prefetch_queue_depth=2):
+            super(IterSetupPipeline, self).__init__(
+                batch_size = iterator.batch_size,
+                num_threads = num_threads,
+                device_id = device_id,
+                prefetch_queue_depth=prefetch_queue_depth)
+
+            self.iterator = iterator
+            self._device = device
+
+        def define_graph(self):
+            if use_fn_api:
+                self.batch_1 = fn.external_source(device = self._device, name = "src1", no_copy=True)
+                self.batch_2 = fn.external_source(device = self._device, name = "src2", no_copy=True)
+            else:
+                input_1 = ops.ExternalSource(device = self._device, no_copy=True)
+                input_2 = ops.ExternalSource(device = self._device, no_copy=True)
+                self.batch_1 = input_1(name = "src1")
+                self.batch_2 = input_2(name = "src2")
+            return [self.batch_1, self.batch_2]
+
+        def iter_setup(self):
+            batch_1, batch_2 = next(self.iterator)
+            if by_name:
+                self.feed_input("src1", batch_1)
+                self.feed_input("src2", batch_2)
+            else:
+                self.feed_input(self.batch_1, batch_1)
+                self.feed_input(self.batch_2, batch_2)
+
+    iter_num = 10
+    # it is enough to keep only ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
+    # (when they are not equal), but they are equal in this case
+    num_keep_samples = prefetch_queue_depth + additional_num_keep_samples
+    source = TestIteratorZeroCopy(iter_num, batch_size, [2, 3], as_tensor=as_tensor, num_keep_samples=num_keep_samples)
+    pipe = IterSetupPipeline(iter(source), 3, 0, device, prefetch_queue_depth)
+    pipe.build()
+
+    if (device == "cpu" and not cpu_input) or (device == "gpu" and cpu_input):
+        assert_raises(RuntimeError, pipe.run)
+    elif additional_num_keep_samples < 0 and not (device == "gpu" and not cpu_input and not as_tensor):
+        # for the GPU2GPU non contiguous input DALI makes an internal copy on provided stream so no
+        # data needs to be preserved by the user
+        # assert_raises doesn't work here for the assertions from the test_utils.py
+        if_raised = False
+        try:
+            # this tests bases on the race condition. Running it 5 times make this race more
+            # likely to happen and tests pass in CI under high CPU load
+            iterations = 5
+            for _ in range(iterations):
+                run_and_check(pipe, source)
+        except AssertionError:
+            if_raised = True
+        assert(if_raised)
+    else:
+        run_and_check(pipe, source)
+
+def test_iter_setup_zero_copy():
+    for use_fn_api in [False, True]:
+        for by_name in [False, True]:
+            for as_tensor in [False, True]:
+                for device in ["cpu", "gpu"]:
+                    # make it -5 as -1 sometimes works, sometimes not due to being close to the limit
+                    for additional_num_keep_samples in [-4, 0, 1]:
+                        yield _test_iter_setup_zero_copy, use_fn_api, by_name, as_tensor, device, additional_num_keep_samples

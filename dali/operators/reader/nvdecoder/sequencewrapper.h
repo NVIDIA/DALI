@@ -92,6 +92,21 @@ struct SequenceWrapper {
     LOG_LINE << event_ << " synchronized!" << std::endl;
   }
 
+  void share_frames(TensorList<GPUBackend> &frames) {
+    void *current_sequence = sequence.raw_mutable_data();
+    auto shape = TensorListShape<>::make_uniform(count, frame_shape());
+
+    frames.ShareData(
+      current_sequence,
+      sequence.type().size() * count * height * width * channels,
+      shape,
+      sequence.type());
+  }
+
+  TensorShape<3> frame_shape() const {
+    return TensorShape<3>{height, width, channels};
+  }
+
   Tensor<GPUBackend> sequence;
   int count;
   int height;

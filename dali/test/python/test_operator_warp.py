@@ -207,13 +207,3 @@ def test_gpu_vs_cpu():
         gpu_pipeline.build();
 
         compare(cpu_pipeline, gpu_pipeline, 1)
-
-
-
-def main():
-  test_cpu_vs_cv()
-  test_gpu_vs_cv()
-  test_gpu_vs_cpu()
-
-if __name__ == '__main__':
-  main()

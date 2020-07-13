@@ -125,7 +125,3 @@ def test_operator_mel_filter_bank_vs_python():
                         (128, 44100.0, 1000.0, 22050.0, (513, 100))]:
                         yield check_operator_mel_filter_bank_vs_python, device, batch_size, shape, \
                             nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula
-
-if __name__ == "__main__":
-    for fun, *args in test_operator_mel_filter_bank_vs_python():
-        fun(*args)

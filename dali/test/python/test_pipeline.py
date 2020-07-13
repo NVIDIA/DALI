@@ -505,7 +505,7 @@ def test_seed_serialize():
             img_chw = img_chw_test
         assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
 
-def test_make_continuous_serialize():
+def test_make_contiguous_serialize():
     batch_size = 32
     class COCOPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
@@ -528,7 +528,7 @@ def test_make_continuous_serialize():
     new_pipe = Pipeline(batch_size=batch_size, num_threads=2, device_id=0)
     new_pipe.deserialize_and_build(serialized_pipeline)
 
-def test_make_continuous_serialize_and_use():
+def test_make_contiguous_serialize_and_use():
     batch_size = 2
     class COCOPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
@@ -1546,7 +1546,7 @@ def test_executor_meta():
     test_pipe.build()
     test_pipe.run()
     meta = test_pipe.executor_statistics()
-    # all operators (CaffeReader, ImageDecoderRandomCrop, Resize, CropMirrorNormalize, CoinFlip) + make_continuous
+    # all operators (CaffeReader, ImageDecoderRandomCrop, Resize, CropMirrorNormalize, CoinFlip) + make_contiguous
     assert(len(meta) == 6)
     for k in meta.keys():
         if "CropMirrorNormalize" in k:

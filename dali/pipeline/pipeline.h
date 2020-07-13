@@ -215,23 +215,6 @@ class DLL_PUBLIC Pipeline {
    */
   template<typename Backend>
   DLL_PUBLIC inline void
-  SetExternalInput(const string &name, const vector<Tensor<Backend>> &tl, cudaStream_t stream = 0,
-                   bool sync = false) {
-    SetExternalInputHelper(name, tl, stream, sync);
-  }
-
-
-  /**
-   * @brief Sets the external input with the input name to the input data
-   * @tparam Backend
-   * @param name name of the input
-   * @param tl data
-   * @param stream CUDA stream to use in case of GPUBackend
-   * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
-   *             to the internal buffer
-   */
-  template<typename Backend>
-  DLL_PUBLIC inline void
   SetExternalInput(const string &name, const TensorVector<Backend> &tv, cudaStream_t stream = 0,
                    bool sync = false) {
     SetExternalInputHelper(name, tv, stream, sync);

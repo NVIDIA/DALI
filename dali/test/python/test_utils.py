@@ -20,10 +20,12 @@ import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
 
+import tempfile
 import subprocess
 import os
 import sys
 import random
+import re
 
 def get_dali_extra_path():
   try:
@@ -286,3 +288,36 @@ def py_buffer_from_address(address, shape, dtype, gpu = False):
         global cp
         import cupy as cp
         return cp.asanyarray(holder)
+
+class check_output_pattern():
+    def __init__(self, pattern, is_regexp=True):
+        self.pattern_ = pattern
+        self.is_regexp_ = is_regexp
+
+    def __enter__(self):
+        self.bucket_out_ = tempfile.TemporaryFile(mode='w+')
+        self.bucket_err_ = tempfile.TemporaryFile(mode='w+')
+        self.stdout_fileno_ = 1
+        self.stderr_fileno_ = 2
+        self.old_stdout_ = os.dup(self.stdout_fileno_)
+        self.old_stderr_ = os.dup(self.stderr_fileno_)
+        os.dup2(self.bucket_out_.fileno(), self.stdout_fileno_)
+        os.dup2(self.bucket_err_.fileno(), self.stderr_fileno_)
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        self.bucket_out_.seek(0)
+        self.bucket_err_.seek(0)
+        os.dup2(self.old_stdout_, self.stdout_fileno_)
+        os.dup2(self.old_stderr_, self.stderr_fileno_)
+        our_data = self.bucket_out_.read()
+        err_data = self.bucket_err_.read()
+
+        pattern_found = False
+        if self.is_regexp_:
+            pattern = re.compile(self.pattern_)
+            pattern_found = pattern.search(our_data) or pattern.search(err_data)
+        else:
+            pattern_found = self.pattern_ in our_data or self.pattern_ in err_data,
+
+        assert pattern_found, \
+            "Pattern: ``{}`` \n not found in out: \n``{}`` \n and in err: \n ```{}```".format(self.pattern_, our_data, err_data)

@@ -138,10 +138,3 @@ def test_decoded_vs_generated():
       assert np.allclose(res_mix, rosa3, rtol = 0, atol=3e-3)
 
       idx = (idx + 1) % len(names)
-
-def main():
-  test_decoded_vs_generated()
-
-
-if __name__ == '__main__':
-  main()
