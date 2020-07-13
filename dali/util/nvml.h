@@ -140,20 +140,40 @@ inline void Shutdown() {
 }
 
 #if (CUDART_VERSION >= 11000)
+
+/**
+ * Agregates info about the device
+ */
+struct DeviceProperties {
+  nvmlBrandType_t type;
+  int cap_major;
+  int cap_minor;
+};
+
+/**
+ * Obtains info about device with given ID
+ *
+ * @throws std::runtime_error
+ */
+
+inline DeviceProperties GetDeviceInfo(int device_idx) {
+  DeviceProperties ret;
+  nvmlDevice_t device;
+  DALI_CALL(wrapNvmlDeviceGetHandleByIndex_v2(device_idx, &device));
+  DALI_CALL(wrapNvmlDeviceGetBrand(device, &ret.type));
+  DALI_CALL(wrapNvmlDeviceGetCudaComputeCapability(device, &ret.cap_major, &ret.cap_minor));
+  return ret;
+}
+
 /**
  * Checks, if hardware decoder is available for the provided device
  *
  * @throws std::runtime_error
  */
 inline bool HasHwDecoder(int device_idx) {
-  nvmlDevice_t device;
-  DALI_CALL(wrapNvmlDeviceGetHandleByIndex_v2(device_idx, &device));
-  nvmlBrandType_t brand;
-  DALI_CALL(wrapNvmlDeviceGetBrand(device, &brand));
+  auto info = GetDeviceInfo(device_idx);
   const int kAmpereComputeCapability = 8;
-  int cc_M, cc_m;
-  DALI_CALL(wrapNvmlDeviceGetCudaComputeCapability(device, &cc_M, &cc_m));
-  return brand == NVML_BRAND_TESLA && cc_M >= kAmpereComputeCapability;
+  return info.type == NVML_BRAND_TESLA && info.cap_major >= kAmpereComputeCapability;
 }
 
 /**
@@ -192,3 +212,4 @@ inline bool HasCuda11NvmlFunctions() {
   } while (0)
 
 #endif  // DALI_UTIL_NVML_H_
+
