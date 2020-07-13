@@ -55,6 +55,16 @@ void Randomizer<GPUBackend>::Cleanup() {
   GPUBackend::Delete(states_, sizeof(curandState) * len_, true);
 }
 
+template <>
+float Randomizer<GPUBackend>::normalf(int idx) {
+  return curand_normal(&states_[idx]);
+}
+
+template <>
+double Randomizer<GPUBackend>::normald(int idx) {
+  return curand_normal_double(&states_[idx]);
+}
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_UTIL_RANDOMIZER_IMPL_GPU_CUH_

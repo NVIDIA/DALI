@@ -20,6 +20,7 @@
 #include "dali/core/convert.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/batch_rng.h"
+#include "dali/pipeline/operators/util/randomizer.h"
 
 namespace dali {
 namespace detail {
@@ -141,6 +142,29 @@ class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
   using distribution_t = std::normal_distribution<decltype(mean_)::value_type>;
 };
 
+
+class NormalDistributionGpu : public NormalDistribution<GPUBackend> {
+ public:
+  explicit NormalDistributionGpu(const OpSpec &spec) 
+  : NormalDistribution(spec)
+  , randomizer_(seed_) {}
+
+  ~NormalDistributionCpu() override {
+    randomizer_.Cleanup();
+  };
+
+ protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const workspace_t<GPUBackend> &ws) override;
+
+  void RunImpl(workspace_t<CPUBackend> &ws) override;
+
+  DISABLE_COPY_MOVE_ASSIGN(NormalDistributionGpu);
+
+ private:
+  Randomizer<GPUBackend> randomizer_;
+
+}
 
 }  // namespace dali
 

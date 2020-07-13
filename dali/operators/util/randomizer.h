@@ -30,6 +30,16 @@ class Randomizer {
 #endif
   int rand(int idx);
 
+#if __CUDA_ARCH__
+  __device__
+#endif
+  float normalf(int idx);
+
+#if __CUDA_ARCH__
+  __device__
+#endif
+  double normald(int idx);
+
   void Cleanup();
 
  private:
