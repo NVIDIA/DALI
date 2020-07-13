@@ -100,7 +100,7 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
       SignalStop();
       mixed_work_cv_.notify_all();
       gpu_work_cv_.notify_all();
-      throw std::runtime_error("Unknown critical error in Pipeline.");
+      throw std::runtime_error("Unknown critical error in pipeline.");
     }
   }
 
