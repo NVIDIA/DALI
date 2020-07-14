@@ -499,7 +499,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           SampleWorker(sample->sample_idx, sample->file_name, in.size(), tid,
             in.data<uint8_t>(), output_data, streams_[tid]);
           CacheStore(sample->file_name, output_data, shape, streams_[tid]);
-        }, GetTaskPrioritySeq());  // FIFO order, since the samples were already ordered
+        }, task_priority_seq_--);  // FIFO order, since the samples were already ordered
     }
   }
 
@@ -515,7 +515,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           HostFallback<StorageGPU>(in.data<uint8_t>(), in.size(), output_image_type_, output_data,
                                    streams_[tid], sample->file_name, sample->roi, use_fast_idct_);
           CacheStore(sample->file_name, output_data, shape, streams_[tid]);
-        }, GetTaskPrioritySeq());  // FIFO order, since the samples were already ordered
+        }, task_priority_seq_--);  // FIFO order, since the samples were already ordered
     }
   }
 
@@ -569,7 +569,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     UpdateTestCounters(samples_hw_batched_.size(), samples_single_.size(), samples_host_.size());
 
-    ResetTaskPrioritySeq();
+    // Reset the task priority. Subsequent tasks will use decreasing numbers to ensure the
+    // expected order of execution.
+    task_priority_seq_ = 0;
     ProcessImagesCache(ws);
 
     ProcessImagesCuda(ws);
@@ -699,21 +701,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   static constexpr int kOutputDim = 3;
 
  private:
-  /**
-   * @brief Resets task priority count
-   */
-  void ResetTaskPrioritySeq() {
-    task_priority_seq_ = 0;
-  }
-
-  /**
-   * @brief Gets the next task priority to ensure FIFO execution in the thread pool (descencing integers)
-   */
-  int64_t GetTaskPrioritySeq() {
-    return task_priority_seq_--;
-  }
-
-
   void UpdateTestCounters(int nsamples_hw, int nsamples_cuda, int nsamples_host) {
     nsamples_hw_ += nsamples_hw;
     nsamples_cuda_ += nsamples_cuda;

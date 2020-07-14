@@ -178,7 +178,7 @@ void EraseImplCpu<T, Dims>::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
-  auto out_shape = output.shape();
+  auto in_shape = input.shape();
   for (int i = 0; i < nsamples; i++) {
     thread_pool.AddWork(
       [this, &input, &output, i](int thread_id) {
@@ -186,7 +186,7 @@ void EraseImplCpu<T, Dims>::RunImpl(HostWorkspace &ws) {
         auto in_view = view<const T, Dims>(input[i]);
         auto out_view = view<T, Dims>(output[i]);
         kmgr_.Run<EraseKernel>(thread_id, i, ctx, out_view, in_view, args_[i]);
-      }, out_shape.tensor_size(i));
+      }, in_shape.tensor_size(i));
   }
   thread_pool.RunAll();
 }
