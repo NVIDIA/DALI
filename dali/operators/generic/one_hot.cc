@@ -73,21 +73,22 @@ void OneHot::RunImpl(HostWorkspace &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
+  auto in_shape = input.shape();
   TYPE_SWITCH(input.type().id(), type2id, InputType, ONE_HOT_TYPES, (
           TYPE_SWITCH(output_type_, type2id, OutputType, ONE_HOT_TYPES, (
 
           auto in_tensor = view<const InputType, DynamicDimensions>(input);
           auto out_tensor = view<OutputType, DynamicDimensions>(output);
           for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
-            tp.DoWorkWithID(
+            tp.AddWork(
                     [&, sample_id](int thread_id) {
                         auto in = in_tensor[sample_id];
                         auto out = out_tensor[sample_id];
                         detail::DoOneHot(out, in, num_classes_, on_value_, off_value_,
                                          0 ? is_scalar(in.shape) : in.shape.sample_dim(), 0);
-                    });
+                    }, in_shape.tensor_size(sample_id));
           }
-          tp.WaitForWork();
+          tp.RunAll();
   ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
 }

@@ -76,17 +76,17 @@ void ToDecibels<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   TYPE_SWITCH(input.type().id(), type2id, T, (float), (
     using ToDbKernel = kernels::signal::ToDecibelsCpu<T>;
     for (int i = 0; i < input.shape().num_samples(); i++) {
-      thread_pool.DoWorkWithID(
+      thread_pool.AddWork(
         [this, &input, &output, i](int thread_id) {
           kernels::KernelContext ctx;
           auto in_view = view<const T>(input[i]);
           auto out_view = view<T>(output[i]);
           kmgr_.Run<ToDbKernel>(thread_id, i, ctx, out_view, in_view, args_);
-        });
+        }, in_shape.tensor_size(i));
     }
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 
-  thread_pool.WaitForWork();
+  thread_pool.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(ToDecibels, ToDecibels<CPUBackend>, CPU);

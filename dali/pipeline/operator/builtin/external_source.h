@@ -401,9 +401,6 @@ class ExternalSource : public Operator<Backend> {
   bool zero_copy_noncontiguous_gpu_input_ = false;
 
   WorkerThread sync_worker_;
-
-  using VolumeSampleIdPair = std::pair<int64_t, int>;  // volume, sample_idx
-  std::vector<VolumeSampleIdPair> sample_ids_;
 };
 
 }  // namespace dali

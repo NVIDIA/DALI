@@ -36,34 +36,23 @@ class TransposeCPU : public Transpose<CPUBackend> {
     auto& thread_pool = ws.GetThreadPool();
     auto input_type = input.type().id();
 
-    SortWorkBySize(output.shape());
+    auto out_shape = output.shape();
+    int nsamples = out_shape.num_samples();
 
     TYPE_SWITCH(input_type, type2id, T, TRANSPOSE_ALLOWED_TYPES, (
-      for (auto vol_idx : vol_idx_) {
-        int i = vol_idx.second;
-        thread_pool.DoWorkWithID([this, &input, &output, i](int thread_id) {
-          TensorShape<> src_ts = input.shape()[i];
-          auto dst_ts = permute(src_ts, perm_);
-          kernels::TransposeGrouped(TensorView<StorageCPU, T>{output[i].mutable_data<T>(), dst_ts},
-                                    TensorView<StorageCPU, const T>{input[i].data<T>(), src_ts},
-                                    make_cspan(perm_));
-      });
-    }),
-    DALI_FAIL("Input type not supported."));
-    thread_pool.WaitForWork();
+      for (int i = 0; i < nsamples; i++) {
+        thread_pool.AddWork(
+          [this, &input, &output, i](int thread_id) {
+            TensorShape<> src_ts = input.shape()[i];
+            auto dst_ts = permute(src_ts, perm_);
+            kernels::TransposeGrouped(
+                TensorView<StorageCPU, T>{output[i].mutable_data<T>(), dst_ts},
+                TensorView<StorageCPU, const T>{input[i].data<T>(), src_ts}, make_cspan(perm_));
+          }, out_shape.tensor_size(i));
+      }
+    ), DALI_FAIL("Input type not supported."));  // NOLINT(whitespace/parens)
+    thread_pool.RunAll();
   }
-
- private:
-  void SortWorkBySize(const TensorListShape<> &out_shape) {
-    int N = out_shape.num_samples();
-    vol_idx_.resize(N);
-    for (int i = 0; i < N; i++) {
-      // { -volume, index } will sord descending by volume and ascending by index
-      vol_idx_[i] = { -volume(out_shape.tensor_shape_span(i)), i };
-    }
-    std::sort(vol_idx_.begin(), vol_idx_.end());
-  }
-  vector<std::pair<int64_t, int>> vol_idx_;
 };
 
 DALI_REGISTER_OPERATOR(Transpose, TransposeCPU, CPU);

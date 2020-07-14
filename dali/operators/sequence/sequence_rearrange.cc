@@ -69,9 +69,10 @@ void SequenceRearrange<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();
+  auto out_shape = output.shape();
 
   for (int sample_idx = 0; sample_idx < batch_size_; ++sample_idx) {
-    thread_pool.DoWorkWithID([this, &ws, &input, &output, sample_idx](int tid) {
+    thread_pool.AddWork([this, &ws, &input, &output, sample_idx](int tid) {
       TypeInfo type = input.type();
       const auto *in_sample = reinterpret_cast<const char *>(input[sample_idx].raw_data());
       auto *out_sample = reinterpret_cast<char *>(output[sample_idx].raw_mutable_data());
@@ -91,9 +92,9 @@ void SequenceRearrange<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
         auto copy_desc = GetCopyDesc(out_sample, in_sample, i, new_order.data[i], element_sizeof);
         memcpy(copy_desc.to, copy_desc.from, copy_desc.size);
       }
-    });
+    }, out_shape.tensor_size(sample_idx));
   }
-  thread_pool.WaitForWork();
+  thread_pool.RunAll();
 
   output.SetLayout(input.GetLayout());
 }

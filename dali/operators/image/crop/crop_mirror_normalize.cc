@@ -99,6 +99,7 @@ void CropMirrorNormalize<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   output.SetLayout(output_layout_);
   auto in_shape = input.shape();
+  auto out_shape = output.shape();
   int ndim = in_shape.sample_dim();
   int nsamples = in_shape.size();
   auto& thread_pool = ws.GetThreadPool();
@@ -109,18 +110,19 @@ void CropMirrorNormalize<CPUBackend>::RunImpl(HostWorkspace &ws) {
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
         for (int sample_id = 0; sample_id < nsamples; sample_id++) {
-          thread_pool.DoWorkWithID(
+          thread_pool.AddWork(
             [this, &input, &output, &kernel_sample_args, sample_id](int thread_id) {
               auto in_view = view<const InputType, Dims>(input[sample_id]);
               auto out_view = view<OutputType, Dims>(output[sample_id]);
               auto &args = kernel_sample_args[sample_id];
               kernels::KernelContext ctx;
               kmgr_.Run<Kernel>(thread_id, sample_id, ctx, out_view, in_view, args);
-            });
+            }, out_shape.tensor_size(sample_id));
         }
       ), DALI_FAIL(make_string("Not supported number of dimensions:", ndim));); // NOLINT
     ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
   ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT
+  thread_pool.RunAll();
 }
 
 }  // namespace dali

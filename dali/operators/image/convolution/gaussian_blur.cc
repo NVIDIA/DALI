@@ -217,27 +217,19 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     auto in_shape = input.shape();
     auto& thread_pool = ws.GetThreadPool();
 
-    // TODO(klecki): Swap to priority thread_pool task scheduling
-    std::vector<std::pair<int64_t, int>> volume_idx_vec(input.shape().num_samples());
-    for (int i = 0; i < input.shape().num_samples(); i++) {
-      const auto& shape = input[i].shape();
+    int nsamples = input.shape().num_samples();
+    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+      const auto& shape = input[sample_idx].shape();
       auto elem_volume = volume(shape.begin() + dim_desc_.usable_axes_start, shape.end());
-      volume_idx_vec[i] = {elem_volume, i};
-    }
-    std::sort(volume_idx_vec.begin(), volume_idx_vec.end(),
-              std::greater<std::pair<int64_t, int>>());
 
-    for (const auto& sample_order : volume_idx_vec) {
-      auto sample_idx = sample_order.second;
       int seq_elements = 1;
       int64_t stride = 0;
       if (dim_desc_.is_sequence) {
-        const auto& shape = input[sample_idx].shape();
         seq_elements = volume(shape.begin(), shape.begin() + dim_desc_.usable_axes_start);
-        stride = volume(shape.begin() + dim_desc_.usable_axes_start, shape.end());
+        stride = elem_volume;
       }
       for (int elem_idx = 0; elem_idx < seq_elements; elem_idx++) {
-        thread_pool.DoWorkWithID(
+        thread_pool.AddWork(
             [this, &input, &output, sample_idx, elem_idx, stride](int thread_id) {
               auto gaussian_windows = windows_[sample_idx].GetWindows();
               auto elem_shape = input[sample_idx].shape().template last<ndim>();
@@ -249,10 +241,10 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
               // scratchpad)
               auto ctx = ctx_;
               kmgr_.Run<Kernel>(thread_id, sample_idx, ctx, out_view, in_view, gaussian_windows);
-            });
+            }, elem_volume);
       }
     }
-    thread_pool.WaitForWork();
+    thread_pool.RunAll();
   }
 
  private:

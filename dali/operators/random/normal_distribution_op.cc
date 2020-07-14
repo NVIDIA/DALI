@@ -71,20 +71,22 @@ void NormalDistributionCpu::AssignSingleValueToOutput(workspace_t<CPUBackend> &w
 
 void NormalDistributionCpu::AssignTensorToOutput(workspace_t<CPUBackend> &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
+  auto out_shape = output.shape();
   auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
             for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
-              tp.DoWorkWithID(
-                  [&, sample_id](int thread_id) {
+              auto out_size = out_shape.tensor_size(sample_id);
+              tp.AddWork(
+                  [&, sample_id, out_size](int thread_id) {
                      distribution_t distribution(mean_[sample_id], stddev_[sample_id]);
                      auto ptr = output[sample_id].mutable_data<DType>();
-                     for (int64_t j = 0; j < volume(output[sample_id].shape()); j++) {
+                     for (int64_t j = 0; j < out_size; j++) {
                          ptr[j] = ConvertSat<DType>(distribution(batch_rng_[sample_id]));
                      }
-                  });
+                  }, out_size);
             }
   ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
-  tp.WaitForWork();
+  tp.RunAll();
 }
 
 

@@ -232,6 +232,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
 
   auto &input = ws.InputRef<CPUBackend>(0);
   TensorListView<StorageCPU, const InputType> in_view = view<const InputType>(input);
+  auto in_shape = input.shape();
 
   auto &output = ws.OutputRef<CPUBackend>(0);
   TensorListView<StorageCPU, OutputType> out_view = view<OutputType>(output);
@@ -301,14 +302,14 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   if (batch_norm_) {
     if (ShouldCalcMean()) {
       for (int i = 0; i < nsamples; i++) {
-        tp.DoWorkWithID([&, i](int thread_idx) {
+        tp.AddWork([&, i](int thread_idx) {
           kernels::MeanCPU<float, InputType> mean;
           mean.Setup(mutable_mean[i], in_view[i], make_span(axes_));
           // Reset per-sample values, but don't postprocess
           mean.Run(true, false);
-        });
+        }, in_shape.tensor_size(i));
       }
-      tp.WaitForWork();
+      tp.RunAll();
       // Aggregate and postprocess now
       FoldMeans();
     }
@@ -316,14 +317,14 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
     if (ShouldCalcStdDev()) {
       auto sample_mean = mean_view[0];
       for (int i = 0; i < nsamples; i++) {
-        tp.DoWorkWithID([&, i](int thread_idx) {
+        tp.AddWork([&, i](int thread_idx) {
           kernels::VarianceCPU<float, InputType> stddev;
           stddev.Setup(mutable_stddev[i], in_view[i], make_span(axes_), sample_mean);
           // Reset per-sample values, but don't postprocess
           stddev.Run(true, false);
-        });
+        }, in_shape.tensor_size(i));
       }
-      tp.WaitForWork();
+      tp.RunAll();
       // Aggregate and postprocess now - use inverse square root.
       FoldStdDev();
     }
@@ -334,7 +335,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
 
 
   for (int i = 0; i < nsamples; i++) {
-    tp.DoWorkWithID([&, i](int thread_idx) {
+    tp.AddWork([&, i](int thread_idx) {
       auto sample_mean = mean_view.num_samples() == 1 || batch_norm_
                               ? mean_view[0]
                               : mean_view[i];
@@ -367,10 +368,10 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
       using Kernel = kernels::NormalizeCPU<OutputType, InputType, float>;
       kmgr_.Run<Kernel>(thread_idx, i, ctx,
           out_view[i], in_view[i], sample_mean, sample_inv_stddev, shift_);
-    });
+    }, in_shape.tensor_size(i));
   }
 
-  tp.WaitForWork();
+  tp.RunAll();
 }
 
 

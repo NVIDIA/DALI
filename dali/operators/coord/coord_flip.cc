@@ -72,11 +72,11 @@ void CoordFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
     mirrored_origin[y_dim_] = 2.0f * spec_.GetArgument<float>("center_y", &ws, sample_id);
     mirrored_origin[z_dim_] = 2.0f * spec_.GetArgument<float>("center_z", &ws, sample_id);
 
-    thread_pool.DoWorkWithID(
-        [this, &input, &output, sample_id, flip_dim, mirrored_origin](int thread_id) {
+    auto in_size = volume(input[sample_id].shape());
+    thread_pool.AddWork(
+        [this, &input, in_size, &output, sample_id, flip_dim, mirrored_origin](int thread_id) {
           const auto *in = input[sample_id].data<float>();
           auto *out = output[sample_id].mutable_data<float>();
-          auto in_size = volume(input[sample_id].shape());
           int d = 0;
           int64_t i = 0;
           for (; i < in_size; i++, d++) {
@@ -84,9 +84,9 @@ void CoordFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
             auto in_val = in[i];
             out[i] = flip_dim[d] ? mirrored_origin[d] - in_val : in_val;
           }
-        });
+        }, in_size);
   }
-  thread_pool.WaitForWork();
+  thread_pool.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(CoordFlip, CoordFlipCPU, CPU);

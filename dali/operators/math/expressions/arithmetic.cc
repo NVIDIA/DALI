@@ -26,8 +26,7 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &pool = ws.GetThreadPool();
   ws.OutputRef<CPUBackend>(0).SetLayout(result_layout_);
   for (size_t task_idx = 0; task_idx < tile_range_.size(); task_idx++) {
-    // TODO(klecki): reduce lambda footprint
-    pool.DoWorkWithID([this, task_idx](int thread_idx) {
+    pool.AddWork([this, task_idx](int thread_idx) {
       auto range = tile_range_[task_idx];
       // Go over "tiles"
       for (int extent_idx = range.begin; extent_idx < range.end; extent_idx++) {
@@ -37,9 +36,9 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
                                        {extent_idx, extent_idx + 1});
         }
       }
-    });
+    }, -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks
   }
-  pool.WaitForWork();
+  pool.RunAll();
 }
 
 DALI_SCHEMA(ArithmeticGenericOp)

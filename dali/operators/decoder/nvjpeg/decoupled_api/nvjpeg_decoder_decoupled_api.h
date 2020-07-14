@@ -149,13 +149,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   ~nvJPEGDecoder() override {
     try {
-      thread_pool_.WaitForWork();
-    } catch (const std::runtime_error &e) {
-      std::cerr << "An error occurred in nvJPEG worker thread:\n"
-                << e.what() << std::endl;
-    }
-
-    try {
       DeviceGuard g(device_id_);
 
       sample_data_.clear();
@@ -494,12 +487,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       auto *output_data = output.mutable_tensor<uint8_t>(i);
       const auto &in = ws.Input<CPUBackend>(0, i);
       ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
-      thread_pool_.DoWorkWithID(
+      thread_pool_.AddWork(
         [this, sample, &in, output_data, shape](int tid) {
           SampleWorker(sample->sample_idx, sample->file_name, in.size(), tid,
             in.data<uint8_t>(), output_data, streams_[tid]);
           CacheStore(sample->file_name, output_data, shape, streams_[tid]);
-        });
+        }, task_priority_seq_--);  // FIFO order, since the samples were already ordered
     }
   }
 
@@ -510,12 +503,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       auto *output_data = output.mutable_tensor<uint8_t>(i);
       const auto &in = ws.Input<CPUBackend>(0, i);
       ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
-      thread_pool_.DoWorkWithID(
+      thread_pool_.AddWork(
         [this, sample, &in, output_data, shape](int tid) {
           HostFallback<StorageGPU>(in.data<uint8_t>(), in.size(), output_image_type_, output_data,
                                    streams_[tid], sample->file_name, sample->roi, use_fast_idct_);
           CacheStore(sample->file_name, output_data, shape, streams_[tid]);
-        });
+        }, task_priority_seq_--);  // FIFO order, since the samples were already ordered
     }
   }
 
@@ -569,9 +562,15 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     UpdateTestCounters(samples_hw_batched_.size(), samples_single_.size(), samples_host_.size());
 
+    // Reset the task priority. Subsequent tasks will use decreasing numbers to ensure the
+    // expected order of execution.
+    task_priority_seq_ = 0;
     ProcessImagesCache(ws);
+
     ProcessImagesCuda(ws);
     ProcessImagesHost(ws);
+    thread_pool_.RunAll(false);  // don't block
+
     ProcessImagesHw(ws);
 
     thread_pool_.WaitForWork();
@@ -714,6 +713,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // HW/CUDA Utilization test counters
   int64_t nsamples_hw_ = 0, nsamples_cuda_ = 0, nsamples_host_ = 0;
+
+  // Used to ensure the work in the thread pool is picked FIFO
+  int64_t task_priority_seq_ = 0;
 };
 
 }  // namespace dali

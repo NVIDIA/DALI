@@ -33,24 +33,16 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     RecycleBuffer(tensor_vector_elm);
   } else {
     auto &thread_pool = ws.GetThreadPool();
-    // sort by the work size
-    sample_ids_.clear();
-    sample_ids_.reserve(batch_size_);
-
     const auto &shapes = tensor_vector_elm.front()->shape();
-    for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
-      sample_ids_.emplace_back(volume(shapes[sample_id]), sample_id);
-    }
-    std::sort(sample_ids_.begin(), sample_ids_.end(), std::greater<VolumeSampleIdPair>());
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      thread_pool.DoWorkWithID([&ws, data_idx, &tensor_vector_elm] (int tid) {
+      thread_pool.AddWork([&ws, data_idx, &tensor_vector_elm] (int tid) {
         Tensor<CPUBackend> &output = ws.Output<CPUBackend>(0, data_idx);
         // HostWorkspace doesn't have any stream
         cudaStream_t stream = 0;
         output.Copy((*tensor_vector_elm.front())[data_idx], stream);
-      });
+      }, shapes.tensor_size(data_idx));
     }
-    thread_pool.WaitForWork();
+    thread_pool.RunAll();
     // as we copy element by element and the output is contiguous we need to set layout
     // for the whole output not each element(view)
     auto &output = ws.template OutputRef<CPUBackend>(0);

@@ -44,7 +44,7 @@ TEST(ThreadPool, DoWorkWithID) {
 }
 
 TEST(ThreadPool, AddWorkWithPriority) {
-  ThreadPool tp(2, 0, false);
+  ThreadPool tp(1, 0, false);  // only one thread to ensure deterministic behavior
   std::atomic<int> count{0};
   auto set_to_1 = [&count](int thread_id) {
     count = 1;

@@ -91,17 +91,17 @@ void MelFilterBank<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
     VALUE_SWITCH(in_shape.sample_dim(), Dims, MEL_FBANK_SUPPORTED_NDIMS, (
       using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T, Dims>;
       for (int i = 0; i < input.shape().num_samples(); i++) {
-        thread_pool.DoWorkWithID(
+        thread_pool.AddWork(
           [this, &input, &output, i](int thread_id) {
             auto in_view = view<const T, Dims>(input[i]);
             auto out_view = view<T, Dims>(output[i]);
             kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx_, out_view, in_view, args_);
-          });
+          }, in_shape.tensor_size(i));
       }
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 
-  thread_pool.WaitForWork();
+  thread_pool.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(MelFilterBank, MelFilterBank<CPUBackend>, CPU);
