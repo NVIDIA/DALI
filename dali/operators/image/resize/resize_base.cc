@@ -99,18 +99,15 @@ void GetFrameShapesAndParams(TensorListShape<out_ndim> &frame_shape,
                              std::vector<ResamplingParamsND<out_ndim>> &frame_params,
                              const TensorListShape<in_ndim> &in_shape,
                              const span<ResamplingParams> &in_params,
-                             int frame_dim_idx = 0,
-                             int channel_dim_idx = in_ndim - 1) {
+                             int first_spatial_dim) {
   static_assert(out_ndim == spatial_ndim + 1);
-  assert(frame_dim_idx >= 0);
-  assert(channel_dim_idx != frame_dim_idx && channel_dim_idx < in_ndim);
-  assert(in_shape.sample_dim() == spatial_ndim + (frame_dim_idx >= 0) + (channel_dim_idx >= 0));
 
   int N = in_shape.num_samples();
   int total_frames = 0;
 
   for (int i = 0; i < N; i++) {
-    total_frames += in_shape.tensor_shape_span(i)[frame_dim_idx];
+    auto in_sample_shape = in_shape.tensor_shape_span(i);
+    total_frames += volume(&in_sample_shape[0], &in_sample_shape[first_spatial_dim]);
   }
 
   frame_params.resize(total_frames);
@@ -118,7 +115,12 @@ void GetFrameShapesAndParams(TensorListShape<out_ndim> &frame_shape,
   assert(in_shape.dim() == out_ndim + 1 + (channel_dim_idx >= 0));
 
   for (int i = 0, flat_frame_idx = 0 = 0; i < N; i++) {
-    int seq_len = 1;  // just an image
+    auto in_sample_shape = in_shape.tensor_shape_span(i);
+
+    for (int d = 0; d < in_sample_shape.size(); d++) {
+
+    }
+    /*int seq_len = 1;  // just an image
     if (frame_dim_idx >= 0) {
       in_shape.tensor_shape_span(i)[frame_dim_idx];
       if (seq_len == 0)
@@ -141,7 +143,7 @@ void GetFrameShapesAndParams(TensorListShape<out_ndim> &frame_shape,
         if (d != frame_dim_idx && d != channel_dim_idx)
           frame_par[od++] = in_params[flat_frame_idx * od + od];
       }
-    }
+    }*/
   }
 }
 
@@ -159,18 +161,10 @@ struct ResizeOpImplGPU : ResizeBase<GPUBackend>::Impl {
   constexpr int frame_ndim = spatial_ndim + 1;
 
   void Setup(const TensorListShape<> &in_shape,
-             const TensorLayout &layout,
+             int first_spatial_dim,
              span<const kernels::ResamplingParams> params) override {
-    int frame_dim_idx = FrameDimIndex(layout);
-    int channel_dim_idx = ChannelDimIndex(layout);
-    DALI_ENFORCE(frame_dim_idx <= 0, "Frame dimension, if present, must be the outermost one");
-    DALI_ENFORCE(channel_dim_idx < 0 || channel_dim_idx == in_shape.sample_dim() - 1,
-      "Channels, if present, must be the innermost dimension");
-    int in_spatial_ndim = in_shape.sample_dim() - (frame_dim_idx >= 0) - (channel_dim_idx >= 0);
-    asser(in_spatial_ndim == spatial_ndim && "INTERAL ERROR: Wrong resize implementation chosen");
-
     GetFrameShapesAndParams<spatial_ndim>(in_shape_, params_, in_shape, params,
-                                          frame_dim_idx, channel_dim_idx);
+                                          first_spatial_dim);
 
     SetNumFrames(in_shape_.num_samples());
   }
@@ -232,9 +226,14 @@ void ResizeBase::SetupResize(const Workspace &ws,
                              const input_type &input,
                              span<const kernels::ResamplingParams> params,
                              DALIDataType out_type,
-                             int first_spatial_dim,
-                             int spatial_ndim) {
-
+                             int spatial_ndim,
+                             int first_spatial_dim) {
+  DALIDataType in_type = input.type().id();
+  if (out_type == in_type) {
+    TYPE_SWITCH(out_type, typ2id, OutputType, (uint8_t, int16_t, uint16_t, float),
+      SetupResizeTyped<OutputType, OutputType>(ws, out_shape, input, params, out_type,
+                                               spatial_ndim, first_spatial_dim);
+  }
 }
 
 
