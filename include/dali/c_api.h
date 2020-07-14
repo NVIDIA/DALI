@@ -135,7 +135,13 @@ enum {
   /**
    * If provided CPU memory is page-locked
    */
-  DALI_ext_pinned = (1<<1)
+  DALI_ext_pinned = (1<<1),
+
+  /**
+   * If provided, a CUDA copy kernel will be used to feed external source instead of cudaMemcpyAsync
+   * Only relevant when the input is either pinned host memory or device memory
+   */
+  DALI_use_copy_kernel = (1<<2),
 };
 
 /**
@@ -331,7 +337,7 @@ DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle);
  * @brief Copy the output tensor stored
  * at position `n` in the pipeline.
  * dst_type (0 - CPU, 1 - GPU)
- * @remarks If the output is tensor list then it need to be dense
+ * @remarks If the output is tensor list then it needs to be dense
  *
  * If you call this function with non_blocking != 0, make sure to
  * synchronize on provided stream before reading the data.
@@ -340,6 +346,13 @@ DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle);
 DLL_PUBLIC void
 daliCopyTensorNTo(daliPipelineHandle *pipe_handle, void *dst, int n, device_type_t dst_type,
                   cudaStream_t stream, int non_blocking);
+
+
+/**
+ * @brief Gets direct access to the dali buffer containing an output of the pipeline
+ */
+DLL_PUBLIC void daliOutputPtr(daliPipelineHandle* pipe_handle, int n,
+                              const void **out_ptr, size_t *out_len);
 
 /**
  * @brief Delete the pipeline object.

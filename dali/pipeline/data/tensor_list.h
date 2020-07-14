@@ -160,7 +160,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   }
 
  private:
-  kernels::ScatterGatherGPU scatter_gather_;
+  std::unique_ptr<kernels::ScatterGatherGPU> scatter_gather_;
  public:
   template <typename SrcBackend>
   DLL_PUBLIC inline void CopyWithKernel(const TensorVector<SrcBackend> &other,
@@ -186,14 +186,17 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     }
     this->SetLayout(layout);
 
-    scatter_gather_.Reset();
+    if (!scatter_gather_) {
+      constexpr int kBlockSize = 1 << 19;  // 512kB per block
+      scatter_gather_.reset(new kernels::ScatterGatherGPU(kBlockSize, other.size()));
+    }
     auto type_sz = type.size();
     for (size_t i = 0; i < other.size(); ++i) {
-      scatter_gather_.AddCopy(raw_mutable_tensor(i), other[i].raw_data(), other[i].size() * type.size());
+      scatter_gather_->AddCopy(raw_mutable_tensor(i), other[i].raw_data(), other[i].size() * type.size());
       this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
       this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
     }
-    scatter_gather_.Run(stream);
+    scatter_gather_->Run(stream);
   }
 
   using Buffer<Backend>::reserve;

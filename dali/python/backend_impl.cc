@@ -1074,13 +1074,13 @@ py::dict ExecutorMetaToDict(const ExecutorMetaMap &meta) {
 
 template <typename Backend>
 void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t stream,
-                  bool sync = false) {
+                  bool sync = false, bool use_copy_kernel = false) {
   TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     auto &t = list[i].cast<Tensor<Backend>&>();
     tv[i] = std::move(t);
   }
-  p->SetExternalInput(name, tv, stream, sync);
+  p->SetExternalInput(name, tv, stream, sync, use_copy_kernel);
 }
 
 PYBIND11_MODULE(backend_impl, m) {

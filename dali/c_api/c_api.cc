@@ -56,7 +56,9 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof);
   data.Resize(tl_shape, type_info);
   data.SetLayout(layout);
-  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_force_sync);
+  pipeline->SetExternalInput(name, data, stream,
+                             flags & DALI_ext_force_sync,
+                             flags & DALI_use_copy_kernel);
 }
 
 
@@ -84,7 +86,9 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     data[i].Resize(tl_shape[i], type_info);
     data[i].SetLayout(layout);
   }
-  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_force_sync);
+  pipeline->SetExternalInput(name, data, stream,
+                             flags & DALI_ext_force_sync,
+                             flags & DALI_use_copy_kernel);
 }
 
 }  // namespace
@@ -375,6 +379,20 @@ size_t daliMaxDimTensors(daliPipelineHandle* pipe_handle, int n) {
 unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle) {
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   return ws->NumOutput();
+}
+
+void daliOutputPtr(daliPipelineHandle* pipe_handle, int n, const void **out_ptr, size_t *out_len) {
+  dali::TimeRange tr("daliOutputPtr", dali::TimeRange::kGreen);
+  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  if (ws->OutputIsType<dali::CPUBackend>(n)) {
+    auto &out = ws->Output<dali::CPUBackend>(n);
+    *out_ptr = out.raw_data();
+    *out_len = out.nbytes();
+  } else {
+    auto &out = ws->Output<dali::GPUBackend>(n);
+    *out_ptr = out.raw_data();
+    *out_len = out.nbytes();
+  }
 }
 
 template <typename T>
