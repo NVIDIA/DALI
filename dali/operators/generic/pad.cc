@@ -34,6 +34,8 @@ Examples:
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,)
 
+Samples are padded in the first axis to match the extent of the largest sample.
+
 ::
 
   input  = [[3,   4,   2,   5,   4],
@@ -44,6 +46,8 @@ Examples:
             [3, 199,   5,  -1,  -1]]
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `shape` = (7,)
+
+Samples are padded in the first axis to a minimum extent of 7.
 
 ::
 
@@ -58,6 +62,9 @@ Examples:
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `align` = (4,)
 
+Samples are padded in the first axis to match the extent of the largest sample and the alignment requirements
+(largest extent is 5 but it is extended to 8 to satisfy the alignment requirements).
+
 ::
 
   input  = [[3,   4,   2,   5,   4],
@@ -69,6 +76,10 @@ Examples:
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `shape` = (1,), `align` = (2,)
 
+Samples are padded in the first axis to match the alignments requirements only.
+Note that we are setting the minimum extent (``shape``) to 1 to avoid any padding other than the necessary
+for alignment.
+
 ::
 
   input  = [[3,   4,   2,   5,   4],
@@ -79,6 +90,9 @@ Examples:
             [3, 199,   5,  -1]]
 
 - `2-D` samples, `fill_value` = 42, `axes` = (1,)
+
+Samples are padded in the second axis  to match the extent of the largest sample, and uses a custom fill
+value (42 instead of the default 0).
 
 ::
 
@@ -92,6 +106,8 @@ Examples:
              [4,  5, 42, 42]]]
 
 - `2-D` samples, `fill_value` = 0, `axes` = (0, 1), `align` = (4, 5)
+
+Samples are padded in the first and second axes to match the alignment requirements of each axis.
 
 ::
 
@@ -110,6 +126,8 @@ Examples:
              [0,  0,  0,  0,  0]]]
 
 - `2-D` samples, `fill_value` = 0, `axes` = (0, 1), `align` = (1, 2), `shape` = (4, -1)
+
+Samples are padded in the first axis to match a minimum extent of 4, and in the second axis to match the largest sample in the batch and an aligment of 2.
 
 ::
 
@@ -146,13 +164,20 @@ If *axes* and *axis_names* are empty or not provided, the output will be padded 
   .AddOptionalArg<int>("align",
     R"code(If specified, determines the alignment on those dimensions specified by *axes* or
 *axis_names*. That is, the extent on `axis = axes[i]` will be adjusted to be a multiple of `align[i]`.
-If a single integer value is provided, the alignment restrictions are applied to all the padded axes.)code",
+
+If a single integer value is provided, the alignment restrictions are applied to all the padded axes.
+
+To use alignment only, i.e. without any default or explicit padding behavior, set the minimum ``shape``
+to 1 for a given axis.)code",
     std::vector<int>())
   .AddOptionalArg<int>("shape",
     R"code(The extents of the output shape in the axes specified by *axes* or *axis_names*.
 Specifying -1 for an axis restores the default behavior of extending the axis to accommodate the
-(aligned) size of the largest sample in the batch. If the provided extent is smaller than the one
-of the sample, no padding will be applied, except what is needed to match required alignment.)code",
+(aligned) size of the largest sample in the batch.
+
+If the provided extent is smaller than the one of the sample, no padding will be applied, except what
+is needed to match required alignment. That is, in order to disable padding in a given axis (except the
+necessary for aligment) we can specify a value of 1.)code",
     vector<int>());
 
 template <>
