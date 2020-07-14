@@ -181,6 +181,7 @@ TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode4T) {
   this->TiffTestDecode(4);
 }
 
+#if NVJPEG_VER_MAJOR >= 11
 class HwDecoderUtilizationTest : public ::testing::Test {
  public:
   void SetUp() final {
@@ -233,6 +234,6 @@ TEST_F(HwDecoderUtilizationTest, UtilizationTest) {
   EXPECT_EQ(nsamples_host, 0)
                 << "Image decoding malfuntion: all images should've been decoded by CUDA or HW";
 }
-
+#endif
 
 }  // namespace dali

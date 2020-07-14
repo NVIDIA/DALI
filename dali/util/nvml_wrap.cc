@@ -41,12 +41,18 @@ static nvmlReturn_t (*nvmlInternalDeviceGetCpuAffinity)(nvmlDevice_t device,
                                                         unsigned int cpuSetSize,
                                                         unsigned long* cpuSet);  // NOLINT(*)
 
+#if (CUDART_VERSION >= 11000)
+static nvmlReturn_t (*nvmlInternalDeviceGetCpuAffinityWithinScope)(nvmlDevice_t device,
+                                                                   unsigned int nodeSetSize,
+                                                                   unsigned long *nodeSet,  // NOLINT(*)
+                                                                   nvmlAffinityScope_t scope);
 static nvmlReturn_t (*nvmlInternalDeviceGetBrand)(nvmlDevice_t device, nvmlBrandType_t *type);
 static nvmlReturn_t (*nvmlInternalDeviceGetCount_v2)(unsigned int *deviceCount);
 static nvmlReturn_t (*nvmlInternalDeviceGetHandleByIndex_v2)(unsigned int index,
                                                              nvmlDevice_t *device);
 static nvmlReturn_t (*nvmlInternalDeviceGetCudaComputeCapability)(nvmlDevice_t device,
                                                                   int *major, int *minor);
+#endif
 
 static const char* (*nvmlInternalErrorString)(nvmlReturn_t r);
 
@@ -59,8 +65,12 @@ bool is_driver_sufficient(int min_cuda_major, int min_cuda_minor) {
 }  // namespace
 
 bool wrapHasCuda11NvmlFunctions() {
-  return nvmlInternalDeviceGetCount_v2 && nvmlInternalDeviceGetHandleByIndex_v2 &&
-         nvmlInternalDeviceGetCudaComputeCapability && nvmlInternalDeviceGetBrand;
+  #if (CUDART_VERSION >= 11000)
+    return nvmlInternalDeviceGetCount_v2 && nvmlInternalDeviceGetHandleByIndex_v2 &&
+          nvmlInternalDeviceGetCudaComputeCapability && nvmlInternalDeviceGetBrand;
+  #else
+    return false;
+  #endif
 }
 
 DALIError_t wrapSymbols(void) {
@@ -111,12 +121,16 @@ DALIError_t wrapSymbols(void) {
   LOAD_SYM(nvmlhandle, "nvmlSystemGetDriverVersion", nvmlInternalSystemGetDriverVersion);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetCpuAffinity", nvmlInternalDeviceGetCpuAffinity);
   LOAD_SYM(nvmlhandle, "nvmlErrorString", nvmlInternalErrorString);
-  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand, 11, 0);
-  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2, 11, 0);
-  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2",
-                      nvmlInternalDeviceGetHandleByIndex_v2, 11, 0);
-  LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCudaComputeCapability",
-                      nvmlInternalDeviceGetCudaComputeCapability, 11, 0);
+
+  #if (CUDART_VERSION >= 11000)
+    LOAD_SYM(nvmlhandle, "nvmlDeviceGetCpuAffinityWithinScope",
+             nvmlInternalDeviceGetCpuAffinityWithinScope);
+    LOAD_SYM(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand);
+    LOAD_SYM(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2);
+    LOAD_SYM(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2", nvmlInternalDeviceGetHandleByIndex_v2);
+    LOAD_SYM(nvmlhandle, "nvmlDeviceGetCudaComputeCapability",
+             nvmlInternalDeviceGetCudaComputeCapability);
+  #endif
 
   symbolsLoaded = 1;
   return DALISuccess;
@@ -139,131 +153,50 @@ DALIError_t wrapSymbols(void) {
 
 
 DALIError_t wrapNvmlInit(void) {
-  if (nvmlInternalInit == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALISuccess;
-  }
-  nvmlReturn_t ret = nvmlInternalInit();
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlInit() failed: " +
-      nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalInit);
 }
 
 DALIError_t wrapNvmlShutdown(void) {
-  if (nvmlInternalShutdown == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalShutdown();
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlShutdown() failed: " +
-      nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalShutdown);
 }
 
 DALIError_t wrapNvmlDeviceGetHandleByPciBusId(const char* pciBusId, nvmlDevice_t* device) {
-  if (nvmlInternalDeviceGetHandleByPciBusId == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalDeviceGetHandleByPciBusId(pciBusId, device);
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlDeviceGetHandleByPciBusId() failed: " +
-      nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalDeviceGetHandleByPciBusId, pciBusId, device);
 }
 
 DALIError_t wrapNvmlDeviceGetHandleByIndex(const int device_id, nvmlDevice_t* device) {
-  if (nvmlInternalDeviceGetHandleByIndex == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalDeviceGetHandleByIndex(device_id, device);
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlDeviceGetHandleByIndex() failed: " +
-      nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalDeviceGetHandleByIndex, device_id, device);
 }
 
 DALIError_t wrapNvmlDeviceGetIndex(nvmlDevice_t device, unsigned* index) {
-  if (nvmlInternalDeviceGetIndex == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalDeviceGetIndex(device, index);
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlDeviceGetIndex() failed: " +
-      nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalDeviceGetIndex, device, index);
 }
 
 DALIError_t wrapNvmlDeviceSetCpuAffinity(nvmlDevice_t device) {
-  if (nvmlInternalDeviceSetCpuAffinity == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalDeviceSetCpuAffinity(device);
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlDeviceSetCpuAffinity() failed: " +
-      nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalDeviceSetCpuAffinity, device);
 }
 
 DALIError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device) {
-  if (nvmlInternalInit == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalDeviceClearCpuAffinity(device);
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlDeviceClearCpuAffinity() failed: " +
-      nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalDeviceClearCpuAffinity, device);
 }
 
 DALIError_t wrapNvmlSystemGetDriverVersion(char* name, unsigned int length) {
-  if (nvmlInternalInit == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalSystemGetDriverVersion(name, length);
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlSystemGetDriverVersion() failed: " +
-      nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalSystemGetDriverVersion, name, length);
 }
 
 DALIError_t wrapNvmlDeviceGetCpuAffinity(nvmlDevice_t device,
                                          unsigned int cpuSetSize,
                                          unsigned long* cpuSet) {  // NOLINT(runtime/int)
-  if (nvmlInternalDeviceGetCpuAffinity == NULL) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalDeviceGetCpuAffinity(device, cpuSetSize, cpuSet);
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlDeviceGetCpuAffinity() failed: " +
-      nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
+  FUNC_BODY(nvmlInternalDeviceGetCpuAffinity, device, cpuSetSize, cpuSet);
+}
+
+#if (CUDART_VERSION >= 11000)
+
+DALIError_t wrapNvmlDeviceGetCpuAffinityWithinScope(nvmlDevice_t device,
+                                                    unsigned int nodeSetSize,
+                                                    unsigned long *nodeSet,  // NOLINT(runtime/int)
+                                                    nvmlAffinityScope_t scope) {
+  FUNC_BODY(nvmlInternalDeviceGetCpuAffinityWithinScope, device, nodeSetSize, nodeSet, scope);
 }
 
 DALIError_t wrapNvmlDeviceGetBrand(nvmlDevice_t device, nvmlBrandType_t* type) {
@@ -282,8 +215,9 @@ DALIError_t wrapNvmlDeviceGetCudaComputeCapability(nvmlDevice_t device, int *maj
   FUNC_BODY(nvmlInternalDeviceGetCudaComputeCapability, device, major, minor);
 }
 
-#undef FUNC_BODY
+#endif
 
+#undef FUNC_BODY
 
 }  // namespace nvml
 
