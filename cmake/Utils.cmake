@@ -278,3 +278,89 @@ function(parse_cuda_version CUDA_VERSION CUDA_VERSION_MAJOR_VAR CUDA_VERSION_MIN
 
   message(STATUS "CUDA version: ${CUDA_VERSION}, major: ${${CUDA_VERSION_MAJOR_VAR}}, minor: ${${CUDA_VERSION_MINOR_VAR}}, patch: ${${CUDA_VERSION_PATCH_VAR}}, short: ${${CUDA_VERSION_SHORT_VAR}}, digit-only: ${${CUDA_VERSION_SHORT_DIGIT_ONLY_VAR}}")
 endfunction()
+
+# Build a .so library variant for each python version provided in PYTHON_VERSIONS variable
+# if it is accesible during the build time. The library sufix is provided and specific for each python version
+#
+# supported options:
+# <TARGET_NAME> - umbrella target name used for this set of libraries; two additional targets are created,
+#              which can be used to set PUBLIC and PRIVATE target properties, respectively:
+#              TARGET_NAME_public
+#              TARGET_NAME_private.
+#              Properties for these targets, such as link dependencies, includes or compilation flags,
+#              must be set with INTERFACE keyword, but they are propagated as PUBLIC/PRIVATE
+#              properties to all version-specific libraries.
+# OUTPUT_NAME - library name used for this build
+# PREFIX - library prefix, if none is provided, the library will be named ${TARGET_NAME}.python_specific_extension
+# OUTPUT_DIR - ouptut directory of the build library
+# PUBLIC_LIBS - list of libraries that should be linked in as a public one
+# PRIV_LIBS - list of libraries that should be linked in as a private one
+# SRC - list of source code files
+function(build_per_python_lib)
+    set(oneValueArgs TARGET_NAME OUTPUT_NAME OUTPUT_DIR PREFIX)
+    set(multiValueArgs PRIV_LIBS PUBLIC_LIBS SRC EXCLUDE_LIBS)
+
+    cmake_parse_arguments(PARSE_ARGV 1 PYTHON_LIB_ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
+
+    set(PYTHON_LIB_ARG_TARGET_NAME ${ARGV0})
+    add_custom_target(${PYTHON_LIB_ARG_TARGET_NAME} ALL)
+
+    # global per target interface library, common for all python variants
+    add_library(${PYTHON_LIB_ARG_TARGET_NAME}_public INTERFACE)
+    add_library(${PYTHON_LIB_ARG_TARGET_NAME}_private INTERFACE)
+
+    target_sources(${PYTHON_LIB_ARG_TARGET_NAME}_private INTERFACE ${PYTHON_LIB_ARG_SRC})
+
+    target_link_libraries(${PYTHON_LIB_ARG_TARGET_NAME}_public INTERFACE ${PYTHON_LIB_ARG_PUBLIC_LIBS})
+    target_link_libraries(${PYTHON_LIB_ARG_TARGET_NAME}_private INTERFACE ${PYTHON_LIB_ARG_PRIV_LIBS})
+    target_link_libraries(${PYTHON_LIB_ARG_TARGET_NAME}_private INTERFACE "-Wl,--exclude-libs,${PYTHON_LIB_ARG_EXCLUDE_LIBS}")
+
+    target_include_directories(${PYTHON_LIB_ARG_TARGET_NAME}_private
+                               INTERFACE "${PYBIND11_INCLUDE_DIR}"
+                               INTERFACE "${pybind11_INCLUDE_DIR}")
+
+    foreach(PYVER ${PYTHON_VERSIONS})
+
+        set(PYTHON_LIB_TARGET_FOR_PYVER "${PYTHON_LIB_ARG_TARGET_NAME}_${PYVER}")
+        # check if listed python versions are accesible
+        execute_process(
+            COMMAND python${PYVER} -c "print('test', end='')"
+            RESULT_VARIABLE  PYTHON_EXISTS)
+
+        if (${PYTHON_EXISTS} EQUAL 0)
+            execute_process(
+                COMMAND python${PYVER}-config --extension-suffix
+                OUTPUT_VARIABLE PYTHON_SUFIX)
+            # remove newline and the extension
+            string(REPLACE ".so\n" "" PYTHON_SUFIX ${PYTHON_SUFIX})
+
+            execute_process(
+                COMMAND python${PYVER}-config --includes
+                OUTPUT_VARIABLE PYTHON_INCLUDES)
+            # split and make it a list
+            string(REPLACE "-I" "" PYTHON_INCLUDES ${PYTHON_INCLUDES})
+            string(REPLACE "\n" "" PYTHON_INCLUDES ${PYTHON_INCLUDES})
+            separate_arguments(PYTHON_INCLUDES)
+
+            add_library(${PYTHON_LIB_TARGET_FOR_PYVER} SHARED)
+
+            set_target_properties(${PYTHON_LIB_TARGET_FOR_PYVER}
+                                    PROPERTIES
+                                    LIBRARY_OUTPUT_DIRECTORY ${PYTHON_LIB_ARG_OUTPUT_DIR}
+                                    PREFIX "${PYTHON_LIB_ARG_PREFIX}"
+                                    OUTPUT_NAME ${PYTHON_LIB_ARG_OUTPUT_NAME}${PYTHON_SUFIX})
+            # add includes
+            foreach(incl_dir ${PYTHON_INCLUDES})
+                target_include_directories(${PYTHON_LIB_TARGET_FOR_PYVER} PRIVATE ${incl_dir})
+            endforeach(incl_dir)
+
+            # add interface dummy lib as a dependnecy to easilly propagate options we could set from the above
+            target_link_libraries(${PYTHON_LIB_TARGET_FOR_PYVER} PUBLIC ${PYTHON_LIB_ARG_TARGET_NAME}_public)
+            target_link_libraries(${PYTHON_LIB_TARGET_FOR_PYVER} PRIVATE ${PYTHON_LIB_ARG_TARGET_NAME}_private)
+
+            add_dependencies(${PYTHON_LIB_ARG_TARGET_NAME} ${PYTHON_LIB_TARGET_FOR_PYVER})
+        endif()
+
+    endforeach(PYVER)
+
+endfunction()

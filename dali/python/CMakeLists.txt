@@ -16,15 +16,13 @@
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_PYTHON_BACKEND_SRCS)
 
-pybind11_add_module(dali_python MODULE ${DALI_PYTHON_BACKEND_SRCS})
-target_link_libraries(dali_python PUBLIC dali dali_operators dali_kernels dali_core ${CUDART_LIB})
-target_link_libraries(dali_python PRIVATE ${CUDA_LIBRARIES})
-target_link_libraries(dali_python PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
-
-set_target_properties(dali_python
-        PROPERTIES
-          LIBRARY_OUTPUT_DIRECTORY ${DALI_LIBRARY_OUTPUT_DIR}
-          OUTPUT_NAME backend_impl)
+build_per_python_lib(dali_python
+                     OUTPUT_NAME backend_impl
+                     OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
+                     PUBLIC_LIBS dali dali_operators dali_kernels dali_core ${CUDART_LIB}
+                     PRIV_LIBS ${CUDA_LIBRARIES}
+                     EXCLUDE_LIBS ${exclude_libs}
+                     SRC ${DALI_PYTHON_BACKEND_SRCS})
 
 if (DALI_BUILD_FLAVOR)
   set(DALI_FLAVOR "${DALI_BUILD_FLAVOR} ")

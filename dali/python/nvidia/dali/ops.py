@@ -30,7 +30,7 @@ from nvidia.dali.types import \
 from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali import fn as _functional
 from future.utils import with_metaclass
-import nvidia.dali.libpython_function_plugin
+import nvidia.dali.python_function_plugin
 from nvidia.dali.data_node import DataNode as _DataNode
 
 cupy = None
@@ -738,11 +738,11 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
 
 
 def _dlpack_to_array(dlpack):
-    return nvidia.dali.libpython_function_plugin.DLTensorToArray(dlpack)
+    return nvidia.dali.python_function_plugin.DLTensorToArray(dlpack)
 
 
 def _dlpack_from_array(array):
-    return nvidia.dali.libpython_function_plugin.ArrayToDLTensor(array)
+    return nvidia.dali.python_function_plugin.ArrayToDLTensor(array)
 
 
 class PythonFunction(PythonFunctionBase):
@@ -754,7 +754,7 @@ class PythonFunction(PythonFunctionBase):
     @staticmethod
     def current_stream():
         """Get DALI's current CUDA stream."""
-        return _CUDAStream(nvidia.dali.libpython_function_plugin.current_dali_stream())
+        return _CUDAStream(nvidia.dali.python_function_plugin.current_dali_stream())
 
     @staticmethod
     def function_wrapper_per_sample(function, from_dlpack, to_dlpack, *dlpack_inputs):

@@ -16,16 +16,10 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(PYTHON_FUNCTION_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
 
-add_library(${dali_python_function_lib} SHARED ${PYTHON_FUNCTION_SRCS})
-target_link_libraries(${dali_python_function_lib} PUBLIC dali)
-target_link_libraries(${dali_python_function_lib} PRIVATE ${DALI_LIBS})
-target_link_libraries(${dali_python_function_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
-
-target_include_directories(${dali_python_function_lib} PRIVATE
-        ${PYBIND11_INCLUDE_DIR}  # from project CMakeLists.txt
-        ${pybind11_INCLUDE_DIR}  # from pybind11Config
-        ${PYTHON_INCLUDE_DIRS})
-
-# Install python operator plugin to the wheel directory
-set_target_properties(${dali_python_function_lib} PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
+build_per_python_lib(${dali_python_function_lib}
+                     OUTPUT_NAME ${dali_python_function_lib}
+                     OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
+                     PUBLIC_LIBS dali
+                     PRIV_LIBS ${DALI_LIBS}
+                     EXCLUDE_LIBS ${exclude_libs}
+                     SRC ${PYTHON_FUNCTION_SRCS})
