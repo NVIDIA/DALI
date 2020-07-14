@@ -26,22 +26,19 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     state_.pop_front();
   }
   auto &output = ws.template OutputRef<CPUBackend>(0);
-  // if the output is pinned we need to copy
-  if (output.is_pinned()) {
+  // if the output is pinned and input not it needs to be copied
+  if (output.is_pinned() && !tensor_vector_elm.front()->is_pinned()) {
     auto &thread_pool = ws.GetThreadPool();
     const auto &shapes = tensor_vector_elm.front()->shape();
-    for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
-      sample_ids_.emplace_back(volume(shapes[sample_id]), sample_id);
-    }
-    std::sort(sample_ids_.begin(), sample_ids_.end(), std::greater<VolumeSampleIdPair>());
     output.Resize(shapes, tensor_vector_elm.front()->type());
-    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      thread_pool.DoWorkWithID([&ws, data_idx, &tensor_vector_elm] (int tid) {
-        Tensor<CPUBackend> &output_tensor = ws.Output<CPUBackend>(0, data_idx);
+
+    for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+      thread_pool.AddWork([&ws, sample_id, &tensor_vector_elm] (int tid) {
+        Tensor<CPUBackend> &output_tensor = ws.Output<CPUBackend>(0, sample_id);
         // HostWorkspace doesn't have any stream
         cudaStream_t stream = 0;
-        output_tensor.Copy((*tensor_vector_elm.front())[data_idx], stream);
-      });
+        output_tensor.Copy((*tensor_vector_elm.front())[sample_id], stream);
+      }, volume(shapes[sample_id]));
     }
     thread_pool.RunAll();
     // as we copy element by element and the output is contiguous we need to set layout

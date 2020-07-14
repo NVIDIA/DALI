@@ -188,11 +188,13 @@ class ExternalSource : public Operator<Backend> {
       output_desc[0].shape = tv_data_.PeekFront()->shape();
       output_desc[0].type = tv_data_.PeekFront()->type();
     }
+    // unconditionally dissabled, still we can provide share but we don't want to allocate anything
     return false;
   }
 
   bool CanInferOutputs() const override {
-    // when it passes through no shape inference is needed, it happens for no_copy_ and CPUBackend
+    // shape inference during setup is disabled because it can be calculated during the runtime
+    // depending on the input and output
     return false;
   }
 
@@ -241,31 +243,32 @@ class ExternalSource : public Operator<Backend> {
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, CPUBackend>::value>
-  ShareUserData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
+  ShareUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t /*stream = 0*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({});
     auto tv_elm = tv_data_.GetEmpty();
-    // if it was not allocated already set_pinned to false
-    if (!tv_elm.front()->size()) {
-      tv_elm.front()->set_pinned(false);
+    // set pinned if needed
+    if (batch.is_pinned() !=  tv_elm.front()->is_pinned()) {
+      tv_elm.front()->Reset();
+      tv_elm.front()->set_pinned(batch.is_pinned());
     }
-    tv_elm.front()->ShareData(const_cast<SourceDataType<CPUBackend>*>(&t));
+    tv_elm.front()->ShareData(const_cast<SourceDataType<CPUBackend>*>(&batch));
     tv_data_.PushBack(tv_elm);
   }
 
   template<typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, GPUBackend>::value>
-  ShareUserData(const TensorVector<SrcBackend> &t, cudaStream_t stream = 0) {
+  ShareUserData(const TensorVector<SrcBackend> &batch, cudaStream_t stream = 0) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     auto tl_elm = tl_data_.GetEmpty();
-    if (t.IsContiguous()) {
-      t.ShareWith(const_cast<TensorList<Backend>*>(tl_elm.front().get()));
+    if (batch.IsContiguous()) {
+      batch.ShareWith(const_cast<TensorList<Backend>*>(tl_elm.front().get()));
       zero_copy_noncontiguous_gpu_input_ = true;
       state_.push_back({});
     } else {
       // it is not contiguous so we need to copy
-      tl_elm.front()->Copy(t, stream);
+      tl_elm.front()->Copy(batch, stream);
 
       std::list<uptr_cuda_event_type> copy_to_storage_event;
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
@@ -285,11 +288,11 @@ class ExternalSource : public Operator<Backend> {
   template<typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, GPUBackend>::value>
-   ShareUserData(const TensorList<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
+   ShareUserData(const TensorList<SrcBackend> &batch, cudaStream_t /*stream = 0*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({});
     auto tl_elm = tl_data_.GetEmpty();
-    tl_elm.front()->ShareData(const_cast<TensorList<Backend>*>(&t));
+    tl_elm.front()->ShareData(const_cast<TensorList<Backend>*>(&batch));
     tl_data_.PushBack(tl_elm);
     zero_copy_noncontiguous_gpu_input_ = true;
   }
@@ -302,9 +305,10 @@ class ExternalSource : public Operator<Backend> {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tv_elm = tv_data_.GetEmpty();
     }
-    // if it was not allocated already set_pinned to false
-    if (!tv_elm.front()->size()) {
-      tv_elm.front()->set_pinned(false);
+    // set pinned if needed
+    if (batch.is_pinned() !=  tv_elm.front()->is_pinned()) {
+      tv_elm.front()->Reset();
+      tv_elm.front()->set_pinned(batch.is_pinned());
     }
     // HostWorkspace doesn't have any stream
     cudaStream_t stream = 0;
