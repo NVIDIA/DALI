@@ -168,7 +168,7 @@ If *axes* and *axis_names* are empty or not provided, the output will be padded 
 If a single integer value is provided, the alignment restrictions are applied to all the padded axes.
 
 To use alignment only, i.e. without any default or explicit padding behavior, set the minimum ``shape``
- to 1 for a given axis.)code",
+to 1 for a given axis.)code",
     std::vector<int>())
   .AddOptionalArg<int>("shape",
     R"code(The extents of the output shape in the axes specified by *axes* or *axis_names*.
