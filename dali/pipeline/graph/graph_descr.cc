@@ -197,12 +197,35 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
 }
 
 void OpGraph::InstantiateOperators() {
-  // traverse devices by topological order (support, cpu, mixed, gpu)
+  // traverse devices by topological order (cpu, mixed, gpu)
   OpType order[] = {OpType::CPU, OpType::MIXED, OpType::GPU};
 
   for (auto op_type : order) {
     for (auto op_id : op_partitions_[static_cast<int>(op_type)]) {
-      op_nodes_[op_id].InstantiateOperator();
+      try {
+        op_nodes_[op_id].InstantiateOperator();
+      } catch (std::exception &e) {
+        bool use_instance_name = false;
+        for (const auto& other_node : op_nodes_) {
+          if (op_id != other_node.id && op_nodes_[op_id].spec.name() == other_node.spec.name()) {
+            use_instance_name = true;
+            break;
+          }
+        }
+        if (use_instance_name) {
+          throw std::runtime_error(make_string(
+              "Critical error when building pipeline:\nError when constructing operator: ",
+              op_nodes_[op_id].spec.name(), ", instance name: \"", op_nodes_[op_id].instance_name,
+              "\", encountered:\n", e.what(), "\nCurrent pipeline object is no longer valid."));
+        } else {
+          throw std::runtime_error(make_string(
+              "Critical error when building pipeline:\nError when constructing operator: ",
+              op_nodes_[op_id].spec.name(), " encountered:\n", e.what(),
+              "\nCurrent pipeline object is no longer valid."));
+        }
+      } catch (...) {
+        throw std::runtime_error("Unknown critical error when building pipeline.");
+      }
     }
   }
 }
