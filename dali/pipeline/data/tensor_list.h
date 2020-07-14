@@ -22,6 +22,7 @@
 #include <list>
 #include <memory>
 #include <utility>
+#include "dali/kernels/common/scatter_gather.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
@@ -34,6 +35,8 @@ class Tensor;
 
 template <typename Backend>
 class TensorVector;
+
+DLL_PUBLIC void LaunchCopyKernel(void *dst, const void *src, int64_t n, cudaStream_t stream);
 
 /**
  * @brief Stores a number of Tensors in a contiguous buffer.
@@ -76,7 +79,18 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     this->SetLayout(other.GetLayout());
     ResizeLike(other);
     type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
-        other.raw_data(), this->size(), stream);
+      other.raw_data(), this->size(), stream);
+  }
+
+  template <typename SrcBackend>
+  DLL_PUBLIC inline void CopyWithKernel(const TensorList<SrcBackend> &other, cudaStream_t stream) {
+    if (IsValidType(other.type())) {
+      this->set_type(other.type());
+    }
+    this->meta_ = other.meta_;
+    this->SetLayout(other.GetLayout());
+    ResizeLike(other);
+    LaunchCopyKernel(this->raw_mutable_data(), other.raw_data(), this->size() * type_.size(), stream);
   }
 
   template <typename SrcBackend>
@@ -111,6 +125,43 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
       this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
       this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
     }
+  }
+
+ private:
+  kernels::ScatterGatherGPU scatter_gather_;
+ public:
+  template <typename SrcBackend>
+  DLL_PUBLIC inline void CopyWithKernel(const TensorVector<SrcBackend> &other,
+                                        cudaStream_t stream) {
+    auto type = other[0].type();
+    auto layout = other[0].GetLayout();
+
+    int dim = other[0].shape().sample_dim();
+    TensorListShape<> new_shape(other.size(), dim);
+    for (size_t i = 0; i < other.size(); ++i) {
+      DALI_ENFORCE(other[i].shape().sample_dim() == dim,
+         "TensorList can only have uniform dimensions across all samples, mismatch at index "
+         + std::to_string(i) + " expected Tensor with dim = " + to_string(dim)
+         + " found Tensor with dim = " + to_string(other[i].shape().sample_dim()));
+      assert(type == other[i].type());
+      assert(layout == other[i].GetLayout());
+      new_shape.set_tensor_shape(i, other[i].shape());
+    }
+
+    this->Resize(new_shape);
+    if (IsValidType(type)) {
+      this->set_type(type);
+    }
+    this->SetLayout(layout);
+
+    scatter_gather_.Reset();
+    auto type_sz = type.size();
+    for (size_t i = 0; i < other.size(); ++i) {
+      scatter_gather_.AddCopy(raw_mutable_tensor(i), other[i].raw_data(), other[i].size() * type.size());
+      this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
+      this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
+    }
+    scatter_gather_.Run(stream);
   }
 
   using Buffer<Backend>::reserve;
