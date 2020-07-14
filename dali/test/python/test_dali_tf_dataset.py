@@ -102,7 +102,7 @@ def _test_tf_dataset(device, device_id = 0):
         tf.int16)
 
     dataset_results = []
-    with tf.device('/device:XLA_CPU:0'):
+    with tf.device('/{0}:{1}'.format(device, device_id)):
         daliset = dali_tf.DALIDataset(
             pipeline=dataset_pipeline,
             batch_size=batch_size,
