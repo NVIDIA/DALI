@@ -341,11 +341,12 @@ Cross-compiling DALI C++ API for aarch64 Linux (Docker)
 
 Setup
 ^^^^^
-Using the SDK Manager for NVIDIA Jetson as the product category adn JetPack 4.4.
+Download the JetPack 4.4 SDK for NVIDIA Jetson using the SDK Manager, following the instruction
+provided here: https://developer.nvidia.com/embedded/jetpack.
 Then select CUDA for the host. After download process has been completed move
 ``cuda-repo-ubuntu1804-10-2-local-10.2.89-440.40_1.0-1_amd64.deb`` and
 ``cuda-repo-cross-aarch64-10-2-local-10.2.89_1.0-1_all.deb`` from the download folder
-to main DALI folder.
+to main DALI folder (they are required for cross build).
 
 Build the aarch64 Linux Build Container
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
