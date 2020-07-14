@@ -252,7 +252,7 @@ void SpectrogramImplCpu::RunImpl(workspace_t<CPUBackend> &ws) {
     }, out_shape.tensor_size(i));
   }
 
-  thread_pool.WaitForWork();
+  thread_pool.RunAll();
 }
 
 template <>

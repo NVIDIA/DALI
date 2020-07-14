@@ -149,13 +149,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   ~nvJPEGDecoder() override {
     try {
-      thread_pool_.WaitForWork();
-    } catch (const std::runtime_error &e) {
-      std::cerr << "An error occurred in nvJPEG worker thread:\n"
-                << e.what() << std::endl;
-    }
-
-    try {
       DeviceGuard g(device_id_);
 
       sample_data_.clear();

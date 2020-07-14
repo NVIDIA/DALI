@@ -369,8 +369,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           }, -idx);  // -idx for FIFO order, since the samples were already ordered
       }
       LoadDeferred(ws.stream());
-      // Make sure work is finished being submitted
-      thread_pool_.WaitForWork();
+      // Make sure work is finished
+      thread_pool_.RunAll();
     }
 
     // ensure we're consistent with the main op stream
