@@ -153,6 +153,10 @@ class DALIDatasetOp : public DatasetOpKernel {
     string DebugString() const override {
       return "DALI::DatasetOp()::Dataset"; }
 
+    Status CheckExternalState() const {
+      return errors::FailedPrecondition("DALI dataset depends on DALI pipeline state");
+    };
+
     tensorflow::int64 Cardinality() const override { return data::kInfiniteCardinality; }
 
    protected:
@@ -371,6 +375,10 @@ class DALIDatasetOp : public DatasetOpKernel {
         }
         daliDeletePipeline(&pipeline_handle_);
       }
+
+      Status SaveInternal(SerializationContext* ctx, IteratorStateWriter* writer) override {}
+    
+      Status RestoreInternal(IteratorContext* ctx, IteratorStateReader* reader) override {}
 
      private:
 
