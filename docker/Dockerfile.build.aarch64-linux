@@ -1,4 +1,6 @@
-FROM nvidia/cuda:10.0-devel-ubuntu16.04
+ARG AARCH64_CUDA_TOOL_IMAGE_NAME
+FROM ${AARCH64_CUDA_TOOL_IMAGE_NAME} as aarch64_cuda_tools
+FROM nvidia/cuda:10.2-devel-ubuntu18.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -16,12 +18,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtool-bin \
     && rm -rf /var/lib/apt/lists/*
 
-ENV REPO_DEBS="cuda-repo-ubuntu1604-10-0-local-10.0.117-410.38_1.0-1_amd64.deb"
-ENV CUDA_CROSS_VERSION=10-0
-ENV CUDA_CROSS_PACKAGES="cublas cudart cufft curand cusolver cusparse driver misc-headers npp"
+COPY --from=aarch64_cuda_tools *.deb ./
 
-RUN wget https://developer.download.nvidia.com/devzone/devcenter/mobile/jetpack_l4t/4.1.1/xddsn.im/JetPackL4T_4.1.1_b57/16.04/cuda-repo-ubuntu1604-10-0-local-10.0.117-410.38_1.0-1_amd64.deb && \
-    dpkg -i $REPO_DEBS && \
+ENV CUDA_CROSS_VERSION=10.2
+ENV CUDA_CROSS_PACKAGES="cudart cufft curand driver misc-headers npp"
+RUN dpkg -i *.deb && \
     echo "for i in \$CUDA_CROSS_PACKAGES; do echo \"cuda-\$i-cross-aarch64-\${CUDA_CROSS_VERSION}\";done" | bash > /tmp/cuda-packages.txt && \
     apt-get update \
    && apt-get install -y $(cat /tmp/cuda-packages.txt) \
@@ -193,7 +194,7 @@ VOLUME /dali
 WORKDIR /dali
 
 
-ENV PATH=/usr/local/cuda-10.0/bin:$PATH
+ENV PATH=/usr/local/cuda-10.2/bin:$PATH
 
 ARG DALI_BUILD_DIR=build_aarch64_linux
 
@@ -205,9 +206,9 @@ CMD cmake \
   -DCMAKE_COLOR_MAKEFILE=ON \
   -DCMAKE_INSTALL_PREFIX=./install \
   -DARCH=aarch64-linux \
-  -DCMAKE_CUDA_COMPILER=/usr/local/cuda-10.0/bin/nvcc \
-  -DCUDA_HOST=/usr/local/cuda-10.0 \
-  -DCUDA_TARGET=/usr/local/cuda-10.0/targets/aarch64-linux \
+  -DCMAKE_CUDA_COMPILER=/usr/local/cuda-10.2/bin/nvcc \
+  -DCUDA_HOST=/usr/local/cuda-10.2 \
+  -DCUDA_TARGET=/usr/local/cuda-10.2/targets/aarch64-linux \
   -DBUILD_TEST=ON \
   -DBUILD_BENCHMARK=OFF \
   -DBUILD_NVTX=OFF \
