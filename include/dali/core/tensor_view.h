@@ -780,12 +780,14 @@ TensorListView<StorageBackend, DataType, output_ndim> sample_range(
 
 
 /**
- * @brief Uses existing data and a new shape to construct a new TensorListView.
+ * @brief Uses existing data and a new shape and type to construct a new TensorListView.
  *
- * The function combines existing list a new shape to build a new TensorListView.
- * If the existing list is contiguous, only the total size must be preserved.
- * Otherwise, non-contiguous input samples must not contribute to one output sample.
+ * The function combines existing list with a new shape to build a new TensorListView,
+ * possibly with different element type.
+ * Non-contiguous input samples must not contribute to one output sample;
+ * merging contiguous samples and splitting is still possible.
  *
+ * @tparam U    new element type
  * @param list  original tensor list
  * @param shape the desired shape
  * @param check if true, exception is thrown when the list cannot be reshaped
@@ -850,9 +852,9 @@ TensorListView<Storage, U, out_dim> reinterpret(
 /**
  * @brief Uses existing data and a new shape to construct a new TensorListView.
  *
- * The function combines existing list a new shape to build a new TensorListView.
- * If the existing list is contiguous, only the total size must be preserved.
- * Otherwise, non-contiguous input samples must not contribute to one output sample.
+ * The function combines existing list with a new shape to build a new TensorListView.
+ * Non-contiguous input samples must not contribute to one output sample;
+ * merging contiguous samples and splitting is still possible.
  *
  * @param list  original tensor list
  * @param shape the desired shape
