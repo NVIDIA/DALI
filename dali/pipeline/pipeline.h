@@ -137,13 +137,13 @@ class DLL_PUBLIC Pipeline {
 
   template<typename T, typename OperatorBackend>
   void SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr,
-                           cudaStream_t stream = 0, bool sync = false) {
+                           cudaStream_t stream = 0, bool sync = false, bool use_copy_kernel = false) {
     // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
     // The StorageBackend is hidden under `T` type.
     auto *source = dynamic_cast<ExternalSource<OperatorBackend> *>(op_ptr);
     DALI_ENFORCE(source != nullptr,
                  "Input name '" + name + "' is not marked as an external input.");
-    source->SetDataSource(tl, stream, sync);
+    source->SetDataSource(tl, stream, sync, use_copy_kernel);
   }
 
 
@@ -159,7 +159,7 @@ class DLL_PUBLIC Pipeline {
    */
   template<typename TL>
   inline void SetExternalInputHelper(const string &name, const TL &tl, cudaStream_t stream = 0,
-                                     bool sync = false) {
+                                     bool sync = false, bool use_copy_kernel = false) {
     bool is_cpu_node = true;
     OpNodeId node_id;
 
@@ -180,9 +180,9 @@ class DLL_PUBLIC Pipeline {
     OperatorBase *op_ptr = &node.InstantiateOperator();
 
     if (is_cpu_node) {
-      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, stream, sync);
+      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, stream, sync, use_copy_kernel);
     } else {
-      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, stream, sync);
+      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, stream, sync, use_copy_kernel);
     }
   }
 
@@ -199,8 +199,8 @@ class DLL_PUBLIC Pipeline {
   template<typename Backend>
   DLL_PUBLIC inline void
   SetExternalInput(const string &name, const TensorList<Backend> &tl, cudaStream_t stream = 0,
-                   bool sync = false) {
-    SetExternalInputHelper(name, tl, stream, sync);
+                   bool sync = false, bool use_copy_kernel = false) {
+    SetExternalInputHelper(name, tl, stream, sync, use_copy_kernel);
   }
 
 
@@ -216,8 +216,8 @@ class DLL_PUBLIC Pipeline {
   template<typename Backend>
   DLL_PUBLIC inline void
   SetExternalInput(const string &name, const TensorVector<Backend> &tv, cudaStream_t stream = 0,
-                   bool sync = false) {
-    SetExternalInputHelper(name, tv, stream, sync);
+                   bool sync = false, bool use_copy_kernel = false) {
+    SetExternalInputHelper(name, tv, stream, sync, use_copy_kernel);
   }
 
   /**
