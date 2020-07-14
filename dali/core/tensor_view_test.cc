@@ -435,6 +435,60 @@ TEST(TensorListView, Reshape) {
   EXPECT_EQ(r3.data, tlv.data);
   EXPECT_THROW(r4 = reshape(tlv, shape4, true), std::logic_error);
   EXPECT_THROW(reshape(tlv, shape_bad, true), std::logic_error);
+
+  // split sample in non-contiguous TL - add some empty samples to make it even worse
+  TensorListShape<1> shape5 = {{
+    { 2 },
+    { 4 },
+
+    { 10 },
+    { 5 },
+    { 0 },
+    { 15 },
+
+    { 8 },
+    { 0 }
+  }};
+  auto r5 = reshape(tlv, shape5, true);
+  EXPECT_EQ(r5.shape, shape5);
+  EXPECT_EQ(r5.data[0], tlv.data[0] + 0);
+  EXPECT_EQ(r5.data[1], tlv.data[0] + 2);
+
+  EXPECT_EQ(r5.data[2], tlv.data[1] + 0);
+  EXPECT_EQ(r5.data[3], tlv.data[1] + 10);
+  EXPECT_EQ(r5.data[4], tlv.data[1] + 15);
+  EXPECT_EQ(r5.data[5], tlv.data[1] + 15);
+
+  EXPECT_EQ(r5.data[6], tlv.data[2] + 0);
+  EXPECT_EQ(r5.data[7], tlv.data[2] + 8);
+
+  // now merge the split samples back
+  auto r6 = reshape(r5, shape, true);
+  EXPECT_EQ(r6.shape, shape);
+  EXPECT_EQ(r6.data, tlv.data);
+
+  TensorListShape<1> bad_merge = {{
+    { 2 },
+    { 7 },
+
+    { 9 },
+    { 5 },
+    { 15 },
+
+    { 8 },
+  }};
+  EXPECT_THROW(reshape(r5, bad_merge, true), std::logic_error);
+
+  // reinterpret the data as uint16
+  TensorListShape<3> shape7 = {{
+    { 1, 2, 6 },
+    { 3, 10, 2 },
+    { 4, 2, 2 }
+  }};
+  auto r7 = reinterpret<uint16_t>(r5, shape7, true);
+  EXPECT_EQ(r7.shape, shape7);
+  for (int i = 0; i < 3; i++)
+    EXPECT_EQ(r7.data[i], reinterpret_cast<uint16_t*>(tlv.data[i]));
 }
 
 }  // namespace kernels

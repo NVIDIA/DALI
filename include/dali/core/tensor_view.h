@@ -778,13 +778,81 @@ TensorListView<StorageBackend, DataType, output_ndim> sample_range(
   return out_slice;
 }
 
+
 /**
  * @brief Uses existing data and a new shape to construct a new TensorListView.
  *
  * The function combines existing list a new shape to build a new TensorListView.
- * If the existing list is contiguous, only the total number of elements must be preserved.
- * Otherwise, all samples must have the same number of elements as in the original list.
- * Dimensionality can be changed.
+ * If the existing list is contiguous, only the total size must be preserved.
+ * Otherwise, non-contiguous input samples must not contribute to one output sample.
+ *
+ * @param list  original tensor list
+ * @param shape the desired shape
+ * @param check if true, exception is thrown when the list cannot be reshaped
+ */
+template <typename U, int out_dim, typename Storage, typename T, int in_dim>
+TensorListView<Storage, U, out_dim> reinterpret(
+      const TensorListView<Storage, T, in_dim> &list,
+      TensorListShape<out_dim> shape,
+      bool check = false) {
+  if (check && shape.num_elements() * sizeof(U) != list.num_elements() * sizeof(T))
+    throw std::logic_error("Attempt to reshape a TensorListView to a different total size");
+  assert(shape.num_elements() * sizeof(U) == list.num_elements() * sizeof(T));
+
+  int i = -1;  // start at index -1 - we'll increase it anyway
+  int M = list.num_samples();
+  int N = shape.num_samples();
+
+  if (!N)
+    return make_tensor_list<Storage, out_dim>(static_cast<U*>(nullptr), std::move(shape));
+
+  ptrdiff_t in_remaining = 0;
+  uintptr_t ptr = reinterpret_cast<uintptr_t>(list.data[0]);
+
+  TensorListView<Storage, U, out_dim> out_list;
+  out_list.shape = std::move(shape);
+  out_list.data.resize(N);
+
+  for (int o = 0; o < N; o++) {
+    ptrdiff_t out_remaining = volume(out_list.shape.tensor_shape_span(o)) * sizeof(U);
+    out_list.data[o] = reinterpret_cast<U *>(ptr);
+    bool first_chunk_in_sample = true;
+    while (out_remaining > 0) {
+      if (in_remaining > 0) {
+        ptrdiff_t to_add = out_remaining < in_remaining ? out_remaining : in_remaining;
+        out_remaining -= to_add;
+        in_remaining -= to_add;
+        ptr += to_add;
+      } else {
+        i++;
+        assert(i < M);
+        uintptr_t next_ptr = reinterpret_cast<uintptr_t>(list.data[i]);
+        in_remaining = volume(list.shape.tensor_shape_span(i)) * sizeof(T);
+        if (!in_remaining)
+          continue;  // empty input sample - skip and don't reset the first chunk flag
+        if (first_chunk_in_sample) {
+          ptr = next_ptr;
+          out_list.data[o] = reinterpret_cast<U *>(ptr);
+        } else {
+          if (check && next_ptr != ptr)
+            throw std::logic_error("Cannot merge non-contiguous samples");
+          assert(next_ptr == ptr);
+          // no need to update ptr, the value is good
+        }
+      }
+      first_chunk_in_sample = false;
+    }
+  }
+  assert(in_remaining == 0);
+  return out_list;
+}
+
+/**
+ * @brief Uses existing data and a new shape to construct a new TensorListView.
+ *
+ * The function combines existing list a new shape to build a new TensorListView.
+ * If the existing list is contiguous, only the total size must be preserved.
+ * Otherwise, non-contiguous input samples must not contribute to one output sample.
  *
  * @param list  original tensor list
  * @param shape the desired shape
@@ -792,29 +860,11 @@ TensorListView<StorageBackend, DataType, output_ndim> sample_range(
  */
 template <int out_dim, typename Storage, typename T, int in_dim>
 TensorListView<Storage, T, out_dim> reshape(
-  const TensorListView<Storage, T, in_dim> &list,
-  TensorListShape<out_dim> shape,
-  bool check = false) {
-  if (check && shape.num_elements() != list.num_elements())
-    throw std::logic_error("Attempt to reshape a TensorListView to a different total volume");
-  assert(shape.num_elements() == list.num_elements());
-  if (list.is_contiguous()) {
-    return make_tensor_list<Storage, out_dim, T>(list.data[0], std::move(shape));
-  } else {
-    if (check && shape.num_samples() != list.num_samples())
-      throw std::logic_error("Attempt to reshape a non-contiguous TensorListView with a different "
-                             "number of samples");
-    assert(shape.num_samples() == list.num_samples());
-    for (int i = 0; i < list.num_samples(); i++) {
-      if (check && volume(list.tensor_shape_span(i)) != volume(shape.tensor_shape_span(i)))
-        throw std::logic_error("Attempt to change the volume of sample when reshaping a "
-                               "non-contiguous TensorListView");
-      assert(volume(list.tensor_shape_span(i)) == volume(shape.tensor_shape_span(i)));
-    }
-    return make_tensor_list<Storage, out_dim, T>(list.data.data(), std::move(shape));
-  }
+      const TensorListView<Storage, T, in_dim> &list,
+      TensorListShape<out_dim> shape,
+      bool check = false) {
+  return reinterpret<T, out_dim>(list, shape, check);
 }
-
 
 template <typename Backend, typename T, int ndim>
 struct element_type<TensorView<Backend, T, ndim>> {
