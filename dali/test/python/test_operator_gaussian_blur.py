@@ -87,7 +87,7 @@ def check_gaussian_blur(batch_size, sigma, window_size, op_type="cpu"):
     with pipe:
         input, _ = fn.file_reader(file_root=images_dir, shard_id=0, num_shards=1)
         decoded = fn.image_decoder(input, device=decoder_device, output_type=types.RGB)
-        blurred = fn.gaussian_blur(decoded, sigma=sigma, window_size=window_size)
+        blurred = fn.gaussian_blur(decoded, device=op_type, sigma=sigma, window_size=window_size)
         pipe.set_outputs(blurred, decoded)
     pipe.build()
 
@@ -112,6 +112,29 @@ def test_image_gaussian_blur():
         for window_size in [11, 15]:
             yield check_gaussian_blur, 10, None, window_size, dev
 
+# Check if GaussianBlur output can be consumed by next operator (layout is propagated)
+def check_gaussian_blur_output(batch_size, sigma, window_size, op_type="cpu"):
+    decoder_device = "cpu" if op_type == "cpu" else "mixed"
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    with pipe:
+        input, _ = fn.file_reader(file_root=images_dir, shard_id=0, num_shards=1)
+        decoded = fn.image_decoder(input, device=decoder_device, output_type=types.RGB)
+        blurred = fn.gaussian_blur(decoded, device=op_type, sigma=sigma, window_size=window_size)
+        normalized = fn.crop_mirror_normalize(blurred, device=op_type,
+            dtype=types.FLOAT, output_layout="HWC",
+            mean=[128.0, 128.0, 128.0], std=[100.0, 100.0, 100.0])
+        pipe.set_outputs(normalized)
+    pipe.build()
+
+    for _ in range(3):
+        result = pipe.run()
+
+def test_gaussian_blur_layout_propagation():
+    for dev in ["cpu"]:
+        for sigma in [1.0]:
+            for window_size in [5]:
+                yield check_gaussian_blur_output, 10, sigma, window_size, dev
+
 def count_skip_axes(layout):
     if layout.startswith("FC") or layout.startswith("CF"):
         return 2
@@ -124,7 +147,6 @@ def count_skip_axes(layout):
 def check_generic_gaussian_blur(
         batch_size, sigma, window_size, shape, layout, axes, op_type="cpu", in_dtype=np.uint8,
         out_dtype=types.NO_TYPE):
-    decoder_device = "cpu" if op_type == "cpu" else "mixed"
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     data = RandomlyShapedDataIterator(batch_size, max_shape=shape, dtype=in_dtype)
     # Extract the numpy type from DALI, we can have float32 or the same as input
@@ -136,7 +158,10 @@ def check_generic_gaussian_blur(
         result_type = np.float32
     with pipe:
         input = fn.external_source(data, layout=layout)
-        blurred = fn.gaussian_blur(input, sigma=sigma, window_size=window_size, dtype=out_dtype)
+        if op_type == "gpu":
+            input = input.gpu()
+        blurred = fn.gaussian_blur(input, device=op_type, sigma=sigma,
+                                   window_size=window_size, dtype=out_dtype)
         pipe.set_outputs(blurred, input)
     pipe.build()
 
@@ -178,7 +203,6 @@ def test_generic_gaussian_blur():
 
 def check_per_sample_gaussian_blur(
         batch_size, sigma_dim, window_size_dim, shape, layout, axes, op_type="cpu"):
-    decoder_device = "cpu" if op_type == "cpu" else "mixed"
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     data = RandomlyShapedDataIterator(batch_size, max_shape=shape)
     with pipe:
@@ -199,7 +223,9 @@ def check_per_sample_gaussian_blur(
             window_arg = None
 
         input = fn.external_source(data, layout=layout)
-        blurred = fn.gaussian_blur(input, sigma=sigma_arg, window_size=window_arg)
+        if op_type == "gpu":
+            input = input.gpu()
+        blurred = fn.gaussian_blur(input, device=op_type, sigma=sigma_arg, window_size=window_arg)
         pipe.set_outputs(blurred, input, sigma, window_size)
     pipe.build()
 
