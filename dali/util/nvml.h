@@ -16,6 +16,8 @@
 #define DALI_UTIL_NVML_H_
 
 #include <nvml.h>
+#include <cuda_runtime_api.h>
+
 #include <pthread.h>
 #include <sys/sysinfo.h>
 
