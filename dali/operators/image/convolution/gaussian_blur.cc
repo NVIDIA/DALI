@@ -214,6 +214,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
   void RunImpl(workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template InputRef<CPUBackend>(0);
     auto& output = ws.template OutputRef<CPUBackend>(0);
+    output.SetLayout(input.GetLayout());
     auto in_shape = input.shape();
     auto& thread_pool = ws.GetThreadPool();
 
