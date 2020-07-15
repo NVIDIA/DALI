@@ -1,0 +1,4 @@
+FROM scratch
+
+COPY cuda-repo-ubuntu1804-10-2-local-10.2.89-440.40_1.0-1_amd64.deb cuda-repo-ubuntu1804-10-2-local-10.2.89-440.40_1.0-1_amd64.deb
+COPY cuda-repo-cross-aarch64-10-2-local-10.2.89_1.0-1_all.deb cuda-repo-cross-aarch64-10-2-local-10.2.89_1.0-1_all.deb
