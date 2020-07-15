@@ -381,20 +381,6 @@ unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle) {
   return ws->NumOutput();
 }
 
-void daliOutputPtr(daliPipelineHandle* pipe_handle, int n, const void **out_ptr, size_t *out_len) {
-  dali::TimeRange tr("daliOutputPtr", dali::TimeRange::kGreen);
-  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
-  if (ws->OutputIsType<dali::CPUBackend>(n)) {
-    auto &out = ws->Output<dali::CPUBackend>(n);
-    *out_ptr = out.raw_data();
-    *out_len = out.nbytes();
-  } else {
-    auto &out = ws->Output<dali::GPUBackend>(n);
-    *out_ptr = out.raw_data();
-    *out_len = out.nbytes();
-  }
-}
-
 template <typename T>
 static void daliCopyTensorListNToHelper(dali::DeviceWorkspace* ws, void* dst, int n,
                                         device_type_t dst_type, cudaStream_t stream,

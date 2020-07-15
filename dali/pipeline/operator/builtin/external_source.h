@@ -299,7 +299,8 @@ class ExternalSource : public Operator<Backend> {
 
   template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
   inline std::enable_if_t<std::is_same<B, CPUBackend>::value>
-  CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t /*stream*/, bool /*sync*/) {
+  CopyUserData(const SourceDataType<SrcBackend> &batch,
+               cudaStream_t /*stream*/, bool /*sync*/, bool /*use_copy_kernel*/) {
     std::list<uptr_tv_type> tv_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
@@ -321,7 +322,8 @@ class ExternalSource : public Operator<Backend> {
 
   template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
   inline std::enable_if_t<std::is_same<B, GPUBackend>::value>
-  CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t stream, bool sync) {
+  CopyUserData(const SourceDataType<SrcBackend> &batch,
+               cudaStream_t stream, bool sync, bool use_copy_kernel) {
     std::list<uptr_cuda_event_type> copy_to_storage_event;
     std::list<uptr_tl_type> tl_elm;
     {
@@ -329,7 +331,7 @@ class ExternalSource : public Operator<Backend> {
       tl_elm = tl_data_.GetEmpty();
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
-    tl_elm.front()->Copy(batch, stream);
+    tl_elm.front()->Copy(batch, stream, use_copy_kernel);
     // record event for:
     // - GPU -> GPU
     // - pinned CPU -> GPU

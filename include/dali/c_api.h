@@ -347,17 +347,6 @@ DLL_PUBLIC void
 daliCopyTensorNTo(daliPipelineHandle *pipe_handle, void *dst, int n, device_type_t dst_type,
                   cudaStream_t stream, int non_blocking);
 
-
-/**
- * @brief Gets direct access to the output tensor stored
- * at position `n` in the pipeline.
- * @remarks The memory is managed by DALI and will be valid until the next call
- * to daliOutputRelease (or daliOutput since it calls daliOutputRelease before waiting
- * for the next iteration)
- */
-DLL_PUBLIC void daliOutputPtr(daliPipelineHandle* pipe_handle, int n,
-                              const void **out_ptr, size_t *out_len);
-
 /**
  * @brief Delete the pipeline object.
  */
