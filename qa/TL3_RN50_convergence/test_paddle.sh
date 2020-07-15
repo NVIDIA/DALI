@@ -26,7 +26,7 @@ LOG=dali.log
 
 SECONDS=0
 EPOCHS=25  # limiting to 25 epochs to save time
-export FLAGS_fraction_of_gpu_memory_to_use=.85
+export FLAGS_fraction_of_gpu_memory_to_use=.75
 python -m paddle.distributed.launch --selected_gpus $(echo $GPUS | tr ' ' ',') \
     main.py -b 128 -j 4 --lr=0.4 --epochs ${EPOCHS} ./ 2>&1 | tee $LOG
 
