@@ -26,7 +26,7 @@ void LaunchCopyKernel(void *dst, const void *src, int64_t nbytes, cudaStream_t s
   size_t block = cuda_min(nbytes, 1024l);
   size_t grid = std::min(32l, div_ceil(nbytes, block));
   CopyKernel<<<grid, block, 0, stream>>>(reinterpret_cast<uint8_t*>(dst), reinterpret_cast<const uint8_t*>(src), nbytes);
-  cudaGetLastError();
+  CUDA_CALL(cudaGetLastError());
 }
 
 }  // namespace dali
