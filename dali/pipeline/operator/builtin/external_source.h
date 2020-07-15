@@ -299,7 +299,7 @@ class ExternalSource : public Operator<Backend> {
 
   template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
   inline std::enable_if_t<std::is_same<B, CPUBackend>::value>
-  CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t /*stream*/, bool /*sync*/) {
+  CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t stream, bool /*sync*/) {
     std::list<uptr_tv_type> tv_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
@@ -310,9 +310,12 @@ class ExternalSource : public Operator<Backend> {
       tv_elm.front()->Reset();
       tv_elm.front()->set_pinned(batch.is_pinned());
     }
-    // HostWorkspace doesn't have any stream
-    cudaStream_t stream = 0;
     tv_elm.front()->Copy(batch, stream);
+    // if copying from GPU to CPU always synchronize
+    if (std::is_same<SrcBackend, GPUBackend>::value) {
+      cudaStreamSynchronize(stream);
+    }
+
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tv_data_.PushBack(tv_elm);
@@ -336,6 +339,9 @@ class ExternalSource : public Operator<Backend> {
     // - pinned CPU -> GPU
     if (std::is_same<SrcBackend, GPUBackend>::value || batch.is_pinned()) {
       cudaEventRecord(*copy_to_storage_event.front(), stream);
+    }
+    if (std::is_same<SrcBackend, CPUBackend>::value) {
+      cudaEventRecord(*copy_to_storage_event.front(), 0);
     }
     if (sync) {
       CUDA_CALL(cudaEventSynchronize(*copy_to_storage_event.front()));
