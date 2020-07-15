@@ -38,7 +38,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
         // HostWorkspace doesn't have any stream
         cudaStream_t stream = 0;
         output_tensor.Copy((*tensor_vector_elm.front())[sample_id], stream);
-      }, volume(shapes[sample_id]));
+      }, shapes.tensor_size(sample_id));
     }
     thread_pool.RunAll();
     // as we copy element by element and the output is contiguous we need to set layout
@@ -47,7 +47,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     output.SetLayout(tensor_vector_elm.front()->GetLayout());
   } else {
     // swap output with tensor_vector_elm content
-    output.Swap(tensor_vector_elm.front().get());
+    std::swap(output, *tensor_vector_elm.front());
   }
   RecycleBuffer(tensor_vector_elm);
 }

@@ -43,7 +43,7 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));
   }
 
-  output.Swap(tensor_list_elm.front().get());
+  std::swap(output, *tensor_list_elm.front());
 
   if (!no_copy_ || state_info.copied_shared_data) {
     RecycleBuffer(tensor_list_elm, &internal_copy_to_storage);

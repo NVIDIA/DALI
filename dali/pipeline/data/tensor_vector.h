@@ -65,6 +65,22 @@ class TensorVector {
   TensorVector(const TensorVector &) = delete;
   TensorVector &operator=(const TensorVector &) = delete;
 
+  DLL_PUBLIC TensorVector<Backend>(TensorVector<Backend> &&other) noexcept {
+    state_ = other.state_;
+    pinned_ = other.pinned_;
+    tl_ = std::move(other.tl_);
+    type_ = other.type_;
+    views_count_ = other.views_count_.load();
+    tensors_ = std::move(other.tensors_);
+    for (auto &t : tensors_) {
+      if (auto *del = std::get_deleter<ViewRefDeleter>(t)) del->ref = &views_count_;
+    }
+
+    other.tl_->Reset();
+    other.views_count_ = 0;
+    tensors_.clear();
+  }
+
   Tensor<Backend>& operator[](size_t pos) {
     return *(tensors_[pos]);
   }
@@ -375,22 +391,23 @@ class TensorVector {
     }
   }
 
-  void Swap(TensorVector<Backend> *tv) {
-    std::swap(state_, tv->state_);
-    std::swap(pinned_, tv->pinned_);
-    std::swap(tl_, tv->tl_);
-    std::swap(type_, tv->type_);
-    if (views_count_) {
+  inline TensorVector<Backend>& operator=(TensorVector<Backend> &&other) noexcept {
+    if (&other != this) {
+      state_ = other.state_;
+      pinned_ = other.pinned_;
+      tl_ = std::move(other.tl_);
+      type_ = other.type_;
+      views_count_ = other.views_count_.load();
+      tensors_ = std::move(other.tensors_);
+      for (auto &t : tensors_) {
+        if (auto *del = std::get_deleter<ViewRefDeleter>(t)) del->ref = &views_count_;
+      }
+
+      other.tl_->Reset();
+      other.views_count_ = 0;
       tensors_.clear();
-      views_count_ = 0;
     }
-    if (tv->views_count_) {
-      tv->tensors_.clear();
-      tv->views_count_ = 0;
-    }
-    std::swap(tensors_, tv->tensors_);
-    UpdateViews();
-    tv->UpdateViews();
+    return *this;
   }
 
   void UpdateViews() {
@@ -429,6 +446,11 @@ class TensorVector {
     }
   }
 
+  struct ViewRefDeleter {
+    void operator()(void*) { --*ref; }
+    std::atomic<int> *ref;
+  };
+
   void update_view(int idx) {
     if (!tensors_[idx]) {
       tensors_[idx] = create_tensor();
@@ -441,7 +463,7 @@ class TensorVector {
     // tensors_[i]->ShareData(tl_.get(), static_cast<int>(idx));
     if (tensors_[idx]->raw_data() != ptr || tensors_[idx]->shape() != shape) {
       tensors_[idx]->ShareData(
-          std::shared_ptr<void>(ptr, [&views_count = views_count_](void *) { views_count--; }),
+          std::shared_ptr<void>(ptr, ViewRefDeleter{&views_count_}),
           volume(tl_->tensor_shape(idx)) * tl_->type().size(), shape);
     }
     tensors_[idx]->SetMeta(tl_->GetMeta(idx));
@@ -460,6 +482,10 @@ class TensorVector {
   // with different template types
   template <typename InBackend>
   friend class TensorVector;
+
+  // So we can access data_ of the tensor directly
+  template <typename InBackend>
+  friend class Tensor;
 };
 
 }  // namespace dali
