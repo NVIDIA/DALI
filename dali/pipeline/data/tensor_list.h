@@ -103,31 +103,26 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * changing the underlying data type if needed.
    */
   template <typename SrcBackend>
-  DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream) {
+  DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream,
+                              bool use_copy_kernel = false) {
     if (IsValidType(other.type())) {
       this->set_type(other.type());
     }
     this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
     ResizeLike(other);
-    type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
-      other.raw_data(), this->size(), stream);
-  }
 
-  template <typename SrcBackend>
-  DLL_PUBLIC inline void CopyWithKernel(const TensorList<SrcBackend> &other, cudaStream_t stream) {
-    if (IsValidType(other.type())) {
-      this->set_type(other.type());
+    if (use_copy_kernel && (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned())) {
+      LaunchCopyKernel(this->raw_mutable_data(), other.raw_data(), this->size() * type_.size(), stream);
+    } else {
+      type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
+        other.raw_data(), this->size(), stream);
     }
-    this->meta_ = other.meta_;
-    this->SetLayout(other.GetLayout());
-    ResizeLike(other);
-    LaunchCopyKernel(this->raw_mutable_data(), other.raw_data(), this->size() * type_.size(), stream);
   }
 
   template <typename SrcBackend>
-  DLL_PUBLIC inline void Copy(const TensorVector<SrcBackend> &other,
-                              cudaStream_t stream) {
+  DLL_PUBLIC inline void Copy(const TensorVector<SrcBackend> &other, cudaStream_t stream,
+                              bool use_copy_kernel = false) {
     auto type = other[0].type();
     auto layout = other[0].GetLayout();
 
@@ -149,54 +144,29 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     }
     this->SetLayout(layout);
 
-    for (size_t i = 0; i < other.size(); ++i) {
-      type.template Copy<SrcBackend, Backend>(
-          raw_mutable_tensor(i),
-          other[i].raw_data(),
-          other[i].size(), stream);
-      this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
-      this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
+    if (use_copy_kernel && (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned())) {
+      if (!scatter_gather_) {
+        constexpr int kBlockSize = 1 << 19;  // 512kB per block
+        scatter_gather_.reset(new kernels::ScatterGatherGPU(kBlockSize, other.size()));
+      }
+      auto type_sz = type.size();
+      for (size_t i = 0; i < other.size(); ++i) {
+        scatter_gather_->AddCopy(raw_mutable_tensor(i), other[i].raw_data(),
+                                 other[i].size() * type.size());
+        this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
+        this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
+      }
+      scatter_gather_->Run(stream);
+    } else {
+      for (size_t i = 0; i < other.size(); ++i) {
+        type.template Copy<SrcBackend, Backend>(
+            raw_mutable_tensor(i),
+            other[i].raw_data(),
+            other[i].size(), stream);
+        this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
+        this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
+      }
     }
-  }
-
- private:
-  std::unique_ptr<kernels::ScatterGatherGPU> scatter_gather_;
- public:
-  template <typename SrcBackend>
-  DLL_PUBLIC inline void CopyWithKernel(const TensorVector<SrcBackend> &other,
-                                        cudaStream_t stream) {
-    auto type = other[0].type();
-    auto layout = other[0].GetLayout();
-
-    int dim = other[0].shape().sample_dim();
-    TensorListShape<> new_shape(other.size(), dim);
-    for (size_t i = 0; i < other.size(); ++i) {
-      DALI_ENFORCE(other[i].shape().sample_dim() == dim,
-         "TensorList can only have uniform dimensions across all samples, mismatch at index "
-         + std::to_string(i) + " expected Tensor with dim = " + to_string(dim)
-         + " found Tensor with dim = " + to_string(other[i].shape().sample_dim()));
-      assert(type == other[i].type());
-      assert(layout == other[i].GetLayout());
-      new_shape.set_tensor_shape(i, other[i].shape());
-    }
-
-    this->Resize(new_shape);
-    if (IsValidType(type)) {
-      this->set_type(type);
-    }
-    this->SetLayout(layout);
-
-    if (!scatter_gather_) {
-      constexpr int kBlockSize = 1 << 19;  // 512kB per block
-      scatter_gather_.reset(new kernels::ScatterGatherGPU(kBlockSize, other.size()));
-    }
-    auto type_sz = type.size();
-    for (size_t i = 0; i < other.size(); ++i) {
-      scatter_gather_->AddCopy(raw_mutable_tensor(i), other[i].raw_data(), other[i].size() * type.size());
-      this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
-      this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
-    }
-    scatter_gather_->Run(stream);
   }
 
   using Buffer<Backend>::reserve;
@@ -665,6 +635,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   // Tensor that shares the data with this TensorList (valid only
   // if IsDenseTensor returns true)
   std::list<Tensor<Backend> > tensor_views_;
+
+  std::unique_ptr<kernels::ScatterGatherGPU> scatter_gather_;
 
   USE_BUFFER_MEMBERS();
 };
