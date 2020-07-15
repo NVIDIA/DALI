@@ -110,7 +110,8 @@ class ExternalSource : public Operator<Backend> {
     Operator<Backend>(spec),
     blocking_(spec.GetArgument<bool>("blocking")),
     no_copy_(spec.GetArgument<bool>("no_copy")),
-    sync_worker_(spec.GetArgument<int>("device_id"), false) {
+    device_id_(spec.GetArgument<int>("device_id")),
+    sync_worker_(device_id_, false) {
     output_name_ = spec.Output(0);
     sync_worker_.WaitForInit();
   }
@@ -136,6 +137,7 @@ class ExternalSource : public Operator<Backend> {
   template<typename SrcBackend>
   inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0,
                             bool sync = false) {
+    DeviceGuard g(device_id_);
     SetDataSourceHelper(tl, stream, sync);
   }
 
@@ -146,6 +148,7 @@ class ExternalSource : public Operator<Backend> {
   template<typename SrcBackend>
   inline void SetDataSource(const vector<Tensor<SrcBackend>> &vect_of_tensors,
                             cudaStream_t stream = 0, bool sync = false) {
+    DeviceGuard g(device_id_);
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
     for (size_t i = 0; i < tv.size(); ++i) {
       tv[i].ShareData(const_cast<Tensor<SrcBackend>*>(&vect_of_tensors[i]));
@@ -160,6 +163,7 @@ class ExternalSource : public Operator<Backend> {
   template<typename SrcBackend>
   inline void SetDataSource(const TensorVector<SrcBackend> &tv, cudaStream_t stream = 0,
                             bool sync = false) {
+    DeviceGuard g(device_id_);
     SetDataSourceHelper(tv, stream, sync);
   }
 
@@ -382,6 +386,7 @@ class ExternalSource : public Operator<Backend> {
   std::condition_variable cv_;
   bool blocking_ = true;
   bool no_copy_ = false;
+  int device_id_;
 
   /*
    * now it only indicates that there is data in the ExternalSource, in the future
