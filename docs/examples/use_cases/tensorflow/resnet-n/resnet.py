@@ -15,7 +15,6 @@
 # limitations under the License.
 # ==============================================================================
 
-from __future__ import print_function
 from builtins import range
 import nvutils
 import tensorflow as tf

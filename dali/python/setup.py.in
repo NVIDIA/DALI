@@ -40,8 +40,5 @@ setup(name='nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
               'rec2idx = rec2idx:main',
               ],
           },
-      install_requires = [
-          'future',
-          ],
      )
 
