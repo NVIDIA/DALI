@@ -540,6 +540,10 @@ class Tensor : public Buffer<Backend> {
   TensorShape<> shape_ = { 0 };
   DALIMeta meta_;
   USE_BUFFER_MEMBERS();
+
+  // So TensorVector can access data_ of the tensor directly
+  template <typename InBackend>
+  friend class TensorVector;
 };
 
 }  // namespace dali
