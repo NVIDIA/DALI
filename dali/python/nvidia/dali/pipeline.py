@@ -478,7 +478,7 @@ Parameters
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def feed_input(self, data_node, data, layout="", cuda_stream = None):
+    def feed_input(self, data_node, data, layout="", cuda_stream = None, use_copy_kernel = False):
         """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
         In the case of the GPU input, the data must be modified on the same stream as the one
         used by feed_input. See ``cuda_stream`` parameter for details.
@@ -519,6 +519,10 @@ Parameters
             If internal stream is used, the call to ``feed_input`` will block until the copy to
             internal buffer is complete, since there's no way to synchronize with this stream to
             prevent overwriting the array with new data in another stream.
+
+        use_copy_kernel : optional, `bool`
+            If set to True, DALI will use a CUDA kernel to feed the data (only applicable when copying
+            data to/from GPU memory) instead of cudaMemcpyAsync (default).
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -567,7 +571,7 @@ Parameters
                 inputs.append(inp)
             assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
                    "Mixed input types are not support, all need to reside on the CPU or GPU"
-            self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream))
+            self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream), use_copy_kernel)
         else:
             info = CheckDLPackCapsule(data)
             if not info[0]:

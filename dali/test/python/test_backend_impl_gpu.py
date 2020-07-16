@@ -21,17 +21,18 @@ import cupy as cp
 from test_utils import py_buffer_from_address
 
 class ExternalSourcePipe(Pipeline):
-  def __init__(self, batch_size, data):
+  def __init__(self, batch_size, data, use_copy_kernel = False):
       super(ExternalSourcePipe, self).__init__(batch_size, 1, 0)
       self.output = ops.ExternalSource(device="gpu")
       self.data = data
+      self.use_copy_kernel = use_copy_kernel
 
   def define_graph(self):
       self.out = self.output()
       return self.out
 
   def iter_setup(self):
-      self.feed_input(self.out, self.data)
+      self.feed_input(self.out, self.data, use_copy_kernel=self.use_copy_kernel)
 
 def test_tensorlist_getitem_gpu():
     arr = np.random.rand(3, 5, 6)
@@ -92,6 +93,21 @@ def test_cuda_array_interface_tensor_list_gpu_create():
     pipe.build()
     tensor_list = pipe.run()[0]
     assert(cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor())))
+
+def test_cuda_array_interface_tensor_gpu_create_copy_kernel():
+    arr = np.random.rand(3, 5, 6)
+    pipe = ExternalSourcePipe(arr.shape[0], arr, use_copy_kernel=True)
+    pipe.build()
+    tensor_list = pipe.run()[0]
+    assert(cp.allclose(arr[0], cp.asanyarray(tensor_list[0])))
+
+def test_cuda_array_interface_tensor_list_gpu_create_copy_kernel():
+    arr = np.random.rand(3, 5, 6)
+    pipe = ExternalSourcePipe(arr.shape[0], arr, use_copy_kernel=True)
+    pipe.build()
+    tensor_list = pipe.run()[0]
+    assert(cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor())))
+
 
 def test_cuda_array_interface_tensor_gpu_direct_creation():
     arr = cp.random.rand(3, 5, 6)

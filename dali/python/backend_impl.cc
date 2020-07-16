@@ -1302,17 +1302,18 @@ PYBIND11_MODULE(backend_impl, m) {
         "cuda_stream"_a = py::none())
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<GPUBackend> &tl,
-           py::object cuda_stream) {
+           py::object cuda_stream, bool use_copy_kernel) {
            cudaStream_t stream = cuda_stream.is_none()
                                  ? UserStream::Get()->GetStream(tl)
                                  : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          p->SetExternalInput(name, tl, stream, cuda_stream.is_none());
+          p->SetExternalInput(name, tl, stream, cuda_stream.is_none(), use_copy_kernel);
         },
         "name"_a,
         "list"_a,
-        "cuda_stream"_a = py::none())
+        "cuda_stream"_a = py::none(),
+        "use_copy_kernel"_a = false)
     .def("SetExternalTensorInput",
-        [](Pipeline *p, const string &name, py::list list, py::object cuda_stream) {
+        [](Pipeline *p, const string &name, py::list list, py::object cuda_stream, bool use_copy_kernel) {
           // Note: This is a hack to get around weird casting
           // issues w/ pybind and a non-copyable type (dali::Tensor).
           // We cannot use pybind::cast<Tensor<CPUBackend>>
@@ -1333,12 +1334,13 @@ PYBIND11_MODULE(backend_impl, m) {
             cudaStream_t stream = cuda_stream.is_none()
                                 ? UserStream::Get()->GetStream(list[0].cast<Tensor<GPUBackend>&>())
                                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-            FeedPipeline<GPUBackend>(p, name, list, stream, cuda_stream.is_none());
+            FeedPipeline<GPUBackend>(p, name, list, stream, cuda_stream.is_none(), use_copy_kernel);
           }
         },
         "name"_a,
         "list"_a,
-        "cuda_stream"_a = py::none())
+        "cuda_stream"_a = py::none(),
+        "use_copy_kernel"_a = false)
     .def("SerializeToProtobuf",
         [](Pipeline *p) -> py::bytes {
           string s = p->SerializeToProtobuf();
