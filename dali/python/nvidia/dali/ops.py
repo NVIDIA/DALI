@@ -13,7 +13,6 @@
 # limitations under the License.
 
 #pylint: disable=no-member
-from __future__ import division
 import sys
 import copy
 from itertools import count
@@ -29,7 +28,6 @@ from nvidia.dali.types import \
         Constant as _Constant
 from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali import fn as _functional
-from future.utils import with_metaclass
 import nvidia.dali.python_function_plugin
 from nvidia.dali.data_node import DataNode as _DataNode
 
@@ -354,36 +352,8 @@ class _DaliOperatorMeta(type):
     def __doc__(self):
         return _docstring_generator(self)
 
-    def __new__(mcs, name, bases, attrs, **kwargs):
-        """
-            This is just a workaround for Python2.
-            In Python3 it just works, when we do Operator.__call__.__doc__ = ...
-            after creating it in python_op_factory().
-
-            Here we intercept the creation of class by overloading the __new__ of
-            the metaclass, and access the `__call__` atribute in `attrs`.
-            We must pass the operator name using a workaround through attributes as there seems
-            to be no way of passing kwargs in Python2 using six.with_metaclass.
-            TODO(klecki): remove when Python2 is dropped
-        """
-        # Get the operator name and remove it from attributes
-        # In some cases we use the direct name
-        try:
-            actual_operator_name = attrs['_name']
-            del attrs['_name']
-        except KeyError:
-            actual_operator_name = name
-        # Set the docstring for __call__, if it's present
-        try:
-            if attrs['__call__'].__doc__ is None:
-                attrs['__call__'].__doc__ = _docstring_generator_call(actual_operator_name)
-        except KeyError:
-            pass
-        op_instance = super(_DaliOperatorMeta, mcs).__new__(mcs, name, bases, attrs)
-        return op_instance
-
 def python_op_factory(name, op_device = "cpu"):
-    class Operator(with_metaclass(_DaliOperatorMeta, object)):
+    class Operator(metaclass=_DaliOperatorMeta):
         def __init__(self, **kwargs):
             self._spec = _b.OpSpec(type(self).__name__)
             self._schema = _b.GetSchema(type(self).__name__)
@@ -440,9 +410,6 @@ def python_op_factory(name, op_device = "cpu"):
                         continue
                 converted_value = _type_convert_value(dtype, value)
                 self._spec.AddArg(key, converted_value)
-
-        # TODO(klecki): remove when Python2 is dropped
-        _name = name
 
         @property
         def spec(self):
@@ -565,8 +532,7 @@ def python_op_factory(name, op_device = "cpu"):
     if _b.GetSchema(Operator.__name__).IsInternal():
         Operator.__module__ = Operator.__module__ + ".internal"
 
-    # TODO(klecki): use this instead of __new__ in metaclass when Python2 is dropped
-    # Operator.__call__.__doc__ = _docstring_generator_call(name)
+    Operator.__call__.__doc__ = _docstring_generator_call(name)
     return Operator
 
 def _wrap_op(op_class):
@@ -591,7 +557,7 @@ def Reload():
     _load_ops()
 
 # custom wrappers around ops
-class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
+class TFRecordReader(metaclass=_DaliOperatorMeta):
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({'TFRecordReader'})
 
@@ -660,8 +626,9 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         op_instance.spec.AddArg("features", features)
         return outputs
 
+TFRecordReader.__call__.__doc__ = _docstring_generator_call("TFRecordReader")
 
-class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
+class PythonFunctionBase(metaclass=_DaliOperatorMeta):
     def __init__(self, impl_name, function, num_outputs=1, device='cpu', **kwargs):
         self._schema = _b.GetSchema(impl_name)
         self._spec = _b.OpSpec(impl_name)
@@ -736,6 +703,7 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
             outputs.append(t)
         return outputs[0] if len(outputs) == 1 else outputs
 
+PythonFunctionBase.__call__.__doc__ = _docstring_generator_call("PythonFunctionBase")
 
 def _dlpack_to_array(dlpack):
     return nvidia.dali.python_function_plugin.DLTensorToArray(dlpack)
@@ -1001,3 +969,4 @@ from nvidia.dali.external_source import ExternalSource
 ExternalSource.__module__ = __name__
 
 _load_ops()
+

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from __future__ import print_function, division
 import argparse
 import sys
 # use packaging from PIP as it is always present on system we are testing on

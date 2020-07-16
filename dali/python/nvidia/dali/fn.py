@@ -13,7 +13,6 @@
 # limitations under the License.
 
 #pylint: disable=no-member
-from __future__ import division
 import sys
 from nvidia.dali.data_node import DataNode as _DataNode
 

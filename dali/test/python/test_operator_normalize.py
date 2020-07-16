@@ -1,5 +1,3 @@
-from __future__ import print_function
-from __future__ import division
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import backend
 import nvidia.dali.ops as ops
