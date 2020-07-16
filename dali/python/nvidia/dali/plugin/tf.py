@@ -188,7 +188,6 @@ if dataset_compatible_tensorflow():
 
       super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
 
-      self._options_attr = dataset_options()
 
     def _check_output_dtypes(self, output_dtypes):
       """Check whether output_dtypes is instance of tf.DType or tuple of tf.DType
@@ -241,13 +240,19 @@ if dataset_compatible_tensorflow():
 
 
   if _get_tf_version() < LooseVersion('2.0'):
-    class DALIDataset(dataset_ops.DatasetV1Adapter):
+    class _DALIDatasetImpl(dataset_ops.DatasetV1Adapter):
       @functools.wraps(_DALIDatasetV2.__init__)
       def __init__(self, pipeline, **kwargs):
-        wrapped = _DALIDatasetV2(pipeline, **kwargs)
-        super(DALIDataset, self).__init__(wrapped)
+        self._wrapped = _DALIDatasetV2(pipeline, **kwargs)
+        super(_DALIDatasetImpl, self).__init__(self._wrapped)
   else:
-    DALIDataset = _DALIDatasetV2
+    _DALIDatasetImpl = _DALIDatasetV2
+
+  class DALIDataset(dataset_ops._OptionsDataset):
+    @functools.wraps(_DALIDatasetV2.__init__)
+    def __init__(self, pipeline, **kwargs):
+      dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
+      super(DALIDataset, self).__init__(dataset_impl, dataset_options())
 
 else:
   class DALIDataset:

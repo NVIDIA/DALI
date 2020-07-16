@@ -59,7 +59,7 @@ class TestPipeline(Pipeline):
             interp_type = types.INTERP_LINEAR)
         self.cmn = ops.CropMirrorNormalize(
             device = device,
-            output_dtype = types.FLOAT,
+            dtype = types.FLOAT,
             mean = [128., 128., 128.],
             std = [1., 1., 1.])
         self.cast = ops.Cast(
@@ -262,4 +262,5 @@ def test_python_operator_error():
             output_shapes=shapes,
             output_dtypes=dtypes,
             num_threads=1,
-            device_id=0)
+            device_id=0)     
+

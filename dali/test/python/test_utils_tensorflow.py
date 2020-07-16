@@ -37,3 +37,4 @@ def available_gpus():
     for device_id in range(num_available_gpus()):
         devices.append('/gpu:{0}'.format(device_id))
     return devices
+
