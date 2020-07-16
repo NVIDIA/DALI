@@ -47,15 +47,10 @@ bool NormalDistributionCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc.resize(detail::kNumOutputs);
   output_desc[0].shape = GetOutputShape(ws);
   TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
-          {
-            TypeInfo type;
-            type.SetType<DType>(dtype_);
-            output_desc[0].type = type;
-          }
+          output_desc[0].type = TypeTable::GetTypeInfoFromStatic<DType>();
   ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
   return true;
 }
-
 
 void NormalDistributionCpu::AssignSingleValueToOutput(workspace_t<CPUBackend> &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);

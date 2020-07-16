@@ -56,14 +56,17 @@ void Randomizer<GPUBackend>::Cleanup() {
 }
 
 template <>
-float Randomizer<GPUBackend>::normalf(int idx) {
-  return curand_normal(&states_[idx]);
+__device__
+float Randomizer<GPUBackend>::normal(int idx) {
+  return curand_normal(reinterpret_cast<curandState*>(states_) + idx);
 }
 
-template <>
-double Randomizer<GPUBackend>::normald(int idx) {
-  return curand_normal_double(&states_[idx]);
-}
+// template <>
+// template <>
+// __device__
+// double Randomizer<GPUBackend>::normal<double>(int idx) {
+//   return curand_normal_double(reinterpret_cast<curandState*>(states_) + idx);
+// }
 
 }  // namespace dali
 
