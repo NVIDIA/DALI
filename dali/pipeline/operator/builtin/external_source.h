@@ -340,7 +340,8 @@ class ExternalSource : public Operator<Backend> {
     if (std::is_same<SrcBackend, GPUBackend>::value || batch.is_pinned()) {
       cudaEventRecord(*copy_to_storage_event.front(), stream);
     }
-    if (std::is_same<SrcBackend, CPUBackend>::value) {
+    // if copying from non pinned CPU it happens on the stream 0
+    if (std::is_same<SrcBackend, CPUBackend>::value && !batch.is_pinned()) {
       cudaEventRecord(*copy_to_storage_event.front(), 0);
     }
     if (sync) {

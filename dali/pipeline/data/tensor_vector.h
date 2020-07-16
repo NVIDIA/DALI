@@ -73,7 +73,9 @@ class TensorVector {
     views_count_ = other.views_count_.load();
     tensors_ = std::move(other.tensors_);
     for (auto &t : tensors_) {
-      if (auto *del = std::get_deleter<ViewRefDeleter>(t->data_)) del->ref = &views_count_;
+      if (t) {
+        if (auto *del = std::get_deleter<ViewRefDeleter>(t->data_)) del->ref = &views_count_;
+      }
     }
 
     other.views_count_ = 0;
@@ -399,7 +401,9 @@ class TensorVector {
       views_count_ = other.views_count_.load();
       tensors_ = std::move(other.tensors_);
       for (auto &t : tensors_) {
-        if (auto *del = std::get_deleter<ViewRefDeleter>(t->data_)) del->ref = &views_count_;
+        if (t) {
+          if (auto *del = std::get_deleter<ViewRefDeleter>(t->data_)) del->ref = &views_count_;
+        }
       }
 
       other.views_count_ = 0;
