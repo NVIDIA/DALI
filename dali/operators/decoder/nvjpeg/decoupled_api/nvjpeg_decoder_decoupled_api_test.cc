@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <nvjpeg.h>  // for NVJPEG_VER_MAJOR define
 #include <limits>
 
 #include "dali/test/dali_test_decoder.h"
@@ -206,8 +207,20 @@ class HwDecoderUtilizationTest : public ::testing::Test {
 
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
-      if (nvml::HasCuda11NvmlFunctions() && nvml::HasHwDecoder()) {
-          FAIL() << "HW Decoder exists in the system and failed to open";
+      if (nvml::HasCuda11NvmlFunctions()) {
+          unsigned int device_count;
+          DALI_CALL(nvml::wrapNvmlDeviceGetCount_v2(&device_count));
+          for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
+            auto info = nvml::GetDeviceInfo(device_idx);
+            std::cerr << "Device " << device_idx
+                      << " brand " << info.type
+                      << " cc_M " << info.cap_major
+                      << " cc_m " << info.cap_minor
+                      << std::endl;
+          }
+          if (nvml::HasHwDecoder()) {
+            FAIL() << "HW Decoder exists in the system and failed to open";
+          }
       }
       GTEST_SKIP();
     }
@@ -237,3 +250,4 @@ TEST_F(HwDecoderUtilizationTest, UtilizationTest) {
 #endif
 
 }  // namespace dali
+
