@@ -132,7 +132,7 @@ def dali_pipe_multiple_out(shapes, types, batch):
             data, label = self.reader()
             image = self.decoder(data)
             resized = self.resize(image)
-            return resized, label
+            return resized, label.gpu()
 
     pipe = TestPipeline(batch_size=batch, seed=0)
     ds = dali_tf.DALIDataset(pipe, batch_size=batch, output_dtypes=types, output_shapes=shapes)
@@ -170,7 +170,7 @@ def dali_pipe_artificial_shape(shapes, tf_type, dali_type, batch):
             self.constant = ops.Constant(dtype=dali_type, idata=[1,1], shape=[1, 2, 1])
 
         def define_graph(self):
-            return self.constant()
+            return self.constant().gpu()
 
     pipe = TestPipeline(batch_size=batch, seed=0)
     ds = dali_tf.DALIDataset(pipe, batch_size=batch, output_dtypes=tf_type, output_shapes=shapes)
@@ -212,7 +212,7 @@ def dali_pipe_types(tf_type, dali_type):
             self.constant = ops.Constant(dtype=dali_type, idata=[1,1], shape=[2])
 
         def define_graph(self):
-            return self.constant()
+            return self.constant().gpu()
 
     pipe = TestPipeline(batch_size=1, seed=0)
     ds = dali_tf.DALIDataset(pipe, batch_size=1, output_dtypes=tf_type)
@@ -253,7 +253,7 @@ def dali_pipe_deprecated(dataset_kwargs, shapes, tf_type, dali_type, batch, expe
             self.constant = ops.Constant(dtype=dali_type, idata=[1,1], shape=[2])
 
         def define_graph(self):
-            return self.constant()
+            return self.constant().gpu()
 
     pipe = TestPipeline(batch_size=batch, seed=0)
     with warnings.catch_warnings(record=True) as w:
