@@ -34,36 +34,106 @@ const auto &_type_info_##Id = TypeTable::GetTypeID<Type>()
 
 namespace dali {
 
+namespace detail {
+
+class ScatterGatherPool {
+ public:
+  static void Copy(void* dst, const void** srcs, const Index* sizes, int n, int element_size, cudaStream_t stream);
+
+ private:
+  static ScatterGatherPool& instance();
+
+  // ScatterGatherPool should only be referenced through its static members
+  ScatterGatherPool() {}
+
+  spinlock lock_;
+  std::unordered_map<cudaStream_t, std::unique_ptr<kernels::ScatterGatherGPU>>
+      scatter_gather_instances_;
+};
+
+ScatterGatherPool& ScatterGatherPool::instance() {
+  static ScatterGatherPool singleton;
+  return singleton;
+}
+
+void ScatterGatherPool::Copy(void* dst, const void** srcs, const Index* sizes, int n, int element_size, cudaStream_t stream) {
+  auto &inst = instance();
+  std::lock_guard<spinlock> guard(inst.lock_);
+  auto& scatter_gather = inst.scatter_gather_instances_[stream];
+  constexpr int kBlockSize = 1 << 19;  // 512kB per block
+  if (!scatter_gather)
+    scatter_gather.reset(new kernels::ScatterGatherGPU(kBlockSize, n));
+
+  ptrdiff_t offset = 0;
+  for (int i = 0; i < n; i++) {
+    auto nbytes = sizes[i] * element_size;
+    scatter_gather->AddCopy(reinterpret_cast<uint8_t*>(dst) + offset, srcs[i], nbytes);
+    offset += nbytes;
+  }
+  scatter_gather->Run(stream);
+}
+
+}  // namespace detail
+
 TypeTable &TypeTable::instance() {
   static TypeTable singleton;
   return singleton;
 }
 
-template <>
-void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst,
-    const void *src, Index n, cudaStream_t /* unused */) const {
-  // Call our copy function
-  copier_(dst, src, n);
+template <typename DstBackend, typename SrcBackend>
+void TypeInfo::Copy(void *dst,
+    const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const {
+  constexpr bool is_src_to_src = std::is_same<DstBackend, CPUBackend>::value && 
+                                 std::is_same<SrcBackend, CPUBackend>::value;
+  if (is_src_to_src) {
+    // Call our copy function
+    copier_(dst, src, n);
+  } else if (use_copy_kernel) {
+    detail::LaunchCopyKernel(dst, src, n * size(), stream);
+  } else {
+    MemCopy(dst, src, n*size(), stream);    
+  }
 }
 
-// For any GPU related copy, we do a plain memcpy
-template <>
-void TypeInfo::Copy<CPUBackend, GPUBackend>(void *dst,
-    const void *src, Index n, cudaStream_t stream) const {
-  MemCopy(dst, src, n*size(), stream);
+template void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst,
+    const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const;
+
+template void TypeInfo::Copy<CPUBackend, GPUBackend>(void *dst,
+    const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const;
+
+template void TypeInfo::Copy<GPUBackend, CPUBackend>(void *dst,
+    const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const;
+
+template void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
+    const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const;
+
+template <typename DstBackend, typename SrcBackend>
+void TypeInfo::Copy(void *dst, const void** srcs, const Index* sizes, int n,
+                    cudaStream_t stream, bool use_copy_kernel) const {
+
+  constexpr bool is_src_to_src = std::is_same<DstBackend, CPUBackend>::value && 
+                                 std::is_same<SrcBackend, CPUBackend>::value;
+  if (!is_src_to_src && use_copy_kernel) {
+    detail::ScatterGatherPool::Copy(dst, srcs, sizes, n, size(), stream);
+  } else {
+    uint8_t *sample_dst = reinterpret_cast<uint8_t*>(dst);
+    for (int i = 0; i < n; i++) {
+      Copy<DstBackend, SrcBackend>(sample_dst, srcs[i], sizes[i], stream);
+      sample_dst += sizes[i] * size();
+    }
+  }
 }
 
-template <>
-void TypeInfo::Copy<GPUBackend, CPUBackend>(void *dst,
-    const void *src, Index n, cudaStream_t stream) const {
-  MemCopy(dst, src, n*size(), stream);
-}
+template void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst,
+    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
 
-template <>
-void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
-    const void *src, Index n, cudaStream_t stream) const {
-  MemCopy(dst, src, n*size(), stream);
-}
+template void TypeInfo::Copy<CPUBackend, GPUBackend>(void *dst,
+    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
 
+template void TypeInfo::Copy<GPUBackend, CPUBackend>(void *dst,
+    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+
+template void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
+    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
 
 }  // namespace dali

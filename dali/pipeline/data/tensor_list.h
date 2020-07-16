@@ -22,7 +22,6 @@
 #include <list>
 #include <memory>
 #include <utility>
-#include "dali/kernels/common/scatter_gather.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
@@ -35,8 +34,6 @@ class Tensor;
 
 template <typename Backend>
 class TensorVector;
-
-DLL_PUBLIC void LaunchCopyKernel(void *dst, const void *src, int64_t n, cudaStream_t stream);
 
 /**
  * @brief Stores a number of Tensors in a contiguous buffer.
@@ -112,12 +109,10 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     this->SetLayout(other.GetLayout());
     ResizeLike(other);
 
-    if (use_copy_kernel && (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned())) {
-      LaunchCopyKernel(this->raw_mutable_data(), other.raw_data(), this->size() * type_.size(), stream);
-    } else {
-      type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
-        other.raw_data(), this->size(), stream);
-    }
+    use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) ||
+                       (std::is_same<Backend, GPUBackend>::value || pinned_);
+    type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(), other.raw_data(),
+                                             this->size(), stream, use_copy_kernel);
   }
 
   template <typename SrcBackend>
@@ -144,29 +139,20 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     }
     this->SetLayout(layout);
 
-    if (use_copy_kernel && (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned())) {
-      if (!scatter_gather_) {
-        constexpr int kBlockSize = 1 << 19;  // 512kB per block
-        scatter_gather_.reset(new kernels::ScatterGatherGPU(kBlockSize, other.size()));
-      }
-      auto type_sz = type.size();
-      for (size_t i = 0; i < other.size(); ++i) {
-        scatter_gather_->AddCopy(raw_mutable_tensor(i), other[i].raw_data(),
-                                 other[i].size() * type.size());
-        this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
-        this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
-      }
-      scatter_gather_->Run(stream);
-    } else {
-      for (size_t i = 0; i < other.size(); ++i) {
-        type.template Copy<SrcBackend, Backend>(
-            raw_mutable_tensor(i),
-            other[i].raw_data(),
-            other[i].size(), stream);
-        this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
-        this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
-      }
+    auto nsamples = other.size();
+    std::vector<const void*> srcs(nsamples, nullptr);
+    std::vector<Index> sizes(nsamples, 0);
+    for (size_t i = 0; i < nsamples; i++) {
+      srcs[i] = raw_mutable_tensor(i);
+      sizes[i] = other[i].size();
+      this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
+      this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
     }
+
+    use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) ||
+                       (std::is_same<Backend, GPUBackend>::value || pinned_);
+    type.template Copy<SrcBackend, Backend>(this->raw_mutable_data(), srcs.data(), sizes.data(),
+                                            nsamples, stream, use_copy_kernel);
   }
 
   using Buffer<Backend>::reserve;
@@ -635,8 +621,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   // Tensor that shares the data with this TensorList (valid only
   // if IsDenseTensor returns true)
   std::list<Tensor<Backend> > tensor_views_;
-
-  std::unique_ptr<kernels::ScatterGatherGPU> scatter_gather_;
 
   USE_BUFFER_MEMBERS();
 };

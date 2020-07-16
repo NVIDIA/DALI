@@ -15,18 +15,17 @@
 #ifndef DALI_PIPELINE_DATA_TYPES_H_
 #define DALI_PIPELINE_DATA_TYPES_H_
 
-
 #include <cstdint>
 #include <cstring>
-#include <string>
-#include <vector>
-
 #include <functional>
+#include <mutex>
+#include <string>
+#include <type_traits>
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
-#include <type_traits>
-
+#include <vector>
+#include "dali/kernels/common/scatter_gather.h"
 #include "dali/core/common.h"
 #include "dali/core/spinlock.h"
 #include "dali/core/cuda_utils.h"
@@ -54,6 +53,8 @@ namespace dali {
 class TensorLayout;
 
 namespace detail {
+
+void LaunchCopyKernel(void *dst, const void *src, int64_t nbytes, cudaStream_t stream);
 
 typedef void (*Copier)(void *, const void*, Index);
 
@@ -219,8 +220,34 @@ class DLL_PUBLIC TypeInfo {
   template <typename T>
   DLL_PUBLIC inline void SetType(DALIDataType dtype = DALI_NO_TYPE);
 
+  /**
+   * @brief Copies from SrcBackend memory to DstBackend memory
+   * @param dst destination pointer
+   * @param src source pointer
+   * @param n number of elements to copy
+   * @param stream CUDA stream. Only used in copies to/from GPU backend or from/to Host
+   *        pinned memory when use_copy_kernel is true
+   * @param use_copy_kernel If true, a copy kernel will be used instead of cudaMemcpyAsync when applicable 
+   *        (only relevant for device and host pinned memory)
+   */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void *dst, const void *src, Index n, cudaStream_t stream) const;
+  DLL_PUBLIC void Copy(void *dst, const void *src, Index n, cudaStream_t stream,
+                       bool use_copy_kernel = false) const;
+
+  /**
+   * @brief Copies from SrcBackend scattered locations to a contiguous DstBackend buffer
+   * @param dst destination pointer
+   * @param srcs source pointers
+   * @param sizes number of elements for each of the pointers specified in srcs
+   * @param n number of copies to process
+   * @param stream CUDA stream. Only used in copies to/from GPU backend or from/to Host
+   *        pinned memory when use_copy_kernel is true
+   * @param use_copy_kernel If true, a copy kernel will be used instead of cudaMemcpyAsync when applicable 
+   *        (only relevant for device and host pinned memory)
+   */
+  template <typename DstBackend, typename SrcBackend>
+  DLL_PUBLIC void Copy(void *dst, const void **srcs, const Index *sizes, int n, cudaStream_t stream,
+                       bool use_copy_kernel = false) const;
 
   DLL_PUBLIC inline DALIDataType id() const {
     return id_;
@@ -245,6 +272,7 @@ class DLL_PUBLIC TypeInfo {
 
  private:
   detail::Copier copier_;
+
 
   DALIDataType id_;
   size_t type_size_;

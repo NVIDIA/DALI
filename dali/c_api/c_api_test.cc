@@ -477,8 +477,12 @@ TYPED_TEST(CApiTest, ExternalSourcePinnedMemoryUseCopyKernel) {
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
   TensorList<CPUBackend> input_cpu;
-  TensorList<TypeParam> input;
   input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+
+  TensorList<TypeParam> input;
+  if (std::is_same<TypeParam, CPUBackend>::value)
+    input.set_pinned(true);
+
   auto pipe_ptr = GetTestPipeline<TypeParam>(false, this->output_device_);
   auto serialized = pipe_ptr->SerializeToProtobuf();
 

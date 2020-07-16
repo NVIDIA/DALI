@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
+namespace detail {
 
 __global__ void CopyKernel(uint8_t *dst, const uint8_t *src, int64_t n) {
   for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x) {
     dst[i] = src[i];
   }
 }
-
+  
 void LaunchCopyKernel(void *dst, const void *src, int64_t nbytes, cudaStream_t stream) {
   size_t block = cuda_min(nbytes, 1024l);
   size_t grid = std::min(32l, div_ceil(nbytes, block));
@@ -29,4 +30,5 @@ void LaunchCopyKernel(void *dst, const void *src, int64_t nbytes, cudaStream_t s
   CUDA_CALL(cudaGetLastError());
 }
 
+}  // namespace detail
 }  // namespace dali
