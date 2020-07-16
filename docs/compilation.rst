@@ -41,7 +41,7 @@ Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If n
 * BUILD_INHOST - ask docker to mount source code instead of copying it. Thank to that consecutive builds are resuing existing object files and are faster for the development. Uses $DALI_BUILD_DIR as a directory for build objects. The default is ``YES``.
 * REBUILD_BUILDERS - if builder docker images need to be rebuild or can be reused from the previous build. The default is ``NO``.
 * DALI_BUILD_DIR - where DALI build should happen. It matters only bit the in-tree build where user may provide different path for every python/CUDA version. The default is ``build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}``.
-* ARCH - architecture that DALI is build for, currently only x86_64 is supported. The default is ``x86_64``.
+* ARCH - architecture that DALI is build for, x86_64 and aarch64 (SBSA - Server Base System Architecture) are supported. The default is ``x86_64``.
 * WHL_PLATFORM_NAME - the name of the Python wheel platform tag. The default is ``manylinux1_x86_64``.
 
 It is worth to mention that build.sh should accept the same set of environment variables as the project CMake.
