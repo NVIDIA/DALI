@@ -25,30 +25,31 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     tensor_vector_elm = tv_data_.PopFront();
     state_.pop_front();
   }
-  if (no_copy_) {
-    TensorVector<CPUBackend> &output = ws.template OutputRef<CPUBackend>(0);
-    output.ShareData(tensor_vector_elm.front().get());
-    // empty tensor_vector_elm
-    tensor_vector_elm.front()->Reset();
-    RecycleBuffer(tensor_vector_elm);
-  } else {
+  auto &output = ws.template OutputRef<CPUBackend>(0);
+  // if the output is pinned and input not it needs to be copied
+  if (output.is_pinned() && !tensor_vector_elm.front()->is_pinned()) {
     auto &thread_pool = ws.GetThreadPool();
     const auto &shapes = tensor_vector_elm.front()->shape();
-    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      thread_pool.AddWork([&ws, data_idx, &tensor_vector_elm] (int tid) {
-        Tensor<CPUBackend> &output = ws.Output<CPUBackend>(0, data_idx);
+    output.Resize(shapes, tensor_vector_elm.front()->type());
+
+    for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+      thread_pool.AddWork([&ws, sample_id, &tensor_vector_elm] (int tid) {
+        Tensor<CPUBackend> &output_tensor = ws.Output<CPUBackend>(0, sample_id);
         // HostWorkspace doesn't have any stream
         cudaStream_t stream = 0;
-        output.Copy((*tensor_vector_elm.front())[data_idx], stream);
-      }, shapes.tensor_size(data_idx));
+        output_tensor.Copy((*tensor_vector_elm.front())[sample_id], stream);
+      }, shapes.tensor_size(sample_id));
     }
     thread_pool.RunAll();
     // as we copy element by element and the output is contiguous we need to set layout
     // for the whole output not each element(view)
     auto &output = ws.template OutputRef<CPUBackend>(0);
     output.SetLayout(tensor_vector_elm.front()->GetLayout());
-    RecycleBuffer(tensor_vector_elm);
+  } else {
+    // swap output with tensor_vector_elm content
+    std::swap(output, *tensor_vector_elm.front());
   }
+  RecycleBuffer(tensor_vector_elm);
 }
 
 DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<CPUBackend>, CPU);
@@ -66,7 +67,7 @@ fail when it is not)code", true)
       R"code(Whether DALI should copy the buffer when feed_input is called
 If True, DALI passes the user memory directly to the Pipeline, instead of copying.
 It is the user's responsibility to keep the buffer alive and unmodified
-until it isconsumed by the pipeline.
+until it is consumed by the pipeline.
 
 The buffer can be modified or freed again after the relevant iteration output has been consumed.
 Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``

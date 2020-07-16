@@ -490,6 +490,7 @@ class Tensor : public Buffer<Backend> {
       num_bytes_ = t.num_bytes_;
       device_ = t.device_;
       meta_ = std::move(t.meta_);
+      pinned_ = t.pinned_;
 
       t.shape_ = TensorShape<>();
       t.backend_ = Backend();
@@ -539,6 +540,10 @@ class Tensor : public Buffer<Backend> {
   TensorShape<> shape_ = { 0 };
   DALIMeta meta_;
   USE_BUFFER_MEMBERS();
+
+  // So TensorVector can access data_ of the tensor directly
+  template <typename InBackend>
+  friend class TensorVector;
 };
 
 }  // namespace dali

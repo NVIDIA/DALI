@@ -53,6 +53,38 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     Resize(TensorListShape<>(batch_size));
   }
 
+  DLL_PUBLIC TensorList<Backend>(const TensorList<Backend>&) = delete;
+  DLL_PUBLIC TensorList<Backend>& operator=(const TensorList<Backend>&) = delete;
+
+  DLL_PUBLIC TensorList<Backend>(TensorList<Backend> &&other) noexcept {
+    // Steal all data and set input to default state
+    data_ = other.data_;
+    shape_ = std::move(other.shape_);
+    backend_ = other.backend_;
+    size_ = other.size_;
+    offsets_ = std::move(other.offsets_);
+    type_ = other.type_;
+    num_bytes_ = other.num_bytes_;
+    device_ = other.device_;
+    tensor_views_ = std::move(other.tensor_views_);
+    shares_data_ = other.shares_data_;
+    pinned_ = other.pinned_;
+    meta_ = std::move(other.meta_);
+    layout_ = std::move(other.layout_);
+
+    other.data_ = nullptr;
+    other.shape_ = {};
+    other.backend_ = Backend();
+    other.size_ = 0;
+    other.offsets_ = {};
+    other.type_ = TypeInfo::Create<NoType>();
+    other.num_bytes_ = 0;
+    other.tensor_views_.clear();
+    other.shares_data_ = false;
+    other.meta_ = {};
+    other.layout_ = {};
+  }
+
   DLL_PUBLIC ~TensorList() = default;
 
   /**
@@ -198,6 +230,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
     // copy metadata
     meta_ = other->meta_;
+    layout_ = other->layout_;
   }
 
   /**
@@ -288,6 +321,38 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     offsets_.clear();
     meta_.clear();
     tensor_views_.clear();
+  }
+
+  DLL_PUBLIC inline TensorList<Backend>& operator=(TensorList<Backend> &&other) noexcept {
+    if (&other != this) {
+      // Steal all data and set input to default state
+      data_ = other.data_;
+      shape_ = std::move(other.shape_);
+      backend_ = other.backend_;
+      size_ = other.size_;
+      offsets_ = std::move(other.offsets_);
+      type_ = other.type_;
+      num_bytes_ = other.num_bytes_;
+      device_ = other.device_;
+      tensor_views_ = std::move(other.tensor_views_);
+      shares_data_ = other.shares_data_;
+      pinned_ = other.pinned_;
+      meta_ = std::move(other.meta_);
+      layout_ = std::move(other.layout_);
+
+      other.data_ = nullptr;
+      other.shape_ = {};
+      other.backend_ = Backend();
+      other.size_ = 0;
+      other.offsets_ = {};
+      other.type_ = TypeInfo::Create<NoType>();
+      other.num_bytes_ = 0;
+      other.tensor_views_.clear();
+      other.shares_data_ = false;
+      other.meta_ = {};
+      other.layout_ = {};
+    }
+    return *this;
   }
 
   /**
@@ -495,8 +560,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   // with different template types
   template <typename InBackend>
   friend class TensorList;
-
-  DISABLE_COPY_MOVE_ASSIGN(TensorList);
 
   inline std::string GetSourceInfo(int idx) const {
     return meta_[idx].GetSourceInfo();

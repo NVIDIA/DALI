@@ -131,24 +131,24 @@ class ExternalSource : public Operator<Backend> {
   }
 
   /**
-   * @brief Sets the data that should be passed out of the op
-   * on the next iteration.
+   * @brief Sets the data that should be passed out of the op on the next iteration.
    */
   template<typename SrcBackend>
   inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0,
                             bool sync = false) {
     DeviceGuard g(device_id_);
+    TimeRange tr("[ExternalSource] SetDataSource", TimeRange::kViolet);
     SetDataSourceHelper(tl, stream, sync);
   }
 
   /**
-   * @brief Sets the data that should be passed out of the op
-   * on the next iteration.
+   * @brief Sets the data that should be passed out of the op on the next iteration.
    */
   template<typename SrcBackend>
   inline void SetDataSource(const vector<Tensor<SrcBackend>> &vect_of_tensors,
                             cudaStream_t stream = 0, bool sync = false) {
     DeviceGuard g(device_id_);
+    TimeRange tr("[ExternalSource] SetDataSource", TimeRange::kViolet);
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
     for (size_t i = 0; i < tv.size(); ++i) {
       tv[i].ShareData(const_cast<Tensor<SrcBackend>*>(&vect_of_tensors[i]));
@@ -157,13 +157,13 @@ class ExternalSource : public Operator<Backend> {
   }
 
   /**
-   * @brief Sets the data that should be passed out of the op
-   * on the next iteration.
+   * @brief Sets the data that should be passed out of the op on the next iteration.
    */
   template<typename SrcBackend>
   inline void SetDataSource(const TensorVector<SrcBackend> &tv, cudaStream_t stream = 0,
                             bool sync = false) {
     DeviceGuard g(device_id_);
+    TimeRange tr("[ExternalSource] SetDataSource", TimeRange::kViolet);
     SetDataSourceHelper(tv, stream, sync);
   }
 
@@ -171,35 +171,31 @@ class ExternalSource : public Operator<Backend> {
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    // for zero copy we don't want any shape inference to avoid any data allocation ahead
-    if (no_copy_) {
-      return false;
+    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    if (blocking_) {
+      cv_.wait(busy_lock, [&data = state_] {return !data.empty(); });
+    } else {
+      if (state_.empty()) {
+        DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
+      }
     }
     TensorListShape<> shape;
     output_desc.resize(1);
-    {
-      std::unique_lock<std::mutex> busy_lock(busy_m_);
-      if (blocking_) {
-        cv_.wait(busy_lock, [&data = state_] {return !data.empty(); });
-      } else {
-        if (state_.empty()) {
-          DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
-        }
-      }
-      if (std::is_same<Backend, GPUBackend>::value) {
-        output_desc[0].shape = tl_data_.PeekFront()->shape();
-        output_desc[0].type = tl_data_.PeekFront()->type();
-      } else {
-        output_desc[0].shape = tv_data_.PeekFront()->shape();
-        output_desc[0].type = tv_data_.PeekFront()->type();
-      }
+    if (std::is_same<Backend, GPUBackend>::value) {
+      output_desc[0].shape = tl_data_.PeekFront()->shape();
+      output_desc[0].type = tl_data_.PeekFront()->type();
+    } else {
+      output_desc[0].shape = tv_data_.PeekFront()->shape();
+      output_desc[0].type = tv_data_.PeekFront()->type();
     }
-    return true;
+    // unconditionally dissabled, still we can provide share but we don't want to allocate anything
+    return false;
   }
 
   bool CanInferOutputs() const override {
-    // when it passes through no shape inference is needed
-    return !no_copy_;
+    // shape inference during setup is disabled because it can be calculated during the runtime
+    // depending on the input and output
+    return false;
   }
 
   /*
@@ -225,15 +221,9 @@ class ExternalSource : public Operator<Backend> {
   void RecycleBuffer(DataType &data,
                      std::list<uptr_cuda_event_type> *cuda_event = nullptr,
                      std::list<uptr_cuda_event_type> *copy_to_gpu = nullptr) {
-    if (cuda_event) {
-      cudaEventSynchronize(*cuda_event->front());
-    }
     // No need to synchronize on copy_to_gpu - it was already synchronized before
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     RecycleBufferHelper(data);
-    if (cuda_event) {
-      cuda_events_.Recycle(*cuda_event);
-    }
     if (copy_to_gpu) {
       copy_to_storage_events_.Recycle(*copy_to_gpu);
     }
@@ -242,33 +232,43 @@ class ExternalSource : public Operator<Backend> {
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline std::enable_if_t<!std::is_same<SrcBackend, Backend>::value>
   ShareUserData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
-    DALI_FAIL("no_copy is supported only for the same data source device type as operator.");
+    DALI_FAIL(make_string("no_copy is supported only for the same data source device type "
+                          "as operator. Received: ",
+                          std::is_same<SrcBackend, CPUBackend>::value? "CPU" : "GPU",
+                          " input for ",
+                          std::is_same<Backend, CPUBackend>::value? "CPU" : "GPU",
+                          " operator."));
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, CPUBackend>::value>
-  ShareUserData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
+  ShareUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t /*stream = 0*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({});
     auto tv_elm = tv_data_.GetEmpty();
-    tv_elm.front()->ShareData(const_cast<SourceDataType<CPUBackend>*>(&t));
+    // set pinned if needed
+    if (batch.is_pinned() !=  tv_elm.front()->is_pinned()) {
+      tv_elm.front()->Reset();
+      tv_elm.front()->set_pinned(batch.is_pinned());
+    }
+    tv_elm.front()->ShareData(const_cast<SourceDataType<CPUBackend>*>(&batch));
     tv_data_.PushBack(tv_elm);
   }
 
   template<typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, GPUBackend>::value>
-  ShareUserData(const TensorVector<SrcBackend> &t, cudaStream_t stream = 0) {
+  ShareUserData(const TensorVector<SrcBackend> &batch, cudaStream_t stream = 0) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     auto tl_elm = tl_data_.GetEmpty();
-    if (t.IsContiguous()) {
-      t.ShareWith(const_cast<TensorList<Backend>*>(tl_elm.front().get()));
+    if (batch.IsContiguous()) {
+      batch.ShareWith(const_cast<TensorList<Backend>*>(tl_elm.front().get()));
       zero_copy_noncontiguous_gpu_input_ = true;
       state_.push_back({});
     } else {
       // it is not contiguous so we need to copy
-      tl_elm.front()->Copy(t, stream);
+      tl_elm.front()->Copy(batch, stream);
 
       std::list<uptr_cuda_event_type> copy_to_storage_event;
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
@@ -288,30 +288,34 @@ class ExternalSource : public Operator<Backend> {
   template<typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, GPUBackend>::value>
-   ShareUserData(const TensorList<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
+   ShareUserData(const TensorList<SrcBackend> &batch, cudaStream_t /*stream = 0*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({});
     auto tl_elm = tl_data_.GetEmpty();
-    tl_elm.front()->ShareData(const_cast<TensorList<Backend>*>(&t));
+    tl_elm.front()->ShareData(const_cast<TensorList<Backend>*>(&batch));
     tl_data_.PushBack(tl_elm);
     zero_copy_noncontiguous_gpu_input_ = true;
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
   inline std::enable_if_t<std::is_same<B, CPUBackend>::value>
-  CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t /*stream*/, bool /*sync*/) {
+  CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t stream, bool /*sync*/) {
     std::list<uptr_tv_type> tv_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tv_elm = tv_data_.GetEmpty();
     }
-    // if it was not allocated already set_pinned to false
-    if (!tv_elm.front()->size()) {
-      tv_elm.front()->set_pinned(false);
+    // set pinned if needed
+    if (batch.is_pinned() !=  tv_elm.front()->is_pinned()) {
+      tv_elm.front()->Reset();
+      tv_elm.front()->set_pinned(batch.is_pinned());
     }
-    // HostWorkspace doesn't have any stream
-    cudaStream_t stream = 0;
     tv_elm.front()->Copy(batch, stream);
+    // if copying from GPU to CPU always synchronize
+    if (std::is_same<SrcBackend, GPUBackend>::value) {
+      cudaStreamSynchronize(stream);
+    }
+
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tv_data_.PushBack(tv_elm);
@@ -336,9 +340,11 @@ class ExternalSource : public Operator<Backend> {
     if (std::is_same<SrcBackend, GPUBackend>::value || batch.is_pinned()) {
       cudaEventRecord(*copy_to_storage_event.front(), stream);
     }
-    // sync for pinned CPU -> GPU as well, because the user doesn't know when he can
-    // reuse provided memory anyway
-    if (sync || batch.is_pinned()) {
+    // if copying from non pinned CPU it happens on the stream 0
+    if (std::is_same<SrcBackend, CPUBackend>::value && !batch.is_pinned()) {
+      cudaEventRecord(*copy_to_storage_event.front(), 0);
+    }
+    if (sync) {
       CUDA_CALL(cudaEventSynchronize(*copy_to_storage_event.front()));
     }
 
@@ -379,8 +385,7 @@ class ExternalSource : public Operator<Backend> {
   string output_name_;
   detail::CachingList<uptr_tl_type> tl_data_;
   detail::CachingList<uptr_tv_type> tv_data_;
-  detail::CachingList<uptr_cuda_event_type> cuda_events_, copy_to_storage_events_;
-  struct RecycleFunctor;
+  detail::CachingList<uptr_cuda_event_type> copy_to_storage_events_;
 
   std::mutex busy_m_;
   std::condition_variable cv_;
