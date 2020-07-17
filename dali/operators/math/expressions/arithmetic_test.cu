@@ -61,6 +61,7 @@ struct ArithmOpParams {
   static constexpr int sample_size = sample_size_;
   static constexpr int tiles_per_sample = sample_size / tile_size;
   static constexpr int num_tiles = batch_size *  tiles_per_sample;
+  static_assert(sample_size >= tile_size, "This test doesn't support samples smaller than tiles.");
 };
 
 
@@ -177,7 +178,20 @@ TYPED_TEST_P(BinaryArithmeticOpGpuPerfTest, Perf) {
 
 REGISTER_TYPED_TEST_SUITE_P(BinaryArithmeticOpGpuPerfTest, Perf);
 
-using TestConfigs = ::testing::Types<ArithmOpParams<>>;
+using TestConfigs = ::testing::Types<
+  // op, Result, Left, Right, IsLeftTensor, IsRightTensor, blocks_x, thread_num, batch, tile, sample
+  ArithmOpParams<  // old config
+      ArithmeticOp::mul, float, float, float, true, false, 128, 256, 256, 16384, 1024 * 1024>,
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, false, 128, 32, 256, 65536, 1024 * 1024>,
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, true, 128, 32, 256, 65536, 1024 * 1024>,
+  ArithmOpParams< // smaller batch
+      ArithmeticOp::mul, float, float, float, true, false, 128, 32, 64, 65536, 1024 * 1024>,
+  // smaller batch, emulating 1 tile per sample (we need to keep tile size = sample size)
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, false, 128, 32, 64, 16384, 16384>
+  >;
 
 INSTANTIATE_TYPED_TEST_SUITE_P(BinaryArithmeticOpGpu, BinaryArithmeticOpGpuPerfTest, TestConfigs);
 
