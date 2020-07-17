@@ -109,7 +109,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     this->SetLayout(other.GetLayout());
     ResizeLike(other);
 
-    use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) ||
+    use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || pinned_);
     type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(), other.raw_data(),
                                              this->size(), stream, use_copy_kernel);
@@ -149,7 +149,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
       this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
     }
 
-    use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) ||
+    use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || pinned_);
     type.template Copy<SrcBackend, Backend>(this->raw_mutable_data(), srcs.data(), sizes.data(),
                                             nsamples, stream, use_copy_kernel);

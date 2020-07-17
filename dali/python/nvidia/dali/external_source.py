@@ -53,11 +53,12 @@ class _CycleGenFunc():
             return next(self.it)
 
 class _ExternalSourceGroup(object):
-    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None):
+    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None, use_copy_kernel = False):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
         self._cuda_stream = cuda_stream
+        self.use_copy_kernel = use_copy_kernel
         if callback is not None:
             if callback.__code__.co_argcount not in [0, 1]:
                 raise TypeError("External source callback must be a callable with 0 or 1 argument")
@@ -77,11 +78,11 @@ class _ExternalSourceGroup(object):
         if self.is_multioutput:
             for op in self.instances:
                 data = callback_out[op._output_index]
-                pipeline.feed_input(op._name, data, op._layout, self._cuda_stream)
+                pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
         else:
             data = callback_out
             op = self.instances[0]
-            pipeline.feed_input(op._name, data, op._layout, self._cuda_stream)
+            pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
 
 def _is_generator_function(x):
     """Checks whether x is a generator function or a callable object
@@ -194,6 +195,10 @@ Keyword Args
     buffer is complete, since there's no way to synchronize with this stream to prevent
     overwriting the array with new data in another stream.
 
+`use_copy_kernel` : optional, `bool`
+    If set to True, DALI will use a CUDA kernel to feed the data (only applicable when copying
+    data to/from GPU memory) instead of cudaMemcpyAsync (default).
+
 ``blocking`` : optional, Whether external source should block until data is available or just
 fail when it is not
 
@@ -212,12 +217,14 @@ fail when it is not
     of separate Tensors there will be an additional internal copy made.
 """
 
-    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", cuda_stream = None, **kwargs):
+    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", 
+                 cuda_stream = None, use_copy_kernel = False, **kwargs):
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
         self._device = device
         self._layout = layout
         self._cuda_stream = cuda_stream
+        self._use_copy_kernel = use_copy_kernel
 
         callback = _get_callback_from_source(source, cycle)
 
@@ -248,7 +255,8 @@ fail when it is not
     def preserve(self):
         return False
 
-    def __call__(self, *, source = None, cycle = None, name = None, layout = None, cuda_stream = None, **kwargs):
+    def __call__(self, *, source = None, cycle = None, name = None, layout = None, cuda_stream = None, 
+                 use_copy_kernel = False, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
 
@@ -267,11 +275,23 @@ fail when it is not
                 raise RuntimeError("`source` already specified in constructor.")
             callback = _get_callback_from_source(source, cycle)
 
-        if layout is not None and self._layout is not None:
-            raise RuntimeError("`layout` already specified in constructor.")
+        if self._layout is not None:
+            if layout is not None:
+                raise RuntimeError("`layout` already specified in constructor.")
+            else:
+                layout = self.layout
 
-        if cuda_stream is not None and self._cuda_stream is not None:
-            raise RuntimeError("`cuda_stream` already specified in constructor.")
+        if self._cuda_stream is not None:
+            if cuda_stream is not None:
+                raise RuntimeError("`cuda_stream` already specified in constructor.")
+            else:
+                cuda_stream = self._cuda_stream
+
+        if self._use_copy_kernel is not None:
+            if use_copy_kernel is not None:
+                raise RuntimeError("`use_copy_kernel` already specified in constructor.")
+            else:
+                use_copy_kernel = self._use_copy_kernel
 
         if name is None:
             name = self._name
@@ -282,17 +302,17 @@ fail when it is not
         if self._num_outputs is not None:
             outputs = []
             kwargs = {}
-            group = _ExternalSourceGroup(callback, True, cuda_stream=self._cuda_stream)
+            group = _ExternalSourceGroup(callback, True, cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel)
             for i in range(self._num_outputs):
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
                 op_instance._output_index = i
                 op_instance._group = group
-                if self._layout is not None:
-                    if isinstance(self._layout, (list, tuple)):
-                        op_instance._layout = self._layout[i] if i < len(self._layout) else ""
+                if layout is not None:
+                    if isinstance(layout, (list, tuple)):
+                        op_instance._layout = layout[i] if i < len(layout) else ""
                     else:
-                        op_instance._layout = self._layout
+                        op_instance._layout = layout
                 else:
                     op_instance._layout = ""
 
@@ -307,8 +327,9 @@ fail when it is not
             op_instance = _OperatorInstance([], self, **kwargs)
             op_instance._callback = callback
             op_instance._output_index = None
-            op_instance._group = _ExternalSourceGroup(callback, False, [op_instance], cuda_stream=self._cuda_stream)
-            op_instance._layout = self._layout if self._layout is not None else ""
+            op_instance._group = _ExternalSourceGroup(callback, False, [op_instance], cuda_stream=cuda_stream,
+                                                      use_copy_kernel=use_copy_kernel)
+            op_instance._layout = layout if layout is not None else ""
             op_instance.generate_outputs()
 
             return op_instance.unwrapped_outputs
@@ -320,7 +341,8 @@ fail when it is not
 def _is_external_source_with_callback(op_instance):
     return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
 
-def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None, cuda_stream = None, **kwargs):
+def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None,
+                    cuda_stream = None, use_copy_kernel = False, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
@@ -339,7 +361,8 @@ The data can be provided by the ``source`` function or iterable, or it can be pr
                 "`external_source` nodes.")
 
     op = ExternalSource(device = device, num_outputs = num_outputs, source = source,
-                        cycle = cycle, layout = layout, cuda_stream = cuda_stream, **kwargs)
+                        cycle = cycle, layout = layout, cuda_stream = cuda_stream,
+                        use_copy_kernel = use_copy_kernel, **kwargs)
     return op(name = name)
 
 external_source.__doc__ += ExternalSource._args_doc

@@ -144,9 +144,10 @@ class ExternalSource : public Operator<Backend> {
   /**
    * @brief Sets the data that should be passed out of the op on the next iteration.
    */
-  template<typename SrcBackend>
+  template <typename SrcBackend>
   inline void SetDataSource(const vector<Tensor<SrcBackend>> &vect_of_tensors,
-                            cudaStream_t stream = 0, bool sync = false, bool use_copy_kernel = false) {
+                            cudaStream_t stream = 0, bool sync = false,
+                            bool use_copy_kernel = false) {
     DeviceGuard g(device_id_);
     TimeRange tr("[ExternalSource] SetDataSource", TimeRange::kViolet);
     TensorVector<SrcBackend> tv(vect_of_tensors.size());

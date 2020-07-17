@@ -583,7 +583,7 @@ Parameters
             else:
                 data = to_numpy(data)
                 inp = Tensors.TensorListCPU(data, layout)
-            self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream))
+            self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream), use_copy_kernel)
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
 
 #define DALI_TYPENAME_REGISTERER(TypeString) \
 {                                            \
@@ -38,7 +39,8 @@ namespace detail {
 
 class ScatterGatherPool {
  public:
-  static void Copy(void* dst, const void** srcs, const Index* sizes, int n, int element_size, cudaStream_t stream);
+  static void Copy(void *dst, const void **srcs, const Index *sizes, int n, int element_size,
+                   cudaStream_t stream);
 
  private:
   static ScatterGatherPool& instance();
@@ -56,7 +58,8 @@ ScatterGatherPool& ScatterGatherPool::instance() {
   return singleton;
 }
 
-void ScatterGatherPool::Copy(void* dst, const void** srcs, const Index* sizes, int n, int element_size, cudaStream_t stream) {
+void ScatterGatherPool::Copy(void *dst, const void **srcs, const Index *sizes, int n,
+                             int element_size, cudaStream_t stream) {
   auto &inst = instance();
   std::lock_guard<spinlock> guard(inst.lock_);
   auto& scatter_gather = inst.scatter_gather_instances_[stream];
@@ -83,7 +86,7 @@ TypeTable &TypeTable::instance() {
 template <typename DstBackend, typename SrcBackend>
 void TypeInfo::Copy(void *dst,
     const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const {
-  constexpr bool is_src_to_src = std::is_same<DstBackend, CPUBackend>::value && 
+  constexpr bool is_src_to_src = std::is_same<DstBackend, CPUBackend>::value &&
                                  std::is_same<SrcBackend, CPUBackend>::value;
   if (is_src_to_src) {
     // Call our copy function
@@ -91,7 +94,7 @@ void TypeInfo::Copy(void *dst,
   } else if (use_copy_kernel) {
     detail::LaunchCopyKernel(dst, src, n * size(), stream);
   } else {
-    MemCopy(dst, src, n*size(), stream);    
+    MemCopy(dst, src, n*size(), stream);
   }
 }
 
@@ -110,8 +113,7 @@ template void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
 template <typename DstBackend, typename SrcBackend>
 void TypeInfo::Copy(void *dst, const void** srcs, const Index* sizes, int n,
                     cudaStream_t stream, bool use_copy_kernel) const {
-
-  constexpr bool is_src_to_src = std::is_same<DstBackend, CPUBackend>::value && 
+  constexpr bool is_src_to_src = std::is_same<DstBackend, CPUBackend>::value &&
                                  std::is_same<SrcBackend, CPUBackend>::value;
   if (!is_src_to_src && use_copy_kernel) {
     detail::ScatterGatherPool::Copy(dst, srcs, sizes, n, size(), stream);

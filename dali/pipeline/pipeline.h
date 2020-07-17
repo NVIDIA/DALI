@@ -134,10 +134,10 @@ class DLL_PUBLIC Pipeline {
     return logical_id;
   }
 
-
-  template<typename T, typename OperatorBackend>
+  template <typename T, typename OperatorBackend>
   void SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr,
-                           cudaStream_t stream = 0, bool sync = false, bool use_copy_kernel = false) {
+                           cudaStream_t stream = 0, bool sync = false,
+                           bool use_copy_kernel = false) {
     // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
     // The StorageBackend is hidden under `T` type.
     auto *source = dynamic_cast<ExternalSource<OperatorBackend> *>(op_ptr);
@@ -145,7 +145,6 @@ class DLL_PUBLIC Pipeline {
                  "Input name '" + name + "' is not marked as an external input.");
     source->SetDataSource(tl, stream, sync, use_copy_kernel);
   }
-
 
   /**
    * @brief Helper function for the SetExternalInput.

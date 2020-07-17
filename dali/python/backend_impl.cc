@@ -1294,12 +1294,13 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("device_id", &Pipeline::device_id)
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
-           py::object /*cuda_stream*/) {
+           py::object /*cuda_stream*/, bool /*use_copy_kernel*/) {
           p->SetExternalInput(name, tl, 0, true);
         },
         "name"_a,
         "list"_a,
-        "cuda_stream"_a = py::none())
+        "cuda_stream"_a = py::none(),
+        "use_copy_kernel"_a = false)
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<GPUBackend> &tl,
            py::object cuda_stream, bool use_copy_kernel) {
@@ -1313,7 +1314,8 @@ PYBIND11_MODULE(backend_impl, m) {
         "cuda_stream"_a = py::none(),
         "use_copy_kernel"_a = false)
     .def("SetExternalTensorInput",
-        [](Pipeline *p, const string &name, py::list list, py::object cuda_stream, bool use_copy_kernel) {
+        [](Pipeline *p, const string &name, py::list list, py::object cuda_stream,
+           bool use_copy_kernel) {
           // Note: This is a hack to get around weird casting
           // issues w/ pybind and a non-copyable type (dali::Tensor).
           // We cannot use pybind::cast<Tensor<CPUBackend>>
