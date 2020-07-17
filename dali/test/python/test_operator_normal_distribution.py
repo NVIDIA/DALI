@@ -26,11 +26,11 @@ class NormalDistributionPipeline(Pipeline):
 
 
 class NormalDistributionPipelineWithInput(NormalDistributionPipeline):
-    def __init__(self, premade_batch, dtype):
+    def __init__(self, premade_batch, dtype, device='cpu'):
         super(NormalDistributionPipelineWithInput, self).__init__(len(premade_batch))
         self.premade_batch = premade_batch
         self.ext_src = ops.ExternalSource()
-        self.norm = ops.NormalDistribution(device="cpu", dtype=dtype)
+        self.norm = ops.NormalDistribution(device=device, dtype=dtype)
 
     def define_graph(self):
         self.data = self.ext_src()
@@ -41,18 +41,18 @@ class NormalDistributionPipelineWithInput(NormalDistributionPipeline):
 
 
 class NormalDistributionPipelineWithArgument(NormalDistributionPipeline):
-    def __init__(self, shape, dtype):
+    def __init__(self, shape, dtype, device='cpu'):
         super(NormalDistributionPipelineWithArgument, self).__init__(1)
-        self.norm = ops.NormalDistribution(device="cpu", shape=shape, dtype=dtype)
+        self.norm = ops.NormalDistribution(device=device, shape=shape, dtype=dtype)
 
     def define_graph(self):
         return self.norm()
 
 
 class NormalDistributionPipelineDefault(NormalDistributionPipeline):
-    def __init__(self, batch_size, dtype):
+    def __init__(self, batch_size, dtype, device='cpu'):
         super(NormalDistributionPipelineDefault, self).__init__(batch_size)
-        self.norm = ops.NormalDistribution(device="cpu", dtype=dtype)
+        self.norm = ops.NormalDistribution(device=device, dtype=dtype)
 
     def define_graph(self):
         return self.norm()
@@ -61,7 +61,7 @@ class NormalDistributionPipelineDefault(NormalDistributionPipeline):
 test_types = [types.INT8, types.INT16, types.INT32, types.INT16, types.FLOAT, types.FLOAT64, types.FLOAT16]
 
 
-def check_normal_distribution_with_input(dtype):
+def check_normal_distribution_with_input(dtype, device):
     input_data = [
         [np.ones((1000)), np.ones((1000))],
         [np.ones((100, 100)), np.ones((100, 100))],
@@ -69,29 +69,32 @@ def check_normal_distribution_with_input(dtype):
     ]
     for batch in input_data:
         bsize = len(batch)
-        pipeline = NormalDistributionPipelineWithInput(premade_batch=batch, dtype=dtype)
+        pipeline = NormalDistributionPipelineWithInput(premade_batch=batch, dtype=dtype, device=device)
         pipeline.build()
         outputs = pipeline.run()
         for i in range(bsize):
-            print(outputs[0].at(i))
-            print(outputs[0].at(i).shape)
-            assert outputs[0].at(i).shape == batch[i].shape
-            possibly_normal_distribution = outputs[0].at(i).flatten()
+            output = outputs[0] if device == 'cpu' else outputs[0].as_cpu()
+            print(output.at(i))
+            print(output.at(i).shape)
+            assert output.at(i).shape == batch[i].shape
+            possibly_normal_distribution = output.at(i).flatten()
             _, pvalues_anderson, _ = st.anderson(possibly_normal_distribution, dist='norm')
             # It's not 100% mathematically correct, but makes do in case of this test
             assert pvalues_anderson[2] > 0.5
 
 
 def test_normal_distribution_with_input():
-    for t in test_types:
-        yield check_normal_distribution_with_input, t
+    for device in ['cpu', 'gpu']:
+        for t in test_types:
+            yield check_normal_distribution_with_input, t, device
 
 
-def check_normal_distribution_with_argument(shape, dtype):
-    pipeline = NormalDistributionPipelineWithArgument(shape, dtype=dtype)
+def check_normal_distribution_with_argument(shape, dtype, device):
+    pipeline = NormalDistributionPipelineWithArgument(shape, dtype=dtype, device=device)
     pipeline.build()
     outputs = pipeline.run()
-    possibly_normal_distribution = outputs[0].as_array().flatten()
+    output = outputs[0] if device == 'cpu' else outputs[0].as_cpu()
+    possibly_normal_distribution = output.as_array().flatten()
     _, pvalues_anderson, _ = st.anderson(possibly_normal_distribution, dist='norm')
     # It's not 100% mathematically correct, but makes do in case of this test
     assert pvalues_anderson[2] > 0.5
@@ -99,21 +102,24 @@ def check_normal_distribution_with_argument(shape, dtype):
 
 def test_normal_distribution_with_argument():
     shapes = [[100], [10, 20, 30], [1, 2, 3, 4, 5, 6]]
-    for shape in shapes:
-        for t in test_types:
-            yield check_normal_distribution_with_argument, shape, t
+    for device in ['cpu', 'gpu']:
+        for shape in shapes:
+            for t in test_types:
+                yield check_normal_distribution_with_argument, shape, t, device
 
 
-def check_normal_distribution_default(dtype):
-    pipeline = NormalDistributionPipelineDefault(batch_size=100, dtype=dtype)
+def check_normal_distribution_default(dtype, device):
+    pipeline = NormalDistributionPipelineDefault(batch_size=100, dtype=dtype, device=device)
     pipeline.build()
     outputs = pipeline.run()
-    possibly_normal_distribution = outputs[0].as_array().flatten()
+    output = outputs[0] if device == 'cpu' else outputs[0].as_cpu()
+    possibly_normal_distribution = output.as_array().flatten()
     _, pvalues_anderson, _ = st.anderson(possibly_normal_distribution, dist='norm')
     # It's not 100% mathematically correct, but makes do in case of this test
     assert pvalues_anderson[2] > 0.5
 
 
 def test_normal_distribution_default():
-    for t in test_types:
-        yield check_normal_distribution_default, t
+    for device in ['cpu', 'gpu']:
+        for t in test_types:
+            yield check_normal_distribution_default, t, device

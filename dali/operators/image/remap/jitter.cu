@@ -13,11 +13,23 @@
 // limitations under the License.
 
 
-#include "dali/operators/image/remap/jitter.h"
-#include "dali/operators/util/randomizer_impl_gpu.cuh"
+#include "dali/operators/image/remap/jitter.cuh"
 #include "dali/operators/image/remap/displacement_filter_impl_gpu.cuh"
 
 namespace dali {
+
+DALI_SCHEMA(Jitter)
+  .DocStr(R"code(Perform a random Jitter augmentation.
+The output image is produced by moving each pixel by a
+random amount bounded by half of `nDegree` parameter
+(in both x and y dimensions).)code")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddOptionalArg("nDegree",
+      R"code(Each pixel is moved by a random amount in range `[-nDegree/2, nDegree/2]`.)code",
+      2)
+  .InputLayout(0, "HWC")
+  .AddParent("DisplacementFilter");
 
 DALI_REGISTER_OPERATOR(Jitter, Jitter<GPUBackend>, GPU);
 

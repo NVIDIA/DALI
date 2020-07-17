@@ -26,17 +26,29 @@ namespace detail {
 
 template <typename Out, typename RandType>
 __global__ void NormalDistKernel(NormalDistributionGpu::BlockDesc *block_descs,
-                                 Randomizer<GPUBackend> randomizer) {
+                                 RandomizerGPU randomizer) {
   auto desc = block_descs[blockIdx.x];
   auto out = static_cast<Out*>(desc.sample);
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   for (int x = desc.start + threadIdx.x; x < desc.end; x += blockDim.x) {
-    auto norm = randomizer.normal(tid);
+    auto norm = randomizer.normal<RandType>(tid);
     out[x] = ConvertSat<Out>(norm * desc.std + desc.mean);
   }
 }
 
 }  // namespace detail
+
+const int NormalDistributionGpu::block_size_;
+const int NormalDistributionGpu::max_blocks_;
+
+NormalDistributionGpu::NormalDistributionGpu(const OpSpec &spec)
+      : NormalDistribution(spec), randomizer_(seed_, block_size_ * max_blocks_) {
+  block_descs_ = mem::alloc_unique<BlockDesc>(kernels::AllocType::GPU, max_blocks_);
+}
+
+NormalDistributionGpu::~NormalDistributionGpu() {
+  randomizer_.Cleanup();
+}
 
 int NormalDistributionGpu::SetupBlockDesc(TensorList<GPUBackend> &output, cudaStream_t stream) {
   std::vector<int> blocks_per_sample;
@@ -113,5 +125,7 @@ void NormalDistributionGpu::RunImpl(workspace_t<GPUBackend> &ws) {
     }
   ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)));  // NOLINT
 }
+
+DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionGpu, GPU);
 
 }  // namespace dali

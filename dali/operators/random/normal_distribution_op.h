@@ -29,7 +29,7 @@ const std::string kStddev = "stddev";  // NOLINT
 const std::string kShape = "shape";    // NOLINT
 
 const int kNumOutputs = 1;
-std::vector<int> kShapeDefaultValue {};
+static std::vector<int> kShapeDefaultValue {};
 
 }  // namespace detail
 
@@ -92,7 +92,11 @@ class NormalDistribution : public Operator<Backend> {
 
  private:
   TensorListShape<> ShapesFromInputTensorList(const workspace_t<Backend> &ws) {
-    return ws.template InputRef<CPUBackend>(0).shape();
+    if (ws.template InputIsType<CPUBackend>(0)) {
+      return ws.template InputRef<CPUBackend>(0).shape();
+    } else {
+      return ws.template InputRef<GPUBackend>(0).shape();
+    }
   }
 
 
