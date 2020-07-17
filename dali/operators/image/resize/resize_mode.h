@@ -39,7 +39,7 @@ inline ResizeMode ParseResizeMode(const char *mode) {
   } else if (!std::strcmp(mode, "not_smaller")) {
     return ResizeMode::NotSmaller;
   } else {
-    DALI_FAIL(make_str("Invalid resize mode: ", mode));
+    DALI_FAIL(make_string("Invalid resize mode: ", mode));
   }
 }
 
@@ -49,14 +49,14 @@ inline ResizeMode ParseResizeMode(const std::string &s) {
 
 inline std::ostream &operator<<(std::ostream &os, ResizeMode mode) {
   switch (mode) {
-    case ParseResizeMode::Stretch:
+    case ResizeMode::Stretch:
       return os << "stretch";
-    case ParseResizeMode::NotLarger:
+    case ResizeMode::NotLarger:
       return os << "not_larger";
-    case ParseResizeMode::NotSmaller:
+    case ResizeMode::NotSmaller:
       return os << "not smaller";
     default:
-      return os << "(" << static_cast<int>(ResizeMode) << ")";
+      return os << "(" << static_cast<int>(mode) << ")";
   }
 }
 

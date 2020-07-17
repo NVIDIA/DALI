@@ -20,13 +20,14 @@
 #include "dali/core/format.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/operators/image/resize/resize_mode.h"
 
 namespace dali {
 
 struct ResizeParams {
-  SmallVector<int> dst_size;
-  SmallVector<float> src_lo, src_hi;
+  SmallVector<int, 6> dst_size;
+  SmallVector<float, 6> src_lo, src_hi;
 };
 
 class ResizeAttr {
@@ -34,7 +35,7 @@ class ResizeAttr {
   ResizeAttr(const OpSpec &spec);
 
   void PrepareParams(const OpSpec &spec, const ArgumentWorkspace &ws,
-                     const TensorListshape<> &input_shape,
+                     const TensorListShape<> &input_shape,
                      TensorLayout input_layout = {});
 
   vector<ResizeParams> params_;

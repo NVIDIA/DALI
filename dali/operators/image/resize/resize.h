@@ -87,7 +87,7 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     "original size of the images.");
   SetupResize(ws, output_desc[0].shape);
   if (save_attrs_) {
-    NumSpatialDims(input.layout);
+    ImageLayoutInfo::NumSpatialDims(input.GetLayout());
   }
   return true;
 }

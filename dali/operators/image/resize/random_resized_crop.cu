@@ -42,7 +42,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
 }
 
 template<>
-void RandomResizedCrop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws) {
+bool RandomResizedCrop<GPUBackend>::SetupImpl(const DeviceWorkspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8>(input.type()),
       "Expected input data as uint8.");
@@ -59,7 +59,7 @@ void RandomResizedCrop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws)
   }
   CalcResamplingParams();
   TensorListShape<> output_shape;
-  SetupResize(output_shape, input.shape(), input.GetLayout(), resample_params_);
+  SetupResize(output_shape, input, resample_params_, output_type_);
 }
 
 DALI_REGISTER_OPERATOR(RandomResizedCrop, RandomResizedCrop<GPUBackend>, GPU);

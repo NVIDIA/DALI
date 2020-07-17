@@ -1143,7 +1143,7 @@ TEST(TensorListShapeTest, CollapseDims_Static) {
   EXPECT_EQ(out_dyn, ref);
 }
 
-TEST(TensorListshapeTest, PermuteSamples) {
+TEST(TensorListShapeTest, PermuteSamples) {
   TensorListShape<> tl = {{
     { 1, 2 }, { 3, 4 }, { 5, 6 }
   }};
@@ -1155,7 +1155,7 @@ TEST(TensorListshapeTest, PermuteSamples) {
   EXPECT_EQ(ref, permuted) << "Actual:\n" << permuted << "\nexpected:\n" << ref;
 }
 
-TEST(TensorListshapeTest, PermuteDims) {
+TEST(TensorListShapeTest, PermuteDims) {
   TensorListShape<4> tl = {{
     { 1, 2, 3, 4 }, { 5, 6, 7, 8 }
   }};

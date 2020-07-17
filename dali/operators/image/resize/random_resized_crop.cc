@@ -38,41 +38,40 @@ DALI_SCHEMA(RandomResizedCrop)
 template<>
 void RandomResizedCrop<CPUBackend>::BackendInit() {
   InitializeCPU(num_threads_);
-  out_size_.resize(num_threads_);
 }
 
 template<>
-void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  auto &input = ws.Input<CPUBackend>(0);
+void RandomResizedCrop<CPUBackend>::RunImpl(HostWorkspace &ws) {
+  auto &input = ws.InputRef<CPUBackend>(0);
+  auto &output = ws.OutputRef<CPUBackend>(0);
+
   DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
-  DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
 
-  const int W = input.shape()[1];
-  const int C = input.shape()[2];
-
-  const int newH = size_[0];
-  const int newW = size_[1];
-
-  auto &output = ws.Output<CPUBackend>(0);
-
-  RunResize(output, input, ws.thread_idx());
+  RunResize(output, input);
   output.SetLayout(input.GetLayout());
 }
 
 template<>
-void RandomResizedCrop<CPUBackend>::SetupImpl(const HostWorkspace &ws) {
-  auto &input = ws.Input<CPUBackend>(0);
+bool RandomResizedCrop<CPUBackend>::SetupImpl(const HostWorkspace &ws) {
+  auto &input = ws.InputRef<CPUBackend>(0);
   auto &input_shape = input.shape();
-  DALI_ENFORCE(input_shape.size() == 3,
+  DALI_ENFORCE(input_shape.sample_dim() == 3,
       "Expects 3-dimensional image input.");
 
-  int H = input_shape[0];
-  int W = input_shape[1];
-  int id = ws.data_idx();
+  int N = input.num_samples();
 
-  crops_[id] = GetCropWindowGenerator(id)({H, W}, "HW");
-  resample_params_[ws.thread_idx()] = CalcResamplingParams(id);
-  SetupResize(output_shape, input_shape, input.layout(), resample_params_);
+  resample_params_.resize(N);
+
+  for (int sample_idx = 0; sample_idx < N; i++) {
+    auto sample_shape = input_shape.tensor_shape_span(sample_idx);
+    int H = sample_shape[height_idx];
+    int W = sample_shape[width_idx];
+    crops_[sample_idx] = GetCropWindowGenerator(id)({H, W}, "HW");
+    resample_params_[sample_idx] = CalcResamplingParams(sample_idx);
+  }
+
+  SetupResize(output_shape, input, resample_params_, output_type_);
+  return true;
 }
 
 DALI_REGISTER_OPERATOR(RandomResizedCrop, RandomResizedCrop<CPUBackend>, CPU);

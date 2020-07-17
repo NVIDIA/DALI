@@ -29,7 +29,7 @@ the aspect ratio of the original image. Negative value flips the image.)", 0.f, 
   .AddOptionalArg("resize_z", R"(The length of the Z dimension of the resized volume.
 This option is mutually exclusive with `resize_shorter`, `resize_longer` and `size`.
 If the `resize_x` and `resize_y` are left unspecified or 0, then the op will keep
-the aspect ratio of the original volume. . Negative value flips the volume.)", 0.f, true)
+the aspect ratio of the original volume. Negative value flips the volume.)", 0.f, true)
   .AddOptionalArg<vector<int>>("size", R"(The desired output size. Must be a list/tuple with the
 one entry per spatial dimension (i.e. excluding video frames and channels). Dimensions with
 0 size are resized to maintain aspect ratio.)", {}, true)
@@ -38,11 +38,11 @@ one entry per spatial dimension (i.e. excluding video frames and channels). Dime
   * "not_larger"  - image is resized, keeping the aspect ratio, so that no extent of the
                     output image exceeds the specified size - e.g. a 1280x720 with desired output
                     size of 640x480 will actually produce 640x360 output.
-  * "not smaller" - image is resized, keeping the aspect ratio, so that no extent of the
+  * "not_smaller" - image is resized, keeping the aspect ratio, so that no extent of the
                     output image is smaller than specified - e.g. 640x480 image with desired output
                     size of 1920x1080 will actually produce 1920x1440 output.
 
-  This argument is mutually exclusive with `resize_longer` and `resize_shorter`)", "stretch");
+  This argument is mutually exclusive with `resize_longer` and `resize_shorter`)", "stretch")
   .AddOptionalArg("resize_shorter", R"(The length of the shorter dimension of the resized image.
 This option is mutually exclusive with `resize_longer` and explicit size arguments
 The op will keep the aspect ratio of the original image.
@@ -56,7 +56,10 @@ This option is equivalent to specifying the same size for all dimensions and ``m
 )", 0.f, true);
 
 ResizeAttr::ResizeAttr(const OpSpec &spec) {
-  interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
+  Initialize(spec);
+}
+
+ResizeAttr::Initialize(const OpSpec &spec) {
   has_resize_shorter_ = spec.ArgumentDefined("resize_shorter");
   has_resize_longer_ = spec.ArgumentDefined("resize_longer");
   has_resize_x_ = spec.ArgumentDefined("resize_x");
@@ -65,31 +68,59 @@ ResizeAttr::ResizeAttr(const OpSpec &spec) {
   has_size_ = spec.ArgumentDefined("size");
   has_mode_ = spec.ArgumentDefined("mode");
 
-  bool size_specified = has_resize_x_ || has_resize_y_ || has_size_
-
-  DALI_ENFORCE(!(resize_shorter_ && resize_longer_),
-                "Options `resize_longer` and `resize_shorter` are mutually"
-                " exclusive for schema \"" + spec.name() + "\"");
-  DALI_ENFORCE((resize_shorter_ || resize_longer_) != size_specified,
-                "Options `resize_{shorter,longer}` and other means of specifying size "
-                "are mutually exclusive for schema \"" + spec.name() + "\"");
-
+  DALI_ENFORCE(HasSeparateSizeArgs() + has_size_ + has_resize_shorter_ + has_resize_longer_ == 1,
+    R"(Exactly one method of specifying size must be used. The available methods:
+    - separate resize_x, resize_y, resize_z arguments
+    - size argument
+    - resize_longer
+    - resize_shorter)");
 }
 
 
 void ResizeAttr::PrepareParams(const OpSpec &spec, const ArgumentWorkspace &ws,
-                               const TensorListshape<> &input_shape,
+                               const TensorListShape<> &input_shape,
                                TensorLayout input_layout = {}) {
-  if (input_layout.empty()) {
-    switch (input_shape.sample_dim()) {
 
-    }
-  }
+  int N = input_shape.num_samples();
+
+  ParseLayout(spatial_ndim_, first_spatial_dim, input_layout);
+
+  auto sample_size = [&, nd = spatial_ndim_](int sample_idx) {
+    TensorShape<> sz;
+    sz.resize(nd);
+    for (int d = 0; d < spatial_ndim_; d++)
+      sz = input_shape.tensor_shape_span(sample_idx)[d + first_spatial_dim_];
+  };
+
+
   if (has_size_) {
     GetShapeArgument(out_size_, spec, "size", ws);
-  } else if (has_resize_x
+  }
+
+
+  if (HasSeparateSizeArgs()) {
+    vector<float> res_x(N), res_y(N), res_z(N)
+
+    if (has_resize_x_) {
+      GetPerSampleArgument(res_x, spec, ws, N);
+    }
+
+    if (has_resize_y_) {
+      GetPerSampleArgument(res_y, spec, ws, N);
+    }
+
+    if (has_resize_z_) {
+      GetPerSampleArgument(res_z, spec, ws, N);
+    }
+
+    for (int i = 0; i < N; i++) {
+      float sx = res_x[i];
+      float sy = res_y[i];
+      float sz = res_z[i];
+    }
 
   }
+
 }
 
 }  // namespace dali
