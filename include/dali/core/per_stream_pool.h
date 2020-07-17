@@ -41,6 +41,9 @@ namespace dali {
  * If there are no available objects for current device, a new object is created and leased
  * immediately - it will be returned to the pool when the lease is over.
  *
+ * If reuse of objects on same stream is not wanted, use the alias PerDevicePool, which prevents
+ * this behavior.
+ *
  * Example:
  * ```
  * class MyClass {
@@ -198,6 +201,12 @@ class PerStreamPool {
   mutex_type lock_;
 };
 
+/**
+ * @brief This pre-configured pool object does not reuse objects for which there is outstanding
+ *        work, regardless of the stream.
+ *
+ * @see PerStreamPool for detailed description.
+ */
 template <typename T, typename mutex_type = std::mutex>
 using PerDevicePool = PerStreamPool<T, mutex_type, false>;
 

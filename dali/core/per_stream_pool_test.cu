@@ -55,6 +55,7 @@ TEST(PerStreamPool, SingleStream) {
     EXPECT_EQ(p2, p1) << "Expected to get the same object, even if job is still pending.";
   }
   flag.clear();  // unblock stream ssync
+  cudaStreamSynchronize(ssync);
   cudaStreamSynchronize(s1);
   if (auto lease = pool.Get(s1)) {
     p2 = lease;
@@ -89,6 +90,7 @@ TEST(PerDevicePool, SingleStreamNoReuse) {
     EXPECT_NE(p2, p1) << "Expected to get a new object - job is still pending and reuse disabled.";
   }
   flag.clear();  // unblock stream ssync
+  cudaStreamSynchronize(ssync);
   cudaStreamSynchronize(s1);
   if (auto lease = pool.Get(s1)) {
     p3 = lease;
@@ -129,6 +131,7 @@ TEST(PerStreamPool, MultiStream) {
     EXPECT_NE(p3, p1) << "Expected to get a new object, job on s1 is still pending.";
   }
   flag.clear();  // unblock stream ssync
+  cudaStreamSynchronize(ssync);
   cudaStreamSynchronize(s1);
   cudaStreamSynchronize(s2);
   if (auto lease = pool.Get(s1)) {
@@ -150,6 +153,7 @@ TEST(PerStreamPool, MultiStream) {
     EXPECT_TRUE(p4 != p3) << "Expected to get a different object.";
   }
   flag.clear();
+  cudaStreamSynchronize(ssync);
 }
 
 }  // namespace dali
