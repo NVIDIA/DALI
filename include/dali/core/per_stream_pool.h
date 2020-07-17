@@ -67,7 +67,7 @@ namespace dali {
  *   cls.DoSomeJob(stream2);  // if the previous job has not finished, create a new GPUWorker
  *   cls.DoSomeJob(stream2);  // reuse the second worker
  *   cudaDeviceSynchronize();
- *   cla.DoSomeJob(stream2);  // associated work is finished, reuses any of the two workers
+ *   cls.DoSomeJob(stream2);  // associated work is finished, reuses any of the two workers
  * ```
  *
  * Possible future extensions:
@@ -183,7 +183,7 @@ class PerStreamPool {
         pptr = &(*pptr)->next;
       } else {  // otherwise it's finished (or an error; we still recycle)
         int idx = (*pptr)->device_id + 1;
-        if (idx >= dev_pools_.size())
+        if (idx >= static_cast<int>(dev_pools_.size()))
           dev_pools_.resize(idx + 1);
 
         auto to_recycle = std::move(*pptr);  // remove from pending_ list
@@ -204,6 +204,40 @@ class PerStreamPool {
 /**
  * @brief This pre-configured pool object does not reuse objects for which there is outstanding
  *        work, regardless of the stream.
+ *
+ * The object maintains a separate, lazily populated, pool of objects for each device.
+ * When multiple requests are made faster than the associated GPU work is completed, more objects
+ * are created and added to the pool.
+ * When the associated work is complete, the objects can be reused in subsequent calls to Get, but
+ * not before. This is in contrast with PerStreamPool, which allows the objects to be reused
+ * on the same stream as soon as the host-side lease is finished.
+ *
+ * Example:
+ * ```
+ * class MyClass {
+ *  public:
+ *   PerDevicePool<GPUWorker> workers;
+ *
+ *   void DoSomeJob(cudaStream_t stream) {
+ *     auto worker = workers.Get(stream);
+ *     worker->DoYourJob(stream);
+ *     // Here the lease ends and an event is recorded in `stream`.
+ *     // When GPU reaches this event, this worker object will be available for reuse
+ *     // on other streams for the same CUDA device.
+ *   }
+ * };
+ *
+ * ...
+ *
+ *   MyClass cls;
+ *   cls.DoSomeJob(stream1);  // create a new GPUWorker object and use it
+ *   cls.DoSomeJob(stream1);  // if the previous job has not finished, create a new GPUWorker
+ *   cls.DoSomeJob(stream2);  // if the previous job has not finished, create a new GPUWorker
+ *   cls.DoSomeJob(stream2);  // if the previous job has not finished, create a new GPUWorker
+ *   cudaDeviceSynchronize();
+ *   cls.DoSomeJob(stream2);  // associated work is finished, reuses any of the previously
+ *                            // created workers
+ * ```
  *
  * @see PerStreamPool for detailed description.
  */
