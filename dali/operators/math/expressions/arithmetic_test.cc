@@ -159,7 +159,10 @@ void FillBatch(TensorList<CPUBackend> &batch, const TensorListShape<> shape) {
   }
 }
 
+
 }  // namespace
+
+
 
 template <typename T>
 using bin_op_pointer = T (*)(T, T);
@@ -650,6 +653,4 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
   }
 }
 
-
 }  // namespace dali
-

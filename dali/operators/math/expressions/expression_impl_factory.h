@@ -126,7 +126,7 @@ void TransformDescs(std::vector<ExtendedTileDesc> &extended_tiles,
  * @brief Prepare vector of ExtendedTiles for every task that we have to execute, filling
  * the pointers to data.
  *
- * @param tiles_per_task  Output vectors of ExtendedTiles per evry tast to execute
+ * @param tiles_per_task  Output vectors of ExtendedTiles per every task to execute
  */
 template <typename Backend>
 void PrepareTilesForTasks(std::vector<std::vector<ExtendedTileDesc>> &tiles_per_task,
