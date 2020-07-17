@@ -27,6 +27,8 @@
 
 #include "dali/core/cuda_event.h"
 
+#include "dali/core/dev_array.h"
+
 namespace dali {
 
 /**
@@ -68,8 +70,15 @@ __device__ void ExecuteBinOp(Result *result, Left l, const Right *r, int64_t ext
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
-  for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < extent; i += blockDim.x * gridDim.x) {
-    result[i] = meta::impl(l[i], r);
+  constexpr int elems = sizeof(Left) <= 4 ? 4 / sizeof(Left) : 1;
+  using LeftAcces = DeviceArray<Left, elems>;
+
+  for (int64_t i = (blockIdx.x * blockDim.x + threadIdx.x) * elems; i < extent; i += blockDim.x * gridDim.x * elems) {
+    const auto *left = reinterpret_cast<const LeftAcces*>(&l[i]);
+    auto left_value = *left;
+    #pragma unroll
+    for (int j = 0; j < elems; j++)
+      result[i + j] = meta::impl(left_value[j], r);
   }
 }
 
@@ -110,9 +119,9 @@ template <ArithmeticOp op, typename Result, typename Left, typename Right, bool 
           bool IsRightTensor>
 __global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
-  auto output = static_cast<Result *>(tile.output);
-  auto left = static_cast<const Left *>(tile.args[0]);
-  auto right = static_cast<const Right *>(tile.args[1]);
+  auto *output = static_cast<Result *>(tile.output);
+  const auto *left = static_cast<const Left *>(tile.args[0]);
+  const auto *right = static_cast<const Right *>(tile.args[1]);
   ExecuteBinOp<op>(output, argument<IsLeftTensor>::pass(left), argument<IsRightTensor>::pass(right),
                    tile.desc.extent_size);
 }
@@ -132,6 +141,7 @@ struct InvokerBinOp {
                      cudaStream_t stream) {
     ExecuteTiledBinOp<op, Result, Left, Right, IsLeftTensor, IsRightTensor>
         <<<grid, block, 0, stream>>>(tiles);
+    #if 0
 
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
@@ -156,6 +166,7 @@ struct InvokerBinOp {
         data_size += tile.desc.extent_size * sizeof(Right);
     }
     std::cerr << "Throughput: " << data_size / time << " GB/s\n";
+    #endif
   }
 };
 

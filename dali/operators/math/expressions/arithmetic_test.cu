@@ -99,6 +99,13 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
       right.reshape(uniform_list_shape<1>(TestConfig::batch_size, {1}));
     }
 
+    Left l{};
+    Right r{};
+    auto fill_left = [&l]() { return l += 1; };
+    auto fill_right = [&r]() { return r += 1; };
+    Fill(left.cpu(), fill_left);
+    Fill(right.cpu(), fill_right);
+
     // Fill pointers for tiles
     tiles_data.reshape(uniform_list_shape<1>(1, {TestConfig::num_tiles}));
     auto tiles_cpu = tiles_data.cpu()[0];
@@ -170,7 +177,7 @@ TYPED_TEST_SUITE_P(BinaryArithmeticOpGpuPerfTest);
 
 
 TYPED_TEST_P(BinaryArithmeticOpGpuPerfTest, Perf) {
-
+  std::cerr << "Blocks_x: " << TypeParam::blocks_x << ", thread_num: " << TypeParam::thread_num << ", tile_size: " << TypeParam::tile_size << std::endl;
   // TypeParam n = 0;
   this->MeasurePerf();
 
@@ -182,12 +189,68 @@ using TestConfigs = ::testing::Types<
   // op, Result, Left, Right, IsLeftTensor, IsRightTensor, blocks_x, thread_num, batch, tile, sample
   ArithmOpParams<  // old config
       ArithmeticOp::mul, float, float, float, true, false, 128, 256, 256, 16384, 1024 * 1024>,
+
+
   ArithmOpParams<
       ArithmeticOp::mul, float, float, float, true, false, 128, 32, 256, 65536, 1024 * 1024>,
   ArithmOpParams<
       ArithmeticOp::mul, float, float, float, true, true, 128, 32, 256, 65536, 1024 * 1024>,
   ArithmOpParams< // smaller batch
       ArithmeticOp::mul, float, float, float, true, false, 128, 32, 64, 65536, 1024 * 1024>,
+
+
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, false, 128, 64, 256, 65536, 1024 * 1024>,
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, true, 128, 64, 256, 65536, 1024 * 1024>,
+  ArithmOpParams< // smaller batch
+      ArithmeticOp::mul, float, float, float, true, false, 128, 64, 64, 65536, 1024 * 1024>,
+
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, false, 128, 128, 256, 65536, 1024 * 1024>,
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, true, 128, 128, 256, 65536, 1024 * 1024>,
+  ArithmOpParams< // smaller batch
+      ArithmeticOp::mul, float, float, float, true, false, 128, 128, 64, 65536, 1024 * 1024>,
+
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, false, 64, 128, 256, 65536, 1024 * 1024>,
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, true, 64, 128, 256, 65536, 1024 * 1024>,
+  ArithmOpParams< // smaller batch
+      ArithmeticOp::mul, float, float, float, true, false, 64, 128, 64, 65536, 1024 * 1024>,
+
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, false, 64, 256, 256, 65536, 1024 * 1024>,
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, true, 64, 256, 256, 65536, 1024 * 1024>,
+  ArithmOpParams< // smaller batch
+      ArithmeticOp::mul, float, float, float, true, false, 64, 256, 64, 65536, 1024 * 1024>,
+
+
+  ArithmOpParams<
+      ArithmeticOp::mul, int, int, int, true, false, 128, 128, 256, 65536, 1024 * 1024>,
+  ArithmOpParams<
+      ArithmeticOp::mul, int, int, int, true, true, 128, 128, 256, 65536, 1024 * 1024>,
+  ArithmOpParams< // smaller batch
+      ArithmeticOp::mul, int, int, int, true, false, 128, 128, 64, 65536, 1024 * 1024>,
+
+
+  ArithmOpParams<
+      ArithmeticOp::mul, uint8_t, uint8_t, float, true, false, 128, 128, 256, 65536, 1024 * 1024>,
+  ArithmOpParams<
+      ArithmeticOp::mul, uint8_t, uint8_t, float, true, true, 128, 128, 256, 65536, 1024 * 1024>,
+  ArithmOpParams< // smaller batch
+      ArithmeticOp::mul, uint8_t, uint8_t, float, true, false, 128, 128, 64, 65536, 1024 * 1024>,
+
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, false, 128, 128, 256, 4 * 65536, 1024 * 1024>,
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, true, 128, 128, 256, 4 * 65536, 1024 * 1024>,
+  ArithmOpParams< // smaller batch
+      ArithmeticOp::mul, float, float, float, true, false, 128, 128, 64, 4 * 65536, 1024 * 1024>,
+
+
   // smaller batch, emulating 1 tile per sample (we need to keep tile size = sample size)
   ArithmOpParams<
       ArithmeticOp::mul, float, float, float, true, false, 128, 32, 64, 16384, 16384>
