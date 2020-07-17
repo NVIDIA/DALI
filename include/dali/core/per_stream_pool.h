@@ -41,9 +41,12 @@ namespace dali {
  * If there are no available objects for current device, a new object is created and leased
  * immediately - it will be returned to the pool when the lease is over.
  *
+<<<<<<< HEAD
  * If reuse of objects on same stream is not wanted, use the alias PerDevicePool, which prevents
  * this behavior.
  *
+=======
+>>>>>>> Per-stream/per-device object pool.
  * Example:
  * ```
  * class MyClass {
@@ -67,7 +70,11 @@ namespace dali {
  *   cls.DoSomeJob(stream2);  // if the previous job has not finished, create a new GPUWorker
  *   cls.DoSomeJob(stream2);  // reuse the second worker
  *   cudaDeviceSynchronize();
+<<<<<<< HEAD
  *   cls.DoSomeJob(stream2);  // associated work is finished, reuses any of the two workers
+=======
+ *   cla.DoSomeJob(stream2);  // associated work is finished, reuses any of the two workers
+>>>>>>> Per-stream/per-device object pool.
  * ```
  *
  * Possible future extensions:
@@ -102,6 +109,10 @@ class PerStreamPool {
     }
 
     ~ListNode() {
+<<<<<<< HEAD
+=======
+      event.reset();
+>>>>>>> Per-stream/per-device object pool.
       DeleteNonRecursive(std::move(next));
     }
 
@@ -174,7 +185,10 @@ class PerStreamPool {
 
     ListNodeUPtr ptr = std::move(dev_pools_[idx]);
     dev_pools_[idx] = std::move(ptr->next);
+<<<<<<< HEAD
     ptr->stream = stream;
+=======
+>>>>>>> Per-stream/per-device object pool.
     return ptr;
   }
 
@@ -184,7 +198,11 @@ class PerStreamPool {
         pptr = &(*pptr)->next;
       } else {  // otherwise it's finished (or an error; we still recycle)
         int idx = (*pptr)->device_id + 1;
+<<<<<<< HEAD
         if (idx >= static_cast<int>(dev_pools_.size()))
+=======
+        if (idx >= dev_pools_.size())
+>>>>>>> Per-stream/per-device object pool.
           dev_pools_.resize(idx + 1);
 
         auto to_recycle = std::move(*pptr);  // remove from pending_ list
@@ -202,6 +220,7 @@ class PerStreamPool {
   mutex_type lock_;
 };
 
+<<<<<<< HEAD
 /**
  * @brief This pre-configured pool object does not reuse objects for which there is outstanding
  *        work, regardless of the stream.
@@ -242,6 +261,8 @@ class PerStreamPool {
  *
  * @see PerStreamPool for detailed description.
  */
+=======
+>>>>>>> Per-stream/per-device object pool.
 template <typename T, typename mutex_type = std::mutex>
 using PerDevicePool = PerStreamPool<T, mutex_type, false>;
 
