@@ -218,6 +218,13 @@ using TestConfigs = ::testing::Types<
   ArithmOpParams< // smaller batch
       ArithmeticOp::mul, float, float, float, true, false, 128, 128, 64, 65536, 1024 * 1024>,
 
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, false, 32, 256, 256, 65536, 1024 * 1024>,
+  ArithmOpParams<
+      ArithmeticOp::mul, float, float, float, true, true, 32, 256, 256, 65536, 1024 * 1024>,
+  ArithmOpParams< // smaller batch
+      ArithmeticOp::mul, float, float, float, true, false, 32, 256, 64, 65536, 1024 * 1024>,
+
   // smaller batch, emulating 1 tile per sample (we need to keep tile size = sample size)
   ArithmOpParams<
       ArithmeticOp::mul, float, float, float, true, false, 64, 128, 64, 16384, 16384>,
