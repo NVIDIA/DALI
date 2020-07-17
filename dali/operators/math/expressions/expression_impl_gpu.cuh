@@ -70,15 +70,8 @@ __device__ void ExecuteBinOp(Result *result, Left l, const Right *r, int64_t ext
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
-  constexpr int elems = sizeof(Left) <= 4 ? 4 / sizeof(Left) : 1;
-  using LeftAcces = DeviceArray<Left, elems>;
-
-  for (int64_t i = (blockIdx.x * blockDim.x + threadIdx.x) * elems; i < extent; i += blockDim.x * gridDim.x * elems) {
-    const auto *left = reinterpret_cast<const LeftAcces*>(&l[i]);
-    auto left_value = *left;
-    #pragma unroll
-    for (int j = 0; j < elems; j++)
-      result[i + j] = meta::impl(left_value[j], r);
+  for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < extent; i += blockDim.x * gridDim.x) {
+    result[i] = meta::impl(l[i], r);
   }
 }
 
@@ -141,7 +134,7 @@ struct InvokerBinOp {
                      cudaStream_t stream) {
     ExecuteTiledBinOp<op, Result, Left, Right, IsLeftTensor, IsRightTensor>
         <<<grid, block, 0, stream>>>(tiles);
-    #if 0
+    #if 1
 
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
@@ -186,8 +179,9 @@ class ExprImplGPUInvoke : public ExprImplBase {
   }
 
  private:
-  static constexpr int kThreadNum = 32;
-  static constexpr int kBlocksX = 128;  // This should correspond to TypicalTileSize / kThreadNum?
+  // Use BinaryArithmeticOpGpuPerfTest for tuning
+  static constexpr int kThreadNum = 128;
+  static constexpr int kBlocksX = 64;
   Tensor<GPUBackend> tiles_;
 };
 
