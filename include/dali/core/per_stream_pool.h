@@ -174,6 +174,7 @@ class PerStreamPool {
 
     ListNodeUPtr ptr = std::move(dev_pools_[idx]);
     dev_pools_[idx] = std::move(ptr->next);
+    ptr->stream = stream;
     return ptr;
   }
 

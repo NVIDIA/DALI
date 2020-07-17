@@ -15,7 +15,9 @@
 #include "dali/core/per_stream_pool.h"  // NOLINT
 #include <gtest/gtest.h>
 #include <chrono>
+#include <iostream>
 #include <thread>
+#include <vector>
 #include "dali/core/cuda_stream.h"
 
 namespace dali {
@@ -154,6 +156,81 @@ TEST(PerStreamPool, MultiStream) {
   }
   flag.clear();
   cudaStreamSynchronize(ssync);
+}
+
+
+TEST(PerStreamPool, Massive) {
+  std::atomic_flag flag;
+  flag.test_and_set();
+
+  int N = 100;
+  int niter = 10;
+  std::vector<CUDAStream> s(N);
+  std::vector<int *> p1(N), p2(N);
+
+  for (int  i = 0; i < N; i++) {
+    s[i] = CUDAStream::Create(true);
+  }
+
+  CUDAStream ssync = CUDAStream::Create(true);
+  CUDAEvent e = CUDAEvent::Create();
+  PerStreamPool<int> pool;
+
+  cudaLaunchHostFunc(ssync, wait_func, &flag);
+  cudaEventRecord(e, ssync);  // this event is recorded, but not reached, because this stream is
+                              // waiting for a spinning host function
+
+  volatile bool failure = false;
+  std::vector<std::thread> t(N);
+  for (int i = 0; i < N; i++) {
+    t[i] = std::thread([&, i]() {
+      for (int j = 0; j < niter; j++) {
+        if (auto lease = pool.Get(s[i])) {
+          if (j == 0) {
+            p1[i] = lease;
+          cudaStreamWaitEvent(s[i], e, 0);  // block s[i]
+          } else {
+            if (lease != p1[i]) {
+              std::cerr << "Failure in worker thread " << i
+                        << ": object not reused on same stream.";
+              failure = true;
+              break;
+            }
+          }
+        }
+      }
+    });
+  }
+
+  for (int i = 0; i < N; i++)
+    t[i].join();
+  EXPECT_FALSE(failure) << "Failure in worker thread";
+
+  flag.clear();
+  cudaStreamSynchronize(ssync);
+
+  std::sort(p1.begin(), p1.end());
+  for (int i = 1; i < N; i++)
+    EXPECT_NE(p1[i], p1[i-1]) << "Duplicate object found - this shouldn't have happened";
+
+  for (int i = 0; i < N; i++)
+    cudaStreamSynchronize(s[i]);
+
+  cudaLaunchHostFunc(ssync, wait_func, &flag);
+  cudaEventRecord(e, ssync);  // this event is recorded, but not reached, because this stream is
+                              // waiting for a spinning host function
+
+  for (int i = 0; i < N; i++) {
+    auto lease = pool.Get(s[i]);
+    cudaStreamWaitEvent(s[i], e, 0);  // block s[i]
+    p2[i] = lease;
+  }
+
+  flag.clear();
+  cudaStreamSynchronize(ssync);
+
+  std::sort(p2.begin(), p2.end());
+  EXPECT_EQ(p1, p2) << "Should reuse all objects";
 }
 
 }  // namespace dali
