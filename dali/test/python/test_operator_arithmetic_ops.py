@@ -341,6 +341,16 @@ def test_arithmetic_ops_big():
             for types_in in [(np.int8, np.int8)]:
                 yield check_arithm_op, kinds, types_in, op, shape_big, op_desc
 
+def test_arithmetic_ops_perf():
+    shape_perf = [(1024, 1024)] * 256
+    for kinds in [("gpu", "const")]:
+        for (op, op_desc) in [((lambda x, y: x * y), "*")]:
+            for types_in in [(np.float32, np.float32), (np.uint8, np.float32), (np.uint8, np.float32),]:
+                for shape in [[(1024, 1024)] * 256, [(1024, 1024, 16)] * 256, [(400, 400)] * 64]:
+                    yield check_arithm_op, kinds, types_in, op, shape, op_desc
+
+
+
 def test_arithmetic_ops_selected():
     for kinds in selected_bin_input_kinds:
         for (op, op_desc) in sane_operations:

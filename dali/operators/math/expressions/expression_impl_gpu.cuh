@@ -25,6 +25,8 @@
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
 
+#include "dali/core/cuda_event.h"
+
 namespace dali {
 
 /**
@@ -75,7 +77,7 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t ext
  * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
  */
 template <ArithmeticOp op, typename Result, typename Input>
-__global__ void ExecuteTiledUnOp(const ExtendedTileDesc *tiles, int num_tiles) {
+__global__ void ExecuteTiledUnOp(const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
   auto output = static_cast<Result *>(tile.output);
   auto in = static_cast<const Input *>(tile.args[0]);
@@ -106,7 +108,7 @@ struct argument<true> {
  */
 template <ArithmeticOp op, typename Result, typename Left, typename Right, bool IsLeftTensor,
           bool IsRightTensor>
-__global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles, int num_tiles) {
+__global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
   auto output = static_cast<Result *>(tile.output);
   auto left = static_cast<const Left *>(tile.args[0]);
@@ -117,19 +119,43 @@ __global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles, int num_tiles) 
 
 template <ArithmeticOp op, typename Result, typename Input>
 struct InvokerUnOp {
-  static void Invoke(const ExtendedTileDesc *tiles, int num_tiles, dim3 grid, dim3 block,
+  static void Invoke(const ExtendedTileDesc *tiles, const std::vector<ExtendedTileDesc> &tilesv, dim3 grid, dim3 block,
                      cudaStream_t stream) {
-    ExecuteTiledUnOp<op, Result, Input><<<grid, block, 0, stream>>>(tiles, num_tiles);
+    ExecuteTiledUnOp<op, Result, Input><<<grid, block, 0, stream>>>(tiles);
   }
 };
 
 template <ArithmeticOp op, typename Result, typename Left, typename Right, bool IsLeftTensor,
           bool IsRightTensor>
 struct InvokerBinOp {
-  static void Invoke(const ExtendedTileDesc *tiles, int num_tiles, dim3 grid, dim3 block,
+  static void Invoke(const ExtendedTileDesc *tiles, const std::vector<ExtendedTileDesc> &tilesv, dim3 grid, dim3 block,
                      cudaStream_t stream) {
     ExecuteTiledBinOp<op, Result, Left, Right, IsLeftTensor, IsRightTensor>
-        <<<grid, block, 0, stream>>>(tiles, num_tiles);
+        <<<grid, block, 0, stream>>>(tiles);
+
+    CUDAEvent start = CUDAEvent::CreateWithFlags(0);
+    CUDAEvent end = CUDAEvent::CreateWithFlags(0);
+
+    cudaEventRecord(start, stream);
+    for (int i = 0; i < 100; i++) {
+      ExecuteTiledBinOp<op, Result, Left, Right, IsLeftTensor, IsRightTensor>
+        <<<grid, block, 0, stream>>>(tiles);
+    }
+    cudaEventRecord(end, stream);
+    cudaDeviceSynchronize();
+    float time;
+    CUDA_CALL(cudaEventElapsedTime(&time, start, end));
+
+    time *= 1e+4f;  // convert to nanoseconds / 100 samples
+    int64_t data_size = 0;
+    for (const auto &tile : tilesv) {
+      data_size += tile.desc.extent_size * sizeof(Result);
+      if (IsLeftTensor)
+        data_size += tile.desc.extent_size * sizeof(Left);
+      if (IsRightTensor)
+        data_size += tile.desc.extent_size * sizeof(Right);
+    }
+    std::cerr << "Throughput: " << data_size / time << " GB/s\n";
   }
 };
 
@@ -145,11 +171,11 @@ class ExprImplGPUInvoke : public ExprImplBase {
     tiles_.Copy(tiles, ctx.stream);
     auto grid = GetGridLayout(kBlocksX, tiles.size());
     auto block = dim3(kThreadNum, 1, 1);
-    Invoker::Invoke(tiles_.data<ExtendedTileDesc>(), tiles.size(), grid, block, ctx.stream);
+    Invoker::Invoke(tiles_.data<ExtendedTileDesc>(), tiles, grid, block, ctx.stream);
   }
 
  private:
-  static constexpr int kThreadNum = 256;
+  static constexpr int kThreadNum = 32;
   static constexpr int kBlocksX = 128;  // This should correspond to TypicalTileSize / kThreadNum?
   Tensor<GPUBackend> tiles_;
 };
