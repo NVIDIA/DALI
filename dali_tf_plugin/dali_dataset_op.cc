@@ -241,9 +241,7 @@ class DALIDatasetOp : public DatasetOpKernel {
           msg << (dali_device_type == device_type_t::CPU ? "CPU" : "GPU");
           msg << " for output " << i;
 
-          return Status(
-            tensorflow::error::Code::INTERNAL,
-            msg.str());
+          std::cout << "DALI LOG: CheckOutputDevice: " << msg.str() << std::endl;
         }
       }
       return Status::OK();
@@ -286,6 +284,8 @@ class DALIDatasetOp : public DatasetOpKernel {
                 << DataTypeString(tf_type) << ".";
             return errors::InvalidArgument(ss.str());
           }
+
+          std::cout << "DALI LOG: Check Allocator Name in Iterator: " << context->allocator({})->Name() << std::endl;
 
           out_tensors->emplace_back(context->allocator({}), dataset()->dtypes_[out_id],
                                     output_shape);
