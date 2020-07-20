@@ -176,6 +176,7 @@ template <typename T, int Dims>
 void EraseImplCpu<T, Dims>::RunImpl(HostWorkspace &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
+  output.SetLayout(input.GetLayout());
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
   auto in_shape = input.shape();

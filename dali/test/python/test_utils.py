@@ -78,7 +78,22 @@ def get_gpu_num():
 
 
 # If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
-def check_batch(batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None):
+def check_batch(
+        batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None, expected_layout=None,
+        compare_layouts=False):
+    """Compare two batches of data, be it dali TensorList or list of numpy arrays.
+
+    Args:
+        batch1: input batch
+        batch2: input batch
+        batch_size
+        eps (float, optional): Used for mean error validation. Defaults to 1e-07.
+        max_allowed_error (int or float optional): If provided the max diff between elements.
+        expected_layout (str, optional): If provided, the batches that are DALI types will be checked
+            to match this layout. If None, there will be no check
+        compare_layouts (bool, optional): Whether to compare layouts between two batches.
+            Checked only if both inputs are DALI types. Defaults to False.
+    """
 
     def is_error(mean_err, max_err, eps, max_allowed_error):
         if max_allowed_error is not None:
@@ -93,15 +108,26 @@ def check_batch(batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None):
         batch1 = batch1.as_cpu()
     if isinstance(batch2, dali.backend_impl.TensorListGPU):
         batch2 = batch2.as_cpu()
+    # Check layouts where possible
+    for batch in [batch1, batch2]:
+        if expected_layout is not None and isinstance(batch, dali.backend.TensorListCPU):
+            assert batch.layout() == expected_layout, \
+                'Unexpected layout, expected "{}", got "{}".'.format(expected_layout, batch.layout())
+
+    if compare_layouts and \
+            isinstance(batch1, dali.backend.TensorListCPU) and \
+            isinstance(batch2, dali.backend.TensorListCPU):
+        assert batch1.layout() == batch2.layout(), \
+            'Layout mismatch "{}" != "{}"'.format(batch1.layout(), batch2.layout())
 
     for i in range(batch_size):
         # This allows to handle list of Tensors, list of np arrays and TensorLists
         left = np.array(batch1[i])
         right = np.array(batch2[i])
         is_failed = False
-        assert(left.shape == right.shape), \
+        assert left.shape == right.shape, \
             "Shape mismatch {} != {}".format(left.shape, right.shape)
-        assert(left.size == right.size), \
+        assert left.size == right.size, \
             "Size mismatch {} != {}".format(left.size, right.size)
         if left.size != 0:
             try:
@@ -128,7 +154,24 @@ def check_batch(batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None):
                     print(right)
                 assert False, error_msg
 
-def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps = 1e-07):
+
+def compare_pipelines(
+        pipe1, pipe2, batch_size, N_iterations, eps=1e-07, expected_layout=None,
+        compare_layouts=False):
+    """Compare the outputs of two pipelines across several iterations.
+
+    Args:
+        pipe1: input pipeline object
+        pipe2: input pipeline object
+        batch_size (int): batch size
+        N_iterations (int): Number of iterations used for comparison
+        eps (float, optional): Allowed mean error between samples. Defaults to 1e-07.
+        expected_layout (str or tuple of str, optional): If provided the outputs of both pipelines
+            will be matched with provided layouts and error will be raised if there is mismatch.
+            Defaults to None.
+        compare_layouts (bool, optional): Whether to compare layouts of outputs between pipelines.
+            Defaults to False.
+    """
     pipe1.build()
     pipe2.build()
     for _ in range(N_iterations):
@@ -138,7 +181,12 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps = 1e-07):
         for i in range(len(out1)):
             out1_data = out1[i].as_cpu() if isinstance(out1[i][0], dali.backend_impl.TensorGPU) else out1[i]
             out2_data = out2[i].as_cpu() if isinstance(out2[i][0], dali.backend_impl.TensorGPU) else out2[i]
-            check_batch(out1_data, out2_data, batch_size, eps)
+            if isinstance(expected_layout, tuple):
+                current_expected_layout = expected_layout[i]
+            else:
+                current_expected_layout = expected_layout
+            check_batch(out1_data, out2_data, batch_size, eps,
+                        expected_layout=current_expected_layout, compare_layouts=compare_layouts)
     print("OK: ({} iterations)".format(N_iterations))
 
 class RandomDataIterator(object):
