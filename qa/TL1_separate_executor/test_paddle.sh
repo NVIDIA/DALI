@@ -1,6 +1,6 @@
 #!/bin/bash -e
-# used pip packages
-pip_packages="paddle"
+# used pip packages# rarfile>= 3.2 breaks python 3.5 compatibility
+pip_packages="paddle rarfile<=3.1"
 target_dir=./dali/test/python
 one_config_only=true
 

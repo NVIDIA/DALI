@@ -1,6 +1,7 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="numpy paddle"
+# rarfile>= 3.2 breaks python 3.5 compatibility
+pip_packages="numpy paddle rarfile<=3.1"
 target_dir=./docs/examples/use_cases/paddle/ssd/
 
 test_body() {

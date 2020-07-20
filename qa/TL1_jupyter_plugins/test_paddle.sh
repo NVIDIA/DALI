@@ -1,7 +1,8 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages="jupyter matplotlib paddle"
+# rarfile>= 3.2 breaks python 3.5 compatibility
+pip_packages="jupyter matplotlib paddle rarfile<=3.1"
 target_dir=./docs/examples/
 
 do_once() {
