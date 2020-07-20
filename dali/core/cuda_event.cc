@@ -30,7 +30,7 @@ CUDAEvent CUDAEvent::CreateWithFlags(unsigned flags, int device_id) {
 }
 
 void CUDAEvent::DestroyHandle(cudaEvent_t event) {
-  CUDA_CALL(cudaEventDestroy(event));
+  CUDA_DTOR_CALL(cudaEventDestroy(event));
 }
 
 }  // namespace dali

@@ -140,18 +140,23 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     this->SetLayout(layout);
 
     auto nsamples = other.size();
-    std::vector<const void*> srcs(nsamples, nullptr);
-    std::vector<Index> sizes(nsamples, 0);
+    SmallVector<const void*, 256> srcs;
+    srcs.reserve(nsamples);
+    SmallVector<void*, 256> dsts;
+    dsts.reserve(nsamples);
+    SmallVector<Index, 256> sizes;
+    sizes.reserve(nsamples);
     for (size_t i = 0; i < nsamples; i++) {
-      srcs[i] = other[i].raw_data();
-      sizes[i] = other[i].size();
+      dsts.emplace_back(this->raw_mutable_tensor(i));
+      srcs.emplace_back(other[i].raw_data());
+      sizes.emplace_back(other[i].size());
       this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
       this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
     }
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || pinned_);
-    type.template Copy<SrcBackend, Backend>(this->raw_mutable_data(), srcs.data(), sizes.data(),
+    type.template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(),
                                             nsamples, stream, use_copy_kernel);
   }
 

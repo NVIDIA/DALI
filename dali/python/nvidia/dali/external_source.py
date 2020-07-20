@@ -279,7 +279,7 @@ fail when it is not
             if layout is not None:
                 raise RuntimeError("`layout` already specified in constructor.")
             else:
-                layout = self.layout
+                layout = self._layout
 
         if self._cuda_stream is not None:
             if cuda_stream is not None:

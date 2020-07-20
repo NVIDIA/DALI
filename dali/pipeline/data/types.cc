@@ -36,16 +36,30 @@ namespace dali {
 
 namespace detail {
 
+static constexpr size_t kMaxSizePerBlock = 1 << 18;  // 256 kB per block
+using ScatterGatherPool = PerStreamPool<kernels::ScatterGatherGPU, spinlock, true>;
+ScatterGatherPool& ScatterGatherPoolInstance() {
+  static ScatterGatherPool scatter_gather_pool_;
+  return scatter_gather_pool_;
+}
+
+void ScatterGatherCopy(void **dsts, const void **srcs, const Index *sizes, int n, int element_size,
+                       cudaStream_t stream) {
+  auto sc = ScatterGatherPoolInstance().Get(stream, kMaxSizePerBlock, n);
+  for (int i = 0; i < n; i++) {
+    sc->AddCopy(dsts[i], srcs[i], sizes[i] * element_size);
+  }
+  sc->Run(stream, true /*reset*/, false /*useMemcpyOnly*/);
+}
+
 void ScatterGatherCopy(void *dst, const void **srcs, const Index *sizes, int n, int element_size,
                        cudaStream_t stream) {
-  static PerStreamPool<kernels::ScatterGatherGPU, spinlock, true> scatter_gather_pool_;
-  static constexpr size_t kMaxSizePerBlock = 1 << 18;  // 256 kB per block
-  auto sc = scatter_gather_pool_.Get(stream, kMaxSizePerBlock, n);
-  ptrdiff_t offset = 0;
+  auto sc = ScatterGatherPoolInstance().Get(stream, kMaxSizePerBlock, n);
+  auto *sample_dst = reinterpret_cast<uint8_t*>(dst);
   for (int i = 0; i < n; i++) {
     auto nbytes = sizes[i] * element_size;
-    sc->AddCopy(reinterpret_cast<uint8_t*>(dst) + offset, srcs[i], nbytes);
-    offset += nbytes;
+    sc->AddCopy(sample_dst, srcs[i], nbytes);
+    sample_dst += nbytes;
   }
   sc->Run(stream, true /*reset*/, false /*useMemcpyOnly*/);
 }
@@ -85,6 +99,33 @@ template void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
     const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const;
 
 template <typename DstBackend, typename SrcBackend>
+void TypeInfo::Copy(void **dsts, const void** srcs, const Index* sizes, int n,
+                    cudaStream_t stream, bool use_copy_kernel) const {
+  constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
+                                   std::is_same<SrcBackend, CPUBackend>::value;
+  if (!is_host_to_host && use_copy_kernel) {
+    detail::ScatterGatherCopy(dsts, srcs, sizes, n, size(), stream);
+  } else {
+    for (int i = 0; i < n; i++) {
+      Copy<DstBackend, SrcBackend>(dsts[i], srcs[i], sizes[i], stream);
+    }
+  }
+}
+
+template void TypeInfo::Copy<CPUBackend, CPUBackend>(void **dsts,
+    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+
+template void TypeInfo::Copy<CPUBackend, GPUBackend>(void **dsts,
+    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+
+template void TypeInfo::Copy<GPUBackend, CPUBackend>(void **dsts,
+    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+
+template void TypeInfo::Copy<GPUBackend, GPUBackend>(void **dsts,
+    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+
+
+template <typename DstBackend, typename SrcBackend>
 void TypeInfo::Copy(void *dst, const void** srcs, const Index* sizes, int n,
                     cudaStream_t stream, bool use_copy_kernel) const {
   constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
@@ -100,6 +141,7 @@ void TypeInfo::Copy(void *dst, const void** srcs, const Index* sizes, int n,
   }
 }
 
+
 template void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst,
     const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
 
@@ -111,5 +153,6 @@ template void TypeInfo::Copy<GPUBackend, CPUBackend>(void *dst,
 
 template void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
     const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+
 
 }  // namespace dali

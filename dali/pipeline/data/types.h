@@ -235,6 +235,21 @@ class DLL_PUBLIC TypeInfo {
                        bool use_copy_kernel = false) const;
 
   /**
+   * @brief Copies from scattered locations from SrcBackend to DstBackend
+   * @param dst destination pointers
+   * @param srcs source pointers
+   * @param sizes number of elements for each of the pointers specified in srcs
+   * @param n number of copies to process
+   * @param stream CUDA stream. Only used in copies to/from GPU backend or from/to Host
+   *        pinned memory when use_copy_kernel is true
+   * @param use_copy_kernel If true, a copy kernel will be used instead of cudaMemcpyAsync when applicable 
+   *        (only relevant for device and host pinned memory)
+   */
+  template <typename DstBackend, typename SrcBackend>
+  DLL_PUBLIC void Copy(void **dst, const void **srcs, const Index *sizes, int n,
+                       cudaStream_t stream, bool use_copy_kernel = false) const;
+
+  /**
    * @brief Copies from SrcBackend scattered locations to a contiguous DstBackend buffer
    * @param dst destination pointer
    * @param srcs source pointers
