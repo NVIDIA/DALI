@@ -63,8 +63,7 @@ requirements:
     - python
     - future >=0.17.1
     - protobuf >=3.11.2
-    # h8b12597_1 misses static libs inside
-    - libprotobuf >=3.11.2 h8b12597_0
+    - libprotobuf-static >=3.11.2
     - libjpeg-turbo >=2.0.3
     - tensorflow-gpu =2.2.0
     - tensorflow-estimator =2.2.0
