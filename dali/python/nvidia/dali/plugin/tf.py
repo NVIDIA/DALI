@@ -142,6 +142,7 @@ if dataset_compatible_tensorflow():
       pipeline,
       output_dtypes = None,
       output_shapes = None,
+      fail_on_device_mismatch = True,
       *,
       batch_size = 1,
       num_threads = 4,
@@ -182,6 +183,7 @@ if dataset_compatible_tensorflow():
       self._gpu_prefetch_queue_depth = gpu_prefetch_queue_depth
       self._output_shapes = output_shapes
       self._output_dtypes = output_dtypes
+      self._fail_on_device_mismatch = fail_on_device_mismatch
 
       self._structure = structure.convert_legacy_structure(
         self._output_dtypes, self._output_shapes, output_classes)
@@ -236,7 +238,8 @@ if dataset_compatible_tensorflow():
         cpu_prefetch_queue_depth = self._cpu_prefetch_queue_depth,
         gpu_prefetch_queue_depth = self._gpu_prefetch_queue_depth,
         output_shapes = self._output_shapes,
-        output_dtypes = self._output_dtypes)
+        output_dtypes = self._output_dtypes,
+        fail_on_device_mismatch = self._fail_on_device_mismatch)
 
 
   if _get_tf_version() < LooseVersion('2.0'):
@@ -261,6 +264,7 @@ else:
       pipeline,
       output_dtypes = None,
       output_shapes = None,
+      fail_on_device_mismatch = True,
       *,
       batch_size = 1,
       num_threads = 4,
@@ -296,6 +300,11 @@ DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Datase
         In case of `batch_size = 1` it can be omitted in the shape.
         DALI Dataset will try to match requested shape by squeezing 1-sized dimensions
         from shape obtained from Pipeline.
+    `fail_on_device_mismatch` : bool, optional
+        When set to `True` runtime check will be performed to ensure DALI device and TF device are
+        both CPU or both GPU. In some contexts this check might be inaccurate. When set to `False`
+        will skip the check but print additional logs to check the devices. Keep in mind that this
+        may allow hidden GPU to CPU copies in the workflow and impact performance.
     `batch_size` : int, optional
         batch size of the pipeline.
     `num_threads` : int, optional
