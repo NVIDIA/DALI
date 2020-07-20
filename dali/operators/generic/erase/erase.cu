@@ -68,8 +68,11 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
   };
 
   void RunImpl(workspace_t<GPUBackend> &ws) override {
-    auto input = view<const T, Dims>(ws.template InputRef<GPUBackend>(0));
-    auto output = view<T, Dims>(ws.template OutputRef<GPUBackend>(0));
+    const auto &input_ref = ws.template InputRef<GPUBackend>(0);
+    auto &output_ref = ws.template OutputRef<GPUBackend>(0);
+    output_ref.SetLayout(input_ref.GetLayout());
+    auto input = view<const T, Dims>(input_ref);
+    auto output = view<T, Dims>(output_ref);
     auto regions_view = view<kernels::ibox<Dims>, 1>(regions_gpu_);
     kmgr_.Run<EraseKernel>(0, 0, ctx_, output, input, regions_view, make_cspan(fill_values_));
   }

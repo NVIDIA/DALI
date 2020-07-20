@@ -124,10 +124,12 @@ class ErasePythonPipeline(Pipeline):
         function = partial(erase_func, anchor, shape, axis_names, axes, data_layout, fill_value)
 
         self.erase = ops.PythonFunction(function=function)
+        self.set_layout = ops.Reshape(layout=data_layout)
 
     def define_graph(self):
         self.data = self.inputs()
         out = self.erase(self.data)
+        out = self.set_layout(out)
         return out
 
     def iter_setup(self):
@@ -144,7 +146,7 @@ def check_operator_erase_vs_python(device, batch_size, input_shape,
                       shape=shape, axis_names=axis_names, axes=axes, fill_value=fill_value),
         ErasePythonPipeline(device, batch_size, input_layout, iter(eii2), anchor=anchor,
                             shape=shape, axis_names=axis_names, axes=axes, fill_value=fill_value),
-        batch_size=batch_size, N_iterations=5, eps=1e-04)
+        batch_size=batch_size, N_iterations=5, eps=1e-04, expected_layout=input_layout)
 
 
 def test_operator_erase_vs_python():

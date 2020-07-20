@@ -78,7 +78,7 @@ def get_gpu_num():
 
 
 # If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
-def check_batch(batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None):
+def check_batch(batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None, expected_layout=None):
 
     def is_error(mean_err, max_err, eps, max_allowed_error):
         if max_allowed_error is not None:
@@ -93,6 +93,11 @@ def check_batch(batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None):
         batch1 = batch1.as_cpu()
     if isinstance(batch2, dali.backend_impl.TensorListGPU):
         batch2 = batch2.as_cpu()
+    # Check layouts where possible
+    for batch in [batch1, batch2]:
+        if expected_layout is not None and isinstance(batch, dali.backend.TensorListCPU):
+            assert batch.layout() == expected_layout, \
+                'Unexpected layout, expected "{}", got "{}".'.format(expected_layout, batch.layout())
 
     for i in range(batch_size):
         # This allows to handle list of Tensors, list of np arrays and TensorLists
@@ -128,7 +133,7 @@ def check_batch(batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None):
                     print(right)
                 assert False, error_msg
 
-def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps = 1e-07):
+def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps=1e-07, expected_layout=None):
     pipe1.build()
     pipe2.build()
     for _ in range(N_iterations):
@@ -138,7 +143,11 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps = 1e-07):
         for i in range(len(out1)):
             out1_data = out1[i].as_cpu() if isinstance(out1[i][0], dali.backend_impl.TensorGPU) else out1[i]
             out2_data = out2[i].as_cpu() if isinstance(out2[i][0], dali.backend_impl.TensorGPU) else out2[i]
-            check_batch(out1_data, out2_data, batch_size, eps)
+            if isinstance(expected_layout, tuple):
+                current_expected_layout = expected_layout[i]
+            else:
+                current_expected_layout = expected_layout
+            check_batch(out1_data, out2_data, batch_size, eps, expected_layout=current_expected_layout)
     print("OK: ({} iterations)".format(N_iterations))
 
 class RandomDataIterator(object):
