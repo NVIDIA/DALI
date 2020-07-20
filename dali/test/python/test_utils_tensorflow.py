@@ -38,13 +38,3 @@ def available_gpus():
         devices.append('/gpu:{0}'.format(device_id))
     return devices
 
-
-def dataset_options():
-    options = tf.data.Options()
-    try:
-        options.experimental_optimization.apply_default_optimizations = False
-        options.experimental_optimization.autotune = False
-    except:
-        print('Could not set TF Dataset Options')
-
-    return options

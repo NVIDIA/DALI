@@ -59,7 +59,7 @@ class TestPipeline(Pipeline):
             interp_type = types.INTERP_LINEAR)
         self.cmn = ops.CropMirrorNormalize(
             device = device,
-            output_dtype = types.FLOAT,
+            dtype = types.FLOAT,
             mean = [128., 128., 128.],
             std = [1., 1., 1.])
         self.cast = ops.Cast(
@@ -107,10 +107,9 @@ def _test_tf_dataset(device, device_id = 0):
             pipeline=dataset_pipeline,
             batch_size=batch_size,
             output_shapes=shapes,
-            output_dtypes=dtypes,
+            dtypes=dtypes,
             num_threads=num_threads,
             device_id=device_id)
-        daliset = daliset.with_options(dataset_options())
 
         iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
         next_element = iterator.get_next()
@@ -200,7 +199,6 @@ def _test_tf_dataset_multigpu():
                 output_dtypes=dtypes,
                 num_threads=num_threads,
                 device_id=device_id)
-            daliset = daliset.with_options(dataset_options())
 
             iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
             initializers.append(iterator.initializer)
@@ -264,4 +262,5 @@ def test_python_operator_error():
             output_shapes=shapes,
             output_dtypes=dtypes,
             num_threads=1,
-            device_id=0)
+            device_id=0)     
+

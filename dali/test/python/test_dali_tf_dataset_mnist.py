@@ -72,7 +72,7 @@ class MnistPipeline(Pipeline):
         return (images, labels)
 
 
-def _get_mnist_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1):
+def _get_mnist_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1, fail_on_device_mismatch=True):
     mnist_pipeline = MnistPipeline(
         4, data_path, device, device_id, shard_id, num_shards)
     shapes = (
@@ -88,16 +88,18 @@ def _get_mnist_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1):
         output_shapes=shapes,
         output_dtypes=dtypes,
         num_threads=4,
-        device_id=device_id)
-    return daliset.with_options(dataset_options())
+        device_id=device_id,
+        fail_on_device_mismatch=fail_on_device_mismatch)
+    return daliset
 
 
-def _get_train_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1):
+def _get_train_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1, fail_on_device_mismatch=True):
     return _get_mnist_dataset(
         device,
         device_id,
         shard_id,
-        num_shards)
+        num_shards,
+        fail_on_device_mismatch)
 
 
 def _graph_model(images, reuse, is_training):
@@ -220,16 +222,16 @@ def clear_checkpoints():
     remove_directory('/tmp/tensorflow-checkpoints', ignore_errors=True)
 
 
-def _test_estimators_single_device(model, device='cpu', device_id=0):
+def _test_estimators_single_device(model, device='cpu', device_id=0, fail_on_device_mismatch=True):
     def train_fn():
         with tf.device('/{0}:{1}'.format(device, device_id)):
-            return _get_train_dataset(device, device_id).map(
+            return _get_train_dataset(device, device_id, fail_on_device_mismatch=fail_on_device_mismatch).map(
                 lambda features, labels: ({'images': features}, labels))
 
     model.train(input_fn=train_fn, steps=EPOCHS * ITERATIONS)
 
     def test_fn():
-        return _get_train_dataset(device, device_id).map(
+        return _get_train_dataset(device, device_id, fail_on_device_mismatch=fail_on_device_mismatch).map(
             lambda features, labels: ({'images': features}, labels))
 
     evaluation = model.evaluate(
@@ -259,7 +261,8 @@ def _test_estimators_classifier_single_device(device='cpu', device_id=0):
         config=_run_config(device, device_id),
         optimizer=tf.train.AdamOptimizer)
 
-    _test_estimators_single_device(model, device, device_id)
+    _test_estimators_single_device(
+        model, device, device_id, (device != 'gpu'))
 
 
 @with_setup(clear_checkpoints, clear_checkpoints)
@@ -286,7 +289,8 @@ def _test_estimators_wrapping_keras_single_device(device='cpu', device_id=0):
     _test_estimators_single_device(
         model,
         device,
-        device_id)
+        device_id,
+        fail_on_device_mismatch=(device != 'gpu'))
 
 
 @with_setup(clear_checkpoints, clear_checkpoints)

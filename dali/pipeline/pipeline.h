@@ -420,6 +420,16 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC inline int device_id() const { return device_id_; }
 
+    /**
+   * @brief Returns number of outputs.
+   */
+  DLL_PUBLIC int num_outputs() const;
+
+  /**
+   * @brief Returns a string describing the type device type backing the output specified by given id.
+   */
+  DLL_PUBLIC const std::string &output_device(int id) const;
+
   // For testing
   template <typename T>
   friend class PipelineTest;

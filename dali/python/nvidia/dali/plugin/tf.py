@@ -128,6 +128,13 @@ if dataset_compatible_tensorflow():
   from tensorflow.python.data.util import structure
   import functools
 
+  def dataset_options():
+    options = tf.data.Options()
+    options.experimental_optimization.apply_default_optimizations = False
+    options.experimental_optimization.autotune = False
+
+    return options
+
 
   class _DALIDatasetV2(dataset_ops.DatasetSource):
     def __init__(
@@ -135,6 +142,7 @@ if dataset_compatible_tensorflow():
       pipeline,
       output_dtypes = None,
       output_shapes = None,
+      fail_on_device_mismatch = True,
       *,
       batch_size = 1,
       num_threads = 4,
@@ -175,11 +183,13 @@ if dataset_compatible_tensorflow():
       self._gpu_prefetch_queue_depth = gpu_prefetch_queue_depth
       self._output_shapes = output_shapes
       self._output_dtypes = output_dtypes
+      self._fail_on_device_mismatch = fail_on_device_mismatch
 
       self._structure = structure.convert_legacy_structure(
         self._output_dtypes, self._output_shapes, output_classes)
 
       super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
+
 
     def _check_output_dtypes(self, output_dtypes):
       """Check whether output_dtypes is instance of tf.DType or tuple of tf.DType
@@ -228,17 +238,24 @@ if dataset_compatible_tensorflow():
         cpu_prefetch_queue_depth = self._cpu_prefetch_queue_depth,
         gpu_prefetch_queue_depth = self._gpu_prefetch_queue_depth,
         output_shapes = self._output_shapes,
-        output_dtypes = self._output_dtypes)
+        output_dtypes = self._output_dtypes,
+        fail_on_device_mismatch = self._fail_on_device_mismatch)
 
 
   if _get_tf_version() < LooseVersion('2.0'):
-    class DALIDataset(dataset_ops.DatasetV1Adapter):
+    class _DALIDatasetImpl(dataset_ops.DatasetV1Adapter):
       @functools.wraps(_DALIDatasetV2.__init__)
       def __init__(self, pipeline, **kwargs):
-        wrapped = _DALIDatasetV2(pipeline, **kwargs)
-        super(DALIDataset, self).__init__(wrapped)
+        self._wrapped = _DALIDatasetV2(pipeline, **kwargs)
+        super(_DALIDatasetImpl, self).__init__(self._wrapped)
   else:
-    DALIDataset = _DALIDatasetV2
+    _DALIDatasetImpl = _DALIDatasetV2
+
+  class DALIDataset(dataset_ops._OptionsDataset):
+    @functools.wraps(_DALIDatasetV2.__init__)
+    def __init__(self, pipeline, **kwargs):
+      dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
+      super(DALIDataset, self).__init__(dataset_impl, dataset_options())
 
 else:
   class DALIDataset:
@@ -247,6 +264,7 @@ else:
       pipeline,
       output_dtypes = None,
       output_shapes = None,
+      fail_on_device_mismatch = True,
       *,
       batch_size = 1,
       num_threads = 4,
@@ -282,6 +300,11 @@ DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Datase
         In case of `batch_size = 1` it can be omitted in the shape.
         DALI Dataset will try to match requested shape by squeezing 1-sized dimensions
         from shape obtained from Pipeline.
+    `fail_on_device_mismatch` : bool, optional
+        When set to `True` runtime check will be performed to ensure DALI device and TF device are
+        both CPU or both GPU. In some contexts this check might be inaccurate. When set to `False`
+        will skip the check but print additional logs to check the devices. Keep in mind that this
+        may allow hidden GPU to CPU copies in the workflow and impact performance.
     `batch_size` : int, optional
         batch size of the pipeline.
     `num_threads` : int, optional

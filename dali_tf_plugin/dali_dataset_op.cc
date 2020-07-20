@@ -68,10 +68,12 @@ class DALIDatasetOp : public DatasetOpKernel {
     FillPipelineDef(context, pipeline_def_);
     OP_REQUIRES_OK(context, context->GetAttr("output_shapes", &shapes_));
     OP_REQUIRES_OK(context, context->GetAttr("output_dtypes", &dtypes_));
+    OP_REQUIRES_OK(context, context->GetAttr("fail_on_device_mismatch", &fail_on_device_mismatch_));
   }
 
     void MakeDataset(OpKernelContext *context, DatasetBase **output) override {
-      *output = new Dataset(context, pipeline_def_, shapes_, dtypes_, is_gpu_device_);
+      *output = new Dataset(
+        context, pipeline_def_, shapes_, dtypes_, is_gpu_device_, fail_on_device_mismatch_);
     }
 
  private:
@@ -113,6 +115,7 @@ class DALIDatasetOp : public DatasetOpKernel {
   std::vector<PartialTensorShape> shapes_;
   DataTypeVector dtypes_;
   bool is_gpu_device_;
+  bool fail_on_device_mismatch_;
 
   class Dataset : public DatasetBase {
    public:
@@ -121,12 +124,14 @@ class DALIDatasetOp : public DatasetOpKernel {
       const PipelineDef pipeline_def,
       const std::vector<PartialTensorShape> &shapes,
       const DataTypeVector &dtypes,
-      const bool is_gpu_device)
+      const bool is_gpu_device,
+      const bool fail_on_device_mismatch)
         : DatasetBase(DatasetContext(context)),
         pipeline_def_(pipeline_def),
         shapes_(shapes),
         dtypes_(dtypes),
-        device_type_(is_gpu_device ? device_type_t::GPU : device_type_t::CPU) {
+        device_type_(is_gpu_device ? device_type_t::GPU : device_type_t::CPU),
+        fail_on_device_mismatch_(fail_on_device_mismatch) {
 
       if (is_gpu_device) {
         stream_ = context->eigen_gpu_device().stream();
@@ -136,6 +141,8 @@ class DALIDatasetOp : public DatasetOpKernel {
     std::unique_ptr<IteratorBase> MakeIteratorInternal(const string &prefix) const override {
       daliPipelineHandle pipeline_handle;
       TF_CHECK_OK(InitPipeline(&pipeline_handle));
+      TF_CHECK_OK(CheckOutputDevices(&pipeline_handle));
+      
       return absl::make_unique<Iterator>(Iterator::Params{this, strings::StrCat(prefix, "::DALI")},
                                          pipeline_handle, pipeline_def_.enable_memory_stats);
     }
@@ -159,6 +166,7 @@ class DALIDatasetOp : public DatasetOpKernel {
     const DataTypeVector dtypes_;
     cudaStream_t stream_ = 0;
     const device_type_t device_type_;
+    const bool fail_on_device_mismatch_;
 
     daliPipelineHandle pipeline_handle_;
 
@@ -169,6 +177,7 @@ class DALIDatasetOp : public DatasetOpKernel {
 
       SerializeField(attrs, b, "output_shapes", shapes_);
       SerializeField(attrs, b, "output_dtypes", dtypes_);
+      SerializeField(attrs, b, "fail_on_device_mismatch", fail_on_device_mismatch_);
 
       TF_RETURN_IF_ERROR(b->AddDataset(this, {}, attrs, output));
 
@@ -227,12 +236,42 @@ class DALIDatasetOp : public DatasetOpKernel {
       return Status::OK();
     }
 
+    Status CheckOutputDevices(daliPipelineHandle *pipeline_handle) const {
+      auto num_outputs = daliGetNumOutput(pipeline_handle);
+      for (auto i  = 0; i < num_outputs; ++i) {
+        auto dali_device_type = daliGetOutputDevice(pipeline_handle, i);
+        if (dali_device_type != device_type_) {
+          std::stringstream msg;
+          msg << "TF device and DALI device mismatch. TF device: ";
+          msg << (device_type_ == device_type_t::CPU ? "CPU" : "GPU");
+          msg << ", DALI device: ";
+          msg << (dali_device_type == device_type_t::CPU ? "CPU" : "GPU");
+          msg << " for output " << i;
+          
+          if (fail_on_device_mismatch_) {
+            return Status(
+              tensorflow::error::Code::INTERNAL,
+              msg.str());
+          }
+          LOG(WARNING) << "DALI LOG: CheckOutputDevice: " << msg.str();
+        }
+      }
+      return Status::OK();
+    }
+
     class Iterator : public DatasetIterator<Dataset> {
      public:
       explicit Iterator(const Params &params, daliPipelineHandle pipeline_handle,
                         bool enable_memory_stats = false)
           : DatasetIterator<Dataset>(params), pipeline_handle_(pipeline_handle),
             enable_memory_stats_(enable_memory_stats) {}
+
+      Status Initialize(IteratorContext* context) override {
+        if (!dataset()->fail_on_device_mismatch_) {
+            LOG(WARNING) << "DALI LOG: Allocator Name in Iterator: " << context->allocator({})->Name();
+        }
+        return Status::OK(); 
+      }
 
       Status GetNextInternal(IteratorContext *context, std::vector<Tensor> *out_tensors,
                              bool *end_of_sequence) override {
@@ -502,6 +541,7 @@ REGISTER_OP("DALIDataset")
   .Attr("enable_memory_stats: bool = false")
   .Attr("output_shapes: list(shape) >= 1")
   .Attr("output_dtypes: list({bool, half, float, uint8, uint16, uint32, uint64, int8, int16, int32, int64}) >= 1")
+  .Attr("fail_on_device_mismatch: bool = true")
   .Output("handle: variant")
   .SetIsStateful()
   .SetShapeFn(shape_inference::ScalarShape)
