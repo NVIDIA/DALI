@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR_H_
 #define DALI_PIPELINE_EXECUTOR_EXECUTOR_H_
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <queue>
