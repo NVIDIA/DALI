@@ -5331,6 +5331,7 @@ def ExpectingFunctionArgs(clean_lines, linenum):
 
 
 _HEADERS_CONTAINING_TEMPLATES = (
+    ('<atomic>', ('atomic',)),
     ('<deque>', ('deque',)),
     ('<functional>', ('unary_function', 'binary_function',
                       'plus', 'minus', 'multiplies', 'divides', 'modulus',
