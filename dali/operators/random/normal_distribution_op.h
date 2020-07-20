@@ -20,6 +20,10 @@
 #include "dali/core/convert.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/batch_rng.h"
+#include "dali/core/static_switch.h"
+
+#define DALI_NORMDIST_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, \
+                             int64_t, float16, float, double)
 
 namespace dali {
 namespace detail {
@@ -54,6 +58,16 @@ class NormalDistribution : public Operator<Backend> {
     return true;
   }
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const workspace_t<Backend> &ws) override {
+    AcquireArguments(ws);
+    output_desc.resize(detail::kNumOutputs);
+    output_desc[0].shape = GetOutputShape(ws);
+    TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
+            output_desc[0].type = TypeTable::GetTypeInfoFromStatic<DType>();
+    ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)));  // NOLINT
+    return true;
+  }
 
   void AcquireArguments(const workspace_t<Backend> &ws) {
     this->GetPerSampleArgument(mean_, detail::kMean, ws);
@@ -126,9 +140,6 @@ class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(NormalDistributionCpu);
 
  protected:
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const workspace_t<CPUBackend> &ws) override;
-
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:

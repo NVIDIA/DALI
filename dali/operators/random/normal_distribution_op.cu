@@ -15,10 +15,7 @@
 #include "dali/operators/random/normal_distribution_op.cuh"
 #include <vector>
 #include <utility>
-#include "dali/core/static_switch.h"
-
-#define NORM_TYPES \
-  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float16, float, double)
+#include "dali/core/convert.h"
 
 namespace dali {
 
@@ -36,6 +33,39 @@ __global__ void NormalDistKernel(NormalDistributionGpu::BlockDesc *block_descs,
   }
 }
 
+template <typename Out, typename RandType>
+__global__ void NormalDistSingleValue(NormalDistributionGpu::BlockDesc *descs,
+                                      int size, RandomizerGPU randomizer) {
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  if (tid >= size) return;
+  auto desc = descs[tid];
+  auto norm = randomizer.normal<RandType>(tid);
+  *(static_cast<Out*>(desc.sample)) = ConvertSat<Out>(norm * desc.std + desc.mean);
+}
+
+std::pair<std::vector<int>, int> DistributeBlocksPerSample(
+    const TensorListShape<> &shape, int block_size, int max_blocks) {
+  std::vector<int> sizes(shape.size());
+  int sum = 0;
+  for (int i = 0; i < shape.size(); ++i) {
+    sizes[i] = div_ceil(volume(shape.tensor_shape_span(i)), block_size);
+    sum += sizes[i];
+  }
+  if (sum <= max_blocks) {
+    return {sizes, sum};
+  }
+  // If numbers of blocks exceeded max_blocks, we need to scale them down
+  int to_distribute = max_blocks - shape.size();
+  for (int i = 0; i < shape.size(); ++i) {
+    auto before = sizes[i];
+    auto scaled = before * to_distribute / sum;
+    to_distribute -= scaled;
+    sum -= before;
+    sizes[i] = scaled + 1;  // each sample gets at least one block
+  }
+  return {sizes, max_blocks};
+}
+
 }  // namespace detail
 
 const int NormalDistributionGpu::block_size_;
@@ -50,11 +80,12 @@ NormalDistributionGpu::~NormalDistributionGpu() {
   randomizer_.Cleanup();
 }
 
-int NormalDistributionGpu::SetupBlockDesc(TensorList<GPUBackend> &output, cudaStream_t stream) {
+int NormalDistributionGpu::SetupBlockDescs(TensorList<GPUBackend> &output, cudaStream_t stream) {
   std::vector<int> blocks_per_sample;
   int blocks_num;
   auto shape = output.shape();
-  std::tie(blocks_per_sample, blocks_num) = DistributeBlocks(shape);
+  std::tie(blocks_per_sample, blocks_num) =
+    detail::DistributeBlocksPerSample(shape, block_size_, max_blocks_);
   std::vector<BlockDesc> blocks(blocks_num);
   int block = 0;
   for (int s = 0; s < shape.size(); ++s) {
@@ -72,58 +103,63 @@ int NormalDistributionGpu::SetupBlockDesc(TensorList<GPUBackend> &output, cudaSt
     }
   }
   CUDA_CALL(cudaMemcpyAsync(block_descs_.get(), blocks.data(), sizeof(BlockDesc) * blocks_num,
-                            cudaMemcpyHostToDevice));
+                            cudaMemcpyHostToDevice, stream));
   return blocks_num;
 }
 
-std::pair<std::vector<int>, int> NormalDistributionGpu::DistributeBlocks(
-    const TensorListShape<> &shape) {
-  std::vector<int> sizes(shape.size());
-  int sum = 0;
-  for (int i = 0; i < shape.size(); ++i) {
-    sizes[i] = div_ceil(volume(shape.tensor_shape_span(i)), block_size_);
-    sum += sizes[i];
+int NormalDistributionGpu::SetupSingleValueDescs(TensorList<GPUBackend> &output,
+                                                  cudaStream_t stream) {
+  assert(output.GetElementsNumber() == output.ntensor());
+  auto elems = output.ntensor();
+  std::vector<BlockDesc> blocks(elems);
+  for (int i = 0; i < elems; ++i) {
+    blocks[i].sample = output.raw_mutable_tensor(i);
+    blocks[i].mean = mean_[i];
+    blocks[i].std = stddev_[i];
   }
-  if (sum <= max_blocks_) {
-    return {sizes, sum};
-  }
-  // If numbers of blocks exceeded max_blocks_, we need to scale them down
-  int to_distribute = max_blocks_ - shape.size();
-  for (int i = 0; i < shape.size(); ++i) {
-    auto before = sizes[i];
-    auto scaled = before * to_distribute / sum;
-    to_distribute -= scaled;
-    sum -= before;
-    sizes[i] = scaled + 1;  // each sample gets at least one block
-  }
-  return {sizes, max_blocks_};
+  CUDA_CALL(cudaMemcpyAsync(block_descs_.get(), blocks.data(), sizeof(BlockDesc) * elems,
+                            cudaMemcpyHostToDevice, stream));
+  auto blocks_num = div_ceil(elems, block_size_);
+  return blocks_num;
 }
 
-bool NormalDistributionGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                      const workspace_t<GPUBackend> &ws) {
-  AcquireArguments(ws);
-  output_desc.resize(detail::kNumOutputs);
-  auto shape = GetOutputShape(ws);
-  output_desc[0].shape = shape;
-  TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
-          output_desc[0].type = TypeTable::GetTypeInfoFromStatic<DType>();
+int NormalDistributionGpu::SetupDescs(TensorList<GPUBackend> &output, cudaStream_t stream) {
+  if (single_value_in_output_) {
+    return SetupSingleValueDescs(output, stream);
+  } else {
+    return SetupBlockDescs(output, stream);
+  }
+}
+
+void NormalDistributionGpu::LaunchKernel(int blocks_num, int64_t elements, cudaStream_t stream) {
+  if (single_value_in_output_) {
+    TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
+      if (sizeof(DType) > 4) {
+        detail::NormalDistSingleValue<DType, double>
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_.get(), elements, randomizer_);
+      } else {
+        detail::NormalDistSingleValue<DType, float>
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_.get(), elements, randomizer_);
+      }
     ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)));  // NOLINT
-  return true;
+  } else {
+    TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
+      if (sizeof(DType) > 4) {
+        detail::NormalDistKernel<DType, double>
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_.get(), randomizer_);
+      } else {
+        detail::NormalDistKernel<DType, float>
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_.get(), randomizer_);
+      }
+    ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)));  // NOLINT
+  }
 }
 
 void NormalDistributionGpu::RunImpl(workspace_t<GPUBackend> &ws) {
   auto &output = ws.OutputRef<GPUBackend>(0);
   auto stream = ws.stream();
-  int blocks_num = SetupBlockDesc(output, stream);
-  TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
-    if (sizeof(DType) > 4) {
-      detail::NormalDistKernel<DType, double>
-          <<<blocks_num, block_size_, 0, stream>>>(block_descs_.get(), randomizer_);
-    } else {
-      detail::NormalDistKernel<DType, float>
-          <<<blocks_num, block_size_, 0, stream>>>(block_descs_.get(), randomizer_);
-    }
-  ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)));  // NOLINT
+  int blocks_num = SetupDescs(output, stream);
+  LaunchKernel(blocks_num, output.GetElementsNumber(), stream);
 }
 
 DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionGpu, GPU);
