@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <memory>
-
 #define DALI_TYPENAME_REGISTERER(TypeString) \
 {                                            \
   return TypeString;                         \
@@ -32,48 +30,24 @@ const auto &_type_info_##Id = TypeTable::GetTypeID<Type>()
 #include "dali/util/half.hpp"
 
 #include "dali/pipeline/data/backend.h"
+#include "dali/core/per_stream_pool.h"
 
 namespace dali {
 
 namespace detail {
 
-class ScatterGatherPool {
- public:
-  static void Copy(void *dst, const void **srcs, const Index *sizes, int n, int element_size,
-                   cudaStream_t stream);
-
- private:
-  static ScatterGatherPool& instance();
-
-  // ScatterGatherPool should only be referenced through its static members
-  ScatterGatherPool() {}
-
-  spinlock lock_;
-  std::unordered_map<cudaStream_t, std::unique_ptr<kernels::ScatterGatherGPU>>
-      scatter_gather_instances_;
-};
-
-ScatterGatherPool& ScatterGatherPool::instance() {
-  static ScatterGatherPool singleton;
-  return singleton;
-}
-
-void ScatterGatherPool::Copy(void *dst, const void **srcs, const Index *sizes, int n,
-                             int element_size, cudaStream_t stream) {
-  auto &inst = instance();
-  std::lock_guard<spinlock> guard(inst.lock_);
-  auto& scatter_gather = inst.scatter_gather_instances_[stream];
-  constexpr int kBlockSize = 1 << 19;  // 512kB per block
-  if (!scatter_gather)
-    scatter_gather.reset(new kernels::ScatterGatherGPU(kBlockSize, n));
-
+void ScatterGatherCopy(void *dst, const void **srcs, const Index *sizes, int n, int element_size,
+                       cudaStream_t stream) {
+  static PerStreamPool<kernels::ScatterGatherGPU, spinlock, true> scatter_gather_pool_;
+  static constexpr size_t kMaxSizePerBlock = 1 << 18;  // 256 kB per block
+  auto sc = scatter_gather_pool_.Get(stream, kMaxSizePerBlock, n);
   ptrdiff_t offset = 0;
   for (int i = 0; i < n; i++) {
     auto nbytes = sizes[i] * element_size;
-    scatter_gather->AddCopy(reinterpret_cast<uint8_t*>(dst) + offset, srcs[i], nbytes);
+    sc->AddCopy(reinterpret_cast<uint8_t*>(dst) + offset, srcs[i], nbytes);
     offset += nbytes;
   }
-  scatter_gather->Run(stream);
+  sc->Run(stream, true /*reset*/, false /*useMemcpyOnly*/);
 }
 
 }  // namespace detail
@@ -86,9 +60,9 @@ TypeTable &TypeTable::instance() {
 template <typename DstBackend, typename SrcBackend>
 void TypeInfo::Copy(void *dst,
     const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const {
-  constexpr bool is_src_to_src = std::is_same<DstBackend, CPUBackend>::value &&
-                                 std::is_same<SrcBackend, CPUBackend>::value;
-  if (is_src_to_src) {
+  constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
+                                   std::is_same<SrcBackend, CPUBackend>::value;
+  if (is_host_to_host) {
     // Call our copy function
     copier_(dst, src, n);
   } else if (use_copy_kernel) {
@@ -113,10 +87,10 @@ template void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
 template <typename DstBackend, typename SrcBackend>
 void TypeInfo::Copy(void *dst, const void** srcs, const Index* sizes, int n,
                     cudaStream_t stream, bool use_copy_kernel) const {
-  constexpr bool is_src_to_src = std::is_same<DstBackend, CPUBackend>::value &&
-                                 std::is_same<SrcBackend, CPUBackend>::value;
-  if (!is_src_to_src && use_copy_kernel) {
-    detail::ScatterGatherPool::Copy(dst, srcs, sizes, n, size(), stream);
+  constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
+                                   std::is_same<SrcBackend, CPUBackend>::value;
+  if (!is_host_to_host && use_copy_kernel) {
+    detail::ScatterGatherCopy(dst, srcs, sizes, n, size(), stream);
   } else {
     uint8_t *sample_dst = reinterpret_cast<uint8_t*>(dst);
     for (int i = 0; i < n; i++) {

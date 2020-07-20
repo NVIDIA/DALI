@@ -143,7 +143,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     std::vector<const void*> srcs(nsamples, nullptr);
     std::vector<Index> sizes(nsamples, 0);
     for (size_t i = 0; i < nsamples; i++) {
-      srcs[i] = raw_mutable_tensor(i);
+      srcs[i] = other[i].raw_data();
       sizes[i] = other[i].size();
       this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
       this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());

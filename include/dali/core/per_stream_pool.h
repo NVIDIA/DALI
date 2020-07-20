@@ -130,20 +130,35 @@ class PerStreamPool {
     friend class PerStreamPool;
   };
 
-  ObjectLease Get(int device_id, cudaStream_t stream) {
+  /**
+   * @brief Gets an object from the specified device's pool or creates one if none are available
+   * @param device_id CUDA device index
+   * @param stream CUDA stream
+   * @param args Constructor arguments (used when building a new object)
+   */
+  template <typename... ObjectConstructorArgs>
+  ObjectLease Get(int device_id, cudaStream_t stream, ObjectConstructorArgs&&... args) {
     std::lock_guard<mutex_type> guard(lock_);
     RecycleFinished();
     if (reuse_pending_on_same_stream) {
       if (auto ret = GetPending(stream))
-          return { this, std::move(ret) };
+        return {this, std::move(ret)};
     }
-    return { this, GetFromDevicePool(device_id, stream) };
+    return {this,
+            GetFromDevicePool(device_id, stream, std::forward<ObjectConstructorArgs>(args)...)};
   }
 
-  ObjectLease Get(cudaStream_t stream) {
+  /**
+   * @brief Gets an object from the current device's pool or creates one if none are available
+   * @param stream CUDA stream
+   * @param device_id CUDA device index
+   * @param args Constructor arguments (used when building a new object)
+   */
+  template <typename... ObjectConstructorArgs>
+  ObjectLease Get(cudaStream_t stream, ObjectConstructorArgs&&... args) {
     int device = -1;
     cudaGetDevice(&device);
-    return Get(device, stream);
+    return Get(device, stream, std::forward<ObjectConstructorArgs>(args)...);
   }
 
  private:
@@ -167,10 +182,13 @@ class PerStreamPool {
     return nullptr;
   }
 
-  ListNodeUPtr GetFromDevicePool(int device_id, cudaStream_t stream) {
+  template <typename... ObjectConstructorArgs>
+  ListNodeUPtr GetFromDevicePool(int device_id, cudaStream_t stream,
+                                 ObjectConstructorArgs&&... args) {
     int idx = device_id + 1;  // account for device -1
     if (idx >= static_cast<int>(dev_pools_.size()) || !dev_pools_[idx])
-      return std::make_unique<ListNode>(device_id, stream);
+      return std::make_unique<ListNode>(device_id, stream,
+                                        std::forward<ObjectConstructorArgs>(args)...);
 
     ListNodeUPtr ptr = std::move(dev_pools_[idx]);
     dev_pools_[idx] = std::move(ptr->next);
