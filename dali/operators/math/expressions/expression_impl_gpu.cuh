@@ -51,8 +51,8 @@ __device__ void ExecuteUnOp(Result *result, const Input *in, int64_t extent) {
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
-  int64_t start_ofs = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
-  int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
+  uint32_t start_ofs = (blockDim.x) * blockIdx.x + threadIdx.x;
+  uint32_t stride = (blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
   result += start_ofs;
   l += start_ofs;
@@ -71,8 +71,8 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int6
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, Left l, const Right *r, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
-  int64_t start_ofs = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
-  int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
+  uint32_t start_ofs = (blockDim.x) * blockIdx.x + threadIdx.x;
+  uint32_t stride = (blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
   result += start_ofs;
   r += start_ofs;
@@ -89,8 +89,8 @@ __device__ void ExecuteBinOp(Result *result, Left l, const Right *r, int64_t ext
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
-  int64_t start_ofs = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
-  int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
+  uint32_t start_ofs = (blockDim.x) * blockIdx.x + threadIdx.x;
+  uint32_t stride = (blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
   result += start_ofs;
   l += start_ofs;
@@ -138,9 +138,9 @@ template <ArithmeticOp op, typename Result, typename Left, typename Right, bool 
           bool IsRightTensor>
 __global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
-  auto *output = static_cast<Result *>(tile.output);
-  const auto *left = static_cast<const Left *>(tile.args[0]);
-  const auto *right = static_cast<const Right *>(tile.args[1]);
+  auto output = static_cast<Result *>(tile.output);
+  auto left = static_cast<const Left *>(tile.args[0]);
+  auto right = static_cast<const Right *>(tile.args[1]);
   ExecuteBinOp<op>(output, argument<IsLeftTensor>::pass(left), argument<IsRightTensor>::pass(right),
                    tile.desc.extent_size);
 }
