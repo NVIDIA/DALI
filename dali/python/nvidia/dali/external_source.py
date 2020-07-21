@@ -53,7 +53,7 @@ class _CycleGenFunc():
             return next(self.it)
 
 class _ExternalSourceGroup(object):
-    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None, use_copy_kernel = False):
+    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None, use_copy_kernel = None):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
@@ -218,7 +218,7 @@ fail when it is not
 """
 
     def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", 
-                 cuda_stream = None, use_copy_kernel = False, **kwargs):
+                 cuda_stream = None, use_copy_kernel = None, **kwargs):
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
         self._device = device
@@ -256,7 +256,7 @@ fail when it is not
         return False
 
     def __call__(self, *, source = None, cycle = None, name = None, layout = None, cuda_stream = None, 
-                 use_copy_kernel = False, **kwargs):
+                 use_copy_kernel = None, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
 
@@ -342,7 +342,7 @@ def _is_external_source_with_callback(op_instance):
     return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
 
 def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None,
-                    cuda_stream = None, use_copy_kernel = False, **kwargs):
+                    cuda_stream = None, use_copy_kernel = None, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
