@@ -51,8 +51,8 @@ __device__ void ExecuteUnOp(Result *result, const Input *in, int64_t extent) {
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
-  uint32_t start_ofs = (blockDim.x) * blockIdx.x + threadIdx.x;
-  uint32_t stride = (blockDim.x) * gridDim.x;
+  int64_t start_ofs = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
   result += start_ofs;
   l += start_ofs;
@@ -71,8 +71,8 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int6
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, Left l, const Right *r, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
-  uint32_t start_ofs = (blockDim.x) * blockIdx.x + threadIdx.x;
-  uint32_t stride = (blockDim.x) * gridDim.x;
+  int64_t start_ofs = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
   result += start_ofs;
   r += start_ofs;
@@ -89,8 +89,8 @@ __device__ void ExecuteBinOp(Result *result, Left l, const Right *r, int64_t ext
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
-  uint32_t start_ofs = (blockDim.x) * blockIdx.x + threadIdx.x;
-  uint32_t stride = (blockDim.x) * gridDim.x;
+  int64_t start_ofs = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
   result += start_ofs;
   l += start_ofs;
