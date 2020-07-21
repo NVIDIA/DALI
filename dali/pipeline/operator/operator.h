@@ -391,8 +391,8 @@ class Operator<GPUBackend> : public OperatorBase {
     SetupSharedSampleParams(ws);
     RunImpl(ws);
     if (ws.NumInput() > 0 && ws.NumOutput() > 0) {
-      auto &in = ws.template InputRef<CPUBackend>(0);
-      auto &out = ws.template OutputRef<CPUBackend>(0);
+      auto &in = ws.template InputRef<GPUBackend>(0);
+      auto &out = ws.template OutputRef<GPUBackend>(0);
       auto in_layout = in.GetLayout();
       auto out_layout = out.GetLayout();
       DALI_ENFORCE(!out_layout.empty() || in_layout.empty(),
