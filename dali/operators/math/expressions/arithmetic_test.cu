@@ -92,12 +92,15 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
     // Fill pointers for tiles
     tiles_data.reshape(uniform_list_shape<1>(1, {TestConfig::num_tiles}));
     auto tiles_cpu = tiles_data.cpu()[0];
+    // TestTensorList just allocates memory, this can leave SmallVector in weird state
+    memset(tiles_cpu.data, 0, TestConfig::num_tiles * sizeof(ExtendedTileDesc));
     for (int sample_id = 0; sample_id < TestConfig::batch_size; sample_id++) {
       for (int extent_id = 0; extent_id < TestConfig::tiles_per_sample; extent_id++) {
         int tile_id = sample_id * TestConfig::tiles_per_sample + extent_id;
         tiles_cpu(tile_id)->desc = tile_descs[tile_id];
         tiles_cpu(tile_id)->output =
             result.gpu(stream)[sample_id].data + extent_id * TestConfig::tile_size;
+        tiles_cpu(tile_id)->args.resize(2);
         tiles_cpu(tile_id)->args[0] =
             left.gpu(stream)[sample_id].data +
             (TestConfig::IsLeftTensor ? extent_id * TestConfig::tile_size : 0);
