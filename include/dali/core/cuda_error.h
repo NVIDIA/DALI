@@ -121,7 +121,7 @@ inline void cudaResultCheck<CUresult>(CUresult status) {
 }
 
 template <typename Code>
-inline void cudaResultDestructorCheck(Code code) {
+inline void cudaResultDestructorCheck(Code status) {
   cudaResultCheck(status);
 }
 
