@@ -15,6 +15,7 @@
 #include "dali/core/per_stream_pool.h"  // NOLINT
 #include <gtest/gtest.h>
 #include <atomic>
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <thread>

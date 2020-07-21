@@ -83,8 +83,10 @@ class DLL_PUBLIC ScatterGatherGPU {
    * @param reset - if true, calls Reset after processing is over
    * @param useMemcpyOnly - if true, all copies are executed using cudaMemcpy;
    *                        otherwise a batched kernel is used if there are more than 2 ranges
+   * @param memcpyKind    - determines the cudaMemcpyKind when using cudaMemcpy
    */
-  DLL_PUBLIC void Run(cudaStream_t stream, bool reset = true, bool useMemcpyOnly = false);
+  DLL_PUBLIC void Run(cudaStream_t stream, bool reset = true, bool useMemcpyOnly = false,
+                      cudaMemcpyKind memcpyKind = cudaMemcpyDefault);
 
   using CopyRange = detail::CopyRange;
 

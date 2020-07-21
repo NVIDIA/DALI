@@ -135,25 +135,26 @@ class ExternalSource : public Operator<Backend> {
    */
   template<typename SrcBackend>
   inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0,
-                            bool sync = false) {
+                            bool sync = false, bool use_copy_kernel = false) {
     DeviceGuard g(device_id_);
     TimeRange tr("[ExternalSource] SetDataSource", TimeRange::kViolet);
-    SetDataSourceHelper(tl, stream, sync);
+    SetDataSourceHelper(tl, stream, sync, use_copy_kernel);
   }
 
   /**
    * @brief Sets the data that should be passed out of the op on the next iteration.
    */
-  template<typename SrcBackend>
+  template <typename SrcBackend>
   inline void SetDataSource(const vector<Tensor<SrcBackend>> &vect_of_tensors,
-                            cudaStream_t stream = 0, bool sync = false) {
+                            cudaStream_t stream = 0, bool sync = false,
+                            bool use_copy_kernel = false) {
     DeviceGuard g(device_id_);
     TimeRange tr("[ExternalSource] SetDataSource", TimeRange::kViolet);
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
     for (size_t i = 0; i < tv.size(); ++i) {
       tv[i].ShareData(const_cast<Tensor<SrcBackend>*>(&vect_of_tensors[i]));
     }
-    SetDataSourceHelper(tv, stream, sync);
+    SetDataSourceHelper(tv, stream, sync, use_copy_kernel);
   }
 
   /**
@@ -161,10 +162,10 @@ class ExternalSource : public Operator<Backend> {
    */
   template<typename SrcBackend>
   inline void SetDataSource(const TensorVector<SrcBackend> &tv, cudaStream_t stream = 0,
-                            bool sync = false) {
+                            bool sync = false, bool use_copy_kernel = false) {
     DeviceGuard g(device_id_);
     TimeRange tr("[ExternalSource] SetDataSource", TimeRange::kViolet);
-    SetDataSourceHelper(tv, stream, sync);
+    SetDataSourceHelper(tv, stream, sync, use_copy_kernel);
   }
 
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
@@ -299,7 +300,8 @@ class ExternalSource : public Operator<Backend> {
 
   template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
   inline std::enable_if_t<std::is_same<B, CPUBackend>::value>
-  CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t stream, bool /*sync*/) {
+  CopyUserData(const SourceDataType<SrcBackend> &batch,
+               cudaStream_t stream, bool /* sync */, bool /* use_copy_kernel */) {
     std::list<uptr_tv_type> tv_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
@@ -325,7 +327,8 @@ class ExternalSource : public Operator<Backend> {
 
   template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
   inline std::enable_if_t<std::is_same<B, GPUBackend>::value>
-  CopyUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t stream, bool sync) {
+  CopyUserData(const SourceDataType<SrcBackend> &batch,
+               cudaStream_t stream, bool sync, bool use_copy_kernel) {
     std::list<uptr_cuda_event_type> copy_to_storage_event;
     std::list<uptr_tl_type> tl_elm;
     {
@@ -333,7 +336,7 @@ class ExternalSource : public Operator<Backend> {
       tl_elm = tl_data_.GetEmpty();
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
-    tl_elm.front()->Copy(batch, stream);
+    tl_elm.front()->Copy(batch, stream, use_copy_kernel);
     // record event for:
     // - GPU -> GPU
     // - pinned CPU -> GPU
@@ -358,7 +361,7 @@ class ExternalSource : public Operator<Backend> {
 
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, cudaStream_t stream = 0,
-                                  bool sync = false) {
+                                  bool sync = false, bool use_copy_kernel = false) {
     bool is_gpu_src = std::is_same<SrcBackend, GPUBackend>::value;
     bool is_gpu_dst = std::is_same<Backend, GPUBackend>::value;
     if (is_gpu_src && !is_gpu_dst) {
@@ -377,7 +380,7 @@ class ExternalSource : public Operator<Backend> {
     if (no_copy_) {
       ShareUserData(batch, stream);
     } else {
-      CopyUserData(batch, stream, sync);
+      CopyUserData(batch, stream, sync, use_copy_kernel);
     }
     cv_.notify_one();
   }

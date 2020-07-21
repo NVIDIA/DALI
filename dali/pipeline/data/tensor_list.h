@@ -100,20 +100,24 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * changing the underlying data type if needed.
    */
   template <typename SrcBackend>
-  DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream) {
+  DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream,
+                              bool use_copy_kernel = false) {
     if (IsValidType(other.type())) {
       this->set_type(other.type());
     }
     this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
     ResizeLike(other);
-    type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
-        other.raw_data(), this->size(), stream);
+
+    use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
+                       (std::is_same<Backend, GPUBackend>::value || pinned_);
+    type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(), other.raw_data(),
+                                             this->size(), stream, use_copy_kernel);
   }
 
   template <typename SrcBackend>
-  DLL_PUBLIC inline void Copy(const TensorVector<SrcBackend> &other,
-                              cudaStream_t stream) {
+  DLL_PUBLIC inline void Copy(const TensorVector<SrcBackend> &other, cudaStream_t stream,
+                              bool use_copy_kernel = false) {
     auto type = other[0].type();
     auto layout = other[0].GetLayout();
 
@@ -135,14 +139,25 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     }
     this->SetLayout(layout);
 
-    for (size_t i = 0; i < other.size(); ++i) {
-      type.template Copy<SrcBackend, Backend>(
-          raw_mutable_tensor(i),
-          other[i].raw_data(),
-          other[i].size(), stream);
+    auto nsamples = other.size();
+    SmallVector<const void*, 256> srcs;
+    srcs.reserve(nsamples);
+    SmallVector<void*, 256> dsts;
+    dsts.reserve(nsamples);
+    SmallVector<Index, 256> sizes;
+    sizes.reserve(nsamples);
+    for (size_t i = 0; i < nsamples; i++) {
+      dsts.emplace_back(this->raw_mutable_tensor(i));
+      srcs.emplace_back(other[i].raw_data());
+      sizes.emplace_back(other[i].size());
       this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
       this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
     }
+
+    use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
+                       (std::is_same<Backend, GPUBackend>::value || pinned_);
+    type.template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(),
+                                            nsamples, stream, use_copy_kernel);
   }
 
   using Buffer<Backend>::reserve;

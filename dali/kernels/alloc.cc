@@ -29,7 +29,6 @@ struct Allocator;
 template <>
 struct Allocator<AllocType::Host> {
   static void Deallocate(void *ptr, int device) noexcept {
-    (void)device;
     free(ptr);
   }
 
@@ -39,12 +38,8 @@ struct Allocator<AllocType::Host> {
 template <>
 struct Allocator<AllocType::Pinned> {
   static void Deallocate(void *ptr, int device) noexcept {
-    try {
-      DeviceGuard guard(device);
-    } catch (...) {
-      std::terminate();
-    }
-    cudaFreeHost(ptr);
+    (void) device;  // TODO(janton): remove device argument
+    CUDA_DTOR_CALL(cudaFreeHost(ptr));
   }
 
   static void *Allocate(size_t bytes) noexcept {
@@ -57,12 +52,8 @@ struct Allocator<AllocType::Pinned> {
 template <>
 struct Allocator<AllocType::GPU> {
   static void Deallocate(void *ptr, int device) noexcept {
-    try {
-      DeviceGuard guard(device);
-    } catch (...) {
-      std::terminate();
-    }
-    cudaFree(ptr);
+    (void) device;  // TODO(janton): remove device argument
+    CUDA_DTOR_CALL(cudaFree(ptr));
   }
 
   static void *Allocate(size_t bytes) noexcept {
@@ -76,12 +67,8 @@ struct Allocator<AllocType::GPU> {
 template <>
 struct Allocator<AllocType::Unified> {
   static void Deallocate(void *ptr, int device) noexcept {
-    try {
-      DeviceGuard guard(device);
-    } catch (...) {
-      std::terminate();
-    }
-    cudaFree(ptr);
+    (void) device;  // TODO(janton): remove device argument
+    CUDA_DTOR_CALL(cudaFree(ptr));
   }
 
   static void *Allocate(size_t bytes) noexcept {

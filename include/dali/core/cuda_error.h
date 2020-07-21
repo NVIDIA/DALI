@@ -119,11 +119,43 @@ inline void cudaResultCheck<CUresult>(CUresult status) {
     throw dali::CUDAError(status);
   }
 }
+
+template <typename Code>
+inline void cudaResultDestructorCheck(Code status) {
+  cudaResultCheck(status);
+}
+
+template <>
+inline void cudaResultDestructorCheck<cudaError_t>(cudaError_t status) {
+  switch (status) {
+  case cudaErrorCudartUnloading:
+    return;
+  default:
+    cudaResultCheck(status);
+  }
+}
+
+template <>
+inline void cudaResultDestructorCheck<CUresult>(CUresult status) {
+  switch (status) {
+  case CUDA_ERROR_DEINITIALIZED:
+    return;
+  default:
+    cudaResultCheck(status);
+  }
+}
+
 }  // namespace dali
 
 template <typename T>
 inline void CUDA_CALL(T status) {
   return dali::cudaResultCheck(status);
 }
+
+template <typename T>
+inline void CUDA_DTOR_CALL(T status) {
+  return dali::cudaResultDestructorCheck(status);
+}
+
 
 #endif  // DALI_CORE_CUDA_ERROR_H_

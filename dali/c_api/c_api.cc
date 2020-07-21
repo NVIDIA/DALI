@@ -56,7 +56,9 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof);
   data.Resize(tl_shape, type_info);
   data.SetLayout(layout);
-  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_force_sync);
+  pipeline->SetExternalInput(name, data, stream,
+                             flags & DALI_ext_force_sync,
+                             flags & DALI_use_copy_kernel);
 }
 
 
@@ -84,7 +86,9 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     data[i].Resize(tl_shape[i], type_info);
     data[i].SetLayout(layout);
   }
-  pipeline->SetExternalInput(name, data, stream, flags & DALI_ext_force_sync);
+  pipeline->SetExternalInput(name, data, stream,
+                             flags & DALI_ext_force_sync,
+                             flags & DALI_use_copy_kernel);
 }
 
 }  // namespace

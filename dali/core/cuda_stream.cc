@@ -35,7 +35,7 @@ CUDAStream CUDAStream::CreateWithPriority(bool non_blocking, int priority, int d
 }
 
 void CUDAStream::DestroyHandle(cudaStream_t stream) {
-  CUDA_CALL(cudaStreamDestroy(stream));
+  CUDA_DTOR_CALL(cudaStreamDestroy(stream));
 }
 
 }  // namespace dali
