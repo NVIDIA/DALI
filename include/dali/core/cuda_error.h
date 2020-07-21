@@ -121,13 +121,12 @@ inline void cudaResultCheck<CUresult>(CUresult status) {
 }
 
 template <typename Code>
-inline void cudaResultDtorCheck(Code code) {
-  static_assert(!std::is_same<Code, Code>::value,
-    "cudaResultDtorCheck not implemented for this type of status code");
+inline void cudaResultDestructorCheck(Code code) {
+  cudaResultCheck(status);
 }
 
 template <>
-inline void cudaResultDtorCheck<cudaError_t>(cudaError_t status) {
+inline void cudaResultDestructorCheck<cudaError_t>(cudaError_t status) {
   switch (status) {
   case cudaErrorCudartUnloading:
     return;
@@ -137,7 +136,7 @@ inline void cudaResultDtorCheck<cudaError_t>(cudaError_t status) {
 }
 
 template <>
-inline void cudaResultDtorCheck<CUresult>(CUresult status) {
+inline void cudaResultDestructorCheck<CUresult>(CUresult status) {
   switch (status) {
   case CUDA_ERROR_DEINITIALIZED:
     return;
@@ -155,7 +154,7 @@ inline void CUDA_CALL(T status) {
 
 template <typename T>
 inline void CUDA_DTOR_CALL(T status) {
-  return dali::cudaResultDtorCheck(status);
+  return dali::cudaResultDestructorCheck(status);
 }
 
 
