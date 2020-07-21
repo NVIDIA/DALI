@@ -74,8 +74,6 @@ def check_normal_distribution_with_input(dtype, device):
         outputs = pipeline.run()
         for i in range(bsize):
             output = outputs[0] if device == 'cpu' else outputs[0].as_cpu()
-            print(output.at(i))
-            print(output.at(i).shape)
             assert output.at(i).shape == batch[i].shape
             possibly_normal_distribution = output.at(i).flatten()
             _, pvalues_anderson, _ = st.anderson(possibly_normal_distribution, dist='norm')

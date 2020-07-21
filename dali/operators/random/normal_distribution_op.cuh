@@ -23,6 +23,11 @@
 
 namespace dali {
 
+namespace detail {
+DLL_PUBLIC std::pair<std::vector<int>, int> DistributeBlocksPerSample(
+  const TensorListShape<> &shape, int block_size, int max_blocks);
+}
+
 namespace mem = kernels::memory;
 
 class NormalDistributionGpu : public NormalDistribution<GPUBackend> {
@@ -51,8 +56,8 @@ class NormalDistributionGpu : public NormalDistribution<GPUBackend> {
 
   void LaunchKernel(int blocks_num, int64_t elements, cudaStream_t stream);
 
-  static const int block_size_ = 256;
-  static const int max_blocks_ = 1024;
+  static constexpr int block_size_ = 256;
+  static constexpr int max_blocks_ = 1024;
   RandomizerGPU randomizer_;
   mem::KernelUniquePtr<BlockDesc> block_descs_;
 };

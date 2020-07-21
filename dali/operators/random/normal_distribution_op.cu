@@ -48,7 +48,7 @@ std::pair<std::vector<int>, int> DistributeBlocksPerSample(
   std::vector<int> sizes(shape.size());
   int sum = 0;
   for (int i = 0; i < shape.size(); ++i) {
-    sizes[i] = div_ceil(volume(shape.tensor_shape_span(i)), block_size);
+    sizes[i] = div_ceil(volume(shape[i]), block_size);
     sum += sizes[i];
   }
   if (sum <= max_blocks) {
@@ -67,9 +67,6 @@ std::pair<std::vector<int>, int> DistributeBlocksPerSample(
 }
 
 }  // namespace detail
-
-const int NormalDistributionGpu::block_size_;
-const int NormalDistributionGpu::max_blocks_;
 
 NormalDistributionGpu::NormalDistributionGpu(const OpSpec &spec)
       : NormalDistribution(spec), randomizer_(seed_, block_size_ * max_blocks_) {
@@ -90,7 +87,7 @@ int NormalDistributionGpu::SetupBlockDescs(TensorList<GPUBackend> &output, cudaS
   int block = 0;
   for (int s = 0; s < shape.size(); ++s) {
     void *sample = output.raw_mutable_tensor(s);
-    auto sample_size = volume(shape.tensor_shape_span(s));
+    auto sample_size = volume(shape[s]);
     auto work_per_block = div_ceil(sample_size, blocks_per_sample[s]);
     int64_t start = 0;
     for (int b = 0; b < blocks_per_sample[s]; ++b, ++block) {

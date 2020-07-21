@@ -30,14 +30,14 @@ struct CurandNormal {};
 
 template <>
 struct CurandNormal<float> {
-  __device__ static float normal(curandState *state) {
+  __device__ static DALI_FORCEINLINE float normal(curandState *state) {
     return curand_normal(state);
   }
 };
 
 template <>
 struct CurandNormal<double> {
-  __device__ static double normal(curandState *state) {
+  __device__ static DALI_FORCEINLINE double normal(curandState *state) {
     return curand_normal_double(state);
   }
 };
