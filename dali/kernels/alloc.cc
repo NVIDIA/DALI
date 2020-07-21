@@ -38,7 +38,7 @@ struct Allocator<AllocType::Host> {
 template <>
 struct Allocator<AllocType::Pinned> {
   static void Deallocate(void *ptr, int device) noexcept {
-    (void) device;
+    (void) device;  // TODO(janton): remove device argument
     CUDA_DTOR_CALL(cudaFreeHost(ptr));
   }
 
@@ -52,7 +52,7 @@ struct Allocator<AllocType::Pinned> {
 template <>
 struct Allocator<AllocType::GPU> {
   static void Deallocate(void *ptr, int device) noexcept {
-    (void) device;
+    (void) device;  // TODO(janton): remove device argument
     CUDA_DTOR_CALL(cudaFree(ptr));
   }
 
@@ -67,7 +67,7 @@ struct Allocator<AllocType::GPU> {
 template <>
 struct Allocator<AllocType::Unified> {
   static void Deallocate(void *ptr, int device) noexcept {
-    (void) device;
+    (void) device;  // TODO(janton): remove device argument
     CUDA_DTOR_CALL(cudaFree(ptr));
   }
 

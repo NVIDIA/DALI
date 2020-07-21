@@ -162,7 +162,7 @@ class ExternalSource : public Operator<Backend> {
    */
   template<typename SrcBackend>
   inline void SetDataSource(const TensorVector<SrcBackend> &tv, cudaStream_t stream = 0,
-                              bool sync = false, bool use_copy_kernel = false) {
+                            bool sync = false, bool use_copy_kernel = false) {
     DeviceGuard g(device_id_);
     TimeRange tr("[ExternalSource] SetDataSource", TimeRange::kViolet);
     SetDataSourceHelper(tv, stream, sync, use_copy_kernel);
