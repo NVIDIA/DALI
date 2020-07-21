@@ -59,7 +59,8 @@ class NormalDistributionGpu : public NormalDistribution<GPUBackend> {
   static constexpr int block_size_ = 256;
   static constexpr int max_blocks_ = 1024;
   RandomizerGPU randomizer_;
-  mem::KernelUniquePtr<BlockDesc> block_descs_;
+  mem::KernelUniquePtr<BlockDesc> block_descs_gpu_;
+  mem::KernelUniquePtr<BlockDesc> block_descs_cpu_;
 };
 
 }  // namespace dali

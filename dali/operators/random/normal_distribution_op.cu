@@ -70,7 +70,10 @@ std::pair<std::vector<int>, int> DistributeBlocksPerSample(
 
 NormalDistributionGpu::NormalDistributionGpu(const OpSpec &spec)
       : NormalDistribution(spec), randomizer_(seed_, block_size_ * max_blocks_) {
-  block_descs_ = mem::alloc_unique<BlockDesc>(kernels::AllocType::GPU, max_blocks_);
+  DALI_ENFORCE(batch_size_ <= max_blocks_,
+               "Batch size must be smaller than " + std::to_string(max_blocks_));
+  block_descs_gpu_ = mem::alloc_unique<BlockDesc>(kernels::AllocType::GPU, max_blocks_);
+  block_descs_cpu_ = mem::alloc_unique<BlockDesc>(kernels::AllocType::Pinned, max_blocks_);
 }
 
 NormalDistributionGpu::~NormalDistributionGpu() {
@@ -83,7 +86,7 @@ int NormalDistributionGpu::SetupBlockDescs(TensorList<GPUBackend> &output, cudaS
   auto shape = output.shape();
   std::tie(blocks_per_sample, blocks_num) =
     detail::DistributeBlocksPerSample(shape, block_size_, max_blocks_);
-  std::vector<BlockDesc> blocks(blocks_num);
+  BlockDesc *blocks = block_descs_cpu_.get();
   int block = 0;
   for (int s = 0; s < shape.size(); ++s) {
     void *sample = output.raw_mutable_tensor(s);
@@ -99,8 +102,8 @@ int NormalDistributionGpu::SetupBlockDescs(TensorList<GPUBackend> &output, cudaS
       blocks[block].end = std::min(start, sample_size);
     }
   }
-  CUDA_CALL(cudaMemcpyAsync(block_descs_.get(), blocks.data(), sizeof(BlockDesc) * blocks_num,
-                            cudaMemcpyHostToDevice, stream));
+  CUDA_CALL(cudaMemcpyAsync(block_descs_gpu_.get(), block_descs_cpu_.get(),
+                            sizeof(BlockDesc) * blocks_num, cudaMemcpyHostToDevice, stream));
   return blocks_num;
 }
 
@@ -108,14 +111,14 @@ int NormalDistributionGpu::SetupSingleValueDescs(TensorList<GPUBackend> &output,
                                                   cudaStream_t stream) {
   assert(output.GetElementsNumber() == output.ntensor());
   auto elems = output.ntensor();
-  std::vector<BlockDesc> blocks(elems);
+  BlockDesc *blocks = block_descs_cpu_.get();
   for (int i = 0; i < elems; ++i) {
     blocks[i].sample = output.raw_mutable_tensor(i);
     blocks[i].mean = mean_[i];
     blocks[i].std = stddev_[i];
   }
-  CUDA_CALL(cudaMemcpyAsync(block_descs_.get(), blocks.data(), sizeof(BlockDesc) * elems,
-                            cudaMemcpyHostToDevice, stream));
+  CUDA_CALL(cudaMemcpyAsync(block_descs_gpu_.get(), block_descs_cpu_.get(),
+                            sizeof(BlockDesc) * elems, cudaMemcpyHostToDevice, stream));
   auto blocks_num = div_ceil(elems, block_size_);
   return blocks_num;
 }
@@ -133,20 +136,20 @@ void NormalDistributionGpu::LaunchKernel(int blocks_num, int64_t elements, cudaS
     TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
       if (sizeof(DType) > 4) {
         detail::NormalDistSingleValue<DType, double>
-            <<<blocks_num, block_size_, 0, stream>>>(block_descs_.get(), elements, randomizer_);
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), elements, randomizer_);
       } else {
         detail::NormalDistSingleValue<DType, float>
-            <<<blocks_num, block_size_, 0, stream>>>(block_descs_.get(), elements, randomizer_);
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), elements, randomizer_);
       }
     ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)));  // NOLINT
   } else {
     TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
       if (sizeof(DType) > 4) {
         detail::NormalDistKernel<DType, double>
-            <<<blocks_num, block_size_, 0, stream>>>(block_descs_.get(), randomizer_);
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), randomizer_);
       } else {
         detail::NormalDistKernel<DType, float>
-            <<<blocks_num, block_size_, 0, stream>>>(block_descs_.get(), randomizer_);
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), randomizer_);
       }
     ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)));  // NOLINT
   }
