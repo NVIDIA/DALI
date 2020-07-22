@@ -316,9 +316,10 @@ class Operator<CPUBackend> : public OperatorBase {
       auto &out = ws.template OutputRef<CPUBackend>(0);
       auto in_layout = in.GetLayout();
       auto out_layout = out.GetLayout();
-      DALI_ENFORCE(!out_layout.empty() || in_layout.empty() || spec_.name() == "DLTensorPythonFunctionImpl",
-                   make_string("Operator: ", spec_.name(),
-                               " produced an empty layout. Input layout was ", in_layout));
+      DALI_ENFORCE(
+          !out_layout.empty() || in_layout.empty() || spec_.name() == "DLTensorPythonFunctionImpl",
+          make_string("Operator: ", spec_.name(), " produced an empty layout. Input layout was ",
+                      in_layout));
     }
   }
 
@@ -395,9 +396,10 @@ class Operator<GPUBackend> : public OperatorBase {
       auto &out = ws.template OutputRef<GPUBackend>(0);
       auto in_layout = in.GetLayout();
       auto out_layout = out.GetLayout();
-      DALI_ENFORCE(!out_layout.empty() || in_layout.empty(),
-                   make_string("Operator: ", spec_.name(),
-                               " produced an empty layout. Input layout was ", in_layout));
+      DALI_ENFORCE(
+          !out_layout.empty() || in_layout.empty() || spec_.name() == "DLTensorPythonFunctionImpl",
+          make_string("Operator: ", spec_.name(), " produced an empty layout. Input layout was ",
+                      in_layout));
     }
   }
 
