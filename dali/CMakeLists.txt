@@ -58,7 +58,7 @@ target_link_libraries(dali PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${da
 
 # Link in dali's dependencies
 message(STATUS "Adding dependencies to target `dali`: '${DALI_LIBS}'")
-target_link_libraries(dali PUBLIC dali_core)
+target_link_libraries(dali PUBLIC dali_core dali_kernels)
 target_link_libraries(dali PRIVATE ${DALI_LIBS} dynlink_cuda)
 # Exclude (most) statically linked dali dependencies from the exports of libdali.so
 target_link_libraries(dali PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
