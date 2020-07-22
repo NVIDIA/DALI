@@ -54,7 +54,7 @@ class MelFilterBankPipeline(Pipeline):
 def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula, input_data):
     in_shape = input_data.shape
     nfft = 2 * (input_data.shape[-2] - 1)
-    librosa_norm = 1 if normalize else None
+    librosa_norm = 'slaney' if normalize else None
     librosa_htk = (mel_formula == 'htk')
     mel_transform = librosa.filters.mel(
         sr = sample_rate, n_mels=nfilter, n_fft = nfft,
