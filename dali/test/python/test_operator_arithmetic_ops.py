@@ -30,7 +30,7 @@ from test_utils import check_batch
 batch_size = 4
 
 # Shape of the samples, currently forces the sample to have be covered by more than 1 tile
-shape_big = [(256, 256)] * batch_size
+shape_big = [(1024, 1024)] * batch_size
 # For the coverage of all type combinations we use smaller batch
 shape_small = [(42, 3), (4, 16), (8, 2), (1, 64)]
 

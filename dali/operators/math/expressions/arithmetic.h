@@ -363,7 +363,8 @@ class ArithmeticGenericOp : public Operator<Backend> {
   ExprImplCache cache_;
   // For CPU we limit the tile size to limit the sizes of intermediate buffers
   // For GPU it's better to execute more at one time.
-  static constexpr int kTileSize = std::is_same<Backend, CPUBackend>::value ? 4096 : 16384;
+  static constexpr int kTileSize =
+      std::is_same<Backend, CPUBackend>::value ? 4096 : 65536;
   // CPU packs up to 64 tiles in one task, GPU porcesses all of them in one task
   static constexpr int kTaskSize =
       std::is_same<Backend, CPUBackend>::value ? 64 : std::numeric_limits<int>::max();
