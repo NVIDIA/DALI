@@ -171,7 +171,7 @@ enum {
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
- * @param flags Extra flags, check DALI_ext_force_sync, DALI_ext_pinned
+ * @param flags Extra flags, check DALI_ext_force_sync, DALI_ext_pinned, DALI_use_copy_kernel
  */
 DLL_PUBLIC void
 daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
@@ -215,7 +215,7 @@ daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
- * @param flags Extra flags, check DALI_ext_force_sync, DALI_ext_pinned
+ * @param flags Extra flags, check DALI_ext_force_sync, DALI_ext_pinned, DALI_use_copy_kernel
  */
 DLL_PUBLIC void
 daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const char *name,
@@ -315,20 +315,6 @@ DLL_PUBLIC size_t daliTensorSize(daliPipelineHandle *pipe_handle, int n);
 DLL_PUBLIC size_t daliMaxDimTensors(daliPipelineHandle *pipe_handle, int n);
 
 /**
- * @brief Copy the output tensor list stored
- * at position `n` in the pipeline.
- * dst_type (0 - CPU, 1 - GPU)
- * @remarks Tensor list doesn't need to be dense
- *
- * If you call this function with non_blocking != 0, make sure to
- * synchronize with the provided stream before reading the data.
- * If non_blocking == 0, function will do it for you
- */
-DLL_PUBLIC void
-daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int n, device_type_t dst_type,
-                      cudaStream_t stream, int non_blocking);
-
-/**
  * @brief Returns number of DALI pipeline outputs
  */
 DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle);
@@ -338,20 +324,37 @@ DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle);
  */
 DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id);
 
-
 /**
  * @brief Copy the output tensor stored
  * at position `n` in the pipeline.
- * dst_type (0 - CPU, 1 - GPU)
- * @remarks If the output is tensor list then it needs to be dense
- *
- * If you call this function with non_blocking != 0, make sure to
- * synchronize on provided stream before reading the data.
- * If non_blocking == 0, function will do it for you
+ * @remarks If the pipeline output is TensorList then it needs to be dense
+ * @param pipe_handle Pointer to pipeline handle
+ * @param device Device of the supplied memory.
+ * @param dst Pointer to the destination buffer where the data will be copied
+ * @param output_id index of the pipeline output
+ * @param dst_type Device type associated with the destination buffer (0 - CPU, 1 - GPU)
+ * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
+ *               provided stream.
+ * @param flags Extra flags, check DALI_ext_force_sync, DALI_use_copy_kernel
+ */
+
+DLL_PUBLIC void
+daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int n, device_type_t dst_type,
+               cudaStream_t stream, unsigned int flags);
+
+/**
+ * @brief DEPRECATED API: use daliOutputCopy instead
  */
 DLL_PUBLIC void
 daliCopyTensorNTo(daliPipelineHandle *pipe_handle, void *dst, int n, device_type_t dst_type,
                   cudaStream_t stream, int non_blocking);
+
+/**
+ * @brief DEPRECATED API: use daliOutputCopy instead
+ */
+DLL_PUBLIC void
+daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int output_id,
+                      device_type_t dst_type, cudaStream_t stream, int non_blocking);
 
 /**
  * @brief Delete the pipeline object.

@@ -352,7 +352,7 @@ class DALIDatasetOp : public DatasetOpKernel {
                   " for tensor " + std::to_string(out_id));
           }
 
-          TF_DALI_CALL(daliCopyTensorNTo(&pipeline_handle_, dst, out_id, dataset()->device_type_,
+          TF_DALI_CALL(daliOutputCopy(&pipeline_handle_, dst, out_id, dataset()->device_type_,
                                       dataset()->stream_, false));
         }
 
