@@ -35,9 +35,43 @@ BENCHMARK_DEFINE_F(OperatorBench, NormalDistributionGPU)(benchmark::State& st) {
   this->RunGPU<float>(st, spec, batch_size, sample_dim, sample_dim, 3);
 }
 
-BENCHMARK_REGISTER_F(OperatorBench, NormalDistributionGPU)->Iterations(400)
+BENCHMARK_DEFINE_F(OperatorBench, NormalDistributionGPU_NonUniform)(benchmark::State& st) {
+  const int batch_size = st.range(0);
+  const int max_sample_vol = st.range(1);
+
+  TensorListShape<3> shape(batch_size);
+  int vol_log2 = 0;
+  for (int i = 1; i < max_sample_vol; i *= 2) vol_log2++;
+  shape.set_tensor_shape(0, {1, 1, 1});
+  for (int i = 1; i < batch_size; ++i) {
+    auto prev = volume(shape[i - 1]);
+    int size = i % (div_ceil(batch_size, vol_log2)) == 0 ? prev * 2 : prev;
+    shape.set_tensor_shape(i, {1, 1, size});
+  }
+
+  auto spec = OpSpec("NormalDistribution")
+      .AddArg("batch_size", batch_size)
+      .AddArg("num_threads", 1)
+      .AddArg("device", "gpu")
+      .AddArg("dtype", DALI_FLOAT)
+      .AddArg("mean", 0.1f)
+      .AddArg("stddev", 1.5f)
+      .AddInput("data", "gpu");
+
+  this->RunGPU<float>(st, spec, batch_size, shape);
+}
+
+BENCHMARK_REGISTER_F(OperatorBench, NormalDistributionGPU)
+->Iterations(400)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Ranges({{16, 256}, {128, 512}, {0, 1}});
+
+BENCHMARK_REGISTER_F(OperatorBench, NormalDistributionGPU_NonUniform)
+->Iterations(400)
+->Unit(benchmark::kMicrosecond)
+->UseRealTime()
+->Ranges({{128, 512}, {2048, 16*4096}});
+
 
 }  // namespace dali

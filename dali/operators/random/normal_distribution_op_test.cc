@@ -45,6 +45,12 @@ TEST_F(TestBlockDistribution, Ratio) {
   ASSERT_EQ(distribute(shape), dist);
 }
 
+TEST_F(TestBlockDistribution, LessThanMax) {
+  std::vector<int> shape{511 * 256 + 100, 128 * 256, 256 * 256};
+  std::vector<int> dist{512, 128, 256};
+  ASSERT_EQ(distribute(shape), dist);
+}
+
 TEST(DistributeBlocks, RandomTests) {
   std::mt19937 rnd(1234);
   const int block_size = 256;
