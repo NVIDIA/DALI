@@ -284,8 +284,6 @@ void ExposeTensor(py::module &m) {
       Check if provided python object represent a valid DLPack capsule.
       It returns a tuple of two boolean values: one indicating if this is a valid DLPack object, and the other if the data
 
-      Parameters
-      ----------
       p : python object
           Python object to be checked
       )code");
@@ -301,8 +299,6 @@ void ExposeTensor(py::module &m) {
       R"code(
       DLPack of Tensor residing in the CPU memory.
 
-      Parameters
-      ----------
       object : DLPack object
             Python DLPack object
       layout : str
@@ -362,8 +358,6 @@ void ExposeTensor(py::module &m) {
       R"code(
       Tensor residing in the CPU memory.
 
-      Parameters
-      ----------
       b : object
             the buffer to wrap into the TensorListCPU object
       layout : str
@@ -390,8 +384,6 @@ void ExposeTensor(py::module &m) {
       R"code(
       Copy to external pointer in the CPU memory.
 
-      Parameters
-      ----------
       ptr : ctypes.c_void_p
             Destination of the copy.
       )code")
@@ -424,8 +416,6 @@ void ExposeTensor(py::module &m) {
       R"code(
       DLPack of Tensor residing in the GPU memory.
 
-      Parameters
-      ----------
       object : DLPack object
             Python DLPack object
       layout : str
@@ -442,8 +432,6 @@ void ExposeTensor(py::module &m) {
       R"code(
       Tensor residing in the GPU memory.
 
-      Parameters
-      ----------
       object : object
             Python object that implement CUDA Array Interface
       layout : str
@@ -490,8 +478,6 @@ void ExposeTensor(py::module &m) {
       R"code(
       Copy to external pointer in the GPU memory.
 
-      Parameters
-      ----------
       ptr : ctypes.c_void_p
             Destination of the copy.
       cuda_stream : ctypes.c_void_p
@@ -561,8 +547,6 @@ void ExposeTensorList(py::module &m) {
         R"code(
         List of tensors residing in the CPU memory.
 
-        Parameters
-        ----------
         object : DLPack object
               Python DLPack object representing TensorList
         layout : str
@@ -601,8 +585,6 @@ void ExposeTensorList(py::module &m) {
       R"code(
       List of tensors residing in the CPU memory.
 
-      Parameters
-      ----------
       b : object
             the buffer to wrap into the TensorListCPU object
       layout : str
@@ -639,8 +621,6 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns tensor at given position in the list.
 
-      Parameters
-      ----------
       )code")
       .def("__getitem__",
         [](TensorList<CPUBackend> &tl, Index i) -> std::unique_ptr<Tensor<CPUBackend>> {
@@ -650,8 +630,6 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns a tensor at given position `i` in the list.
 
-      Parameters
-      ----------
       )code",
       py::keep_alive<0, 1>())
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
@@ -662,8 +640,6 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns a tensor at given position in the list.
 
-      Parameters
-      ----------
       )code")
 #endif
     .def("as_array", [](TensorList<CPUBackend> &tl) -> py::array {
@@ -713,8 +689,6 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns TensorList as a numpy array. TensorList must be dense.
 
-      Parameters
-      ----------
       )code")
     .def("__len__", [](TensorList<CPUBackend> &tl) {
           return tl.ntensor();
@@ -739,8 +713,6 @@ void ExposeTensorList(py::module &m) {
       This function is used internally by plugins to interface with
       tensors from supported Deep Learning frameworks.
 
-      Parameters
-      ----------
       )code")
     .def("as_reshaped_tensor",
         [](TensorList<CPUBackend> &tl, const vector<Index> &new_shape) -> Tensor<CPUBackend>* {
@@ -779,8 +751,6 @@ void ExposeTensorList(py::module &m) {
         R"code(
         List of tensors residing in the GPU memory.
 
-        Parameters
-        ----------
         object : DLPack object
               Python DLPack object representing TensorList
         layout : str
@@ -797,8 +767,6 @@ void ExposeTensorList(py::module &m) {
       R"code(
       List of tensors residing in the GPU memory.
 
-      Parameters
-      ----------
       object : object
             Python object that implement CUDA Array Interface
       layout : str
@@ -857,8 +825,6 @@ void ExposeTensorList(py::module &m) {
       This function is used internally by plugins to interface with
       tensors from supported Deep Learning frameworks.
 
-      Parameters
-      ----------
       ptr : ctypes.c_void_p
             Destination of the copy.
       cuda_stream : ctypes.c_void_p
@@ -873,9 +839,6 @@ void ExposeTensorList(py::module &m) {
       "i"_a,
       R"code(
       Returns a tensor at given position `i` in the list.
-
-      Parameters
-      ----------
       )code",
       py::keep_alive<0, 1>())
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
@@ -885,9 +848,6 @@ void ExposeTensorList(py::module &m) {
         },
       R"code(
       Returns a tensor at given position in the list.
-
-      Parameters
-      ----------
       )code")
 #endif
       .def("at",
@@ -901,9 +861,6 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns a tensor at given position in the list.
       Deprecated for __getitem__().
-
-      Parameters
-      ----------
       )code",
       py::keep_alive<0, 1>())
     .def("layout", [](TensorList<GPUBackend> &t) {

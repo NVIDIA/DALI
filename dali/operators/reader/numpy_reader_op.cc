@@ -61,7 +61,7 @@ directories with numpy files in them.)code",
 the list of files in the sub-directories of `file_root`.)code", "*.npy")
   .AddOptionalArg("shuffle_after_epoch",
       R"code(If true, reader shuffles whole dataset after each epoch. It is exclusive with
-`stick_to_shard` and `random_shuffle`.)code",
+``stick_to_shard`` and ``random_shuffle``.)code",
       false)
   .AddParent("LoaderBase");
 

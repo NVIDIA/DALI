@@ -137,6 +137,7 @@ The simplest and preferred way is to specify a `source`, which may be a callable
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
     which is more performant.
 """
+
     _args_doc = """
 Args
 ----
@@ -199,17 +200,17 @@ Keyword Args
     If set to True, DALI will use a CUDA kernel to feed the data (only applicable when copying
     data to/from GPU memory) instead of cudaMemcpyAsync (default).
 
-``blocking`` : optional, Whether external source should block until data is available or just
-fail when it is not
+`blocking` : optional, Whether external source should block until data is available or just
+    fail when it is not
 
-``no_copy` : Whether DALI should copy the buffer when feed_input is called
+`no_copy` : Whether DALI should copy the buffer when feed_input is called
     If True, DALI passes the user memory directly to the Pipeline, instead of copying.
     It is the user's responsibility to keep the buffer alive and unmodified
     until it is consumed by the pipeline.
 
     The buffer can be modified or freed again after the relevant iteration output has been consumed.
-    Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
     (when they are not equal) iterations following the``feed_input`` call.
+    Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
 
     Provided memory must match the specified `device` parameter of the operator.
     For CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
@@ -217,7 +218,7 @@ fail when it is not
     of separate Tensors there will be an additional internal copy made.
 """
 
-    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", 
+    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu",
                  cuda_stream = None, use_copy_kernel = None, **kwargs):
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
@@ -255,7 +256,7 @@ fail when it is not
     def preserve(self):
         return False
 
-    def __call__(self, *, source = None, cycle = None, name = None, layout = None, cuda_stream = None, 
+    def __call__(self, *, source = None, cycle = None, name = None, layout = None, cuda_stream = None,
                  use_copy_kernel = None, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
@@ -346,14 +347,17 @@ def external_source(source = None, num_outputs = None, *, cycle = None, name = N
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
-    In the case of the GPU input, it is the user responsibility to modify the
-    provided GPU memory content only using provided stream (DALI schedules a copy on it
-    and all work is properly queued). If no stream is provided feeding input blocks until the
-    provided memory is copied to the internal buffer
+
+In the case of the GPU input, it is the user responsibility to modify the
+provided GPU memory content only using provided stream (DALI schedules a copy on it
+and all work is properly queued). If no stream is provided feeding input blocks until the
+provided memory is copied to the internal buffer
+
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
     which is more performant.
     """
+
     if num_outputs is not None:
         if source is None:
             raise ValueError("The parameter `num_outputs` is only valid when using `source` to "

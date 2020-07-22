@@ -324,7 +324,7 @@ function(build_per_python_lib)
         set(PYTHON_LIB_TARGET_FOR_PYVER "${PYTHON_LIB_ARG_TARGET_NAME}_${PYVER}")
         # check if listed python versions are accesible
         execute_process(
-            COMMAND python${PYVER} -c "print('test', end='')"
+            COMMAND python${PYVER} -c "print('', end='')"
             RESULT_VARIABLE  PYTHON_EXISTS)
 
         if (${PYTHON_EXISTS} EQUAL 0)

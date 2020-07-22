@@ -508,8 +508,6 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
     NDArrays (for outputs marked as DALIGluonIterator.DENSE_TAG) and list of NDArrays (for
     output marked as DALIGluonIterator.SPARSE_TAG).
 
-
-
     Please keep in mind that NDArrays returned by the iterator are
     still owned by DALI. They are valid till the next iterator call.
     If the content needs to be preserved please copy it to another NDArray.
@@ -517,48 +515,48 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
     Parameters
     ----------
     pipelines : list of nvidia.dali.pipeline.Pipeline
-                List of pipelines to use
+            List of pipelines to use
     size : int, default = -1
-          Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
-          Providing -1 means that the iterator will work until StopIteration is raised
-          from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
-          `auto_reset` don't work in such case. It works with only one pipeline inside
-          the iterator.
-           Mutually exclusive with `reader_name` argument
+            Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
+            Providing -1 means that the iterator will work until StopIteration is raised
+            from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
+            `auto_reset` don't work in such case. It works with only one pipeline inside
+            the iterator.
+            Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-           Name of the reader which will be queried to the shard size, number of shards and
-           all other properties necessary to count properly the number of relevant and padded
-           samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
-           `last_batch_padded` accordingly to match the reader's configuration
+            Name of the reader which will be queried to the shard size, number of shards and
+            all other properties necessary to count properly the number of relevant and padded
+            samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
+            `last_batch_padded` accordingly to match the reader's configuration
     output_types : list of str, optional, default = None
-                 List of tags indicating whether the pipeline(s) output batch is
-                 uniform (all the samples have the same size) or not. Batch output marked
-                 as the former will be returned as a single NDArray, the latter
-                 will be returned as a list of NDArray.
-                 Must be either DALIGluonIterator.DENSE_TAG
-                 or DALIGluonIterator.SPARSE_TAG.
-                 Length of output_types must match the number of output of the pipeline(s).
-                 If not set, all outputs are considered to be marked with DALIGluonIterator.DENSE_TAG.
+            List of tags indicating whether the pipeline(s) output batch is
+            uniform (all the samples have the same size) or not. Batch output marked
+            as the former will be returned as a single NDArray, the latter
+            will be returned as a list of NDArray.
+            Must be either DALIGluonIterator.DENSE_TAG
+            or DALIGluonIterator.SPARSE_TAG.
+            Length of output_types must match the number of output of the pipeline(s).
+            If not set, all outputs are considered to be marked with DALIGluonIterator.DENSE_TAG.
     auto_reset : bool, optional, default = False
-                 Whether the iterator resets itself for the next epoch
-                 or it requires reset() to be called separately.
+            Whether the iterator resets itself for the next epoch
+            or it requires reset() to be called separately.
     fill_last_batch : bool, optional, default = True
-                 Whether to fill the last batch with data up to 'self.batch_size'.
-                 The iterator would return the first integer multiple
-                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
-                 Setting this flag to False will cause the iterator to return
-                 exactly 'size' entries.
+            Whether to fill the last batch with data up to 'self.batch_size'.
+            The iterator would return the first integer multiple
+            of self._num_gpus * self.batch_size entries which exceeds 'size'.
+            Setting this flag to False will cause the iterator to return
+            exactly 'size' entries.
     last_batch_padded : bool, optional, default = False
-                 Whether the last batch provided by DALI is padded with the last sample
-                 or it just wraps up. In the conjunction with ``fill_last_batch`` it tells
-                 if the iterator returning last batch with data only partially filled with
-                 data from the current epoch is dropping padding samples or samples from
-                 the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
-                 so the following code could use it to drop the data). If set to ``False`` next
-                 epoch will end sooner as data from it was consumed but dropped. If set to
-                 ``True`` next epoch would be the same length as the first one. For this to happen,
-                 the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
-                 It is overwritten when `reader_name` argument is provided
+            Whether the last batch provided by DALI is padded with the last sample
+            or it just wraps up. In the conjunction with ``fill_last_batch`` it tells
+            if the iterator returning last batch with data only partially filled with
+            data from the current epoch is dropping padding samples or samples from
+            the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
+            so the following code could use it to drop the data). If set to ``False`` next
+            epoch will end sooner as data from it was consumed but dropped. If set to
+            ``True`` next epoch would be the same length as the first one. For this to happen,
+            the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
+            It is overwritten when `reader_name` argument is provided
 
     Example
     -------
