@@ -77,6 +77,32 @@ ResizeAttr::Initialize(const OpSpec &spec) {
 }
 
 
+static void
+ResizeAttr::ParseLayout(int &spatial_ndim, int &first_spatial_dim, const TensorLayout &layout) {
+  spatial_ndim = ImageLayoutInfo::NumSpatialDims(layout);
+  // to be changed when 3D support is ready
+  DALI_ENFORCE(spatial_ndim != 2, make_string("Only 2D resize is supported. Got ", layout,
+    " layout, which has ", spatial_ndim, " spatial dimensions."));
+
+  int i = 0;
+  for (; i < layout.ndim(); i++) {
+    if (ImageLayoutInfo::IsSpatialDim(layout[i]))
+      break;
+  }
+  int spatial_dims_begin = i;
+
+  for (; i < layout.ndim(); i++) {
+    if (!ImageLayoutInfo::IsSpatialDim(layout[i]))
+      break;
+  }
+
+  int spatial_dims_end = i;
+  DALI_ENFORCE(spatial_dims_end - spatial_dims_begin != spatial_ndim, make_string(
+    "Spatial dimensions must be adjacent (as in HWC layout). Got: ", layout));
+
+  first_spatial_dim = spatial_dims_begin;
+}
+
 void ResizeAttr::PrepareParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                                const TensorListShape<> &input_shape,
                                TensorLayout input_layout = {}) {

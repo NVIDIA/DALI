@@ -16,6 +16,7 @@
 #include "dali/kernels/imgproc/resample_cpu.h"
 #include "dali/operators/image/resize/resize_base.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 
@@ -48,6 +49,8 @@ different filtering for downscaling and upscaling.)code",
       DALI_INTERP_LINEAR)
   .AddOptionalArg("min_filter", "Filter used when scaling down",
       DALI_INTERP_LINEAR)
+  .AddOptionalArg("dtype", "Output data type; must be same as input type of `float`. If not set, "
+    "input type is used.", DALI_NO_TYPE)
   .AddOptionalArg("temp_buffer_hint",
       "Initial size, in bytes, of a temporary buffer for resampling.\n"
       "Ingored for CPU variant.\n",
@@ -75,16 +78,11 @@ ResamplingFilterAttr::ResamplingFilterAttr(const OpSpec &spec) {
   temp_buffer_hint_ = spec.GetArgument<int64_t>("temp_buffer_hint");
 }
 
-template <typename Backend>
-ResizeBase<Backend>::ResizeBase(const OpSpec &spec) : ResamplingFilterAttr(spec) {}
 
 template <typename Backend>
-ResizeBase<Backend>::~ResizeBase() = default;
-
-template <>
-struct ResizeBase<GPUBackend>::Impl {
-  virtual void RunResize(TensorList<GPUBackend> &output,
-                         const TensorList<GPUBackend> &input,
+struct ResizeBase<Backend>::Impl {
+  virtual void RunResize(TensorList<Backend> &output,
+                         const TensorList<Backend> &input,
                          cudaStream_t stream) = 0;
 
   virtual void Setup(TensorListShape<> &out_shape,
@@ -95,6 +93,13 @@ struct ResizeBase<GPUBackend>::Impl {
   virtual ~Impl() = default;
 };
 
+
+template <typename Backend>
+ResizeBase<Backend>::ResizeBase(const OpSpec &spec) : ResamplingFilterAttr(spec) {}
+
+template <typename Backend>
+ResizeBase<Backend>::~ResizeBase() = default;
+
 template <int spatial_ndim, int out_ndim, int in_ndim>
 void GetFrameShapesAndParams(
       TensorListShape<out_ndim> &frame_shapes,
@@ -102,7 +107,7 @@ void GetFrameShapesAndParams(
       const TensorListShape<in_ndim> &in_shape,
       const span<ResamplingParams> &in_params,
       int first_spatial_dim) {
-  assert(first_spatial_dim + spatial_ndim <= in_ndim.sample_dim());
+  assert(first_spatial_dim + spatial_ndim <= in_shape.sample_dim());
   const int frame_ndim = spatial_ndim + 1;
   static_assert(out_ndim == frame_ndim || out_ndim < 0, "Invalid frame tensor rank.");
 
@@ -116,8 +121,6 @@ void GetFrameShapesAndParams(
 
   frame_params.resize(total_frames);
   frame_shapes.resize(total_frames, frame_ndim);
-
-  assert(in_shape.dim() == out_ndim + 1 + (channel_dim_idx >= 0));
 
   int ndim = in_shape.sample_dim();
   for (int i = 0, flat_frame_idx = 0 = 0; i < N; i++) {
@@ -157,6 +160,7 @@ void GetResizedShape(
   assert(first_spatial_dim >= 0 && first_spatial_dim + spatial_ndim <= in_shape.sample_dim());
 
   out_shape = in_shape;
+  int N = out_shape.num_samples();
   for (int i = 0; i < N; i++) {
     auto out_sample_shape = out_shape.tensor_shape_span(i);
     for (int d = 0; d < spatial_ndim; d++) {
@@ -183,13 +187,13 @@ struct ResizeOpImplGPU : ResizeBase<GPUBackend>::Impl {
   using Kernel = ResampleGPU<Out, In>;
 
   /// Dimensnionality of each separate frame. If input contains no channel dimension, one is added
-  constexpr int frame_ndim = spatial_ndim + 1;
+  static constexpr int frame_ndim = spatial_ndim + 1;
 
   void Setup(TensorListShape<> &out_shape,
              const TensorListShape<> &in_shape,
              int first_spatial_dim,
              span<const kernels::ResamplingParams> params) override {
-    GetResizedShape(out_shape, in_shape, spatial_ndim, first_spatial_dim, params);
+    GetResizedShape(out_shape, in_shape, params, spatial_ndim, first_spatial_dim);
 
     // Create "frames" from outer dimensions and "channels" from inner dimensions.
     GetFrameShapesAndParams<spatial_ndim>(in_shape_, params_, in_shape, params,
@@ -207,7 +211,7 @@ struct ResizeOpImplGPU : ResizeBase<GPUBackend>::Impl {
   void SetupKernel() {
     const int dim = in_shape_.sample_dim();
     KernelContext ctx;
-    for (int mb_idx = 0, num_mb = minbatches_.size(); mb_idx < num_mb; mb_idx++) {
+    for (int mb_idx = 0, num_mb = minibatches_.size(); mb_idx < num_mb; mb_idx++) {
       auto &mb = minibatches_[mb_idx];
       auto &in_slice = mb.input;
       in_slice.shape.resize(mb.end - mb.begin, dim);
@@ -216,15 +220,14 @@ struct ResizeOpImplGPU : ResizeBase<GPUBackend>::Impl {
           in_slice.tensor_shape_span(j)[d] = in_shape_.tensor_shape_span(i)[d];
       }
 
-      kmgr_.Setup<Kernel>(mb_idx, ctx, mb.input, make_span(&params[mb.begin], &prams[mb.end]));
+      kmgr_.Setup<Kernel>(mb_idx, ctx, mb.input, make_span(&params_[mb.begin], &params_[mb.end]));
     }
   }
 
   void RunResize(TensorList<GPUBackend> &output,
                  const TensorList<GPUBackend> &input,
                  cudaStream_t stream) override {
-
-    auto in_view = view<const InputType>(input);
+    auto in_view = view<const In>(input);
     auto in_frames_view = reshape(in_view, in_shape_, true);
     SubdivideInput(in_frames_view);
 
@@ -238,7 +241,7 @@ struct ResizeOpImplGPU : ResizeBase<GPUBackend>::Impl {
       MiniBatch &mb = minibatches_[b];
 
       auto &req = kmgr_.Setup<Kernel>(b, context,
-          mb.input, make_span(resample_params_.data() + mb.start, mb.count));
+          mb.input, make_span(params_.data() + mb.start, mb.count));
 
       mb.out_shape = req.output_shapes[0];
       // minbatches have uniform dim
@@ -257,13 +260,13 @@ struct ResizeOpImplGPU : ResizeBase<GPUBackend>::Impl {
       MiniBatch &mb = minibatches_[b];
 
       kmgr_.Run<Kernel>(0, b, context,
-          mb.output, mb.input, make_span(resample_params_.data() + mb.start, mb.count));
+          mb.output, mb.input, make_span(params_.data() + mb.start, mb.count));
     }
   }
 
   void SetNumFrames(int n) {
     int num_minibatches = CalculateMinibatchPartition(n, minibatch_size_);
-    if (kmgr_.GetNumInstances() < num_minibatches)
+    if (kmgr_.NumInstances() < num_minibatches)
       kmgr_.Resize<Kernel>(num_minibatches);
   }
 
@@ -273,7 +276,7 @@ struct ResizeOpImplGPU : ResizeBase<GPUBackend>::Impl {
     minibatches_.resize(num_minibatches);
     int start = 0;
     for (int i = 0; i < num_minibatches; i++) {
-      int end = (i + 1) * total_frames / num_minibatches
+      int end = (i + 1) * total_frames / num_minibatches;
       auto &mb = minibatches_[i];
       mb.start = start;
       mb.count = end - start;
@@ -281,16 +284,16 @@ struct ResizeOpImplGPU : ResizeBase<GPUBackend>::Impl {
     return num_minibatches;
   }
 
-  TensorListShape<ndim> in_shape_, out_shape_;
-  std::vector<ResamplingParamsND<ndim>> params_;
+  TensorListShape<frame_ndim> in_shape_, out_shape_;
+  std::vector<ResamplingParamsND<frame_ndim>> params_;
 
   kernels::KernelManager kmgr_;
 
   struct MiniBatch {
     int start, count;
     TensorListShape<> out_shape;
-    kernels::InListGPU<In, ndim> input;
-    kernels::OutListGPU<Out, ndim> output;
+    kernels::InListGPU<In, frame_ndim> input;
+    kernels::OutListGPU<Out, frame_ndim> output;
   };
 
   std::vector<MiniBatch> minibatches_;
@@ -307,25 +310,25 @@ struct ResizeOpImplGPU : ResizeBase<GPUBackend>::Impl {
 };
 
 template <typename Backend>
-void ResizeBase::SetupResize(const Workspace &ws,
-                             TensorListShape<> &out_shape,
-                             const input_type &input,
-                             span<const kernels::ResamplingParams> params,
-                             DALIDataType out_type,
-                             int spatial_ndim,
-                             int first_spatial_dim) {
+void ResizeBase<Backend>::SetupResize(TensorListShape<> &out_shape,
+                                      const input_type &input,
+                                      span<const kernels::ResamplingParams> params,
+                                      DALIDataType out_type,
+                                      int spatial_ndim,
+                                      int first_spatial_dim) {
   DALIDataType in_type = input.type().id();
+  const auto &input_shape = input_shape;
   if (out_type == in_type) {
-    TYPE_SWITCH(out_type, typ2id, OutputType, (uint8_t, int16_t, uint16_t, float),
-      (SetupResizeTyped<OutputType, OutputType>(ws, out_shape, input.shape, params,
+    TYPE_SWITCH(out_type, type2id, OutputType, (uint8_t, int16_t, uint16_t, float),
+      (this->template SetupResizeTyped<OutputType, OutputType>(out_shape, input_shape, params,
         spatial_ndim, first_spatial_dim)),
       (DALI_FAIL(make_string("Unsupported type: ", out_type,
         ". Supported types are: uint8, int16, uint16 and float"))));
   } else {
     DALI_ENFORCE(out_type == DALI_FLOAT,
       make_string("Resize must output original type or float. Got: ", out_type));
-    TYPE_SWITCH(in_type, typ2id, InputType, (uint8_t, int16_t, uint16_t),
-      (SetupResizeTyped<OutputType, InputType>(ws, out_shape, input.shape, params,
+    TYPE_SWITCH(in_type, type2id, InputType, (uint8_t, int16_t, uint16_t),
+      (this->template SetupResizeTyped<float, InputType>(out_shape, input_shape, params,
         spatial_ndim, first_spatial_dim)),
       (DALI_FAIL(make_string("Unsupported type: ", in_type,
         ". Supported types are: uint8, int16, uint16 and float"))));
@@ -336,7 +339,6 @@ void ResizeBase::SetupResize(const Workspace &ws,
 template <typename Backend>
 template <typename OutputType, typename InputType>
 void ResizeBase<Backend>::SetupResizeTyped<OutputType, InputType>(
-      const Workspace &ws,
       TensorListShape<> &out_shape,
       const TensorListShape<> &in_shape,
       span<const kernels::ResamplingParams> params,
@@ -344,14 +346,13 @@ void ResizeBase<Backend>::SetupResizeTyped<OutputType, InputType>(
       int first_spatial_dim) {
   VALUE_SWITCH(spatial_ndim, static_spatial_ndim, (2),
   (SetupResizeStatic<static_spatial_ndim, OutputType, OutputType>(
-      ws, out_shape, input.shape(), params, static_spatial_ndim, first_spatial_dim)),
+      out_shape, input.shape(), params, static_spatial_ndim, first_spatial_dim)),
   (DALI_FAIL(make_string("Unsupported number of spatial dimensions: ", spatial_ndim))));
 }
 
 template <typename Backend>
 template <typename OutputType, typename InputType, int spatial_ndim>
-void ResizeBase<Backend>::SetupResizeTyped<OutputType, InputType, spatial_ndim>(
-      const Workspace &ws,
+void ResizeBase<Backend>::SetupResizeStatic<OutputType, InputType, spatial_ndim>(
       TensorListShape<> &out_shape,
       const TensorListShape<> &in_shape,
       span<const kernels::ResamplingParams> params,
@@ -363,7 +364,7 @@ void ResizeBase<Backend>::SetupResizeTyped<OutputType, InputType, spatial_ndim>(
     impl_ = make_unique<ImplType>();
     impl = static_cast<ImplType*>(impl_.get());
   }
-  impl->Setup
+  impl->Setup(
 }
 
 

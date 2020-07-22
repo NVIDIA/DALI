@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <cuda_runtime_api.h>
-
+#include <cassert>
 #include <utility>
 #include <vector>
 
@@ -41,25 +41,20 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   RunResize(ws, output, input);
   output.SetLayout(input.GetLayout());
 
-  // Setup and output the resize attributes if necessary
   if (save_attrs_) {
-    TensorList<CPUBackend> attr_output_cpu;
-    TensorListShape<> resize_shape(input.ntensor(), 1);
+    auto &attr_out = ws.Output<GPUBackend>(1);
+    const auto &attr_shape = attr_out.shape();
+    assert(attr_shape.num_samples() == input.shape().num_samples() &&
+           attr_shape.sample_dim() == 1 &&
+           is_uniform(attr_shape) &&
+           attr_shape[0][0] == spatial_ndim_);
 
-    for (size_t i = 0; i < input.ntensor(); ++i) {
-      resize_shape.set_tensor_shape(i, {2});
-    }
-
-    attr_output_cpu.Resize(resize_shape);
-    auto in_shape = input.shape().to_static<3>();
-
-    for (int i = 0; i < in_shape.num_samples(); ++i) {
-      int *t = attr_output_cpu.mutable_tensor<int>(i);
-      auto sample_shape = in_shape.tensor_shape_span(i);
-      t[0] = sample_shape[0];
-      t[1] = sample_shape[1];
-    }
-    ws.Output<GPUBackend>(1).Copy(attr_output_cpu, ws.stream());
+    if (!attr_staging_.raw_data())
+      attr_staging_.set_pinned(true);
+    attr_staging_.ResizeLike(attr_out);
+    int *attr_data = attr_staging_.mutable_data<int>();
+    SaveAttrs(attr_data, input.shape());
+    attr_out.Copy(attr_staging_, ws.stream());
   }
 }
 

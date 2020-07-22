@@ -30,13 +30,17 @@ struct ResizeParams {
   SmallVector<float, 6> src_lo, src_hi;
 };
 
-class ResizeAttr {
+class DLL_PUBLIC ResizeAttr {
  public:
   ResizeAttr(const OpSpec &spec);
 
   void PrepareParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                      const TensorListShape<> &input_shape,
                      TensorLayout input_layout = {});
+
+
+  static void ParseLayout(int &spatial_ndim, int &first_spatial_dim, const TensorLayout &layout);
+
 
   vector<ResizeParams> params_;
   /// Output size - only spatial dimensions (no channels, frames, etc.)

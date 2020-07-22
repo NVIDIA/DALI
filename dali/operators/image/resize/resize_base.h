@@ -68,31 +68,6 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
   using input_type =  typename Workspace::template input_t<Backend>::element_type;
   using output_type = typename Workspace::template output_t<Backend>::element_type;
 
-  static void ParseLayout(int &spatial_ndim, int &first_spatial_dim, const TensorLayout &layout) {
-    spatial_ndim = ImageLayoutInfo::NumSpatialDims(layout);
-    // to be changed when 3D support is ready
-    DALI_ENFORCE(spatial_ndim != 2, make_string("Only 2D resize is supported. Got ", layout,
-      " layout, which has ", spatial_ndim, " spatial dimensions."));
-
-    int i = 0;
-    for (; i < layout.ndim(); i++) {
-      if (IsSpatialDim(layout[i]))
-        break;
-    }
-    int spatial_dims_begin = i;
-
-    for (; i < layout.ndim(); i++) {
-      if (!IsSpatialDim(layout[i]))
-        break;
-    }
-
-    int spatial_dims_end = i;
-    DALI_ENFORCE(spatial_dims_end - spatial_dims_begin != spatial_ndim, make_string(
-      "Spatial dimensions must be adjacent (as in HWC layout). Got: ", layout));
-
-    first_spatial_dim = spatial_dims_begin;
-  }
-
   void RunResize(Workspace &ws, output_type &output, const input_type &input);
 
   /**
@@ -108,8 +83,7 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
    * @param spatial_ndim      number of resized dimensions - these need to form a
    *                          contiguous block in th layout
    */
-  void SetupResize(const Workspace &ws,
-                   TensorListShape<> &out_shape,
+  void SetupResize(TensorListShape<> &out_shape,
                    const input_type &input,
                    span<const kernels::ResamplingParams> params,
                    DALIDataType out_type,
@@ -117,27 +91,24 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
                    int first_spatial_dim = 0);
 
   template <int spatial_ndim>
-  void SetupResize(const Workspace &ws,
-                   TensorListShape<> &out_shape,
+  void SetupResize(TensorListShape<> &out_shape,
                    const input_type &input,
                    span<const kernels::ResamplingParamsND<spatial_ndim>> params,
                    DALIDataType out_type,
                    int first_spatial_dim = 0) {
-    SetupResize(ws, out_shape, input, flatten(params), out_type, spatial_ndim, first_spatial_dim);
+    SetupResize(out_shape, input, flatten(params), out_type, spatial_ndim, first_spatial_dim);
   }
 
  private:
 
   template <typename OutType, typename InType, int spatial_ndim>
-  void SetupResizeStatic(const Workspace &ws,
-                         TensorListShape<> &out_shape,
+  void SetupResizeStatic(TensorListShape<> &out_shape,
                          const TensorListShape<> &in_shape,
                          span<const kernels::ResamplingParams> params,
                          int first_spatial_dim = 0);
 
   template <typename OutType, typename InType>
-  void SetupResizeTyped(const Workspace &ws,
-                        TensorListShape<> &out_shape,
+  void SetupResizeTyped(TensorListShape<> &out_shape,
                         const TensorListShape<> &in_shape,
                         span<const kernels::ResamplingParams> params,
                         int spatial_ndim,

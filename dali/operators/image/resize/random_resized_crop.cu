@@ -41,27 +41,6 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   output.SetLayout(input.GetLayout());
 }
 
-template<>
-bool RandomResizedCrop<GPUBackend>::SetupImpl(const DeviceWorkspace &ws) {
-  auto &input = ws.Input<GPUBackend>(0);
-  DALI_ENFORCE(IsType<uint8>(input.type()),
-      "Expected input data as uint8.");
-
-  for (int i = 0; i < batch_size_; ++i) {
-    auto input_shape = input.tensor_shape(i);
-    DALI_ENFORCE(input_shape.size() == 3,
-        "Expects 3-dimensional image input.");
-
-    int H = input_shape[0];
-    int W = input_shape[1];
-
-    crops_[i] = GetCropWindowGenerator(i)({H, W}, "HW");
-  }
-  CalcResamplingParams();
-  TensorListShape<> output_shape;
-  SetupResize(output_shape, input, resample_params_, output_type_);
-}
-
 DALI_REGISTER_OPERATOR(RandomResizedCrop, RandomResizedCrop<GPUBackend>, GPU);
 
 }  // namespace dali

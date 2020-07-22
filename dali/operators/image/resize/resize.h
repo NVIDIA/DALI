@@ -64,11 +64,25 @@ class Resize : public Operator<Backend>
 
   void RunImpl(workspace_t<Backend> &ws) override;
 
+  void SaveAttrs(int *shape_data, const TensorListShape<> &orig_shape) const {
+    int N = orig_shape.num_samples();
+    for (int i = 0; i < N; i++) {
+      auto sample_shape = orig_shape.tensor_shape_span(i);
+      for (int d = 0; d < spatial_ndim_; d++) {
+        shape_data[i * spatial_ndim_ + d] = sample_shape[first_spatial_dim_ + d];
+      }
+    }
+  }
+
   USE_OPERATOR_MEMBERS();
   std::vector<kernels::ResamplingParams2D> resample_params_;
+  TensorList<CPUBackend> attr_staging_;
   using Operator<Backend>::RunImpl;
-  bool save_attrs_;
-  DALIDataType out_type_;
+  bool save_attrs_ = false;
+  DALIDataType out_type_ = DALI_NO_TYPE;
+
+  int spatial_ndim_ = 2;
+  int first_spatial_dim_ = 0;
 };
 
 template <typename Backend>
@@ -82,12 +96,18 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   output_desc[0].type = out_type_;
 
+  int spatial_ndim = 2, first_spatial_dim = 0;
+  ParseLayout(spatial_ndim, first_spatial_dim, InputLayout(ws, 0));
+
   DALI_ENFORCE(ws.NumOutput() == 1 || ws.NumOutput() == 2,
-    "Resize and produce 1 or 2 outputs - if there are two outputs, the 2nd one receives the ",
+    "Resize and produce 1 or 2 outputs - if there are two outputs, the 2nd one receives the "
     "original size of the images.");
-  SetupResize(ws, output_desc[0].shape);
+  this->SetupResize(output_desc[0].shape, input.shape, this->params_, out_type_,
+                    spatial_ndim, first_spatial_dim);
+
   if (save_attrs_) {
     ImageLayoutInfo::NumSpatialDims(input.GetLayout());
+    output_desc[1].type = TypeTable::GetTypeInfo(DALI_INT32);
   }
   return true;
 }

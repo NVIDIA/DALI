@@ -24,6 +24,7 @@
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/operators/image/resize/resize_base.h"
+#include "dali/operators/image/resize/resize_attr.h"
 #include "dali/operators/image/crop/random_crop_attr.h"
 #include "dali/kernels/imgproc/resample/params.h"
 
@@ -38,7 +39,8 @@ class RandomResizedCrop : public Operator<Backend>
       : Operator<Backend>(spec)
       , ResizeBase<Backend>(spec)
       , RandomCropAttr(spec)
-      , interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
+      , interp_type_(spec.GetArgument<DALIInterpType>("interp_type"))
+      , out_type_(spec.GetArgument<DALIDataType>("dtype")) {
     GetSingleOrRepeatedArg(spec, size_, "size", 2);
     InitParams(spec);
     BackendInit();
@@ -53,11 +55,38 @@ class RandomResizedCrop : public Operator<Backend>
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    return false;
+    auto &input = ws.template InputRef<Backend>(0);
+    const auto &input_shape = input.shape();
+    DALI_ENFORCE(input_shape.sample_dim() == 3, "Expects 3-dimensional HWC input.");
+
+    DALIDataType out_type = out_type_;
+    if (out_type == DALI_NO_TYPE)
+      out_type = input.type().id();
+
+    auto layout = this->InputLayout(ws, 0);
+
+    int N = input_shape.num_samples();
+
+    resample_params_.resize(N);
+
+    int width_idx  = layout.find('W');
+    int height_idx = layout.find('H');
+
+    for (int sample_idx = 0; sample_idx < N; sample_idx++) {
+      auto sample_shape = input_shape.tensor_shape_span(sample_idx);
+      int H = sample_shape[height_idx];
+      int W = sample_shape[width_idx];
+      crops_[sample_idx] = GetCropWindowGenerator(sample_idx)({H, W}, "HW");
+      resample_params_[sample_idx] = CalcResamplingParams(sample_idx);
+    }
+
+    output_desc.resize(1);
+    this->SetupResize(output_desc[0].shape, input, resample_params_, out_type_);
+    output_desc[0].type = TypeTable::GetTypeInfo(out_type);
+    return true;
   }
 
-  void RunImpl(Workspace<Backend> &ws) override;
-  void SetupSharedSampleParams(Workspace<Backend> &ws) override;
+  void RunImpl(workspace_t<Backend> &ws) override;
 
  private:
   void BackendInit();
@@ -69,7 +98,7 @@ class RandomResizedCrop : public Operator<Backend>
       resample_params_[i] = CalcResamplingParams(i);
   }
 
-  kernels::ResamplingParams CalcResamplingParams(int index) const {
+  kernels::ResamplingParams2D CalcResamplingParams(int index) const {
     auto &wnd = crops_[index];
     auto params = shared_params_;
     params[0].roi = kernels::ResamplingParams::ROI(wnd.anchor[0], wnd.anchor[0]+wnd.shape[0]);
@@ -87,6 +116,7 @@ class RandomResizedCrop : public Operator<Backend>
 
   std::vector<int> size_;
   DALIInterpType interp_type_;
+  DALIDataType out_type_;
   kernels::ResamplingParams2D shared_params_;
   std::vector<kernels::ResamplingParams2D> resample_params_;
   std::vector<CropWindow> crops_;
