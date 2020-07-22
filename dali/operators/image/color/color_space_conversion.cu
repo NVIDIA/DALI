@@ -96,6 +96,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   DALI_ENFORCE(IsType<uint8_t>(input.type()),
       "Color space conversion accept only uint8 tensors");
   auto &output = ws.Output<GPUBackend>(0);
+  output.SetLayout(input.GetLayout());
 
   TensorList<CPUBackend> attr_output_cpu;
 

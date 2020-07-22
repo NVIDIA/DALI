@@ -207,6 +207,7 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
 
   auto &output = ws.OutputRef<GPUBackend>(0);
   TensorListView<StorageGPU, OutputType> out_view = view<OutputType>(output);
+  output.SetLayout(input.GetLayout());
 
   int nsamples = input.ntensor();
 

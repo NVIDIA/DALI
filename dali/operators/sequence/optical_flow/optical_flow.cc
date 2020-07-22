@@ -69,7 +69,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     const auto &input = ws.Input<GPUBackend>(0);
     const auto &hints = ws.Input<GPUBackend>(1);
     auto &output = ws.Output<GPUBackend>(0);
-
+    output.SetLayout("HWC");  // Channels represent the two flow vector components (x and y)
     // Extract calculation params
     ExtractParams(input, hints);
 
