@@ -6,6 +6,7 @@ deep learning frameworks. This part of the documentation contains the detailed d
 API.
 
 .. currentmodule:: nvidia.dali.pipeline
+
 `Pipeline <pipeline.rst>`_ section describes the :class:`Pipeline` class - the central and most
 important part of every program using DALI.
 

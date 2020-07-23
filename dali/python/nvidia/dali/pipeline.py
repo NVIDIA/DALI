@@ -496,6 +496,7 @@ Parameters
               * PyTorch tensor (CPU or GPU)
               * CuPy array (GPU)
               * objects implementing ``__cuda_array_interface__``
+
             The data to be used as the output of the ExternalSource referred to by `data_node`.
 
         layout : str
