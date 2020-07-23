@@ -57,6 +57,7 @@ template <>
 void Pad<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
+  output.SetLayout(input.GetLayout());
   int ndim = input.shape().sample_dim();
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (

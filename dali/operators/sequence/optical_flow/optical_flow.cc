@@ -109,7 +109,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     // Input is a TensorList, where every Tensor is a sequence
     const auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<GPUBackend>(0);
-
+    output.SetLayout(input.GetLayout());
 
     // Extract calculation params
     ExtractParams(input);
