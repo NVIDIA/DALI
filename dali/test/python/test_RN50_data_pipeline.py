@@ -20,6 +20,7 @@ import os
 import glob
 import argparse
 import time
+from test_utils import get_dali_extra_path
 
 class CommonPipeline(Pipeline):
     def __init__(self, data_paths, num_gpus, batch_size, num_threads, device_id, prefetch, fp16, random_shuffle, nhwc,
@@ -170,6 +171,16 @@ test_data = {
             TFRecordPipeline: [["/data/imagenet/train-val-tfrecord-480/train-*", "/data/imagenet/train-val-tfrecord-480.idx/train-*"]],
             }
 
+data_root = get_dali_extra_path()
+
+small_test_data = {
+            FileReadPipeline: [[os.path.join(data_root, "db/single/jpeg/")]],
+            MXNetReaderPipeline: [[os.path.join(data_root, "db/recordio/train.rec"), os.path.join(data_root, "db/recordio/train.idx")]],
+            CaffeReadPipeline: [[os.path.join(data_root, "db/lmdb")]],
+            Caffe2ReadPipeline: [[os.path.join(data_root, "db/c2lmdb")]],
+            TFRecordPipeline: [[os.path.join(data_root, "db/tfrecord/train"), os.path.join(data_root, "db/tfrecord/train.idx")]]
+            }
+
 parser = argparse.ArgumentParser(description='Test nvJPEG based RN50 augmentation pipeline with different datasets')
 parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
                     help='number of GPUs (default: 1)')
@@ -207,6 +218,8 @@ parser.add_argument('--reader_queue_depth', default=1, type=int, metavar='N',
                     help='prefetch queue depth (default: 1)')
 parser.add_argument('--read_shuffle', action='store_true',
                     help='Shuffle data when reading')
+parser.add_argument('-s', '--small', action='store_true',
+                    help='use small dataset, DALI_EXTRA_PATH needs to be set')
 parser.add_argument('--simulate_N_gpus', default=None, type=int, metavar='N',
                     help='Used to simulate small shard as it would be in a multi gpu setup with this number of gpus. If provided, each gpu will see a shard size as if we were in a multi gpu setup with this number of gpus')
 parser.add_argument('--remove_default_pipeline_paths', action='store_true',
@@ -282,8 +295,12 @@ SKIP_CACHED_IMAGES = True if CACHED_DECODING else False
 
 READ_SHUFFLE=args.read_shuffle
 
-print("GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, NHWC: {}, READ_SHUFFLE: {}"
-      .format(N, BATCH_SIZE, WORKERS, PREFETCH, LOG_INTERVAL, FP16, NHWC, READ_SHUFFLE))
+SMALL_DATA_SET = args.small
+if SMALL_DATA_SET:
+    test_data = small_test_data
+
+print("GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, NHWC: {}, READ_SHUFFLE: {}, small dataset: {},"
+      .format(N, BATCH_SIZE, WORKERS, PREFETCH, LOG_INTERVAL, FP16, NHWC, SMALL_DATA_SET, READ_SHUFFLE))
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
