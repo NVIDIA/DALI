@@ -20,6 +20,7 @@ template<>
 void LookupTable<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
+  output.SetLayout(input.GetLayout());
   auto data_size = input.size();
   TYPE_SWITCH(input.type().id(), dali::type2id, InputType,
               (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t), (
