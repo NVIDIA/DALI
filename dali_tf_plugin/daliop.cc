@@ -321,11 +321,8 @@ class DaliOp : public tf::OpKernel {
           break;
       }
 
-      if (!should_be_sparse_tensor) {
-        TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i, this->device_type_, stream, false));
-      } else {
-        // copy values
-        TF_DALI_CALL(daliCopyTensorListNTo(&pipe_handle_, dst, i, this->device_type_, stream, false));
+      TF_DALI_CALL(daliOutputCopy(&pipe_handle_, dst, i, this->device_type_, stream, DALI_ext_default));
+      if (should_be_sparse_tensor) {
         ++j;
         // copy out shape
         OP_REQUIRES_OK(context, outputs.allocate(j, tf::TensorShape({dims}),

@@ -25,7 +25,7 @@ __global__ void CopyKernel(uint8_t *dst, const uint8_t *src, int64_t n) {
 
 void LaunchCopyKernel(void *dst, const void *src, int64_t nbytes, cudaStream_t stream) {
   unsigned block = std::min<int64_t>(nbytes, 1024);
-  unsigned grid = std::min<int64_t>(32, div_ceil(static_cast<unsigned>(nbytes), block));
+  unsigned grid = std::min<int64_t>(1024, div_ceil(static_cast<unsigned>(nbytes), block));
   CopyKernel<<<grid, block, 0, stream>>>(reinterpret_cast<uint8_t*>(dst),
                                          reinterpret_cast<const uint8_t*>(src),
                                          nbytes);

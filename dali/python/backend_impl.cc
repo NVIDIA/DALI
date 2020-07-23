@@ -23,13 +23,13 @@
 #include "dali/python/python3_compat.h"
 #include "dali/util/user_stream.h"
 #include "dali/operators/reader/parser/tfrecord_parser.h"
-#include "dali/plugin/copy.h"
 #include "dali/plugin/plugin_manager.h"
 #include "dali/util/half.hpp"
 #include "dali/core/device_guard.h"
 #include "dali/core/python_util.h"
 #include "dali/operators.h"
 #include "dali/pipeline/data/dltensor.h"
+#include "dali/pipeline/data/copy_to_external.h"
 
 namespace dali {
 namespace python {
@@ -384,7 +384,7 @@ void ExposeTensor(py::module &m) {
     })
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
-          CopyToExternalTensor(t, ctypes_void_ptr(p), CPU, 0, false);
+          CopyToExternal(ctypes_void_ptr(p), kernels::AllocType::Host, t, 0, false, false);
         },
       "ptr"_a,
       R"code(
@@ -477,16 +477,18 @@ void ExposeTensor(py::module &m) {
          Remove single-dimensional entries from the shape of the Tensor.
          )code")
     .def("copy_to_external",
-        [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream, bool non_blocking) {
+        [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream,
+           bool non_blocking, bool use_copy_kernel) {
           void *ptr = ctypes_void_ptr(p);
           cudaStream_t stream = cuda_stream.is_none()
                 ? UserStream::Get()->GetStream(t)
                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          CopyToExternalTensor(t, ptr, GPU, stream, non_blocking);
+          CopyToExternal(ptr, kernels::AllocType::GPU, t, stream, !non_blocking, use_copy_kernel);
         },
       "ptr"_a,
       "cuda_stream"_a = py::none(),
       "non_blocking"_a = false,
+      "use_copy_kernel"_a = false,
       R"code(
       Copy to external pointer in the GPU memory.
 
@@ -730,7 +732,7 @@ void ExposeTensorList(py::module &m) {
       )code")
     .def("copy_to_external",
         [](TensorList<CPUBackend> &tl, py::object p) {
-          CopyToExternalTensor(&tl, ctypes_void_ptr(p), CPU, 0);
+          CopyToExternal(ctypes_void_ptr(p), kernels::AllocType::Host, tl, 0, false, false);
         },
       R"code(
       Copy the contents of this `TensorList` to an external pointer
@@ -840,16 +842,18 @@ void ExposeTensorList(py::module &m) {
       may be viewed as a tensor of shape `(N, H, W, C)`.
       )code")
     .def("copy_to_external",
-        [](TensorList<GPUBackend> &t, py::object p, py::object cuda_stream, bool non_blocking) {
+        [](TensorList<GPUBackend> &t, py::object p, py::object cuda_stream,
+           bool non_blocking, bool use_copy_kernel) {
           void *ptr = ctypes_void_ptr(p);
           cudaStream_t stream = cuda_stream.is_none()
                 ? UserStream::Get()->GetStream(t)
                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          CopyToExternalTensor(&t, ptr, GPU, stream, non_blocking);
+          CopyToExternal(ptr, AllocType::GPU, t, stream, !non_blocking, use_copy_kernel);
         },
       "ptr"_a,
       "cuda_stream"_a = py::none(),
       "non_blocking"_a = false,
+      "use_copy_kernel"_a = false,
       R"code(
       Copy the contents of this `TensorList` to an external pointer
       residing in GPU memory.
