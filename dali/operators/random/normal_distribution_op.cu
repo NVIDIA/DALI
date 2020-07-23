@@ -55,14 +55,18 @@ std::pair<std::vector<int>, int> DistributeBlocksPerSample(
     return {sizes, sum};
   }
   // If numbers of blocks exceeded max_blocks, we need to scale them down
-  int to_distribute = max_blocks - shape.size();
+  int to_distribute = max_blocks - shape.size();  // reserve a block for each sample
   for (int i = 0; i < shape.size(); ++i) {
-    auto before = sizes[i];
-    auto scaled = before * to_distribute / sum;
+    int before = sizes[i];
+    int scaled = before * to_distribute / sum;
+    // Blocks that are already counted and distributed are subtracted
+    // from `sum` and `to_distribute` to make sure that no block is lost
+    // due to integer division rounding and at the end all `max_blocks` blocks are distributed.
     to_distribute -= scaled;
     sum -= before;
     sizes[i] = scaled + 1;  // each sample gets at least one block
   }
+  assert(to_distribute == 0);
   return {sizes, max_blocks};
 }
 

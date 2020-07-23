@@ -131,7 +131,8 @@ class OperatorBench : public DALIBenchmark {
   void RunGPU(benchmark::State &st, const OpSpec &op_spec, int batch_size = 128,
               TensorShape<> shape = {1080, 1920, 3}, TensorLayout layout = "HWC",
               bool fill_in_data = false) {
-    RunGPU<T>(st, op_spec, batch_size, uniform_list_shape(batch_size, shape), "HWC", fill_in_data);
+    RunGPU<T>(st, op_spec, batch_size,
+              uniform_list_shape(batch_size, shape), layout, fill_in_data);
   }
 
   template <typename T>
