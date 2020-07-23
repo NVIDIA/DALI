@@ -351,7 +351,7 @@ The data can be provided by the ``source`` function or iterable, or it can be pr
 In the case of the GPU input, it is the user responsibility to modify the
 provided GPU memory content only using provided stream (DALI schedules a copy on it
 and all work is properly queued). If no stream is provided feeding input blocks until the
-provided memory is copied to the internal buffer
+provided memory is copied to the internal buffer.
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
