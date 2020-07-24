@@ -184,8 +184,8 @@ small_test_data = {
 parser = argparse.ArgumentParser(description='Test nvJPEG based RN50 augmentation pipeline with different datasets')
 parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
                     help='number of GPUs (default: 1)')
-parser.add_argument('-b', '--batch', default=2048, type=int, metavar='N',
-                    help='batch size (default: 2048)')
+parser.add_argument('-b', '--batch', default=1024, type=int, metavar='N',
+                    help='batch size (default: 1024)')
 parser.add_argument('-p', '--print-freq', default=10, type=int,
                     metavar='N', help='print frequency (default: 10)')
 parser.add_argument('-j', '--workers', default=3, type=int, metavar='N',
@@ -300,7 +300,7 @@ if SMALL_DATA_SET:
     test_data = small_test_data
 
 print("GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, NHWC: {}, READ_SHUFFLE: {}, small dataset: {},"
-      .format(N, BATCH_SIZE, WORKERS, PREFETCH, LOG_INTERVAL, FP16, NHWC, SMALL_DATA_SET, READ_SHUFFLE))
+      .format(N, BATCH_SIZE, WORKERS, PREFETCH, LOG_INTERVAL, FP16, NHWC, READ_SHUFFLE, SMALL_DATA_SET))
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
