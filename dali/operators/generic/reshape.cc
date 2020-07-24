@@ -324,7 +324,8 @@ TensorLayout Reshape<Backend>::GetOutputLayout(const Workspace &ws) const {
     // layout was explicitly cleared
     return TensorLayout();
   }
-  auto in_layout = this->InputLayout(ws, 0);
+  auto &in = ws.template InputRef<Backend>(0);
+  auto in_layout = in.GetLayout();
   return in_layout.ndim() == output_shape_.sample_dim() ? in_layout : TensorLayout();
 }
 

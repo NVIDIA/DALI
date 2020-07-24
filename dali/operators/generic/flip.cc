@@ -60,7 +60,8 @@ template <>
 void Flip<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
-  output.SetLayout(input.GetLayout());
+  auto layout = input.GetLayout();
+  output.SetLayout(layout);
   output.set_type(input.type());
   output.ResizeLike(input);
   auto _horizontal = GetHorizontal(ws, ws.data_idx());
@@ -69,7 +70,7 @@ void Flip<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
   if (!_horizontal && !_vertical && !_depthwise) {
     output.Copy(input, nullptr);
   } else {
-    RunFlip(output, input, InputLayout(ws, 0), _horizontal, _vertical, _depthwise);
+    RunFlip(output, input, layout, _horizontal, _vertical, _depthwise);
   }
 }
 

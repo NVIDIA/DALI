@@ -62,7 +62,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
 
   RunGPU(output, input, ws.stream());
-  output.SetLayout(InputLayout(ws, 0));
+  output.SetLayout(input.GetLayout());
 
   // Setup and output the resize attributes if necessary
   if (save_attrs_) {

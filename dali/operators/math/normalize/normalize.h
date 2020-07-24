@@ -132,7 +132,8 @@ class NormalizeBase : public Operator<Backend> {
         GetParamShapeFromAxes();
     } else if (has_axis_names_arg_) {
       TensorLayout names = spec.GetArgument<TensorLayout>("axis_names");
-      auto dim_idx = GetDimIndices(this->InputLayout(ws, 0), names);
+      const auto &input = ws.template InputRef<Backend>(0);
+      auto dim_idx = GetDimIndices(input.GetLayout(), names);
       axes_ = dim_idx.to_vector();
       SetAxisMask();
       if (!has_tensor_mean_ && !has_tensor_stddev_)

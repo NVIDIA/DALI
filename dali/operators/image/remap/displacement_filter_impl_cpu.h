@@ -165,7 +165,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     auto &input = ws.Input<CPUBackend>(0);
     auto &output = ws.Output<CPUBackend>(0);
     output.ResizeLike(input);
-    output.SetLayout(InputLayout(ws, 0));
+    output.SetLayout(input.GetLayout());
   }
 
   void SetupSharedSampleParams(SampleWorkspace &ws) override {

@@ -344,6 +344,18 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
     auto &output_desc = op_node.output_desc;
     auto &op = *op_node.op;
     output_desc.clear();
+    const auto &spec = op.GetSpec();
+    const auto &schema = spec.GetSchema();
+    for (int i = 0; i < spec.NumRegularInput(); i++) {
+      if (ws.template InputIsType<CPUBackend>(i)) {
+        auto &in = ws.template InputRef<CPUBackend>(i);
+        in.SetLayout(schema.GetInputLayout(i, in.shape().sample_dim(), in.GetLayout()));
+      } else {
+        auto &in = ws.template InputRef<GPUBackend>(i);
+        in.SetLayout(schema.GetInputLayout(i, in.shape().sample_dim(), in.GetLayout()));
+      }
+    }
+
     if (op.Setup(output_desc, ws)) {
       DALI_ENFORCE(
           static_cast<size_t>(ws.NumOutput()) == output_desc.size(),

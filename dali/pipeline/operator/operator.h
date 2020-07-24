@@ -172,9 +172,8 @@ class DLL_PUBLIC OperatorBase {
     return {};
   }
 
-  template <typename Workspace>
-  TensorLayout InputLayout(const Workspace &ws, int index) const {
-    return GetInputLayout(ws, spec_.GetSchema(), index);
+  DLL_PUBLIC const OpSpec& GetSpec() const {
+    return spec_;
   }
 
   DLL_PUBLIC bool CanBePruned() const {

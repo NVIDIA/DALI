@@ -56,7 +56,7 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
 
   RunCPU(output, input, ws.thread_idx());
-  output.SetLayout(InputLayout(ws, 0));
+  output.SetLayout(input.GetLayout());
 }
 
 template<>
