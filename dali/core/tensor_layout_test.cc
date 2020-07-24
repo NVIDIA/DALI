@@ -273,4 +273,21 @@ TEST(TensorLayout, GetLayoutMapping) {
   }
 }
 
+TEST(TensorLayout, Resize) {
+  TensorLayout layout;
+  EXPECT_EQ(layout, "");
+
+  layout.resize(3);
+  EXPECT_EQ(layout, "???");
+
+  layout = "HW";
+  EXPECT_EQ(layout, "HW");
+
+  layout.resize(3);
+  EXPECT_EQ(layout, "HW?");
+
+  layout.resize(4, '#');
+  EXPECT_EQ(layout, "HW?#");
+}
+
 }  // namespace dali
