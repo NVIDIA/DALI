@@ -13,10 +13,6 @@
 // limitations under the License.
 
 #include "dali/operators/random/normal_distribution_op.h"
-#include "dali/core/static_switch.h"
-
-#define NORM_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, \
-                    float16, float, double)
 
 namespace dali {
 
@@ -41,26 +37,10 @@ This operator can be ran in 3 modes, which determine the shape of the output ten
 
 DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCpu, CPU);
 
-bool NormalDistributionCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                      const workspace_t<CPUBackend> &ws) {
-  AcquireArguments(ws);
-  output_desc.resize(detail::kNumOutputs);
-  output_desc[0].shape = GetOutputShape(ws);
-  TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
-          {
-            TypeInfo type;
-            type.SetType<DType>(dtype_);
-            output_desc[0].type = type;
-          }
-  ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
-  return true;
-}
-
-
 void NormalDistributionCpu::AssignSingleValueToOutput(workspace_t<CPUBackend> &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   distribution_t distribution(mean_[0], stddev_[0]);
-  TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
+  TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
           for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
             auto ptr = output[sample_id].mutable_data<DType>();
             *ptr = ConvertSat<DType>(distribution(rng_));
@@ -73,7 +53,7 @@ void NormalDistributionCpu::AssignTensorToOutput(workspace_t<CPUBackend> &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto out_shape = output.shape();
   auto &tp = ws.GetThreadPool();
-  TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
+  TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
             for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
               auto out_size = out_shape.tensor_size(sample_id);
               tp.AddWork(

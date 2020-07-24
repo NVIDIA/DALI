@@ -20,6 +20,10 @@
 #include "dali/core/convert.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/batch_rng.h"
+#include "dali/core/static_switch.h"
+
+#define DALI_NORMDIST_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, \
+                             int64_t, float16, float, double)
 
 namespace dali {
 namespace detail {
@@ -29,7 +33,7 @@ const std::string kStddev = "stddev";  // NOLINT
 const std::string kShape = "shape";    // NOLINT
 
 const int kNumOutputs = 1;
-std::vector<int> kShapeDefaultValue {};
+static std::vector<int> kShapeDefaultValue {};
 
 }  // namespace detail
 
@@ -54,14 +58,24 @@ class NormalDistribution : public Operator<Backend> {
     return true;
   }
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const workspace_t<Backend> &ws) override {
+    AcquireArguments(ws);
+    output_desc.resize(detail::kNumOutputs);
+    output_desc[0].shape = GetOutputShape(ws);
+    TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
+            output_desc[0].type = TypeTable::GetTypeInfoFromStatic<DType>();
+    ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)));  // NOLINT
+    return true;
+  }
 
-  void AcquireArguments(const workspace_t<CPUBackend> &ws) {
+  void AcquireArguments(const workspace_t<Backend> &ws) {
     this->GetPerSampleArgument(mean_, detail::kMean, ws);
     this->GetPerSampleArgument(stddev_, detail::kStddev, ws);
   }
 
 
-  TensorListShape<> GetOutputShape(const workspace_t<CPUBackend> &ws) {
+  TensorListShape<> GetOutputShape(const workspace_t<Backend> &ws) {
     DALI_ENFORCE(!(spec_.NumRegularInput() == 1 && IsShapeArgumentProvided(spec_)),
                  make_string("Incorrect operator invocation. "
                              "The operator cannot be called with both Input and `shape` argument"));
@@ -91,17 +105,21 @@ class NormalDistribution : public Operator<Backend> {
   bool single_value_in_output_ = false;
 
  private:
-  TensorListShape<> ShapesFromInputTensorList(const workspace_t<CPUBackend> &ws) {
-    return ws.template InputRef<CPUBackend>(0).shape();
+  TensorListShape<> ShapesFromInputTensorList(const workspace_t<Backend> &ws) {
+    if (ws.template InputIsType<CPUBackend>(0)) {
+      return ws.template InputRef<CPUBackend>(0).shape();
+    } else {
+      return ws.template InputRef<GPUBackend>(0).shape();
+    }
   }
 
 
-  TensorListShape<> ShapesFromArgument(const workspace_t<CPUBackend> &ws) {
+  TensorListShape<> ShapesFromArgument(const workspace_t<Backend> &ws) {
     return uniform_list_shape(batch_size_, shape_);
   }
 
 
-  TensorListShape<> ShapeForDefaultConfig(const workspace_t<CPUBackend> &ws) {
+  TensorListShape<> ShapeForDefaultConfig(const workspace_t<Backend> &ws) {
     return uniform_list_shape(batch_size_, {1});
   }
 
@@ -122,9 +140,6 @@ class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(NormalDistributionCpu);
 
  protected:
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const workspace_t<CPUBackend> &ws) override;
-
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:
@@ -140,7 +155,6 @@ class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
                 "Normal distribution is undefined for given type of mean");
   using distribution_t = std::normal_distribution<decltype(mean_)::value_type>;
 };
-
 
 }  // namespace dali
 
