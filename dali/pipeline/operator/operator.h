@@ -61,35 +61,21 @@ const std::string kDtype = "dtype";          // NOLINT
 }  // namespace arg_names
 
 /**
- * @brief Gets a data layout for the input at given index
- *
- * If the layout is explicitly defined, it's verified against the schema.
- * If the layout is not specified, a default one is taken from the schema
- * based on the input's dimensionality.
- */
-template <typename Workspace>
-inline TensorLayout GetInputLayout(const Workspace &ws, const OpSchema &schema, int index) {
-  if (ws.template InputIsType<CPUBackend>(index)) {
-    auto &input = ws.template InputRef<CPUBackend>(index);
-    return schema.GetInputLayout(index, input.shape().sample_dim(), input.GetLayout());
-  } else if (ws.template InputIsType<GPUBackend>(index)) {
-    auto &input = ws.template InputRef<GPUBackend>(index);
-    return schema.GetInputLayout(index, input.shape().sample_dim(), input.GetLayout());
-  } else {
-    DALI_FAIL("Input " + std::to_string(index) + " has an unknown backend");
-  }
-}
-
-/**
  * @brief Verifies that the inputs in the workspace satisfy the layout
  *        constraints imposed by the schema.
  */
 template <typename Workspace>
 inline void CheckInputLayouts(const Workspace &ws, const OpSpec &spec) {
-  if (spec.NumRegularInput() > 0) {
-    auto &schema = spec.GetSchema();
-    for (int i = 0; i < spec.NumRegularInput(); ++i) {
-      (void)GetInputLayout(ws, schema, i);
+  auto &schema = spec.GetSchema();
+  for (int i = 0; i < spec.NumRegularInput(); ++i) {
+    if (ws.template InputIsType<CPUBackend>(i)) {
+      auto &input = ws.template InputRef<CPUBackend>(i);
+      (void) schema.GetInputLayout(i, input.shape().sample_dim(), input.GetLayout());
+    } else if (ws.template InputIsType<GPUBackend>(i)) {
+      auto &input = ws.template InputRef<GPUBackend>(i);
+      (void) schema.GetInputLayout(i, input.shape().sample_dim(), input.GetLayout());
+    } else {
+      DALI_FAIL(make_string("Input ", i, " has an unknown backend"));
     }
   }
 }

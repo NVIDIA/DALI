@@ -346,13 +346,24 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
     output_desc.clear();
     const auto &spec = op.GetSpec();
     const auto &schema = spec.GetSchema();
+    SmallVector<int, 16> empty_layout_in_idxs;
     for (int i = 0; i < spec.NumRegularInput(); i++) {
       if (ws.template InputIsType<CPUBackend>(i)) {
         auto &in = ws.template InputRef<CPUBackend>(i);
-        in.SetLayout(schema.GetInputLayout(i, in.shape().sample_dim(), in.GetLayout()));
+        bool empty_in_layout = in.GetLayout().empty();
+        auto layout = schema.GetInputLayout(i, in.shape().sample_dim(), in.GetLayout());
+        if (!empty_in_layout || layout.empty())
+          continue;
+        in.SetLayout(layout);
+        empty_layout_in_idxs.push_back(i);
       } else {
         auto &in = ws.template InputRef<GPUBackend>(i);
-        in.SetLayout(schema.GetInputLayout(i, in.shape().sample_dim(), in.GetLayout()));
+        bool empty_in_layout = in.GetLayout().empty();
+        auto layout = schema.GetInputLayout(i, in.shape().sample_dim(), in.GetLayout());
+        if (!empty_in_layout || layout.empty())
+          continue;
+        in.SetLayout(layout);
+        empty_layout_in_idxs.push_back(i);
       }
     }
 
@@ -381,6 +392,16 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
                    "always return false.");
     }
     op.Run(ws);
+
+    for (int i : empty_layout_in_idxs) {
+      if (ws.template InputIsType<CPUBackend>(i)) {
+        auto &in = ws.template InputRef<CPUBackend>(i);
+        in.SetLayout({});
+      } else {
+        auto &in = ws.template InputRef<GPUBackend>(i);
+        in.SetLayout({});
+      }
+    }
   }
 };
 
