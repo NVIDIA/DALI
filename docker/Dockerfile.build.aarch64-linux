@@ -16,7 +16,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libtool \
     libtool-bin \
-    && rm -rf /var/lib/apt/lists/*
+    python3-distutils \
+    zip \
+    python3.6 python3.6-dev \
+    python3.7 python3.7-dev \
+    python3.8 python3.8-dev \
+    && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py && \
+    cd /tmp && git clone https://github.com/NixOS/patchelf && cd patchelf && \
+    ./bootstrap.sh && ./configure --prefix=/usr/ && make -j install && cd / && rm -rf /tmp/patchelf && \
+    ln -s /usr/bin/python3 /usr/bin/python
 
 COPY --from=aarch64_cuda_tools *.deb ./
 
@@ -82,7 +92,7 @@ RUN JPEG_TURBO_VERSION=2.0.5 && \
       CXXFLAGS="-fPIC" \
       CC=aarch64-linux-gnu-gcc \
       CXX=aarch64-linux-gnu-g++ \
-    cmake -G"Unix Makefiles" -DENABLE_SHARED=FALSE -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu/ . 2>&1 >/dev/null && \
+    cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu/ . 2>&1 >/dev/null && \
       CFLAGS="-fPIC" \
       CXXFLAGS="-fPIC" \
       CC=aarch64-linux-gnu-gcc \
@@ -234,6 +244,35 @@ RUN LIBSND_VERSION=1.0.28 && cd /tmp                                            
                                              --host=aarch64-unknown-linux-gnu --prefix=/usr/aarch64-linux-gnu/ && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                                  && \
     cd /tmp && rm -rf libsndfile-$LIBSND_VERSION
+
+# hack - install cross headers in the default python paths, so host python3-config would point to them
+RUN PYVER=3.6.9 && \
+    cd /tmp && curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - && \
+    rm -rf *.tgz && cd Python* && \
+    ./configure --disable-ipv6 ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no \
+        --disable-shared CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
+        --build=x86_64-pc-linux-gnu --host=aarch64-linux-gnu --prefix=/usr/                                 && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" inclinstall                                           && \
+    cd / && rm -rf /tmp/Python* && \
+    PYVER=3.7.8 && \
+    cd /tmp && curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - && \
+    rm -rf *.tgz && cd Python* && \
+    ./configure --disable-ipv6 ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no \
+        --disable-shared CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
+        --build=x86_64-pc-linux-gnu --host=aarch64-linux-gnu --prefix=/usr/                                 && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" inclinstall                                           && \
+    cd / && rm -rf /tmp/Python* && \
+    PYVER=3.8.5 && \
+    cd /tmp && curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - && \
+    rm -rf *.tgz && cd Python* && \
+    ./configure --disable-ipv6 ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no \
+        --disable-shared CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
+        --build=x86_64-pc-linux-gnu --host=aarch64-linux-gnu --prefix=/usr/                                 && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" inclinstall                                           && \
+    cd / && rm -rf /tmp/Python* && \
+    # hack - patch the host pythonX-config to return --extension-suffix for the target
+    find /usr/ -iname x86_64-linux-gnu-python* -exec sed -i "s/\(SO.*\)\(x86_64\)\(.*\)/\1aarch64\3/" {} \;
+
 
 VOLUME /dali
 

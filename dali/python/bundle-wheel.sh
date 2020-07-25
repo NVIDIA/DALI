@@ -44,6 +44,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 INWHL=$(readlink -e $1)
+PATH_PREFIX=${2:-local}
 OUTDIR=/wheelhouse
 
 OUTWHLNAME=$(basename $INWHL)
@@ -88,37 +89,21 @@ make_wheel_record() {
 }
 
 DEPS_LIST=(
-    "/usr/local/lib64/libjpeg.so.62"
-    "/usr/local/lib/libavformat.so.58"
-    "/usr/local/lib/libavcodec.so.58"
-    "/usr/local/lib/libavfilter.so.7"
-    "/usr/local/lib/libavutil.so.56"
-    "/usr/local/lib/libtiff.so.5"
-    "/usr/local/lib/libsndfile.so.1"
-    "/usr/local/lib/libFLAC.so.8"
-    "/usr/local/lib/libogg.so.0"
-    "/usr/local/lib/libvorbis.so.0"
-    "/usr/local/lib/libvorbisenc.so.2"
-    "/usr/local/lib/libopenjp2.so.7"
-    "/usr/local/lib/libzstd.so.1"
-    "/usr/local/lib/libz.so.1"
-)
-
-DEPS_SONAME=(
-    "libjpeg.so.62"
-    "libavformat.so.58"
-    "libavcodec.so.58"
-    "libavfilter.so.7"
-    "libavutil.so.56"
-    "libtiff.so.5"
-    "libsndfile.so.1"
-    "libFLAC.so.8"
-    "libogg.so.0"
-    "libvorbis.so.0"
-    "libvorbisenc.so.2"
-    "libopenjp2.so.7"
-    "libzstd.so.1"
-    "libz.so.1"
+    "/usr/${PATH_PREFIX}/lib64/libjpeg.so.62"
+    "/usr/${PATH_PREFIX}/lib/libjpeg.so.62"
+    "/usr/${PATH_PREFIX}/lib/libavformat.so.58"
+    "/usr/${PATH_PREFIX}/lib/libavcodec.so.58"
+    "/usr/${PATH_PREFIX}/lib/libavfilter.so.7"
+    "/usr/${PATH_PREFIX}/lib/libavutil.so.56"
+    "/usr/${PATH_PREFIX}/lib/libtiff.so.5"
+    "/usr/${PATH_PREFIX}/lib/libsndfile.so.1"
+    "/usr/${PATH_PREFIX}/lib/libFLAC.so.8"
+    "/usr/${PATH_PREFIX}/lib/libogg.so.0"
+    "/usr/${PATH_PREFIX}/lib/libvorbis.so.0"
+    "/usr/${PATH_PREFIX}/lib/libvorbisenc.so.2"
+    "/usr/${PATH_PREFIX}/lib/libopenjp2.so.7"
+    "/usr/${PATH_PREFIX}/lib/libzstd.so.1"
+    "/usr/${PATH_PREFIX}/lib/libz.so.1"
 )
 
 TMPDIR=$(mktemp -d)
@@ -128,17 +113,20 @@ mkdir -p $PKGNAME_PATH/.libs
 popd
 
 # copy over needed dependent .so files over and tag them with their hash
+original=()
 patched=()
 for filepath in "${DEPS_LIST[@]}"; do
     filename=$(basename $filepath)
-    patchedname=$(fname_with_sha256 $filepath)
-    patchedpath=$PKGNAME_PATH/.libs/$patchedname
-    patched+=("$patchedname")
 
     if [[ ! -f "$filepath" ]]; then
         echo "Didn't find $filename, skipping..."
         continue
     fi
+    patchedname=$(fname_with_sha256 $filepath)
+    patchedpath=$PKGNAME_PATH/.libs/$patchedname
+    original+=("$filename")
+    patched+=("$patchedname")
+
     echo "Copying $filepath to $patchedpath"
     cp $filepath $TMPDIR/$patchedpath
 
@@ -162,8 +150,8 @@ pushd $TMPDIR
 
 echo "patching to fix the so names to the hashed names"
 find $PKGNAME_PATH -name '*.so*' -o -name '*.bin' | while read sofile; do
-    for ((i=0;i<${#DEPS_LIST[@]};++i)); do
-        origname=${DEPS_SONAME[i]}
+    for ((i=0;i<${#original[@]};++i)); do
+        origname=${original[i]}
         patchedname=${patched[i]}
         if [[ "$origname" != "$patchedname" ]]; then
             set +e

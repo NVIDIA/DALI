@@ -450,4 +450,4 @@ From the root of the DALI source tree
 
     docker run -v $(pwd):/dali nvidia/dali:builder_aarch64-qnx
 
-The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali``
+The relevant Python wheel will be inside ``$(pwd)/wheelhouse``.

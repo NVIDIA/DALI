@@ -51,7 +51,10 @@ export NVIDIA_DALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}
 export CUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}
 export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux2014_${ARCH}}
 export PATH=/usr/local/cuda/bin:${PATH}
-
+export PATH=/usr/local/cuda/bin:${PATH}
+export EXTRA_CMAKE_OPTIONS=${EXTRA_CMAKE_OPTIONS}
+export BUNDLE_PATH_PREFIX=${BUNDLE_PATH_PREFIX}
+export TEST_BUNDLED_LIBS=${TEST_BUNDLED_LIBS:-YES}
 # use all avialble pythons
 
 LD_LIBRARY_PATH="${PWD}:${LD_LIBRARY_PATH}" && \
@@ -77,7 +80,8 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DWERROR=${WERROR}                           \
       -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN}         \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
-      -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA}
+      -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA} \
+      ${EXTRA_CMAKE_OPTIONS}
 if [ "${WERROR}" = "ON" ]; then
     make -j lint
 fi
@@ -89,12 +93,14 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
         --build-option --plat-name=${WHL_PLATFORM_NAME} \
         --build-option --build-number=${NVIDIA_BUILD_ID}
 
-    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl
+    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl ${BUNDLE_PATH_PREFIX}
 
-    export UNZIP_PATH="$(mktemp -d)"
-    unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH
-    python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ')
-    rm -rf $UNZIP_PATH
+    if [ "${TEST_BUNDLED_LIBS}" = "YES" ]; then
+        export UNZIP_PATH="$(mktemp -d)"
+        unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH
+        python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ')
+        rm -rf $UNZIP_PATH
+    fi
 
     if [ "${STRIP_BINARY}" = "ON" ]; then
         # rename unstriped wheel to debug
@@ -121,6 +127,6 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
         ### This appears to be a bug in binutils
         ### (http://bugs.strategoxt.org/browse/NIXPKGS-85).
 
-        ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl
+        ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl  ${BUNDLE_PATH_PREFIX}
     fi
 fi

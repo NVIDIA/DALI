@@ -97,7 +97,7 @@ RUN JPEG_TURBO_VERSION=2.0.5 && \
       CXXFLAGS="-fPIC" \
       CC=aarch64-unknown-nto-qnx7.0.0-gcc \
       CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
-    cmake -G"Unix Makefiles" -DENABLE_SHARED=FALSE -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_INSTALL_PREFIX=/usr/aarch64-unknown-nto-qnx/aarch64le . 2>&1 >/dev/null && \
+    cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_INSTALL_PREFIX=/usr/aarch64-unknown-nto-qnx/aarch64le . 2>&1 >/dev/null && \
       CFLAGS="-fPIC" \
       CXXFLAGS="-fPIC" \
       CC=aarch64-unknown-nto-qnx7.0.0-gcc \
