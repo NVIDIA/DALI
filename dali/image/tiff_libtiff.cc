@@ -247,17 +247,19 @@ TiffImage_Libtiff::TiffImage_Libtiff(const uint8_t *encoded_buffer,
   LIBTIFF_CALL(
     TIFFGetField(tif_.get(), TIFFTAG_IMAGEWIDTH, &shape_[1]));
   LIBTIFF_CALL(
-    TIFFGetField(tif_.get(), TIFFTAG_SAMPLESPERPIXEL, &shape_[2]));
+    TIFFGetFieldDefaulted(tif_.get(), TIFFTAG_SAMPLESPERPIXEL, &shape_[2]));
   is_tiled_ = static_cast<bool>(
     TIFFIsTiled(tif_.get()));
   LIBTIFF_CALL(
-    TIFFGetField(tif_.get(), TIFFTAG_BITSPERSAMPLE, &bit_depth_));
+    TIFFGetFieldDefaulted(tif_.get(), TIFFTAG_BITSPERSAMPLE, &bit_depth_));
   DALI_ENFORCE(bit_depth_ <= 64,
     "Unexpected bit depth: " + std::to_string(bit_depth_));
-  // optional
-  TIFFGetField(tif_.get(), TIFFTAG_ORIENTATION, &orientation_);
-  TIFFGetField(tif_.get(), TIFFTAG_ROWSPERSTRIP, &rows_per_strip_);
-  TIFFGetField(tif_.get(), TIFFTAG_COMPRESSION, &compression_);
+  LIBTIFF_CALL(
+    TIFFGetFieldDefaulted(tif_.get(), TIFFTAG_ORIENTATION, &orientation_));
+  LIBTIFF_CALL(
+    TIFFGetFieldDefaulted(tif_.get(), TIFFTAG_ROWSPERSTRIP, &rows_per_strip_));
+  LIBTIFF_CALL(
+    TIFFGetFieldDefaulted(tif_.get(), TIFFTAG_COMPRESSION, &compression_));
 }
 
 Image::Shape TiffImage_Libtiff::PeekShapeImpl(const uint8_t *encoded_buffer,
@@ -271,8 +273,9 @@ std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
                               const uint8 *encoded_buffer,
                               size_t length) const {
+  // This decoder only handles bitdepth=8, non-tiled and top-left orientation
+  // Other cases go to OpenCV's based decoder
   if (!CanDecode(image_type)) {
-    DALI_WARN("Warning: Falling back to GenericImage");
     return GenericImage::DecodeImpl(image_type, encoded_buffer, length);
   }
 
