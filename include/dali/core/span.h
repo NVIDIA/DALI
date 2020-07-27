@@ -192,6 +192,7 @@ DALI_HOST_DEV constexpr auto make_span(Collection &&c) {
   return make_span(c.data(), c.size());
 }
 
+DALI_NO_EXEC_CHECK
 template <typename T, size_t N>
 DALI_HOST_DEV constexpr span<T, N> make_span(std::array<T, N> &a) {
   return { a.data() };
