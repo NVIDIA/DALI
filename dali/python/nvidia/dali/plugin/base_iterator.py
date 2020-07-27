@@ -19,14 +19,11 @@ import numpy as np
 import warnings
 
 def _iterator_deprecation_warning():
-    # show only this warning
-    with warnings.catch_warnings():
-        warnings.simplefilter("default")
-        warnings.warn("Please set `reader_name` and don't set last_batch_padded and size manually " +
-                      " whenever possible. This may lead, in some situations, to miss some " +
-                      " samples or return duplicated ones. Check the Sharding section of the "
-                      "documentation for more details.",
-                      Warning, stacklevel=2)
+    warnings.warn("Please set `reader_name` and don't set last_batch_padded and size manually " +
+                  " whenever possible. This may lead, in some situations, to miss some " +
+                  " samples or return duplicated ones. Check the Sharding section of the "
+                  "documentation for more details.",
+                  Warning, stacklevel=2)
 
 class _DaliBaseIterator(object):
     """
