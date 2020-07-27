@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,9 +45,9 @@ void RandomResizedCrop<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
 
-  DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
+  DALI_ENFORCE(input.shape().sample_dim() == 3, "Operator expects 3-dimensional image input.");
 
-  RunResize(output, input, ws.stream());
+  RunResize(ws, output, input);
   output.SetLayout(input.GetLayout());
 }
 

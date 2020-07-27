@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/image/resize/resize_crop_mirror.h"
 #include "dali/operators/image/resize/resize_base.h"
+#include "dali/operators/image/resize/resize_attr.h"
 #include "dali/kernels/context.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/imgproc/resample/params.h"
@@ -34,21 +35,6 @@ namespace detail {
   kernels::ResamplingParams2D GetResamplingParams(
     const TransformMeta &meta, kernels::FilterDesc min_filter, kernels::FilterDesc mag_filter);
 }  // namespace detail
-
-class ResizeAttr : protected ResizeCropMirrorAttr {
- public:
-  explicit inline ResizeAttr(const OpSpec &spec) : ResizeCropMirrorAttr(spec) {}
-
-  void SetBatchSize(int batch_size) {
-    per_sample_meta_.reserve(batch_size);
-  }
-
- protected:
-  uint32_t ResizeInfoNeeded() const override { return 0; }
-
-  // store per-thread data for same resize on multiple data
-  std::vector<TransformMeta> per_sample_meta_;
-};
 
 template <typename Backend>
 class Resize : public Operator<Backend>
@@ -64,12 +50,14 @@ class Resize : public Operator<Backend>
 
   void RunImpl(workspace_t<Backend> &ws) override;
 
-  void SaveAttrs(int *shape_data, const TensorListShape<> &orig_shape) const {
+  void SaveAttrs(const TensorListView<StorageCPU, int, 1> &shape_data,
+                 const TensorListShape<> &orig_shape) const {
     int N = orig_shape.num_samples();
     for (int i = 0; i < N; i++) {
       auto sample_shape = orig_shape.tensor_shape_span(i);
+      int *out_shape = shape_data.data[i];
       for (int d = 0; d < spatial_ndim_; d++) {
-        shape_data[i * spatial_ndim_ + d] = sample_shape[first_spatial_dim_ + d];
+        out_shape[d] = sample_shape[first_spatial_dim_ + d];
       }
     }
   }
@@ -90,19 +78,22 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                 const workspace_t<Backend> &ws) {
   output_desc.resize(save_attrs_ ? 2 : 1);
   auto &input = ws.template InputRef<Backend>(0);
-  if (!ws.TryGetArgument(out_type_, "dtype")) {
+  if (!spec_.TryGetArgument(out_type_, "dtype")) {
     out_type_ = input.type().id();
   }
 
-  output_desc[0].type = out_type_;
+  output_desc[0].type = TypeTable::GetTypeInfo(out_type_);
 
   int spatial_ndim = 2, first_spatial_dim = 0;
-  ParseLayout(spatial_ndim, first_spatial_dim, InputLayout(ws, 0));
+  ResizeAttr::ParseLayout(spatial_ndim, first_spatial_dim, input.GetLayout());
 
   DALI_ENFORCE(ws.NumOutput() == 1 || ws.NumOutput() == 2,
     "Resize and produce 1 or 2 outputs - if there are two outputs, the 2nd one receives the "
     "original size of the images.");
-  this->SetupResize(output_desc[0].shape, input.shape, this->params_, out_type_,
+
+  const auto &in_shape = input.shape();
+  auto in_type = input.type().id();
+  this->SetupResize(output_desc[0].shape, out_type_, in_shape, in_type, make_cspan(this->params_),
                     spatial_ndim, first_spatial_dim);
 
   if (save_attrs_) {

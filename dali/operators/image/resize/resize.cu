@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,8 +27,6 @@ Resize<GPUBackend>::Resize(const OpSpec &spec)
     , ResizeAttr(spec)
     , ResizeBase<GPUBackend>(spec) {
   save_attrs_ = spec_.HasArgument("save_attrs");
-
-  ResizeAttr::SetBatchSize(batch_size_);
   InitializeGPU(spec_.GetArgument<int>("minibatch_size"));
   resample_params_.resize(batch_size_);
 }
@@ -52,8 +50,8 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     if (!attr_staging_.raw_data())
       attr_staging_.set_pinned(true);
     attr_staging_.ResizeLike(attr_out);
-    int *attr_data = attr_staging_.mutable_data<int>();
-    SaveAttrs(attr_data, input.shape());
+    auto attr_view = view<int, 1>(attr_staging_);
+    SaveAttrs(attr_view, input.shape());
     attr_out.Copy(attr_staging_, ws.stream());
   }
 }

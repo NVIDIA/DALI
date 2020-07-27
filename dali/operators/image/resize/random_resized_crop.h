@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,7 +81,8 @@ class RandomResizedCrop : public Operator<Backend>
     }
 
     output_desc.resize(1);
-    this->SetupResize(output_desc[0].shape, input, resample_params_, out_type_);
+    this->SetupResize(output_desc[0].shape, out_type_, input_shape, input.type().id(),
+                      make_cspan(resample_params_));
     output_desc[0].type = TypeTable::GetTypeInfo(out_type);
     return true;
   }

@@ -44,8 +44,8 @@ inline void GetSingleOrRepeatedArg(const OpSpec &spec, vector<T> &result,
 
 template <typename T>
 void GetPerSampleArgument(std::vector<T> &output,
-                          const OpSpec &spec,
                           const std::string &argument_name,
+                          const OpSpec &spec,
                           const ArgumentWorkspace &ws,
                           int batch_size = -1 /* -1 = get from "batch_size" arg */) {
   if (batch_size < 0)
@@ -87,14 +87,18 @@ void GetPerSampleArgument(std::vector<T> &output,
   assert(output.size() == static_cast<size_t>(batch_size));
 }
 
-template <int ndim>
-void GetShapeArgument(TensorListShape<ndim> &out_tls,
+template <int out_ndim>
+void GetShapeArgument(TensorListShape<out_ndim> &out_tls,
                       const OpSpec &spec,
                       const std::string &argument_name,
                       const ArgumentWorkspace &ws,
+                      int ndim = out_ndim,
                       int batch_size = -1 /* -1 = get from "batch_size" arg */) {
   if (batch_size < 0)
     batch_size = spec.GetArgument<int>("batch_size");
+
+  // if neither is dynamic, ndim and out_ndim must be equal
+  assert(ndim < 0 || out_ndim < 0 || ndim == out_ndim);
 
   if (spec.HasTensorArgument(argument_name)) {
     const auto &arg = ws.ArgumentInput(argument_name);
@@ -104,18 +108,19 @@ void GetShapeArgument(TensorListShape<ndim> &out_tls,
       argument_name, "` (expected: ", batch_size, ")"));
     DALI_ENFORCE(is_uniform(argview.shape), "A tensor list shape must have the same dimensionality "
       "for all samples.");
-    TensorListShape<ndim> tls;
+    TensorListShape<out_ndim> tls;
     if (argview.shape.sample_dim() == 0) {
-      DALI_ENFORCE(ndim < 0 || ndim == 1, "A list of scalars can only describe a shape of a 1D "
-        "tensor list");
-      out_tls.resize(N, 1);
+      if (ndim < 0)
+        ndim = 1;
+      out_tls.resize(N, ndim);
       for (int i = 0; i < N; i++)
-        tls.tensor_shape_span(i)[0] = *argview.data[i];
+        for (int d = 0; d < ndim; d++)
+          tls.tensor_shape_span(i)[d] = *argview.data[i];
     } else {
       DALI_ENFORCE(argview.shape.sample_dim() == 1, "Shapes must be 1D tensors with extent equal "
-       "to shape dimensionality (or scalars for 1D shapes)");
+       "to shape dimensionality (or scalar)");
       int D = argview.shape[0][0];
-      DALI_ENFORCE(ndim < 0 || D == ndim, make_string(D, " element tensor cannot describe an ",
+      DALI_ENFORCE(ndim < 0 || D == ndim, make_string(D, "-element tensor cannot describe an ",
         ndim, "D shape."));
       out_tls.resize(N, D);
       for (int i = 0; i < N; i++)
@@ -132,7 +137,7 @@ void GetShapeArgument(TensorListShape<ndim> &out_tls,
       // in dynamic use case, we get the dimensionality from the number of values
       tsvec = spec.GetRepeatedArgument<int>(argument_name);
     }
-    out_tls = uniform_list_shape<ndim>(batch_size, tsvec);
+    out_tls = uniform_list_shape<out_ndim>(batch_size, tsvec);
   }
 }
 

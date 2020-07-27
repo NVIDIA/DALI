@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,36 +23,12 @@
 #include "dali/core/span.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/imgproc/resample/params.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/operators/image/resize/resampling_attr.h"
 
 namespace dali {
-
-class DLL_PUBLIC ResamplingFilterAttr {
- public:
-  DLL_PUBLIC ResamplingFilterAttr(const OpSpec &spec);
-
-  /**
-   * Filter used when downscaling
-   */
-  kernels::FilterDesc min_filter_{ kernels::ResamplingFilterType::Triangular, 0 };
-  /**
-   * Filter used when upscaling
-   */
-  kernels::FilterDesc mag_filter_{ kernels::ResamplingFilterType::Linear, 0 };
-  /**
-   * Initial size, in bytes, of a temporary buffer for resampling.
-   */
-  size_t temp_buffer_hint_ = 0;
-};
-
-
-template <size_t N, typename T>
-inline span<T> flatten(span<std::array<T, N>> in) {
-  return { &in[0][0], in.size() * N };
-}
 
 template <typename Backend>
 class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
@@ -84,19 +60,22 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
    *                          contiguous block in th layout
    */
   void SetupResize(TensorListShape<> &out_shape,
-                   const input_type &input,
-                   span<const kernels::ResamplingParams> params,
                    DALIDataType out_type,
+                   const TensorListShape<> &in_shape,
+                   DALIDataType in_type,
+                   span<const kernels::ResamplingParams> params,
                    int spatial_ndim,
                    int first_spatial_dim = 0);
 
-  template <int spatial_ndim>
+  template <size_t spatial_ndim>
   void SetupResize(TensorListShape<> &out_shape,
-                   const input_type &input,
-                   span<const kernels::ResamplingParamsND<spatial_ndim>> params,
                    DALIDataType out_type,
+                   const TensorListShape<> &in_shape,
+                   DALIDataType in_type,
+                   span<const kernels::ResamplingParamsND<spatial_ndim>> params,
                    int first_spatial_dim = 0) {
-    SetupResize(out_shape, input, flatten(params), out_type, spatial_ndim, first_spatial_dim);
+    SetupResize(out_shape, out_type, in_shape, in_type, flatten(params),
+                spatial_ndim, first_spatial_dim);
   }
 
  private:
@@ -114,12 +93,17 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
                         int spatial_ndim,
                         int first_spatial_dim = 0);
 
-
+  int num_threads_ = 1;
   int minibatch_size_ = 32;
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };
 
+template <>
+void ResizeBase<CPUBackend>::InitializeCPU(int num_threads);
+
+template <>
+void ResizeBase<GPUBackend>::InitializeGPU(int minibatch_size);
 
 extern template class ResizeBase<CPUBackend>;
 extern template class ResizeBase<GPUBackend>;

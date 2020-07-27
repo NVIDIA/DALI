@@ -25,7 +25,9 @@
 
 namespace dali {
 
-class VideoReaderResize : public VideoReader, protected ResizeAttr, protected ResizeBase {
+class VideoReaderResize : public VideoReader,
+                          protected ResizeAttr,
+                          protected ResizeBase<GPUBackend> {
  public:
   explicit VideoReaderResize(const OpSpec &spec)
       : VideoReader(spec),
@@ -33,15 +35,13 @@ class VideoReaderResize : public VideoReader, protected ResizeAttr, protected Re
         ResizeBase(spec),
         per_video_transform_metas_(batch_size_) {
     DALI_ENFORCE(dtype_ == DALI_UINT8, "Data type must be UINT8.");
-    ResizeAttr::SetBatchSize(count_);
-    ResizeBase::InitializeGPU(count_, spec_.GetArgument<int>("minibatch_size"));
-    resample_params_.resize(count_);
+    ResizeBase::InitializeGPU(spec_.GetArgument<int>("minibatch_size"));
   }
 
   inline ~VideoReaderResize() override = default;
 
  protected:
-  void SetOutputShape(TensorList<GPUBackend> &output, DeviceWorkspace &ws) override {
+  /*void SetOutputShape(TensorList<GPUBackend> &output, DeviceWorkspace &ws) override {
     TensorListShape<> output_shape(batch_size_, sequence_dim);
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
       per_video_transform_metas_[data_idx] = GetTransformMeta(
@@ -81,7 +81,7 @@ class VideoReaderResize : public VideoReader, protected ResizeAttr, protected Re
     ShareSingleOutputAsTensorList(data_idx, video_output, output);
 
     ResizeBase::RunGPU(output, input, ws.stream());
-  }
+  }*/
 
  private:
   vector<TransformMeta> per_video_transform_metas_;

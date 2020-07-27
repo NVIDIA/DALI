@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ Resize<CPUBackend>::Resize(const OpSpec &spec)
     : Operator<CPUBackend>(spec)
     , ResizeAttr(spec)
     , ResizeBase<CPUBackend>(spec) {
-  per_sample_meta_.resize(num_threads_);
   resample_params_.resize(num_threads_);
   InitializeCPU(num_threads_);
 
@@ -53,13 +52,14 @@ void Resize<CPUBackend>::RunImpl(HostWorkspace &ws) {
   output.SetLayout(input.GetLayout());
 
   if (save_attrs_) {
-    auto &attr_out = ws.Output<GPUBackend>(1);
+    const auto &input_shape = input.shape();
+    auto &attr_out = ws.OutputRef<CPUBackend>(1);
     const auto &attr_shape = attr_out.shape();
-    assert(attr_shape.num_samples() == input.num_samples() && attr_shape.sample_dim() == 1 &&
+    assert(attr_shape.num_samples() == input_shape.num_samples() && attr_shape.sample_dim() == 1 &&
       is_uniform(attr_shape) && attr_shape[0][0] == spatial_ndim_);
 
-    int *attr_data = attr_out.mutable_data<int>();
-    SaveAttrs(t, input.shape());
+    auto attr_view = view<int, 1>(attr_out);
+    SaveAttrs(attr_view, input.shape());
   }
 }
 

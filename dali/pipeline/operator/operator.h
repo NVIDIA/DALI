@@ -206,14 +206,16 @@ class DLL_PUBLIC OperatorBase {
    * otherwise scalar value is replicated.
    *
    * @tparam T Type of the Argument
-   * @param output Container for the data. This function will reallocate it.
+   * @param output C      ontainer for the data. This function will reallocate it.
    * @param argument_name name of the Argument
-   * @param ws
+   * @param ws            workspace object, from which ArgumentInputs are taken
+   * @param batch_size    number of samples in the batch - if <0, it's taken from an argument
+   *                      "batch_size" in OpSpec for this operator.
    */
   template<typename T>
   void GetPerSampleArgument(std::vector<T> &output, const std::string &argument_name,
-                            const ArgumentWorkspace &ws) {
-    dali::GetPerSampleArgument(output, spec_, argument_name, ws);
+                            const ArgumentWorkspace &ws, int batch_size = -1) {
+    dali::GetPerSampleArgument(output, argument_name, spec_, ws, batch_size);
   }
 
 

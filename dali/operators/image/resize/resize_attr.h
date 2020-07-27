@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,11 @@
 namespace dali {
 
 struct ResizeParams {
+  void resize(int ndim) {
+    dst_size.resize(ndim);
+    src_lo.resize(ndim);
+    src_hi.resize(ndim);
+  }
   SmallVector<int, 6> dst_size;
   SmallVector<float, 6> src_lo, src_hi;
 };
@@ -33,20 +38,34 @@ struct ResizeParams {
 class DLL_PUBLIC ResizeAttr {
  public:
   ResizeAttr(const OpSpec &spec);
+  void Initialize(const OpSpec &spec);
 
   void PrepareParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                      const TensorListShape<> &input_shape,
                      TensorLayout input_layout = {});
 
-
   static void ParseLayout(int &spatial_ndim, int &first_spatial_dim, const TensorLayout &layout);
+
+  bool HasSeparateSizeArgs() const {
+    return has_resize_x_ || has_resize_y_ || has_resize_z_;
+  }
 
 
   vector<ResizeParams> params_;
-  /// Output size - only spatial dimensions (no channels, frames, etc.)
-  TensorListShape<> out_size_;
+
+  /**
+   * Maximum size - used together with with mode NotSmaller to limit the size for
+   * very thin images
+   */
+  vector<int> max_size_;
+
+  // pass sizes by value - the function will modify them internally
+  void CalculateSampleParams(ResizeParams &params,
+                             SmallVector<float, 3> requested_size,
+                             SmallVector<float, 3> input_size);
 
   bool has_size_ = false;
+  bool has_max_size_ = false;
   bool has_mode_ = false;
   bool has_resize_shorter_ = false;
   bool has_resize_longer_ = false;
@@ -54,6 +73,16 @@ class DLL_PUBLIC ResizeAttr {
   bool has_resize_y_ = false;
   bool has_resize_z_ = false;
 
+  int spatial_ndim_ = 2;
+  int first_spatial_dim_ = 0;
+
+  ResizeMode mode_ = ResizeMode::Stretch;
+
+ private:
+  TensorListShape<> size_arg_;
+  vector<float> res_x_, res_y_, res_z_;
+
+  void AdjustOutputSize(float *out_size, const float *in_size);
 };
 
 }  // namespace dali
