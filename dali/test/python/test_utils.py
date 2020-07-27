@@ -80,7 +80,7 @@ def get_gpu_num():
 # If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
 def check_batch(
         batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None, expected_layout=None,
-        compare_layouts=False):
+        compare_layouts=True):
     """Compare two batches of data, be it dali TensorList or list of numpy arrays.
 
     Args:
@@ -92,7 +92,7 @@ def check_batch(
         expected_layout (str, optional): If provided, the batches that are DALI types will be checked
             to match this layout. If None, there will be no check
         compare_layouts (bool, optional): Whether to compare layouts between two batches.
-            Checked only if both inputs are DALI types. Defaults to False.
+            Checked only if both inputs are DALI types. Defaults to True.
     """
 
     def is_error(mean_err, max_err, eps, max_allowed_error):
@@ -157,7 +157,7 @@ def check_batch(
 
 def compare_pipelines(
         pipe1, pipe2, batch_size, N_iterations, eps=1e-07, expected_layout=None,
-        compare_layouts=False):
+        compare_layouts=True):
     """Compare the outputs of two pipelines across several iterations.
 
     Args:
@@ -170,7 +170,7 @@ def compare_pipelines(
             will be matched with provided layouts and error will be raised if there is mismatch.
             Defaults to None.
         compare_layouts (bool, optional): Whether to compare layouts of outputs between pipelines.
-            Defaults to False.
+            Defaults to True.
     """
     pipe1.build()
     pipe2.build()
