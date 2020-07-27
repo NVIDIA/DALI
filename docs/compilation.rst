@@ -29,7 +29,7 @@ Building Python wheel and (optionally) Docker image
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed, set the following environment variables:
 
 * PYVER - Python version used to create a docker image with DALI installed inside. The default is ``3.6``.
-* CUDA_VERSION - CUDA toolkit version (10 for 10.0 or 11 for 11.0). The default is ``11``. If the version is prefixed with `.` then any value ``XX`` can be passed and the user needs to make sure that Dockerfile.cudaXX.deps is present in `docker/` directory.
+* CUDA_VERSION - CUDA toolkit version (100 for 10.0 or 110 for 11.0). The default is ``110``. If the version is prefixed with `.` then any value ``XX`` can be passed and the user needs to make sure that Dockerfile.cudaXX.deps is present in `docker/` directory.
 * NVIDIA_BUILD_ID - Custom ID of the build. The default is ``1234``.
 * CREATE_WHL - Create a standalone wheel. The default is ``YES``.
 * BUILD_TF_PLUGIN - Create a DALI TensorFlow plugin wheel as well. The default is ``NO``.
@@ -56,9 +56,9 @@ For example:
 
 .. code-block:: bash
 
-  PYVER=3.6 CUDA_VERSION=10 ./build.sh
+  PYVER=3.6 CUDA_VERSION=110 ./build.sh
 
-Will build CUDA 10 based DALI for Python 3.6 and place relevant Python wheel inside DALI_root/wheelhouse
+Will build CUDA 11.0 based DALI for Python 3.6 and place relevant Python wheel inside DALI_root/wheelhouse
 
 ----
 
