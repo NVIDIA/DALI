@@ -366,6 +366,23 @@ struct LayoutInfo {
  */
 struct ImageLayoutInfo : LayoutInfo {
   /**
+   * @brief Returns true, if the dimension name describes a spatial extent.
+   *
+   * Spatial dimensions are: 'D'epth, 'H'eight and 'W'idth
+   */
+  DALI_HOST_DEV
+  static bool IsSpatialDim(char dim_name) {
+    switch (dim_name) {
+      case 'D':
+      case 'H':
+      case 'W':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
    * @brief Counts spatial dimensions in the layout.
    *
    * Spatial dimensions are: 'D'epth, 'H'eight and 'W'idth
@@ -374,15 +391,7 @@ struct ImageLayoutInfo : LayoutInfo {
   static int NumSpatialDims(const TensorLayout &tl) {
     int s = 0;
     for (int i = 0; i < tl.ndim(); i++) {
-      switch (tl[i]) {
-      case 'D':
-      case 'H':
-      case 'W':
-        s++;
-        break;
-      default:
-        break;
-      }
+      s += IsSpatialDim(tl[i]) ? 1 :0;
     }
     return s;
   }
