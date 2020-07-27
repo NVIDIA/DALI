@@ -73,4 +73,23 @@ TEST(CoreUtilsDev, Span) {
   CUDA_CALL(cudaFree(dev_data));
 }
 
+TEST(CoreUtils, SpanFlatten) {
+  std::array<std::array<std::array<int, 4>, 3>, 2> arr;
+  for (int i = 0, n = 1; i < 2; i++) {
+    for (int j = 0; j < 3; j++) {
+      for (int k = 0; k < 4; k++, n++) {
+        arr[i][j][k] = n;
+      }
+    }
+  }
+
+  span<int, 24> flat = flatten(make_span(arr));
+  for (int i = 0; i < 24; i++)
+    EXPECT_EQ(flat[i], i+1);
+
+  span<const int> cflat = flatten(make_cspan(&arr[0], 2));
+  for (int i = 0; i < 24; i++)
+    EXPECT_EQ(cflat[i], i+1);
+}
+
 }  // namespace dali

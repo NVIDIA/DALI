@@ -23,6 +23,7 @@
 
 #include "dali/core/host_dev.h"
 #include "dali/core/force_inline.h"
+#include "dali/core/span.h"
 
 namespace dali {
 
@@ -351,6 +352,27 @@ std::array<T, N> uniform_array(const T& t) {
   std::array<T, N> result;
   result.fill(t);
   return result;
+}
+
+// flattening of spans of statically-sized arrays
+
+template <typename T, span_extent_t extent>
+inline span<T, extent> flatten(span<T, extent> in) {
+  return in;
+}
+
+template <size_t N, typename T, span_extent_t extent>
+inline auto flatten(span<std::array<T, N>, extent> in) {
+  const span_extent_t next_extent = extent == dynamic_extent
+    ? dynamic_extent : extent*span_extent_t(N);
+  return flatten(span<T, next_extent>(&in[0][0], in.size() * N));
+}
+
+template <size_t N, typename T, span_extent_t extent>
+inline auto flatten(span<const std::array<T, N>, extent> in) {
+  const span_extent_t next_extent = extent == dynamic_extent
+    ? dynamic_extent : extent*span_extent_t(N);
+  return flatten(span<const T, next_extent>(&in[0][0], in.size() * N));
 }
 
 }  // namespace dali
