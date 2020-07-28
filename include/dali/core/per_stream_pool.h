@@ -118,7 +118,7 @@ class PerStreamPool {
   class ObjectLease {
    public:
     ObjectLease(ObjectLease &&) = default;
-    ~ObjectLease() { owner->Release(std::move(node)); }
+    ~ObjectLease() { Release(owner, std::move(node)); }
     operator T*() const { return &node->object; }
     T &operator*() const { return node->object; }
     T *operator->() const { return &node->object; }
@@ -169,6 +169,12 @@ class PerStreamPool {
     std::lock_guard<mutex_type> guard(lock_);
     node->next = std::move(pending_);
     pending_ = std::move(node);
+  }
+
+  // Workaround for a bug in some compiler versions, unable to call `owner->Release`
+  // in ~ObjectLease.
+  static inline void Release(PerStreamPool *This, std::unique_ptr<ListNode> node) {
+    This->Release(std::move(node));
   }
 
   ListNodeUPtr GetPending(cudaStream_t stream) {
