@@ -52,6 +52,10 @@ class RecordIOLoader : public IndexedFileLoader {
     while (index_file >> index >> offset) {
       temp.push_back(offset);
     }
+    DALI_ENFORCE(!temp.empty(),
+      make_string("RecordIO index file doesn't contain any indices. Provided path: \"",
+                  path, "\""));
+
     std::sort(temp.begin(), temp.end());
     size_t file_offset_index = 0;
     for (size_t i = 0; i < temp.size() - 1; ++i) {
