@@ -17,7 +17,7 @@ BUILD_INHOST=[create build dir with object outside docker, just mount it as a vo
 REBUILD_BUILDERS=[default is NO]
 DALI_BUILD_DIR=[default is build-docker-\${CMAKE_BUILD_TYPE}-\${PYV}-\${CUDA_VERSION}]
 ARCH=[default is x86_64]
-WHL_PLATFORM_NAME=[default is manylinux1_x86_64]
+WHL_PLATFORM_NAME=[default is manylinux2014_x86_64]
 
 where:
     -h  show this help text"
@@ -65,7 +65,7 @@ export REBUILD_BUILDERS=${REBUILD_BUILDERS:-NO}
 export BUILD_TF_PLUGIN=${BUILD_TF_PLUGIN:-NO}
 export PREBUILD_TF_PLUGINS=${PREBUILD_TF_PLUGINS:-YES}
 export DALI_BUILD_DIR=${DALI_BUILD_DIR:-build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}}_${ARCH}
-export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux2014_x86_64}
+export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux2014_${ARCH}}
 #################################
 export BASE_NAME=quay.io/pypa/manylinux2014_${ARCH}
 export DEPS_IMAGE=nvidia/dali:cu${CUDA_VERSION}_${ARCH}.deps
@@ -88,7 +88,7 @@ pushd ../
 # build deps image if needed
 if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" || "$(docker images -q ${CUDA_DEPS_IMAGE} 2> /dev/null)" == "" ]]; then
     echo "Build deps: " ${DEPS_IMAGE}
-    docker build -t ${CUDA_DEPS_IMAGE} -f docker/Dockerfile.cuda${CUDA_VERSION}.deps .
+    docker build -t ${CUDA_DEPS_IMAGE} -f docker/Dockerfile.cuda${CUDA_VERSION}.${ARCH}.deps .
     docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME} --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" -f docker/Dockerfile.deps .
 fi
 

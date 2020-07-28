@@ -48,7 +48,7 @@ export GIT_SHA=${GIT_SHA}
 export DALI_TIMESTAMP=${DALI_TIMESTAMP}
 export NVIDIA_DALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}
 export CUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}
-export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux2014_x86_64}
+export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux2014_${ARCH}}
 export PATH=/usr/local/cuda/bin:${PATH}
 
 # use all avialble pythons

@@ -14,8 +14,12 @@
 
 
 # List of currently used arch values
-if (${ARCH} MATCHES "aarch64")
+if (${ARCH} MATCHES "aarch64-")
+  # aarch64-linux and aarch64-qnx
   set(CUDA_known_archs "53" "62" "72" "75")
+elseif (${ARCH} MATCHES "aarch64")
+  # aarch64 SBSA, only >=Volta
+  set(CUDA_known_archs "70" "75" "80")
 else()
   set(CUDA_known_archs "35" "50" "52" "60" "61" "70" "75" "80")
 endif()
