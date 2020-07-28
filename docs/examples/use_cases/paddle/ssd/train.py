@@ -62,7 +62,7 @@ class HybridTrainPipe(Pipeline):
             aspect_ratio=[0.5, 2.0],
             thresholds=[0, 0.1, 0.3, 0.5, 0.7, 0.9],
             scaling=[0.3, 1.0],
-            ltrb=True,
+            bbox_layout="xyXY",
             allow_no_crop=True,
             num_attempts=50)
         self.bbflip = ops.BbFlip(device="cpu", ltrb=True)
