@@ -99,13 +99,16 @@ __global__ void BatchCopy(const ScatterGatherGPU::CopyRange *ranges) {
   }
 }
 
-void ScatterGatherGPU::Run(cudaStream_t stream, bool reset, bool useMemcpyOnly,
+void ScatterGatherGPU::Run(cudaStream_t stream, bool reset, ScatterGatherGPU::CopyMethod method,
                            cudaMemcpyKind memcpyKind) {
   Coalesce();
 
   // TODO(michalz): Error handling
 
-  if (useMemcpyOnly || ranges_.size() <= 2) {
+  bool use_memcpy = (method == ScatterGatherGPU::CopyMethod::MemcpyAlways) ||
+    (method == ScatterGatherGPU::CopyMethod::Default && ranges_.size() <= 2);
+
+  if (use_memcpy) {
     for (auto &r : ranges_) {
       cudaMemcpyAsync(r.dst, r.src, r.size, memcpyKind, stream);
     }
