@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_EXECUTOR_WORKSPACE_POLICY_H_
 
 #include <vector>
+#include <memory>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -54,6 +55,28 @@ inline std::ostream &operator<<(std::ostream &os, StorageDevice device) {
   }
 }
 
+template<typename backend>
+std::shared_ptr<TensorList<backend>> PresentAsTensorList(
+    const std::shared_ptr<TensorList<backend>> &in) {
+  return in;
+}
+
+template<typename backend>
+std::shared_ptr<TensorList<backend>> PresentAsTensorList(
+    const std::shared_ptr<TensorVector<backend>> &in) {
+  return in->AsTensorList(false);
+}
+
+template<typename workspace, typename T>
+void addInputHelper(workspace &ws, T &tensor) {
+  ws.AddInput(tensor);
+}
+
+template<typename T>
+void addInputHelper(dali::DeviceWorkspace &ws, T &tensor) {
+  ws.AddInput(PresentAsTensorList(tensor));
+}
+
 // We instantiate the operation of adding the input only for parent op_type and device
 // that are specifically allowed
 // We always use queue_idx = 0 if give queue has only one element -> it is not queued
@@ -65,7 +88,7 @@ add_input(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_queue_t &
   DALI_ENFORCE(!queue.IsBuffered() || queue_idx < static_cast<int>(queue.size()),
                "Backing Tensor store queue has not enough elements.");
   auto tensor = queue[queue_idx];
-  ws.AddInput(tensor);
+  addInputHelper(ws, tensor);
 }
 
 // If parent op_type or device is not allowed this is a no-op
@@ -238,7 +261,7 @@ op_type_to_workspace_t<op_type> CreateWorkspace(
 //       cudaStream_t gpu_op_stream, const MixedOpEventMap &mixed_op_events,
 //       const QueueSizes idxs);
 //   /**
-//    * @brief Get the Workpsace for given `op_type` stage, when executing queue indexes `idx` part
+//    * @brief Get the Workspace for given `op_type` stage, when executing queue indexes `idx` part
 //    * of job, needed to execute node with `partition_idx` in stage `op_type`.
 //    * @tparam op_type Stage
 //    * @param idxs
@@ -250,7 +273,7 @@ op_type_to_workspace_t<op_type> CreateWorkspace(
 //   ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx);
 //
 //   /**
-//    * @brief Get the Workpsace for given `op_type` stage, when executing queue indexes `idx` part
+//    * @brief Get the Workspace for given `op_type` stage, when executing queue indexes `idx` part
 //    * of job, needed to execute the `node`.
 //    *
 //    * @tparam op_type

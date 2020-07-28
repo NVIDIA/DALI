@@ -150,6 +150,7 @@ void Normalize<CPUBackend>::AllocTempStorage() {
     : param_shape_;
 
   if (ShouldCalcMean()) {
+    if (!mean_.raw_data()) mean_.set_pinned(false);
     mean_.Resize(tmp_shape);
   } else if (has_tensor_mean_) {
     assert(!batch_norm_);
@@ -165,6 +166,7 @@ void Normalize<CPUBackend>::AllocTempStorage() {
     }
   }
   if (ShouldCalcStdDev()) {
+    if (!inv_stddev_.raw_data()) inv_stddev_.set_pinned(false);
     inv_stddev_.Resize(tmp_shape);
   } else if (has_tensor_stddev_) {
     assert(!batch_norm_);

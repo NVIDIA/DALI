@@ -91,6 +91,7 @@ void FillTensorVector(
 template <>
 void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
   if (output_.ntensor() == 0) {
+    output_.set_pinned(false);
     TYPE_SWITCH(output_type_, type2id, type, CONSTANT_OP_SUPPORTED_TYPES,
       (
         if (!fdata_.empty()) {

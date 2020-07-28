@@ -38,7 +38,7 @@ def dali_pipe_batch_1(shapes, types, as_single_tuple = False):
             image = self.decoder(data)
             return image
 
-    pipe = TestPipeline(batch_size=1, seed=0)
+    pipe = TestPipeline(batch_size=1, seed=0, device_id = 0)
     ds = dali_tf.DALIDataset(pipe, batch_size=1, output_dtypes=types, output_shapes=shapes)
     # for clarity, we could have used the previous `pipe`
     pipe_ref = TestPipeline(batch_size=1, seed=0, device_id=0, num_threads=4)
@@ -93,7 +93,7 @@ def dali_pipe_batch_N(shapes, types, batch):
             resized = self.resize(image)
             return resized
 
-    pipe = TestPipeline(batch_size=batch, seed=0)
+    pipe = TestPipeline(batch_size=batch, seed=0, device_id = 0)
     ds = dali_tf.DALIDataset(pipe, batch_size=batch, output_dtypes=types, output_shapes=shapes)
     ds_iter = iter(ds)
     for i in range(10):
@@ -134,7 +134,7 @@ def dali_pipe_multiple_out(shapes, types, batch):
             resized = self.resize(image)
             return resized, label.gpu()
 
-    pipe = TestPipeline(batch_size=batch, seed=0)
+    pipe = TestPipeline(batch_size=batch, seed=0, device_id = 0)
     ds = dali_tf.DALIDataset(pipe, batch_size=batch, output_dtypes=types, output_shapes=shapes)
     ds_iter = iter(ds)
     for i in range(10):
@@ -172,7 +172,7 @@ def dali_pipe_artificial_shape(shapes, tf_type, dali_type, batch):
         def define_graph(self):
             return self.constant().gpu()
 
-    pipe = TestPipeline(batch_size=batch, seed=0)
+    pipe = TestPipeline(batch_size=batch, seed=0, device_id = 0)
     ds = dali_tf.DALIDataset(pipe, batch_size=batch, output_dtypes=tf_type, output_shapes=shapes)
     ds_iter = iter(ds)
     for i in range(10):
@@ -214,7 +214,7 @@ def dali_pipe_types(tf_type, dali_type):
         def define_graph(self):
             return self.constant().gpu()
 
-    pipe = TestPipeline(batch_size=1, seed=0)
+    pipe = TestPipeline(batch_size=1, seed=0, device_id = 0)
     ds = dali_tf.DALIDataset(pipe, batch_size=1, output_dtypes=tf_type)
     ds_iter = iter(ds)
     out, = ds_iter.next()
@@ -255,7 +255,7 @@ def dali_pipe_deprecated(dataset_kwargs, shapes, tf_type, dali_type, batch, expe
         def define_graph(self):
             return self.constant().gpu()
 
-    pipe = TestPipeline(batch_size=batch, seed=0)
+    pipe = TestPipeline(batch_size=batch, seed=0, device_id = 0)
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         ds = dali_tf.DALIDataset(pipe, batch_size=batch, **dataset_kwargs)

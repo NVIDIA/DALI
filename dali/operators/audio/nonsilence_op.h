@@ -187,6 +187,9 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
   explicit NonsilenceOperatorCpu(const OpSpec &spec) :
           NonsilenceOperator<CPUBackend>(spec) {
     intermediate_buffers_.resize(num_threads_);
+    for (auto &b : intermediate_buffers_) {
+      b.set_pinned(false);
+    }
   }
 
 
@@ -218,7 +221,8 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
                     args.reference_power = reference_power_[sample_id];
                   }
                   args.reference_max = reference_max_;
-                  args.window_length = window_length_;
+                  args.window_length = window_length_ < args.input.num_elements() ?
+                                                        window_length_ : args.input.num_elements();
                   args.reset_interval = reset_interval_;
 
                   auto res = DetectNonsilenceRegion(intermediate_buffers_[thread_id], args);

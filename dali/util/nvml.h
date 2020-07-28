@@ -143,6 +143,9 @@ inline void SetCPUAffinity(int core = -1) {
 
 inline void Shutdown() {
   std::lock_guard<std::mutex> lock(Mutex());
+  if (!wrapIsInitialized()) {
+    return;
+  }
   DALI_CALL(wrapNvmlShutdown());
 }
 
@@ -178,6 +181,9 @@ inline DeviceProperties GetDeviceInfo(int device_idx) {
  * @throws std::runtime_error
  */
 inline bool HasHwDecoder(int device_idx) {
+  if (!wrapIsInitialized()) {
+    return false;
+  }
   auto info = GetDeviceInfo(device_idx);
   const int kAmpereComputeCapability = 8;
   return info.type == NVML_BRAND_TESLA && info.cap_major >= kAmpereComputeCapability;
@@ -189,6 +195,9 @@ inline bool HasHwDecoder(int device_idx) {
  * @throws std::runtime_error
  */
 inline bool HasHwDecoder() {
+  if (!wrapIsInitialized()) {
+    return false;
+  }
   unsigned int device_count;
   DALI_CALL(wrapNvmlDeviceGetCount_v2(&device_count));
   for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
@@ -202,6 +211,9 @@ inline bool HasHwDecoder() {
  * Checks, whether CUDA11-proper NVML functions have been successfully loaded
  */
 inline bool HasCuda11NvmlFunctions() {
+  if (!wrapIsInitialized()) {
+    return false;
+  }
   return wrapHasCuda11NvmlFunctions();
 }
 

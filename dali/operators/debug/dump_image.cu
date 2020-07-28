@@ -22,6 +22,8 @@ void DumpImage<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
 
+  // sync before write
+  CUDA_CALL(cudaDeviceSynchronize());
   WriteHWCBatch(input, suffix_ + "-" + std::to_string(0));
 
   // Forward the input

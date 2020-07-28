@@ -431,6 +431,12 @@ class TensorVector {
     }
   }
 
+  shared_ptr<TensorList<Backend>> AsTensorList(bool check_contiguity = true) {
+    DALI_ENFORCE(IsContiguous() || !check_contiguity, "Cannot cast non continuous TensorVector "
+                 "to TensorList.");
+    return tl_;
+  }
+
  private:
   enum class State { contiguous, noncontiguous };
 

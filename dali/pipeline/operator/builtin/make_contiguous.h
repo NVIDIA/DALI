@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <vector>
+#include <utility>
 
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/common.h"
@@ -27,10 +28,11 @@
 
 namespace dali {
 
-class MakeContiguous : public Operator<MixedBackend> {
+template<typename Backend>
+class MakeContiguousBase : public Operator<Backend> {
  public:
-  inline explicit MakeContiguous(const OpSpec &spec) :
-      Operator<MixedBackend>(spec),
+  inline explicit MakeContiguousBase(const OpSpec &spec) :
+      Operator<Backend>(spec),
       coalesced(true) {
     std::vector<int> hints;
     GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", spec.NumOutput());
@@ -38,103 +40,48 @@ class MakeContiguous : public Operator<MixedBackend> {
       bytes_per_sample_hint = hints[0];
   }
 
-  virtual inline ~MakeContiguous() = default;
+  virtual inline ~MakeContiguousBase() = default;
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
-    return false;
+  bool CanInferOutputs() const override {
+    return true;
   }
 
-  using Operator<MixedBackend>::Run;
-  void Run(MixedWorkspace &ws) override {
-    const auto& input = ws.Input<CPUBackend>(0, 0);
-    int sample_dim = input.shape().sample_dim();
-    TensorListShape<> output_shape(batch_size_, sample_dim);
-    TensorLayout layout = input.GetLayout();
-    TypeInfo type = input.type();
-    size_t total_bytes = 0;
-    for (int i = 0; i < batch_size_; ++i) {
-      auto &sample = ws.Input<CPUBackend>(0, i);
-      output_shape.set_tensor_shape(i, sample.shape());
-      size_t sample_bytes = sample.nbytes();
-      if (coalesced && sample_bytes > COALESCE_TRESHOLD)
-        coalesced = false;
-      total_bytes += sample_bytes;
-      DALI_ENFORCE(type == sample.type(), "Inconsistent types in "
-          "input batch. Cannot copy to contiguous device buffer.");
-      DALI_ENFORCE(sample_dim == sample.shape().sample_dim(), "Inconsistent sample dimensions "
-          "in input batch. Cannot copy to contiguous device buffer.");
-    }
-
-    if (ws.OutputIsType<CPUBackend>(0)) {
-      auto &output = ws.Output<CPUBackend>(0);
-      // we don't need a pinned CPU output
-      if (!output.raw_data()) {
-        output.set_pinned(false);
-      }
-      output.Resize(output_shape);
-      output.SetLayout(layout);
-      output.set_type(type);
-
-      for (int i = 0; i < batch_size_; ++i) {
-        auto &input = ws.Input<CPUBackend>(0, i);
-
-        // Note: We know that this will translate into
-        // a std::memcpy, so it is safe to pass stream 0
-        type.Copy<CPUBackend, CPUBackend>(
-            output.raw_mutable_tensor(i),
-            input.raw_data(), input.size(), 0);
-      }
-    } else {
-      auto &output = ws.Output<GPUBackend>(0);
-      output.Resize(output_shape);
-      output.SetLayout(layout);
-      output.set_type(type);
-
-      if (coalesced) {
-        TimeRange tm("coalesced", TimeRange::kBlue);
-
-        if (!cpu_output_buff.capacity()) {
-          size_t alloc_size = std::max<size_t>(total_bytes, batch_size_*bytes_per_sample_hint);
-          cpu_output_buff.reserve(total_bytes);
-        }
-
-        cpu_output_buff.ResizeLike(output);
-        cpu_output_buff.SetLayout(layout);
-        cpu_output_buff.set_type(type);
-
-        for (int i = 0; i < batch_size_; ++i) {
-          auto &input = ws.Input<CPUBackend>(0, i);
-          memcpy(cpu_output_buff.raw_mutable_tensor(i), input.raw_data(), input.nbytes());
-        }
-        CUDA_CALL(cudaMemcpyAsync(
-              output.raw_mutable_data(),
-              cpu_output_buff.raw_mutable_data(),
-              cpu_output_buff.nbytes(),
-              cudaMemcpyHostToDevice,
-              ws.stream()));
-      } else {
-        TimeRange tm("non coalesced", TimeRange::kGreen);
-        for (int i = 0; i < batch_size_; ++i) {
-          auto &input = ws.Input<CPUBackend>(0, i);
-          CUDA_CALL(cudaMemcpyAsync(
-                  output.raw_mutable_tensor(i),
-                  input.raw_data(),
-                  input.nbytes(),
-                  cudaMemcpyHostToDevice,
-                  ws.stream()));
-        }
-      }
-    }
-    coalesced = true;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    output_desc.resize(1);
+    auto &input = ws.template InputRef<CPUBackend>(0);
+    output_desc[0].shape = input.shape();
+    output_desc[0].type = input.type();
+    return true;
   }
 
-  DISABLE_COPY_MOVE_ASSIGN(MakeContiguous);
+  DISABLE_COPY_MOVE_ASSIGN(MakeContiguousBase);
 
  protected:
   USE_OPERATOR_MEMBERS();
   TensorList<CPUBackend> cpu_output_buff;
   bool coalesced;
   int bytes_per_sample_hint;
+};
+
+class MakeContiguousMixed : public MakeContiguousBase<MixedBackend> {
+ public:
+  inline explicit MakeContiguousMixed(const OpSpec &spec) :
+      MakeContiguousBase<MixedBackend>(spec) {}
+  using Operator<MixedBackend>::Run;
+
+  void Run(MixedWorkspace &ws) override;
+
+  DISABLE_COPY_MOVE_ASSIGN(MakeContiguousMixed);
+};
+
+class MakeContiguousCPU : public MakeContiguousBase<CPUBackend> {
+ public:
+  inline explicit MakeContiguousCPU(const OpSpec &spec) :
+      MakeContiguousBase<CPUBackend>(spec) {}
+
+  using Operator<CPUBackend>::RunImpl;
+  void RunImpl(HostWorkspace &ws) override;
+  DISABLE_COPY_MOVE_ASSIGN(MakeContiguousCPU);
 };
 
 }  // namespace dali

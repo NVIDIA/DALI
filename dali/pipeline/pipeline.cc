@@ -260,9 +260,9 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
           "inputs. CPU op cannot follow GPU op. " + error_str);
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
           "only on gpu. CPU op cannot follow GPU op. " + error_str);
-      DALI_ENFORCE((!it->second.has_gpu && device == "mixed") || device_id_ >= 0 || device == "cpu",
-                    make_string("Cannot add a mixed operator ", operator_name,
-                    " with the GPU output for the invalid device_id ", device_id_, "."));
+      DALI_ENFORCE(device_id_ >= 0 || device == "cpu",
+                   make_string("Cannot add a mixed operator ", operator_name,
+                   " with the GPU output for the invalid device_id ", device_id_, "."));
     } else if (input_device == "cpu") {
       // device == gpu
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
@@ -493,7 +493,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
         // Add a make contiguous op to produce this output
         OpSpec spec =
           OpSpec("MakeContiguous")
-          .AddArg("device", "mixed")
+          .AddArg("device", "cpu")
           .AddInput(name, "cpu")
           .AddOutput("contiguous_" + name, "cpu");
         PrepareOpSpec(&spec, GetNextInternalLogicalId());
@@ -602,7 +602,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_
   if (!it->second.has_contiguous) {
     OpSpec make_contiguous_spec =
       OpSpec("MakeContiguous")
-      .AddArg("device", "mixed")
+      .AddArg("device", "cpu")
       .AddInput(it->first, "cpu")
       .AddOutput("contiguous_" + it->first, "cpu");
     // don't put it into op_specs_for_serialization_, only op_specs_

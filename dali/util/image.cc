@@ -113,7 +113,7 @@ std::vector<std::string> ImageList(const std::string& image_folder,
 }
 
 void WriteHWCImage(const uint8 *img, int h, int w, int c, const string &file_name) {
-  WriteImageScaleBias(img, h, w, c, 0.f, 1.0f, file_name, outHWCImage);
+  WriteImageScaleBias<CPUBackend, uint8>(img, h, w, c, 0.f, 1.0f, file_name, outHWCImage);
 }
 
 void WriteBatch(const TensorList<CPUBackend> &tl, const string &suffix, float bias, float scale) {

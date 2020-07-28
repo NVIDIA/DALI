@@ -531,13 +531,20 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
     return;
   }
 
+  // short path for pure CPU pipeline
+  if (device_id_ < 0) {
+    if (callback_) {
+      callback_();
+    }
+    // We do not release, but handle to used outputs
+    QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs, mixed_op_stream_);
+    return;
+  }
+
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
 
-  // for the CPU only pipeline
-  if (device_id_ >= 0) {
-    CUDA_CALL(cudaEventSynchronize(mixed_stage_event_));
-  }
+  CUDA_CALL(cudaEventSynchronize(mixed_stage_event_));
 
     for (int i = 0; i < graph_->NumOp(OpType::MIXED); ++i) {
       OpNode &op_node = graph_->Node(OpType::MIXED, i);
@@ -549,12 +556,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
         RunHelper(op_node, ws);
         FillStats(mixed_memory_stats_, ws,  "MIXED_" + op_node.instance_name,
                   mixed_memory_stats_mutex_);
-        if (device_id_ >= 0) {
-          if (ws.has_stream() && ws.has_event()) {
-            CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
-          }
-          CUDA_CALL(cudaGetLastError());
+        if (ws.has_stream() && ws.has_event()) {
+          CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
         }
+        CUDA_CALL(cudaGetLastError());
       } catch (std::exception &e) {
         HandleError("Mixed", op_node, e.what());
       } catch (...) {
@@ -565,26 +570,19 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   if (callback_) {
     // Record event that will allow to call the callback after whole run of this pipeline is
     // finished.
-    if (device_id_ >= 0) {
-      CUDA_CALL(cudaEventRecord(mixed_callback_events_[mixed_idxs[OpType::MIXED]], mixed_op_stream_));
-    }
+    CUDA_CALL(cudaEventRecord(mixed_callback_events_[mixed_idxs[OpType::MIXED]], mixed_op_stream_));
   }
 
-  if (device_id_ >= 0) {
-    if (!mixed_output_events_.empty()) {
-      int queue_id = mixed_idxs[OpType::MIXED];
-      CUDA_CALL(cudaEventRecord(mixed_output_events_.GetEvent(queue_id), mixed_op_stream_));
-    }
-
-    // We know that this is the proper stream, we do not need to look it up in any workspace
-    CUDA_CALL(cudaEventRecord(mixed_stage_event_, mixed_op_stream_));
+  if (!mixed_output_events_.empty()) {
+    int queue_id = mixed_idxs[OpType::MIXED];
+    CUDA_CALL(cudaEventRecord(mixed_output_events_.GetEvent(queue_id), mixed_op_stream_));
   }
+
+  // We know that this is the proper stream, we do not need to look it up in any workspace
+  CUDA_CALL(cudaEventRecord(mixed_stage_event_, mixed_op_stream_));
 
   // Pass the work to the gpu stage
   QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs, mixed_op_stream_);
-  if (callback_ &&  device_id_ >= 0) {
-    callback_();
-  }
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -700,12 +698,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
     auto storage_dev = out_tensor.producer.storage_device;
     VALUE_SWITCH(storage_dev, storage_dev_static, (StorageDevice::GPU, StorageDevice::CPU),
     (
-      VALUE_SWITCH(op_type, op_type_static, (OpType::MIXED, OpType::GPU),
+      VALUE_SWITCH(op_type, op_type_static, (OpType::CPU, OpType::MIXED, OpType::GPU),
       (
         auto &queue = get_queue<op_type_static, storage_dev_static>(
             tensor_to_store_queue_[out_tensor_id]);
         auto stage_output_idx = output_idx[op_type_static];
-        ws->AddOutput(queue[stage_output_idx]);
+        ws->AddOutput(PresentAsTensorList(queue[stage_output_idx]));
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     ), DALI_FAIL("Invalid storage device"));  // NOLINT(whitespace/parens)
   }
