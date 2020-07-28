@@ -276,6 +276,30 @@ class DLL_PUBLIC OperatorBase {
 template <typename Backend>
 class Operator : public OperatorBase {};
 
+template <typename Workspace>
+TensorLayout GetInputLayout(Workspace& ws, int i) {
+  if (ws.template InputIsType<CPUBackend>(i)) {
+    auto &in = ws.template InputRef<CPUBackend>(i);
+    return in.GetLayout();
+  }
+
+  assert(ws.template InputIsType<GPUBackend>(i));
+  auto &in = ws.template InputRef<GPUBackend>(i);
+  return in.GetLayout();
+}
+
+template <typename Workspace>
+TensorLayout GetOutputLayout(Workspace &ws, int i) {
+  if (ws.template OutputIsType<CPUBackend>(i)) {
+    auto &out = ws.template OutputRef<CPUBackend>(i);
+    return out.GetLayout();
+  }
+
+  assert(ws.template OutputIsType<GPUBackend>(i));
+  auto &out = ws.template OutputRef<GPUBackend>(i);
+  return out.GetLayout();
+}
+
 template <>
 class Operator<CPUBackend> : public OperatorBase {
  public:
@@ -297,10 +321,8 @@ class Operator<CPUBackend> : public OperatorBase {
     ws.GetThreadPool().WaitForWork();
 
     if (ws.NumInput() > 0 && ws.NumOutput() > 0) {
-      auto &in = ws.template InputRef<CPUBackend>(0);
-      auto &out = ws.template OutputRef<CPUBackend>(0);
-      auto in_layout = in.GetLayout();
-      auto out_layout = out.GetLayout();
+      auto in_layout = GetInputLayout(ws, 0);
+      auto out_layout = GetOutputLayout(ws, 0);
       DALI_ENFORCE(
           !out_layout.empty() || in_layout.empty() || spec_.name() == "DLTensorPythonFunctionImpl",
           make_string("Operator: ", spec_.name(), " produced an empty layout. Input layout was ",
@@ -377,10 +399,8 @@ class Operator<GPUBackend> : public OperatorBase {
     SetupSharedSampleParams(ws);
     RunImpl(ws);
     if (ws.NumInput() > 0 && ws.NumOutput() > 0) {
-      auto &in = ws.template InputRef<GPUBackend>(0);
-      auto &out = ws.template OutputRef<GPUBackend>(0);
-      auto in_layout = in.GetLayout();
-      auto out_layout = out.GetLayout();
+      auto in_layout = GetInputLayout(ws, 0);
+      auto out_layout = GetOutputLayout(ws, 0);
       DALI_ENFORCE(
           !out_layout.empty() || in_layout.empty() || spec_.name() == "DLTensorPythonFunctionImpl",
           make_string("Operator: ", spec_.name(), " produced an empty layout. Input layout was ",
