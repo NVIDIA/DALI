@@ -324,7 +324,8 @@ all_packages = [PlainPackage("opencv-python", ["4.2.0.32"]),
                         { "100" : [
                               PckgVer("1.15.2",  python_max_ver="3.7"),
                               PckgVer("2.1.1",  python_max_ver="3.7"),
-                              "2.2.0"]
+                              "2.2.0",
+                              "2.3.0"]
                         }),
                 CudaHttpPackage("torch",
                         { "100" : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.4.0+cu{cuda_v}-{platform}.whl"] }),
