@@ -65,4 +65,43 @@ void Resize<CPUBackend>::RunImpl(HostWorkspace &ws) {
 
 DALI_REGISTER_OPERATOR(Resize, Resize<CPUBackend>, CPU);
 
+
+
+template<>
+Resize<GPUBackend>::Resize(const OpSpec &spec)
+    : Operator<GPUBackend>(spec)
+    , ResizeAttr(spec)
+    , ResizeBase<GPUBackend>(spec) {
+  save_attrs_ = spec_.HasArgument("save_attrs");
+  InitializeGPU(spec_.GetArgument<int>("minibatch_size"));
+  resample_params_.resize(batch_size_);
+}
+
+template<>
+void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
+
+  RunResize(ws, output, input);
+  output.SetLayout(InputLayout(ws, 0));
+
+  if (save_attrs_) {
+    auto &attr_out = ws.Output<GPUBackend>(1);
+    const auto &attr_shape = attr_out.shape();
+    assert(attr_shape.num_samples() == input.shape().num_samples() &&
+           attr_shape.sample_dim() == 1 &&
+           is_uniform(attr_shape) &&
+           attr_shape[0][0] == spatial_ndim_);
+
+    if (!attr_staging_.raw_data())
+      attr_staging_.set_pinned(true);
+    attr_staging_.ResizeLike(attr_out);
+    auto attr_view = view<int, 1>(attr_staging_);
+    SaveAttrs(attr_view, input.shape());
+    attr_out.Copy(attr_staging_, ws.stream());
+  }
+}
+
+DALI_REGISTER_OPERATOR(Resize, Resize<GPUBackend>, GPU);
+
 }  // namespace dali

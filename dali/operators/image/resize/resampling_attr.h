@@ -31,7 +31,7 @@ class DLL_PUBLIC ResamplingFilterAttr {
    * @param ws   ArgumentWorkspace, used when filtering methods are set per-sample
    * @param num_samples number of samples; if not specified, value of "batch_size" argument is used
    */
-  DLL_PUBLIC void Setup(const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples = -1);
+  void PrepareFilterParams(const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples = -1);
 
   /**
    * Filter used when downscaling
@@ -46,12 +46,19 @@ class DLL_PUBLIC ResamplingFilterAttr {
    */
   size_t temp_buffer_hint_ = 0;
 
-  void GetResamplingParams(span<kernels::ResamplingFilterParams> resample_params,
-                           span<const ResizeParams> resize_params);
+  void ApplyFilterParams(span<kernels::ResamplingParams> resample_params, int ndim) const;
 
   template <size_t N>
-  void GetResamplingParams(span<kernels::ResamplingFilterParamsND<N>> resample_params,
-                           span<const ResizeParams> resize_params) {
+  void ApplyFilterParams(span<kernels::ResamplingParamsND<N>> resample_params) const {
+    ApplyFilterParams(flatten(resample_params), N);
+  }
+
+  void GetResamplingParams(span<kernels::ResamplingParams> resample_params,
+                           span<const ResizeParams> resize_params) const;
+
+  template <size_t N>
+  void GetResamplingParams(span<kernels::ResamplingParamsND<N>> resample_params,
+                           span<const ResizeParams> resize_params) const {
     GetResamplingParams(flatten(resample_params), resize_params);
   }
 

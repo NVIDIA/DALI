@@ -82,6 +82,7 @@ void GetPerSampleArgument(std::vector<T> &output,
       }
     }
   } else {
+    output.clear();
     output.resize(batch_size, spec.GetArgument<T>(argument_name));
   }
   assert(output.size() == static_cast<size_t>(batch_size));

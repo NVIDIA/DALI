@@ -57,7 +57,7 @@ This option is mutually exclusive with `resize_shorter` and explicit size argume
 The op will keep the aspect ratio of the original image.
 This option is equivalent to specifying the same size for all dimensions and ``mode="not_larger"``.
 )", 0.f, true)
-  .AddOptionalArg<vector<int>>("max_size", R"(Limit of the output size - when resizing using
+  .AddOptionalArg<vector<float>>("max_size", R"(Limit of the output size - when resizing using
 `resize_shorter`, "not_smaller" mode or otherwise leaving some extents unspecified, some images
 with high aspect ratios might produce extremely large outputs. This parameter puts a limit to how
 big the output can become. This value can be specified per-axis of uniformly for all axes.)",
@@ -99,9 +99,6 @@ void ResizeAttr::Initialize(const OpSpec &spec) {
 void ResizeAttr::ParseLayout(
       int &spatial_ndim, int &first_spatial_dim, const TensorLayout &layout) {
   spatial_ndim = ImageLayoutInfo::NumSpatialDims(layout);
-  // to be changed when 3D support is ready
-  DALI_ENFORCE(spatial_ndim != 2, make_string("Only 2D resize is supported. Got ", layout,
-    " layout, which has ", spatial_ndim, " spatial dimensions."));
 
   int i = 0;
   for (; i < layout.ndim(); i++) {
@@ -116,19 +113,16 @@ void ResizeAttr::ParseLayout(
   }
 
   int spatial_dims_end = i;
-  DALI_ENFORCE(spatial_dims_end - spatial_dims_begin != spatial_ndim, make_string(
+  DALI_ENFORCE(spatial_dims_end - spatial_dims_begin == spatial_ndim, make_string(
     "Spatial dimensions must be adjacent (as in HWC layout). Got: ", layout));
 
   first_spatial_dim = spatial_dims_begin;
 }
 
-void ResizeAttr::PrepareParams(const OpSpec &spec, const ArgumentWorkspace &ws,
-                               const TensorListShape<> &input_shape,
-                               TensorLayout input_layout) {
-
+void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
+                                     const TensorListShape<> &input_shape) {
   int N = input_shape.num_samples();
-
-  ParseLayout(spatial_ndim_, first_spatial_dim_, input_layout);
+  params_.resize(N);
 
   if (has_size_) {
     GetShapeArgument(size_arg_, spec, "size", ws, spatial_ndim_, N);

@@ -32,13 +32,14 @@ namespace dali {
 
 template <typename Backend>
 class RandomResizedCrop : public Operator<Backend>
-                        , protected ResizeBase<Backend>
-                        , protected RandomCropAttr {
+                        , protected ResamplingFilterAttr
+                        , protected RandomCropAttr
+                        , protected ResizeBase<Backend> {
  public:
   explicit inline RandomResizedCrop(const OpSpec &spec)
       : Operator<Backend>(spec)
-      , ResizeBase<Backend>(spec)
       , RandomCropAttr(spec)
+      , ResizeBase<Backend>(spec)
       , interp_type_(spec.GetArgument<DALIInterpType>("interp_type"))
       , out_type_(spec.GetArgument<DALIDataType>("dtype")) {
     GetSingleOrRepeatedArg(spec, size_, "size", 2);
@@ -68,6 +69,8 @@ class RandomResizedCrop : public Operator<Backend>
     int N = input_shape.num_samples();
 
     resample_params_.resize(N);
+    PrepareFilterParams(spec_, ws, N);
+    ApplyFilterParams(make_span(resample_params_));
 
     int width_idx  = layout.find('W');
     int height_idx = layout.find('H');
@@ -102,8 +105,12 @@ class RandomResizedCrop : public Operator<Backend>
   kernels::ResamplingParams2D CalcResamplingParams(int index) const {
     auto &wnd = crops_[index];
     auto params = shared_params_;
-    params[0].roi = kernels::ResamplingParams::ROI(wnd.anchor[0], wnd.anchor[0]+wnd.shape[0]);
-    params[1].roi = kernels::ResamplingParams::ROI(wnd.anchor[1], wnd.anchor[1]+wnd.shape[1]);
+    for (int d = 0; d < 2; d++) {
+      params[0].min_filter = { min_filter_[index], 0 };
+      params[0].mag_filter = { mag_filter_[index], 0 };
+      params[0].roi = kernels::ResamplingParams::ROI(wnd.anchor[d], wnd.anchor[d]+wnd.shape[d]);
+      params[1].roi = kernels::ResamplingParams::ROI(wnd.anchor[d], wnd.anchor[d]+wnd.shape[d]);
+    }
     return params;
   }
 
@@ -111,8 +118,6 @@ class RandomResizedCrop : public Operator<Backend>
     crops_.resize(batch_size_);
     shared_params_[0].output_size = size_[0];
     shared_params_[1].output_size = size_[1];
-    shared_params_[0].min_filter = shared_params_[1].min_filter = this->min_filter_;
-    shared_params_[0].mag_filter = shared_params_[1].mag_filter = this->mag_filter_;
   }
 
   std::vector<int> size_;

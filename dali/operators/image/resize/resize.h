@@ -39,6 +39,7 @@ namespace detail {
 template <typename Backend>
 class Resize : public Operator<Backend>
              , protected ResizeAttr
+             , protected ResamplingFilterAttr
              , protected ResizeBase<Backend> {
  public:
   explicit Resize(const OpSpec &spec);
@@ -62,20 +63,32 @@ class Resize : public Operator<Backend>
     }
   }
 
+  void PrepareParams(const ArgumentWorkspace &ws, const TensorListShape<> &input_shape,
+                     const TensorLayout &layout) {
+    PrepareResizeParams(spec_, ws, input_shape, layout);
+    assert(spatial_ndim_ >= 1 && spatial_ndim_ <= 3);
+    assert(first_spatial_dim_ >= 0);
+    int N = input_shape.num_samples();
+    resample_params_.resize(N * spatial_ndim_);
+    PrepareFilterParams(spec_, ws, N);
+    GetResamplingParams(make_span(resample_params_), make_span(params_));
+  }
+
   USE_OPERATOR_MEMBERS();
-  std::vector<kernels::ResamplingParams2D> resample_params_;
+  std::vector<kernels::ResamplingParams> resample_params_;
   TensorList<CPUBackend> attr_staging_;
   using Operator<Backend>::RunImpl;
   bool save_attrs_ = false;
   DALIDataType out_type_ = DALI_NO_TYPE;
-
-  int spatial_ndim_ = 2;
-  int first_spatial_dim_ = 0;
 };
 
 template <typename Backend>
 bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                 const workspace_t<Backend> &ws) {
+#ifndef NDEBUG
+  spatial_ndim_      = -1;
+  first_spatial_dim_ = -1;
+#endif
   output_desc.resize(save_attrs_ ? 2 : 1);
   auto &input = ws.template InputRef<Backend>(0);
   if (!spec_.TryGetArgument(out_type_, "dtype")) {
@@ -84,20 +97,22 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   output_desc[0].type = TypeTable::GetTypeInfo(out_type_);
 
-  int spatial_ndim = 2, first_spatial_dim = 0;
-  ResizeAttr::ParseLayout(spatial_ndim, first_spatial_dim, input.GetLayout());
-
   DALI_ENFORCE(ws.NumOutput() == 1 || ws.NumOutput() == 2,
     "Resize and produce 1 or 2 outputs - if there are two outputs, the 2nd one receives the "
     "original size of the images.");
 
   const auto &in_shape = input.shape();
   auto in_type = input.type().id();
-  this->SetupResize(output_desc[0].shape, out_type_, in_shape, in_type, make_cspan(this->params_),
-                    spatial_ndim, first_spatial_dim);
+  auto in_layout = this->InputLayout(ws, 0);
+  int N = in_shape.num_samples();
+
+  PrepareParams(ws, in_shape, in_layout);
+
+  this->SetupResize(output_desc[0].shape, out_type_, in_shape, in_type,
+                    make_cspan(this->resample_params_), spatial_ndim_, first_spatial_dim_);
 
   if (save_attrs_) {
-    ImageLayoutInfo::NumSpatialDims(input.GetLayout());
+    output_desc[0].shape = uniform_list_shape(N, TensorShape<1>({ spatial_ndim_ }));
     output_desc[1].type = TypeTable::GetTypeInfo(DALI_INT32);
   }
   return true;

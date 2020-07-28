@@ -31,6 +31,7 @@ struct ResizeParams {
     src_lo.resize(ndim);
     src_hi.resize(ndim);
   }
+  int size() const { return dst_size.size(); }
   SmallVector<int, 6> dst_size;
   SmallVector<float, 6> src_lo, src_hi;
 };
@@ -40,9 +41,19 @@ class DLL_PUBLIC ResizeAttr {
   ResizeAttr(const OpSpec &spec);
   void Initialize(const OpSpec &spec);
 
-  void PrepareParams(const OpSpec &spec, const ArgumentWorkspace &ws,
-                     const TensorListShape<> &input_shape,
-                     TensorLayout input_layout = {});
+  void PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
+                           const TensorListShape<> &input_shape);
+
+  void PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
+                           const TensorListShape<> &input_shape,
+                           TensorLayout input_layout) {
+    ParseLayout(input_layout);
+    PrepareResizeParams(spec, ws, input_shape);
+  }
+
+  void ParseLayout(const TensorLayout &layout) {
+    ParseLayout(spatial_ndim_, first_spatial_dim_, layout);
+  }
 
   static void ParseLayout(int &spatial_ndim, int &first_spatial_dim, const TensorLayout &layout);
 
@@ -57,7 +68,7 @@ class DLL_PUBLIC ResizeAttr {
    * Maximum size - used together with with mode NotSmaller to limit the size for
    * very thin images
    */
-  vector<int> max_size_;
+  vector<float> max_size_;
 
   // pass sizes by value - the function will modify them internally
   void CalculateSampleParams(ResizeParams &params,

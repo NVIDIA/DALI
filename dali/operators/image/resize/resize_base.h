@@ -31,7 +31,7 @@
 namespace dali {
 
 template <typename Backend>
-class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
+class DLL_PUBLIC ResizeBase {
  public:
   explicit ResizeBase(const OpSpec &spec);
   ~ResizeBase();
