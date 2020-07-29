@@ -24,7 +24,7 @@ from test_utils import get_dali_extra_path
 
 class CommonPipeline(Pipeline):
     def __init__(self, data_paths, num_gpus, batch_size, num_threads, device_id, prefetch, fp16, random_shuffle, nhwc,
-                 decoder_type, decoder_cache_params, reader_queue_depth):
+                 dont_use_mmap, decoder_type, decoder_cache_params, reader_queue_depth):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id, random_shuffle, prefetch_queue_depth=prefetch)
         if decoder_type == 'roi':
             print('Using nvJPEG with ROI decoding')
@@ -97,6 +97,7 @@ class CaffeReadPipeline(CommonPipeline):
                                      num_shards = kwargs['num_gpus'],
                                      stick_to_shard = cache_enabled,
                                      random_shuffle = kwargs['random_shuffle'],
+                                     dont_use_mmap = kwargs['dont_use_mmap'],
                                      #skip_cached_images = cache_enabled,
                                      prefetch_queue_depth = kwargs['reader_queue_depth'])
 
@@ -112,6 +113,7 @@ class Caffe2ReadPipeline(CommonPipeline):
                                       shard_id = kwargs['device_id'],
                                       num_shards = kwargs['num_gpus'],
                                       random_shuffle = kwargs['random_shuffle'],
+                                      dont_use_mmap = kwargs['dont_use_mmap'],
                                       stick_to_shard = cache_enabled,
                                       #skip_cached_images = cache_enabled,
                                       prefetch_queue_depth = kwargs['reader_queue_depth'])
@@ -128,6 +130,7 @@ class FileReadPipeline(CommonPipeline):
                                     shard_id = kwargs['device_id'],
                                     num_shards = kwargs['num_gpus'],
                                     random_shuffle = kwargs['random_shuffle'],
+                                    dont_use_mmap = kwargs['dont_use_mmap'],
                                     stick_to_shard = cache_enabled,
                                     #skip_cached_images = cache_enabled,
                                     prefetch_queue_depth = kwargs['reader_queue_depth'])
@@ -147,6 +150,7 @@ class TFRecordPipeline(CommonPipeline):
                                         shard_id = kwargs['device_id'],
                                         num_shards = kwargs['num_gpus'],
                                         random_shuffle = kwargs['random_shuffle'],
+                                        dont_use_mmap = kwargs['dont_use_mmap'],
                                         stick_to_shard = cache_enabled,
                                         #skip_cached_images = cache_enabled,
                                         features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
@@ -218,6 +222,8 @@ parser.add_argument('--reader_queue_depth', default=1, type=int, metavar='N',
                     help='prefetch queue depth (default: 1)')
 parser.add_argument('--read_shuffle', action='store_true',
                     help='Shuffle data when reading')
+parser.add_argument('--disable_mmap', action='store_true',
+                    help='Disable mmap for DALI readers. Used for network filesystem tests.')
 parser.add_argument('-s', '--small', action='store_true',
                     help='use small dataset, DALI_EXTRA_PATH needs to be set')
 parser.add_argument('--simulate_N_gpus', default=None, type=int, metavar='N',
@@ -295,12 +301,14 @@ SKIP_CACHED_IMAGES = True if CACHED_DECODING else False
 
 READ_SHUFFLE=args.read_shuffle
 
+DISABLE_MMAP=args.disable_mmap
+
 SMALL_DATA_SET = args.small
 if SMALL_DATA_SET:
     test_data = small_test_data
 
-print("GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, NHWC: {}, READ_SHUFFLE: {}, small dataset: {},"
-      .format(N, BATCH_SIZE, WORKERS, PREFETCH, LOG_INTERVAL, FP16, NHWC, READ_SHUFFLE, SMALL_DATA_SET))
+print("GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, NHWC: {}, READ_SHUFFLE: {}, DISABLE_MMAP: {}, small dataset: {},"
+      .format(N, BATCH_SIZE, WORKERS, PREFETCH, LOG_INTERVAL, FP16, NHWC, READ_SHUFFLE, DISABLE_MMAP, SMALL_DATA_SET))
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -327,7 +335,7 @@ for pipe_name in test_data.keys():
     for i, data_set in enumerate(test_data[pipe_name]):
         pipes = [pipe_name(batch_size=BATCH_SIZE, num_threads=WORKERS, device_id=n,
                            num_gpus=SIMULATE_N_GPUS, data_paths=data_set, prefetch=PREFETCH, fp16=FP16, random_shuffle=READ_SHUFFLE,
-                           nhwc=NHWC, decoder_type=DECODER_TYPE, decoder_cache_params=DECODER_CACHE_PARAMS,
+                           dont_use_mmap=DISABLE_MMAP, nhwc=NHWC, decoder_type=DECODER_TYPE, decoder_cache_params=DECODER_CACHE_PARAMS,
                            reader_queue_depth=READER_QUEUE_DEPTH) for n in range(N)]
         [pipe.build() for pipe in pipes]
 
