@@ -131,6 +131,7 @@ class CVPipeline(Pipeline):
           self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type))
         else:
           self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, [[0.1, 0.9, 10], [0.8, -0.2, -20]]))
+        self.set_layout = ops.Reshape(layout="HWC")
         self.iter = 0
 
     def define_graph(self):
@@ -141,6 +142,7 @@ class CVPipeline(Pipeline):
           outputs = self.warp(images, self.transform)
         else:
           outputs = self.warp(images)
+        outputs = self.set_layout(outputs)
         return outputs
 
 def compare(pipe1, pipe2, eps):
