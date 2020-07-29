@@ -38,7 +38,7 @@ struct ResizeParams {
 
 class DLL_PUBLIC ResizeAttr {
  public:
-  ResizeAttr(const OpSpec &spec);
+  explicit ResizeAttr(const OpSpec &spec);
   void Initialize(const OpSpec &spec);
 
   void PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,

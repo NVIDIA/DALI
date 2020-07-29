@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/tensor_vector.h"
 
 #include <gtest/gtest.h>
 

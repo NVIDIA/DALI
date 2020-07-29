@@ -79,7 +79,6 @@ class DLL_PUBLIC ResizeBase {
   }
 
  private:
-
   template <typename OutType, typename InType, int spatial_ndim>
   void SetupResizeStatic(TensorListShape<> &out_shape,
                          const TensorListShape<> &in_shape,

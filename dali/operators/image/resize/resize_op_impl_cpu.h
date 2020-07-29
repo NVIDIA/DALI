@@ -20,6 +20,7 @@
 #endif
 
 #include <cassert>
+#include <vector>
 #include "dali/operators/image/resize/resize_op_impl.h"
 #include "dali/kernels/imgproc/resample_cpu.h"
 
@@ -28,7 +29,7 @@ namespace dali {
 template <typename Out, typename In, int spatial_ndim>
 class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
  public:
-  ResizeOpImplCPU(int num_threads) {
+  explicit ResizeOpImplCPU(int num_threads) {
     kmgr_.Resize(num_threads, 0);
   }
 
@@ -106,7 +107,6 @@ class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
   std::vector<ResamplingParamsND<spatial_ndim>> params_;
 
   kernels::KernelManager kmgr_;
-
 };
 
 }  // namespace dali

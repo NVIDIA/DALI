@@ -20,6 +20,7 @@
 #endif
 
 #include <cassert>
+#include <vector>
 #include "dali/operators/image/resize/resize_op_impl.h"
 #include "dali/kernels/imgproc/resample.h"
 
@@ -28,7 +29,7 @@ namespace dali {
 template <typename Out, typename In, int spatial_ndim>
 class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
  public:
-  ResizeOpImplGPU(int minibatch_size) : minibatch_size_(minibatch_size) {}
+  explicit ResizeOpImplGPU(int minibatch_size) : minibatch_size_(minibatch_size) {}
 
   static_assert(spatial_ndim == 2, "NOT IMPLEMENTED. Only 2D resize is supported");
 
@@ -48,7 +49,7 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
                                           first_spatial_dim);
 
     // Now that we have per-frame parameters, we can calculate the output frame shape.
-    GetResizedShape(out_shape_, in_shape_, make_cspan(params_), first_spatial_dim);
+    GetResizedShape(out_shape_, in_shape_, make_cspan(params_), 0);
 
     // Now that we know how many logical frames there are, calculate batch subdivision.
     SetNumFrames(in_shape_.num_samples());

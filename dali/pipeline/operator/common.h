@@ -88,7 +88,7 @@ void GetPerSampleArgument(std::vector<T> &output,
   assert(output.size() == static_cast<size_t>(batch_size));
 }
 
-template <int out_ndim>
+template <typename ArgumentType = int, int out_ndim>
 void GetShapeArgument(TensorListShape<out_ndim> &out_tls,
                       const OpSpec &spec,
                       const std::string &argument_name,
@@ -98,12 +98,18 @@ void GetShapeArgument(TensorListShape<out_ndim> &out_tls,
   if (batch_size < 0)
     batch_size = spec.GetArgument<int>("batch_size");
 
+  auto to_extent = [](ArgumentType extent) {
+    return std::is_floating_point<ArgumentType>::value
+      ? static_cast<int64_t>(std::floor(extent + 0.5))
+      : static_cast<int64_t>(extent);
+  };
+
   // if neither is dynamic, ndim and out_ndim must be equal
   assert(ndim < 0 || out_ndim < 0 || ndim == out_ndim);
 
   if (spec.HasTensorArgument(argument_name)) {
     const auto &arg = ws.ArgumentInput(argument_name);
-    auto argview = view<const int>(arg);
+    auto argview = view<const ArgumentType>(arg);
     int N = argview.shape.num_samples();
     DALI_ENFORCE(N == batch_size, make_string("Unexpected number of samples in argument `",
       argument_name, "` (expected: ", batch_size, ")"));
@@ -116,7 +122,7 @@ void GetShapeArgument(TensorListShape<out_ndim> &out_tls,
       out_tls.resize(N, ndim);
       for (int i = 0; i < N; i++)
         for (int d = 0; d < ndim; d++)
-          tls.tensor_shape_span(i)[d] = *argview.data[i];
+          tls.tensor_shape_span(i)[d] = to_extent(*argview.data[i]);
     } else {
       DALI_ENFORCE(argview.shape.sample_dim() == 1, "Shapes must be 1D tensors with extent equal "
        "to shape dimensionality (or scalar)");
@@ -126,19 +132,23 @@ void GetShapeArgument(TensorListShape<out_ndim> &out_tls,
       out_tls.resize(N, D);
       for (int i = 0; i < N; i++)
         for (int d = 0; d < D; d++)
-          out_tls.tensor_shape_span(i)[d] = argview.data[i][d];
+          out_tls.tensor_shape_span(i)[d] = to_extent(argview.data[i][d]);
     }
   } else {
     // If the argument is specified as a vector, it represents a uniform tensor list shape.
-    std::vector<int> tsvec;
+    std::vector<ArgumentType> tsvec;
     if (ndim > 0) {
       // we have the luxury of knowing ndim ahead of time, so we can broadcast a scalar
-      GetSingleOrRepeatedArg<int>(spec, tsvec, argument_name, ndim);
+      GetSingleOrRepeatedArg<ArgumentType>(spec, tsvec, argument_name, ndim);
     } else {
       // in dynamic use case, we get the dimensionality from the number of values
-      tsvec = spec.GetRepeatedArgument<int>(argument_name);
+      tsvec = spec.GetRepeatedArgument<ArgumentType>(argument_name);
     }
-    out_tls = uniform_list_shape<out_ndim>(batch_size, tsvec);
+    TensorShape<out_ndim> sample_shape;
+    sample_shape.resize(tsvec.size());
+    for (int i = 0; i < sample_shape.size(); i++)
+      sample_shape[i] = to_extent(tsvec[i]);
+    out_tls = uniform_list_shape<out_ndim>(batch_size, sample_shape);
   }
 }
 

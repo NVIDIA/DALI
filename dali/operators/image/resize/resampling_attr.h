@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_IMAGE_RESIZE_RESAMPLING_ATTR_H_
 #define DALI_OPERATORS_IMAGE_RESIZE_RESAMPLING_ATTR_H_
 
+#include <vector>
 #include "dali/core/common.h"
 #include "dali/kernels/imgproc/resample/params.h"
 #include "dali/pipeline/operator/op_spec.h"

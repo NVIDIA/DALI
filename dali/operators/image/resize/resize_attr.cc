@@ -14,6 +14,7 @@
 
 #include "dali/operators/image/resize/resize_attr.h"
 #include <limits>
+#include <string>
 #include <vector>
 #include "dali/pipeline/operator/common.h"
 #include "dali/core/math_util.h"
@@ -33,9 +34,10 @@ the aspect ratio of the original image. Negative value flips the image.)", 0.f, 
 This option is mutually exclusive with `resize_shorter`, `resize_longer` and `size`.
 If the `resize_x` and `resize_y` are left unspecified or 0, then the op will keep
 the aspect ratio of the original volume. Negative value flips the volume.)", 0.f, true)
-  .AddOptionalArg<vector<int>>("size", R"(The desired output size. Must be a list/tuple with the
+  .AddOptionalArg<vector<float>>("size", R"(The desired output size. Must be a list/tuple with the
 one entry per spatial dimension (i.e. excluding video frames and channels). Dimensions with
-0 size are resized to maintain aspect ratio.)", {}, true)
+0 extent are treated as absent and the output size will be calculated based on other extents
+and ``mode`` argument.)", {}, true)
   .AddOptionalArg("mode", R"(Resize mode - one of:
   * "stretch"     - image is resized to the specified size; aspect ratio is not kept
   * "not_larger"  - image is resized, keeping the aspect ratio, so that no extent of the
@@ -87,12 +89,15 @@ void ResizeAttr::Initialize(const OpSpec &spec) {
   DALI_ENFORCE(has_resize_shorter_ + has_resize_longer_ + has_mode_ <= 1,
     "`resize_shorter`, `resize_longer` and `mode` arguments are mutually exclusive");
 
-  if (has_resize_shorter_)
+  if (has_resize_shorter_) {
     mode_ = ResizeMode::NotSmaller;
-  else if (has_resize_longer_)
+  } else if (has_resize_longer_) {
     mode_ = ResizeMode::NotLarger;
-  else
-    spec.TryGetArgument(mode_, "mode");
+  } else if (has_mode_) {
+    mode_ = ParseResizeMode(spec.GetArgument<std::string>("mode"));
+  } else {
+    mode_ = ResizeMode::Stretch;
+  }
 }
 
 
@@ -125,7 +130,7 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
   params_.resize(N);
 
   if (has_size_) {
-    GetShapeArgument(size_arg_, spec, "size", ws, spatial_ndim_, N);
+    GetShapeArgument<float>(size_arg_, spec, "size", ws, spatial_ndim_, N);
   }
 
   max_size_.resize(spatial_ndim_, std::numeric_limits<int>::max());
@@ -210,7 +215,7 @@ void ResizeAttr::AdjustOutputSize(float *out_size, const float *in_size) {
     sizes_provided += mask[d];
   }
 
-  if (sizes_provided == 0) { // no clue how to resize - keep original size then
+  if (sizes_provided == 0) {  // no clue how to resize - keep original size then
     for (int d = 0; d < spatial_ndim_; d++)
       out_size[d] = in_size[d];
   } else {
@@ -278,12 +283,11 @@ void ResizeAttr::AdjustOutputSize(float *out_size, const float *in_size) {
           out_size[d] = in_size[d] * final_scale;
           scale[d] = final_scale;
         } else if (std::abs(scale[d]) != final_scale) {
-          scale[d] = final_scale;
+          scale[d] = std::copysign(final_scale, scale[d]);
           out_size[d] = in_size[d] * scale[d];
         }
       }
     }
-
   }
 }
 
@@ -298,7 +302,6 @@ void ResizeAttr::CalculateSampleParams(ResizeParams &params,
     DALI_ENFORCE(input_size[d] != 0 || requested_size[d] == 0,
                 "Cannot produce non-empty output from empty input");
   }
-
 
   AdjustOutputSize(requested_size.data(), input_size.data());
 
