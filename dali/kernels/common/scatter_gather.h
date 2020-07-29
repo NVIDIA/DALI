@@ -59,6 +59,9 @@ class DLL_PUBLIC ScatterGatherGPU {
     ranges_.reserve(num_ranges);
   }
 
+  /**
+   * @brief Clear any registered range copies
+   */
   void Reset() {
     ranges_.clear();
     blocks_.clear();
@@ -77,16 +80,23 @@ class DLL_PUBLIC ScatterGatherGPU {
     }
   }
 
+  enum class Method {
+    Default = 0,  // Uses scatter-gather kernel, unless there are 2 or fewer single effective copy
+                  // ranges, in that cases cudaMemcpyAsync is used
+    Memcpy = 1,  // Always use cudaMemcpyAsync
+    Kernel = 2,   // Always use scatter-gather kernel
+  };
+
   /**
    * @brief Executes the copies
-   * @param stream - the cudaStream on which the copies are scheduled
-   * @param reset - if true, calls Reset after processing is over
-   * @param useMemcpyOnly - if true, all copies are executed using cudaMemcpy;
-   *                        otherwise a batched kernel is used if there are more than 2 ranges
-   * @param memcpyKind    - determines the cudaMemcpyKind when using cudaMemcpy
+   * @param stream     - the cudaStream on which the copies are scheduled
+   * @param reset      - if true, calls Reset after processing is over
+   * @param method     - see ScatterGatherGPU::CopyMethod
+   * @param memcpyKind - determines the cudaMemcpyKind when using cudaMemcpy
    */
-  DLL_PUBLIC void Run(cudaStream_t stream, bool reset = true, bool useMemcpyOnly = false,
-                      cudaMemcpyKind memcpyKind = cudaMemcpyDefault);
+  DLL_PUBLIC void
+  Run(cudaStream_t stream, bool reset = true, Method method = Method::Default,
+      cudaMemcpyKind memcpyKind = cudaMemcpyDefault);
 
   using CopyRange = detail::CopyRange;
 

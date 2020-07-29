@@ -71,7 +71,10 @@ void CachedDecoderImpl::LoadDeferred(cudaStream_t stream) {
     return;
 
   cache_->SyncToRead(stream);
-  CUDA_CALL((scatter_gather_->Run(stream, true, !use_batch_copy_kernel_), cudaGetLastError()));
+  using Method = kernels::ScatterGatherGPU::Method;
+  auto copy_method = use_batch_copy_kernel_ ? Method::Default
+                                            : Method::Memcpy;
+  CUDA_CALL((scatter_gather_->Run(stream, true, copy_method), cudaGetLastError()));
 }
 
 ImageCache::ImageShape CachedDecoderImpl::CacheImageShape(const std::string& file_name) {

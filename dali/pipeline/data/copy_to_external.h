@@ -38,19 +38,39 @@ struct alloc_to_backend<AllocType::GPU> {
 template <typename SrcBackend>
 inline void CopyToExternal(void* dst, AllocType dst_alloc_type,
                            const Buffer<SrcBackend> &src,
-                           cudaStream_t stream, bool sync, bool use_copy_kernel) {
+                           cudaStream_t stream, bool use_copy_kernel) {
   VALUE_SWITCH(dst_alloc_type, DstType, (AllocType::Host, AllocType::Pinned, AllocType::GPU), (
     using DstBackend = alloc_to_backend<DstType>::type;
     use_copy_kernel &= (DstType == AllocType::GPU || DstType == AllocType::Pinned) &&
                        (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
     DeviceGuard d(src.device_id());
-    auto &type_info = TypeTable::GetTypeInfo(DALIDataType::DALI_UINT8);
-    type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.nbytes(), stream,
+    const auto &type_info = src.type();
+    type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.size(), stream,
                                                     use_copy_kernel);
   ), ());  // NOLINT
+}
 
-  if (sync)
-    CUDA_CALL(cudaStreamSynchronize(stream));
+template <typename SrcBackend>
+inline void CopyToExternal(void** dsts, AllocType dst_alloc_type,
+                           const TensorList<SrcBackend> &src,
+                           cudaStream_t stream, bool use_copy_kernel) {
+  VALUE_SWITCH(dst_alloc_type, DstType, (AllocType::Host, AllocType::Pinned, AllocType::GPU), (
+    using DstBackend = alloc_to_backend<DstType>::type;
+    use_copy_kernel &= (DstType == AllocType::GPU || DstType == AllocType::Pinned) &&
+                       (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
+    DeviceGuard d(src.device_id());
+
+    auto src_shape = src.shape();
+    SmallVector<int64_t, 256> sizes;
+    int nsamples = src_shape.size();
+    sizes.reserve(nsamples);
+    for (int i = 0; i < nsamples; i++) {
+      sizes.push_back(src_shape.tensor_size(i));
+    }
+    const auto &type_info = src.type();
+    type_info.template Copy<DstBackend, SrcBackend>(dsts, src.raw_data(), sizes.data(), nsamples,
+                                                    stream, use_copy_kernel);
+  ), ());  // NOLINT
 }
 
 }  // namespace dali
