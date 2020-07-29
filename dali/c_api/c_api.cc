@@ -91,6 +91,14 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                              flags & DALI_use_copy_kernel);
 }
 
+dali::kernels::AllocType GetAllocType(device_type_t device_type, bool is_pinned) {
+  using dali::kernels::AllocType;
+  return device_type == device_type_t::GPU
+        ? AllocType::GPU
+        : (is_pinned ? AllocType::Pinned : AllocType::Host);
+}
+
+
 }  // namespace
 
 
@@ -396,11 +404,7 @@ void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
   bool is_pinned = flags & DALI_ext_pinned;
   bool sync = flags & DALI_ext_force_sync;
   bool use_copy_kernel = flags & DALI_use_copy_kernel;
-
-  using dali::kernels::AllocType;
-  AllocType dst_alloc_type = dst_type == device_type_t::GPU
-        ? AllocType::GPU
-        : (is_pinned ? AllocType::Pinned : AllocType::Host);
+  auto dst_alloc_type = GetAllocType(dst_type, is_pinned);
 
   dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
   assert(ws != nullptr);
@@ -408,10 +412,13 @@ void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
   auto &type_info = dali::TypeTable::GetTypeInfo(dali::DALIDataType::DALI_UINT8);
   if (ws->OutputIsType<dali::CPUBackend>(output_idx)) {
     CopyToExternal(dst, dst_alloc_type, ws->OutputRef<dali::CPUBackend>(output_idx),
-                   stream, sync, use_copy_kernel);
+                   stream, use_copy_kernel);
   } else {
     CopyToExternal(dst, dst_alloc_type, ws->OutputRef<dali::GPUBackend>(output_idx),
-                   stream, sync, use_copy_kernel);
+                   stream, use_copy_kernel);
+  }
+  if (sync) {
+    cudaStreamSynchronize(stream);
   }
 }
 
@@ -422,11 +429,7 @@ void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int out
   bool is_pinned = flags & DALI_ext_pinned;
   bool sync = flags & DALI_ext_force_sync;
   bool use_copy_kernel = flags & DALI_use_copy_kernel;
-
-  using dali::kernels::AllocType;
-  AllocType dst_alloc_type = dst_type == device_type_t::GPU
-        ? AllocType::GPU
-        : (is_pinned ? AllocType::Pinned : AllocType::Host);
+  auto dst_alloc_type = GetAllocType(dst_type, is_pinned);
 
   dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
   assert(ws != nullptr);
@@ -434,10 +437,13 @@ void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int out
   auto &type_info = dali::TypeTable::GetTypeInfo(dali::DALIDataType::DALI_UINT8);
   if (ws->OutputIsType<dali::CPUBackend>(output_idx)) {
     CopyToExternal(dsts, dst_alloc_type, ws->OutputRef<dali::CPUBackend>(output_idx),
-                   stream, sync, use_copy_kernel);
+                   stream, use_copy_kernel);
   } else {
     CopyToExternal(dsts, dst_alloc_type, ws->OutputRef<dali::GPUBackend>(output_idx),
-                   stream, sync, use_copy_kernel);
+                   stream, use_copy_kernel);
+  }
+  if (sync) {
+    cudaStreamSynchronize(stream);
   }
 }
 

@@ -49,7 +49,7 @@ void ScatterGatherCopy(void **dsts, const void **srcs, const Index *sizes, int n
   for (int i = 0; i < n; i++) {
     sc->AddCopy(dsts[i], srcs[i], sizes[i] * element_size);
   }
-  sc->Run(stream, true /*reset*/, kernels::ScatterGatherGPU::CopyMethod::MemcpyNever);
+  sc->Run(stream, true, kernels::ScatterGatherGPU::Method::Kernel);
 }
 
 void ScatterGatherCopy(void *dst, const void **srcs, const Index *sizes, int n, int element_size,
@@ -61,7 +61,7 @@ void ScatterGatherCopy(void *dst, const void **srcs, const Index *sizes, int n, 
     sc->AddCopy(sample_dst, srcs[i], nbytes);
     sample_dst += nbytes;
   }
-  sc->Run(stream, true /*reset*/, kernels::ScatterGatherGPU::CopyMethod::MemcpyNever);
+  sc->Run(stream, true, kernels::ScatterGatherGPU::Method::Kernel);
 }
 
 void ScatterGatherCopy(void **dsts, const void *src, const Index *sizes, int n, int element_size,
@@ -73,7 +73,7 @@ void ScatterGatherCopy(void **dsts, const void *src, const Index *sizes, int n, 
     sc->AddCopy(dsts[i], sample_src, nbytes);
     sample_src += nbytes;
   }
-  sc->Run(stream, true /*reset*/, kernels::ScatterGatherGPU::CopyMethod::MemcpyNever);
+  sc->Run(stream, true, kernels::ScatterGatherGPU::Method::Kernel);
 }
 
 }  // namespace detail
@@ -145,7 +145,7 @@ void TypeInfo::Copy(void *dst, const void** srcs, const Index* sizes, int n,
   if (!is_host_to_host && use_copy_kernel) {
     detail::ScatterGatherCopy(dst, srcs, sizes, n, size(), stream);
   } else {
-    auto sample_dst = reinterpret_cast<uint8_t*>(dst);
+    auto sample_dst = static_cast<uint8_t*>(dst);
     for (int i = 0; i < n; i++) {
       Copy<DstBackend, SrcBackend>(sample_dst, srcs[i], sizes[i], stream);
       sample_dst += sizes[i] * size();

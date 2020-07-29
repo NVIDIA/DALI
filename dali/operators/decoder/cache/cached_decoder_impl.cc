@@ -71,9 +71,9 @@ void CachedDecoderImpl::LoadDeferred(cudaStream_t stream) {
     return;
 
   cache_->SyncToRead(stream);
-  using CopyMethod = kernels::ScatterGatherGPU::CopyMethod;
-  auto copy_method = use_batch_copy_kernel_ ? CopyMethod::Default
-                                            : CopyMethod::MemcpyAlways;
+  using Method = kernels::ScatterGatherGPU::Method;
+  auto copy_method = use_batch_copy_kernel_ ? Method::Default
+                                            : Method::Memcpy;
   CUDA_CALL((scatter_gather_->Run(stream, true, copy_method), cudaGetLastError()));
 }
 

@@ -546,18 +546,19 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
     DALIDataType type = static_cast<DALIDataType>(daliTypeAt(&handle, out_idx));
     auto type_info = dali::TypeTable::GetTypeInfo(type);
     int64_t out_size = daliNumElements(&handle, out_idx);
-    TensorList<TypeParam> output1;
-    output1.Resize({{out_size}}, type_info);
+    Tensor<TypeParam> output1;
+    output1.Resize({out_size}, type_info);
     daliOutputCopy(&handle, output1.raw_mutable_data(), out_idx,
                    backend_to_device_type<TypeParam>::value, 0, DALI_ext_default);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    TensorList<CPUBackend> output1_cpu;
+    Tensor<CPUBackend> output1_cpu;
     output1_cpu.Copy(output1, cuda_stream);
 
-    TensorList<TypeParam> output2;
-    TensorList<CPUBackend> output2_cpu;
+    Tensor<TypeParam> output2;
+    Tensor<CPUBackend> output2_cpu;
     {
-      output2.Resize({{out_size}}, type_info);
+      output2.set_pinned(false);
+      output2.Resize({out_size}, type_info);
 
       std::vector<void*> sample_dsts(batch_size);
       int64_t offset = 0;
@@ -571,10 +572,11 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       output2_cpu.Copy(output2, cuda_stream);
     }
 
-    TensorList<TypeParam> output3;
-    TensorList<CPUBackend> output3_cpu;
+    Tensor<TypeParam> output3;
+    Tensor<CPUBackend> output3_cpu;
     {
-      output3.Resize({{out_size}}, type_info);
+      output3.set_pinned(std::is_same<TypeParam, CPUBackend>::value);
+      output3.Resize({out_size}, type_info);
 
       std::vector<void*> sample_dsts(batch_size);
       int64_t offset = 0;

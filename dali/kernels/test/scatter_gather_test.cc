@@ -105,13 +105,13 @@ TEST(ScatterGather, Copy) {
   // copy
   for (auto &r : ranges)
     sg.AddCopy(r.dst, r.src, r.size);
-  sg.Run(0, true, ScatterGatherGPU::CopyMethod::MemcpyNever);
+  sg.Run(0, true, ScatterGatherGPU::Method::Kernel);
 
   // copy back
   cudaMemset(in_ptr.get(), 0, in.size());
   for (auto &r : back_ranges)
     sg.AddCopy(r.dst, r.src, r.size);
-  sg.Run(0, true, ScatterGatherGPU::CopyMethod::MemcpyAlways);
+  sg.Run(0, true, ScatterGatherGPU::Method::Memcpy);
   cudaMemcpy(out.data(), in_ptr.get(), in.size(), cudaMemcpyDeviceToHost);
 
   EXPECT_EQ(in, out);

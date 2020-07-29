@@ -328,12 +328,10 @@ DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, in
  * @brief Copy the output batch stored at position `output_idx` in the pipeline.
  * @remarks If the pipeline output is TensorList then it needs to be dense
  * @param pipe_handle Pointer to pipeline handle
- * @param device Device of the supplied memory.
  * @param dst Pointer to the destination buffer where the data will be copied
  * @param output_idx index of the pipeline output
  * @param dst_type Device type associated with the destination buffer (0 - CPU, 1 - GPU)
- * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
- *               provided stream.
+ * @param stream CUDA stream to use when copying the data to/from the GPU.
  * @param flags Extra flags, check DALI_ext_force_sync, DALI_use_copy_kernel
  */
 
@@ -345,12 +343,10 @@ daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx, devic
  * @brief Copy the samples in output stored at position `output_idx` in the pipeline
  *        to scattered memory locations.
  * @param pipe_handle Pointer to pipeline handle
- * @param device Device of the supplied memory.
  * @param dsts Pointers to the destination buffers where each sample will be copied
  * @param output_idx index of the pipeline output
  * @param dst_type Device type associated with the destination buffer (0 - CPU, 1 - GPU)
- * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
- *               provided stream.
+ * @param stream CUDA stream to use when copying the data to/from the GPU.
  * @param flags Extra flags, check DALI_ext_force_sync, DALI_use_copy_kernel
  */
 DLL_PUBLIC void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int output_idx,
