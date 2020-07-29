@@ -184,6 +184,12 @@ class DALIDatasetOp : public DatasetOpKernel {
       return Status::OK();
     }
 
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3
+  Status CheckExternalState() const override {
+    return errors::Unimplemented("CheckExternalState is not supported for DALI dataset.");
+  }
+#endif
+
    private:
    /**
     * @brief Append the AttrValue created from `filed` under `name` to `attrs` vector
@@ -388,6 +394,18 @@ class DALIDatasetOp : public DatasetOpKernel {
         }
         daliDeletePipeline(&pipeline_handle_);
       }
+
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3
+    Status SaveInternal(
+      SerializationContext* ctx, IteratorStateWriter* writer) override {
+      return errors::Unimplemented("SaveInternal is not supported for DALI dataset.");
+    }
+
+    Status RestoreInternal(
+      IteratorContext* ctx, IteratorStateReader* reader) override {
+      return errors::Unimplemented("RestoreInternal is not supported for DALI dataset");
+    }
+#endif
 
      private:
 
