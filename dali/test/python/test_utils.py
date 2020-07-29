@@ -47,6 +47,10 @@ def import_numpy():
     import numpy as np
     from numpy.testing import assert_array_equal, assert_allclose
 
+def import_cupy():
+    global cp
+    import cupy as cp
+
 Image = None
 def import_pil():
     global Image
@@ -190,8 +194,11 @@ def compare_pipelines(
     print("OK: ({} iterations)".format(N_iterations))
 
 class RandomDataIterator(object):
-    import_numpy()
-    def __init__(self, batch_size, shape=(10, 600, 800, 3), dtype=np.uint8):
+    def __init__(self, batch_size, shape=(10, 600, 800, 3), dtype=None):
+        import_numpy()
+        # to avoid any numpy reference in the interface
+        if dtype is None:
+            dtype = np.uint8
         self.batch_size = batch_size
         self.test_data = []
         for _ in range(self.batch_size):
@@ -216,8 +223,11 @@ class RandomDataIterator(object):
     next = __next__
 
 class RandomlyShapedDataIterator(object):
-    import_numpy()
-    def __init__(self, batch_size, min_shape=None, max_shape=(10, 600, 800, 3), seed=12345, dtype=np.uint8):
+    def __init__(self, batch_size, min_shape=None, max_shape=(10, 600, 800, 3), seed=12345, dtype=None):
+        import_numpy()
+        # to avoid any numpy reference in the interface
+        if dtype is None:
+            dtype = np.uint8
         self.batch_size = batch_size
         self.test_data = []
         self.min_shape = min_shape
@@ -255,8 +265,8 @@ class RandomlyShapedDataIterator(object):
     next = __next__
 
 class ConstantDataIterator(object):
-    import_numpy()
     def __init__(self, batch_size, sample_data, dtype):
+        import_numpy()
         self.batch_size = batch_size
         self.test_data = []
         for _ in range(self.batch_size):
@@ -285,6 +295,7 @@ def check_output(outputs, ref_out, ref_is_list_of_outputs = None):
         only meaningful when there's just one output - if True, ref_out is a one-lement
         list containing a single batch for output 0; otherwise ref_out _is_ a batch
     """
+    import_numpy()
     if ref_is_list_of_outputs is None:
         ref_is_list_of_outputs = len(outputs) > 1
 
@@ -302,6 +313,7 @@ def check_output(outputs, ref_out, ref_is_list_of_outputs = None):
             assert(np.array_equal(out[i], ref[i]))
 
 def dali_type(t):
+    import_numpy()
     if t is None:
         return None
     if t is np.float32:
@@ -329,10 +341,10 @@ def py_buffer_from_address(address, shape, dtype, gpu = False):
     holder.__array_interface__ = buff
     holder.__cuda_array_interface__ = buff
     if not gpu:
+        import_numpy()
         return np.array(holder, copy=False)
     else:
-        global cp
-        import cupy as cp
+        import_cupy()
         return cp.asanyarray(holder)
 
 class check_output_pattern():
