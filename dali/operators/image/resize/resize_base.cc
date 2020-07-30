@@ -52,7 +52,6 @@ void ResizeBase<Backend>::SetupResize(TensorListShape<> &out_shape,
   }
 }
 
-
 template <typename Backend>
 template <typename OutputType, typename InputType>
 void ResizeBase<Backend>::SetupResizeTyped(

@@ -96,7 +96,7 @@ def video_reader_pipeline(batch_size, video_reader_params):
 def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
     pipeline = video_reader_pipeline(batch_size, video_reader_params)
 
-    def get_next_frame(): 
+    def get_next_frame():
         pipe_out = pipeline.run()
         sequences_out = pipe_out[0].as_cpu().as_array()
         for sample in range(batch_size):
@@ -150,3 +150,7 @@ def test_video_resize(batch_size=2):
     for vp in video_reader_params:
         for rp in resize_params:
             yield run_for_params, batch_size, vp, rp
+
+if __name__ == "__main__":
+  for func, *args in test_video_resize():
+    func(*args)

@@ -51,7 +51,7 @@ class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
                                           first_spatial_dim);
 
     // Now that we have per-frame parameters, we can calculate the output frame shape.
-    GetResizedShape(out_shape_, in_shape_, make_cspan(params_), first_spatial_dim);
+    GetResizedShape(out_shape_, in_shape_, make_cspan(params_), 0);
 
     // Now that we know how many logical frames there are, calculate batch subdivision.
     UpdateNumFrames();

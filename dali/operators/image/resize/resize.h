@@ -38,13 +38,14 @@ namespace detail {
 
 template <typename Backend>
 class Resize : public Operator<Backend>
-             , protected ResizeAttr
-             , protected ResamplingFilterAttr
              , protected ResizeBase<Backend> {
  public:
   explicit Resize(const OpSpec &spec);
 
  protected:
+  int NumSpatialDims() const { return resize_attr_.spatial_ndim_; }
+  int FirstSpatialDim() const { return resize_attr_.first_spatial_dim_; }
+
   bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
@@ -57,22 +58,25 @@ class Resize : public Operator<Backend>
     for (int i = 0; i < N; i++) {
       auto sample_shape = orig_shape.tensor_shape_span(i);
       int *out_shape = shape_data.data[i];
-      for (int d = 0; d < spatial_ndim_; d++) {
-        out_shape[d] = sample_shape[first_spatial_dim_ + d];
+      for (int d = 0; d < NumSpatialDims(); d++) {
+        out_shape[d] = sample_shape[FirstSpatialDim() + d];
       }
     }
   }
 
   void PrepareParams(const ArgumentWorkspace &ws, const TensorListShape<> &input_shape,
                      const TensorLayout &layout) {
-    PrepareResizeParams(spec_, ws, input_shape, layout);
-    assert(spatial_ndim_ >= 1 && spatial_ndim_ <= 3);
-    assert(first_spatial_dim_ >= 0);
+    resize_attr_.PrepareResizeParams(spec_, ws, input_shape, layout);
+    assert(NumSpatialDims() >= 1 && NumSpatialDims() <= 3);
+    assert(FirstSpatialDim() >= 0);
     int N = input_shape.num_samples();
-    resample_params_.resize(N * spatial_ndim_);
-    PrepareFilterParams(spec_, ws, N);
-    GetResamplingParams(make_span(resample_params_), make_span(params_));
+    resample_params_.resize(N * NumSpatialDims());
+    resampling_attr_.PrepareFilterParams(spec_, ws, N);
+    resampling_attr_.GetResamplingParams(make_span(resample_params_),
+                                         make_cspan(resize_attr_.params_));
   }
+
+  void InitializeBackend();
 
   USE_OPERATOR_MEMBERS();
   std::vector<kernels::ResamplingParams> resample_params_;
@@ -80,15 +84,14 @@ class Resize : public Operator<Backend>
   using Operator<Backend>::RunImpl;
   bool save_attrs_ = false;
   DALIDataType out_type_ = DALI_NO_TYPE;
+
+  ResizeAttr resize_attr_;
+  ResamplingFilterAttr resampling_attr_;
 };
 
 template <typename Backend>
 bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                 const workspace_t<Backend> &ws) {
-#ifndef NDEBUG
-  spatial_ndim_      = -1;
-  first_spatial_dim_ = -1;
-#endif
   output_desc.resize(save_attrs_ ? 2 : 1);
   auto &input = ws.template InputRef<Backend>(0);
   if (!spec_.TryGetArgument(out_type_, "dtype")) {
@@ -109,10 +112,10 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   PrepareParams(ws, in_shape, in_layout);
 
   this->SetupResize(output_desc[0].shape, out_type_, in_shape, in_type,
-                    make_cspan(this->resample_params_), spatial_ndim_, first_spatial_dim_);
+                    make_cspan(this->resample_params_), NumSpatialDims(), FirstSpatialDim());
 
   if (save_attrs_) {
-    output_desc[0].shape = uniform_list_shape(N, TensorShape<1>({ spatial_ndim_ }));
+    output_desc[0].shape = uniform_list_shape(N, TensorShape<1>({ NumSpatialDims() }));
     output_desc[1].type = TypeTable::GetTypeInfo(DALI_INT32);
   }
   return true;

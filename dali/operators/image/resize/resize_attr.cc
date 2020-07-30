@@ -65,11 +65,7 @@ with high aspect ratios might produce extremely large outputs. This parameter pu
 big the output can become. This value can be specified per-axis of uniformly for all axes.)",
   {}, false);
 
-ResizeAttr::ResizeAttr(const OpSpec &spec) {
-  Initialize(spec);
-}
-
-void ResizeAttr::Initialize(const OpSpec &spec) {
+void ResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
   has_resize_shorter_ = spec.ArgumentDefined("resize_shorter");
   has_resize_longer_ = spec.ArgumentDefined("resize_longer");
   has_resize_x_ = spec.ArgumentDefined("resize_x");
@@ -126,6 +122,7 @@ void ResizeAttr::ParseLayout(
 
 void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                                      const TensorListShape<> &input_shape) {
+  SetFlagsAndMode(spec);
   int N = input_shape.num_samples();
   params_.resize(N);
 

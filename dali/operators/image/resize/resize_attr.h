@@ -38,20 +38,17 @@ struct ResizeParams {
 
 class DLL_PUBLIC ResizeAttr {
  public:
-  explicit ResizeAttr(const OpSpec &spec);
-  void Initialize(const OpSpec &spec);
-
   void PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                            const TensorListShape<> &input_shape);
 
   void PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                            const TensorListShape<> &input_shape,
                            TensorLayout input_layout) {
-    ParseLayout(input_layout);
+    SetLayout(input_layout);
     PrepareResizeParams(spec, ws, input_shape);
   }
 
-  void ParseLayout(const TensorLayout &layout) {
+  void SetLayout(const TensorLayout &layout) {
     ParseLayout(spatial_ndim_, first_spatial_dim_, layout);
   }
 
@@ -61,6 +58,21 @@ class DLL_PUBLIC ResizeAttr {
     return has_resize_x_ || has_resize_y_ || has_resize_z_;
   }
 
+  /**
+   * @brief Gets the shape after resizing.
+   */
+  template <int out_ndim, int in_ndim>
+  void GetResizedShape(TensorListShape<out_ndim> &out_shape,
+                       const TensorListShape<in_ndim> &in_shape) const {
+    int N = in_shape.num_samples();
+    assert(static_cast<int>(params_.size()) == N);
+    out_shape = in_shape;
+    for (int i = 0; i < N; i++) {
+      auto out_sample_shape = out_shape.tensor_shape_span(i);
+      for (int d = 0; d < spatial_ndim_; d++)
+        out_sample_shape[d + first_spatial_dim_] = params_[i].dst_size[d];
+    }
+  }
 
   vector<ResizeParams> params_;
 
@@ -69,11 +81,6 @@ class DLL_PUBLIC ResizeAttr {
    * very thin images
    */
   vector<float> max_size_;
-
-  // pass sizes by value - the function will modify them internally
-  void CalculateSampleParams(ResizeParams &params,
-                             SmallVector<float, 3> requested_size,
-                             SmallVector<float, 3> input_size);
 
   bool has_size_ = false;
   bool has_max_size_ = false;
@@ -93,7 +100,15 @@ class DLL_PUBLIC ResizeAttr {
   TensorListShape<> size_arg_;
   vector<float> res_x_, res_y_, res_z_;
 
+  void SetFlagsAndMode(const OpSpec &spec);
+
   void AdjustOutputSize(float *out_size, const float *in_size);
+
+  // pass sizes by value - the function will modify them internally
+  void CalculateSampleParams(ResizeParams &params,
+                             SmallVector<float, 3> requested_size,
+                             SmallVector<float, 3> input_size);
+
 };
 
 }  // namespace dali

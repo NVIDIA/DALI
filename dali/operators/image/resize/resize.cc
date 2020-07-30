@@ -31,15 +31,18 @@ DALI_SCHEMA(Resize)
   .AddParent("ResizeAttr")
   .AddParent("ResamplingFilterAttr");
 
-template<>
-Resize<CPUBackend>::Resize(const OpSpec &spec)
-    : Operator<CPUBackend>(spec)
-    , ResizeAttr(spec)
-    , ResizeBase<CPUBackend>(spec) {
-  resample_params_.resize(num_threads_);
-  InitializeCPU(num_threads_);
-
+template<typename Backend>
+Resize<Backend>::Resize(const OpSpec &spec)
+    : Operator<Backend>(spec)
+    , ResizeBase<Backend>(spec) {
   save_attrs_ = spec_.HasArgument("save_attrs");
+  resample_params_.resize(num_threads_);
+  InitializeBackend();
+}
+
+template <>
+void Resize<CPUBackend>::InitializeBackend() {
+  InitializeCPU(num_threads_);
 }
 
 template <>
@@ -56,7 +59,7 @@ void Resize<CPUBackend>::RunImpl(HostWorkspace &ws) {
     auto &attr_out = ws.OutputRef<CPUBackend>(1);
     const auto &attr_shape = attr_out.shape();
     assert(attr_shape.num_samples() == input_shape.num_samples() && attr_shape.sample_dim() == 1 &&
-      is_uniform(attr_shape) && attr_shape[0][0] == spatial_ndim_);
+      is_uniform(attr_shape) && attr_shape[0][0] == NumSpatialDims());
 
     auto attr_view = view<int, 1>(attr_out);
     SaveAttrs(attr_view, input.shape());
@@ -66,15 +69,9 @@ void Resize<CPUBackend>::RunImpl(HostWorkspace &ws) {
 DALI_REGISTER_OPERATOR(Resize, Resize<CPUBackend>, CPU);
 
 
-
-template<>
-Resize<GPUBackend>::Resize(const OpSpec &spec)
-    : Operator<GPUBackend>(spec)
-    , ResizeAttr(spec)
-    , ResizeBase<GPUBackend>(spec) {
-  save_attrs_ = spec_.HasArgument("save_attrs");
+template <>
+void Resize<GPUBackend>::InitializeBackend() {
   InitializeGPU(spec_.GetArgument<int>("minibatch_size"));
-  resample_params_.resize(batch_size_);
 }
 
 template<>
@@ -91,7 +88,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     assert(attr_shape.num_samples() == input.shape().num_samples() &&
            attr_shape.sample_dim() == 1 &&
            is_uniform(attr_shape) &&
-           attr_shape[0][0] == spatial_ndim_);
+           attr_shape[0][0] == NumSpatialDims());
 
     if (!attr_staging_.raw_data())
       attr_staging_.set_pinned(true);

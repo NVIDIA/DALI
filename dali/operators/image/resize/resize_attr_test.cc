@@ -55,8 +55,10 @@ inline void PrintTo(const ResizeParams &entry, std::ostream *os) {
     *os << "[";
     bool first = true;
     for (auto x : collection) {
-      if (first) first = false;
-      else *os << ", ";
+      if (first)
+        first = false;
+      else
+        *os << ", ";
       *os << x;
     }
     *os << "]";
@@ -74,6 +76,7 @@ inline bool operator==(const ResizeParams &a, const ResizeParams &b) {
   return a.dst_size == b.dst_size && a.src_lo == b.src_lo && a.src_hi == b.src_hi;
 }
 
+// use a macro instead of a function to get meaningful line numbers from GTest
 #define CHECK_PARAMS(a, ...) EXPECT_EQ(ResizeParams(a), ResizeParams(__VA_ARGS__))
 
 TEST(ResizeAttr, ResizeSeparate) {
@@ -87,7 +90,7 @@ TEST(ResizeAttr, ResizeSeparate) {
     }};
     spec.AddArg("batch_size", shape.num_samples());
 
-    ResizeAttr attr(spec);
+    ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "HWC");
 
     CHECK_PARAMS(attr.params_[0], { { 360, 480 }, { 0, 0 }, { 768, 1024 } });
@@ -102,7 +105,7 @@ TEST(ResizeAttr, ResizeSeparate) {
     }};
     spec.AddArg("batch_size", shape.num_samples());
 
-    ResizeAttr attr(spec);
+    ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "HWC");
 
     CHECK_PARAMS(attr.params_[0], { { 480, 640 }, { 0, 0 }, { 768, 1024 } });
@@ -117,7 +120,7 @@ TEST(ResizeAttr, ResizeSeparate) {
     }};
     spec.AddArg("batch_size", shape.num_samples());
 
-    ResizeAttr attr(spec);
+    ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "CDHW");
 
     CHECK_PARAMS(attr.params_[0], { { 480, 720, 960 }, { 0, 0, 0 }, { 512, 768, 1024 } });
@@ -144,7 +147,7 @@ TEST(ResizeAttr, Resize3DStretchSeparateArgs) {
     spec.AddArg("batch_size", shape.num_samples());
     spec.AddArgumentInput("resize_z", "resize_z");
 
-    ResizeAttr attr(spec);
+    ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
     CHECK_PARAMS(attr.params_[0], { { 140, 130, 120 }, { 0, 0, 0 }, { 123, 234, 345 } });
@@ -157,7 +160,7 @@ TEST(ResizeAttr, Resize3DStretchSeparateArgs) {
     spec.AddArg("batch_size", shape.num_samples());
     spec.AddArgumentInput("resize_z", "resize_z");
 
-    ResizeAttr attr(spec);
+    ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
     // one coordinate is missing and mode is stretch - use geometric mean of the scales for the
@@ -193,7 +196,7 @@ TEST(ResizeAttr, Resize3DStretchSizeArg) {
   spec.AddArg("batch_size", shape.num_samples());
 
   {
-    ResizeAttr attr(spec);
+    ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
     CHECK_PARAMS(attr.params_[0], { { 140, 130, 120 }, { 0, 0, 0 }, { 123, 234, 345 } });
@@ -204,7 +207,7 @@ TEST(ResizeAttr, Resize3DStretchSizeArg) {
   size->mutable_tensor<float>(1)[1] = 0;
 
   {
-    ResizeAttr attr(spec);
+    ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
     // one coordinate is missing and mode is stretch - use geometric mean of the scales for the
@@ -222,7 +225,7 @@ TEST(ResizeAttr, Resize3DStretchSizeArg) {
   size->mutable_tensor<float>(1)[0] =  150;  // don't flip
 
   {
-    ResizeAttr attr(spec);
+    ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
     // one coordinate is missing and mode is stretch - use geometric mean of the scales for the
@@ -250,7 +253,7 @@ TEST(ResizeAttr, Resize3DNotLarger) {
     spec.AddArg("batch_size", shape.num_samples());
 
     {
-      ResizeAttr attr(spec);
+      ResizeAttr attr;
       attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
       CHECK_PARAMS(attr.params_[0], { { 750, 375, 500 }, { 0, 0, 0 }, { 1536, 768, 1024 } });
@@ -260,7 +263,7 @@ TEST(ResizeAttr, Resize3DNotLarger) {
     {
       spec.AddArg("resize_z", 600.0f);
 
-      ResizeAttr attr(spec);
+      ResizeAttr attr;
       attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
       CHECK_PARAMS(attr.params_[0], { { 600, 300, 400 }, { 0, 0, 0 }, { 1536, 768, 1024 } });
@@ -283,7 +286,7 @@ TEST(ResizeAttr, Resize3DNotSmaller) {
     spec.AddArg("batch_size", shape.num_samples());
 
     {
-      ResizeAttr attr(spec);
+      ResizeAttr attr;
       attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
       CHECK_PARAMS(attr.params_[0], { { 960, 480, 640 }, { 0, 0, 0 }, { 1536, 768, 1024 } });
@@ -293,7 +296,7 @@ TEST(ResizeAttr, Resize3DNotSmaller) {
     {
       spec.AddArg("resize_z", 160.0f);
 
-      ResizeAttr attr(spec);
+      ResizeAttr attr;
       attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
       CHECK_PARAMS(attr.params_[0], { { 960, 480, 640 }, { 0, 0, 0 }, { 1536, 768, 1024 } });
@@ -304,7 +307,7 @@ TEST(ResizeAttr, Resize3DNotSmaller) {
     {
       spec.SetArg("max_size", vector<float>{720.0f});
 
-      ResizeAttr attr(spec);
+      ResizeAttr attr;
       attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
       CHECK_PARAMS(attr.params_[0], { { 720, 360, 480 }, { 0, 0, 0 }, { 1536, 768, 1024 } });
@@ -314,7 +317,7 @@ TEST(ResizeAttr, Resize3DNotSmaller) {
     {
       spec.SetArg("max_size", vector<float>{720.0f, 384.0f, 400.0f});
 
-      ResizeAttr attr(spec);
+      ResizeAttr attr;
       attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
       CHECK_PARAMS(attr.params_[0], { { 600, 300, 400 }, { 0, 0, 0 }, { 1536, 768, 1024 } });
@@ -336,7 +339,7 @@ TEST(ResizeAttr, ResizeShorter) {
     spec.AddArg("batch_size", shape.num_samples());
 
     {
-      ResizeAttr attr(spec);
+      ResizeAttr attr;
       attr.PrepareResizeParams(spec, ws, shape, "FHWC");
 
       CHECK_PARAMS(attr.params_[0], { { 600, 1200 }, { 0, 0 }, { 400, 800 } });
@@ -346,7 +349,7 @@ TEST(ResizeAttr, ResizeShorter) {
     {
       spec.SetArg("max_size", vector<float>{800.0f, 1000.0f});
 
-      ResizeAttr attr(spec);
+      ResizeAttr attr;
       attr.PrepareResizeParams(spec, ws, shape, "FHWC");
 
       CHECK_PARAMS(attr.params_[0], { { 500, 1000 }, { 0, 0 }, { 400, 800 } });
@@ -367,7 +370,7 @@ TEST(ResizeAttr, ResizeLonger) {
     spec.AddArg("batch_size", shape.num_samples());
 
     {
-      ResizeAttr attr(spec);
+      ResizeAttr attr;
       attr.PrepareResizeParams(spec, ws, shape, "FCHW");
 
       CHECK_PARAMS(attr.params_[0], { { 300, 600 }, { 0, 0 }, { 400, 800 } });

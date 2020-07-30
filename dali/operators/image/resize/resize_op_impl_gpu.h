@@ -90,11 +90,13 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
     kernels::KernelContext context;
     context.gpu.stream = ws.stream();
 
+    CUDA_CALL(cudaDeviceSynchronize());
     for (size_t b = 0; b < minibatches_.size(); b++) {
       MiniBatch &mb = minibatches_[b];
 
       kmgr_.Run<Kernel>(0, b, context,
           mb.output, mb.input, make_span(params_.data() + mb.start, mb.count));
+      CUDA_CALL(cudaDeviceSynchronize());
     }
   }
 
@@ -114,6 +116,7 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
       auto &mb = minibatches_[i];
       mb.start = start;
       mb.count = end - start;
+      start = end;
     }
     return num_minibatches;
   }
