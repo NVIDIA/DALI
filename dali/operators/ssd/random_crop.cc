@@ -273,6 +273,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
       // now we know how many output bboxes there will be, we can allocate
       // the output.
       auto &img_out = ws.Output<CPUBackend>(0);
+      img_out.SetLayout(img.GetLayout());
       auto &bbox_out = ws.Output<CPUBackend>(1);
       auto &label_out = ws.Output<CPUBackend>(2);
 
@@ -312,7 +313,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
       // perform the crop
       detail::crop(img, {left_idx, top_idx, right_idx, bottom_idx},
-                   ws.Output<CPUBackend>(0));
+                   img_out);
 
       return;
     }  // end num_attempts loop
