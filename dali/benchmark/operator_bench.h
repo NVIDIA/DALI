@@ -29,7 +29,8 @@ class OperatorBench : public DALIBenchmark {
   template <typename OutputContainer, typename OperatorPtr, typename Workspace>
   void Setup(OperatorPtr &op_ptr, const OpSpec &spec, Workspace &ws, int batch_size) {
     std::vector<OutputDesc> outputs;
-    if (op_ptr->CanInferOutputs() && op_ptr->Setup(outputs, ws)) {
+    bool can_infer_outs = op_ptr->CanInferOutputs();
+    if (op_ptr->Setup(outputs, ws) && can_infer_outs) {
       int num_out = outputs.size();
       for (int i = 0; i < num_out; i++) {
         auto data_out = std::make_shared<OutputContainer>(batch_size);
