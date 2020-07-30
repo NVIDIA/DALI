@@ -319,15 +319,6 @@ class Operator<CPUBackend> : public OperatorBase {
     SetupSharedSampleParams(ws);
     RunImpl(ws);
     ws.GetThreadPool().WaitForWork();
-
-    if (ws.NumInput() > 0 && ws.NumOutput() > 0) {
-      auto in_layout = GetInputLayout(ws, 0);
-      auto out_layout = GetOutputLayout(ws, 0);
-      DALI_ENFORCE(
-          !out_layout.empty() || in_layout.empty() || spec_.name() == "DLTensorPythonFunctionImpl",
-          make_string("Operator: ", spec_.name(), " produced an empty layout. Input layout was ",
-                      in_layout));
-    }
   }
 
   /**
@@ -398,14 +389,6 @@ class Operator<GPUBackend> : public OperatorBase {
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
     RunImpl(ws);
-    if (ws.NumInput() > 0 && ws.NumOutput() > 0) {
-      auto in_layout = GetInputLayout(ws, 0);
-      auto out_layout = GetOutputLayout(ws, 0);
-      DALI_ENFORCE(
-          !out_layout.empty() || in_layout.empty() || spec_.name() == "DLTensorPythonFunctionImpl",
-          make_string("Operator: ", spec_.name(), " produced an empty layout. Input layout was ",
-                      in_layout));
-    }
   }
 
   /**
