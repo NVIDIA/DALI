@@ -25,7 +25,7 @@ DALI_SCHEMA(Resize)
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("save_attrs"));
   })
-  .InputLayout(0, {"HWC", "FHWC" /*, "DHWC", "FDHWC" */ })
+  .InputLayout(0, {"HWC", "FHWC", "CHW", "FCHW", "CFHW" /*, "DHWC", "FDHWC" */ })
   .AddOptionalArg("save_attrs",
       R"code(Save reshape attributes for testing.)code", false)
   .AddParent("ResizeAttr")
