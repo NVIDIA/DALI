@@ -154,6 +154,18 @@ if available. The optimal workload depends on the number of threads that are pro
 the DALI pipeline and should be found empirically. More details can be found at
 https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100)code",
       0.65f)
+  .AddOptionalArg("preallocate_width_hint",
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+Hint about the expected maximum width of the processed images. It helps to allocate ahead of time
+a memory pool for the HW JPEG decoder in NVIDIA Ampere GPU architecture.)code",
+      0)
+  .AddOptionalArg("preallocate_height_hint",
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+Hint about the expected maximum height of the processed images. It helps to allocate ahead of time
+a memory pool for the HW JPEG decoder in NVIDIA Ampere GPU architecture.)code",
+      0)
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
