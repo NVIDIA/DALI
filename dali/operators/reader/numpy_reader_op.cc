@@ -49,24 +49,21 @@ void NumpyReader::TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBa
 DALI_REGISTER_OPERATOR(NumpyReader, NumpyReader, CPU);
 
 DALI_SCHEMA(NumpyReader)
-  .DocStr("Read Numpy arrays from a directory")
+  .DocStr("Reads the Numpy arrays from a directory.")
   .NumInput(0)
   .NumOutput(1)  // (Arrays)
   .AddArg("file_root",
-      R"code(Path to a directory containing data files.
-`NumpyReader` supports flat directory structure. `file_root` directory should contain
-directories with numpy files in them.)code", DALI_STRING)
+      R"code(Path to a directory that contains the data files.
+
+:meth:`nvidia.dali.ops.NumpyReader` supports flat directory structure. The ``file_root`` directory
+should contain directories with numpy files in them.)code", DALI_STRING)
   .AddOptionalArg("file_filter",
-      R"code(If specified, the string will be interpreted as glob string to filter
-the list of files in the sub-directories of `file_root`.)code", "*.npy")
-  .AddOptionalArg("file_list",
-      R"code(Path to a text file containing rows of ``filename``, where the filenames are
-relative to ``file_root``. If left empty, ``file_root`` is traversed for subdirectories (only those at one level deep from
-``file_root``).)code", std::string())
+      R"code(If a value is specified, the string is interpreted as glob string to filter the
+list of files in the sub-directories of the ``file_root``.)code", "*.npy")
   .AddOptionalArg("shuffle_after_epoch",
-      R"code(If true, reader shuffles whole dataset after each epoch. It is exclusive with
-``stick_to_shard`` and ``random_shuffle``.)code",
-      false)
+      R"code(If set to True, the reader shuffles the entire dataset after each epoch.
+
+Using ``stick_to_shard`` and ``random_shuffle`` is mutually exclusive.)code", false)
   .AddParent("LoaderBase");
 
 }  // namespace dali

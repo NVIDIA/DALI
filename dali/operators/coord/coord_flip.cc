@@ -24,21 +24,25 @@ to a center point.)code")
     .NumOutput(1)
     .AddOptionalArg<TensorLayout>(
       "layout",
-      R"code(Determines the layout of the coordinates. Possible values are:
+      R"code(Determines the layout of the coordinates.
 
-  - ``x`` (horizontal position), 
-  - ``y`` (vertical position), 
+Here are the possible values:
+
+  - ``x`` (horizontal position),
+  - ``y`` (vertical position),
   - ``z`` (depthwise position),
 
-Note: If left empty, ``"x"``, ``"xy"`` or ``"xyz"`` will be assumed, depending on the number of dimensions.
+.. note::
+  If left empty, depending on the number of dimensions, the ``x``, ``xy``,
+  or ``xyz`` values are assumed.
 )code",
       TensorLayout{""})
     .AddOptionalArg("flip_x", R"code(Flip horizontal (x) dimension.)code", 1, true)
     .AddOptionalArg("flip_y", R"code(Flip vertical (y) dimension.)code", 0, true)
     .AddOptionalArg("flip_z", R"code(Flip depthwise (z) dimension.)code", 0, true)
-    .AddOptionalArg("center_x", R"code(Flip center on horizontal dimension.)code", 0.5f, true)
-    .AddOptionalArg("center_y", R"code(Flip center on vertical dimension.)code", 0.5f, true)
-    .AddOptionalArg("center_z", R"code(Flip center on depthwise dimension.)code", 0.5f, true);
+    .AddOptionalArg("center_x", R"code(Flip center on the horizontal dimension.)code", 0.5f, true)
+    .AddOptionalArg("center_y", R"code(Flip center on the vertical dimension.)code", 0.5f, true)
+    .AddOptionalArg("center_z", R"code(Flip center on the depthwise dimension.)code", 0.5f, true);
 
 
 class CoordFlipCPU : public CoordFlip<CPUBackend> {

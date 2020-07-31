@@ -25,41 +25,48 @@ namespace dali {
 DALI_SCHEMA(Constant)
   .DocStr(R"code(Produces a batch of constant tensors.
 
-The floating point input data should be placed in `fdata` argument and integer data in `idata`.
-The data is a flat vector of values or a single scalar. The data is then reshaped according
-to the `shape` argument. If the data is scalar, it will be broadcast to fill the entire shape.
+In ``idata``, the floating point input data should be placed in the ``fdata`` argument
+and integer data. The data, which is a flat vector of values or a scalar, is then reshaped
+according to the shape argument. If the data is scalar, it will be broadcast
+to fill the entire shape.
 
-The operator only performs meaningful work at first invocation - subsequent calls will return
+The operator only performs meaningful work at first invocation, and subsequent calls will return
 a reference to the same memory.
 
-The operator can be automatically instantiated in Python with a call to
+To automatically instantiate the operatorin Python, call
 :func:`types.Constant(value, dtype, shape, layout) <nvidia.dali.types.Constant>`.
-The value can be a scalar, a tuple, a list or a numpy array, in which case the `shape` and `dtype`
-(if not explicitly overridden), will be taken from that array.
+The value can be a scalar, a tuple, a list, or a numpy array. If not explicitly overridden,
+the ``shape`` and ``dtype`` (if not explicitly overridden), will be taken from the array.
 
-64-bit integer and double precision arrays are not supported and will be silently downgraded
-to 32-bit.
-)code")
+**Important**: 64-bit integer and double precision arrays are not supported and will be silently
+downgraded to 32-bit.)code")
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("shape",
                   "The desired shape of the output. If not set, the data is assumed to be 1D",
                   std::vector<int>())
   .AddOptionalArg("fdata",
-                  "Contents of the constant produced (for floating point types). "
-                  "`fdata` and `idata` are mutually exclusive and one of them is required",
+                  R"code(Contents of the constant that is produced (for floating point types).
+
+.. note::
+    ``fdata`` and ``idata`` are mutually exclusive, and one of them is required.)code",
                   std::vector<float>())
   .AddOptionalArg("idata",
-                  "Contents of the constant produced (for integer types). "
-                  "`fdata` and `idata` are mutually exclusive and one of them is required",
+                  R"code(Contents of the constant that is produced (for integer point types).
+
+.. note::
+    ``fdata`` and ``idata`` are mutually exclusive, and one of them is required.)code",
                   std::vector<int>())
   .AddOptionalArg("dtype",
-                  "Type of the output data. If not set, the output is float if `fdata` "
-                  "argument is used and int if `idata` is used.",
+                  R"code(Type of the output data.
+
+If this value is not set, the output is float if the fdata argument is used and
+int if idata is used.)code",
                   DALI_NO_TYPE)
   .AddOptionalArg("layout",
-                  "Layout info. If set and not empty, the layout must match the "
-                  "dimensionality of the output.",
+                  R"code(Layout info.
+
+If set and not empty, the layout must match the dimensionality of the output.)code",
                   TensorLayout());
 
 namespace {

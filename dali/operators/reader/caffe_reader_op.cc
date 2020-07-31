@@ -19,7 +19,7 @@ namespace dali {
 DALI_REGISTER_OPERATOR(CaffeReader, CaffeReader, CPU);
 
 DALI_SCHEMA(CaffeReader)
-  .DocStr("Read (Image, label) pairs from a Caffe LMDB.")
+  .DocStr("Reads (Image, label) pairs from a Caffe LMDB.")
   .NumInput(0)
   .OutputFn([](const OpSpec& spec) {
     auto image_available = spec.GetArgument<bool>("image_available");
@@ -27,12 +27,12 @@ DALI_SCHEMA(CaffeReader)
     return image_available + label_available;
   })
   .AddArg("path",
-      R"code(List of paths to Caffe LMDB directories.)code",
+      R"code(List of paths to the Caffe LMDB directories.)code",
       DALI_STRING_VEC)
   .AddOptionalArg("image_available",
-      R"code(If image is available at all in this LMDB.)code", true)
+      R"code(Determines whether an image is available in this LMDB.)code", true)
   .AddOptionalArg("label_available",
-      R"code(If label is available at all.)code", true)
+      R"code(Determines whether a label is available.)code", true)
   .AddParent("LoaderBase");
 
 }  // namespace dali

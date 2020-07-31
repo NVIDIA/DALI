@@ -20,39 +20,51 @@
 namespace dali {
 
 DALI_SCHEMA(MelFilterBank)
-    .DocStr(R"code(Converts a Spectrogram to a mel Spectrogram using triangular filter banks.
-Expects an input with 2 or more dimensions where the last two dimensions correspond to the
-fft bin index and the window index respectively.)code")
+    .DocStr(R"code(Converts a Spectrogram to a mel spectrogram by using triangular filter banks.
+
+Expects an input with at least 2 dimensions where the last two dimensions correspond to
+the fft bin index and the window index, respectively.
+)code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
     .AddOptionalArg("nfilter",
       R"code(Number of mel filters.)code",
       128)
     .AddOptionalArg("sample_rate",
-      R"code(Sampling rate of the audio signal)code",
+      R"code(Sampling rate of the audio signal.)code",
       44100.0f)
     .AddOptionalArg("freq_low",
-      R"code(Minimum frequency)code",
+      R"code(The minimum frequency.)code",
       0.0f)
     .AddOptionalArg("freq_high",
-      R"code(Maximum frequency. If not provided, `sample_rate / 2` will be used)code",
+      R"code(The maximum frequency.
+
+If this value is not provided, the following formula is used::
+
+  sample_rate /2
+)code",
       0.0f)
     .AddOptionalArg("normalize",
-      R"code(Whether to normalize the triangular filter weights by the width of their mel band.
-If set to true, the integral of the filter function will amount to 1.
-If set to false, the peak of the filter function will be 1)code",
+      R"code(Determines whether to normalize the triangular filter weights by the width
+of their mel bands.
+
+- If set to True, the integral of the filter function is 1.
+- If set to False, the peak of the filter function will be 1.)code",
       true)
     .AddOptionalArg("mel_formula",
-      R"code(Determines the formula used to convert frequencies from Hertz to mel and viceversa.
-The mel scale is a perceptual scale of pitches and therefore there is no single formula to it.
-Supported values are:
-- \"slaney\" : Follows Slaney's MATLAB Auditory Modelling Work behavior. This formula is linear
-under 1 KHz and logarithmic above. This implementation is consistent with Librosa's default
-implementation.
-- \"htk\" : Follows O'Shaughnessy's book formula `m = 2595 * log10(1 + (f/700))`. This is
-consistent with the implementation of the Hidden Markov Toolkit (HTK).
-)code",
-      "slaney");
+      R"code(Determines the formula that will be used to convert frequencies from Hertz to mel
+and from mel to Hertz.
+
+The mel scale is a perceptual scale of pitches, so there is no formula.
+
+The supported values are:
+
+- | ``slaney``, which follows Slaney’s MATLAB Auditory Modelling Work behavior.
+  | This formula is linear under 1 KHz and logarithmic above this value. The implementation is
+    consistent with Librosa’s default implementation.
+- | ``htk``, which follows O’Shaughnessy’s book formula, ``m = 2595 * log10(1 + (f/700))``.
+  | This value is consistent with the implementation of the Hidden Markov Toolkit (HTK).
+)code", "slaney");
 
 template <>
 bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,

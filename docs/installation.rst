@@ -40,6 +40,10 @@ Installation
 
 Execute the following command to install latest DALI for specified CUDA version:
 
+.. note::
+
+  Please always use the latest version of pip available (at least >= 19.3) and update when possible by issuing `pip install --upgrade pip`
+
 * for CUDA 10:
 
 .. code-block:: bash

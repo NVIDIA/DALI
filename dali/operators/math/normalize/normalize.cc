@@ -22,27 +22,29 @@
 namespace dali {
 
 DALI_SCHEMA(Normalize)
-  .DocStr(R"(Normalizes the input by removing mean and dividing by standard deviation.
+  .DocStr(R"(Normalizes the input by removing the mean and dividing by the standard deviation.
 
-The mean and standard deviation can be calculated internally for specified subset of axes or
-can be externally provided as `mean` and `stddev` arguments.
+The mean and standard deviation can be calculated internally for the specified subset
+of axes or can be externally provided as the ``mean`` and ``stddev`` arguments.
 
 The normalization is done following the formula::
 
-    out = scale * (in - mean) / stddev + shift
+  out = scale * (in - mean) / stddev + shift
 
-The expression assumes that *out*, *in* are equally shaped tensors whereas *mean* and *stddev*
-may be either tensors of same shape or scalars or a mix of these. The expression follows
-*numpy* broadcasting rules.
+The formula assumes that *out* and *in* are equally shaped tensors, but *mean* and *stddev* might
+be either tensors of same shape, scalars, or a mix of these.
 
-Sizes of (non-scalar) `mean` and `stddev` must have either extent of 1, if given axis is reduced,
-or match the corresponding extent of the input. A dimension is considered reduced if it's listed
-in `axes` or `axis_names`. If neither `axes` nor `axis_names` argument is
-present, the set of reduced axes is inferred by comparing input shape to the shape of
-mean/stddev arguments, but it is enforced that the set of reduced axes is the same for all tensors
-in the batch.
+.. note::
+  The expression follows the *numpy* broadcasting rules.
 
-Examples of valid argument combinations:
+Sizes of the non-scalar ``mean`` and ``stddev`` must have an extent of 1, if the specified axis
+is reduced, or match the corresponding extent of the input. A dimension is considered reduced
+if it is listed in ``axes`` or ``axis_names``. If neither the ``axes`` nor the ``axis_names``
+argument is present, the set of reduced ``axes`` is inferred by comparing the input
+shape to the shape of the mean/stddev arguments, but the set of reduced ``axes`` must
+be the same for all tensors in the batch.
+
+Here are some examples of valid argument combinations:
 
 1. Per-sample normalization of dimensions 0 and 2::
 
@@ -52,8 +54,8 @@ Examples of valid argument combinations:
     mean.shape =  [ [1, 640, 1], [1, 1920, 1] ]
     stddev = (not supplied)
 
-With these shapes, batch normalization is not possible, because the non-reduced dimension
-has different extent across samples.
+  With these shapes, batch normalization is not possible, because the non-reduced dimension
+  has a different extent across samples.
 
 2. Batch normalization of dimensions 0 and 1::
 
@@ -63,43 +65,59 @@ has different extent across samples.
     mean = (scalar)
     stddev.shape =  [ [1, 1, 3] ] ]
 
-For color images, this normalizes the 3 color channels separately, but across all
-samples in the batch.
+For color images, this example normalizes the 3 color channels separately, but across all
+samples in the batch. This operator allows sequence inputs and supports volumetric data.
 )")
   .NumInput(1)
   .NumOutput(1)
   .SupportVolumetric()
   .AllowSequences()
-  .AddOptionalArg("batch", "If True, the mean and standard deviation are calculated across tensors "
-    "in the batch. This also requires that the input sample shapes in the non-averaged axes match.",
+  .AddOptionalArg("batch", R"code(If set to True, the mean and standard deviation are calculated
+across tensors in the batch.
+
+This argument also requires that the input sample shapes in the non-averaged axes match.)code",
     false)
-  .AddOptionalArg<float>("mean", "Mean value to subtract from the data. It can be either a scalar "
-    "or a batch of tensors with same dimensionality as the input and the extent in each dimension "
-    "must either match that of the input or be equal to 1 (in which case the value will be "
-    "broadcast in this dimension). If not specified, the mean is calculated from the input. "
-    "Non-scalar mean cannot be used when `batch` argument is True.",
+  .AddOptionalArg<float>("mean", R"code(Mean value that needs to be subtracted from the data.
+
+The value can be a scalar or a batch of tensors with same dimensionality as the input.
+The extent in each dimension must match the value of the input or be equal to 1. If the
+value is 1, it will be broadcast in this dimension. If the value is not specified, the
+mean is calculated from the input. A non-scalar mean cannot be used when batch argument
+is set to True.)code",
     0.0f, true)
-  .AddOptionalArg<float>("stddev", "Standard deviation value to scale the data. For shape "
-    "constraints, see *mean* argument. If not specified, the standard deviation is calculated "
-    "from the input. Non-scalar mean cannot be used when `batch` argument is True.",
-    0.0f, true)
-  .AddOptionalArg("axes", "Indices of dimensions along which the input is normalized. By default, "
-    "all axes are used. Axes can also be specified by name, see *axes_names*.",
-    std::vector<int>{}, false)
-  .AddOptionalArg<TensorLayout>("axis_names", "Names of the axes in the input - axis indices "
-    "are taken from the input layout. This argument cannot be used together with *axes*.", "")
-  .AddOptionalArg("shift", "The value to which the mean will map in the output. Useful for "
-    "unsigned output types.", 0.0f, false)
-  .AddOptionalArg("scale", "The scaling factor applied to the output. Useful for integral "
-    "output types", 1.0f, false)
-  .AddOptionalArg("epsilon", "A value added to the variance to avoid division by small numbers",
-    0.0f, false)
-  .AddOptionalArg("ddof", "Delta Degrees of Freedom for Bessel's correction. "
-    "The variance is estimated as ``sum(Xi - mean)**2 / (N - ddof)``. "
-    "This argument is ignored when externally supplied standard deviation is used.", 0, false)
-  .AddOptionalArg("dtype", "Output type. When using integral types, use *shift* and *scale* to "
-    "improve usage of the output type's dynamic range. If dtype is an integral type, out of range "
-    "values are clamped, and non-integer values are rounded to nearest integer.", DALI_FLOAT);
+  .AddOptionalArg<float>("stddev", R"code(Standard deviation value to scale the data.
+
+See ``mean`` argument for more information about shape constraints. If a value is not specified,
+the standard deviation is calculated from the input. A non-scalar mean cannot be used when
+``batch`` argument is set to True.)code", 0.0f, true)
+  .AddOptionalArg("axes", R"code(Indices of dimensions along which the input is normalized.
+
+By default, all axes are used, and the axes can also be specified by name.
+See ``axes_names`` for more informaton.)code", std::vector<int>{}, false)
+  .AddOptionalArg<TensorLayout>("axis_names", R"code(Names of the axes in the input.
+
+Axis indices are taken from the input layout, and this argument cannot be used with ``axes``.)code",
+    "")
+  .AddOptionalArg("shift", R"code(The value to which the mean will map in the output.
+
+This argument is useful for unsigned output types.)code", 0.0f, false)
+  .AddOptionalArg("scale", R"code(The scaling factor applied to the output.
+
+This argument is useful for integral output types.)code", 1.0f, false)
+  .AddOptionalArg("epsilon", R"code(A value that is added to the variance to avoid division by
+small numbers.)code", 0.0f, false)
+  .AddOptionalArg("ddof", R"code(Delta Degrees of Freedom for Bessel’s correction.
+
+The variance is estimated by using the following formula::
+
+  sum(Xi - mean)**2 / (N - ddof).
+
+This argument is ignored when an externally supplied standard deviation is used.)code", 0, false)
+  .AddOptionalArg("dtype", R"code(Output type.
+
+When using integral types, use ``shift`` and ``scal``e to improve the usage of the output
+type’s dynamic range. If ``dtype`` is an integral type, out of range values are clamped,
+and non-integer values are rounded to nearest integer.)code", DALI_FLOAT);
 
 template <>
 class Normalize<CPUBackend> : public NormalizeBase<CPUBackend> {

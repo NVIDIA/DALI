@@ -26,11 +26,13 @@ DALI_REGISTER_OPERATOR(SequenceReader, SequenceReader, CPU);
 
 DALI_SCHEMA(SequenceReader)
     .DocStr(
-        R"code(Read [Frame] sequences from a directory representing collection of streams.
-Expects file_root to contain set of directories, each of them represents one extracted video
-stream. Extracted video stream is represented by one file for each frame, sorting the paths to
-frames lexicographically should give the original order of frames.
-Sequences do not cross stream boundary and only full sequences are considered - there is no padding.
+        R"code(Reads [Frame] sequences from a directory that represents a collection of streams.
+
+This class expects file_root to contain a set of directories, where each directory represents
+an extracted video stream. This stream is represented by one file for each frame and
+lexicographically sorting the paths to frames  will give the original order of frames.
+Sequences do not cross the stream boundary and only complete sequences are considered, so
+there is no padding.
 
 Example directory structure::
 
@@ -58,13 +60,13 @@ Example directory structure::
             R"code(Path to a directory containing streams (directories representing streams).)code",
             DALI_STRING)
     .AddArg("sequence_length",
-            R"code(Length of sequence to load for each sample)code", DALI_INT32)
+            R"code(Length of sequence to load for each sample.)code", DALI_INT32)
     .AddOptionalArg("step",
-                    R"code(Distance between first frames of consecutive sequences)code", 1, false)
+                    R"code(Distance between first frames of consecutive sequences.)code", 1, false)
     .AddOptionalArg("stride",
-                    R"code(Distance between consecutive frames in sequence)code", 1, false)
+                    R"code(Distance between consecutive frames in a sequence.)code", 1, false)
     .AddOptionalArg("image_type",
-                    R"code(The color space of input and output image)code", DALI_RGB, false)
+                    R"code(The color space of input and output image.)code", DALI_RGB, false)
     .AddParent("LoaderBase")
     .AllowSequences();
 

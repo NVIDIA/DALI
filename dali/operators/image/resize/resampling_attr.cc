@@ -20,20 +20,25 @@ namespace dali {
 DALI_SCHEMA(ResamplingFilterAttr)
   .DocStr(R"code(Resampling filter attribute placeholder)code")
   .AddOptionalArg("interp_type",
-      R"code(Type of interpolation used. Use `min_filter` and `mag_filter` to specify
-different filtering for downscaling and upscaling.)code",
+      R"code(Type of interpolation that was used.
+
+Use ``min_filter`` and mag_filter to specify different filtering for downscaling and upscaling.
+)code",
       DALI_INTERP_LINEAR, true)
-  .AddOptionalArg("mag_filter", "Filter used when scaling up",
+  .AddOptionalArg("mag_filter", "Filter used when scaling up.",
       DALI_INTERP_LINEAR, true)
-  .AddOptionalArg("min_filter", "Filter used when scaling down",
+  .AddOptionalArg("min_filter", "Filter used when scaling down.",
       DALI_INTERP_LINEAR, true)
-  .AddOptionalArg<DALIDataType>("dtype", "Output data type; must be same as input type or `float`. "
-     "If not set, input type is used.", nullptr)
+  .AddOptionalArg<DALIDataType>("dtype", R"code(Output data type.
+
+Must be same as input type or ``float``. If not set, input type is used.)code", nullptr)
   .AddOptionalArg("temp_buffer_hint",
-      "Initial size, in bytes, of a temporary buffer for resampling.\n"
-      "Ignored for CPU variant.\n",
+      R"code(Initial size in bytes, of a temporary buffer for resampling.
+
+This argument is ingored for the CPU variant.)code",
       0)
-  .AddOptionalArg("minibatch_size", "Maximum number of images processed in a single kernel call",
+  .AddOptionalArg("minibatch_size", R"code(Maximum number of images that were processed in
+a kernel call.)code",
       32);
 
 

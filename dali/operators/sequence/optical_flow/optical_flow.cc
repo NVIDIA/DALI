@@ -19,38 +19,56 @@ namespace dali {
 
 
 DALI_SCHEMA(OpticalFlow)
-                .DocStr(R"code(Calculates the Optical Flow for sequence of images given as a input.
-Mandatory input for the operator is a sequence of frames.
-As an optional input, operator accepts external hints for OF calculation.
-The output format of this operator matches the output format of OF driver API.
-Dali uses Turing optical flow hardware implementation: https://developer.nvidia.com/opticalflow-sdk
+                .DocStr(R"code(Calculates the optical flow for a sequence of images that were
+provided as the input.
+
+The mandatory input for the operator is a sequence of frames. As an Optionally, the operator
+also accepts external hints for the optical flow calculation. The output format of this operator
+matches the output format of the optical flow driver API.
+Refer to https://developer.nvidia.com/opticalflow-sdk for more information about the
+Turing and Ampere optical flow hardware that is used by DALI. This operator allows sequence inputs.
 )code")
                 .NumInput(1, 2)
                 .NumOutput(1)
-                .AddOptionalArg(detail::kPresetArgName, R"code(Speed/quality level of OF calculation:
+                .AddOptionalArg(detail::kPresetArgName, R"code(Speed and quality level of the
+optical flow calculation.
 
-- 0.0 is the lowest speed and the best quality,
-- 0.5 is the medium speed and quality,
-- 1.0 is the fastest speed and the lowest quality.
+Here are the supported values:
 
-The lower the speed, the more additional pre-/post-processing is used to enchance the quality of OF result.
+- 0.0: The lowest speed and the highest quality.
+- 0.5: The medium speed and quality.
+- 1.0: The fastest speed and the lowest quality.
+
+The lower the speed, the more additional pre- and postprocessing is used to enhance the quality of the optical flow result.
 )code", .0f, false)
                 .AddOptionalArg(detail::kOutputFormatArgName,
-                                R"code(Setting grid size for output vector.
-Value defines width of grid square (e.g. if value == 4, 4x4 grid is used).
-For values <=0, grid size is undefined. Currently only grid_size=4 is supported.)code", -1, false)
+                                R"code(Sets the grid size for the output vector.
+
+The value defines the width of the grid square. For example,if vthe value == 4, a 4x4 grid is used.
+For values that are less than or equal to 0, the grid size is undefined.
+
+.. note::
+  Currently, only a grid_size=4 is supported.
+)code", -1, false)
                 .AddOptionalArg(detail::kEnableTemporalHintsArgName,
-                                R"code(enabling/disabling temporal hints for sequences longer than 2 images.
-They are used to speed up calculation: previous OF result in sequence is used to calculate current flow. You might
-want to use temporal hints for sequences, that don't have much changes in the scene (e.g. only moving objects))code",
+                                R"code(Enables or disables temporal hints for sequences that are
+longer than two images.
+
+The hints are used to speed up the calculation, where the previous optical flow result
+in the sequence is used to calculate current flow. We recommend that you use temporal
+hints for sequences that do not have many changes in the scene (for example, only moving objects).
+))code",
                                 false, false)
                 .AddOptionalArg(detail::kEnableExternalHintsArgName,
-                                R"code(enabling/disabling external hints for OF calculation. External hints
-are analogous to temporal hints, only they come from external source. When this option is enabled,
-Operator requires 2 inputs.)code",
+                                R"code(Enables or disables the external hints for optical flow
+calculations.
+
+External hints are analogous to temporal hints, but the only difference is that external hints
+come from an external source. When this option is enabled, the operator requires two inputs.
+)code",
                                 false, false)
                 .AddOptionalArg(detail::kImageTypeArgName,
-                                R"code(Type of input images (RGB, BGR, GRAY))code", DALI_RGB,
+                                R"code(Type of input images, including RGB, BGR, and GRAY.)code", DALI_RGB,
                                 false)
                 .AllowSequences();
 

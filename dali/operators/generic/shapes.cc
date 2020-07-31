@@ -22,7 +22,7 @@ DALI_SCHEMA(Shapes)
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .AddOptionalArg("type", R"code(Data type, to which the sizes are converted.)code", DALI_INT64);
+    .AddOptionalArg("type", R"code(Data type to which the sizes are converted.)code", DALI_INT64);
 
 DALI_REGISTER_OPERATOR(Shapes, Shapes<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(Shapes, Shapes<GPUBackend>, GPU);

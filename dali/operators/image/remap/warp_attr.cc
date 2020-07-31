@@ -21,15 +21,20 @@ DALI_SCHEMA(WarpAttr)
   .DocStr(R"code(Apply an affine transformation to the image.)code")
   .AddOptionalArg<float>("size",
       R"code(Output size, in pixels/points.
-Non-integer sizes are rounded to nearest integer.
-Channel dimension should be excluded (e.g. for RGB images specify (480,640), not (480,640,3).)code",
+
+Non-integer sizes are rounded to nearest integer. The channel dimension should
+be excluded (for example, for RGB images, specify ``(480,640)``, not ``(480,640,3)``.
+)code",
       vector<float>(), true)
-  .AddOptionalArg("fill_value", R"(Value used to fill areas that are outside source image.
-If not specified, source coordinates are clamped and the border pixel is repeated.)",
-      0.0f)
+  .AddOptionalArg("fill_value", R"code(Value used to fill areas that are outside source image.
+
+If a value is not specified, the source coordinates are clamped and the border pixel is
+repeated.)code", 0.0f)
   .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("dtype",
-      R"code(Output data type. By default, same as input type)code",
+      R"code(Output data type.
+
+By default, it is identical to the input type.)code",
       DALI_NO_TYPE)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",

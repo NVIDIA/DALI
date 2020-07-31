@@ -21,7 +21,7 @@ namespace dali {
 DALI_REGISTER_OPERATOR(Sphere, Sphere<CPUBackend>, CPU);
 
 DALI_SCHEMA(Sphere)
-    .DocStr("Perform a sphere augmentation.")
+    .DocStr("Performs a sphere augmentation.")
     .NumInput(1)
     .NumOutput(1)
     .InputLayout(0, "HWC")

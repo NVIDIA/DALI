@@ -20,13 +20,14 @@ namespace dali {
 
 DALI_SCHEMA(BBoxPaste)
     .DocStr(
-        R"code(Transforms bounding boxes so that they are in the same place in the image after pasting it onto a larger canvas.
+        R"code(This operator transforms bounding boxes so that the boxes  remain in the same
+place in the image after the image is pasted on a larger canvas.
 
-Corner coordinates::
+Here are the corner coordinates::
 
   (x', y') = (x/ratio + paste_x', y/ratio + paste_y')
 
-Box sizes::
+Here are the box sizes::
 
   (w', h') = (w/ratio, h/ratio)
 
@@ -35,22 +36,23 @@ Where::
   paste_x' = paste_x * (ratio - 1)/ratio
   paste_y' = paste_y * (ratio - 1)/ratio
 
-Paste coordinates are normalized so that `(0,0)` aligns the image to top-left of the canvas and `(1,1)` aligns it to bottom-right.
+The paste coordinates are normalized so that ``(0,0)`` aligns the image to top-left of the
+canvas and ``(1,1)`` aligns it to bottom-right.
 )code")
   .NumInput(1)
   .NumOutput(1)
   .AddArg("ratio",
-      R"code(Ratio of canvas size to input size, must be > 1.)code",
+      R"code(RRatio of the canvas size to the input size, and the value must be greater than 1.)code",
       DALI_FLOAT, true)
   .AddOptionalArg("ltrb",
-              R"code(True, for two-point (ltrb).
-False for for width-height representation.)code",
+              R"code(Set to True for two-point (ltrb) and set to False for the width-height
+representation.)code",
               false, false)
   .AddOptionalArg("paste_x",
-      R"code(Horizontal position of the paste in image coordinates (0.0 - 1.0))code",
+      R"code(Horizontal position of the paste in the image coordinates (0.0 - 1.0).)code",
       0.5f, true)
   .AddOptionalArg("paste_y",
-      R"code(Vertical position of the paste in image coordinates (0.0 - 1.0))code",
+      R"code(Vertical position of the paste in the image coordinates (0.0 - 1.0).)code",
       0.5f, true);
 
 template<>

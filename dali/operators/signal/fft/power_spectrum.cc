@@ -25,21 +25,32 @@ static constexpr int kNumOutputs = 1;
 namespace dali {
 
 DALI_SCHEMA(PowerSpectrum)
-    .DocStr(R"code(Power spectrum of signal.)code")
+    .DocStr(R"code(Power spectrum of the signal.)code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
     .AddOptionalArg("nfft",
-      R"code(Size of the FFT. By default nfft is selected to match the lenght of the data in the
-transformation axis. The number of bins created in the output is `nfft // 2 + 1` (positive part
-of the spectrum only).)code",
+      R"code(Size of the FFT.
+
+By default, the ``nfft`` is selected to match the length of the data in the transformation axis.
+
+The number of bins that are created in the output is calculated with the following formula::
+
+   nfft // 2 + 1
+
+This value applies only to the positive part of the spectrum.)code",
       -1)
     .AddOptionalArg("axis",
-      R"code(Index of the dimension to be transformed to the frequency domain. By default, the
-last dimension is selected.)code",
+      R"code(Index of the dimension to be transformed to the frequency domain.
+
+By default, the last dimension is selected.)code",
       -1)
     .AddOptionalArg("power",
-      R"code(Exponent of the fft magnitude: Supported values are `2` for power spectrum
-(`real*real + imag*imag`) and `1` for complex magnitude (`sqrt(real*real + imag*imag)`).)code",
+      R"code(Exponent of the FFT magnitude.
+
+The supported values are:
+
+* ``2`` for power spectrum ``(real*real + imag*imag)``
+* ``1`` for the complex magnitude ``(sqrt(real*real + imag*imag))``.)code",
       2);
 
 template <>

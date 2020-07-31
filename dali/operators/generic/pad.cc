@@ -24,17 +24,16 @@
 namespace dali {
 
 DALI_SCHEMA(Pad)
-  .DocStr(R"code(Pads all samples with `fill_value` in the given `axes`,
-to match the biggest extent in the batch for those axes, or to match the minimum `shape`
-specified.
+  .DocStr(R"code(Pads all samples with the ``fill_value`` in the specified axes to match
+the biggest extent in the batch for those axes or to match the minimum shape specified.
 
-Supported types are integer and floating point numeric types.
+The supported types are integer and floating point numeric types.
 
-Examples:
+Here are a few examples:
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,)
 
-Samples are padded in the first axis to match the extent of the largest sample.
+The samples are padded in the first axis to match the extent of the largest sample.
 
 ::
 
@@ -47,7 +46,7 @@ Samples are padded in the first axis to match the extent of the largest sample.
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `shape` = (7,)
 
-Samples are padded in the first axis to a minimum extent of 7.
+The samples are padded in the first axis to a minimum extent of 7.
 
 ::
 
@@ -62,8 +61,9 @@ Samples are padded in the first axis to a minimum extent of 7.
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `align` = (4,)
 
-Samples are padded in the first axis to match the extent of the largest sample and the alignment requirements
-(largest extent is 5 but it is extended to 8 to satisfy the alignment requirements).
+The samples are padded in the first axis to match the extent of the largest sample and the
+alignment requirements. Thelargest extent is 5, but it is extended to 8 to satisfy the
+alignment requirements.
 
 ::
 
@@ -76,9 +76,8 @@ Samples are padded in the first axis to match the extent of the largest sample a
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `shape` = (1,), `align` = (2,)
 
-Samples are padded in the first axis to match the alignments requirements only.
-Note that we are setting the minimum extent (``shape``) to 1 to avoid any padding other than the necessary
-for alignment.
+The samples are padded in the first axis to match the alignments requirements only.
+The minimum extent (shape) is set to 1 to avoid any padding other than the necessary for alignment.
 
 ::
 
@@ -91,8 +90,8 @@ for alignment.
 
 - `2-D` samples, `fill_value` = 42, `axes` = (1,)
 
-Samples are padded in the second axis  to match the extent of the largest sample, and uses a custom fill
-value (42 instead of the default 0).
+The samples are padded in the second axis to match the extent of the largest sample and uses a
+custom fill value 42 instead of the default 0.
 
 ::
 
@@ -107,7 +106,8 @@ value (42 instead of the default 0).
 
 - `2-D` samples, `fill_value` = 0, `axes` = (0, 1), `align` = (4, 5)
 
-Samples are padded in the first and second axes to match the alignment requirements of each axis.
+The samples are padded in the first and second axes to match the alignment requirements
+of each axis.
 
 ::
 
@@ -127,7 +127,8 @@ Samples are padded in the first and second axes to match the alignment requireme
 
 - `2-D` samples, `fill_value` = 0, `axes` = (0, 1), `align` = (1, 2), `shape` = (4, -1)
 
-Samples are padded in the first axis to match a minimum extent of 4, and in the second axis to match the largest sample in the batch and an aligment of 2.
+The samples are padded in the first axis to match a minimum extent of 4, and in the second
+axis to match the largest sample in the batch and an alignment of 2.
 
 ::
 
@@ -151,33 +152,36 @@ Samples are padded in the first axis to match a minimum extent of 4, and in the 
     0.0f)
   .AddOptionalArg<int>("axes",
     R"code(Indices of the axes on which the batch samples will be padded.
-Indexes are zero-based with 0 being the outer-most dimension of the tensor.
-Arguments *axis_names* and *axes* are mutually exclusive.
-If *axes* and *axis_names* are empty or not provided, the output will be padded on all the axes)code",
-    std::vector<int>())
+
+Indexes are zero-based, with 0 being the outer-most dimension of the tensor. The ``axis_names``
+and ``axes`` arguments are mutually exclusive. If ``axes`` and ``axis_names`` are empty, or
+have not been provided, the output will be padded on all of the axes.)code", std::vector<int>())
   .AddOptionalArg<TensorLayout>("axis_names",
     R"code(Names of the axes on which the batch samples will be padded.
-Dimension names should correspond to dimensions in the input layout.
-Arguments *axis_names* and *axes* are mutually exclusive.
-If *axes* and *axis_names* are empty or not provided, the output will be padded on all the axes)code",
-    "")
+
+Dimension names should correspond to dimensions in the input layout. The ``axis_names`` and
+``axes`` arguments are mutually exclusive. If ``axes`` and ``axis_names`` are empty, or
+have not been not provided, the output will be padded on all of the axes.)code", "")
   .AddOptionalArg<int>("align",
-    R"code(If specified, determines the alignment on those dimensions specified by *axes* or
-*axis_names*. That is, the extent on `axis = axes[i]` will be adjusted to be a multiple of `align[i]`.
+    R"code(If specified, this argument determines the alignment on the dimensions specified
+by ``axes`` or ``axis_names``.
 
-If a single integer value is provided, the alignment restrictions are applied to all the padded axes.
+The extent on ``axis = axes[i]`` will be adjusted to be a multiple of ``align[i]``.
 
-To use alignment only, i.e. without any default or explicit padding behavior, set the minimum ``shape``
-to 1 for a given axis.)code",
+If an integer value is provided, the alignment restrictions are applied to all the padded axes.
+
+To use alignment only, for example without any default or explicit padding behavior,
+set the minimum ``shape`` to 1 for the specified axis.)code",
     std::vector<int>())
   .AddOptionalArg<int>("shape",
-    R"code(The extents of the output shape in the axes specified by *axes* or *axis_names*.
-Specifying -1 for an axis restores the default behavior of extending the axis to accommodate the
-(aligned) size of the largest sample in the batch.
+    R"code(The extents of the output shape in the axes specified by the ``axes`` or ``axis_names``.
 
-If the provided extent is smaller than the one of the sample, no padding will be applied, except what
-is needed to match required alignment. That is, in order to disable padding in a given axis (except the
-necessary for aligment) we can specify a value of 1.)code",
+Specifying -1 for an axis restores the default behavior of extending the axis to accommodate
+the aligned size of the largest sample in the batch.
+
+If the provided extent is smaller than the one of the samples, padding will be applied
+only to match the required alignment. For example, to disable padding in an axis, except
+for the necessary for alignment, you can specify a value of 1.)code",
     vector<int>());
 
 template <>

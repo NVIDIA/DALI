@@ -27,11 +27,11 @@ void CoinFlip::RunImpl(HostWorkspace &ws) {
 DALI_REGISTER_OPERATOR(CoinFlip, CoinFlip, CPU);
 
 DALI_SCHEMA(CoinFlip)
-  .DocStr("Produce tensor filled with 0s and 1s - results of random coin flip,"
-      " usable as an argument for select ops.")
+  .DocStr(R"code(Produces a tensor filled with 0s and 1s, which is the results of random coin flips
+and is usable as an argument for select operators.)code")
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("probability",
-      R"code(Probability of returning 1.)code", 0.5f);
+      R"code(Probability of returning a value of 1.)code", 0.5f);
 
 }  // namespace dali

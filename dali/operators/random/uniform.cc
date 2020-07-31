@@ -31,12 +31,12 @@ void Uniform::RunImpl(HostWorkspace &ws) {
 DALI_REGISTER_OPERATOR(Uniform, Uniform, CPU);
 
 DALI_SCHEMA(Uniform)
-  .DocStr("Produce tensor filled with uniformly distributed random numbers.")
+  .DocStr("Produces a tensor filled with uniformly distributed random numbers.")
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("range",
     R"code(Range of produced random numbers.)code", std::vector<float>({-1, 1}))
   .AddOptionalArg("shape",
-    R"code(Shape of the samples)code", std::vector<int>{1});
+    R"code(Shape of the samples.)code", std::vector<int>{1});
 
 }  // namespace dali

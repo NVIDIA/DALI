@@ -64,19 +64,21 @@ DALI_SCHEMA(_ExternalSource)
       R"code(Whether external source should block until data is available or just
 fail when it is not)code", true)
   .AddOptionalArg("no_copy",
-      R"code(Whether DALI should copy the buffer when feed_input is called
-If True, DALI passes the user memory directly to the Pipeline, instead of copying.
-It is the user's responsibility to keep the buffer alive and unmodified
-until it is consumed by the pipeline.
+      R"code(Determines whether DALI should copy the buffer when feed_input is called.
 
-The buffer can be modified or freed again after the relevant iteration output has been consumed.
-Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
-(when they are not equal) iterations following the``feed_input`` call.
+If set to True, DALI passes the user memory directly to the pipeline, instead of copying the
+memory. It is your responsibility to keep the buffer alive and unmodified until it is
+consumed by the pipeline.
 
-Provided memory must match the specified `device` parameter of the operator.
-For CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
-For GPU to not do any copies the provided buffer must be contiguous. If user provides a list
-of separate Tensors there will be an additional internal copy made.)code", false)
+The buffer can be modified or freed again after the relevant number of iteration output
+has been consumed. Effectively, it happens after ``prefetch_queue_depth`` or
+``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
+the``feed_input`` call.
+
+The memory that is provided memory must match the specified ``device`` parameter of the operator.
+For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
+For the GPU, to prevent copying, the provided buffer must be contiguous. If you provides a list
+of separate Tensors, there will be an additional internal copy made.)code", false)
   .MakeInternal();
 
 DALI_SCHEMA(ExternalSource)
@@ -104,7 +106,7 @@ The buffer can be modified or freed again after the relevant iteration output ha
 Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
 (when they are not equal) iterations following the``feed_input`` call.
 
-Provided memory must match the specified `device` parameter of the operator.
+Provided memory must match the specified ``device`` parameter of the operator.
 For CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
 For GPU to not do any copies the provided buffer must be contiguous. If user provides a list
 of separate Tensors there will be an additional internal copy made.)code", false);

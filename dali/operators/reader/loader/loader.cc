@@ -19,43 +19,59 @@ namespace dali {
 
 DALI_SCHEMA(LoaderBase)
   .AddOptionalArg("random_shuffle",
-      R"code(Whether to randomly shuffle data. Prefetch buffer of `initial_fill` size is used
-to sequentially read data and then randomly sample it to form a batch.)code", false)
+      R"code(Determines whether to randomly shuffle data.
+
+Prefetches the buffer of the ``initial_fill`` size and is used to sequentially readand randomly
+sample the data to form a batch.)code", false)
   .AddOptionalArg("initial_fill",
-      R"code(Size of the buffer used for shuffling. If `random_shuffle` is off then
-this parameter is ignored.)code", 1024)
+      R"code(Size of the buffer that is used for shuffling.
+
+If ``random_shuffle`` is turned off,  this parameter is ignored.)code", 1024)
   .AddOptionalArg("num_shards",
-      R"code(Partition the data into this many parts (used for multiGPU training).)code", 1)
+      R"code(Partitions the data into the specified number of parts and is used for multi-GPU
+training.)code", 1)
   .AddOptionalArg("shard_id",
-      R"code(Id of the part to read.)code", 0)
+      R"code(ID of the part to read.)code", 0)
   .AddOptionalArg("tensor_init_bytes",
       R"code(Hint for how much memory to allocate per image.)code", 1048576)
   .AddOptionalArg("stick_to_shard",
-      R"code(Whether reader should stick to given data shard instead of going through the whole dataset.
-When decoder caching is used, it reduces significantly the amount of data to be cached, but could affect
-accuracy in some cases)code", false)
+      R"code(Determines whether the reader should stick to a data shard instead of going through
+the entire dataset.
+
+If you use the decoder caching, it significantly reduces the amount of data to be cached, which
+might affect accuracy.)code", false)
   .AddOptionalArg("read_ahead",
-      R"code(Whether accessed data should be read ahead. In case of big files like LMDB,
-RecordIO or TFRecord it will slow down first access but will decrease the time of all following
-accesses.)code", false)
+      R"code(Determines whether the accessed data should be read ahead.
+
+For large files such as LMDB, RecordIO, or TFRecord, this argument slows down the first access but
+decreases the time of all of the following accesses.)code", false)
   .AddOptionalArg("prefetch_queue_depth",
-      R"code(Specifies the number of batches prefetched by the internal Loader. To be increased when pipeline
-processing is CPU stage-bound, trading memory consumption for better interleaving with the Loader thread.)code", 1)
+      R"code(Specifies the number of batches that have been prefetched by the internal Loader.
+
+This value will be increased when the pipeline processing is CPU stage-bound and is trading memory
+consumption for better interleaving with the Loader thread.)code", 1)
   .AddOptionalArg("skip_cached_images",
-      R"code(If set to true, loading data will be skipped when the sample is present in the decoder cache.
-In such case the output of the loader will be empty)code", false)
+      R"code(If set to True, the loading data will be skipped when the sample is
+in the decoder cache.
+
+In this case, the output of the loader will be empty.)code", false)
   .AddOptionalArg("lazy_init",
-      R"code(If set to true, Loader will parse and prepare the dataset metadata only during the first `Run`
-instead of in the constructor.)code", false)
+      R"code(If set to True, the Loader parses and prepares the dataset metadata only during the
+first run instead of in the constructor.)code", false)
   .AddOptionalArg("pad_last_batch",
-      R"code(If set to true, the Loader will pad the last batch with the last image when the batch size is
-not aligned with the shard size. It means that the remainder of the batch or even the whole batch can be
-artificially added when the data set size is not equally divisible by the number of shards, and the shard is
-not equally divisible by the batch size. In the end, the shard size will be equalized between shards.)code", false)
+      R"code(If set to True, when the batch size is not aligned with the shard size, the Loader
+pads the last batch with the last image.
+
+The rest of the batch, or the entire batch, can be added when the data set size is not equally
+divisible by the number of shards, and the shard is not equally divisible by the batch size. The
+shard size will ultimately be equalized between shards.)code", false)
 .AddOptionalArg("dont_use_mmap",
-      R"code(If set to true, the Loader will not attempt to map the file in memory and will use plain
-file I/O instead. Mapping provides a small performance benefit when accessing a local file system,
-but most of the network ones, due to their nature, don't provide optimum performance)code", false);
+      R"code(If set to True, instead of trying to map the file memory,
+the Loader will use plain file I/O.
+
+Mapping provides a small performance benefit when accessing a local file system, but most network file
+systems, do not provide optimum performance.
+)code", false);
 
 size_t start_index(const size_t shard_id,
                    const size_t shard_num,

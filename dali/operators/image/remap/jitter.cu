@@ -19,14 +19,14 @@
 namespace dali {
 
 DALI_SCHEMA(Jitter)
-  .DocStr(R"code(Perform a random Jitter augmentation.
-The output image is produced by moving each pixel by a
-random amount bounded by half of `nDegree` parameter
-(in both x and y dimensions).)code")
+  .DocStr(R"code(Performs a random Jitter augmentation.
+
+The output image is produced by moving each pixel by a random amount, in the x and y dimensions,
+and bounded by half of the ``nDegree`` parameter.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("nDegree",
-      R"code(Each pixel is moved by a random amount in range `[-nDegree/2, nDegree/2]`.)code",
+      R"code(Each pixel is moved by a random amount in the ``[-nDegree/2, nDegree/2]`` range)code",
       2)
   .InputLayout(0, "HWC")
   .AddParent("DisplacementFilter");

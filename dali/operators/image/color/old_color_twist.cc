@@ -280,33 +280,48 @@ void OldColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 }
 
 DALI_SCHEMA(OldColorTwist)
-    .DocStr(R"code(Combination of hue, saturation, contrast and brightness. Old implementation using NPP.)code")
+    .DocStr(R"code(A combination of hue, saturation, contrast, and brightness.
+
+This is an old implementation that was using NPP.)code")
     .Deprecate("ColorTwist")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue", R"code(Hue change, in degrees.)code", 0.f, true)
     .AddOptionalArg("saturation",
                     R"code(Saturation change factor.
-Values >= 0 are supported. For example:
 
-* `0` - completely desaturated image
-* `1` - no change to image's saturation)code",
+Here are the supported values:
+
+* 0: A completely desaturated image.
+* 1: No change to an image’s saturation.
+
+.. note::
+  You must use a value that is greater than or equal to 0.)code",
                     1.f, true)
     .AddOptionalArg("contrast",
                     R"code(Contrast change factor.
-Values >= 0 are accepted. For example:
 
-* `0` - gray image,
-* `1` - no change
-* `2` - increase contrast twice)code",
+Here are the supported values:
+
+* 0: A gray image.
+* 1: No change.
+* 2: Increase the contrast twice.
+
+.. note::
+  You must use a value that is greater than or equal to 0.)code",
                     1.f, true)
     .AddOptionalArg("brightness",
                     R"code(Brightness change factor.
-Values >= 0 are accepted. For example:
 
-* `0` - black image,
-* `1` - no change
-* `2` - increase brightness twice)code",
+Here are the supported values:
+
+* 0: A black image.
+* 1: No change.
+* 2: Increase the brightness twice.
+
+.. note::
+   You must use a value that is greater than or equal to 0.
+)code",
                     1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");

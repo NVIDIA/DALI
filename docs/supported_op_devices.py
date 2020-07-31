@@ -21,7 +21,6 @@ def main(argv):
     name_bar = op_name_max_len * '='
     formater = '{:{c}<{op_name_max_len}} {:{c}^6}  {:{c}^6}  {:{c}^7} {:{c}^9} {:{c}^10}\n'
     doc_table = ''
-    doc_table += 'Below table lists all available operators and devices they can operate on.\n\n'
     doc_table += '.. |v| image:: images/tick.gif\n'
     doc_table += '\n'
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')

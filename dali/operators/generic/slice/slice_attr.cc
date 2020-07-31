@@ -23,29 +23,21 @@ DALI_SCHEMA(SliceAttr)
     .DocStr(R"code(Slice attributes placeholder)code")
     .AddOptionalArg("axes",
         R"code(Order of dimensions used for the anchor and shape slice inputs as dimension
-indices.)code",
+indexes.)code",
         std::vector<int>{1, 0})
     .AddOptionalArg("axis_names",
-        R"code(Order of the dimensions used for the anchor and shape slice inputs,
-as described in layout.
+        R"code(Order of dimensions used for the anchor and shape slice inputs, as described
+in layout.
 
 If a value is provided, ``axis_names`` will have a higher priority than ``axes``.)code",
         TensorLayout("WH"))
     .AddOptionalArg("normalized_anchor",
         R"code(Determines whether the anchor input should be interpreted as normalized
-(range [0.0, 1.0]) or as absolute coordinates.
-
-.. note::
-    This argument is only relevant when anchor data type is ``float``. For integer types,
- the coordinates are always absolute..)code",
+(range [0.0, 1.0]) or as absolute coordinates.)code",
         true)
     .AddOptionalArg("normalized_shape",
         R"code(Determines whether the shape input should be interpreted as normalized
-(range [0.0, 1.0]) or as absolute coordinates.
-
-.. note::
-    This argument is only relevant when anchor data type is ``float``. For integer types,
- the coordinates are always absolute.)code",
+(range [0.0, 1.0]) or as absolute coordinates.)code",
         true);
 
 }  // namespace dali

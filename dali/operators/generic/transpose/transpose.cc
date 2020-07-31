@@ -58,12 +58,14 @@ class TransposeCPU : public Transpose<CPUBackend> {
 DALI_REGISTER_OPERATOR(Transpose, TransposeCPU, CPU);
 
 DALI_SCHEMA(Transpose)
-    .DocStr(R"code(Transpose tensor by reordering the dimensions according to the `perm` parameter.
+    .DocStr(R"code(Transposes the tensor by reordering the dimensions based on .
+the ``perm`` parameter.
+
 Destination dimension ``i`` is obtained from source dimension ``perm[i]``.
 
-For example, with `src` image in `HWC` layout, ``shape = (100, 200, 3)``, and ``perm = [2, 0, 1]``
-Transpose Operator would produce a `dst` image of layout `CHW` and ``shape = (3, 100, 200)``,
-holding the euqality:
+For example, with ``src`` image in ``HWC`` layout, ``shape = (100, 200, 3)``,
+and ``perm = [2, 0, 1]``. The Transpose Operator produces a dst image of  the ``CHW``
+layout and ``shape = (3, 100, 200)``, holding the equality:
 
 .. math:: dst(x_2, x_0, x_1) = src(x_0, x_1, x_2)
 
@@ -78,15 +80,18 @@ for all valid coordinates.
     .AllowSequences()
     .SupportVolumetric()
     .AddArg("perm",
-            R"code(Permutation of the dimensions of the input (e.g. [2, 0, 1]).)code", DALI_INT_VEC)
+            R"code(Permutation of the dimensions of the input, for example, [2, 0, 1].)code",
+            DALI_INT_VEC)
     .AddOptionalArg(
         "transpose_layout",
-        R"code(When set to true, the output data layout will be transposed according to perm.
-Otherwise, the input layout is copied to the output)code",
+        R"code(When set to True, the output data layout is transposed based on the perm.
+
+Otherwise, the input layout is copied to the output.)code",
         true)
     .AddOptionalArg(
         "output_layout",
-        R"code(If provided, sets output data layout, overriding any `transpose_layout` setting)code",
+        R"code(If a value is provided, sets output data layout, overriding any ``transpose_layout``
+setting.)code",
         TensorLayout(""));
 
 }  // namespace dali

@@ -34,29 +34,40 @@ DALI_SCHEMA(Reshape)
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg<int>("shape", "The desired shape of the output. Number of dimensions "
-                  "must not exceed the number of dimensions of the input. There can be one "
-                  "negative extent which receives the size required to match the input volume, "
-                  "e.g. input of shape `[480, 640, 3]` and `shape = [240, -1]` would get the "
-                  "shape [240, 3840].\n"
-                  "NOTE: `rel_shape` and `shape` are mutually exclusive.",
+  .AddOptionalArg<int>("shape", R"code(The desired shape of the output.
+
+Number of dimensions cannot exceed the number of dimensions of the input.
+There can be one negative extent that receives the size that is required to match
+the input volume. For example, an input of shape ``[480, 640, 3]`` and ``shape = [240, -1]``
+results in the shape ``[240, 3840]``.
+
+.. note::
+  rel_shape and shape are mutually exclusive.
+)code",
                   std::vector<int>(), true)
-  .AddOptionalArg<float>("rel_shape", "The relative shape of the output. Number of dimensions "
-                  "must not exceed the number of dimensions of the input. There can be one "
-                  "negative extent which receives the size required to match the input volume, "
-                  "e.g. input of shape `[480, 640, 3]` and `rel_shape = [0.5, -1]` would get the "
-                  "shape [240, 3840].\n"
-                  "NOTE: `rel_shape` and `shape` are mutually exclusive.",
+  .AddOptionalArg<float>("rel_shape", R"code(The relative shape of the output.
+
+Number of dimensions cannot exceed the number of dimensions of the input. There can be
+one negative extent that receives the size that is required to match the input volume.
+For example, an input of shape ``[480, 640, 3]`` and a ``rel_shape = [0.5, -1]`` results in
+the shape ``[240, 3840]``.
+
+.. note::
+  rel_shape and shape are mutually exclusive.
+)code",
                   std::vector<float>(), true)
-  .AddOptionalArg("layout", "New layout for the data. If not specified, the output layout is "
-                  "preserved if number of dimension matches existing layout or reset to empty "
-                  "otherwise. If set and not empty, the layout must match the dimensionality of "
-                  "the output.",
+  .AddOptionalArg("layout", R"code(New layout for the data.
+
+If a value is not specified, if number of dimension matches existing layout, the output
+layout is preserved. If the number of dimensions does not match, the argument is reset
+to empty. If a value is set, and is not empty, the layout must match the dimensionality
+of the output.)code",
                   TensorLayout(""));
 
 DALI_SCHEMA(Reinterpret)
-  .DocStr(R"(Treats content of the input as if it had a different type, shape and/or layout.
-  The buffer contents are not copied.)")
+  .DocStr(R"(Treats content of the input as if it had a different type, shape, and/or layout.
+
+The buffer contents are not copied.)")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be reshaped")
@@ -64,10 +75,11 @@ DALI_SCHEMA(Reinterpret)
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg("dtype", "The desired output type. The total size in bytes of the output "
-                  "must match the input. If no shape is provided, the innermost dimension is "
-                  "adjusted accordingly. If the byte size of the innermost dimension is not "
-                  "divisible by the size of the target type, an error is thrown.", DALI_NO_TYPE)
+  .AddOptionalArg("dtype", R"code(The desired output type.
+
+The total size, in bytes, of the output must match the input. If no shape is provided,
+the innermost dimension is adjusted accordingly. If the byte size of the innermost
+dimension is not divisible by the size of the target type, an error occurs.)code", DALI_NO_TYPE)
   .AddParent("Reshape");
 
 template <typename Backend>

@@ -32,22 +32,23 @@ DALI_SCHEMA(DLTensorPythonFunctionImpl)
     .MakeInternal();
 
 DALI_SCHEMA(DLTensorPythonFunction)
-    .DocStr(R"code(Execute a python function that operates on DLPack tensors.
+    .DocStr(R"code(Executes a Python function that operates on DLPack tensors.
+
 The function should not modify input tensors.
 
-In case of the GPU operator it is a user's responsibility to synchronize the device code with DALI.
-This can be accomplished by synchronizing DALI's work before the operator call
-with the `synchronize_stream` flag (true by default) and then making sure
-the scheduled device tasks are finished within the operator call.
-Alternatively, the gpu code can be done on the DALI's stream
-which may be determined by calling the `current_dali_stream()` function.
-In this case, the `synchronize_stream` flag can be set to false.)code")
+For the GPU operator, it is your responsibility to synchronize the device code with DALI.
+To synchronize the device code with DALI, synchronize DALI’s work before the operator call
+with the ``synchronize_stream`` flag, set to tTrue by default and ensure that the scheduled device
+tasks are finished in the operator call. The GPU code can be executed on the CUDA stream used by DALI,
+which is determined by calling the ``current_dali_stream()`` function. In this case,
+the ``synchronize_stream`` flag can be set to False.)code")
     .AddOptionalArg("synchronize_stream",
-        R"code(Make DALI synchronize its CUDA stream before calling the python function.
-Should be set to false only if the called function schedules the device job
-to the stream used by DALI.)code", true)
+        R"code(Ensures that DALI synchronizes its CUDA stream before calling the Python function.
+
+**Important**: If the called function schedules the device job to the stream that is used by DALI,
+this argument should only be set to False.)code", true)
     .AddOptionalArg("batch_processing",
-                    "Whether the function should get the whole batch as input.", true)
+                    "Determines whether the function should get the entire batch as input.", true)
     .NumInput(0, 256)
     .AllowSequences()
     .SupportVolumetric()
