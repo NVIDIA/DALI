@@ -141,6 +141,7 @@ class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
 
  protected:
   void RunImpl(workspace_t<CPUBackend> &ws) override;
+  using NormalDistribution<CPUBackend>::RunImpl;
 
  private:
   void AssignTensorToOutput(workspace_t<CPUBackend> &ws);

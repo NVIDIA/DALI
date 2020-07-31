@@ -112,7 +112,7 @@ void Resize<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   }
 
   RunCPU(output, input, thread_idx);
-  output.SetLayout(InputLayout(ws, 0));
+  output.SetLayout(input.GetLayout());
 
   if (save_attrs_) {
     auto &attr_output = ws.Output<CPUBackend>(1);

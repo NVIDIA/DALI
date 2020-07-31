@@ -164,7 +164,7 @@ class CropMirrorNormalize : public Operator<Backend> {
       output_type_ = input_type_;
 
     auto in_shape = input.shape();
-    input_layout_ = this->InputLayout(ws, 0);
+    input_layout_ = input.GetLayout();
     DALI_ENFORCE(ImageLayoutInfo::IsImage(input_layout_),
       ("Unsupported layout: '" + input_layout_.str() + "' for input 0 '" +
       this->spec_.InputName(0) + "'"));

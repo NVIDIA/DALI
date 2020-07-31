@@ -110,10 +110,12 @@ class SynthPythonFlipPipeline(Pipeline):
         h_dim, v_dim, d_dim = find_dims(layout)
         fun = lambda d, hor, ver, depth: numpy_flip(d, h_dim, v_dim, d_dim, hor, ver, depth)
         self.python_flip = ops.PythonFunction(function=fun)
+        self.set_layout = ops.Reshape(layout=layout)
 
     def define_graph(self):
         self.data = self.input()
         flipped = self.python_flip(self.data, self.coin(), self.coin(), self.coin())
+        flipped = self.set_layout(flipped)
         return flipped
 
     def iter_setup(self):

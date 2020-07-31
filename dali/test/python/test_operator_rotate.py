@@ -125,14 +125,16 @@ class CVPipeline(Pipeline):
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         self.rotate = ops.PythonFunction(function=CVRotate(output_type, input_type, fixed_size))
-        self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42);
+        self.set_layout = ops.Reshape(layout="HWC")
+        self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42)
         self.iter = 0
 
     def define_graph(self):
         self.jpegs, self.labels = self.input(name = "Reader")
         images = self.decode(self.jpegs)
         angles = self.uniform()
-        outputs = self.rotate(images, angles);
+        outputs = self.rotate(images, angles)
+        outputs = self.set_layout(outputs)
         return outputs
 
 

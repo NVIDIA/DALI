@@ -193,6 +193,15 @@ class TensorLayout {
   DALI_HOST_DEV
   constexpr bool empty() const noexcept { return size() == 0; }
 
+  void resize(size_t new_size, char fill_value = '?') noexcept {
+    assert(new_size < max_ndim);
+    auto prev_size = size();
+    set_size(new_size);
+    for (size_t i = prev_size; i < new_size; i++) {
+      data_[i] = fill_value;
+    }
+  }
+
   DALI_HOST_DEV
   bool is_permutation_of(TensorLayout b) const {
     // argument passed by value, because we'll reorder it to match *this

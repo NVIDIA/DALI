@@ -96,6 +96,8 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   DALI_ENFORCE(IsType<uint8_t>(input.type()),
       "Color space conversion accept only uint8 tensors");
   auto &output = ws.Output<GPUBackend>(0);
+  auto layout = input.GetLayout();
+  output.SetLayout(layout);
 
   TensorList<CPUBackend> attr_output_cpu;
 
@@ -117,7 +119,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto stream = ws.stream();
   DALI_CHECK_NPP(nppSetStream(stream));
 
-  if (InputLayout(ws, 0) == "HWC") {
+  if (layout == "HWC") {
     // RGB -> BGR || BGR -> RGB
     for (unsigned int i = 0; i < input.ntensor(); ++i) {
       // image dimensions

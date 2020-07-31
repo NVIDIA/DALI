@@ -22,6 +22,7 @@ void Dummy<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace &ws) {
   auto &output = ws.Output<::dali::CPUBackend>(0);
   output.set_type(input.type());
   output.ResizeLike(input);
+  output.SetLayout(input.GetLayout());
 
   ::dali::TypeInfo type = input.type();
   type.Copy<::dali::CPUBackend, ::dali::CPUBackend>(

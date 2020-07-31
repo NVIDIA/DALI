@@ -431,8 +431,8 @@ def python_op_factory(name, op_device = "cpu"):
             if (len(inputs) > self._schema.MaxNumInput() or
                     len(inputs) < self._schema.MinNumInput()):
                 raise ValueError(
-                    ("Operator {} expects [{}, " +
-                    "{}] inputs, but received {}")
+                    ("Operator {} expects from {} to " +
+                    "{} inputs, but received {}.")
                     .format(type(self).__name__,
                             self._schema.MinNumInput(),
                             self._schema.MaxNumInput(),
@@ -599,8 +599,8 @@ class TFRecordReader(metaclass=_DaliOperatorMeta):
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
-                ("Operator {} expects [{}, " +
-                "{}] inputs, but received {}")
+                ("Operator {} expects from {} to " +
+                "{} inputs, but received {}.")
                 .format(type(self).__name__,
                         self._schema.MinNumInput(),
                         self._schema.MaxNumInput(),
@@ -668,8 +668,8 @@ class PythonFunctionBase(metaclass=_DaliOperatorMeta):
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
-                ("Operator {} expects [{}, " +
-                 "{}] inputs, but received {}")
+                ("Operator {} expects from {} to " +
+                 "{} inputs, but received {}.")
                 .format(type(self).__name__,
                         self._schema.MinNumInput(),
                         self._schema.MaxNumInput(),

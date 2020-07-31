@@ -38,7 +38,7 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
 
   auto &output = ws.Output<GPUBackend>(0);
   RunGPU(output, input, ws.stream());
-  output.SetLayout(InputLayout(ws, 0));
+  output.SetLayout(input.GetLayout());
 }
 
 template<>

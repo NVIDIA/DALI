@@ -236,6 +236,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
 
   auto &output = ws.OutputRef<CPUBackend>(0);
   TensorListView<StorageCPU, OutputType> out_view = view<OutputType>(output);
+  output.SetLayout(input.GetLayout());
 
   int nsamples = input.ntensor();
   int nthreads = ws.GetThreadPool().size();

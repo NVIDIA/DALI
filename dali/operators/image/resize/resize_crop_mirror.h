@@ -239,7 +239,7 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
     // Resize the output & run
     output.Resize(
         std::vector<Index>{crop_height_[ws.data_idx()], crop_width_[ws.data_idx()], meta.C});
-    output.SetLayout(this->InputLayout(ws, 0));
+    output.SetLayout(input.GetLayout());
 
     tl_workspace_[ws.thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
     DALI_CALL((*func)(

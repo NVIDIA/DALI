@@ -339,11 +339,36 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   std::mutex gpu_memory_stats_mutex_;
 
  private:
+  template <typename InputRef>
+  static bool SetDefaultLayoutIfNeeded(InputRef &in, const OpSchema &schema, int in_idx) {
+    if (!in.GetLayout().empty())
+      return false;
+    auto default_layout = schema.GetInputLayout(in_idx, in.shape().sample_dim(), in.GetLayout());
+    if (default_layout.empty())
+      return false;
+    in.SetLayout(default_layout);
+    return true;
+  }
+
   template <typename Workspace>
   void RunHelper(OpNode &op_node, Workspace &ws) {
     auto &output_desc = op_node.output_desc;
     auto &op = *op_node.op;
     output_desc.clear();
+    const auto &spec = op.GetSpec();
+    const auto &schema = spec.GetSchema();
+    SmallVector<int, 16> empty_layout_in_idxs;
+    for (int i = 0; i < spec.NumRegularInput(); i++) {
+      bool had_empty_layout = false;
+      if (ws.template InputIsType<CPUBackend>(i)) {
+        had_empty_layout = SetDefaultLayoutIfNeeded(ws.template InputRef<CPUBackend>(i), schema, i);
+      } else {
+        had_empty_layout = SetDefaultLayoutIfNeeded(ws.template InputRef<GPUBackend>(i), schema, i);
+      }
+      if (had_empty_layout)
+        empty_layout_in_idxs.push_back(i);
+    }
+
     if (op.Setup(output_desc, ws)) {
       DALI_ENFORCE(
           static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
@@ -369,6 +394,16 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
                    "always return false.");
     }
     op.Run(ws);
+
+    for (int i : empty_layout_in_idxs) {
+      if (ws.template InputIsType<CPUBackend>(i)) {
+        auto &in = ws.template InputRef<CPUBackend>(i);
+        in.SetLayout({});
+      } else {
+        auto &in = ws.template InputRef<GPUBackend>(i);
+        in.SetLayout({});
+      }
+    }
   }
 };
 

@@ -36,6 +36,7 @@ void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
   const auto &input_shape = input.shape();
   auto output_shape = input_shape;
+  output.SetLayout(input.GetLayout());
 
   const auto H = input_shape[0];
   const auto W = input_shape[1];

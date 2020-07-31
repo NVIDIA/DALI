@@ -55,6 +55,7 @@ template<>
 void LookupTable<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
+  output.SetLayout(input.GetLayout());
   auto data_size = input.size();
   constexpr int kThreads = 512;
   const int blocks = (data_size + kThreads - 1) / kThreads;

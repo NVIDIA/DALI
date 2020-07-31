@@ -226,10 +226,15 @@ class TensorVector {
 
   inline TensorLayout GetLayout() const {
     if (state_ == State::contiguous) {
-      return tl_->GetLayout();
+      auto layout = tl_->GetLayout();
+      if (!layout.empty())
+        return layout;
     }
     if (tensors_.size() > 0) {
-      return tensors_[0]->GetLayout();
+      auto layout = tensors_[0]->GetLayout();
+      for (size_t i = 1; i < tensors_.size(); i++)
+        assert(layout == tensors_[i]->GetLayout());
+      return layout;
     }
     return {};
   }

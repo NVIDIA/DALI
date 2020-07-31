@@ -23,6 +23,7 @@ void Dummy<::dali::GPUBackend>::RunImpl(::dali::DeviceWorkspace &ws) {
   auto &output = ws.Output<::dali::GPUBackend>(0);
   output.set_type(input.type());
   output.ResizeLike(input);
+  output.SetLayout(input.GetLayout());
   CUDA_CALL(cudaMemcpyAsync(
           output.raw_mutable_data(),
           input.raw_data(),

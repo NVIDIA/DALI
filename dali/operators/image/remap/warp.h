@@ -331,7 +331,9 @@ class Warp : public Operator<Backend> {
   void RunImpl(Workspace &ws) override {
     assert(impl_);
     impl_->Run(ws);
-    ws.template OutputRef<Backend>(0).SetLayout(this->InputLayout(ws, 0));
+    auto &out = ws.template OutputRef<Backend>(0);
+    auto &in = ws.template InputRef<Backend>(0);
+    out.SetLayout(in.GetLayout());
   }
 
  protected:

@@ -81,7 +81,7 @@ bool BrightnessContrastCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
-  output.SetLayout(InputLayout(ws, 0));
+  output.SetLayout(input.GetLayout());
   auto out_shape = output.shape();
   auto& tp = ws.GetThreadPool();
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (

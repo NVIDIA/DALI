@@ -80,10 +80,12 @@ class LookupTablePythonOpPipeline(Pipeline):
                             dictionary=dictionary,
                             default_value=default_value)
         self.lookup = ops.PythonFunction(function=lookup_table_func)
+        self.set_layout = ops.Reshape(layout = data_layout)
 
     def define_graph(self):
         self.data = self.inputs()
         out = self.lookup(self.data)
+        out = self.set_layout(out)
         return out
 
     def iter_setup(self):

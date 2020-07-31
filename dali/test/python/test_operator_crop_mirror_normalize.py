@@ -120,17 +120,19 @@ def test_cmn_no_crop_args_vs_decoder_only():
             yield check_cmn_no_crop_args_vs_decoder_only, device, batch_size
 
 class PythonOpPipeline(Pipeline):
-    def __init__(self, batch_size, function, num_threads=1, device_id=0, num_gpus=1):
+    def __init__(self, batch_size, function, output_layout, num_threads=1, device_id=0, num_gpus=1):
 
         super(PythonOpPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         self.cmn = ops.PythonFunction(function=function)
+        self.set_layout = ops.Reshape(layout=output_layout)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
         images = self.decode(inputs)
         images = self.cmn(images)
+        images = self.set_layout(images)
         return images
 
 # Those are hardcoded coin flip results when using `seed=7865`
@@ -261,7 +263,7 @@ def check_cmn_vs_numpy(device, batch_size, dtype, output_layout,
     compare_pipelines(CropMirrorNormalizePipeline(device, batch_size, dtype=dtype,
                                                   output_layout=output_layout, mirror_probability=mirror_probability,
                                                   mean=mean, std=std, pad_output=should_pad),
-                      PythonOpPipeline(batch_size, function),
+                      PythonOpPipeline(batch_size, function, output_layout),
                       batch_size=batch_size, N_iterations=iterations)
 
 def test_cmn_vs_numpy():
@@ -317,7 +319,7 @@ class CMNRandomDataPipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.layout)
 
 class CMNRandomDataPythonOpPipeline(Pipeline):
-    def __init__(self, function, batch_size, layout, iterator, num_threads=1, device_id=0):
+    def __init__(self, function, batch_size, layout, output_layout, iterator, num_threads=1, device_id=0):
         super(CMNRandomDataPythonOpPipeline, self).__init__(batch_size,
                                                             num_threads,
                                                             device_id,
@@ -327,10 +329,12 @@ class CMNRandomDataPythonOpPipeline(Pipeline):
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
         self.cmn = ops.PythonFunction(function=function)
+        self.set_layout = ops.Reshape(layout=output_layout)
 
     def define_graph(self):
         self.data = self.inputs()
         out = self.cmn(self.data)
+        out = self.set_layout(out)
         return out
 
     def iter_setup(self):
@@ -359,7 +363,7 @@ def check_cmn_random_data_vs_numpy(device, batch_size, dtype, input_layout, inpu
                               dtype = dtype, output_layout = output_layout,
                               mirror_probability = mirror_probability, mean = mean, std= std,
                               pad_output = should_pad),
-        CMNRandomDataPythonOpPipeline(function, batch_size, input_layout, iter(eii2)),
+        CMNRandomDataPythonOpPipeline(function, batch_size, input_layout, output_layout, iter(eii2)),
                                       batch_size=batch_size, N_iterations=1)
 
 def test_cmn_random_data_vs_numpy():

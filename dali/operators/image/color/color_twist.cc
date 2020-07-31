@@ -168,7 +168,7 @@ void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
   auto out_shape = output.shape();
-  output.SetLayout(InputLayout(ws, 0));
+  output.SetLayout(input.GetLayout());
   auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
