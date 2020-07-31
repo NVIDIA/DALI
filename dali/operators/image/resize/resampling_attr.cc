@@ -27,7 +27,7 @@ different filtering for downscaling and upscaling.)code",
       DALI_INTERP_LINEAR, true)
   .AddOptionalArg("min_filter", "Filter used when scaling down",
       DALI_INTERP_LINEAR, true)
-  .AddOptionalArg<DALIDataType>("dtype", "Output data type; must be same as input type of `float`. "
+  .AddOptionalArg<DALIDataType>("dtype", "Output data type; must be same as input type or `float`. "
      "If not set, input type is used.", nullptr)
   .AddOptionalArg("temp_buffer_hint",
       "Initial size, in bytes, of a temporary buffer for resampling.\n"
@@ -58,8 +58,6 @@ inline ResamplingFilterType interp2resample(DALIInterpType interp) {
 
 void ResamplingFilterAttr::PrepareFilterParams(
       const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples) {
-  if (num_samples < 0)
-    num_samples = spec.GetArgument<int>("batch_size");
   GetPerSampleArgument(interp_type_arg_, "interp_type", spec, ws, num_samples);
   GetPerSampleArgument(min_arg_, "min_filter", spec, ws, num_samples);
   GetPerSampleArgument(mag_arg_, "mag_filter", spec, ws, num_samples);

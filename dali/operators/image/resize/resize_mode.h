@@ -23,16 +23,20 @@
 namespace dali {
 
 enum class ResizeMode {
-    /// Resize exactly to this size, ignoring aspect ratio
-    Stretch = 0,
+    /// Resize exactly to this size; missing extents are calculated to maintain aspect ratio
+    Default = 0,
+    /// Resize exactly to this size; missing extents keep input size
+    Stretch = 1,
     /// Maintain aspect ratio; resized image is not larger than requested in any dimension
-    NotLarger = 1,
+    NotLarger = 2,
     /// Maintain aspect ratio; resized image is not smaller than requested in any dimension
-    NotSmaller = 2,
+    NotSmaller = 3,
 };
 
 inline ResizeMode ParseResizeMode(const char *mode) {
-  if (!std::strcmp(mode, "stretch")) {
+  if (!std::strcmp(mode, "default")) {
+    return ResizeMode::Default;
+  } else if (!std::strcmp(mode, "stretch")) {
     return ResizeMode::Stretch;
   } else if (!std::strcmp(mode, "not_larger")) {
     return ResizeMode::NotLarger;
@@ -49,6 +53,8 @@ inline ResizeMode ParseResizeMode(const std::string &s) {
 
 inline std::ostream &operator<<(std::ostream &os, ResizeMode mode) {
   switch (mode) {
+    case ResizeMode::Default:
+      return os << "default";
     case ResizeMode::Stretch:
       return os << "stretch";
     case ResizeMode::NotLarger:

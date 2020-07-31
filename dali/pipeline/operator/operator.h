@@ -206,7 +206,7 @@ class DLL_PUBLIC OperatorBase {
    * otherwise scalar value is replicated.
    *
    * @tparam T Type of the Argument
-   * @param output C      ontainer for the data. This function will reallocate it.
+   * @param output        Container for the data. This function will reallocate it.
    * @param argument_name name of the Argument
    * @param ws            workspace object, from which ArgumentInputs are taken
    * @param batch_size    number of samples in the batch - if <0, it's taken from an argument

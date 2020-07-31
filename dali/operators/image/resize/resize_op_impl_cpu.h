@@ -37,7 +37,7 @@ class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
 
   using Kernel = kernels::ResampleCPU<Out, In, spatial_ndim>;
 
-  /// Dimensnionality of each separate frame. If input contains no channel dimension, one is added
+  /// Dimensionality of each separate frame. If input contains no channel dimension, one is added
   static constexpr int frame_ndim = spatial_ndim + 1;
 
   void Setup(TensorListShape<> &out_shape,

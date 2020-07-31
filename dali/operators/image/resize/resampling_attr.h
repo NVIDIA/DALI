@@ -30,9 +30,9 @@ class DLL_PUBLIC ResamplingFilterAttr {
    *
    * @param spec OpSpec for the operator
    * @param ws   ArgumentWorkspace, used when filtering methods are set per-sample
-   * @param num_samples number of samples; if not specified, value of "batch_size" argument is used
+   * @param num_samples number of samples in the batch
    */
-  void PrepareFilterParams(const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples = -1);
+  void PrepareFilterParams(const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples);
 
   /**
    * Filter used when downscaling

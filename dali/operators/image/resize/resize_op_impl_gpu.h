@@ -35,7 +35,7 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
 
   using Kernel = kernels::ResampleGPU<Out, In>;
 
-  /// Dimensnionality of each separate frame. If input contains no channel dimension, one is added
+  /// Dimensionality of each separate frame. If input contains no channel dimension, one is added
   static constexpr int frame_ndim = spatial_ndim + 1;
 
   void Setup(TensorListShape<> &out_shape,

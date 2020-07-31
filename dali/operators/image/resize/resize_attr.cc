@@ -39,7 +39,9 @@ one entry per spatial dimension (i.e. excluding video frames and channels). Dime
 0 extent are treated as absent and the output size will be calculated based on other extents
 and ``mode`` argument.)", {}, true)
   .AddOptionalArg("mode", R"(Resize mode - one of:
-  * "stretch"     - image is resized to the specified size; aspect ratio is not kept
+  * "default"     - image is resized to the specified size; missing extents are scaled
+                    with the average scale of the provided ones
+  * "stretch"     - image is resized to the specified size; missing extents are not scaled at all
   * "not_larger"  - image is resized, keeping the aspect ratio, so that no extent of the
                     output image exceeds the specified size - e.g. a 1280x720 with desired output
                     size of 640x480 will actually produce 640x360 output.
@@ -47,7 +49,7 @@ and ``mode`` argument.)", {}, true)
                     output image is smaller than specified - e.g. 640x480 image with desired output
                     size of 1920x1080 will actually produce 1920x1440 output.
 
-  This argument is mutually exclusive with `resize_longer` and `resize_shorter`)", "stretch")
+  This argument is mutually exclusive with `resize_longer` and `resize_shorter`)", "default")
   .AddOptionalArg("resize_shorter", R"(The length of the shorter dimension of the resized image.
 This option is mutually exclusive with `resize_longer` and explicit size arguments
 The op will keep the aspect ratio of the original image.
@@ -63,7 +65,11 @@ This option is equivalent to specifying the same size for all dimensions and ``m
 `resize_shorter`, "not_smaller" mode or otherwise leaving some extents unspecified, some images
 with high aspect ratios might produce extremely large outputs. This parameter puts a limit to how
 big the output can become. This value can be specified per-axis of uniformly for all axes.)",
-  {}, false);
+  {}, false)
+  .AddOptionalArg("subpixel_scale", R"(If true, fractional sizes (either directly specified or
+calculated) will cause the input RoI to be adjusted to keep the scale factor. Otherwise,
+the scale factor will be adjusted so that the source image maps to the rounded output size.)",
+  true);
 
 void ResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
   has_resize_shorter_ = spec.ArgumentDefined("resize_shorter");
@@ -74,6 +80,8 @@ void ResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
   has_size_ = spec.ArgumentDefined("size");
   has_max_size_ = spec.ArgumentDefined("max_size");
   has_mode_ = spec.ArgumentDefined("mode");
+
+  subpixel_scale_ = spec.GetArgument<bool>("subpixel_scale");
 
   DALI_ENFORCE(HasSeparateSizeArgs() + has_size_ + has_resize_shorter_ + has_resize_longer_ == 1,
     R"(Exactly one method of specifying size must be used. The available methods:
@@ -92,10 +100,9 @@ void ResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
   } else if (has_mode_) {
     mode_ = ParseResizeMode(spec.GetArgument<std::string>("mode"));
   } else {
-    mode_ = ResizeMode::Stretch;
+    mode_ = ResizeMode::Default;
   }
 }
-
 
 void ResizeAttr::ParseLayout(
       int &spatial_ndim, int &first_spatial_dim, const TensorLayout &layout) {
@@ -127,7 +134,7 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
   params_.resize(N);
 
   if (has_size_) {
-    GetShapeArgument<float>(size_arg_, spec, "size", ws, spatial_ndim_, N);
+    GetShapeLikeArgument<float>(size_arg_, spec, "size", ws, spatial_ndim_, N);
   }
 
   max_size_.resize(spatial_ndim_, std::numeric_limits<int>::max());
@@ -173,7 +180,7 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
         requested_size[d] = size_vecs[d][i];
       }
 
-      CalculateSampleParams(params_[i], requested_size, in_size);
+      CalculateSampleParams(params_[i], requested_size, in_size, subpixel_scale_);
     }
   } else if (has_resize_shorter_ || has_resize_longer_) {
     const char *arg_name = has_resize_shorter_ ? "resize_shorter" : "resize_longer";
@@ -185,16 +192,17 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
         requested_size[d] = res_x_[i];
       }
 
-      CalculateSampleParams(params_[i], requested_size, in_size);
+      CalculateSampleParams(params_[i], requested_size, in_size, subpixel_scale_);
     }
   } else if (has_size_) {
     for (int i = 0; i < N; i++) {
+      auto in_sample_shape = input_shape.tensor_shape_span(i);
       for (int d = 0; d < spatial_ndim_; d++) {
-        in_size[d] = input_shape.tensor_shape_span(i)[d + first_spatial_dim_];
-        requested_size[d] = size_arg_.tensor_shape_span(i)[d];
+        in_size[d] = in_sample_shape[d + first_spatial_dim_];
+        requested_size[d] = size_arg_[i * spatial_ndim_ + d];
       }
 
-      CalculateSampleParams(params_[i], requested_size, in_size);
+      CalculateSampleParams(params_[i], requested_size, in_size, subpixel_scale_);
     }
   }
 }
@@ -216,7 +224,7 @@ void ResizeAttr::AdjustOutputSize(float *out_size, const float *in_size) {
     for (int d = 0; d < spatial_ndim_; d++)
       out_size[d] = in_size[d];
   } else {
-    if (mode_ == ResizeMode::Stretch) {
+    if (mode_ == ResizeMode::Default) {
       if (sizes_provided < spatial_ndim_) {
         // if only some extents are provided - calculate average scale
         // and use it for the missing dimensions;
@@ -232,6 +240,23 @@ void ResizeAttr::AdjustOutputSize(float *out_size, const float *in_size) {
           if (!mask[d]) {
             scale[d] = avg_scale;
             out_size[d] = in_size[d] * scale[d];
+          }
+        }
+      }
+      if (has_max_size_) {
+        for (int d = 0; d < spatial_ndim_; d++) {
+          if (max_size_[d] > 0 && std::abs(out_size[d]) > max_size_[d]) {
+            out_size[d] = std::copysignf(max_size_[d], out_size[d]);
+            scale[d] = out_size[d] / in_size[d];
+          }
+        }
+      }
+    } else if (mode_ == ResizeMode::Stretch) {
+      if (sizes_provided < spatial_ndim_) {
+        for (int d = 0; d < spatial_ndim_; d++) {
+          if (!mask[d]) {
+            scale[d] = 1;
+            out_size[d] = in_size[d];
           }
         }
       }
@@ -290,7 +315,8 @@ void ResizeAttr::AdjustOutputSize(float *out_size, const float *in_size) {
 
 void ResizeAttr::CalculateSampleParams(ResizeParams &params,
                                        SmallVector<float, 3> requested_size,
-                                       SmallVector<float, 3> input_size) {
+                                       SmallVector<float, 3> input_size,
+                                       bool adjust_roi) {
   assert(static_cast<int>(requested_size.size()) == spatial_ndim_);
   assert(static_cast<int>(input_size.size()) == spatial_ndim_);
 
@@ -312,6 +338,17 @@ void ResizeAttr::CalculateSampleParams(ResizeParams &params,
     params.src_hi[d] = input_size[d];
     if (flip)
       std::swap(params.src_lo[d], params.src_hi[d]);
+
+    // if rounded size differs from the requested fractional size, adjust input ROI
+    if (adjust_roi && params.dst_size[d] != std::fabs(out_sz)) {
+      double real_size = params.dst_size[d];
+      double adjustment = real_size / std::fabs(out_sz);
+
+      // keep center of the ROI - adjust the edges
+      double center = (params.src_lo[d] + params.src_hi[d]) * 0.5;
+      params.src_lo[d] = center + (params.src_lo[d] - center) * adjustment;
+      params.src_hi[d] = center + (params.src_hi[d] - center) * adjustment;
+    }
   }
 }
 

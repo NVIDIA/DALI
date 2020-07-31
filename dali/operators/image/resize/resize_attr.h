@@ -93,11 +93,12 @@ class DLL_PUBLIC ResizeAttr {
 
   int spatial_ndim_ = 2;
   int first_spatial_dim_ = 0;
+  bool subpixel_scale_ = true;
 
   ResizeMode mode_ = ResizeMode::Stretch;
 
  private:
-  TensorListShape<> size_arg_;
+  vector<float> size_arg_;
   vector<float> res_x_, res_y_, res_z_;
 
   void SetFlagsAndMode(const OpSpec &spec);
@@ -107,8 +108,8 @@ class DLL_PUBLIC ResizeAttr {
   // pass sizes by value - the function will modify them internally
   void CalculateSampleParams(ResizeParams &params,
                              SmallVector<float, 3> requested_size,
-                             SmallVector<float, 3> input_size);
-
+                             SmallVector<float, 3> input_size,
+                             bool adjust_roi);
 };
 
 }  // namespace dali

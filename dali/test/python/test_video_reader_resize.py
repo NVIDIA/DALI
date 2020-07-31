@@ -5,6 +5,7 @@ import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import test_utils
 from nvidia.dali.pipeline import Pipeline
 
 
@@ -152,5 +153,4 @@ def test_video_resize(batch_size=2):
             yield run_for_params, batch_size, vp, rp
 
 if __name__ == "__main__":
-  for func, *args in test_video_resize():
-    func(*args)
+    test_utils.run_tests()

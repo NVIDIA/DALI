@@ -45,7 +45,7 @@ class VideoReaderResize : public VideoReader,
       input_shape_.set_tensor_shape(data_idx, GetSample(data_idx).sequence.shape());
 
     resize_attr_.PrepareResizeParams(spec_, ws, input_shape_, "FHWC");
-    resampling_attr_.PrepareFilterParams(spec_, ws);
+    resampling_attr_.PrepareFilterParams(spec_, ws, batch_size_);
     resample_params_.resize(resize_attr_.params_.size());
     resampling_attr_.GetResamplingParams(make_span(resample_params_),
                                          make_cspan(resize_attr_.params_));

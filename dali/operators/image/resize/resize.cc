@@ -58,8 +58,9 @@ void Resize<CPUBackend>::RunImpl(HostWorkspace &ws) {
     const auto &input_shape = input.shape();
     auto &attr_out = ws.OutputRef<CPUBackend>(1);
     const auto &attr_shape = attr_out.shape();
-    assert(attr_shape.num_samples() == input_shape.num_samples() && attr_shape.sample_dim() == 1 &&
-      is_uniform(attr_shape) && attr_shape[0][0] == NumSpatialDims());
+    assert(attr_shape.num_samples() == input_shape.num_samples() &&
+          attr_shape.sample_dim() == 1 &&
+          is_uniform(attr_shape) &&attr_shape[0][0] == NumSpatialDims());
 
     auto attr_view = view<int, 1>(attr_out);
     SaveAttrs(attr_view, input.shape());
@@ -80,7 +81,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
 
   RunResize(ws, output, input);
-  output.SetLayout(InputLayout(ws, 0));
+  output.SetLayout(input.GetLayout());
 
   if (save_attrs_) {
     auto &attr_out = ws.Output<GPUBackend>(1);

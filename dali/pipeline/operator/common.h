@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/data/views.h"
 
 namespace dali {
@@ -88,24 +89,22 @@ void GetPerSampleArgument(std::vector<T> &output,
   assert(output.size() == static_cast<size_t>(batch_size));
 }
 
-template <typename ArgumentType = int, int out_ndim>
-void GetShapeArgument(TensorListShape<out_ndim> &out_tls,
-                      const OpSpec &spec,
-                      const std::string &argument_name,
-                      const ArgumentWorkspace &ws,
-                      int ndim = out_ndim,
-                      int batch_size = -1 /* -1 = get from "batch_size" arg */) {
+
+template <typename ArgumentType, typename ExtentType>
+int GetShapeLikeArgument(std::vector<ExtentType> &out_shape,
+                         const OpSpec &spec,
+                         const std::string &argument_name,
+                         const ArgumentWorkspace &ws,
+                         int ndim = -1,
+                         int batch_size = -1 /* -1 = get from "batch_size" arg */) {
   if (batch_size < 0)
     batch_size = spec.GetArgument<int>("batch_size");
 
   auto to_extent = [](ArgumentType extent) {
-    return std::is_floating_point<ArgumentType>::value
-      ? static_cast<int64_t>(std::floor(extent + 0.5))
-      : static_cast<int64_t>(extent);
+    return std::is_floating_point<ArgumentType>::value && std::is_integral<ExtentType>::value
+      ? static_cast<ExtentType>(std::lround(extent))
+      : static_cast<ExtentType>(extent);
   };
-
-  // if neither is dynamic, ndim and out_ndim must be equal
-  assert(ndim < 0 || out_ndim < 0 || ndim == out_ndim);
 
   if (spec.HasTensorArgument(argument_name)) {
     const auto &arg = ws.ArgumentInput(argument_name);
@@ -115,41 +114,57 @@ void GetShapeArgument(TensorListShape<out_ndim> &out_tls,
       argument_name, "` (expected: ", batch_size, ")"));
     DALI_ENFORCE(is_uniform(argview.shape), "A tensor list shape must have the same dimensionality "
       "for all samples.");
-    TensorListShape<out_ndim> tls;
-    if (argview.shape.sample_dim() == 0) {
-      if (ndim < 0)
+    if (argview.shape.sample_dim() == 0) {  // a list of true scalars (0D)
+      if (ndim < 0)  // no ndim? assume 1D
         ndim = 1;
-      out_tls.resize(N, ndim);
-      for (int i = 0; i < N; i++)
+      out_shape.resize(N * ndim);
+      for (int i = 0; i < N; i++) {
+        auto e = to_extent(*argview.data[i]);
         for (int d = 0; d < ndim; d++)
-          tls.tensor_shape_span(i)[d] = to_extent(*argview.data[i]);
+          out_shape[i * ndim + d] = e;  // broadcast scalar size to all dims
+      }
     } else {
       DALI_ENFORCE(argview.shape.sample_dim() == 1, "Shapes must be 1D tensors with extent equal "
        "to shape dimensionality (or scalar)");
       int D = argview.shape[0][0];
       DALI_ENFORCE(ndim < 0 || D == ndim, make_string(D, "-element tensor cannot describe an ",
         ndim, "D shape."));
-      out_tls.resize(N, D);
+      ndim = D;
+      out_shape.resize(N * D);
       for (int i = 0; i < N; i++)
         for (int d = 0; d < D; d++)
-          out_tls.tensor_shape_span(i)[d] = to_extent(argview.data[i][d]);
+          out_shape[i * D + d] = to_extent(argview.data[i][d]);
     }
   } else {
     // If the argument is specified as a vector, it represents a uniform tensor list shape.
     std::vector<ArgumentType> tsvec;
-    if (ndim > 0) {
+    if (ndim >= 0) {
       // we have the luxury of knowing ndim ahead of time, so we can broadcast a scalar
       GetSingleOrRepeatedArg<ArgumentType>(spec, tsvec, argument_name, ndim);
     } else {
       // in dynamic use case, we get the dimensionality from the number of values
       tsvec = spec.GetRepeatedArgument<ArgumentType>(argument_name);
+      ndim = tsvec.size();
     }
-    TensorShape<out_ndim> sample_shape;
-    sample_shape.resize(tsvec.size());
-    for (int i = 0; i < sample_shape.size(); i++)
-      sample_shape[i] = to_extent(tsvec[i]);
-    out_tls = uniform_list_shape<out_ndim>(batch_size, sample_shape);
+    out_shape.resize(batch_size * ndim);
+    for (int i = 0; i < batch_size; i++)
+      for (int d = 0; d < ndim; d++)
+        out_shape[i * ndim + d] = to_extent(tsvec[d]);
   }
+
+  return ndim;
+}
+
+template <typename ArgumentType = int, int out_ndim>
+int GetShapeArgument(TensorListShape<out_ndim> &out_tls,
+                      const OpSpec &spec,
+                      const std::string &argument_name,
+                      const ArgumentWorkspace &ws,
+                      int ndim = out_ndim,
+                      int batch_size = -1 /* -1 = get from "batch_size" arg */) {
+  ndim = GetShapeLikeArgument<ArgumentType>(out_tls.shape, spec, argument_name, ndim, batch_size);
+  out_tls.resize(out_tls.shape().num_samples / ndim, ndim);
+  return ndim;
 }
 
 }  // namespace dali

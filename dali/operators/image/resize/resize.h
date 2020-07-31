@@ -106,7 +106,7 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   const auto &in_shape = input.shape();
   auto in_type = input.type().id();
-  auto in_layout = this->InputLayout(ws, 0);
+  auto in_layout = input.GetLayout();
   int N = in_shape.num_samples();
 
   PrepareParams(ws, in_shape, in_layout);

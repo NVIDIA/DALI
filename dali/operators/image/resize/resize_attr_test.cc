@@ -39,14 +39,14 @@ TEST(ResizeAttr, ParseLayout) {
 
   test("FDHWC", 3, 1);
   test("FCDHW", 3, 2);
+}
 
-  {
-    int spatial_ndim = -1, first_spatial_dim = -1;
-    EXPECT_THROW(ResizeAttr::ParseLayout(spatial_ndim, first_spatial_dim, "HCW"),
-                 std::runtime_error);
-    EXPECT_THROW(ResizeAttr::ParseLayout(spatial_ndim, first_spatial_dim, "FWCH"),
-                 std::runtime_error);
-  }
+TEST(ResizeAttr, ParseLayoutError) {
+  int spatial_ndim = -1, first_spatial_dim = -1;
+  EXPECT_THROW(ResizeAttr::ParseLayout(spatial_ndim, first_spatial_dim, "HCW"),
+                std::runtime_error);
+  EXPECT_THROW(ResizeAttr::ParseLayout(spatial_ndim, first_spatial_dim, "FWCH"),
+                std::runtime_error);
 }
 
 

@@ -64,7 +64,7 @@ class RandomResizedCrop : public Operator<Backend>
     if (out_type == DALI_NO_TYPE)
       out_type = input.type().id();
 
-    auto layout = this->InputLayout(ws, 0);
+    auto layout = input.GetLayout();
 
     int N = input_shape.num_samples();
 
