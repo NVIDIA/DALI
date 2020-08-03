@@ -242,7 +242,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
             nchannels = shape[2];
           info.nvjpeg_support = false;
         } catch (const std::runtime_error &e) {
-          DALI_FAIL(e.what() + "File: " + file_name);
+          DALI_FAIL(e.what() + ". File: " + file_name);
         }
       } else {
         // Handle errors

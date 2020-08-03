@@ -151,7 +151,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         HostFallback<StorageCPU>(input_data, in_size, output_image_type_, output_data, 0,
                                           file_name, info->crop_window, use_fast_idct_);
       } catch (const std::runtime_error& e) {
-        DALI_FAIL(e.what() + "File: " + file_name);
+        DALI_FAIL(e.what() + ". File: " + file_name);
       }
     } else {
       NVJPEG_CALL(nvjpegJpegStreamGetFrameDimensions(state_nvjpeg->jpeg_stream,
