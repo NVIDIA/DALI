@@ -34,6 +34,10 @@ class DLL_PUBLIC ResamplingFilterAttr {
    */
   void PrepareFilterParams(const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples);
 
+  DALIDataType GetOutputType(DALIDataType input_type) const {
+    return dtype_arg_ != DALI_NO_TYPE ? dtype_arg_ : input_type;
+  }
+
   /**
    * Filter used when downscaling
    */
@@ -65,6 +69,7 @@ class DLL_PUBLIC ResamplingFilterAttr {
 
  private:
   std::vector<DALIInterpType> interp_type_arg_, min_arg_, mag_arg_;
+  DALIDataType dtype_arg_ = DALI_NO_TYPE;
 };
 
 }  // namespace dali

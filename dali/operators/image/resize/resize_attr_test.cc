@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include "dali/operators/image/resize/resize_attr.h"  // NOLINT
-#include "dali/test/tensor_test_utils.h"
 #include <gtest/gtest.h>
 #include <memory>
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 
@@ -171,7 +171,7 @@ TEST(ResizeAttr, Resize3DSeparateArgs) {
   }
 }
 
- TEST(ResizeAttr, Resize3DSubpixelScale) {
+TEST(ResizeAttr, Resize3DSubpixelScale) {
   ArgumentWorkspace ws;
   auto zcoord = std::make_shared<TensorList<CPUBackend>>();
   zcoord->set_pinned(false);

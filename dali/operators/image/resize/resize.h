@@ -83,7 +83,6 @@ class Resize : public Operator<Backend>
   TensorList<CPUBackend> attr_staging_;
   using Operator<Backend>::RunImpl;
   bool save_attrs_ = false;
-  DALIDataType out_type_ = DALI_NO_TYPE;
 
   ResizeAttr resize_attr_;
   ResamplingFilterAttr resampling_attr_;
@@ -94,15 +93,6 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                 const workspace_t<Backend> &ws) {
   output_desc.resize(save_attrs_ ? 2 : 1);
   auto &input = ws.template InputRef<Backend>(0);
-  if (!spec_.TryGetArgument(out_type_, "dtype")) {
-    out_type_ = input.type().id();
-  }
-
-  output_desc[0].type = TypeTable::GetTypeInfo(out_type_);
-
-  DALI_ENFORCE(ws.NumOutput() == 1 || ws.NumOutput() == 2,
-    "Resize and produce 1 or 2 outputs - if there are two outputs, the 2nd one receives the "
-    "original size of the images.");
 
   const auto &in_shape = input.shape();
   auto in_type = input.type().id();
@@ -111,7 +101,15 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   PrepareParams(ws, in_shape, in_layout);
 
-  this->SetupResize(output_desc[0].shape, out_type_, in_shape, in_type,
+  auto out_type = resampling_attr_.GetOutputType(in_type);
+
+  output_desc[0].type = TypeTable::GetTypeInfo(out_type);
+
+  DALI_ENFORCE(ws.NumOutput() == 1 || ws.NumOutput() == 2,
+    "Resize and produce 1 or 2 outputs - if there are two outputs, the 2nd one receives the "
+    "original size of the images.");
+
+  this->SetupResize(output_desc[0].shape, out_type, in_shape, in_type,
                     make_cspan(this->resample_params_), NumSpatialDims(), FirstSpatialDim());
 
   if (save_attrs_) {

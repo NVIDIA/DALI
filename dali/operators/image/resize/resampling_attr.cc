@@ -61,6 +61,8 @@ void ResamplingFilterAttr::PrepareFilterParams(
   GetPerSampleArgument(interp_type_arg_, "interp_type", spec, ws, num_samples);
   GetPerSampleArgument(min_arg_, "min_filter", spec, ws, num_samples);
   GetPerSampleArgument(mag_arg_, "mag_filter", spec, ws, num_samples);
+  if (!spec.TryGetArgument(dtype_arg_, "dtype"))
+    dtype_arg_ = DALI_NO_TYPE;
   bool has_interp = spec.ArgumentDefined("interp_type");
   bool has_min = spec.ArgumentDefined("min_filter");
   bool has_mag = spec.ArgumentDefined("mag_filter");

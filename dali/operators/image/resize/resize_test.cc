@@ -116,12 +116,14 @@ enum {
           this->setInterpType(interpType[interp].cvInterp);                     \
           this->SetTestCheckType(t_check##checkType);                           \
           this->TstBody(this->DefaultSchema("Resize", "gpu")                    \
+                          .AddArg("subpixel_scale", false)                      \
                           .AddArg("interp_type", interpType[interp].daliInterp) \
                           testArgs, this->getEps(t_##testName##_##interp)); }   \
         TYPED_TEST(ResizeTest, testName##_##checkType##_##interp##_CPU) {       \
           this->setInterpType(interpType[interp].cvInterp);                     \
           this->SetTestCheckType(t_check##checkType);                           \
           this->TstBody(this->DefaultSchema("Resize", "cpu")                    \
+                          .AddArg("subpixel_scale", false)                      \
                           .AddArg("interp_type", interpType[interp].daliInterp) \
                           testArgs, this->getEps(t_##testName##_##interp)); }
 
