@@ -428,10 +428,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           samples_single_.push_back(&data);
         }
       } else {
-        data.method = DecodeMethod::Host;
-        auto image = ImageFactory::CreateImage(input_data, in_size, output_image_type_);
-        data.shape = image->PeekShape();
-        samples_host_.push_back(&data);
+        try {
+          data.method = DecodeMethod::Host;
+          auto image = ImageFactory::CreateImage(input_data, in_size, output_image_type_);
+          data.shape = image->PeekShape();
+          samples_host_.push_back(&data);
+        } catch (const std::runtime_error &e) {
+          DALI_FAIL(e.what() + ". File: " + data.file_name);
+        }
       }
 
       if (output_image_type_ != DALI_ANY_DATA)
