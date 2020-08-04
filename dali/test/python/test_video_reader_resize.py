@@ -151,6 +151,3 @@ def test_video_resize(batch_size=2):
     for vp in video_reader_params:
         for rp in resize_params:
             yield run_for_params, batch_size, vp, rp
-
-if __name__ == "__main__":
-    test_utils.run_tests()

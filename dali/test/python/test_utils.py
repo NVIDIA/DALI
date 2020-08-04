@@ -24,7 +24,6 @@ import os
 import sys
 import random
 import re
-import inspect
 
 def get_dali_extra_path():
   try:
@@ -380,35 +379,3 @@ class check_output_pattern():
 
         assert pattern_found, \
             "Pattern: ``{}`` \n not found in out: \n``{}`` \n and in err: \n ```{}```".format(self.pattern_, our_data, err_data)
-
-
-def _is_generator_function(x):
-    """Checks whether x is a generator function or a callable object
-    where __call__ is a generator function"""
-    if inspect.isgeneratorfunction(x):
-        return True
-    if x is None or inspect.isfunction(x):
-        return False
-    call = getattr(x, "__call__", None)
-    return _is_generator_function(call)
-
-
-def run_nosetests(module):
-    r = re.compile("(?:^|[\\b_\\.-])[Tt]est");
-    for name, member in inspect.getmembers(module):
-        is_test = r.match(name) and callable(member)
-        if is_test:
-            if _is_generator_function(member):
-                print("Running tests from `", name, "`)", sep='')
-                for f, *args in member():
-                    print("Running with (", *args, ")", sep='')
-                    f(*args)
-            else:
-                print("Running test `", name, "`", sep='');
-                member()
-
-def run_tests(module = None):
-    if module is None:
-        module = sys.modules["__main__"]
-    # run tests from `unittest` too?
-    run_nosetests(module)
