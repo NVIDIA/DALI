@@ -1,6 +1,7 @@
 #!/bin/bash -e
 
 test_body() {
+    export TMP_PATH="$(mktemp -d)"
     mkdir -p /tmp/custom_cpp_lib
     git clone https://github.com/NVIDIA/DALI /tmp/dali
     pushd /tmp/custom_cpp_lib
@@ -23,7 +24,7 @@ target_link_libraries(test_lib ${DALI_LIBRARIES})
 " > CMakeLists.txt
     mkdir build
     pushd build
-    cmake -D CUDA_TARGET_ARCHS=60 -D CMAKE_BUILD_TYPE=Debug ..
+    cmake ..
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
     popd
     popd

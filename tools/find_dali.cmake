@@ -14,9 +14,9 @@
 
 ##################################################################
 # Utility function, useful when building custom C++ library where
-# DALI is used as a shared library. Assumes, that DALI wheel is
+# DALI is used as a shared library. Assumes that DALI wheel is
 # installed within the system. Acquires paths to DALI libraries
-# and dependencies introduced by the wheel. On the event, that
+# and dependencies introduced by the wheel. On the event that
 # multiple DALI wheels are installed, picks the most recent one.
 #
 # Usage:
@@ -41,7 +41,7 @@ function(find_dali DALI_INCLUDE_DIR DALI_LIB_DIR DALI_LIBRARIES)
     )
 
     if (${DALI_INCLUDE_DIR_RESULT} EQUAL "1" OR ${DALI_LIB_DIR_RESULT} EQUAL "1")
-        message(FATAL_ERROR "Error acquiring DALI. Verify, that you have DALI whl installed")
+        message(FATAL_ERROR "Error acquiring DALI. Please verify, that the DALI wheel is installed")
     endif ()
 
     set(${DALI_INCLUDE_DIR} ${DALI_INCLUDE_DIR_LOC} PARENT_SCOPE)
