@@ -146,6 +146,7 @@ TEST(ResizeAttr, ResizeSeparate) {
 TEST(ResizeAttr, Resize3DSeparateArgs) {
   ArgumentWorkspace ws;
   auto zcoord = std::make_shared<TensorList<CPUBackend>>();
+  zcoord->set_pinned(false);
   zcoord->Resize(TensorListShape<0>(2));
   *zcoord->mutable_tensor<float>(0) = 140;
   *zcoord->mutable_tensor<float>(1) = 150;
@@ -168,58 +169,97 @@ TEST(ResizeAttr, Resize3DSeparateArgs) {
     CHECK_PARAMS(attr.params_[0], { { 140, 130, 120 }, { 0, 0, 0 }, { 123, 234, 345 } });
     CHECK_PARAMS(attr.params_[1], { { 150, 130, 120 }, { 0, 0, 0 }, { 321, 432, 543 } });
   }
+}
 
-  {
-    OpSpec spec("Resize");
-    spec.AddArg("resize_x", 120.0f);
-    spec.AddArg("batch_size", shape.num_samples());
-    spec.AddArgumentInput("resize_z", "resize_z");
+ TEST(ResizeAttr, Resize3DSubpixelScale) {
+  ArgumentWorkspace ws;
+  auto zcoord = std::make_shared<TensorList<CPUBackend>>();
+  zcoord->set_pinned(false);
+  zcoord->Resize(TensorListShape<0>(2));
+  *zcoord->mutable_tensor<float>(0) = 140;
+  *zcoord->mutable_tensor<float>(1) = 150;
+  ws.AddArgumentInput("resize_z", zcoord);
 
-    ResizeAttr attr;
-    attr.PrepareResizeParams(spec, ws, shape, "DHW");
+  TensorListShape<> shape = {{
+    TensorShape<3>{ 123, 234, 345 },
+    TensorShape<3>{ 321, 432, 543 }
+  }};
 
-    // one coordinate is missing and mode is default - use geometric mean of the scales for the
-    // missing coordinate (y, in this case)
-    double h0 = 234;
-    double h1 = 432;
-    double subpixel_y0 = h0 * sqrt(140.0/123 * 120 / 345);
-    double subpixel_y1 = h1 * sqrt(150.0/321 * 120 / 543);
-    int y0 = std::roundl(subpixel_y0);
-    int y1 = std::roundl(subpixel_y1);
+  // Configure ResizeAttr with missing Y coordinate
+  OpSpec spec("Resize");
+  spec.AddArg("resize_x", 120.0f);
+  spec.AddArg("batch_size", shape.num_samples());
+  spec.AddArgumentInput("resize_z", "resize_z");
 
-    double center0 = h0 * 0.5;
-    double center1 = h1 * 0.5;
-    float lo0 = center0 - center0 * y0 / subpixel_y0;
-    float hi0 = center0 + center0 * y0 / subpixel_y0;
-    float lo1 = center1 - center1 * y1 / subpixel_y1;
-    float hi1 = center1 + center1 * y1 / subpixel_y1;
+  ResizeAttr attr;
+  attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
-    CHECK_PARAMS(attr.params_[0], { { 140, y0, 120 }, { 0, lo0, 0 }, { 123, hi0, 345 } });
-    CHECK_PARAMS(attr.params_[1], { { 150, y1, 120 }, { 0, lo1, 0 }, { 321, hi1, 543 } });
+  // Y coordinate is missing and mode is "default" - use geometric mean of the xz scales for the
+  // missing coordinate.
+  double h0 = 234;
+  double h1 = 432;
+  // Calculate the ideal, subpixel, outptut shape.
+  double subpixel_y0 = h0 * sqrt(140.0/123 * 120 / 345);
+  double subpixel_y1 = h1 * sqrt(150.0/321 * 120 / 543);
+  // Real shape needs to be integral - let's round it.
+  int y0 = std::roundl(subpixel_y0);
+  int y1 = std::roundl(subpixel_y1);
 
-    spec.AddArg("subpixel_scale", false);
+  // Now let's adjust the input ROI. It will be scaled proprtionately to the ratio
+  // of actual (rounded) size to the ideal size.
+  double center0 = h0 * 0.5;
+  double center1 = h1 * 0.5;
+  float lo0 = center0 - center0 * y0 / subpixel_y0;
+  float hi0 = center0 + center0 * y0 / subpixel_y0;
+  float lo1 = center1 - center1 * y1 / subpixel_y1;
+  float hi1 = center1 + center1 * y1 / subpixel_y1;
 
-    // the mode is now "stretch", so the missing dimension (H) should be left unscaled
-    attr.PrepareResizeParams(spec, ws, shape, "DHW");
+  CHECK_PARAMS(attr.params_[0], { { 140, y0, 120 }, { 0, lo0, 0 }, { 123, hi0, 345 } });
+  CHECK_PARAMS(attr.params_[1], { { 150, y1, 120 }, { 0, lo1, 0 }, { 321, hi1, 543 } });
 
-    CHECK_PARAMS(attr.params_[0], { { 140, y0, 120 }, { 0, 0, 0 }, { 123, 234, 345 } });
-    CHECK_PARAMS(attr.params_[1], { { 150, y1, 120 }, { 0, 0, 0 }, { 321, 432, 543 } });
+  // Let's disable subpixel scaling
+  spec.AddArg("subpixel_scale", false);
+  attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
+  // Now the input ROI should not be affected by the ideal vs real size difference
+  CHECK_PARAMS(attr.params_[0], { { 140, y0, 120 }, { 0, 0, 0 }, { 123, 234, 345 } });
+  CHECK_PARAMS(attr.params_[1], { { 150, y1, 120 }, { 0, 0, 0 }, { 321, 432, 543 } });
+}
 
-    spec.AddArg("mode", "stretch");
+TEST(ResizeAttr, Resize3DStretch) {
+  ArgumentWorkspace ws;
+  auto zcoord = std::make_shared<TensorList<CPUBackend>>();
+  zcoord->set_pinned(false);
+  zcoord->Resize(TensorListShape<0>(2));
+  *zcoord->mutable_tensor<float>(0) = 140;
+  *zcoord->mutable_tensor<float>(1) = 150;
+  ws.AddArgumentInput("resize_z", zcoord);
 
-    // the mode is now "stretch", so the missing dimension (H) should be left unscaled
-    attr.PrepareResizeParams(spec, ws, shape, "DHW");
+  TensorListShape<> shape = {{
+    TensorShape<3>{ 123, 234, 345 },
+    TensorShape<3>{ 321, 432, 543 }
+  }};
 
-    CHECK_PARAMS(attr.params_[0], { { 140, 234, 120 }, { 0, 0, 0 }, { 123, 234, 345 } });
-    CHECK_PARAMS(attr.params_[1], { { 150, 432, 120 }, { 0, 0, 0 }, { 321, 432, 543 } });
-  }
+  // Configure ResizeAttr with missing Y coordinate;
+  // the mode is now "stretch", so the missing dimension (H) should be left unscaled.
+  OpSpec spec("Resize");
+  spec.AddArg("resize_x", 120.0f);
+  spec.AddArg("batch_size", shape.num_samples());
+  spec.AddArg("mode", "stretch");
+  spec.AddArgumentInput("resize_z", "resize_z");
+
+  ResizeAttr attr;
+  attr.PrepareResizeParams(spec, ws, shape, "DHW");
+
+  CHECK_PARAMS(attr.params_[0], { { 140, 234, 120 }, { 0, 0, 0 }, { 123, 234, 345 } });
+  CHECK_PARAMS(attr.params_[1], { { 150, 432, 120 }, { 0, 0, 0 }, { 321, 432, 543 } });
 }
 
 TEST(ResizeAttr, Resize3DSizeArg) {
   ArgumentWorkspace ws;
   auto size = std::make_shared<TensorList<CPUBackend>>();
   auto tls = uniform_list_shape<1>(2, TensorShape<1>{3});
+  size->set_pinned(false);
   size->Resize(tls);
   size->mutable_tensor<float>(0)[0] = 140;
   size->mutable_tensor<float>(0)[1] = 130;
