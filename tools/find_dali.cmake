@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-##################################################################
+####################################################################
 # Utility function, useful when building custom C++ library where
 # DALI is used as a shared library. Assumes that DALI wheel is
-# installed within the system. Acquires paths to DALI libraries
-# and dependencies introduced by the wheel. On the event that
-# multiple DALI wheels are installed, picks the most recent one.
+# installed within the system. Acquires paths to DALI libraries and
+# dependencies introduced by the wheel. On the event that multiple
+# DALI wheels exist, picks the one that's most recently installed.
 #
 # Usage:
 #
@@ -26,7 +26,7 @@
 # target_include_directories(my_target ${DALI_INCLUDE_DIR})
 # target_link_directories(my_target ${DALI_LIB_DIR})
 # target_link_libraries(my_target ${DALI_LIBRARIES})
-##################################################################
+###################################################################
 function(find_dali DALI_INCLUDE_DIR DALI_LIB_DIR DALI_LIBRARIES)
     execute_process(
             COMMAND python3 -c "import nvidia.dali.sysconfig as dali_sc; print(dali_sc.get_include_dir(), end='')"
