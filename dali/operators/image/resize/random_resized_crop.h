@@ -32,15 +32,12 @@ namespace dali {
 
 template <typename Backend>
 class RandomResizedCrop : public Operator<Backend>
-                        , protected ResamplingFilterAttr
-                        , protected RandomCropAttr
                         , protected ResizeBase<Backend> {
  public:
   explicit inline RandomResizedCrop(const OpSpec &spec)
       : Operator<Backend>(spec)
-      , RandomCropAttr(spec)
       , ResizeBase<Backend>(spec)
-      , interp_type_(spec.GetArgument<DALIInterpType>("interp_type"))
+      , crop_attr_(spec)
       , out_type_(spec.GetArgument<DALIDataType>("dtype")) {
     GetSingleOrRepeatedArg(spec, size_, "size", 2);
     InitParams(spec);
@@ -69,8 +66,7 @@ class RandomResizedCrop : public Operator<Backend>
     int N = input_shape.num_samples();
 
     resample_params_.resize(N);
-    PrepareFilterParams(spec_, ws, N);
-    ApplyFilterParams(make_span(resample_params_));
+    resampling_attr_.PrepareFilterParams(spec_, ws, N);
 
     int width_idx  = layout.find('W');
     int height_idx = layout.find('H');
@@ -79,9 +75,10 @@ class RandomResizedCrop : public Operator<Backend>
       auto sample_shape = input_shape.tensor_shape_span(sample_idx);
       int H = sample_shape[height_idx];
       int W = sample_shape[width_idx];
-      crops_[sample_idx] = GetCropWindowGenerator(sample_idx)({H, W}, "HW");
+      crops_[sample_idx] = crop_attr_.GetCropWindowGenerator(sample_idx)({H, W}, "HW");
       resample_params_[sample_idx] = CalcResamplingParams(sample_idx);
     }
+    resampling_attr_.ApplyFilterParams(make_span(resample_params_));
 
     output_desc.resize(1);
     this->SetupResize(output_desc[0].shape, out_type_, input_shape, input.type().id(),
@@ -106,8 +103,6 @@ class RandomResizedCrop : public Operator<Backend>
     auto &wnd = crops_[index];
     auto params = shared_params_;
     for (int d = 0; d < 2; d++) {
-      params[0].min_filter = { min_filter_[index], 0 };
-      params[0].mag_filter = { mag_filter_[index], 0 };
       params[0].roi = kernels::ResamplingParams::ROI(wnd.anchor[d], wnd.anchor[d]+wnd.shape[d]);
       params[1].roi = kernels::ResamplingParams::ROI(wnd.anchor[d], wnd.anchor[d]+wnd.shape[d]);
     }
@@ -119,6 +114,9 @@ class RandomResizedCrop : public Operator<Backend>
     shared_params_[0].output_size = size_[0];
     shared_params_[1].output_size = size_[1];
   }
+
+  ResamplingFilterAttr resampling_attr_;
+  RandomCropAttr crop_attr_;
 
   std::vector<int> size_;
   DALIInterpType interp_type_;

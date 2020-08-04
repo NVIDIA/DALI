@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/image/resize/resize_attr.h"  // NOLINT
+#include "dali/test/tensor_test_utils.h"
 #include <gtest/gtest.h>
 #include <memory>
 
@@ -72,12 +73,26 @@ inline void PrintTo(const ResizeParams &entry, std::ostream *os) {
   print(entry.src_hi);
 }
 
-inline bool operator==(const ResizeParams &a, const ResizeParams &b) {
-  return a.dst_size == b.dst_size && a.src_lo == b.src_lo && a.src_hi == b.src_hi;
+inline bool CheckResizeParams(const ResizeParams &a, const ResizeParams &b) {
+  if (a.dst_size != b.dst_size)
+    return false;
+  if (a.src_lo.size() != b.src_lo.size() || a.src_hi.size() != b.src_hi.size())
+    return false;
+  EqualEpsRel eq(1e-5, 1e-6);
+  for (int d = 0, D = a.src_lo.size(); d < D; d++) {
+    if (!eq(a.src_lo[d], b.src_lo[d]))
+      return false;
+  }
+  for (int d = 0, D = a.src_hi.size(); d < D; d++) {
+    if (!eq(a.src_hi[d], b.src_hi[d]))
+      return false;
+  }
+  return true;
 }
 
 // use a macro instead of a function to get meaningful line numbers from GTest
-#define CHECK_PARAMS(a, ...) EXPECT_EQ(ResizeParams(a), ResizeParams(__VA_ARGS__))
+#define CHECK_PARAMS(a, ...) \
+  EXPECT_PRED2(CheckResizeParams, ResizeParams(a), ResizeParams(__VA_ARGS__))
 
 TEST(ResizeAttr, ResizeSeparate) {
   ArgumentWorkspace ws;
@@ -128,7 +143,7 @@ TEST(ResizeAttr, ResizeSeparate) {
   }
 }
 
-TEST(ResizeAttr, Resize3DStretchSeparateArgs) {
+TEST(ResizeAttr, Resize3DSeparateArgs) {
   ArgumentWorkspace ws;
   auto zcoord = std::make_shared<TensorList<CPUBackend>>();
   zcoord->Resize(TensorListShape<0>(2));
@@ -163,17 +178,45 @@ TEST(ResizeAttr, Resize3DStretchSeparateArgs) {
     ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
-    // one coordinate is missing and mode is stretch - use geometric mean of the scales for the
+    // one coordinate is missing and mode is default - use geometric mean of the scales for the
     // missing coordinate (y, in this case)
-    int y0 = std::roundl(234 * sqrt(140.0/123 * 120 / 345));
-    int y1 = std::roundl(432 * sqrt(150.0/321 * 120 / 543));
+    double h0 = 234;
+    double h1 = 432;
+    double subpixel_y0 = h0 * sqrt(140.0/123 * 120 / 345);
+    double subpixel_y1 = h1 * sqrt(150.0/321 * 120 / 543);
+    int y0 = std::roundl(subpixel_y0);
+    int y1 = std::roundl(subpixel_y1);
+
+    double center0 = h0 * 0.5;
+    double center1 = h1 * 0.5;
+    float lo0 = center0 - center0 * y0 / subpixel_y0;
+    float hi0 = center0 + center0 * y0 / subpixel_y0;
+    float lo1 = center1 - center1 * y1 / subpixel_y1;
+    float hi1 = center1 + center1 * y1 / subpixel_y1;
+
+    CHECK_PARAMS(attr.params_[0], { { 140, y0, 120 }, { 0, lo0, 0 }, { 123, hi0, 345 } });
+    CHECK_PARAMS(attr.params_[1], { { 150, y1, 120 }, { 0, lo1, 0 }, { 321, hi1, 543 } });
+
+    spec.AddArg("subpixel_scale", false);
+
+    // the mode is now "stretch", so the missing dimension (H) should be left unscaled
+    attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
     CHECK_PARAMS(attr.params_[0], { { 140, y0, 120 }, { 0, 0, 0 }, { 123, 234, 345 } });
     CHECK_PARAMS(attr.params_[1], { { 150, y1, 120 }, { 0, 0, 0 }, { 321, 432, 543 } });
+
+
+    spec.AddArg("mode", "stretch");
+
+    // the mode is now "stretch", so the missing dimension (H) should be left unscaled
+    attr.PrepareResizeParams(spec, ws, shape, "DHW");
+
+    CHECK_PARAMS(attr.params_[0], { { 140, 234, 120 }, { 0, 0, 0 }, { 123, 234, 345 } });
+    CHECK_PARAMS(attr.params_[1], { { 150, 432, 120 }, { 0, 0, 0 }, { 321, 432, 543 } });
   }
 }
 
-TEST(ResizeAttr, Resize3DStretchSizeArg) {
+TEST(ResizeAttr, Resize3DSizeArg) {
   ArgumentWorkspace ws;
   auto size = std::make_shared<TensorList<CPUBackend>>();
   auto tls = uniform_list_shape<1>(2, TensorShape<1>{3});
@@ -194,6 +237,7 @@ TEST(ResizeAttr, Resize3DStretchSizeArg) {
   OpSpec spec("Resize");
   spec.AddArgumentInput("size", "size");
   spec.AddArg("batch_size", shape.num_samples());
+  spec.AddArg("subpixel_scale", false);
 
   {
     ResizeAttr attr;
@@ -210,7 +254,7 @@ TEST(ResizeAttr, Resize3DStretchSizeArg) {
     ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
-    // one coordinate is missing and mode is stretch - use geometric mean of the scales for the
+    // one coordinate is missing and mode is default - use geometric mean of the scales for the
     // missing coordinate (y, in this case)
     int y0 = std::roundl(234 * sqrt(140.0/123 * 120 / 345));
     int y1 = std::roundl(432 * sqrt(150.0/321 * 120 / 543));
@@ -228,13 +272,20 @@ TEST(ResizeAttr, Resize3DStretchSizeArg) {
     ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
-    // one coordinate is missing and mode is stretch - use geometric mean of the scales for the
+    // one coordinate is missing and mode is default - use geometric mean of the scales for the
     // missing coordinate (y, in this case)
     int y0 = std::roundl(234 * sqrt(140.0/123 * 120 / 345));
     int y1 = std::roundl(432 * sqrt(150.0/321 * 120 / 543));
 
     CHECK_PARAMS(attr.params_[0], { { 140, y0, 120 }, { 123, 0, 0 }, { 0, 234, 345 } });
     CHECK_PARAMS(attr.params_[1], { { 150, y1, 120 }, { 0, 0, 543 }, { 321, 432, 0 } });
+
+    spec.AddArg("mode", "stretch");
+    // the mode is now "stretch", so the missing dimension (H) should be left unscaled
+    attr.PrepareResizeParams(spec, ws, shape, "DHW");
+
+    CHECK_PARAMS(attr.params_[0], { { 140, 234, 120 }, { 123, 0, 0 }, { 0, 234, 345 } });
+    CHECK_PARAMS(attr.params_[1], { { 150, 432, 120 }, { 0, 0, 543 }, { 321, 432, 0 } });
   }
 }
 
@@ -321,7 +372,9 @@ TEST(ResizeAttr, Resize3DNotSmaller) {
       attr.PrepareResizeParams(spec, ws, shape, "DHW");
 
       CHECK_PARAMS(attr.params_[0], { { 600, 300, 400 }, { 0, 0, 0 }, { 1536, 768, 1024 } });
-      CHECK_PARAMS(attr.params_[1], { { 38, 384, 288 }, { 0, 0, 0 }, { 32, 320, 240 } });
+      CHECK_PARAMS(attr.params_[1], { { 38, 384, 288 },
+                                      { 0.166667f, 0, 0 },  // subpixel scale
+                                      { 31.83333f, 320, 240 } });
     }
   }
 }

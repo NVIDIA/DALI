@@ -24,6 +24,7 @@ import os
 import sys
 import random
 import re
+import inspect
 
 def get_dali_extra_path():
   try:
@@ -393,21 +394,21 @@ def _is_generator_function(x):
 
 
 def run_nosetests(module):
-    import inspect
-    import re
-    r = re.compile("((?:^|[\\b_\\.-])[Tt]est");
-    for x in getmembers(module):
-        is_test = r.match(x.__name__) and callable(x)
-        print(x.__name__, ": ", r.match(x.__name__))
+    r = re.compile("(?:^|[\\b_\\.-])[Tt]est");
+    for name, member in inspect.getmembers(module):
+        is_test = r.match(name) and callable(member)
         if is_test:
-            if _is_generator_function(x):
-                print("test generator: ", x.__name__)
+            if _is_generator_function(member):
+                print("Running tests from `", name, "`)", sep='')
+                for f, *args in member():
+                    print("Running with (", *args, ")", sep='')
+                    f(*args)
             else:
-                print("test callable: ", x.__name__)
-
+                print("Running test `", name, "`", sep='');
+                member()
 
 def run_tests(module = None):
     if module is None:
-        module = getattr(sys.modules[module_name], function_name)
-    # run unittest too?
+        module = sys.modules["__main__"]
+    # run tests from `unittest` too?
     run_nosetests(module)

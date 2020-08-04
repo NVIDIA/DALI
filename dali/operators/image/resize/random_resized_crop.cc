@@ -33,7 +33,7 @@ DALI_SCHEMA(RandomResizedCrop)
       DALI_INT_VEC)
   .AddParent("RandomCropAttr")
   .AddParent("ResamplingFilterAttr")
-  .InputLayout("HWC");
+  .InputLayout(0, { "HWC", "CHW" });
 
 template<>
 void RandomResizedCrop<CPUBackend>::BackendInit() {
