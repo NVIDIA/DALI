@@ -45,13 +45,15 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
              const TensorListShape<> &in_shape,
              int first_spatial_dim,
              span<const kernels::ResamplingParams> params) override {
+    // Calculate output shape of the input, as supplied (sequences, planar images, etc)
     GetResizedShape(out_shape, in_shape, params, spatial_ndim, first_spatial_dim);
 
     // Create "frames" from outer dimensions and "channels" from inner dimensions.
     GetFrameShapesAndParams<spatial_ndim>(in_shape_, params_, in_shape, params,
                                           first_spatial_dim);
 
-    // Now that we have per-frame parameters, we can calculate the output frame shape.
+    // Now that we have per-frame parameters, we can calculate the output shape of the
+    // effective frames (from videos, channel planes, etc).
     GetResizedShape(out_shape_, in_shape_, make_cspan(params_), 0);
 
     // Now that we know how many logical frames there are, calculate batch subdivision.

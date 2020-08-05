@@ -23,16 +23,16 @@ namespace dali {
 
 DALI_SCHEMA(ResizeAttr)
   .AddOptionalArg("resize_x", R"(The length of the X dimension of the resized image.
-This option is mutually exclusive with `resize_shorter`, `resize_longer` and `size`.
-If the `resize_y` is left unspecified or 0, then the op will keep
+This option is mutually exclusive with ``resize_shorter``, ``resize_longer`` and ``size``.
+If the ``resize_y`` is left unspecified or 0, then the op will keep
 the aspect ratio of the original image. Negative value flips the image.)", 0.f, true)
   .AddOptionalArg("resize_y", R"(The length of the Y dimension of the resized image.
-This option is mutually exclusive with `resize_shorter`, `resize_longer` and `size`.
-If the `resize_x` is left unspecified or 0, then the op will keep
+This option is mutually exclusive with ``resize_shorter``, ``resize_longer`` and ``size``.
+If the ``resize_x`` is left unspecified or 0, then the op will keep
 the aspect ratio of the original image. Negative value flips the image.)", 0.f, true)
   .AddOptionalArg("resize_z", R"(The length of the Z dimension of the resized volume.
-This option is mutually exclusive with `resize_shorter`, `resize_longer` and `size`.
-If the `resize_x` and `resize_y` are left unspecified or 0, then the op will keep
+This option is mutually exclusive with ``resize_shorter``, ``resize_longer`` and ``size``.
+If the ``resize_x`` and ``resize_y`` are left unspecified or 0, then the op will keep
 the aspect ratio of the original volume. Negative value flips the volume.)", 0.f, true)
   .AddOptionalArg<vector<float>>("size", R"(The desired output size. Must be a list/tuple with the
 one entry per spatial dimension (i.e. excluding video frames and channels). Dimensions with
@@ -49,20 +49,20 @@ and ``mode`` argument.)", {}, true)
                     output image is smaller than specified - e.g. 640x480 image with desired output
                     size of 1920x1080 will actually produce 1920x1440 output.
 
-  This argument is mutually exclusive with `resize_longer` and `resize_shorter`)", "default")
+  This argument is mutually exclusive with ``resize_longer`` and ``resize_shorter``)", "default")
   .AddOptionalArg("resize_shorter", R"(The length of the shorter dimension of the resized image.
-This option is mutually exclusive with `resize_longer` and explicit size arguments
+This option is mutually exclusive with ``resize_longer`` and explicit size arguments
 The op will keep the aspect ratio of the original image.
 This option is equivalent to specifying the same size for all dimensions and ``mode="not_smaller"``.
-The longer dimension can be bounded by setting the `max_size` argument.
-See `max_size` argument doc for more info.)", 0.f, true)
+The longer dimension can be bounded by setting the ``max_size`` argument.
+See ``max_size`` argument doc for more info.)", 0.f, true)
   .AddOptionalArg("resize_longer", R"(The length of the longer dimension of the resized image.
-This option is mutually exclusive with `resize_shorter` and explicit size arguments
+This option is mutually exclusive with ``resize_shorter`` and explicit size arguments
 The op will keep the aspect ratio of the original image.
 This option is equivalent to specifying the same size for all dimensions and ``mode="not_larger"``.
 )", 0.f, true)
   .AddOptionalArg<vector<float>>("max_size", R"(Limit of the output size - when resizing using
-`resize_shorter`, "not_smaller" mode or otherwise leaving some extents unspecified, some images
+``resize_shorter``, "not_smaller" mode or otherwise leaving some extents unspecified, some images
 with high aspect ratios might produce extremely large outputs. This parameter puts a limit to how
 big the output can become. This value can be specified per-axis or uniformly for all axes.)",
   {}, false)
@@ -104,7 +104,7 @@ void ResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
     - resize_shorter)");
 
   DALI_ENFORCE(has_resize_shorter_ + has_resize_longer_ + has_mode_ <= 1,
-    "`resize_shorter`, `resize_longer` and `mode` arguments are mutually exclusive");
+    "`resize_shorter`, ``resize_longer`` and ``mode`` arguments are mutually exclusive");
 
   bool has_roi_start = spec.ArgumentDefined("roi_start");
   bool has_roi_end = spec.ArgumentDefined("roi_end");

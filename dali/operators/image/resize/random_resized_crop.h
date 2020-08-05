@@ -70,6 +70,9 @@ class RandomResizedCrop : public Operator<Backend>
 
     int width_idx  = layout.find('W');
     int height_idx = layout.find('H');
+    assert(width_idx >= 0 && "Width dimension not found");
+    assert(height_idx >= 0 && "Height dimension not found");
+    assert(width_idx == height_idx + 1 && "Width must immediately follow height dim.");
 
     for (int sample_idx = 0; sample_idx < N; sample_idx++) {
       auto sample_shape = in_shape.tensor_shape_span(sample_idx);

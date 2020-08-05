@@ -20,6 +20,7 @@
 #endif
 
 #include <cassert>
+#include <cmath>
 #include <vector>
 #include "dali/operators/image/resize/resize_op_impl.h"
 #include "dali/kernels/imgproc/resample_cpu.h"
@@ -44,17 +45,19 @@ class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
              const TensorListShape<> &in_shape,
              int first_spatial_dim,
              span<const kernels::ResamplingParams> params) override {
+    // Calculate output shape of the input, as supplied (sequences, planar images, etc)
     GetResizedShape(out_shape, in_shape, params, spatial_ndim, first_spatial_dim);
 
     // Create "frames" from outer dimensions and "channels" from inner dimensions.
     GetFrameShapesAndParams<spatial_ndim>(in_shape_, params_, in_shape, params,
                                           first_spatial_dim);
 
-    // Now that we have per-frame parameters, we can calculate the output frame shape.
+    // Now that we have per-frame parameters, we can calculate the output shape of the
+    // effective frames (from videos, channel planes, etc).
     GetResizedShape(out_shape_, in_shape_, make_cspan(params_), 0);
 
     // Now that we know how many logical frames there are, calculate batch subdivision.
-    UpdateNumFrames();
+    OnNumFramesUpdated();
 
     SetupKernel();
   }
@@ -88,12 +91,26 @@ class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
         auto in_frame = in_frames_view[i];
         kmgr_.Run<Kernel>(tid, i, ctx, out_frame, in_frame, params_[i]);
       };
-      tp.AddWork(work);
+
+      double out_size = volume(out_frames_view.shape.tensor_shape_span(i));
+      double in_size = volume(in_frames_view.shape.tensor_shape_span(i));
+      double cost = 0;
+      double root = 1.0 / spatial_ndim;
+      for (int i = 0; i < spatial_ndim; i++) {
+        // Approximation for isotropic scaling - each resize stage takes time
+        // proportional to the output size of the stage, and the scaling volume ratio
+        // is divided equally (geometrically) among stages. Hence, the weighted
+        // geometric mean of rank spatial_ndim_.
+        //
+        // NOTE: This does not account for cost of antialiasing!
+        cost += std::pow(std::pow(out_size, spatial_ndim - i) * pow(in_size, i), root);
+      }
+      tp.AddWork(work, std::llround(cost));
     }
     tp.RunAll();
   }
 
-  void UpdateNumFrames() {
+  void OnNumFramesUpdated() {
     int N = GetNumFrames();
     if (static_cast<int>(kmgr_.NumInstances()) < N)
       kmgr_.Resize<Kernel>(kmgr_.NumThreads(), N);

@@ -55,10 +55,12 @@ class Resize : public Operator<Backend>
   void SaveAttrs(const TensorListView<StorageCPU, int, 1> &shape_data,
                  const TensorListShape<> &orig_shape) const {
     int N = orig_shape.num_samples();
+    int D = NumSpatialDims();
+    assert(orig_shape.sample_dim() == D);
     for (int i = 0; i < N; i++) {
       auto sample_shape = orig_shape.tensor_shape_span(i);
       int *out_shape = shape_data.data[i];
-      for (int d = 0; d < NumSpatialDims(); d++) {
+      for (int d = 0; d < D; d++) {
         out_shape[d] = sample_shape[FirstSpatialDim() + d];
       }
     }

@@ -45,8 +45,6 @@ void RandomResizedCrop<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
 
-  DALI_ENFORCE(input.shape().sample_dim() == 3, "Operator expects 3-dimensional image input.");
-
   RunResize(ws, output, input);
   output.SetLayout(input.GetLayout());
 }

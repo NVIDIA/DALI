@@ -48,7 +48,7 @@ resample_dali2pil = {
     types.INTERP_TRIANGULAR : PIL.Image.BILINEAR,
     types.INTERP_CUBIC      : PIL.Image.BICUBIC,
     types.INTERP_LANCZOS3   : PIL.Image.LANCZOS
-};
+}
 
 def resize_PIL(channel_first, interp, w, h):
     pil_resample = resample_dali2pil[interp]

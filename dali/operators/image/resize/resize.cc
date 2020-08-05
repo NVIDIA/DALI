@@ -59,7 +59,7 @@ void Resize<CPUBackend>::RunImpl(HostWorkspace &ws) {
     const auto &attr_shape = attr_out.shape();
     assert(attr_shape.num_samples() == input_shape.num_samples() &&
           attr_shape.sample_dim() == 1 &&
-          is_uniform(attr_shape) &&attr_shape[0][0] == NumSpatialDims());
+          is_uniform(attr_shape) && attr_shape[0][0] == NumSpatialDims());
 
     auto attr_view = view<int, 1>(attr_out);
     SaveAttrs(attr_view, input.shape());
