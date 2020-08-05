@@ -474,4 +474,79 @@ TEST(ResizeAttr, ResizeLonger) {
   }
 }
 
+TEST(ResizeAttr, RoI) {
+  ArgumentWorkspace ws;
+
+  auto roi_input = std::make_shared<TensorList<CPUBackend>>();
+  auto tls = uniform_list_shape<1>(2, TensorShape<1>{2});
+  roi_input->set_pinned(false);
+  roi_input->Resize(tls);
+  roi_input->mutable_tensor<float>(0)[0] = 330;
+  roi_input->mutable_tensor<float>(0)[1] = 40;
+  roi_input->mutable_tensor<float>(1)[0] = 80;
+  roi_input->mutable_tensor<float>(1)[1] = 230;
+  ws.AddArgumentInput("roi_end", roi_input);
+
+  {
+    OpSpec spec("Resize");
+    spec.AddArg("resize_x", 200.0f);
+    spec.AddArg("resize_y", -100.0f);
+    spec.AddArg("roi_start", vector<float>({7, 200}));
+    spec.AddArgumentInput("roi_end", "roi_end");
+    TensorListShape<> shape = {{
+      TensorShape<3>{ 3, 400, 800 },
+      TensorShape<3>{ 3, 100, 250 }
+    }};
+    spec.AddArg("batch_size", shape.num_samples());
+
+    ResizeAttr attr;
+    attr.PrepareResizeParams(spec, ws, shape, "CHW");
+    EXPECT_FALSE(attr.roi_relative_);
+
+    // Input ROI is:
+    // 0:    7, 200  -- 330,  40
+    // 1:    7, 200  --  80, 230
+    // Y axis is flipped, so we have:
+    // 0:   330, 200 --   7,  40
+    // 1:   80,  200 --   7, 230
+    CHECK_PARAMS(attr.params_[0], { { 100, 200 }, { 330, 200 }, { 7, 40 } });
+    CHECK_PARAMS(attr.params_[1], { { 100, 200 }, { 80, 200 }, { 7, 230 } });
+  }
+
+  ws.Clear();
+
+  roi_input->mutable_tensor<float>(0)[0] = 0.1f;
+  roi_input->mutable_tensor<float>(0)[1] = 0.9f;
+  roi_input->mutable_tensor<float>(1)[0] = 0.8f;
+  roi_input->mutable_tensor<float>(1)[1] = 0.9f;
+  ws.AddArgumentInput("roi_start", roi_input);
+
+  {
+    OpSpec spec("Resize");
+    spec.AddArg("resize_x", -200.0f);
+    spec.AddArg("resize_y", 100.0f);
+    spec.AddArg("roi_end", vector<float>({0.5, 0.5}));
+    spec.AddArgumentInput("roi_start", "roi_start");
+    spec.AddArg("roi_relative", true);
+    TensorListShape<> shape = {{
+      TensorShape<3>{ 3, 400, 800 },
+      TensorShape<3>{ 3, 100, 250 }
+    }};
+    spec.AddArg("batch_size", shape.num_samples());
+
+    ResizeAttr attr;
+    attr.PrepareResizeParams(spec, ws, shape, "CHW");
+    EXPECT_TRUE(attr.roi_relative_);
+
+    // Input ROI is:
+    // 0:   40, 720 -- 200, 400
+    // 1:   80, 225 --  50, 125
+    // X axis is flipped, so we have:
+    // 0:   40, 400 -- 200, 720
+    // 1:   80, 125 --  50, 225
+    CHECK_PARAMS(attr.params_[0], { { 100, 200 }, { 40, 400 }, { 200, 720 } });
+    CHECK_PARAMS(attr.params_[1], { { 100, 200 }, { 80, 125 }, { 50, 225 } });
+  }
+}
+
 }  // namespace dali
