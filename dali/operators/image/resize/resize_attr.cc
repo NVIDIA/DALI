@@ -69,7 +69,20 @@ big the output can become. This value can be specified per-axis of uniformly for
   .AddOptionalArg("subpixel_scale", R"(If true, fractional sizes (either directly specified or
 calculated) will cause the input RoI to be adjusted to keep the scale factor. Otherwise,
 the scale factor will be adjusted so that the source image maps to the rounded output size.)",
-  true);
+  true)
+  .AddOptionalArg<vector<float>>("roi_start", R"(Origin of the input region of interest (RoI);
+must be specified together with ``roi_end``. The coordinates follow the tensor shape order
+(same as ``size``). The coordinates can be either absolute (in pixels, the default) or
+relative (0..1), depending on the value of ``relative_roi`` argument. If a RoI origin is greater
+than RoI end, the region is flipped.)", nullptr, true)
+  .AddOptionalArg<vector<float>>("roi_end", R"(End of the input region of interest (RoI);
+must be specified together with ``roi_start``. The coordinates follow the tensor shape order
+(same as ``size``). The coordinates can be either absolute (in pixels, the default) or
+relative (0..1), depending on the value of ``relative_roi`` argument. If a RoI origin is greater
+than RoI end, the region is flipped.))", nullptr, true)
+  .AddOptionalArg("roi_relative", R"(If true, RoI coordinates are relative to the input size, with
+0 denoting top/left and 1 denoting bottom/right)", false);
+
 
 void ResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
   has_resize_shorter_ = spec.ArgumentDefined("resize_shorter");
@@ -92,6 +105,13 @@ void ResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
 
   DALI_ENFORCE(has_resize_shorter_ + has_resize_longer_ + has_mode_ <= 1,
     "`resize_shorter`, `resize_longer` and `mode` arguments are mutually exclusive");
+
+  bool has_roi_start = spec.ArgumentDefined("roi_start");
+  bool has_roi_end = spec.ArgumentDefined("roi_end");
+  DALI_ENFORCE(has_roi_start == has_roi_end,
+               "``roi_start`` and ``roi_end`` must be specified together");
+  has_roi_ = has_roi_start && has_roi_end;
+  roi_relative_ = spec.GetArgument<bool>("roi_relative");
 
   if (has_resize_shorter_) {
     mode_ = ResizeMode::NotSmaller;
@@ -127,6 +147,45 @@ void ResizeAttr::ParseLayout(
   first_spatial_dim = spatial_dims_begin;
 }
 
+void ResizeAttr::CalculateInputRoI(SmallVector<float, 3> &in_lo,
+                                   SmallVector<float, 3> &in_hi,
+                                   const TensorListShape<> &input_shape,
+                                   int sample_idx) const {
+  in_lo.resize(spatial_ndim_);
+  in_hi.resize(spatial_ndim_);
+  static constexpr float min_size = 1e-3f;  // minimum size, in pixels
+  for (int d = 0; d < spatial_ndim_; d++) {
+    int in_size = input_shape.tensor_shape_span(sample_idx)[d + first_spatial_dim_];
+    if (in_size == 0) {
+      in_lo[d] = 0;
+      in_hi[d] = 0;
+      continue;
+    }
+    if (has_roi_) {
+      double lo = roi_start_[spatial_ndim_ * sample_idx + d];
+      double hi = roi_end_[spatial_ndim_ * sample_idx + d];
+      if (roi_relative_) {
+        lo *= in_size;
+        hi *= in_size;
+      }
+      // if input RoI is too small (e.g. due to numerical error), but the input is not empty,
+      // we can stretch the RoI a bit to avoid division by 0 - this will possibly stretch just
+      // a single pixel to the entire output, but it's better than throwing
+      if (std::fabs(hi - lo) < min_size) {
+        float offset = lo <= hi ? 0.5f * min_size : -0.5f * min_size;
+        lo -= offset;
+        hi += offset;
+      }
+      in_lo[d] = lo;
+      in_hi[d] = hi;
+    } else {
+      in_lo[d] = 0;
+      in_hi[d] = in_size;
+    }
+  }
+}
+
+
 void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                                      const TensorListShape<> &input_shape) {
   SetFlagsAndMode(spec);
@@ -142,9 +201,15 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
     GetSingleOrRepeatedArg(spec, max_size_, "max_size", spatial_ndim_);
   }
 
-  SmallVector<float, 3> requested_size, in_size;
+  if (has_roi_) {
+    GetShapeLikeArgument<float>(roi_start_, spec, "roi_start", ws, spatial_ndim_, N);
+    GetShapeLikeArgument<float>(roi_end_, spec, "roi_end", ws, spatial_ndim_, N);
+  }
+
+  SmallVector<float, 3> requested_size, in_lo, in_hi;
   requested_size.resize(spatial_ndim_);
-  in_size.resize(spatial_ndim_);
+  in_lo.resize(spatial_ndim_);
+  in_hi.resize(spatial_ndim_);
 
   if (HasSeparateSizeArgs()) {
     res_x_.resize(N);
@@ -176,11 +241,11 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
 
     for (int i = 0; i < N; i++) {
       for (int d = 0; d < spatial_ndim_; d++) {
-        in_size[d] = input_shape.tensor_shape_span(i)[d + first_spatial_dim_];
         requested_size[d] = size_vecs[d][i];
       }
 
-      CalculateSampleParams(params_[i], requested_size, in_size, subpixel_scale_);
+      CalculateInputRoI(in_lo, in_hi, input_shape, i);
+      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
     }
   } else if (has_resize_shorter_ || has_resize_longer_) {
     const char *arg_name = has_resize_shorter_ ? "resize_shorter" : "resize_longer";
@@ -188,21 +253,21 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
 
     for (int i = 0; i < N; i++) {
       for (int d = 0; d < spatial_ndim_; d++) {
-        in_size[d] = input_shape.tensor_shape_span(i)[d + first_spatial_dim_];
         requested_size[d] = res_x_[i];
       }
 
-      CalculateSampleParams(params_[i], requested_size, in_size, subpixel_scale_);
+      CalculateInputRoI(in_lo, in_hi, input_shape, i);
+      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
     }
   } else if (has_size_) {
     for (int i = 0; i < N; i++) {
       auto in_sample_shape = input_shape.tensor_shape_span(i);
       for (int d = 0; d < spatial_ndim_; d++) {
-        in_size[d] = in_sample_shape[d + first_spatial_dim_];
         requested_size[d] = size_arg_[i * spatial_ndim_ + d];
       }
 
-      CalculateSampleParams(params_[i], requested_size, in_size, subpixel_scale_);
+      CalculateInputRoI(in_lo, in_hi, input_shape, i);
+      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
     }
   }
 }
@@ -315,27 +380,40 @@ void ResizeAttr::AdjustOutputSize(float *out_size, const float *in_size) {
 
 void ResizeAttr::CalculateSampleParams(ResizeParams &params,
                                        SmallVector<float, 3> requested_size,
-                                       SmallVector<float, 3> input_size,
+                                       SmallVector<float, 3> in_lo,
+                                       SmallVector<float, 3> in_hi,
                                        bool adjust_roi) {
   assert(static_cast<int>(requested_size.size()) == spatial_ndim_);
-  assert(static_cast<int>(input_size.size()) == spatial_ndim_);
-
+  assert(static_cast<int>(in_lo.size()) == spatial_ndim_);
+  assert(static_cast<int>(in_hi.size()) == spatial_ndim_);
 
   for (int d = 0; d < spatial_ndim_; d++) {
-    DALI_ENFORCE(input_size[d] != 0 || requested_size[d] == 0,
+    DALI_ENFORCE(in_lo[d] != in_hi[d] || requested_size[d] == 0,
                 "Cannot produce non-empty output from empty input");
   }
 
-  AdjustOutputSize(requested_size.data(), input_size.data());
+  SmallVector<float, 3> in_size;
+  in_size.resize(spatial_ndim_);
+  for (int d = 0; d < spatial_ndim_; d++) {
+    float sz = in_hi[d] - in_lo[d];
+    if (sz < 0) {
+      std::swap(in_hi[d], in_lo[d]);
+      requested_size[d] = -requested_size[d];
+      sz = -sz;
+    }
+    in_size[d] = sz;
+  }
+
+  AdjustOutputSize(requested_size.data(), in_size.data());
 
   params.resize(spatial_ndim_);
+  params.src_lo = in_lo;
+  params.src_hi = in_hi;
 
   for (int d = 0; d < spatial_ndim_; d++) {
     float out_sz = requested_size[d];
     bool flip = out_sz < 0;
     params.dst_size[d] = std::max(1, round_int(std::fabs(out_sz)));
-    params.src_lo[d] = 0;
-    params.src_hi[d] = input_size[d];
     if (flip)
       std::swap(params.src_lo[d], params.src_hi[d]);
 

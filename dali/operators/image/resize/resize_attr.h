@@ -90,6 +90,8 @@ class DLL_PUBLIC ResizeAttr {
   bool has_resize_x_ = false;
   bool has_resize_y_ = false;
   bool has_resize_z_ = false;
+  bool has_roi_ = false;
+  bool roi_relative_ = false;
 
   int spatial_ndim_ = 2;
   int first_spatial_dim_ = 0;
@@ -100,15 +102,22 @@ class DLL_PUBLIC ResizeAttr {
  private:
   vector<float> size_arg_;
   vector<float> res_x_, res_y_, res_z_;
+  vector<float> roi_start_, roi_end_;
 
   void SetFlagsAndMode(const OpSpec &spec);
 
   void AdjustOutputSize(float *out_size, const float *in_size);
 
+  void CalculateInputRoI(SmallVector<float, 3> &in_lo,
+                         SmallVector<float, 3> &in_hi,
+                         const TensorListShape<> &input_shape,
+                         int sample_idx) const;
+
   // pass sizes by value - the function will modify them internally
   void CalculateSampleParams(ResizeParams &params,
                              SmallVector<float, 3> requested_size,
-                             SmallVector<float, 3> input_size,
+                             SmallVector<float, 3> in_lo,
+                             SmallVector<float, 3> in_hi,
                              bool adjust_roi);
 };
 
