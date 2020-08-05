@@ -78,6 +78,7 @@ class DLL_PUBLIC ResizeBase {
                 spatial_ndim, first_spatial_dim);
   }
 
+  struct Impl;  // this needs to be public, because implementations inherit from it
  private:
   template <typename OutType, typename InType, int spatial_ndim>
   void SetupResizeStatic(TensorListShape<> &out_shape,
@@ -94,7 +95,6 @@ class DLL_PUBLIC ResizeBase {
 
   int num_threads_ = 1;
   int minibatch_size_ = 32;
-  struct Impl;
   std::unique_ptr<Impl> impl_;
 };
 
