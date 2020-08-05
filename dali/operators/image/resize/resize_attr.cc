@@ -64,7 +64,7 @@ This option is equivalent to specifying the same size for all dimensions and ``m
   .AddOptionalArg<vector<float>>("max_size", R"(Limit of the output size - when resizing using
 `resize_shorter`, "not_smaller" mode or otherwise leaving some extents unspecified, some images
 with high aspect ratios might produce extremely large outputs. This parameter puts a limit to how
-big the output can become. This value can be specified per-axis of uniformly for all axes.)",
+big the output can become. This value can be specified per-axis or uniformly for all axes.)",
   {}, false)
   .AddOptionalArg("subpixel_scale", R"(If true, fractional sizes (either directly specified or
 calculated) will cause the input RoI to be adjusted to keep the scale factor. Otherwise,
@@ -362,7 +362,7 @@ void ResizeAttr::AdjustOutputSize(float *out_size, const float *in_size) {
         }
       }
 
-      // Now, let's aply the final scale to all dimensions - if final_scale is different (in
+      // Now, let's apply the final scale to all dimensions - if final_scale is different (in
       // absolute value) than one defined by the caller, adjust it; also, if no scale was defined
       // for a dimension, then just use the final scale.
       for (int d = 0; d < spatial_ndim_; d++) {

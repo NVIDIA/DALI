@@ -193,6 +193,7 @@ TEST(ResizeAttr, Resize3DSubpixelScale) {
 
   ResizeAttr attr;
   attr.PrepareResizeParams(spec, ws, shape, "DHW");
+  EXPECT_TRUE(attr.subpixel_scale_);
 
   // Y coordinate is missing and mode is "default" - use geometric mean of the xz scales for the
   // missing coordinate.
@@ -220,6 +221,7 @@ TEST(ResizeAttr, Resize3DSubpixelScale) {
   // Let's disable subpixel scaling
   spec.AddArg("subpixel_scale", false);
   attr.PrepareResizeParams(spec, ws, shape, "DHW");
+  EXPECT_FALSE(attr.subpixel_scale_);
 
   // Now the input ROI should not be affected by the ideal vs real size difference
   CHECK_PARAMS(attr.params_[0], { { 140, y0, 120 }, { 0, 0, 0 }, { 123, 234, 345 } });
