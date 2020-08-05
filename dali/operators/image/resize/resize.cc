@@ -47,7 +47,6 @@ void Resize<CPUBackend>::InitializeBackend() {
 
 template <>
 void Resize<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  const int thread_idx = ws.thread_idx();
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
 
@@ -72,7 +71,8 @@ DALI_REGISTER_OPERATOR(Resize, Resize<CPUBackend>, CPU);
 
 template <>
 void Resize<GPUBackend>::InitializeBackend() {
-  InitializeGPU(spec_.GetArgument<int>("minibatch_size"));
+  InitializeGPU(spec_.GetArgument<int>("minibatch_size"),
+                spec_.GetArgument<int64_t>("temp_buffer_hint"));
 }
 
 template<>

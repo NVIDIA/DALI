@@ -37,7 +37,7 @@ class DLL_PUBLIC ResizeBase {
   ~ResizeBase();
 
   void InitializeCPU(int num_threads);
-  void InitializeGPU(int minibatch_size);
+  void InitializeGPU(int minibatch_size, size_t temp_buffer_hint = 0);
 
   using Workspace = workspace_t<Backend>;
 
@@ -96,13 +96,14 @@ class DLL_PUBLIC ResizeBase {
   int num_threads_ = 1;
   int minibatch_size_ = 32;
   std::unique_ptr<Impl> impl_;
+  kernels::KernelManager kmgr_;
 };
 
 template <>
 void ResizeBase<CPUBackend>::InitializeCPU(int num_threads);
 
 template <>
-void ResizeBase<GPUBackend>::InitializeGPU(int minibatch_size);
+void ResizeBase<GPUBackend>::InitializeGPU(int minibatch_size, size_t temp_buffer_hint);
 
 extern template class ResizeBase<CPUBackend>;
 extern template class ResizeBase<GPUBackend>;

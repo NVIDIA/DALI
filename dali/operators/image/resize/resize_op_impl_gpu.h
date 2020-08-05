@@ -29,7 +29,10 @@ namespace dali {
 template <typename Out, typename In, int spatial_ndim>
 class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
  public:
-  explicit ResizeOpImplGPU(int minibatch_size) : minibatch_size_(minibatch_size) {}
+  explicit ResizeOpImplGPU(kernels::KernelManager &kmgr, int minibatch_size)
+  : kmgr_(kmgr), minibatch_size_(minibatch_size) {
+    kmgr_.Resize(kmgr_.NumThreads(), 0);
+  }
 
   static_assert(spatial_ndim == 2, "NOT IMPLEMENTED. Only 2D resize is supported");
 
@@ -122,7 +125,7 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
   TensorListShape<frame_ndim> in_shape_, out_shape_;
   std::vector<ResamplingParamsND<spatial_ndim>> params_;
 
-  kernels::KernelManager kmgr_;
+  kernels::KernelManager &kmgr_;
 
   struct MiniBatch {
     int start, count;

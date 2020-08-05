@@ -25,7 +25,9 @@
 namespace dali {
 
 template <typename Backend>
-ResizeBase<Backend>::ResizeBase(const OpSpec &spec) {}
+ResizeBase<Backend>::ResizeBase(const OpSpec &spec) {
+  size_t temp_buffer_hint = spec.GetArgument<int64_t>("temp_buffer_hint");
+}
 
 template <typename Backend>
 void ResizeBase<Backend>::SetupResize(TensorListShape<> &out_shape,
@@ -77,7 +79,7 @@ void ResizeBase<GPUBackend>::SetupResizeStatic(
   auto *impl = dynamic_cast<ImplType*>(impl_.get());
   if (!impl) {
     impl_.reset();
-    auto unq_impl = std::make_unique<ImplType>(minibatch_size_);
+    auto unq_impl = std::make_unique<ImplType>(kmgr_, minibatch_size_);
     impl = unq_impl.get();
     impl_ = std::move(unq_impl);
   }
@@ -96,7 +98,7 @@ void ResizeBase<CPUBackend>::SetupResizeStatic(
   auto *impl = dynamic_cast<ImplType*>(impl_.get());
   if (!impl) {
     impl_.reset();
-    auto unq_impl = std::make_unique<ImplType>(num_threads_);
+    auto unq_impl = std::make_unique<ImplType>(kmgr_, num_threads_);
     impl = unq_impl.get();
     impl_ = std::move(unq_impl);
   }
@@ -113,11 +115,14 @@ void ResizeBase<CPUBackend>::InitializeCPU(int num_threads) {
 }
 
 template <>
-void ResizeBase<GPUBackend>::InitializeGPU(int minibatch_size) {
+void ResizeBase<GPUBackend>::InitializeGPU(int minibatch_size, size_t temp_buffer_hint) {
   if (minibatch_size != minibatch_size_) {
     impl_.reset();
     minibatch_size_ = minibatch_size;
   }
+  kmgr_.Resize(1, 0);
+  kmgr_.SetMemoryHint(kernels::AllocType::GPU, temp_buffer_hint);
+  kmgr_.GetScratchpadAllocator(0).Reserve(kernels::AllocType::GPU, temp_buffer_hint);
 }
 
 template <typename Backend>

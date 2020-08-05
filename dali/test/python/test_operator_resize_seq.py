@@ -13,7 +13,7 @@ def init_video_data():
     batch_size = 2
     video_directory = os.path.join(os.environ['DALI_EXTRA_PATH'], "db", "video", "sintel", "video_files")
 
-    video_files=[video_directory + '/' + f for f in os.listdir(video_directory)]
+    video_files=[os.path.join(video_directory, f) for f in os.listdir(video_directory)]
     print(video_files)
 
     video_pipe = dali.pipeline.Pipeline(batch_size, 3, 0, seed=16)
@@ -52,7 +52,7 @@ resample_dali2pil = {
 
 def resize_PIL(channel_first, interp, w, h):
     pil_resample = resample_dali2pil[interp]
-    def f(input):
+    def resize(input):
         num_frames = input.shape[0]
         out_seq = []
         for i in range(num_frames):
@@ -65,7 +65,7 @@ def resize_PIL(channel_first, interp, w, h):
                 out_frame = out_frame.transpose([2,0,1])
             out_seq.append(out_frame)
         return np.array(out_seq)
-    return f
+    return resize
 
 def create_ref_pipe(channel_first, seq_len, interp, w, h, batch_size = 2):
     pipe = dali.pipeline.Pipeline(batch_size,1,0,0, exec_async=False, exec_pipelined=False)

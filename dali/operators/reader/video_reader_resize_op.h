@@ -33,7 +33,8 @@ class VideoReaderResize : public VideoReader,
   explicit VideoReaderResize(const OpSpec &spec)
       : VideoReader(spec),
         ResizeBase(spec) {
-    ResizeBase::InitializeGPU(spec_.GetArgument<int>("minibatch_size"));
+    ResizeBase::InitializeGPU(spec_.GetArgument<int>("minibatch_size"),
+                              spec_.GetArgument<int64_t>("temp_buffer_hint"));
   }
 
   inline ~VideoReaderResize() override = default;

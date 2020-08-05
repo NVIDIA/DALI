@@ -46,10 +46,6 @@ class DLL_PUBLIC ResamplingFilterAttr {
    * Filter used when upscaling
    */
   std::vector<kernels::ResamplingFilterType> mag_filter_;
-  /**
-   * Initial size, in bytes, of a temporary buffer for resampling.
-   */
-  size_t temp_buffer_hint_ = 0;
 
   void ApplyFilterParams(span<kernels::ResamplingParams> resample_params, int ndim) const;
 

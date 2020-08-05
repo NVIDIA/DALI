@@ -84,8 +84,6 @@ void ResamplingFilterAttr::PrepareFilterParams(
     convert(mag_filter_, mag_arg_);
   else if (has_interp)
     convert(mag_filter_, interp_type_arg_);
-
-  spec.GetArgument<int64_t>("temp_buffer_hint");
 }
 
 void ResamplingFilterAttr::GetResamplingParams(

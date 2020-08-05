@@ -29,7 +29,7 @@ namespace dali {
 template <typename Out, typename In, int spatial_ndim>
 class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
  public:
-  explicit ResizeOpImplCPU(int num_threads) {
+  explicit ResizeOpImplCPU(kernels::KernelManager &kmgr, int num_threads) : kmgr_(kmgr) {
     kmgr_.Resize(num_threads, 0);
   }
 
@@ -103,10 +103,10 @@ class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
     return in_shape_.num_samples();
   }
 
+  kernels::KernelManager &kmgr_;
+
   TensorListShape<frame_ndim> in_shape_, out_shape_;
   std::vector<ResamplingParamsND<spatial_ndim>> params_;
-
-  kernels::KernelManager kmgr_;
 };
 
 }  // namespace dali
