@@ -74,14 +74,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
                 "`file_list` or `file_root` argument is passed");
 
     // TODO(spanev): Factor out the constructor body to make VideoReader compatible with lazy_init.
-    try {
-      loader_ = InitLoader<VideoLoader>(spec, filenames_);
-    } catch (dali::DALIException &e) {
-      throw e;
-    } catch (std::exception &e) {
-      DALI_WARN(std::string(e.what()));
-      throw;
-    }
+    loader_ = InitLoader<VideoLoader>(spec, filenames_);
 
     if (enable_label_output_) {
       label_shape_ = uniform_list_shape(batch_size_, {1});
