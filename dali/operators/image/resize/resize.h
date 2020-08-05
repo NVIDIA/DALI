@@ -104,11 +104,6 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto out_type = resampling_attr_.GetOutputType(in_type);
 
   output_desc[0].type = TypeTable::GetTypeInfo(out_type);
-
-  DALI_ENFORCE(ws.NumOutput() == 1 || ws.NumOutput() == 2,
-    "Resize and produce 1 or 2 outputs - if there are two outputs, the 2nd one receives the "
-    "original size of the images.");
-
   this->SetupResize(output_desc[0].shape, out_type, in_shape, in_type,
                     make_cspan(this->resample_params_), NumSpatialDims(), FirstSpatialDim());
 
