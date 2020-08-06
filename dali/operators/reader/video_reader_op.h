@@ -65,30 +65,25 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     DALI_ENFORCE(dtype_ == DALI_FLOAT || dtype_ == DALI_UINT8,
                  "Data type must be FLOAT or UINT8.");
 
-     enable_label_output_ = !file_root_.empty() || !file_list_.empty();
-     DALI_ENFORCE(enable_label_output_ || !enable_frame_num_,
-                  "frame numbers can be enabled only when "
-                  "`file_list` or `file_root` argument is passed");
-     DALI_ENFORCE(enable_label_output_ || !enable_timestamps_,
-                  "timestamps can be enabled only when "
-                  "`file_list` or `file_root` argument is passed");
+    enable_label_output_ = !file_root_.empty() || !file_list_.empty();
+    DALI_ENFORCE(enable_label_output_ || !enable_frame_num_,
+                "frame numbers can be enabled only when "
+                "`file_list` or `file_root` argument is passed");
+    DALI_ENFORCE(enable_label_output_ || !enable_timestamps_,
+                "timestamps can be enabled only when "
+                "`file_list` or `file_root` argument is passed");
 
     // TODO(spanev): Factor out the constructor body to make VideoReader compatible with lazy_init.
-      try {
-        loader_ = InitLoader<VideoLoader>(spec, filenames_);
-      } catch (std::exception &e) {
-        DALI_WARN(std::string(e.what()));
-        throw;
-      }
+    loader_ = InitLoader<VideoLoader>(spec, filenames_);
 
-      if (enable_label_output_) {
-        label_shape_ = uniform_list_shape(batch_size_, {1});
+    if (enable_label_output_) {
+      label_shape_ = uniform_list_shape(batch_size_, {1});
 
-        if (enable_frame_num_)
-          frame_num_shape_ = label_shape_;
-        if (enable_timestamps_)
-          timestamp_shape_ = uniform_list_shape(batch_size_, {count_});
-      }
+      if (enable_frame_num_)
+        frame_num_shape_ = label_shape_;
+      if (enable_timestamps_)
+        timestamp_shape_ = uniform_list_shape(batch_size_, {count_});
+    }
   }
 
   inline ~VideoReader() override = default;

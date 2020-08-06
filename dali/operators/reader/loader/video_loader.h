@@ -242,6 +242,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                                    codecpar(stream)->height, codecpar(stream)->width});
       }
     }
+    DALI_ENFORCE(!frame_starts_.empty(), "There are no valid sequences in the provided "
+                 "dataset, check the length of the available videos and the requested sequence "
+                 "length.");
 
 
     const auto& file = get_or_open_file(file_info_[0].video_file);

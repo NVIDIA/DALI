@@ -75,15 +75,19 @@ def test_simple_videopipeline():
     pipe.build()
     for i in range(ITER):
         print("Iter " + str(i))
-        pipe_out = pipe.run()
+        _ = pipe.run()
     del pipe
+
+def test_wrong_length_sequence_videopipeline():
+    pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, sequence_length=100000)
+    assert_raises(RuntimeError, pipe.build)
 
 def check_videopipeline_supported_type(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
     pipe.build()
     for i in range(ITER):
         print("Iter " + str(i))
-        pipe_out = pipe.run()
+        _ = pipe.run()
     del pipe
 
 SUPPORTED_TYPES = [types.DALIDataType.FLOAT, types.DALIDataType.UINT8]
@@ -102,7 +106,7 @@ def test_file_list_videopipeline():
     pipe.build()
     for i in range(ITER):
         print("Iter " + str(i))
-        pipe_out = pipe.run()
+        _ = pipe.run()
     del pipe
 
 def test_step_video_pipeline():
@@ -110,7 +114,7 @@ def test_step_video_pipeline():
     pipe.build()
     for i in range(ITER):
         print("Iter " + str(i))
-        pipe_out = pipe.run()
+        _ = pipe.run()
     del pipe
 
 def test_stride_video_pipeline():
@@ -118,7 +122,7 @@ def test_stride_video_pipeline():
     pipe.build()
     for i in range(ITER):
         print("Iter " + str(i))
-        pipe_out = pipe.run()
+        _ = pipe.run()
     del pipe
 
 def test_multiple_resolution_videopipeline():
@@ -127,7 +131,7 @@ def test_multiple_resolution_videopipeline():
         pipe.build()
         for i in range(ITER):
             print("Iter " + str(i))
-            pipe_out = pipe.run()
+            _ = pipe.run()
     except Exception as e:
         if str(e) == "Decoder reconfigure feature not supported":
             print("Multiple resolution test skipped")
