@@ -71,7 +71,7 @@ class DLL_PUBLIC ScatterGatherGPU {
    * @brief Adds one copy to the batch
    */
   void AddCopy(void *dst, const void *src, size_t size) {
-    if (size > 0 && dst != nullptr && src != nullptr) {
+    if (size > 0) {
       ranges_.push_back({
         static_cast<const char*>(src),
         static_cast<char*>(dst),

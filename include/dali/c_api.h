@@ -344,7 +344,7 @@ daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx, devic
  *        to scattered memory locations.
  * @param pipe_handle Pointer to pipeline handle
  * @param dsts Pointers to the destination buffers where each sample will be copied.
- *             A nullptr dst pointer for a given sample will result in that sample not to be copied
+ *        A nullptr dst pointer for a sample will discard that sample.
  * @param output_idx index of the pipeline output
  * @param dst_type Device type associated with the destination buffer (0 - CPU, 1 - GPU)
  * @param stream CUDA stream to use when copying the data to/from the GPU.
