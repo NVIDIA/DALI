@@ -74,12 +74,12 @@ the scale factor will be adjusted so that the source image maps to the rounded o
 must be specified together with ``roi_end``. The coordinates follow the tensor shape order
 (same as ``size``). The coordinates can be either absolute (in pixels, the default) or
 relative (0..1), depending on the value of ``relative_roi`` argument. If a RoI origin is greater
-than RoI end, the region is flipped.)", nullptr, true)
+than RoI end in any dimension, the region is flipped in that dimension.)", nullptr, true)
   .AddOptionalArg<vector<float>>("roi_end", R"(End of the input region of interest (RoI);
 must be specified together with ``roi_start``. The coordinates follow the tensor shape order
 (same as ``size``). The coordinates can be either absolute (in pixels, the default) or
 relative (0..1), depending on the value of ``relative_roi`` argument. If a RoI origin is greater
-than RoI end, the region is flipped.))", nullptr, true)
+than RoI end in any dimension, the region is flipped in that dimension.))", nullptr, true)
   .AddOptionalArg("roi_relative", R"(If true, RoI coordinates are relative to the input size, with
 0 denoting top/left and 1 denoting bottom/right)", false);
 
@@ -154,19 +154,14 @@ void ResizeAttr::CalculateInputRoI(SmallVector<float, 3> &in_lo,
   in_lo.resize(spatial_ndim_);
   in_hi.resize(spatial_ndim_);
   static constexpr float min_size = 1e-3f;  // minimum size, in pixels
+  auto *in_size = &input_shape.tensor_shape_span(sample_idx)[first_spatial_dim_];
   for (int d = 0; d < spatial_ndim_; d++) {
-    int in_size = input_shape.tensor_shape_span(sample_idx)[d + first_spatial_dim_];
-    if (in_size == 0) {
-      in_lo[d] = 0;
-      in_hi[d] = 0;
-      continue;
-    }
-    if (has_roi_) {
+    if (has_roi_ && in_size[d] > 0) {
       double lo = roi_start_[spatial_ndim_ * sample_idx + d];
       double hi = roi_end_[spatial_ndim_ * sample_idx + d];
       if (roi_relative_) {
-        lo *= in_size;
-        hi *= in_size;
+        lo *= in_size[d];
+        hi *= in_size[d];
       }
       // if input RoI is too small (e.g. due to numerical error), but the input is not empty,
       // we can stretch the RoI a bit to avoid division by 0 - this will possibly stretch just
@@ -180,7 +175,7 @@ void ResizeAttr::CalculateInputRoI(SmallVector<float, 3> &in_lo,
       in_hi[d] = hi;
     } else {
       in_lo[d] = 0;
-      in_hi[d] = in_size;
+      in_hi[d] = in_size[d];
     }
   }
 }
@@ -366,10 +361,7 @@ void ResizeAttr::AdjustOutputSize(float *out_size, const float *in_size) {
       // absolute value) than one defined by the caller, adjust it; also, if no scale was defined
       // for a dimension, then just use the final scale.
       for (int d = 0; d < spatial_ndim_; d++) {
-        if (!mask[d]) {
-          out_size[d] = in_size[d] * final_scale;
-          scale[d] = final_scale;
-        } else if (std::abs(scale[d]) != final_scale) {
+        if (!mask[d] || std::abs(scale[d]) != final_scale) {
           scale[d] = std::copysign(final_scale, scale[d]);
           out_size[d] = in_size[d] * scale[d];
         }
