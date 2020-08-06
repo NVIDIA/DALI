@@ -88,6 +88,9 @@ void TypeInfo::Copy(void *dst,
     const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const {
   constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
                                    std::is_same<SrcBackend, CPUBackend>::value;
+  if (src == nullptr || dst == nullptr)
+    return;
+
   if (is_host_to_host) {
     // Call our copy function
     copier_(dst, src, n);
