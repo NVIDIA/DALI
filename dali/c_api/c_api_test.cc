@@ -574,7 +574,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       output2.set_pinned(std::is_same<TypeParam, CPUBackend>::value);
       output2.Resize({out_size}, type_info);
       // Making sure data is cleared
-      // Somehow in debug mode I got the same raw pointer which happen to have
+      // Somehow in debug mode it can get the same raw pointer which happen to have
       // the right data in the second iteration
       Clear(output2);
 
@@ -606,7 +606,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       output2.set_pinned(std::is_same<TypeParam, CPUBackend>::value);
       output2.Resize({out_size}, type_info);
       // Making sure data is cleared
-      // Somehow in debug mode I got the same raw pointer which happen to have
+      // Somehow in debug mode it can get the same raw pointer which happen to have
       // the right data in the second iteration
       Clear(output2);
 
