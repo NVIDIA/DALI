@@ -86,7 +86,7 @@ TEST(PipelineCommon, GetShapeLikeArgumentInput) {
   vector<float> shape;
 
   int out_d = GetShapeLikeArgument<float>(shape, spec, "size", ws, -1, -1);
-  EXPECT_EQ(out_d, D) << "Diemsnionality should match the size of the tensors in the list.";
+  EXPECT_EQ(out_d, D) << "Dimensionality should match the size of the tensors in the list.";
   ASSERT_EQ(shape.size(), N * D) << "Total size of the shape should be batch x ndim";
   for (int i = 0; i < N; i++) {
     for (int d = 0; d < D; d++)
