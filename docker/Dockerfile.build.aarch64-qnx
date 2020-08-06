@@ -293,7 +293,7 @@ CMD cmake                \
   -DCMAKE_TOOLCHAIN_FILE:STRING="$PWD/../platforms/qnx/aarch64-qnx.toolchain.cmake" \
   -DCMAKE_COLOR_MAKEFILE=ON        \
   -DCMAKE_INSTALL_PREFIX=./install \
-  -DARCH=aarch64-qnx     \
+  -DARCH=aarch64-qnx               \
   -DCMAKE_CUDA_COMPILER=/usr/local/cuda-10.0/bin/nvcc    \
   -DCUDA_HOST=/usr/local/cuda-10.0                       \
   -DCUDA_TARGET=/usr/local/cuda-10.0/targets/aarch64-qnx \
@@ -303,15 +303,16 @@ CMD cmake                \
   -DBUILD_PYTHON=OFF     \
   -DBUILD_LMDB=ON        \
   -DBUILD_TENSORFLOW=OFF \
-  -DBUILD_JPEG_TURBO=ON \
-  -DBUILD_LIBTIFF=ON \
-  -DBUILD_LIBSND=ON \
-  -DBUILD_FFTS=ON \
-  -DBUILD_NVJPEG=OFF \
-  -DBUILD_NVJPEG2K=OFF \
-  -DBUILD_NVOF=OFF \
-  -DBUILD_NVDEC=OFF \
-  -DBUILD_NVML=OFF \
-  -DVERBOSE_LOGS=OFF \
-  .. && \
+  -DBUILD_JPEG_TURBO=ON  \
+  -DBUILD_LIBTIFF=ON     \
+  -DBUILD_LIBSND=ON      \
+  -DBUILD_FFTS=ON        \
+  -DBUILD_NVJPEG=OFF     \
+  -DBUILD_NVJPEG2K=OFF   \
+  -DBUILD_NVOF=OFF       \
+  -DBUILD_NVDEC=OFF      \
+  -DBUILD_NVML=OFF       \
+  -DBUILD_CUFILE=OFF     \
+  -DVERBOSE_LOGS=OFF     \
+  .. &&                  \
   make install -j"$(grep ^processor /proc/cpuinfo | wc -l)"

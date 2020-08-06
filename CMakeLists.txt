@@ -92,6 +92,10 @@ cmake_dependent_option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" O
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
+if(NOT (${ARCH} MATCHES "aarch64"))
+  cmake_dependent_option(BUILD_CUFILE "Build with cufile (GPU Direct Storage) support" ON
+                         "NOT BUILD_DALI_NODEPS" OFF)
+endif()
 
 if (BUILD_DALI_NODEPS)
   set(BUILD_OPENCV OFF)
@@ -142,6 +146,7 @@ propagate_option(BUILD_NVJPEG2K)
 propagate_option(BUILD_NVOF)
 propagate_option(BUILD_NVDEC)
 propagate_option(BUILD_NVML)
+propagate_option(BUILD_CUFILE)
 propagate_option(LINK_DRIVER)
 
 get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)

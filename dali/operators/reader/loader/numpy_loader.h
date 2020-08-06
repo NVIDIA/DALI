@@ -25,6 +25,11 @@
 #include <utility>
 #include <vector>
 #include <algorithm>
+<<<<<<< HEAD
+=======
+#include <map>
+#include <regex>
+>>>>>>> Add support for GPU based numpy reader
 #include <memory>
 
 #include "dali/core/common.h"
@@ -41,12 +46,13 @@ class NumpyParseTarget{
   std::vector<int64_t> shape;
   TypeInfo type_info;
   bool fortran_order;
+  int64_t data_offset;
 
-  size_t size() {
+  size_t size() const {
     return volume(shape);
   }
 
-  size_t nbytes() {
+  size_t nbytes() const {
     return type_info.size() * size();
   }
 };
@@ -58,7 +64,8 @@ class NumpyLoader : public FileLoader {
   explicit inline NumpyLoader(
     const OpSpec& spec,
     bool shuffle_after_epoch = false)
-    : FileLoader(spec, shuffle_after_epoch) {}
+    : FileLoader(spec, shuffle_after_epoch),
+    cache_headers_(spec.GetArgument<bool>("cache_header_information")) {}
 
   // we want to make it possible to override this function as well
   void ReadSample(ImageFileWrapper& tensor) override;
@@ -67,6 +74,10 @@ class NumpyLoader : public FileLoader {
   // parser function, only for internal use
   std::unique_ptr<FileStream> ParseHeader(std::unique_ptr<FileStream> file,
                                           NumpyParseTarget& target);
+  // helper for header caching
+  std::mutex cache_mutex_;
+  bool cache_headers_;
+  std::map<string, NumpyParseTarget> header_cache_;
 };
 
 }  // namespace dali

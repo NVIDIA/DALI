@@ -202,7 +202,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
 
   DALI_ENFORCE(device != "gpu" || device_id_ != CPU_ONLY_DEVICE_ID,
                make_string("Cannot add a GPU operator ", operator_name, ", device_id should not be"
-               "equal CPU_ONLY_DEVICE_ID."));
+               " equal CPU_ONLY_DEVICE_ID."));
 
   if (device == "support") {
     DALI_WARN("\"support\" device is deprecated; use \"cpu\" or leave blank instead");

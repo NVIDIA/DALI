@@ -49,11 +49,36 @@ else()
   add_library(dynlink_cuda STATIC dynlink_cuda.cc)
 endif()
 
-list(REMOVE_ITEM DALI_CORE_SRCS dynlink_cuda.cc)
+list(FILTER DALI_CORE_SRCS EXCLUDE REGEX ".*dynlink_cuda.cc")
+
+if (BUILD_CUFILE)
+  set(CUFILE_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cufile_gen.cc")
+  add_custom_command(
+      OUTPUT ${CUFILE_GENERATED_STUB}
+      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py --unique_prefix=Cufile --
+                  "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/cufile.json" ${CUFILE_GENERATED_STUB}
+                  "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cufile.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
+                  # for some reason QNX fails with 'too many errors emitted' is this is not set
+                  "-ferror-limit=0"
+                  ${DEFAULT_COMPILER_INCLUDE}
+      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py
+              "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cufile.h"
+              "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/cufile.json"
+      COMMENT "Running cuda.h stub generator"
+      VERBATIM)
+
+  set_source_files_properties(${CUFILE_GENERATED_STUB} PROPERTIES GENERATED TRUE)
+  add_library(dynlink_cufile STATIC dynlink_cufile.cc ${CUFILE_GENERATED_STUB})
+endif()
+
+list(FILTER DALI_CORE_SRCS EXCLUDE REGEX ".*dynlink_cufile.cc")
 
 add_library(dali_core ${LIBTYPE} ${DALI_CORE_SRCS})
 target_include_directories(dali_core PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 target_link_libraries(dali_core PRIVATE dynlink_cuda ${CUDART_LIB})
+if (BUILD_CUFILE)
+    target_link_libraries(dali_core PRIVATE dynlink_cufile)
+  endif()
 target_link_libraries(dali_core PUBLIC ${DALI_SYSTEM_LIBS})
 target_link_libraries(dali_core PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 set_target_properties(dali_core PROPERTIES
@@ -67,6 +92,9 @@ if (BUILD_TEST)
   add_executable(dali_core_test "${DALI_CORE_TEST_SRCS}")
   target_link_libraries(dali_core_test PUBLIC dali_core)
   target_link_libraries(dali_core_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
+  if (BUILD_CUFILE)
+    target_link_libraries(dali_core_test PRIVATE dynlink_cufile)
+  endif()
   target_link_libraries(dali_core_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
   target_link_libraries(dali_core_test PRIVATE "-pie")
   set_target_properties(dali_core_test PROPERTIES POSITION_INDEPENDENT_CODE ON)

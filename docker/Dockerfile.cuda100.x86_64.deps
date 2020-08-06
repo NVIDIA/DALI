@@ -17,7 +17,13 @@ RUN CUDA_VERSION=10.0 && \
     curl -LO  https://developer.download.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/patches/${CUDA_PATCH}/cuda_${CUDA_BUILD}_linux.run && \
     chmod +x cuda_${CUDA_BUILD}_linux.run && \
     ./cuda_${CUDA_BUILD}_linux.run --silent --accept-eula && \
-    rm -f cuda_${CUDA_BUILD}_linux-run;
+    rm -f cuda_${CUDA_BUILD}_linux-run; \
+    # CUDA 10 doesn't have targets so create one to make it compatible with GDS layout
+    mkdir -p /usr/local/cuda/targets/x86_64-linux && \
+    mv /usr/local/cuda/lib64 /usr/local/cuda/targets/x86_64-linux/lib && \
+    mv /usr/local/cuda/include /usr/local/cuda/targets/x86_64-linux && \
+    ln -s targets/x86_64-linux/lib /usr/local/cuda/lib64 && \
+    ln -s targets/x86_64-linux/include /usr/local/cuda/include
 
 FROM scratch
 COPY --from=cuda /usr/local/cuda /usr/local/cuda

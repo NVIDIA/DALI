@@ -223,7 +223,21 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
 
   // read the header
   NumpyParseTarget target;
-  current_image = ParseHeader(std::move(current_image), target);
+  std::unique_lock<std::mutex> cache_lock(cache_mutex_);
+  auto it = header_cache_.find(image_file);
+  if (!cache_headers_ || it == header_cache_.end()) {
+    cache_lock.unlock();
+    current_image = ParseHeader(std::move(current_image), target);
+    if (cache_headers_) {
+      cache_lock.lock();
+      header_cache_[image_file] = target;
+      cache_lock.unlock();
+    }
+  } else {
+    target = it->second;
+    current_image->Seek(target.data_offset);
+    cache_lock.unlock();
+  }
   Index image_bytes = target.nbytes();
 
   if (copy_read_data_) {

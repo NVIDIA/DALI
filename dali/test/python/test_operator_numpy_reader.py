@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -23,24 +23,22 @@ import os
 import tempfile
 import nose.tools
 
-class NumpyReaderPipeline(Pipeline):
-    def __init__(self, path, batch_size, files=None, file_list=None,
-                 path_filter="*.npy", num_threads=1, device_id=0, num_gpus=1):
-        super(NumpyReaderPipeline, self).__init__(batch_size,
-                                                  num_threads,
-                                                  device_id)
+gds_data_root = '/scratch/'
+if not os.path.isdir(gds_data_root):
+    gds_data_root = os.getcwd() + "/"
 
-        self.input = ops.NumpyReader(file_root = path,
-                                     files = files,
-                                     file_list = file_list,
-                                     shard_id = device_id,
-                                     num_shards = num_gpus)
-
-    def define_graph(self):
-        inputs = self.input(name="Reader")
-
-        return inputs
-
+def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None, path_filter="*.npy",
+                        num_threads=1, device_id=0, num_gpus=1):
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=0)
+    data = fn.numpy_reader(device = device,
+                           file_list = file_list,
+                           files = files,
+                           file_root = path,
+                           file_filter = path_filter,
+                           shard_id = 0,
+                           num_shards = 1)
+    pipe.set_outputs(data)
+    return pipe
 
 all_numpy_types = set(
     [np.bool_, np.byte, np.ubyte, np.short, np.ushort, np.intc, np.uintc, np.int_, np.uint,
@@ -57,18 +55,18 @@ rng = np.random.RandomState(12345)
 # test: compare reader with numpy
 # with different batch_size and num_threads
 def test_types_and_shapes():
-    with tempfile.TemporaryDirectory() as test_data_root:
+    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         index = 0
-        for fortran_order in [False, True]:
-            for type in all_numpy_types - unsupported_numpy_types:
-                for shape in test_np_shapes:
-                    filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
-                    index += 1
-                    yield check_array, filename, shape, type, fortran_order
-
+        for device in ["cpu", "gpu"]:
+            for fortran_order in [False, True]:
+                for type in all_numpy_types - unsupported_numpy_types:
+                    for shape in test_np_shapes:
+                        filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+                        index += 1
+                        yield check_array, filename, shape, type, device, fortran_order
 
 def test_unsupported_types():
-    with tempfile.TemporaryDirectory() as test_data_root:
+    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         index = 0
         filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
         shape = test_np_shapes[1]
@@ -77,40 +75,49 @@ def test_unsupported_types():
             nose.tools.assert_raises(RuntimeError, check_array, filename, shape, type,
                                      fortran_order)
 
+def check_batch(test_data_root, batch_size, num_samples, device, arr_np_all, file_list=None, files=None):
+    for num_threads in [1, 2, 4, 8]:
+        pipe = NumpyReaderPipeline(path = test_data_root,
+                                   file_list = file_list,
+                                   files=files,
+                                   device = device,
+                                   path_filter = "test_*.npy",
+                                   batch_size = batch_size,
+                                   num_threads = num_threads,
+                                   device_id = 0)
+        pipe.build()
+
+        for batch in range(0, num_samples, batch_size):
+            pipe_out = pipe.run()
+            if device == "cpu":
+                arr_rd = pipe_out[0].as_array()
+            else:
+                arr_rd = pipe_out[0].as_cpu().as_array()
+            arr_np = arr_np_all[batch:batch+batch_size, ...]
+
+            # compare
+            assert_array_equal(arr_rd, arr_np)
 
 # test batch_size > 1
 def test_batch():
-    with tempfile.TemporaryDirectory() as test_data_root:
+    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         # create files
         num_samples = 20
         batch_size = 4
         filenames = []
+        arr_np_list = []
         for index in range(0,num_samples):
             filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
             filenames.append(filename)
             create_numpy_file(filename, (5, 2, 8), np.float32, False)
+            arr_np_list.append(np.load(filename))
+        arr_np_all = np.stack(arr_np_list, axis=0)
 
-        # create pipe
-        for num_threads in [1, 2, 4, 8]:
-            pipe = NumpyReaderPipeline(path = test_data_root,
-                                       path_filter = "test_*.npy",
-                                       batch_size = batch_size,
-                                       num_threads = num_threads,
-                                       device_id = 0)
-            pipe.build()
-
-            for batch in range(0, num_samples, batch_size):
-                pipe_out = pipe.run()
-                arr_rd = pipe_out[0].as_array()
-                arr_np = np.stack([np.load(x)
-                                   for x in filenames[batch:batch+batch_size]], axis=0)
-
-                # compare
-                assert_array_equal(arr_rd, arr_np)
-
+        for device in ["cpu", "gpu"]:
+            yield check_batch, test_data_root, batch_size, num_samples, device, arr_np_all
 
 def test_batch_file_list():
-    with tempfile.TemporaryDirectory() as test_data_root:
+    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         # create files
         num_samples = 20
         batch_size = 4
@@ -124,25 +131,30 @@ def test_batch_file_list():
         arr_np_all = np.stack(arr_np_list, axis=0)
 
         # save filenames
-        with open(os.path.join(test_data_root, "input.lst"), "w") as f:
-            f.writelines("\n".join([os.path.basename(x) for x in filenames]))
+        file_list_path = os.path.join(test_data_root, "input.lst")
+        with open(file_list_path, "w") as f:
+            f.writelines("\n".join(filenames))
 
-        # create pipe
-        for num_threads in [1, 2, 4, 8]:
-            pipe = NumpyReaderPipeline(path = test_data_root,
-                                       file_list = os.path.join(test_data_root, "input.lst"),
-                                       batch_size = batch_size,
-                                       num_threads = num_threads,
-                                       device_id = 0)
-            pipe.build()
+        for device in ["cpu", "gpu"]:
+            yield check_batch, "", batch_size, num_samples, device , arr_np_all, file_list_path
 
-            for batch in range(0, num_samples, batch_size):
-                pipe_out = pipe.run()
-                arr_rd = pipe_out[0].as_array()
-                arr_np = arr_np_all[batch:batch+batch_size, ...]
 
-                # compare
-                assert_array_equal(arr_rd, arr_np)
+def test_batch_files():
+    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
+        # create files
+        num_samples = 20
+        batch_size = 4
+        filenames = []
+        arr_np_list = []
+        for index in range(0,num_samples):
+            filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+            filenames.append(filename)
+            create_numpy_file(filename, (5, 2, 8), np.float32, False)
+            arr_np_list.append(np.load(filename))
+        arr_np_all = np.stack(arr_np_list, axis=0)
+
+        for device in ["cpu", "gpu"]:
+            yield check_batch, None, batch_size, num_samples, device , arr_np_all, None, filenames
 
 
 def test_batch_files_arg():
@@ -181,46 +193,43 @@ def test_batch_files_arg():
 
 def test_dim_mismatch():
     with tempfile.TemporaryDirectory() as test_data_root:
-        num_samples = 2
-        batch_size = 2
         names = ["2D.npy", "3D.npy"]
         paths = [os.path.join(test_data_root, name) for name in names]
         create_numpy_file(paths[0], [3,4], np.float32, False)
         create_numpy_file(paths[1], [2,3,4], np.float32, False)
-        pipe = Pipeline(2, 2, None)
-        pipe.set_outputs(fn.numpy_reader(file_root=test_data_root, files=names))
-        pipe.build()
-        err = None
-        try:
-            pipe.run()
-        except RuntimeError as thrown:
-            err = thrown
-        # asserts should not be in except block to avoid printing nested exception on failure
-        assert err, "Exception not thrown"
-        assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
-        assert "2 dimensions" in str(err) and "3 dimensions" in str(err), "Unexpected error message: {}".format(err)
+        for device in ["cpu", "gpu"]:
+            pipe = Pipeline(2, 2, 0)
+            pipe.set_outputs(fn.numpy_reader(device=device, file_root=test_data_root, files=names))
+            pipe.build()
+            err = None
+            try:
+                pipe.run()
+            except RuntimeError as thrown:
+                err = thrown
+            # asserts should not be in except block to avoid printing nested exception on failure
+            assert err, "Exception not thrown"
+            assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
 
 def test_type_mismatch():
     with tempfile.TemporaryDirectory() as test_data_root:
-        num_samples = 2
-        batch_size = 2
         names = ["int.npy", "float.npy"]
         paths = [os.path.join(test_data_root, name) for name in names]
         create_numpy_file(paths[0], [1,2,5], np.int32, False)
         create_numpy_file(paths[1], [2,3,4], np.float32, False)
-        pipe = Pipeline(2, 2, None)
-        pipe.set_outputs(fn.numpy_reader(file_root=test_data_root, files=names))
-        pipe.build()
+        for device in ["cpu", "gpu"]:
+            pipe = Pipeline(2, 2, 0)
+            pipe.set_outputs(fn.numpy_reader(device=device, file_root=test_data_root, files=names))
+            pipe.build()
 
-        err = None
-        try:
-            pipe.run()
-        except RuntimeError as thrown:
-            err = thrown
-        # asserts should not be in except block to avoid printing nested exception on failure
-        assert err, "Exception not thrown"
-        assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
-        assert "int32" in str(err) and "float" in str(err), "Unexpected error message: {}".format(err)
+            err = None
+            try:
+                pipe.run()
+            except RuntimeError as thrown:
+                err = thrown
+            # asserts should not be in except block to avoid printing nested exception on failure
+            assert err, "Exception not thrown"
+            assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
+            assert "int32" in str(err) and "float" in str(err), "Unexpected error message: {}".format(err)
 
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array
@@ -234,23 +243,26 @@ def delete_numpy_file(filename):
     if os.path.isfile(filename):
         os.remove(filename)
 
-def check_array(filename, shape, typ, fortran_order=False):
+def check_array(filename, shape, typ, device, fortran_order=False):
     # setup file
     create_numpy_file(filename, shape, typ, fortran_order)
+
+    # load manually
+    arr_np = np.load(filename)
 
     for num_threads in [1, 2, 4, 8]:
         # load with numpy reader
         pipe = NumpyReaderPipeline(path = os.path.dirname(filename),
-                                   path_filter = os.path.basename(filename),
+                                   device = device,
                                    batch_size = 1,
                                    num_threads = num_threads,
                                    device_id = 0)
         pipe.build()
         pipe_out = pipe.run()
-        arr_rd = np.squeeze(pipe_out[0].as_array(), axis=0)
-
-        # load manually
-        arr_np = np.load(filename)
+        if device == "cpu":
+            arr_rd = np.squeeze(pipe_out[0].as_array(), axis=0)
+        else:
+            arr_rd = np.squeeze(pipe_out[0].as_cpu().as_array(), axis=0)
 
         # compare
         assert_array_equal(arr_rd, arr_np)

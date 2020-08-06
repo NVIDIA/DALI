@@ -407,6 +407,9 @@ class Operator<MixedBackend> : public OperatorBase {
 
   void Run(MixedWorkspace &ws) override = 0;
 
+  /**
+   * @brief Shared param setup
+   */
   virtual void SetupSharedSampleParams(MixedWorkspace &ws) {}
 };
 
