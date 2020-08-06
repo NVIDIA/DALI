@@ -23,6 +23,9 @@
 
 namespace dali {
 
+/**
+ * @brief Handles operator arguments shared by operators using separable resampling kernel.
+ */
 class DLL_PUBLIC ResamplingFilterAttr {
  public:
   /**
@@ -34,6 +37,9 @@ class DLL_PUBLIC ResamplingFilterAttr {
    */
   void PrepareFilterParams(const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples);
 
+  /**
+   * @brief Returns the value of `dtype` argument, if present, or input_type otherwise.
+   */
   DALIDataType GetOutputType(DALIDataType input_type) const {
     return dtype_arg_ != DALI_NO_TYPE ? dtype_arg_ : input_type;
   }
@@ -47,16 +53,36 @@ class DLL_PUBLIC ResamplingFilterAttr {
    */
   std::vector<kernels::ResamplingFilterType> mag_filter_;
 
+  /**
+   * @brief Patches existing ResamplingParams by adding filter properties.
+   *
+   * There's no need to call this function on parameters obtained from GetResamplingParams.
+   * It's intended to work with externally constructed ResamplingParams, which have the
+   * geometric information in place, but are missing the resampling filter info.
+   */
   void ApplyFilterParams(span<kernels::ResamplingParams> resample_params, int ndim) const;
 
+  /**
+   * @brief Patches existing ResamplingParams by adding filter properties.
+   *
+   * There's no need to call this function on parameters obtained from GetResamplingParams.
+   * It's intended to work with externally constructed ResamplingParams, which have the
+   * geometric information in place, but are missing the resampling filter info.
+   */
   template <size_t N>
   void ApplyFilterParams(span<kernels::ResamplingParamsND<N>> resample_params) const {
     ApplyFilterParams(flatten(resample_params), N);
   }
 
+  /**
+   * @brief Constructs ResamplingParams from ResizeParams
+   */
   void GetResamplingParams(span<kernels::ResamplingParams> resample_params,
                            span<const ResizeParams> resize_params) const;
 
+  /**
+   * @brief Constructs ResamplingParams from ResizeParams
+   */
   template <size_t N>
   void GetResamplingParams(span<kernels::ResamplingParamsND<N>> resample_params,
                            span<const ResizeParams> resize_params) const {

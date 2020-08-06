@@ -31,7 +31,7 @@ different filtering for downscaling and upscaling.)code",
      "If not set, input type is used.", nullptr)
   .AddOptionalArg("temp_buffer_hint",
       "Initial size, in bytes, of a temporary buffer for resampling.\n"
-      "Ingored for CPU variant.\n",
+      "Ignored for CPU variant.\n",
       0)
   .AddOptionalArg("minibatch_size", "Maximum number of images processed in a single kernel call",
       32);
@@ -89,8 +89,7 @@ void ResamplingFilterAttr::PrepareFilterParams(
 void ResamplingFilterAttr::GetResamplingParams(
       span<kernels::ResamplingParams> resample_params,
       span<const ResizeParams> resize_params) const {
-  int p = 0;
-  for (int i = 0; i < resize_params.size(); i++) {
+  for (int i = 0, p = 0; i < resize_params.size(); i++) {
     auto &resz_par = resize_params[i];
     for (int d = 0; d < resz_par.size(); d++) {
       auto &rsmp_par = resample_params[p++];

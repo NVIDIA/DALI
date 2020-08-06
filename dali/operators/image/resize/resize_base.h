@@ -41,10 +41,10 @@ class DLL_PUBLIC ResizeBase {
 
   using Workspace = workspace_t<Backend>;
 
-  using input_type =  typename Workspace::template input_t<Backend>::element_type;
-  using output_type = typename Workspace::template output_t<Backend>::element_type;
+  using InputBufferType =  typename Workspace::template input_t<Backend>::element_type;
+  using OutputBufferType = typename Workspace::template output_t<Backend>::element_type;
 
-  void RunResize(Workspace &ws, output_type &output, const input_type &input);
+  void RunResize(Workspace &ws, OutputBufferType &output, const InputBufferType &input);
 
   /**
    * @param ws                workspace object

@@ -126,7 +126,9 @@ void ResizeBase<GPUBackend>::InitializeGPU(int minibatch_size, size_t temp_buffe
 }
 
 template <typename Backend>
-void ResizeBase<Backend>::RunResize(Workspace &ws, output_type &output, const input_type &input) {
+void ResizeBase<Backend>::RunResize(Workspace &ws,
+                                    OutputBufferType &output,
+                                    const InputBufferType &input) {
   impl_->RunResize(ws, output, input);
 }
 

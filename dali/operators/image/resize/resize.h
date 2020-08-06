@@ -56,9 +56,10 @@ class Resize : public Operator<Backend>
                  const TensorListShape<> &orig_shape) const {
     int N = orig_shape.num_samples();
     int D = NumSpatialDims();
-    assert(orig_shape.sample_dim() == D);
+    assert(shape_data.sample_dim() == 1);
     for (int i = 0; i < N; i++) {
       auto sample_shape = orig_shape.tensor_shape_span(i);
+      assert(static_cast<int>(shape_data.shape[i][0]) == D);
       int *out_shape = shape_data.data[i];
       for (int d = 0; d < D; d++) {
         out_shape[d] = sample_shape[FirstSpatialDim() + d];
@@ -110,7 +111,7 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                     make_cspan(this->resample_params_), NumSpatialDims(), FirstSpatialDim());
 
   if (save_attrs_) {
-    output_desc[0].shape = uniform_list_shape(N, TensorShape<1>({ NumSpatialDims() }));
+    output_desc[1].shape = uniform_list_shape(N, TensorShape<1>({ NumSpatialDims() }));
     output_desc[1].type = TypeTable::GetTypeInfo(DALI_INT32);
   }
   return true;

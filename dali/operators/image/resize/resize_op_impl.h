@@ -32,12 +32,12 @@ using kernels::ResamplingParamsND;
 
 template <typename Backend>
 struct ResizeBase<Backend>::Impl {
-  using input_type =  typename Workspace::template input_t<Backend>::element_type;
-  using output_type = typename Workspace::template output_t<Backend>::element_type;
+  using InputBufferType  = typename Workspace::template input_t<Backend>::element_type;
+  using OutputBufferType = typename Workspace::template output_t<Backend>::element_type;
 
   virtual void RunResize(workspace_t<Backend> &ws,
-                         output_type &output,
-                         const input_type &input) = 0;
+                         OutputBufferType &output,
+                         const InputBufferType &input) = 0;
 
   virtual void Setup(TensorListShape<> &out_shape,
                      const TensorListShape<> &in_shape,

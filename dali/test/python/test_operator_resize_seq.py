@@ -81,9 +81,19 @@ def create_dali_pipe(channel_first, seq_len, interp, w, h, batch_size = 2):
     with pipe:
         layout = "FCHW" if channel_first else "FHWC"
         ext = fn.external_source(GetSequences(channel_first, seq_len, batch_size), layout = layout)
-        dali_resized_cpu = fn.resize(ext,       resize_x = w, resize_y = h, interp_type = interp)
-        dali_resized_gpu = fn.resize(ext.gpu(), resize_x = w, resize_y = h, interp_type = interp, minibatch_size=4)
-        pipe.set_outputs(dali_resized_cpu, dali_resized_gpu)
+        resize_cpu_out = fn.resize(ext,       resize_x=w, resize_y=h, interp_type=interp, save_attrs=True)
+        resize_gpu_out = fn.resize(ext.gpu(), resize_x=w, resize_y=h, interp_type=interp, minibatch_size=4, save_attrs=True)
+        dali_resized_cpu, size_cpu = resize_cpu_out
+        dali_resized_gpu, size_gpu = resize_gpu_out
+        # extract just HW part from the input shape
+        shape_anchor = np.array([2 if channel_first else 1], dtype=np.float32)
+        shape_shape = np.array([2], dtype=np.float32)
+        ext_size = fn.slice(fn.cast(fn.shapes(ext), dtype=types.INT32),
+                            types.Constant(shape_anchor, device="cpu"),
+                            types.Constant(shape_shape, device="cpu"),
+                            normalized_anchor=False,normalized_shape=False,
+                            axes=[0])
+        pipe.set_outputs(dali_resized_cpu, dali_resized_gpu, ext_size, size_cpu, size_gpu)
     return pipe
 
 def _test_resize(layout, interp, w, h):
@@ -99,6 +109,11 @@ def _test_resize(layout, interp, w, h):
         out_ref = pipe_ref.run()
         check_batch(out_dali[0], out_ref[0], 2, eps=eps, max_allowed_error=max_err)
         check_batch(out_dali[1], out_ref[0], 2, eps=eps, max_allowed_error=max_err)
+        ext_size = out_dali[2]
+        size_cpu = out_dali[3]
+        size_gpu = out_dali[4]
+        check_batch(ext_size, size_cpu, 2)
+        check_batch(ext_size, size_gpu, 2)
 
 def test_resize():
     for layout in ["FHWC", "FCHW"]:
