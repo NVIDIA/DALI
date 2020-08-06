@@ -105,10 +105,10 @@ def _test_resize(layout, interp, dtype, w, h):
     pipe_ref = create_ref_pipe(channel_first, 8, interp, dtype, w, h)
     pipe_ref.build()
     eps = 1e-2
-    max_err = 5
+    max_err = 6
     for iter in range(4):
         out_dali = pipe_dali.run()
-        out_ref = pipe_ref.run()
+        out_ref = pipe_ref.run()[0]
         dali_cpu = out_dali[0]
         dali_gpu = out_dali[1]
         if interp == types.INTERP_LANCZOS3:
@@ -116,8 +116,19 @@ def _test_resize(layout, interp, dtype, w, h):
             # to get rid of for the comparison to succeed.
             dali_cpu = [np.array(x).clip(0, 255) for x in dali_cpu]
             dali_gpu = [np.array(x).clip(0, 255) for x in dali_gpu.as_cpu()]
-        check_batch(dali_cpu, out_ref[0], 2, eps=eps, max_allowed_error=max_err)
-        check_batch(dali_gpu, out_ref[0], 2, eps=eps, max_allowed_error=max_err)
+        else:
+            dali_cpu = [np.array(x) for x in dali_cpu]
+            dali_gpu = [np.array(x) for x in dali_gpu.as_cpu()]
+        if channel_first:
+            out_ref = [np.array(x)[:,:,1:-1,1:-1] for x in out_ref]
+            dali_gpu = [x[:,:,1:-1,1:-1] for x in dali_gpu]
+            dali_cpu = [x[:,:,1:-1,1:-1] for x in dali_cpu]
+        else:
+            out_ref = [np.array(x)[:,1:-1,1:-1,:] for x in out_ref]
+            dali_gpu = [x[:,1:-1,1:-1,:] for x in dali_gpu]
+            dali_cpu = [x[:,1:-1,1:-1,:] for x in dali_cpu]
+        check_batch(dali_cpu, out_ref, 2, eps=eps, max_allowed_error=max_err)
+        check_batch(dali_gpu, out_ref, 2, eps=eps, max_allowed_error=max_err)
         ext_size = out_dali[2]
         size_cpu = out_dali[3]
         size_gpu = out_dali[4]
