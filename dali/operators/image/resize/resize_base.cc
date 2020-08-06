@@ -63,7 +63,7 @@ void ResizeBase<Backend>::SetupResizeTyped(
       int spatial_ndim,
       int first_spatial_dim) {
   VALUE_SWITCH(spatial_ndim, static_spatial_ndim, (2),
-  (SetupResizeStatic<OutputType, OutputType, static_spatial_ndim>(
+  (SetupResizeStatic<OutputType, InputType, static_spatial_ndim>(
       out_shape, in_shape, params, first_spatial_dim)),
   (DALI_FAIL(make_string("Unsupported number of resized dimensions: ", spatial_ndim))));
 }
