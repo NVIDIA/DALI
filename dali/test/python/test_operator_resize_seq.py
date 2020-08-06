@@ -3,10 +3,9 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
-import matplotlib.pyplot as plt
 import math
 import os.path
-import PIL
+import PIL.Image
 from test_utils import check_batch
 
 def init_video_data():

@@ -28,6 +28,7 @@ DALI_SCHEMA(Resize)
   .InputLayout(0, {"HWC", "FHWC", "CHW", "FCHW", "CFHW" /*, "DHWC", "FDHWC" */ })
   .AddOptionalArg("save_attrs",
       R"code(Save reshape attributes for testing.)code", false)
+  .DeprecateArg("image_type", true)  // deprecated since 0.25dev
   .AddParent("ResizeAttr")
   .AddParent("ResamplingFilterAttr");
 
