@@ -90,8 +90,9 @@ void FillTensorVector(
 
 template <>
 void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
+  auto &out = ws.OutputRef<CPUBackend>(0);
   if (output_.ntensor() == 0) {
-    output_.set_pinned(false);
+    output_.set_pinned(out.is_pinned());
     TYPE_SWITCH(output_type_, type2id, type, CONSTANT_OP_SUPPORTED_TYPES,
       (
         if (!fdata_.empty()) {
@@ -102,7 +103,6 @@ void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
         }
       ), (DALI_FAIL(make_string("Unsupported type: ", to_string(output_type_)))));  // NOLINT
   }
-  auto &out = ws.OutputRef<CPUBackend>(0);
 
   out.ShareData(&output_);
   int N = output_shape_.num_samples();

@@ -68,12 +68,12 @@ std::shared_ptr<TensorList<backend>> PresentAsTensorList(
 }
 
 template<typename workspace, typename T>
-void addInputHelper(workspace &ws, T &tensor) {
+void AddInputHelper(workspace &ws, T &tensor) {
   ws.AddInput(tensor);
 }
 
 template<typename T>
-void addInputHelper(dali::DeviceWorkspace &ws, T &tensor) {
+void AddInputHelper(dali::DeviceWorkspace &ws, T &tensor) {
   ws.AddInput(PresentAsTensorList(tensor));
 }
 
@@ -88,7 +88,7 @@ add_input(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_queue_t &
   DALI_ENFORCE(!queue.IsBuffered() || queue_idx < static_cast<int>(queue.size()),
                "Backing Tensor store queue has not enough elements.");
   auto tensor = queue[queue_idx];
-  addInputHelper(ws, tensor);
+  AddInputHelper(ws, tensor);
 }
 
 // If parent op_type or device is not allowed this is a no-op
@@ -200,7 +200,7 @@ inline void SetupStreamsAndEvents<OpType::MIXED>(
   // between mixed ops and the previous iterations
   // gpu ops.
   ws.set_stream(mixed_op_stream);
-  // for the CPU only pipeline there is no CUDA events
+  // for the CPU only pipeline there are no CUDA events
   if (mixed_op_events.size() > 0) {
     ws.set_event(mixed_op_events[node.partition_index][idxs[OpType::MIXED]]);
   }

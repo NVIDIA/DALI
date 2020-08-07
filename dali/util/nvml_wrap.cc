@@ -104,7 +104,7 @@ DALIError_t wrapSymbols(void) {
   if (symbolsLoaded)
     return DALISuccess;
 
-  static void* nvmlhandle = NULL;
+  static void* nvmlhandle = nullptr;
   void* tmp;
   void** cast;
 
@@ -119,7 +119,7 @@ DALIError_t wrapSymbols(void) {
 #define LOAD_SYM(handle, symbol, funcptr) do {                     \
     cast = reinterpret_cast<void**>(&funcptr);                       \
     tmp = dlsym(handle, symbol);                                     \
-    if (tmp == NULL) {                                               \
+    if (tmp == nullptr) {                                               \
       DALI_FAIL("dlsym failed on " + symbol + " - " + dlerror());    \
     }                                                                \
     *cast = tmp;                                                     \
@@ -132,7 +132,7 @@ DALIError_t wrapSymbols(void) {
     }                                                                        \
     cast = reinterpret_cast<void**>(&funcptr);                               \
     tmp = dlsym(handle, symbol);                                             \
-    if (tmp == NULL) {                                                       \
+    if (tmp == nullptr) {                                                       \
       DALI_FAIL("dlsym failed on " + symbol + " - " + dlerror());            \
     }                                                                        \
     *cast = tmp;                                                             \
@@ -172,7 +172,7 @@ DALIError_t wrapSymbols(void) {
 
 #define FUNC_BODY(INTERNAL_FUNC, ARGS...)            \
   do {                                               \
-    if (INTERNAL_FUNC == NULL) {                     \
+    if (INTERNAL_FUNC == nullptr) {                     \
       return DALIError;                              \
     }                                                \
     nvmlReturn_t ret = INTERNAL_FUNC(ARGS);          \
@@ -190,10 +190,10 @@ DALIError_t wrapNvmlInit(void) {
 }
 
 DALIError_t wrapNvmlShutdown(void) {
-  if (nvmlInternalInit == NULL) {
+  if (nvmlInternalInit == nullptr) {
     return DALISuccess;
   }
-  if (nvmlInternalShutdown == NULL) {
+  if (nvmlInternalShutdown == nullptr) {
     DALI_FAIL("lib wrapper not initialized.");
     return DALIError;
   }

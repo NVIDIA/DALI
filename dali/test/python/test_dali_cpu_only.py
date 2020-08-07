@@ -43,41 +43,31 @@ def get_data():
     out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
     return out
 
-def test_gpu_op_bad_device():
+def check_bad_device(device_id):
     test_data_shape = [1, 3, 0, 4]
     def get_data():
         out = [np.empty(test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
         return out
 
-    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=-1)
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=device_id)
     outs = fn.external_source(source = get_data, device = "gpu")
     pipe.set_outputs(outs)
     assert_raises(RuntimeError, pipe.build)
 
-def test_gpu_op_bad_device_2():
-    test_data_shape = [1, 3, 0, 4]
-    def get_data():
-        out = [np.empty(test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
-        return out
+def test_gpu_op_bad_device():
+    for device_id in [-1, 0]:
+        yield check_bad_device, device_id
 
-    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
-    outs = fn.external_source(source = get_data, device = "gpu")
-    pipe.set_outputs(outs)
+def check_mixed_op_bad_device(device_id):
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=device_id)
+    input, _ = fn.file_reader(file_root=images_dir, shard_id=0, num_shards=1)
+    decoded = fn.image_decoder(input, device="mixed", output_type=types.RGB)
+    pipe.set_outputs(decoded)
     assert_raises(RuntimeError, pipe.build)
 
 def test_mixed_op_bad_device():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    input, _ = fn.file_reader(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.image_decoder(input, device="mixed", output_type=types.RGB)
-    pipe.set_outputs(decoded)
-    assert_raises(RuntimeError, pipe.build)
-
-def test_mixed_op_bad_device2():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-    input, _ = fn.file_reader(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.image_decoder(input, device="mixed", output_type=types.RGB)
-    pipe.set_outputs(decoded)
-    assert_raises(RuntimeError, pipe.build)
+    for device_id in [-1, 0]:
+        yield check_bad_device, device_id
 
 def test_image_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
@@ -408,9 +398,7 @@ def test_to_decibels_cpu():
         out = [np.random.ranf(size = test_data_shape).astype(dtype = np.float32) for _ in range(batch_size)]
         return out
     data = fn.external_source(source = get_data)
-    spectrum = fn.spectrogram(data, nfft = 60, window_length = 50, window_step = 25)
-    mel = fn.mel_filter_bank(spectrum)
-    processed = fn.to_decibels(mel)
+    processed = fn.to_decibels(data)
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):

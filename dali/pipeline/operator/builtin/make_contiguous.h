@@ -24,7 +24,7 @@
 #include "dali/core/common.h"
 
 // Found by benchmarking coalesced vs non coalesced on diff size images
-#define COALESCE_TRESHOLD 8192
+#define COALESCE_THRESHOLD 8192
 
 namespace dali {
 
