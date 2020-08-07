@@ -22,42 +22,50 @@ import sys
 from setuptools.command.build_ext import build_ext
 from setuptools.command.egg_info import egg_info
 
+
 install_requires = [
     'nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'
 ]
+
 
 class CustomBuildExt(build_ext, object):
     def run(self):
         helper = InstallerHelper(plugin_dest_dir = os.path.join(self.build_lib, 'nvidia', 'dali_tf_plugin'))
         helper.install()
-        
-        
+
+
 class EggInfoCommand(egg_info):
     """A class for setuptools egg_info command.
     Handled by "python setup.py egg_info".
     """
+
+    def pip_install(self, *args):
+        pip_args = [
+            "install",
+            "--index-url",
+            "https://developer.download.nvidia.com/compute/redist"
+        ]
+        from pip._internal.cli.main import main as pip
+        return_code = pip(pip_args + install_requires)
+
+        if return_code != 0:
+            raise RuntimeError(
+                "Installation of requirements failed with code: %d" %
+                return_code
+            )
+        else:
+            return return_code
+
     def run(self):
         """Run egg_info command."""
         if all([keyword in sys.argv for keyword in ["egg_info", "--egg-base"]]):
-            pip_args = [
-                "install",
-                "--index-url",
-                "https://developer.download.nvidia.com/compute/redist"
-            ]
             try:
-                from pip._internal.cli.main import main as pip
-                return_code = pip(pip_args + install_requires)
-
-                if return_code != 0:
-                    raise RuntimeError(
-                        "Installation of requirements failed with code: %d" %
-                        return_code
-                    )
+                assert(self.pip_install(install_requires) == 0)
             except:
-                from pip._internal.cli.main import main as pip
-                pip(pip_args + ["--user"] + install_requires)
+                assert(self.pip_install(["--user"] + install_requires) == 0)
 
         super(EggInfoCommand, self).run()
+
 
 class CustomDistribution(Distribution):
     def __init__(self, attrs=None):
@@ -68,6 +76,7 @@ class CustomDistribution(Distribution):
         # By filling this ext_modules we are signaling that this package needs
         # to be built for different platforms
         self.ext_modules = [Extension('nvidia.dali_tf_plugin', [])]
+
 
 setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
       description='NVIDIA DALI @DALI_FLAVOR@ Tensorflow plugin for CUDA @CUDA_VERSION_SHORT@. Git SHA: @GIT_SHA@',
