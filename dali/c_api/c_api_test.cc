@@ -519,6 +519,20 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
   }
 }
 
+template <typename Backend>
+void Clear(Tensor<Backend>& tensor);
+
+template <>
+void Clear(Tensor<CPUBackend>& tensor) {
+  std::memset(tensor.raw_mutable_data(), 0, tensor.nbytes());
+}
+
+template <>
+void Clear(Tensor<GPUBackend>& tensor) {
+  cudaMemset(tensor.raw_mutable_data(), 0, tensor.nbytes());
+}
+
+
 TYPED_TEST(CApiTest, daliOutputCopySamples) {
   auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
   auto serialized = pipe_ptr->SerializeToProtobuf();
@@ -554,11 +568,15 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
     Tensor<CPUBackend> output1_cpu;
     output1_cpu.Copy(output1, cuda_stream);
 
-    Tensor<TypeParam> output2;
-    Tensor<CPUBackend> output2_cpu;
-    {
-      output2.set_pinned(false);
+    for (bool use_copy_kernel : {false, true}) {
+      Tensor<TypeParam> output2;
+      Tensor<CPUBackend> output2_cpu;
+      output2.set_pinned(std::is_same<TypeParam, CPUBackend>::value);
       output2.Resize({out_size}, type_info);
+      // Making sure data is cleared
+      // Somehow in debug mode it can get the same raw pointer which happen to have
+      // the right data in the second iteration
+      Clear(output2);
 
       std::vector<void*> sample_dsts(batch_size);
       int64_t offset = 0;
@@ -566,39 +584,63 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
         sample_dsts[sample_idx] = static_cast<uint8_t*>(output2.raw_mutable_data()) + offset;
         offset += sample_sizes[sample_idx] * type_info.size();
       }
+
+      unsigned int flags = DALI_ext_default;
+      if (use_copy_kernel)
+        flags |= DALI_use_copy_kernel;
+      if (std::is_same<TypeParam, CPUBackend>::value)
+        flags |= DALI_ext_pinned;
+
       daliOutputCopySamples(&handle, sample_dsts.data(), out_idx,
-                            backend_to_device_type<TypeParam>::value, 0, DALI_ext_default);
+                            backend_to_device_type<TypeParam>::value, cuda_stream, flags);
+
       // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
       output2_cpu.Copy(output2, cuda_stream);
+      CUDA_CALL(cudaDeviceSynchronize());
+      Check(view<uint8_t>(output1_cpu), view<uint8_t>(output2_cpu));
     }
 
-    Tensor<TypeParam> output3;
-    Tensor<CPUBackend> output3_cpu;
-    {
-      output3.set_pinned(std::is_same<TypeParam, CPUBackend>::value);
-      output3.Resize({out_size}, type_info);
+    for (bool use_copy_kernel : {false, true}) {
+      Tensor<TypeParam> output2;
+      Tensor<CPUBackend> output2_cpu;
+      output2.set_pinned(std::is_same<TypeParam, CPUBackend>::value);
+      output2.Resize({out_size}, type_info);
+      // Making sure data is cleared
+      // Somehow in debug mode it can get the same raw pointer which happen to have
+      // the right data in the second iteration
+      Clear(output2);
 
-      std::vector<void*> sample_dsts(batch_size);
+      std::vector<void*> sample_dsts_even(batch_size);
+      std::vector<void*> sample_dsts_odd(batch_size);
       int64_t offset = 0;
       for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
-        sample_dsts[sample_idx] = static_cast<uint8_t*>(output3.raw_mutable_data()) + offset;
+        auto sample_ptr = static_cast<uint8_t*>(output2.raw_mutable_data()) + offset;
+        if (sample_idx % 2 == 0) {
+          sample_dsts_even[sample_idx] = sample_ptr;
+          sample_dsts_odd[sample_idx]  = nullptr;
+        } else {
+          sample_dsts_even[sample_idx] = nullptr;
+          sample_dsts_odd[sample_idx]  = sample_ptr;
+        }
         offset += sample_sizes[sample_idx] * type_info.size();
       }
 
-      unsigned int copy_kernel_flags = DALI_ext_default | DALI_use_copy_kernel;
+      unsigned int flags = DALI_ext_default;
+      if (use_copy_kernel)
+        flags |= DALI_use_copy_kernel;
       if (std::is_same<TypeParam, CPUBackend>::value)
-        copy_kernel_flags |= DALI_ext_pinned;
+        flags |= DALI_ext_pinned;
 
-      daliOutputCopySamples(&handle, sample_dsts.data(), out_idx,
-                            backend_to_device_type<TypeParam>::value, 0, copy_kernel_flags);
+      daliOutputCopySamples(&handle, sample_dsts_even.data(), out_idx,
+                            backend_to_device_type<TypeParam>::value, cuda_stream, flags);
+      daliOutputCopySamples(&handle, sample_dsts_odd.data(), out_idx,
+                            backend_to_device_type<TypeParam>::value, cuda_stream, flags);
 
       // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-      output3_cpu.Copy(output3, cuda_stream);
+      output2_cpu.Copy(output2, cuda_stream);
+      CUDA_CALL(cudaDeviceSynchronize());
+      Check(view<uint8_t>(output1_cpu), view<uint8_t>(output2_cpu));
     }
-
-    CUDA_CALL(cudaDeviceSynchronize());
-    Check(view<uint8_t>(output1_cpu), view<uint8_t>(output2_cpu));
-    Check(view<uint8_t>(output1_cpu), view<uint8_t>(output3_cpu));
   }
 }
 
