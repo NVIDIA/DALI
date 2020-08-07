@@ -5,7 +5,7 @@ a build environment
 
 To change build configuration please export appropriate env variables (for exact meaning please check the README):
 PYVER=[default 3.6]
-CUDA_VERSION=[default 11, accepts also 10]
+CUDA_VERSION=[default 11.0, accepts also 10.0]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
 CREATE_RUNNER=[default NO]
@@ -15,7 +15,7 @@ DALI_BUILD_FLAVOR=[default is empty]
 CMAKE_BUILD_TYPE=[default is Release]
 BUILD_INHOST=[create build dir with object outside docker, just mount it as a volume, default is YES]
 REBUILD_BUILDERS=[default is NO]
-DALI_BUILD_DIR=[default is build-docker-\${CMAKE_BUILD_TYPE}-\${PYV}-\${CUDA_VERSION}]
+DALI_BUILD_DIR=[default is build-docker-\${CMAKE_BUILD_TYPE}-\${CUDA_VERSION}]
 ARCH=[default is x86_64]
 WHL_PLATFORM_NAME=[default is manylinux2014_x86_64]
 
@@ -39,19 +39,19 @@ shift $((OPTIND - 1))
 export ARCH=${ARCH:-x86_64}
 export PYVER=${PYVER:-3.6}
 export PYV=${PYVER/./}
-export CUDA_VERSION=${CUDA_VERSION:-11}
+export CUDA_VERSION=${CUDA_VERSION:-11.0}
+export CUDA_VER=${CUDA_VERSION//./}
 
 if [ "${CUDA_VERSION%%\.*}" ]
 then
-  if [ $CUDA_VERSION != "10" ] && [ $CUDA_VERSION != "11" ]
+  if [ $CUDA_VER != "100" ] && [ $CUDA_VER != "110" ]
   then
-      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 10 and 11 are supported"
+      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 10.0 and 11.0 are supported"
       exit 1
   fi
 else
-  export CUDA_VERSION=${CUDA_VERSION#*\.}
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-  echo "Forcing $CUDA_VERSION. Make sure that Dockerfile.cuda$CUDA_VERSION.deps is provided"
+  echo "Forcing $CUDA_VER. Make sure that Dockerfile.cuda$CUDA_VER.deps is provided"
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 fi
 
@@ -64,21 +64,21 @@ export BUILD_INHOST=${BUILD_INHOST:-YES}
 export REBUILD_BUILDERS=${REBUILD_BUILDERS:-NO}
 export BUILD_TF_PLUGIN=${BUILD_TF_PLUGIN:-NO}
 export PREBUILD_TF_PLUGINS=${PREBUILD_TF_PLUGINS:-YES}
-export DALI_BUILD_DIR=${DALI_BUILD_DIR:-build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}}_${ARCH}
+export DALI_BUILD_DIR=${DALI_BUILD_DIR:-build-docker-${CMAKE_BUILD_TYPE}-${CUDA_VER}}_${ARCH}
 export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux2014_${ARCH}}
 #################################
 export BASE_NAME=quay.io/pypa/manylinux2014_${ARCH}
-export DEPS_IMAGE=nvidia/dali:cu${CUDA_VERSION}_${ARCH}.deps
-export CUDA_DEPS_IMAGE=nvidia/dali:cuda${CUDA_VERSION}_${ARCH}.toolkit
-export BUILDER=nvidia/dali:py${PYV}_cu${CUDA_VERSION}_${ARCH}.build
-export BUILDER_WHL=nvidia/dali:py${PYV}_cu${CUDA_VERSION}_${ARCH}.build_whl
-export BUILDER_DALI_TF_BASE_MANYLINUX1=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.build_tf_base_manylinux1
-export BUILDER_DALI_TF_BASE_MANYLINUX2010=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.build_tf_base_manylinux2010
-export BUILDER_DALI_TF_BASE_WITH_WHEEL=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.build_tf_base_with_whl
-export BUILDER_DALI_TF_MANYLINUX1=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.build_tf_manylinux1
-export BUILDER_DALI_TF_MANYLINUX2010=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.build_tf_manylinux2010
-export BUILDER_DALI_TF_SDIST=nvidia/dali:py${PYV}_cu${CUDA_VERSION}_${ARCH}.build_tf_sdist
-export RUN_IMG=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.run
+export DEPS_IMAGE=nvidia/dali:cu${CUDA_VER}_${ARCH}.deps
+export CUDA_DEPS_IMAGE=nvidia/dali:cuda${CUDA_VER}_${ARCH}.toolkit
+export BUILDER=nvidia/dali:cu${CUDA_VER}_${ARCH}.build
+export BUILDER_WHL=nvidia/dali:cu${CUDA_VER}_${ARCH}.build_whl
+export BUILDER_DALI_TF_BASE_MANYLINUX1=nvidia/dali:cu${CUDA_VER}.build_tf_base_manylinux1
+export BUILDER_DALI_TF_BASE_MANYLINUX2010=nvidia/dali:cu${CUDA_VER}.build_tf_base_manylinux2010
+export BUILDER_DALI_TF_BASE_WITH_WHEEL=nvidia/dali:cu${CUDA_VER}.build_tf_base_with_whl
+export BUILDER_DALI_TF_MANYLINUX1=nvidia/dali:cu${CUDA_VER}.build_tf_manylinux1
+export BUILDER_DALI_TF_MANYLINUX2010=nvidia/dali:cu${CUDA_VER}.build_tf_manylinux2010
+export BUILDER_DALI_TF_SDIST=nvidia/dali:cu${CUDA_VER}_${ARCH}.build_tf_sdist
+export RUN_IMG=nvidia/dali:py${PYV}_cu${CUDA_VER}.run
 export GIT_SHA=$(git rev-parse HEAD)
 export DALI_TIMESTAMP=$(date +%Y%m%d)
 
@@ -88,7 +88,7 @@ pushd ../
 # build deps image if needed
 if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" || "$(docker images -q ${CUDA_DEPS_IMAGE} 2> /dev/null)" == "" ]]; then
     echo "Build deps: " ${DEPS_IMAGE}
-    docker build -t ${CUDA_DEPS_IMAGE} -f docker/Dockerfile.cuda${CUDA_VERSION}.${ARCH}.deps .
+    docker build -t ${CUDA_DEPS_IMAGE} -f docker/Dockerfile.cuda${CUDA_VER}.${ARCH}.deps .
     docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME} --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" -f docker/Dockerfile.deps .
 fi
 
@@ -152,7 +152,6 @@ if [ "$BUILD_INHOST" == "YES" ]; then
 else
     echo "Build image:" ${BUILDER_WHL}
     docker build -t ${BUILDER_WHL} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}"             \
-                                   --build-arg "PYV=${PYV}"                                \
                                    --build-arg "ARCH=${ARCH}"                              \
                                    --build-arg "WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME}"    \
                                    --build-arg "CUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}"    \
@@ -186,16 +185,16 @@ fi
 if [ "$CREATE_RUNNER" == "YES" ]; then
     echo "Runner image:" ${RUN_IMG}
     echo "You can run this image with DALI installed inside, keep in mind to install neccessary FW package as well"
-    if [ ${CUDA_VERSION} == "10" ] ; then
+    if [ ${CUDA_VER} == "100" ] ; then
         export CUDA_IMAGE_NAME="nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04"
-    elif [ ${CUDA_VERSION} == "11" ] ; then
+    elif [ ${CUDA_VER} == "111" ] ; then
         export CUDA_IMAGE_NAME="nvidia/cuda:11.0-cudnn8-devel-ubuntu18.04"
     else
         echo "**************************************************************"
         echo "Not supported CUDA version"
         echo "**************************************************************"
     fi
-    echo ${CUDA_VERSION}
+    echo ${CUDA_VER}
     echo ${CUDA_IMAGE_NAME}
     export BUILDER_TMP=${BUILDER_WHL}
     # for intree build we don't have docker image with whl inside so create one
