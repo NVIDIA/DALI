@@ -28,7 +28,8 @@ namespace dali {
 
 DALI_SCHEMA(Spectrogram)
   .DocStr(R"code(Produces a spectrogram from a 1D signal (e.g. audio). Input data is expected
-to be single channel (shape being `(nsamples,)`, `(nsamples, 1)` or `(1, nsamples)`).)code")
+to be single channel (shape being `(nsamples,)`, `(nsamples, 1)` or `(1, nsamples)`) of type
+float32.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("nfft",
