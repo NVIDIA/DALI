@@ -14,15 +14,38 @@
 
 from setuptools import setup, find_namespace_packages
 from dali_tf_plugin_install_tool import InstallerHelper
-from setuptools.command.build_ext import build_ext
 from setuptools.dist import Distribution
 from setuptools.extension import Extension
 import os
+import sys
+
+from setuptools.command.build_ext import build_ext
+from setuptools.command.egg_info import egg_info
+
+install_requires = [
+    'nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'
+]
 
 class CustomBuildExt(build_ext, object):
     def run(self):
         helper = InstallerHelper(plugin_dest_dir = os.path.join(self.build_lib, 'nvidia', 'dali_tf_plugin'))
         helper.install()
+
+class EggInfoCommand(egg_info):
+    """A class for setuptools egg_info command.
+    Handled by "python setup.py egg_info".
+    """
+    def run(self):
+        """Run egg_info command."""
+        if all([keyword in sys.argv for keyword in ["egg_info", "--egg-base"]]):
+            try:
+                from pip._internal.cli.main import main as pip
+                pip(["install"] + install_requires)
+            except:
+                from pip._internal.cli.main import main as pip
+                pip(["install", "--user"] + install_requires)
+
+        super(EggInfoCommand, self).run()
 
 class CustomDistribution(Distribution):
     def __init__(self, attrs=None):
@@ -43,12 +66,10 @@ setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIG
       packages=find_namespace_packages(include=['nvidia.*']),
       include_package_data=True,
       zip_safe=False,
-      install_requires = [
-          'nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'
-          ],
-
+      install_requires=install_requires,
       cmdclass={
           'build_ext': CustomBuildExt,
+          'egg_info': EggInfoCommand,
       },
       distclass=CustomDistribution
      )
