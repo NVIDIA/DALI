@@ -40,7 +40,10 @@ class EggInfoCommand(egg_info):
         if all([keyword in sys.argv for keyword in ["egg_info", "--egg-base"]]):
             try:
                 from pip._internal.cli.main import main as pip
-                pip(["install"] + install_requires)
+                return_code = pip(["install"] + install_requires)
+
+                if return_code != 0:
+                    raise RuntimeError("Installation of requirements failed with code: %d" % return_code)
             except:
                 from pip._internal.cli.main import main as pip
                 pip(["install", "--user"] + install_requires)
