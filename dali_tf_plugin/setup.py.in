@@ -30,6 +30,8 @@ class CustomBuildExt(build_ext, object):
     def run(self):
         helper = InstallerHelper(plugin_dest_dir = os.path.join(self.build_lib, 'nvidia', 'dali_tf_plugin'))
         helper.install()
+        
+        
 class EggInfoCommand(egg_info):
     """A class for setuptools egg_info command.
     Handled by "python setup.py egg_info".
