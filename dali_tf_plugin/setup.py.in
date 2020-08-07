@@ -30,7 +30,6 @@ class CustomBuildExt(build_ext, object):
     def run(self):
         helper = InstallerHelper(plugin_dest_dir = os.path.join(self.build_lib, 'nvidia', 'dali_tf_plugin'))
         helper.install()
-
 class EggInfoCommand(egg_info):
     """A class for setuptools egg_info command.
     Handled by "python setup.py egg_info".
@@ -38,15 +37,23 @@ class EggInfoCommand(egg_info):
     def run(self):
         """Run egg_info command."""
         if all([keyword in sys.argv for keyword in ["egg_info", "--egg-base"]]):
+            pip_args = [
+                "install",
+                "--index-url",
+                "https://developer.download.nvidia.com/compute/redist"
+            ]
             try:
                 from pip._internal.cli.main import main as pip
-                return_code = pip(["install"] + install_requires)
+                return_code = pip(pip_args + install_requires)
 
                 if return_code != 0:
-                    raise RuntimeError("Installation of requirements failed with code: %d" % return_code)
+                    raise RuntimeError(
+                        "Installation of requirements failed with code: %d" %
+                        return_code
+                    )
             except:
                 from pip._internal.cli.main import main as pip
-                pip(["install", "--user"] + install_requires)
+                pip(pip_args + ["--user"] + install_requires)
 
         super(EggInfoCommand, self).run()
 
