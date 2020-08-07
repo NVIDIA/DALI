@@ -35,7 +35,7 @@ struct SeparableResamplingFilter {
 
   virtual ~SeparableResamplingFilter() = default;
 
-  using Params = span<ResamplingParamsND<spatial_ndim> >;
+  using Params = span<const ResamplingParamsND<spatial_ndim> >;
 
   virtual KernelRequirements
   Setup(KernelContext &context, const Input &in, const Params &params) = 0;

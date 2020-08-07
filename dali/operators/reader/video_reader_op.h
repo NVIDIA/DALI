@@ -89,9 +89,6 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   inline ~VideoReader() override = default;
 
  protected:
-  void SetupSharedSampleParams(DeviceWorkspace &ws) override {
-  }
-
   void SetOutputType(TensorList<GPUBackend> &output) {
     if (dtype_ == DALI_FLOAT) {
       output.set_type(TypeTable::GetTypeInfoFromStatic<float>());

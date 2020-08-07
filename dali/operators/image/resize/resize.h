@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/image/resize/resize_crop_mirror.h"
 #include "dali/operators/image/resize/resize_base.h"
+#include "dali/operators/image/resize/resize_attr.h"
 #include "dali/kernels/context.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/imgproc/resample/params.h"
@@ -35,41 +36,87 @@ namespace detail {
     const TransformMeta &meta, kernels::FilterDesc min_filter, kernels::FilterDesc mag_filter);
 }  // namespace detail
 
-class ResizeAttr : protected ResizeCropMirrorAttr {
- public:
-  explicit inline ResizeAttr(const OpSpec &spec) : ResizeCropMirrorAttr(spec) {}
-
-  void SetBatchSize(int batch_size) {
-    per_sample_meta_.reserve(batch_size);
-  }
-
- protected:
-  uint32_t ResizeInfoNeeded() const override { return 0; }
-
-  // store per-thread data for same resize on multiple data
-  std::vector<TransformMeta> per_sample_meta_;
-};
-
 template <typename Backend>
 class Resize : public Operator<Backend>
-             , protected ResizeAttr
-             , protected ResizeBase {
+             , protected ResizeBase<Backend> {
  public:
   explicit Resize(const OpSpec &spec);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    return false;
+  int NumSpatialDims() const { return resize_attr_.spatial_ndim_; }
+  int FirstSpatialDim() const { return resize_attr_.first_spatial_dim_; }
+
+  bool CanInferOutputs() const override { return true; }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
+
+  void RunImpl(workspace_t<Backend> &ws) override;
+
+  void SaveAttrs(const TensorListView<StorageCPU, int, 1> &shape_data,
+                 const TensorListShape<> &orig_shape) const {
+    int N = orig_shape.num_samples();
+    int D = NumSpatialDims();
+    assert(shape_data.sample_dim() == 1);
+    for (int i = 0; i < N; i++) {
+      auto sample_shape = orig_shape.tensor_shape_span(i);
+      assert(static_cast<int>(shape_data.shape[i][0]) == D);
+      int *out_shape = shape_data.data[i];
+      for (int d = 0; d < D; d++) {
+        out_shape[d] = sample_shape[FirstSpatialDim() + d];
+      }
+    }
   }
 
-  void RunImpl(Workspace<Backend> &ws) override;
-  void SetupSharedSampleParams(Workspace<Backend> &ws) override;
+  void PrepareParams(const ArgumentWorkspace &ws, const TensorListShape<> &input_shape,
+                     const TensorLayout &layout) {
+    resize_attr_.PrepareResizeParams(spec_, ws, input_shape, layout);
+    assert(NumSpatialDims() >= 1 && NumSpatialDims() <= 3);
+    assert(FirstSpatialDim() >= 0);
+    int N = input_shape.num_samples();
+    resample_params_.resize(N * NumSpatialDims());
+    resampling_attr_.PrepareFilterParams(spec_, ws, N);
+    resampling_attr_.GetResamplingParams(make_span(resample_params_),
+                                         make_cspan(resize_attr_.params_));
+  }
+
+  void InitializeBackend();
 
   USE_OPERATOR_MEMBERS();
+  std::vector<kernels::ResamplingParams> resample_params_;
+  TensorList<CPUBackend> attr_staging_;
   using Operator<Backend>::RunImpl;
-  bool save_attrs_;
-  int outputs_per_idx_;
+  bool save_attrs_ = false;
+
+  ResizeAttr resize_attr_;
+  ResamplingFilterAttr resampling_attr_;
 };
+
+template <typename Backend>
+bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                const workspace_t<Backend> &ws) {
+  output_desc.resize(save_attrs_ ? 2 : 1);
+  auto &input = ws.template InputRef<Backend>(0);
+
+  const auto &in_shape = input.shape();
+  auto in_type = input.type().id();
+  auto in_layout = input.GetLayout();
+  int N = in_shape.num_samples();
+
+  PrepareParams(ws, in_shape, in_layout);
+
+  auto out_type = resampling_attr_.GetOutputType(in_type);
+
+  output_desc[0].type = TypeTable::GetTypeInfo(out_type);
+  this->SetupResize(output_desc[0].shape, out_type, in_shape, in_type,
+                    make_cspan(this->resample_params_), NumSpatialDims(), FirstSpatialDim());
+
+  if (save_attrs_) {
+    output_desc[1].shape = uniform_list_shape(N, TensorShape<1>({ NumSpatialDims() }));
+    output_desc[1].type = TypeTable::GetTypeInfo(DALI_INT32);
+  }
+  return true;
+}
+
 
 }  // namespace dali
 

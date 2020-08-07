@@ -53,7 +53,6 @@ class TestPipeline(Pipeline):
             output_type = types.RGB)
         self.resize = ops.Resize(
             device = device,
-            image_type = types.RGB,
             resize_x = 224,
             resize_y = 224,
             interp_type = types.INTERP_LINEAR)
@@ -262,5 +261,5 @@ def test_python_operator_error():
             output_shapes=shapes,
             output_dtypes=dtypes,
             num_threads=1,
-            device_id=0)     
+            device_id=0)
 

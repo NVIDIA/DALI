@@ -5,6 +5,7 @@ import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import test_utils
 from nvidia.dali.pipeline import Pipeline
 
 
@@ -96,7 +97,7 @@ def video_reader_pipeline(batch_size, video_reader_params):
 def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
     pipeline = video_reader_pipeline(batch_size, video_reader_params)
 
-    def get_next_frame(): 
+    def get_next_frame():
         pipe_out = pipeline.run()
         sequences_out = pipe_out[0].as_cpu().as_array()
         for sample in range(batch_size):
