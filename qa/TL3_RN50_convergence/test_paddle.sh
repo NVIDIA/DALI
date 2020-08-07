@@ -8,7 +8,7 @@ function CLEAN_AND_EXIT {
     exit $1
 }
 
-export USE_CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*) | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1\2/')
+export USE_CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
 # rarfile>= 3.2 breaks python 3.5 compatibility
 pip install $(python /opt/dali/qa/setup_packages.py -i 0 -u paddle --cuda ${USE_CUDA_VERSION}) "rarfile<=3.1"
 
