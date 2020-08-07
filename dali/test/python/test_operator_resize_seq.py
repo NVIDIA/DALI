@@ -12,8 +12,7 @@ def init_video_data():
     batch_size = 2
     video_directory = os.path.join(os.environ['DALI_EXTRA_PATH'], "db", "video", "sintel", "video_files")
 
-    video_files=[os.path.join(video_directory, f) for f in os.listdir(video_directory)]
-    print(video_files)
+    video_files=[os.path.join(video_directory, f) for f in sorted(os.listdir(video_directory))]
 
     video_pipe = dali.pipeline.Pipeline(batch_size, 3, 0, seed=16)
     with video_pipe:
