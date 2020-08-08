@@ -39,7 +39,8 @@ class EggInfoCommand(egg_info):
     Handled by "python setup.py egg_info".
     """
 
-    def pip_install(self, *args):
+    @staticmethod
+    def pip_install(*args):
         pip_args = [
             "install",
             "--index-url",
@@ -60,9 +61,9 @@ class EggInfoCommand(egg_info):
         """Run egg_info command."""
         if all([keyword in sys.argv for keyword in ["egg_info", "--egg-base"]]):
             try:
-                assert(self.pip_install(install_requires) == 0)
+                assert(EggInfoCommand.pip_install(install_requires) == 0)
             except:
-                assert(self.pip_install(["--user"] + install_requires) == 0)
+                assert(EggInfoCommand.pip_install(["--user"] + install_requires) == 0)
 
         super(EggInfoCommand, self).run()
 
