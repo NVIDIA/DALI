@@ -133,6 +133,10 @@ using several methods.
 
 The simplest and preferred way is to specify a `source`, which may be a callable or iterable.
 
+.. warning::
+    :meth:`nvidia.dali.ops.ExternalSource` operator doesn't support TensorFlow framework due to
+    the design limittations
+
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
     which is more performant.
@@ -352,6 +356,10 @@ In the case of the GPU input, it is the user responsibility to modify the
 provided GPU memory content only using provided stream (DALI schedules a copy on it
 and all work is properly queued). If no stream is provided feeding input blocks until the
 provided memory is copied to the internal buffer.
+
+.. warning::
+    :meth:`nvidia.dali.ops.ExternalSource` operator doesn't support TensorFlow framework due to
+    the design limittations
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
