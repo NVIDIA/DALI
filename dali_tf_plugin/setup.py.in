@@ -41,7 +41,7 @@ def pip_install(pkg_req, user=False):
         pip_args.append("--user")
     pip_args.append(pkg_req)
 
-    from pip._internal import main as pip
+    from pip._internal.cli.main import main as pip 
     return pip(pip_args) == 0
 
 class CustomBuildExt(build_ext, object):
