@@ -89,6 +89,13 @@ if (BUILD_BENCHMARK)
   add_subdirectory(benchmark)
 endif()
 
+
+################################################
+# Build fuzzing suite
+################################################
+add_subdirectory(fuzzing)
+
+
 ################################################
 # Build the DALI python bindings
 ################################################

@@ -36,6 +36,7 @@ check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
 option(BUILD_BENCHMARK "Build benchmark suite" ON)
+option(BUILD_FUZZING "Build fuzzing suite" OFF)
 # if BUILD_NVTX is empty remove it and let is be default
 if ("${BUILD_NVTX}" STREQUAL "")
   unset(BUILD_NVTX CACHE)
