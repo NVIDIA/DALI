@@ -232,7 +232,8 @@ class ExternalSource : public Operator<Backend> {
 
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline std::enable_if_t<!std::is_same<SrcBackend, Backend>::value>
-  ShareUserData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/) {
+  ShareUserData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/,
+                bool /* use_copy_kernel */) {
     DALI_FAIL(make_string("no_copy is supported only for the same data source device type "
                           "as operator. Received: ",
                           std::is_same<SrcBackend, CPUBackend>::value? "CPU" : "GPU",
@@ -241,10 +242,11 @@ class ExternalSource : public Operator<Backend> {
                           " operator."));
   }
 
-  template<typename SrcBackend, template<typename> class SourceDataType>
+  template <typename SrcBackend, template <typename> class SourceDataType>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, CPUBackend>::value>
-  ShareUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t /*stream = 0*/) {
+  ShareUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t /*stream = 0*/,
+                bool /*use_copy_kernel = false*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({});
     auto tv_elm = tv_data_.GetEmpty();
@@ -257,10 +259,23 @@ class ExternalSource : public Operator<Backend> {
     tv_data_.PushBack(tv_elm);
   }
 
-  template<typename SrcBackend>
+  /**
+   * @brief Attempts to share data from tensor vector to tensor list without
+   *        an additional copy if the batch is contiguoys.
+   *        In case of scattered samples, the data is copied to a contiguous
+   *        buffer.
+   * @remarks Mixing contiguous and non-contiguous inputs in subsequents calls
+   *        is not supported and could lead to data corruption.
+   * @param batch source data
+   * @param stream CUDA stream use to schedule the copy
+   * @param use_copy_kernel If true, a copy kernel will be used to make a
+   *        contiguous buffer instead of cudaMemcpyAsync.
+   */
+  template <typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, GPUBackend>::value>
-  ShareUserData(const TensorVector<SrcBackend> &batch, cudaStream_t stream = 0) {
+  ShareUserData(const TensorVector<SrcBackend> &batch, cudaStream_t stream = 0,
+                bool use_copy_kernel = false) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     auto tl_elm = tl_data_.GetEmpty();
     if (batch.IsContiguous()) {
@@ -269,7 +284,7 @@ class ExternalSource : public Operator<Backend> {
       state_.push_back({});
     } else {
       // it is not contiguous so we need to copy
-      tl_elm.front()->Copy(batch, stream);
+      tl_elm.front()->Copy(batch, stream, use_copy_kernel);
 
       std::list<uptr_cuda_event_type> copy_to_storage_event;
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
@@ -286,10 +301,11 @@ class ExternalSource : public Operator<Backend> {
     tl_data_.PushBack(tl_elm);
   }
 
-  template<typename SrcBackend>
+  template <typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, GPUBackend>::value>
-   ShareUserData(const TensorList<SrcBackend> &batch, cudaStream_t /*stream = 0*/) {
+  ShareUserData(const TensorList<SrcBackend> &batch, cudaStream_t /*stream = 0*/,
+                bool /* use_copy_kernel */) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({});
     auto tl_elm = tl_data_.GetEmpty();
@@ -378,7 +394,7 @@ class ExternalSource : public Operator<Backend> {
     std::list<uptr_tl_type> tl_elm;
     std::list<uptr_tl_type> tv_elm;
     if (no_copy_) {
-      ShareUserData(batch, stream);
+      ShareUserData(batch, stream, use_copy_kernel);
     } else {
       CopyUserData(batch, stream, sync, use_copy_kernel);
     }
