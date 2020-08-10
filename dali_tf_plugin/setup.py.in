@@ -28,11 +28,11 @@ NVIDIA_INDEX_URL = "https://developer.download.nvidia.com/compute/redist/@DALI_F
 def is_dali_installed():
     try:
         import nvidia.dali
-        return True
     except:
         return False
+    return True
 
-def pip_install(pkg_req, user=False):
+def pip_install_dali(pkg_req, user=False):
     pip_args = [
         "install",
         "--index-url", NVIDIA_INDEX_URL
@@ -62,11 +62,11 @@ class EggInfoCommand(egg_info):
         """Installing DALI if not already installed during EggInfo command (first egg_info run)"""
         handle_deps = all([keyword in sys.argv for keyword in ["egg_info", "--egg-base"]]) 
         if handle_deps and not is_dali_installed():
-            ret = pip_install(DALI_PKG_REQ, user=False)
+            ret = pip_install_dali(DALI_PKG_REQ, user=False)
             if not ret:
-                ret = pip_install(DALI_PKG_REQ, user=True)
+                ret = pip_install_dali(DALI_PKG_REQ, user=True)
             if not ret:
-                raise RuntimeError("Could not install {}".format(DALI_PKG_REQ))
+                raise RuntimeError("Could not install {}. Please install it and try again".format(DALI_PKG_REQ))
             # For nvidia.dali to be importable, restart the program from scratch
             os.execl(sys.executable, sys.executable, *sys.argv)
 
