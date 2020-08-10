@@ -22,51 +22,55 @@ import sys
 from setuptools.command.build_ext import build_ext
 from setuptools.command.egg_info import egg_info
 
+DALI_PKG_REQ = 'nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'
+NVIDIA_INDEX_URL = "https://developer.download.nvidia.com/compute/redist/@DALI_FLAVOR@"
 
-install_requires = [
-    'nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'
-]
+def is_dali_installed():
+    try:
+        import nvidia.dali
+        return True
+    except:
+        return False
 
+def pip_install(pkg_req, user=False):
+    pip_args = [
+        "install",
+        "--index-url", NVIDIA_INDEX_URL
+    ]
+    if user:
+        pip_args.append("--user")
+    pip_args.append(pkg_req)
+
+    from pip._internal import main as pip
+    return pip(pip_args) == 0
 
 class CustomBuildExt(build_ext, object):
     def run(self):
+        if not is_dali_installed():
+            raise RuntimeError("NVIDIA DALI should be installed at this point.")
         helper = InstallerHelper(plugin_dest_dir = os.path.join(self.build_lib, 'nvidia', 'dali_tf_plugin'))
         helper.install()
 
-
 class EggInfoCommand(egg_info):
     """A class for setuptools egg_info command.
-    Handled by "python setup.py egg_info".
+    DALI TF requires DALI to be installed when the package is built (not installed).
+    We are overriding egg_info command to install DALI package before build_ext command,
+    if it was not installed already.
     """
 
-    @staticmethod
-    def pip_install(*args):
-        pip_args = [
-            "install",
-            "--index-url",
-            "https://developer.download.nvidia.com/compute/redist"
-        ]
-        from pip._internal.cli.main import main as pip
-        return_code = pip(pip_args + install_requires)
-
-        if return_code != 0:
-            raise RuntimeError(
-                "Installation of requirements failed with code: %d" %
-                return_code
-            )
-        else:
-            return return_code
-
     def run(self):
-        """Run egg_info command."""
-        if all([keyword in sys.argv for keyword in ["egg_info", "--egg-base"]]):
-            try:
-                assert(EggInfoCommand.pip_install(install_requires) == 0)
-            except:
-                assert(EggInfoCommand.pip_install(["--user"] + install_requires) == 0)
+        """Installing DALI if not already installed during EggInfo command (first egg_info run)"""
+        handle_deps = all([keyword in sys.argv for keyword in ["egg_info", "--egg-base"]]) 
+        if handle_deps and not is_dali_installed():
+            ret = pip_install(DALI_PKG_REQ, user=False)
+            if not ret:
+                ret = pip_install(DALI_PKG_REQ, user=True)
+            if not ret:
+                raise RuntimeError("Could not install {}".format(DALI_PKG_REQ))
+            # For nvidia.dali to be importable, restart the program from scratch
+            os.execl(sys.executable, sys.executable, *sys.argv)
 
         super(EggInfoCommand, self).run()
-
 
 class CustomDistribution(Distribution):
     def __init__(self, attrs=None):
@@ -88,7 +92,7 @@ setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIG
       packages=find_namespace_packages(include=['nvidia.*']),
       include_package_data=True,
       zip_safe=False,
-      install_requires=install_requires,
+      install_requires=[DALI_PKG_REQ],
       cmdclass={
           'build_ext': CustomBuildExt,
           'egg_info': EggInfoCommand,
