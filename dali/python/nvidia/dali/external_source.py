@@ -134,8 +134,7 @@ using several methods.
 The simplest and preferred way is to specify a `source`, which may be a callable or iterable.
 
 .. warning::
-    :meth:`nvidia.dali.ops.ExternalSource` operator doesn't support TensorFlow framework due to
-    the design limittations
+    :meth:`nvidia.dali.ops.ExternalSource` operator is not compatible with TensorFlow integration.
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
@@ -358,8 +357,7 @@ and all work is properly queued). If no stream is provided feeding input blocks 
 provided memory is copied to the internal buffer.
 
 .. warning::
-    :meth:`nvidia.dali.ops.ExternalSource` operator doesn't support TensorFlow framework due to
-    the design limittations
+    :meth:`nvidia.dali.ops.ExternalSource` operator is not compatible with TensorFlow integration.
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
