@@ -36,7 +36,7 @@ template<typename Backend>
 Resize<Backend>::Resize(const OpSpec &spec)
     : Operator<Backend>(spec)
     , ResizeBase<Backend>(spec) {
-  save_attrs_ = spec_.HasArgument("save_attrs");
+  save_attrs_ = this->spec_.HasArgument("save_attrs");
   resample_params_.resize(num_threads_);
   InitializeBackend();
 }
