@@ -133,13 +133,19 @@ void CUVideoDecoder::reconfigure(unsigned int height, unsigned int width) {
     DALI_ENFORCE(decoder_, "Trying to reconfigure uninitialized decoder");
 
     DALI_ENFORCE(width >= caps_.nMinWidth && height >= caps_.nMinHeight,
-                 "Video is too small in at least one dimension.");
+                 make_string("Video is too small in at least one dimension. Provided size is ",
+                 width, "x", height, " while the decoder requires at least ", caps_.nMinWidth, "x",
+                 caps_.nMinHeight));
 
     DALI_ENFORCE(width <= caps_.nMaxWidth && height <= caps_.nMaxHeight,
-                 "Video is too large in at least one dimension.");
+                 make_string("Video is too large in at least one dimension. Provided size is ",
+                 width, "x", height, " while the decoder supports at most ", caps_.nMaxWidth, "x",
+                 caps_.nMaxHeight));
 
     DALI_ENFORCE(width * height / 256 <= caps_.nMaxMBCount,
-                 "Video is too large (too many macroblocks).");
+                 make_string("Video is too large (too many macroblocks). Provided video has ",
+                 width * height / 256, " blocks calculated as ", width, "*", height, "/256, ",
+                 " while the decoder supports up to", caps_.nMaxMBCount, " macroblocks"));
 
     reconfigParams.display_area.bottom = decoder_info_.display_area.bottom = height;
     reconfigParams.display_area.top = 0;
