@@ -163,7 +163,7 @@ class BatchResamplingSetup : public SeparableResamplingSetup<_spatial_ndim> {
   using Base::spatial_ndim;
   using Base::tensor_ndim;
   using Base::num_tmp_buffers;
-  using Params = span<ResamplingParamsND<spatial_ndim>>;
+  using Params = span<const ResamplingParamsND<spatial_ndim>>;
   using SampleDesc = resampling::SampleDesc<spatial_ndim>;
 
   std::vector<SampleDesc> sample_descs;
@@ -175,7 +175,7 @@ class BatchResamplingSetup : public SeparableResamplingSetup<_spatial_ndim> {
 
   template <typename Collection>
   void SetupBatch(const TensorListShape<tensor_ndim> &in, const Collection &params) {
-    SetupBatch(in, make_span(params));
+    SetupBatch(in, make_cspan(params));
   }
   DLL_PUBLIC void InitializeSampleLookup(const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup);
 };

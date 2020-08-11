@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/operators/image/resize/resize_base.h"
+#include "dali/operators/image/resize/resize_attr.h"
 #include "dali/operators/image/crop/random_crop_attr.h"
 #include "dali/kernels/imgproc/resample/params.h"
 
@@ -31,14 +32,12 @@ namespace dali {
 
 template <typename Backend>
 class RandomResizedCrop : public Operator<Backend>
-                        , protected ResizeBase
-                        , protected RandomCropAttr {
+                        , protected ResizeBase<Backend> {
  public:
   explicit inline RandomResizedCrop(const OpSpec &spec)
       : Operator<Backend>(spec)
-      , ResizeBase(spec)
-      , RandomCropAttr(spec)
-      , interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
+      , ResizeBase<Backend>(spec)
+      , crop_attr_(spec) {
     GetSingleOrRepeatedArg(spec, size_, "size", 2);
     InitParams(spec);
     BackendInit();
@@ -51,13 +50,47 @@ class RandomResizedCrop : public Operator<Backend>
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
+  bool CanInferOutputs() const override { return true; }
+
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    return false;
+    auto &input = ws.template InputRef<Backend>(0);
+    const auto &in_shape = input.shape();
+    DALI_ENFORCE(in_shape.sample_dim() == 3, "Expects 3-dimensional HWC input.");
+    DALIDataType in_type = input.type().id();
+
+    auto layout = input.GetLayout();
+
+    int N = in_shape.num_samples();
+
+    resample_params_.resize(N);
+    resampling_attr_.PrepareFilterParams(spec_, ws, N);
+
+    auto out_type = resampling_attr_.GetOutputType(in_type);
+
+    int width_idx  = layout.find('W');
+    int height_idx = layout.find('H');
+    assert(width_idx >= 0 && "Width dimension not found");
+    assert(height_idx >= 0 && "Height dimension not found");
+    assert(width_idx == height_idx + 1 && "Width must immediately follow height dim.");
+
+    for (int sample_idx = 0; sample_idx < N; sample_idx++) {
+      auto sample_shape = in_shape.tensor_shape_span(sample_idx);
+      int H = sample_shape[height_idx];
+      int W = sample_shape[width_idx];
+      crops_[sample_idx] = crop_attr_.GetCropWindowGenerator(sample_idx)({H, W}, "HW");
+      resample_params_[sample_idx] = CalcResamplingParams(sample_idx);
+    }
+    resampling_attr_.ApplyFilterParams(make_span(resample_params_));
+
+    output_desc.resize(1);
+    this->SetupResize(output_desc[0].shape, out_type, in_shape, in_type,
+                      make_cspan(resample_params_));
+    output_desc[0].type = TypeTable::GetTypeInfo(out_type);
+    return true;
   }
 
-  void RunImpl(Workspace<Backend> &ws) override;
-  void SetupSharedSampleParams(Workspace<Backend> &ws) override;
+  void RunImpl(workspace_t<Backend> &ws) override;
 
  private:
   void BackendInit();
@@ -72,8 +105,9 @@ class RandomResizedCrop : public Operator<Backend>
   kernels::ResamplingParams2D CalcResamplingParams(int index) const {
     auto &wnd = crops_[index];
     auto params = shared_params_;
-    params[0].roi = kernels::ResamplingParams::ROI(wnd.anchor[0], wnd.anchor[0]+wnd.shape[0]);
-    params[1].roi = kernels::ResamplingParams::ROI(wnd.anchor[1], wnd.anchor[1]+wnd.shape[1]);
+    for (int d = 0; d < 2; d++) {
+      params[d].roi = kernels::ResamplingParams::ROI(wnd.anchor[d], wnd.anchor[d]+wnd.shape[d]);
+    }
     return params;
   }
 
@@ -81,13 +115,15 @@ class RandomResizedCrop : public Operator<Backend>
     crops_.resize(batch_size_);
     shared_params_[0].output_size = size_[0];
     shared_params_[1].output_size = size_[1];
-    shared_params_[0].min_filter = shared_params_[1].min_filter = min_filter_;
-    shared_params_[0].mag_filter = shared_params_[1].mag_filter = mag_filter_;
   }
+
+  ResamplingFilterAttr resampling_attr_;
+  RandomCropAttr crop_attr_;
 
   std::vector<int> size_;
   DALIInterpType interp_type_;
   kernels::ResamplingParams2D shared_params_;
+  std::vector<kernels::ResamplingParams2D> resample_params_;
   std::vector<CropWindow> crops_;
 };
 

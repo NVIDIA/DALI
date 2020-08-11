@@ -40,7 +40,7 @@ class CommonPipeline(Pipeline):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id)
 
         self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
-        self.resize = ops.Resize(device = "gpu", image_type = types.RGB, interp_type = types.INTERP_LINEAR)
+        self.resize = ops.Resize(device = "gpu", interp_type = types.INTERP_LINEAR)
         self.cmn = ops.CropMirrorNormalize(device = "gpu",
                                            output_dtype = types.FLOAT,
                                            crop = (227, 227),

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,8 @@ namespace dali {
 
 template<>
 void RandomResizedCrop<GPUBackend>::BackendInit() {
-  InitializeGPU(batch_size_, spec_.GetArgument<int>("minibatch_size"));
+  InitializeGPU(spec_.GetArgument<int>("minibatch_size"),
+                spec_.GetArgument<int64_t>("temp_buffer_hint"));
 }
 
 template<>
@@ -37,27 +38,8 @@ void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   const int newW = size_[1];
 
   auto &output = ws.Output<GPUBackend>(0);
-  RunGPU(output, input, ws.stream());
+  RunResize(ws, output, input);
   output.SetLayout(input.GetLayout());
-}
-
-template<>
-void RandomResizedCrop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws) {
-  auto &input = ws.Input<GPUBackend>(0);
-  DALI_ENFORCE(IsType<uint8>(input.type()),
-      "Expected input data as uint8.");
-
-  for (int i = 0; i < batch_size_; ++i) {
-    auto input_shape = input.tensor_shape(i);
-    DALI_ENFORCE(input_shape.size() == 3,
-        "Expects 3-dimensional image input.");
-
-    int H = input_shape[0];
-    int W = input_shape[1];
-
-    crops_[i] = GetCropWindowGenerator(i)({H, W}, "HW");
-  }
-  CalcResamplingParams();
 }
 
 DALI_REGISTER_OPERATOR(RandomResizedCrop, RandomResizedCrop<GPUBackend>, GPU);

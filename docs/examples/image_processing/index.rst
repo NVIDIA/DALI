@@ -10,6 +10,7 @@ Image Processing
    decoder_examples.ipynb
    hsv_example.ipynb
    interp_types.ipynb
+   resize.ipynb
    warp_3D.ipynb
    warp.ipynb
 

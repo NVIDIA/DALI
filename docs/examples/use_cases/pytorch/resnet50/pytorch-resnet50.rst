@@ -13,7 +13,7 @@ To run use the following commands
 
    ln -s /path/to/train/jpeg/ train
    ln -s /path/to/validation/jpeg/ val
-   python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --dali_cpu --fp16 --b 128 --static-loss-scale 128.0 --workers 4 --lr=0.4 ./
+   python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --workers 4 --lr=0.4 --opt-level O2 ./
 
 Requirements
 ------------
@@ -21,7 +21,7 @@ Requirements
 .. role:: bash(code)
    :language: bash
 
-- `APEx <https://www.github.com/nvidia/apex>`_ - optional, required for fp16 mode or distributed (multi-GPU) operation
+- `APEx <https://www.github.com/nvidia/apex>`_ - optional (form PyTorch 1.6 it is part of the upstream so there is no need to install it separately), required for fp16 mode or distributed (multi-GPU) operation
 - Install PyTorch from source, master branch of `PyTorch on github <https://www.github.com/pytorch/pytorch>`_
 - :bash:`pip install -r requirements.txt`
 - Download the ImageNet dataset and move validation images to labeled subfolders
@@ -48,7 +48,7 @@ Usage
 
 .. code-block:: bash
 
-   main.py [-h] [--arch ARCH] [-j N] [--epochs N] [--start-epoch N] [-b N] [--lr LR] [--momentum M] [--weight-decay W] [--print-freq N] [--resume PATH] [-e] [--pretrained] DIR
+   main.py [-h] [--arch ARCH] [-j N] [--epochs N] [--start-epoch N] [-b N] [--lr LR] [--momentum M] [--weight-decay W] [--print-freq N] [--resume PATH] [-e] [--pretrained] [--opt-level] DIR
 
    PyTorch ImageNet Training
 
@@ -70,3 +70,4 @@ Usage
    -e, --evaluate              evaluate model on validation set
    --pretrained                use pre-trained model
    --dali_cpu                  use CPU based pipeline for DALI, for heavy GPU networks it may work better, for IO bottlenecked one like RN18 GPU default should be faster
+   --opt-level                 how much of the training script uses FP16 arithmethic, from O0 - full FP32, 01 - official mixed precision, O2 - almost pure FP16 but may not work in all cases

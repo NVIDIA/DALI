@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,45 +33,20 @@ DALI_SCHEMA(RandomResizedCrop)
       DALI_INT_VEC)
   .AddParent("RandomCropAttr")
   .AddParent("ResamplingFilterAttr")
-  .InputLayout("HWC");
+  .InputLayout(0, { "HWC", "CHW" });
 
 template<>
 void RandomResizedCrop<CPUBackend>::BackendInit() {
-  Initialize(num_threads_);
-  out_shape_.resize(num_threads_);
+  InitializeCPU(num_threads_);
 }
 
 template<>
-void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  auto &input = ws.Input<CPUBackend>(0);
-  DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
-  DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
+void RandomResizedCrop<CPUBackend>::RunImpl(HostWorkspace &ws) {
+  auto &input = ws.InputRef<CPUBackend>(0);
+  auto &output = ws.OutputRef<CPUBackend>(0);
 
-  const int W = input.shape()[1];
-  const int C = input.shape()[2];
-
-  const int newH = size_[0];
-  const int newW = size_[1];
-
-  auto &output = ws.Output<CPUBackend>(0);
-
-  RunCPU(output, input, ws.thread_idx());
+  RunResize(ws, output, input);
   output.SetLayout(input.GetLayout());
-}
-
-template<>
-void RandomResizedCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace &ws) {
-  auto &input = ws.Input<CPUBackend>(0);
-  auto& input_shape = input.shape();
-  DALI_ENFORCE(input_shape.size() == 3,
-      "Expects 3-dimensional image input.");
-
-  int H = input_shape[0];
-  int W = input_shape[1];
-  int id = ws.data_idx();
-
-  crops_[id] = GetCropWindowGenerator(id)({H, W}, "HW");
-  resample_params_[ws.thread_idx()] = CalcResamplingParams(id);
 }
 
 DALI_REGISTER_OPERATOR(RandomResizedCrop, RandomResizedCrop<CPUBackend>, CPU);

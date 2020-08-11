@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,64 +20,93 @@
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/span.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/imgproc/resample/params.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/operators/image/resize/resampling_attr.h"
 
 namespace dali {
 
-class DLL_PUBLIC ResamplingFilterAttr {
+template <typename Backend>
+class DLL_PUBLIC ResizeBase {
  public:
-  DLL_PUBLIC ResamplingFilterAttr(const OpSpec &spec);
+  explicit ResizeBase(const OpSpec &spec);
+  ~ResizeBase();
+
+  void InitializeCPU(int num_threads);
+  void InitializeGPU(int minibatch_size, size_t temp_buffer_hint = 0);
+
+  using Workspace = workspace_t<Backend>;
+
+  using InputBufferType =  typename Workspace::template input_t<Backend>::element_type;
+  using OutputBufferType = typename Workspace::template output_t<Backend>::element_type;
+
+  void RunResize(Workspace &ws, OutputBufferType &output, const InputBufferType &input);
 
   /**
-   * Filter used when downscaling
+   * @param ws                workspace object
+   * @param out_shape         output shape, determined by params
+   * @param input             input; data is not accessed, only shape and metadata are relevant
+   * @param params            resampling parameters; this is a flattened array of size
+   *                          `spatial_ndim*num_samples`, each sample is described by spatial_ndim
+   *                          ResamplingParams, starting from outermost spatial dimension
+   *                          (i.e. [depthwise,] vertical, horizontal)
+   * @param out_type          desired output type
+   * @param first_spatial_dim index of the first resized dim
+   * @param spatial_ndim      number of resized dimensions - these need to form a
+   *                          contiguous block in th layout
    */
-  kernels::FilterDesc min_filter_{ kernels::ResamplingFilterType::Triangular, 0 };
-  /**
-   * Filter used when upscaling
-   */
-  kernels::FilterDesc mag_filter_{ kernels::ResamplingFilterType::Linear, 0 };
-  /**
-   * Initial size, in bytes, of a temporary buffer for resampling.
-   */
-  size_t temp_buffer_hint_ = 0;
-};
+  void SetupResize(TensorListShape<> &out_shape,
+                   DALIDataType out_type,
+                   const TensorListShape<> &in_shape,
+                   DALIDataType in_type,
+                   span<const kernels::ResamplingParams> params,
+                   int spatial_ndim,
+                   int first_spatial_dim = 0);
 
-class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
- public:
-  explicit inline ResizeBase(const OpSpec &spec) : ResamplingFilterAttr(spec) {}
+  template <size_t spatial_ndim>
+  void SetupResize(TensorListShape<> &out_shape,
+                   DALIDataType out_type,
+                   const TensorListShape<> &in_shape,
+                   DALIDataType in_type,
+                   span<const kernels::ResamplingParamsND<spatial_ndim>> params,
+                   int first_spatial_dim = 0) {
+    SetupResize(out_shape, out_type, in_shape, in_type, flatten(params),
+                spatial_ndim, first_spatial_dim);
+  }
 
-  DLL_PUBLIC void Initialize(int num_threads = 1);
-  DLL_PUBLIC void InitializeGPU(int batch_size, int minibatch_size);
+  struct Impl;  // this needs to be public, because implementations inherit from it
+ private:
+  template <typename OutType, typename InType, int spatial_ndim>
+  void SetupResizeStatic(TensorListShape<> &out_shape,
+                         const TensorListShape<> &in_shape,
+                         span<const kernels::ResamplingParams> params,
+                         int first_spatial_dim = 0);
 
-  DLL_PUBLIC void RunGPU(TensorList<GPUBackend> &output,
-                         const TensorList<GPUBackend> &input,
-                         cudaStream_t stream);
+  template <typename OutType, typename InType>
+  void SetupResizeTyped(TensorListShape<> &out_shape,
+                        const TensorListShape<> &in_shape,
+                        span<const kernels::ResamplingParams> params,
+                        int spatial_ndim,
+                        int first_spatial_dim = 0);
 
-  DLL_PUBLIC void RunCPU(Tensor<CPUBackend> &output,
-                         const Tensor<CPUBackend> &input,
-                         int thread_idx);
-
-  std::vector<kernels::ResamplingParams2D> resample_params_;
-  TensorListShape<> out_shape_;
-
- protected:
+  int num_threads_ = 1;
+  int minibatch_size_ = 32;
+  std::unique_ptr<Impl> impl_;
   kernels::KernelManager kmgr_;
-
-  struct MiniBatch {
-    int start, count;
-    TensorListShape<> out_shape;
-    kernels::InListGPU<uint8_t, 3> input;
-    kernels::OutListGPU<uint8_t, 3> output;
-  };
-  std::vector<MiniBatch> minibatches_;
-
-  void SubdivideInput(const kernels::InListGPU<uint8_t, 3> &in);
-  void SubdivideOutput(const kernels::OutListGPU<uint8_t, 3> &out);
 };
+
+template <>
+void ResizeBase<CPUBackend>::InitializeCPU(int num_threads);
+
+template <>
+void ResizeBase<GPUBackend>::InitializeGPU(int minibatch_size, size_t temp_buffer_hint);
+
+extern template class ResizeBase<CPUBackend>;
+extern template class ResizeBase<GPUBackend>;
 
 }  // namespace dali
 

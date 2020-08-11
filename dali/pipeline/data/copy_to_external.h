@@ -35,18 +35,64 @@ struct alloc_to_backend<AllocType::GPU> {
   using type = GPUBackend;
 };
 
+template <typename DstBackend, typename SrcBackend>
+inline void CopyToExternalImpl(void* dst,
+                               const Buffer<SrcBackend> &src,
+                               cudaStream_t stream, bool use_copy_kernel) {
+  DeviceGuard d(src.device_id());
+  const auto &type_info = src.type();
+  type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.size(), stream,
+                                                  use_copy_kernel);
+}
+
+template <typename DstBackend, typename SrcBackend>
+inline void CopyToExternalImpl(void** dsts,
+                               const TensorList<SrcBackend> &src,
+                               cudaStream_t stream, bool use_copy_kernel) {
+  DeviceGuard d(src.device_id());
+
+  const auto &type_info = src.type();
+  auto src_shape = src.shape();
+
+  SmallVector<int64_t, 256> sizes;
+  int nsamples = src_shape.size();
+  sizes.reserve(nsamples);
+  for (int i = 0; i < nsamples; i++) {
+    if (dsts[i] == nullptr)
+      continue;
+    sizes.push_back(src_shape.tensor_size(i));
+  }
+  int samples_to_copy = sizes.size();
+
+  if (samples_to_copy < nsamples) {
+    SmallVector<const void *, 256> from;
+    from.reserve(samples_to_copy);
+    SmallVector<void *, 256> to;
+    to.reserve(samples_to_copy);
+    for (int i = 0; i < nsamples; i++) {
+      if (dsts[i] == nullptr)
+        continue;
+      from.push_back(src.raw_tensor(i));
+      to.push_back(dsts[i]);
+    }
+
+    type_info.template Copy<DstBackend, SrcBackend>(to.data(), from.data(), sizes.data(),
+                                                    samples_to_copy, stream, use_copy_kernel);
+  } else {
+    type_info.template Copy<DstBackend, SrcBackend>(dsts, src.raw_data(), sizes.data(), nsamples,
+                                                    stream, use_copy_kernel);
+  }
+}
+
 template <typename SrcBackend>
 inline void CopyToExternal(void* dst, AllocType dst_alloc_type,
                            const Buffer<SrcBackend> &src,
                            cudaStream_t stream, bool use_copy_kernel) {
   VALUE_SWITCH(dst_alloc_type, DstType, (AllocType::Host, AllocType::Pinned, AllocType::GPU), (
-    using DstBackend = alloc_to_backend<DstType>::type;
     use_copy_kernel &= (DstType == AllocType::GPU || DstType == AllocType::Pinned) &&
                        (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
-    DeviceGuard d(src.device_id());
-    const auto &type_info = src.type();
-    type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.size(), stream,
-                                                    use_copy_kernel);
+    using DstBackend = alloc_to_backend<DstType>::type;
+    CopyToExternalImpl<DstBackend, SrcBackend>(dst, src, stream, use_copy_kernel);
   ), ());  // NOLINT
 }
 
@@ -55,21 +101,10 @@ inline void CopyToExternal(void** dsts, AllocType dst_alloc_type,
                            const TensorList<SrcBackend> &src,
                            cudaStream_t stream, bool use_copy_kernel) {
   VALUE_SWITCH(dst_alloc_type, DstType, (AllocType::Host, AllocType::Pinned, AllocType::GPU), (
-    using DstBackend = alloc_to_backend<DstType>::type;
     use_copy_kernel &= (DstType == AllocType::GPU || DstType == AllocType::Pinned) &&
                        (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
-    DeviceGuard d(src.device_id());
-
-    auto src_shape = src.shape();
-    SmallVector<int64_t, 256> sizes;
-    int nsamples = src_shape.size();
-    sizes.reserve(nsamples);
-    for (int i = 0; i < nsamples; i++) {
-      sizes.push_back(src_shape.tensor_size(i));
-    }
-    const auto &type_info = src.type();
-    type_info.template Copy<DstBackend, SrcBackend>(dsts, src.raw_data(), sizes.data(), nsamples,
-                                                    stream, use_copy_kernel);
+    using DstBackend = alloc_to_backend<DstType>::type;
+    CopyToExternalImpl<DstBackend, SrcBackend>(dsts, src, stream, use_copy_kernel);
   ), ());  // NOLINT
 }
 
