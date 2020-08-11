@@ -128,10 +128,10 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
   }
 
   void RunImpl(DeviceWorkspace &ws) override {
-    auto &in = ws.InputRef<GPUBackend>(0);
+    const auto &in = ws.InputRef<GPUBackend>(0);
     auto &out = ws.OutputRef<GPUBackend>(0);
     auto kernel_output_shape = kmgr.GetRequirements(0).output_shapes[0].to_static<2>();
-    auto in_view_1D = reshape(view<float>(in), in_shape_1D);
+    const auto in_view_1D = reshape(view<const float>(in), in_shape_1D);
     auto out_view_2D = view<float, 2>(out);
     KernelContext ctx;
     ctx.gpu.stream = ws.stream();
