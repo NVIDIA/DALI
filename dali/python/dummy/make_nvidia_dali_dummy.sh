@@ -8,7 +8,7 @@ DST_DIR=${1:-"/nvidia_dali_dummy"}
 mkdir -p build
 pushd build
 
-CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1.\2/')
+CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2.\3/')
 
 cmake .. \
       -DCUDA_VERSION:STRING="${CUDA_VERSION}" \
