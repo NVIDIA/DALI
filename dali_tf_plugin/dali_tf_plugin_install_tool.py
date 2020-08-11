@@ -150,11 +150,12 @@ class InstallerHelper:
                 raise ImportError(error_msg)
 
         print("Proceed with build...")
-        if self.dali_lib_path == "":
-            dali_lflags = ""
-            dali_cflags = "-I" + os.path.join(self.src_path, "include")
-        else:
-            dali_cflags, dali_lflags = get_dali_build_flags()
+
+        # Purposedly not linking with DALI. DALI lib should be already loaded when loading DALI TF.
+        # This is done to avoid depending on DALI being installed during DALI TF sdist installation
+        dali_lflags = ""
+        dali_cflags = "-I" + os.path.join(self.src_path, "include")
+
         tf_cflags, tf_lflags = get_tf_build_flags()
         cuda_cflags, cuda_lflags = get_cuda_build_flags()
 
