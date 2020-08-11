@@ -37,6 +37,7 @@ configure_file("${PROJECT_SOURCE_DIR}/nvidia/dali_tf_plugin/__init__.py.in" "${P
 install(FILES "${PROJECT_SOURCE_DIR}/nvidia/dali_tf_plugin/dali_tf_plugin.py" DESTINATION "${PROJECT_BINARY_DIR}/nvidia/dali_tf_plugin/")
 
 install(DIRECTORY "${DALI_ROOT}/include" DESTINATION "${PROJECT_BINARY_DIR}")
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/stub" DESTINATION "${PROJECT_BINARY_DIR}")
 install(FILES "daliop.cc" DESTINATION "${PROJECT_BINARY_DIR}")
 install(FILES "dali_dataset_op.cc" DESTINATION "${PROJECT_BINARY_DIR}")
 install(FILES "dali_shape_helper.h" DESTINATION "${PROJECT_BINARY_DIR}")
