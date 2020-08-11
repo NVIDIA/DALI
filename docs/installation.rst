@@ -83,15 +83,18 @@ For older versions of DALI (0.22 and lower), use the package `nvidia-dali`. The 
 
 .. code-block:: bash
 
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali nvidia-dali-tf-plugin
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali-tf-plugin
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali nvidia-dali-tf-plugin
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali-tf-plugin
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/11.0 nvidia-dali nvidia-dali-tf-plugin
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/11.0 nvidia-dali
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/11.0 nvidia-dali-tf-plugin
 
 CUDA 9 build is provided up to DALI 0.22.0. CUDA 10 build is provided starting from DALI 0.8.0.
 CUDA 11 build is provided starting from DALI 0.22.0.
