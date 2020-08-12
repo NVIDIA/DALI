@@ -21,5 +21,6 @@ COPY VERSION .
 COPY cmake ./cmake
 COPY include ./include
 COPY dali_tf_plugin ./dali_tf_plugin
+COPY tools ./tools
 
 WORKDIR /opt/dali/dali_tf_plugin

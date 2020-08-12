@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import platform
-from shutil import copyfile
+from shutil import copyfile, rmtree
 from dali_tf_plugin_utils import *
 import os
 from distutils.version import StrictVersion
 from pathlib import Path
+import tempfile
+from stubgen import stubgen
 
 class InstallerHelper:
     def __init__(self, plugin_dest_dir = None):
@@ -154,9 +156,14 @@ class InstallerHelper:
 
         # Building a DALI stub library. During runtime, the real libdali.so will be already loaded at the moment when the DALI TF plugin is loaded
         # This is done to avoid depending on DALI being installed during DALI TF sdist installation
-        dali_stub_src = os.path.join(self.src_path, 'stub', 'dali_stub.cc')
-        dali_stub_lib = 'libdali.so'
-        dali_lflags = dali_stub_lib
+        tmpdir = tempfile.mkdtemp(prefix="dali_stub_")
+        dali_stub_src = os.path.join(tmpdir, 'dali_stub.cc')
+        dali_stub_lib = os.path.join(tmpdir, 'libdali.so')
+        dali_c_api_hdr = os.path.join(self.src_path, 'include', 'dali', 'c_api.h')
+        with open(dali_stub_src, 'a') as f:
+            stubgen(header_filepath=dali_c_api_hdr, out_file=f)
+
+        dali_lflags = '-L' + tmpdir + ' -ldali'
         dali_cflags = '-I' + os.path.join(self.src_path, 'include')
 
         cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++11 -DNDEBUG -shared ' \
@@ -185,7 +192,7 @@ class InstallerHelper:
         subprocess.check_call(cmd, cwd=self.src_path, shell=True)
 
         # Remove DALI stub
-        os.remove(dali_stub_lib)
+        rmtree(tmpdir)
 
 def main():
     env = InstallerHelper()
