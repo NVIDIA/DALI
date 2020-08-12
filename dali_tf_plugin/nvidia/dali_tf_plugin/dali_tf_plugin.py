@@ -24,6 +24,7 @@ def load_dali_tf_plugin():
     if _dali_tf_module is not None:
         return _dali_tf_module
 
+    import nvidia.dali  # Make sure DALI lib is loaded
     tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
     # Order: 'current', prebuilt for current TF version, prebuilt for other TF versions
     tf_version = re.search("(\d+.\d+).\d+", tf.__version__).group(1)
