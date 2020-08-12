@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_IMAGE_PEEK_SHAPE_PEEK_SHAPE_H_
-#define DALI_OPERATORS_IMAGE_PEEK_SHAPE_PEEK_SHAPE_H_
+#ifndef DALI_OPERATORS_IMAGE_PEEK_SHAPE_PEEK_IMAGE_SHAPE_H_
+#define DALI_OPERATORS_IMAGE_PEEK_SHAPE_PEEK_IMAGE_SHAPE_H_
 
 #include <vector>
 #include "dali/image/image_factory.h"
@@ -23,11 +23,11 @@
 
 namespace dali {
 
-class PeekShape : public Operator<CPUBackend> {
+class PeekImageShape : public Operator<CPUBackend> {
  public:
-  PeekShape(const PeekShape &) = delete;
+  PeekImageShape(const PeekImageShape &) = delete;
 
-  explicit PeekShape(const OpSpec &spec) : Operator<CPUBackend>(spec) {
+  explicit PeekImageShape(const OpSpec &spec) : Operator<CPUBackend>(spec) {
     output_type_ = spec.GetArgument<DALIDataType>("type");
     switch (output_type_) {
     case DALI_INT32:
@@ -40,7 +40,7 @@ class PeekShape : public Operator<CPUBackend> {
     default:
       {
         auto &name = TypeTable::GetTypeInfo(output_type_).name();
-        DALI_FAIL("Operator PeekShape can return the output as one of the following:\n"
+        DALI_FAIL("Operator PeekImageShape can return the output as one of the following:\n"
           "int32, uint32, int64, uint64, float or double;\n"
           "requested: " + name);
         break;
@@ -62,7 +62,7 @@ class PeekShape : public Operator<CPUBackend> {
   }
 
   template <typename type>
-  void ConvertShape(Tensor<CPUBackend> &out, const TensorShape<3> &shape) {
+  void WriteShape(Tensor<CPUBackend> &out, const TensorShape<3> &shape) {
     type *data = out.mutable_data<type>();
     for (int i = 0; i < 3; ++i) {
       data[i] = shape[i];
@@ -87,7 +87,7 @@ class PeekShape : public Operator<CPUBackend> {
         auto shape = img->PeekShape();
         TYPE_SWITCH(output_type_, type2id, type,
                 (int32_t, uint32_t, int64_t, uint64_t, float, double),
-          (ConvertShape<type>(output[sample_id], shape);),
+          (WriteShape<type>(output[sample_id], shape);),
           (DALI_FAIL("Unsupported type for Shapes")));
       }, 0);
       // the amount of work depends on the image format and exact sample which is unknown here
@@ -104,4 +104,4 @@ class PeekShape : public Operator<CPUBackend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_IMAGE_PEEK_SHAPE_PEEK_SHAPE_H_
+#endif  // DALI_OPERATORS_IMAGE_PEEK_SHAPE_PEEK_IMAGE_SHAPE_H_

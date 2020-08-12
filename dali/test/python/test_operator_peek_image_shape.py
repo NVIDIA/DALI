@@ -18,53 +18,39 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import os
 import numpy as np
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, dali_types_to_np
 
 test_data_root = get_dali_extra_path()
 path = 'db/single'
 file_types = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp'}
 
-dali_to_numpy = {
-    types.INT32   : np.int32,
-    types.INT64   : np.int64,
-    types.UINT32  : np.uint32,
-    types.UINT64  : np.uint64,
-    types.FLOAT   : np.float32,
-    types.FLOAT64 : np.float64,
-}
-
-def run_decode(data_path, device, out_type):
+def run_decode(data_path, out_type):
     batch_size = 4
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     input, _ = fn.file_reader(file_root=data_path, shard_id=0, num_shards=1, name="reader")
-    decoded = fn.image_decoder(input, device=device, output_type=types.RGB)
-    if device == "cpu" :
-        shape_device = "cpu"
-    else:
-        shape_device = "gpu"
-    decoded_shape = fn.shapes(decoded, device=shape_device)
-    raw_shape = fn.peek_shape(input, type=out_type)
+    decoded = fn.image_decoder(input, output_type=types.RGB)
+    decoded_shape = fn.shapes(decoded)
+    raw_shape = fn.peek_image_shape(input, type=out_type)
     pipe.set_outputs(decoded, decoded_shape, raw_shape)
     pipe.build()
     samples = 0
     length = pipe.reader_meta(name="reader")['epoch_size']
     while samples < length:
         samples += batch_size
-        out = pipe.run()
-        (image, decoded_shape, raw_shape) = [v.as_cpu() if isinstance(v, dali.backend_impl.TensorListGPU) else v for v in out]
+        (images, decoded_shape, raw_shape) = pipe.run()
         for i in range(batch_size):
-            # as we are asking for a particular color space it may differ from the source image, so don't comapre it
-            for d in range(len(image.at(i).shape) - 1):
-                shape_type = dali_to_numpy[out_type]
-                assert image.at(i).shape[d] == decoded_shape.at(i)[d], "{} vs {}".format(image.at(i).shape[d], decoded_shape.at(i)[d])
-                assert image.at(i).shape[d] == raw_shape.at(i)[d], "{} vs {}".format(image.at(i).shape[d], raw_shape.at(i)[d])
+            # as we are asking for a particular color space it may differ from the source image, so don't compare it
+            image = images.at(i)
+            shape_type = dali_types_to_np(out_type)
+            for d in range(len(image.shape) - 1):
+                assert image.shape[d] == decoded_shape.at(i)[d], "{} vs {}".format(image.shape[d], decoded_shape.at(i)[d])
+                assert image.shape[d] == raw_shape.at(i)[d], "{} vs {}".format(image.shape[d], raw_shape.at(i)[d])
                 assert raw_shape.at(i)[d].dtype == shape_type, "{} vs {}".format(raw_shape.at(i)[d].dtyp, shape_type)
 
 test_types = [types.INT32, types.UINT32, types.INT64, types.UINT64, types.FLOAT, types.FLOAT64]
 
-def test_image_decoder():
-    for device in {'cpu', 'mixed'}:
-        for img_type in file_types:
-            for out_type in test_types:
-                data_path = os.path.join(test_data_root, path, img_type)
-                yield run_decode, data_path, device, out_type
+def test_operator_peek_image_shape():
+    for img_type in file_types:
+        for out_type in test_types:
+            data_path = os.path.join(test_data_root, path, img_type)
+            yield run_decode, data_path, out_type

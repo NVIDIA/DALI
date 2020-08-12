@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/image/peek_shape/peek_shape.h"
+#include "dali/operators/image/peek_shape/peek_image_shape.h"
 
 namespace dali {
 
-DALI_SCHEMA(PeekShape)
-  .DocStr(R"code(Obtain the shape of the encoded image.)code")
+DALI_SCHEMA(PeekImageShape)
+  .DocStr(R"code(Obtains the shape of the encoded image.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("type", R"code(Data type, to which the sizes are converted.)code", DALI_INT64);
 
-DALI_REGISTER_OPERATOR(PeekShape, PeekShape, CPU);
+DALI_REGISTER_OPERATOR(PeekImageShape, PeekImageShape, CPU);
 
 }  // namespace dali
