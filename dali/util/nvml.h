@@ -63,8 +63,12 @@ inline void GetNVMLAffinityMask(cpu_set_t * mask, size_t num_cpus) {
   nvmlDevice_t device;
   DALI_CALL(wrapNvmlDeviceGetHandleByIndex(device_idx, &device));
   #if (CUDART_VERSION >= 11000)
-    DALI_CALL(wrapNvmlDeviceGetCpuAffinityWithinScope(device, cpu_set_size, nvml_mask,
-                                                      NVML_AFFINITY_SCOPE_SOCKET));
+    if (wrapHasCuda11NvmlFunctions()) {
+      DALI_CALL(wrapNvmlDeviceGetCpuAffinityWithinScope(device, cpu_set_size, nvml_mask,
+                                                        NVML_AFFINITY_SCOPE_SOCKET));
+    } else {
+      DALI_CALL(wrapNvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
+    }
   #else
     DALI_CALL(wrapNvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
   #endif

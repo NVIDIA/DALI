@@ -16,6 +16,7 @@
  ************************************************************************/
 
 #include <dlfcn.h>
+#include <limits>
 #include "dali/util/nvml_wrap.h"
 #include "dali/core/cuda_error.h"
 
@@ -57,17 +58,38 @@ static nvmlReturn_t (*nvmlInternalDeviceGetCudaComputeCapability)(nvmlDevice_t d
 static const char* (*nvmlInternalErrorString)(nvmlReturn_t r);
 
 namespace {
-bool is_driver_sufficient(int min_cuda_major, int min_cuda_minor) {
-  int driver_version;
-  CUDA_CALL(cudaDriverGetVersion(&driver_version));
-  return driver_version >= 1000 * min_cuda_major + 10 * min_cuda_minor;
+
+std::once_flag driver_check;
+
+/*
+ * This function is used to learn the real driver version, and compare with the provided value
+ * It should be available as soon as possible. However it requires wrapNvmlSystemGetDriverVersion
+ * and wrapNvmlInit be intialized first. If they are not it will warn and return INF driver version
+ * and all checks will fail
+ */
+bool is_driver_sufficient(float driverVersion) {
+  static float availableDriverVersion = std::numeric_limits<float>::max();
+
+  std::call_once(driver_check, [] {
+      char version[80];
+      if (nvml::wrapNvmlInit() != DALISuccess) {
+        DALI_WARN("wrapNvmlInit failed, driver version check not available");
+        return;
+      }
+      nvml::wrapNvmlSystemGetDriverVersion(version, sizeof version);
+      availableDriverVersion = std::stof(version);
+    });
+
+  return driverVersion >= availableDriverVersion;
 }
+
 }  // namespace
 
 bool wrapHasCuda11NvmlFunctions() {
   #if (CUDART_VERSION >= 11000)
     return nvmlInternalDeviceGetCount_v2 && nvmlInternalDeviceGetHandleByIndex_v2 &&
-          nvmlInternalDeviceGetCudaComputeCapability && nvmlInternalDeviceGetBrand;
+           nvmlInternalDeviceGetCudaComputeCapability && nvmlInternalDeviceGetBrand &&
+           nvmlInternalDeviceGetCpuAffinityWithinScope;
   #else
     return false;
   #endif
@@ -98,8 +120,8 @@ DALIError_t wrapSymbols(void) {
     *cast = tmp;                                                     \
   } while (0)
 
-#define LOAD_SYM_MIN_DRIVER(handle, symbol, funcptr, cuda_M, cuda_m) do {    \
-    if (!is_driver_sufficient(cuda_M, cuda_m)) {                             \
+#define LOAD_SYM_MIN_DRIVER(handle, symbol, funcptr, driver_v) do {          \
+    if (!is_driver_sufficient(driver_v)) {                                   \
       funcptr = nullptr;                                                     \
       break;                                                                 \
     }                                                                        \
@@ -111,25 +133,31 @@ DALIError_t wrapSymbols(void) {
     *cast = tmp;                                                             \
   } while (0)
 
+  /*
+   * make sure that nvmlInit and nvmlSystemGetDriverVersion are first on the list as they are needed
+   * by is_driver_sufficient function
+   */
   LOAD_SYM(nvmlhandle, "nvmlInit", nvmlInternalInit);
+  LOAD_SYM(nvmlhandle, "nvmlSystemGetDriverVersion", nvmlInternalSystemGetDriverVersion);
+
   LOAD_SYM(nvmlhandle, "nvmlShutdown", nvmlInternalShutdown);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetHandleByPciBusId", nvmlInternalDeviceGetHandleByPciBusId);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetHandleByIndex", nvmlInternalDeviceGetHandleByIndex);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetIndex", nvmlInternalDeviceGetIndex);
   LOAD_SYM(nvmlhandle, "nvmlDeviceSetCpuAffinity", nvmlInternalDeviceSetCpuAffinity);
   LOAD_SYM(nvmlhandle, "nvmlDeviceClearCpuAffinity", nvmlInternalDeviceClearCpuAffinity);
-  LOAD_SYM(nvmlhandle, "nvmlSystemGetDriverVersion", nvmlInternalSystemGetDriverVersion);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetCpuAffinity", nvmlInternalDeviceGetCpuAffinity);
   LOAD_SYM(nvmlhandle, "nvmlErrorString", nvmlInternalErrorString);
 
   #if (CUDART_VERSION >= 11000)
-    LOAD_SYM(nvmlhandle, "nvmlDeviceGetCpuAffinityWithinScope",
-             nvmlInternalDeviceGetCpuAffinityWithinScope);
-    LOAD_SYM(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand);
-    LOAD_SYM(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2);
-    LOAD_SYM(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2", nvmlInternalDeviceGetHandleByIndex_v2);
-    LOAD_SYM(nvmlhandle, "nvmlDeviceGetCudaComputeCapability",
-             nvmlInternalDeviceGetCudaComputeCapability);
+    LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCpuAffinityWithinScope",
+                        nvmlInternalDeviceGetCpuAffinityWithinScope, 450.36);
+    LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand, 450.36);
+    LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2, 450.36);
+    LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2",
+                        nvmlInternalDeviceGetHandleByIndex_v2, 450.36);
+    LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCudaComputeCapability",
+                        nvmlInternalDeviceGetCudaComputeCapability, 450.36);
   #endif
 
   symbolsLoaded = 1;
