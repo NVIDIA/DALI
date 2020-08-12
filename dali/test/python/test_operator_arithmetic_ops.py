@@ -21,7 +21,7 @@ from nose.tools import assert_equals, raises
 from nose.plugins.attrib import attr
 import itertools
 
-from test_utils import check_batch
+from test_utils import check_batch, np_types_to_dali
 
 # Some test in this file are marked as `slow`. They cover all possible type and input kind
 # combinations. The rest of the test cover only subset of selected cases to allow
@@ -58,21 +58,6 @@ selected_input_types = [np.bool_, np.int32, np.uint8, np.float32]
 
 selected_bin_input_kinds = [("cpu", "cpu"), ("gpu", "gpu"), ("cpu", "cpu_scalar"), ("gpu", "gpu_scalar"),
                             ("const", "cpu"), ("const", "gpu")]
-
-np_types_to_dali = {
-    np.bool_:   types.BOOL,
-    np.int8:    types.INT8,
-    np.int16:   types.INT16,
-    np.int32:   types.INT32,
-    np.int64:   types.INT64,
-    np.uint8:   types.UINT8,
-    np.uint16:  types.UINT16,
-    np.uint32:  types.UINT32,
-    np.uint64:  types.UINT64,
-    np.float16: types.FLOAT16,
-    np.float32: types.FLOAT,
-    np.float64: types.FLOAT64,
-}
 
 unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
@@ -245,7 +230,7 @@ class ExprOpPipeline(Pipeline):
 
     def get_operand(self, operand, kind, operand_type):
         if kind == "const":
-            return types.Constant(magic_number, np_types_to_dali[operand_type])
+            return types.Constant(magic_number, np_types_to_dali(operand_type))
         elif "cpu" in kind:
             return operand
         elif "gpu" in kind:
