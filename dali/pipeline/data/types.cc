@@ -12,18 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#define DALI_TYPENAME_REGISTERER(TypeString) \
-{                                            \
-  return TypeString;                         \
-}
-
 #define DALI_TYPEID_REGISTERER(Type, dtype)                                      \
 {                                                                                \
   static DALIDataType type_id = TypeTable::instance().RegisterType<Type>(dtype); \
   return type_id;                                                                \
 }
 
-#define DALI_REGISTER_TYPE_IMPL(Type, Name, Id) \
+#define DALI_REGISTER_TYPE_IMPL(Type, Id) \
 const auto &_type_info_##Id = TypeTable::GetTypeID<Type>()
 
 #include "dali/pipeline/data/types.h"
@@ -197,7 +192,5 @@ template void TypeInfo::Copy<GPUBackend, CPUBackend>(void **dsts,
 
 template void TypeInfo::Copy<GPUBackend, GPUBackend>(void **dsts,
     const void *src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
-
-
 
 }  // namespace dali

@@ -36,10 +36,6 @@
 #include "dali/operators/reader/parser/tf_feature.h"
 #endif  // DALI_BUILD_PROTO3
 
-#ifndef DALI_TYPENAME_REGISTERER
-#define DALI_TYPENAME_REGISTERER(...)
-#endif
-
 #ifndef DALI_TYPEID_REGISTERER
 #define DALI_TYPEID_REGISTERER(...)
 #endif
@@ -119,6 +115,103 @@ enum DALIDataType : int {
   DALI_PYTHON_OBJECT   = 24,
   DALI_DATATYPE_END    = 1000
 };
+
+inline std::ostream &operator<<(std::ostream &os, DALIDataType t) {
+  switch (t) {
+    case DALI_NO_TYPE:
+      os << "undefined";
+      break;
+    case DALI_UINT8:
+      os << "uint8";
+      break;
+    case DALI_UINT16:
+      os << "uint16";
+      break;
+    case DALI_UINT32:
+      os << "uint32";
+      break;
+    case DALI_UINT64:
+      os << "uint64";
+      break;
+    case DALI_INT8:
+      os << "int8";
+      break;
+    case DALI_INT16:
+      os << "int16";
+      break;
+    case DALI_INT32:
+      os << "int32";
+      break;
+    case DALI_INT64:
+      os << "int64";
+      break;
+    case DALI_FLOAT16:
+      os << "float16";
+      break;
+    case DALI_FLOAT:
+      os << "float";
+      break;
+    case DALI_FLOAT64:
+      os << "float64";
+      break;
+    case DALI_BOOL:
+      os << "bool";
+      break;
+    case DALI_STRING:
+      os << "string";
+      break;
+    case DALI_BOOL_VEC:
+      os << "vector<bool>";
+      break;
+    case DALI_INT_VEC:
+      os << "vector<int>";
+      break;
+    case DALI_STRING_VEC:
+      os << "vector<string>";
+      break;
+    case DALI_FLOAT_VEC:
+      os << "vector<float>";
+      break;
+#ifdef DALI_BUILD_PROTO3
+    case DALI_TF_FEATURE:
+      os << "TFUtil::Feature";
+      break;
+    case DALI_TF_FEATURE_VEC:
+      os << "vector<TFUtil::Feature>";
+      break;
+    case DALI_TF_FEATURE_DICT:
+      os << "TFUtil::Feature dictionary";
+      break;
+#endif  // DALI_BUILD_PROTO3
+    case DALI_IMAGE_TYPE:
+      os << "DALIImageType";
+      break;
+    case DALI_DATA_TYPE:
+      os << "DALIDataType";
+      break;
+    case DALI_INTERP_TYPE:
+      os << "DALIInterpType";
+      break;
+    case DALI_TENSOR_LAYOUT:
+      os << "TensorLayout";
+      break;
+    case DALI_PYTHON_OBJECT:
+      os << "Python object";
+      break;
+    case DALI_DATATYPE_END:  // fall through
+    default:
+      os << "Invalid type";
+      break;
+  }
+  os << "(type id " << static_cast<int>(t) << ")";
+  return os;
+}
+
+inline std::string to_string(DALIDataType dtype) {
+  std::stringstream ss;
+  ss << dtype;
+  return ss.str();
+}
 
 constexpr bool IsFloatingPoint(DALIDataType type) {
   switch (type) {
@@ -288,17 +381,11 @@ class DLL_PUBLIC TypeInfo {
   }
 
   DLL_PUBLIC inline bool operator==(const TypeInfo &rhs) const {
-    if ((rhs.id_ == id_) &&
-        (rhs.type_size_ == type_size_) &&
-        (rhs.name_ == name_)) {
-      return true;
-    }
-    return false;
+    return rhs.id_ == id_ && rhs.type_size_ == type_size_;
   }
 
  private:
   detail::Copier copier_;
-
 
   DALIDataType id_;
   size_t type_size_;
@@ -326,7 +413,7 @@ class DLL_PUBLIC TypeTable {
 
   template <typename T>
   DLL_PUBLIC static string GetTypeName() {
-    return TypeNameHelper<T>::GetTypeName();
+    return to_string(GetTypeID<T>());
   }
 
   DLL_PUBLIC static const TypeInfo& GetTypeInfo(DALIDataType dtype) {
@@ -334,7 +421,7 @@ class DLL_PUBLIC TypeTable {
     std::lock_guard<spinlock> guard(inst.lock_);
     auto id_it = inst.type_info_map_.find(dtype);
     DALI_ENFORCE(id_it != inst.type_info_map_.end(),
-        "Type with id " + to_string((size_t)dtype) + " was not registered.");
+        "Type with id " + to_string(dtype) + " was not registered.");
     return id_it->second;
   }
 
@@ -374,21 +461,6 @@ class DLL_PUBLIC TypeTable {
   DLL_PUBLIC static TypeTable &instance();
 };
 
-
-template <typename T, typename A>
-struct TypeNameHelper<std::vector<T, A> > {
-  static string GetTypeName() {
-    return "list of " + TypeTable::GetTypeName<T>();
-  }
-};
-
-template <typename T, size_t N>
-struct TypeNameHelper<std::array<T, N> > {
-  static string GetTypeName() {
-    return "list of " + TypeTable::GetTypeName<T>();
-  }
-};
-
 template <typename T>
 void TypeInfo::SetType(DALIDataType dtype) {
   // Note: We enforce the fact that NoType is invalid by
@@ -399,14 +471,10 @@ void TypeInfo::SetType(DALIDataType dtype) {
   } else {
     id_ = DALI_NO_TYPE;
   }
-  name_ = TypeTable::GetTypeName<T>();
+  name_ = to_string(dtype);
 
   // Get copier for this type
   copier_ = detail::GetCopier<T>();
-}
-
-inline std::string to_string(const DALIDataType& dtype) {
-  return TypeTable::GetTypeInfo(dtype).name();
 }
 
 /**
@@ -429,37 +497,31 @@ DLL_PUBLIC inline bool IsValidType(const TypeInfo &type) {
 // the type as a string. This does not work for non-fundamental types,
 // as we do not have any mechanism for calling the constructor of the
 // type when the buffer allocates the memory.
-#define DALI_REGISTER_TYPE_WITH_NAME(Type, TypeString, dtype)       \
-  template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()      \
-    DALI_TYPENAME_REGISTERER(TypeString);                           \
+#define DALI_REGISTER_TYPE(Type, dtype)                             \
   template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeID<Type>()  \
     DALI_TYPEID_REGISTERER(Type, dtype);                            \
   DALI_STATIC_TYPE_MAPPING(Type, dtype);                            \
-  DALI_REGISTER_TYPE_IMPL(Type, TypeString, dtype);
-
-#define DALI_REGISTER_TYPE(Type, dtype) \
-  DALI_REGISTER_TYPE_WITH_NAME(Type, #Type, dtype)
+  DALI_REGISTER_TYPE_IMPL(Type, dtype);
 
 // Instantiate some basic types
-DALI_REGISTER_TYPE_WITH_NAME(NoType,   "NoType", DALI_NO_TYPE);
-DALI_REGISTER_TYPE_WITH_NAME(uint8_t,  "uint8",  DALI_UINT8);
-DALI_REGISTER_TYPE_WITH_NAME(uint16_t, "uint16", DALI_UINT16);
-DALI_REGISTER_TYPE_WITH_NAME(uint32_t, "uint32", DALI_UINT32);
-DALI_REGISTER_TYPE_WITH_NAME(uint64_t, "uint64", DALI_UINT64);
-DALI_REGISTER_TYPE_WITH_NAME(int8_t,   "int8",   DALI_INT8);
-DALI_REGISTER_TYPE_WITH_NAME(int16_t,  "int16",  DALI_INT16);
-DALI_REGISTER_TYPE_WITH_NAME(int32_t,  "int32",  DALI_INT32);
-DALI_REGISTER_TYPE_WITH_NAME(int64_t,  "int64",  DALI_INT64);
-
-DALI_REGISTER_TYPE(float16,          DALI_FLOAT16);
-DALI_REGISTER_TYPE(float,            DALI_FLOAT);
-DALI_REGISTER_TYPE(double,           DALI_FLOAT64);
-DALI_REGISTER_TYPE(bool,             DALI_BOOL);
-DALI_REGISTER_TYPE(string,           DALI_STRING);
-DALI_REGISTER_TYPE(DALIImageType,    DALI_IMAGE_TYPE);
-DALI_REGISTER_TYPE(DALIDataType,     DALI_DATA_TYPE);
-DALI_REGISTER_TYPE(DALIInterpType,   DALI_INTERP_TYPE);
-DALI_REGISTER_TYPE(TensorLayout,     DALI_TENSOR_LAYOUT);
+DALI_REGISTER_TYPE(NoType,         DALI_NO_TYPE);
+DALI_REGISTER_TYPE(uint8_t,        DALI_UINT8);
+DALI_REGISTER_TYPE(uint16_t,       DALI_UINT16);
+DALI_REGISTER_TYPE(uint32_t,       DALI_UINT32);
+DALI_REGISTER_TYPE(uint64_t,       DALI_UINT64);
+DALI_REGISTER_TYPE(int8_t,         DALI_INT8);
+DALI_REGISTER_TYPE(int16_t,        DALI_INT16);
+DALI_REGISTER_TYPE(int32_t,        DALI_INT32);
+DALI_REGISTER_TYPE(int64_t,        DALI_INT64);
+DALI_REGISTER_TYPE(float16,        DALI_FLOAT16);
+DALI_REGISTER_TYPE(float,          DALI_FLOAT);
+DALI_REGISTER_TYPE(double,         DALI_FLOAT64);
+DALI_REGISTER_TYPE(bool,           DALI_BOOL);
+DALI_REGISTER_TYPE(string,         DALI_STRING);
+DALI_REGISTER_TYPE(DALIImageType,  DALI_IMAGE_TYPE);
+DALI_REGISTER_TYPE(DALIDataType,   DALI_DATA_TYPE);
+DALI_REGISTER_TYPE(DALIInterpType, DALI_INTERP_TYPE);
+DALI_REGISTER_TYPE(TensorLayout,   DALI_TENSOR_LAYOUT);
 
 
 #ifdef DALI_BUILD_PROTO3
