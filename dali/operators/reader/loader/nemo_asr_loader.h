@@ -24,13 +24,14 @@
 #include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/operators/decoder/audio/audio_decoder.h"
 
 namespace dali {
 
 struct NemoAsrEntry {
   std::string audio_filepath;
-  float duration;  // in seconds
-  float offset;  // in seconds, optional
+  float duration = 0.0;  // in seconds
+  float offset = 0.0;  // in seconds, optional
   std::string text;  // transcription
 };
 
@@ -40,11 +41,17 @@ struct AsrSample {
   AudioMetadata audio_meta;
 };
 
-class NemoAsrLoader : public Loader<CPUBackend, NemoAsrEntry> {
+namespace detail {
+
+DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, const std::string &json);
+
+}  // namespace detail
+
+class NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
  public:
   explicit inline NemoAsrLoader(const OpSpec &spec, const std::string &manifest_filepath,
                                 bool shuffle_after_epoch = false)
-      : Loader<CPUBackend, NemoAsrEntry>(spec),
+      : Loader<CPUBackend, AsrSample>(spec),
         spec_(spec),
         manifest_filepath_(spec.GetArgument<std::string>("manifest_filepath")) {
     /*
@@ -63,6 +70,9 @@ class NemoAsrLoader : public Loader<CPUBackend, NemoAsrEntry> {
     if (shuffle_after_epoch_)
       stick_to_shard_ = true;
   }
+
+  void PrepareEmpty(AsrSample &sample) override;
+  void ReadSample(AsrSample& sample) override;
 
  protected:
   void PrepareMetadataImpl() override;

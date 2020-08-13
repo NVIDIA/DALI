@@ -12,31 +12,55 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dirent.h>
-#include <errno.h>
-#include <glob.h>
-#include <memory>
-
+#include <string>
 #include "dali/core/common.h"
-#include "dali/operators/reader/loader/nemo_asr_loader.h"
-#include "dali/util/file.h"
-#include "dali/operators/reader/loader/utils.h"
+#include "dali/core/error_handling.h"
 #include "dali/operators/decoder/audio/generic_decoder.h"
+#include "dali/operators/reader/loader/nemo_asr_loader.h"
+#include "dali/operators/reader/loader/utils.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/util/lookahead_parser.h"
+#include "dali/util/file.h"
 
 namespace dali {
 
 namespace detail {
 
-void ParseManifestFile(std::vector<NemoAsrEntry> &entries, const std::string &manifest_filepath) {
-  entries.push_back({"/path/to/file1.wav", 3.1, 0.1, "this is a transcript 1"});
-  entries.push_back({"/path/to/file2.wav", 3.2, 0.2, "this is a transcript 2"});
-  entries.push_back({"/path/to/file3.wav", 3.3, 0.3, "this is a transcript 3"});
+void ParseManifest(std::vector<NemoAsrEntry> &entries, const std::string &json) {
+  detail::LookaheadParser parser(const_cast<char*>(json.c_str()));
+
+  RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
+  parser.EnterArray();
+
+  while (parser.NextArrayValue()) {
+    if (parser.PeekType() != kObjectType)
+      continue;
+    parser.EnterObject();
+    NemoAsrEntry entry;
+    while (const char* key = parser.NextObjectKey()) {
+      if (0 == detail::safe_strcmp(key, "audio_filepath")) {
+        entry.audio_filepath = parser.GetString();
+      } else if (0 == detail::safe_strcmp(key, "duration")) {
+        entry.duration = parser.GetDouble();
+      } else if (0 == detail::safe_strcmp(key, "offset")) {
+        entry.offset = parser.GetDouble();
+      } else if (0 == detail::safe_strcmp(key, "text")) {
+        entry.text = parser.GetString();
+      } else {
+        parser.SkipValue();
+      }
+    }
+    entries.emplace_back(std::move(entry));
+  }
 }
 
 }  // namespace detail
 
 void NemoAsrLoader::PrepareMetadataImpl() {
-  detail::ParseManifestFile(entries_, manifest_filepath_);
+  std::ifstream fstream(manifest_filepath_);
+  DALI_ENFORCE(fstream, make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath_, "\""));
+  std::string json((std::istreambuf_iterator<char>(fstream)), std::istreambuf_iterator<char>());
+  detail::ParseManifest(entries_, json);
 
   DALI_ENFORCE(Size() > 0, "No files found.");
   if (shuffle_) {
@@ -79,11 +103,16 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   // TODO(janton): do not create a new decoder each time
   GenericAudioDecoder<float> decoder;
   sample.audio_meta = decoder.OpenFromFile(entry.audio_filepath);
-  sample.audio.set_type(TypeTable::GetTypeInfo<float>());
+  sample.audio.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
   sample.audio.Resize({sample.audio_meta.length});
-  size_t decoded_size = decoder.DecodeTyped(view<const float>(sample.audio));
+  int64_t decoded_size = decoder.DecodeTyped({sample.audio.mutable_data<float>(), sample.audio.size()});
   DALI_ENFORCE(decoded_size == sample.audio_meta.length);
   decoder.Close();
+
+  sample.text.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+  sample.text.Resize({entry.text.length() + 1});
+  std::memcpy(sample.text.raw_mutable_data(), entry.text.c_str(), entry.text.length());
+  sample.text.raw_mutable_data()[entry.text.length()] = '\0';
 }
 
 Index NemoAsrLoader::SizeImpl() {
