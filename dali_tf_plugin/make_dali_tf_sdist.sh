@@ -21,8 +21,3 @@ make -j install
 python setup.py sdist
 cp dist/*.tar.gz /dali_tf_sdist
 popd
-
-pushd dummy
-mkdir -p /dali_tf_sdist/dummy
-source make_nvidia_dali_tf_dummy.sh /dali_tf_sdist/dummy
-popd
