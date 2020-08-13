@@ -58,11 +58,12 @@ void NemoAsrLoader::Reset(bool wrap_to_shard) {
   }
 }
 
-void NemoAsrLoader::PrepareEmpty(AsrSample &asr) {
-  PrepareEmptyTensor(asr);
+void NemoAsrLoader::PrepareEmpty(AsrSample &sample) {
+  PrepareEmptyTensor(sample.audio);
+  PrepareEmptyTensor(sample.text);
 }
 
-void NemoAsrLoader::ReadSample(ImageFileWrapper& imfile) {
+void NemoAsrLoader::ReadSample(AsrSample& sample) {
   auto &entry = entries_[current_index_++];
 
   // handle wrap-around
@@ -72,37 +73,19 @@ void NemoAsrLoader::ReadSample(ImageFileWrapper& imfile) {
   DALIMeta meta;
   meta.SetSourceInfo(entry.audio_filepath);
   meta.SetSkipSample(false);
-
-  auto current_image = FileStream::Open(file_root_ + "/" + image_file, read_ahead_,
-                                        !copy_read_data_);
-  Index image_size = current_image->Size();
-
-  if (copy_read_data_) {
-    if (imfile.image.shares_data()) {
-      imfile.image.Reset();
-    }
-    imfile.image.Resize({image_size});
-    // copy the image
-    Index ret = current_image->Read(imfile.image.mutable_data<uint8_t>(), image_size);
-    DALI_ENFORCE(ret == image_size, make_string("Failed to read file: ", image_file));
-  } else {
-    auto p = current_image->Get(image_size);
-    DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", image_file));
-    // Wrap the raw data in the Tensor object.
-    imfile.image.ShareData(p, image_size, {image_size});
-    imfile.image.set_type(TypeInfo::Create<uint8_t>());
-  }
-
-  // close the file handle
-  current_image->Close();
-
-  // set metadata
-  imfile.image.SetMeta(meta);
-
-  // set string
-  imfile.filename = file_root_ + "/" + image_file;
+  sample.audio.SetMeta(meta);
+  DALI_ENFORCE(copy_read_data_, "Sharing data is not supported with this loader");
+  
+  // TODO(janton): do not create a new decoder each time
+  GenericAudioDecoder<float> decoder;
+  sample.audio_meta = decoder.OpenFromFile(entry.audio_filepath);
+  sample.audio.set_type(TypeTable::GetTypeInfo<float>());
+  sample.audio.Resize({sample.audio_meta.length});
+  size_t decoded_size = decoder.DecodeTyped(view<const float>(sample.audio));
+  DALI_ENFORCE(decoded_size == sample.audio_meta.length);
+  decoder.Close();
 }
-*/
+
 Index NemoAsrLoader::SizeImpl() {
   return entries_.size();
 }

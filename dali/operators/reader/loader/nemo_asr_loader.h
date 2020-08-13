@@ -34,6 +34,12 @@ struct NemoAsrEntry {
   std::string text;  // transcription
 };
 
+struct AsrSample {
+  Tensor<CPUBackend> audio;
+  Tensor<CPUBackend> text;
+  AudioMetadata audio_meta;
+};
+
 class NemoAsrLoader : public Loader<CPUBackend, NemoAsrEntry> {
  public:
   explicit inline NemoAsrLoader(const OpSpec &spec, const std::string &manifest_filepath,
