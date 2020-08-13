@@ -161,26 +161,26 @@ inline std::ostream &operator<<(std::ostream &os, DALIDataType t) {
       os << "string";
       break;
     case DALI_BOOL_VEC:
-      os << "vector<bool>";
+      os << "list of bool";
       break;
     case DALI_INT_VEC:
-      os << "vector<int>";
+      os << "list of int";
       break;
     case DALI_STRING_VEC:
-      os << "vector<string>";
+      os << "list of string";
       break;
     case DALI_FLOAT_VEC:
-      os << "vector<float>";
+      os << "list of float";
       break;
 #ifdef DALI_BUILD_PROTO3
     case DALI_TF_FEATURE:
       os << "TFUtil::Feature";
       break;
     case DALI_TF_FEATURE_VEC:
-      os << "vector<TFUtil::Feature>";
+      os << "list of TFUtil::Feature";
       break;
     case DALI_TF_FEATURE_DICT:
-      os << "TFUtil::Feature dictionary";
+      os << "dictionary of TFUtil::Feature";
       break;
 #endif  // DALI_BUILD_PROTO3
     case DALI_IMAGE_TYPE:
