@@ -175,11 +175,6 @@ DALI_HOST_DEV inline float16 clamp(int64_t value, ret_type<float16>) {
   return static_cast<float16>(static_cast<long long int>(value));  // NOLINT
 }
 
-// __half does not have a constructor for uint64_t, use unsigned long long
-DALI_HOST_DEV inline float16 clamp(uint64_t value, ret_type<float16>) {
-  return static_cast<float16>(static_cast<unsigned long long int>(value));  // NOLINT
-}
-
 template <typename T>
 DALI_HOST_DEV constexpr T clamp(float16 value, ret_type<T>) {
   return clamp(static_cast<float>(value), ret_type<T>());

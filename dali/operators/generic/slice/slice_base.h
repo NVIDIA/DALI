@@ -32,9 +32,7 @@
 #include "dali/pipeline/util/operator_impl_utils.h"
 #include "dali/util/crop_window.h"
 
-#define SLICE_TYPES (uint8_t, uint16_t, uint32_t, uint64_t, \
-                     int8_t,  int16_t,  int32_t,  int64_t, \
-                     float16, float, double)
+#define SLICE_TYPES (uint8_t, int16_t, uint16_t, int32_t, float, float16)
 #define SLICE_DIMS (1, 2, 3, 4)
 
 namespace dali {
