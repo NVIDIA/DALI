@@ -50,7 +50,7 @@ class TransposeCPU : public Transpose<CPUBackend> {
                 TensorView<StorageCPU, const T>{input[i].data<T>(), src_ts}, make_cspan(perm_));
           }, out_shape.tensor_size(i));
       }
-    ), DALI_FAIL("Input type not supported."));  // NOLINT(whitespace/parens)
+    ), DALI_FAIL(make_string("Input type not supported: ", input_type)));  // NOLINT
     thread_pool.RunAll();
   }
 };

@@ -31,8 +31,8 @@ void Cast<CPUBackend>::RunImpl(SampleWorkspace &ws) {
     output.ResizeLike(input);
     TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
       CPUHelper<OType, IType>(output.mutable_data<OType>(), input.data<IType>(), input.size());
-    ), DALI_FAIL("Invalid input type"););  // NOLINT(whitespace/parens)
-  ), DALI_FAIL("Invalid output type"););  // NOLINT(whitespace/parens)
+    ), DALI_FAIL(make_string("Invalid input type: ", itype)););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL(make_string("Invalid output type", output_type_)););  // NOLINT(whitespace/parens)
 }
 
 DALI_REGISTER_OPERATOR(Cast, Cast<CPUBackend>, CPU);

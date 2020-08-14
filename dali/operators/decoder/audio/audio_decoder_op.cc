@@ -66,7 +66,7 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
   TYPE_SWITCH(decode_type_, type2id, OutputType, (int16_t, int32_t, float), (
       for (int i=0; i < batch_size; i++)
         decoders_[i] = std::make_unique<GenericAudioDecoder<OutputType>>();
-  ), DALI_FAIL("Unsupported output type"))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported output type: ", decode_type_)))  // NOLINT
 
   output_desc.resize(2);
 
@@ -198,7 +198,7 @@ void AudioDecoderCpu::DecodeBatch(workspace_t<Backend> &ws) {
 void AudioDecoderCpu::RunImpl(workspace_t<Backend> &ws) {
   TYPE_SWITCH(output_type_, type2id, OutputType, (int16_t, int32_t, float), (
       DecodeBatch<OutputType>(ws);
-  ), DALI_FAIL("Unsupported output type"))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
 }
 
 }  // namespace dali

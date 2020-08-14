@@ -265,7 +265,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
       (int16_t, int32_t, int64_t, uint16_t, uint32_t, uint64_t, float),
       (GetTypedPerSampleSize(out_sizes, view<const shape_t>(tensor_vector))),
       (DALI_FAIL(make_string("Warp: Unsupported argument type for \"", size_arg_name_, "\": ",
-        to_string(tensor_vector.type().id()))))
+        tensor_vector.type().id())))
     );  // NOLINT
   }
 

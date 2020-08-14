@@ -88,7 +88,7 @@ class PeekImageShape : public Operator<CPUBackend> {
         TYPE_SWITCH(output_type_, type2id, type,
                 (int32_t, uint32_t, int64_t, uint64_t, float, double),
           (WriteShape<type>(output[sample_id], shape);),
-          (DALI_FAIL("Unsupported type for Shapes")));
+          (DALI_FAIL(make_string("Unsupported type for Shapes: ", output_type_))));
       }, 0);
       // the amount of work depends on the image format and exact sample which is unknown here
     }

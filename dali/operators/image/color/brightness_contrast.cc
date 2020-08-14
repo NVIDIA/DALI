@@ -101,8 +101,8 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                 }, out_shape.tensor_size(sample_id));
               }
           }
-      ), DALI_FAIL("Unsupported output type"))  // NOLINT
-  ), DALI_FAIL("Unsupported input type"))  // NOLINT
+      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
   tp.RunAll();
 }
 

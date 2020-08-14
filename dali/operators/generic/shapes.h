@@ -90,7 +90,7 @@ class Shapes : public Operator<Backend> {
     TYPE_SWITCH(output_type_, type2id, type,
                 (int32_t, uint32_t, int64_t, uint64_t, float, double),
       (ConvertShape<type>(out, shape);),
-      (DALI_FAIL("Unsupported type for Shapes")));
+      (DALI_FAIL(make_string("Unsupported type for Shapes: ", output_type_))));
   }
 
   void RunBackend(DeviceWorkspace &ws) {

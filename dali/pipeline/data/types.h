@@ -591,7 +591,7 @@ DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
       }                                              \
       break;                                         \
     default:                                         \
-      DALI_FAIL("Unknown type");                     \
+      DALI_FAIL(make_string("Unknown type: ", type)); \
   }
 
 #define DALI_TYPE_SWITCH(type, DType, ...)           \
@@ -641,7 +641,7 @@ DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
       }                                              \
       break;                                         \
     default:                                         \
-      DALI_FAIL("Unknown type");                     \
+      DALI_FAIL(make_string("Unknown type: ", type)); \
   }
 }  // namespace dali
 

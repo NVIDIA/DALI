@@ -73,8 +73,8 @@ class LookupTable : public Operator<Backend> {
         for (size_t i = 0; i < keys_size; i++) {
           values[keys[i]] = ConvertSat<OutputType>(values_f[i]);
         }
-      ), DALI_FAIL("Unsupported output type");   // NOLINT
-    );                                           // NOLINT
+      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_));  // NOLINT
+    );  // NOLINT
   }
 
   ~LookupTable() override = default;
