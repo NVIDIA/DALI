@@ -25,6 +25,7 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/operators/decoder/audio/audio_decoder.h"
+#include "dali/kernels/signal/resampling.h"
 
 namespace dali {
 
@@ -37,7 +38,7 @@ struct NemoAsrEntry {
 
 struct AsrSample {
   Tensor<CPUBackend> audio;
-  Tensor<CPUBackend> text;
+  std::string text;
   AudioMetadata audio_meta;
 };
 
@@ -47,13 +48,16 @@ DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, const std::str
 
 }  // namespace detail
 
-class NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
+class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
  public:
-  explicit inline NemoAsrLoader(const OpSpec &spec, const std::string &manifest_filepath,
-                                bool shuffle_after_epoch = false)
+  explicit inline NemoAsrLoader(const OpSpec &spec)
       : Loader<CPUBackend, AsrSample>(spec),
-        spec_(spec),
-        manifest_filepath_(spec.GetArgument<std::string>("manifest_filepath")) {
+        manifest_filepath_(spec.GetArgument<std::string>("manifest_filepath")),
+        shuffle_after_epoch_(spec.GetArgument<bool>("shuffle_after_epoch")),
+        sample_rate_(spec.GetArgument<float>("sample_rate")),
+        quality_(spec.GetArgument<float>("quality")),
+        downmix_(spec.GetArgument<bool>("downmix")),
+        dtype_(spec.GetArgument<DALIDataType>("dtype")) {
     /*
      * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks
      * differently after each epoch so coexistence with `stick_to_shard` doesn't make any sense
@@ -67,10 +71,17 @@ class NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
     /*
      * Imply `stick_to_shard` from  `shuffle_after_epoch`
      */
-    if (shuffle_after_epoch_)
+    if (shuffle_after_epoch_) 
       stick_to_shard_ = true;
+
+    double q = quality_;
+    DALI_ENFORCE(q >= 0 && q <= 100, "Resampling quality must be in [0..100] range");
+    // this should give 3 lobes for q = 0, 16 lobes for q = 50 and 64 lobes for q = 100
+    int lobes = std::round(0.007 * q * q - 0.09 * q + 3);
+    resampler_.Initialize(lobes, lobes * 64 + 1);
   }
 
+  ~NemoAsrLoader() override = default;
   void PrepareEmpty(AsrSample &sample) override;
   void ReadSample(AsrSample& sample) override;
 
@@ -80,13 +91,21 @@ class NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   void Reset(bool wrap_to_shard) override;
 
  private:
-  const OpSpec &spec_;
   std::string manifest_filepath_;
   std::vector<NemoAsrEntry> entries_;
+
+  Tensor<CPUBackend> scratch_;
 
   bool shuffle_after_epoch_;
   Index current_index_ = 0;
   int current_epoch_ = 0;
+
+  float sample_rate_;
+  float quality_;
+  bool downmix_;
+  DALIDataType dtype_;
+
+  kernels::signal::resampling::Resampler resampler_;
 };
 
 }  // namespace dali

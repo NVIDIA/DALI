@@ -16,9 +16,11 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/operators/decoder/audio/generic_decoder.h"
+#include "dali/operators/decoder/audio/audio_decoder_impl.h"
 #include "dali/operators/reader/loader/nemo_asr_loader.h"
 #include "dali/operators/reader/loader/utils.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/core/tensor_shape_print.h"
 #include "dali/pipeline/util/lookahead_parser.h"
 #include "dali/util/file.h"
 
@@ -29,10 +31,13 @@ namespace detail {
 void ParseManifest(std::vector<NemoAsrEntry> &entries, const std::string &json) {
   detail::LookaheadParser parser(const_cast<char*>(json.c_str()));
 
-  RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
+  DALI_ENFORCE(parser.PeekType() == kArrayType);
   parser.EnterArray();
 
+  std::cout << "json: " << json << "\n";
+
   while (parser.NextArrayValue()) {
+    std::cout << "Array element\n";
     if (parser.PeekType() != kObjectType)
       continue;
     parser.EnterObject();
@@ -84,7 +89,6 @@ void NemoAsrLoader::Reset(bool wrap_to_shard) {
 
 void NemoAsrLoader::PrepareEmpty(AsrSample &sample) {
   PrepareEmptyTensor(sample.audio);
-  PrepareEmptyTensor(sample.text);
 }
 
 void NemoAsrLoader::ReadSample(AsrSample& sample) {
@@ -98,21 +102,45 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   meta.SetSourceInfo(entry.audio_filepath);
   meta.SetSkipSample(false);
   sample.audio.SetMeta(meta);
-  DALI_ENFORCE(copy_read_data_, "Sharing data is not supported with this loader");
-  
-  // TODO(janton): do not create a new decoder each time
-  GenericAudioDecoder<float> decoder;
+
+  // Ignoring copy_read_data_, Sharing data is not supported with this loader
+  // TODO(janton): do not create a new decoder each time (?)
+  using DecoderType = short;
+  GenericAudioDecoder<DecoderType> decoder;
   sample.audio_meta = decoder.OpenFromFile(entry.audio_filepath);
+  assert(sample.audio_meta.channels_interleaved);  // it's always true
   sample.audio.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
-  sample.audio.Resize({sample.audio_meta.length});
-  int64_t decoded_size = decoder.DecodeTyped({sample.audio.mutable_data<float>(), sample.audio.size()});
-  DALI_ENFORCE(decoded_size == sample.audio_meta.length);
+  auto shape = DecodedAudioShape(sample.audio_meta, sample_rate_, downmix_);
+  assert(shape.size() > 0);
+  sample.audio.Resize(shape);
+
+  bool should_resample = sample_rate_ > 0 && sample.audio_meta.sample_rate != sample_rate_;
+  bool should_downmix = sample.audio_meta.channels > 1 && downmix_;
+
+  int64_t decode_scratch_sz = 0;
+  int64_t downmix_scratch_sz = 0;
+  if (should_resample && should_downmix) {
+    // downmix to intermediate buffer, then resample
+    decode_scratch_sz = sample.audio_meta.length * sample.audio_meta.channels;
+    downmix_scratch_sz = sample.audio_meta.length;
+  } else if (should_resample || should_downmix) { 
+    // decode to intermediate, then resample or downmix
+    decode_scratch_sz = sample.audio_meta.length * sample.audio_meta.channels;
+  }  // otherwise, decode directly to the output (no need for scratch memory)
+  int64_t total_scratch_sz = decode_scratch_sz * sizeof(DecodeType) + downmix_scratch_sz * sizeof(float);
+  scratch_.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+  scratch_.Resize({total_scratch_sz});
+
+  uint8_t* scratch_mem = scratch_.mutable_data<uint8_t>();
+  span<short> decoder_scratch_mem(reinterpret_cast<DecoderType*>(scratch_mem), decode_scratch_sz);
+  span<short> downmix_scratch_mem(reinterpret_cast<float*>(scratch_mem + decode_scratch_sz * sizeof(DecoderType)), downmix_scratch_sz);
+  DecodeAudio(view<float>(sample.audio), decoder, sample.audio_meta, resampler_,
+              decoder_scratch_mem, downmix_scratch_mem,
+              sample_rate_, downmix_,
+              entry.audio_filepath.c_str());
   decoder.Close();
 
-  sample.text.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
-  sample.text.Resize({entry.text.length() + 1});
-  std::memcpy(sample.text.raw_mutable_data(), entry.text.c_str(), entry.text.length());
-  sample.text.raw_mutable_data()[entry.text.length()] = '\0';
+  sample.text = entry.text;
 }
 
 Index NemoAsrLoader::SizeImpl() {
