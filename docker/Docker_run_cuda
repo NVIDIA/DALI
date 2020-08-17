@@ -11,13 +11,16 @@ ENV PYV=${PYV}
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         git \
+        python3-distutils \
         python$PYVER \
         python$PYVER-dev && \
     rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONIOENCODING utf-8
 ENV LC_ALL C.UTF-8
-RUN ln -s /usr/bin/python$PYVER /usr/bin/python && \
+RUN rm -f /usr/bin/python && \
+    rm -f /usr/bin/python`echo $PYVER | cut -c1-1` && \
+    ln -s /usr/bin/python$PYVER /usr/bin/python && \
     ln -s /usr/bin/python$PYVER /usr/bin/python`echo $PYVER | cut -c1-1`
 
 # If installing multiple pips, install pip2 last so that pip == pip2 when done.
@@ -25,7 +28,7 @@ RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
     python get-pip.py && \
     rm get-pip.py
 
-COPY --from=builder /wheelhouse/nvidia_dali-* /opt/dali/
+COPY --from=builder /wheelhouse/nvidia_dali_* /opt/dali/
 COPY --from=builder /wheelhouse/nvidia-dali-tf-plugin-*.tar.gz /opt/dali/
 
 RUN pip install /opt/dali/*.whl
