@@ -164,7 +164,7 @@ struct TimeRange {
 
   TimeRange(std::string name, const uint32_t rgb = kBlue) {  // NOLINT
 #if NVTX_ENABLED
-    nvtxEventAttributes_t att;
+    nvtxEventAttributes_t att = {};
     att.version = NVTX_VERSION;
     att.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
     att.colorType = NVTX_COLOR_ARGB;
