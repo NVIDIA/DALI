@@ -20,14 +20,15 @@
 namespace dali {
 namespace testing {
 
-void Transpose(void *_out, const void *_in, int64_t rows, int64_t cols, int64_t elem_size) {
+void TransposeOuterCPU(void *_out, const void *_in,
+                       int64_t rows, int64_t cols, int64_t inner_size) {
   char *out = static_cast<char *>(_out);
   const char *in = static_cast<const char *>(_in);
-  ptrdiff_t ostride = rows * elem_size;
-  ptrdiff_t istride = cols * elem_size;
+  ptrdiff_t ostride = rows * inner_size;
+  ptrdiff_t istride = cols * inner_size;
 
   int64_t itile = 32;
-  int64_t jtile = 128 / elem_size;
+  int64_t jtile = 128 / inner_size;
   if (!jtile) jtile = 1;
 
   for (int64_t i = 0; i < rows; i += itile) {
@@ -38,9 +39,9 @@ void Transpose(void *_out, const void *_in, int64_t rows, int64_t cols, int64_t 
       if (jmax > cols) jmax = cols;
       for (int64_t ii = i; ii < imax; ii++) {
         for (int64_t jj = j; jj < jmax; jj++) {
-          std::memcpy(&out[jj * ostride + ii * elem_size],
-                      &in[ii * istride + jj * elem_size],
-                      elem_size);
+          std::memcpy(&out[jj * ostride + ii * inner_size],
+                      &in[ii * istride + jj * inner_size],
+                      inner_size);
         }
       }
     }
@@ -48,66 +49,46 @@ void Transpose(void *_out, const void *_in, int64_t rows, int64_t cols, int64_t 
 }
 
 template <typename T>
-__global__ void TransposeKernel(T *out, const T *in,
-                          int64_t rows, int64_t cols, int64_t elem_size) {
-  ptrdiff_t ostride = rows * elem_size;
-  ptrdiff_t istride = cols * elem_size;
+__global__ void TransposeOuterKernel(T *out, const T *in,
+                                     int64_t rows, int64_t cols, int64_t inner_size) {
+  ptrdiff_t ostride = rows * inner_size;
+  ptrdiff_t istride = cols * inner_size;
 
   int i = blockIdx.y;
   int j = blockIdx.x * blockDim.y + threadIdx.y;
   if (i >= rows || j >= cols)
     return;
-  auto *out_span = &out[ostride * j + i * elem_size];
-  auto *in_span = &in[istride * i + j * elem_size];
-  for (int64_t k = threadIdx.x; k < elem_size; k += blockDim.x) {
+  auto *out_span = &out[ostride * j + i * inner_size];
+  auto *in_span = &in[istride * i + j * inner_size];
+  for (int64_t k = threadIdx.x; k < inner_size; k += blockDim.x) {
     out_span[k] = in_span[k];
   }
 }
 
 template <typename T>
-void TransposeGPU(T *out, const T *in, int64_t rows, int64_t cols, int64_t elem_size,
+void TransposeOuterGPU(T *out, const T *in, int64_t rows, int64_t cols, int64_t inner_size,
                   cudaStream_t stream) {
   dim3 block = { 32, 32, 1 };
   unsigned gx = div_ceil(cols, 32);
   unsigned gy = rows;
   dim3 grid = { gx, gy, 1 };
-  TransposeKernel<<<grid, block, 0, stream>>>(out, in, rows, cols, elem_size);
+  TransposeOuterKernel<<<grid, block, 0, stream>>>(out, in, rows, cols, inner_size);
 }
 
-void TransposeGPU(void *out, const void *in, int64_t rows, int64_t cols, int64_t elem_size,
-                  cudaStream_t stream) {
-  if ((elem_size & 7) == 0) {
-    TransposeGPU(static_cast<int64_t*>(out), static_cast<const int64_t*>(in),
-                 rows, cols, elem_size >> 3, stream);
-  }
-  if ((elem_size & 3) == 0) {
-    TransposeGPU(static_cast<int32_t*>(out), static_cast<const int32_t*>(in),
-                 rows, cols, elem_size >> 2, stream);
-  }
-  if ((elem_size & 1) == 0) {
-    TransposeGPU(static_cast<int16_t*>(out), static_cast<const int16_t*>(in),
-                 rows, cols, elem_size >> 1, stream);
+void TransposeOuterGPU(void *out, const void *in, int64_t rows, int64_t cols, int64_t inner_size,
+                       cudaStream_t stream) {
+  if ((inner_size & 7) == 0) {
+    TransposeOuterGPU(static_cast<int64_t*>(out), static_cast<const int64_t*>(in),
+                      rows, cols, inner_size >> 3, stream);
+  } else if ((inner_size & 3) == 0) {
+    TransposeOuterGPU(static_cast<int32_t*>(out), static_cast<const int32_t*>(in),
+                      rows, cols, inner_size >> 2, stream);
+  } else if ((inner_size & 1) == 0) {
+    TransposeOuterGPU(static_cast<int16_t*>(out), static_cast<const int16_t*>(in),
+                      rows, cols, inner_size >> 1, stream);
   } else {
-    TransposeGPU(static_cast<char *>(out), static_cast<const char*>(in),
-                 rows, cols, elem_size, stream);
-  }
-}
-
-TEST(TransposeOuter, Shape) {
-  {
-    TensorShape<2> in = { 1, 2 };
-    TensorShape<2> tr = { 2, 1 };
-    EXPECT_EQ(TransposeOuter(in), tr);
-  }
-  {
-    TensorShape<3> in = { 4, 3, 2 };
-    TensorShape<3> tr = { 3, 4, 2 };
-    EXPECT_EQ(TransposeOuter(in), tr);
-  }
-  {
-    TensorShape<4> in = { 11, 22, 33, 44 };
-    TensorShape<4> tr = { 22, 11, 33, 44 };
-    EXPECT_EQ(TransposeOuter(in), tr);
+    TransposeOuterGPU(static_cast<char *>(out), static_cast<const char*>(in),
+                      rows, cols, inner_size, stream);
   }
 }
 

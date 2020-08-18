@@ -118,7 +118,7 @@ __device__ void ResampleHorz_Channels(
             int xsample = x < 0 ? 0 : x >= in_w-1 ? in_w-1 : x;
             float flt = coeffs[coeff_idx];
             Src px = __ldg(in_row + channels * xsample + c);
-            tmp += px * flt;
+            tmp += fmaf(px, flt, tmp);
           }
 
           out_row[channels * dx + c] = ConvertSat<Dst>(tmp * norm);
@@ -135,7 +135,7 @@ __device__ void ResampleHorz_Channels(
           float flt = coeffs[coeff_idx];
           for (int c = 0; c < channels; c++) {
             Src px = __ldg(in_row + channels * xsample + c);
-            tmp[c] += px * flt;
+            tmp[c] = fmaf(px, flt, tmp[c]);
           }
         }
 
@@ -235,7 +235,7 @@ __device__ void ResampleHorz_Channels(
               int xsample = x < 0 ? 0 : x >= in_w-1 ? in_w-1 : x;
               float flt = coeffs[coeff_idx];
               Src px = __ldg(in_row + channels * xsample + c);
-              tmp += px * flt;
+              tmp = fmaf(px, flt, tmp);
             }
 
             out_row[channels * dx + c] = ConvertSat<Dst>(tmp * norm);
@@ -392,6 +392,7 @@ __device__ void ResampleDepth_Channels(
     Dst *__restrict__ out, ptrdiff_vec<1> out_strides,
     const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int dynamic_channels,
     ResamplingFilter filter, int support) {
+  // Unreachable code - no assert to avoid excessive register pressure.
 }
 
 /**

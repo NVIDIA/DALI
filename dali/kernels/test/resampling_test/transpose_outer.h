@@ -15,29 +15,31 @@
 #ifndef DALI_KERNELS_TEST_RESAMPLING_TEST_TRANSPOSE_OUTER_H_
 #define DALI_KERNELS_TEST_RESAMPLING_TEST_TRANSPOSE_OUTER_H_
 
+#include <utility>
 #include "dali/core/tensor_view.h"
+#include "dali/kernels/transpose/transpose.h"
+#include "dali/kernels/transpose/transpose_gpu.h"
 
 namespace dali {
 namespace testing {
 
 template <int ndim>
-DALI_HOST_DEV
 TensorShape<ndim> TransposeOuter(TensorShape<ndim> sh) {
   static_assert(ndim == DynamicDimensions || ndim >= 2,
                 "Cannot transpose a tensor with fewer than 2 dimensions.");
-  auto tmp = sh[0];
-  sh[0] = sh[1];
-  sh[1] = tmp;
+  assert(sh.size() >= 2 && "Cannot transpose a tensor with fewer than 2 dimensions.");
+  std::swap(sh[0], sh[1]);
   return sh;
 }
 
-void Transpose(void *out, const void *in, int64_t rows, int64_t cols, int64_t elem_size);
-void TransposeGPU(void *out, const void *in, int64_t rows, int64_t cols, int64_t elem_size,
-                  cudaStream_t stream);
+void TransposeOuterCPU(void *out, const void *in, int64_t rows, int64_t cols, int64_t inner_size);
+
+void TransposeOuterGPU(void *out, const void *in, int64_t rows, int64_t cols, int64_t inner_size,
+                       cudaStream_t stream);
 
 template <typename Storage, typename T, typename U, int ndim>
 void TransposeOuter(const TensorView<Storage, T, ndim> &out,
-               const TensorView<Storage, U, ndim> &in, cudaStream_t stream = 0) {
+                    const TensorView<Storage, U, ndim> &in, cudaStream_t stream = 0) {
   static_assert(std::is_same<std::remove_cv_t<T>, std::remove_cv_t<U>>::value,
                 "The arguments may vary only by CV qualifiers");
   static_assert(std::is_trivially_copyable<T>::value,
@@ -47,9 +49,9 @@ void TransposeOuter(const TensorView<Storage, T, ndim> &out,
   const char *raw_in = reinterpret_cast<char *>(in.data);
   size_t n = ndim > 2 ? volume(in.shape.last(in.dim() - 2)) * sizeof(T) : sizeof(T);
   if (std::is_same<Storage, StorageCPU>::value)
-    Transpose(raw_out, raw_in, in.shape[0], in.shape[1], n);
+    TransposeOuterCPU(raw_out, raw_in, in.shape[0], in.shape[1], n);
   else
-    TransposeGPU(raw_out, raw_in, in.shape[0], in.shape[1], n, stream);
+    TransposeOuterGPU(raw_out, raw_in, in.shape[0], in.shape[1], n, stream);
 }
 
 }  // namespace testing

@@ -15,7 +15,9 @@
 #ifndef DALI_TEST_CV_MAT_UTILS_H_
 #define DALI_TEST_CV_MAT_UTILS_H_
 
-#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <utility>
 #include <tuple>
 #include "dali/core/geom/box.h"
@@ -23,6 +25,33 @@
 
 namespace dali {
 namespace testing {
+
+template <int _ndim, class T>
+cv::Mat tensor_to_mat(const TensorView<StorageCPU, T, _ndim> &tensor,
+                      bool has_channels = true, bool convert_to_BGR = true) {
+  int ndim = tensor.dim();
+  int nch = has_channels ? tensor.shape[ndim - 1] : 1;
+  int spatial_ndim = ndim - has_channels;
+  vector<int> sizes(spatial_ndim);
+  for (int i = 0; i < spatial_ndim; i++)
+    sizes[i] = tensor.shape[i];
+  cv::Mat mat(sizes, CV_MAKETYPE(cv::DataDepth<std::remove_const_t<T>>::value, nch),
+              const_cast<std::remove_const_t<T> *>(tensor.data));
+  if (convert_to_BGR) {
+    if (nch != 3)
+      throw std::invalid_argument("Expected a 3-channel input");
+    cv::Mat tmp;
+    cv::cvtColor(mat, tmp, cv::COLOR_RGB2BGR);
+    return tmp;
+  }
+  return mat;
+}
+
+template <int _ndim, class T>
+void SaveImage(const char *name, const TensorView<StorageCPU, T, _ndim> &tensor) {
+  auto mat = tensor_to_mat(tensor, tensor.dim() > 2 && tensor.shape[tensor.dim()-1] <= 3);
+  cv::imwrite(name, mat);
+}
 
 /**
  * Creates cv::Mat based on provided arguments.

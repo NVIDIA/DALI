@@ -24,12 +24,15 @@
 namespace dali {
 namespace kernels {
 
-template <typename OutputElement, typename InputElement>
+template <typename OutputElement, typename InputElement, int _spatial_ndim = 2>
 struct ResampleGPU {
-  using Input = InListGPU<InputElement, 3>;
-  using Output = OutListGPU<OutputElement, 3>;
+  static_assert(_spatial_ndim == 2 || _spatial_ndim == 3, "Only 2D and 3D resampling is supported");
+  static constexpr int spatial_ndim = _spatial_ndim;
+  static constexpr int ndim = spatial_ndim + 1;
+  using Input = InListGPU<InputElement, ndim>;
+  using Output = OutListGPU<OutputElement, ndim>;
 
-  using Impl = SeparableResamplingFilter<OutputElement, InputElement>;
+  using Impl = SeparableResamplingFilter<OutputElement, InputElement, spatial_ndim>;
   using Params = typename Impl::Params;
   using ImplPtr = typename Impl::Ptr;
 

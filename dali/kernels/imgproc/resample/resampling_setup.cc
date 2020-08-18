@@ -247,7 +247,7 @@ void SeparableResamplingSetup<spatial_ndim>::SetupSample(
     filter_support[i] = std::max(1, support);
   }
 
-  desc.order = GetProcessingOrder(roi.extent(), out_size, filter_support);;
+  desc.order = GetProcessingOrder(roi.extent(), out_size, filter_support);
 
   {
     ivec<spatial_ndim> pass_size = roi.extent();

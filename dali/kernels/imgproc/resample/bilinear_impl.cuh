@@ -149,7 +149,7 @@ __device__ void LinearDepth(
     float src_x0, float scale,
     Dst *__restrict__ out, ptrdiff_vec<1> out_strides,
     const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int channels) {
-  assert(!"Should never reach this line");
+  // Unreachable code - no assert to avoid excessive register pressure.
 }
 
 
