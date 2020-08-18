@@ -379,3 +379,41 @@ class check_output_pattern():
 
         assert pattern_found, \
             "Pattern: ``{}`` \n not found in out: \n``{}`` \n and in err: \n ```{}```".format(self.pattern_, our_data, err_data)
+
+def dali_types_to_np(type):
+    import_numpy()
+
+    dali_types_to_np_dict = {
+        types.BOOL:  np.bool_,
+        types.INT8:   np.int8,
+        types.INT16:  np.int16,
+        types.INT32:  np.int32,
+        types.INT64:  np.int64,
+        types.UINT8:  np.uint8,
+        types.UINT16: np.uint16,
+        types.UINT32: np.uint32,
+        types.UINT64: np.uint64,
+        types.FLOAT16: np.float16,
+        types.FLOAT:   np.float32,
+        types.FLOAT64 : np.float64,
+    }
+    return dali_types_to_np_dict[type]
+
+def np_types_to_dali(type):
+    import_numpy()
+
+    np_types_to_dali_dict = {
+        np.bool_:   types.BOOL,
+        np.int8:    types.INT8,
+        np.int16:   types.INT16,
+        np.int32:   types.INT32,
+        np.int64:   types.INT64,
+        np.uint8:   types.UINT8,
+        np.uint16:  types.UINT16,
+        np.uint32:  types.UINT32,
+        np.uint64:  types.UINT64,
+        np.float16: types.FLOAT16,
+        np.float32: types.FLOAT,
+        np.float64: types.FLOAT64,
+    }
+    return np_types_to_dali_dict[type]

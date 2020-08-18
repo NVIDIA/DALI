@@ -1,5 +1,5 @@
 include Acknowledgements.txt LICENSE COPYRIGHT
-include *.cc
-include *.h
+recursive-include . *.cc
+recursive-include . *.h
 recursive-include . *.py
 recursive-include prebuilt *.so

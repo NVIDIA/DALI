@@ -18,6 +18,8 @@ from dali_tf_plugin_utils import *
 import os
 from distutils.version import StrictVersion
 from pathlib import Path
+import tempfile
+from stubgen import stubgen
 
 class InstallerHelper:
     def __init__(self, plugin_dest_dir = None):
@@ -118,12 +120,6 @@ class InstallerHelper:
             error_msg += '\n' + self.debug_str()
             raise ImportError(error_msg)
 
-        if self.dali_lib_path == "":
-            error_msg = "Installation error:"
-            error_msg += "\n DALI installation not found. Install `nvidia-dali` and try again"
-            error_msg += '\n' + self.debug_str()
-            raise ImportError(error_msg)
-
         compiler = self.cpp_compiler
 
         # From tensorflow team (https://github.com/tensorflow/tensorflow/issues/29643):
@@ -156,27 +152,44 @@ class InstallerHelper:
                 raise ImportError(error_msg)
 
         print("Proceed with build...")
-        dali_cflags, dali_lflags = get_dali_build_flags()
-        tf_cflags, tf_lflags = get_tf_build_flags()
         cuda_cflags, cuda_lflags = get_cuda_build_flags()
 
-        filenames = ['daliop.cc', 'dali_dataset_op.cc']
-        plugin_src = ''
-        for filename in filenames:
-            plugin_src = plugin_src + ' ' + os.path.join(self.src_path, filename)
+        with tempfile.TemporaryDirectory(prefix="dali_stub_") as tmpdir:
+            # Building a DALI stub library. During runtime, the real libdali.so will be already loaded at the moment when the DALI TF plugin is loaded
+            # This is done to avoid depending on DALI being installed during DALI TF sdist installation
+            dali_stub_src = os.path.join(tmpdir, 'dali_stub.cc')
+            dali_stub_lib = os.path.join(tmpdir, 'libdali.so')
+            dali_c_api_hdr = os.path.join(self.src_path, 'include', 'dali', 'c_api.h')
+            with open(dali_stub_src, 'w+') as f:
+                stubgen(header_filepath=dali_c_api_hdr, out_file=f)
 
-        lib_path =  os.path.join(self.plugin_dest_dir, 'libdali_tf_current.so')
+            dali_lflags = '-L' + tmpdir + ' -ldali'
+            dali_cflags = '-I' + os.path.join(self.src_path, 'include')
 
-        # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
-        # https://github.com/tensorflow/tensorflow/issues/17316
-        # Do not remove it.
-        cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++11 -DNDEBUG -shared ' \
-            + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' \
-            + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' \
-            + cuda_lflags + ' -O2'
-        print("Build command:\n\n " + cmd + '\n\n')
-        subprocess.check_call(cmd, cwd=self.src_path, shell=True)
+            cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++11 -DNDEBUG -shared ' \
+                + dali_stub_src + ' -o ' + dali_stub_lib + ' -fPIC ' + dali_cflags + ' ' \
+                + cuda_cflags + ' ' + cuda_lflags + ' -O2'
+            print('Building DALI stub lib:\n\n ' + cmd + '\n\n')
+            subprocess.check_call(cmd, cwd=self.src_path, shell=True)
 
+            tf_cflags, tf_lflags = get_tf_build_flags()
+
+            filenames = ['daliop.cc', 'dali_dataset_op.cc']
+            plugin_src = ''
+            for filename in filenames:
+                plugin_src = plugin_src + ' ' + os.path.join(self.src_path, filename)
+
+            lib_path =  os.path.join(self.plugin_dest_dir, 'libdali_tf_current.so')
+
+            # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
+            # https://github.com/tensorflow/tensorflow/issues/17316
+            # Do not remove it.
+            cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++11 -DNDEBUG -shared ' \
+                + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' \
+                + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' \
+                + cuda_lflags + ' -O2'
+            print("Build DALI TF library:\n\n " + cmd + '\n\n')
+            subprocess.check_call(cmd, cwd=self.src_path, shell=True)
 
 def main():
     env = InstallerHelper()

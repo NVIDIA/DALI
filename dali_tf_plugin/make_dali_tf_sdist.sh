@@ -10,7 +10,7 @@ find . -name '*.so' || true
 mkdir -p dali_tf_sdist_build
 pushd dali_tf_sdist_build
 
-CUDA_VERSION_STR=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1.\2/')
+CUDA_VERSION_STR=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2.\3/')
 
 cmake .. \
       -DCUDA_VERSION:STRING="${CUDA_VERSION_STR}" \
@@ -20,9 +20,4 @@ cmake .. \
 make -j install
 python setup.py sdist
 cp dist/*.tar.gz /dali_tf_sdist
-popd
-
-pushd dummy
-mkdir -p /dali_tf_sdist/dummy
-source make_nvidia_dali_tf_dummy.sh /dali_tf_sdist/dummy
 popd
