@@ -16,17 +16,24 @@ if (BUILD_FUZZING)
   collect_headers(DALI_INST_HDRS PARENT_SCOPE)
   set(DALI_FUZZING_SRCS
     "${PROJECT_SOURCE_DIR}/dali/test/dali_test_config.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/simple_fuzzing.cc"
   )
 
-  add_executable(dali_fuzzing "${DALI_FUZZING_SRCS}")
+  # Image decoder fuzzing target
+  add_executable(dali_decoder_fuzzing "${DALI_FUZZING_SRCS}" "${CMAKE_CURRENT_SOURCE_DIR}/image_decoder_target.cc")
+  target_link_libraries(dali_decoder_fuzzing PRIVATE dali dali_operators ${DALI_LIBS})
+  target_link_libraries(dali_decoder_fuzzing PRIVATE "-pie")
+  set_target_properties(dali_decoder_fuzzing PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(dali_decoder_fuzzing PROPERTIES OUTPUT_NAME "dali_image_decoder_fuzzing_target.bin")
+  set_target_properties(dali_decoder_fuzzing PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 
-  target_link_libraries(dali_fuzzing PRIVATE dali dali_operators ${DALI_LIBS})
-  target_link_libraries(dali_fuzzing PRIVATE "-pie")
-  set_target_properties(dali_fuzzing PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  set_target_properties(dali_fuzzing PROPERTIES OUTPUT_NAME "dali_fuzzing.bin")
-
-  set_target_properties(dali_fuzzing PROPERTIES
+  # ResNet pipeline fuzzing target
+  add_executable(dali_rn50_fuzzing "${DALI_FUZZING_SRCS}" "${CMAKE_CURRENT_SOURCE_DIR}/rn50_target.cc")
+  target_link_libraries(dali_rn50_fuzzing PRIVATE dali dali_operators ${DALI_LIBS})
+  target_link_libraries(dali_rn50_fuzzing PRIVATE "-pie")
+  set_target_properties(dali_rn50_fuzzing PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(dali_rn50_fuzzing PROPERTIES OUTPUT_NAME "dali_rn50_fuzzing_target.bin")
+  set_target_properties(dali_rn50_fuzzing PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 
 endif()
