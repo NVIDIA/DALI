@@ -473,6 +473,7 @@ template <typename Backend, typename DataType>
 struct TensorListView<Backend, DataType, DynamicDimensions>
     : TensorListViewBase<Backend, DataType, DynamicDimensions> {
   using Base = TensorListViewBase<Backend, DataType, DynamicDimensions>;
+  using typename Base::data_pointers_t;
   TensorListView() = default;
   TensorListView(const TensorListView &) = default;
   TensorListView(TensorListView &&) = default;
@@ -508,6 +509,14 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
   template <int other_sample_ndim>
   TensorListView(DataType *const *data, TensorListShape<other_sample_ndim> &&shape)
       : Base(data, std::move(shape)) {}
+
+  template <int other_sample_ndim>
+  TensorListView(const data_pointers_t &data, const TensorListShape<other_sample_ndim> &shape)
+      : Base(data, shape) {}
+
+  template <int other_sample_ndim>
+  TensorListView(data_pointers_t &&data, TensorListShape<other_sample_ndim> &&shape)
+      : Base(std::move(data), std::move(shape)) {}
 
   //@}
 
@@ -584,6 +593,12 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   template <int other_sample_ndim>
   TensorListView(DataType *const *data, TensorListShape<other_sample_ndim> &&shape)
       : Base(data, std::move(shape)) {}
+
+  TensorListView(const data_pointers_t &data, const TensorListShape<sample_ndim> &shape)
+      : Base(data, shape) {}
+
+  TensorListView(data_pointers_t &&data, TensorListShape<sample_ndim> &&shape)
+      : Base(std::move(data), std::move(shape)) {}
 
   //@}
 

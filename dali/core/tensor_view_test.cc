@@ -159,6 +159,24 @@ TEST(TensorListViewTest, ConstructorScattered) {
   }
 }
 
+TEST(TensorListViewTest, ToStatic) {
+  TensorListShape<3> static_shape({{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}});
+  TensorListShape<> dyn_shape = static_shape;
+  int a[4];
+  int *pointers[4] = { &a[2], &a[3], &a[0], &a[1] };
+  TensorListView<EmptyBackendTag, int> dyn_tlv(pointers, dyn_shape);
+  TensorListView<EmptyBackendTag, int, 3> static_copy = dyn_tlv.to_static<3>();
+  EXPECT_EQ(static_copy.data, dyn_tlv.data);
+  EXPECT_EQ(static_copy.shape, static_shape);
+  int **data_ptr = dyn_tlv.data.data();
+  auto *shape_ptr = dyn_tlv.shape.shapes.data();
+  TensorListView<EmptyBackendTag, int, 3> static_move = std::move(dyn_tlv).to_static<3>();
+  EXPECT_EQ(static_move.data.data(), data_ptr);
+  EXPECT_EQ(static_move.shape.shapes.data(), shape_ptr);
+  EXPECT_TRUE(dyn_tlv.data.empty());
+  EXPECT_TRUE(dyn_tlv.shape.shapes.empty());
+}
+
 TEST(TensorListViewTest, ConstructorMove) {
   int a[4];
   int *pointers[4] = { &a[2], &a[3], &a[0], &a[1] };
