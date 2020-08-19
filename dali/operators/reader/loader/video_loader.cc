@@ -289,7 +289,7 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
     AVFormatContext *tmp_raw_fmt_ctx = raw_fmt_ctx.release();
     // if avformat_open_input fails it frees raw_fmt_ctx so we can release it from unique_ptr
     int ret = avformat_open_input(&tmp_raw_fmt_ctx, NULL, NULL, NULL);
-    DALI_ENFORCE(ret <= 0, std::string("Could not open file ") + filename +
+    DALI_ENFORCE(ret >= 0, std::string("Could not open file ") + filename +
                  " because of " + av_err2str(ret));
 
     file.fmt_ctx_ = make_unique_av<AVFormatContext>(tmp_raw_fmt_ctx, avformat_close_input);
@@ -368,7 +368,7 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
       if (pkt.stream_index == file.vid_stream_idx_) break;
     }
 
-    DALI_ENFORCE(ret >=0, "Unable to read frame from file :" + filename);
+    DALI_ENFORCE(ret >= 0, "Unable to read frame from file :" + filename);
 
     DALI_ENFORCE(skip_vfr_check_ ||
       almost_equal(av_q2d(file.frame_base_), pkt.duration * av_q2d(file.stream_base_), 2),
