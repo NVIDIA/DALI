@@ -20,9 +20,10 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from nvidia.dali.backend_impl import TensorListGPU
 from nvidia.dali.pipeline import Pipeline
+import nvidia.dali.fn as fn
 import re
 
-from nose.tools import assert_raises
+from nose.tools import assert_raises, raises
 
 VIDEO_DIRECTORY = "/tmp/video_files"
 PLENTY_VIDEO_DIRECTORY = "/tmp/many_video_files"
@@ -32,6 +33,10 @@ VIDEO_FILES = [VIDEO_DIRECTORY + '/' + f for f in VIDEO_FILES]
 PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + '/' + f for f in PLENTY_VIDEO_FILES]
 FILE_LIST = "/tmp/file_list.txt"
 MUTLIPLE_RESOLUTION_ROOT = '/tmp/video_resolution/'
+
+test_data_root = os.environ['DALI_EXTRA_PATH']
+video_data_root = os.path.join(test_data_root, 'db', 'video')
+corrupted_video_data_root = os.path.join(video_data_root, 'corrupted')
 
 ITER=6
 BATCH_SIZE=4
@@ -155,3 +160,16 @@ def test_plenty_of_video_files():
     for i in range(iters):
         print("Iter " + str(i))
         pipe.run()
+
+@raises(RuntimeError)
+def check_corrupted_videos():
+    corrupted_videos = [corrupted_video_data_root + '/' + f for f in os.listdir(corrupted_video_data_root)]
+    for corrupted in corrupted_videos:
+        pipe = Pipeline(batch_size=BATCH_SIZE, num_threads=4, device_id=0)
+        with pipe:
+            vid = fn.video_reader(device="gpu", filenames=corrupted, sequence_length=1)
+            pipe.set_outputs(vid)
+        pipe.build()
+
+def test_corrupted_videos():
+    check_corrupted_videos()
