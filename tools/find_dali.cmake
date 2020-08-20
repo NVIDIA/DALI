@@ -27,27 +27,29 @@
 # target_link_directories(my_target ${DALI_LIB_DIR})
 # target_link_libraries(my_target ${DALI_LIBRARIES})
 ###################################################################
-function(find_dali DALI_INCLUDE_DIR DALI_LIB_DIR DALI_LIBRARIES)
+function(find_dali DALI_INCLUDE_DIR_VAR DALI_LIB_DIR_VAR DALI_LIBRARIES_VAR)
     execute_process(
-            COMMAND python3 -c "import nvidia.dali.sysconfig as dali_sc; print(dali_sc.get_include_dir(), end='')"
-            OUTPUT_VARIABLE DALI_INCLUDE_DIR_LOC
-            RESULT_VARIABLE DALI_INCLUDE_DIR_RESULT
-    )
+            COMMAND python -c "import nvidia.dali as dali; print(dali.sysconfig.get_include_dir(), end='')"
+            OUTPUT_VARIABLE DALI_INCLUDE_DIR
+            RESULT_VARIABLE INCLUDE_DIR_RESULT)
 
-    execute_process(
-            COMMAND python3 -c "import nvidia.dali.sysconfig as dali_sc; print(dali_sc.get_lib_dir(), end='')"
-            OUTPUT_VARIABLE DALI_LIB_DIR_LOC
-            RESULT_VARIABLE DALI_LIB_DIR_RESULT
-    )
-
-    if (${DALI_INCLUDE_DIR_RESULT} EQUAL "1" OR ${DALI_LIB_DIR_RESULT} EQUAL "1")
-        message(FATAL_ERROR "Error acquiring DALI. Please verify, that the DALI wheel is installed")
+    if (${INCLUDE_DIR_RESULT} EQUAL "1")
+        message(FATAL_ERROR "Failed to get include paths for DALI. Make sure that DALI is installed.")
     endif ()
 
-    set(${DALI_INCLUDE_DIR} ${DALI_INCLUDE_DIR_LOC} PARENT_SCOPE)
-    set(${DALI_LIB_DIR} ${DALI_LIB_DIR_LOC} PARENT_SCOPE)
-    set(${DALI_LIBRARIES} dali dali_operators PARENT_SCOPE)
-    message(STATUS "DALI libraries DIR: " ${DALI_LIB_DIR})
-    message(STATUS "DALI include DIR: " ${DALI_INCLUDE_DIR})
-    message(STATUS "DALI linked libraries: " ${DALI_LIBRARIES})
+    execute_process(
+            COMMAND python -c "import nvidia.dali as dali; print(dali.sysconfig.get_lib_dir(), end='')"
+            OUTPUT_VARIABLE DALI_LIB_DIR
+            RESULT_VARIABLE LIB_DIR_RESULT)
+
+    if (${LIB_DIR_RESULT} EQUAL "1")
+        message(FATAL_ERROR "Failed to get library paths for DALI. Make sure that DALI is installed.")
+    endif ()
+
+    set(${DALI_INCLUDE_DIR_VAR} ${DALI_INCLUDE_DIR} PARENT_SCOPE)
+    set(${DALI_LIB_DIR_VAR} ${DALI_LIB_DIR} PARENT_SCOPE)
+    set(${DALI_LIBRARIES_VAR} dali dali_kernels dali_operators PARENT_SCOPE)
+    message(STATUS "DALI libraries DIR: " ${DALI_INCLUDE_DIR_VAR})
+    message(STATUS "DALI include DIR: " ${DALI_LIB_DIR_VAR})
+    message(STATUS "DALI linked libraries: " ${DALI_LIBRARIES_VAR})
 endfunction()
