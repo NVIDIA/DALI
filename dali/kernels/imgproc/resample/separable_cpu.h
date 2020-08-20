@@ -186,21 +186,11 @@ struct SeparableResampleCPU  {
 
       Surface<spatial_ndim, float> tmp_surf = {}, tmp_prev = {};
 
-      ptrdiff_t prev_tmp_ofs = 0;
-      ptrdiff_t prev_tmp_size = 0;
-
       for (int stage = 0; stage < spatial_ndim; stage++) {
         if (stage < spatial_ndim - 1) {
           ptrdiff_t tmp_size = volume(tmp_shapes[stage]);
           ptrdiff_t tmp_ofs = stage & 1 ? setup.memory.tmp_size - tmp_size : 0;
           assert(tmp_ofs >= 0 && tmp_ofs+tmp_size <= static_cast<ptrdiff_t>(setup.memory.tmp_size));
-          if (stage > 0) {
-            if (stage & 1) {
-              assert(tmp_ofs >= prev_tmp_size);
-            } else {
-              assert(tmp_size < prev_tmp_ofs);
-            }
-          }
           tmp_surf.data = tmp_buf + tmp_ofs;
           tmp_surf.size = setup.desc.tmp_shape(stage);
           tmp_surf.channels = setup.desc.channels;
@@ -211,8 +201,6 @@ struct SeparableResampleCPU  {
             tmp_surf.strides[i] = tmp_surf.strides[i-1] * tmp_surf.size[i-1];
           }
           assert(&tmp_surf(tmp_surf.size - 1) < tmp_buf + setup.memory.tmp_size);
-          prev_tmp_ofs  = tmp_ofs;
-          prev_tmp_size = tmp_size;
         }
 
         if (stage == 0)  // in -> tmp(0)
