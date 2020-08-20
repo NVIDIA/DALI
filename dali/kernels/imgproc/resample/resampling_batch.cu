@@ -105,6 +105,7 @@ void BatchedSeparableResample(
 
   BatchedSeparableResampleKernel<spatial_ndim, Output, Input>
   <<<num_blocks, block, ResampleSharedMemSize, stream>>>(which_pass, samples, block2sample);
+  CUDA_CALL(cudaGetLastError());
 }
 
 

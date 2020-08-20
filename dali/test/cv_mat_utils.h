@@ -19,6 +19,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <utility>
+#include <vector>
 #include <tuple>
 #include "dali/core/geom/box.h"
 #include "dali/test/mat2tensor.h"

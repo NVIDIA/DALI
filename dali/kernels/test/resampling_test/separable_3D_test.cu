@@ -15,11 +15,14 @@
 #include <gtest/gtest.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
-#include <random>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <random>
+#include <string>
+#include <vector>
 
 #include "dali/core/dev_buffer.h"
+#include "dali/core/format.h"
 #include "dali/core/math_util.h"
 #include "dali/core/tensor_shape_print.h"
 
@@ -41,36 +44,39 @@ namespace dali {
 namespace kernels {
 namespace resample_test {
 
+static constexpr int kMaxChannels = 16;
+
 struct Bubble {
   vec3 centre;
-  vec3 color;
+  float color[kMaxChannels];
   float frequency;
   float decay;
 };
 
 template <typename T>
-__global__ void DrawBubblesKernel(T *data, ivec3 size, const Bubble *bubbles, int nbubbles) {
+__global__ void DrawBubblesKernel(T *data, ivec3 size, int nch,
+                                  const Bubble *bubbles, int nbubbles) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
   int z = blockIdx.z * blockDim.z + threadIdx.z;
   if (x >= size.x || y >= size.y || z >= size.z)
     return;
 
-  T *pixel = &data[3 * (x + size.x * (y + size.y * z))];
+  T *pixel = &data[nch * (x + size.x * (y + size.y * z))];
 
   vec3 pos(x + 0.5f, y + 0.5f, z + 0.5f);
 
-  vec3 color(0, 0, 0);
+  float color[kMaxChannels] = { 0 };
   for (int i = 0; i < nbubbles; i++) {
     float dsq = (bubbles[i].centre - pos).length_square();
     float d = dsq*rsqrt(dsq);
     float magnitude = expf(bubbles[i].decay * dsq);
     float phase = bubbles[i].frequency * d;
-    color += bubbles[i].color * (1 + cos(phase)) * magnitude * 0.5f;
+    for (int c = 0; c < nch; c++)
+      color[c] += bubbles[i].color[c] * (1 + cos(phase)) * magnitude * 0.5f;
   }
-  pixel[0] = ConvertSatNorm<T>(color[0]);
-  pixel[1] = ConvertSatNorm<T>(color[1]);
-  pixel[2] = ConvertSatNorm<T>(color[2]);
+  for (int c = 0; c < nch; c++)
+    pixel[c] = ConvertSatNorm<T>(color[c]);
 }
 
 template <typename T>
@@ -84,10 +90,11 @@ struct TestDataGenerator {
     assert(tensor.dim() == 4 && "Tensor must be 4D");
     gpu_bubbles.from_host(bubbles.data(), bubbles.size(), stream);
     ivec3 size(tensor.shape[2], tensor.shape[1], tensor.shape[0]);
-    assert(tensor.shape[3] == 3);
+    int nch = tensor.shape[3];
+    assert(tensor.shape[3] <= kMaxChannels);
     dim3 block(32, 32, 1);
     dim3 grid(div_ceil(size.x, 32), div_ceil(size.y, 32), size.z);
-    DrawBubblesKernel<<<grid, block, 0, stream>>>(tensor.data, size,
+    DrawBubblesKernel<<<grid, block, 0, stream>>>(tensor.data, size, nch,
                                                   gpu_bubbles, bubbles.size());
   }
 
@@ -102,18 +109,22 @@ struct TestDataGenerator {
     std::uniform_real_distribution<float> sigma_dist(10, 100);
 
     auto shape = tensor.shape;
-    assert(shape[3] == 3);  // only RGB
+    int nch = shape[3];
+    assert(nch <= kMaxChannels);
 
     std::vector<Bubble> bubbles(num_bubbles);
     for (int i = 0; i < num_bubbles; i++) {
       bubbles[i].centre = { shape[2] * dist(rng), shape[1] * dist(rng), shape[0] * dist(rng) };
-      bubbles[i].color = { dist(rng), dist(rng), dist(rng) };
+      for (int c = 0; c < nch; c++)
+        bubbles[i].color[c] = dist(rng);
       bubbles[i].frequency = freq_dist(rng);
       bubbles[i].decay = -1/(M_SQRT2 * sigma_dist(rng));
     }
     DrawBubbles(tensor, make_span(bubbles), stream);
   }
 };
+
+// Slices - duplicate params and shapes for depth slices as if they were additional samples
 
 template <int ndim>
 TensorListShape<ndim == DynamicDimensions ? DynamicDimensions : ndim-1>
@@ -148,12 +159,12 @@ auto GetSliceImages(const TensorListView<Storage, T, ndim> &volumes) {
 template <int ndim>
 void GetSliceParams(vector<ResamplingParams2D> &slice_params,
                     span<const ResamplingParams3D> params,
-                    const TensorListShape<ndim> &tls) {
+                    const TensorListShape<ndim> &in_shape) {
   slice_params.clear();
-  int N = tls.num_samples();
+  int N = in_shape.num_samples();
   assert(static_cast<int>(params.size()) == N);
   for (int i = 0; i < N; i++) {
-    int depth = tls.tensor_shape_span(i)[0];
+    int depth = in_shape.tensor_shape_span(i)[0];
     ResamplingParams2D p;
     p[0] = params[i][1];
     p[1] = params[i][2];
@@ -163,9 +174,11 @@ void GetSliceParams(vector<ResamplingParams2D> &slice_params,
   }
 }
 
+// ZShapes, ZImages - resize Z dim, fuse XY and keep old size
+
 template <int ndim>
 auto GetZShapes(const TensorListShape<ndim> &tls) {
-  return collapse_dim(tls, 0);
+  return collapse_dim(tls, 1);
 }
 
 template <typename Storage, typename T, int ndim>
@@ -173,15 +186,20 @@ auto GetZImages(const TensorListView<Storage, T, ndim> &volumes) {
   return reshape(volumes, GetZShapes(volumes.shape), true);
 }
 
+/**
+ * @param z_params - parameters for resizing along Z axis, keeping fused XY intact
+ * @param params   - original parameters
+ * @param in_shape - input shape for _this stage_ (if Z is resized after XY, it is tmp_shape)
+ */
 template <int ndim>
 void GetZParams(vector<ResamplingParams2D> &z_params,
                 span<const ResamplingParams3D> params,
-                const TensorListShape<ndim> &tls) {
+                const TensorListShape<ndim> &in_shape) {
   z_params.clear();
-  int N = tls.num_samples();
+  int N = in_shape.num_samples();
   assert(static_cast<int>(params.size()) == N);
   for (int i = 0; i < N; i++) {
-    auto sample_shape = tls.tensor_shape_span(i);
+    auto sample_shape = in_shape.tensor_shape_span(i);
     int depth = sample_shape[0];
     ResamplingParams2D p;
     p[0] = params[i][0];
@@ -194,6 +212,17 @@ void GetZParams(vector<ResamplingParams2D> &z_params,
 }
 
 
+/**
+ * @brief Use 2x 2D resampling to achieve 3D
+ *
+ * The first step decomposes the resampling into slices and resamples XY dimensions, fusing depth
+ * and batch dim.
+ * The second step fuses XY dimensions into generalized rows - which is OK, since we don't resize
+ * that dimension and resize Z as if it was Y.
+ *
+ * The result may differ slightly between this and true 3D resampling, because the order of
+ * operations is not optimized and may be different.
+ */
 template <typename Out, typename In>
 void Resample3Dvia2D(TestTensorList<Out> &out,
                      TestTensorList<In> &in,
@@ -246,11 +275,11 @@ void Resample3Dvia2D(TestTensorList<Out> &out,
     sa.Reserve(req.scratch_sizes);
     auto scratch = sa.GetScratchpad();
     ctx.scratchpad = &scratch;
-    assert(req.output_shapes[0] == tmp_shape);
+    assert(req.output_shapes[0] == tmp_slices.shape);
     res_xy.Run(ctx, tmp_slices, in_slices, make_span(params_xy));
   }
 
-  GetZParams(params_z, params, in_shape);
+  GetZParams(params_z, params, tmp_shape);
   auto tmp_z = GetZImages(tmp_view);
   auto out_z = GetZImages(out_view);
 
@@ -263,31 +292,8 @@ void Resample3Dvia2D(TestTensorList<Out> &out,
     sa.Reserve(req.scratch_sizes);
     auto scratch = sa.GetScratchpad();
     ctx.scratchpad = &scratch;
-    assert(req.output_shapes[0] == out_shape);
+    assert(req.output_shapes[0] == out_z.shape);
     res_z.Run(ctx, out_z, tmp_z, make_span(params_z));
-  }
-
-}
-
-TEST(Resample3D, DataGeneratorTest) {
-  using T = uint8_t;
-  TestDataGenerator<T> tdg;
-  TestTensorList<T> tl;
-  TensorListShape<4> shape = {{
-    { 40, 60, 50, 3 },
-    { 32, 80, 120, 3 },
-  }};
-  tl.reshape(shape);
-  tdg.GenerateTestData(tl.gpu()[0], 10);
-  tdg.GenerateTestData(tl.gpu()[1], 20);
-  char fname[256];
-  auto tl_cpu = tl.cpu();
-  for (int idx = 0; idx < shape.num_samples(); idx++) {
-    auto volume = tl_cpu[idx];
-    for (int slice = 0; slice < shape[idx][0]; slice++) {
-      snprintf(fname, sizeof(fname), "img_%i_slice_%i.png", idx, slice);
-      testing::SaveImage(fname, subtensor(volume, slice));
-    }
   }
 }
 
@@ -305,58 +311,180 @@ template <typename Out, typename In, ResamplingFilterType interp>
 class Resample3DTest<ResamplingTestParams<Out, In, interp>>
 : public ::testing::Test {
  public:
-  void RunGPU() {
-    cudaStream_t stream = 0;
-    TestDataGenerator<In> tdg;
-    TestTensorList<In> in;
-    TensorListShape<4> shape = {{
+  Resample3DTest() {
+    InitShapes();
+  }
+
+ protected:
+  void InitShapes() {
+    in_shapes.resize(3);
+    out_shapes.resize(3);
+
+    // NOTE: The shapes are chosen as to avoid source pixel centers exactly halfway
+    // between original pixels, because it can lead to rounding discrepancies between
+    // cpu and gpu variants (and we're using two-pass GPU as a reference here).
+
+    // 3 channels
+    in_shapes[0] = {{
       { 40, 60, 50, 3 },
       { 32, 80, 120, 3 },
     }};
-    in.reshape(shape);
-    tdg.GenerateTestData(in.gpu(stream)[0], 10, stream);
-    tdg.GenerateTestData(in.gpu(stream)[1], 20, stream);
 
-    TensorListShape<4> out_shape = {{
-      { 20, 40, 60, 3 },
-      { 72, 88, 128, 3 },
+    out_shapes[0] = {{
+      { 51, 40, 70, 3 },
+      { 73, 87, 29, 3 },
     }};
 
+    // variable number of channels
+    in_shapes[1] = {{
+      { 10, 200, 120, 3 },
+      { 100, 10, 10, 3 },
+      { 70, 80, 90, 3 },
+    }};
+
+    out_shapes[1] = {{
+      { 31, 200, 120, 3 },
+      { 51, 27, 33, 3 },
+      { 73, 181, 43, 3 },
+    }};
+
+    // many channels
+    in_shapes[2] = {{
+      { 40, 40, 40, 3 },
+    }};
+
+    out_shapes[2] = {{
+      { 51, 51, 51, 3 },
+    }};
+  }
+
+  vector<ResamplingParams3D> GenerateParams(const TensorListShape<4> &out_shape,
+                                            const TensorListShape<4> &in_shape) const {
     vector<ResamplingParams3D> params;
-    params.resize(shape.num_samples());
-    for (int i = 0; i < shape.num_samples(); i++) {
+    params.resize(in_shape.num_samples());
+    for (int i = 0; i < in_shape.num_samples(); i++) {
       for (int d = 0; d < 3; d++) {
-        params[i][d].min_filter = params[i][d].mag_filter = interp;
+        params[i][d].min_filter = interp;
+        params[i][d].mag_filter = interp;
         params[i][d].output_size = out_shape.tensor_shape_span(i)[d];
       }
     }
+    return params;
+  }
 
-    TestTensorList<Out> out, ref;
-
-    Resample3Dvia2D(ref, in, make_span(params), stream);
-    auto ref_cpu = ref.cpu(stream);
-    ref.invalidate_gpu();  // free memory
-    assert(ref_cpu.shape == out_shape);
+  void RunGPU() {
+    cudaStream_t stream = 0;
 
     ResampleGPU<Out, In, 3> kernel;
     KernelContext ctx;
     ctx.gpu.stream = stream;
-    auto req = kernel.Setup(ctx, in.template gpu<4>(stream), make_span(params));
-    ASSERT_EQ(req.output_shapes.size(), 1u) << "Expected only 1 output";
-    ASSERT_EQ(req.output_shapes[0], out_shape) << "Unexpected output shape";
-    out.reshape(out_shape);
-    cudaMemsetAsync(out.gpu(stream).data[0], 0, out_shape.num_elements(), stream);
-
     ScratchpadAllocator sa;
-    sa.Reserve(req.scratch_sizes);
-    auto scratchpad = sa.GetScratchpad();
-    ctx.scratchpad = &scratchpad;
-    kernel.Run(ctx, out.template gpu<4>(stream), in.template gpu<4>(stream), make_span(params));
+    TestDataGenerator<In> tdg;
+    TestTensorList<In> in;
+    TestTensorList<Out> out, ref;
 
-    auto out_cpu = out.cpu(stream);
-    double eps = std::is_integral<Out>::value ? 1 : 1e-5;
-    Check(out_cpu, ref_cpu, EqualEpsRel(eps, 1e-5));
+    int niter = NumIter();
+    for (int iter = 0; iter < niter; iter++) {
+      const TensorListShape<4> &in_shape = in_shapes[iter];
+      int N = in_shape.num_samples();
+      in.reshape(in_shape);
+      for (int i = 0; i < N; i++)
+        tdg.GenerateTestData(in.gpu(stream)[i], 10, stream);
+
+      const TensorListShape<4> &out_shape = out_shapes[iter];
+
+      vector<ResamplingParams3D> params = GenerateParams(out_shape, in_shape);
+
+      Resample3Dvia2D(ref, in, make_span(params), stream);
+      auto ref_cpu = ref.cpu(stream);
+      auto ref_gpu = ref.template gpu<4>(stream);
+      // ref.invalidate_gpu();
+      assert(ref_cpu.shape == out_shape);
+
+      auto req = kernel.Setup(ctx, in.template gpu<4>(stream), make_span(params));
+      ASSERT_EQ(req.output_shapes.size(), 1u) << "Expected only 1 output";
+      ASSERT_EQ(req.output_shapes[0], out_shape) << "Unexpected output shape";
+      out.reshape(out_shape);
+      cudaMemsetAsync(out.gpu(stream).data[0], 0, sizeof(Out)*out_shape.num_elements(), stream);
+
+      sa.Reserve(req.scratch_sizes);
+      auto scratchpad = sa.GetScratchpad();
+      ctx.scratchpad = &scratchpad;
+      auto out_gpu = out.template gpu<4>(stream);
+      kernel.Run(ctx, out_gpu, in.template gpu<4>(stream), make_span(params));
+
+      auto out_cpu = out.cpu(stream);
+      if (interp == ResamplingFilterType::Nearest) {
+        Check(out_cpu, ref_cpu);
+      } else {
+        // Epsilons are quite big because, processing order in the reference is forced to be XYZ
+        // or YXZ, whereas the tested implementation can use any order.
+        double eps = std::is_integral<Out>::value ? 1 : 1e-3;
+        Check(out_cpu, ref_cpu, EqualEpsRel(eps, 1e-4));
+      }
+    }
   }
+
+  void RunCPU() {
+    cudaStream_t stream = 0;
+
+    ResampleCPU<Out, In, 3> kernel;
+    KernelContext ctx;
+    ScratchpadAllocator sa;
+    TestDataGenerator<In> tdg;
+    TestTensorList<In> in;
+    TestTensorList<Out> out, ref;
+
+    int niter = NumIter();
+    for (int iter = 0; iter < niter; iter++) {
+      const TensorListShape<4> &in_shape = in_shapes[iter];
+      int N = in_shape.num_samples();
+      in.reshape(in_shape);
+      for (int i = 0; i < N; i++)
+        tdg.GenerateTestData(in.gpu(stream)[i], 10, stream);
+
+      const TensorListShape<4> &out_shape = out_shapes[iter];
+      out.reshape(out_shape);
+      memset(out.cpu(stream).data[0], 0, sizeof(Out)*out_shape.num_elements());
+
+      vector<ResamplingParams3D> params = GenerateParams(out_shape, in_shape);
+
+      Resample3Dvia2D(ref, in, make_span(params), stream);
+      auto ref_cpu = ref.cpu(stream);
+      ref.invalidate_gpu();
+
+      assert(ref_cpu.shape == out_shape);
+      auto in_cpu = in.template cpu<4>(stream);
+      auto out_cpu = out.template cpu<4>(stream);
+
+      for (int i = 0; i < N; i++) {
+        auto req = kernel.Setup(ctx, in_cpu[i], params[i]);
+        ASSERT_EQ(req.output_shapes.size(), 1u) << "Expected only 1 output";
+        ASSERT_EQ(req.output_shapes[0][0], out_shape[i]) << "Unexpected output shape";
+
+        sa.Reserve(req.scratch_sizes);
+        auto scratchpad = sa.GetScratchpad();
+        ctx.scratchpad = &scratchpad;
+        kernel.Run(ctx, out_cpu[i], in_cpu[i], params[i]);
+
+        if (interp == ResamplingFilterType::Nearest) {
+          Check(out_cpu[i], ref_cpu[i]);
+        } else {
+          // Epsilons are quite big because:
+          // - GPU uses fma
+          // - GPU uses different rounding
+          // - processing order in the reference is forced to be XYZ or YXZ, whereas
+          //   the tested implementation can use any order.
+          double eps = std::is_integral<Out>::value ? 1 : 5e-3;
+          Check(out_cpu[i], ref_cpu[i], EqualEpsRel(eps, 2e-3));
+        }
+      }
+    }
+  }
+
+  vector<TensorListShape<4>> in_shapes, out_shapes;
+
+  int NumIter() const { return in_shapes.size(); }
 };
 
 using Resample3DTestTypes = ::testing::Types<
@@ -370,6 +498,10 @@ TYPED_TEST_SUITE(Resample3DTest, Resample3DTestTypes);
 
 TYPED_TEST(Resample3DTest, TestGPU) {
   this->RunGPU();
+}
+
+TYPED_TEST(Resample3DTest, TestCPU) {
+  this->RunCPU();
 }
 
 }  // namespace resample_test

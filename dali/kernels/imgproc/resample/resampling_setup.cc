@@ -122,24 +122,22 @@ struct ProcessingOrderCalculator {
     return axis == 0 ? 1.4f : axis > 1 ? 1.2f : 1.0f;
   }
 
-  void calculate_cost(int pass, int axis) {
+  static constexpr float size_bias = 3;
+
+  float calculate_cost(int pass, int axis) {
     sizes[pass] = volume(curr_size);
     float base_cost = filter_support[axis] * sizes[pass];
     compute_costs[pass] = compute_cost_mul(axis) * base_cost;
+    return compute_costs[pass] + sizes[pass] * size_bias;
   }
 
-  static constexpr float size_bias = 3;
+  void run(int pass, float total_cost = 0) {
+    if (total_cost >= min_cost)
+      return;
 
-  void run(int pass) {
     if (pass == ndim) {
-      float total_cost = 0;
-      for (int i = 0; i < ndim; i++) {
-        total_cost += compute_costs[i] + sizes[i] * size_bias;
-      }
-      if (total_cost < min_cost) {
-        min_cost = total_cost;
-        best_order = curr_order;
-      }
+      min_cost = total_cost;
+      best_order = curr_order;
     } else {
       for (int a = 0; a < ndim; a++) {
         if (axis_mask[a])
@@ -149,8 +147,8 @@ struct ProcessingOrderCalculator {
         curr_size[a] = out_size[a];
         curr_order[pass] = a;
 
-        calculate_cost(pass, a);
-        run(pass + 1);
+        float pass_cost = calculate_cost(pass, a);
+        run(pass + 1, total_cost + pass_cost);
 
         curr_size[a] = prev_size;
         axis_mask[a] = false;

@@ -224,21 +224,29 @@ __device__ void LinearDepth(
   const int j0 = lo.x * channels;
   const int j1 = hi.x * channels;
 
-  for (int z = lo.z + threadIdx.z; z < hi.z; z += blockDim.z) {
+  ptrdiff_t out_stride_y = out_strides[0];
+  ptrdiff_t out_stride_z = out_strides[1];
+  ptrdiff_t in_stride_y = in_strides[0];
+  ptrdiff_t in_stride_z = in_strides[1];
+
+
+  // threadIdx.y is used to traverse Z axis
+  for (int z = lo.z + threadIdx.y; z < hi.z; z += blockDim.y) {
     const float sz0f = z * scale + src_z0;
     const int sz0i = __float2int_rd(sz0f);
     const float q = sz0f - sz0i;
     const int sz0 = clamp(sz0i,   0, in_shape.z-1);
     const int sz1 = clamp(sz0i+1, 0, in_shape.z-1);
 
-    Dst *out_plane = &out[z * out_strides[0]];
-    const Src *in_plane0 = &in[sz0 * in_strides[1]];
-    const Src *in_plane1 = &in[sz1 * in_strides[1]];
+    Dst *out_slice = &out[z * out_stride_z];
+    const Src *in_slice0 = &in[sz0 * in_stride_z];
+    const Src *in_slice1 = &in[sz1 * in_stride_z];
 
-    for (int y = lo.y + threadIdx.y; y < hi.y; y += blockDim.y) {
-      Dst *out_row = &out_plane[y * out_strides[0]];
-      const Src *in0 = &in_plane0[y * in_strides[0]];
-      const Src *in1 = &in_plane1[y * in_strides[0]];
+    // cannot fuse X and Y due to RoI support
+    for (int y = lo.y + threadIdx.z; y < hi.y; y += blockDim.z) {
+      Dst *out_row = &out_slice[y * out_stride_y];
+      const Src *in0 = &in_slice0[y * in_stride_y];
+      const Src *in1 = &in_slice1[y * in_stride_y];
 
       for (int j = j0 + threadIdx.x; j < j1; j += blockDim.x) {
         float a = __ldg(&in0[j]);

@@ -200,10 +200,8 @@ template <typename Out, typename In>
 void ResampleVert(
     Surface3D<Out> out, Surface3D<In> in, const int32_t *in_rows,
     const float *row_coeffs, int support) {
-
   for (int z = 0; z < out.size.z; z++) {
-    int in_z = std::min(z, in.size.z-1);
-    ResampleVert(out.slice(z), in.size(in.z), in_rows, row_coeffs, support);
+    ResampleVert(out.slice(z), in.slice(z), in_rows, row_coeffs, support);
   }
 }
 
@@ -211,6 +209,21 @@ template <typename Out, typename In>
 inline void ResampleDepth(Surface2D<Out> out, Surface2D<In> in,
                          const int *in_columns, const float *col_coeffs, int support) {
   assert(!"Unreachable code");
+}
+
+template <typename T>
+inline Surface2D<T> FuseXY(const Surface3D<T> &surface) {
+  return { surface.data,
+           surface.size.x * surface.size.y, surface.size.z, surface.channels,
+           surface.strides.x, surface.strides.y * surface.size.y, surface.channel_stride };
+}
+
+template <typename Out, typename In>
+inline void ResampleDepth(Surface3D<Out> out, Surface3D<In> in,
+                         const int *in_slices, const float *slice_coeffs, int support) {
+  // When resampling just the Z axis, we can safely fuse width and height into long rows
+  // and treat depth as height and reuse the code for 2D vertical pass.
+  ResampleVert(FuseXY(out), FuseXY(in), in_slices, slice_coeffs, support);
 }
 
 template <int spatial_ndim, typename Out, typename In>
@@ -226,7 +239,9 @@ inline void ResampleHorz(Surface<spatial_ndim, Out> out, Surface<spatial_ndim, I
 template <int spatial_ndim, typename Out, typename In>
 inline void ResampleAxis(Surface<spatial_ndim, Out> out, Surface<spatial_ndim, In> in,
                          const int *in_indices, const float *coeffs, int support, int axis) {
-  if (axis == 1)
+  if (axis == 2)
+    ResampleDepth(out, in, in_indices, coeffs, support);
+  else if (axis == 1)
     ResampleVert(out, in, in_indices, coeffs, support);
   else if (axis == 0)
     ResampleHorz(out, in, in_indices, coeffs, support);
@@ -346,7 +361,7 @@ void ResampleNN(Surface<n, Out> out, Surface<n, const In> in,
   const float step = scale[n-1];
   float src = origin[n-1] + 0.5f * step;
   for (int i = 0; i < out.size[n-1]; i++, src += step) {
-    int isrc = std::floor(src);
+    int isrc = clamp<int>(std::floor(src), 0, in.size[n-1]-1);
     ResampleNN(out.slice(i), in.slice(isrc), sub<n-1>(origin), sub<n-1>(scale));
   }
 }

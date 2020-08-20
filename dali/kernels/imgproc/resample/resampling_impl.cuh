@@ -176,8 +176,10 @@ __device__ void ResampleHorz_Channels(
     ResamplingFilter filter, int support) {
   using resample_shared::coeffs;
 
-  int out_stride = out_strides.x;
-  int in_stride = in_strides.x;
+  int out_stride_y = out_strides.x;  // coordinates are shifted, because
+  int out_stride_z = out_strides.y;  // X stride is implicitly equal to the number of channels
+  int in_stride_y = in_strides.x;
+  int in_stride_z = in_strides.y;
   int in_w = in_shape.x;
 
   src_x0 += 0.5f * scale - 0.5f - filter.anchor;
@@ -218,13 +220,13 @@ __device__ void ResampleHorz_Channels(
     }
     norm = 1.0f / norm;
 
-    for (int z = threadIdx.z + lo.z; z < hi.z; z+=blockDim.z) {
-      const Src *in_plane = &in[z * in_stride];
-      Dst *out_plane = &out[z * out_stride];
+    for (int z = threadIdx.z + lo.z; z < hi.z; z += blockDim.z) {
+      const Src *in_slice = &in[z * in_stride_z];
+      Dst *out_slice = &out[z * out_stride_z];
 
-      for (int i = threadIdx.y + lo.y; i < hi.y; i+=blockDim.y) {
-        const Src *in_row = &in_plane[i * in_stride];
-        Dst *out_row = &out_plane[i * out_stride];
+      for (int i = threadIdx.y + lo.y; i < hi.y; i += blockDim.y) {
+        const Src *in_row = &in_slice[i * in_stride_y];
+        Dst *out_row = &out_slice[i * out_stride_y];
 
         if (static_channels < 0) {
           for (int c = 0; c < channels; c++) {
@@ -374,12 +376,12 @@ __device__ void ResampleVert_Channels(
     const Src *__restrict__ in, ptrdiff_vec<2> in_strides, ivec3 in_shape, int dynamic_channels,
     ResamplingFilter filter, int support) {
   for (int z = lo.z + threadIdx.z; z < hi.z; z += blockDim.z) {
-    ptrdiff_t out_ofs = z * out_strides[1];
-    ptrdiff_t in_ofs = z * in_strides[1];
+    ptrdiff_t out_ofs = z * out_strides.y;
+    ptrdiff_t in_ofs = z * in_strides.y;
     ResampleVert_Channels<static_channels>(
       sub<2>(lo), sub<2>(hi), src_y0, scale,
-      out + out_ofs, sub<1>(out_strides),
-      in + in_ofs, sub<1>(in_strides), sub<2>(in_shape),
+      out + out_ofs, out_strides.x,
+      in + in_ofs, in_strides.x, sub<2>(in_shape),
       dynamic_channels, filter, support);
   }
 }
@@ -426,8 +428,9 @@ __device__ void ResampleDepth_Channels(
   const int coeff_base = huge_kernel ? 0 : support*threadIdx.y;
   const int channels = static_channels < 0 ? dynamic_channels : static_channels;
 
+  // threadIdx.y is used to traverse Z axis
   for (int i = lo.z; i < hi.z; i+=blockDim.y) {
-    int dz = i + threadIdx.z;
+    int dz = i + threadIdx.y;
     const float sz0f = dz * scale + src_z0;
     const int sz0 = huge_kernel ? __float2int_rn(sz0f) : __float2int_ru(sz0f);
     float f = (sz0 - sz0f) * filter_step;
@@ -456,6 +459,7 @@ __device__ void ResampleDepth_Channels(
     }
     norm = 1.0f / norm;
 
+    // cannot fuse X and Y due to RoI support
     for (int j = lo.y + threadIdx.z; j < hi.y; j += blockDim.z) {
       Dst *out_row = &out_slice[j * out_stride_y];
       const Src *in_row = &in[j * in_stride_y];

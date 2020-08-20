@@ -44,7 +44,7 @@ __device__ void NNResample(
       xsrc = clamp(xsrc, 0, in_size.x-1);
       const Src *src_px = &in_row[xsrc * channels];
       for (int c = 0; c < channels; c++)
-        out_row[x*channels + c] = __ldg(&src_px[c]);
+        out_row[x*channels + c] = ConvertSat<Dst>(__ldg(&src_px[c]));
     }
   }
 }
@@ -77,7 +77,7 @@ __device__ void NNResample(
         xsrc = clamp(xsrc, 0, in_size.x-1);
         const Src *src_px = &in_row[xsrc * channels];
         for (int c = 0; c < channels; c++)
-          out_row[x*channels + c] = __ldg(&src_px[c]);
+          out_row[x*channels + c] = ConvertSat<Dst>(__ldg(&src_px[c]));
       }
     }
   }

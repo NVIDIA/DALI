@@ -54,7 +54,13 @@ struct SampleDesc {
     set_base_pointers(in, tmp_arr, out);
   }
 
-  template <typename Input, typename Tmp, typename Output>
+  template <typename Input, typename Output>
+  void set_base_pointers(Input *in, std::nullptr_t, Output *out) {
+    std::array<float *, num_tmp_buffers> tmp_arr = {};
+    set_base_pointers(in, tmp_arr, out);
+  }
+
+  template <typename Input, typename Tmp, typename Output, int D = spatial_ndim>
   void set_base_pointers(Input *in, std::array<Tmp *, num_tmp_buffers> tmp, Output *out) {
     int i = 0;
     pointers[i] = reinterpret_cast<uintptr_t>(in  + offsets[i]);
@@ -103,6 +109,9 @@ ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const Fil
 template <int _spatial_ndim>
 class SeparableResamplingSetup {
  public:
+  SeparableResamplingSetup() {
+    block_dim = { 32, _spatial_ndim == 2 ? 24 : 8, 1 };
+  }
   static constexpr int channel_dim = _spatial_ndim;  // assumes interleaved channel data
   static constexpr int spatial_ndim = _spatial_ndim;
   static constexpr int tensor_ndim = spatial_ndim + (channel_dim >= 0 ? 1 : 0);
@@ -129,7 +138,7 @@ class SeparableResamplingSetup {
     filters = GetResamplingFiltersCPU();
   }
 
-  ivec3 block_dim = { 32, 24, 1 };
+  ivec3 block_dim;
 
  protected:
   using ROI = Roi<spatial_ndim>;
