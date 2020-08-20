@@ -63,8 +63,8 @@ requirements:
   host:
     - python
     - future >=0.17.1
-    - protobuf >=3.11.2
-    - libprotobuf-static >=3.11.2
+    - protobuf =3.12.4
+    - libprotobuf-static =3.12.4
     - libjpeg-turbo >=2.0.3
     - tensorflow-gpu =2.2.0
     - tensorflow-estimator =2.2.0
@@ -83,7 +83,7 @@ requirements:
   run:
     - python
     - future >=0.17.1
-    - protobuf >=3.11.2
+    - protobuf =3.12.4
     - libjpeg-turbo >=2.0.3
     - tensorflow-gpu =2.2.0
     - tensorflow-estimator =2.2.0
