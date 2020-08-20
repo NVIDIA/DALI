@@ -102,6 +102,7 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto in_layout = input.GetLayout();
   int N = in_shape.num_samples();
 
+  print(std::cerr, "Input layout is: ", in_layout, "\n");
   PrepareParams(ws, in_shape, in_layout);
 
   auto out_type = resampling_attr_.GetOutputType(in_type);

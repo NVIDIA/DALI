@@ -34,7 +34,7 @@ class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
     kmgr_.Resize(num_threads, 0);
   }
 
-  static_assert(spatial_ndim == 2, "NOT IMPLEMENTED. Only 2D resize is supported");
+  static_assert(spatial_ndim == 2 || spatial_ndim == 3, "Only 2D and 3D resizing is supported");
 
   using Kernel = kernels::ResampleCPU<Out, In, spatial_ndim>;
 
