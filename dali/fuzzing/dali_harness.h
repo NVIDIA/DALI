@@ -74,7 +74,6 @@ class DecoderHarness {
     pipeline_.RunCPU();
     pipeline_.RunGPU();
     pipeline_.Outputs(&ws);
-    TensorList<GPUBackend> &output = ws.Output<GPUBackend>(0);
   }
 
  protected:

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,28 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if (BUILD_FUZZING)
-  collect_headers(DALI_INST_HDRS PARENT_SCOPE)
-  set(DALI_FUZZING_SRCS
-    "${PROJECT_SOURCE_DIR}/dali/test/dali_test_config.cc"
-  )
 
-  # Image decoder fuzzing target
-  add_executable(dali_decoder_fuzzing "${DALI_FUZZING_SRCS}" "${CMAKE_CURRENT_SOURCE_DIR}/image_decoder_target.cc")
-  target_link_libraries(dali_decoder_fuzzing PRIVATE dali dali_operators ${DALI_LIBS})
-  target_link_libraries(dali_decoder_fuzzing PRIVATE "-pie")
-  set_target_properties(dali_decoder_fuzzing PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  set_target_properties(dali_decoder_fuzzing PROPERTIES OUTPUT_NAME "dali_image_decoder_fuzzing_target.bin")
-  set_target_properties(dali_decoder_fuzzing PROPERTIES
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+set(DALI_FUZZING_SRCS
+  "${PROJECT_SOURCE_DIR}/dali/test/dali_test_config.cc"
+)
+
+function(DALI_ADD_FUZZING_TARGET TARGET_NAME BINARY_NAME TARGET_SRC)
+  add_executable(${TARGET_NAME} "${DALI_FUZZING_SRCS}" "${CMAKE_CURRENT_SOURCE_DIR}/${TARGET_SRC}")
+  target_link_libraries(${TARGET_NAME} PRIVATE dali dali_operators ${DALI_LIBS})
+  target_link_libraries(${TARGET_NAME} PRIVATE "-pie")
+  set_target_properties(${TARGET_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(${TARGET_NAME} PROPERTIES OUTPUT_NAME "${BINARY_NAME}")
+  set_target_properties(${TARGET_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
+endfunction()
 
-  # ResNet pipeline fuzzing target
-  add_executable(dali_rn50_fuzzing "${DALI_FUZZING_SRCS}" "${CMAKE_CURRENT_SOURCE_DIR}/rn50_target.cc")
-  target_link_libraries(dali_rn50_fuzzing PRIVATE dali dali_operators ${DALI_LIBS})
-  target_link_libraries(dali_rn50_fuzzing PRIVATE "-pie")
-  set_target_properties(dali_rn50_fuzzing PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  set_target_properties(dali_rn50_fuzzing PROPERTIES OUTPUT_NAME "dali_rn50_fuzzing_target.bin")
-  set_target_properties(dali_rn50_fuzzing PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
+# Image decoder fuzzing target
+dali_add_fuzzing_target(dali_decoder_fuzzing dali_image_decoder_fuzzing_target.bin image_decoder_target.cc)
 
-endif()
+# ResNet pipeline fuzzing target
+dali_add_fuzzing_target(dali_rn50_fuzzing dali_rn50_fuzzing_target.bin rn50_target.cc)
