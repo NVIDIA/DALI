@@ -73,24 +73,25 @@ class MnistPipeline(Pipeline):
 
 
 def _get_mnist_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1, fail_on_device_mismatch=True):
-    mnist_pipeline = MnistPipeline(
-        4, data_path, device, device_id, shard_id, num_shards)
-    shapes = (
-        (BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE),
-        (BATCH_SIZE,))
-    dtypes = (
-        tf.float32,
-        tf.int32)
+    with tf.device('/{0}:{1}'.format(device, device_id)):
+        mnist_pipeline = MnistPipeline(
+            4, data_path, device, device_id, shard_id, num_shards)
+        shapes = (
+            (BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE),
+            (BATCH_SIZE,))
+        dtypes = (
+            tf.float32,
+            tf.int32)
 
-    daliset = dali_tf.DALIDataset(
-        pipeline=mnist_pipeline,
-        batch_size=BATCH_SIZE,
-        output_shapes=shapes,
-        output_dtypes=dtypes,
-        num_threads=4,
-        device_id=device_id,
-        fail_on_device_mismatch=fail_on_device_mismatch)
-    return daliset
+        daliset = dali_tf.DALIDataset(
+            pipeline=mnist_pipeline,
+            batch_size=BATCH_SIZE,
+            output_shapes=shapes,
+            output_dtypes=dtypes,
+            num_threads=4,
+            device_id=device_id,
+            fail_on_device_mismatch=fail_on_device_mismatch)
+        return daliset
 
 
 def _get_train_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1, fail_on_device_mismatch=True):
@@ -224,15 +225,24 @@ def clear_checkpoints():
 
 def _test_estimators_single_device(model, device='cpu', device_id=0, fail_on_device_mismatch=True):
     def train_fn():
-        with tf.device('/{0}:{1}'.format(device, device_id)):
-            return _get_train_dataset(device, device_id, fail_on_device_mismatch=fail_on_device_mismatch).map(
-                lambda features, labels: ({'images': features}, labels))
+        # with tf.device('/{0}:{1}'.format(device, device_id)):
+        #     return _get_train_dataset(device, device_id, fail_on_device_mismatch=fail_on_device_mismatch).map(
+        #         lambda features, labels: ({'images': features}, labels))
+        ds = _get_train_dataset(device, device_id, fail_on_device_mismatch=fail_on_device_mismatch)
+        return ds.apply(tf.data.experimental.copy_to_device(
+            target_device="cpu")
+        ).map(lambda features, labels: ({'images': features}, labels))
 
     model.train(input_fn=train_fn, steps=EPOCHS * ITERATIONS)
 
     def test_fn():
-        return _get_train_dataset(device, device_id, fail_on_device_mismatch=fail_on_device_mismatch).map(
-            lambda features, labels: ({'images': features}, labels))
+        # return _get_train_dataset(device, device_id, fail_on_device_mismatch=fail_on_device_mismatch).map(
+        #     lambda features, labels: ({'images': features}, labels))
+        ds = _get_train_dataset(device, device_id, fail_on_device_mismatch=fail_on_device_mismatch)
+        return ds.apply(tf.data.experimental.copy_to_device(
+            target_device="cpu")
+        ).map(lambda features, labels: ({'images': features}, labels))
+
 
     evaluation = model.evaluate(
         input_fn=test_fn,
