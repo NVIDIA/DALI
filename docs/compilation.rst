@@ -25,7 +25,8 @@ Prerequisites
    | |docker link|_                         | Follow installation guide and manual at the link (version 17.05 or later is required).      |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |nvidia_docker|_                       | Follow installation guide and manual at the link.                                           |
-   |                                        | Using NVIDIA Container Toolkit is recommended as  vidia-docker2 is deprecated               |
+   |                                        |                                                                                             |
+   |                                        | Using NVIDIA Container Toolkit is recommended as nvidia-docker2 is deprecated               |
    |                                        | but both are supported.                                                                     |
    |                                        |                                                                                             |
    |                                        | Required for building DALI TensorFlow Plugin.                                               |
@@ -58,7 +59,7 @@ set the following environment variables:
     PREBUILD_TF_PLUGINS value is disregarded. The default is ``YES``.
 * | CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside.
   | It will create the ``Docker_run_cuda`` image, which needs to be run using |nvidia_docker|_
-    and DALI wheel in the ``/opt/dali`` directory.
+    and place the DALI wheel (and optionally the TensorFlow plugin if compiled) in the ``/opt/dali`` directory.
   | The default is ``NO``.
 * | PYVER - Python version used to create the runner image with DALI installed inside mentioned above.
   | The default is ``3.6``.

@@ -97,7 +97,7 @@ if [[ "$BUILD_TF_PLUGIN" = "YES" ]]; then
   fi
 fi
 
-echo $NVDOCKER_COMMAND
+echo "NVIDIA Container Toolkit will use: \"$NVDOCKER_COMMAND\" command"
 
 set -o errexit
 
