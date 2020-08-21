@@ -30,6 +30,8 @@ DALI_SCHEMA(Resize)
   .AddOptionalArg("save_attrs",
       R"code(Save reshape attributes for testing.)code", false)
   .DeprecateArg("image_type", true)  // deprecated since 0.25dev
+  .SupportVolumetric()
+  .AllowSequences()
   .AddParent("ResizeAttr")
   .AddParent("ResamplingFilterAttr");
 
