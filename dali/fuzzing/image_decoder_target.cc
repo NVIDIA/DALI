@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
     dali::OpSpec("PinnedCPUAllocator"),
     dali::OpSpec("GPUAllocator"));
 
-  // Run test   
+  // Run test
   dali::DecoderHarness harness{path};
   harness.Run();
 

@@ -12,24 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_FUZZING_DALI_HARNESS_H_
+#define DALI_FUZZING_DALI_HARNESS_H_
+
+#include <string>
+#include <vector>
+#include <utility>
+
 #include "dali/core/common.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/util/image.h"
 #include "dali/test/dali_test_config.h"
 
-
 namespace dali {
-const string jpeg_folder = make_string(
-  testing::dali_extra_path(),
-  "/db/fuzzing/");
-
-
 class DecoderHarness {
  public:
   DecoderHarness(
-    string &path, string file_extension=".jpg", int batch_size=4, int num_threads=4, int device_id=0) :
+    string &path,
+    string file_extension = ".jpg",
+    int batch_size = 4,
+    int num_threads = 4,
+    int device_id = 0) :
       batch_size_(batch_size),
       pipeline_(batch_size, num_threads, device_id) {
+    const string jpeg_folder = make_string(
+      testing::dali_extra_path(),
+      "/db/fuzzing/");
     image_names_ = ImageList(jpeg_folder, {file_extension}, batch_size_ - 1);
     image_names_.push_back(path);
     LoadImages(image_names_, &images_);
@@ -87,7 +95,7 @@ class DecoderHarness {
 
 class ResNetHarness : public DecoderHarness {
  public:
-  ResNetHarness(string &path, int batch_size=4, int num_threads=4, int device_id=0) :
+  explicit ResNetHarness(string &path, int batch_size = 4, int num_threads = 4, int device_id = 0) :
     DecoderHarness(path, ".bmp", batch_size, num_threads, device_id) { }
 
   void SetupPipeline() override {
@@ -156,3 +164,5 @@ class ResNetHarness : public DecoderHarness {
 };
 
 }  // namespace dali
+
+#endif  // DALI_FUZZING_DALI_HARNESS_H_
