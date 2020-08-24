@@ -215,15 +215,36 @@ template <typename T>
 inline Surface2D<T> FuseXY(const Surface3D<T> &surface) {
   return { surface.data,
            surface.size.x * surface.size.y, surface.size.z, surface.channels,
-           surface.strides.x, surface.strides.y * surface.size.y, surface.channel_stride };
+           surface.strides.x, surface.strides.z, surface.channel_stride };
 }
+
+template <typename T>
+inline Surface2D<T> SliceY(const Surface3D<T> &surface, int y) {
+  return { surface.data + surface.strides.y * y,
+           surface.size.x, surface.size.z, surface.channels,
+           surface.strides.x, surface.strides.z, surface.channel_stride };
+}
+
 
 template <typename Out, typename In>
 inline void ResampleDepth(Surface3D<Out> out, Surface3D<In> in,
                          const int *in_slices, const float *slice_coeffs, int support) {
-  // When resampling just the Z axis, we can safely fuse width and height into long rows
-  // and treat depth as height and reuse the code for 2D vertical pass.
-  ResampleVert(FuseXY(out), FuseXY(in), in_slices, slice_coeffs, support);
+  if (in.strides.y == in.size.x * in.strides.x &&
+      out.strides.y == out.size.x * out.strides.x) {
+    // We're processing entire width of the image, so we can safely fuse width and height into
+    // long rows and treat depth as height and reuse the code for 2D vertical pass.
+    ResampleVert(FuseXY(out), FuseXY(in), in_slices, slice_coeffs, support);
+  } else {
+    // Cannot fuse - process row by row
+    Surface2D<Out> out_xz = SliceY(out, 0);
+    Surface2D<In> in_xz = SliceY(in, 0);
+    for (int y = 0; y < out.size.y; y++) {
+      ResampleVert(out_xz, in_xz, in_slices, slice_coeffs, support);
+      out_xz.data += out.strides.y;
+      if (y < in.size.y)
+        in_xz.data += in.strides.y;
+    }
+  }
 }
 
 template <int spatial_ndim, typename Out, typename In>
