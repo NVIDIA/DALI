@@ -72,7 +72,7 @@ TEST_F(ConstantStorageTest, CpuValid) {
           } else {
             EXPECT_EQ(*ptr, static_cast<Type>(reals_[idx]));
           }
-      ), DALI_FAIL(make_string("Invalid type: ", type_id)););  // NOLINT(whitespace/parens)
+      ), DALI_FAIL(make_string("Unsupported type: ", type_id)););  // NOLINT(whitespace/parens)
   }
 }
 
@@ -92,7 +92,7 @@ TEST_F(ConstantStorageTest, GpuValid) {
           } else {
             EXPECT_EQ(*ptr, static_cast<Type>(reals_[idx]));
           }
-      ), DALI_FAIL(make_string("Invalid type: ", type_id)););  // NOLINT(whitespace/parens)
+      ), DALI_FAIL(make_string("Unsupported type: ", type_id)););  // NOLINT(whitespace/parens)
   }
 }
 

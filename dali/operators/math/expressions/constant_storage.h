@@ -103,7 +103,7 @@ class ConstantStorage {
           auto idx = node->GetConstIndex();
           auto *ptr = reinterpret_cast<Type *>(data + idx * kPaddingSize);
           *ptr = static_cast<Type>(constants[idx]);
-        ), DALI_FAIL(make_string("Invalid type: ", node->GetTypeId())););  // NOLINT
+        ), DALI_FAIL(make_string("Unsupported type: ", node->GetTypeId())););  // NOLINT
     }
   }
 

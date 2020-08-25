@@ -223,7 +223,7 @@ void Reshape<Backend>::ShapeFromInput(const TensorListLike &tl, bool relative) {
       (int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t),
       (this->ShapeFromInput(view<const type>(tl));),
       (DALI_FAIL(make_string(OpName(), ": shape input must have integral type; got: ",
-                 tl.type().name(), " type: ", tl.type().id()));)
+                 tl.type().id()));)
     );  // NOLINT
   }
 }

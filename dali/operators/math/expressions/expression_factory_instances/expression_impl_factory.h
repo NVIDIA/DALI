@@ -48,7 +48,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryUnOp(const ExprFunc &expr) {
     } else {
       DALI_FAIL("Expression cannot have a constant operand");
     }
-  ), DALI_FAIL(make_string("Invalid type: ", input_type)););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL(make_string("Unsupported type: ", input_type)););  // NOLINT(whitespace/parens)
   return result;
 }
 

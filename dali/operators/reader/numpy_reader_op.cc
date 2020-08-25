@@ -43,7 +43,7 @@ void NumpyReader::TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBa
       TensorView<StorageCPU, InputType>{output.mutable_data<InputType>(), out_ts},
       TensorView<StorageCPU, const InputType>{input.data<InputType>(), in_ts},
       make_cspan(perm));
-  ), DALI_FAIL(make_string("Input type not supported: ", input_type)));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input_type)));  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(NumpyReader, NumpyReader, CPU);
