@@ -104,7 +104,7 @@ void ResamplHorzRow(Out *out_row, int out_width, const In *in_row, int in_width,
     }
   } else {
     for (; x < first_regular_col && x <= last_regular_col; x++) {
-      ResampleCol<static_channels, false, false>(
+      ResampleCol<static_channels, true, false>(
         out_row, in_row, x, in_width, in_columns, coeffs, support, channels);
     }
   }
