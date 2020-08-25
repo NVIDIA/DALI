@@ -167,27 +167,21 @@ DALI_HOST_DEV constexpr bool clamp(T value, ret_type<bool>) {
 
 template <typename T>
 DALI_HOST_DEV constexpr float16 clamp(T value, ret_type<float16>) {
-  return static_cast<float16>(value);
-}
-
-// __half does not have a constructor for int64_t, use long long
-DALI_HOST_DEV inline float16 clamp(int64_t value, ret_type<float16>) {
-  return static_cast<float16>(static_cast<long long int>(value));  // NOLINT
-}
-
-// __half does not have a constructor for uint64_t, use unsigned long long
-DALI_HOST_DEV inline float16 clamp(uint64_t value, ret_type<float16>) {
-  return static_cast<float16>(static_cast<unsigned long long int>(value));  // NOLINT
+  float f16_min = -65504.0f, f16_max = 65504.0f;
+  float f = clamp(value, ret_type<float>());
+  f = f < f16_min ? f16_min : f > f16_max ? f16_max : f;
+  return static_cast<float16>(f);
 }
 
 template <typename T>
 DALI_HOST_DEV constexpr T clamp(float16 value, ret_type<T>) {
-  return clamp(static_cast<float>(value), ret_type<T>());
+  return clamp(static_cast<float>(value), ret_type<T>{});
 }
 
 DALI_HOST_DEV constexpr float16 clamp(float16 value, ret_type<float16>) {
   return value;
 }
+
 
 template <typename T, typename U>
 DALI_HOST_DEV constexpr T clamp(U value) {
