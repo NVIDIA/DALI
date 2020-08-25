@@ -20,7 +20,7 @@ DALI_REGISTER_OPERATOR(NemoAsrReader, NemoAsrReader, CPU);
 
 DALI_SCHEMA(NemoAsrReader)
   .NumInput(0)
-  .NumOutput(3)
+  .NumOutput(1)
   .DocStr(R"code(Read automatic speech recognition (ASR) data (audio, text) from a 
 NVIDIA NeMo compatible manifest.
 
@@ -41,9 +41,9 @@ This reader produces between 1 and 3 outputs:
 - (optional, if ``read_text=True``) Transcript text as a null terminated string: uint8, shape=``(text_len + 1,)``
 
 )code")
-  .AddOptionalArg("manifest_filepath",
+  .AddArg("manifest_filepath",
     "Path to the manifest file",
-    std::string())
+    DALI_STRING)
   .AddOptionalArg("read_sample_rate",
     "Whether to output the sample rate for each sample as a separate output",
     true)
@@ -69,7 +69,7 @@ This reader produces between 1 and 3 outputs:
     "Type of the output data. Supports types: `INT16`, `INT32`, `FLOAT`",
     DALI_FLOAT)
   .AdditionalOutputsFn([](const OpSpec& spec) {
-    return static_cast<int>(spec.GetArgument<bool>("read_sr"))
+    return static_cast<int>(spec.GetArgument<bool>("read_sample_rate"))
          + static_cast<int>(spec.GetArgument<bool>("read_text"));
   })
   .AddParent("LoaderBase");

@@ -47,7 +47,7 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
     if (read_sr_) {
       auto &sample_rate = ws.Output<CPUBackend>(next_out_idx++);
       sample_rate.Resize({1});
-      sample_rate.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+      sample_rate.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
       sample_rate.mutable_data<float>()[0] = sample.audio_meta.sample_rate;
       sample_rate.SetSourceInfo(sample.audio.GetSourceInfo());
     }
