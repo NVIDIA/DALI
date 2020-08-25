@@ -167,7 +167,7 @@ DALI_HOST_DEV constexpr bool clamp(T value, ret_type<bool>) {
 
 template <typename T>
 DALI_HOST_DEV constexpr float16 clamp(T value, ret_type<float16>) {
-  float f16_min = -65504.0f, f16_max = 65504.0f;
+  constexpr float f16_min = -65504.0f, f16_max = 65504.0f;
   float f = clamp(value, ret_type<float>());
   f = f < f16_min ? f16_min : f > f16_max ? f16_max : f;
   return static_cast<float16>(f);
@@ -175,7 +175,7 @@ DALI_HOST_DEV constexpr float16 clamp(T value, ret_type<float16>) {
 
 template <typename T>
 DALI_HOST_DEV constexpr T clamp(float16 value, ret_type<T>) {
-  return clamp(static_cast<float>(value), ret_type<T>{});
+  return clamp(static_cast<float>(value), ret_type<T>());
 }
 
 DALI_HOST_DEV constexpr float16 clamp(float16 value, ret_type<float16>) {
