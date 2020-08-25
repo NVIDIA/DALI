@@ -41,13 +41,13 @@ This reader produces between 1 and 3 outputs:
 - (optional, if ``read_text=True``) Transcript text as a null terminated string: uint8, shape=``(text_len + 1,)``
 
 )code")
-  .AddOptionalArg("manifest_filepath", 
+  .AddOptionalArg("manifest_filepath",
     "Path to the manifest file",
     std::string())
-  .AddOptionalArg("read_sample_rate", 
+  .AddOptionalArg("read_sample_rate",
     "Whether to output the sample rate for each sample as a separate output",
     true)
-  .AddOptionalArg("read_text", 
+  .AddOptionalArg("read_text",
     "Whether to output the transcript text for each sample as a separate output",
     true)
   .AddOptionalArg("shuffle_after_epoch",

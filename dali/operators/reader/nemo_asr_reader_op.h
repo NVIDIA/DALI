@@ -51,7 +51,7 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
       sample_rate.mutable_data<float>()[0] = sample.audio_meta.sample_rate;
       sample_rate.SetSourceInfo(sample.audio.GetSourceInfo());
     }
-    
+
     if (read_text_) {
       auto &text = ws.Output<CPUBackend>(next_out_idx++);
       text.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
@@ -70,4 +70,4 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_COCO_READER_OP_H_
+#endif  // DALI_OPERATORS_READER_NEMO_ASR_READER_OP_H_

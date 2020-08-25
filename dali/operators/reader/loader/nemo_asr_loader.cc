@@ -34,10 +34,7 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, const std::string &json) 
   DALI_ENFORCE(parser.PeekType() == kArrayType);
   parser.EnterArray();
 
-  std::cout << "json: " << json << "\n";
-
   while (parser.NextArrayValue()) {
-    std::cout << "Array element\n";
     if (parser.PeekType() != kObjectType)
       continue;
     parser.EnterObject();
@@ -63,7 +60,8 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, const std::string &json) 
 
 void NemoAsrLoader::PrepareMetadataImpl() {
   std::ifstream fstream(manifest_filepath_);
-  DALI_ENFORCE(fstream, make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath_, "\""));
+  DALI_ENFORCE(fstream,
+               make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath_, "\""));
   std::string json((std::istreambuf_iterator<char>(fstream)), std::istreambuf_iterator<char>());
   detail::ParseManifest(entries_, json);
 
@@ -105,7 +103,7 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
 
   // Ignoring copy_read_data_, Sharing data is not supported with this loader
   // TODO(janton): do not create a new decoder each time (?)
-  using DecoderType = short;
+  using DecoderType = int16_t;
   GenericAudioDecoder<DecoderType> decoder;
   sample.audio_meta = decoder.OpenFromFile(entry.audio_filepath);
   assert(sample.audio_meta.channels_interleaved);  // it's always true
@@ -118,25 +116,30 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   bool should_downmix = sample.audio_meta.channels > 1 && downmix_;
 
   int64_t decode_scratch_sz = 0;
-  int64_t downmix_scratch_sz = 0;
-  if (should_resample && should_downmix) {
-    // downmix to intermediate buffer, then resample
+  int64_t resample_scratch_sz = 0;
+  if (should_resample || should_downmix)
     decode_scratch_sz = sample.audio_meta.length * sample.audio_meta.channels;
-    downmix_scratch_sz = sample.audio_meta.length;
-  } else if (should_resample || should_downmix) { 
-    // decode to intermediate, then resample or downmix
-    decode_scratch_sz = sample.audio_meta.length * sample.audio_meta.channels;
-  }  // otherwise, decode directly to the output (no need for scratch memory)
-  int64_t total_scratch_sz = decode_scratch_sz * sizeof(DecodeType) + downmix_scratch_sz * sizeof(float);
+
+  // resample scratch is used to prepare a single or multiple (depending if
+  // downmixing is needed) channel float input, required by the resampling
+  // kernel
+  if (should_resample)
+    resample_scratch_sz = should_downmix ? sample.audio_meta.length
+                                         : sample.audio_meta.length * sample.audio_meta.channels;
+
+  int64_t total_scratch_sz =
+      decode_scratch_sz * sizeof(DecoderType) + resample_scratch_sz * sizeof(float);
   scratch_.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
   scratch_.Resize({total_scratch_sz});
 
   uint8_t* scratch_mem = scratch_.mutable_data<uint8_t>();
-  span<short> decoder_scratch_mem(reinterpret_cast<DecoderType*>(scratch_mem), decode_scratch_sz);
-  span<short> downmix_scratch_mem(reinterpret_cast<float*>(scratch_mem + decode_scratch_sz * sizeof(DecoderType)), downmix_scratch_sz);
+  span<DecoderType> decoder_scratch_mem(reinterpret_cast<DecoderType *>(scratch_mem),
+                                        decode_scratch_sz);
+  span<float> resample_scratch_mem(
+      reinterpret_cast<float *>(scratch_mem + decode_scratch_sz * sizeof(DecoderType)),
+      resample_scratch_sz);
   DecodeAudio(view<float>(sample.audio), decoder, sample.audio_meta, resampler_,
-              decoder_scratch_mem, downmix_scratch_mem,
-              sample_rate_, downmix_,
+              decoder_scratch_mem, resample_scratch_mem, sample_rate_, downmix_,
               entry.audio_filepath.c_str());
   decoder.Close();
 

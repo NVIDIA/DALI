@@ -69,14 +69,15 @@ void tempfile(std::string& filename, std::string content = "") {
 }
 
 TEST(NemoAsrLoaderTest, ParseManifestContent) {
-  std::string manifest_filepath = "/tmp/nemo_asr_manifest_XXXXXX";  // XXXXXX is replaced in tempfile() 
+  std::string manifest_filepath =
+      "/tmp/nemo_asr_manifest_XXXXXX";  // XXXXXX is replaced in tempfile()
   tempfile(manifest_filepath, "{ broken_json ]");
 
   auto spec = OpSpec("NemoAsrReader")
                   .AddArg("manifest_filepath", manifest_filepath)
                   .AddArg("batch_size", 32)
                   .AddArg("device_id", -1);
-  
+
   {
     NemoAsrLoader loader(spec);
     ASSERT_THROW(loader.PrepareMetadata(), std::runtime_error);
@@ -106,8 +107,9 @@ TEST(NemoAsrLoaderTest, ParseManifestContent) {
 }
 
 TEST(NemoAsrLoaderTest, ReadSample) {
-  std::string manifest_filepath = "/tmp/nemo_asr_manifest_XXXXXX";  // XXXXXX is replaced in tempfile()
-  
+  std::string manifest_filepath =
+      "/tmp/nemo_asr_manifest_XXXXXX";  // XXXXXX is replaced in tempfile()
+
   tempfile(manifest_filepath);
   std::ofstream f(manifest_filepath);
   f << "[{\"audio_filepath\": \"" << make_string(audio_data_root, "dziendobry.wav") << "\""
@@ -122,7 +124,8 @@ TEST(NemoAsrLoaderTest, ReadSample) {
   std::string decoded_path = make_string(audio_data_root, "dziendobry.txt");
 
   std::ifstream file(decoded_path.c_str());
-  std::vector<short> ref_data{std::istream_iterator<short>(file), std::istream_iterator<short>()};  
+  std::vector<int16_t> ref_data{std::istream_iterator<int16_t>(file),
+                                std::istream_iterator<int16_t>()};
   int64_t ref_sz = ref_data.size();
   int64_t ref_samples = ref_sz/2;
   int64_t ref_channels = 2;
@@ -140,8 +143,8 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     AsrSample sample;
     loader.ReadSample(sample);
 
-    TensorView<StorageCPU, short, 2> ref(ref_data.data(), {ref_samples, 2});
-    Check(ref, view<short, 2>(sample.audio));
+    TensorView<StorageCPU, int16_t, 2> ref(ref_data.data(), {ref_samples, 2});
+    Check(ref, view<int16_t, 2>(sample.audio));
   }
 
   {
@@ -159,8 +162,8 @@ TEST(NemoAsrLoaderTest, ReadSample) {
 
     std::vector<float> downmixed(ref_samples, 0.0f);
     for (int i = 0; i < ref_samples; i++) {
-      double l = ref_data[2*i];
-      double r = ref_data[2*i+1];
+      double l = ConvertSatNorm<float>(ref_data[2*i]);
+      double r = ConvertSatNorm<float>(ref_data[2*i+1]);
       downmixed[i] = (l + r) / 2;
     }
     TensorView<StorageCPU, float, 1> ref(downmixed.data(), {ref_samples});

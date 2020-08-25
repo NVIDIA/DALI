@@ -71,7 +71,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
     /*
      * Imply `stick_to_shard` from  `shuffle_after_epoch`
      */
-    if (shuffle_after_epoch_) 
+    if (shuffle_after_epoch_)
       stick_to_shard_ = true;
 
     double q = quality_;
