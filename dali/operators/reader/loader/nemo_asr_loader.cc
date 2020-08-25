@@ -104,10 +104,12 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   // Ignoring copy_read_data_, Sharing data is not supported with this loader
   // TODO(janton): do not create a new decoder each time (?)
   using DecoderType = int16_t;
+
   GenericAudioDecoder<DecoderType> decoder;
   sample.audio_meta = decoder.OpenFromFile(entry.audio_filepath);
   assert(sample.audio_meta.channels_interleaved);  // it's always true
-  sample.audio.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
+
+  sample.audio.set_type(TypeTable::GetTypeInfo(dtype_));
   auto shape = DecodedAudioShape(sample.audio_meta, sample_rate_, downmix_);
   assert(shape.size() > 0);
   sample.audio.Resize(shape);
@@ -131,18 +133,20 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
       decode_scratch_sz * sizeof(DecoderType) + resample_scratch_sz * sizeof(float);
   scratch_.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
   scratch_.Resize({total_scratch_sz});
-
   uint8_t* scratch_mem = scratch_.mutable_data<uint8_t>();
+
   span<DecoderType> decoder_scratch_mem(reinterpret_cast<DecoderType *>(scratch_mem),
                                         decode_scratch_sz);
   span<float> resample_scratch_mem(
-      reinterpret_cast<float *>(scratch_mem + decode_scratch_sz * sizeof(DecoderType)),
-      resample_scratch_sz);
-  DecodeAudio(view<float>(sample.audio), decoder, sample.audio_meta, resampler_,
-              decoder_scratch_mem, resample_scratch_mem, sample_rate_, downmix_,
-              entry.audio_filepath.c_str());
-  decoder.Close();
+        reinterpret_cast<float *>(scratch_mem + decode_scratch_sz * sizeof(DecoderType)),
+        resample_scratch_sz);
+  TYPE_SWITCH(dtype_, type2id, OutType, (float, int16_t), (
+    DecodeAudio(view<OutType>(sample.audio), decoder, sample.audio_meta, resampler_,
+            decoder_scratch_mem, resample_scratch_mem, sample_rate_, downmix_,
+            entry.audio_filepath.c_str());
+  ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));  // NOLINT
 
+  decoder.Close();
   sample.text = entry.text;
 }
 

@@ -44,17 +44,17 @@ nemo_asr_manifest = "/tmp/nemo_asr_manifest.json"
 
 def create_manifest_file():
   entry0 = {}
-  entry0["audio_filepath"] = "/tmp/dali_test_1C.wav"
-  entry0["duration"] = lengths[0] * (1.0 / rates[0])
+  entry0["audio_filepath"] = names[0]
+  entry0["duration"] = 100000000000000000000 #lengths[0] * (1.0 / rates[0])
   entry0["text"] = "dali test 1C"
   entry1 = {}
-  entry1["audio_filepath"] = "/tmp/dali_test_2C.wav"
-  entry0["duration"] = lengths[1] * (1.0 / rates[1])
-  entry0["text"] = "dali test 2C"
+  entry1["audio_filepath"] = names[1]
+  entry1["duration"] = 100000000000000000000 # lengths[1] * (1.0 / rates[1])
+  entry1["text"] = "dali test 2C"
   entry2 = {}
-  entry2["audio_filepath"] = "/tmp/dali_test_4C.wav"
-  entry0["duration"] = lengths[2] * (1.0 / rates[2])
-  entry0["text"] = "dali test 4C"
+  entry2["audio_filepath"] = names[2]
+  entry2["duration"] = 100000000000000000000 # lengths[2] * (1.0 / rates[2])
+  entry2["text"] = "dali test 4C"
 
   data = [entry0, entry1, entry2]
   with open(nemo_asr_manifest, 'w') as f:
@@ -66,30 +66,76 @@ rate1 = 16000
 rate2 = 12999
 
 class NemoAsrReaderPipeline(Pipeline):
-  def __init__(self):
-    super(NemoAsrReaderPipeline, self).__init__(batch_size=8, num_threads=3, device_id=0,
+  def __init__(self, batch_size=8):
+    super(NemoAsrReaderPipeline, self).__init__(batch_size=batch_size, num_threads=3, device_id=0,
                                                 exec_async=True, exec_pipelined=True)
     fixed_seed = 12345
-    self.reader1 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = False, seed=fixed_seed)
-    self.reader2 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True, seed=fixed_seed)
-    #self.reader3 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True,
-    #                                 sample_rate=rate1, read_sample_rate=True, seed=fixed_seed)
-    #self.reader4 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True,
-    #                                 sample_rate=rate2, read_sample_rate=True, seed=fixed_seed)
+    self.reader1 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = False,
+                                     read_sample_rate = False, read_text = False, seed=fixed_seed)
+    self.reader2 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True,
+                                     read_sample_rate = False, read_text = False, seed=fixed_seed)
+    self.reader3 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True,
+                                     sample_rate=rate1, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    self.reader4 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True,
+                                     sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    self.reader5 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True,
+                                     read_sample_rate=False, read_text=True, seed=fixed_seed)
+    self.reader6 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True,
+                                     read_sample_rate=True, read_text=True, seed=fixed_seed)
 
   def define_graph(self):
     audio_plain = self.reader1()
-#    audio_downmixed = self.reader2()
-#    audio_resampled1, sr1 = self.reader3()
-#    audio_resampled2, sr2 = self.reader4()
-    return audio_plain
+    audio_downmixed = self.reader2()
+    audio_resampled1, sr1 = self.reader3()
+    audio_resampled2, sr2 = self.reader4()
+    audio5, text5 = self.reader5()
+    audio6, sr6, text6 = self.reader6()
+    return audio_plain, audio_downmixed, audio_resampled1, audio_resampled2, audio5, audio6, text5, text6
 
-def test_decoded_vs_generated():
-  pipeline = NemoAsrReaderPipeline()
+def test_decoded_vs_generated(batch_size=1):
+  pipeline = NemoAsrReaderPipeline(batch_size=batch_size)
   pipeline.build()
   idx = 0
   for iter in range(1):
     out = pipeline.run()
-    for i in range(len(out[0])):
-      plain = out[0].at(i)
+    for i in range(batch_size):
+      print(i)
+      audio_plain = out[0].at(i)
+      audio_downmixed = out[1].at(i)
+      audio_resampled1 = out[2].at(i)
+      audio_resampled2 = out[3].at(i)
+      audio5 = out[4].at(i)
+      audio6 = out[5].at(i)
+      text5 = out[6].at(i)
+      text6 = out[7].at(i)
+
+      ref_len = [0,0,0,0]
+      ref_len[0] = lengths[idx]
+      ref_len[1] = lengths[idx] * rate1 / rates[idx]
+      ref_len[2] = lengths[idx]
+      ref_len[3] = lengths[idx] * rate2 / rates[idx]
+
+      ref0 = generate_waveforms(ref_len[0], freqs[0]) * 32767
+      ref1 = generate_waveforms(ref_len[1], freqs[idx] * (rates[idx] / rate1)) * 32767
+      ref2 = generate_waveforms(ref_len[2], freqs[idx]) * 32767
+      ref2 = ref2.mean(axis = 1, keepdims = 1)
+      ref3 = generate_waveforms(ref_len[3], freqs[idx] * (rates[idx] / rate2))
+      ref3 = ref3.mean(axis = 1, keepdims = 1)
+
+      # just reading - allow only for rounding
+      #import sys
+      #import numpy
+      #numpy.set_printoptions(threshold=sys.maxsize)
+      print(audio_plain.max())
+      print(ref0.max())
+      assert np.allclose(audio_plain, ref0, rtol = 0, atol=0.5)
+      # resampling - allow for 1e-3 dynamic range error
+      #assert np.allclose(res, ref1, rtol = 0, atol=32767 * 1e-3)
+      # downmixing - allow for 2 bits of error
+      # - one for quantization of channels, one for quantization of result
+      #assert np.allclose(mix, ref2, rtol = 0, atol=2)
+      # resampling with weird ratio - allow for 3e-3 dynamic range error
+      #assert np.allclose(res_mix, ref3, rtol = 0, atol=3e-3)
+
+
 test_decoded_vs_generated()
