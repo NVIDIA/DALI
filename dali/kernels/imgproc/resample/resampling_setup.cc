@@ -125,10 +125,10 @@ struct ProcessingOrderCalculator {
   static constexpr float size_bias = 3;
 
   float calculate_cost(int pass, int axis) {
-    sizes[pass] = volume(curr_size);
-    float base_cost = filter_support[axis] * sizes[pass];
-    compute_costs[pass] = compute_cost_mul(axis) * base_cost;
-    return compute_costs[pass] + sizes[pass] * size_bias;
+    auto vol = volume(curr_size);
+    float base_compute_cost = filter_support[axis] * vol;
+    float compute_cost = compute_cost_mul(axis) * base_compute_cost;
+    return compute_cost + vol * size_bias;
   }
 
   void run(int pass, float total_cost = 0) {
@@ -156,8 +156,6 @@ struct ProcessingOrderCalculator {
     }
   }
 
-  int64_t sizes[ndim];        // NOLINT
-  float compute_costs[ndim];  // NOLINT
   float min_cost;
   ivec<ndim> in_size, out_size, curr_size, filter_support;
   ProcessingOrder<ndim> best_order, curr_order;

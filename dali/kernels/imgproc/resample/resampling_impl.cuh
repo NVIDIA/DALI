@@ -258,7 +258,7 @@ __device__ void ResampleHorz_Channels(
             float flt = coeffs[coeff_idx];
             for (int c = 0; c < channels; c++) {
               Src px = __ldg(in_row + channels * xsample + c);
-              tmp[c] += px * flt;
+              tmp[c] = fmaf(px, flt, tmp[c]);
             }
           }
 
@@ -347,7 +347,7 @@ __device__ void ResampleVert_Channels(
             int ysample = y < 0 ? 0 : y >= in_h-1 ? in_h-1 : y;
             float flt = coeffs[coeff_base + k];
             Src px = __ldg(in_col + in_stride * ysample + c);
-            tmp += px * flt;
+            tmp = fmaf(px, flt, tmp);
           }
 
           out_col[c] = ConvertSat<Dst>(tmp * norm);
@@ -363,7 +363,7 @@ __device__ void ResampleVert_Channels(
           float flt = coeffs[coeff_base + k];
           for (int c = 0; c < channels; c++) {
             Src px = __ldg(in_col + in_stride * ysample + c);
-            tmp[c] += px * flt;
+            tmp[c] = fmaf(px, flt, tmp[c]);
           }
         }
 
@@ -374,6 +374,18 @@ __device__ void ResampleVert_Channels(
   }
 }
 
+/**
+ * @brief Implements vertical resampling
+ * @param lo - inclusive lower bound output coordinates
+ * @param hi - exclusive upper bound output coordinates
+ * @param src_y0 - Y coordinate in the source image corresponding to output 0
+ * @param scale - step, in source Y, for one pixel in output Y (may be negative)
+ * @tparam static_channels - number of channels, if known at compile time
+ *
+ * The function fills the output in block-sized horizontal/depthwise spans.
+ * Filter coefficients are pre-calculated for each span to avoid recalculating them for each
+ * column, and stored in a shared memory block.
+ */
 template <int static_channels = -1, typename Dst, typename Src>
 __device__ void ResampleVert_Channels(
     ivec3 lo, ivec3 hi,
@@ -381,17 +393,95 @@ __device__ void ResampleVert_Channels(
     Dst *__restrict__ out, ptrdiff_vec<2> out_strides,
     const Src *__restrict__ in, ptrdiff_vec<2> in_strides, ivec3 in_shape, int dynamic_channels,
     ResamplingFilter filter, int support) {
-  for (int z = lo.z + threadIdx.z; z < hi.z; z += blockDim.z) {
-    ptrdiff_t out_ofs = z * out_strides.y;
-    ptrdiff_t in_ofs = z * in_strides.y;
-    ResampleVert_Channels<static_channels>(
-      sub<2>(lo), sub<2>(hi), src_y0, scale,
-      out + out_ofs, out_strides.x,
-      in + in_ofs, in_strides.x, sub<2>(in_shape),
-      dynamic_channels, filter, support);
+  using resample_shared::coeffs;
+
+  int out_stride_y = out_strides.x;
+  int in_stride_y = in_strides.x;
+  int out_stride_z = out_strides.y;
+  int in_stride_z = in_strides.y;
+  int in_h = in_shape.y;
+
+  src_y0 += 0.5f * scale - 0.5f - filter.anchor;
+
+  const float filter_step = filter.scale;
+
+  const bool huge_kernel = support > 256;
+  const int coeff_base = huge_kernel ? 0 : support*threadIdx.y;
+  const int channels = static_channels < 0 ? dynamic_channels : static_channels;
+
+  for (int i = lo.y; i < hi.y; i+=blockDim.y) {
+    int dy = i + threadIdx.y;
+    const float sy0f = dy * scale + src_y0;
+    const int sy0 = huge_kernel ? __float2int_rn(sy0f) : __float2int_ru(sy0f);
+    float f = (sy0 - sy0f) * filter_step;
+    __syncthreads();
+    if (huge_kernel) {
+      for (int k = threadIdx.x + blockDim.x*threadIdx.y; k < support; k += blockDim.x*blockDim.y) {
+        float flt = filter(f + k*filter_step);
+        coeffs[k] = flt;
+      }
+    } else {
+      for (int k = threadIdx.x; k < support; k += blockDim.x) {
+        float flt = filter(f + k*filter_step);
+        coeffs[coeff_base + k] = flt;
+      }
+    }
+    __syncthreads();
+
+    if (dy >= hi.y)
+      continue;
+
+    Dst *out_row = &out[dy * out_stride_y];
+
+    float norm = 0;
+    for (int k = 0; k < support; k++) {
+      norm += coeffs[coeff_base + k];
+    }
+    norm = 1.0f / norm;
+
+    for (int z = lo.z + threadIdx.z; z < hi.z; z += blockDim.z) {
+      Dst *out_slice = &out_row[z * out_stride_z];
+      const Src *in_slice = &in[z * in_stride_z];
+      for (int j = lo.x + threadIdx.x; j < hi.x; j += blockDim.x) {
+        Dst *out_col = &out_slice[j * channels];
+        const Src *in_col = &in_slice[j * channels];
+
+        if (static_channels < 0) {
+          for (int c = 0; c < channels; c++) {
+            float tmp = 0;
+
+            for (int k = 0; k < support; k++) {
+              int y = sy0 + k;
+              int ysample = y < 0 ? 0 : y >= in_h-1 ? in_h-1 : y;
+              float flt = coeffs[coeff_base + k];
+              Src px = __ldg(in_col + in_stride_y * ysample + c);
+              tmp = fmaf(px, flt, tmp);
+            }
+
+            out_col[c] = ConvertSat<Dst>(tmp * norm);
+          }
+        } else {
+          float tmp[static_channels < 0 ? 1 : static_channels];  // NOLINT - not a variable length array
+          for (int c = 0; c < channels; c++)
+            tmp[c] = 0;
+
+          for (int k = 0; k < support; k++) {
+            int y = sy0 + k;
+            int ysample = y < 0 ? 0 : y >= in_h-1 ? in_h-1 : y;
+            float flt = coeffs[coeff_base + k];
+            for (int c = 0; c < channels; c++) {
+              Src px = __ldg(in_col + in_stride_y * ysample + c);
+              tmp[c] = fmaf(px, flt, tmp[c]);
+            }
+          }
+
+          for (int c = 0; c < channels; c++)
+            out_col[c] = ConvertSat<Dst>(tmp[c] * norm);
+        }
+      }
+    }
   }
 }
-
 
 template <int static_channels = -1, typename Dst, typename Src>
 __device__ void ResampleDepth_Channels(
@@ -482,7 +572,7 @@ __device__ void ResampleDepth_Channels(
               int zsample = z < 0 ? 0 : z >= in_d-1 ? in_d-1 : z;
               float flt = coeffs[coeff_base + l];
               Src px = __ldg(in_col + in_stride_z * zsample + c);
-              tmp += px * flt;
+              tmp = fmaf(px, flt, tmp);
             }
 
             out_col[c] = ConvertSat<Dst>(tmp * norm);
@@ -498,7 +588,7 @@ __device__ void ResampleDepth_Channels(
             float flt = coeffs[coeff_base + l];
             for (int c = 0; c < channels; c++) {
               Src px = __ldg(in_col + in_stride_z * zsample + c);
-              tmp[c] += px * flt;
+              tmp[c] = fmaf(px, flt, tmp[c]);
             }
           }
 
