@@ -32,9 +32,7 @@ template <int n>
 using ptrdiff_vec = vec<n, ptrdiff_t>;
 
 /**
- * @brief Implements horizontal resampling for a custom ROI
- * @param lo - inclusive lower bound output coordinates
- * @param hi - exclusive upper bound output coordinates
+ * @brief Implements horizontal resampling, possibly with number of channels known at compile-time
  */
 template <int static_channels = -1, typename Dst, typename Src>
 __device__ void LinearHorz_Channels(
@@ -79,6 +77,23 @@ __device__ void LinearHorz_Channels(
 
 }  // namespace
 
+
+/**
+ * @brief Implements horizontal resampling
+ *
+ * @param lo - inclusive lower bound output coordinates
+ * @param hi - exclusive upper bound output coordinates
+ * @param src_x0 - X coordinate in the source image corresponding to output 0
+ * @param scale - step, in source X, for one pixel in output X (may be negative)
+ * @param out_strides - stride between output rows (and slices)
+ * @param in_strides - stride between input rows (and slices)
+ * @param in_shape - shape of the input (x, y[, z]) order
+ *
+ * The input region of interest is defined in terms of origin/scale, which are relative to
+ * output (0, 0).
+ * The lo/hi parameters are not output RoI - they merely indicate the output slice processed
+ * by current block.
+ */
 template <int spatial_ndim, typename Dst, typename Src>
 __device__ void LinearHorz(
     ivec<spatial_ndim> lo, ivec<spatial_ndim> hi,
@@ -103,9 +118,20 @@ __device__ void LinearHorz(
 }
 
 /**
- * @brief Implements vertical resampling for a custom ROI
+ * @brief Implements vertical resampling
+ *
  * @param lo - inclusive lower bound output coordinates
  * @param hi - exclusive upper bound output coordinates
+ * @param src_y0 - Y coordinate in the source image corresponding to output 0
+ * @param scale - step, in source Y, for one pixel in output Y (may be negative)
+ * @param out_strides - stride between output rows (and slices)
+ * @param in_strides - stride between input rows (and slices)
+ * @param in_shape - shape of the input (x, y[, z]) order
+ *
+ * The input region of interest is defined in terms of origin/scale, which are relative to
+ * output (0, 0).
+ * The lo/hi parameters are not output RoI - they merely indicate the output slice processed
+ * by current block.
  */
 template <typename Dst, typename Src>
 __device__ void LinearVert(
@@ -208,9 +234,20 @@ __device__ void LinearVert(
 
 
 /**
- * @brief Implements depthwise resampling for a custom ROI
+ * @brief Implements depthwise resampling
+ *
  * @param lo - inclusive lower bound output coordinates
  * @param hi - exclusive upper bound output coordinates
+ * @param src_z0 - Z coordinate in the source image corresponding to output 0
+ * @param scale - step, in source Z, for one pixel in output Z (may be negative)
+ * @param out_strides - stride between output rows (and slices)
+ * @param in_strides - stride between input rows (and slices)
+ * @param in_shape - shape of the input (x, y[, z]) order
+ *
+ * The input region of interest is defined in terms of origin/scale, which are relative to
+ * output (0, 0).
+ * The lo/hi parameters are not output RoI - they merely indicate the output slice processed
+ * by current block.
  */
 template <typename Dst, typename Src>
 __device__ void LinearDepth(

@@ -25,6 +25,17 @@
 namespace dali {
 namespace kernels {
 
+/**
+ * @brief 2D nearest neighbor resampling
+ *
+ * @param lo - inclusive lower bound output coordinates
+ * @param hi - exclusive upper bound output coordinates
+ * @param origin - source coordinates corresponding to output (0, 0)
+ * @param scale - step, in source coordinates, for one pixel in output coordinates
+ * @param out_strides - stride between output rows
+ * @param in_strides - stride between input rows
+ * @param in_shape - shape of the input (x, y) order
+ */
 template <typename Dst, typename Src>
 __device__ void NNResample(
     ivec2 lo, ivec2 hi,
@@ -50,6 +61,18 @@ __device__ void NNResample(
 }
 
 
+/**
+ * @brief 3D nearest neighbor resampling
+ *
+ * @param lo - inclusive lower bound output coordinates
+ * @param hi - exclusive upper bound output coordinates
+ * @param out_strides - stride between output rows (and slices)
+ * @param in_strides - stride between input rows (and slices)
+ * @param in_shape - shape of the input (x, y[, z]) order
+ *
+ * @param origin - source coordinates corresponding to output (0, 0, 0)
+ * @param scale - step, in source coordinates, for one pixel in output coordinates
+ */
 template <typename Dst, typename Src>
 __device__ void NNResample(
     ivec3 lo, ivec3 hi,

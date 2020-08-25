@@ -36,9 +36,11 @@ namespace resample_shared {
 };
 
 /**
- * @brief Implements horizontal resampling for a custom ROI
+ * @brief Implements horizontal resampling
  * @param lo - inclusive lower bound output coordinates
  * @param hi - exclusive upper bound output coordinates
+ * @param src_x0 - X coordinate in the source image corresponding to output 0
+ * @param scale - step, in source X, for one pixel in output X (may be negative)
  * @tparam static_channels - number of channels, if known at compile time
  *
  * The function fills the output in block-sized vertical spans.
@@ -152,6 +154,8 @@ __device__ void ResampleHorz_Channels(
  * @brief Implements horizontal resampling for a custom ROI
  * @param lo - inclusive lower bound output coordinates
  * @param hi - exclusive upper bound output coordinates
+ * @param src_x0 - X coordinate in the source image corresponding to output 0
+ * @param scale - step, in source X, for one pixel in output X (may be negative)
  * @tparam static_channels - number of channels, if known at compile time
  *
  * The function fills the output in block-sized vertical spans.
@@ -268,9 +272,11 @@ __device__ void ResampleHorz_Channels(
 
 
 /**
- * @brief Implements vertical resampling for a custom ROI
+ * @brief Implements vertical resampling
  * @param lo - inclusive lower bound output coordinates
  * @param hi - exclusive upper bound output coordinates
+ * @param src_y0 - Y coordinate in the source image corresponding to output 0
+ * @param scale - step, in source Y, for one pixel in output Y (may be negative)
  * @tparam static_channels - number of channels, if known at compile time
  *
  * The function fills the output in block-sized horizontal spans.
@@ -398,7 +404,7 @@ __device__ void ResampleDepth_Channels(
 }
 
 /**
- * @brief Implements depthwise resampling for a custom ROI
+ * @brief Implements depthwise resampling
  * @param lo - inclusive lower bound output coordinates
  * @param hi - exclusive upper bound output coordinates
  * @param src_z0 - start source coordinate in Z axis
@@ -507,6 +513,16 @@ __device__ void ResampleDepth_Channels(
 
 }  // namespace
 
+/**
+ * @brief Implements horizontal resampling for a custom ROI
+ * @param lo - inclusive lower bound output coordinates
+ * @param hi - exclusive upper bound output coordinates
+ * @param src_x0 - X coordinate in the source image corresponding to output 0
+ * @param scale - step, in source X, for one pixel in output X (may be negative)
+ * @param out_strides - stride between output rows (and slices)
+ * @param in_strides - stride between input rows (and slices)
+ * @param in_shape - shape of the input (x, y[, z]) order
+ */
 template <int spatial_ndim, typename Dst, typename Src>
 __device__ void ResampleHorz(
     ivec<spatial_ndim> lo, ivec<spatial_ndim> hi,
@@ -533,6 +549,16 @@ __device__ void ResampleHorz(
   ));  // NOLINT
 }
 
+/**
+ * @brief Implements vertical resampling
+ * @param lo - inclusive lower bound output coordinates
+ * @param hi - exclusive upper bound output coordinates
+ * @param src_y0 - Y coordinate in the source image corresponding to output 0
+ * @param scale - step, in source Y, for one pixel in output Y (may be negative)
+ * @param out_strides - stride between output rows (and slices)
+ * @param in_strides - stride between input rows (and slices)
+ * @param in_shape - shape of the input (x, y[, z]) order
+ */
 template <int spatial_ndim, typename Dst, typename Src>
 __device__ void ResampleVert(
     ivec<spatial_ndim> lo, ivec<spatial_ndim> hi,
@@ -559,6 +585,16 @@ __device__ void ResampleVert(
   ));  // NOLINT
 }
 
+/**
+ * @brief Implements depthwise resampling
+ * @param lo - inclusive lower bound output coordinates
+ * @param hi - exclusive upper bound output coordinates
+ * @param src_z0 - start source coordinate in Z axis
+ * @param scale - dest-to-source scale in Z axis
+ * @param out_strides - stride between output rows and slices
+ * @param in_strides - stride between input rows and slices
+ * @param in_shape - shape of the input (x, y, z)
+ */
 template <int spatial_ndim, typename Dst, typename Src>
 __device__ void ResampleDepth(
     ivec<spatial_ndim> lo, ivec<spatial_ndim> hi,
