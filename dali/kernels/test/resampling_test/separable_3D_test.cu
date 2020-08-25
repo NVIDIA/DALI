@@ -190,6 +190,9 @@ auto GetZImages(const TensorListView<Storage, T, ndim> &volumes) {
  * @param z_params - parameters for resizing along Z axis, keeping fused XY intact
  * @param params   - original parameters
  * @param in_shape - input shape for _this stage_ (if Z is resized after XY, it is tmp_shape)
+ *
+ * @remarks This function cannot work with ROI in X/Y axes - it must be run as the second stage
+ *          (after resizing all the slices).
  */
 template <int ndim>
 void GetZParams(vector<ResamplingParams2D> &z_params,
@@ -201,9 +204,8 @@ void GetZParams(vector<ResamplingParams2D> &z_params,
   for (int i = 0; i < N; i++) {
     auto sample_shape = in_shape.tensor_shape_span(i);
     int depth = sample_shape[0];
-    ResamplingParams2D p;
+    ResamplingParams2D p = {};
     p[0] = params[i][0];
-    p[1] = {};
     p[1].output_size = sample_shape[1] * sample_shape[2];
     p[1].roi.start = 0;
     p[1].roi.end = p[1].output_size;
@@ -218,7 +220,7 @@ void GetZParams(vector<ResamplingParams2D> &z_params,
  * The first step decomposes the resampling into slices and resamples XY dimensions, fusing depth
  * and batch dim.
  * The second step fuses XY dimensions into generalized rows - which is OK, since we don't resize
- * that dimension and resize Z as if it was Y.
+ * that dimension and ROI is already applied. The Z dimension becomes the new Y.
  *
  * The result may differ slightly between this and true 3D resampling, because the order of
  * operations is not optimized and may be different.
@@ -359,17 +361,43 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
   }
 
   vector<ResamplingParams3D> GenerateParams(const TensorListShape<4> &out_shape,
-                                            const TensorListShape<4> &in_shape) const {
+                                            const TensorListShape<4> &in_shape) {
     vector<ResamplingParams3D> params;
     params.resize(in_shape.num_samples());
+    std::bernoulli_distribution dist;
+    std::uniform_real_distribution<float> start_dist(0.05, 0.3);
+    std::uniform_real_distribution<float> end_dist(0.7, 0.95);
     for (int i = 0; i < in_shape.num_samples(); i++) {
+      auto in_sample_shape = in_shape.tensor_shape_span(i);
       for (int d = 0; d < 3; d++) {
         params[i][d].min_filter = interp;
         params[i][d].mag_filter = interp;
         params[i][d].output_size = out_shape.tensor_shape_span(i)[d];
+        if (d == 2) {
+          do {
+            params[i][d].roi.use_roi = true;
+            params[i][d].roi.start = start_dist(rng) * in_sample_shape[d];
+            params[i][d].roi.end = end_dist(rng) * in_sample_shape[d];
+            if (dist(rng))
+              std::swap(params[i][d].roi.start, params[i][d].roi.end);
+          } while (interp == ResamplingFilterType::Nearest &&
+              !CheckNN(params[i][d].output_size, params[i][d].roi.start, params[i][d].roi.end));
+        }
       }
     }
     return params;
+  }
+
+  // Checks for possible rounding problems leading to selecting different source pixel
+  // when running NN resampling.
+  static bool CheckNN(int size, float start, float end) {
+    float step = (end - start) / size;
+    float x = start + step * 0.5f;
+    for (int i = 0; i < size; i++, x += step) {
+      if (std::abs(x - std::floor(x)) < 0.01f)
+        return false;
+    }
+    return true;
   }
 
   void RunGPU() {
@@ -389,7 +417,7 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
       int N = in_shape.num_samples();
       in.reshape(in_shape);
       for (int i = 0; i < N; i++)
-        tdg.GenerateTestData(in.gpu(stream)[i], 10, stream);
+        tdg.GenerateTestData(in.gpu(stream)[i], 30, stream);
 
       const TensorListShape<4> &out_shape = out_shapes[iter];
 
@@ -449,6 +477,9 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
 
       vector<ResamplingParams3D> params = GenerateParams(out_shape, in_shape);
 
+      if (iter != 1)
+        continue;
+
       Resample3Dvia2D(ref, in, make_span(params), stream);
       auto ref_cpu = ref.cpu(stream);
       ref.invalidate_gpu();
@@ -475,7 +506,8 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
           // - GPU uses different rounding
           // - processing order in the reference is forced to be XYZ or YXZ, whereas
           //   the tested implementation can use any order.
-          double eps = std::is_integral<Out>::value ? 1 : 5e-3;
+          double eps = std::is_integral<Out>::value ? 1 :
+                       std::is_integral<In>::value ? max_value<In>()*1e-6 : 1e-5;
           Check(out_cpu[i], ref_cpu[i], EqualEpsRel(eps, 2e-3));
         }
       }
@@ -485,6 +517,7 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
   vector<TensorListShape<4>> in_shapes, out_shapes;
 
   int NumIter() const { return in_shapes.size(); }
+  std::mt19937_64 rng{1234};
 };
 
 using Resample3DTestTypes = ::testing::Types<

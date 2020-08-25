@@ -197,7 +197,7 @@ __device__ void LinearVert(
     Dst *__restrict__ out, ptrdiff_vec<2> out_strides,
     const Src *__restrict__ in, ptrdiff_vec<2> in_strides, ivec3 in_shape, int channels) {
 
-  for (int z = lo.z; z < hi.z; z++) {
+  for (int z = lo.z + threadIdx.z; z < hi.z; z += blockDim.z) {
     ptrdiff_t out_ofs = z * out_strides.y;
     ptrdiff_t in_ofs  = z * in_strides.y;
     LinearVert(sub<2>(lo), sub<2>(hi), src_y0, scale,
@@ -208,7 +208,7 @@ __device__ void LinearVert(
 
 
 /**
- * @brief Implements vertical resampling for a custom ROI
+ * @brief Implements depthwise resampling for a custom ROI
  * @param lo - inclusive lower bound output coordinates
  * @param hi - exclusive upper bound output coordinates
  */
