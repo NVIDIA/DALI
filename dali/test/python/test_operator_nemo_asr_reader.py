@@ -5,6 +5,7 @@ import scipy.io.wavfile
 import numpy as np
 import math
 import json
+import librosa
 
 # generate sinewaves with given frequencies,
 # add Hann envelope and store in channel-last layout
@@ -18,6 +19,17 @@ def generate_waveforms(length, frequencies):
 
   return np.sin(X[:,np.newaxis] * (np.array(frequencies) * (2 * math.pi))) * window(X)[:,np.newaxis]
 
+def rosa_resample(input, in_rate, out_rate):
+  if input.shape[1] == 1:
+    return librosa.resample(input[:,0], in_rate, out_rate)[:,np.newaxis]
+
+  channels = [librosa.resample(np.array(input[:,c]), in_rate, out_rate) for c in range(input.shape[1])]
+  ret = np.zeros(shape = [channels[0].shape[0], len(channels)], dtype=channels[0].dtype)
+  for c, a in enumerate(channels):
+    ret[:,c] = a
+
+  return ret
+
 names = [
   "/tmp/dali_test_1C.wav",
   "/tmp/dali_test_2C.wav",
@@ -29,7 +41,7 @@ freqs = [
   np.array([0.01, 0.012]),
   np.array([0.01, 0.012, 0.013, 0.014])
 ]
-rates = [ 16000, 22050, 12347 ]
+rates = [ 22050, 22050, 12347 ]
 lengths = [ 10000, 54321, 12345 ]
 
 def create_wav_files():
@@ -63,7 +75,7 @@ def create_manifest_file():
 create_manifest_file()
 
 rate1 = 16000
-rate2 = 12999
+rate2 = 8000
 
 class NemoAsrReaderPipeline(Pipeline):
   def __init__(self, batch_size=8):
@@ -115,7 +127,7 @@ def test_decoded_vs_generated(batch_size=1):
       ref_len[2] = lengths[idx]
       ref_len[3] = lengths[idx] * rate2 / rates[idx]
 
-      ref0 = generate_waveforms(ref_len[0], freqs[0]) * 32767
+      ref0 = generate_waveforms(ref_len[0], freqs[idx]) * 32767
       ref1 = generate_waveforms(ref_len[1], freqs[idx] * (rates[idx] / rate1)) * 32767
       ref2 = generate_waveforms(ref_len[2], freqs[idx]) * 32767
       ref2 = ref2.mean(axis = 1, keepdims = 1)
@@ -123,14 +135,29 @@ def test_decoded_vs_generated(batch_size=1):
       ref3 = ref3.mean(axis = 1, keepdims = 1)
 
       # just reading - allow only for rounding
-      #import sys
+      import sys
       #import numpy
-      #numpy.set_printoptions(threshold=sys.maxsize)
-      print(audio_plain.max())
-      print(ref0.max())
-      assert np.allclose(audio_plain, ref0, rtol = 0, atol=0.5)
-      # resampling - allow for 1e-3 dynamic range error
-      #assert np.allclose(res, ref1, rtol = 0, atol=32767 * 1e-3)
+      np.set_printoptions(threshold=sys.maxsize)
+      ref_plain = ref0.round().astype(np.int16)
+      assert np.allclose(audio_plain, ref_plain, rtol = 1e-7, atol=0.0)
+      
+      # resampling
+      ref_resampled1 = rosa_resample(ref0, rates[idx], rate1).round().astype(np.int16).flatten()
+      diff = ref_resampled1 - audio_resampled1
+      print(audio_resampled1)
+      print(diff.shape)
+      print(diff.max())
+      print(diff.mean())
+      assert np.allclose(audio_resampled1, ref_resampled1, rtol = 1e-7, atol=0)
+
+      ref_resampled2 = rosa_resample(ref0, rates[idx], rate2).round().astype(np.int16).flatten()
+      diff = audio_resampled1
+      print(diff)
+      print(audio_resampled2.shape)
+      print(ref_resampled2.shape)
+      assert np.allclose(audio_resampled2, ref_resampled2, rtol = 0.1, atol=0)
+      
+      
       # downmixing - allow for 2 bits of error
       # - one for quantization of channels, one for quantization of result
       #assert np.allclose(mix, ref2, rtol = 0, atol=2)

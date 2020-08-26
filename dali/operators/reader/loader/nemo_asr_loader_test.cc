@@ -18,6 +18,7 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/operators/reader/loader/nemo_asr_loader.h"
+#include "dali/kernels/signal/downmixing.h"
 
 namespace dali {
 
@@ -168,6 +169,60 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     }
     TensorView<StorageCPU, float, 1> ref(downmixed.data(), {ref_samples});
     Check(ref, view<float, 1>(sample.audio));
+  }
+
+  {
+    double sr_in = 44100.0;
+    double sr_out = 22050.0;
+
+    AsrSample sample;
+    {
+      auto spec = OpSpec("NemoAsrReader")
+                      .AddArg("manifest_filepath", manifest_filepath)
+                      .AddArg("downmix", true)
+                      .AddArg("sample_rate", static_cast<float>(sr_out))
+                      .AddArg("dtype", DALI_FLOAT)
+                      .AddArg("batch_size", 32)
+                      .AddArg("device_id", -1);
+      NemoAsrLoader loader(spec);
+      loader.PrepareMetadata();
+      loader.ReadSample(sample);
+    }
+
+    std::vector<float> downmixed(ref_samples, 0.0f);
+    kernels::signal::Downmix(downmixed.data(), ref_data.data(), ref_samples, 2);
+
+    int64_t downsampled_len = kernels::signal::resampling::resampled_length(ref_samples, sr_in, sr_out);
+    std::vector<float> downsampled(downsampled_len, 0.0f);
+    constexpr double q = 50.0;
+    int lobes = std::round(0.007 * q * q - 0.09 * q + 3);
+    kernels::signal::resampling::Resampler resampler;
+    resampler.Initialize(lobes, lobes * 64 + 1);
+    resampler.Resample(downsampled.data(), 0, downsampled_len, sr_out, downmixed.data(), downmixed.size(), sr_in);
+
+    TensorView<StorageCPU, float, 1> ref(downsampled.data(), {downsampled_len});
+    Check(ref, view<float, 1>(sample.audio));
+
+    AsrSample sample_int16;
+    {
+      auto spec = OpSpec("NemoAsrReader")
+                    .AddArg("manifest_filepath", manifest_filepath)
+                    .AddArg("downmix", true)
+                    .AddArg("sample_rate", static_cast<float>(sr_out))
+                    .AddArg("dtype", DALI_INT16)
+                    .AddArg("batch_size", 32)
+                    .AddArg("device_id", -1);
+      NemoAsrLoader loader(spec);
+      loader.PrepareMetadata();
+      loader.ReadSample(sample_int16);
+    }
+
+    ASSERT_EQ(volume(sample.audio.shape()), volume(sample_int16.audio.shape()));
+    std::vector<float> converted(downsampled_len, 0.0f);
+    for (size_t i = 0; i < converted.size(); i++)
+      converted[i] = ConvertSatNorm<float>(sample_int16.audio.data<int16_t>()[i]);
+    TensorView<StorageCPU, float, 1> converted_from_int16(converted.data(), {downsampled_len});
+    Check(ref, converted_from_int16, EqualEpsRel(1e-6, 1e-6));
   }
 }
 
