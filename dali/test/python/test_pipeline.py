@@ -657,7 +657,8 @@ def test_equal_ImageDecoderCrop_ImageDecoder():
                                              num_threads,
                                              device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
+            # Fixing HW load to 0 to be able to compare with ImageDecoderCrop (which uses CUDA decoder only)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB, hw_decoder_load = 0.0)
             self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
             self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
             self.crop = ops.Crop(device="gpu", crop =(224,224))
@@ -845,7 +846,8 @@ def test_equal_ImageDecoderSlice_ImageDecoder():
             self.input_crop_pos = ops.ExternalSource()
             self.input_crop_size = ops.ExternalSource()
             self.input_crop = ops.ExternalSource()
-            self.decode = ops.ImageDecoder(device='mixed', output_type=types.RGB)
+            # Fixing HW load to 0 to be able to compare with ImageDecoderSlice (which uses CUDA decoder only)
+            self.decode = ops.ImageDecoder(device='mixed', output_type=types.RGB, hw_decoder_load = 0.0)
             self.slice = ops.Slice(device = 'gpu')
 
         def define_graph(self):
@@ -1049,10 +1051,11 @@ class CachedPipeline(Pipeline):
                                             cache_threshold=0,
                                             cache_type='threshold',
                                             cache_debug=False,
+                                            hw_decoder_load = 0.0,  # 0.0 for deterministic results
                                             cache_batch_copy=is_cached_batch_copy)
         else:
-           self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
-
+            # hw_decoder_load=0.0 for deterministic results
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB, hw_decoder_load = 0.0)  
     def define_graph(self):
         if self.reader_type == "TFRecordReader":
             inputs = self.input()
