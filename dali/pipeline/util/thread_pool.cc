@@ -30,7 +30,7 @@ ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity)
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
 #if NVML_ENABLED
   // only for the CPU pipeline
-  if (device_id >= 0) {
+  if (device_id != CPU_ONLY_DEVICE_ID) {
     nvml::Init();
   }
 #endif

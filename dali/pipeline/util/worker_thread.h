@@ -69,7 +69,7 @@ class WorkerThread {
   inline WorkerThread(int device_id, bool set_affinity) :
     running_(true), work_complete_(true), barrier_(2) {
 #if NVML_ENABLED
-    if (device_id >= 0) {
+    if (device_id != CPU_ONLY_DEVICE_ID) {
       nvml::Init();
     }
 #endif

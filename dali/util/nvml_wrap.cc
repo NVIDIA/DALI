@@ -116,10 +116,10 @@ DALIError_t wrapSymbols(void) {
     }
   }
 
-#define LOAD_SYM(handle, symbol, funcptr) do {                     \
+#define LOAD_SYM(handle, symbol, funcptr) do {                       \
     cast = reinterpret_cast<void**>(&funcptr);                       \
     tmp = dlsym(handle, symbol);                                     \
-    if (tmp == nullptr) {                                               \
+    if (tmp == nullptr) {                                            \
       DALI_FAIL("dlsym failed on " + symbol + " - " + dlerror());    \
     }                                                                \
     *cast = tmp;                                                     \
@@ -132,7 +132,7 @@ DALIError_t wrapSymbols(void) {
     }                                                                        \
     cast = reinterpret_cast<void**>(&funcptr);                               \
     tmp = dlsym(handle, symbol);                                             \
-    if (tmp == nullptr) {                                                       \
+    if (tmp == nullptr) {                                                    \
       DALI_FAIL("dlsym failed on " + symbol + " - " + dlerror());            \
     }                                                                        \
     *cast = tmp;                                                             \
@@ -172,7 +172,7 @@ DALIError_t wrapSymbols(void) {
 
 #define FUNC_BODY(INTERNAL_FUNC, ARGS...)            \
   do {                                               \
-    if (INTERNAL_FUNC == nullptr) {                     \
+    if (INTERNAL_FUNC == nullptr) {                  \
       return DALIError;                              \
     }                                                \
     nvmlReturn_t ret = INTERNAL_FUNC(ARGS);          \

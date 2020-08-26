@@ -455,7 +455,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   // Create corresponding storage type for TensorNodes in graph
   tensor_to_store_queue_ = CreateBackingStorageForTensorNodes(*graph_, batch_size_, queue_sizes);
   // Setup stream and events that will be used for execution
-  if (device_id_ >= 0) {
+  if (device_id_ != CPU_ONLY_DEVICE_ID) {
     DeviceGuard g(device_id_);
     mixed_op_stream_ = stream_pool_.GetStream();
     gpu_op_stream_ = stream_pool_.GetStream();
@@ -596,7 +596,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   }
 
   // short path for pure CPU pipeline
-  if (device_id_  == CPU_ONLY_DEVICE_ID) {
+  if (device_id_ == CPU_ONLY_DEVICE_ID) {
     // We do not release, but handle to used outputs
     QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
     return;

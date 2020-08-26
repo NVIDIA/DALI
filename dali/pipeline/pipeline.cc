@@ -136,7 +136,7 @@ void Pipeline::Init(int batch_size, int num_threads, int device_id, int64_t seed
 
     int lowest_cuda_stream_priority = 0, highest_cuda_stream_priority = 0;
     // do it only for the GPU pipeline
-    if (device_id >= 0) {
+    if (device_id != CPU_ONLY_DEVICE_ID) {
       CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lowest_cuda_stream_priority,
                                                  &highest_cuda_stream_priority));
     }

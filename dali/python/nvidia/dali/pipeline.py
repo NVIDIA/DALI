@@ -115,7 +115,7 @@ Parameters
         self._sinks = []
         self._batch_size = batch_size
         self._num_threads = num_threads
-        if device_id == None:
+        if device_id is None:
             device_id = types.CPU_ONLY_DEVICE_ID
         self._device_id = device_id
         self._seed = seed

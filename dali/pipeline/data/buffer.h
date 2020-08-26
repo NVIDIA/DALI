@@ -361,7 +361,7 @@ class DLL_PUBLIC Buffer {
   shared_ptr<void> data_ = nullptr;  // Pointer to underlying storage
   Index size_ = 0;                   // The number of elements in the buffer
   size_t num_bytes_ = 0;             // To keep track of the true size of the underlying allocation
-  int device_ =  CPU_ONLY_DEVICE_ID; // device the buffer was allocated on
+  int device_ = CPU_ONLY_DEVICE_ID;  // device the buffer was allocated on
   bool shares_data_ = false;         // Whether we aren't using our own allocation
   bool pinned_ = true;               // Whether the allocation uses pinned memory
 };
