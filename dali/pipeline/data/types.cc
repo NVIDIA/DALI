@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#define DALI_TYPENAME_REGISTERER(Type, dtype)                                    \
+{                                                                                \
+  return to_string(dtype);                                                       \
+}
+
 #define DALI_TYPEID_REGISTERER(Type, dtype)                                      \
 {                                                                                \
   static DALIDataType type_id = TypeTable::instance().RegisterType<Type>(dtype); \

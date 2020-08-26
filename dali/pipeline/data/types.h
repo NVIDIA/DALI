@@ -36,6 +36,10 @@
 #include "dali/operators/reader/parser/tf_feature.h"
 #endif  // DALI_BUILD_PROTO3
 
+#ifndef DALI_TYPENAME_REGISTERER
+#define DALI_TYPENAME_REGISTERER(...)
+#endif
+
 #ifndef DALI_TYPEID_REGISTERER
 #define DALI_TYPEID_REGISTERER(...)
 #endif
@@ -152,7 +156,7 @@ inline std::ostream &operator<<(std::ostream &os, DALIDataType t) {
       os << "float";
       break;
     case DALI_FLOAT64:
-      os << "float64";
+      os << "double";
       break;
     case DALI_BOOL:
       os << "bool";
@@ -386,9 +390,9 @@ class DLL_PUBLIC TypeInfo {
  private:
   detail::Copier copier_;
 
-  DALIDataType id_;
-  size_t type_size_;
-  string name_;
+  DALIDataType id_ = DALI_NO_TYPE;
+  size_t type_size_ = 0;
+  string name_ = to_string(DALI_NO_TYPE);
 };
 
 template <typename T>
@@ -412,7 +416,7 @@ class DLL_PUBLIC TypeTable {
 
   template <typename T>
   DLL_PUBLIC static string GetTypeName() {
-    return to_string(GetTypeID<T>());
+    return TypeNameHelper<T>::GetTypeName();
   }
 
   DLL_PUBLIC static const TypeInfo& GetTypeInfo(DALIDataType dtype) {
@@ -420,7 +424,7 @@ class DLL_PUBLIC TypeTable {
     std::lock_guard<spinlock> guard(inst.lock_);
     auto id_it = inst.type_info_map_.find(dtype);
     DALI_ENFORCE(id_it != inst.type_info_map_.end(),
-        "Type with id " + to_string(dtype) + " was not registered.");
+        make_string("Type with id ", static_cast<int>(dtype), " was not registered."));
     return id_it->second;
   }
 
@@ -460,6 +464,20 @@ class DLL_PUBLIC TypeTable {
   DLL_PUBLIC static TypeTable &instance();
 };
 
+template <typename T, typename A>
+struct TypeNameHelper<std::vector<T, A> > {
+  static string GetTypeName() {
+    return "list of " + TypeTable::GetTypeName<T>();
+  }
+};
+
+template <typename T, size_t N>
+struct TypeNameHelper<std::array<T, N> > {
+  static string GetTypeName() {
+    return "list of " + TypeTable::GetTypeName<T>();
+  }
+};
+
 template <typename T>
 void TypeInfo::SetType(DALIDataType dtype) {
   // Note: We enforce the fact that NoType is invalid by
@@ -470,7 +488,7 @@ void TypeInfo::SetType(DALIDataType dtype) {
   } else {
     id_ = DALI_NO_TYPE;
   }
-  name_ = to_string(dtype);
+  name_ = TypeTable::GetTypeName<T>();
 
   // Get copier for this type
   copier_ = detail::GetCopier<T>();
@@ -497,6 +515,8 @@ DLL_PUBLIC inline bool IsValidType(const TypeInfo &type) {
 // as we do not have any mechanism for calling the constructor of the
 // type when the buffer allocates the memory.
 #define DALI_REGISTER_TYPE(Type, dtype)                             \
+  template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()      \
+    DALI_TYPENAME_REGISTERER(Type, dtype);                          \
   template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeID<Type>()  \
     DALI_TYPEID_REGISTERER(Type, dtype);                            \
   DALI_STATIC_TYPE_MAPPING(Type, dtype);                            \
