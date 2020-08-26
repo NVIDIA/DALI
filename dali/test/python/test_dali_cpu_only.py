@@ -78,158 +78,73 @@ def test_image_decoder_cpu():
     for _ in range(3):
         pipe.run()
 
-def test_rotate_cpu():
+def check_single_input(op, input_layout = "HWC", get_data = get_data, **kwargs):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    rotated = fn.rotate(data, angle = 25)
-    pipe.set_outputs(rotated)
+    data = fn.external_source(source = get_data, layout = input_layout)
+    processed = op(data, **kwargs)
+    pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def check_no_input(op, get_data = get_data, **kwargs):
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
+    processed = op(**kwargs)
+    pipe.set_outputs(processed)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
+def test_rotate_cpu():
+    check_single_input(fn.rotate, angle = 25)
 
 def test_brightness_contrast_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.brightness_contrast(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.brightness_contrast)
 
 def test_hue_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.hue(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.hue)
 
 def test_brightness_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.brightness(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.brightness)
 
 def test_contrast_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.contrast(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.contrast)
 
 def test_hsv_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.hsv(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.hsv)
 
 def test_color_twist_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.color_twist(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.color_twist)
 
 def test_saturation_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.saturation(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.saturation)
 
 def test_old_color_twist_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.old_color_twist(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.old_color_twist)
 
 def test_shapes_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.shapes(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.shapes)
 
 def test_crop_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.crop(data, crop = (5, 5))
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.crop, crop = (5, 5))
 
 def test_color_space_coversion_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.color_space_conversion(data, image_type = types.BGR, output_type = types.RGB)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.color_space_conversion, image_type = types.BGR, output_type = types.RGB)
 
 def test_cast_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.cast(data, dtype  = types.INT32)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.cast, dtype  = types.INT32)
 
 def test_resize_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.resize(data, resize_x=50, resize_y=50)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.resize, resize_x=50, resize_y=50)
 
 def test_gaussian_blur_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.gaussian_blur(data, window_size = 5)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.gaussian_blur, window_size = 5)
 
 def test_crop_mirror_normalize_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.crop_mirror_normalize(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.crop_mirror_normalize)
 
 def test_flip_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.flip(data, horizontal = True)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.flip, horizontal = True)
 
 def test_image_decoder_crop_device():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
@@ -250,77 +165,31 @@ def test_image_decoder_random_crop_device():
         pipe.run()
 
 def test_coin_flip_device():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.coin_flip()
-    pipe.set_outputs(data)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_no_input(fn.coin_flip)
 
 def test_uniform_device():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.uniform()
-    pipe.set_outputs(data)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_no_input(fn.uniform)
 
 def test_reshape_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
     new_shape = test_data_shape.copy()
     new_shape[0] //= 2
     new_shape[1] *= 2
-    processed = fn.reshape(data, shape = new_shape)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.reshape, shape = new_shape)
 
 def test_reinterpret_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.reinterpret(data, rel_shape = [0.5, 1, -1])
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.reinterpret, rel_shape = [0.5, 1, -1])
 
 def test_water_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.water(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.water)
 
 def test_sphere_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.sphere(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.sphere)
 
 def test_erase_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.erase(data, anchor=[0.3], axis_names="H", normalized_anchor = True, shape = [0.1],normalized_shape = True)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.erase, anchor=[0.3], axis_names="H", normalized_anchor = True, shape = [0.1],normalized_shape = True)
 
 def test_random_resized_crop_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.random_resized_crop(data, size = [5, 5])
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.random_resized_crop, size = [5, 5])
 
 def test_nonsilent_region_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
@@ -338,52 +207,23 @@ def test_nonsilent_region_cpu():
     for _ in range(3):
         pipe.run()
 
+test_audio_data_shape = [200]
+def get_audio_data():
+    out = [np.random.ranf(size = test_audio_data_shape).astype(dtype = np.float32) for _ in range(batch_size)]
+    return out
+
 def test_preemphasis_filter_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    test_data_shape = [200]
-    def get_data():
-        out = [np.random.ranf(size = test_data_shape).astype(dtype = np.float32) for _ in range(batch_size)]
-        return out
-    data = fn.external_source(source = get_data)
-    processed = fn.preemphasis_filter(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.preemphasis_filter, get_data = get_audio_data, input_layout = None)
 
 def test_power_spectrum_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    test_data_shape = [200]
-    def get_data():
-        out = [np.random.ranf(size = test_data_shape).astype(dtype = np.float32) for _ in range(batch_size)]
-        return out
-    data = fn.external_source(source = get_data)
-    processed = fn.power_spectrum(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.power_spectrum, get_data = get_audio_data, input_layout = None)
 
 def test_spectrogram_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    test_data_shape = [200]
-    def get_data():
-        out = [np.random.ranf(size = test_data_shape).astype(dtype = np.float32) for _ in range(batch_size)]
-        return out
-    data = fn.external_source(source = get_data)
-    processed = fn.spectrogram(data, nfft = 60, window_length = 50, window_step = 25)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.spectrogram, get_data = get_audio_data, input_layout = None, nfft = 60, window_length = 50, window_step = 25)
 
 def test_mel_filter_bank_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    test_data_shape = [200]
-    def get_data():
-        out = [np.random.ranf(size = test_data_shape).astype(dtype = np.float32) for _ in range(batch_size)]
-        return out
-    data = fn.external_source(source = get_data)
+    data = fn.external_source(source = get_audio_data)
     spectrum = fn.spectrogram(data, nfft = 60, window_length = 50, window_step = 25)
     processed = fn.mel_filter_bank(spectrum)
     pipe.set_outputs(processed)
@@ -392,25 +232,11 @@ def test_mel_filter_bank_cpu():
         pipe.run()
 
 def test_to_decibels_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    test_data_shape = [200]
-    def get_data():
-        out = [np.random.ranf(size = test_data_shape).astype(dtype = np.float32) for _ in range(batch_size)]
-        return out
-    data = fn.external_source(source = get_data)
-    processed = fn.to_decibels(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.to_decibels, get_data = get_audio_data, input_layout = None)
 
 def test_mfcc_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    test_data_shape = [200]
-    def get_data():
-        out = [np.random.ranf(size = test_data_shape).astype(dtype = np.float32) for _ in range(batch_size)]
-        return out
-    data = fn.external_source(source = get_data)
+    data = fn.external_source(source = get_audio_data)
     spectrum = fn.spectrogram(data, nfft = 60, window_length = 50, window_step = 25)
     mel = fn.mel_filter_bank(spectrum)
     dec = fn.to_decibels(mel)
@@ -421,30 +247,13 @@ def test_mfcc_cpu():
         pipe.run()
 
 def test_fast_resize_crop_mirror_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.fast_resize_crop_mirror(data, crop = [5, 5], resize_shorter = 10)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.fast_resize_crop_mirror, crop = [5, 5], resize_shorter = 10)
 
 def test_resize_crop_mirror_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.resize_crop_mirror(data, crop = [5, 5], resize_shorter = 10)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.resize_crop_mirror, crop = [5, 5], resize_shorter = 10)
 
 def test_normal_distribution_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    processed = fn.normal_distribution(shape  = [5, 5])
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_no_input(fn.normal_distribution, shape = [5, 5])
 
 def test_one_hot_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
@@ -460,13 +269,7 @@ def test_one_hot_cpu():
         pipe.run()
 
 def test_transpose_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.transpose(data, perm  = [2, 0, 1])
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.transpose, perm  = [2, 0, 1])
 
 def test_audio_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
@@ -504,23 +307,11 @@ def test_bb_flip_cpu():
         pipe.run()
 
 def test_warp_affine_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
     warp_matrix = (0.1, 0.9, 10, 0.8, -0.2, -20)
-    processed = fn.warp_affine(data, matrix = warp_matrix)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.warp_affine, matrix = warp_matrix)
 
 def test_normalize_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.normalize(data, batch  = True)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.normalize, batch  = True)
 
 def test_lookup_table_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
@@ -636,13 +427,7 @@ def test_caffe2_reader_cpu():
         pipe.run()
 
 def test_copy_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.copy(data)
-    pipe.set_outputs(processed, data)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.copy)
 
 def test_element_extract_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
@@ -833,21 +618,10 @@ def test_python_function_cpu():
         pipe.run()
 
 def test_constant_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    processed = fn.constant(fdata = (1.25,2.5,3))
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_no_input(fn.constant, fdata = (1.25,2.5,3))
 
 def test_dump_image_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.dump_image(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.dump_image)
 
 def test_sequence_reader_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=-1)
