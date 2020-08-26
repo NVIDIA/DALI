@@ -119,7 +119,7 @@ enum DALIDataType : int {
 inline std::ostream &operator<<(std::ostream &os, DALIDataType t) {
   switch (t) {
     case DALI_NO_TYPE:
-      os << "undefined";
+      os << "no_type";
       break;
     case DALI_UINT8:
       os << "uint8";
@@ -200,10 +200,9 @@ inline std::ostream &operator<<(std::ostream &os, DALIDataType t) {
       break;
     case DALI_DATATYPE_END:  // fall through
     default:
-      os << "Invalid type";
+      os << "Unknown type (type id " << static_cast<int>(t) << ")";
       break;
   }
-  os << "(type id " << static_cast<int>(t) << ")";
   return os;
 }
 
