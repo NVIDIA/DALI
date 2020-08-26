@@ -1066,6 +1066,7 @@ PYBIND11_MODULE(backend_impl, m) {
   // Types
   py::module types_m = m.def_submodule("types");
   types_m.doc() = "Datatypes and options used by DALI";
+  types_m.add_object("CPU_ONLY_DEVICE_ID", PyLong_FromLong(CPU_ONLY_DEVICE_ID));
 
   // DALIDataType
   py::enum_<DALIDataType>(types_m, "DALIDataType", "Data type of image")

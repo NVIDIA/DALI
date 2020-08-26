@@ -532,7 +532,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   }
 
   // short path for pure CPU pipeline
-  if (device_id_ < 0) {
+  if (device_id_ == CPU_ONLY_DEVICE_ID) {
     if (callback_) {
       callback_();
     }
@@ -596,7 +596,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   }
 
   // short path for pure CPU pipeline
-  if (device_id_ < 0) {
+  if (device_id_  == CPU_ONLY_DEVICE_ID) {
     // We do not release, but handle to used outputs
     QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
     return;

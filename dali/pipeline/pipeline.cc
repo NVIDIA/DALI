@@ -200,8 +200,9 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     "Invalid device argument \"" +  device +
     "\". Valid options are \"cpu\", \"gpu\" or \"mixed\"");
 
-  DALI_ENFORCE(device != "gpu" || device_id_ >= 0, make_string("Cannot add a GPU operator ",
-               operator_name, ", device_id is invalid: ", device_id_, "."));
+  DALI_ENFORCE(device != "gpu" || device_id_ != CPU_ONLY_DEVICE_ID,
+               make_string("Cannot add a GPU operator ", operator_name, ", device_id should not be"
+               "equal CPU_ONLY_DEVICE_ID."));
 
   if (device == "support") {
     DALI_WARN("\"support\" device is deprecated; use \"cpu\" or leave blank instead");
@@ -260,9 +261,9 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
           "inputs. CPU op cannot follow GPU op. " + error_str);
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
           "only on gpu. CPU op cannot follow GPU op. " + error_str);
-      DALI_ENFORCE(device_id_ >= 0 || device == "cpu",
+      DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID || device == "cpu",
                    make_string("Cannot add a mixed operator ", operator_name,
-                   " with a GPU output, device_id is invalid: ", device_id_, "."));
+                   " with a GPU output, device_id should not be CPU_ONLY_DEVICE_ID."));
     } else if (input_device == "cpu") {
       // device == gpu
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "

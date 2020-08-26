@@ -247,7 +247,7 @@ class DLL_PUBLIC Buffer {
     if (std::is_same<Backend, GPUBackend>::value) {
       CUDA_CALL(cudaGetDevice(&device_));
     } else {
-      device_ = -1;
+      device_ = CPU_ONLY_DEVICE_ID;
     }
 
     DALI_ENFORCE(!shares_data_,
@@ -267,7 +267,7 @@ class DLL_PUBLIC Buffer {
     size_ = 0;
     shares_data_ = false;
     num_bytes_ = 0;
-    device_ = -1;
+    device_ =  CPU_ONLY_DEVICE_ID;
   }
 
   /**
@@ -298,7 +298,7 @@ class DLL_PUBLIC Buffer {
 
  protected:
   static void FreeMemory(void* ptr, size_t bytes, int device, bool pinned) {
-    // for device == -1 it is noop
+    // for device ==  CPU_ONLY_DEVICE_ID it is noop
     DeviceGuard g(device);
     Backend::Delete(ptr, bytes, pinned);
   }
@@ -328,7 +328,7 @@ class DLL_PUBLIC Buffer {
       return;
 
     if (new_size == 0) {
-      if (std::is_same<Backend, GPUBackend>::value && device_ == -1) {
+      if (std::is_same<Backend, GPUBackend>::value && device_ == CPU_ONLY_DEVICE_ID) {
         CUDA_CALL(cudaGetDevice(&device_));
       }
       return;
@@ -361,7 +361,7 @@ class DLL_PUBLIC Buffer {
   shared_ptr<void> data_ = nullptr;  // Pointer to underlying storage
   Index size_ = 0;                   // The number of elements in the buffer
   size_t num_bytes_ = 0;             // To keep track of the true size of the underlying allocation
-  int device_ = -1;                  // device the buffer was allocated on
+  int device_ =  CPU_ONLY_DEVICE_ID; // device the buffer was allocated on
   bool shares_data_ = false;         // Whether we aren't using our own allocation
   bool pinned_ = true;               // Whether the allocation uses pinned memory
 };
