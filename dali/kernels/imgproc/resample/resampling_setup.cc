@@ -62,6 +62,12 @@ void SeparableResamplingSetup<spatial_ndim>::SetFilters(
   }
 }
 
+/**
+ * @brief Caclulates the footprints of the processing stages.
+ *
+ * Note: The "ROI" calculated here is the relevant part of the source, not the user-specified box.
+ * It will be extended to also contain filter footprint, which allows for pefect stitching.
+ */
 template <int spatial_ndim>
 typename SeparableResamplingSetup<spatial_ndim>::ROI
 SeparableResamplingSetup<spatial_ndim>::ComputeScaleAndROI(
@@ -100,6 +106,13 @@ SeparableResamplingSetup<spatial_ndim>::ComputeScaleAndROI(
   return roi;
 }
 
+/**
+ * @brief Calculates optimum processing order based on input/output sizes and filter support.
+ *
+ * The sizes of intermediate storage and time taken to compute the intermediate images
+ * may depend on the order - i.e. if downscaling only one axis, it's beneficial to resample that
+ * axis first, so that intermediate image is smaller.
+ */
 template <int ndim>
 struct ProcessingOrderCalculator {
   ProcessingOrderCalculator(ivec<ndim> in_size, ivec<ndim> out_size, ivec<ndim> filter_support)
@@ -131,9 +144,10 @@ struct ProcessingOrderCalculator {
     return compute_cost + vol * size_bias;
   }
 
+  // recursively check every possible order in DFS fashion
   void run(int pass, float total_cost = 0) {
     if (total_cost >= min_cost)
-      return;
+      return;  // this branch of recursion will not yield a better result - abandon it
 
     if (pass == ndim) {
       min_cost = total_cost;
@@ -171,6 +185,9 @@ ProcessingOrder<ndim> GetProcessingOrder(
   return poc();
 }
 
+/**
+ * @brief Calculates block layout for a 2D sample
+ */
 template <>
 void SeparableResamplingSetup<2>::ComputeBlockLayout(SampleDesc &sample) const {
   for (int pass = 0; pass < 2; pass++) {
@@ -186,6 +203,9 @@ void SeparableResamplingSetup<2>::ComputeBlockLayout(SampleDesc &sample) const {
   }
 }
 
+/**
+ * @brief Calculates block layout for a 3D sample
+ */
 template <>
 void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) const {
   for (int pass = 0; pass < 3; pass++) {
@@ -215,6 +235,13 @@ void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) const {
   }
 }
 
+/**
+ * @brief Preprares a sample descriptor based on input shape and resampling parameters
+ *
+ * The sample descriptor contains input, output and intermediate buffer shapes, strides, etc.
+ * The order in which resampling takes places is selected so that the cost
+ * (weighted sum of memory consumption and compute time) is minimized.
+ */
 template <int spatial_ndim>
 void SeparableResamplingSetup<spatial_ndim>::SetupSample(
     SampleDesc &desc,
@@ -284,6 +311,13 @@ void SeparableResamplingSetup<spatial_ndim>::SetupSample(
   }
 }
 
+/**
+ * @brief Prepares sample descriptors and block info for entire batch
+ *
+ * This function populates the sample_descs, intermediate_shapes, intermediate_sizes etc.
+ * It does not calculate block descriptors directly, but it calculates the number of blocks
+ * required to calculate each stage of each sample using SampleDesc::logical_block_shape.
+ */
 template <int spatial_ndim>
 void BatchResamplingSetup<spatial_ndim>::SetupBatch(
     const TensorListShape<tensor_ndim> &in, const Params &params) {
@@ -350,6 +384,12 @@ int AddBlocks(BlockDesc<n> *blocks, int sample_idx,
   }
 }
 
+/**
+ * @brief Calculates the mapping from grid block indices to samples and regions within samples
+ *
+ * Each block descriptor contains the sample index and the range of output coordinates processed
+ * by this block (lo, hi).
+ */
 template <int spatial_ndim>
 void BatchResamplingSetup<spatial_ndim>::InitializeSampleLookup(
     const OutTensorCPU<BlockDesc, 1> &sample_lookup) {

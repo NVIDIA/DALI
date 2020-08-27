@@ -41,6 +41,7 @@ namespace resample_shared {
  * @param hi - exclusive upper bound output coordinates
  * @param src_x0 - X coordinate in the source image corresponding to output 0
  * @param scale - step, in source X, for one pixel in output X (may be negative)
+ * @param support - size of the resampling kernel, in source pixels
  * @tparam static_channels - number of channels, if known at compile time
  *
  * The function fills the output in block-sized vertical spans.
@@ -156,6 +157,7 @@ __device__ void ResampleHorz_Channels(
  * @param hi - exclusive upper bound output coordinates
  * @param src_x0 - X coordinate in the source image corresponding to output 0
  * @param scale - step, in source X, for one pixel in output X (may be negative)
+ * @param support - size of the resampling kernel, in source voxels
  * @tparam static_channels - number of channels, if known at compile time
  *
  * The function fills the output in block-sized vertical spans.
@@ -277,6 +279,7 @@ __device__ void ResampleHorz_Channels(
  * @param hi - exclusive upper bound output coordinates
  * @param src_y0 - Y coordinate in the source image corresponding to output 0
  * @param scale - step, in source Y, for one pixel in output Y (may be negative)
+ * @param support - size of the resampling kernel, in source pixels
  * @tparam static_channels - number of channels, if known at compile time
  *
  * The function fills the output in block-sized horizontal spans.
@@ -380,6 +383,7 @@ __device__ void ResampleVert_Channels(
  * @param hi - exclusive upper bound output coordinates
  * @param src_y0 - Y coordinate in the source image corresponding to output 0
  * @param scale - step, in source Y, for one pixel in output Y (may be negative)
+ * @param support - size of the resampling kernel, in source voxels
  * @tparam static_channels - number of channels, if known at compile time
  *
  * The function fills the output in block-sized horizontal/depthwise spans.
@@ -499,6 +503,7 @@ __device__ void ResampleDepth_Channels(
  * @param hi - exclusive upper bound output coordinates
  * @param src_z0 - start source coordinate in Z axis
  * @param scale - dest-to-source scale in Z axis
+ * @param support - size of the resampling kernel, in source voxels
  * @tparam static_channels - number of channels, if known at compile time
  */
 template <int static_channels = -1, typename Dst, typename Src>
@@ -609,6 +614,7 @@ __device__ void ResampleDepth_Channels(
  * @param hi - exclusive upper bound output coordinates
  * @param src_x0 - X coordinate in the source image corresponding to output 0
  * @param scale - step, in source X, for one pixel in output X (may be negative)
+ * @param support - size of the resampling kernel, in source samples
  * @param out_strides - stride between output rows (and slices)
  * @param in_strides - stride between input rows (and slices)
  * @param in_shape - shape of the input (x, y[, z]) order
@@ -645,6 +651,7 @@ __device__ void ResampleHorz(
  * @param hi - exclusive upper bound output coordinates
  * @param src_y0 - Y coordinate in the source image corresponding to output 0
  * @param scale - step, in source Y, for one pixel in output Y (may be negative)
+ * @param support - size of the resampling kernel, in source samples
  * @param out_strides - stride between output rows (and slices)
  * @param in_strides - stride between input rows (and slices)
  * @param in_shape - shape of the input (x, y[, z]) order
@@ -681,6 +688,7 @@ __device__ void ResampleVert(
  * @param hi - exclusive upper bound output coordinates
  * @param src_z0 - start source coordinate in Z axis
  * @param scale - dest-to-source scale in Z axis
+ * @param support - size of the resampling kernel, in source samples
  * @param out_strides - stride between output rows and slices
  * @param in_strides - stride between input rows and slices
  * @param in_shape - shape of the input (x, y, z)

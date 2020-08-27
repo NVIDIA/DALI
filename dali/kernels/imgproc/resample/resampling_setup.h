@@ -124,9 +124,11 @@ class SeparableResamplingSetup {
    * Physical buffers may overlap for more than 3 dimensions.
    */
   static constexpr int num_tmp_buffers = spatial_ndim - 1;
+
   /** @brief Number of buffers: temporaries + input + output */
   static constexpr int num_buffers = num_tmp_buffers + 2;
 
+  /** @brief Preprares a sample descriptor based on input shape and resampling parameters */
   DLL_PUBLIC void SetupSample(SampleDesc &desc,
                               const TensorShape<tensor_ndim> &in_shape,
                               const ResamplingParamsND<spatial_ndim> &params) const;
@@ -169,12 +171,15 @@ class BatchResamplingSetup : public SeparableResamplingSetup<_spatial_ndim> {
   size_t intermediate_sizes[num_tmp_buffers];  // NOLINT
   ivec<spatial_ndim> total_blocks;
 
+  /** @brief Prepares sample descriptors and block info for entire batch */
   DLL_PUBLIC void SetupBatch(const TensorListShape<tensor_ndim> &in, const Params &params);
 
   template <typename Collection>
   void SetupBatch(const TensorListShape<tensor_ndim> &in, const Collection &params) {
     SetupBatch(in, make_cspan(params));
   }
+
+  /** @brief Calculates the mapping from grid block indices to samples and regions within samples */
   DLL_PUBLIC void InitializeSampleLookup(const OutTensorCPU<BlockDesc, 1> &sample_lookup);
 };
 

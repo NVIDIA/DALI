@@ -32,6 +32,19 @@ DLL_PUBLIC
 void InitializeResamplingFilter(int32_t *out_indices, float *out_coeffs, int out_size,
                                 float srcx0, float scale, const ResamplingFilter &filter);
 
+/**
+ * @brief Calculates a single pixel for horizontal resampling
+ * @param out        - output row
+ * @param in         - input row
+ * @param x          - output  column index
+ * @param in_columns - precomputed leftmost indices of kernel footprints in input
+ *                     for each output column
+ * @param coeffs     - per-column resampling kernels - each kernel starts at index
+ *                     x * support
+ * @param support    - size of a resampling kernel
+ * @param dynamic_channels - number of channels, if not known at compile time
+ * @tparam static_channels - number of channels, if known at compile time, or < 0 if not known
+ */
 template <int static_channels, bool clamp_left, bool clamp_right, typename Out, typename In>
 void ResampleCol(Out *out, const In *in, int x, int w, const int32_t *in_columns,
                  const float *coeffs, int support, int dynamic_channels) {
@@ -70,6 +83,22 @@ void ResampleCol(Out *out, const In *in, int x, int w, const int32_t *in_columns
   }
 }
 
+/**
+ * @brief Calcualtes the indices of first and last _output_ columns that does not need
+ *        _input_ coordinate clamping
+ *
+ * @param first_regular_col  [out] leftmost _output_ column which can be calculated without
+ *                                 clamping _input_ coordinates
+ * @param last_regular_col   [out] rightmost _output_ column which can be calculated without
+ *                                 clamping _input_ coordinates
+ * @param out_width              - width of the output surface
+ * @param in_width               - width of the input surface
+ * @param in_col_idxs            - precomputed leftmost indices of kernel footprints in input
+ *                                 for each output column
+ * @param support                - size of the resampling kernel
+ *
+ * @return true, if the resampling is flipped (right to left) or false otherwise
+ */
 inline bool GetFirstAndLastRegularCol(int &first_regular_col,
                                       int &last_regular_col,
                                       int out_width, int in_width, const int *in_col_idxs,
@@ -92,6 +121,24 @@ inline bool GetFirstAndLastRegularCol(int &first_regular_col,
   return flipped;
 }
 
+/**
+ * @brief Calcualtes the indices of first and last _output_ columns that does not need
+ *        _input_ coordinate clamping
+ *
+ * @param out               - output row
+ * @param out_width         - width of the output surface
+ * @param in                - input row
+ * @param in_width          - width of the input surface
+ * @param in_columns        - precomputed leftmost indices of kernel footprints in input
+ *                            for each output column
+ * @param coeffs            - per-column resampling kernels - each kernel starts at index
+ *                            x * support
+ * @param first_regular_col - index of the first _output_ column which can be calculated without
+ *                            applying boundary conditions in _input_
+ * @param first_regular_col - index of the last _output_ column which can be calculated without
+ *                            applying boundary conditions in _input_
+ * @param flipped           - true, if values in in_columns decrease
+ */
 template <int static_channels = -1, typename Out, typename In>
 void ResamplHorzRow(Out *out_row, int out_width, const In *in_row, int in_width, int channels,
                     const int *in_columns, const float *coeffs, int support,
@@ -216,7 +263,17 @@ void ResampleVert(
   }
 }
 
-
+/**
+ * @brief Resamples a surface depthwise
+ *
+ * @param out          - output surface
+ * @param in           - input surface
+ * @param in_rows      - precomputed topmost indices of kernel footprints in input
+ *                       for each output row
+ * @param row_coeffs   - per-row resampling kernels - each kernel starts at index
+ *                       y * support
+ * @param support      - size of the resampling kernel
+ */
 template <typename Out, typename In>
 void ResampleVert(
     Surface3D<Out> out, Surface3D<In> in, const int32_t *in_rows,
@@ -247,6 +304,17 @@ inline Surface2D<T> SliceY(const Surface3D<T> &surface, int y) {
 }
 
 
+/**
+ * @brief Resamples a surface depthwise
+ *
+ * @param out          - output surface
+ * @param in           - input surface
+ * @param in_slices    - precomputed starting z indices of kernel footprints in input
+ *                       for each output slice
+ * @param slice_coeffs - per-slice resampling kernels - each kernel starts at index
+ *                       z * support
+ * @param support      - size of the resampling kernel
+ */
 template <typename Out, typename In>
 inline void ResampleDepth(Surface3D<Out> out, Surface3D<In> in,
                          const int *in_slices, const float *slice_coeffs, int support) {
@@ -268,6 +336,18 @@ inline void ResampleDepth(Surface3D<Out> out, Surface3D<In> in,
   }
 }
 
+
+/**
+ * @brief Resamples a surface horizontally
+ *
+ * @param out         - output surface
+ * @param in          - input surface
+ * @param in_columns  - precomputed leftmost indices of kernel footprints in input
+ *                      for each output column
+ * @param coeffs      - per-column resampling kernels - each kernel starts at index
+ *                      x * support
+ * @param support     - size of the resampling kernel
+ */
 template <int spatial_ndim, typename Out, typename In>
 inline void ResampleHorz(Surface<spatial_ndim, Out> out, Surface<spatial_ndim, In> in,
                          const int *in_columns, const float *col_coeffs, int support) {
@@ -278,6 +358,19 @@ inline void ResampleHorz(Surface<spatial_ndim, Out> out, Surface<spatial_ndim, I
   ));   // NOLINT
 }
 
+/**
+ * @brief Resamples an axis
+ *
+ * @param out         - output surface
+ * @param in          - input surface
+ * @param in_indices  - precomputed starting indices of kernel footprints in input
+ *                      for each output slice/row/column (depending on axis)
+ * @param coeffs      - per-index resampling kernels - each kernel starts at index
+ *                      idx * support, wherei idx is output index in given axis
+ * @param support     - size of the resampling kernel
+ * @param axis        - selects resampled axis in vec order
+ *                      0 - horizontal (X), 1 - vertical (Y), 2 - depthwise (Z)
+ */
 template <int spatial_ndim, typename Out, typename In>
 inline void ResampleAxis(Surface<spatial_ndim, Out> out, Surface<spatial_ndim, In> in,
                          const int *in_indices, const float *coeffs, int support, int axis) {
