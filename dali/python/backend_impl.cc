@@ -1380,7 +1380,7 @@ PYBIND11_MODULE(backend_impl, m) {
          [](OpSpec *spec, const string &name, DALIDataType data_type) -> OpSpec & {
            TYPE_SWITCH(data_type, type2id, T, (std::string, bool, int32_t, int64_t, float),
              (spec->AddArg(name, std::vector<T>());),
-             (DALI_FAIL("Unsupported data type: " + to_string(data_type))));
+             (DALI_FAIL(make_string("Unsupported data type: ", data_type))));
            return *spec;
          }, py::return_value_policy::reference_internal);
 

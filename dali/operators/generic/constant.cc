@@ -99,7 +99,7 @@ void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
           assert(!idata_.empty());
           FillTensorVector<type>(output_, output_shape_, idata_);
         }
-      ), (DALI_FAIL(make_string("Unsupported type: ", to_string(output_type_)))));  // NOLINT
+      ), (DALI_FAIL(make_string("Unsupported type: ", output_type_))));  // NOLINT
   }
   auto &out = ws.OutputRef<CPUBackend>(0);
 
