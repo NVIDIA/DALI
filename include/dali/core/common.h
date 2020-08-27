@@ -44,7 +44,7 @@ namespace dali {
 #define M_PI 3.14159265358979323846
 #endif
 
-// arbitral value for the CPU device ID
+// arbitrary value for the CPU device ID
 constexpr int CPU_ONLY_DEVICE_ID = -99999;
 
 // Using declaration for common types

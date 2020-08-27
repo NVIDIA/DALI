@@ -477,7 +477,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   // For each set of outputs, setup another set of
   // workspaces so that nothing has to be altered
   // during execution (this is necessary for
-  // asynchonrous executors that can overlap work issue)
+  // asynchronous executors that can overlap work issue)
   WorkspacePolicy::InitializeWorkspaceStore(*graph_, tensor_to_store_queue_, &thread_pool_,
                                             mixed_op_stream_, gpu_op_stream_, mixed_op_events_,
                                             queue_sizes_);
@@ -488,6 +488,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
+  if (device_id_ < 0) {
+    DALI_ENFORCE(device_id_ == CPU_ONLY_DEVICE_ID, "Wrong device_id provided, it should be >= 0, "
+                 "or equal to CPU_ONLY_DEVICE_ID.");
+    DALI_ENFORCE(graph_->NumOp(OpType::GPU) == 0 && graph_->NumOp(OpType::MIXED) == 0,
+                 "Cannot run a pipeline with Mixed/GPU ops in CPU-only mode. Please provide "
+                 "valid device id or change the operators device.");
+  }
+
   TimeRange tr("[Executor] RunCPU");
 
   DeviceGuard g(device_id_);
