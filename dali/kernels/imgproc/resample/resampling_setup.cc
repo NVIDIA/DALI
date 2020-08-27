@@ -42,7 +42,7 @@ ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const Fil
 template <int spatial_ndim>
 void SeparableResamplingSetup<spatial_ndim>::SetFilters(
     SampleDesc &desc,
-    const ResamplingParamsND<spatial_ndim> &params) {
+    const ResamplingParamsND<spatial_ndim> &params) const {
   for (int dim = 0; dim < spatial_ndim; dim++) {
     int axis = spatial_ndim - 1 - dim;
     float in_size;
@@ -65,7 +65,7 @@ void SeparableResamplingSetup<spatial_ndim>::SetFilters(
 template <int spatial_ndim>
 typename SeparableResamplingSetup<spatial_ndim>::ROI
 SeparableResamplingSetup<spatial_ndim>::ComputeScaleAndROI(
-    SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params) {
+    SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params) const {
   ROI roi;
 
   for (int dim = 0; dim < spatial_ndim; dim++) {
@@ -172,7 +172,7 @@ ProcessingOrder<ndim> GetProcessingOrder(
 }
 
 template <>
-void SeparableResamplingSetup<2>::ComputeBlockLayout(SampleDesc &sample) {
+void SeparableResamplingSetup<2>::ComputeBlockLayout(SampleDesc &sample) const {
   for (int pass = 0; pass < 2; pass++) {
     int axis = sample.order[pass];
     // Horizontal pass (axis == 0) is processed in vertical slices
@@ -187,7 +187,7 @@ void SeparableResamplingSetup<2>::ComputeBlockLayout(SampleDesc &sample) {
 }
 
 template <>
-void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) {
+void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) const {
   for (int pass = 0; pass < 3; pass++) {
     int axis = sample.order[pass];
 
@@ -219,7 +219,7 @@ template <int spatial_ndim>
 void SeparableResamplingSetup<spatial_ndim>::SetupSample(
     SampleDesc &desc,
     const TensorShape<tensor_ndim> &in_shape,
-    const ResamplingParamsND<spatial_ndim> &params) {
+    const ResamplingParamsND<spatial_ndim> &params) const {
   int channels = in_shape[channel_dim];
   auto in_size = shape2vec(skip_dim<channel_dim>(in_shape));
   ivec<spatial_ndim> out_size;

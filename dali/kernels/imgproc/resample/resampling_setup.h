@@ -129,7 +129,7 @@ class SeparableResamplingSetup {
 
   DLL_PUBLIC void SetupSample(SampleDesc &desc,
                               const TensorShape<tensor_ndim> &in_shape,
-                              const ResamplingParamsND<spatial_ndim> &params);
+                              const ResamplingParamsND<spatial_ndim> &params) const;
 
   void Initialize() {
     filters = GetResamplingFilters();
@@ -143,9 +143,9 @@ class SeparableResamplingSetup {
  protected:
   using ROI = Roi<spatial_ndim>;
 
-  void SetFilters(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params);
-  ROI ComputeScaleAndROI(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params);
-  void ComputeBlockLayout(SampleDesc &sample);
+  void SetFilters(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params) const;
+  ROI ComputeScaleAndROI(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params) const;
+  void ComputeBlockLayout(SampleDesc &sample) const;
 
   std::shared_ptr<ResamplingFilters> filters;
 

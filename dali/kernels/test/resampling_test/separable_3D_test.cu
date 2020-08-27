@@ -425,8 +425,6 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
 
       Resample3Dvia2D(ref, in, make_span(params), stream);
       auto ref_cpu = ref.cpu(stream);
-      auto ref_gpu = ref.template gpu<4>(stream);
-      // ref.invalidate_gpu();
       assert(ref_cpu.shape == out_shape);
 
       auto req = kernel.Setup(ctx, in.template gpu<4>(stream), make_span(params));
