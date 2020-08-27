@@ -125,9 +125,9 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   // resample scratch is used to prepare a single or multiple (depending if
   // downmixing is needed) channel float input, required by the resampling
   // kernel
+  int64_t out_channels = should_downmix ? 1 : sample.audio_meta.channels;
   if (should_resample)
-    resample_scratch_sz = should_downmix ? sample.audio_meta.length
-                                         : sample.audio_meta.length * sample.audio_meta.channels;
+    resample_scratch_sz = sample.audio_meta.length * out_channels;
 
   int64_t total_scratch_sz =
       decode_scratch_sz * sizeof(DecoderType) + resample_scratch_sz * sizeof(float);

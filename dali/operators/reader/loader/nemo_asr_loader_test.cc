@@ -192,13 +192,15 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     std::vector<float> downmixed(ref_samples, 0.0f);
     kernels::signal::Downmix(downmixed.data(), ref_data.data(), ref_samples, 2);
 
-    int64_t downsampled_len = kernels::signal::resampling::resampled_length(ref_samples, sr_in, sr_out);
+    int64_t downsampled_len =
+        kernels::signal::resampling::resampled_length(ref_samples, sr_in, sr_out);
     std::vector<float> downsampled(downsampled_len, 0.0f);
     constexpr double q = 50.0;
     int lobes = std::round(0.007 * q * q - 0.09 * q + 3);
     kernels::signal::resampling::Resampler resampler;
     resampler.Initialize(lobes, lobes * 64 + 1);
-    resampler.Resample(downsampled.data(), 0, downsampled_len, sr_out, downmixed.data(), downmixed.size(), sr_in);
+    resampler.Resample(downsampled.data(), 0, downsampled_len, sr_out, downmixed.data(),
+                       downmixed.size(), sr_in);
 
     TensorView<StorageCPU, float, 1> ref(downsampled.data(), {downsampled_len});
     Check(ref, view<float, 1>(sample.audio));
