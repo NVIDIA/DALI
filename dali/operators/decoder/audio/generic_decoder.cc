@@ -176,6 +176,9 @@ struct GenericAudioDecoder<SampleType>::Impl {
     return ReadSamples(sound_, output);
   }
 
+  ~Impl() {
+    CloseImpl();
+  }
 
   AudioMetadata OpenImpl(span<const char> encoded) {
     assert(!encoded.empty());
