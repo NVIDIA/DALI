@@ -20,7 +20,8 @@
 
 
 int main(int argc, char *argv[]) {
-// Parse and validate command line arg
+  // Parse and validate command line arg
+  // This is assumed to be run through the fuzzer, so we don't check arguments validity 
   std::string path(argv[1]);
 
   // Init DALI
