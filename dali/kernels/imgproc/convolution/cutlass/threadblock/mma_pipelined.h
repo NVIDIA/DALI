@@ -26,15 +26,16 @@
     \brief Template for a double-buffered threadblock-scoped GEMM kernel.
 */
 
-#pragma once
+#ifndef DALI_KERNELS_IMGPROC_CONVOLUTION_CUTLASS_THREADBLOCK_MMA_PIPELINED_H_
+#define DALI_KERNELS_IMGPROC_CONVOLUTION_CUTLASS_THREADBLOCK_MMA_PIPELINED_H_
 
-#include "cutlass/cutlass.h"
-#include "cutlass/array.h"
 #include "cutlass/aligned_buffer.h"
+#include "cutlass/array.h"
+#include "cutlass/cutlass.h"
 #include "cutlass/numeric_conversion.h"
 
-#include "cutlass/numeric_types.h"
 #include "cutlass/matrix_shape.h"
+#include "cutlass/numeric_types.h"
 
 #include "cutlass/gemm/gemm.h"
 #include "cutlass/gemm/threadblock/mma_base.h"
@@ -49,52 +50,48 @@ namespace threadblock {
 
 /// Structure to compute the matrix product targeting CUDA cores and SIMT math instructions.
 template <
-  /// Size of the Gemm problem - concept: gemm::GemmShape<>
-  typename Shape_,
-  /// Iterates over tiles of A operand in global memory 
-  //  (concept: ReadableTileIterator | ForwardTileIterator | MaskedTileIterator)
-  typename IteratorA_,
-  /// Iterates over tiles of A operand in shared memory
-  /// (concept: WriteableTileIterator | RandomAccessTileIterator)
-  typename SmemIteratorA_,
-  /// Iterates over tiles of B operand in global memory
-  //  (concept: ReadableTileIterator | ForwardTileIterator | MaskedTileIterator)
-  typename IteratorB_,
-  /// Iterates over tiles of B operand in shared memory
-  /// (concept: WriteableTileIterator | RandomAccessTileIterator)
-  typename SmemIteratorB_,
-  /// Data type of accumulator matrix
-  typename ElementC_,
-  /// Data type of accumulator matrix
-  typename LayoutC_,
-  /// Policy describing tuning details (concept: MmaPolicy)
-  typename Policy_,
-  /// Transformation applied to A operand
-  typename TransformA_ = NumericArrayConverter<
-    typename SmemIteratorA_::Element, 
-    typename IteratorA_::Element, 
-    IteratorA_::Fragment::kElements>,
-  ///
-  /// Transformation applied to B operand
-  typename TransformB_ = NumericArrayConverter<
-    typename SmemIteratorB_::Element, 
-    typename IteratorB_::Element, 
-    IteratorB_::Fragment::kElements>,
-  /// Used for partial specialization
-  typename Enable = bool
->
+    /// Size of the Gemm problem - concept: gemm::GemmShape<>
+    typename Shape_,
+    /// Iterates over tiles of A operand in global memory
+    //  (concept: ReadableTileIterator | ForwardTileIterator | MaskedTileIterator)
+    typename IteratorA_,
+    /// Iterates over tiles of A operand in shared memory
+    /// (concept: WriteableTileIterator | RandomAccessTileIterator)
+    typename SmemIteratorA_,
+    /// Iterates over tiles of B operand in global memory
+    //  (concept: ReadableTileIterator | ForwardTileIterator | MaskedTileIterator)
+    typename IteratorB_,
+    /// Iterates over tiles of B operand in shared memory
+    /// (concept: WriteableTileIterator | RandomAccessTileIterator)
+    typename SmemIteratorB_,
+    /// Data type of accumulator matrix
+    typename ElementC_,
+    /// Data type of accumulator matrix
+    typename LayoutC_,
+    /// Policy describing tuning details (concept: MmaPolicy)
+    typename Policy_,
+    /// Transformation applied to A operand
+    typename TransformA_ =
+        NumericArrayConverter<typename SmemIteratorA_::Element, typename IteratorA_::Element,
+                              IteratorA_::Fragment::kElements>,
+    ///
+    /// Transformation applied to B operand
+    typename TransformB_ =
+        NumericArrayConverter<typename SmemIteratorB_::Element, typename IteratorB_::Element,
+                              IteratorB_::Fragment::kElements>,
+    /// Used for partial specialization
+    typename Enable = bool>
 class MmaPipelined : public MmaBase<Shape_, Policy_, 2> {
-public:
-
+ public:
   ///< Base class
   using Base = MmaBase<Shape_, Policy_, 2>;
 
-  using Shape = Shape_;             ///< Size of the Gemm problem - concept: gemm::GemmShape<>
-  using IteratorA = IteratorA_;     ///< Iterates over tiles of A operand in global memory
-  using IteratorB = IteratorB_;     ///< Iterates over tiles of B operand in global memory
-  using ElementC = ElementC_;       ///< Data type of accumulator matrix
-  using LayoutC = LayoutC_;         ///< Layout of accumulator matrix
-  using Policy = Policy_;           ///< Policy describing tuning details
+  using Shape = Shape_;          ///< Size of the Gemm problem - concept: gemm::GemmShape<>
+  using IteratorA = IteratorA_;  ///< Iterates over tiles of A operand in global memory
+  using IteratorB = IteratorB_;  ///< Iterates over tiles of B operand in global memory
+  using ElementC = ElementC_;    ///< Data type of accumulator matrix
+  using LayoutC = LayoutC_;      ///< Layout of accumulator matrix
+  using Policy = Policy_;        ///< Policy describing tuning details
 
   using SmemIteratorA = SmemIteratorA_;
   using SmemIteratorB = SmemIteratorB_;
@@ -128,35 +125,32 @@ public:
   static ComplexTransform const kTransformB = Operator::kTransformB;
 
   // staticaly assert kStages for MmaPipelined is two (Double-buffered pipeline)
-  static_assert((Base::kStages==2), "MmaPipelined requires kStages set to value 2");
+  static_assert((Base::kStages == 2), "MmaPipelined requires kStages set to value 2");
 
-private:
-
+ private:
   using WarpFragmentA = typename Operator::FragmentA;
   using WarpFragmentB = typename Operator::FragmentB;
 
-protected:
-
+ protected:
   /// Iterator to write threadblock-scoped tile of A operand to shared memory
   SmemIteratorA smem_iterator_A_;
 
   /// Iterator to write threadblock-scoped tile of B operand to shared memory
   SmemIteratorB smem_iterator_B_;
 
-public:
-
+ public:
   /// Construct from tensor references
   CUTLASS_DEVICE
   MmaPipelined(
-    typename Base::SharedStorage &shared_storage,       ///< Shared storage needed for internal use by threadblock-scoped GEMM
-    int thread_idx,                                     ///< ID within the threadblock
-    int warp_idx,                                       ///< ID of warp
-    int lane_idx                                        ///< ID of each thread within a warp
-  ):
-    Base(shared_storage, thread_idx, warp_idx, lane_idx),
-    smem_iterator_A_(shared_storage.operand_A_ref(), thread_idx),
-    smem_iterator_B_(shared_storage.operand_B_ref(), thread_idx) {
-
+      typename Base::SharedStorage
+          &shared_storage,  ///< Shared storage needed for internal use by threadblock-scoped GEMM
+      int thread_idx,       ///< ID within the threadblock
+      int warp_idx,         ///< ID of warp
+      int lane_idx          ///< ID of each thread within a warp
+      )
+      : Base(shared_storage, thread_idx, warp_idx, lane_idx),
+        smem_iterator_A_(shared_storage.operand_A_ref(), thread_idx),
+        smem_iterator_B_(shared_storage.operand_B_ref(), thread_idx) {
     // Compute warp location within threadblock tile by mapping the warp_id to
     // three coordinates:
     //   _m: the warp's position within the threadblock along the M dimension
@@ -170,21 +164,22 @@ public:
     int warp_idx_n = warp_idx_mn / Base::WarpCount::kM;
 
     // Add per-warp offsets in units of warp-level tiles
-    this->warp_tile_iterator_A_.add_tile_offset({warp_idx_m, Base::kWarpGemmIterations * warp_idx_k});
-    this->warp_tile_iterator_B_.add_tile_offset({Base::kWarpGemmIterations * warp_idx_k, warp_idx_n});
+    this->warp_tile_iterator_A_.add_tile_offset(
+        {warp_idx_m, Base::kWarpGemmIterations * warp_idx_k});
+    this->warp_tile_iterator_B_.add_tile_offset(
+        {Base::kWarpGemmIterations * warp_idx_k, warp_idx_n});
   }
 
   /// Perform a threadblock-scoped matrix multiply-accumulate
   CUTLASS_DEVICE
   void operator()(
-    int gemm_k_iterations,                            ///< number of iterations of the mainloop
-    FragmentC &accum,                                 ///< destination accumulator tile
-    IteratorA iterator_A,                             ///< iterator over A operand in global memory
-    IteratorB iterator_B,                             ///< iterator over B operand in global memory
-    FragmentC const &src_accum,                       ///< source accumulator tile
-    TransformA transform_A = TransformA(),            ///< transformation applied to A fragment
-    TransformB transform_B = TransformB()) {          ///< transformation applied to B fragment
-
+      int gemm_k_iterations,                    ///< number of iterations of the mainloop
+      FragmentC &accum,                         ///< destination accumulator tile
+      IteratorA iterator_A,                     ///< iterator over A operand in global memory
+      IteratorB iterator_B,                     ///< iterator over B operand in global memory
+      FragmentC const &src_accum,               ///< source accumulator tile
+      TransformA transform_A = TransformA(),    ///< transformation applied to A fragment
+      TransformB transform_B = TransformB()) {  ///< transformation applied to B fragment
     //
     // Prologue
     //
@@ -236,7 +231,7 @@ public:
       iterator_B.clear_mask();
     }
 
-    // Issue loads during the first warp-level matrix multiply-add *AFTER* issuing 
+    // Issue loads during the first warp-level matrix multiply-add *AFTER* issuing
     // shared memory loads (which have the tighest latency requirement).
 
     //
@@ -252,33 +247,30 @@ public:
 
       CUTLASS_PRAGMA_UNROLL
       for (int warp_mma_k = 0; warp_mma_k < Base::kWarpGemmIterations; ++warp_mma_k) {
-
         // Load warp-level tiles from shared memory, wrapping to k offset if this is the last group
         // as the case may be.
 
         if (warp_mma_k == Base::kWarpGemmIterations - 1) {
-
           // Write fragments to shared memory
           this->smem_iterator_A_.store(transform_A(tb_frag_A));
 
           this->smem_iterator_B_.store(transform_B(tb_frag_B));
 
           __syncthreads();
-          
+
           ++this->smem_iterator_A_;
           ++this->smem_iterator_B_;
 
-          // Add negative offsets to return iterators to the 'start' of the circular buffer in shared memory
+          // Add negative offsets to return iterators to the 'start' of the circular buffer in
+          // shared memory
           if (smem_write_stage_idx == 1) {
             this->smem_iterator_A_.add_tile_offset({0, -Base::kStages});
             this->smem_iterator_B_.add_tile_offset({-Base::kStages, 0});
-          }
-          else {
+          } else {
             this->warp_tile_iterator_A_.add_tile_offset(
                 {0, -Base::kStages * Policy::kPartitionsK * Base::kWarpGemmIterations});
             this->warp_tile_iterator_B_.add_tile_offset(
-                {-Base::kStages * Policy::kPartitionsK * Base::kWarpGemmIterations,
-                 0});
+                {-Base::kStages * Policy::kPartitionsK * Base::kWarpGemmIterations, 0});
           }
 
           smem_write_stage_idx ^= 1;
@@ -286,7 +278,7 @@ public:
 
         this->warp_tile_iterator_A_.set_kgroup_index((warp_mma_k + 1) % Base::kWarpGemmIterations);
         this->warp_tile_iterator_B_.set_kgroup_index((warp_mma_k + 1) % Base::kWarpGemmIterations);
-        
+
         this->warp_tile_iterator_A_.load(warp_frag_A[(warp_mma_k + 1) % 2]);
         this->warp_tile_iterator_B_.load(warp_frag_B[(warp_mma_k + 1) % 2]);
 
@@ -294,7 +286,6 @@ public:
         ++this->warp_tile_iterator_B_;
 
         if (warp_mma_k == 0) {
-
           iterator_A.load(tb_frag_A);
           iterator_B.load(tb_frag_B);
 
@@ -308,18 +299,18 @@ public:
           }
         }
 
-        warp_mma(accum, warp_frag_A[warp_mma_k % 2],
-                 warp_frag_B[warp_mma_k % 2], accum);
+        warp_mma(accum, warp_frag_A[warp_mma_k % 2], warp_frag_B[warp_mma_k % 2], accum);
       }
     }
-
   }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace threadblock
-} // namespace gemm
-} // namespace cutlass
+}  // namespace threadblock
+}  // namespace gemm
+}  // namespace cutlass
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
+
+#endif  // DALI_KERNELS_IMGPROC_CONVOLUTION_CUTLASS_THREADBLOCK_MMA_PIPELINED_H_

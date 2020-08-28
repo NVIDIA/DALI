@@ -42,7 +42,6 @@ import subprocess
 # These filters are regexes, not typical unix-like path specification
 negative_filters = [
     ".*core/dynlink_cuda.cc",
-    ".*kernels/imgproc/convolution/cutlass/*",
     ".*operators/reader/nvdecoder/nvcuvid.h",
     ".*operators/reader/nvdecoder/cuviddec.h",
     ".*operators/reader/nvdecoder/dynlink_nvcuvid.cc",

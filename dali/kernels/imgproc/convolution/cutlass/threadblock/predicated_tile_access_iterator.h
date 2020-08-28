@@ -37,7 +37,8 @@
    through memory.
 */
 
-#pragma once
+#ifndef DALI_KERNELS_IMGPROC_CONVOLUTION_CUTLASS_THREADBLOCK_PREDICATED_TILE_ACCESS_ITERATOR_H_
+#define DALI_KERNELS_IMGPROC_CONVOLUTION_CUTLASS_THREADBLOCK_PREDICATED_TILE_ACCESS_ITERATOR_H_
 
 #include "cutlass/array.h"
 #include "cutlass/coord.h"
@@ -61,23 +62,22 @@ namespace threadblock {
 
 /// PredicatedTileAccessIterator
 ///
-template <typename Shape, typename Element, typename Layout, int AdvanceRank,
-          typename ThreadMap, typename AccessType>
+template <typename Shape, typename Element, typename Layout, int AdvanceRank, typename ThreadMap,
+          typename AccessType>
 class PredicatedTileAccessIterator;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Specialization of PredicatedTileAccessIterator for pitch-linear data.
 ///
-template <typename Shape_, typename Element_, int AdvanceRank,
-          typename ThreadMap_, typename AccessType_>
-class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
-                                   AdvanceRank, ThreadMap_, AccessType_> {
+template <typename Shape_, typename Element_, int AdvanceRank, typename ThreadMap_,
+          typename AccessType_>
+class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear, AdvanceRank, ThreadMap_,
+                                   AccessType_> {
  public:
-  static_assert(
-      AdvanceRank == 0 || AdvanceRank == 1,
-      "Specialization for pitch-linear iterator may along advance along the "
-      "contiguous(rank=0) or strided(rank=1) dimension.");
+  static_assert(AdvanceRank == 0 || AdvanceRank == 1,
+                "Specialization for pitch-linear iterator may along advance along the "
+                "contiguous(rank=0) or strided(rank=1) dimension.");
 
   using Shape = Shape_;
   using Element = Element_;
@@ -97,9 +97,9 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
   using NonConstPointer = typename platform::remove_const<Element>::type *;
 
   static int const kAccessesPerVector = ThreadMap::kElementsPerAccess / AccessType::kElements;
-  
-  static_assert(!(ThreadMap::kElementsPerAccess % AccessType::kElements), 
-    "Vectors implied by the thread map must be divisible by the access type.");
+
+  static_assert(!(ThreadMap::kElementsPerAccess % AccessType::kElements),
+                "Vectors implied by the thread map must be divisible by the access type.");
 
   static int const kPredicatesPerByte = 4;
   static int const kPredicatesPerWord = 4 * kPredicatesPerByte;
@@ -107,8 +107,8 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
   static int const kPredicateCount = ThreadMap::Iterations::kCount * kAccessesPerVector;
 
   /// Number of 32b words containing predicates
-  static int const kPredicateByteCount = 
-    (kPredicateCount + kPredicatesPerByte - 1) / kPredicatesPerByte;
+  static int const kPredicateByteCount =
+      (kPredicateCount + kPredicatesPerByte - 1) / kPredicatesPerByte;
   static int const kPredicateWordCount = (kPredicateByteCount + 3) / 4;
 
   static unsigned const kPredicateMask = (1u << kPredicatesPerByte) - 1u;
@@ -137,21 +137,19 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
     LongIndex inc_advance_;
 
    public:
-
     // Default ctor
     CUTLASS_HOST_DEVICE
-    Params(): stride_(0), inc_strided_(0), inc_next_(0), inc_advance_(0) { }
+    Params() : stride_(0), inc_strided_(0), inc_next_(0), inc_advance_(0) {}
 
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
-    Params(Layout const &layout) : stride_(layout.stride(0)) {
-      inc_strided_ = (LongIndex(stride_) * ThreadMap::Delta::kStrided) *
-                     sizeof_bits<Element>::value / 8;
+    explicit Params(Layout const &layout) : stride_(layout.stride(0)) {
+      inc_strided_ =
+          (LongIndex(stride_) * ThreadMap::Delta::kStrided) * sizeof_bits<Element>::value / 8;
 
       if (kAdvanceRank) {
         // advance along strided dimension
-        inc_advance_ =
-            Shape::kStrided * LongIndex(stride_) * sizeof_bits<Element>::value / 8;
+        inc_advance_ = Shape::kStrided * LongIndex(stride_) * sizeof_bits<Element>::value / 8;
       } else {
         // advance along contiguous dimension
         inc_advance_ = Shape::kContiguous * sizeof_bits<Element>::value / 8;
@@ -160,7 +158,7 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
       inc_next_ = inc_advance_ - LongIndex(ThreadMap::Iterations::kStrided - 1) *
                                      ThreadMap::Delta::kStrided * LongIndex(stride_) *
                                      sizeof_bits<Element>::value / 8;
-    };
+    }
   };
 
  private:
@@ -210,24 +208,23 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
       TensorCoord extent,
       /// optionally, simplify predicate calculation during 'steady state' phase
       bool is_steady_state = false) {
-
     CUTLASS_PRAGMA_UNROLL
     for (int i = 0; i < kPredicateWordCount; ++i) {
       predicates_[i] = 0u;
     }
 
     CUTLASS_PRAGMA_UNROLL
-    for (int access_idx = 0; access_idx < ThreadMap::Iterations::kCount * kAccessesPerVector; ++access_idx) {
-
+    for (int access_idx = 0; access_idx < ThreadMap::Iterations::kCount * kAccessesPerVector;
+         ++access_idx) {
       int s = access_idx / (ThreadMap::Iterations::kContiguous * kAccessesPerVector);
-      
+
       int access_residual = access_idx % (ThreadMap::Iterations::kContiguous * kAccessesPerVector);
 
       int c = access_residual / kAccessesPerVector;
       int v = access_residual % kAccessesPerVector;
 
       TensorCoord iteration_coord(c * ThreadMap::Delta::kContiguous + v * AccessType::kElements,
-                                s * ThreadMap::Delta::kStrided);
+                                  s * ThreadMap::Delta::kStrided);
 
       TensorCoord coord = thread_offset_ + iteration_coord;
 
@@ -240,8 +237,7 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
           guard = (coord.contiguous() < extent.contiguous());
         }
       } else {
-        guard = (coord.strided() < extent.strided() &&
-                 coord.contiguous() < extent.contiguous());
+        guard = (coord.strided() < extent.strided() && coord.contiguous() < extent.contiguous());
       }
 
       int pred_idx = v + kAccessesPerVector * (c + ThreadMap::Iterations::kContiguous * s);
@@ -250,11 +246,9 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
       int residual = pred_idx % kPredicatesPerWord;
       int byte_idx = residual / kPredicatesPerByte;
       int bit_idx = residual % kPredicatesPerByte;
-      
+
       predicates_[word_idx] |= (unsigned(guard) << (byte_idx * 8 + bit_idx));
-
     }
-
   }
 
  public:
@@ -273,37 +267,32 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
       /// Initial offset of threadblock
       TensorCoord const &threadblock_offset)
       : params_(params),
-        pointer_(reinterpret_cast<BytePointer>(
-            const_cast<NonConstPointer>(pointer))),
+        pointer_(reinterpret_cast<BytePointer>(const_cast<NonConstPointer>(pointer))),
         extent_(extent),
         is_residue_tile_(true) {
-          
     TensorCoord residue_extent;
     if (kAdvanceRank) {
-
       Index residue_size = (extent_[kAdvanceRank] - threadblock_offset.strided()) % Shape::kStrided;
       if (!residue_size) {
         residue_size = Shape::kStrided;
       }
 
       residue_offset_ = make_Coord(0, residue_size);
-      residue_extent = make_Coord(
-        extent_.contiguous(), 
-        min(threadblock_offset.strided() + residue_size, extent_.strided())
-      );
+      residue_extent =
+          make_Coord(extent_.contiguous(),
+                     min(threadblock_offset.strided() + residue_size, extent_.strided()));
     } else {
-      
-      Index residue_size = (extent_[kAdvanceRank] - threadblock_offset.contiguous()) % Shape::kContiguous;
+      Index residue_size =
+          (extent_[kAdvanceRank] - threadblock_offset.contiguous()) % Shape::kContiguous;
       if (!residue_size) {
         residue_size = Shape::kContiguous;
       }
 
       residue_offset_ = make_Coord(residue_size, 0);
-      
-      residue_extent = make_Coord(
-        min(extent_.contiguous(), threadblock_offset.contiguous() + residue_size),
-        extent_.strided()
-      );
+
+      residue_extent =
+          make_Coord(min(extent_.contiguous(), threadblock_offset.contiguous() + residue_size),
+                     extent_.strided());
     }
 
     // Per-thread offset in logical coordinates of tensor
@@ -329,19 +318,16 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
       TensorCoord extent,
       ///< ID of each participating thread
       int thread_id)
-      : PredicatedTileAccessIterator(params, pointer, extent, thread_id,
-                                     make_Coord(0, 0)) {}
+      : PredicatedTileAccessIterator(params, pointer, extent, thread_id, make_Coord(0, 0)) {}
 
   /// Overrides the internal iteration index
   CUTLASS_HOST_DEVICE
   void set_iteration_index(int index) {
-
     iteration_vector_ = index % kAccessesPerVector;
     int residual_access = index / kAccessesPerVector;
 
     iteration_contiguous_ = residual_access % ThreadMap::Iterations::kContiguous;
     iteration_strided_ = residual_access / ThreadMap::Iterations::kContiguous;
-
   }
 
   /// Adds a pointer offset in units of Element
@@ -352,10 +338,8 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
 
   /// Advances an iterator along logical dimensions of matrix in units of whole tiles
   CUTLASS_DEVICE
-  void add_tile_offset(
-      TensorCoord const &tile_offset) {
+  void add_tile_offset(TensorCoord const &tile_offset) {
     if (is_residue_tile_) {
-
       thread_offset_ += residue_offset_;
 
       Layout layout(params_.stride_);
@@ -386,14 +370,14 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
   CUTLASS_HOST_DEVICE
   AccessType *get() const {
     return reinterpret_cast<AccessType *>(
-        pointer_ + 
-        iteration_contiguous_ * (ThreadMap::Delta::kContiguous * sizeof_bits<Element>::value) / 8) + iteration_vector_;
+               pointer_ + iteration_contiguous_ *
+                              (ThreadMap::Delta::kContiguous * sizeof_bits<Element>::value) / 8) +
+           iteration_vector_;
   }
 
   /// Increment and return an instance to self.
   CUTLASS_HOST_DEVICE
   PredicatedTileAccessIterator &operator++() {
-
     ++iteration_vector_;
     if (iteration_vector_ < kAccessesPerVector) {
       return *this;
@@ -446,7 +430,6 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
     for (int i = 0; i < kPredicateWordCount; ++i) {
       predicates_[i] = 0u;
     }
-
   }
 
   /// Clears the predicate set efficiently
@@ -460,18 +443,17 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
 
   /// Sets the predicate mask, overriding value stored in predicate iterator
   CUTLASS_HOST_DEVICE
-  void set_mask(Mask const &mask) { 
+  void set_mask(Mask const &mask) {
     CUTLASS_PRAGMA_UNROLL
     for (int i = 0; i < kPredicateWordCount; ++i) {
       predicates_[i] = mask[i];
     }
-
   }
 
   /// Gets the mask
   CUTLASS_HOST_DEVICE
   void get_mask(Mask &mask) {
-     CUTLASS_PRAGMA_UNROLL
+    CUTLASS_PRAGMA_UNROLL
     for (int i = 0; i < kPredicateWordCount; ++i) {
       mask[i] = predicates_[i];
     }
@@ -480,21 +462,19 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
   /// Returns whether access is valid or not
   CUTLASS_HOST_DEVICE
   bool valid() {
-
-    
-    int pred_idx = 
-      iteration_vector_ + kAccessesPerVector * (iteration_contiguous_ + iteration_strided_ * ThreadMap::Iterations::kContiguous);
+    int pred_idx = iteration_vector_ +
+                   kAccessesPerVector * (iteration_contiguous_ +
+                                         iteration_strided_ * ThreadMap::Iterations::kContiguous);
 
     int word_idx = pred_idx / kPredicatesPerWord;
     int residual = pred_idx % kPredicatesPerWord;
     int byte_idx = residual / kPredicatesPerByte;
     int bit_idx = residual % kPredicatesPerByte;
-    
+
     bool pred = (predicates_[word_idx] & (1u << (byte_idx * 8 + bit_idx))) != 0;
     return pred;
-    
 
-    //return true;
+    // return true;
   }
 };
 
@@ -507,15 +487,14 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear,
 ///            WriteableContiguousTileIteratorConcept |
 ///            MaskedTileIteratorConcept
 ///
-template <typename Shape_, typename Element_, int AdvanceRank,
-          typename ThreadMap_, typename AccessType_>
-class PredicatedTileAccessIterator<Shape_, Element_, layout::ColumnMajor,
-                                   AdvanceRank, ThreadMap_, AccessType_> {
+template <typename Shape_, typename Element_, int AdvanceRank, typename ThreadMap_,
+          typename AccessType_>
+class PredicatedTileAccessIterator<Shape_, Element_, layout::ColumnMajor, AdvanceRank, ThreadMap_,
+                                   AccessType_> {
  public:
-  static_assert(
-      AdvanceRank == 0 || AdvanceRank == 1,
-      "Specialization for pitch-linear iterator may along advance along the "
-      "contiguous(rank=0) or strided(rank=1) dimension.");
+  static_assert(AdvanceRank == 0 || AdvanceRank == 1,
+                "Specialization for pitch-linear iterator may along advance along the "
+                "contiguous(rank=0) or strided(rank=1) dimension.");
 
   using Shape = Shape_;
   using Element = Element_;
@@ -534,9 +513,10 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::ColumnMajor,
   using Pointer = Element *;
   using NonConstPointer = typename platform::remove_const<Element>::type *;
 
-  using UnderlyingIterator = PredicatedTileAccessIterator<
-      layout::PitchLinearShape<Shape::kRow, Shape::kColumn>, Element,
-      layout::PitchLinear, (kAdvanceRank == 0 ? 0 : 1), ThreadMap, AccessType>;
+  using UnderlyingIterator =
+      PredicatedTileAccessIterator<layout::PitchLinearShape<Shape::kRow, Shape::kColumn>, Element,
+                                   layout::PitchLinear, (kAdvanceRank == 0 ? 0 : 1), ThreadMap,
+                                   AccessType>;
 
   /// Predicate vector stores mask to guard accesses
   using Mask = typename UnderlyingIterator::Mask;
@@ -552,15 +532,13 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::ColumnMajor,
     typename UnderlyingIterator::Params params_;
 
    public:
-
     /// Default ctor
     CUTLASS_HOST_DEVICE
-    Params() { }
+    Params() {}
 
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
-    Params(Layout const &layout)
-        : params_(layout::PitchLinear(layout.stride(0))){};
+    explicit Params(Layout const &layout) : params_(layout::PitchLinear(layout.stride(0))) {}
   };
 
  private:
@@ -586,26 +564,25 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::ColumnMajor,
       int thread_id,
       ///< Initial offset of threadblock
       TensorCoord const &threadblock_offset)
-      : iterator_(params.params_, pointer,
-                  layout::PitchLinearCoord(extent.row(), extent.column()),
+      : iterator_(params.params_, pointer, layout::PitchLinearCoord(extent.row(), extent.column()),
                   thread_id,
-                  layout::PitchLinearCoord(threadblock_offset.row(),
-                                           threadblock_offset.column())) {}
+                  layout::PitchLinearCoord(threadblock_offset.row(), threadblock_offset.column())) {
+  }
 
   /// Construct a PredicatedTileAccessIterator with zero threadblock offset
   CUTLASS_HOST_DEVICE
-  PredicatedTileAccessIterator(
-      Params const &params,  ///< Precomputed parameters object
-      Pointer pointer,       ///< Pointer to start of tensor
-      TensorCoord extent,    ///< Extent of tensor
-      int thread_id          ///< ID of each participating thread
-      )
-      : PredicatedTileAccessIterator(params, pointer, extent, thread_id,
-                                     make_Coord(0, 0)) {}
+  PredicatedTileAccessIterator(Params const &params,  ///< Precomputed parameters object
+                               Pointer pointer,       ///< Pointer to start of tensor
+                               TensorCoord extent,    ///< Extent of tensor
+                               int thread_id          ///< ID of each participating thread
+                               )
+      : PredicatedTileAccessIterator(params, pointer, extent, thread_id, make_Coord(0, 0)) {}
 
   /// Overrides the internal iteration index
   CUTLASS_HOST_DEVICE
-  void set_iteration_index(int index) { iterator_.set_iteration_index(index); }
+  void set_iteration_index(int index) {
+    iterator_.set_iteration_index(index);
+  }
 
   /// Adds a pointer offset in units of Element
   CUTLASS_HOST_DEVICE
@@ -653,19 +630,27 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::ColumnMajor,
 
   /// Clears the predicate set efficiently
   CUTLASS_HOST_DEVICE
-  void clear_mask() { iterator_.clear_mask(); }
+  void clear_mask() {
+    iterator_.clear_mask();
+  }
 
   /// Clears the predicate set efficiently
   CUTLASS_HOST_DEVICE
-  void enable_mask() { iterator_.enable_mask(); }
+  void enable_mask() {
+    iterator_.enable_mask();
+  }
 
   /// Sets the predicate mask, overriding value stored in predicate iterator
   CUTLASS_HOST_DEVICE
-  void set_mask(Mask const &mask) { iterator_.set_mask(mask); }
+  void set_mask(Mask const &mask) {
+    iterator_.set_mask(mask);
+  }
 
   /// Gets the mask
   CUTLASS_HOST_DEVICE
-  void get_mask(Mask &mask) { iterator_.get_mask(mask); }
+  void get_mask(Mask &mask) {
+    iterator_.get_mask(mask);
+  }
 
   /// Returns whether access is valid or not
   CUTLASS_HOST_DEVICE
@@ -683,15 +668,14 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::ColumnMajor,
 ///            WriteableContiguousTileIteratorConcept |
 ///            MaskedTileIteratorConcept
 ///
-template <typename Shape_, typename Element_, int AdvanceRank,
-          typename ThreadMap_, typename AccessType_>
-class PredicatedTileAccessIterator<Shape_, Element_, layout::RowMajor,
-                                   AdvanceRank, ThreadMap_, AccessType_> {
+template <typename Shape_, typename Element_, int AdvanceRank, typename ThreadMap_,
+          typename AccessType_>
+class PredicatedTileAccessIterator<Shape_, Element_, layout::RowMajor, AdvanceRank, ThreadMap_,
+                                   AccessType_> {
  public:
-  static_assert(
-      AdvanceRank == 0 || AdvanceRank == 1,
-      "Specialization for pitch-linear iterator may along advance along the "
-      "contiguous(rank=0) or strided(rank=1) dimension.");
+  static_assert(AdvanceRank == 0 || AdvanceRank == 1,
+                "Specialization for pitch-linear iterator may along advance along the "
+                "contiguous(rank=0) or strided(rank=1) dimension.");
 
   using Shape = Shape_;
   using Element = Element_;
@@ -710,9 +694,10 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::RowMajor,
   using Pointer = Element *;
   using NonConstPointer = typename platform::remove_const<Element>::type *;
 
-  using UnderlyingIterator = PredicatedTileAccessIterator<
-      layout::PitchLinearShape<Shape::kColumn, Shape::kRow>, Element,
-      layout::PitchLinear, (kAdvanceRank == 0 ? 1 : 0), ThreadMap, AccessType>;
+  using UnderlyingIterator =
+      PredicatedTileAccessIterator<layout::PitchLinearShape<Shape::kColumn, Shape::kRow>, Element,
+                                   layout::PitchLinear, (kAdvanceRank == 0 ? 1 : 0), ThreadMap,
+                                   AccessType>;
 
   static int const kAccessesPerVector = UnderlyingIterator::kAccessesPerVector;
 
@@ -728,15 +713,13 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::RowMajor,
     typename UnderlyingIterator::Params params_;
 
    public:
-
     /// Default ctor
     CUTLASS_HOST_DEVICE
-    Params() { }
+    Params() {}
 
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
-    Params(Layout const &layout)
-        : params_(layout::PitchLinear(layout.stride(0))){};
+    explicit Params(Layout const &layout) : params_(layout::PitchLinear(layout.stride(0))) {}
   };
 
  private:
@@ -762,26 +745,25 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::RowMajor,
       int thread_id,
       ///< Initial offset of threadblock
       TensorCoord const &threadblock_offset)
-      : iterator_(params.params_, pointer,
-                  layout::PitchLinearCoord(extent.column(), extent.row()),
+      : iterator_(params.params_, pointer, layout::PitchLinearCoord(extent.column(), extent.row()),
                   thread_id,
-                  layout::PitchLinearCoord(threadblock_offset.column(),
-                                           threadblock_offset.row())) {}
+                  layout::PitchLinearCoord(threadblock_offset.column(), threadblock_offset.row())) {
+  }
 
   /// Construct a PredicatedTileAccessIterator with zero threadblock offset
   CUTLASS_HOST_DEVICE
-  PredicatedTileAccessIterator(
-      Params const &params,  ///< Precomputed parameters object
-      Pointer pointer,       ///< Pointer to start of tensor
-      TensorCoord extent,    ///< Extent of tensor
-      int thread_id          ///< ID of each participating thread
-      )
-      : PredicatedTileAccessIterator(params, pointer, extent, thread_id,
-                                     make_Coord(0, 0)) {}
+  PredicatedTileAccessIterator(Params const &params,  ///< Precomputed parameters object
+                               Pointer pointer,       ///< Pointer to start of tensor
+                               TensorCoord extent,    ///< Extent of tensor
+                               int thread_id          ///< ID of each participating thread
+                               )
+      : PredicatedTileAccessIterator(params, pointer, extent, thread_id, make_Coord(0, 0)) {}
 
   /// Overrides the internal iteration index
   CUTLASS_HOST_DEVICE
-  void set_iteration_index(int index) { iterator_.set_iteration_index(index); }
+  void set_iteration_index(int index) {
+    iterator_.set_iteration_index(index);
+  }
 
   /// Adds a pointer offset in units of Element
   CUTLASS_HOST_DEVICE
@@ -829,19 +811,27 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::RowMajor,
 
   /// Clears the predicate set efficiently
   CUTLASS_HOST_DEVICE
-  void clear_mask() { iterator_.clear_mask(); }
+  void clear_mask() {
+    iterator_.clear_mask();
+  }
 
   /// Clears the predicate set efficiently
   CUTLASS_HOST_DEVICE
-  void enable_mask() { iterator_.enable_mask(); }
+  void enable_mask() {
+    iterator_.enable_mask();
+  }
 
   /// Sets the predicate mask, overriding value stored in predicate iterator
   CUTLASS_HOST_DEVICE
-  void set_mask(Mask const &mask) { iterator_.set_mask(mask); }
+  void set_mask(Mask const &mask) {
+    iterator_.set_mask(mask);
+  }
 
   /// Gets the mask
   CUTLASS_HOST_DEVICE
-  void get_mask(Mask &mask) { iterator_.get_mask(mask); }
+  void get_mask(Mask &mask) {
+    iterator_.get_mask(mask);
+  }
 
   /// Returns whether access is valid or not
   CUTLASS_HOST_DEVICE
@@ -861,16 +851,14 @@ class PredicatedTileAccessIterator<Shape_, Element_, layout::RowMajor,
 ///            MaskedTileIteratorConcept
 ///
 
-template <typename Shape_, typename Element_, int AdvanceRank,
-          typename ThreadMap_, typename AccessType_, int InterleavedK>
-class PredicatedTileAccessIterator<Shape_, Element_,
-                                   layout::ColumnMajorInterleaved<InterleavedK>,
+template <typename Shape_, typename Element_, int AdvanceRank, typename ThreadMap_,
+          typename AccessType_, int InterleavedK>
+class PredicatedTileAccessIterator<Shape_, Element_, layout::ColumnMajorInterleaved<InterleavedK>,
                                    AdvanceRank, ThreadMap_, AccessType_> {
  public:
-  static_assert(
-      AdvanceRank == 0 || AdvanceRank == 1,
-      "Specialization for pitch-linear iterator may along advance along the "
-      "contiguous(rank=0) or strided(rank=1) dimension.");
+  static_assert(AdvanceRank == 0 || AdvanceRank == 1,
+                "Specialization for pitch-linear iterator may along advance along the "
+                "contiguous(rank=0) or strided(rank=1) dimension.");
 
   using Shape = Shape_;
   using Element = Element_;
@@ -891,10 +879,8 @@ class PredicatedTileAccessIterator<Shape_, Element_,
   using NonConstPointer = typename platform::remove_const<Element>::type *;
 
   using UnderlyingIterator = PredicatedTileAccessIterator<
-      layout::PitchLinearShape<Shape::kRow * kInterleavedK,
-                               Shape::kColumn / kInterleavedK>,
-      Element, layout::PitchLinear, (kAdvanceRank == 0 ? 0 : 1), ThreadMap,
-      AccessType>;
+      layout::PitchLinearShape<Shape::kRow * kInterleavedK, Shape::kColumn / kInterleavedK>,
+      Element, layout::PitchLinear, (kAdvanceRank == 0 ? 0 : 1), ThreadMap, AccessType>;
 
   static int const kAccessesPerVector = UnderlyingIterator::kAccessesPerVector;
 
@@ -915,8 +901,7 @@ class PredicatedTileAccessIterator<Shape_, Element_,
 
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
-    Params(Layout const &layout)
-        : params_(layout::PitchLinear(layout.stride(0))) {}
+    explicit Params(Layout const &layout) : params_(layout::PitchLinear(layout.stride(0))) {}
   };
 
  private:
@@ -942,28 +927,27 @@ class PredicatedTileAccessIterator<Shape_, Element_,
       int thread_id,
       /// Initial offset of threadblock
       TensorCoord const &threadblock_offset)
-      : iterator_(params.params_, pointer,
-                  layout::PitchLinearCoord(extent.row() * kInterleavedK,
-                                           extent.column() / kInterleavedK),
-                  thread_id,
-                  layout::PitchLinearCoord(
-                      threadblock_offset.row() * kInterleavedK,
-                      threadblock_offset.column() / kInterleavedK)) {}
+      : iterator_(
+            params.params_, pointer,
+            layout::PitchLinearCoord(extent.row() * kInterleavedK, extent.column() / kInterleavedK),
+            thread_id,
+            layout::PitchLinearCoord(threadblock_offset.row() * kInterleavedK,
+                                     threadblock_offset.column() / kInterleavedK)) {}
 
   /// Construct a PredicatedTileAccessIterator with zero threadblock offset
   CUTLASS_HOST_DEVICE
-  PredicatedTileAccessIterator(
-      Params const &params,  ///< Precomputed parameters object
-      Pointer pointer,       ///< Pointer to start of tensor
-      TensorCoord extent,    ///< Extent of tensor
-      int thread_id          ///< ID of each participating thread
-      )
-      : PredicatedTileAccessIterator(params, pointer, extent, thread_id,
-                                     make_Coord(0, 0)) {}
+  PredicatedTileAccessIterator(Params const &params,  ///< Precomputed parameters object
+                               Pointer pointer,       ///< Pointer to start of tensor
+                               TensorCoord extent,    ///< Extent of tensor
+                               int thread_id          ///< ID of each participating thread
+                               )
+      : PredicatedTileAccessIterator(params, pointer, extent, thread_id, make_Coord(0, 0)) {}
 
   /// Overrides the internal iteration index
   CUTLASS_HOST_DEVICE
-  void set_iteration_index(int index) { iterator_.set_iteration_index(index); }
+  void set_iteration_index(int index) {
+    iterator_.set_iteration_index(index);
+  }
 
   /// Adds a pointer offset in units of Element
   CUTLASS_HOST_DEVICE
@@ -1011,23 +995,33 @@ class PredicatedTileAccessIterator<Shape_, Element_,
 
   /// Clears the predicate set efficiently
   CUTLASS_HOST_DEVICE
-  void clear_mask() { iterator_.clear_mask(); }
+  void clear_mask() {
+    iterator_.clear_mask();
+  }
 
   /// Clears the predicate set efficiently
   CUTLASS_HOST_DEVICE
-  void enable_mask() { iterator_.enable_mask(); }
+  void enable_mask() {
+    iterator_.enable_mask();
+  }
 
   /// Sets the predicate mask, overriding value stored in predicate iterator
   CUTLASS_HOST_DEVICE
-  void set_mask(Mask const &mask) { iterator_.set_mask(mask); }
+  void set_mask(Mask const &mask) {
+    iterator_.set_mask(mask);
+  }
 
   /// Gets the mask
   CUTLASS_HOST_DEVICE
-  void get_mask(Mask &mask) { iterator_.get_mask(mask); }
+  void get_mask(Mask &mask) {
+    iterator_.get_mask(mask);
+  }
 
   /// Returns whether access is valid or not
   CUTLASS_HOST_DEVICE
-  bool valid() { return iterator_.valid(); }
+  bool valid() {
+    return iterator_.valid();
+  }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1040,16 +1034,14 @@ class PredicatedTileAccessIterator<Shape_, Element_,
 ///            WriteableContiguousTileIteratorConcept |
 ///            MaskedTileIteratorConcept
 ///
-template <typename Shape_, typename Element_, int AdvanceRank,
-          typename ThreadMap_, typename AccessType_, int InterleavedK>
-class PredicatedTileAccessIterator<Shape_, Element_,
-                                   layout::RowMajorInterleaved<InterleavedK>,
+template <typename Shape_, typename Element_, int AdvanceRank, typename ThreadMap_,
+          typename AccessType_, int InterleavedK>
+class PredicatedTileAccessIterator<Shape_, Element_, layout::RowMajorInterleaved<InterleavedK>,
                                    AdvanceRank, ThreadMap_, AccessType_> {
  public:
-  static_assert(
-      AdvanceRank == 0 || AdvanceRank == 1,
-      "Specialization for pitch-linear iterator may along advance along the "
-      "contiguous(rank=0) or strided(rank=1) dimension.");
+  static_assert(AdvanceRank == 0 || AdvanceRank == 1,
+                "Specialization for pitch-linear iterator may along advance along the "
+                "contiguous(rank=0) or strided(rank=1) dimension.");
 
   using Shape = Shape_;
   using Element = Element_;
@@ -1070,11 +1062,8 @@ class PredicatedTileAccessIterator<Shape_, Element_,
   using NonConstPointer = typename platform::remove_const<Element>::type *;
 
   using UnderlyingIterator = PredicatedTileAccessIterator<
-      layout::PitchLinearShape<Shape::kColumn * kInterleavedK,
-                               Shape::kRow / kInterleavedK>,
-      Element, layout::PitchLinear, (kAdvanceRank == 0 ? 1 : 0), ThreadMap,
-      AccessType>;
-
+      layout::PitchLinearShape<Shape::kColumn * kInterleavedK, Shape::kRow / kInterleavedK>,
+      Element, layout::PitchLinear, (kAdvanceRank == 0 ? 1 : 0), ThreadMap, AccessType>;
 
   static int const kAccessesPerVector = UnderlyingIterator::kAccessesPerVector;
 
@@ -1095,8 +1084,7 @@ class PredicatedTileAccessIterator<Shape_, Element_,
 
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
-    Params(Layout const &layout)
-        : params_(layout::PitchLinear(layout.stride(0))) {}
+    explicit Params(Layout const &layout) : params_(layout::PitchLinear(layout.stride(0))) {}
   };
 
  private:
@@ -1122,28 +1110,27 @@ class PredicatedTileAccessIterator<Shape_, Element_,
       int thread_id,
       /// Initial offset of threadblock
       TensorCoord const &threadblock_offset)
-      : iterator_(params.params_, pointer,
-                  layout::PitchLinearCoord(extent.column() * kInterleavedK,
-                                           extent.row() / kInterleavedK),
-                  thread_id,
-                  layout::PitchLinearCoord(
-                      threadblock_offset.column() * kInterleavedK,
-                      threadblock_offset.row() / kInterleavedK)) {}
+      : iterator_(
+            params.params_, pointer,
+            layout::PitchLinearCoord(extent.column() * kInterleavedK, extent.row() / kInterleavedK),
+            thread_id,
+            layout::PitchLinearCoord(threadblock_offset.column() * kInterleavedK,
+                                     threadblock_offset.row() / kInterleavedK)) {}
 
   /// Construct a PredicatedTileAccessIterator with zero threadblock offset
   CUTLASS_HOST_DEVICE
-  PredicatedTileAccessIterator(
-      Params const &params,  ///< Precomputed parameters object
-      Pointer pointer,       ///< Pointer to start of tensor
-      TensorCoord extent,    ///< Extent of tensor
-      int thread_id          ///< ID of each participating thread
-      )
-      : PredicatedTileAccessIterator(params, pointer, extent, thread_id,
-                                     make_Coord(0, 0)) {}
+  PredicatedTileAccessIterator(Params const &params,  ///< Precomputed parameters object
+                               Pointer pointer,       ///< Pointer to start of tensor
+                               TensorCoord extent,    ///< Extent of tensor
+                               int thread_id          ///< ID of each participating thread
+                               )
+      : PredicatedTileAccessIterator(params, pointer, extent, thread_id, make_Coord(0, 0)) {}
 
   /// Overrides the internal iteration index
   CUTLASS_HOST_DEVICE
-  void set_iteration_index(int index) { iterator_.set_iteration_index(index); }
+  void set_iteration_index(int index) {
+    iterator_.set_iteration_index(index);
+  }
 
   /// Adds a pointer offset in units of Element
   CUTLASS_HOST_DEVICE
@@ -1191,23 +1178,33 @@ class PredicatedTileAccessIterator<Shape_, Element_,
 
   /// Clears the predicate set efficiently
   CUTLASS_HOST_DEVICE
-  void clear_mask() { iterator_.clear_mask(); }
+  void clear_mask() {
+    iterator_.clear_mask();
+  }
 
   /// Clears the predicate set efficiently
   CUTLASS_HOST_DEVICE
-  void enable_mask() { iterator_.enable_mask(); }
+  void enable_mask() {
+    iterator_.enable_mask();
+  }
 
   /// Sets the predicate mask, overriding value stored in predicate iterator
   CUTLASS_HOST_DEVICE
-  void set_mask(Mask const &mask) { iterator_.set_mask(mask); }
+  void set_mask(Mask const &mask) {
+    iterator_.set_mask(mask);
+  }
 
   /// Gets the mask
   CUTLASS_HOST_DEVICE
-  void get_mask(Mask &mask) { iterator_.get_mask(mask); }
+  void get_mask(Mask &mask) {
+    iterator_.get_mask(mask);
+  }
 
   /// Returns whether access is valid or not
   CUTLASS_HOST_DEVICE
-  bool valid() { return iterator_.valid(); }
+  bool valid() {
+    return iterator_.valid();
+  }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1217,3 +1214,5 @@ class PredicatedTileAccessIterator<Shape_, Element_,
 }  // namespace cutlass
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#endif  // DALI_KERNELS_IMGPROC_CONVOLUTION_CUTLASS_THREADBLOCK_PREDICATED_TILE_ACCESS_ITERATOR_H_
