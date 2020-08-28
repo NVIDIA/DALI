@@ -493,7 +493,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
                  "or equal to CPU_ONLY_DEVICE_ID.");
     DALI_ENFORCE(graph_->NumOp(OpType::GPU) == 0 && graph_->NumOp(OpType::MIXED) == 0,
                  "Cannot run a pipeline with Mixed/GPU ops in CPU-only mode. Please provide "
-                 "valid device id or change the operators device.");
+                 "valid device id or change the operators' device.");
   }
 
   TimeRange tr("[Executor] RunCPU");
