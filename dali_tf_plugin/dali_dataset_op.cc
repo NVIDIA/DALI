@@ -58,6 +58,7 @@ do {                                                                       \
 } while (0)
 
 using namespace tensorflow;
+using namespace tensorflow::data;
 
 namespace dali_tf_impl {
 
