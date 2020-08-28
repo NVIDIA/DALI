@@ -62,9 +62,8 @@ Parameters
     stored in serialized pipeline is used instead).
 `device_id` : int, optional, default = -1
     Id of GPU used by the pipeline.
-    Negative values for this parameter are invalid - the default
-    value may only be used with serialized pipeline (the value
-    stored in serialized pipeline is used instead).
+    A None value for this parameter means that DALI should not use GPU nor CUDA runtime.
+    This limits the pipeline to only CPU operators but allows it to run on any CPU capable machine.
 `seed` : int, optional, default = -1
     Seed used for random number generation. Leaving the default value
     for this parameter results in random seed.
@@ -116,6 +115,8 @@ Parameters
         self._sinks = []
         self._batch_size = batch_size
         self._num_threads = num_threads
+        if device_id is None:
+            device_id = types.CPU_ONLY_DEVICE_ID
         self._device_id = device_id
         self._seed = seed
         self._exec_pipelined = exec_pipelined

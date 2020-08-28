@@ -65,6 +65,8 @@ class NormalizeBase : public Operator<Backend> {
       DALI_ENFORCE(!batch_norm_, "Normalize: Batch normalization cannot be used with parameters "
       "specified as TensorList inputs");
     }
+    mean_.set_pinned(false);
+    inv_stddev_.set_pinned(false);
   }
 
   Normalize<Backend> &This() noexcept

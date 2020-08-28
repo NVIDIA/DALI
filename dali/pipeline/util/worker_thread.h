@@ -69,7 +69,9 @@ class WorkerThread {
   inline WorkerThread(int device_id, bool set_affinity) :
     running_(true), work_complete_(true), barrier_(2) {
 #if NVML_ENABLED
-    nvml::Init();
+    if (device_id != CPU_ONLY_DEVICE_ID) {
+      nvml::Init();
+    }
 #endif
     thread_ = std::thread(&WorkerThread::ThreadMain,
         this, device_id, set_affinity);

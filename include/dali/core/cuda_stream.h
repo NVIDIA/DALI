@@ -36,7 +36,7 @@ class DLL_PUBLIC CUDAStream : public UniqueHandle<cudaStream_t, CUDAStream>{
  public:
   DALI_INHERIT_UNIQUE_HANDLE(cudaStream_t, CUDAStream)
 
-  /// @brief Creates a strean on specified device (or current device, if device_id < 0)
+  /// @brief Creates a stream on specified device (or current device, if device_id < 0)
   static CUDAStream Create(bool non_blocking, int device_id = -1);
 
   /// @brief Creates a stream with given priority on specified device

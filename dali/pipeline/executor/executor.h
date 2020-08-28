@@ -113,7 +113,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
         gpu_op_stream_(0),
         enable_memory_stats_(false) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
-    DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
 
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
   }
@@ -456,7 +455,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   // Create corresponding storage type for TensorNodes in graph
   tensor_to_store_queue_ = CreateBackingStorageForTensorNodes(*graph_, batch_size_, queue_sizes);
   // Setup stream and events that will be used for execution
-  {
+  if (device_id_ != CPU_ONLY_DEVICE_ID) {
     DeviceGuard g(device_id_);
     mixed_op_stream_ = stream_pool_.GetStream();
     gpu_op_stream_ = stream_pool_.GetStream();
@@ -478,7 +477,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   // For each set of outputs, setup another set of
   // workspaces so that nothing has to be altered
   // during execution (this is necessary for
-  // asynchonrous executors that can overlap work issue)
+  // asynchronous executors that can overlap work issue)
   WorkspacePolicy::InitializeWorkspaceStore(*graph_, tensor_to_store_queue_, &thread_pool_,
                                             mixed_op_stream_, gpu_op_stream_, mixed_op_events_,
                                             queue_sizes_);
@@ -489,6 +488,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
+  if (device_id_ < 0) {
+    DALI_ENFORCE(device_id_ == CPU_ONLY_DEVICE_ID, "Wrong device_id provided, it should be >= 0, "
+                 "or equal to CPU_ONLY_DEVICE_ID.");
+    DALI_ENFORCE(graph_->NumOp(OpType::GPU) == 0 && graph_->NumOp(OpType::MIXED) == 0,
+                 "Cannot run a pipeline with Mixed/GPU ops in CPU-only mode. Please provide "
+                 "valid device id or change the operators' device.");
+  }
+
   TimeRange tr("[Executor] RunCPU");
 
   DeviceGuard g(device_id_);
@@ -532,8 +539,19 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
     return;
   }
 
+  // short path for pure CPU pipeline
+  if (device_id_ == CPU_ONLY_DEVICE_ID) {
+    if (callback_) {
+      callback_();
+    }
+    // We do not release, but handle to used outputs
+    QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs, mixed_op_stream_);
+    return;
+  }
+
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
+
   CUDA_CALL(cudaEventSynchronize(mixed_stage_event_));
 
     for (int i = 0; i < graph_->NumOp(OpType::MIXED); ++i) {
@@ -582,6 +600,13 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   auto gpu_idxs = QueuePolicy::AcquireIdxs(OpType::GPU);
   if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(gpu_idxs)) {
     QueuePolicy::ReleaseIdxs(OpType::GPU, gpu_idxs);
+    return;
+  }
+
+  // short path for pure CPU pipeline
+  if (device_id_ == CPU_ONLY_DEVICE_ID) {
+    // We do not release, but handle to used outputs
+    QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
     return;
   }
   DeviceGuard g(device_id_);
@@ -681,12 +706,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
     auto storage_dev = out_tensor.producer.storage_device;
     VALUE_SWITCH(storage_dev, storage_dev_static, (StorageDevice::GPU, StorageDevice::CPU),
     (
-      VALUE_SWITCH(op_type, op_type_static, (OpType::MIXED, OpType::GPU),
+      VALUE_SWITCH(op_type, op_type_static, (OpType::CPU, OpType::MIXED, OpType::GPU),
       (
         auto &queue = get_queue<op_type_static, storage_dev_static>(
             tensor_to_store_queue_[out_tensor_id]);
         auto stage_output_idx = output_idx[op_type_static];
-        ws->AddOutput(queue[stage_output_idx]);
+        ws->AddOutput(PresentAsTensorList(queue[stage_output_idx]));
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     ), DALI_FAIL("Invalid storage device"));  // NOLINT(whitespace/parens)
   }
@@ -813,12 +838,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
       auto tid = node.parent_tensors[j];
       // Use pinned memory only when it is useful
-      if (node.spec.name() == "MakeContiguous" && node.spec.NumOutput() == 1 &&
-          node.spec.OutputDevice(0) == "gpu") {
+      if (node.spec.name() == "MakeContiguous" && node.spec.NumOutput() == 1) {
         auto &parent_tensor_queue =
             get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
         for (auto &tensor : parent_tensor_queue) {
-          tensor->set_pinned(true);
+          tensor->set_pinned(node.spec.OutputDevice(0) == "gpu");
         }
       }
     }

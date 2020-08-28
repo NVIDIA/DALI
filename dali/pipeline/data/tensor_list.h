@@ -276,7 +276,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     shape_ = shape;
     offsets_.clear();
     size_ = 0;
-    device_ = -1;
+    device_ = CPU_ONLY_DEVICE_ID;
 
     // Tensor views of this TensorList is no longer valid
     tensor_views_.clear();

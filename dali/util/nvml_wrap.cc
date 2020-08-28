@@ -95,11 +95,16 @@ bool wrapHasCuda11NvmlFunctions() {
   #endif
 }
 
+
+bool wrapIsInitialized(void) {
+  return symbolsLoaded;
+}
+
 DALIError_t wrapSymbols(void) {
   if (symbolsLoaded)
     return DALISuccess;
 
-  static void* nvmlhandle = NULL;
+  static void* nvmlhandle = nullptr;
   void* tmp;
   void** cast;
 
@@ -111,10 +116,10 @@ DALIError_t wrapSymbols(void) {
     }
   }
 
-#define LOAD_SYM(handle, symbol, funcptr) do {                     \
+#define LOAD_SYM(handle, symbol, funcptr) do {                       \
     cast = reinterpret_cast<void**>(&funcptr);                       \
     tmp = dlsym(handle, symbol);                                     \
-    if (tmp == NULL) {                                               \
+    if (tmp == nullptr) {                                            \
       DALI_FAIL("dlsym failed on " + symbol + " - " + dlerror());    \
     }                                                                \
     *cast = tmp;                                                     \
@@ -127,7 +132,7 @@ DALIError_t wrapSymbols(void) {
     }                                                                        \
     cast = reinterpret_cast<void**>(&funcptr);                               \
     tmp = dlsym(handle, symbol);                                             \
-    if (tmp == NULL) {                                                       \
+    if (tmp == nullptr) {                                                    \
       DALI_FAIL("dlsym failed on " + symbol + " - " + dlerror());            \
     }                                                                        \
     *cast = tmp;                                                             \
@@ -167,7 +172,7 @@ DALIError_t wrapSymbols(void) {
 
 #define FUNC_BODY(INTERNAL_FUNC, ARGS...)            \
   do {                                               \
-    if (INTERNAL_FUNC == NULL) {                     \
+    if (INTERNAL_FUNC == nullptr) {                  \
       return DALIError;                              \
     }                                                \
     nvmlReturn_t ret = INTERNAL_FUNC(ARGS);          \
@@ -185,7 +190,20 @@ DALIError_t wrapNvmlInit(void) {
 }
 
 DALIError_t wrapNvmlShutdown(void) {
-  FUNC_BODY(nvmlInternalShutdown);
+  if (nvmlInternalInit == nullptr) {
+    return DALISuccess;
+  }
+  if (nvmlInternalShutdown == nullptr) {
+    DALI_FAIL("lib wrapper not initialized.");
+    return DALIError;
+  }
+  nvmlReturn_t ret = nvmlInternalShutdown();
+  if (ret != NVML_SUCCESS) {
+    DALI_FAIL("nvmlShutdown() failed: " +
+      nvmlInternalErrorString(ret));
+    return DALIError;
+  }
+  return DALISuccess;
 }
 
 DALIError_t wrapNvmlDeviceGetHandleByPciBusId(const char* pciBusId, nvmlDevice_t* device) {

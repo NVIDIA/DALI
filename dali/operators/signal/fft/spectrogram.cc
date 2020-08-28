@@ -170,6 +170,9 @@ bool SpectrogramImplCpu::SetupImpl(std::vector<OutputDesc> &out_desc,
 
   // Intermediate output buffers
   window_out_.resize(nthreads);
+  for (auto &w : window_out_) {
+    if (!w.raw_data()) w.set_pinned(false);
+  }
 
   kmgr_window_.Initialize<WindowKernel>();
   kmgr_window_.Resize<WindowKernel>(nthreads, nsamples);

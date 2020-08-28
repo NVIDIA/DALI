@@ -34,7 +34,7 @@ def dali_pipe_batch_1(shapes, types, as_single_tuple = False):
             self.decoder = ops.ImageDecoder(device='mixed')
 
         def define_graph(self):
-            data, label = self.reader()
+            data, _ = self.reader()
             image = self.decoder(data)
             return image
 
@@ -48,7 +48,7 @@ def dali_pipe_batch_1(shapes, types, as_single_tuple = False):
     # See if the iteration over different images works
     if as_single_tuple:
         shapes = shapes[0]
-    for i in range(10):
+    for _ in range(10):
         image, = ds_iter.next()
         image_ref, = pipe_ref.run()
         if shapes is None or len(shapes) == 4:
@@ -88,7 +88,7 @@ def dali_pipe_batch_N(shapes, types, batch):
             self.resize = ops.Resize(device="gpu", resize_x = 200, resize_y = 200)
 
         def define_graph(self):
-            data, label = self.reader()
+            data, _ = self.reader()
             image = self.decoder(data)
             resized = self.resize(image)
             return resized
@@ -96,7 +96,7 @@ def dali_pipe_batch_N(shapes, types, batch):
     pipe = TestPipeline(batch_size=batch, seed=0)
     ds = dali_tf.DALIDataset(pipe, batch_size=batch, output_dtypes=types, output_shapes=shapes)
     ds_iter = iter(ds)
-    for i in range(10):
+    for _ in range(10):
         image, = ds_iter.next()
         if shapes is None or len(shapes) == 4:
             assert_equals(image.shape, (batch, 200, 200, 3))
@@ -137,7 +137,7 @@ def dali_pipe_multiple_out(shapes, types, batch):
     pipe = TestPipeline(batch_size=batch, seed=0)
     ds = dali_tf.DALIDataset(pipe, batch_size=batch, output_dtypes=types, output_shapes=shapes)
     ds_iter = iter(ds)
-    for i in range(10):
+    for _ in range(10):
         image, label = ds_iter.next()
         if shapes is None or shapes[0] is None or len(shapes[0]) == 4:
             assert_equals(image.shape, (batch, 200, 200, 3))
@@ -175,7 +175,7 @@ def dali_pipe_artificial_shape(shapes, tf_type, dali_type, batch):
     pipe = TestPipeline(batch_size=batch, seed=0)
     ds = dali_tf.DALIDataset(pipe, batch_size=batch, output_dtypes=tf_type, output_shapes=shapes)
     ds_iter = iter(ds)
-    for i in range(10):
+    for _ in range(10):
         out, = ds_iter.next()
         if len(shapes) == 4:
             assert_equals(out.shape, (batch, 1, 2, 1))
@@ -261,7 +261,7 @@ def dali_pipe_deprecated(dataset_kwargs, shapes, tf_type, dali_type, batch, expe
         ds = dali_tf.DALIDataset(pipe, batch_size=batch, **dataset_kwargs)
         assert_equals(len(w), expected_warnings_count)
         ds_iter = iter(ds)
-        for i in range(10):
+        for _ in range(10):
             out, = ds_iter.next()
             if isinstance(shapes, int) or len(shapes) == 1:
                 assert_equals(out.shape, (2,))

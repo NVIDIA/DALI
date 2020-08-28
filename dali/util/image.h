@@ -91,18 +91,20 @@ typedef int (*outFunc)(const vector<uint8_t> &tmp, int h, int w, int c,
  * @brief Writes an image after applying a scale and bias to get
  * pixel values in the range 0-255
  */
-template <typename T>
+template <typename Backend, typename T>
 void WriteImageScaleBias(const T *img, int h, int w,
     int c, float bias, float scale, const string &file_name, outFunc pFunc) {
   DALI_ENFORCE(img != nullptr);
   DALI_ENFORCE(h >= 0);
   DALI_ENFORCE(w >= 0);
   DALI_ENFORCE(c >= 0);
-  CUDA_CALL(cudaDeviceSynchronize());
 
   vector<uint8_t> cpu_vector(h * w * c, 0);
-  MemCopy(cpu_vector.data(), img, cpu_vector.size(), 0);
-  CUDA_CALL(cudaStreamSynchronize(0));
+  if (std::is_same<Backend, GPUBackend>::value) {
+    MemCopy(cpu_vector.data(), img, cpu_vector.size(), 0);
+  } else {
+    std::copy(img, img + cpu_vector.size(), cpu_vector.data());
+  }
   std::ofstream file(file_name + ".ppm");
   DALI_ENFORCE(file.is_open());
 
@@ -133,10 +135,12 @@ void WriteBatch(const TensorList<Backend> &tl, float bias, float scale, const st
     int h = tl.tensor_shape(i)[permute[0]];
     int w = tl.tensor_shape(i)[permute[1]];
     int c = tl.tensor_shape(i)[permute[2]];
-    WriteImageScaleBias(
-        tl.template tensor<T>(i),
-        h, w, c, bias, scale,
-        std::to_string(i) + "-" + suffix, pFunc);
+    if (std::is_same<Backend, GPUBackend>::value) {
+      CUDA_CALL(cudaDeviceSynchronize());
+    }
+    WriteImageScaleBias<Backend, T>(tl.template tensor<T>(i),
+                        h, w, c, bias, scale,
+                        std::to_string(i) + "-" + suffix, pFunc);
   }
 }
 
