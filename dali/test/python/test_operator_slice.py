@@ -58,7 +58,8 @@ class SliceSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, pos_size_iter,
                  num_threads=1, device_id=0, num_gpus=1,
                  axes=None, axis_names=None, normalized_anchor=True, normalized_shape=True,
-                 extra_outputs=False, out_of_bounds_policy=None, fill_values=None):
+                 extra_outputs=False, out_of_bounds_policy=None, fill_values=None,
+                 input_type=types.FLOAT, output_type=None):
         super(SliceSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
         self.device = device
@@ -69,19 +70,22 @@ class SliceSynthDataPipeline(Pipeline):
         self.input_crop_pos = ops.ExternalSource()
         self.input_crop_size = ops.ExternalSource()
         self.extra_outputs = extra_outputs
+        self.cast_in = ops.Cast(dtype = input_type)
         self.slice = ops.Slice(device = self.device,
-                                normalized_anchor = normalized_anchor,
-                                normalized_shape = normalized_shape,
-                                axes = axes,
-                                axis_names = axis_names,
-                                out_of_bounds_policy = out_of_bounds_policy,
-                                fill_values = fill_values)
+                               dtype = output_type,
+                               normalized_anchor = normalized_anchor,
+                               normalized_shape = normalized_shape,
+                               axes = axes,
+                               axis_names = axis_names,
+                               out_of_bounds_policy = out_of_bounds_policy,
+                               fill_values = fill_values)
 
     def define_graph(self):
         self.data = self.inputs()
         self.crop_pos = self.input_crop_pos()
         self.crop_size = self.input_crop_size()
-        data = self.data.gpu() if self.device == 'gpu' else self.data
+        data = self.cast_in(self.data)
+        data = data.gpu() if self.device == 'gpu' else data
         out = self.slice(data, self.crop_pos, self.crop_size)
         if self.extra_outputs:
             return out, self.data, self.crop_pos, self.crop_size
@@ -253,7 +257,8 @@ class SliceSynthDataPipelinePythonOp(Pipeline):
     def __init__(self, batch_size, layout, iterator, pos_size_iter,
                  num_threads=1, device_id=0, num_gpus=1,
                  axes=None, axis_names=None,
-                 normalized_anchor=True, normalized_shape=True):
+                 normalized_anchor=True, normalized_shape=True,
+                 input_type = types.FLOAT, output_type = None):
         super(SliceSynthDataPipelinePythonOp, self).__init__(
             batch_size, num_threads, device_id,
             seed=12345, exec_async=False, exec_pipelined=False)
@@ -264,18 +269,24 @@ class SliceSynthDataPipelinePythonOp(Pipeline):
         self.inputs = ops.ExternalSource()
         self.input_crop_pos = ops.ExternalSource()
         self.input_crop_size = ops.ExternalSource()
-
+        self.cast_in = ops.Cast(dtype=input_type)
         function = partial(
             slice_func_helper, axes, axis_names, self.layout,
             normalized_anchor, normalized_shape)
         self.slice = ops.PythonFunction(function=function)
+        self.output_type = output_type
+        if self.output_type is not None:
+            self.cast_out = ops.Cast(dtype=output_type)
         self.set_layout = ops.Reshape(layout=layout)
 
     def define_graph(self):
         self.data = self.inputs()
         self.crop_pos = self.input_crop_pos()
         self.crop_size = self.input_crop_size()
-        out = self.slice(self.data, self.crop_pos, self.crop_size)
+        out = self.cast_in(self.data)
+        out = self.slice(out, self.crop_pos, self.crop_size)
+        if self.output_type is not None:
+            out = self.cast_out(out)
         out = self.set_layout(out)
         return out
 
@@ -328,7 +339,7 @@ class SlicePythonOp(Pipeline):
 
 
 def check_slice_synth_data_vs_numpy(device, batch_size, input_shape, layout, axes, axis_names,
-                                    normalized_anchor, normalized_shape):
+                                    normalized_anchor, normalized_shape, input_type, output_type):
     eiis = [RandomDataIterator(batch_size, shape=input_shape)
             for k in range(2)]
     eii_args = [SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,
@@ -339,37 +350,40 @@ def check_slice_synth_data_vs_numpy(device, batch_size, input_shape, layout, axe
     compare_pipelines(
         SliceSynthDataPipeline(device, batch_size, layout, iter(eiis[0]), iter(eii_args[0]),
             axes=axes, axis_names=axis_names, normalized_anchor=normalized_anchor,
-            normalized_shape=normalized_shape),
+            normalized_shape=normalized_shape, input_type=input_type, output_type=output_type),
         SliceSynthDataPipelinePythonOp(batch_size, layout, iter(eiis[0]), iter(eii_args[1]),
             axes=axes, axis_names=axis_names, normalized_anchor=normalized_anchor,
-            normalized_shape=normalized_shape),
+            normalized_shape=normalized_shape, input_type=input_type, output_type=output_type),
         batch_size=batch_size, N_iterations=5)
 
 def test_slice_synth_data_vs_numpy():
     for device in ["cpu", "gpu"]:
         for batch_size in {1, 8}:
-            for input_shape, layout, axes, axis_names in \
-                [((200,400,3), "HWC", None, "WH"),
-                ((200,400,3), "HWC", None, "HW"),
-                ((200,400,3), "HWC", None, "C"),
-                ((200,400,3), "HWC", (1,0), None),
-                ((200,400,3), "HWC", (0,1), None),
-                ((200,400,3), "HWC", (2,), None),
-                ((200,), "H", (0,), None),
-                ((200,), "H", None, "H"),
-                ((200,400), "HW", (1,), None),
-                ((200,400), "HW", None, "W"),
-                ((80, 30, 20, 3), "DHWC", (2,1,0), None),
-                ((80, 30, 20, 3), "DHWC", (0,1,2), None),
-                ((80, 30, 20, 3), "DHWC", (2,1), None),
-                ((80, 30, 20, 3), "DHWC", None, "WHD"),
-                ((80, 30, 20, 3), "DHWC", None, "DHW"),
-                ((80, 30, 20, 3), "DHWC", None, "WH"),
-                ((80, 30, 20, 3), "DHWC", None, "C")]:
+            for input_shape, layout, axes, axis_names, input_type, output_type in \
+                [((200,400,3), "HWC", None, "WH", types.FLOAT, None),
+                ((200,400,3), "HWC", None, "HW", types.FLOAT, None),
+                ((200,400,3), "HWC", None, "HW", types.INT32, types.FLOAT),
+                ((200,400,3), "HWC", None, "HW", types.INT64, types.UINT8),
+                ((200,400,3), "HWC", None, "C", types.FLOAT, None),
+                ((200,400,3), "HWC", (1,0), None, types.FLOAT, None),
+                ((200,400,3), "HWC", (0,1), None, types.FLOAT, None),
+                ((200,400,3), "HWC", (2,), None, types.FLOAT, None),
+                ((200,), "H", (0,), None, types.FLOAT, None),
+                ((200,), "H", None, "H", types.FLOAT, None),
+                ((200,400), "HW", (1,), None, types.FLOAT, None),
+                ((200,400), "HW", None, "W", types.FLOAT, None),
+                ((80, 30, 20, 3), "DHWC", (2,1,0), None, types.FLOAT, None),
+                ((80, 30, 20, 3), "DHWC", (0,1,2), None, types.FLOAT, None),
+                ((80, 30, 20, 3), "DHWC", (2,1), None, types.FLOAT, None),
+                ((80, 30, 20, 3), "DHWC", None, "WHD", types.FLOAT, None),
+                ((80, 30, 20, 3), "DHWC", None, "DHW", types.FLOAT, None),
+                ((80, 30, 20, 3), "DHWC", None, "WH", types.FLOAT, None),
+                ((80, 30, 20, 3), "DHWC", None, "C", types.FLOAT, None)]:
                 for normalized_anchor in [True, False]:
                     for normalized_shape in [True, False]:
                         yield check_slice_synth_data_vs_numpy, device, batch_size, \
-                            input_shape, layout, axes, axis_names, normalized_anchor, normalized_shape
+                            input_shape, layout, axes, axis_names, normalized_anchor, normalized_shape, \
+                            input_type, output_type
 
 def check_slice_vs_fused_decoder(device, batch_size, axes, axis_names):
     eii_args = [SliceArgsIterator(batch_size, image_layout="HWC", axes=axes, axis_names=axis_names)

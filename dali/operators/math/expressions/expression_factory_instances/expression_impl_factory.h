@@ -48,7 +48,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryUnOp(const ExprFunc &expr) {
     } else {
       DALI_FAIL("Expression cannot have a constant operand");
     }
-  ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL(make_string("Unsupported type: ", input_type)););  // NOLINT(whitespace/parens)
   return result;
 }
 
@@ -94,14 +94,14 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
       } else if (IsScalarLike(expr[0]) && expr[1].GetNodeType() == NodeType::Tensor) {
         result.reset( new ImplConstantTensor<op, Out_t, Left_t, Right_t>());
       } else if (expr[0].GetNodeType() == NodeType::Tensor &&
-                  expr[1].GetNodeType() == NodeType::Tensor) {
+                 expr[1].GetNodeType() == NodeType::Tensor) {
         // Both are non-scalar tensors
         result.reset(new ImplTensorTensor<op, Out_t, Left_t, Right_t>());
       } else {
         DALI_FAIL("Expression cannot have two scalar operands");
       }
-    ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
-  ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
+    ), DALI_FAIL(make_string("Invalid type (right operand): ", right_type)););  // NOLINT
+  ), DALI_FAIL(make_string("Invalid type (left operarand): ", left_type)););  // NOLINT
   return result;
 }
 

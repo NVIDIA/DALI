@@ -67,7 +67,7 @@ std::once_flag driver_check;
  * and wrapNvmlInit be intialized first. If they are not it will warn and return INF driver version
  * and all checks will fail
  */
-bool is_driver_sufficient(float driverVersion) {
+bool is_driver_sufficient(float requestedDriverVersion) {
   static float availableDriverVersion = std::numeric_limits<float>::max();
 
   std::call_once(driver_check, [] {
@@ -80,7 +80,7 @@ bool is_driver_sufficient(float driverVersion) {
       availableDriverVersion = std::stof(version);
     });
 
-  return driverVersion >= availableDriverVersion;
+  return requestedDriverVersion <= availableDriverVersion;
 }
 
 }  // namespace

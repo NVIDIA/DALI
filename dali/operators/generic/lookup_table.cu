@@ -77,7 +77,7 @@ void LookupTable<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
         out_data, in_data, data_size,
         lookup_table, default_value);
     )
-  ), DALI_FAIL("Unsupported input type"); );     // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())); ); // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(LookupTable, LookupTable<GPUBackend>, GPU);

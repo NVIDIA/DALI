@@ -71,8 +71,8 @@ void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
               kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout, tvin,
                                           addends_, multipliers_);
           }
-      ), DALI_FAIL("Unsupported output type"))  // NOLINT
-  ), DALI_FAIL("Unsupported input type"))  // NOLINT
+      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
 }
 
 }  // namespace dali

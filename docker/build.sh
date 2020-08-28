@@ -4,7 +4,7 @@ usage="ENV1=VAL1 ENV2=VAL2 [...] $(basename "$0") [-h] -- this is simple, one cl
 a build environment
 
 To change build configuration please export appropriate env variables (for exact meaning please check the README):
-PYVER=[default 3.6]
+PYVER=[default 3.6, required only by Run image]
 CUDA_VERSION=[default 11.0, accepts also 10.0]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
@@ -72,15 +72,32 @@ export DEPS_IMAGE=nvidia/dali:cu${CUDA_VER}_${ARCH}.deps
 export CUDA_DEPS_IMAGE=nvidia/dali:cuda${CUDA_VER}_${ARCH}.toolkit
 export BUILDER=nvidia/dali:cu${CUDA_VER}_${ARCH}.build
 export BUILDER_WHL=nvidia/dali:cu${CUDA_VER}_${ARCH}.build_whl
-export BUILDER_DALI_TF_BASE_MANYLINUX1=nvidia/dali:cu${CUDA_VER}.build_tf_base_manylinux1
 export BUILDER_DALI_TF_BASE_MANYLINUX2010=nvidia/dali:cu${CUDA_VER}.build_tf_base_manylinux2010
 export BUILDER_DALI_TF_BASE_WITH_WHEEL=nvidia/dali:cu${CUDA_VER}.build_tf_base_with_whl
-export BUILDER_DALI_TF_MANYLINUX1=nvidia/dali:cu${CUDA_VER}.build_tf_manylinux1
 export BUILDER_DALI_TF_MANYLINUX2010=nvidia/dali:cu${CUDA_VER}.build_tf_manylinux2010
 export BUILDER_DALI_TF_SDIST=nvidia/dali:cu${CUDA_VER}_${ARCH}.build_tf_sdist
 export RUN_IMG=nvidia/dali:py${PYV}_cu${CUDA_VER}.run
 export GIT_SHA=$(git rev-parse HEAD)
 export DALI_TIMESTAMP=$(date +%Y%m%d)
+
+# Find out which CLI options to use for NVIDIA Container Toolkit needed for TF PLUGIN build
+if [[ "$BUILD_TF_PLUGIN" = "YES" ]]; then
+  if docker run --gpus all nvidia/cuda:${CUDA_VERSION}-base nvidia-smi ; then
+    export NVDOCKER_COMMAND="docker run --gpus all"
+  elif docker run --runtime nvidia nvidia/cuda:${CUDA_VERSION}-base nvidia-smi ; then
+    export NVDOCKER_COMMAND="docker run --runtime nvidia"
+  elif nvidia-docker run nvidia/cuda:${CUDA_VERSION}-base nvidia-smi ; then
+    export NVDOCKER_COMMAND="nvidia-docker run"
+  else
+    echo "Unable to use NVIDIA Container Toolkit."
+    echo "which is required when BUILD_TF_PLUGIN = YES"
+    echo "Unable to use deprecated nvidia-docker2."
+    echo "Make sure one of them is installed."
+    exit 1
+  fi
+fi
+
+echo "NVIDIA Container Toolkit will use: \"$NVDOCKER_COMMAND\" command"
 
 set -o errexit
 
@@ -100,20 +117,13 @@ if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${BUILDER} 2> /dev/null
                                --build-arg "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" --target builder -f docker/Dockerfile .
 fi
 
-if [[ "$BUILD_TF_PLUGIN" == "YES" && "${PREBUILD_TF_PLUGINS}" == "YES" && ("$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${BUILDER_DALI_TF_BASE_MANYLINUX1} 2> /dev/null)" == "" || "$(docker images -q ${BUILDER_DALI_TF_BASE_MANYLINUX2010} 2> /dev/null)"  == "") ]]; then
-    echo "Build DALI TF base (manylinux1)"
-    TF_CUSTOM_OP_IMAGE_MANYLINUX1="tensorflow/tensorflow:custom-op-gpu-ubuntu14"
-    docker build -t ${BUILDER_DALI_TF_BASE_MANYLINUX1} \
-           --build-arg "TF_CUSTOM_OP_IMAGE=${TF_CUSTOM_OP_IMAGE_MANYLINUX1}" \
-           --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" \
-           -f docker/Dockerfile.customopbuilder.clean .
+if [[ "$BUILD_TF_PLUGIN" == "YES" && "${PREBUILD_TF_PLUGINS}" == "YES" && ("$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${BUILDER_DALI_TF_BASE_MANYLINUX2010} 2> /dev/null)"  == "") ]]; then
     echo "Build DALI TF base (manylinux2010)"
     TF_CUSTOM_OP_IMAGE_MANYLINUX2010="tensorflow/tensorflow:custom-op-gpu-ubuntu16"
     docker build -t ${BUILDER_DALI_TF_BASE_MANYLINUX2010} \
            --build-arg "TF_CUSTOM_OP_IMAGE=${TF_CUSTOM_OP_IMAGE_MANYLINUX2010}" \
            --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" \
            -f docker/Dockerfile.customopbuilder.clean .
-
 fi
 
 if [ "$BUILD_INHOST" == "YES" ]; then
@@ -181,38 +191,6 @@ else
                                    -f docker/Dockerfile .
 fi
 
-
-if [ "$CREATE_RUNNER" == "YES" ]; then
-    echo "Runner image:" ${RUN_IMG}
-    echo "You can run this image with DALI installed inside, keep in mind to install neccessary FW package as well"
-    if [ ${CUDA_VER} == "100" ] ; then
-        export CUDA_IMAGE_NAME="nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04"
-    elif [ ${CUDA_VER} == "111" ] ; then
-        export CUDA_IMAGE_NAME="nvidia/cuda:11.0-cudnn8-devel-ubuntu18.04"
-    else
-        echo "**************************************************************"
-        echo "Not supported CUDA version"
-        echo "**************************************************************"
-    fi
-    echo ${CUDA_VER}
-    echo ${CUDA_IMAGE_NAME}
-    export BUILDER_TMP=${BUILDER_WHL}
-    # for intree build we don't have docker image with whl inside so create one
-    if [ "$BUILD_INHOST" = "YES" ]; then
-        export BUILDER_TMP=${BUILDER}_tmp
-        DOCKER_FILE_TMP=$(mktemp)
-        echo -e "FROM scratch\n"          \
-                "COPY ./${DALI_BUILD_DIR}/nvidia* /wheelhouse/\n" > ${DOCKER_FILE_TMP}
-        docker build -t ${BUILDER_TMP} -f ${DOCKER_FILE_TMP} .
-        rm ${DOCKER_FILE_TMP}
-    fi
-    docker build -t ${RUN_IMG} --build-arg "BUILD_IMAGE_NAME=${BUILDER_TMP}" --build-arg "CUDA_IMAGE_NAME=${CUDA_IMAGE_NAME}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" -f Docker_run_cuda .
-    # remove scratch image
-    if [ "$BUILD_INHOST" = "YES" ]; then
-        docker rmi ${BUILDER_TMP}
-    fi
-fi
-
 mkdir -p ./wheelhouse/
 
 if [ "$CREATE_WHL" == "YES" ]; then
@@ -240,7 +218,7 @@ if [[ "$CREATE_WHL" == "YES" && "$BUILD_TF_PLUGIN" = "YES" ]]; then
 #            -f docker/Dockerfile_dali_tf \
 #            --target base_with_wheel \
 #            .
-#     nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER} \
+#     $NVDOCKER_COMMAND --name ${DALI_TF_BUILDER_CONTAINER} \
 #            --user root -v $(pwd):/opt/dali -v ${tmp_wheelhouse}:/dali_tf_sdist \
 #            ${BUILDER_DALI_TF_BASE_WITH_WHEEL} /bin/bash -c \
 #            "cd /opt/dali/dali_tf_plugin &&                \
@@ -253,26 +231,17 @@ if [[ "$CREATE_WHL" == "YES" && "$BUILD_TF_PLUGIN" = "YES" ]]; then
 
     mkdir -p ./dali_tf_plugin/prebuilt/;
     if [ "${PREBUILD_TF_PLUGINS}" == "YES" ]; then
-        echo "Build image:" ${BUILDER_DALI_TF_MANYLINUX1}
-        docker build -t ${BUILDER_DALI_TF_MANYLINUX1} -f docker/Dockerfile_dali_tf \
-            --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${BUILDER_DALI_TF_BASE_MANYLINUX1}" \
-            .
-        export DALI_TF_BUILDER_CONTAINER_MANYLINUX1="extract_dali_tf_prebuilt_manylinux1"
-        nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER_MANYLINUX1} ${BUILDER_DALI_TF_MANYLINUX1} /bin/bash -c 'source /opt/dali/dali_tf_plugin/build_in_custom_op_docker.sh'
-        docker cp "${DALI_TF_BUILDER_CONTAINER_MANYLINUX1}:/prebuilt/." "prebuilt_manylinux1"
-        docker rm -f "${DALI_TF_BUILDER_CONTAINER_MANYLINUX1}"
-
         echo "Build image:" ${BUILDER_DALI_TF_MANYLINUX2010}
         docker build -t ${BUILDER_DALI_TF_MANYLINUX2010} -f docker/Dockerfile_dali_tf \
             --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${BUILDER_DALI_TF_BASE_MANYLINUX2010}" \
             .
         export DALI_TF_BUILDER_CONTAINER_MANYLINUX2010="extract_dali_tf_prebuilt_manylinux2010"
-        nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER_MANYLINUX2010} ${BUILDER_DALI_TF_MANYLINUX2010} /bin/bash -c 'source /opt/dali/dali_tf_plugin/build_in_custom_op_docker.sh'
+        $NVDOCKER_COMMAND --name ${DALI_TF_BUILDER_CONTAINER_MANYLINUX2010} ${BUILDER_DALI_TF_MANYLINUX2010} /bin/bash -c 'source /opt/dali/dali_tf_plugin/build_in_custom_op_docker.sh'
         docker cp "${DALI_TF_BUILDER_CONTAINER_MANYLINUX2010}:/prebuilt/." "prebuilt_manylinux2010"
         docker rm -f "${DALI_TF_BUILDER_CONTAINER_MANYLINUX2010}"
 
-        cp -r ./prebuilt_manylinux1/* ./prebuilt_manylinux2010/* ./dali_tf_plugin/prebuilt/;
-        rm -rf ./prebuilt_manylinux2010/ ./prebuilt_manylinux1/
+        cp -r ./prebuilt_manylinux2010/* ./dali_tf_plugin/prebuilt/;
+        rm -rf ./prebuilt_manylinux2010/
     fi
 
     docker build -t ${BUILDER_DALI_TF_SDIST} \
@@ -284,7 +253,7 @@ if [[ "$CREATE_WHL" == "YES" && "$BUILD_TF_PLUGIN" = "YES" ]]; then
            --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
            . ;
     export DALI_TF_BUILDER_CONTAINER_SDIST="extract_dali_tf_sdist"
-    nvidia-docker run --name "${DALI_TF_BUILDER_CONTAINER_SDIST}" "${BUILDER_DALI_TF_SDIST}" /bin/bash -c \
+    $NVDOCKER_COMMAND --name "${DALI_TF_BUILDER_CONTAINER_SDIST}" "${BUILDER_DALI_TF_SDIST}" /bin/bash -c \
         'cd /opt/dali/dali_tf_plugin && source make_dali_tf_sdist.sh'
     docker cp "${DALI_TF_BUILDER_CONTAINER_SDIST}:/dali_tf_sdist/." "dali_tf_sdist"
     cp dali_tf_sdist/*.tar.gz wheelhouse/
@@ -295,5 +264,37 @@ if [[ "$CREATE_WHL" == "YES" && "$BUILD_TF_PLUGIN" = "YES" ]]; then
     rm -rf dali_tf_sdist/
 # fi
 fi
+
+if [ "$CREATE_RUNNER" == "YES" ]; then
+    echo "Runner image:" ${RUN_IMG}
+    echo "You can run this image with DALI installed inside, keep in mind to install neccessary FW package as well"
+    if [ ${CUDA_VER} == "100" ] ; then
+        export CUDA_IMAGE_NAME="nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04"
+    elif [ ${CUDA_VER} == "110" ] ; then
+        export CUDA_IMAGE_NAME="nvidia/cuda:11.0-cudnn8-devel-ubuntu18.04"
+    else
+        echo "**************************************************************"
+        echo "Not supported CUDA version"
+        echo "**************************************************************"
+    fi
+    echo ${CUDA_VER}
+    echo ${CUDA_IMAGE_NAME}
+    export BUILDER_TMP=${BUILDER_WHL}
+    # for intree build we don't have docker image with whl inside so create one
+    if [ "$BUILD_INHOST" = "YES" ]; then
+        export BUILDER_TMP=${BUILDER}_tmp
+        DOCKER_FILE_TMP=$(mktemp)
+        echo -e "FROM scratch\n"          \
+                "COPY ./wheelhouse/nvidia* /wheelhouse/\n" > ${DOCKER_FILE_TMP}
+        docker build -t ${BUILDER_TMP} -f ${DOCKER_FILE_TMP} .
+        rm ${DOCKER_FILE_TMP}
+    fi
+    docker build -t ${RUN_IMG} --build-arg "BUILD_IMAGE_NAME=${BUILDER_TMP}" --build-arg "CUDA_IMAGE_NAME=${CUDA_IMAGE_NAME}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" -f docker/Docker_run_cuda .
+    # remove scratch image
+    if [ "$BUILD_INHOST" = "YES" ]; then
+        docker rmi ${BUILDER_TMP}
+    fi
+fi
+
 
 popd

@@ -86,4 +86,12 @@ TEST(ConvertNorm, int2float) {
   EXPECT_NEAR((ConvertNorm<float, int8_t>(64)), 1.0f*64/127, 1e-7f);
 }
 
+TEST(Clamp, int64_2_float16) {
+  int64_t big_num = 0x0FFFFFFFFFFFFFFF;
+  EXPECT_EQ(static_cast<float>(clamp<float16>(big_num)), clamp<float16>(clamp<float>(big_num)));
+  EXPECT_EQ(65504.0f, clamp<float16>(big_num));
+  EXPECT_EQ(-65504.0f, clamp<float16>(-big_num));
+}
+
+
 }  // namespace dali

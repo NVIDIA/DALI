@@ -655,19 +655,12 @@ inline std::string to_string(ArithmeticOp op) {
  */
 inline DALIDataType BinaryTypePromotion(DALIDataType left, DALIDataType right) {
   DALIDataType result = DALIDataType::DALI_NO_TYPE;
-  TYPE_SWITCH(left, type2id, Left_t, ARITHMETIC_ALLOWED_TYPES,
-    (
-      TYPE_SWITCH(right, type2id, Right_t, ARITHMETIC_ALLOWED_TYPES,
-        (
-          using Result_t = binary_result_t<Left_t, Right_t>;
-          result = TypeInfo::Create<Result_t>().id();
-        ),  // NOLINT(whitespace/parens)
-        (DALI_FAIL("Right operand data type not supported, DALIDataType: " +
-            std::to_string(right));)
-      );   // NOLINT(whitespace/parens)
-    ),  // NOLINT(whitespace/parens)
-    (DALI_FAIL("Left operand data type not supported, DALIDataType: " + std::to_string(left));)
-  );  // NOLINT(whitespace/parens)
+  TYPE_SWITCH(left, type2id, Left_t, ARITHMETIC_ALLOWED_TYPES, (
+    TYPE_SWITCH(right, type2id, Right_t, ARITHMETIC_ALLOWED_TYPES, (
+        using Result_t = binary_result_t<Left_t, Right_t>;
+        result = TypeInfo::Create<Result_t>().id();
+    ), (DALI_FAIL(make_string("Right operand data type not supported, DALIDataType: ", right));))  // NOLINT
+  ), (DALI_FAIL(make_string("Left operand data type not supported, DALIDataType: ", left));));  // NOLINT
   return result;
 }
 

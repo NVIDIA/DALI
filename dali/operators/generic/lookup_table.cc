@@ -45,7 +45,7 @@ void LookupTable<CPUBackend>::RunImpl(SampleWorkspace &ws) {
         }
       }
     )
-  ), DALI_FAIL("Unsupported input type"); );     // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())); );     // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(LookupTable, LookupTable<CPUBackend>, CPU);

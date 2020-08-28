@@ -86,8 +86,8 @@ class NormalizeBase : public Operator<Backend> {
     TYPE_SWITCH(input_type_, type2id, InputType, DALI_NORMALIZE_INPUT_TYPES, (
       TYPE_SWITCH(output_type_, type2id, OutputType, DALI_NORMALIZE_OUTPUT_TYPES, (
         This().template SetupTyped<OutputType, InputType>(ws);
-      ), (DALI_FAIL("Normalize: unsupported output type")))  // NOLINT
-    ), (DALI_FAIL("Normalize: unsupported input type")));    // NOLINT
+      ), (DALI_FAIL(make_string("Normalize: unsupported output type: ", output_type_))))  // NOLINT
+    ), (DALI_FAIL(make_string("Normalize: unsupported input type: ", input_type_))));    // NOLINT
     return true;
   }
 

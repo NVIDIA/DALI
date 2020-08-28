@@ -13,6 +13,8 @@ Prerequisites
 
 .. |docker link| replace:: **Docker**
 .. _docker link: https://docs.docker.com/install/
+.. |nvidia_docker| replace:: **NVIDIA Container Toolkit**
+.. _nvidia_docker: https://github.com/NVIDIA/nvidia-docker
 
 .. table::
    :align: center
@@ -22,6 +24,13 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |docker link|_                         | Follow installation guide and manual at the link (version 17.05 or later is required).      |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |nvidia_docker|_                       | Follow installation guide and manual at the link.                                           |
+   |                                        |                                                                                             |
+   |                                        | Using NVIDIA Container Toolkit is recommended as nvidia-docker2 is deprecated               |
+   |                                        | but both are supported.                                                                     |
+   |                                        |                                                                                             |
+   |                                        | Required for building DALI TensorFlow Plugin.                                               |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
 
 Building Python wheel and (optionally) Docker image
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -29,8 +38,6 @@ Building Python wheel and (optionally) Docker image
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed,
 set the following environment variables:
 
-* | PYVER - Python version used to create a docker image with DALI installed inside.
-  | The default is ``3.6``.
 * | CUDA_VERSION - CUDA toolkit version (10.0 or 11.0).
   | The default is ``11.0``. If the value of the version is prefixed with `.` then any value
     ``.XX.Y`` can be passed, script check for the supported version is bypased and the user needs
@@ -51,8 +58,11 @@ set the following environment variables:
     installation of DALI TensorFlow plugin package. If is BUILD_TF_PLUGIN is set to ``NO``
     PREBUILD_TF_PLUGINS value is disregarded. The default is ``YES``.
 * | CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside.
-  | It will create the ``Docker_run_cuda`` image, which needs to be run using ``nvidia-docker``
-    and DALI wheel in the ``wheelhouse`` directory under$
+  | It will create the ``Docker_run_cuda`` image, which needs to be run using |nvidia_docker|_
+    and place the DALI wheel (and optionally the TensorFlow plugin if compiled) in the ``/opt/dali`` directory.
+  | The default is ``NO``.
+* | PYVER - Python version used to create the runner image with DALI installed inside mentioned above.
+  | The default is ``3.6``.
 * DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package description,
   i.e. `nightly` will result in the `nvidia-dali-nightly`
 * | CMAKE_BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo.
@@ -74,7 +84,7 @@ set the following environment variables:
     (SBSA - Server Base System Architecture) are supported.
   | The default is ``x86_64``.
 * | WHL_PLATFORM_NAME - the name of the Python wheel platform tag.
-  | The default is ``manylinux1_x86_64``.
+  | The default is ``manylinux2014_x86_64``.
 
 It is worth to mention that build.sh should accept the same set of environment variables as the project CMake.
 
@@ -82,15 +92,16 @@ The recommended command line is:
 
 .. code-block:: bash
 
-  PYVER=X.Y CUDA_VERSION=Z ./build.sh
+  CUDA_VERSION=Z ./build.sh
 
 For example:
 
 .. code-block:: bash
 
-  PYVER=3.6 CUDA_VERSION=11.0 ./build.sh
+  CUDA_VERSION=11.0 ./build.sh
 
-Will build CUDA 11.0 based DALI for Python 3.6 and place relevant Python wheel inside DALI_root/wheelhouse
+Will build CUDA 11.0 based DALI for Python 3 and place relevant Python wheel inside DALI_root/wheelhouse
+The produced DALI wheel and TensorFlow Plugin are compatible with all Python versions supported by DALI.
 
 ----
 

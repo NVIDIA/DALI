@@ -55,8 +55,8 @@ void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
 
     TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
       BatchedCast(output.mutable_data<OType>(), input.data<IType>(), input.size(), ws.stream());
-    ), DALI_FAIL("Invalid input type"););  // NOLINT(whitespace/parens)
-  ), DALI_FAIL("Invalid output type"););  // NOLINT(whitespace/parens)
+    ), DALI_FAIL(make_string("Invalid input type: ", itype)););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL(make_string("Invalid output type: ", output_type_)););  // NOLINT(whitespace/parens)
 }
 
 DALI_REGISTER_OPERATOR(Cast, Cast<GPUBackend>, GPU);

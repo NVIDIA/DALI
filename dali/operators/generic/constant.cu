@@ -93,7 +93,7 @@ void Constant<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
           assert(!idata_.empty());
           FillTensorList<type>(output_, output_shape_, idata_, ws.stream());
         }
-      ), (DALI_FAIL(make_string("Unsupported type: ", to_string(output_type_)))));  // NOLINT
+      ), (DALI_FAIL(make_string("Unsupported type: ", output_type_))));  // NOLINT
   }
   auto &out = ws.OutputRef<GPUBackend>(0);
 
