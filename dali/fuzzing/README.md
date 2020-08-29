@@ -2,7 +2,7 @@
 
 This is instruction how to run fuzzing on DALI.
 
-Goal of fuzzing is to find bugs in software. Fuzzer runs given binary multiple times with different inputs to look for possible problems. It generates inputs as it goes based on feedback from tested binary. This feedback includes execution paths, previously seen errors etc. This gives better results than random search as space of possible inputs may be huge.
+The goal of fuzzing is to find bugs in software. Fuzzer runs given binary multiple times with different inputs to look for possible problems. It generates inputs as it goes based on feedback from the tested binary. This feedback includes execution paths, previously seen errors etc. This gives better results than random search as space of possible inputs may be huge.
 
 As a tool to run fuzzing we use [American Fuzzy Lop](https://github.com/google/AFL).
 

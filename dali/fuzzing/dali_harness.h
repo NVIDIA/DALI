@@ -25,25 +25,21 @@
 #include "dali/test/dali_test_config.h"
 
 namespace dali {
-class DecoderHarness {
+class FileListHarness {
  public:
-  DecoderHarness(
+  FileListHarness(
     string &path,
     string file_extension = ".jpg",
-    int batch_size = 4,
-    int num_threads = 4,
     int device_id = 0) :
-      batch_size_(batch_size),
-      pipeline_(batch_size, num_threads, device_id) {
+      device_id_(device_id) {
     const string jpeg_folder = make_string(
       testing::dali_extra_path(),
       "/db/fuzzing/");
-    image_names_ = ImageList(jpeg_folder, {file_extension}, batch_size_ - 1);
+    image_names_ = ImageList(jpeg_folder, {file_extension});
     image_names_.push_back(path);
+    batch_size_ = image_names_.size();
     LoadImages(image_names_, &images_);
-
     MakeBatch();
-    SetupPipeline();
   }
 
   void MakeBatch() {
@@ -64,45 +60,57 @@ class DecoderHarness {
     }
   }
 
-  virtual void SetupPipeline() {
-    pipeline_.AddExternalInput("raw_images");
-    pipeline_.SetExternalInput("raw_images", input_data_);
+  virtual void SetupPipeline(Pipeline &pipeline) = 0;
 
-    pipeline_.AddOperator(
+  void Run() {
+    Pipeline pipeline(batch_size_, 4, device_id_);
+    SetupPipeline(pipeline);
+
+    DeviceWorkspace ws;
+    pipeline.RunCPU();
+    pipeline.RunGPU();
+    pipeline.Outputs(&ws);
+  }
+
+  virtual ~FileListHarness() {}
+
+ protected:
+  int batch_size_;
+  int device_id_;
+  TensorList<CPUBackend> input_data_;
+  vector<string> image_names_;
+  ImgSetDescr images_;
+};
+
+class DecoderHarness : public FileListHarness {
+ public:
+  explicit DecoderHarness(string &path, int device_id = 0) :
+    FileListHarness(path, ".jpg",  device_id) { }
+
+  void SetupPipeline(Pipeline &pipeline) override {
+    pipeline.AddExternalInput("raw_images");
+    pipeline.SetExternalInput("raw_images", input_data_);
+
+    pipeline.AddOperator(
       OpSpec("ImageDecoder")
         .AddArg("device", "mixed")
         .AddArg("output_type", DALI_RGB)
         .AddInput("raw_images", "cpu")
         .AddOutput("images", "gpu"));
-    pipeline_.Build({{"images", "gpu"}});
+    pipeline.Build({{"images", "gpu"}});
   }
-
-  void Run() {
-    DeviceWorkspace ws;
-    pipeline_.RunCPU();
-    pipeline_.RunGPU();
-    pipeline_.Outputs(&ws);
-  }
-
- protected:
-  int batch_size_;
-  Pipeline pipeline_;
-  TensorList<CPUBackend> input_data_;
-
-  vector<string> image_names_;
-  ImgSetDescr images_;
 };
 
-class ResNetHarness : public DecoderHarness {
+class ResNetHarness : public FileListHarness {
  public:
-  explicit ResNetHarness(string &path, int batch_size = 4, int num_threads = 4, int device_id = 0) :
-    DecoderHarness(path, ".bmp", batch_size, num_threads, device_id) { }
+  explicit ResNetHarness(string &path, int device_id = 0) :
+    FileListHarness(path, ".bmp",  device_id) { }
 
-  void SetupPipeline() override {
-    pipeline_.AddExternalInput("raw_images");
-    pipeline_.SetExternalInput("raw_images", input_data_);
+  void SetupPipeline(Pipeline &pipeline) override {
+    pipeline.AddExternalInput("raw_images");
+    pipeline.SetExternalInput("raw_images", input_data_);
 
-    pipeline_.AddOperator(
+    pipeline.AddOperator(
       OpSpec("ImageDecoder")
         .AddArg("device", "cpu")
         .AddArg("output_type", DALI_RGB)
@@ -110,26 +118,26 @@ class ResNetHarness : public DecoderHarness {
         .AddOutput("images", "cpu"));
 
     // Add uniform RNG
-    pipeline_.AddOperator(
+    pipeline.AddOperator(
         OpSpec("Uniform")
         .AddArg("device", "cpu")
         .AddArg("range", vector<float>{0, 1})
         .AddOutput("uniform1", "cpu"));
 
-    pipeline_.AddOperator(
+    pipeline.AddOperator(
         OpSpec("Uniform")
         .AddArg("device", "cpu")
         .AddArg("range", vector<float>{0, 1})
         .AddOutput("uniform2", "cpu"));
 
-    pipeline_.AddOperator(
+    pipeline.AddOperator(
         OpSpec("Uniform")
         .AddArg("device", "cpu")
         .AddArg("range", vector<float>{256, 480})
         .AddOutput("resize", "cpu"));
 
     // Add coin flip RNG for mirror mask
-    pipeline_.AddOperator(
+    pipeline.AddOperator(
         OpSpec("CoinFlip")
         .AddArg("device", "cpu")
         .AddArg("probability", 0.5f)
@@ -137,7 +145,7 @@ class ResNetHarness : public DecoderHarness {
 
     std::string resize_op = "FastResizeCropMirror";
     // Add a resize+crop+mirror op
-    pipeline_.AddOperator(
+    pipeline.AddOperator(
         OpSpec(resize_op)
         .AddArg("device", "cpu")
         .AddArg("crop", vector<float>{224, 224})
@@ -148,7 +156,7 @@ class ResNetHarness : public DecoderHarness {
         .AddArgumentInput("resize_shorter", "resize")
         .AddOutput("resized", "cpu"));
 
-    pipeline_.AddOperator(
+    pipeline.AddOperator(
         OpSpec("CropMirrorNormalize")
         .AddArg("device", "cpu")
         .AddArg("dtype", DALI_FLOAT16)
@@ -158,8 +166,7 @@ class ResNetHarness : public DecoderHarness {
         .AddOutput("final_batch", "cpu"));
 
     // Build and run the pipeline
-    vector<std::pair<string, string>> outputs = {{"final_batch", "gpu"}};
-    pipeline_.Build(outputs);
+    pipeline.Build({{"final_batch", "gpu"}});
   }
 };
 
