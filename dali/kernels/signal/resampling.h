@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,9 @@
 #ifndef DALI_KERNELS_SIGNAL_RESAMPLING_H_
 #define DALI_KERNELS_SIGNAL_RESAMPLING_H_
 
+#ifdef __SSE2__
+#include <emmintrin.h>
+#endif
 #include <cmath>
 #include <functional>
 #include <utility>
@@ -48,6 +51,22 @@ struct ResamplingWindow {
     assert(i >= 0 && i < static_cast<int>(lookup.size()));
     return lookup[i] + di * (lookup[i + 1] - lookup[i]);
   }
+
+#ifdef __SSE2__
+  inline __m128 operator()(__m128 x) const {
+    __m128 fi = _mm_add_ps(x * _mm_set1_ps(scale), _mm_set1_ps(center));
+    __m128i i = _mm_cvtps_epi32(fi);
+    __m128 fifloor = _mm_cvtepi32_ps(i);
+    __m128 di = _mm_sub_ps(fi, fifloor);
+    int idx[4];
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(idx), i);
+    __m128 curr = _mm_setr_ps(lookup[idx[0]],   lookup[idx[1]],
+                              lookup[idx[2]],   lookup[idx[3]]);
+    __m128 next = _mm_setr_ps(lookup[idx[0]+1], lookup[idx[1]+1],
+                              lookup[idx[2]+1], lookup[idx[3]+1]);
+    return _mm_add_ps(curr, _mm_mul_ps(di, _mm_sub_ps(next, curr)));
+  }
+#endif
 
 
   float scale = 1, center = 1;
@@ -116,9 +135,25 @@ struct Resampler {
         if (i1 + in_block_i >= n_in)
           i1 = n_in - 1 - in_block_i;
         float f = 0;
-        float x = i0 - in_pos;
-        for (int i = i0; i <= i1; i++, x++) {
-          assert(in_block_ptr + i >= in && in_block_ptr + i < in + n_in);
+        int i = i0;
+
+#ifdef __SSE2__
+        __m128 f4 = _mm_setzero_ps();
+        __m128 x4 = _mm_setr_ps(i - in_pos, i+1 - in_pos, i+2 - in_pos, i+3 - in_pos);
+        for (; i + 3 <= i1; i += 4) {
+          __m128 w4 = window(x4);
+
+          f4 = _mm_add_ps(f4, _mm_mul_ps(_mm_loadu_ps(in_block_ptr + i), w4));
+          x4 = _mm_add_ps(x4, _mm_set1_ps(4));
+        }
+
+        f4 = _mm_add_ps(f4, _mm_shuffle_ps(f4, f4, _MM_SHUFFLE(1, 0, 3, 2)));
+        f4 = _mm_add_ps(f4, _mm_shuffle_ps(f4, f4, _MM_SHUFFLE(0, 1, 0, 1)));
+        f = _mm_cvtss_f32(f4);
+#endif
+
+        float x = i - in_pos;
+        for (; i <= i1; i++, x++) {
           float w = window(x);
           f += in_block_ptr[i] * w;
         }
@@ -136,7 +171,7 @@ struct Resampler {
    * The function can seamlessly resample the input and produce the result in chunks.
    * To reuse memory and still simulate chunk processing, adjust the in/out pointers.
    *
-   * @tparam satic_channels   number of channels, if known at compile time, or -1
+   * @tparam static_channels   number of channels, if known at compile time, or -1
    */
   template <int static_channels, typename Out>
   void Resample(
