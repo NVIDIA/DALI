@@ -19,3 +19,7 @@
 [submodule "third_party/ffts"]
 	path = third_party/ffts
 	url = https://github.com/JanuszL/ffts
+[submodule "third_party/cutlass"]
+	path = third_party/cutlass
+	url = https://github.com/NVIDIA/cutlass
+	ignore = untracked
