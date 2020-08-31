@@ -26,7 +26,8 @@
     \brief Template for a double-buffered threadblock-scoped GEMM kernel.
 */
 
-#pragma once
+#ifndef DALI_KERNELS_IMGPROC_CONVOLUTION_CUTLASS_THREADBLOCK_MMA_BASE_H_
+#define DALI_KERNELS_IMGPROC_CONVOLUTION_CUTLASS_THREADBLOCK_MMA_BASE_H_
 
 #include "cutlass/aligned_buffer.h"
 #include "cutlass/arch/memory.h"
@@ -100,13 +101,11 @@ class MmaBase {
   using WarpGemm = typename Policy::Operator::Shape;
 
   /// Shape describing the number of warps filling the CTA
-  using WarpCount = GemmShape<Shape::kM / WarpGemm::kM,
-                              Shape::kN / WarpGemm::kN,
-                              Shape::kK / WarpGemm::kK>;
+  using WarpCount =
+      GemmShape<Shape::kM / WarpGemm::kM, Shape::kN / WarpGemm::kN, Shape::kK / WarpGemm::kK>;
 
   /// Number of warp-level GEMM oeprations
-  static int const kWarpGemmIterations =
-      (WarpGemm::kK / Operator::Policy::MmaShape::kK);
+  static int const kWarpGemmIterations = (WarpGemm::kK / Operator::Policy::MmaShape::kK);
 
   /// Number of stages
   static int const kStages = Stages;
@@ -130,13 +129,11 @@ class MmaBase {
 
     /// Shape of the A matrix operand in shared memory
     using ShapeA = MatrixShape<Shape::kM + Policy::SmemPaddingA::kRow,
-                               Shape::kK * kStages +
-                                   Policy::SmemPaddingA::kColumn>;
+                               Shape::kK * kStages + Policy::SmemPaddingA::kColumn>;
 
     /// Shape of the B matrix operand in shared memory
-    using ShapeB =
-        MatrixShape<Shape::kK * kStages + Policy::SmemPaddingB::kRow,
-                    Shape::kN + Policy::SmemPaddingB::kColumn>;
+    using ShapeB = MatrixShape<Shape::kK * kStages + Policy::SmemPaddingB::kRow,
+                               Shape::kN + Policy::SmemPaddingB::kColumn>;
 
    public:
     //
@@ -150,7 +147,6 @@ class MmaBase {
     AlignedBuffer<typename Operator::ElementB, ShapeB::kCount> operand_B;
 
    public:
-
     //
     // Methods
     //
@@ -181,7 +177,6 @@ class MmaBase {
   };
 
  protected:
-
   //
   // Data members
   //
@@ -192,8 +187,7 @@ class MmaBase {
   /// Iterator to load a warp-scoped tile of B operand from shared memory
   typename Operator::IteratorB warp_tile_iterator_B_;
 
-public:
-
+ public:
   /// Construct from tensor references
   CUTLASS_DEVICE
   MmaBase(
@@ -204,12 +198,9 @@ public:
       ///< ID of warp
       int warp_idx,
       ///< ID of each thread within a warp
-      int lane_idx
-    ):
-      warp_tile_iterator_A_(shared_storage.operand_A_ref(), lane_idx),
-      warp_tile_iterator_B_(shared_storage.operand_B_ref(), lane_idx) {
-
-  }
+      int lane_idx)
+      : warp_tile_iterator_A_(shared_storage.operand_A_ref(), lane_idx),
+        warp_tile_iterator_B_(shared_storage.operand_B_ref(), lane_idx) {}
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -219,3 +210,5 @@ public:
 }  // namespace cutlass
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
+
+#endif  // DALI_KERNELS_IMGPROC_CONVOLUTION_CUTLASS_THREADBLOCK_MMA_BASE_H_
