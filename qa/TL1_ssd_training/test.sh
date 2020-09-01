@@ -15,7 +15,11 @@ test_body() {
     # newer apex doexn't support Torch 1.1.0 we use for CUDA 9 tests
     git checkout 2ec84ebdca59278eaf15e8ddf32476d9d6d8b904
     export CUDA_HOME=/usr/local/cuda-$(python -c "import torch; print('.'.join(torch.version.cuda.split('.')[0:2]))")
-    pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
+    # build wheel first
+    pip wheel -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
+    # for some reason the `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` doesn't install
+    # wheel but only builds the binaries with the setuptools>=50.0, so now we builds wheel explicitly and then install it
+    pip install apex*.whl
     unset CUDA_HOME
     popd
 
