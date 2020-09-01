@@ -5,7 +5,7 @@ import inspect
 def _get_batch_shape(data):
     if isinstance(data, (list, tuple, _b.TensorListCPU, _b.TensorListGPU)):
         if len(data) == 0:
-            return []
+            return [], True
         if callable(data[0].shape):
             return [x.shape() for x in data], False
         else:
@@ -28,7 +28,7 @@ def _check_data_batch(data, batch_size, layout):
             for ts in shape:
                 if len(ts) != dim:
                     raise RuntimeError("All tensors in a batch must have the same number of dimensions")
-        if layout != "" and dim != len(layout):
+        if layout is not None and layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
 
 class _CycleIter():
@@ -329,7 +329,7 @@ Keyword Args
                     else:
                         op_instance._layout = layout
                 else:
-                    op_instance._layout = ""
+                    op_instance._layout = None
 
                 group.append(op_instance)
                 op_instance.generate_outputs()
@@ -344,7 +344,7 @@ Keyword Args
             op_instance._output_index = None
             op_instance._group = _ExternalSourceGroup(callback, False, [op_instance], cuda_stream=cuda_stream,
                                                       use_copy_kernel=use_copy_kernel)
-            op_instance._layout = layout if layout is not None else ""
+            op_instance._layout = layout
             op_instance.generate_outputs()
 
             return op_instance.unwrapped_outputs

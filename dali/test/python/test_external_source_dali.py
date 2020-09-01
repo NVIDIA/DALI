@@ -4,7 +4,9 @@ import numpy as np
 from nvidia.dali.pipeline import Pipeline
 from test_utils import check_batch
 
-def build_src_pipe(device, layout="XY"):
+def build_src_pipe(device, layout = None):
+    if layout is None:
+        layout = "XY"
     batches = [[
         np.array([[1,2,3],[4,5,6]], dtype = np.float32),
         np.array([[10,20], [30,40], [50,60]], dtype = np.float32)
@@ -37,27 +39,28 @@ def test_feed_input():
         yield _test_feed_input, device
 
 
-def _test_callback(device, as_tensors):
+def _test_callback(device, as_tensors, change_layout_to = None):
     src_pipe, batch_size = build_src_pipe(device)
-    ref_pipe, batch_size = build_src_pipe(device)
+    ref_pipe, batch_size = build_src_pipe(device, layout=change_layout_to)
 
     dst_pipe = Pipeline(batch_size, 1, 0)
     def get_from_src():
         tl = src_pipe.run()[0]
         return [tl[i] for i in range(len(tl))] if as_tensors else tl
 
-    dst_pipe.set_outputs(fn.external_source(source=get_from_src, device=device))
+    dst_pipe.set_outputs(fn.external_source(source=get_from_src, device=device, layout=change_layout_to))
     dst_pipe.build()
 
     for iter in range(3):
         ref = ref_pipe.run()
         out = dst_pipe.run()
-        check_batch(out[0], ref[0], batch_size, 0, 0, "XY")
+        check_batch(out[0], ref[0], batch_size, 0, 0)
 
 def test_callback():
     for device in ["cpu", "gpu"]:
         for as_tensors in [False, True]:
-            yield _test_callback, device, as_tensors
+            for change_layout in [None, "AB"]:
+                yield _test_callback, device, as_tensors, change_layout
 
 def _test_scalar(device, as_tensors):
     """Test propagation of scalars from external source"""
