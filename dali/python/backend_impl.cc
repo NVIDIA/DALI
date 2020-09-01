@@ -125,8 +125,8 @@ const TensorShape<> &ConvertShape(const TensorShape<> &shape,
 }
 
 template<typename TStrides, typename TShape>
-void CheckContiguousTensor(const TStrides &strides, size_t num_strides,
-                           const TShape &shape, size_t num_extents, size_t element_size) {
+void CheckContiguousTensor(const TStrides &strides, int num_strides,
+                           const TShape &shape, int num_extents, size_t element_size) {
   DALI_ENFORCE(num_strides == num_extents,
     "There should be exactly as many strides as there are extents in array shape.");
   int64_t stride_from_shape = element_size;
@@ -325,7 +325,7 @@ void ExposeTensor(py::module &m) {
               t.ndim(), shape, stride);
         })
     .def(py::init([](py::buffer b, string layout = "", bool is_pinned = false) {
-          // We need to verify that hte input data is c contiguous
+          // We need to verify that the input data is c contiguous
           // and of a type that we can work with in the backend
           __backend_impl_force_tls_align_fun();
           py::buffer_info info = b.request();
@@ -333,10 +333,6 @@ void ExposeTensor(py::module &m) {
           std::vector<Index> i_shape;
           for (auto &dim : info.shape) {
             i_shape.push_back(dim);
-          }
-          // scalar
-          if (info.shape.size() == 0) {
-            i_shape.push_back(1);
           }
           size_t bytes = volume(i_shape) * info.itemsize;
 

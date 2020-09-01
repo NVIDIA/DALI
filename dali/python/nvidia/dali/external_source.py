@@ -2,23 +2,32 @@
 from nvidia.dali import backend as _b
 import inspect
 
-def _check_data_batch(data, batch_size, layout):
-    if isinstance(data, (list, tuple)):
-        if len(data) != batch_size:
-            raise RuntimeError("The external source callback returned an unexpected batch "
-            "size: {} instead of {}".format(len(data), batch_size))
-        if len(data) > 0:
-            dim = len(data[0].shape)
-            for t in data:
-                if len(t.shape) != dim:
-                    raise RuntimeError("All tensors in a batch must have the same number of dimensions")
-            if layout != "" and dim != len(layout):
-                raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
+def _get_batch_shape(data):
+    if isinstance(data, (list, tuple, _b.TensorListCPU, _b.TensorListGPU)):
+        if len(data) == 0:
+            return []
+        if callable(data[0].shape):
+            return [x.shape() for x in data], False
+        else:
+            return [x.shape for x in data], False
     else:
-        dim = len(data.shape) - 1
-        if data.shape[0] != batch_size:
-            raise RuntimeError("The external source returned an unexpected batch "
-            "size: {} instead of {}".format(data.shape[0], batch_size))
+        shape = data.shape
+        if callable(shape):
+            shape = data.shape()
+        return [shape[1:]] * shape[0], True
+
+def _check_data_batch(data, batch_size, layout):
+    shape, uniform = _get_batch_shape(data)
+    if len(shape) != batch_size:
+        raise RuntimeError("The external source callback returned an unexpected batch "
+        "size: {} instead of {}".format(len(shape), batch_size))
+
+    if len(shape) > 0:
+        dim = len(shape[0])
+        if not uniform:
+            for ts in shape:
+                if len(ts) != dim:
+                    raise RuntimeError("All tensors in a batch must have the same number of dimensions")
         if layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
 
