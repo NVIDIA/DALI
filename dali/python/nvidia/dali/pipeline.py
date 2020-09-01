@@ -506,8 +506,8 @@ Parameters
             It should be a string of the length that matches the dimensionality of the data, batch
             dimension excluded. For a batch of channel-first images, this should be "CHW", for
             channel-last video it's "FHWC" and so on.
-            If ``data`` is a DALI TensorList or a list of DALI Tensors and str is None, the layout
-            is taken from data argument.
+            If ``data`` is a DALI `TensorList` or a list of DALI `Tensor` objects and ``layout``
+            is ``None``, the layout is taken from ``data``.
 
         cuda_stream : optional, `cudaStream_t` or an object convertible to `cudaStream_t`, e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
             The CUDA stream, which is going to be used for copying data to GPU or from a GPU
