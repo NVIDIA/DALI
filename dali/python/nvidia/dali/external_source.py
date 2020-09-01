@@ -169,6 +169,8 @@ Args
     provided GPU memory content only using provided stream (DALI schedules a copy on it
     and all work is properly queued). If no stream is provided, DALI will use a default, with
     best-effort approach at correctness (see ``cuda_stream`` argument documentation for details).
+    The data batch produced by ``source`` may be anything that's accepted by
+    :meth:`nvidia.dali.pipeline.Pipeline.feed_input`
 
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists produced by the source function
