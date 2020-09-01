@@ -27,11 +27,11 @@ test_body() {
         jupyter nbconvert tensorflow-dataset.ipynb \
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                  --ExecutePreprocessor.timeout=600 {}
+                  --ExecutePreprocessor.timeout=600
         jupyter nbconvert tensorflow-dataset-multigpu.ipynb \
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                  --ExecutePreprocessor.timeout=600 {}
+                  --ExecutePreprocessor.timeout=600
         popd
     fi
 }
