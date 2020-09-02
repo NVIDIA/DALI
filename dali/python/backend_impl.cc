@@ -553,13 +553,16 @@ void ExposeTensorList(py::module &m) {
         layout : str
               Layout of the data
         )code")
-    .def(py::init([](TensorList<CPUBackend> *tl, std::string *layout) {
+    .def(py::init([](TensorList<CPUBackend> *tl, py::object layout) {
           if (!tl)
             throw py::value_error("The source object must not be null");
           auto t = std::make_unique<TensorList<CPUBackend>>();
           t->ShareData(tl);
-          if (layout)
-            t->SetLayout(*layout);
+          if (!layout.is_none()) {
+            if (!py::isinstance<py::str>(layout))
+              throw py::type_error("`layout` must be a string or None");
+            t->SetLayout(std::string(layout.cast<py::str>()));
+          }
           return t.release();
         }),
       "tl"_a,
@@ -768,13 +771,16 @@ void ExposeTensorList(py::module &m) {
         layout : str
               Layout of the data
         )code")
-    .def(py::init([](TensorList<GPUBackend> *tl, std::string *layout) {
+    .def(py::init([](TensorList<GPUBackend> *tl, py::object layout) {
           if (!tl)
             throw py::value_error("The source object must not be null");
           auto t = std::make_unique<TensorList<GPUBackend>>();
           t->ShareData(tl);
-          if (layout)
-            t->SetLayout(*layout);
+          if (!layout.is_none()) {
+            if (!py::isinstance<py::str>(layout))
+              throw py::type_error("`layout` must be a string or None");
+            t->SetLayout(std::string(layout.cast<py::str>()));
+          }
           return t.release();
         }),
       "tl"_a,
