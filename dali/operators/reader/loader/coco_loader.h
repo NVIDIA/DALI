@@ -32,26 +32,36 @@ class CocoLoader : public FileLabelLoader {
  public:
   explicit inline CocoLoader(
     const OpSpec& spec,
+    std::vector<int> &heights,
+    std::vector<int> &widths,
     std::vector<int> &offsets,
     std::vector<float> &boxes,
     std::vector<int> &labels,
     std::vector<int> &counts,
     std::vector<std::vector<int> > &masks_meta,
     std::vector<std::vector<float> > &masks_coords,
+    std::vector<std::vector<std::string> > &masks_rles,
+    std::vector<std::vector<int> > &masks_rles_idx,
     bool read_masks,
+    bool pixelwise_masks,
     bool save_img_ids,
     std::vector<int> &original_ids,
     bool shuffle_after_epoch = false) :
       FileLabelLoader(spec, std::vector<std::pair<string, int>>(), shuffle_after_epoch),
       spec_(spec),
       parse_meta_files_(spec.HasArgument("meta_files_path")),
+      heights_(heights),
+      widths_(widths),
       offsets_(offsets),
       boxes_(boxes),
       labels_(labels),
       counts_(counts),
       masks_meta_(masks_meta),
       masks_coords_(masks_coords),
+      masks_rles_(masks_rles),
+      masks_rles_idx_(masks_rles_idx),
       read_masks_(read_masks),
+      pixelwise_masks_(pixelwise_masks),
       save_img_ids_(save_img_ids),
       original_ids_(original_ids) {}
 
@@ -83,6 +93,8 @@ class CocoLoader : public FileLabelLoader {
   const OpSpec &spec_;
   bool parse_meta_files_;
 
+  std::vector<int> &heights_;
+  std::vector<int> &widths_;
   std::vector<int> &offsets_;
   std::vector<float> &boxes_;
   std::vector<int> &labels_;
@@ -90,10 +102,14 @@ class CocoLoader : public FileLabelLoader {
 
   // mask_meta: (mask_idx, offset, size)
   // mask_coords: (all polygons concatenated )
+  // masks_rles: (run-length encodings)
   std::vector<std::vector<int> > &masks_meta_;
   std::vector<std::vector<float> > &masks_coords_;
+  std::vector<std::vector<std::string> > &masks_rles_;
+  std::vector<std::vector<int> > &masks_rles_idx_;
 
   bool read_masks_;
+  bool pixelwise_masks_;
   bool save_img_ids_;
   std::vector<int> &original_ids_;
 };

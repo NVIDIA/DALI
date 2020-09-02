@@ -29,12 +29,24 @@ struct ImageInfo {
   int height_;
 };
 
+struct Polygons {
+  std::vector<int> segm_meta_;
+  std::vector<float> segm_coords_;
+};
+
+struct RunLengthEncoding {
+  int h_, w_;
+  std::string rle_;
+};
+
 struct Annotation {
+  enum {POLYGON, RLE} tag_;
   int image_id_;
   int category_id_;
   std::array<float, 4> box_;
-  std::vector<int> segm_meta_;
-  std::vector<float> segm_coords_;
+  // union
+  Polygons poly_;
+  RunLengthEncoding rle_;
 
   void ToLtrb() {
     box_[2] += box_[0];
@@ -201,26 +213,40 @@ void parse_annotations(
           ++i;
         }
       } else if (read_masks && 0 == detail::safe_strcmp(internal_key, "segmentation")) {
-        // That means that the mask encoding is not polygons but RLE (iscrowd==1),
-        // which is not needed for instance segmentation
+        // That means that the mask encoding is not polygons but RLE
+        // (iscrowd==1 in Object Detection task, or Stuff Segmentation)
         if (parser.PeekType() != kArrayType) {
-          to_add = false;
-          parser.SkipObject();
-          break;
-        }
-
-        int coord_offset = 0;
-        auto& segm_meta = annotation.segm_meta_;
-        auto& segm_coords = annotation.segm_coords_;
-        parser.EnterArray();
-        while (parser.NextArrayValue()) {
-          segm_meta.push_back(coord_offset);
+          annotation.tag_ = Annotation::RLE;
+          parser.EnterObject();
+          while (const char* another_key = parser.NextObjectKey()) {
+            if (0 == detail::safe_strcmp(another_key, "size")) {
+              RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
+              parser.EnterArray();
+              parser.NextArrayValue();
+              annotation.rle_.h_ = parser.GetInt();
+              parser.NextArrayValue();
+              annotation.rle_.w_ = parser.GetInt();
+              parser.NextArrayValue();
+              RAPIDJSON_ASSERT(parser.PeekType() == -1);
+            } else if (0 == detail::safe_strcmp(another_key, "counts")) {
+              annotation.rle_.rle_ = parser.GetString();
+            }
+          }
+        } else {
+          annotation.tag_ = Annotation::POLYGON;
+          int coord_offset = 0;
+          auto& segm_meta = annotation.poly_.segm_meta_;
+          auto& segm_coords = annotation.poly_.segm_coords_;
           parser.EnterArray();
           while (parser.NextArrayValue()) {
-            segm_coords.push_back(parser.GetDouble());
-            coord_offset++;
+            segm_meta.push_back(coord_offset);
+            parser.EnterArray();
+            while (parser.NextArrayValue()) {
+              segm_coords.push_back(parser.GetDouble());
+              coord_offset++;
+            }
+            segm_meta.push_back(coord_offset);
           }
-          segm_meta.push_back(coord_offset);
         }
       } else {
         parser.SkipValue();
@@ -272,7 +298,7 @@ void parse_json_file(
         annotations,
         spec.GetArgument<float>("size_threshold"),
         spec.GetArgument<bool>("ltrb"),
-        spec.GetArgument<bool>("masks"));
+        spec.GetArgument<bool>("masks") || spec.GetArgument<bool>("pixelwise_masks"));
     } else {
       parser.SkipValue();
     }
@@ -378,6 +404,8 @@ void CocoLoader::ParseJsonAnnotations() {
     int objects_in_sample = 0;
     std::vector<int> sample_mask_meta;
     std::vector<float> sample_mask_coords;
+    std::vector<int> sample_rles_idx;
+    std::vector<std::string> sample_rles;
     while (annotations[annotation_id].image_id_ == image_info.original_id_) {
       const auto &annotation = annotations[annotation_id];
       labels_.emplace_back(category_ids[annotation.category_id_]);
@@ -392,16 +420,29 @@ void CocoLoader::ParseJsonAnnotations() {
         boxes_.push_back(annotation.box_[2]);
         boxes_.push_back(annotation.box_[3]);
       }
-      if (read_masks_) {
-        auto obj_coords_offset = sample_mask_coords.size();
-        for (size_t i = 0; i < annotation.segm_meta_.size(); i += 2) {
-          sample_mask_meta.push_back(objects_in_sample);
-          sample_mask_meta.push_back(obj_coords_offset + annotation.segm_meta_[i]);
-          sample_mask_meta.push_back(obj_coords_offset + annotation.segm_meta_[i + 1]);
+      if (read_masks_ || pixelwise_masks_) {
+        switch (annotation.tag_) {
+          case detail::Annotation::POLYGON: {
+            auto obj_coords_offset = sample_mask_coords.size();
+            for (size_t i = 0; i < annotation.poly_.segm_meta_.size(); i += 2) {
+              sample_mask_meta.push_back(objects_in_sample);
+              sample_mask_meta.push_back(obj_coords_offset + annotation.poly_.segm_meta_[i]);
+              sample_mask_meta.push_back(obj_coords_offset + annotation.poly_.segm_meta_[i + 1]);
+            }
+            sample_mask_coords.insert(sample_mask_coords.end(),
+                                      annotation.poly_.segm_coords_.begin(),
+                                      annotation.poly_.segm_coords_.end());
+            break;
+          }
+          case detail::Annotation::RLE: {
+            sample_rles_idx.push_back(objects_in_sample);
+            sample_rles.push_back(annotation.rle_.rle_);
+            break;
+          }
+          default: {
+            assert(false);
+          }
         }
-        sample_mask_coords.insert(sample_mask_coords.end(),
-                                  annotation.segm_coords_.begin(),
-                                  annotation.segm_coords_.end());
       }
       ++annotation_id;
       ++objects_in_sample;
@@ -414,9 +455,15 @@ void CocoLoader::ParseJsonAnnotations() {
       if (save_img_ids_) {
         original_ids_.push_back(image_info.original_id_);
       }
-      if (read_masks_) {
+      if (read_masks_ || pixelwise_masks_) {
         masks_meta_.emplace_back(std::move(sample_mask_meta));
         masks_coords_.emplace_back(std::move(sample_mask_coords));
+        masks_rles_.emplace_back(std::move(sample_rles));
+        masks_rles_idx_.emplace_back(std::move(sample_rles_idx));
+      }
+      if (pixelwise_masks_) {
+        heights_.push_back(image_info.height_);
+        widths_.push_back(image_info.width_);
       }
       image_label_pairs_.emplace_back(std::move(image_info.filename_), new_image_id);
       new_image_id++;
