@@ -33,10 +33,11 @@ class PckgVer():
         `python_min_ver`: str, optional, default = None
             Mimimum python version supported by this package. If empty there is no lower bound
     """
-    def __init__(self, ver, python_min_ver=None, python_max_ver=None):
+    def __init__(self, ver, python_min_ver=None, python_max_ver=None, alias=None):
         self.ver = ver
         self.python_min_ver = python_min_ver
         self.python_max_ver = python_max_ver
+        self.name_alias = alias
 
     def __bool__(self):
         return (not self.python_min_ver or parse(PYTHON_VERSION) >= parse(self.python_min_ver)) and \
@@ -47,6 +48,9 @@ class PckgVer():
             return self.ver
         else:
             return ""
+    @property
+    def alias(self):
+        return self.name_alias
 
 class BasePackage():
     """Class describing basic methods that package should provide
@@ -57,7 +61,7 @@ class BasePackage():
             Name this package should be queried for
         `versions`: str or PckgVer class object
             List of versions this package is available for
-        `name`: str, , optional, default = None
+        `name`: str, optional, default = None
             Name of this package used during installation. If empty it is the same as the key
     """
     def __init__(self, key, versions, name=None):
@@ -81,15 +85,48 @@ class BasePackage():
             idx = 0
         return idx
 
-    def get_name(self, cuda_version=None):
+    @staticmethod
+    def get_alias(version):
+        """Obtains alias for given version if exists. Otherwise return None
+
+            Parameters
+            ----------
+            `version`: str or PckgVer
+                Package version
+        """
+        return getattr(version, "alias", None)
+
+    def get_name(self, cuda_version=None, idx=None):
         """Retrives package name.
 
             Parameters
             ----------
             `cuda_version`: str, optional, default = None
                 Cuda version used for this query
+            `idx`: int
+                Index of name to retrive in case of specific version has different alias
         """
-        raise NotImplementedError
+        name = BasePackage.get_alias(self.get_version(idx, cuda_version))
+        if name is None:
+            name = self.name
+        return name
+
+    def get_uninstall_names(self, cuda_version=None):
+        """Retrives package name/s used to uninstall it.
+
+            Parameters
+            ----------
+            `cuda_version`: str, optional, default = None
+                Cuda version used for this query
+        """
+        version = self.get_all_versions(cuda_version)
+        uninstall_names = [self.get_name(cuda_version)]
+        for v in version:
+            name = BasePackage.get_alias(v)
+            if name is not None:
+                uninstall_names.append(name)
+        # merge into one string
+        return " ".join(uninstall_names)
 
     def filter_versions(self, versions):
         """Retrieves only compatible versions of this package from provided `versions` list
@@ -99,8 +136,8 @@ class BasePackage():
             `versions`: list
                 List of versions to be checked. All versions that evaluate to True are returned
         """
-        # convert PckgVer to string
-        return [str(v) for v in versions if v]
+        # no need to convert PckgVer to string, it is done by get_install_string when printed
+        return [v for v in versions if v]
 
     def get_version(self, idx, cuda_version=None):
         """Get versions at a given index, compatible with provided cuda_version
@@ -113,6 +150,8 @@ class BasePackage():
             `cuda_version`: str, optional, default = None
                 Cuda version used for this query
         """
+        if idx is None:
+            idx = 0
         idx = self.clamp_index(idx, cuda_version)
         return self.get_all_versions(cuda_version)[idx]
 
@@ -148,7 +187,7 @@ class BasePackage():
             `cuda_version`: str, optional, default = None
                 Cuda version used for this query
         """
-        return "{name}=={version}".format(name=self.get_name(cuda_version), version=self.get_version(idx, cuda_version))
+        return "{name}=={version}".format(name=self.get_name(cuda_version, idx), version=self.get_version(idx, cuda_version))
 
     def get_all_install_strings(self, cuda_version=None):
         """Gets all installation string that pip should accept for a given
@@ -181,9 +220,6 @@ class PlainPackage(BasePackage):
     def __init__(self, key, versions, name=None):
         super(PlainPackage, self).__init__(key, versions, name)
 
-    def get_name(self, cuda_version=None):
-        return self.name
-
     def get_all_versions(self, cuda_version=None):
         return self.filter_versions(self.versions)
 
@@ -206,9 +242,10 @@ class CudaPackage(BasePackage):
         if not isinstance(versions, dict):
             raise TypeError("versions argument should by dict type [cuda_version : list_of_versions")
 
-    def get_name(self, cuda_version):
+    def get_name(self, cuda_version=None, idx=None):
         cuda_version = self.max_cuda_version(cuda_version)
-        return self.name.format(cuda_v=cuda_version)
+        name = super().get_name(cuda_version, idx)
+        return name.format(cuda_v=cuda_version)
 
     def get_all_versions(self, cuda_version):
         cuda_version = self.max_cuda_version(cuda_version)
@@ -324,7 +361,12 @@ all_packages = [PlainPackage("opencv-python", ["4.2.0.32"]),
                         { "100" : [
                               PckgVer("1.15.3",  python_max_ver="3.7"),
                               "2.2.0",
-                              "2.3.0"]
+                              "2.3.0"],
+                          "110" : [
+                              PckgVer("1.15.3",  python_max_ver="3.7"),
+                              "2.2.0",
+                              "2.3.0",
+                              PckgVer("1.15.3+nv20.8", python_min_ver="3.6", python_max_ver="3.6", alias="nvidia-tensorflow")]
                         }),
                 CudaHttpPackage("torch",
                         { "100" : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.4.0+cu{cuda_v}-{platform}.whl"] }),
@@ -351,6 +393,9 @@ def print_configs(cuda_version):
     for pckg in all_packages:
         print("{}:".format(pckg.get_name(cuda_version)))
         for v in pckg.get_all_versions(cuda_version):
+            alias = BasePackage.get_alias(v)
+            if alias is not None:
+                v = "{}=={}".format(alias, v)
             print("\t{}".format(v))
 
 def cal_num_of_configs(packages, cuda_version):
@@ -375,7 +420,7 @@ def for_all_pckg(packages, fun):
 def get_remove_string(packages, cuda_version):
     """Creates pip remove string for given cuda version and package list"""
     # Remove only these which version we want to change
-    ret = for_all_pckg(packages, lambda pckg: pckg.get_name(cuda_version))
+    ret = for_all_pckg(packages, lambda pckg: pckg.get_uninstall_names(cuda_version))
     return " ".join(ret)
 
 def get_all_strings(packages, cuda_version):
