@@ -479,7 +479,7 @@ Parameters
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def feed_input(self, data_node, data, layout="", cuda_stream = None, use_copy_kernel = False):
+    def feed_input(self, data_node, data, layout = None, cuda_stream = None, use_copy_kernel = False):
         """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
         In the case of the GPU input, the data must be modified on the same stream as the one
         used by feed_input. See ``cuda_stream`` parameter for details.
@@ -497,14 +497,17 @@ Parameters
               * PyTorch tensor (CPU or GPU)
               * CuPy array (GPU)
               * objects implementing ``__cuda_array_interface__``
+              * DALI `TensorList` or list of DALI `Tensor` objects
 
             The data to be used as the output of the ExternalSource referred to by `data_node`.
 
-        layout : str
+        layout : str or None
             The description of the data layout (or empty string, if not specified).
             It should be a string of the length that matches the dimensionality of the data, batch
             dimension excluded. For a batch of channel-first images, this should be "CHW", for
             channel-last video it's "FHWC" and so on.
+            If ``data`` is a DALI `TensorList` or a list of DALI `Tensor` objects and ``layout``
+            is ``None``, the layout is taken from ``data``.
 
         cuda_stream : optional, `cudaStream_t` or an object convertible to `cudaStream_t`, e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
             The CUDA stream, which is going to be used for copying data to GPU or from a GPU
@@ -555,7 +558,13 @@ Parameters
         # __cuda_array_interface__ doesn't provide any way to pass the information about the device
         # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
         # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
-        if isinstance(data, list):
+        if isinstance(data, (Tensors.TensorListCPU, Tensors.TensorListGPU)):
+            if layout is not None:
+                _check_data_batch(data, self._batch_size, layout)
+                data = type(data)(data, layout)
+
+            self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+        elif isinstance(data, list):
             inputs = []
             checked = False
             for datum in data:
@@ -563,13 +572,15 @@ Parameters
                 if not info[0] and not checked:
                     _check_data_batch(data, self._batch_size, layout)
                     checked = True
-                if hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
+                if isinstance(datum, (Tensors.TensorCPU, Tensors.TensorGPU)):
+                    inp = type(datum)(datum, layout=layout) if layout is not None else datum
+                elif hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
                     if infer_stream:
                         cuda_stream = _get_default_stream_for_array(datum)
-                    inp = Tensors.TensorGPU(datum, layout)
+                    inp = Tensors.TensorGPU(datum, layout or "")
                 else:
                     datum = to_numpy(datum)
-                    inp = Tensors.TensorCPU(datum, layout)
+                    inp = Tensors.TensorCPU(datum, layout or "")
                 inputs.append(inp)
             assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
                    "Mixed input types are not support, all need to reside on the CPU or GPU"
@@ -581,10 +592,10 @@ Parameters
             if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
                 if infer_stream:
                     cuda_stream = _get_default_stream_for_array(data)
-                inp = Tensors.TensorListGPU(data, layout)
+                inp = Tensors.TensorListGPU(data, layout or "")
             else:
                 data = to_numpy(data)
-                inp = Tensors.TensorListCPU(data, layout)
+                inp = Tensors.TensorListCPU(data, layout or "")
             self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream), use_copy_kernel)
 
     def _run_cpu(self):

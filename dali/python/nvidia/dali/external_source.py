@@ -2,24 +2,33 @@
 from nvidia.dali import backend as _b
 import inspect
 
-def _check_data_batch(data, batch_size, layout):
-    if isinstance(data, (list, tuple)):
-        if len(data) != batch_size:
-            raise RuntimeError("The external source callback returned an unexpected batch "
-            "size: {} instead of {}".format(len(data), batch_size))
-        if len(data) > 0:
-            dim = len(data[0].shape)
-            for t in data:
-                if len(t.shape) != dim:
-                    raise RuntimeError("All tensors in a batch must have the same number of dimensions")
-            if layout != "" and dim != len(layout):
-                raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
+def _get_batch_shape(data):
+    if isinstance(data, (list, tuple, _b.TensorListCPU, _b.TensorListGPU)):
+        if len(data) == 0:
+            return [], True
+        if callable(data[0].shape):
+            return [x.shape() for x in data], False
+        else:
+            return [x.shape for x in data], False
     else:
-        dim = len(data.shape) - 1
-        if data.shape[0] != batch_size:
-            raise RuntimeError("The external source returned an unexpected batch "
-            "size: {} instead of {}".format(data.shape[0], batch_size))
-        if layout != "" and dim != len(layout):
+        shape = data.shape
+        if callable(shape):
+            shape = data.shape()
+        return [shape[1:]] * shape[0], True
+
+def _check_data_batch(data, batch_size, layout):
+    shape, uniform = _get_batch_shape(data)
+    if len(shape) != batch_size:
+        raise RuntimeError("The external source callback returned an unexpected batch "
+        "size: {} instead of {}".format(len(shape), batch_size))
+
+    if len(shape) > 0:
+        dim = len(shape[0])
+        if not uniform:
+            for ts in shape:
+                if len(ts) != dim:
+                    raise RuntimeError("All tensors in a batch must have the same number of dimensions")
+        if layout is not None and layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
 
 class _CycleIter():
@@ -160,6 +169,8 @@ Args
     provided GPU memory content only using provided stream (DALI schedules a copy on it
     and all work is properly queued). If no stream is provided, DALI will use a default, with
     best-effort approach at correctness (see ``cuda_stream`` argument documentation for details).
+    The data batch produced by ``source`` may be anything that's accepted by
+    :meth:`nvidia.dali.pipeline.Pipeline.feed_input`
 
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists produced by the source function
@@ -318,7 +329,7 @@ Keyword Args
                     else:
                         op_instance._layout = layout
                 else:
-                    op_instance._layout = ""
+                    op_instance._layout = None
 
                 group.append(op_instance)
                 op_instance.generate_outputs()
@@ -333,7 +344,7 @@ Keyword Args
             op_instance._output_index = None
             op_instance._group = _ExternalSourceGroup(callback, False, [op_instance], cuda_stream=cuda_stream,
                                                       use_copy_kernel=use_copy_kernel)
-            op_instance._layout = layout if layout is not None else ""
+            op_instance._layout = layout
             op_instance.generate_outputs()
 
             return op_instance.unwrapped_outputs

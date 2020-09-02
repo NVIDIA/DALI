@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -125,8 +125,8 @@ const TensorShape<> &ConvertShape(const TensorShape<> &shape,
 }
 
 template<typename TStrides, typename TShape>
-void CheckContiguousTensor(const TStrides &strides, size_t num_strides,
-                           const TShape &shape, size_t num_extents, size_t element_size) {
+void CheckContiguousTensor(const TStrides &strides, int num_strides,
+                           const TShape &shape, int num_extents, size_t element_size) {
   DALI_ENFORCE(num_strides == num_extents,
     "There should be exactly as many strides as there are extents in array shape.");
   int64_t stride_from_shape = element_size;
@@ -290,9 +290,9 @@ void ExposeTensor(py::module &m) {
 
   py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def(py::init([](py::capsule &capsule, string layout = "") {
-          auto t = new Tensor<CPUBackend>;
-          FillTensorFromDlPack(capsule, t, layout);
-          return t;
+          auto t = std::make_unique<Tensor<CPUBackend>>();
+          FillTensorFromDlPack(capsule, t.get(), layout);
+          return t.release();
         }),
       "object"_a,
       "layout"_a = "",
@@ -325,7 +325,7 @@ void ExposeTensor(py::module &m) {
               t.ndim(), shape, stride);
         })
     .def(py::init([](py::buffer b, string layout = "", bool is_pinned = false) {
-          // We need to verify that hte input data is c contiguous
+          // We need to verify that the input data is c contiguous
           // and of a type that we can work with in the backend
           __backend_impl_force_tls_align_fun();
           py::buffer_info info = b.request();
@@ -334,23 +334,19 @@ void ExposeTensor(py::module &m) {
           for (auto &dim : info.shape) {
             i_shape.push_back(dim);
           }
-          // scalar
-          if (info.shape.size() == 0) {
-            i_shape.push_back(1);
-          }
           size_t bytes = volume(i_shape) * info.itemsize;
 
           // Validate the stride
           CheckContiguousTensor(info.strides, info.shape, info.itemsize);
 
           // Create the Tensor and wrap the data
-          auto t = new Tensor<CPUBackend>;
+          auto t = std::make_unique<Tensor<CPUBackend>>();
           t->set_pinned(is_pinned);
           TypeInfo type = TypeFromFormatStr(info.format);
           t->ShareData(info.ptr, bytes, type);
           t->SetLayout(layout);
           t->Resize(i_shape);
-          return t;
+          return t.release();
         }),
       "b"_a,
       "layout"_a = "",
@@ -407,9 +403,9 @@ void ExposeTensor(py::module &m) {
 
   py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
     .def(py::init([](py::capsule &capsule, string layout = "") {
-          auto t = new Tensor<GPUBackend>;
-          FillTensorFromDlPack(capsule, t, layout);
-          return t;
+          auto t = std::make_unique<Tensor<GPUBackend>>();
+          FillTensorFromDlPack(capsule, t.get(), layout);
+          return t.release();
         }),
       "object"_a,
       "layout"_a = "",
@@ -422,9 +418,9 @@ void ExposeTensor(py::module &m) {
             Layout of the data
       )code")
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
-          auto t = new Tensor<GPUBackend>;
-          FillTensorFromCudaArray(object, t, device_id, layout);
-          return t;
+          auto t = std::make_unique<Tensor<GPUBackend>>();
+          FillTensorFromCudaArray(object, t.get(), device_id, layout);
+          return t.release();
         }),
       "object"_a,
       "layout"_a = "",
@@ -447,14 +443,14 @@ void ExposeTensor(py::module &m) {
       return t.GetLayout().str();
     })
     .def("as_cpu", [](Tensor<GPUBackend> &t) -> Tensor<CPUBackend>* {
-          Tensor<CPUBackend> * ret = new Tensor<CPUBackend>();
+          auto ret = std::make_unique<Tensor<CPUBackend>>();
           ret->set_pinned(false);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
           DeviceGuard g(t.device_id());
           ret->Copy(t, s);
           us->Wait(t);
-          return ret;
+          return ret.release();
         },
       R"code(
       Returns a `TensorCPU` object being a copy of this `TensorGPU`.
@@ -519,7 +515,7 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   if (id >= num_tensors || id < 0) {
       throw py::index_error("TensorListCPU index out of range");
   }
-  std::unique_ptr<Tensor<Backend>> ptr(new Tensor<Backend>());
+  auto ptr = std::make_unique<Tensor<Backend>>();
   ptr->ShareData(&t, id);
   return ptr;
 }
@@ -532,9 +528,9 @@ py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
       throw py::error_already_set();
   py::list list;
   for (; start < stop; start += step) {
-      auto ptr = new Tensor<Backend>();
+      auto ptr = make_uqnieu<Tensor<Backend>>();
       ptr->ShareData(&t, static_cast<int>(start));
-      list.append(ptr);
+      list.append(ptr.release());
   }
   return list;
 }
@@ -543,9 +539,9 @@ py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
 void ExposeTensorList(py::module &m) {
   py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
     .def(py::init([](py::capsule &capsule, string layout = "") {
-            auto t = new TensorList<CPUBackend>;
-            FillTensorFromDlPack(capsule, t, layout);
-            return t;
+            auto t = std::make_unique<TensorList<CPUBackend>>();
+            FillTensorFromDlPack(capsule, t.get(), layout);
+            return t.release();
           }),
         "object"_a,
         "layout"_a = "",
@@ -557,6 +553,20 @@ void ExposeTensorList(py::module &m) {
         layout : str
               Layout of the data
         )code")
+    .def(py::init([](TensorList<CPUBackend> *tl, py::object layout) {
+          if (!tl)
+            throw py::value_error("The source object must not be null");
+          auto t = std::make_unique<TensorList<CPUBackend>>();
+          t->ShareData(tl);
+          if (!layout.is_none()) {
+            if (!py::isinstance<py::str>(layout))
+              throw py::type_error("`layout` must be a string or None");
+            t->SetLayout(std::string(layout.cast<py::str>()));
+          }
+          return t.release();
+        }),
+      "tl"_a,
+      "layout"_a = py::none())
     .def(py::init([](py::buffer b, string layout = "", bool is_pinned = false) {
         // We need to verify that the input data is C_CONTIGUOUS
         // and of a type that we can work with in the backend
@@ -576,13 +586,13 @@ void ExposeTensorList(py::module &m) {
         CheckContiguousTensor(info.strides, info.shape, info.itemsize);
 
         // Create the Tensor and wrap the data
-        auto t = new TensorList<CPUBackend>;
+        auto t = std::make_unique<TensorList<CPUBackend>>();
         t->set_pinned(false);
         TypeInfo type = TypeFromFormatStr(info.format);
         t->ShareData(info.ptr, bytes, type);
         t->SetLayout(layout);
         t->Resize(i_shape);
-        return t;
+        return t.release();
       }),
       "b"_a,
       "layout"_a = "",
@@ -747,9 +757,9 @@ void ExposeTensorList(py::module &m) {
 
   py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
     .def(py::init([](py::capsule &capsule, string layout = "") {
-            auto t = new TensorList<GPUBackend>;
-            FillTensorFromDlPack(capsule, t, layout);
-            return t;
+            auto t = std::make_unique<TensorList<GPUBackend>>();
+            FillTensorFromDlPack(capsule, t.get(), layout);
+            return t.release();
           }),
         "object"_a,
         "layout"_a = "",
@@ -761,10 +771,24 @@ void ExposeTensorList(py::module &m) {
         layout : str
               Layout of the data
         )code")
+    .def(py::init([](TensorList<GPUBackend> *tl, py::object layout) {
+          if (!tl)
+            throw py::value_error("The source object must not be null");
+          auto t = std::make_unique<TensorList<GPUBackend>>();
+          t->ShareData(tl);
+          if (!layout.is_none()) {
+            if (!py::isinstance<py::str>(layout))
+              throw py::type_error("`layout` must be a string or None");
+            t->SetLayout(std::string(layout.cast<py::str>()));
+          }
+          return t.release();
+        }),
+      "tl"_a,
+      "layout"_a = py::none())
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
-          auto t = new TensorList<GPUBackend>;
-          FillTensorFromCudaArray(object, t, device_id, layout);
-          return t;
+          auto t = std::make_unique<TensorList<GPUBackend>>();
+          FillTensorFromCudaArray(object, t.get(), device_id, layout);
+          return t.release();
         }),
       "object"_a,
       "layout"_a = "",
@@ -787,14 +811,14 @@ void ExposeTensorList(py::module &m) {
       List of tensors residing in the GPU memory.
       )code")
     .def("as_cpu", [](TensorList<GPUBackend> &t) -> TensorList<CPUBackend>* {
-          TensorList<CPUBackend> * ret = new TensorList<CPUBackend>();
+          auto ret = std::make_unique<TensorList<CPUBackend>>();
           ret->set_pinned(false);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
           DeviceGuard g(t.device_id());
           ret->Copy(t, s);
           us->Wait(t);
-          return ret;
+          return ret.release();
         },
       R"code(
       Returns a `TensorListCPU` object being a copy of this `TensorListGPU`.
@@ -1138,10 +1162,10 @@ PYBIND11_MODULE(backend_impl, m) {
                 bool async_execution = true, size_t bytes_per_sample_hint = 0,
                 bool set_affinity = false, int max_num_stream = -1,
                 int default_cuda_stream_priority = 0) {
-              return std::unique_ptr<Pipeline>(
-                  new Pipeline(batch_size, num_threads, device_id, seed, pipelined_execution,
+              return std::make_unique<Pipeline>(
+                      batch_size, num_threads, device_id, seed, pipelined_execution,
                       prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
-                      max_num_stream, default_cuda_stream_priority));
+                      max_num_stream, default_cuda_stream_priority);
             }),
         "batch_size"_a,
         "num_threads"_a,
@@ -1163,11 +1187,11 @@ PYBIND11_MODULE(backend_impl, m) {
              bool async_execution = true, size_t bytes_per_sample_hint = 0,
              bool set_affinity = false, int max_num_stream = -1,
              int default_cuda_stream_priority = 0) {
-              return std::unique_ptr<Pipeline>(
-                  new Pipeline(serialized_pipe,
+              return std::make_unique<Pipeline>(
+                               serialized_pipe,
                                batch_size, num_threads, device_id, pipelined_execution,
                                prefetch_queue_depth, async_execution, bytes_per_sample_hint,
-                               set_affinity, max_num_stream, default_cuda_stream_priority));
+                               set_affinity, max_num_stream, default_cuda_stream_priority);
             }),
         "serialized_pipe"_a,
         "batch_size"_a = -1,
