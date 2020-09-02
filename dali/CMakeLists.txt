@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -87,6 +87,14 @@ endif()
 if (BUILD_BENCHMARK)
   # get benchmark main
   add_subdirectory(benchmark)
+endif()
+
+
+################################################
+# Build fuzzing suite
+################################################
+if (BUILD_FUZZING)
+  add_subdirectory(fuzzing)
 endif()
 
 ################################################
