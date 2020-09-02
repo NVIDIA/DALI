@@ -12,8 +12,8 @@ test_body() {
     #install APEX
     git clone https://github.com/nvidia/apex
     pushd apex
-    # newer apex doexn't support Torch 1.1.0 we use for CUDA 9 tests
-    git checkout 2ec84ebdca59278eaf15e8ddf32476d9d6d8b904
+    # get the lastest stable and tested APEX version
+    git checkout 4ef930c1c884fdca5f472ab2ce7cb9b505d26c1a
     export CUDA_HOME=/usr/local/cuda-$(python -c "import torch; print('.'.join(torch.version.cuda.split('.')[0:2]))")
     # build wheel first
     pip wheel -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
