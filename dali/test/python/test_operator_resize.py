@@ -3,10 +3,9 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
-import matplotlib.pyplot as plt
 import math
 import os.path
-import PIL
+import PIL.Image
 from test_utils import check_batch, get_dali_extra_path
 from nvidia.dali.data_node import DataNode as _DataNode
 import functools
@@ -108,6 +107,7 @@ def resize3D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample
 
     mono = input.shape[3] == 1
 
+    # First, slice along Z dimension and resize the XY slices
     sizeXY = [size[2], size[1]]
     boxXY = [roi_start[2], roi_start[1], roi_end[2], roi_end[1]]
     tmp = np.zeros([input.shape[0], size[1], size[2], input.shape[3]], dtype=np.uint8)
@@ -116,6 +116,7 @@ def resize3D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample
         out_slice = np.array(PIL.Image.fromarray(in_slice).resize(sizeXY, box=boxXY, resample=resample))
         tmp[z] = out_slice[:,:,np.newaxis] if mono else out_slice
 
+    # Then, slice along Y and resize XZ slices
     sizeXZ = [size[2], size[0]]
     boxXZ = [0, roi_start[0], size[2], roi_end[0]]
     out = np.zeros(size + [input.shape[3]], dtype=np.uint8)
@@ -124,6 +125,7 @@ def resize3D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample
         out_slice = np.array(PIL.Image.fromarray(in_slice).resize(sizeXZ, box=boxXZ, resample=resample))
         out[:,y,:,:] = out_slice[:,:,np.newaxis] if mono else out_slice
 
+    # Restore dynamic range, losing some bit depth
     if has_overshoot:
         out = ((out.astype(np.float32) - 64) * 2.0)
     if dtype == np.uint8:
@@ -152,8 +154,9 @@ def resize_dali(input, channel_first, dtype, interp, mode, size, w, h, d, roi_st
                      minibatch_size=minibatch_size,
                      max_size=max_size,
                      subpixel_scale=False)  # disable subpixel scale so we can use PIL as reference
-
-#def build_resize_pipe(
+    # Note: PIL supports ROI, but, unlike DALI, does not support overscan. DALI routinely overscans
+    # on a subpixel level in about half of the cases, when adjusting ROI to keep subpixel aspect
+    # ratio. This precludes the use of PIL as reference for subpixel_scale.
 
 def ref_output_size(mode, requested_size, roi_size, max_size = None):
     """Returns ideal (non-rounded) output size that would result from the parameters.
@@ -347,7 +350,6 @@ def _test_ND(device, dim, batch_size, channel_first, mode, interp, dtype, w_inpu
     max_iters = 3
 
     for iter in range(max_iters):
-        print("Iteration #", iter)
         o = dali_pipe.run()
         output_idx = 0
         def get_outputs(n):
@@ -412,52 +414,6 @@ def _test_ND(device, dim, batch_size, channel_first, mode, interp, dtype, w_inpu
         ref_interior =  [interior(x, channel_first) for x in ref_resized]
         check_batch(dali_interior, ref_interior, batch_size, max_avg_err, max_err)
 
-        # for debugging
-        """
-        for i in range(batch_size):
-            dali_out = dali_resized.at(i)
-            ref_out = ref_resized.at(i)
-            if channel_first:
-                to_channel_last = [1,2,3,0] if dim == 3 else [1,2,0]
-                dali_out = np.transpose(dali_out, axes=to_channel_last)
-                ref_out = np.transpose(ref_out, axes=to_channel_last)
-            err = (dali_out * 1.0 - ref_out).max()
-            if err > max_err:
-                idx = (dali_out * 1.0 - ref_out).argmax()
-                print("Max error:", err)
-                pos = []
-                print("Out:", dali_out.flatten()[idx])
-                print("Ref:", ref_out.flatten()[idx])
-                for d in reversed(dali_out.shape):
-                    pos = [idx % d] + pos
-                    idx //= d
-                print("Position:", pos)
-                print(dali_out.shape)
-                depth = dali_out.shape[0] if dim == 3 else 1
-                z = pos[0] if dim == 3 else 0
-                while True:
-                    if dim == 3:
-                        # get mid-slice
-                        dali_img = dali_out[z] / 255
-                        ref_img = ref_out[z] / 255
-                    else:
-                        dali_img = dali_out / 255
-                        ref_img = ref_out / 255
-                    cv2.imshow("out", dali_img)
-                    cv2.imshow("ref", ref_img)
-                    cv2.imshow("dif", 0.5 + dali_img - ref_img)
-                    k = cv2.waitKey(0)
-                    if k == 27:  # ESC
-                        exit(1)
-                    if k == 32: # space
-                        break
-                    if dim == 3:
-                        if k == ord(']'):
-                            z = min(z + 1, dali_out.shape[0] - 1)
-                        if k == ord('['):
-                            z = max(z - 1, 0)
-        """
-
 def _tests(dim, device):
     batch_size = 2 if dim == 3 else 10
     # 1. Cannot test linear against PIL, because PIL uses triangular filter when downscaling
@@ -471,7 +427,6 @@ def _tests(dim, device):
             (0,     types.UINT8, True,          True,         False,          False,   False,   False,   True),
             (1,     types.UINT8, False,         True,         True,           False,   False,   False,   False)]:
             interp = [types.INTERP_TRIANGULAR, types.INTERP_LANCZOS3][interp]
-            print(interp)
             yield _test_ND, device, dim, batch_size, False, mode, interp, dtype, w_input, h_input, d_input, use_size_arg, use_size_input, use_roi
 
 def test_2D_gpu():
@@ -489,3 +444,86 @@ def test_2D_cpu():
 def test_3D_cpu():
     for f, *args in _tests(3, "cpu"):
         yield (f, *args)
+
+def _test_stitching(device, dim, channel_first, dtype, interp):
+    batch_size = 1 if dim == 3 else 10
+    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=1, device_id=0, seed=1234, prefetch_queue_depth=1)
+    with pipe:
+        if dim == 2:
+            files, labels = dali.fn.caffe_reader(path = db_2d_folder, random_shuffle = True)
+            images_cpu = dali.fn.image_decoder(files, device="cpu")
+        else:
+            images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
+
+        images_hwc = images_cpu if device == "cpu" else images_cpu.gpu()
+
+        if channel_first:
+            images = dali.fn.transpose(images_hwc, perm=[3,0,1,2] if dim == 3 else [2,0,1], transpose_layout=True)
+        else:
+            images = images_hwc
+
+        out_size_full = [32, 32, 32] if dim == 3 else [160, 160]
+        out_size_half = [x//2 for x in out_size_full]
+
+        roi_start = [0] * dim
+        roi_end = [1] * dim
+
+        resized = fn.resize(images, dtype=dtype, min_filter=interp, mag_filter=interp,
+                            size = out_size_full)
+
+        outputs = [resized]
+
+        for z in range(dim - 1):
+            if dim == 3:
+                roi_start[0] = z * 0.5
+                roi_end[0] = (z + 1) * 0.5
+            for y in [0, 1]:
+                roi_start[-2] = y * 0.5
+                roi_end[-2] = (y + 1) * 0.5
+                for x in [0, 1]:
+                    roi_start[-1] = x * 0.5
+                    roi_end[-1] = (x + 1) * 0.5
+
+                    part = fn.resize(images, dtype=dtype, interp_type=interp, size=out_size_half,
+                                     roi_start=roi_start, roi_end=roi_end, roi_relative=True)
+                    outputs.append(part)
+
+        pipe.set_outputs(*outputs)
+
+    pipe.build()
+    for iter in range(1):
+        out = pipe.run()
+        if device == "gpu":
+            out = [x.as_cpu() for x in out]
+        whole = out[0]
+        tiled = []
+        for i in range(batch_size):
+            slices = []
+            for z in range(dim - 1):
+                q00 = out[1 + z*4 + 0].at(i)
+                q01 = out[1 + z*4 + 1].at(i)
+                q10 = out[1 + z*4 + 2].at(i)
+                q11 = out[1 + z*4 + 3].at(i)
+                if channel_first:
+                    slices.append(np.block([[q00, q01],
+                                            [q10, q11]]))
+                else:
+                    slices.append(np.block([[[q00], [q01]],
+                                            [[q10], [q11]]]))
+            if dim == 3:
+                if channel_first:
+                    tiled.append(np.block([[[slices[0]]], [[slices[1]]]]))
+                else:
+                    tiled.append(np.block([[[[slices[0]]]], [[[slices[1]]]]]))
+            else:
+                tiled.append(slices[0])
+        max_err = 1e-3 if type == types.FLOAT else 1
+        check_batch(tiled, whole, batch_size, 1e-4, max_err, compare_layouts=False)
+
+def test_stitching():
+    for device in ["cpu", "gpu"]:
+        for dim in [3]:
+            for dtype in [types.UINT8, types.FLOAT]:
+                for channel_first in [False, True]:
+                    for interp in [types.INTERP_LINEAR, types.INTERP_CUBIC, types.INTERP_TRIANGULAR, types.INTERP_LANCZOS3]:
+                        yield _test_stitching, device, dim, channel_first, dtype, interp
