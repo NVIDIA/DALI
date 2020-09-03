@@ -100,7 +100,7 @@ SeparableResamplingSetup<spatial_ndim>::ComputeScaleAndROI(
       hi = roi_start - filter.anchor + support;
     }
     roi.lo[axis] = std::max<int>(0, std::min<int>(desc.in_shape()[axis], std::floor(lo)));
-    roi.hi[axis] = std::max<int>(0, std::min<int>(desc.in_shape()[axis], std::floor(hi)));
+    roi.hi[axis] = std::max<int>(0, std::min<int>(desc.in_shape()[axis], std::ceil(hi)));
   }
 
   return roi;
