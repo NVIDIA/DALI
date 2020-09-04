@@ -96,13 +96,13 @@ DALI_SCHEMA(CachedDecoderAttr)
       R"code(Applies **only** to the ``mixed`` backend type.
 
 Total size of the decoder cache in megabytes. When provided, the decoded images
-that are larger than the ``cache_threshold`` value will be cached in GPU memory.
+that are larger than ``cache_threshold`` will be cached in GPU memory.
 )code",
       0)
   .AddOptionalArg("cache_threshold",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-The size threshold in bytes for decoded images to be cached.)code",
+The size threshold, in bytes, for decoded images to be cached.)code",
       0)
   .AddOptionalArg("cache_debug",
       R"code(Applies **only** to the ``mixed`` backend type.
@@ -114,7 +114,7 @@ Prints the debug information about the decoder cache.)code",
 
 If set to True, multiple images from the cache are copied with a batched copy kernel call.
 Otherwise, unless the order in the batch is the same as in the cache, each image is
-copied using by cudaMemcpy.)code",
+copied with ``cudaMemcpy``.)code",
       true)
   .AddOptionalArg("cache_type",
       R"code(Applies **only** to the ``mixed`` backend type.

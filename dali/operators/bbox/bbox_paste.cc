@@ -42,17 +42,17 @@ canvas and ``(1,1)`` aligns it to bottom-right.
   .NumInput(1)
   .NumOutput(1)
   .AddArg("ratio",
-      R"code(RRatio of the canvas size to the input size, and the value must be greater than 1.)code",
+      R"code(Ratio of the canvas size to the input size; the value must be at least 1.)code",
       DALI_FLOAT, true)
   .AddOptionalArg("ltrb",
               R"code(Set to True for two-point (ltrb) and set to False for the width-height
 representation.)code",
               false, false)
   .AddOptionalArg("paste_x",
-      R"code(Horizontal position of the paste in the image coordinates (0.0 - 1.0).)code",
+      R"code(Horizontal position of the paste in image coordinates (0.0 - 1.0).)code",
       0.5f, true)
   .AddOptionalArg("paste_y",
-      R"code(Vertical position of the paste in the image coordinates (0.0 - 1.0).)code",
+      R"code(Vertical position of the paste in image coordinates (0.0 - 1.0).)code",
       0.5f, true);
 
 template<>

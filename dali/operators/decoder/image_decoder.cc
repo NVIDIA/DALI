@@ -116,9 +116,6 @@ a dedicated hardware decoder.
 
 The output of the decoder is in the *HWC* layout.
 
-<<<<<<< HEAD
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
-=======
 The following formats are supported:
 
 * JPG
@@ -129,7 +126,6 @@ The following formats are supported:
 * PPM
 * PGM
 * PBM)code")
->>>>>>> Adjust documentation after review
   .AddOptionalArg("hw_decoder_load",
       R"code(Applies **only** to the ``mixed`` backend type.
 
@@ -145,22 +141,6 @@ the DALI pipeline and should be found empirically.)code",
 // Fused
 
 DALI_SCHEMA(ImageDecoderCrop)
-<<<<<<< HEAD
-  .DocStr(R"code(Decode images and extract a fixed region-of-interest (ROI) specified by a constant
-window dimensions and a variable anchor.
-
-When possible, it will make use of region-of-interest decoding APIs (e.g. *libjpeg-turbo*, *nvJPEG*)
-thus optimizing decoding time and memory usage. When not supported, it will decode the whole image
-and then crop the selected ROI.
-
-Note: ROI decoding is currently not compatible with hardware based decoding.
-Using *ImageDecoderCrop* will automatically disable hardware accelerated decoding.
-To make use of the hardware decoder, use *ImageDecoder* and *Crop* operators instead.
-
-The output of the decoder is in *HWC* layout.
-
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
-=======
   .DocStr(R"code(Decodes images and extracts a fixed region-of-interest (ROI) that is specified
 by constant window dimensions and a variable anchor.
 
@@ -186,29 +166,12 @@ The followingformats are supported:
 * PPM
 * PGM
 * PBM)code")
->>>>>>> Adjust documentation after review
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
   .AddParent("CropAttr");
 
 DALI_SCHEMA(ImageDecoderRandomCrop)
-<<<<<<< HEAD
-  .DocStr(R"code(Decode images and extract a random region-of-interest (ROI) with window dimensions
-generated from within a range of valid *aspect_ratio* and *area* values.
-
-When possible, it will make use of region-of-interest decoding APIs (e.g. *libjpeg-turbo*, *nvJPEG*)
-thus optimizing decoding time and memory usage. When not supported, it will decode the whole image
-and then crop the selected ROI.
-
-Note: ROI decoding is currently not compatible with hardware based decoding.
-Using *ImageDecoderRandomCrop* will automatically disable hardware accelerated decoding.
-To make use of the hardware decoder, use *ImageDecoder* and *RandomResizedCrop* operators instead.
-
-The output of the decoder is in *HWC* layout.
-
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
-=======
   .DocStr(R"code(Decodes images and extracts a random ROI with window dimensions that were
 generated from a range of valid ``aspect_ratio`` and ``area`` values.
 
@@ -234,7 +197,6 @@ The followingformats are supported:
 * PPM
 * PGM
 * PBM)code")
->>>>>>> Adjust documentation after review
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -242,35 +204,6 @@ The followingformats are supported:
 
 
 DALI_SCHEMA(ImageDecoderSlice)
-<<<<<<< HEAD
-  .DocStr(R"code(Decode images and extract an externally provided region-of-interest (ROI) specified
-by an anchor and a shape of the ROI.
-
-Inputs must be supplied as 3 separate tensors in a specific order: `data`
-containing input data, `anchor` containing either normalized or absolute coordinates
-(depending on the value of `normalized_anchor`) for the starting point of the
-slice (x0, x1, x2, ...), and `shape` containing either normalized or absolute coordinates
-(depending on the value of `normalized_shape`) for the dimensions of the slice
-(s0, s1, s2, ...). Both `anchor` and `shape` coordinates must be within the interval
-[0.0, 1.0] for normalized coordinates, or within the image shape for absolute
-coordinates. Both `anchor` and `shape` inputs will provide as many dimensions as specified
-with arguments `axis_names` or `axes`.
-
-By default `ImageDecoderSlice` operator uses normalized coordinates and `WH` order for the slice
-arguments.
-
-When possible, it will make use of region-of-interest decoding APIs (e.g. *libjpeg-turbo*, *nvJPEG*)
-thus optimizing decoding time and memory usage. When not supported, it will decode the whole image
-and then crop the selected ROI.
-
-Note: ROI decoding is currently not compatible with hardware based decoding.
-Using *ImageDecoderSlice* will automatically disable hardware accelerated decoding.
-To make use of the hardware decoder, use *ImageDecoder* and *Slice* operators instead.
-
-The output of the decoder is in *HWC* layout.
-
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
-=======
   .DocStr(R"code(Decodes images and extracts an externally provided ROI that are specified by an
 anchor and a shape of the ROI.
 
@@ -311,7 +244,6 @@ The followingformats are supported:
 * PPM
 * PGM
 * PBM)code")
->>>>>>> Adjust documentation after review
   .NumInput(3)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")

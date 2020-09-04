@@ -29,7 +29,7 @@ be silent when the ``short_term_power_db`` is less than the ``cutoff_db`` width:
 
 Unless specified otherwise, ``reference_power`` is typically the maximum of the signal.
 
-Here is a list of the inputs and outputs:
+Inputs and outputs:
 
 * **Input 0** - 1D audio buffer.
 * **Output 0** - Begin index of nonsilent region.
@@ -40,16 +40,15 @@ Here is a list of the inputs and outputs:
   .NumInput(1)
   .NumOutput(detail::kNumOutputs)
   .AddOptionalArg("cutoff_db",
-                  R"code(The threshold [dB], below which everything is considered as silence.)code",
+                  R"code(The threshold, in dB, below which the signal is considered silent.)code",
                   -60.f)
-  .AddOptionalArg("window_length", R"code(Size of a sliding window.
-
-This window is used to calculate the short-term power of the signal.)code", 2048)
+  .AddOptionalArg("window_length", R"code(Size of the sliding window used in the calculation of
+the short-term power of the signal.)code", 2048)
   .AddOptionalArg("reference_power",
-                  R"code(The reference power that is used to convert the signal to db.
+                  R"code(The reference power that is used to convert the signal to dB.
 
-If a value for reference_power is not provided, the maximum value of the signal will be used as the
-reference power.)code",
+If a value for reference_power is not provided, the maximum power of the signal will be used as the
+reference.)code",
                   0.f)
   .AddOptionalArg("reset_interval",
                   R"code(The number of samples after which the moving mean average is recalculated

@@ -20,7 +20,8 @@
 namespace dali {
 
 DALI_SCHEMA(MelFilterBank)
-    .DocStr(R"code(Converts a Spectrogram to a mel spectrogram by using triangular filter banks.
+    .DocStr(R"code(Converts a spectrogram to a mel spectrogram by applying a bank of
+triangular filters.
 
 Expects an input with at least 2 dimensions where the last two dimensions correspond to
 the fft bin index and the window index, respectively.
@@ -46,16 +47,16 @@ If this value is not provided, the following formula is used::
       0.0f)
     .AddOptionalArg("normalize",
       R"code(Determines whether to normalize the triangular filter weights by the width
-of their mel bands.
+of their frequency bands.
 
 - If set to True, the integral of the filter function is 1.
 - If set to False, the peak of the filter function will be 1.)code",
       true)
     .AddOptionalArg("mel_formula",
-      R"code(Determines the formula that will be used to convert frequencies from Hertz to mel
-and from mel to Hertz.
+      R"code(Determines the formula that will be used to convert frequencies from hertz to mel
+and from mel to hertz.
 
-The mel scale is a perceptual scale of pitches, so there is no formula.
+The mel scale is a perceptual scale of pitches, so there is no single formula.
 
 The supported values are:
 

@@ -25,18 +25,18 @@ namespace dali {
 DALI_SCHEMA(Constant)
   .DocStr(R"code(Produces a batch of constant tensors.
 
-In ``idata``, the floating point input data should be placed in the ``fdata`` argument
-and integer data. The data, which is a flat vector of values or a scalar, is then reshaped
-according to the shape argument. If the data is scalar, it will be broadcast
+The floating point input data should be placed in the ``fdata`` argument
+and integer data in ``idata``. The data, which is a flat vector of values or a scalar, is then reshaped
+according to the ``shape`` argument. If the data is scalar, it will be broadcast
 to fill the entire shape.
 
-The operator only performs meaningful work at first invocation, and subsequent calls will return
+The operator only performs meaningful work at first invocation; subsequent calls will return
 a reference to the same memory.
 
-To automatically instantiate the operatorin Python, call
+To automatically instantiate the operator in Python, call
 :func:`types.Constant(value, dtype, shape, layout) <nvidia.dali.types.Constant>`.
 The value can be a scalar, a tuple, a list, or a numpy array. If not explicitly overridden,
-the ``shape`` and ``dtype`` (if not explicitly overridden), will be taken from the array.
+the ``shape`` and ``dtype``, will be taken from the array.
 
 **Important**: 64-bit integer and double precision arrays are not supported and will be silently
 downgraded to 32-bit.)code")

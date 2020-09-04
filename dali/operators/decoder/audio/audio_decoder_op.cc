@@ -19,8 +19,7 @@
 namespace dali {
 
 DALI_SCHEMA(AudioDecoder)
-  .DocStr(R"code(Decodes audio data and is a generic way to handle
-encoded data in DALI.
+  .DocStr(R"code(Decodes waveforms from raw audio files.
 
 It supports most of well-known audio formats, such as wav, flac, ogg, and so on.
 This operator produces the following outputs:
@@ -32,7 +31,8 @@ This operator produces the following outputs:
   .NumOutput(2)
   .AddOptionalArg("downmix", R"code(If set to True, downmix all input channels to mono.
 
-If downmixing is turned on, decoder will produce always 1-D output", false)code", false)
+If downmixing is turned on, the decoder decoder output is 1D.
+If downmixing is turned off, it produces 2D output with interleaved channels.", false)code", false)
   .AddOptionalArg("dtype", R"code(The following types are supported:
 
 - `INT16`
@@ -41,7 +41,7 @@ If downmixing is turned on, decoder will produce always 1-D output", false)code"
   .AddOptionalArg("sample_rate",
           "If specified, the target sample rate, in Hz, to which the audio is resampled.",
           0.0f, true)
-  .AddOptionalArg("quality", R"code(Resampling quality, where 0 is lowest, and 00 is the highest.
+  .AddOptionalArg("quality", R"code(Resampling quality, where 0 is lowest, and 100 is the highest.
 
 0 gives 3 lobes of the sinc filter, 50 gives 16 lobes, and 100 gives 64 lobes.)code",
           50.0f, false);

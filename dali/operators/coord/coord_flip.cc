@@ -37,12 +37,12 @@ Here are the possible values:
   or ``xyz`` values are assumed.
 )code",
       TensorLayout{""})
-    .AddOptionalArg("flip_x", R"code(Flip horizontal (x) dimension.)code", 1, true)
-    .AddOptionalArg("flip_y", R"code(Flip vertical (y) dimension.)code", 0, true)
-    .AddOptionalArg("flip_z", R"code(Flip depthwise (z) dimension.)code", 0, true)
-    .AddOptionalArg("center_x", R"code(Flip center on the horizontal dimension.)code", 0.5f, true)
-    .AddOptionalArg("center_y", R"code(Flip center on the vertical dimension.)code", 0.5f, true)
-    .AddOptionalArg("center_z", R"code(Flip center on the depthwise dimension.)code", 0.5f, true);
+    .AddOptionalArg("flip_x", R"code(Flip the horizontal (x) dimension.)code", 1, true)
+    .AddOptionalArg("flip_y", R"code(Flip the vertical (y) dimension.)code", 0, true)
+    .AddOptionalArg("flip_z", R"code(Flip the depthwise (z) dimension.)code", 0, true)
+    .AddOptionalArg("center_x", R"code(Flip center in the horizontal dimension.)code", 0.5f, true)
+    .AddOptionalArg("center_y", R"code(Flip center in the vertical dimension.)code", 0.5f, true)
+    .AddOptionalArg("center_z", R"code(Flip center in the depthwise dimension.)code", 0.5f, true);
 
 
 class CoordFlipCPU : public CoordFlip<CPUBackend> {

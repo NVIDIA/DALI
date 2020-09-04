@@ -21,7 +21,7 @@
 namespace dali {
 
 DALI_SCHEMA(PreemphasisFilter)
-    .DocStr(R"code(This operator completes the preemphasis filtering on the input data.
+    .DocStr(R"code(This operator applies preemphasis filter to the input data.
 
 This filter, in simple form, can be expressed by the formula::
 
