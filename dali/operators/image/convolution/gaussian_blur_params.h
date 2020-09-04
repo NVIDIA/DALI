@@ -24,11 +24,11 @@
 namespace dali {
 namespace gaussian_blur {
 
-int SigmaToDiameter(float sigma) {
+inline int SigmaToDiameter(float sigma) {
   return 2 * ceilf(sigma * 3) + 1;
 }
 
-float DiameterToSigma(int diameter) {
+inline float DiameterToSigma(int diameter) {
   // Based on OpenCV
   int radius = (diameter - 1) / 2;
   return (radius - 1) * 0.3 + 0.8;
@@ -37,6 +37,7 @@ float DiameterToSigma(int diameter) {
 struct DimDesc {
   int usable_axes_start;
   int usable_axes_count;
+  int total_axes_count;
   bool has_channels;
   bool is_sequence;
 };
@@ -64,7 +65,7 @@ struct GaussianBlurParams {
   }
 };
 
-void FillGaussian(const TensorView<StorageCPU, float, 1> &window, float sigma) {
+inline void FillGaussian(const TensorView<StorageCPU, float, 1> &window, float sigma) {
   int r = (window.num_elements() - 1) / 2;
   // 1 / sqrt(2 * pi * sigma^2) * exp(-(x^2) / (2 * sigma^2))
   // the 1 / sqrt(2 * pi * sigma^2) coefficient disappears as we normalize the sum to 1.
@@ -127,7 +128,7 @@ class GaussianWindows {
   }
 
   // Return the already filled windows
-  std::array<TensorView<StorageCPU, const float, 1>, axes> GetWindows() {
+  std::array<TensorView<StorageCPU, const float, 1>, axes> GetWindows() const {
     return precomputed_window;
   }
 
@@ -136,6 +137,33 @@ class GaussianWindows {
   GaussianBlurParams<axes> previous;
   std::vector<float> memory;
 };
+
+// This can be fused and we can handle batch of params at a time
+// instead of vector of sample params but depending on the parameter changes
+// it will probably impact allocation patterns in different ways and need
+// to be evaluated if it is fine or not
+template <int axes>
+void RepackAsTL(std::array<TensorListShape<1>, axes> &out, const std::vector<GaussianBlurParams<axes>> &params) {
+  for (int axis = 0; axis < axes; axis++) {
+    out[axis].resize(params.size());
+    for (int i = 0; i < params.size(); i++) {
+      out[axis].set_tensor_shape(i, {params[i].window_sizes[axis]});
+    }
+  }
+}
+
+template <int axes>
+void RepackAsTL(std::array<TensorListView<StorageCPU, const float, 1>, axes> &out, const std::vector<GaussianWindows<axes>> &windows) {
+  for (int axis = 0; axis < axes; axis++) {
+    int nsamples = windows.size();
+    out[axis].data.resize(nsamples);
+    out[axis].shape.resize(nsamples);
+    for (int i = 0; i < nsamples; i++) {
+      out[axis].data[i] = windows[i].GetWindows()[axis].data;
+      out[axis].shape.set_tensor_shape(i, windows[i].GetWindows()[axis].shape);
+    }
+  }
+}
 
 }  // namespace gaussian_blur
 }  // namespace dali

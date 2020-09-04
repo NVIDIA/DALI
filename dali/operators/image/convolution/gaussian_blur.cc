@@ -22,16 +22,12 @@
 #include "dali/kernels/imgproc/convolution/separable_convolution_cpu.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/convolution/gaussian_blur.h"
-#include "dali/operators/image/convolution/gaussian_blur_params.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
 
 using namespace gaussian_blur;  // NOLINT
-
-constexpr static const char* kSigmaArgName = "sigma";
-constexpr static const char* kWindowSizeArgName = "window_size";
 
 DALI_SCHEMA(GaussianBlur)
     .DocStr(R"code(Applies a Gaussian Blur to the input.
@@ -75,71 +71,8 @@ The same input can be provided as per-sample tensors.
 Supported type: `FLOAT`. If not set, the input type is used.)code",
         DALI_NO_TYPE);
 
-/**
- * @brief Fill the result span with the argument which can be provided as:
- * * ArgumentInput - {result.size()}-shaped Tensor
- * * ArgumentInput - {1}-shaped Tensor, the value will be replicated `result.size()` times
- * * Vector input - single "repeated argument" of length {result.size()} or {1}
- * * scalar argument - it will be replicated `result.size()` times
- *
- * TODO(klecki): we may want to make this a generic utility and propagate the span-approach to
- * the rest of the related argument gettters
- */
-template <typename T>
-void GetGeneralizedArg(span<T> result, const std::string name, int sample_idx, const OpSpec& spec,
-                       const ArgumentWorkspace& ws) {
-  int argument_length = result.size();
-  if (spec.HasTensorArgument(name)) {
-    const auto& tv = ws.ArgumentInput(name);
-    const auto& tensor = tv[sample_idx];
-    DALI_ENFORCE(tensor.shape().sample_dim() == 1,
-                 make_string("Argument ", name, " for sample ", sample_idx,
-                             " is expected to be 1D, got: ", tensor.shape().sample_dim(), "."));
-    DALI_ENFORCE(tensor.shape()[0] == 1 || tensor.shape()[0] == argument_length,
-                 make_string("Argument ", name, " for sample ", sample_idx,
-                             " is expected to have shape equal to {1} or {", argument_length,
-                             "}, got: ", tensor.shape(), "."));
-    if (tensor.shape()[0] == 1) {
-      for (int i = 0; i < argument_length; i++) {
-        result[i] = tensor.data<T>()[0];
-      }
-    } else {
-      memcpy(result.data(), tensor.data<T>(), sizeof(T) * argument_length);
-    }
-    return;
-  }
-  std::vector<T> tmp;
-  // we already handled the argument input, this handles spec-related arguments only
-  GetSingleOrRepeatedArg(spec, tmp, name, argument_length);
-  memcpy(result.data(), tmp.data(), sizeof(T) * argument_length);
-}
 
-template <int axes>
-GaussianBlurParams<axes> GetSampleParams(int sample, const OpSpec& spec,
-                                         const ArgumentWorkspace& ws) {
-  GaussianBlurParams<axes> params;
-  GetGeneralizedArg<float>(make_span(params.sigmas), kSigmaArgName, sample, spec, ws);
-  GetGeneralizedArg<int>(make_span(params.window_sizes), kWindowSizeArgName, sample, spec, ws);
-  for (int i = 0; i < axes; i++) {
-    DALI_ENFORCE(
-        !(params.sigmas[i] == 0 && params.window_sizes[i] == 0),
-        make_string("`sigma` and `window_size` shouldn't be 0 at the same time for sample: ",
-                    sample, ", axis: ", i, "."));
-    DALI_ENFORCE(params.sigmas[i] >= 0,
-                 make_string("`sigma` must have non-negative values, got ", params.sigmas[i],
-                             " for sample: ", sample, ", axis: ", i, "."));
-    DALI_ENFORCE(params.window_sizes[i] >= 0,
-                 make_string("`window_size` must have non-negative values, got ",
-                             params.window_sizes[i], " for sample: ", sample, ", axis : ", i, "."));
-    if (params.window_sizes[i] == 0) {
-      params.window_sizes[i] = SigmaToDiameter(params.sigmas[i]);
-    } else if (params.sigmas[i] == 0.f) {
-      params.sigmas[i] = DiameterToSigma(params.window_sizes[i]);
-    }
-  }
-  return params;
-}
-
+namespace gaussian_blur {
 DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
   static constexpr int kMaxDim = 3;
   if (layout.empty()) {
@@ -147,7 +80,7 @@ DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
     DALI_ENFORCE(ndim <= kMaxDim,
                  make_string("Input data with empty layout cannot have more than ", kMaxDim,
                              " dimensions, got input with ", ndim, " dimensions."));
-    return {0, ndim, false, false};
+    return {0, ndim, ndim, false, false};
   }
   // not-empty layout
   int axes_start = 0;
@@ -177,7 +110,7 @@ DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
   DALI_ENFORCE(axes_count <= kMaxDim,
                make_string("Too many dimensions, found: ", axes_count,
                            " data axes, maximum supported is: ", kMaxDim, "."));
-  return {axes_start, axes_count, has_channels, axes_start != 0};
+  return {axes_start, axes_count, axes_count + (axes_start != 0), has_channels, axes_start != 0};
 }
 
 // axes here is dimension of element processed by kernel - in case of sequence it's 1 less than the
@@ -265,6 +198,9 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
   std::vector<GaussianBlurParams<axes>> params_;
   std::vector<GaussianWindows<axes>> windows_;
 };
+
+
+}  // namespace gaussian_blur
 
 template <>
 bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,

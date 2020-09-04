@@ -20,13 +20,24 @@
 
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
+#include "dali/operators/image/convolution/gaussian_blur_params.h"
+#include "dali/pipeline/operator/common.h"
 
 namespace dali {
 
+
+// TODO(klecki): float16 -> cutlass::half
 #define GAUSSIAN_BLUR_SUPPORTED_TYPES \
-  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, float16)
+  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)
 
 #define GAUSSIAN_BLUR_SUPPORTED_AXES (1, 2, 3)
+
+
+// #define GAUSSIAN_BLUR_SUPPORTED_TYPES \
+//   (uint8_t)
+
+// #define GAUSSIAN_BLUR_SUPPORTED_AXES (1, 2, 3)
+
 template <typename Backend>
 class GaussianBlur : public Operator<Backend> {
  public:
@@ -50,6 +61,40 @@ class GaussianBlur : public Operator<Backend> {
   std::unique_ptr<OpImplBase<Backend>> impl_;
 };
 
+namespace gaussian_blur {
+
+constexpr static const char* kSigmaArgName = "sigma";
+constexpr static const char* kWindowSizeArgName = "window_size";
+
+template <int axes>
+inline GaussianBlurParams<axes> GetSampleParams(int sample, const OpSpec& spec,
+                                                const ArgumentWorkspace& ws) {
+  GaussianBlurParams<axes> params;
+  GetGeneralizedArg<float>(make_span(params.sigmas), kSigmaArgName, sample, spec, ws);
+  GetGeneralizedArg<int>(make_span(params.window_sizes), kWindowSizeArgName, sample, spec, ws);
+  for (int i = 0; i < axes; i++) {
+    DALI_ENFORCE(
+        !(params.sigmas[i] == 0 && params.window_sizes[i] == 0),
+        make_string("`sigma` and `window_size` shouldn't be 0 at the same time for sample: ",
+                    sample, ", axis: ", i, "."));
+    DALI_ENFORCE(params.sigmas[i] >= 0,
+                 make_string("`sigma` must have non-negative values, got ", params.sigmas[i],
+                             " for sample: ", sample, ", axis: ", i, "."));
+    DALI_ENFORCE(params.window_sizes[i] >= 0,
+                 make_string("`window_size` must have non-negative values, got ",
+                             params.window_sizes[i], " for sample: ", sample, ", axis : ", i, "."));
+    if (params.window_sizes[i] == 0) {
+      params.window_sizes[i] = SigmaToDiameter(params.sigmas[i]);
+    } else if (params.sigmas[i] == 0.f) {
+      params.sigmas[i] = DiameterToSigma(params.window_sizes[i]);
+    }
+  }
+  return params;
+}
+
+DimDesc ParseAndValidateDim(int ndim, TensorLayout layout);
+
+}  // namespace gaussian_blur
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_IMAGE_CONVOLUTION_GAUSSIAN_BLUR_H_

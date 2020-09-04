@@ -92,7 +92,7 @@ def check_batch(
         batch2: input batch
         batch_size
         eps (float, optional): Used for mean error validation. Defaults to 1e-07.
-        max_allowed_error (int or float optional): If provided the max diff between elements.
+        max_allowed_error (int or float, optional): If provided the max diff between elements.
         expected_layout (str, optional): If provided, the batches that are DALI types will be checked
             to match this layout. If None, there will be no check
         compare_layouts (bool, optional): Whether to compare layouts between two batches.
@@ -160,8 +160,8 @@ def check_batch(
 
 
 def compare_pipelines(
-        pipe1, pipe2, batch_size, N_iterations, eps=1e-07, expected_layout=None,
-        compare_layouts=True):
+        pipe1, pipe2, batch_size, N_iterations, eps=1e-07, max_allowed_error=None,
+        expected_layout=None, compare_layouts=True):
     """Compare the outputs of two pipelines across several iterations.
 
     Args:
@@ -170,6 +170,7 @@ def compare_pipelines(
         batch_size (int): batch size
         N_iterations (int): Number of iterations used for comparison
         eps (float, optional): Allowed mean error between samples. Defaults to 1e-07.
+        max_allowed_error (int or float, optional): If provided the max diff between elements.
         expected_layout (str or tuple of str, optional): If provided the outputs of both pipelines
             will be matched with provided layouts and error will be raised if there is mismatch.
             Defaults to None.
@@ -189,7 +190,7 @@ def compare_pipelines(
                 current_expected_layout = expected_layout[i]
             else:
                 current_expected_layout = expected_layout
-            check_batch(out1_data, out2_data, batch_size, eps,
+            check_batch(out1_data, out2_data, batch_size, eps, max_allowed_error,
                         expected_layout=current_expected_layout, compare_layouts=compare_layouts)
     print("OK: ({} iterations)".format(N_iterations))
 
