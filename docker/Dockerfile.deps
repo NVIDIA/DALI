@@ -30,8 +30,8 @@ RUN CMAKE_VERSION=3.13 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /cmake-${CMAKE_BUILD}
 
-# protobuf v3.11.1
-RUN PROTOBUF_VERSION=3.11.1 && \
+# protobuf v3.13.0
+RUN PROTOBUF_VERSION=3.13.0 && \
     curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
     cd /protobuf-${PROTOBUF_VERSION} && \
     ./autogen.sh && \
@@ -41,7 +41,7 @@ RUN PROTOBUF_VERSION=3.11.1 && \
 
 # LMDB
 COPY docker/Makefile-lmdb.patch /tmp
-RUN LMDB_VERSION=0.9.22 && \
+RUN LMDB_VERSION=0.9.24 && \
     git clone -b LMDB_${LMDB_VERSION} --single-branch https://github.com/LMDB/lmdb && \
     cd /lmdb/libraries/liblmdb && \
     patch -p3 < /tmp/Makefile-lmdb.patch && \
@@ -50,7 +50,7 @@ RUN LMDB_VERSION=0.9.22 && \
     rm -rf /lmdb
 
 # libjpeg-turbo
-RUN JPEG_TURBO_VERSION=2.0.4 && \
+RUN JPEG_TURBO_VERSION=2.0.5 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
     cmake -G"Unix Makefiles" -DENABLE_SHARED=TRUE -DCMAKE_INSTALL_PREFIX=/usr/local . 2>&1 >/dev/null && \
@@ -72,7 +72,7 @@ RUN LIBTIFF_VERSION=4.1.0 && \
     rm -rf /tmp/tiff-${LIBTIFF_VERSION}
 
 # OpenCV
-RUN OPENCV_VERSION=4.3.0 && \
+RUN OPENCV_VERSION=4.4.0 && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
     cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
@@ -96,7 +96,7 @@ RUN CLANG_VERSION=8.0.1 && \
 ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
 # FFmpeg
-RUN FFMPEG_VERSION=4.2.2 && \
+RUN FFMPEG_VERSION=4.3.1 && \
     cd /tmp && wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
     tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
     rm ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
@@ -140,7 +140,7 @@ RUN OGG_VERSION=1.3.4 && cd /tmp                                                
 
 # libvorbis
 # Install after libogg
-RUN VORBIS_VERSION=1.3.6 && cd /tmp                                                   && \
+RUN VORBIS_VERSION=1.3.7 && cd /tmp                                                   && \
     wget https://github.com/xiph/vorbis/archive/v${VORBIS_VERSION}.tar.gz             && \
     tar -xf v${VORBIS_VERSION}.tar.gz                                                 && \
     rm -f  v${VORBIS_VERSION}.tar.gz                                                  && \
