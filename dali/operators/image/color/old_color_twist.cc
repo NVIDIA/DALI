@@ -290,7 +290,7 @@ This is an old implementation that was using NPP.)code")
     .AddOptionalArg("saturation",
                     R"code(Saturation change factor.
 
-Here are the supported values:
+Example values:
 
 * 0: A completely desaturated image.
 * 1: No change to an image’s saturation.
@@ -301,9 +301,9 @@ Here are the supported values:
     .AddOptionalArg("contrast",
                     R"code(Contrast change factor.
 
-Here are the supported values:
+Example values:
 
-* 0: A gray image.
+* 0: Uniform grey image.
 * 1: No change.
 * 2: Increase the contrast twice.
 
@@ -313,7 +313,7 @@ Here are the supported values:
     .AddOptionalArg("brightness",
                     R"code(Brightness change factor.
 
-Here are the supported values:
+Example values:
 
 * 0: A black image.
 * 1: No change.

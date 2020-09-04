@@ -24,7 +24,7 @@ using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 3>;
 }  // namespace
 
 DALI_SCHEMA(Hsv)
-    .DocStr(R"code(This operator performs an HSV manipulation.
+    .DocStr(R"code(Adjusts hue, saturation and value (brightness) for an image.
 
 To change the hue, the saturation, and/or the value of the image, pass the corresponding
 coefficients. Remember that the ``hue`` has an additive delta argument,
@@ -39,15 +39,16 @@ and is restored to the original color space.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg(color::kHue,
-                    R"code(Sets the additive change of the hue.
+                    R"code(Hue delta, in degrees; 0 is a no-op.
 
-A value of 0 denotes no-op.)code",
+The hue component can be interpreted as an angle and values outside 0-360 range wrap around, as
+they would in case of rotation.)code",
                     0.0f, true)
     .AddOptionalArg(color::kSaturation,
-                    R"code(Sets the multiplicative change of saturation, and 1 denotes no-op)code",
+                    R"code(The saturation multiplier; 1.0 is a no-op.)code",
                     1.0f, true)
     .AddOptionalArg(color::kValue,
-                    R"code(Sets the multiplicative change of value, and 1 denotes no-op)code",
+                    R"code(The value multiplier; 1.0 is a no-op.)code",
                     1.0f, true)
     .AddOptionalArg(color::kOutputType, R"code(The output data type.
 
@@ -71,11 +72,11 @@ DALI_SCHEMA(Brightness)
     .AddOptionalArg("brightness",
                     R"code(Brightness change factor.
 
-Here is a list of the values:
+Example values:
 
-* `0` - Black image,
-* `1` - No change
-* `2` - Increase brightness twice
+* `0` - Black image.
+* `1` - No change.
+* `2` - Increase brightness twice.
 
 .. note::
     Only values greater than 0 are accepted.)code", 1.f, true)
@@ -89,10 +90,10 @@ DALI_SCHEMA(Contrast)
     .AddOptionalArg("contrast",
                     R"code(Contrast change factor.
 
-Here is a list of the values:
+Example values:
 
-* `0` - Grey image.
-* `1` - No change
+* `0` - Uniform grey image.
+* `1` - No change.
 * `2` - Increase brightness twice.
 
 .. note::
@@ -115,8 +116,7 @@ DALI_SCHEMA(Saturation)
     .AddOptionalArg("saturation",
                     R"code(Saturation change factor.
 
-Here is a list of the values:
-
+Example values:
 - `0` – Completely desaturated image
 - `1` - No change to image’s saturation.
 
@@ -126,7 +126,7 @@ Here is a list of the values:
     .InputLayout(0, "HWC");
 
 DALI_SCHEMA(ColorTwist)
-    .DocStr(R"code(Combines the hue, the saturation, the contrast, and the brightness.)code")
+    .DocStr(R"code(Adjusts hue, saturation and brightness of the image.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue",
@@ -134,7 +134,7 @@ DALI_SCHEMA(ColorTwist)
     .AddOptionalArg("saturation",
                     R"code(Saturation change factor.
 
-Here is a list of the values:
+Example values:
 
 - `0` – Completely desaturated image
 - `1` - No change to image’s saturation.
@@ -144,10 +144,10 @@ Here is a list of the values:
     .AddOptionalArg("contrast",
                     R"code(Contrast change factor.
 
-Here is a list of the values:
+Example values:
 
-* `0` - Grey image.
-* `1` - No change
+* `0` - Uniform grey image.
+* `1` - No change.
 * `2` - Increase brightness twice.
 
 .. note::
@@ -155,11 +155,11 @@ Here is a list of the values:
     .AddOptionalArg("brightness",
                     R"code(Brightness change factor.
 
-Here is a list of the values:
+Example values:
 
-* `0` - Black image,
-* `1` - No change
-* `2` - Increase brightness twice
+* `0` - Black image.
+* `1` - No change.
+* `2` - Increase brightness twice.
 
 .. note::
     Only values greater than 0 are accepted.)code", 1.f, true)

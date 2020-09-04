@@ -108,10 +108,10 @@ metric that are specified by threshold_type, such as the intersection-over-union
 window and the bounding boxes or the relative overlap as a ratio of the intersection area and
 the bounding box area.
 
-Alternatively, you can prevent crop as one of the valid outcomes of the random process by
-using ``allow_no_crop``.
+Additionally, if ``allow_no_crop`` is True, the cropping may be skipped entirely as one of
+the valid results of the operator.
 
-The following modes of a random crop mopes are available:
+The following modes of a random crop are available:
 
 - | Randomly shaped window, which is randomly placed in the original input space.
   | The random crop window dimensions are selected based on the provided aspect_ratio and relative
@@ -185,21 +185,25 @@ configurating the number of attempts.)code",
         R"code(Determines the meaning of ``thresholds``.
 
 By default, thresholds refers to the intersection-over-union (IoU) of the bounding boxes
-with respect to the cropping window. Alternatively, the threshold can be set to ``overlap`` to
+with respect to the cropping window. Alternatively, the threshold can be set to "overlap" to
 specify the fraction (by area) of the bounding box that will will fall inside the crop window.
 For example, a threshold value of ``1.0`` means the entire bounding box must be contained in the
 resulting cropping window.
 )code", "iou")
     .AddOptionalArg(
         "aspect_ratio",
-        R"code(Single or multiple valid aspect ratio ranges for the cropping windows.
+        R"code(Valid range or ranges of aspect ratio of the cropping windows.
 
-- Here some additional information: For 2D bounding boxes, one aspect ratio in the ``x/y`` range
-  should be provided (for example, ``[min_xy, max_xy]``).
-- | For 3D bounding boxes, the (``x/y``, ``x/z`` and ``y/z``) aspect ratio ranges are expected.
-  | An example is ``[min_xy, max_xy, min_xz, max_xz, min_yz, max_yz]``. Alternatively,
-    if an aspect ratio range is provided, the valid aspect ratio range will be the same for the
-    three ratios.
+This parameter can be specified as either two values (min, max) or six values (three pairs),
+depending on dimensionality of the input.
+
+- | For 2D bounding boxes, one range of valid aspect ratios (x/y) should be provided
+    (e.g. ``[min_xy, max_xy]``).
+- | For 3D bounding boxes, three separate aspect ratio ranges may be specified, for x/y, x/z and y/z
+    pairs of dimensions.
+  | They are provided in the following order ``[min_xy, max_xy, min_xz, max_xz, min_yz, max_yz]``.
+    Alternatively, if only one aspect ratio range is provided, it will be used for all
+    three pairs of dimensions.
 
 The value for ``min`` should be greater than ``0.0``, and min should be less than or
 equal to the ``max`` value.  By default, square windows are generated.
@@ -213,8 +217,7 @@ equal to the ``max`` value.  By default, square windows are generated.
         "scaling",
         R"code(Range ``[min, max]`` for the crop size with respect to the original image dimensions.
 
-The value for min should be greater than ``0.0``, and min should be less than or
-equal to the max value.
+The value values of ``min`` and ``max`` must satisfy the condition ``0.0 <= min <= max``.
 
 .. note::
   Providing ``aspect_ratio`` and ``scaling`` is incompatible when explicitly specifying the

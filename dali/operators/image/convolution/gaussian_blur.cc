@@ -34,14 +34,14 @@ constexpr static const char* kSigmaArgName = "sigma";
 constexpr static const char* kWindowSizeArgName = "window_size";
 
 DALI_SCHEMA(GaussianBlur)
-    .DocStr(R"code(Applies the Gaussian Blur to the input.
+    .DocStr(R"code(Applies a Gaussian Blur to the input.
 
-You can specify the sigma window size, the kernel window size, or both.
-If only the sigma window size is specified, the radius of kernel is calculated as
+Gaussian blur is calculated by applying a convolution with a Gaussian kernel, which can be
+parameterized with ``windows_size`` and ``sigma``.
+If only the sigma is specified, the radius of the Gaussian kernel defaults to
 ``ceil(3 * sigma)``, so the kernel window size is ``2 * ceil(3 * sigma) + 1``.
 
-
-If only the kernel window size is provided, the sigma is calculated by using the following formula::
+If only the window size is provided, the sigma is calculated by using the following formula::
 
   radius = (window_size - 1) / 2
   sigma = (radius - 1) * 0.3 + 0.8
