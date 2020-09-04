@@ -255,7 +255,7 @@ crop is found.
 
 .. warning::
   If you do not provide a ``total_num_attempts`` value, this can result in an infinite
-  loop if the provided arguments cannot be satisfied.
+  loop if the conditions imposed by the arguments cannot be satisfied.
 )code",
         -1)
     .AddOptionalArg(
@@ -296,16 +296,11 @@ The order of dimensions is determined by the layout that is provided in ``shape_
         "bbox_layout",
         R"code(Determines the meaning of the coordinates of the bounding boxes.
 
-Here are the possible values:
+The value of this argument is a string containing the following characters:
 
-- ``x`` (horizontal start anchor)
-- ``y`` (vertical start anchor)
-- ``z`` (depthwise start anchor)
-- ``X`` (horizontal end anchor)
-- ``Y`` (vertical end anchor)
-- ``Z`` (depthwise end anchor)
-- ``W`` (width)
-- ``H`` (height), D (depth)
+  ``x`` (horizontal start anchor), ``y`` (vertical start anchor), ``z`` (depthwise start anchor),
+  ``X`` (horizontal end anchor),   ``Y`` (vertical end anchor),   ``Z`` (depthwise end anchor),
+  ``W`` (width),                   ``H`` (height),                ``D`` (depth).
 
 .. note::
   If this value is left empty, depending on the number of dimensions, ``xyXY`` or

@@ -35,7 +35,8 @@ is the normalized position, ``W`` is the width of the image, and ``crop_W`` is t
 cropping window.)code",
         0.5f, true)
     .AddOptionalArg(
-        "crop_pos_y", R"code(Normalized (0.0 - 1.0) vertical position of the cropping window (upper left corner).
+         "crop_pos_y", R"code(Normalized (0.0 - 1.0) vertical position of the start of
+the cropping window (typically, the upper left corner).
 
 The actual position is calculated as ``crop_y = crop_y_norm * (H - crop_H)``, where ``crop_y_norm``
 is the normalized position, `H` is the height of the image, and ``crop_H`` is the
