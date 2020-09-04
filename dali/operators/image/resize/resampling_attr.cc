@@ -20,7 +20,7 @@ namespace dali {
 DALI_SCHEMA(ResamplingFilterAttr)
   .DocStr(R"code(Resampling filter attribute placeholder)code")
   .AddOptionalArg("interp_type",
-      R"code(Type of interpolation that was used.
+      R"code(Type of interpolation to be used.
 
 Use ``min_filter`` and mag_filter to specify different filtering for downscaling and upscaling.
 )code",

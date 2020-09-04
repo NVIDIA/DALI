@@ -30,7 +30,7 @@ Normalization takes the input image and produces the output by using the followi
   output = (input - mean) / std
 
 .. note::
-    If you do not provide a crop argument, only  mirroring and normalization will occur.
+    If no cropping method is specified, only mirroring and normalization will occur.
 )code")
   .NumInput(1)
   .NumOutput(1)
@@ -51,12 +51,7 @@ Here are the supported types:
   .AddOptionalArg("pad_output",
     R"code(Determines whether to pad the output to the number of channels as a power of 2).)code", false)
   .AddOptionalArg("mirror",
-    R"code(Mask for the horizontal flip.
-
-Here are the values:
-
-- `0`:  Do not perform a horizontal flip for this image.
-- `1`: perform a horizontal flip for this image.)code",
+    R"code(If nonzero, the image will be flipped (mirrored) horizontally.)code",
     0, true)
   .AddOptionalArg("mean",
     R"code(Mean pixel values for image normalization.)code",

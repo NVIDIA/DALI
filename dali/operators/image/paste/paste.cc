@@ -22,7 +22,7 @@ the ``input size * ratio``.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddArg("ratio",
-      R"code(Ratio of canvas size to input size, which must be greater than 1.)code",
+      R"code(Ratio of canvas size to input size. Must be at least 1.)code",
       DALI_FLOAT, true)
   .AddOptionalArg("n_channels",
       R"code(Number of channels in the image.)code", 3)
@@ -32,10 +32,10 @@ the ``input size * ratio``.)code")
 The length of the tuple must be equal to ``n_channels``.)code",
       DALI_INT_VEC)
   .AddOptionalArg("paste_x",
-      R"code(Horizontal position of the paste in the (0.0 - 1.0) image coordinates.)code",
+      R"code(Horizontal position of the paste in (0.0 - 1.0) image coordinates.)code",
       0.5f, true)
   .AddOptionalArg("paste_y",
-      R"code(Vertical position of the paste in the (0.0 - 1.0) image coordinates.)code",
+      R"code(Vertical position of the paste in (0.0 - 1.0) image coordinates.)code",
       0.5f, true)
   .AddOptionalArg("min_canvas_size",
       R"code(Enforces the minimum paste canvas dimension after scaling the input size

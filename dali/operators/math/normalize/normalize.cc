@@ -66,7 +66,9 @@ Here are some examples of valid argument combinations:
     stddev.shape =  [ [1, 1, 3] ] ]
 
 For color images, this example normalizes the 3 color channels separately, but across all
-samples in the batch. This operator allows sequence inputs and supports volumetric data.
+samples in the batch.
+
+This operator allows sequence inputs and supports volumetric data.
 )")
   .NumInput(1)
   .NumOutput(1)
@@ -75,25 +77,25 @@ samples in the batch. This operator allows sequence inputs and supports volumetr
   .AddOptionalArg("batch", R"code(If set to True, the mean and standard deviation are calculated
 across tensors in the batch.
 
-This argument also requires that the input sample shapes in the non-averaged axes match.)code",
+This argument also requires that the input sample shapes in the non-reduced axes match.)code",
     false)
-  .AddOptionalArg<float>("mean", R"code(Mean value that needs to be subtracted from the data.
+  .AddOptionalArg<float>("mean", R"code(Mean value to be subtracted from the data.
 
 The value can be a scalar or a batch of tensors with same dimensionality as the input.
 The extent in each dimension must match the value of the input or be equal to 1. If the
-value is 1, it will be broadcast in this dimension. If the value is not specified, the
+extent is 1, the value will be broadcast in this dimension. If the value is not specified, the
 mean is calculated from the input. A non-scalar mean cannot be used when batch argument
 is set to True.)code",
     0.0f, true)
   .AddOptionalArg<float>("stddev", R"code(Standard deviation value to scale the data.
 
 See ``mean`` argument for more information about shape constraints. If a value is not specified,
-the standard deviation is calculated from the input. A non-scalar mean cannot be used when
+the standard deviation is calculated from the input. A non-scalar ``stddev`` cannot be used when
 ``batch`` argument is set to True.)code", 0.0f, true)
   .AddOptionalArg("axes", R"code(Indices of dimensions along which the input is normalized.
 
 By default, all axes are used, and the axes can also be specified by name.
-See ``axes_names`` for more informaton.)code", std::vector<int>{}, false)
+See ``axis_names`` for more informaton.)code", std::vector<int>{}, false)
   .AddOptionalArg<TensorLayout>("axis_names", R"code(Names of the axes in the input.
 
 Axis indices are taken from the input layout, and this argument cannot be used with ``axes``.)code",
@@ -115,7 +117,7 @@ The variance is estimated by using the following formula::
 This argument is ignored when an externally supplied standard deviation is used.)code", 0, false)
   .AddOptionalArg("dtype", R"code(Output type.
 
-When using integral types, use ``shift`` and ``scal``e to improve the usage of the output
+When using integral types, use ``shift`` and ``scale`` to improve the usage of the output
 type’s dynamic range. If ``dtype`` is an integral type, out of range values are clamped,
 and non-integer values are rounded to nearest integer.)code", DALI_FLOAT);
 

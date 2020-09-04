@@ -21,14 +21,14 @@ namespace dali {
 DALI_REGISTER_OPERATOR(FileReader, FileReader, CPU);
 
 DALI_SCHEMA(FileReader)
-  .DocStr("Reads the image and label pairs from a directory.")
+  .DocStr("Reads (file, label) pairs from a directory.")
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
   .AddArg("file_root",
       R"code(Path to a directory that contains the data files.
 
 ``FileReader`` supports a flat directory structure. The ``file_root`` directory contains
-directories with images. To obtain the labels, ``FileReader`` sorts directories in ``file_root``
+directories with data files. To obtain the labels, ``FileReader`` sorts directories in ``file_root``
 in alphabetical order and takes an index in this order as a class label.)code",
       DALI_STRING)
   .AddOptionalArg("file_list",

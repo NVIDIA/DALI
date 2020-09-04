@@ -20,11 +20,7 @@ DALI_REGISTER_OPERATOR(ResizeCropMirror, ResizeCropMirror<CPUBackend>, CPU);
 
 DALI_SCHEMA(ResizeCropMirrorAttr)
   .AddOptionalArg("mirror",
-      R"code(Mask for the horizontal flip.
-
-- `0` - Do not perform a horizontal flip for this image.
-- `1` - Perform a horizontal flip for this image.
-)code", 0, true)
+      R"code(If nonzero, the image is flipped (mirrored) horizontally.)code", 0, true)
   .AddParent("ResizeAttr");
 
 DALI_SCHEMA(ResizeCropMirror)

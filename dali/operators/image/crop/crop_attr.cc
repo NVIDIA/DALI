@@ -53,23 +53,23 @@ of the cropping window.)code",
     .AddOptionalArg(
         "crop_w", R"code(Cropping window width (in pixels).
 
-If the ``crop_w` value is provided,the ``crop_h`` value should also be provided. Providing values
+``crop_w`` must be specified together with ``crop_h``. Providing values
 for ``crop_w`` and ``crop_h`` is incompatible with providing fixed crop window dimensions
 (argument ``crop``).)code",
         0.0f, true)
     .AddOptionalArg(
         "crop_h", R"code(Cropping the window height (in pixels).
 
-If the ``crop_h` value is provided, the ``crop_w`` value should also be provided. Providing values
+``crop_h`` must be provided together with ``crop_w``. Providing values
 for ``crop_w`` and ``crop_h`` is incompatible with providing fixed crop window dimensions
 (argument ``crop``).)code",
         0.0f, true)
     .AddOptionalArg(
         "crop_d", R"code(Applies **only** to volumetric inputs.
-
-Cropping window depth (in pixels). If the volumetric inputs are provided, values for ``crop_h`` and
-``crop_w`` should also be provided. Providing values for ``crop_w``, ``crop_h``, and ``crop_d``
-is incompatible with providing the fixed crop window dimensions (argument `crop`).)code",
+Cropping window depth (in voxels).
+``crop_w``, ``crop_h``, and ``crop_d`` must be specified together. Providing values
+for ``crop_w``, ``crop_h``, and ``crop_d`` is incompatible with providing the fixed crop
+window dimensions (argument `crop`).)code",
         0.0f, true);
 
 }  // namespace dali

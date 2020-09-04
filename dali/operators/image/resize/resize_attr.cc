@@ -75,8 +75,10 @@ This option is equivalent to specifying the same size for all dimensions and ``m
 )code", 0.f, true)
   .AddOptionalArg<vector<float>>("max_size", R"code(Limit of the output size.
 
-When resizing using ``resize_shorter``, "not_smaller" mode or otherwise leaving some extents
-unspecified, some images with high aspect ratios might produce extremely large outputs.
+When the operator is configured to keep aspect ratio and only the smaller dimension is specified,
+the other(s) can grow very large. This can happen when using ``resize_shorter`` argument
+or "not_smaller" mode or when some extents are left unspecified.
+
 This parameter puts a limit to how big the output can become. This value can be specified per-axis
 or uniformly for all axes.
 
@@ -96,16 +98,16 @@ the rounded output size.)code", true)
 
 Must be specified together with ``roi_end``. The coordinates follow the tensor shape order, which is
 the same as ``size``. The coordinates can be either absolute (in pixels, which is the default) or
-relative (0..1), depending on the value of ``relative_roi`` argument. If a RoI origin is greater
+relative (0..1), depending on the value of ``relative_roi`` argument. If the RoI origin is greater
 than the RoI end in any dimension, the region is flipped in that dimension.)code", nullptr, true)
   .AddOptionalArg<vector<float>>("roi_end", R"code(End of the input region of interest (RoI).
 
 Must be specified together with ``roi_start``. The coordinates follow the tensor shape order, which is
 the same as ``size``. The coordinates can be either absolute (in pixels, which is the default) or
-relative (0..1), depending on the value of ``relative_roi`` argument. If a RoI origin is greater
+relative (0..1), depending on the value of ``relative_roi`` argument. If the RoI origin is greater
 than the RoI end in any dimension, the region is flipped in that dimension.))code", nullptr, true)
   .AddOptionalArg("roi_relative", R"code(If true, RoI coordinates are relative to the input size,
-where 0 denoting top/left and 1 denoting bottom/right)code", false);
+where 0 denotes top/left and 1 denotes bottom/right)code", false);
 
 
 void ResizeAttr::SetFlagsAndMode(const OpSpec &spec) {

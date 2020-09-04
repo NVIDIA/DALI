@@ -22,7 +22,7 @@ DALI_SCHEMA(Rotate)
   .NumOutput(1)
   .InputLayout(0, { "HWC", "DHWC" })
   .SupportVolumetric()
-  .AddOptionalArg<float>("axis", R"code(Applies **only** to three-dimension: The axis
+  .AddOptionalArg<float>("axis", R"code(Applies **only** to three dimension: The axis
 around which to rotate.
 
 The vector does not need to be normalized, but it must have a non-zero length.

@@ -29,8 +29,8 @@ DALI_SCHEMA(PythonFunction)
         .DocStr(R"code(Executes a Python function.
 
 This operator can be used to execute custom Python code in the DALI pipeline.
-The function that is called gets the data from the tensoras NumPy arrays for CPU operators or
-as CuPy arrays for GPU operators. The results should be returned in the same format, but for
+The function receives the data from DALI as NumPy arrays in case of CPU operators or
+as CuPy arrays for GPU operators. It is expected to return the results in the same format, but for
 a more universal data format, see :meth:`nvidia.dali.ops.DLTensorPythonFunction`.
 The function should not modify input tensors.
 
@@ -42,8 +42,11 @@ used for prototyping and debugging.)code")
         .SupportVolumetric()
         .NoPrune()
         .AddParent("PythonFunctionBase")
-        .AddOptionalArg("batch_processing", R"code(Determines whether the function should get
-the entire batch as input.)code", false);
+        .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked
+once per batch or separately for every sample in the batch.
+
+If set to True, the function will receive its arguments as lists of NumPy or CuPy arrays,
+for CPU and GPU backend, respectively.)code", false);
 
 DALI_SCHEMA(TorchPythonFunction)
         .DocStr(R"code(Executes a function that is operating on Torch tensors.
