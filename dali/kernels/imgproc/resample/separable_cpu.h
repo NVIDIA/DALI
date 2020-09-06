@@ -44,8 +44,6 @@ struct ResamplingSetupCPU : SeparableResamplingSetup<_spatial_ndim> {
   struct MemoryReq {
     // size, in elements, of intermediate buffers
     size_t tmp_size = 0;
-    // offset, in elements, of the odd intermediate buffer
-    size_t tmp_odd_offset = 0;
 
     size_t coeffs_size = 0;
     size_t indices_size = 0;
@@ -66,15 +64,17 @@ struct ResamplingSetupCPU : SeparableResamplingSetup<_spatial_ndim> {
       return {};  // no memory required for Nearest Neighbour on CPU
     } else {
       MemoryReq req;
-      // temporary buffers are swapped every second stage
-      size_t tmp_sizes[2] = { 0, 0 };
+      // Temporary buffers are swapped every second stage; they are allocated
+      // at the beginning and at the end of the temporary buffer area.
+      size_t prev_tmp = 0;
+      size_t max_tmp = 0;
       for (int i = 0; i < desc.num_tmp_buffers; i++) {
         size_t v = volume(desc.tmp_shape(i)) * desc.channels;
-        if (v > tmp_sizes[i&1])
-          tmp_sizes[i&1] = v;
+        if (v + prev_tmp > max_tmp)
+          max_tmp = v + prev_tmp;
+        prev_tmp = v;
       }
-      req.tmp_size = tmp_sizes[0] + tmp_sizes[1];
-      req.tmp_odd_offset = tmp_sizes[0];
+      req.tmp_size = max_tmp;
 
       const int num_stages = spatial_ndim;
 
@@ -136,7 +136,7 @@ struct SeparableResampleCPU  {
 
   KernelRequirements Setup(KernelContext &context,
                            const Input &input,
-                           const ResamplingParams2D &params) {
+                           const ResamplingParamsND<spatial_ndim> &params) {
     setup.Setup(input.shape, params);
 
     TensorShape<tensor_ndim> out_shape =
@@ -162,7 +162,7 @@ struct SeparableResampleCPU  {
            const ResamplingParamsND<spatial_ndim> &params) {
     auto &desc = setup.desc;
 
-    desc.set_base_pointers(input.data, static_cast<char*>(nullptr), output.data);
+    desc.set_base_pointers(input.data, nullptr, output.data);
 
     auto in_ROI = as_surface_channel_last(input);
     in_ROI.size = desc.in_shape();
@@ -188,7 +188,10 @@ struct SeparableResampleCPU  {
 
       for (int stage = 0; stage < spatial_ndim; stage++) {
         if (stage < spatial_ndim - 1) {
-          tmp_surf.data = tmp_buf + (stage & 1 ? setup.memory.tmp_odd_offset : 0);
+          ptrdiff_t tmp_size = volume(tmp_shapes[stage]);
+          ptrdiff_t tmp_ofs = stage & 1 ? setup.memory.tmp_size - tmp_size : 0;
+          assert(tmp_ofs >= 0 && tmp_ofs+tmp_size <= static_cast<ptrdiff_t>(setup.memory.tmp_size));
+          tmp_surf.data = tmp_buf + tmp_ofs;
           tmp_surf.size = setup.desc.tmp_shape(stage);
           tmp_surf.channels = setup.desc.channels;
 
@@ -197,6 +200,7 @@ struct SeparableResampleCPU  {
           for (int i = 1; i < spatial_ndim; i++) {
             tmp_surf.strides[i] = tmp_surf.strides[i-1] * tmp_surf.size[i-1];
           }
+          assert(&tmp_surf(tmp_surf.size - 1) < tmp_buf + setup.memory.tmp_size);
         }
 
         if (stage == 0)  // in -> tmp(0)
@@ -204,7 +208,7 @@ struct SeparableResampleCPU  {
         else if (stage < spatial_ndim - 1)  // tmp(i) -> tmp(i+1)
           ResamplePass<float, float>(tmp_surf, tmp_prev, filter_mem, desc.order[stage]);
         else  // tmp(spatial_ndim-1) -> out
-          ResamplePass<OutputElement, float>(out_ROI, tmp_surf, filter_mem, desc.order[stage]);
+          ResamplePass<OutputElement, float>(out_ROI, tmp_prev, filter_mem, desc.order[stage]);
 
         tmp_prev = tmp_surf;
       }
@@ -212,17 +216,20 @@ struct SeparableResampleCPU  {
   }
 
   template <typename PassOutput, typename PassInput>
-  void ResamplePass(const Surface2D<PassOutput> &out,
-                    const Surface2D<const PassInput> &in,
+  void ResamplePass(const Surface<spatial_ndim, PassOutput> &out,
+                    const Surface<spatial_ndim, const PassInput> &in,
                     void *mem,
                     int axis) {
     auto &desc = setup.desc;
 
     if (desc.filter_type[axis] == ResamplingFilterType::Nearest) {
       // use specialized NN resampling pass - should be faster
-      ResampleNN(out, in,
-        desc.origin,
-        { (axis == 0 ? desc.scale.x : 1.0f), (axis == 1 ? desc.scale.y : 1.0f) });
+      auto scale = desc.scale;
+      for (int i = 0; i < spatial_ndim; i++) {
+        if (i != axis)
+          scale[i] = 1;
+      }
+      ResampleNN(out, in, desc.origin, scale);
     } else {
       int32_t *indices = static_cast<int32_t*>(mem);
       int out_size = desc.out_shape()[axis];

@@ -22,29 +22,25 @@ namespace dali {
 namespace kernels {
 namespace resampling {
 
+
 template <int spatial_ndim, typename Output, typename Input>
 __global__ void BatchedSeparableResampleKernel(
     int which_pass,
     const SampleDesc<spatial_ndim> *__restrict__ samples,
-    const SampleBlockInfo *__restrict__ block2sample) {
+    const BlockDesc<spatial_ndim> *__restrict__ block2sample) {
   // find which part of which sample this block will process
-  SampleBlockInfo sbi = block2sample[blockIdx.x];
-  const auto &sample = samples[sbi.sample];
+  BlockDesc<spatial_ndim> bdesc = block2sample[blockIdx.x];
+  const auto &sample = samples[bdesc.sample_idx];
   Output *__restrict__ sample_out;
   const Input *__restrict__ sample_in;
-  int blocks;
 
-  ivec<spatial_ndim> in_shape, out_shape;
+  ivec<spatial_ndim> in_shape;
 
   auto in_strides = sample.strides[which_pass];
   auto out_strides = sample.strides[which_pass+1];
   sample_in = reinterpret_cast<const Input*>(sample.pointers[which_pass]);
   sample_out = reinterpret_cast<Output*>(sample.pointers[which_pass+1]);
-  blocks = sample.block_count[which_pass];
   in_shape = sample.shapes[which_pass];
-  out_shape = sample.shapes[which_pass+1];
-
-  int block = sbi.block_in_sample;
 
   int axis = sample.order[which_pass];  // vec-order: 0 = X, 1 = Y, 2 = Z
 
@@ -55,20 +51,7 @@ __global__ void BatchedSeparableResampleKernel(
   float origin = sample.origin[axis];
   float scale  = sample.scale[axis];
 
-  ivec3 blockDimV;
-  blockDimV.x = blockDim.x;
-  blockDimV.y = blockDim.y;
-  blockDimV.z = blockDim.z;
-
-  int block_size = blockDimV[axis];
-  int size_in_blocks = (out_shape[axis] + block_size - 1) / block_size;
-
-  int start = ::min(size_in_blocks *  block      / blocks * block_size, out_shape[axis]);
-  int end   = ::min(size_in_blocks * (block + 1) / blocks * block_size, out_shape[axis]);
-
-  ivec<spatial_ndim> lo = 0, hi = out_shape;
-  lo[axis] = start;
-  hi[axis] = end;
+  ivec<spatial_ndim> lo = bdesc.start, hi = bdesc.end;
 
   switch (ftype) {
   case ResamplingFilterType::Nearest:
@@ -76,27 +59,33 @@ __global__ void BatchedSeparableResampleKernel(
       vec<spatial_ndim> origin_v(0.0f), scale_v(1.0f);
       origin_v[axis] = origin;
       scale_v[axis] = scale;
-      NNResample({ lo, hi }, origin_v, scale_v,
+      NNResample(lo, hi, origin_v, scale_v,
                  sample_out, out_strides,
                  sample_in, in_strides, in_shape, sample.channels);
     }
     break;
   case ResamplingFilterType::Linear:
     if (axis == 0) {
-      LinearHorz(lo.x, hi.x, lo.y, hi.y, origin, scale, sample_out, out_strides[0], sample_in,
-        in_strides[0], in_shape.x, sample.channels);
+      LinearHorz(lo, hi, origin, scale, sample_out, out_strides, sample_in,
+        in_strides, in_shape, sample.channels);
+    } else if (axis == 1) {
+      LinearVert(lo, hi, origin, scale, sample_out, out_strides, sample_in,
+        in_strides, in_shape, sample.channels);
     } else {
-      LinearVert(lo.x, hi.x, lo.y, hi.y, origin, scale, sample_out, out_strides[0], sample_in,
-        in_strides[0], in_shape.y, sample.channels);
+      LinearDepth(lo, hi, origin, scale, sample_out, out_strides, sample_in,
+        in_strides, in_shape, sample.channels);
     }
     break;
   default:
     if (axis == 0) {
-      ResampleHorz(lo.x, hi.x, lo.y, hi.y, origin, scale, sample_out, out_strides[0], sample_in,
-        in_strides[0], in_shape.x, sample.channels, filter, support);
-    } else {
-      ResampleVert(lo.x, hi.x, lo.y, hi.y, origin, scale, sample_out, out_strides[0], sample_in,
-        in_strides[0], in_shape.y, sample.channels, filter, support);
+      ResampleHorz(lo, hi, origin, scale, sample_out, out_strides, sample_in,
+        in_strides, in_shape, sample.channels, filter, support);
+    } else if (axis == 1) {
+      ResampleVert(lo, hi, origin, scale, sample_out, out_strides, sample_in,
+        in_strides, in_shape, sample.channels, filter, support);
+    } else if (axis == 2) {
+      ResampleDepth(lo, hi, origin, scale, sample_out, out_strides, sample_in,
+        in_strides, in_shape, sample.channels, filter, support);
     }
     break;
   }
@@ -106,16 +95,17 @@ template <int spatial_ndim, typename Output, typename Input>
 void BatchedSeparableResample(
     int which_pass,
     const SampleDesc<spatial_ndim> *samples,
-    const SampleBlockInfo *block2sample, int num_blocks,
-    int2 block_size,
+    const BlockDesc<spatial_ndim> *block2sample, int num_blocks,
+    ivec3 block_size,
     cudaStream_t stream) {
   if (num_blocks <= 0)
     return;
 
-  dim3 block(block_size.x, block_size.y);
+  dim3 block(block_size.x, block_size.y, block_size.z);
 
   BatchedSeparableResampleKernel<spatial_ndim, Output, Input>
   <<<num_blocks, block, ResampleSharedMemSize, stream>>>(which_pass, samples, block2sample);
+  CUDA_CALL(cudaGetLastError());
 }
 
 
@@ -123,8 +113,8 @@ void BatchedSeparableResample(
 template DLL_PUBLIC void BatchedSeparableResample<spatial_ndim, Output, Input>( \
   int which_pass,                                                               \
   const SampleDesc<spatial_ndim> *samples,                                      \
-  const SampleBlockInfo *block2sample, int num_blocks,                          \
-  int2 block_size, cudaStream_t stream)
+  const BlockDesc<spatial_ndim> *block2sample, int num_blocks,                  \
+  ivec3 block_size, cudaStream_t stream)
 
 // Instantiate the resampling functions.
 // The resampling always goes through intermediate image of float type.
@@ -146,24 +136,21 @@ INSTANTIATE_BATCHED_RESAMPLE(2, float, uint16_t);
 INSTANTIATE_BATCHED_RESAMPLE(2, int32_t, float);
 INSTANTIATE_BATCHED_RESAMPLE(2, float, int32_t);
 
-// 3D not available yet
-/*
-INSTANTIATE_BATCHED_RESAMPLE(3, float,    float);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, uint8_t);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, int8_t);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, uint16_t);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, int16_t);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, uint32_t);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, int32_t);
+
 INSTANTIATE_BATCHED_RESAMPLE(3, float, float);
 
-INSTANTIATE_BATCHED_RESAMPLE(3, uint8_t,  float);
-INSTANTIATE_BATCHED_RESAMPLE(3, int8_t,   float);
+INSTANTIATE_BATCHED_RESAMPLE(3, float, uint8_t);
+INSTANTIATE_BATCHED_RESAMPLE(3, uint8_t, float);
+
+INSTANTIATE_BATCHED_RESAMPLE(3, float, int16_t);
+INSTANTIATE_BATCHED_RESAMPLE(3, int16_t, float);
+
 INSTANTIATE_BATCHED_RESAMPLE(3, uint16_t, float);
-INSTANTIATE_BATCHED_RESAMPLE(3, int16_t,  float);
-INSTANTIATE_BATCHED_RESAMPLE(3, uint32_t, float);
-INSTANTIATE_BATCHED_RESAMPLE(3, int32_t,  float);
-*/
+INSTANTIATE_BATCHED_RESAMPLE(3, float, uint16_t);
+
+INSTANTIATE_BATCHED_RESAMPLE(3, int32_t, float);
+INSTANTIATE_BATCHED_RESAMPLE(3, float, int32_t);
+
 
 }  // namespace resampling
 }  // namespace kernels

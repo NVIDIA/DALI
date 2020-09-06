@@ -18,6 +18,7 @@
 #include <cuda_runtime.h>
 #include <memory>
 #include <vector>
+#include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/resample/params.h"
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/core/dev_array.h"
@@ -53,7 +54,13 @@ struct SampleDesc {
     set_base_pointers(in, tmp_arr, out);
   }
 
-  template <typename Input, typename Tmp, typename Output>
+  template <typename Input, typename Output>
+  void set_base_pointers(Input *in, std::nullptr_t, Output *out) {
+    std::array<float *, num_tmp_buffers> tmp_arr = {};
+    set_base_pointers(in, tmp_arr, out);
+  }
+
+  template <typename Input, typename Tmp, typename Output, int D = spatial_ndim>
   void set_base_pointers(Input *in, std::array<Tmp *, num_tmp_buffers> tmp, Output *out) {
     int i = 0;
     pointers[i] = reinterpret_cast<uintptr_t>(in  + offsets[i]);
@@ -91,21 +98,7 @@ struct SampleDesc {
   ResamplingFilterType filter_type[spatial_ndim];  // NOLINT
   ResamplingFilter filter[spatial_ndim];           // NOLINT
 
-  /**
-   * @brief Number of blocks per pass
-   *
-   * This is kept as an array (instead of vector) to avoid indexing confusion;
-   * block_count[0] refers to number of blocks in first pass, regarless of actual processing
-   * order
-   */
-  DeviceArray<int, spatial_ndim> block_count;
-};
-
-/**
- * @brief Maps a block (by blockIdx) to a sample.
- */
-struct SampleBlockInfo {
-  int sample, block_in_sample;
+  DeviceArray<ivec<spatial_ndim>, spatial_ndim> logical_block_shape;
 };
 
 ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const FilterDesc &params);
@@ -116,6 +109,9 @@ ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const Fil
 template <int _spatial_ndim>
 class SeparableResamplingSetup {
  public:
+  SeparableResamplingSetup() {
+    block_dim = { 32, _spatial_ndim == 2 ? 24 : 8, 1 };
+  }
   static constexpr int channel_dim = _spatial_ndim;  // assumes interleaved channel data
   static constexpr int spatial_ndim = _spatial_ndim;
   static constexpr int tensor_ndim = spatial_ndim + (channel_dim >= 0 ? 1 : 0);
@@ -128,12 +124,14 @@ class SeparableResamplingSetup {
    * Physical buffers may overlap for more than 3 dimensions.
    */
   static constexpr int num_tmp_buffers = spatial_ndim - 1;
+
   /** @brief Number of buffers: temporaries + input + output */
   static constexpr int num_buffers = num_tmp_buffers + 2;
 
+  /** @brief Preprares a sample descriptor based on input shape and resampling parameters */
   DLL_PUBLIC void SetupSample(SampleDesc &desc,
                               const TensorShape<tensor_ndim> &in_shape,
-                              const ResamplingParamsND<spatial_ndim> &params);
+                              const ResamplingParamsND<spatial_ndim> &params) const;
 
   void Initialize() {
     filters = GetResamplingFilters();
@@ -142,13 +140,14 @@ class SeparableResamplingSetup {
     filters = GetResamplingFiltersCPU();
   }
 
-  int2 block_size = { 32, 24 };
+  ivec3 block_dim;
 
  protected:
   using ROI = Roi<spatial_ndim>;
 
-  void SetFilters(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params);
-  ROI ComputeScaleAndROI(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params);
+  void SetFilters(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params) const;
+  ROI ComputeScaleAndROI(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params) const;
+  void ComputeBlockLayout(SampleDesc &sample) const;
 
   std::shared_ptr<ResamplingFilters> filters;
 
@@ -165,19 +164,23 @@ class BatchResamplingSetup : public SeparableResamplingSetup<_spatial_ndim> {
   using Base::num_tmp_buffers;
   using Params = span<const ResamplingParamsND<spatial_ndim>>;
   using SampleDesc = resampling::SampleDesc<spatial_ndim>;
+  using BlockDesc = kernels::BlockDesc<spatial_ndim>;
 
   std::vector<SampleDesc> sample_descs;
-  TensorListShape<3> output_shape, intermediate_shapes[num_tmp_buffers]; // NOLINT
+  TensorListShape<tensor_ndim> output_shape, intermediate_shapes[num_tmp_buffers]; // NOLINT
   size_t intermediate_sizes[num_tmp_buffers];  // NOLINT
   ivec<spatial_ndim> total_blocks;
 
+  /** @brief Prepares sample descriptors and block info for entire batch */
   DLL_PUBLIC void SetupBatch(const TensorListShape<tensor_ndim> &in, const Params &params);
 
   template <typename Collection>
   void SetupBatch(const TensorListShape<tensor_ndim> &in, const Collection &params) {
     SetupBatch(in, make_cspan(params));
   }
-  DLL_PUBLIC void InitializeSampleLookup(const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup);
+
+  /** @brief Calculates the mapping from grid block indices to samples and regions within samples */
+  DLL_PUBLIC void InitializeSampleLookup(const OutTensorCPU<BlockDesc, 1> &sample_lookup);
 };
 
 }  // namespace resampling

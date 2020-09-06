@@ -84,6 +84,7 @@ template <int ndim>
 using ResamplingParamsND = std::array<ResamplingParams, ndim>;
 
 using ResamplingParams2D = ResamplingParamsND<2>;
+using ResamplingParams3D = ResamplingParamsND<3>;
 
 }  // namespace kernels
 }  // namespace dali

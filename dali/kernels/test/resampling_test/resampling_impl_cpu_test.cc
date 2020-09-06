@@ -230,7 +230,7 @@ TEST(ResampleCPU, Linear) {
     idx.data(), coeffs.data(), support);
 
   InitializeResamplingFilter(idx.data(), coeffs.data(), out_w, 0, scalex, filter);
-  ResampleHorz<uint8_t, float>(as_surface_HWC(out_tensor), as_surface_HWC(tmp_tensor),
+  ResampleHorz<2, uint8_t, float>(as_surface_HWC(out_tensor), as_surface_HWC(tmp_tensor),
     idx.data(), coeffs.data(), support);
 
   auto ref_tensor = view_as_tensor<const uint8_t, 3>(ref);
