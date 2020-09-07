@@ -76,9 +76,14 @@ When the value is less than 0, ``step`` is set to ``sequence_length``.)code",
   .AddOptionalArg("additional_decode_surfaces",
       R"code(Additional decode surfaces to use beyond minimum required.
 
-This argument is ignored when the decoder is unable to determine the minimum number of
-decode surfaces, which can happen if the driver is an older version. This parameter can be used
-to trade off memory usage with performance.)code",
+This argument is ignored when the decoder cannot determine the minimum number of
+decode surfaces
+
+.. note::
+
+  This can happen when the driver is an older version.
+
+This parameter can be used to trade off memory usage with performance.)code",
       2)
   .AddOptionalArg("normalized",
       R"code(Gets the output as normalized data.)code",
@@ -96,7 +101,7 @@ to trade off memory usage with performance.)code",
 
 This argument is useful when heuristic fails.)code", false)
   .AddOptionalArg("file_list_frame_num",
-      R"code(If the  start/end timestamps are provided in file_list, you can interpret them
+      R"code(If the start/end timestamps are provided in file_list, you can interpret them
 as frame numbers instead of as timestamps.
 
 If floating point values have been provided, the start frame number is the highest possible number,

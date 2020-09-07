@@ -20,8 +20,8 @@ Thread Affinity
 
 This functionality allows you to pin DALI threads to the specified CPU. Thread affinity saves
 the overhead of worker threads jumping from core to core and improves the CPU heavy workload performance.
-You can set the DALI CPU thread affinity by using the ``DALI_AFFINITY_MASK`` environment variable.
-This variable is a comma-separated list of CPU IDs that will be assigned to corresponding DALI threads.
+You can set the DALI CPU thread affinity by using the ``DALI_AFFINITY_MASK`` environment variable,
+which is a comma-separated list of CPU IDs that will be assigned to corresponding DALI threads.
 The number of DALI threads are set during the pipeline construction by the num_threads argument and
 set_affinity enables thread affinity for the CPU worker threads.
 
@@ -35,6 +35,8 @@ the following process is applied:
 1) The threads are assigned to the CPU IDs until all of the CPU IDs from ``DALI_AFFINITY_MASK`` are assigned.
 2) For the remaining threads, the CPU IDs from nvmlDeviceGetCpuAffinity wFor the remaining threads,
    the CPU IDs from nvmlDeviceGetCpuAffinity will be used.
+
+An example:
 
 .. code-block:: bash
 
@@ -59,12 +61,12 @@ The buffers that are allocated with this storage type will only grow when the ex
 small to accommodate the requested shape. After the allocations are stable, this  strategy reduces
 the number of total memory management operations and  increases the processing speed.
 
-As a contrast, ordinary host memory is relatively cheap to allocate and free. To reduce host memory
-consumption, the buffers might shrink when the new requested size is smaller than the fraction of
-the old size. This is called shrink threshold, and the value and it can be adjusted to a value
-between 0 (never shrink) and 1 (always shrink). The default is 0.9. The value can be controlled
-by the ``DALI_HOST_BUFFER_SHRINK_THRESHOLD`` environmental variable or be set in Python by using
-the `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
+As a contrast, ordinary host memory is relatively inexpensive to allocate and is free. To reduce
+host memory consumption, the buffers might shrink when the new requested size is smaller than
+the fraction of the old size. This is called shrink threshold, and the value and it can be
+adjusted to a value between 0 (never shrink) and 1 (always shrink). The default is 0.9.
+The value can be controlled by the ``DALI_HOST_BUFFER_SHRINK_THRESHOLD`` environmental variable
+or be set in Python by using the `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
 
 During processing, DALI works on batches of samples. For the GPU and some CPU operators, each batch
 is stored as a contiguous allocation and is processed at one time, which reduces the number of
@@ -114,7 +116,7 @@ The following parameters are available:
 
 When one value is provided, it is used for all output buffers for an operator. When a list is
 provided, each buffer is presized to the corresponding size.
-To determine the amount of memory output that each operator needs:
+To determine the amount of memory output that each operator needs, complete the following tasks:
 
 1) you might Create the pipeline by setting ``enable_memory_stats`` to True.
 2) Query the pipeline for the operator’s output memory statistics by calling the ``executor_meta``
@@ -122,13 +124,13 @@ To determine the amount of memory output that each operator needs:
 
 The ``max_real_memory_size`` value represents the biggest tensor in the batch for the outputs that
 allocate memory per sample and not for the entire batch at the time or the average tensor size when
-the allocation is contiguous. Usually this value should be provided to ``bytes_per_sample_hint``.
+the allocation is contiguous. This value should be provided to ``bytes_per_sample_hint``.
 
 Prefetching Queue Depth
 -----------------------
 
-This functionality averages the processing time between batches when the variation between batches
-is high.
+When the variation between batches is high, this functionality averages the processing time between
+batches when the variation between batches is high.
 The DALI pipeline allows the buffering of one or more batches of data, which is important when
 the data processing time between batches can vary.
 The default prefetch depth value is 2. You can change this value by using the ``prefetch_queue_depth``
@@ -148,9 +150,14 @@ You can run a pipeline in DALI in one of the following ways:
 - | Built-in iterators for MXNet, PyTorch, and TensorFlow.
   | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.ITERATOR` API type.
 
-The first API, :meth:`nvidia.dali.pipeline.Pipeline.run()` method launches the DALI pipeline,
-executes the prefetch iterations if necessary, waits until the first batch is ready, and returns
-the resulting buffers. Buffers are marked as in-use until the next call to
+The first API, :meth:`nvidia.dali.pipeline.Pipeline.run()` method completes the following tasks:
+
+#. Launches the DALI pipeline.
+#. Executes the prefetch iterations if necessary.
+#. Waits until the first batch is ready.
+#. Returns the resulting buffers.
+
+Buffers are marked as in-use until the next call to
 :meth:`nvidia.dali.pipeline.Pipeline.run`. This process can be wasteful because data is usually
 copied to the native framework tensors and then returned to DALI to be reused
 
@@ -188,11 +195,11 @@ this pipeline. You can customize this behavior by using the ``stick_to_shard`` r
 
 This process, however, leads to problems when the dataset size is not divisible by the number of
 used pipelines and when the shard size is not divisible by the batch size. To address this issue,
-and adjust the behavior, DALI offers the ``pad_last_batch`` reader parameter.
+and adjust the behavior, you can use the ``pad_last_batch`` reader parameter.
 
-This parameter asks the reader to duplicate the last sample in the last batch of a shard.
-This prevents DALI from reading data from the next shard when the batch doesn’t divide its size.
-Also, the parameter ensures that all pipelines return the same number of batches, when one batch
+This parameter asks the reader to duplicate the last sample in the last batch of a shard,
+which prevents DALI from reading data from the next shard when the batch doesn’t divide its size.
+The parameter also ensures that all pipelines return the same number of batches, when one batch
 is divisible by the batch size but other batches are bigger by one sample. This process pads every
 shard to the same size, which is a multiple of the batch size.
 
@@ -212,9 +219,9 @@ Here are the iterator options:
 
   | This option is more flexible and accurate and takes into account that shard size for a pipeline
     can differ between epochs when the shards are rotated.
-- ``size`` – Displays the size of the shard for an iterator or, if there is more than one shard,
+- ``size``: Displays the size of the shard for an iterator or, if there is more than one shard,
   the sum of all shard sizes for all wrapped pipelines.
-- ``last_batch_padded`` – Determines whether the data that is a remainder when the multiple of
+- ``last_batch_padded``: Determines whether the data that is a remainder when the multiple of
   the batch size and the shard size consists of data from the next shard or is duplicated dummy data.
 
 
@@ -222,16 +229,17 @@ Here is the formula to calculate the shard size for a shard ID:
 
 *floor((id + 1) * dataset_size / num_shards) - floor(id * dataset_size / num_shards)*
 
-When the pipeline advances through the epochs and the reader moves to the next shard, the equation
+When the pipeline advances through the epochs and the reader moves to the next shard, the formula
 needs to be extended to reflect this change:
 
 *floor(((id + epoch_num) % num_shards + 1) * dataset_size / num_shards) - floor(((id + epoch_num) % num_shards) * dataset_size / num_shards)*
 
-When the last equation is used, providing a size value once at the beginning of the training works
+When the second formula is used, providing a size value once at the beginning of the training works
 only when the ``stick_to_shard`` reader option is enabled and prevents DALI from rotating shards.
-In this case, use the first formula.
+WHen this occurs, use the first formula.
 
-To address these challenges, use the ``reader_name`` parameter and allow the iterator do the task.
+To address these challenges, use the ``reader_name`` parameter and allow the iterator complete
+the task.
 
 C++ API
 -------

@@ -21,7 +21,7 @@ DALI_SCHEMA(CropAttr)
     .DocStr(R"code(Crops attributes placeholder)code")
     .AddOptionalArg(
         "crop", R"code(Shape of the cropped image, specified as a list of value (for example,
-``(crop_H, crop_W)`` for 2D crop and ``(crop_D, crop_H, crop_W)`` for volumetric crop).
+``(crop_H, crop_W)`` for the 2D crop and ``(crop_D, crop_H, crop_W)`` for the volumetric crop).
 
 Providing crop argument is incompatible with providing separate arguments such as ``crop_d``,
 ``crop_h``, and ``crop_w``.)code",
@@ -53,20 +53,21 @@ of the cropping window.)code",
     .AddOptionalArg(
         "crop_w", R"code(Cropping window width (in pixels).
 
-``crop_w`` must be specified together with ``crop_h``. Providing values
+If the ``crop_w`` value is provided together with ``crop_h``. Providing values
 for ``crop_w`` and ``crop_h`` is incompatible with providing fixed crop window dimensions
 (argument ``crop``).)code",
         0.0f, true)
     .AddOptionalArg(
         "crop_h", R"code(Cropping the window height (in pixels).
 
-``crop_h`` must be provided together with ``crop_w``. Providing values
+If the ```crop_h`` value is provided together with ``crop_w``. Providing values
 for ``crop_w`` and ``crop_h`` is incompatible with providing fixed crop window dimensions
 (argument ``crop``).)code",
         0.0f, true)
     .AddOptionalArg(
         "crop_d", R"code(Applies **only** to volumetric inputs.
 Cropping window depth (in voxels).
+
 ``crop_w``, ``crop_h``, and ``crop_d`` must be specified together. Providing values
 for ``crop_w``, ``crop_h``, and ``crop_d`` is incompatible with providing the fixed crop
 window dimensions (argument `crop`).)code",

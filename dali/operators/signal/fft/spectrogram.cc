@@ -63,7 +63,7 @@ Here are the supported values:
     2)
   .AddOptionalArg("center_windows",
     R"code(Indicates whether extracted windows should be padded so that window function is
-centered at multiples of ``window_step``.
+centered in multiples of ``window_step``.
 
 If set to False, the signal will not be padded, that is, only windows in the input range will
 be extracted.)code",

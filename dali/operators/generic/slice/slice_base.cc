@@ -26,8 +26,7 @@ DALI_SCHEMA(SliceBase)
     .AddOptionalArg("dtype",
        R"code(Output data type.
 
-By default, the same data type as the input will be used.
-Here are the supported types:
+By default, the same data type as the input will be used, and here  are the supported types:
 
 - ``FLOAT``
 - ``FLOAT16``

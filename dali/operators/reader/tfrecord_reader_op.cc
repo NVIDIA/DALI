@@ -30,7 +30,7 @@ DALI_SCHEMA(_TFRecordReaderBase)
       R"code(List of paths to the TFRecord files.)code",
       DALI_STRING_VEC)
   .AddArg("index_path",
-      R"code(List of paths to index files and there is 1 index file for every TFRecord file.
+      R"code(List of paths to index files, and there is one index file for every TFRecord file.
 
 The index files can be obtained from TFRecord files by using the ``tfrecord2idx`` script
 that is distributed with DALI.)code",
@@ -59,10 +59,10 @@ DALI_SCHEMA(TFRecordReader)
       R"code(Dictionary of names and configuration of features that exist in the TFRecord file.
 
 Typically obtained by using the ``dali.tfrecord.FixedLenFeature`` and
-``dali.tfrecord.VarLenFeature`` helper functions, they are equivalent to TensorFlow’s
-``tf.FixedLenFeature`` and ``tf.VarLenFeature``, respectively. For additional flexibility,
+``dali.tfrecord.VarLenFeature`` helper functions, which are equal to TensorFlow’s
+``tf.FixedLenFeature`` and ``tf.VarLenFeature`` types, respectively. For additional flexibility,
 ``dali.tfrecord.VarLenFeature`` supports the ``partial_shape`` parameter. If provided,
-the data will be reshaped to match its value. The first dimension will be inferred from
+the data will be reshaped to match its value, and the first dimension will be inferred from
 the data size.)code",
       DALI_TF_FEATURE_DICT)
   .AddParent("_TFRecordReaderBase")

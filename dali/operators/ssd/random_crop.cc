@@ -25,8 +25,8 @@
 namespace dali {
 
 DALI_SCHEMA(SSDRandomCrop)
-  .DocStr(R"code(Performs a random crop with bounding boxes where IoU meets
-a randomly selected threshold between 0-1.
+  .DocStr(R"code(Performs a random crop with bounding boxes where Intersection Over Untion (IoU)
+meets a randomly selected threshold between 0-1.
 
 When the IoU falls below the threshold, a new random crop is generated up to num_attempts.
 As an input, the IoU accepts image, bounding boxes and labels. At the output cropped image,

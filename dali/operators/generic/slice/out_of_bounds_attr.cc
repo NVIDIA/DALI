@@ -30,7 +30,8 @@ Here is a list of the supported values:
   with the ``fill_values`` argument.
 - "trim_to_shape": The slice window will be cut to the bounds of the input.)code", "error")
     .AddOptionalArg("fill_values",
-        R"code(Determines padding values, only relevant if ``out_of_bounds_policy`` is set to “pad”.
+        R"code(Determines padding values and is only relevant if ``out_of_bounds_policy``
+is set to “pad”.
 
 If a scalar value is provided, it will be used for all the channels. If multiple values are
 provided, the number of values and channels must be identical (extent of dimension ‘C’

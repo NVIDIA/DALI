@@ -22,7 +22,7 @@ namespace dali {
 DALI_REGISTER_OPERATOR(Water, Water<CPUBackend>, CPU);
 
 DALI_SCHEMA(Water)
-    .DocStr("Perform a water augmentation (make image appear to be underwater).")
+    .DocStr("Performs a water augmentation, which makes the image appear to be underwater.")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("ampl_x",

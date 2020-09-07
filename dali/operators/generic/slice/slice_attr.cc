@@ -26,8 +26,8 @@ DALI_SCHEMA(SliceAttr)
 indexes.)code",
         std::vector<int>{1, 0})
     .AddOptionalArg("axis_names",
-        R"code(Order of dimensions used for the anchor and shape slice inputs, as described
-in layout.
+        R"code(Order of the dimensions used for the anchor and shape slice inputs,
+as described in layout.
 
 If a value is provided, ``axis_names`` will have a higher priority than ``axes``.)code",
         TensorLayout("WH"))

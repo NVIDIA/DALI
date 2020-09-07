@@ -57,7 +57,8 @@ Example directory structure::
     .NumInput(0)
     .NumOutput(1)  // ([Frames])
     .AddArg("file_root",
-            R"code(Path to a directory containing streams (directories representing streams).)code",
+            R"code(Path to a directory that contains streams, where the directories
+represent streams.)code",
             DALI_STRING)
     .AddArg("sequence_length",
             R"code(Length of sequence to load for each sample.)code", DALI_INT32)

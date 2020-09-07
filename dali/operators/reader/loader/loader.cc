@@ -48,7 +48,7 @@ decreases the time of all of the following accesses.)code", false)
   .AddOptionalArg("prefetch_queue_depth",
       R"code(Specifies the number of batches that have been prefetched by the internal Loader.
 
-This value will be increased when the pipeline processing is CPU stage-bound and is trading memory
+This value will be increased when the pipeline processing is CPU stage-bound and trades memory
 consumption for better interleaving with the Loader thread.)code", 1)
   .AddOptionalArg("skip_cached_images",
       R"code(If set to True, the loading data will be skipped when the sample is

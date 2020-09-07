@@ -27,7 +27,7 @@ should be denoted as ``F``, which indicates the frames of the sequence.)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowSequences()
-    .AddArg("new_order", R"code(List describing new order for elements of each sample.
+    .AddArg("new_order", R"code(List that describes the new order for the elements in each sample.
 
 Output sequence at position ``i`` will contain element ``new_order[i]`` from input sequence.
 Elements can be repeated or dropped, empty output sequences are not allowed. Only indices in

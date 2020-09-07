@@ -22,8 +22,8 @@ DALI_SCHEMA(Rotate)
   .NumOutput(1)
   .InputLayout(0, { "HWC", "DHWC" })
   .SupportVolumetric()
-  .AddOptionalArg<float>("axis", R"code(Applies **only** to three dimension: The axis
-around which to rotate.
+  .AddOptionalArg<float>("axis", R"code(Applies **only** to three-dimension and is the axis
+around which to rotate the image.
 
 The vector does not need to be normalized, but it must have a non-zero length.
 Reversing the vector is equivalent to changing the sign of ``angle``.
@@ -31,8 +31,8 @@ Reversing the vector is equivalent to changing the sign of ``angle``.
   std::vector<float>(), true)
   .AddArg("angle", R"code(Angle, in degrees, by which the image is rotated.
 
-For two-dimensional data, the rotation is counter-clockwise, assuming top-left corner at ``(0,0)``
-For three-dimensional data, the ``angle`` is a positive rotation around the provided axis.
+For two-dimensional data, the rotation is counter-clockwise, assuming the the top-left corner is
+at ``(0,0)``. For three-dimensional data, the ``angle`` is a positive rotation around the provided axis.
 )code", DALI_FLOAT, true)
   .AddOptionalArg("keep_size", R"code(If ``True``, original canvas size is kept.
 

@@ -26,7 +26,7 @@ Non-integer sizes are rounded to nearest integer. The channel dimension should
 be excluded (for example, for RGB images, specify ``(480,640)``, not ``(480,640,3)``.
 )code",
       vector<float>(), true)
-  .AddOptionalArg("fill_value", R"code(Value used to fill areas that are outside source image.
+  .AddOptionalArg("fill_value", R"code(Value used to fill areas that are outside the source image.
 
 If a value is not specified, the source coordinates are clamped and the border pixel is
 repeated.)code", 0.0f)
