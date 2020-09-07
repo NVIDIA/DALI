@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <cmath>
+#include <cstring>
 
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/pipeline.h"
@@ -217,6 +218,18 @@ TEST_F(VideoReaderTest, PackedBFrames) {
   }
 }
 
+inline bool IsUnsupportedCodec(const char *error_message) {
+  const char *unsupported_codec_messages[] = {
+    "Decoder hardware does not support this video codec and/or chroma format",
+    "Unsupported Code"
+  };
+  for (const char *part : unsupported_codec_messages) {
+    if (std::strstr(error_message, part))
+      return true;
+  }
+  return false;
+}
+
 TEST_F(VideoReaderTest, Vp9Profile0) {
   Pipeline pipe(1, 1, 0);
   const int sequence_length = 60;
@@ -230,12 +243,20 @@ TEST_F(VideoReaderTest, Vp9Profile0) {
       std::vector<std::string>{testing::dali_extra_path() + "/db/video/vp9/vp9_0.mp4"})
     .AddOutput("frames", "gpu"));
 
-  pipe.Build(this->Outputs());
-
   DeviceWorkspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
-  pipe.Outputs(&ws);
+  try {
+    pipe.Build(this->Outputs());
+
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+  } catch (const std::exception &e) {
+    if (IsUnsupportedCodec(e.what())) {
+      GTEST_SKIP() << "Skipped because of unsupported codec. Original error:\n" << e.what();
+    } else {
+      throw;
+    }
+  }
 
   const auto &frames_output = ws.Output<dali::GPUBackend>(0);
   const auto &frames_shape = frames_output.shape();
@@ -266,12 +287,11 @@ TEST_F(VideoReaderTest, Vp9Profile2) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-  } catch (std::exception &e) {
-    if (string(e.what()).find(unsupported_exception_msg) != std::string::npos) {
-      GTEST_SKIP() << "Test skipped because VP9 codec with 10/12 bit depth is not supported"
-                      "on this hardware";
+  } catch (const std::exception &e) {
+    if (IsUnsupportedCodec(e.what())) {
+      GTEST_SKIP() << "Skipped because of unsupported codec. Original error:\n" << e.what();
     } else {
-    FAIL();
+      throw;
     }
   }
 
