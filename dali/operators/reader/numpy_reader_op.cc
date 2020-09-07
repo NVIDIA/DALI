@@ -53,7 +53,7 @@ DALI_SCHEMA(NumpyReader)
   .NumInput(0)
   .NumOutput(1)  // (Arrays)
   .AddArg("file_root",
-      R"code(Path to a directory that contains the data files.
+      R"code(Path to a directory containing the data files.
 
 :meth:`nvidia.dali.ops.NumpyReader` supports flat directory structure. The ``file_root`` directory
 should contain directories with numpy files in them.)code", DALI_STRING)

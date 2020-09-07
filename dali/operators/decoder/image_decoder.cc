@@ -67,7 +67,7 @@ do a complete run over the dataset with the ``memory_stats`` argument set to Tru
 the largest allocation value that is printed in the statistics.)code",
       8*1024*1024)  // based on ImageNet heuristics (8MB)
   .AddOptionalArg("affine",
-      R"code(Applies only to them **mixed backend type**.
+      R"code(Applies **only** to them ``mixed`` backend type.
 
 If set to True, the threads from the internal thread pool will be affined to
 the CPU cores Otherwise, the threads are free to be assigned to any CPU core by the OS.)code",
@@ -81,8 +81,8 @@ Splits into separated CPU stage and GPU stage operators.)code",
       R"code(**Experimental**, applies **only** to the ``mixed`` backend type.
 
 Uses the chunk pinned memory allocator and allocates a chunk of the
-``batch_size*prefetch_queue_depth`` size value during the construction and suballocate
-them in runtime. When ``split_stages`` is false, this argument is ignored.)code",
+``batch_size * prefetch_queue_depth`` size value during the construction and suballocates
+them at runtime. When ``split_stages`` is false, this argument is ignored.)code",
       false)
   .AddOptionalArg("use_fast_idct",
       R"code(Enables fast IDCT in a CPU-based decompressor when the GPU implementation cannot
@@ -111,7 +111,7 @@ For jpeg images, depending on the backend you select (mixed and cpu), the implem
 the *nvJPEG* library or *libjpeg-turbo*, respectively . Other image formats are decoded
 with *OpenCV* or other specific libraries, such as *libtiff*).
 
-If used with a mixed device, and the hardware is available, the operator will use
+If used with a ``mixed`` backend, and the hardware is available, the operator will use
 a dedicated hardware decoder.
 
 The output of the decoder is in the *HWC* layout.

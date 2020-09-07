@@ -23,7 +23,7 @@ DALI_SCHEMA(ElementExtract)
     .NumOutput(1)
     .SequenceOperator()
     .AddArg("element_map",
-        R"code(Indices of the extracted elements.)code",
+        R"code(Indices of the elements to extract.)code",
         DALI_INT_VEC)
     .AdditionalOutputsFn(
         [](const OpSpec& spec) {

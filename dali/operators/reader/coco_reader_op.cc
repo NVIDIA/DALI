@@ -49,13 +49,13 @@ which is a list of points (2 floats).
 Each mask can be one or more polygons, and for a given sample, the polygons are represented by the
 following tensors:
 
--	``masks_meta`` -> list of tuples (mask_idx, start_idx, end_idx)
--	``masks_coords``-> list of (x,y) coordinates
+- ``masks_meta`` -> list of tuples (mask_idx, start_idx, end_idx)
+- ``masks_coords``-> list of (x,y) coordinates
 
 One mask can have one or more ``masks_meta`` values that have the same ``mask_idx.``
 This means that the mask for that given index consists of several polygons.
 ``start_idx`` indicates the index of the first coordinates in ``masks_coords``.
-Currently objects with ``iscrowd=1`` annotations are skipped becauseRLE masks are not suitable
+Currently objects with ``iscrowd=1`` annotations are skipped because RLE masks are not suitable
 for instance segmentation.)code",
       false)
   .AddOptionalArg("skip_empty",
@@ -68,12 +68,13 @@ The value is represented as an absolute value.)code",
       0.1f,
       false)
   .AddOptionalArg("ratio",
-      R"code(If set to True, the bboxes returned values are expressed as the w.r.t. ratio to the
-image width and height.)code",
+      R"code(If set to True, the returned bbox coordinates are relative to the image size.)code",
       false)
   .AddOptionalArg("file_list",
-      R"code(Path to the file that contains a list of ``file id`` pairs.\n
-To traverse the file_root directory and obtain files and labels, leave empty this value empty.)code",
+      R"code(Path to the file that contains a list of whitespace separated ``file id`` pairs.
+
+To traverse the file_root directory and obtain files and labels, leave empty
+this value empty.)code",
       std::string())
   .AddOptionalArg("save_img_ids",
       R"code(If set to True, the image IDs are also returned.)code",
@@ -83,7 +84,7 @@ To traverse the file_root directory and obtain files and labels, leave empty thi
 is provided with ``dump_meta_files_path``.)code",
       false)
   .AddOptionalArg(
-    "dump_meta_files_path", R"code(Path to the directory in which you save the meta files that
+    "dump_meta_files_path", R"code(Path to the directory in which to save the meta files that
 contain the preprocessed COCO annotations.)code",
     std::string())
   .AdditionalOutputsFn([](const OpSpec& spec) {

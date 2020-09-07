@@ -27,7 +27,7 @@ DALI_REGISTER_OPERATOR(_TFRecordReader, TFRecordReader, CPU);
 DALI_SCHEMA(_TFRecordReaderBase)
   .DocStr(R"code(Read sample data from a TensorFlow TFRecord file.)code")
   .AddArg("path",
-      R"code(List of paths to the TFRecord files.)code",
+      R"code(List of paths to TFRecord files.)code",
       DALI_STRING_VEC)
   .AddArg("index_path",
       R"code(List of paths to index files, and there is one index file for every TFRecord file.
@@ -37,7 +37,7 @@ that is distributed with DALI.)code",
       DALI_STRING_VEC);
 
 DALI_SCHEMA(_TFRecordReader)
-  .DocStr(R"code(Reads the sample data from a TensorFlow TFRecord file.)code")
+  .DocStr(R"code(Reads samples from a TensorFlow TFRecord file.)code")
   .OutputFn([](const OpSpec &spec) {
       std::vector<std::string> v = spec.GetRepeatedArgument<std::string>("feature_names");
       return v.size();
@@ -54,9 +54,9 @@ DALI_SCHEMA(_TFRecordReader)
 // Schema for the actual TFRecordReader op exposed
 // in Python. It is here for proper docstring generation
 DALI_SCHEMA(TFRecordReader)
-  .DocStr(R"code(Reads the sample data from a TensorFlow TFRecord file.)code")
+  .DocStr(R"code(Reads samples from a TensorFlow TFRecord file.)code")
   .AddArg("features",
-      R"code(Dictionary of names and configuration of features that exist in the TFRecord file.
+      R"code(A dictionary that maps names of the TFRecord features to extract to the feature type.
 
 Typically obtained by using the ``dali.tfrecord.FixedLenFeature`` and
 ``dali.tfrecord.VarLenFeature`` helper functions, which are equal to TensorFlow’s

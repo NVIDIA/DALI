@@ -93,7 +93,7 @@ Here is an example::
     R"code(A list of input values (keys) that are present in the lookup table.
 
 The length of ``keys`` and ``values`` argument should match. ``keys`` values should be in the
-[0, )code" + std::to_string(LookupTable<CPUBackend>::kMaxKey) + R"code( ] range.)code",
+[0, )code" + std::to_string(LookupTable<CPUBackend>::kMaxKey) + " ] range.",
     std::vector<int>{})
   .AddOptionalArg("values",
     R"code(A list of mapped output ``values`` for each ``keys`` entry.

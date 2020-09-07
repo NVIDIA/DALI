@@ -19,14 +19,13 @@ namespace dali {
 
 
 DALI_SCHEMA(OpticalFlow)
-                .DocStr(R"code(Calculates the optical flow for a sequence of images that were
-provided as the input.
+                .DocStr(R"code(Calculates the optical flow between images in the input.
 
-The mandatory input for the operator is a sequence of frames. As an Optionally, the operator
-also accepts external hints for the optical flow calculation. The output format of this operator
+The main input for this operator is a sequence of frames. Optionally, the operator
+can be provided with external hints for the optical flow calculation. The output format of this operator
 matches the output format of the optical flow driver API.
 Refer to https://developer.nvidia.com/opticalflow-sdk for more information about the
-Turing and Ampere optical flow hardware that is used by DALI. This operator allows sequence inputs.
+Turing and Ampere optical flow hardware that is used by DALI.
 )code")
                 .NumInput(1, 2)
                 .NumOutput(1)
@@ -42,10 +41,11 @@ Here are the supported values:
 The lower the speed, the more additional pre- and postprocessing is used to enhance the quality of the optical flow result.
 )code", .0f, false)
                 .AddOptionalArg(detail::kOutputFormatArgName,
-                                R"code(Sets the grid size for the output vector.
+                                R"code(Sets the grid size for the output vector field.
 
-The value defines the width of the grid square. For example,if vthe value == 4, a 4x4 grid is used.
-For values that are less than or equal to 0, the grid size is undefined.
+This operator produces the motion vector field at a coarser resolution than the input pixels.
+This parameter specifies the size of the pixel grid cell corresponding to one motion vector.
+For example, a value of 4 will produce one motion vector for each 4x4 pixel block.
 
 .. note::
   Currently, only a grid_size=4 is supported.
@@ -54,9 +54,9 @@ For values that are less than or equal to 0, the grid size is undefined.
                                 R"code(Enables or disables temporal hints for sequences that are
 longer than two images.
 
-The hints are used to speed up the calculation, where the previous optical flow result
-in the sequence is used to calculate current flow. We recommend that you use temporal
-hints for sequences that do not have many changes in the scene (for example, only moving objects).
+The hints are used to improve the quality of the output motion field as well as to speed up
+the calculations. The hints are especially useful in presence of large displacements or
+periodic patterns which might confuse the optical flow algorithms.
 ))code",
                                 false, false)
                 .AddOptionalArg(detail::kEnableExternalHintsArgName,
@@ -68,7 +68,7 @@ come from an external source. When this option is enabled, the operator requires
 )code",
                                 false, false)
                 .AddOptionalArg(detail::kImageTypeArgName,
-                                R"code(Type of input images, including RGB, BGR, and GRAY.)code", DALI_RGB,
+                                R"code(Input color space (RGB, BGR or GRAY).)code", DALI_RGB,
                                 false)
                 .AllowSequences();
 

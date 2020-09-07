@@ -43,14 +43,14 @@ Additionally, this operator can change the type of data.)code")
     .AddOptionalArg("brightness",
                     "Brightness mutliplier, and a value of 1.0 is neutral.",
                     1.0f, true)
-    .AddOptionalArg("brightness_shift", R"code(Brightness shift, where 0 is neutral.
+    .AddOptionalArg("brightness_shift", R"code(The brightness shift, where 0 is neutral.
 
 For signed types, 1.0 is the maximum positive value that can be represented by the type.)code",
                     0.0f, true)
-    .AddOptionalArg("contrast", R"code(Set the contrast multiplier, where 1.0 is neutral, and 0.0
+    .AddOptionalArg("contrast", R"code(The contrast multiplier, where 1.0 is neutral, and 0.0
 produces the uniform grey.)code",
                     1.0f, true)
-    .AddOptionalArg("contrast_center", R"code(Sets the intensity level that is unaffected by contrast.
+    .AddOptionalArg("contrast_center", R"code(The intensity level that is unaffected by contrast.
 
 This is the value that all pixels assume when the contrast is zero. When not set,
 the half of the input types’ positive range (or 0.5 for ``float``) is used.)code",

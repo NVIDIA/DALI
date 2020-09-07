@@ -40,7 +40,7 @@ For the GPU operator, it is your responsibility to synchronize the device code w
 To synchronize the device code with DALI, synchronize DALI’s work before the operator call
 with the ``synchronize_stream`` flag (enabled by default) and ensure that the scheduled device
 tasks are finished in the operator call. The GPU code can be executed on the CUDA stream used
-by DALI, which is determined by calling the ``current_dali_stream()`` function. In this case,
+by DALI, which can be obtained by calling the ``current_dali_stream()`` function. In this case,
 the ``synchronize_stream`` flag can be set to False.)code")
     .AddOptionalArg("synchronize_stream",
         R"code(Ensures that DALI synchronizes its CUDA stream before calling the Python function.
@@ -48,7 +48,10 @@ the ``synchronize_stream`` flag can be set to False.)code")
 **Important**: If the called function schedules the device job to the stream that is used by DALI,
 this argument should only be set to False.)code", true)
     .AddOptionalArg("batch_processing",
-                    "Determines whether the function should get the entire batch as input.", true)
+                    R"code(Determines whether the function is invoked once per batch or
+separately for every sample in the batch.
+
+If set to True, the function will receive its arguments as lists of DLPack tensors.)code", false)
     .NumInput(0, 256)
     .AllowSequences()
     .SupportVolumetric()

@@ -80,9 +80,10 @@ listed in https://en.wikipedia.org/wiki/Discrete_cosine_transform#Formal_definit
 If a value is not provided, the outer-most dimension will be used.)code",
       0)
     .AddOptionalArg("lifter",
-      R"code(Cepstral filtering, which is also known as the liftering coefficient.
+      R"code(Cepstral filtering coefficient, which is also known as the liftering coefficient.
 
-If the lifter is greater than 0, the MFCCs will be scaled based on the following formula::
+If the lifter coefficient is greater than 0, the MFCCs will be scaled based on
+the following formula::
 
     MFFC[i] = MFCC[i] * (1 + sin(pi * (i + 1) / lifter)) * (lifter / 2)
 )code",

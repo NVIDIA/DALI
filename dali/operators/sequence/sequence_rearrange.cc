@@ -21,15 +21,16 @@ namespace dali {
 DALI_SCHEMA(SequenceRearrange)
     .DocStr(R"code(Rearranges the sequence that is stored as tensor.
 
-Assumes that the outermost dimension represents a sequence and the other dimensions of
-input represent elements of that sequence. If layout is specified, the first dimension
-should be denoted as ``F``, which indicates the frames of the sequence.)code")
+Assumes that the outermost dimension represents the frame index in the sequence.
+If the input has a non-empty layout description, it must start with ``F`` (frame).)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowSequences()
     .AddArg("new_order", R"code(List that describes the new order for the elements in each sample.
 
-Output sequence at position ``i`` will contain element ``new_order[i]`` from input sequence.
+Output sequence at position ``i`` will contain element ``new_order[i]`` from input sequence::
+  out[i, ...] = in[new_order[i], ...]
+
 Elements can be repeated or dropped, empty output sequences are not allowed. Only indices in
 ``[0, input_outermost_dimension)`` are allowed to be used in ``new_order``. Can be specified
 per sample as 1D tensors.)code",

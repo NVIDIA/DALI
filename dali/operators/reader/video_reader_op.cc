@@ -26,18 +26,17 @@ namespace dali {
 DALI_REGISTER_OPERATOR(VideoReader, VideoReader, GPU);
 
 DALI_SCHEMA(VideoReader)
-  .DocStr(R"code(Loads and decodes the H264, VP9, MPEG4 and HVEC(h265) video codec with FFmpeg
-and NVDECODE, which is the hardware-accelerated video decoding feature in the NVIDIA(R)
-graphical process unit (GPU).
+  .DocStr(R"code(Loads and decodes video files using FFmpeg and NVDECODE, which is
+the hardware-accelerated video decoding feature in the NVIDIA(R) GPU.
 
-The video codecs can be in most of the container file formats. FFmpeg is used to parse video
+The video streams can be in most of the container file formats. FFmpeg is used to parse video
 containers and returns a batch of sequences of sequence_length frames of the [N, F, H, W, C]
 shape, where N is the batch size, and F is the number of frames). This class only supports
 constant frame rate videos.)code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderOutputFn)
   .AddOptionalArg("filenames",
-      R"code(Path to the file with a list of the file label pairs.
+      R"code(File names of the video files to load.
 
 This option is mutually exclusive with ``filenames`` and ``file_root``.)code",
       std::vector<std::string>{})
@@ -47,7 +46,7 @@ This option is mutually exclusive with ``filenames`` and ``file_root``.)code",
 This option is mutually exclusive with ``filenames`` and ``file_list``.)code",
       std::string())
   .AddOptionalArg("file_list",
-      R"code(Path to the file with a list of ``file label [start_frame [end_frame]]``.
+      R"code(Path to the file with a list of ``file label [start_frame [end_frame]]`` values.
 
 Positive value means the exact frame, negative counts as a Nth frame from the end (it follows
 python array indexing schema), equal values for the start and end frame would yield an empty
@@ -89,17 +88,22 @@ This parameter can be used to trade off memory usage with performance.)code",
       R"code(Gets the output as normalized data.)code",
       false)
   .AddOptionalArg("image_type",
-      R"code(The color space of the output frames, and RGB and YCbCr are supported.)code",
+      R"(The color space of the output frames (RGB or YCbCr).)",
       DALI_RGB)
   .AddOptionalArg("dtype",
-      R"code(The data type of the output frames, and  FLOAT and UINT8 are supported.)code",
+      R"(The data type of the output frames (UINT8 or FLOAT).)",
       DALI_UINT8)
   .AddOptionalArg("stride",
       R"code(Distance between consecutive frames in the sequence.)code", 1u, false)
   .AddOptionalArg("skip_vfr_check",
-      R"code(Skips the check for the variable frame rate on videos.
+      R"code(Skips the check for the variable frame rate (VFR) videos.
 
-This argument is useful when heuristic fails.)code", false)
+Use this flag to suppress false positive detection of VFR videos.
+
+.. warning::
+
+  When the dataset indeed contains VFR files, setting this flag may cause the decoder to
+  malfunction.)code", false)
   .AddOptionalArg("file_list_frame_num",
       R"code(If the start/end timestamps are provided in file_list, you can interpret them
 as frame numbers instead of as timestamps.

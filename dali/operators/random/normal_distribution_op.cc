@@ -17,7 +17,7 @@
 namespace dali {
 
 DALI_SCHEMA(NormalDistribution)
-  .DocStr(R"code(Creates a tensor  filled with random values following the normal distribution.
+  .DocStr(R"code(Creates a tensor filled with random values following the normal distribution.
 
 This operator can be run in the following modes, which determine the ``shape`` of the output tensor:
 

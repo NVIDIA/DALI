@@ -282,7 +282,7 @@ void OldColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 DALI_SCHEMA(OldColorTwist)
     .DocStr(R"code(A combination of hue, saturation, contrast, and brightness.
 
-This is an old implementation that was using NPP.)code")
+This is an old implementation which uses NPP.)code")
     .Deprecate("ColorTwist")
     .NumInput(1)
     .NumOutput(1)
@@ -296,7 +296,7 @@ Example values:
 * 1: No change to an image’s saturation.
 
 .. note::
-  You must use a value that is greater than or equal to 0.)code",
+  Values must be non-negative.)code",
                     1.f, true)
     .AddOptionalArg("contrast",
                     R"code(Contrast change factor.
@@ -308,7 +308,7 @@ Example values:
 * 2: Increase the contrast twice.
 
 .. note::
-  You must use a value that is greater than or equal to 0.)code",
+  Values must be non-negative.)code",
                     1.f, true)
     .AddOptionalArg("brightness",
                     R"code(Brightness change factor.
@@ -320,8 +320,7 @@ Example values:
 * 2: Increase the brightness twice.
 
 .. note::
-   You must use a value that is greater than or equal to 0.
-)code",
+  Values must be non-negative.)code",
                     1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");

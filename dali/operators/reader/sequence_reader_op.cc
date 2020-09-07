@@ -26,7 +26,7 @@ DALI_REGISTER_OPERATOR(SequenceReader, SequenceReader, CPU);
 
 DALI_SCHEMA(SequenceReader)
     .DocStr(
-        R"code(Reads [Frame] sequences from a directory that represents a collection of streams.
+        R"code(Reads [Frame] sequences from a directory representing a collection of streams.
 
 This class expects file_root to contain a set of directories, where each directory represents
 an extracted video stream. This stream is represented by one file for each frame and
@@ -57,7 +57,7 @@ Example directory structure::
     .NumInput(0)
     .NumOutput(1)  // ([Frames])
     .AddArg("file_root",
-            R"code(Path to a directory that contains streams, where the directories
+            R"code(Path to a directory containing streams, where the directories
 represent streams.)code",
             DALI_STRING)
     .AddArg("sequence_length",

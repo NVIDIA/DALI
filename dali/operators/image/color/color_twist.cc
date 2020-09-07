@@ -27,10 +27,10 @@ DALI_SCHEMA(Hsv)
     .DocStr(R"code(Adjusts hue, saturation and value (brightness) for an image.
 
 To change the hue, the saturation, and/or the value of the image, pass the corresponding
-coefficients. Remember that the ``hue`` has an additive delta argument,
+coefficients. Remember that the ``hue`` is an additive delta argument,
 while for ``saturation`` and value, the arguments are multiplicative.
 
-This operator accepts the RGB color space as an input.
+This operator accepts images in the RGB color space.
 
 For performance reasons, the operation is approximated by a linear transform in the RGB space.
 The color vector is projected along the neutral (gray) axis,
@@ -59,7 +59,7 @@ If a value is not set, the input type is used.)code",
 DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
     .AddOptionalArg("image_type",
-        R"code(TThe color space of the input and the output image.)code", DALI_RGB)
+        R"code(The color space of the input and the output image.)code", DALI_RGB)
     .AddOptionalArg(color::kOutputType, R"code(The output data type.
 
 If a value is not set, the input type is used.)code",
@@ -97,7 +97,7 @@ Example values:
 * `2` - Increase brightness twice.
 
 .. note::
-    Values must be greater than 0.)code", 1.f, true)
+    Values must be non-negative.)code", 1.f, true)
     .AddParent("ColorTransformBase");
 
 DALI_SCHEMA(Hue)
@@ -105,7 +105,7 @@ DALI_SCHEMA(Hue)
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue",
-        R"code(Hue change in degrees.)code", 0.f, true)
+        R"code(The hue change in degrees.)code", 0.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
@@ -114,14 +114,14 @@ DALI_SCHEMA(Saturation)
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("saturation",
-                    R"code(Saturation change factor.
+                    R"code(The saturation change factor.
 
 Example values:
 - `0` – Completely desaturated image
 - `1` - No change to image’s saturation.
 
 .. note::
-    Values must be greater than 0.)code", 1.f, true)
+    Values must be non-negative.)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
@@ -140,7 +140,7 @@ Example values:
 - `1` - No change to image’s saturation.
 
 .. note::
-    Values must be greater than 0.)code", 1.f, true)
+    Values must be non-negative.)code", 1.f, true)
     .AddOptionalArg("contrast",
                     R"code(Contrast change factor.
 
@@ -151,7 +151,7 @@ Example values:
 * `2` - Increase brightness twice.
 
 .. note::
-    Values must be greater than 0.)code", 1.f, true)
+    Values must be non-negative.)code", 1.f, true)
     .AddOptionalArg("brightness",
                     R"code(Brightness change factor.
 
