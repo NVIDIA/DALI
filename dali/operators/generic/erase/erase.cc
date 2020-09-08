@@ -118,7 +118,7 @@ to axes 1 and 0 in that order.)code",
 as described in the layout.
 
 For instance, axis_names="HW" means that the coordinates in *anchor* and *shape*
-refer to dimensions H (heigth) and W (width) in that order.
+refer to dimensions H (height) and W (width) in that order.
 
 .. note::
     *axis_name*s has a higher priority than *axes*.)code",
