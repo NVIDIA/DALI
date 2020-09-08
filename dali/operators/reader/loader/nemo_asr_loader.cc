@@ -121,7 +121,7 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
 
   int64_t decode_scratch_sz = 0;
   int64_t resample_scratch_sz = 0;
-  if (should_resample || should_downmix)
+  if (should_resample || should_downmix || dtype_ != DALI_INT16)
     decode_scratch_sz = sample.audio_meta.length * sample.audio_meta.channels;
 
   // resample scratch is used to prepare a single or multiple (depending if
