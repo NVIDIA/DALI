@@ -66,10 +66,11 @@ This option is equivalent to specifying the same size for all dimensions and ``m
 with high aspect ratios might produce extremely large outputs. This parameter puts a limit to how
 big the output can become. This value can be specified per-axis or uniformly for all axes.
 
-NOTE: When used with "not_smaller" mode or ``resize_shorter`` argument, ``max_size`` takes
-precedence and the aspect ratio is kept - for example, resizing with
-``mode="not_smaller", size=800, max_size=1400`` an image of size 1200x600 would be resized to
-1400x700.
+.. note::
+  When used with "not_smaller" mode or ``resize_shorter`` argument, ``max_size`` takes
+  precedence and the aspect ratio is kept - for example, resizing with
+  ``mode="not_smaller", size=800, max_size=1400`` an image of size 1200x600 would be resized to
+  1400x700.
 )",
   {}, false)
   .AddOptionalArg("subpixel_scale", R"(If true, fractional sizes (either directly specified or
