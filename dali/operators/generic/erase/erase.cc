@@ -40,9 +40,9 @@ argument, or, alternatively, the value of the *axes* argument. If no *axis_names
 
 **Example 1:**
 
-*anchor* = (10, 20), *shape* = (190, 200), *axis_names* = "HW", *fill_value* = 0
+*anchor* = (10, 20), *shape* = (190, 200), *axis_names* = ``HW``, *fill_value* = 0
 
-input: *layout* = "HWC", *shape* = (300, 300, 3)
+input: *layout* = ``HWC``, *shape* = (300, 300, 3)
 
 The erase region covers the range between 10 and 200 in the vertical dimension (height)
 and between 20 and 220 in the horizontal dimension (width). The range for the channel
@@ -54,9 +54,9 @@ Here is the example::
 
 **Example 2:**
 
-*anchor* = (10, 250), *shape* = (20, 30), *axis_names* = "W", *fill_value* = (118, 185, 0)
+*anchor* = (10, 250), *shape* = (20, 30), *axis_names* = ``W``, *fill_value* = (118, 185, 0)
 
-input: *layout* = "HWC", *shape* = (300, 300, 3)
+input: *layout* = ``HWC``, *shape* = (300, 300, 3)
 
 Two erase regions are provided, which covers two vertical bands that range from x=(10, 30)
 and x=(250, 280), respectively. Each pixel in the erased regions is filled with a multi-channel
@@ -68,9 +68,9 @@ Here is the example::
 
 **Example 3:**
 
-*anchor* = (0.15, 0.15), *shape* = (0.3, 0.3), *axis_names* = "HW", *fill_value* = 100, *normalized* = True
+*anchor* = (0.15, 0.15), *shape* = (0.3, 0.3), *axis_names* = ``HW``, *fill_value* = 100, *normalized* = True
 
-input: *layout* = "HWC", *shape* = (300, 300, 3)
+input: *layout* = ``HWC``, *shape* = (300, 300, 3)
 
 One erase region with normalized coordinates in the height, and the width dimensions is provided.
 A fill value is provided for all the channels. The coordinates can be transformed to the absolute by
@@ -83,7 +83,7 @@ Here is the example::
 **Example 4:**
 *anchor* = (0.15, 0.15), *shape* = (20, 30), *normalized_anchor* = True, *normalized_shape* = False
 
-input: *layout* = "HWC", *shape* = (300, 300, 3)
+input: *layout* = ``HWC``, *shape* = (300, 300, 3)
 
 One erase region with an anchor is specified in normalized coordinates and the shape in absolute
 coordinates. Since no axis_names is provided, the anchor and shape must contain all dimensions

@@ -34,7 +34,7 @@ Here is a list of the supported values:
 is set to “pad”.
 
 If a scalar value is provided, it will be used for all the channels. If multiple values are
-provided, the number of values and channels must be identical (extent of dimension "C"
+provided, the number of values and channels must be identical (extent of dimension ``C``
 in the layout) in the output slice.)code", std::vector<float>{0.f});
 
 }  // namespace dali
