@@ -26,11 +26,9 @@ NVIDIA NeMo compatible manifest.
 
 Example manifest file::
 
-  [
-    {"audio_filepath": "path/to/audio1.wav", "duration": 3.45, "text": "this is a nemo tutorial"},
-    {"audio_filepath": "path/to/audio1.wav", "offset": 3.45, "duration": 1.45, "text": "same audio file but using offset"},
-    {"audio_filepath": "path/to/audio2.wav", "duration": 3.45, "text": "third transcript in this example"},
-  ]
+    {"audio_filepath": "path/to/audio1.wav", "duration": 3.45, "text": "this is a nemo tutorial"}
+    {"audio_filepath": "path/to/audio1.wav", "offset": 3.45, "duration": 1.45, "text": "same audio file but using offset"}
+    {"audio_filepath": "path/to/audio2.wav", "duration": 3.45, "text": "third transcript in this example"}
 
 This reader produces between 1 and 3 outputs:
 

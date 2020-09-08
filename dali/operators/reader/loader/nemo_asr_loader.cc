@@ -28,15 +28,14 @@ namespace dali {
 
 namespace detail {
 
-void ParseManifest(std::vector<NemoAsrEntry> &entries, const std::string &json) {
-  detail::LookaheadParser parser(const_cast<char*>(json.c_str()));
-
-  DALI_ENFORCE(parser.PeekType() == kArrayType);
-  parser.EnterArray();
-
-  while (parser.NextArrayValue()) {
-    if (parser.PeekType() != kObjectType)
+void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_file) {
+  std::string line;
+  while (std::getline(manifest_file, line)) {
+    detail::LookaheadParser parser(const_cast<char*>(line.c_str()));
+    if (parser.PeekType() != kObjectType) {
+      DALI_WARN(make_string("Skipping invalid manifest line: ", line));
       continue;
+    }
     parser.EnterObject();
     NemoAsrEntry entry;
     while (const char* key = parser.NextObjectKey()) {
@@ -52,6 +51,10 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, const std::string &json) 
         parser.SkipValue();
       }
     }
+    if (entry.audio_filepath.empty()) {
+      DALI_WARN(make_string("Skipping manifest line without an audio filepath: ", line));
+      continue;
+    }
     entries.emplace_back(std::move(entry));
   }
 }
@@ -62,8 +65,7 @@ void NemoAsrLoader::PrepareMetadataImpl() {
   std::ifstream fstream(manifest_filepath_);
   DALI_ENFORCE(fstream,
                make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath_, "\""));
-  std::string json((std::istreambuf_iterator<char>(fstream)), std::istreambuf_iterator<char>());
-  detail::ParseManifest(entries_, json);
+  detail::ParseManifest(entries_, fstream);
 
   DALI_ENFORCE(Size() > 0, "No files found.");
   if (shuffle_) {

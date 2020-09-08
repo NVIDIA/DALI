@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <istream>
 #include <string>
 #include <vector>
 #include <utility>
@@ -44,7 +45,7 @@ struct AsrSample {
 
 namespace detail {
 
-DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, const std::string &json);
+DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream &manifest_file);
 
 }  // namespace detail
 

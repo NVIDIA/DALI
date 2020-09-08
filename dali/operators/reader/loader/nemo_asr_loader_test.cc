@@ -26,14 +26,11 @@ std::string audio_data_root = make_string(testing::dali_extra_path(), "/db/audio
 
 TEST(NemoAsrLoaderTest, ParseManifest) {
   std::stringstream ss;
-  ss << "[";
-  ss << R"code({"audio_filepath": "path/to/audio1.wav", "duration": 1.45, "text": "A B CD"}, )code";
-  ss << R"code({"audio_filepath": "path/to/audio2.wav", "duration": 2.45, "offset": 1.03, "text": "C DA B"}, )code";
-  ss << R"code({"audio_filepath": "path/to/audio3.wav", "duration": 3.45})code";
-  ss << "]";
-  auto s = ss.str();
+  ss << R"code({"audio_filepath": "path/to/audio1.wav", "duration": 1.45, "text": "A B CD"})code" << std::endl;
+  ss << R"code({"audio_filepath": "path/to/audio2.wav", "duration": 2.45, "offset": 1.03, "text": "C DA B"})code" << std::endl;
+  ss << R"code({"audio_filepath": "path/to/audio3.wav", "duration": 3.45})code" << std::endl;
   std::vector<NemoAsrEntry> entries;
-  detail::ParseManifest(entries, ss.str());
+  detail::ParseManifest(entries, ss);
   ASSERT_EQ(3, entries.size());
 
   EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
@@ -82,21 +79,32 @@ TEST(NemoAsrLoaderTest, ParseManifestContent) {
   {
     NemoAsrLoader loader(spec);
     ASSERT_THROW(loader.PrepareMetadata(), std::runtime_error);
+    EXPECT_EQ(0, loader.Size());
   }
 
   {
     std::ofstream f(manifest_filepath);
-    f << "[{}, {}, {}]";
+    f << "{}\n{}\n{}";
     f.close();
 
     NemoAsrLoader loader(spec);
-    loader.PrepareMetadata();
-    EXPECT_EQ(3, loader.Size());
+    ASSERT_THROW(loader.PrepareMetadata(), std::runtime_error);
+    EXPECT_EQ(0, loader.Size());
   }
 
   {
     std::ofstream f(manifest_filepath);
-    f << R"code([{"audio_filepath": "/audio/filepath.wav", "text": "this is an example", "duration": 0.32}])code";
+    f << "bla bla bla";
+    f.close();
+
+    NemoAsrLoader loader(spec);
+    ASSERT_THROW(loader.PrepareMetadata(), std::runtime_error);
+    EXPECT_EQ(0, loader.Size());
+  }
+
+  {
+    std::ofstream f(manifest_filepath);
+    f << R"code({"audio_filepath": "/audio/filepath.wav", "text": "this is an example", "duration": 0.32})code";
     f.close();
 
     NemoAsrLoader loader(spec);
@@ -113,10 +121,10 @@ TEST(NemoAsrLoaderTest, ReadSample) {
 
   tempfile(manifest_filepath);
   std::ofstream f(manifest_filepath);
-  f << "[{\"audio_filepath\": \"" << make_string(audio_data_root, "dziendobry.wav") << "\""
+  f << "{\"audio_filepath\": \"" << make_string(audio_data_root, "dziendobry.wav") << "\""
     << ", \"text\": \"dzien dobry\""
     << ", \"duration\": 3.0"
-    << "}]";
+    << "}";
   f.close();
 
   // Contains wav file to be decoded

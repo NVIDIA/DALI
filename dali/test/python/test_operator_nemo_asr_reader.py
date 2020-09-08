@@ -6,6 +6,8 @@ import numpy as np
 import math
 import json
 import librosa
+import tempfile
+import os
 
 # generate sinewaves with given frequencies,
 # add Hann envelope and store in channel-last layout
@@ -30,10 +32,12 @@ def rosa_resample(input, in_rate, out_rate):
 
   return ret
 
+tmp_dir = tempfile.TemporaryDirectory()
+
 names = [
-  "/tmp/dali_test_1C.wav",
-  "/tmp/dali_test_2C.wav",
-  "/tmp/dali_test_4C.wav"
+  os.path.join(tmp_dir.name, "dali_test_1C.wav"),
+  os.path.join(tmp_dir.name, "dali_test_2C.wav"),
+  os.path.join(tmp_dir.name, "dali_test_4C.wav")
 ]
 
 freqs = [
@@ -66,25 +70,27 @@ def create_wav_files():
 
 create_wav_files()
 
-nemo_asr_manifest = "/tmp/nemo_asr_manifest.json"
+nemo_asr_manifest = os.path.join(tmp_dir.name, "nemo_asr_manifest.json")
 
 def create_manifest_file():
   entry0 = {}
   entry0["audio_filepath"] = names[0]
-  entry0["duration"] = 100000000000000000000 #lengths[0] * (1.0 / rates[0])
+  entry0["duration"] = lengths[0] * (1.0 / rates[0])
   entry0["text"] = "dali test 1C"
   entry1 = {}
   entry1["audio_filepath"] = names[1]
-  entry1["duration"] = 100000000000000000000 # lengths[1] * (1.0 / rates[1])
+  entry1["duration"] = lengths[1] * (1.0 / rates[1])
   entry1["text"] = "dali test 2C"
   entry2 = {}
   entry2["audio_filepath"] = names[2]
-  entry2["duration"] = 100000000000000000000 # lengths[2] * (1.0 / rates[2])
+  entry2["duration"] = lengths[2] * (1.0 / rates[2])
   entry2["text"] = "dali test 4C"
 
   data = [entry0, entry1, entry2]
   with open(nemo_asr_manifest, 'w') as f:
-    json.dump(data, f)
+    for entry in data:
+      json.dump(entry, f)
+      f.write('\n')
 
 create_manifest_file()
 
