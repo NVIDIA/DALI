@@ -158,63 +158,51 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
     return;
   }
 
-  // Create a run-length encoding for earch polygon, indexed by label :
+  // Create a run-length encoding for each polygon, indexed by label :
   std::map<int, std::vector<RLE> > frPoly;
+  std::vector<double> in;
   for (uint polygon_idx = 0; polygon_idx < meta.size() / 3; polygon_idx++) {
     int mask_idx = meta[3 * polygon_idx];
     int start_idx = meta[3 * polygon_idx + 1];
     int end_idx = meta[3 * polygon_idx + 2];
     int label = *(labels_in + mask_idx);
     // Convert polygon to encoded mask
-    double* in = new double[end_idx - start_idx];
+    in.resize(end_idx - start_idx);
     for (int i = 0; i < end_idx - start_idx; i++)
       in[i] = (double) coords[start_idx + i];
     RLE M;
     rleInit(&M, 0, 0, 0, 0);
-    rleFrPoly(&M, in, (end_idx - start_idx) / 2, h, w);
-    if (frPoly.find(label) == frPoly.end()) {
-      std::vector<RLE> v;
-      v.push_back(M);
-      frPoly.insert(std::make_pair(label, v));
-    } else {
-      frPoly[label].push_back(M);
-    }
-    delete in;
+    rleFrPoly(&M, in.data(), (end_idx - start_idx) / 2, h, w);
+    frPoly[label].push_back(M);
   }
-
-  // Create a run-length encoding for each compressed string representation
-  RLE* frString;
-  rlesInit(&frString, masks_rles_[image_id].size());
-  uint ann_cnt = 0;
-  for (auto str : masks_rles_[image_id])
-    rleFrString(&frString[ann_cnt++], (char *) str.c_str(), h, w);
 
   // Reserve run-length encodings by labels
   RLE* R;
   rlesInit(&R, *labels.rbegin() + 1);
 
-  // Merge each label (from polygons annotations)
-  uint lab_cnt = 0;
-  for (auto rles : frPoly)
-    for (auto rle : rles.second)
-      rleMerge(&rle, &R[rles.first], 1, 0);
-  // Merge each label (from RLE annotations)
-  ann_cnt = 0;
-  for (auto mask_idx : masks_rles_idx_[image_id]) {
+  // Create a run-length encoding for each compressed string representation
+  for (uint ann_id = 0 ; ann_id < masks_rles_idx_[image_id].size(); ann_id++) {
+    auto mask_idx = masks_rles_idx_[image_id][ann_id];
+    const auto &str = masks_rles_[image_id][ann_id];
     int label = *(labels_in + mask_idx);
-    rleMerge(&frString[ann_cnt++], &R[label], 1, 0);
+    rleFrString(&R[label], (char *) str.c_str(), h, w);
   }
+
+  // Merge each label (from multi-polygons annotations)
+  uint lab_cnt = 0;
+  for (const auto &rles : frPoly)
+    rleMerge(rles.second.data(), &R[rles.first], rles.second.size(), 0);
 
   // Merge all the labels into a pair of vectors :
   // [2,2,2],[A,B,C] for [A,A,B,B,C,C]
   struct Encoding {
     uint m;
-    uint *cnts;
-    int  *vals;
+    std::unique_ptr<uint[]> cnts;
+    std::unique_ptr<int[]> vals;
   };
   Encoding A;
-  A.cnts = (uint*) malloc(sizeof(uint) * (h * w + 1)); // upper-bound
-  A.vals = (int*) malloc(sizeof(int) * (h * w + 1));
+  A.cnts = std::make_unique<uint[]>(h * w + 1); // upper-bound
+  A.vals = std::make_unique<int[]>(h * w + 1);
 
   // first copy the content of the first label to the output
   bool v = false;
@@ -226,8 +214,8 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
   }
 
   // then merge the other labels
-  uint *cnts = (uint*) malloc(sizeof(uint) * (h * w + 1));
-  uint *vals = (uint*) malloc(sizeof(uint) * (h * w + 1));
+  std::unique_ptr<uint[]> cnts = std::make_unique<uint[]>(h * w + 1);
+  std::unique_ptr<int[]> vals = std::make_unique<int[]>(h * w + 1);
   for (auto label = ++labels.begin(); label != labels.end(); label++) {
     RLE B = R[*label];
     if (B.cnts == 0)
@@ -287,8 +275,6 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
     for (int i = 0; i < m; i++) A.cnts[i] = cnts[i];
     for (int i = 0; i < m; i++) A.vals[i] = vals[i];
   }
-  free(cnts);
-  free(vals);
 
   // Decode final pixelwise masks encoded via RLE
   memset(mask, 0, h * w * sizeof(int));
@@ -298,12 +284,9 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
 
   // Destroy RLEs
   rlesFree(&R, *labels.rbegin() + 1);
-  rlesFree(&frString, masks_rles_[image_id].size());
   for (auto rles : frPoly)
     for (auto rle : rles.second)
       rleFree(&rle);
-  free(A.cnts);
-  free(A.vals);
 }
 
 }  // namespace dali

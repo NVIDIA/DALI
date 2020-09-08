@@ -436,7 +436,7 @@ void CocoLoader::ParseJsonAnnotations() {
           }
           case detail::Annotation::RLE: {
             sample_rles_idx.push_back(objects_in_sample);
-            sample_rles.push_back(annotation.rle_.rle_);
+            sample_rles.push_back(std::move(annotation.rle_.rle_));
             break;
           }
           default: {
