@@ -350,12 +350,12 @@ class CudaHttpPackage(CudaPackage):
                     return ret
         return ""
 
-all_packages = [PlainPackage("opencv-python", ["4.2.0.32"]),
+all_packages = [PlainPackage("opencv-python", ["4.4.0.42"]),
                 CudaPackage("cupy",
-                        { "100" : ["7.5.0"] },
+                        { "100" : ["7.8.0"] },
                         "cupy-cuda{cuda_v}"),
                 CudaPackage("mxnet",
-                        { "100" : ["1.5.1"] },
+                        { "100" : ["1.7.0"] },
                         "mxnet-cu{cuda_v}"),
                 CudaPackage("tensorflow-gpu",
                         { "100" : [
