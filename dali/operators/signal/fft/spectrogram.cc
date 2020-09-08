@@ -57,18 +57,18 @@ If a value is not provided, a Hann window will be used.)code",
   .AddOptionalArg("power",
     R"code(Exponent of the magnitude of the spectrum.
 
-Here are the supported values:
+Supported values:
 
-- ``1`` for energy.
-- ``2`` for power.
+- ``1`` - amplitude,
+- ``2`` - power (faster to compute).
 )code",
     2)
   .AddOptionalArg("center_windows",
     R"code(Indicates whether extracted windows should be padded so that the window function is
-centered in multiples of ``window_step``.
+centered at multiples of ``window_step``.
 
-If set to False, the signal will not be padded, that is, only windows in the input range will
-be extracted.)code",
+If set to False, the signal will not be padded, that is, only windows within the input range
+will be extracted.)code",
     true)
   .AddOptionalArg("reflect_padding",
     R"code(Indicates the padding policy when sampling outside the bounds of the signal.

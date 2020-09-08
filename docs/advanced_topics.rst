@@ -18,21 +18,22 @@ processed data format, and the result will be undefined.
 Thread Affinity
 ---------------
 
-This functionality allows you to pin DALI threads to the specified CPU. Thread affinity saves
-the overhead of worker threads jumping from core to core and improves the CPU heavy workload performance.
-You can set the DALI CPU thread affinity by using the ``DALI_AFFINITY_MASK`` environment variable,
-which is a comma-separated list of CPU IDs that will be assigned to corresponding DALI threads.
-The number of DALI threads are set during the pipeline construction by the num_threads argument and
-set_affinity enables thread affinity for the CPU worker threads.
+This functionality allows you to pin DALI threads to the specified CPU. Thread affinity avoids
+the overhead of worker threads jumping from core to core and improves performance with CPU-heavy
+workloads. You can set the DALI CPU thread affinity by using the ``DALI_AFFINITY_MASK`` environment
+variable, which is a comma-separated list of CPU IDs that will be assigned to corresponding DALI
+threads. The number of DALI threads are set during the pipeline construction by the num_threads
+argument and set_affinity enables thread affinity for the CPU worker threads.
 
 .. note::
-  For performance reasons, the hybrid :meth:`nvidia.dali.ops.ImageDecoder` operator, which is nvJPEG based, houses
-  threads on its own, and these threads are always affined.
+  For performance reasons, the hybrid :meth:`nvidia.dali.ops.ImageDecoder` operator, which is
+  nvJPEG based, houses threads on its own, and these threads are always affined.
 
 In ``DALI_AFFINITY_MASK``, if the number of threads is higher than the number of CPU IDs,
 the following process is applied:
 
-1) The threads are assigned to the CPU IDs until all of the CPU IDs from ``DALI_AFFINITY_MASK`` are assigned.
+1) The threads are assigned to the CPU IDs until all of the CPU IDs from ``DALI_AFFINITY_MASK``
+   are assigned.
 2) For the remaining threads, the CPU IDs from nvmlDeviceGetCpuAffinity wFor the remaining threads,
    the CPU IDs from nvmlDeviceGetCpuAffinity will be used.
 
@@ -78,7 +79,8 @@ contiguous allocation can accommodate all possible combinations of these batches
 hand, the CPU batch that is presented as separate buffers needs to keep a 4K allocation for every
 sample after several iterations.
 The GPU buffers that are allocated to keep the transformation results are as large as the largest
-possible batch, and the CPU buffers can be as large as the batch size multiplied by the size of the largest sample.
+possible batch, and the CPU buffers can be as large as the batch size multiplied by the size of
+the largest sample.
 
 .. note::
   Although the CPU processes one sample at a time, per thread, a vector of samples must exist in

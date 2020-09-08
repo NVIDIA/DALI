@@ -188,10 +188,10 @@ DALI_REGISTER_OPERATOR(BoxEncoder, BoxEncoder<CPUBackend>, CPU);
 
 DALI_SCHEMA(BoxEncoder)
     .DocStr(
-        R"code(Encodes the input bounding boxes and labels by using the default boxes (anchors) that
-are passed during the operator construction.
+        R"code(Encodes the input bounding boxes and labels using a set of default boxes (anchors)
+passed as an argument.
 
-This class follows the algorithm that is described in SSD: Single Shot MultiBox Detector
+This class follows the algorithm described in "SSD: Single Shot MultiBox Detector"
 and implemented in https://github.com/mlperf/training/tree/master/single_stage_detector/ssd.
 Inputs must be supplied as the following Tensors:
 
@@ -221,14 +221,14 @@ in EncodedBBoxes that use ``std`` and the ``mean`` and ``scale`` arguments.\n
 The default values are transparent.)code",
         false)
     .AddOptionalArg("scale",
-            R"code(Rescales the box and anchors values before the offset is calculated
+            R"code(Rescales the box and anchor values before the offset is calculated
 (for example, to return to the absolute values).)code",
             1.0f)
     .AddOptionalArg("means",
-            R"code([x y w h] means that this value is used for offset normalization.)code",
+            R"code([x y w h] mean values for normalization.)code",
             std::vector<float>{0.f, 0.f, 0.f, 0.f})
     .AddOptionalArg("stds",
-            R"code([x y w h] are the standard deviations for offset normalization.)code",
+            R"code([x y w h] standard deviations for offset normalization.)code",
             std::vector<float>{1.f, 1.f, 1.f, 1.f});
 
 }  // namespace dali

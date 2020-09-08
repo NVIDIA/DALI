@@ -76,8 +76,8 @@ If not provided it will be populated based on the global seed of the pipeline)co
 
     AddOptionalArg("bytes_per_sample_hint", R"code(Output size hint (bytes), per sample.
 
-If this value is not provided, it will be populated based on the global seed
-of the pipeline.)code", 0);
+If specified, the operator's outputs residing in GPU or page-locked host memory will be preallocated
+to accommodate a batch of samples of this size.)code", 0);
 
     AddOptionalArg("preserve", "Prevents the operator from being removed from the "
       "graph even if its outputs are not used.", false);

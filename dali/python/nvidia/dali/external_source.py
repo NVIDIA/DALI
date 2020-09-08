@@ -137,16 +137,16 @@ def _get_callback_from_source(source, cycle):
     return callback
 
 class ExternalSource():
-    """ExternalSource is a special operator that can provide data to the DALI pipeline
+    """ExternalSource is a special operator that can provide data to a DALI pipeline
 from Python by using several methods.
 
-The simplest and preferred way is to specify a source, which can be a callable or iterative.
+The simplest and preferred way is to specify a source, which can be a callable or iterable.
 
 .. warning::
     :meth:`nvidia.dali.ops.ExternalSource` operator is not compatible with TensorFlow integration.
 
 .. note::
-    To return a batch of copies of the same tensor, use  :func:`nvidia.dali.types.Constant`,
+    To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
     which is more performant.
 """
 
@@ -201,15 +201,15 @@ Keyword Args
     If provided, sets the layout of the data.
 
     When ``num_outputs > 1``, the layout can be a list that contains a distinct layout for each
-    output. If the list has fewer elements than the ``num_outputs`` value, only the first
-    outputs have the layout set, the rest of the outputs are cleared.
+    output. If the list has fewer than ``num_outputs`` elements, only the first
+    outputs have the layout set, the rest of the outputs don't have a layout set.
 
 `cuda_stream` : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``, such as
-    ``cupy.cuda.Stream`` and ``torch.cuda.Stream``
-    The CUDA stream is going to be used to copy data to a GPU or from a GPU source.
+    ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
+    The CUDA stream is going to be used to copy data to a GPU or from the GPU source.
 
-    If this value not set, a best-effort will be taken to maintain correctness. For example,
-    if the data is provided as a tensor/array from a recognized library such as CuPyor PyTorch,
+    If this parameter is not set, a best-effort will be taken to maintain correctness. For example,
+    if the data is provided as a tensor/array from a recognized library such as CuPy or PyTorch,
     the library’s current stream is used. Although this process works in typical scenarios,
     with advanced use cases, and code that uses unsupported libraries, you might need to
     explicitly supply the stream handle.
@@ -219,7 +219,7 @@ Keyword Args
       * -1 - Use DALI's internal stream
 
     Since you cannot synchronize with this stream to prevent overwriting the array with new data
-    in another stream, if an internal stream is used, the call to ``feed_input`` will not complete
+    in another stream, if an internal stream is used, the call to ``feed_input`` will block
     until the copy to the internal buffer is complete.
 
 `use_copy_kernel` : optional, `bool`
@@ -229,13 +229,13 @@ Keyword Args
         This is applicable only when copying data to and from GPU memory.
 
 `blocking` : optional,
-   Determines whether the external source should not complete until data is available or just fail
+   Determines whether the external source should wait until data is available or just fail
    when the is not available.
 
 `no_copy` : Determines whether DALI should copy the buffer when feed_input is called.
 
-    If set to True, DALI passes the user memory directly to the pipeline, instead of copying the
-    memory. It is your responsibility to keep the buffer alive and unmodified until it is
+    If set to True, DALI passes the user memory directly to the pipeline, instead of copying it.
+    It is your responsibility to keep the buffer alive and unmodified until it is
     consumed by the pipeline.
 
     The buffer can be modified or freed again after the relevant number of iteration output
@@ -243,10 +243,11 @@ Keyword Args
     ``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
     the``feed_input`` call.
 
-    The memory that is provided memory must match the specified ``device`` parameter of the operator.
+    The memory location must match the specified ``device`` parameter of the operator.
     For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
-    For the GPU, to prevent copying, the provided buffer must be contiguous. If you provides a list
-    of separate Tensors, there will be an additional internal copy is created.
+    For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provides a list
+    of separate Tensors, there will be an additional internal copy made, consuming both memory
+    and bandwidth.
 """
 
     def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu",

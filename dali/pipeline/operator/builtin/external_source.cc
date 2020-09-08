@@ -66,7 +66,7 @@ fail when it is not)code", true)
   .AddOptionalArg("no_copy",
       R"code(Determines whether DALI should copy the buffer when feed_input is called.
 
-If set to True, DALI passes the user memory directly to the pipeline, instead of copying the
+If set to True, DALI passes the user's memory directly to the pipeline, instead of copying the
 memory. It is your responsibility to keep the buffer alive and unmodified until it is
 consumed by the pipeline.
 
@@ -75,10 +75,11 @@ has been consumed. Effectively, it happens after ``prefetch_queue_depth`` or
 ``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
 the``feed_input`` call.
 
-The memory that is provided memory must match the specified ``device`` parameter of the operator.
+The memory location must match the specified ``device`` parameter of the operator.
 For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
-For the GPU, to prevent copying, the provided buffer must be contiguous. If you provides a list
-of separate Tensors, there will be an additional internal copy made.)code", false)
+For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provides a list
+of separate Tensors, there will be an additional internal copy made, consuming both memory
+and bandwidth.)code", false)
   .MakeInternal();
 
 DALI_SCHEMA(ExternalSource)
@@ -106,9 +107,10 @@ The buffer can be modified or freed again after the relevant iteration output ha
 Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
 (when they are not equal) iterations following the``feed_input`` call.
 
-Provided memory must match the specified ``device`` parameter of the operator.
-For CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
-For GPU to not do any copies the provided buffer must be contiguous. If user provides a list
-of separate Tensors there will be an additional internal copy made.)code", false);
+The memory location must match the specified ``device`` parameter of the operator.
+For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
+For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provides a list
+of separate Tensors, there will be an additional internal copy made, consuming both memory
+and bandwidth.)code", false)
 
 }  // namespace dali

@@ -123,7 +123,7 @@ def _docstring_generator(cls):
     if op_name in _mixed_ops:
         op_dev.append("'mixed'")
     ret += """
-Supported Backends
+Supported backends
 """
     for dev in op_dev:
         ret += " * " + dev + "\n"
@@ -152,7 +152,7 @@ def _docstring_prefix_from_inputs(op_name):
     # Signature
     ret = "__call__(" + schema.GetCallSignatureInputs() + ", **kwargs)\n"
     # __call__ docstring
-    ret += "\nOperator call to be used in the `define_graph` step.\n"
+    ret += "\nOperator call to be used in graph definition.\n"
     # Args section
     ret += """
 Args
@@ -175,12 +175,12 @@ def _docstring_prefix_auto(op_name):
     if schema.MaxNumInput() == 0:
         return """__call__(**kwargs)
 
-Operator call to be used in the`define_graph` step. This operator does not accept any TensorList inputs.
+Operator call to be used in graph definition. This operator doesn't have any inputs.
 """
     elif schema.MaxNumInput() == 1:
         ret = """__call__(data, **kwargs)
 
-Operator call to be used in the `define_graph` step.
+Operator call to be used in graph definition.
 
 Args
 ----
@@ -729,7 +729,7 @@ class PythonFunction(PythonFunctionBase):
 
     @staticmethod
     def current_stream():
-        """Gets DALI’s current CUDA stream."""
+        """Gets DALI's current CUDA stream."""
         return _CUDAStream(nvidia.dali.python_function_plugin.current_dali_stream())
 
     @staticmethod
