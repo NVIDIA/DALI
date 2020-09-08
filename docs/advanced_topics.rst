@@ -56,13 +56,14 @@ DALI uses the following memory types:
 - Host-page-locked
 - GPU
 
-Allocating and freeing the GPU and host-page-locked (or pinned) memory types and freeing require
-device synchronization. As a result, when possible, DALI avoids reallocating these memory types.
+Allocating and freeing the GPU and host page-locked (or pinned) memory require
+device synchronization. As a result, when possible, DALI avoids reallocating these kinds of memory.
 The buffers that are allocated with this storage type will only grow when the existing buffer is too
-small to accommodate the requested shape. After the allocations are stable, this  strategy reduces
-the number of total memory management operations and  increases the processing speed.
+small to accommodate the requested shape. This strategy reduces the number of total memory
+management operations and increases the processing speed up to the point where memory requirements
+are stable and no more allocations occur.
 
-As a contrast, ordinary host memory is relatively inexpensive to allocate and is free. To reduce
+By contrast, ordinary host memory is relatively inexpensive to allocate and free. To reduce
 host memory consumption, the buffers might shrink when the new requested size is smaller than
 the fraction of the old size. This is called shrink threshold, and the value and it can be
 adjusted to a value between 0 (never shrink) and 1 (always shrink). The default is 0.9.
@@ -82,10 +83,6 @@ The GPU buffers that are allocated to keep the transformation results are as lar
 possible batch, and the CPU buffers can be as large as the batch size multiplied by the size of
 the largest sample.
 
-.. note::
-  Although the CPU processes one sample at a time, per thread, a vector of samples must exist in
-  the memory.
-
 The host and the GPU buffers have configurable growth factor. If the factor is greater than 1, and
 the requested new size exceeds the buffer capacity, the buffer will be allocated with extra margin
 to potentially avoid subsequent reallocations.
@@ -102,13 +99,13 @@ Operator Buffer Presizing
 
 When you can precisely forecast the memory consumption during a DALI run, this functionality helps
 you fine tune the processing pipeline . One of the benefits is that the overhead of some
-reallocations can be saved.
+reallocations can be avoided.
 
-DALI uses intermediate buffers to pass data between operators in the processing graph. When the
-buffers cannot hold the data, the memory is increased but is never freed . However, sometimes,
+DALI uses intermediate buffers to pass data between operators in the processing graph. The capacity
+of this buffers is increased to accommodate new data, but is never reduced. Sometimes, however,
 even this limited number of allocations might still affect DALI performance.
-If you know how much memory each operator buffer requires, you can add a hint to the presize
-buffers before the first run.
+If you know how much memory each operator buffer requires, you can add a hint to preallocate the
+buffers before the pipeline is first run.
 
 The following parameters are available:
 
@@ -131,13 +128,14 @@ the allocation is contiguous. This value should be provided to ``bytes_per_sampl
 Prefetching Queue Depth
 -----------------------
 
-When the variation between batches is high, this functionality averages the processing time between
-batches when the variation between batches is high.
 The DALI pipeline allows the buffering of one or more batches of data, which is important when
-the data processing time between batches can vary.
-The default prefetch depth value is 2. You can change this value by using the ``prefetch_queue_depth``
-pipeline argument. For example, if the variation is not hidden by the default prefetch depth value,
+the processing time varies from batch to batch.
+The default prefetch depth is 2. You can change this value by using the ``prefetch_queue_depth``
+pipeline argument. If the variation is not hidden by the default prefetch depth value,
 we recommend that you prefetch more data ahead of time.
+
+.. note::
+  Increasing queue depth also increases memory consumption.
 
 Running DALI pipeline
 ---------------------
@@ -160,8 +158,9 @@ The first API, :meth:`nvidia.dali.pipeline.Pipeline.run()` method completes the 
 #. Returns the resulting buffers.
 
 Buffers are marked as in-use until the next call to
-:meth:`nvidia.dali.pipeline.Pipeline.run`. This process can be wasteful because data is usually
-copied to the native framework tensors and then returned to DALI to be reused
+:meth:`nvidia.dali.pipeline.Pipeline.run`. This process can be wasteful because the data is usually
+copied to the DL framework's native storage objects and DALI pipeline outputs could be returned to
+DALI for reuse.
 
 The second API, which consists of :meth:`nvidia.dali.pipeline.Pipeline.schedule_run()`,
 :meth:`nvidia.dali.pipeline.Pipeline.share_outputs()`, and :meth:`nvidia.dali.pipeline.Pipeline.release_outputs()`
@@ -193,11 +192,11 @@ Sharding allows DALI to partition the dataset into nonoverlapping pieces on whic
 instance can work. This functionality addresses the issue of having a global and a shared state
 that allows the distribution of training samples among the ranks. After each epoch, by default,
 the DALI pipeline advances to the next shard to increase the entropy of the data that is seen by
-this pipeline. You can customize this behavior by using the ``stick_to_shard`` reader parameter.
+this pipeline. You can alter this behavior by setting the ``stick_to_shard`` reader parameter.
 
-This process, however, leads to problems when the dataset size is not divisible by the number of
-used pipelines and when the shard size is not divisible by the batch size. To address this issue,
-and adjust the behavior, you can use the ``pad_last_batch`` reader parameter.
+This mode of operation, however, leads to problems when the dataset size is not divisible by the
+number of pipelines used or when the shard size is not divisible by the batch size. To address this
+issue, and adjust the behavior, you can use the ``pad_last_batch`` reader parameter.
 
 This parameter asks the reader to duplicate the last sample in the last batch of a shard,
 which prevents DALI from reading data from the next shard when the batch doesn’t divide its size.
