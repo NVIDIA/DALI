@@ -46,9 +46,11 @@ If only the window size is provided, the sigma is calculated by using the follow
   radius = (window_size - 1) / 2
   sigma = (radius - 1) * 0.3 + 0.8
 
-The sigma and kernel window size can be specified as one value for all data axes or per data axis.
+The sigma and kernel window size can be specified as one value for all data axes or a value
+per data axis.
 
-When specifying the sigma or window size per axis, the axes are provided same as layouts, from outermost to innermost.
+When specifying the sigma or window size per axis, the axes are provided same as layouts, from
+outermost to innermost.
 
 .. note::
   The channel ``C`` and frame ``F`` dimensions are not considered data axes. If channels are present,

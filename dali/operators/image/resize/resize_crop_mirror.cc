@@ -20,11 +20,16 @@ DALI_REGISTER_OPERATOR(ResizeCropMirror, ResizeCropMirror<CPUBackend>, CPU);
 
 DALI_SCHEMA(ResizeCropMirrorAttr)
   .AddOptionalArg("mirror",
-      R"code(Mask for the horizontal flip.)code", 0, true)
+      R"code(Mask for the horizontal flip.
+
+Example values:
+
+- `0` - Do not perform horizontal flip for this image.
+- `1` - Performs horizontal flip for this image.)code", 0, true)
   .AddParent("ResizeAttr");
 
 DALI_SCHEMA(ResizeCropMirror)
-  .DocStr(R"code(Performs a fused resize, crop, mirror operation and handles fixed and
+  .DocStr(R"code(Performs a fused resize, crop, mirror operation and handles both fixed and
 random resizing and cropping.)code")
   .NumInput(1)
   .NumOutput(1)
@@ -38,7 +43,7 @@ random resizing and cropping.)code")
 DALI_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
 
 DALI_SCHEMA(FastResizeCropMirror)
-  .DocStr(R"code(Performs a fused resize, crop, mirror operation and handles the fixed
+  .DocStr(R"code(Performs a fused resize, crop, mirror operation and handles both fixed
 and random resizing and cropping.
 
 Backprojects the desired crop through the resize operation to reduce the amount of

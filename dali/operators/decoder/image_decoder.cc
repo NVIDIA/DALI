@@ -38,7 +38,8 @@ Images with number of pixels ``(height * width)`` that are higher than this thre
 nvJPEG hybrid Huffman decoder. Images that are lower than the threshold will use the nvJPEG
 full host huffman decoder.
 
-The N.B.: Hybrid Huffman decoder still largely uses the CPU.)code",
+.. note::
+  Hybrid Huffman decoder still largely uses the CPU.)code",
       1000u*1000u)
   .AddOptionalArg("device_memory_padding",
       R"code(Applies **only** to the ``mixed`` backend type.

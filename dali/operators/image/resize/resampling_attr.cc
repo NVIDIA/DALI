@@ -22,7 +22,7 @@ DALI_SCHEMA(ResamplingFilterAttr)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation to be used.
 
-Use ``min_filter`` and mag_filter to specify different filtering for downscaling and upscaling.
+Use ``min_filter`` and ``mag_filter`` to specify different filtering for downscaling and upscaling.
 )code",
       DALI_INTERP_LINEAR, true)
   .AddOptionalArg("mag_filter", "Filter used when scaling up.",
@@ -35,9 +35,10 @@ Must be same as input type or ``float``. If not set, input type is used.)code", 
   .AddOptionalArg("temp_buffer_hint",
       R"code(Initial size in bytes, of a temporary buffer for resampling.
 
-This argument is ingored for the CPU variant.)code",
+.. note::
+  This argument is ignored for the CPU variant.)code",
       0)
-  .AddOptionalArg("minibatch_size", R"code(Maximum number of images that were processed in
+  .AddOptionalArg("minibatch_size", R"code(Maximum number of images that are processed in
 a kernel call.)code",
       32);
 

@@ -22,7 +22,7 @@
 namespace dali {
 
 DALI_SCHEMA(Normalize)
-  .DocStr(R"(Normalizes the input by removing the mean and dividing by the standard deviation.
+  .DocStr(R"code(Normalizes the input by removing the mean and dividing by the standard deviation.
 
 The mean and standard deviation can be calculated internally for the specified subset
 of axes or can be externally provided as the ``mean`` and ``stddev`` arguments.
@@ -66,10 +66,7 @@ Here are some examples of valid argument combinations:
     stddev.shape =  [ [1, 1, 3] ] ]
 
 For color images, this example normalizes the 3 color channels separately, but across all
-samples in the batch.
-
-This operator allows sequence inputs and supports volumetric data.
-)")
+samples in the batch.)code")
   .NumInput(1)
   .NumOutput(1)
   .SupportVolumetric()

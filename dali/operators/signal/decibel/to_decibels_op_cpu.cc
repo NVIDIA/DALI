@@ -28,8 +28,8 @@ the following formula::
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
     .AddOptionalArg("multiplier",
-      R"code(Factor by which the logarithm is multiplied, typically 10.0 or 20.0, and
-this factor depends on whether there is a squared magnitude.)code",
+      R"code(Factor by which the logarithm is multiplied. The value is typically 10.0 or 20.0,
+which depends on whether the magnitude is squared.)code",
       10.0f)
     .AddOptionalArg("reference",
       R"code(Reference magnitude.

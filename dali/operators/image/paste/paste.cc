@@ -18,11 +18,11 @@ namespace dali {
 
 DALI_SCHEMA(Paste)
   .DocStr(R"code(Paste the input image on a larger canvas, and the canvas size is equal to
-the ``input size * ratio``.)code")
+``input size * ratio``.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddArg("ratio",
-      R"code(Ratio of canvas size to input size. Must be at least 1.)code",
+      R"code(Ratio of canvas size to input size. Must be > 1.)code",
       DALI_FLOAT, true)
   .AddOptionalArg("n_channels",
       R"code(Number of channels in the image.)code", 3)

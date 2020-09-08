@@ -30,7 +30,7 @@ Here are the values:
       R"code(Type of interpolation used.)code",
       DALI_INTERP_NN)
   .AddOptionalArg("fill_value",
-      R"code(Color value that is used to pad the pixels.)code",
+      R"code(Color value that is used for padding.)code",
       0.f);
 
 }  // namespace dali

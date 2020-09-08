@@ -55,8 +55,8 @@ DALI_SCHEMA(NumpyReader)
   .AddArg("file_root",
       R"code(Path to a directory containing the data files.
 
-:meth:`nvidia.dali.ops.NumpyReader` supports flat directory structure. The ``file_root`` directory
-should contain directories with numpy files in them.)code", DALI_STRING)
+Supports flat directory structure. The ``file_root`` directory should contain directories
+with numpy files in them.)code", DALI_STRING)
   .AddOptionalArg("file_filter",
       R"code(If a value is specified, the string is interpreted as glob string to filter the
 list of files in the sub-directories of the ``file_root``.)code", "*.npy")

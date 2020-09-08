@@ -37,7 +37,8 @@ The number of bins that are created in the output is calculated with the followi
 
    nfft // 2 + 1
 
-This value applies only to the positive part of the spectrum.)code",
+.. note::
+  The output only represents the positive part of the spectrum.)code",
       -1)
     .AddOptionalArg("axis",
       R"code(Index of the dimension to be transformed to the frequency domain.

@@ -103,8 +103,8 @@ boxes will be adjusted or filtered out to match the cropped ROI. The applied ran
 is constrained by the arguments that are provided to the operator.
 
 The cropping window candidates are randomly selected until one matches the overlap restrictions
-that are specified by the ``thresholds`` argument. ``Thresholds`` values represent a minimum overlap
-metric that are specified by threshold_type, such as the intersection-over-union of the cropping
+that are specified by the ``thresholds`` argument. ``thresholds`` values represent a minimum overlap
+metric that is specified by ``threshold_type``, such as the intersection-over-union of the cropping
 window and the bounding boxes or the relative overlap as a ratio of the intersection area and
 the bounding box area.
 
@@ -118,9 +118,9 @@ The following modes of a random crop are available:
     area restrictions.
 - | Fixed size window, which is randomly placed in the original input space.
   | The random crop window dimensions are taken from the ``crop_shape`` argument and the anchor is
-  | selected randomly selected.
-  | When providing ``crop_shape``, a second argument, ``input_shape``, should
-    be provided that specifies the original image dimensions.
+  | randomly selected.
+  | When providing ``crop_shape``, a second argument, ``input_shape``,
+    specifying the original dimensions should be provided.
 
   .. note::
      These dimensions are required to scale the output bounding boxes.
@@ -176,9 +176,9 @@ associated with each of the bounding boxes.)code")
 bounding boxes with respect to the cropping window.
 
 Each sample randomly selects one of the ``thresholds``, and the operator will complete
-the specified number of attempts (see ) to produce a random crop window that has
-the metric above the selected threshold. See ``num_attempts`` for more information about
-configurating the number of attempts.)code",
+the specified number of attempts to produce a random crop window that has
+the selected metric above that threshold. See ``num_attempts`` for more information about
+configuring the number of attempts.)code",
         std::vector<float>{0.f})
     .AddOptionalArg(
         "threshold_type",
@@ -192,10 +192,10 @@ resulting cropping window.
 )code", "iou")
     .AddOptionalArg(
         "aspect_ratio",
-        R"code(Valid range or ranges of aspect ratio of the cropping windows.
+        R"code(Valid range of aspect ratio of the cropping windows.
 
 This parameter can be specified as either two values (min, max) or six values (three pairs),
-depending on dimensionality of the input.
+depending on the dimensionality of the input.
 
 - | For 2D bounding boxes, one range of valid aspect ratios (x/y) should be provided
     (e.g. ``[min_xy, max_xy]``).
@@ -248,7 +248,7 @@ a maximum of ``total_num_attempts`` (if provided) or otherwise indefinitely.)cod
         R"code(If provided, it indicates the total maximum number of attempts to get a crop
 window that matches the ``aspect_ratio`` and any selected value from ``thresholds``.
 
-With the ``total_num_attempts`` value, the best candidate will be selected as a default.
+After ``total_num_attempts`` attempts, the best candidate will be selected.
 
 If this value is not specified, the crop search will continue indefinitely until a valid
 crop is found.
@@ -264,7 +264,8 @@ crop is found.
 window as specified by ``thresholds``.
 
 If the bounding boxes do not overlap, the cropping window is considered to be invalid. If set to
-``False``, and a bounding box overlaps the window, the window is considered to be valid.)code",
+``False``, and at least a bounding box overlaps the window, the window is considered to
+be valid.)code",
          true)
     .AddOptionalArg(
         "allow_no_crop",

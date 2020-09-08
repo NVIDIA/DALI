@@ -36,8 +36,10 @@ Input data is expected to be one channel (shape being ``(nsamples,)``, ``(nsampl
   .AddOptionalArg("nfft",
     R"code(Size of the FFT.
 
-The number of bins that are created in the output is ``nfft // 2 + 1``. This applies only to
-the positive part of the spectrum.)code",
+The number of bins that are created in the output is ``nfft // 2 + 1``.
+
+.. note::
+  The output only represents the positive part of the spectrum.)code",
     -1)
   .AddOptionalArg("window_length",
     R"code(Window size in number of samples.)code",
@@ -62,7 +64,7 @@ Here are the supported values:
 )code",
     2)
   .AddOptionalArg("center_windows",
-    R"code(Indicates whether extracted windows should be padded so that window function is
+    R"code(Indicates whether extracted windows should be padded so that the window function is
 centered in multiples of ``window_step``.
 
 If set to False, the signal will not be padded, that is, only windows in the input range will

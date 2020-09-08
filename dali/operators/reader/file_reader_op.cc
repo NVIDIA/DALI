@@ -36,7 +36,7 @@ in alphabetical order and takes an index in this order as a class label.)code",
 where the filenames are relative to ``file_root``.
 
 If left empty, ``file_root`` is traversed for subdirectories, which are only at one level
-down from ``file_root``, and contain the files that are associated with the same label.
+down from ``file_root``, and contain files that are associated with the same label.
 When traversing subdirectories, the labels are assigned consecutive numbers.)code",
       std::string())
 .AddOptionalArg("shuffle_after_epoch",

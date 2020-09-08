@@ -32,11 +32,8 @@ Turing and Ampere optical flow hardware that is used by DALI.
                 .AddOptionalArg(detail::kPresetArgName, R"code(Speed and quality level of the
 optical flow calculation.
 
-Here are the supported values:
-
-- 0.0: The lowest speed and the highest quality.
-- 0.5: The medium speed and quality.
-- 1.0: The fastest speed and the lowest quality.
+Values must be in the range [0.0, 1.0], where 0.0 represents lowest speed and highest quality
+and 1.0 represents highest speed and lowest quality.
 
 The lower the speed, the more additional pre- and postprocessing is used to enhance the quality of the optical flow result.
 )code", .0f, false)

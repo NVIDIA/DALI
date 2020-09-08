@@ -79,7 +79,7 @@ Example values:
 * `2` - Increase brightness twice.
 
 .. note::
-    Only values greater than 0 are accepted.)code", 1.f, true)
+    Values must be non-negative.)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
@@ -117,7 +117,7 @@ DALI_SCHEMA(Saturation)
                     R"code(The saturation change factor.
 
 Example values:
-- `0` – Completely desaturated image
+- `0` – Completely desaturated image.
 - `1` - No change to image’s saturation.
 
 .. note::
@@ -136,7 +136,7 @@ DALI_SCHEMA(ColorTwist)
 
 Example values:
 
-- `0` – Completely desaturated image
+- `0` – Completely desaturated image.
 - `1` - No change to image’s saturation.
 
 .. note::
@@ -162,7 +162,7 @@ Example values:
 * `2` - Increase brightness twice.
 
 .. note::
-    Only values greater than 0 are accepted.)code", 1.f, true)
+    Values must be non-negative.)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
