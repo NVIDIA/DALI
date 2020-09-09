@@ -42,7 +42,8 @@ This option is mutually exclusive with `file_root` and `file_list`.)code",
 This option is mutually exclusive with `filenames` and `file_list`.)code",
       std::string())
   .AddOptionalArg("file_list",
-      R"code(Path to the file with a list of pairs ``file label``.
+      R"code(Path to the file with a list of ``file label [start_frame end_frame]`` (end frame
+could be set to -1 as the end frame).
 This option is mutually exclusive with `filenames` and `file_root`.)code",
       std::string())
   .AddOptionalArg("enable_frame_num",

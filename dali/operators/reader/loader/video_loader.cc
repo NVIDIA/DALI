@@ -163,8 +163,9 @@ std::vector<dali::file_meta> filesystem::get_file_label_pair(
         DALI_ENFORCE(start_time >= 0, "Start time/frame should be >=0 at line number: "
                      + to_string(line_num) + ", filename: "+ video_file);
         if (file_line >> end_time) {
-          DALI_ENFORCE(start_time <= end_time, "Start time/frame should be <= end time/frame "
-                       "at line number: " + to_string(line_num) + ", filename: "+ video_file);
+          DALI_ENFORCE(start_time <= end_time || end_time < 0, "Start time/frame should be "
+                       "<= end or -1 time/frame at line number: " + to_string(line_num) +
+                       ", filename: "+ video_file);
         } else {
           DALI_FAIL("The allowed file list format is:\n"
                     "file_name label(int) start_time(float) end_time(float)\n"
