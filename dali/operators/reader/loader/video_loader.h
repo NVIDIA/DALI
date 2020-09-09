@@ -231,8 +231,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
           }
           if (end > 0) {
             end_frame = end;
-          } else if (end == 0) {
-            end_frame = file.frame_count_;
           } else {
             end_frame = file.frame_count_ + end;
           }
