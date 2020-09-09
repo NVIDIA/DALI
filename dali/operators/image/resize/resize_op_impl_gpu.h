@@ -34,9 +34,9 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
     kmgr_.Resize(kmgr_.NumThreads(), 0);
   }
 
-  static_assert(spatial_ndim == 2, "NOT IMPLEMENTED. Only 2D resize is supported");
+  static_assert(spatial_ndim == 2 || spatial_ndim == 3, "Only 2D and 3D resizing is supported");
 
-  using Kernel = kernels::ResampleGPU<Out, In>;
+  using Kernel = kernels::ResampleGPU<Out, In, spatial_ndim>;
 
   /// Dimensionality of each separate frame. If input contains no channel dimension, one is added
   static constexpr int frame_ndim = spatial_ndim + 1;
