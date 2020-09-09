@@ -221,17 +221,37 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       int end_frame = file.frame_count_;
       float start = file_info_[i].start_time;
       float end = file_info_[i].end_time;
-      if (start != -1 && end != -1) {
+      if (start != 0 && end != 0) {
         if (file_list_frame_num_) {
-          start_frame = start;
-          end_frame = end >= 0 ? end : file.frame_count_;
+          if (start >= 0) {
+            start_frame = start;
+          } else {
+            start_frame = file.frame_count_ + start;
+          }
+          if (end > 0) {
+            end_frame = end;
+          } else if (end == 0) {
+            end_frame = file.frame_count_;
+          } else {
+            end_frame = file.frame_count_ + end;
+          }
           DALI_ENFORCE(end_frame <= file.frame_count_, "End frame number is greater than "
               "total number of frames for file " + file_info_[i].video_file);
         } else {
           auto frame_rate = av_inv_q(file.frame_base_);
-          start_frame = static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
-          end_frame = end >= 0 ? static_cast<int>(std::floor(end * av_q2d(frame_rate))) :
-                                 file.frame_count_;
+          if (start >= 0) {
+            start_frame = static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
+          } else {
+            start_frame = file.frame_count_ +
+                          static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
+          }
+          if (end > 0) {
+            end_frame = static_cast<int>(std::floor(end * av_q2d(frame_rate)));
+          } else if (end == 0) {
+            end_frame = file.frame_count_;
+          } else {
+            end_frame = file.frame_count_ + static_cast<int>(std::floor(end * av_q2d(frame_rate)));
+          }
 
           DALI_ENFORCE(end_frame <= file.frame_count_, "End time is greater than video duration "
                        "for file " + file_info_[i].video_file);

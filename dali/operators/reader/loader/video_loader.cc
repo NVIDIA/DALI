@@ -95,7 +95,7 @@ inline void assemble_video_list(const std::string& path, const std::string& curr
       continue;
     }
 #endif
-    file_info.push_back(file_meta{full_path, label, -1, -1});
+    file_info.push_back(file_meta{full_path, label, 0, 0});
   }
   closedir(dir);
 }
@@ -153,30 +153,15 @@ std::vector<dali::file_meta> filesystem::get_file_label_pair(
     while (std::getline(s, line)) {
       line_num++;
       video_file.clear();
-      label = start_time = end_time = -1;
+      label = -1;
+      start_time = end_time = 0;
       std::istringstream file_line(line);
       file_line >> video_file >> label;
       if (video_file.empty()) continue;
       DALI_ENFORCE(label >= 0, "Label value should be >= 0 in file_list at line number: "
                    + to_string(line_num) + ", filename: "+ video_file);
       if (file_line >> start_time) {
-        DALI_ENFORCE(start_time >= 0, "Start time/frame should be >=0 at line number: "
-                     + to_string(line_num) + ", filename: "+ video_file);
-        if (file_line >> end_time) {
-          DALI_ENFORCE(start_time <= end_time || end_time < 0, "Start time/frame should be "
-                       "<= end or -1 time/frame at line number: " + to_string(line_num) +
-                       ", filename: "+ video_file);
-        } else {
-          DALI_FAIL("The allowed file list format is:\n"
-                    "file_name label(int) start_time(float) end_time(float)\n"
-                    "or\n"
-                    "file_name label(int)\n"
-                    "Example:\n"
-                    "/home/nvidia/salvador.mp4 0 5.2 10.5\n"
-                    "/home/nvidia/dali.mp4 1\n"
-                    "Error at line number: " + to_string(line_num)
-                    + ", filename: " + video_file);
-        }
+        file_line >> end_time;
       }
       file_info.push_back(file_meta{video_file, label, start_time, end_time});
     }
@@ -186,7 +171,7 @@ std::vector<dali::file_meta> filesystem::get_file_label_pair(
   } else {
     file_info.reserve(filenames.size());
     for (const auto & f : filenames) {
-      file_info.push_back(file_meta{f, 0, -1, -1});
+      file_info.push_back(file_meta{f, 0, 0, 0});
     }
   }
 
