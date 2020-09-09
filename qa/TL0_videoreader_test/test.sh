@@ -38,7 +38,7 @@ do_once() {
   done
 
   # generate file_list.txt from video_files directory
-  ls -d $TMP_VIDEO_FILES/*  | tr " " "\n" | awk '{print $0, NR, 0;}' > /tmp/file_list.txt
+  ls -d $TMP_VIDEO_FILES/*  | tr " " "\n" | awk '{print $0, NR;}' > /tmp/file_list.txt
 }
 
 test_body() {

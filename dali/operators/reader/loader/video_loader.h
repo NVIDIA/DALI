@@ -168,6 +168,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       stats_({0, 0, 0, 0, 0}),
       current_frame_idx_(-1),
       stop_(false) {
+    DALI_ENFORCE(stride_ > 0, "Stride should be > 0");
     if (step_ < 0)
       step_ = count_ * stride_;
 
@@ -252,8 +253,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
           }
           if (end > 0) {
             end_frame = static_cast<int>(std::floor(end * av_q2d(frame_rate)));
-          } else if (end == 0) {
-            end_frame = file.frame_count_;
           } else {
             end_frame = file.frame_count_ + static_cast<int>(std::floor(end * av_q2d(frame_rate)));
           }
