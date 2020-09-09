@@ -161,7 +161,13 @@ std::vector<dali::file_meta> filesystem::get_file_label_pair(
       DALI_ENFORCE(label >= 0, "Label value should be >= 0 in file_list at line number: "
                    + to_string(line_num) + ", filename: "+ video_file);
       if (file_line >> start_time) {
-        file_line >> end_time;
+        if (file_line >> end_time) {
+          if (start_time == end_time) {
+            DALI_WARN("Start and end time/frame are the same, skipping the file, in file_list "
+                      "at line number: " + to_string(line_num) + ", filename: "+ video_file);
+            continue;
+          }
+        }
       }
       file_info.push_back(file_meta{video_file, label, start_time, end_time});
     }
