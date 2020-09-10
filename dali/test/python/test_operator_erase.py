@@ -25,7 +25,6 @@ from functools import partial
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
-from test_utils import get_dali_extra_path
 
 class ErasePipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator,

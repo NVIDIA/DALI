@@ -233,7 +233,7 @@ can't be statisfied.)code",
     .AddOptionalArg(
         "all_boxes_above_threshold",
          R"code(If true, all bounding boxes in a sample should overlap with the cropping window as specified by
-``thresholds``, otherwise the cropping window is considered invalid. If false, a cropping window will be considered 
+``thresholds``, otherwise the cropping window is considered invalid. If false, a cropping window will be considered
 valid if any bounding box overlaps it sufficiently.)code",
          true)
     .AddOptionalArg(
@@ -493,14 +493,15 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     ProspectiveCrop(bool success,
                     const Box<ndim, float>& crop,
                     span<const Box<ndim, float>> boxes_data,
-                    span<const int> labels_data)
+                    span<const int> labels_data,
+                    bool has_labels)
         : success(success), crop(crop) {
-      assert(boxes_data.size() == labels_data.size());
+      assert(boxes_data.size() == labels_data.size() || !has_labels);
       boxes.resize(boxes_data.size());
       labels.resize(labels_data.size());
       for (int i = 0; i < boxes_data.size(); i++) {
         boxes[i] = boxes_data[i];
-        labels[i] = labels_data[i];
+        if (has_labels) labels[i] = labels_data[i];
       }
     }
     ProspectiveCrop() = default;
@@ -581,7 +582,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
           for (int d = 0; d < ndim; d++)
             no_crop.hi[d] *= input_shape[d];
         }
-        crop = ProspectiveCrop(true, no_crop, bounding_boxes, labels);
+        crop = ProspectiveCrop(true, no_crop, bounding_boxes, labels, has_labels_);
         break;
       }
 
