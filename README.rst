@@ -20,7 +20,7 @@ NVIDIA (R) Data Loading Library (DALI) is a collection of highly optimized
 building blocks, and an execution engine, to accelerate the
 pre-processing of the input data for deep learning applications. DALI
 provides both the performance and the flexibility to accelerate
-different data pipelines as a one library. This library can
+different data pipelines as one library. This library can
 then be easily integrated into different deep learning training and
 inference applications.
 

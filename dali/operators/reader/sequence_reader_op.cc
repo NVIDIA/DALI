@@ -29,10 +29,9 @@ DALI_SCHEMA(SequenceReader)
         R"code(Reads [Frame] sequences from a directory representing a collection of streams.
 
 This operator expects ``file_root`` to contain a set of directories, where each directory represents
-an extracted video stream. This stream is represented by one file for each frame
-lexicographically sorted lexicographically.
-Sequences do not cross the stream boundary and only complete sequences are considered, so
-there is no padding.
+an extracted video stream. This stream is represented by one file for each frame,
+sorted lexicographically. Sequences do not cross the stream boundary and only complete sequences
+are considered, so there is no padding.
 
 Example directory structure::
 
