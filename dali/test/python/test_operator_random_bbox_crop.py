@@ -59,7 +59,7 @@ class BBoxDataIterator():
             if self.batch_size > 1:
                 boxes.append(np.array([bboxes[2], bboxes[1]], dtype=np.float32))
                 labels.append(np.array([2, 1], dtype=np.int32))
-                for i in range(self.batch_size - 2):
+                for _ in range(self.batch_size - 2):
                     boxes.append(np.array([bboxes[2]], dtype=np.float32))
                     labels.append(np.array([3], dtype=np.int32))
         else:
@@ -293,7 +293,7 @@ def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, us
                                            input_shape=input_shape, crop_shape=crop_shape,
                                            all_boxes_above_threshold = False)
     pipe.build()
-    for i in range(100):
+    for _ in range(100):
         outputs = pipe.run()
         for sample in range(batch_size):
             out_crop_anchor = outputs[1].at(sample)
@@ -333,3 +333,21 @@ def test_random_bbox_crop_overlap():
                     for use_labels in [True, False]:
                         yield check_random_bbox_crop_overlap, \
                                 batch_size, ndim, crop_shape, input_shape, use_labels
+
+def test_random_bbox_crop_no_labels():
+    batch_size = 3
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    test_box_shape = [200, 4]
+    def get_boxes():
+        out = [(np.random.randint(0, 255, size = test_box_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        return out
+    boxes = fn.external_source(source = get_boxes)
+    processed = fn.random_bbox_crop(boxes,
+                                    aspect_ratio=[0.5, 2.0],
+                                    thresholds=[0.1, 0.3, 0.5],
+                                    scaling=[0.8, 1.0],
+                                    bbox_layout="xyXY")
+    pipe.set_outputs(*processed)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
