@@ -334,7 +334,7 @@ def test_random_bbox_crop_overlap():
                         yield check_random_bbox_crop_overlap, \
                                 batch_size, ndim, crop_shape, input_shape, use_labels
 
-def test_random_bbox_crop_no_lables():
+def test_random_bbox_crop_no_labels():
     batch_size = 3
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     test_box_shape = [200, 4]
@@ -343,10 +343,10 @@ def test_random_bbox_crop_no_lables():
         return out
     boxes = fn.external_source(source = get_boxes)
     processed = fn.random_bbox_crop(boxes,
-                                          aspect_ratio=[0.5, 2.0],
-                                          thresholds=[0.1, 0.3, 0.5],
-                                          scaling=[0.8, 1.0],
-                                          bbox_layout="xyXY")
+                                    aspect_ratio=[0.5, 2.0],
+                                    thresholds=[0.1, 0.3, 0.5],
+                                    scaling=[0.8, 1.0],
+                                    bbox_layout="xyXY")
     pipe.set_outputs(*processed)
     pipe.build()
     for _ in range(3):
