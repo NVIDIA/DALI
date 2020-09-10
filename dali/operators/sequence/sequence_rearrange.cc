@@ -19,7 +19,7 @@
 namespace dali {
 
 DALI_SCHEMA(SequenceRearrange)
-    .DocStr(R"code(Rearranges the sequence that is stored as tensor.
+    .DocStr(R"code(Rearranges the sequence that is stored as a tensor.
 
 Assumes that the outermost dimension represents the frame index in the sequence.
 If the input has a non-empty layout description, it must start with ``F`` (frame).)code")

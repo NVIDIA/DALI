@@ -229,8 +229,8 @@ Keyword Args
         This is applicable only when copying data to and from GPU memory.
 
 `blocking` : optional,
-   Determines whether the external source should wait until data is available or just fail
-   when the is not available.
+    Determines whether the external source should wait until data is available or just fail
+    when the data is not available.
 
 `no_copy` : Determines whether DALI should copy the buffer when feed_input is called.
 
@@ -238,15 +238,15 @@ Keyword Args
     It is your responsibility to keep the buffer alive and unmodified until it is
     consumed by the pipeline.
 
-    The buffer can be modified or freed again after the relevant number of iteration output
+    The buffer can be modified or freed again after the output of the relevant iterations
     has been consumed. Effectively, it happens after ``prefetch_queue_depth`` or
     ``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
     the``feed_input`` call.
 
     The memory location must match the specified ``device`` parameter of the operator.
     For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
-    For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provides a list
-    of separate Tensors, there will be an additional internal copy made, consuming both memory
+    For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provide a list
+    of separate Tensors, there will be an additional copy made internally, consuming both memory
     and bandwidth.
 """
 

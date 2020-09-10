@@ -30,9 +30,9 @@ DALI_SCHEMA(VideoReader)
 the hardware-accelerated video decoding feature in the NVIDIA(R) GPU.
 
 The video streams can be in most of the container file formats. FFmpeg is used to parse video
-containers and returns a batch of sequences of sequence_length frames of the [N, F, H, W, C]
-shape, where N is the batch size, and F is the number of frames). This class only supports
-constant frame rate videos.)code")
+containers and returns a batch of sequences of ``sequence_length`` frames with shape
+``(N, F, H, W, C)``, where ``N`` is the batch size, and ``F`` is the number of frames).
+This class only supports constant frame rate videos.)code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderOutputFn)
   .AddOptionalArg("filenames",
@@ -108,8 +108,8 @@ Use this flag to suppress false positive detection of VFR videos.
       R"code(If the start/end timestamps are provided in file_list, you can interpret them
 as frame numbers instead of as timestamps.
 
-If floating point values have been provided, the start frame number is the highest possible number,
-and the end frame number is the lowest possible number.
+If floating point values have been provided, the start frame number will be rounded up and
+the end frame number will be rounded down.
 
 Frame numbers start from 0.)code", false)
   .AddParent("LoaderBase");

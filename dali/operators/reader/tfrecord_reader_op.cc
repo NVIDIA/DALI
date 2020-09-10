@@ -30,7 +30,7 @@ DALI_SCHEMA(_TFRecordReaderBase)
       R"code(List of paths to TFRecord files.)code",
       DALI_STRING_VEC)
   .AddArg("index_path",
-      R"code(List of paths to index files, and there is one index file for every TFRecord file.
+      R"code(List of paths to index files. There should be one index file for every TFRecord file.
 
 The index files can be obtained from TFRecord files by using the ``tfrecord2idx`` script
 that is distributed with DALI.)code",

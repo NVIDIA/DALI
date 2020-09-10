@@ -72,9 +72,9 @@ class DLL_PUBLIC OpSchema {
 
     AddOptionalArg("seed", R"code(Random seed.
 
-If not provided it will be populated based on the global seed of the pipeline)code", -1);
+If not provided, it will be populated based on the global seed of the pipeline)code", -1);
 
-    AddOptionalArg("bytes_per_sample_hint", R"code(Output size hint (bytes), per sample.
+    AddOptionalArg("bytes_per_sample_hint", R"code(Output size hint, in bytes per sample.
 
 If specified, the operator's outputs residing in GPU or page-locked host memory will be preallocated
 to accommodate a batch of samples of this size.)code", 0);

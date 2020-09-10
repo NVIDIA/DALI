@@ -41,7 +41,12 @@ the aspect ratio of the original volume. Negative value flips the volume.)", 0.f
 one entry per spatial dimension (i.e. excluding video frames and channels).
 
 Dimensions with 0 extent are treated as absent and the output size will be calculated based
-on other extents and ``mode`` argument.)code", {}, true)
+on other extents and ``mode`` argument.)code", 0.f, true)
+ .AddOptionalArg<vector<float>>("size", R"(The desired output size.
+
+Must be a list/tuple with the one entry per spatial dimension, excluding video
+frames and channels. imensions with a 0 extent are treated as absent, and the output size will
+be calculated based on other extents and ``mode`` argument.)", {}, true)
   .AddOptionalArg("mode", R"code(Resize mode.
 
 Here is a list of the supported values:
@@ -87,8 +92,7 @@ or uniformly for all axes.
   precedence and the aspect ratio is kept - for example, resizing with
   ``mode="not_smaller", size=800, max_size=1400`` an image of size 1200x600 would be resized to
   1400x700.
-)code",
-  {}, false)
+)code", {}, false)
   .AddOptionalArg("subpixel_scale", R"code(If ``True``, fractional sizes, directly specified or
 calculated, will cause the input RoI to be adjusted to keep the scale factor.
 

@@ -11,7 +11,7 @@ Here is a list of the supported operations:
   regular inputs for other GPU operators and pipeline outputs.
 - **Mixed** operator means that the operator accepts input on the CPU while producing the output
   on the GPU.
-- **Sequences** means that the operator can produce or accept as an input a sequence, or video
+- **Sequences** means that the operator can produce or accept as an input a sequence, or a video
   type of input.
 - **Volumetric** means that the operator supports 3D data processing.
 
@@ -33,7 +33,7 @@ are :class:`nvidia.dali.pipeline.DataNode` objects, which are symbolic represent
 batches of Tensor.
 
 The **keyword arguments** in ``__call__`` operator accept TensorList argument inputs and should be
-produced by other cpu operators.
+produced by other CPU operators.
 
 .. note::
     The names of the positional arguments for ``__call__`` operator (**parameters**) are provided
@@ -124,8 +124,8 @@ Currently, DALI supports the following operations:
     ``bool``, ``int8``, ``int16``, ``int32``, ``int64``, ``uint8``, ``uint16``,
     ``uint32``, ``uint64``, ``float32``, and ``float64``.
 
-    ``bool`` type is considered the smallest unsigned integer type and is treated as ``uint`` with respect
-    to the table above.
+    ``bool`` type is considered the smallest unsigned integer type and is treated as ``uint1``
+    with respect to the table above.
 
     .. note::
         Type promotion is commutative.

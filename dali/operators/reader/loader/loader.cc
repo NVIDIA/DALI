@@ -21,24 +21,24 @@ DALI_SCHEMA(LoaderBase)
   .AddOptionalArg("random_shuffle",
       R"code(Determines whether to randomly shuffle data.
 
-Prefetches the buffer of the ``initial_fill`` size and is used to sequentially readand randomly
-sample the data to form a batch.)code", false)
+A Prefetch the buffer with a size equal to ``initial_fill`` is used to read data sequentially,
+and then samples are selected randomly to form a batch.)code", false)
   .AddOptionalArg("initial_fill",
       R"code(Size of the buffer that is used for shuffling.
 
 If ``random_shuffle`` is turned off,  this parameter is ignored.)code", 1024)
   .AddOptionalArg("num_shards",
-      R"code(Partitions the data into the specified number of parts and is used for multi-GPU
-training.)code", 1)
+      R"code(Partitions the data into the specified number of parts (shards). This is typically
+used for multi-GPU or multi-node training.)code", 1)
   .AddOptionalArg("shard_id",
-      R"code(ID of the part to read.)code", 0)
+      R"code(Index of the shard to read.)code", 0)
   .AddOptionalArg("tensor_init_bytes",
       R"code(Hint for how much memory to allocate per image.)code", 1048576)
   .AddOptionalArg("stick_to_shard",
       R"code(Determines whether the reader should stick to a data shard instead of going through
 the entire dataset.
 
-If you use the decoder caching, it significantly reduces the amount of data to be cached, which
+If you use the decoder caching, it significantly reduces the amount of data to be cached, but
 might affect accuracy.)code", false)
   .AddOptionalArg("read_ahead",
       R"code(Determines whether the accessed data should be read ahead.
@@ -46,9 +46,9 @@ might affect accuracy.)code", false)
 For large files such as LMDB, RecordIO, or TFRecord, this argument slows down the first access but
 decreases the time of all of the following accesses.)code", false)
   .AddOptionalArg("prefetch_queue_depth",
-      R"code(Specifies the number of batches that have been prefetched by the internal Loader.
+      R"code(Specifies the number of batches to be prefetched by the internal Loader.
 
-This value will be increased when the pipeline processing is CPU stage-bound and trades memory
+This value should be increased when the pipeline is CPU-stage bound, trading memory
 consumption for better interleaving with the Loader thread.)code", 1)
   .AddOptionalArg("skip_cached_images",
       R"code(If set to True, the loading data will be skipped when the sample is
@@ -62,7 +62,7 @@ first run instead of in the constructor.)code", false)
       R"code(If set to True, when the batch size is not aligned with the shard size, the Loader
 pads the last batch with the last image.
 
-The rest of the batch, or the entire batch, can be added when the data set size is not equally
+The rest of the batch, or even an entire batch, can be added when the dataset size is not equally
 divisible by the number of shards, and the shard is not equally divisible by the batch size. The
 shard size will ultimately be equalized between shards.)code", false)
 .AddOptionalArg("dont_use_mmap",

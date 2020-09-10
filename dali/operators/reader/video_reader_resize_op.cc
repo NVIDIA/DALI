@@ -31,8 +31,8 @@ DALI_SCHEMA(VideoReaderResize)
 the hardware-accelerated video decoding feature in the GPU’s hardware-accelerated video decoding.
 
 The video streams can be in most of the container file formats. FFmpeg is used to parse video
-containers and returns a batch of sequences of sequence_length frames of the [N, F, H, W, C]
-shape, where N being is the batch size, and F is the number of frames.
+containers and returns a batch of sequences with shape ``(N, F, H, W, C)``, with N being
+the batch size, and F the number of frames in the sequence.
 
 This operator combines the features of :meth:`nvidia.dali.ops.VideoDecoder` and :meth:`nvidia.dali.ops.Resize`.
 

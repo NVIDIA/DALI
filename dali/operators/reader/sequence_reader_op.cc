@@ -28,9 +28,9 @@ DALI_SCHEMA(SequenceReader)
     .DocStr(
         R"code(Reads [Frame] sequences from a directory representing a collection of streams.
 
-This class expects file_root to contain a set of directories, where each directory represents
-an extracted video stream. This stream is represented by one file for each frame and
-lexicographically sorting the paths to frames  will give the original order of frames.
+This operator expects ``file_root`` to contain a set of directories, where each directory represents
+an extracted video stream. This stream is represented by one file for each frame
+lexicographically sorted lexicographically.
 Sequences do not cross the stream boundary and only complete sequences are considered, so
 there is no padding.
 

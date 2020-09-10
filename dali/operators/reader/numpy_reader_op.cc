@@ -63,7 +63,8 @@ list of files in the sub-directories of the ``file_root``.)code", "*.npy")
   .AddOptionalArg("shuffle_after_epoch",
       R"code(If set to True, the reader shuffles the entire dataset after each epoch.
 
-Using ``stick_to_shard`` and ``random_shuffle`` is mutually exclusive.)code", false)
+Using this argument is mutually exclusive with using ``stick_to_shard``
+and ``random_shuffle``.)code", false)
   .AddParent("LoaderBase");
 
 }  // namespace dali

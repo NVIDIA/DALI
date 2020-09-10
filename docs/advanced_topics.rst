@@ -27,15 +27,14 @@ argument and set_affinity enables thread affinity for the CPU worker threads.
 
 .. note::
   For performance reasons, the hybrid :meth:`nvidia.dali.ops.ImageDecoder` operator, which is
-  nvJPEG based, houses threads on its own, and these threads are always affined.
+  nvJPEG based, creates threads on its own, and these threads are always affined.
 
 In ``DALI_AFFINITY_MASK``, if the number of threads is higher than the number of CPU IDs,
 the following process is applied:
 
 1) The threads are assigned to the CPU IDs until all of the CPU IDs from ``DALI_AFFINITY_MASK``
    are assigned.
-2) For the remaining threads, the CPU IDs from nvmlDeviceGetCpuAffinity wFor the remaining threads,
-   the CPU IDs from nvmlDeviceGetCpuAffinity will be used.
+2) For the remaining threads, the CPU IDs from nvmlDeviceGetCpuAffinity will be used.
 
 An example:
 
@@ -71,7 +70,7 @@ The value can be controlled by the ``DALI_HOST_BUFFER_SHRINK_THRESHOLD`` environ
 or be set in Python by using the `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
 
 During processing, DALI works on batches of samples. For the GPU and some CPU operators, each batch
-is stored as a contiguous allocation and is processed at one time, which reduces the number of
+is stored as contiguous memory and is processed at once, which reduces the number of
 necessary allocations. For some CPU operators that cannot calculate their output size ahead of
 time, the batch is stored as a vector of separately allocated samples.
 
@@ -118,7 +117,7 @@ provided, each buffer is presized to the corresponding size.
 To determine the amount of memory output that each operator needs, complete the following tasks:
 
 1) you might Create the pipeline by setting ``enable_memory_stats`` to True.
-2) Query the pipeline for the operator’s output memory statistics by calling the ``executor_meta``
+2) Query the pipeline for the operator's output memory statistics by calling the ``executor_meta``
    method on the pipeline.
 
 The ``max_real_memory_size`` value represents the biggest tensor in the batch for the outputs that
@@ -215,15 +214,16 @@ Here are the iterator options:
     provides the necessary parameters.
 
   .. note::
-    We recommend that you use option. With this option, the next two options are excluded and
+    We recommend that you use this option. With this option, the next two options are excluded and
     cannot be used.
 
   | This option is more flexible and accurate and takes into account that shard size for a pipeline
     can differ between epochs when the shards are rotated.
 - ``size``: Displays the size of the shard for an iterator or, if there is more than one shard,
   the sum of all shard sizes for all wrapped pipelines.
-- ``last_batch_padded``: Determines whether the data that is a remainder when the multiple of
-  the batch size and the shard size consists of data from the next shard or is duplicated dummy data.
+- | ``last_batch_padded``: Determines whether the tail of the data consists of data from the next
+    shard (``False``) or is duplicated dummy data (``True``).
+  | It is applicable when the shard size is not a multiple of the batch size,
 
 
 Here is the formula to calculate the shard size for a shard ID:
@@ -237,10 +237,10 @@ needs to be extended to reflect this change:
 
 When the second formula is used, providing a size value once at the beginning of the training works
 only when the ``stick_to_shard`` reader option is enabled and prevents DALI from rotating shards.
-WHen this occurs, use the first formula.
+When this occurs, use the first formula.
 
-To address these challenges, use the ``reader_name`` parameter and allow the iterator complete
-the task.
+To address these challenges, use the ``reader_name`` parameter and allow the iterator
+handle the details.
 
 C++ API
 -------

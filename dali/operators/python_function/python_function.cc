@@ -34,9 +34,10 @@ as CuPy arrays for GPU operators. It is expected to return the results in the sa
 a more universal data format, see :meth:`nvidia.dali.ops.DLTensorPythonFunction`.
 The function should not modify input tensors.
 
-Important: Currently, this operator can be used only in pipelines with the
-``exec_async=False`` and ``exec_pipelined=False`` values specified and should only be
-used for prototyping and debugging.)code")
+.. warning::
+  Currently, this operator can be used only in pipelines with the
+  ``exec_async=False`` and ``exec_pipelined=False`` values specified and should only be
+  used for prototyping and debugging.)code")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()
@@ -58,7 +59,7 @@ as PyTorch tensors.)code")
         .SupportVolumetric()
         .NoPrune()
         .AddParent("PythonFunctionBase")
-        .AddOptionalArg("batch_processing", R"code(Determies whether the function should get
-the entire batch as the input.)code", false);
+        .AddOptionalArg("batch_processing", R"code(Determines whether the function gets
+an entire batch as an input.)code", false);
 
 }  // namespace dali
