@@ -271,7 +271,7 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
       if (cnt_a == 0) break;
     }
     // copy back the buffers to the destination encoding
-    A.m = m - 1;
+    A.m = m;
     for (int i = 0; i < m; i++) A.cnts[i] = cnts[i];
     for (int i = 0; i < m; i++) A.vals[i] = vals[i];
   }
