@@ -155,6 +155,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       const ImageTypePair kGRAY_TO_RGB { DALI_GRAY, DALI_RGB };
       const ImageTypePair kGRAY_TO_BGR { DALI_GRAY, DALI_BGR };
       const ImageTypePair kGRAY_TO_YCbCr { DALI_GRAY, DALI_YCbCr };
+      const ImageTypePair kRGB_TO_Lab { DALI_RGB, DALI_Lab };
 
       if (conversion == kRGB_TO_BGR || conversion == kBGR_TO_RGB) {
         // RGB -> BGR
@@ -211,7 +212,18 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
         // YCbCr -> GRAY
         detail::ConvertYCbCrToGray8uKernel<<<grid, block, 0, stream>>>(
           input_data, output_data, total_size);
-      } else {
+      } else if (conversion == kRGB_TO_Lab) {
+        // RGB -> Lab
+        // First from RGB to BGR
+        detail::ConvertRGBToBGR8uKernel<<<grid, block, 0, stream>>>(
+            input_data, output_data, total_size);
+        // Then from BGR to Lab
+        DALI_CHECK_NPP(
+              nppiBGRToLab_8u_C3R(
+                output_data, nStepOutput, output_data, nStepOutput, size));
+      }
+
+        else {
         DALI_FAIL("conversion not supported");
       }
     }
