@@ -27,10 +27,11 @@ DALI_REGISTER_OPERATOR(VideoReader, VideoReader, GPU);
 
 DALI_SCHEMA(VideoReader)
   .DocStr(R"code(
-Load and decode H264 video codec with FFmpeg and NVDECODE, NVIDIA GPU's hardware-accelerated video decoding.
-The video codecs can be contained in most of container file formats. FFmpeg is used to parse video containers.
-Returns a batch of sequences of `sequence_length` frames of shape [N, F, H, W, C] (N being the batch size and F the
-number of frames). Supports only constant frame rate videos.)code")
+Load and decode H264, VP9, MPEG4 and HVEC(h265) video codec with FFmpeg and NVDECODE, NVIDIA GPU's
+hardware-accelerated video decoding. The video codecs can be contained in most of container file
+formats. FFmpeg is used to parse video containers. Returns a batch of sequences of `sequence_length`
+frames of shape [N, F, H, W, C] (N being the batch size and F the number of frames). Supports only
+constant frame rate videos.)code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderOutputFn)
   .AddOptionalArg("filenames",
@@ -42,8 +43,10 @@ This option is mutually exclusive with `file_root` and `file_list`.)code",
 This option is mutually exclusive with `filenames` and `file_list`.)code",
       std::string())
   .AddOptionalArg("file_list",
-      R"code(Path to the file with a list of pairs ``file label``.
-This option is mutually exclusive with `filenames` and `file_root`.)code",
+      R"code(Path to the file with a list of ``file label [start_frame [end_frame]]`` Positive value
+means the exact frame, negative counts as a Nth frame from the end (it follows python array
+indexing schema), equal values for the start and end frame would yield an empty sequence and a
+warning. This option is mutually exclusive with `filenames` and `file_root`.)code",
       std::string())
   .AddOptionalArg("enable_frame_num",
       R"code(Return frame number output if file_list or file_root argument is passed)code",

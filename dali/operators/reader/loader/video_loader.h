@@ -168,6 +168,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       stats_({0, 0, 0, 0, 0}),
       current_frame_idx_(-1),
       stop_(false) {
+    DALI_ENFORCE(stride_ > 0, "Stride should be > 0");
     if (step_ < 0)
       step_ = count_ * stride_;
 
@@ -221,17 +222,43 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       int end_frame = file.frame_count_;
       float start = file_info_[i].start_time;
       float end = file_info_[i].end_time;
-      if (start != -1 && end != -1) {
+      if (start != 0 || end != 0) {
         if (file_list_frame_num_) {
-          start_frame = start;
-          end_frame = end;
+          if (start >= 0) {
+            start_frame = start;
+          } else {
+            start_frame = file.frame_count_ + start;
+          }
+          if (end > 0) {
+            end_frame = end;
+          } else {
+            end_frame = file.frame_count_ + end;
+          }
+
+          DALI_ENFORCE(start_frame <= end_frame, "Start frame number should be lesser or equal "
+                       "to end frame number for a file " + file_info_[i].video_file);
+          DALI_ENFORCE(start_frame <= file.frame_count_, "Start frame number is greater than "
+                       "total number of frames for file " + file_info_[i].video_file);
           DALI_ENFORCE(end_frame <= file.frame_count_, "End frame number is greater than "
-              "total number of frames for file " + file_info_[i].video_file);
+                       "total number of frames for file " + file_info_[i].video_file);
         } else {
           auto frame_rate = av_inv_q(file.frame_base_);
-          start_frame = static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
-          end_frame = static_cast<int>(std::floor(end * av_q2d(frame_rate)));
+          if (start >= 0) {
+            start_frame = static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
+          } else {
+            start_frame = file.frame_count_ +
+                          static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
+          }
+          if (end > 0) {
+            end_frame = static_cast<int>(std::floor(end * av_q2d(frame_rate)));
+          } else {
+            end_frame = file.frame_count_ + static_cast<int>(std::floor(end * av_q2d(frame_rate)));
+          }
 
+          DALI_ENFORCE(start_frame <= end_frame, "Start time number should be lesser or equal "
+                       "to end time for a file " + file_info_[i].video_file);
+          DALI_ENFORCE(start_frame <= file.frame_count_, "Start time is greater than video "
+                       "duration for file " + file_info_[i].video_file);
           DALI_ENFORCE(end_frame <= file.frame_count_, "End time is greater than video duration "
                        "for file " + file_info_[i].video_file);
         }

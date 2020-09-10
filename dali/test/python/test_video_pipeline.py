@@ -22,6 +22,7 @@ from nvidia.dali.backend_impl import TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import re
+import tempfile
 
 from nose.tools import assert_raises, raises
 
@@ -57,9 +58,10 @@ class VideoPipe(Pipeline):
         return output
 
 class VideoPipeList(Pipeline):
-    def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT):
+    def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT, step=-1, stride=1):
         super(VideoPipeList, self).__init__(batch_size, num_threads=2, device_id=device_id)
-        self.input = ops.VideoReader(device="gpu", file_list=data, sequence_length=sequence_length)
+        self.input = ops.VideoReader(device="gpu", file_list=data, sequence_length=sequence_length,
+                                     step=step, stride=stride, file_list_frame_num=True)
 
     def define_graph(self):
         output = self.input(name="Reader")
@@ -113,6 +115,82 @@ def test_file_list_videopipeline():
         print("Iter " + str(i))
         _ = pipe.run()
     del pipe
+
+def _test_file_list_starts_videopipeline(start, end):
+    files = sorted(os.listdir(VIDEO_DIRECTORY))
+    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    list_file.write("{} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0))
+    list_file.close()
+
+    pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1)
+    pipe.build()
+    reference_seq_num = pipe.reader_meta("Reader")["epoch_size"]
+    del pipe
+    os.remove(list_file.name)
+
+    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    if end is None:
+        list_file.write("{} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start))
+    else:
+        list_file.write("{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start, end))
+    list_file.close()
+
+    pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1)
+    pipe.build()
+    seq_num = pipe.reader_meta("Reader")["epoch_size"]
+
+    expected_seq_num = reference_seq_num
+    if start > 0:
+        expected_seq_num -= start
+    elif start < 0:
+        expected_seq_num = -start
+
+    if end is not None:
+        if end > 0:
+            expected_seq_num -= (reference_seq_num - end)
+        elif end < 0:
+            expected_seq_num += end
+
+    assert expected_seq_num == seq_num, "Reference is {}, expected is {}, obtained {}".format(reference_seq_num, expected_seq_num, seq_num)
+    os.remove(list_file.name)
+
+def test_file_list_starts_ends_videopipeline():
+    ranges = [
+        [0, None],
+        [1, None],
+        [0, -1],
+        [2, None],
+        [0, -2],
+        [0, 1],
+        [-1, None],
+        [-3, -1]
+    ]
+    for r in ranges:
+        yield _test_file_list_starts_videopipeline, r[0], r[1]
+
+def _test_file_list_empty_videopipeline(start, end):
+    files = sorted(os.listdir(VIDEO_DIRECTORY))
+    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    if end is None:
+        list_file.write("{} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start))
+    else:
+        list_file.write("{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start, end))
+    list_file.close()
+
+    pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name)
+    assert_raises(RuntimeError, pipe.build)
+    os.remove(list_file.name)
+
+def test_file_list_empty_videopipeline():
+    invalid_ranges = [
+        [0, 0],
+        [10, 10],
+        [-1, 1],
+        [1000000, None],
+        [0, -1000]
+    ]
+    for r in invalid_ranges:
+        yield _test_file_list_empty_videopipeline, r[0], r[1]
 
 def test_step_video_pipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, step=1)
