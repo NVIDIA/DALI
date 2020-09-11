@@ -92,7 +92,7 @@ If used with *mixed* device, the operator will use a dedicated hardware decoder 
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM.)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
   .AddOptionalArg("hw_decoder_load",
       R"code(**`mixed` backend only** Determines the percentage of the workload that will be
 offloaded to the hardware decoder, if available. The optimal workload will depend on the number of
@@ -119,7 +119,7 @@ To make use of the hardware decoder, use *ImageDecoder* and *Crop* operators ins
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM.)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -139,7 +139,7 @@ To make use of the hardware decoder, use *ImageDecoder* and *RandomResizedCrop* 
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM.)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -173,7 +173,7 @@ To make use of the hardware decoder, use *ImageDecoder* and *Slice* operators in
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM.)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
   .NumInput(3)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
