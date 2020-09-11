@@ -39,9 +39,9 @@ This reader produces between 1 and 3 outputs:
 - (optional, if ``read_text=True``) Transcript text as a null terminated string: uint8, shape=``(text_len + 1,)``
 
 )code")
-  .AddArg("manifest_filepath",
-    "Path to the manifest file",
-    DALI_STRING)
+  .AddArg("manifest_filepaths",
+    "List of paths to NeMo's compatible manifest files.",
+    DALI_STRING_VEC)
   .AddOptionalArg("read_sample_rate",
     "Whether to output the sample rate for each sample as a separate output",
     true)
@@ -76,6 +76,10 @@ This reader produces between 1 and 3 outputs:
     "in seconds, of the audio samples.\n"
     "Samples with a duration longer than this value will be ignored.\n",
     0.0f)
+  .AddOptionalArg("normalize_text",
+    "If set to True, the text transcript will be stripped of leading and trailing whitespace "
+    "and converted to lowercase.",
+    false)
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("read_sample_rate"))
          + static_cast<int>(spec.GetArgument<bool>("read_text"));

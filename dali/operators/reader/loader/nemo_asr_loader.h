@@ -46,7 +46,8 @@ struct AsrSample {
 namespace detail {
 
 DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream &manifest_file,
-                              float min_duration = 0.0f, float max_duration = 0.0f);
+                              float min_duration = 0.0f, float max_duration = 0.0f,
+                              bool normalize_text = false);
 
 }  // namespace detail
 
@@ -54,13 +55,15 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
  public:
   explicit inline NemoAsrLoader(const OpSpec &spec)
       : Loader<CPUBackend, AsrSample>(spec),
-        manifest_filepath_(spec.GetArgument<std::string>("manifest_filepath")),
+        manifest_filepaths_(spec.GetRepeatedArgument<std::string>("manifest_filepaths")),
         shuffle_after_epoch_(spec.GetArgument<bool>("shuffle_after_epoch")),
         sample_rate_(spec.GetArgument<float>("sample_rate")),
         quality_(spec.GetArgument<float>("quality")),
         downmix_(spec.GetArgument<bool>("downmix")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
-        max_duration_(spec.GetArgument<float>("max_duration")) {
+        max_duration_(spec.GetArgument<float>("max_duration")),
+        normalize_text_(spec.GetArgument<bool>("normalize_text")) {
+    DALI_ENFORCE(!manifest_filepaths_.empty(), "``manifest_filepaths`` can not be empty");
     /*
      * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks
      * differently after each epoch so coexistence with `stick_to_shard` doesn't make any sense
@@ -94,7 +97,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   void Reset(bool wrap_to_shard) override;
 
  private:
-  std::string manifest_filepath_;
+  std::vector<std::string> manifest_filepaths_;
   std::vector<NemoAsrEntry> entries_;
 
   Tensor<CPUBackend> scratch_;
@@ -108,6 +111,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   bool downmix_;
   DALIDataType dtype_;
   float max_duration_ = 0.0;
+  bool normalize_text_ = false;
 
   kernels::signal::resampling::Resampler resampler_;
 };

@@ -26,7 +26,7 @@ std::string audio_data_root = make_string(testing::dali_extra_path(), "/db/audio
 
 TEST(NemoAsrLoaderTest, ParseManifest) {
   std::stringstream ss;
-  ss << R"code({"audio_filepath": "path/to/audio1.wav", "duration": 1.45, "text": "A B CD"})code" << std::endl;
+  ss << R"code({"audio_filepath": "path/to/audio1.wav", "duration": 1.45, "text": "     A ab B C D   "})code" << std::endl;
   ss << R"code({"audio_filepath": "path/to/audio2.wav", "duration": 2.45, "offset": 1.03, "text": "C DA B"})code" << std::endl;
   ss << R"code({"audio_filepath": "path/to/audio3.wav", "duration": 3.45})code" << std::endl;
   std::vector<NemoAsrEntry> entries;
@@ -36,7 +36,7 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
   EXPECT_NEAR(1.45, entries[0].duration, 1e-7);
   EXPECT_NEAR(0.0, entries[0].offset, 1e-7);
-  EXPECT_EQ("A B CD", entries[0].text);
+  EXPECT_EQ("     A ab B C D   ", entries[0].text);
 
   EXPECT_EQ("path/to/audio2.wav", entries[1].audio_filepath);
   EXPECT_NEAR(2.45, entries[1].duration, 1e-7);
@@ -51,6 +51,29 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   entries.clear();
   ss.clear();
   ss.seekg(0);
+
+  detail::ParseManifest(entries, ss, 0.0f, 0.0f, true);
+  ASSERT_EQ(3, entries.size());
+
+  EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
+  EXPECT_NEAR(1.45, entries[0].duration, 1e-7);
+  EXPECT_NEAR(0.0, entries[0].offset, 1e-7);
+  EXPECT_EQ("a ab b c d", entries[0].text);
+
+  EXPECT_EQ("path/to/audio2.wav", entries[1].audio_filepath);
+  EXPECT_NEAR(2.45, entries[1].duration, 1e-7);
+  EXPECT_NEAR(1.03, entries[1].offset, 1e-7);
+  EXPECT_EQ("c da b", entries[1].text);
+
+  EXPECT_EQ("path/to/audio3.wav", entries[2].audio_filepath);
+  EXPECT_NEAR(3.45, entries[2].duration, 1e-7);
+  EXPECT_NEAR(0.0, entries[2].offset, 1e-7);
+  EXPECT_EQ("", entries[2].text);
+
+  entries.clear();
+  ss.clear();
+  ss.seekg(0);
+
   detail::ParseManifest(entries, ss, 2.0f, 3.0f);  // first and third sample should be ignored
   ASSERT_EQ(1, entries.size());
   EXPECT_EQ("path/to/audio2.wav", entries[0].audio_filepath);
@@ -66,14 +89,14 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   entries.clear();
   ss.clear();
   ss.seekg(0);
-  detail::ParseManifest(entries, ss, 0.0, 2.44999f);  // second sample has a duration of exactly 2.45s
+  detail::ParseManifest(entries, ss, 0.0, 2.44999f);
   ASSERT_EQ(1, entries.size());
   EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
 }
 
 TEST(NemoAsrLoaderTest, WrongManifestPath) {
   auto spec = OpSpec("NemoAsrReader")
-                  .AddArg("manifest_filepath", "./wrong/file.txt")
+                  .AddArg("manifest_filepaths", std::vector<std::string>{"./wrong/file.txt"})
                   .AddArg("batch_size", 32)
                   .AddArg("device_id", -1);
   NemoAsrLoader loader(spec);
@@ -94,7 +117,7 @@ TEST(NemoAsrLoaderTest, ParseManifestContent) {
   tempfile(manifest_filepath, "{ broken_json ]");
 
   auto spec = OpSpec("NemoAsrReader")
-                  .AddArg("manifest_filepath", manifest_filepath)
+                  .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
                   .AddArg("batch_size", 32)
                   .AddArg("device_id", -1);
 
@@ -163,7 +186,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
 
   {
     auto spec = OpSpec("NemoAsrReader")
-                    .AddArg("manifest_filepath", manifest_filepath)
+                    .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
                     .AddArg("downmix", false)
                     .AddArg("dtype", DALI_INT16)
                     .AddArg("batch_size", 32)
@@ -180,7 +203,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
 
   {
     auto spec = OpSpec("NemoAsrReader")
-                    .AddArg("manifest_filepath", manifest_filepath)
+                    .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
                     .AddArg("downmix", true)
                     .AddArg("dtype", DALI_FLOAT)
                     .AddArg("batch_size", 32)
@@ -208,7 +231,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     AsrSample sample;
     {
       auto spec = OpSpec("NemoAsrReader")
-                      .AddArg("manifest_filepath", manifest_filepath)
+                      .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
                       .AddArg("downmix", true)
                       .AddArg("sample_rate", static_cast<float>(sr_out))
                       .AddArg("dtype", DALI_FLOAT)
@@ -238,7 +261,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     AsrSample sample_int16;
     {
       auto spec = OpSpec("NemoAsrReader")
-                    .AddArg("manifest_filepath", manifest_filepath)
+                    .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
                     .AddArg("downmix", true)
                     .AddArg("sample_rate", static_cast<float>(sr_out))
                     .AddArg("dtype", DALI_INT16)

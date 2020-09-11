@@ -28,8 +28,31 @@ namespace dali {
 
 namespace detail {
 
+std::string trim(const std::string& str,
+                 const std::string& whitespace = " \t") {
+  const auto str_begin = str.find_first_not_of(whitespace);
+  if (str_begin == std::string::npos)
+    return {};  // no content
+  const auto str_end = str.find_last_not_of(whitespace);
+  const auto str_len = str_end - str_begin + 1;
+  return str.substr(str_begin, str_len);
+}
+
+std::string NormalizeText(std::string& text) {
+  // Remove trailing and leading whitespace
+  auto norm_text = trim(text);
+
+  // Convert to lowercase
+  for (auto &c : norm_text) {
+    if (std::isupper(c)) {
+      c = std::tolower(c);
+    }
+  }
+  return norm_text;
+}
+
 void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_file,
-                   float min_duration, float max_duration) {
+                   float min_duration, float max_duration, bool normalize_text) {
   std::string line;
   while (std::getline(manifest_file, line)) {
     detail::LookaheadParser parser(const_cast<char*>(line.c_str()));
@@ -49,6 +72,8 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
         DALI_WARN("Handing of ``offset`` is not yet implemented and will be ignored.");
       } else if (0 == detail::safe_strcmp(key, "text")) {
         entry.text = parser.GetString();
+        if (normalize_text)
+          entry.text = NormalizeText(entry.text);
       } else {
         parser.SkipValue();
       }
@@ -70,10 +95,12 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
 }  // namespace detail
 
 void NemoAsrLoader::PrepareMetadataImpl() {
-  std::ifstream fstream(manifest_filepath_);
-  DALI_ENFORCE(fstream,
-               make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath_, "\""));
-  detail::ParseManifest(entries_, fstream, max_duration_);
+  for (auto &manifest_filepath : manifest_filepaths_) {
+    std::ifstream fstream(manifest_filepath);
+    DALI_ENFORCE(fstream,
+                 make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath, "\""));
+    detail::ParseManifest(entries_, fstream, max_duration_);
+  }
 
   DALI_ENFORCE(Size() > 0, "No files found.");
   if (shuffle_) {
