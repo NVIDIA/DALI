@@ -332,10 +332,9 @@ class DALIGenericIterator(_DaliBaseIterator):
                 p.release_outputs()
                 p.schedule_run()
 
-        self._check_drop_last()
+        self._advance_and_check_drop_last()
 
         if self._reader_name:
-            self._counter += self.batch_size
             if_drop, left = self._remove_padded()
             if np.any(if_drop):
                 output = []
@@ -347,7 +346,6 @@ class DALIGenericIterator(_DaliBaseIterator):
                 return output
 
         else:
-            self._counter += self._num_gpus * self.batch_size
             if self._last_batch_policy == LastBatchPolicy.PARTIAL and (self._counter > self._size) and self._size > 0:
                 # First calculate how much data is required to
                 # return exactly self._size entries.

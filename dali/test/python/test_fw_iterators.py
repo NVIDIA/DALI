@@ -263,7 +263,14 @@ def check_iterator_results(pad, pipes_number, shards_num, out_set, last_batch_po
 
     if pad and pipes_number == shards_num:
         assert len(set.intersection(*out_set)) == 0, "Shards should not overlaps in the epoch"
-    if last_batch_policy == LastBatchPolicy.PARTIAL:
+    if last_batch_policy == LastBatchPolicy.DROP:
+        if pad:
+            assert len(set.union(*out_set)) <= sum([len(v) for v in img_ids_list]), "Data returned from shard should not duplicate values"
+        for id_list, id_set, id in zip(img_ids_list, out_set, ids):
+            shard_size = int((id + 1) *data_set_size / shards_num) - int(id  *data_set_size / shards_num)
+            assert len(id_list) <= shard_size
+            assert len(id_set) <= shard_size
+    elif last_batch_policy == LastBatchPolicy.PARTIAL:
         if pad:
             assert len(set.union(*out_set)) == sum([len(v) for v in img_ids_list]), "Data returned from shard should not duplicate values"
         for id_list, id_set, id in zip(img_ids_list, out_set, ids):
@@ -318,13 +325,22 @@ def check_mxnet_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
     pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
                                 shuffle_after_epoch=False, pad_last_batch=pad) for id in range(pipes_number)]
-    dali_train_iter = MXNetIterator(pipes, [("ids", MXNetIterator.DATA_TAG)], reader_name="Reader", last_batch_policy=last_batch_policy)
+    for p in pipes:
+        p.build()
+
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
     ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0
+
+    try:
+        dali_train_iter = MXNetIterator(pipes, [("ids", MXNetIterator.DATA_TAG)], reader_name="Reader", last_batch_policy=last_batch_policy)
+    except StopIteration:
+        assert batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP
+        return
+
     for _ in range(iters):
         out_set = []
         img_ids_list = [[] for _ in range(pipes_number)]
@@ -351,7 +367,7 @@ def test_mxnet_iterator_pass_reader_name():
         for batch_size in [3, 5, 7]:
             for stick_to_shard in [False, True]:
                 for pad in [True, False]:
-                    for last_batch_policy in [LastBatchPolicy.PARTIAL, LastBatchPolicy.FILL]:
+                    for last_batch_policy in [LastBatchPolicy.PARTIAL, LastBatchPolicy.FILL, LastBatchPolicy.DROP]:
                         for iters in [1, 2, 3, 2*shards_num]:
                             for pipes_number in [1, shards_num]:
                                 yield check_mxnet_iterator_pass_reader_name, shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy
@@ -466,13 +482,18 @@ def check_gluon_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
     pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
                                 shuffle_after_epoch=False, pad_last_batch=pad) for id in range(pipes_number)]
-    dali_train_iter = GluonIterator(pipes, reader_name="Reader", last_batch_policy=last_batch_policy)
+    for p in pipes:
+        p.build()
+
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
     ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0
+
+    dali_train_iter = GluonIterator(pipes, reader_name="Reader", last_batch_policy=last_batch_policy)
+
     for _ in range(iters):
         out_set = []
         img_ids_list = [[] for _ in range(pipes_number)]
@@ -486,8 +507,14 @@ def check_gluon_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
             sample_counter += batch_size
         dali_train_iter.reset()
         for id in range(pipes_number):
-            img_ids_list[id] = np.concatenate(img_ids_list[id])
-            out_set.append(set(img_ids_list[id]))
+            assert (batch_size > data_set_size // shards_num and \
+                    last_batch_policy == LastBatchPolicy.DROP) or len(img_ids_list[id])
+            if len(img_ids_list[id]):
+                img_ids_list[id] = np.concatenate(img_ids_list[id])
+                out_set.append(set(img_ids_list[id]))
+
+        if len(out_set) == 0 and last_batch_policy == LastBatchPolicy.DROP:
+            return
 
         ret = check_iterator_results(pad, pipes_number, shards_num, out_set, last_batch_policy, img_ids_list,
                                      ids, data_set_size, sample_counter, per_gpu_counter, stick_to_shard,
@@ -500,7 +527,7 @@ def test_gluon_iterator_pass_reader_name():
         for batch_size in [3, 5, 7]:
             for stick_to_shard in [False, True]:
                 for pad in [True, False]:
-                    for last_batch_policy in [LastBatchPolicy.PARTIAL, LastBatchPolicy.FILL]:
+                    for last_batch_policy in [LastBatchPolicy.PARTIAL, LastBatchPolicy.FILL, LastBatchPolicy.DROP]:
                         for iters in [1, 2, 3, 2*shards_num]:
                             for pipes_number in [1, shards_num]:
                                 yield check_gluon_iterator_pass_reader_name, shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy
@@ -685,13 +712,23 @@ def check_pytorch_iterator_pass_reader_name(shards_num, pipes_number, batch_size
     pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
                                 shuffle_after_epoch=False, pad_last_batch=pad) for id in range(pipes_number)]
-    dali_train_iter = PyTorchIterator(pipes, output_map=["data"], reader_name="Reader", last_batch_policy=last_batch_policy)
+
+    for p in pipes:
+        p.build()
+
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
     ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0
+
+    try:
+        dali_train_iter = PyTorchIterator(pipes, output_map=["data"], reader_name="Reader", last_batch_policy=last_batch_policy)
+    except StopIteration:
+        assert batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP
+        return
+
     for _ in range(iters):
         out_set = []
         img_ids_list = [[] for _ in range(pipes_number)]
@@ -716,7 +753,7 @@ def test_pytorch_iterator_pass_reader_name():
         for batch_size in [3, 5, 7]:
             for stick_to_shard in [False, True]:
                 for pad in [True, False]:
-                    for last_batch_policy in [LastBatchPolicy.PARTIAL, LastBatchPolicy.FILL]:
+                    for last_batch_policy in [LastBatchPolicy.PARTIAL, LastBatchPolicy.FILL, LastBatchPolicy.DROP]:
                         for iters in [1, 2, 3, 2*shards_num]:
                             for pipes_number in [1, shards_num]:
                                 yield check_pytorch_iterator_pass_reader_name, shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy
@@ -806,13 +843,23 @@ def check_paddle_iterator_pass_reader_name(shards_num, pipes_number, batch_size,
     pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
                                 shuffle_after_epoch=False, pad_last_batch=pad) for id in range(pipes_number)]
-    dali_train_iter = PaddleIterator(pipes, output_map=["data"], reader_name="Reader", last_batch_policy=last_batch_policy)
+
+    for p in pipes:
+        p.build()
+
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
     ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0
+
+    try:
+        dali_train_iter = PaddleIterator(pipes, output_map=["data"], reader_name="Reader", last_batch_policy=last_batch_policy)
+    except StopIteration:
+        assert batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP
+        return
+
     for _ in range(iters):
         out_set = []
         img_ids_list = [[] for _ in range(pipes_number)]
@@ -837,7 +884,7 @@ def test_paddle_iterator_pass_reader_name():
         for batch_size in [3, 5, 7]:
             for stick_to_shard in [False, True]:
                 for pad in [True, False]:
-                    for last_batch_policy in [LastBatchPolicy.PARTIAL, LastBatchPolicy.FILL]:
+                    for last_batch_policy in [LastBatchPolicy.PARTIAL, LastBatchPolicy.FILL, LastBatchPolicy.DROP]:
                         for iters in [1, 2, 3, 2*shards_num]:
                             for pipes_number in [1, shards_num]:
                                 yield check_paddle_iterator_pass_reader_name, shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy

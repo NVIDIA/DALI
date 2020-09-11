@@ -339,11 +339,10 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 p.release_outputs()
                 p.schedule_run()
 
-        self._check_drop_last()
+        self._advance_and_check_drop_last()
 
         copy_db_index = self._current_data_batch
         if self._reader_name:
-            self._counter += self.batch_size
             if_drop, left = self._remove_padded()
             if np.any(if_drop):
                 left = [self.batch_size - l for l in left]
@@ -354,8 +353,6 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                     batch[copy_db_index].pad = 0
 
         else:
-            self._counter += self._num_gpus * self.batch_size
-
             # padding the last batch
             if self._last_batch_policy == LastBatchPolicy.PARTIAL and (self._counter > self._size) and self._size > 0:
                 # this is the last batch and we need to pad
@@ -683,8 +680,9 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 p.release_outputs()
                 p.schedule_run()
 
+        self._advance_and_check_drop_last()
+
         if self._reader_name:
-            self._counter += self.batch_size
             if_drop, left = self._remove_padded()
             if np.any(if_drop):
                 output = []
@@ -696,7 +694,6 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 return output
 
         else:
-            self._counter += self._num_gpus * self.batch_size
             if self._last_batch_policy == LastBatchPolicy.PARTIAL and (self._counter > self._size) and self._size > 0:
                 # First calculate how much data is required to return exactly self._size entries.
                 diff = self._num_gpus * self.batch_size - (self._counter - self._size)

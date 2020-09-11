@@ -17,7 +17,7 @@ import math
 import logging
 import numpy as np
 import warnings
-from enum import Enum
+from enum import Enum, unique
 
 def _iterator_deprecation_warning():
     warnings.warn("Please set `reader_name` and don't set last_batch_padded and size manually " +
@@ -26,14 +26,20 @@ def _iterator_deprecation_warning():
                   "documentation for more details.",
                   Warning, stacklevel=2)
 
+@unique
 class LastBatchPolicy(Enum):
     """
         Describes the last batch policy behavior when there are no enough samples in the epoch
         to fully fill it
+
+        FILL - Fills the last batch with the data wrapping up the data set. The precise
+               behavior depends on the reader which may duplicate the last sample to fill the batch
+        DROP - If the last batch cannot be fully filled by the data from given epoch it is dropped
+        PARTIAL - Returns the part of the last batch filled with the data relevant to given epoch
     """
-    FILL = "Fills the last batch with the data wrapping up the data set. The precise behavior depends on the reader which may duplicate the last sample to fill the batch"
-    DROP = "If the last batch cannot be fully filled by the data from given epoch it is dropped"
-    PARTIAL = "Returns the part of the last batch filled with the data relevant to given epoch"
+    FILL = 0
+    DROP = 1
+    PARTIAL = 2
 
 class _DaliBaseIterator(object):
     """
@@ -233,15 +239,22 @@ class _DaliBaseIterator(object):
             if_drop = np.less(left, self.batch_size)
         return if_drop, left
 
-    def _check_drop_last(self):
+    def _advance_and_check_drop_last(self):
         """
         Checks if the current batch is not fully filled and if drop it
         """
         # check if for given initial count in any GPU with the current value of the samples read
         # if we read one more batch would we overflow
-        if self._last_batch_policy == LastBatchPolicy.DROP:
-            if max(self._counter_per_gpu) + self._counter + self.batch_size > self._shard_sizes_per_gpu:
-                raise StopIteration
+        if self._reader_name:
+            self._counter += self.batch_size
+            if self._last_batch_policy == LastBatchPolicy.DROP:
+                if np.any(self._counter_per_gpu + self._counter > self._shard_sizes_per_gpu):
+                    raise StopIteration
+        else:
+            self._counter += self._num_gpus * self.batch_size
+            if self._last_batch_policy == LastBatchPolicy.DROP:
+                if self._counter > self._size:
+                    raise StopIteration
 
     def reset(self):
         """
