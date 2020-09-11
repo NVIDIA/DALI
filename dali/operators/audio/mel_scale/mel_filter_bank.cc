@@ -40,9 +40,7 @@ the fft bin index and the window index, respectively.
     .AddOptionalArg("freq_high",
       R"code(The maximum frequency.
 
-If this value is not provided, the following formula is used::
-
-  sample_rate /2
+If this value is not provided, ``sample_rate /2`` is used.
 )code",
       0.0f)
     .AddOptionalArg("normalize",

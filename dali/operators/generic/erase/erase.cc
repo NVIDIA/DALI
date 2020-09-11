@@ -27,68 +27,68 @@
 namespace dali {
 
 DALI_SCHEMA(Erase)
-  .DocStr(R"code(Erases one or more regions from the image.
+  .DocStr(R"code(Erases one or more regions from the input tensors.
 
-The region is specified by an *anchor* (starting point) and a *shape* (dimensions).
+The region is specified by an ``anchor`` (starting point) and a ``shape`` (dimensions).
 Only the relevant dimensions are specified.
 Not specified dimensions are treated as if the entire range of the axis was provided.
-To specify multiple regions, *anchor* and *shape* represent multiple points consecutively
-(for example, *anchor* = (y0, x0, y1, x1, ...) and *shape* = (h0, w0, h1, w1, ...)).
-The *anchor* and *shape* arguments are interpreted based on the value of the *axis_names*
-argument, or, alternatively, the value of the *axes* argument. If no *axis_names* or
-*axes* arguments are provided, all dimensions except ``C`` (channels) must be specified.
+To specify multiple regions, ``anchor`` and ``shape`` represent multiple points consecutively
+(for example, ``anchor`` = (y0, x0, y1, x1, ...) and ``shape`` = (h0, w0, h1, w1, ...)).
+The ``anchor`` and ``shape`` arguments are interpreted based on the value of the ``axis_names``
+argument, or, alternatively, the value of the ``axes`` argument. If no ``axis_names`` or
+``axes`` arguments are provided, all dimensions except ``C`` (channels) must be specified.
 
 **Example 1:**
 
-*anchor* = (10, 20), *shape* = (190, 200), *axis_names* = ``HW``, *fill_value* = 0
+``anchor`` = (10, 20), ``shape`` = (190, 200), ``axis_names`` = "HW", ``fill_value`` = 0
 
-input: *layout* = ``HWC``, *shape* = (300, 300, 3)
+input: ``layout`` = "HWC", ``shape`` = (300, 300, 3)
 
 The erase region covers the range between 10 and 200 in the vertical dimension (height)
 and between 20 and 220 in the horizontal dimension (width). The range for the channel
 dimension was not specified, so it is between 0 and 3.
-Here is the example::
+What gives::
 
    output[y, x, c] = 0   if 20 <= x < 220 and 10 <= y < 200
    output[y, x, c] = input[y, x, c]  otherwise
 
 **Example 2:**
 
-*anchor* = (10, 250), *shape* = (20, 30), *axis_names* = ``W``, *fill_value* = (118, 185, 0)
+``anchor`` = (10, 250), ``shape`` = (20, 30), ``axis_names`` = "W", ``fill_value`` = (118, 185, 0)
 
-input: *layout* = ``HWC``, *shape* = (300, 300, 3)
+input: ``layout`` = "HWC", ``shape`` = (300, 300, 3)
 
 Two erase regions are provided, which covers two vertical bands that range from x=(10, 30)
 and x=(250, 280), respectively. Each pixel in the erased regions is filled with a multi-channel
 value (118, 185, 0).
-Here is the example::
+What gives::
 
     output[y, x, :] = (118, 185, 0)   if 10 <= x < 30 or 250 <= x < 280
     output[y, x, :] = input[y, x, :]  otherwise
 
 **Example 3:**
 
-*anchor* = (0.15, 0.15), *shape* = (0.3, 0.3), *axis_names* = ``HW``, *fill_value* = 100, *normalized* = True
+``anchor`` = (0.15, 0.15), ``shape`` = (0.3, 0.3), ``axis_names`` = "HW", ``fill_value`` = 100, ``normalized`` = True
 
-input: *layout* = ``HWC``, *shape* = (300, 300, 3)
+input: ``layout`` = "HWC", ``shape`` = (300, 300, 3)
 
 One erase region with normalized coordinates in the height, and the width dimensions is provided.
 A fill value is provided for all the channels. The coordinates can be transformed to the absolute by
 multiplying by the input shape.
-Here is the example::
+What gives::
 
     output[y, x, c] = 100             if 0.15 * 300 <= x < (0.3 + 0.15) * 300 and 0.15 * 300 <= y < (0.3 + 0.15) * 300
     output[y, x, c] = input[y, x, c]  otherwise
 
 **Example 4:**
-*anchor* = (0.15, 0.15), *shape* = (20, 30), *normalized_anchor* = True, *normalized_shape* = False
+``anchor`` = (0.15, 0.15), ``shape`` = (20, 30), ``normalized_anchor`` = True, ``normalized_shape`` = False
 
-input: *layout* = ``HWC``, *shape* = (300, 300, 3)
+input: ``layout`` = "HWC", ``shape`` = (300, 300, 3)
 
 One erase region with an anchor is specified in normalized coordinates and the shape in absolute
 coordinates. Since no axis_names is provided, the anchor and shape must contain all dimensions
-except ``C`` (channels).
-Here is the example::
+except "C" (channels).
+What gives::
 
     output[y, x, c] = 0               if 0.15 * 300 <= x < (0.15 * 300) + 20 and (0.15 * 300) <= y < (0.15 * 300) + 30
     output[y, x, c] = input[y, x, c]  otherwise
@@ -111,14 +111,14 @@ should be provided.)code",
     R"code(Order of dimensions used for *anchor* and *shape* arguments, as dimension indexes.
 
 For instance, axes=(1, 0) means the coordinates in *anchor* and *shape* refer
-to axes 1 and 0 in that order.)code",
+to axes 1 and 0 in that particular order.)code",
     std::vector<int>{1, 0})
   .AddOptionalArg("axis_names",
     R"code(Order of dimensions that are used for the anchor and shape arguments,
 as described in the layout.
 
 For instance, axis_names="HW" means that the coordinates in *anchor* and *shape*
-refer to dimensions H (height) and W (width) in that order.
+refer to dimensions H (height) and W (width) in that particular order.
 
 .. note::
     *axis_name*s has a higher priority than *axes*.)code",

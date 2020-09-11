@@ -45,8 +45,9 @@ the ``synchronize_stream`` flag can be set to False.)code")
     .AddOptionalArg("synchronize_stream",
         R"code(Ensures that DALI synchronizes its CUDA stream before calling the Python function.
 
-**Important**: If the called function schedules device work to the stream that is used by DALI,
-this argument must be set to False.)code", true)
+.. warning::
+  This argument can be set to False only if the called function schedules device
+  work to the stream that is used by DALI.)code", true)
     .AddOptionalArg("batch_processing",
                     R"code(Determines whether the function is invoked once per batch or
 separately for every sample in the batch.

@@ -22,13 +22,14 @@ DALI_REGISTER_OPERATOR(OneHot, OneHot, CPU);
 
 
 DALI_SCHEMA(OneHot)
-  .DocStr(R"code(Produces a tensor that represents the hot encoding of the specified input.
+  .DocStr(R"code(Produces one-hot encoding of the provided input.
 
-If the input is not a scalar, the operator will fail.)code")
+If the input is not a scalar (tensor consisting from one value per sample), the operator
+will fail.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("num_classes", R"code(Number of all classes in the data.)code", 0)
-  .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output.)code", DALI_FLOAT)
+  .AddOptionalArg(arg_names::kDtype, R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("on_value",
                   R"code(Value that will be used to fill the output when ``input[j] = i``.
 

@@ -19,9 +19,9 @@
 namespace dali {
 
 DALI_SCHEMA(AudioDecoder)
-  .DocStr(R"code(Decodes waveforms from raw audio files.
+  .DocStr(R"code(Decodes waveforms from encoded audio data.
 
-It supports most of well-known audio formats, such as wav, flac, ogg, and so on.
+It supports following audio formats: wav, flac and ogg.
 This operator produces the following outputs:
 
 * output[0]: A batch of decoded data
@@ -33,11 +33,8 @@ This operator produces the following outputs:
 
 If downmixing is turned on, the decoder decoder output is 1D.
 If downmixing is turned off, it produces 2D output with interleaved channels.", false)code", false)
-  .AddOptionalArg("dtype", R"code(The following types are supported:
-
-- `INT16`
-- `INT32`
-- `FLOAT`)code", DALI_FLOAT)
+  .AddOptionalArg("dtype", R"code(Output data type. Supported types: ``INT16``, ``INT32``,
+``FLOAT``.)code", DALI_FLOAT)
   .AddOptionalArg("sample_rate",
           "If specified, the target sample rate, in Hz, to which the audio is resampled.",
           0.0f, true)

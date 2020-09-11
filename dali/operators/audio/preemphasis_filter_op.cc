@@ -21,11 +21,16 @@
 namespace dali {
 
 DALI_SCHEMA(PreemphasisFilter)
-    .DocStr(R"code(This operator applies preemphasis filter to the input data.
+    .DocStr(R"code(Applies preemphasis filter to the input data.
 
 This filter, in simple form, can be expressed by the formula::
 
-  Y(t) = X[t] - coeff * X[t-1]
+  Y[t] = X[t] - coeff * X[t-1]
+
+Where:
+
+  - ``X`` is the input singal.
+  - ``Y`` is the output signal.
 
 )code")
     .NumInput(1)

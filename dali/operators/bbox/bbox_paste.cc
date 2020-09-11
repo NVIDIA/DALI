@@ -20,14 +20,14 @@ namespace dali {
 
 DALI_SCHEMA(BBoxPaste)
     .DocStr(
-        R"code(This operator transforms bounding boxes so that the boxes  remain in the same
+        R"code(Transforms bounding boxes so that the boxes remain in the same
 place in the image after the image is pasted on a larger canvas.
 
-Here are the corner coordinates::
+Corner coordinates are transformed according to following formula::
 
   (x', y') = (x/ratio + paste_x', y/ratio + paste_y')
 
-Here are the box sizes::
+Box sizes (if ``xywh`` is used) are transformed according to following formula::
 
   (w', h') = (w/ratio, h/ratio)
 
@@ -45,8 +45,7 @@ canvas and ``(1,1)`` aligns it to bottom-right.
       R"code(Ratio of the canvas size to the input size; the value must be at least 1.)code",
       DALI_FLOAT, true)
   .AddOptionalArg("ltrb",
-              R"code(Set to True for two-point (ltrb) and set to False for the width-height
-representation.)code",
+              R"code(True for ``ltrb`` or False for ``xywh``.)code",
               false, false)
   .AddOptionalArg("paste_x",
       R"code(Horizontal position of the paste in image coordinates (0.0 - 1.0).)code",

@@ -22,12 +22,13 @@ DALI_SCHEMA(NonsilentRegion)
   .DocStr(R"code(Performs the leading and trailing silence detection in an audio buffer.
 
 The operator returns the beginning and length of the non-silent region by comparing the
-short term power of the signal with a silence cut-off threshold. The signal is considered to
-be silent when the ``short_term_power_db`` is less than the ``cutoff_db`` width::
+short term power calculated for ``window_length`` of the signal with a silence cut-off threshold.
+The signal is considered to be silent when the ``short_term_power_db`` is less than
+the ``cutoff_db`` where::
 
   short_term_power_db = 10 * log10( short_term_power / reference_power )
 
-Unless specified otherwise, ``reference_power`` is typically the maximum of the signal.
+Unless specified otherwise, ``reference_power`` is the maximum of the signal.
 
 Inputs and outputs:
 
@@ -36,13 +37,13 @@ Inputs and outputs:
 * **Output 1** - Length of nonsilent region.
 
 .. note::
-  If ``Outputs[1] == 0``, ``Outputs[0]``, the value is undefined.)code")
+  If ``Outputs[1] == 0``,  the value in ``Outputs[0]`` is undefined.)code")
   .NumInput(1)
   .NumOutput(detail::kNumOutputs)
   .AddOptionalArg("cutoff_db",
                   R"code(The threshold, in dB, below which the signal is considered silent.)code",
                   -60.f)
-  .AddOptionalArg("window_length", R"code(Size of the sliding window used in the calculation of
+  .AddOptionalArg("window_length", R"code(Size of the sliding window used to calculate of
 the short-term power of the signal.)code", 2048)
   .AddOptionalArg("reference_power",
                   R"code(The reference power that is used to convert the signal to dB.

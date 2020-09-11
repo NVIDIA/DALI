@@ -34,9 +34,9 @@ DALI_SCHEMA(ImageDecoderAttr)
   .AddOptionalArg("hybrid_huffman_threshold",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-Images with number of pixels ``(height * width)`` that are higher than this threshold will use the
-nvJPEG hybrid Huffman decoder. Images that are lower than the threshold will use the nvJPEG
-full host huffman decoder.
+Images with number of pixels ``height * width`` that are higher than this threshold will use the
+nvJPEG hybrid Huffman decoder. Images that have fewer pixels will use the nvJPEG host-side
+Huffman decoder.
 
 .. note::
   Hybrid Huffman decoder still largely uses the CPU.)code",
@@ -57,7 +57,7 @@ allocation value that was printed in the statistics.)code",
   .AddOptionalArg("host_memory_padding",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-The padding for nvJPEG’s host memory allocations in bytes. This parameter helps you prevent
+The padding for nvJPEG’s host memory allocations, in bytes. This parameter helps to prevent
 the reallocation in nvJPEG when a larger image is encountered, and the internal buffer needs
 to be reallocated to decode the image.
 
@@ -76,13 +76,13 @@ the CPU cores Otherwise, the threads are free to be assigned to any CPU core by 
   .AddOptionalArg("split_stages",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-Splits into separated CPU stage and GPU stage operators.)code",
+If True, the operator will be split into two sub-stages: a CPU and GPU one.)code",
       false)
   .AddOptionalArg("use_chunk_allocator",
       R"code(**Experimental**, applies **only** to the ``mixed`` backend type.
 
 Uses the chunk pinned memory allocator and allocates a chunk of the
-``batch_size * prefetch_queue_depth`` size value during the construction and suballocates
+``batch_size * prefetch_queue_depth`` size during the construction and suballocates
 them at runtime. When ``split_stages`` is false, this argument is ignored.)code",
       false)
   .AddOptionalArg("use_fast_idct",
@@ -146,8 +146,8 @@ DALI_SCHEMA(ImageDecoderCrop)
 by constant window dimensions and a variable anchor.
 
 When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
-to optimize the decoding time and memory usage. When this argument is not supported, it will
-decode the entire image and crop the selected ROI.
+to optimize the decoding time and memory usage. When the ROI decoding is not supported for given
+image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
@@ -176,9 +176,9 @@ DALI_SCHEMA(ImageDecoderRandomCrop)
   .DocStr(R"code(Decodes images and extracts a random ROI with window dimensions that were
 generated from a range of valid ``aspect_ratio`` and ``area`` values.
 
-When possible, this operator uses ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*),
-which optimizes the decoding time and memory usage. When the operator is not supported,
-it decodes the entire image and crops the selected ROI.
+When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
+to optimize the decoding time and memory usage. When the ROI decoding is not supported for given
+image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
@@ -223,9 +223,9 @@ inputs will provide as many dimensions as were specified with arguments ``axis_n
 By default, the :meth:`nvidia.dali.ops.ImageDecoderSlice` operator uses normalized coordinates
 and "WH" order for the slice arguments.
 
-When possible, it will make use the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
-that optimizes decoding time and memory usage. If the decoding APIs are not supported,
-the operator will decode the entire image and crop the selected ROI.
+When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
+to optimize the decoding time and memory usage. When the ROI decoding is not supported for given
+image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using

@@ -126,9 +126,12 @@ Here is a list of the available cache types:
 
   The warm-up time for threshold policy is 1 epoch.
 * | ``largest``: stores the largest images that can fit in the cache.
-  | The warm-up time for largest policy is 2 epochs To use the caching, to limit the amount
-  | of unique images that are seen by the decoder in a multi node environment, we recommended
-  | that you use the stick_to_shard=True option with the reader operators.)code",
+  | The warm-up time for largest policy is 2 epochs
+
+  .. note::
+    To take advantage of caching, it is recommended to configure readers with `stick_to_shard=True`
+    to limit the amount of unique images seen by each decoder instance in a multi node environment.
+)code",
       std::string());
 
 }  // namespace dali

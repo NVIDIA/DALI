@@ -62,7 +62,7 @@ The samples are padded in the first axis to a minimum extent of 7.
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `align` = (4,)
 
 The samples are padded in the first axis to match the extent of the largest sample and the
-alignment requirements. Thelargest extent is 5, but it is extended to 8 to satisfy the
+alignment requirements. The largest extent is 5, but it is extended to 8 to satisfy the
 alignment requirements.
 
 ::
