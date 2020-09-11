@@ -217,7 +217,10 @@ Here are the iterator options:
 - | ``last_batch_padded``: Determines whether the tail of the data consists of data from the next
     shard (``False``) or is duplicated dummy data (``True``).
   | It is applicable when the shard size is not a multiple of the batch size,
-
+- | ``last_batch_policy`` - whether the last batch should be full no matter if shard size is
+    divisible by the batch size.
+  | Only partially filled with the data or dropped entirely if it
+    cannot be filled with the epoch data.
 
 Here is the formula to calculate the shard size for a shard ID:
 

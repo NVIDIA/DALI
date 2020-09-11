@@ -26,7 +26,7 @@ from paddle import fluid
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-from nvidia.dali.plugin.paddle import DALIClassificationIterator
+from nvidia.dali.plugin.paddle import DALIClassificationIterator, LastBatchPolicy
 
 
 class HybridTrainPipe(Pipeline):
@@ -206,13 +206,13 @@ def main():
     pipe.build()
     sample_per_shard = len(pipe) // FLAGS.world_size
     train_loader = DALIClassificationIterator(pipe, reader_name="Reader",
-                                             fill_last_batch=False)
+                                              last_batch_policy=LastBatchPolicy.PARTIAL)
 
     if FLAGS.local_rank == 0:
         pipe = HybridValPipe()
         pipe.build()
         val_loader = DALIClassificationIterator(pipe, reader_name="Reader",
-                                                fill_last_batch=False)
+                                                last_batch_policy=LastBatchPolicy.PARTIAL)
 
     place = fluid.CUDAPlace(FLAGS.device_id)
     exe = fluid.Executor(place)
