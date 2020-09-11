@@ -45,7 +45,7 @@ struct AsrSample {
 
 namespace detail {
 
-DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream &manifest_file);
+DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream &manifest_file, float max_duration = 0.0f);
 
 }  // namespace detail
 
@@ -58,7 +58,8 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
         sample_rate_(spec.GetArgument<float>("sample_rate")),
         quality_(spec.GetArgument<float>("quality")),
         downmix_(spec.GetArgument<bool>("downmix")),
-        dtype_(spec.GetArgument<DALIDataType>("dtype")) {
+        dtype_(spec.GetArgument<DALIDataType>("dtype")),
+        max_duration_(spec.GetArgument<float>("max_duration")) {
     /*
      * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks
      * differently after each epoch so coexistence with `stick_to_shard` doesn't make any sense
@@ -105,6 +106,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   float quality_;
   bool downmix_;
   DALIDataType dtype_;
+  float max_duration_ = 0.0;
 
   kernels::signal::resampling::Resampler resampler_;
 };

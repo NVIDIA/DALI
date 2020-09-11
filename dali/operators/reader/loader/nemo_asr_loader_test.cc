@@ -47,6 +47,29 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   EXPECT_NEAR(3.45, entries[2].duration, 1e-7);
   EXPECT_NEAR(0.0, entries[2].offset, 1e-7);
   EXPECT_EQ("", entries[2].text);
+
+  entries.clear();
+  ss.clear();
+  ss.seekg(0);
+  detail::ParseManifest(entries, ss, 3.0f);  // third sample should be ignored
+  ASSERT_EQ(2, entries.size());
+  EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
+  EXPECT_EQ("path/to/audio2.wav", entries[1].audio_filepath);
+
+  entries.clear();
+  ss.clear();
+  ss.seekg(0);
+  detail::ParseManifest(entries, ss, 2.45f);  // second sample has a duration of exactly 2.45s
+  ASSERT_EQ(2, entries.size());
+  EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
+  EXPECT_EQ("path/to/audio2.wav", entries[1].audio_filepath);
+
+  entries.clear();
+  ss.clear();
+  ss.seekg(0);
+  detail::ParseManifest(entries, ss, 2.44999f);  // second sample has a duration of exactly 2.45s
+  ASSERT_EQ(1, entries.size());
+  EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
 }
 
 TEST(NemoAsrLoaderTest, WrongManifestPath) {

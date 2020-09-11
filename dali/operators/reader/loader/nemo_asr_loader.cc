@@ -28,7 +28,8 @@ namespace dali {
 
 namespace detail {
 
-void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_file) {
+void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_file,
+                   float max_duration) {
   std::string line;
   while (std::getline(manifest_file, line)) {
     detail::LookaheadParser parser(const_cast<char*>(line.c_str()));
@@ -45,6 +46,7 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
         entry.duration = parser.GetDouble();
       } else if (0 == detail::safe_strcmp(key, "offset")) {
         entry.offset = parser.GetDouble();
+        DALI_WARN("Handing of ``offset`` is not yet implemented and will be ignored.");
       } else if (0 == detail::safe_strcmp(key, "text")) {
         entry.text = parser.GetString();
       } else {
@@ -55,6 +57,11 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
       DALI_WARN(make_string("Skipping manifest line without an audio filepath: ", line));
       continue;
     }
+
+    if (max_duration > 0.0f && entry.duration > max_duration) {
+      continue;  // skipping sample
+    }
+
     entries.emplace_back(std::move(entry));
   }
 }
@@ -65,7 +72,7 @@ void NemoAsrLoader::PrepareMetadataImpl() {
   std::ifstream fstream(manifest_filepath_);
   DALI_ENFORCE(fstream,
                make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath_, "\""));
-  detail::ParseManifest(entries_, fstream);
+  detail::ParseManifest(entries_, fstream, max_duration_);
 
   DALI_ENFORCE(Size() > 0, "No files found.");
   if (shuffle_) {
