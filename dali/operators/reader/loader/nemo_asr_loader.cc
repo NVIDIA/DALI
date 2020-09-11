@@ -29,7 +29,7 @@ namespace dali {
 namespace detail {
 
 void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_file,
-                   float max_duration) {
+                   float min_duration, float max_duration) {
   std::string line;
   while (std::getline(manifest_file, line)) {
     detail::LookaheadParser parser(const_cast<char*>(line.c_str()));
@@ -58,7 +58,8 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
       continue;
     }
 
-    if (max_duration > 0.0f && entry.duration > max_duration) {
+    if ((max_duration > 0.0f && entry.duration > max_duration) ||
+        (min_duration > 0.0f && entry.duration < min_duration)) {
       continue;  // skipping sample
     }
 

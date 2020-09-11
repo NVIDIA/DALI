@@ -66,6 +66,11 @@ This reader produces between 1 and 3 outputs:
   .AddOptionalArg("dtype",
     "Type of the output data. Supports types: `INT16`, `INT32`, `FLOAT`",
     DALI_FLOAT)
+  .AddOptionalArg("min_duration",
+    "It a value greater than 0 is provided, it specifies the minimum allowed duration, "
+    "in seconds, of the audio samples.\n"
+    "Samples with a duration shorter than this value will be ignored.\n",
+    0.0f)
   .AddOptionalArg("max_duration",
     "It a value greater than 0 is provided, it specifies the maximum allowed duration, "
     "in seconds, of the audio samples.\n"

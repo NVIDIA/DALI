@@ -45,7 +45,8 @@ struct AsrSample {
 
 namespace detail {
 
-DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream &manifest_file, float max_duration = 0.0f);
+DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream &manifest_file,
+                              float min_duration = 0.0f, float max_duration = 0.0f);
 
 }  // namespace detail
 
