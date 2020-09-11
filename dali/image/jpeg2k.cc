@@ -29,13 +29,17 @@ constexpr block_type_t jp2_header_type = {'j', 'p', '2', 'h'};
 
 constexpr block_type_t jp2_im_header_type = {'i', 'h', 'd', 'r'};
 
-template <typename T, int B = sizeof(T)>
-T read_uint(const uint8_t *data) {
+constexpr int kBlockHdrSize = 8;
+
+template <typename T, int B = sizeof(T),
+          bool is_int = std::is_integral<T>::value,
+          bool is_unsigned = std::is_unsigned<T>::value>
+std::enable_if_t<is_int && is_unsigned, T> read_uint(const uint8_t *data) {
   // We need to convert from big-endian.
   std::array<uint8_t, B> swapped;
   for (int i = 0; i < B; ++i)
     swapped[B - 1 - i] = data[i];
-  uint32_t result;
+  T result;
   memcpy(&result, swapped.data(), B);
   return result;
 }
@@ -46,6 +50,7 @@ inline uint32_t read_block_size(const uint8_t *data) {
 }
 
 bool validate_block_type(const uint8_t *block_ptr, const block_type_t &type) {
+  // Block type is its second 4-byte chunk.
   return span<const uint8_t, 4>(block_ptr + 4) == make_cspan(type);
 }
 
@@ -70,14 +75,14 @@ Image::Shape Jpeg2kImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t le
   index = progress_block(data, index, jp2_sig_type);
   index = progress_block(data, index, jp2_format_type);
   DALI_ENFORCE(validate_block_type(&data[index], jp2_header_type));
-  index += 8;
+  index += kBlockHdrSize;
   DALI_ENFORCE(validate_block_type(&data[index], jp2_im_header_type));
-  DALI_ENFORCE(index + 18 < data.size());
-  index += 8;
+  DALI_ENFORCE(index + kBlockHdrSize + 2*sizeof(uint32_t) + sizeof(uint16_t) < data.size());
+  index += kBlockHdrSize;
   auto height = read_uint<uint32_t>(&data[index]);
-  index += 4;
+  index += sizeof(uint32_t);
   auto width = read_uint<uint32_t>(&data[index]);
-  index += 4;
+  index += sizeof(uint32_t);
   auto channels = read_uint<uint16_t>(&data[index]);
   return {height, width, channels};
 }

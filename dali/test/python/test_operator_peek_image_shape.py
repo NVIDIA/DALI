@@ -22,7 +22,7 @@ from test_utils import get_dali_extra_path, dali_types_to_np
 
 test_data_root = get_dali_extra_path()
 path = 'db/single'
-file_types = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp'}
+file_types = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k'}
 
 def run_decode(data_path, out_type):
     batch_size = 4
