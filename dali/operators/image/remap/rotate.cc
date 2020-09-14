@@ -34,9 +34,9 @@ Reversing the vector is equivalent to changing the sign of ``angle``.
 For two-dimensional data, the rotation is counter-clockwise, assuming the the top-left corner is
 at ``(0,0)``. For three-dimensional data, the ``angle`` is a positive rotation around the provided axis.
 )code", DALI_FLOAT, true)
-  .AddOptionalArg("keep_size", R"code(If ``True``, original canvas size is kept.
+  .AddOptionalArg("keep_size", R"code(If True, original canvas size is kept.
 
-If set to ``False`` (default), and the size is not set, the canvas size is adjusted to
+If set to False (default), and the size is not set, the canvas size is adjusted to
 accommodate the rotated image with the least padding possible.
 )code", false, false)
   .AddParent("WarpAttr");

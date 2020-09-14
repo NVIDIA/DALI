@@ -93,7 +93,7 @@ or uniformly for all axes.
   ``mode="not_smaller", size=800, max_size=1400`` an image of size 1200x600 would be resized to
   1400x700.
 )code", {}, false)
-  .AddOptionalArg("subpixel_scale", R"code(If ``True``, fractional sizes, directly specified or
+  .AddOptionalArg("subpixel_scale", R"code(If True, fractional sizes, directly specified or
 calculated, will cause the input RoI to be adjusted to keep the scale factor.
 
 Otherwise, the scale factor will be adjusted so that the source image maps to

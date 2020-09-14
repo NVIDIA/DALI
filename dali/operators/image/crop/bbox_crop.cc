@@ -129,7 +129,7 @@ The num_attempts argument can be used to control the maximum number of attempts 
 a valid crop to match a minimum overlap metric value from ``thresholds``.
 
 .. note::
-  When ``allow_no_crop`` is ``False`` and ``thresholds`` does not contain ``0.0``, if
+  When ``allow_no_crop`` is False and ``thresholds`` does not contain ``0.0``, if
   you do not increase the ``num_attempts`` value,  it might continue to loop for a long time.
 
 **Inputs: 0**: ``bboxes``, (1:``labels``, )
@@ -261,16 +261,16 @@ crop is found.
         -1)
     .AddOptionalArg(
         "all_boxes_above_threshold",
-         R"code(If set to ``True``, all bounding boxes in a sample should overlap with the cropping
+         R"code(If set to True, all bounding boxes in a sample should overlap with the cropping
 window as specified by ``thresholds``.
 
 If the bounding boxes do not overlap, the cropping window is considered to be invalid. If set to
-``False``, and at least a bounding box overlaps the window, the window is considered to
+False, and at least a bounding box overlaps the window, the window is considered to
 be valid.)code",
          true)
     .AddOptionalArg(
         "allow_no_crop",
-        R"code(If set to ``True``, one of the possible outcomes of the random process will
+        R"code(If set to True, one of the possible outcomes of the random process will
 be to not crop, as if the outcome was one more ``thresholds`` value from which to choose.)code",
         true)
     .AddOptionalArg<int>(

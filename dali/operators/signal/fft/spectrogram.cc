@@ -73,7 +73,7 @@ will be extracted.)code",
   .AddOptionalArg("reflect_padding",
     R"code(Indicates the padding policy when sampling outside the bounds of the signal.
 
-If set to ``True``, the signal is mirrored with respect to the boundary, otherwise the signal
+If set to True, the signal is mirrored with respect to the boundary, otherwise the signal
 is padded with zeros.
 
 .. note::

@@ -183,7 +183,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                  the next epoch. If set to False next epoch will end sooner as data from
                  it was consumed but dropped. If set to True next epoch would be the
                  same length as the first one. For this to happen, the option ``pad_last_batch``
-                 in the reader needs to be set to ``True`` as well.
+                 in the reader needs to be set to True as well.
                  It is overwritten when `reader_name` argument is provided
 
     Example
@@ -423,7 +423,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                  the next epoch. If set to False next epoch will end sooner as data from
                  it was consumed but dropped. If set to True next epoch would be the
                  same length as the first one. For this to happen, the option ``pad_last_batch``
-                 in the reader needs to be set to ``True`` as well.
+                 in the reader needs to be set to True as well.
                  It is overwritten when `reader_name` argument is provided
 
     Example
