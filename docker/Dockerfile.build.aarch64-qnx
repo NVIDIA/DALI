@@ -91,6 +91,13 @@ RUN JPEG_TURBO_VERSION=2.0.5 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
+# zstandard compression library
+RUN ZSTANDARD_VERSION=1.4.5 && \
+    curl -L https://github.com/facebook/zstd/releases/download/v${ZSTANDARD_VERSION}/zstd-${ZSTANDARD_VERSION}.tar.gz | tar -xzf - && \
+    cd zstd-${ZSTANDARD_VERSION} && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
+    rm -rf /zstd-${ZSTANDARD_VERSION}
+
 # libtiff
 RUN LIBTIFF_VERSION=4.1.0 && \
     cd /tmp && \
