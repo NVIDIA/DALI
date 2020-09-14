@@ -23,15 +23,22 @@ import tempfile
 import nose.tools
 
 class NumpyReaderPipeline(Pipeline):
-    def __init__(self, path, batch_size, path_filter="*.npy", num_threads=1, device_id=0, num_gpus=1):
+    def __init__(self, path, batch_size, file_list=None,
+                 path_filter="*.npy", num_threads=1, device_id=0, num_gpus=1):
         super(NumpyReaderPipeline, self).__init__(batch_size,
                                                   num_threads,
                                                   device_id)
         
-        self.input = ops.NumpyReader(file_root = path,
-                                     file_filter = path_filter,
-                                     shard_id = device_id,
-                                     num_shards = num_gpus)
+        if file_list is not None:
+            self.input = ops.NumpyReader(file_root = path,
+                                         file_list = file_list,
+                                         shard_id = device_id,
+                                         num_shards = num_gpus)
+        else:
+            self.input = ops.NumpyReader(file_root = path,
+                                         file_filter = path_filter,
+                                         shard_id = device_id,
+                                         num_shards = num_gpus)
 
     def define_graph(self):
         inputs = self.input(name="Reader")
@@ -104,8 +111,44 @@ def test_batch():
                 
                 # compare
                 assert_array_equal(arr_rd, arr_np)
-            
-                    
+
+
+def test_batch_file_list():
+    with tempfile.TemporaryDirectory() as test_data_root:
+        # create files
+        num_samples = 20
+        batch_size = 4
+        filenames = []
+        arr_np_list = []
+        for index in range(0,num_samples):
+            filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+            filenames.append(filename)
+            create_numpy_file(filename, (5, 2, 8), np.float32, False)
+            arr_np_list.append(np.load(filename))
+        arr_np_all = np.stack(arr_np_list, axis=0)
+        
+        # save filenames
+        with open(os.path.join(test_data_root, "input.lst"), "w") as f:
+            f.writelines("\n".join([os.path.basename(x) for x in filenames]))
+
+        # create pipe
+        for num_threads in [1, 2, 4, 8]:
+            pipe = NumpyReaderPipeline(path = test_data_root,
+                                       file_list = os.path.join(test_data_root, "input.lst"),
+                                       batch_size = batch_size,
+                                       num_threads = num_threads,
+                                       device_id = 0)
+            pipe.build()
+
+            for batch in range(0, num_samples, batch_size):
+                pipe_out = pipe.run()
+                arr_rd = pipe_out[0].as_array()
+                arr_np = arr_np_all[batch:batch+batch_size, ...]
+                
+                # compare
+                assert_array_equal(arr_rd, arr_np)
+
+
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array
     arr = rng.random_sample(shape) * 10.

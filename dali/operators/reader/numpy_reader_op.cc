@@ -55,11 +55,14 @@ DALI_SCHEMA(NumpyReader)
   .AddArg("file_root",
       R"code(Path to a directory containing data files.
 `NumpyReader` supports flat directory structure. `file_root` directory should contain
-directories with numpy files in them.)code",
-      DALI_STRING)
+directories with numpy files in them.)code", DALI_STRING)
   .AddOptionalArg("file_filter",
       R"code(If specified, the string will be interpreted as glob string to filter
 the list of files in the sub-directories of `file_root`.)code", "*.npy")
+  .AddOptionalArg("file_list",
+      R"code(Path to a text file containing rows of ``filename label`` pairs, where the filenames are
+relative to ``file_root``. If left empty, ``file_root`` is traversed for subdirectories (only those at one level deep from
+``file_root``).)code", std::string())
   .AddOptionalArg("shuffle_after_epoch",
       R"code(If true, reader shuffles whole dataset after each epoch. It is exclusive with
 ``stick_to_shard`` and ``random_shuffle``.)code",
