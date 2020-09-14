@@ -32,7 +32,7 @@ Output sequence at position ``i`` will contain element ``new_order[i]`` from inp
   out[i, ...] = in[new_order[i], ...]
 
 Elements can be repeated or dropped, empty output sequences are not allowed. Only indices in
-``[0, input_outermost_dimension)`` are allowed to be used in ``new_order``. Can be specified
+``[0, input_outermost_extent)`` are allowed to be used in ``new_order``. Can be specified
 per sample as 1D tensors.)code",
             DALI_INT_VEC, true);
 
