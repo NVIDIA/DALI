@@ -102,15 +102,15 @@ class NemoAsrReaderPipeline(Pipeline):
     super(NemoAsrReaderPipeline, self).__init__(batch_size=batch_size, num_threads=3, device_id=0,
                                                 exec_async=True, exec_pipelined=True)
     fixed_seed = 12345
-    self.reader_plain = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = False,
+    self.reader_plain = ops.NemoAsrReader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = False,
                                           read_sample_rate = False, read_text = False, seed=fixed_seed)
-    self.reader_downmix = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True,
+    self.reader_downmix = ops.NemoAsrReader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
                                             read_sample_rate=False, read_text=False, seed=fixed_seed)
-    self.reader_resample1 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True,
+    self.reader_resample1 = ops.NemoAsrReader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
                                               sample_rate=rate1, read_sample_rate=True, read_text=False, seed=fixed_seed)
-    self.reader_resample2 = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True,
+    self.reader_resample2 = ops.NemoAsrReader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
                                               sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
-    self.reader_text = ops.NemoAsrReader(manifest_filepath = nemo_asr_manifest, dtype = types.INT16, downmix = True,
+    self.reader_text = ops.NemoAsrReader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
                                          read_sample_rate=True, read_text=True, seed=fixed_seed)
 
   def define_graph(self):
