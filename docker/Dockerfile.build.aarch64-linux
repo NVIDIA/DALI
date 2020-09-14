@@ -94,6 +94,27 @@ RUN LIBTIFF_VERSION=4.1.0 && \
     cd && \
     rm -rf /tmp/tiff-${LIBTIFF_VERSION}
 
+# OpenJPEG
+RUN OPENJPEG_VERSION=2.3.1 && \
+    cd /tmp && \
+    curl -L https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz | tar -xzf - && \
+    cd openjpeg-${OPENJPEG_VERSION} && mkdir build && cd build && \
+    echo "set(CMAKE_SYSTEM_NAME  Linux)" > toolchain.cmake && \
+    echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake && \
+    echo "set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)" >> toolchain.cmake && \
+      CFLAGS="-fPIC" \
+      CXXFLAGS="-fPIC" \
+      CC=aarch64-linux-gnu-gcc \
+      CXX=aarch64-linux-gnu-g++ \
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DBUILD_CODEC=OFF \
+          -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu/ .. && \
+      CFLAGS="-fPIC" \
+      CXXFLAGS="-fPIC" \
+      CC=aarch64-linux-gnu-gcc \
+      CXX=aarch64-linux-gnu-g++ \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+    rm -rf openjpeg-${OPENJPEG_VERSION}
+
 # OpenCV
 RUN OPENCV_VERSION=4.4.0 && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \

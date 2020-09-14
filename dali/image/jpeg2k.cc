@@ -30,7 +30,7 @@ constexpr block_type_t jp2_header_type = {{'j', 'p', '2', 'h'}};
 
 constexpr block_type_t jp2_im_header_type = {{'i', 'h', 'd', 'r'}};
 
-constexpr int kBlockHdrSize = 8;
+constexpr uint32_t kBlockHdrSize = 8;
 
 inline uint32_t read_block_size(const uint8_t *data) {
   // Size is the first 4-byte chunk of a block.
@@ -67,7 +67,8 @@ Image::Shape Jpeg2kImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t le
   DALI_ENFORCE(validate_block_type(&data[index], jp2_header_type));
   index += kBlockHdrSize;
   DALI_ENFORCE(validate_block_type(&data[index], jp2_im_header_type));
-  DALI_ENFORCE(index + kBlockHdrSize + 2*sizeof(uint32_t) + sizeof(uint16_t) < data.size());
+  DALI_ENFORCE(index + kBlockHdrSize + 2*sizeof(uint32_t) + sizeof(uint16_t)
+                 < static_cast<size_t>(data.size()));
   index += kBlockHdrSize;
   auto height = ReadValueBE<uint32_t>(&data[index]);
   index += sizeof(uint32_t);
