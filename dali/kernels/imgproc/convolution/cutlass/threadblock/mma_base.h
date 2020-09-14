@@ -121,8 +121,7 @@ class ConvMmaBase {
   /// Tensor reference to the B operand
   using TensorRefB = TensorRef<typename Operator::ElementB, typename Operator::LayoutB>;
 
-  /// Tensor reference to the B operand
-  // using TensorRefWindow = TensorRef<typename Operator::ElementB, layout::RowMajor>;
+  /// Tensor reference to the window lookup in SMEM
   using TensorRefWindow = TensorRef<WindowGlobalElement, layout::PitchLinear>;
 
   static int const kWindowLength = ConvWindowConfiguration::kTotalAlignedSize;

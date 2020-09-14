@@ -50,12 +50,6 @@ namespace device {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename OperatorClass, typename ArchTag, typename ElementA, typename ElementB,
-          typename ElementC, typename ElementAccumulator>
-struct DefaultConvConfiguration;
-
-////////////////////////////////////////////////////////////////////////////////
-
 /// Propagate the default configurations
 template <typename OperatorClass, typename ArchTag, typename ElementA, typename ElementB,
           typename ElementC, typename ElementAccumulator>

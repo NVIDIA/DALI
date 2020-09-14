@@ -144,43 +144,68 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
 
 TYPED_TEST_SUITE_P(ConvolutionGpuKernelTest);
 
+  // ndim, has_channels, convolution axis, window size, input type
 using ConvolutionTestValues = ::testing::Types<
     // 1D
-    convolution_params<1, false, 0, 3, float>, convolution_params<1, false, 0, 15, float>,
-    convolution_params<1, false, 0, 51, float>, convolution_params<1, false, 0, 101, float>,
+    convolution_params<1, false, 0, 3, float>,
+    convolution_params<1, false, 0, 15, float>,
+    convolution_params<1, false, 0, 51, float>,
+     convolution_params<1, false, 0, 101, float>,
     // 1D with channels
-    convolution_params<2, true, 0, 3, float>, convolution_params<2, true, 0, 15, float>,
-    convolution_params<2, true, 0, 51, float>, convolution_params<2, true, 0, 101, float>,
+    convolution_params<2, true, 0, 3, float>,
+    convolution_params<2, true, 0, 15, float>,
+    convolution_params<2, true, 0, 51, float>,
+    convolution_params<2, true, 0, 101, float>,
     // 2D outer
-    convolution_params<2, false, 0, 3, float>, convolution_params<2, false, 0, 15, float>,
-    convolution_params<2, false, 0, 51, float>, convolution_params<2, false, 0, 101, float>,
+    convolution_params<2, false, 0, 3, float>,
+    convolution_params<2, false, 0, 15, float>,
+    convolution_params<2, false, 0, 51, float>,
+    convolution_params<2, false, 0, 101, float>,
     // 2D inner
-    convolution_params<2, false, 1, 3, float>, convolution_params<2, false, 1, 15, float>,
-    convolution_params<2, false, 1, 51, float>, convolution_params<2, false, 1, 101, float>,
+    convolution_params<2, false, 1, 3, float>,
+    convolution_params<2, false, 1, 15, float>,
+    convolution_params<2, false, 1, 51, float>,
+    convolution_params<2, false, 1, 101, float>,
     // 2D outer with channels
-    convolution_params<3, true, 0, 3, float>, convolution_params<3, true, 0, 15, float>,
-    convolution_params<3, true, 0, 51, float>, convolution_params<3, true, 0, 101, float>,
+    convolution_params<3, true, 0, 3, float>,
+    convolution_params<3, true, 0, 15, float>,
+    convolution_params<3, true, 0, 51, float>,
+    convolution_params<3, true, 0, 101, float>,
     // 2D inner with channels
-    convolution_params<3, true, 1, 3, float>, convolution_params<3, true, 1, 15, float>,
-    convolution_params<3, true, 1, 51, float>, convolution_params<3, true, 1, 101, float>,
+    convolution_params<3, true, 1, 3, float>,
+    convolution_params<3, true, 1, 15, float>,
+    convolution_params<3, true, 1, 51, float>,
+    convolution_params<3, true, 1, 101, float>,
     // 3D outer
-    convolution_params<3, false, 0, 3, float>, convolution_params<3, false, 0, 15, float>,
-    convolution_params<3, false, 0, 51, float>, convolution_params<3, false, 0, 101, float>,
+    convolution_params<3, false, 0, 3, float>,
+    convolution_params<3, false, 0, 15, float>,
+    convolution_params<3, false, 0, 51, float>,
+    convolution_params<3, false, 0, 101, float>,
     // 3D "middle"
-    convolution_params<3, false, 1, 3, float>, convolution_params<3, false, 1, 15, float>,
-    convolution_params<3, false, 1, 51, float>, convolution_params<3, false, 1, 101, float>,
+    convolution_params<3, false, 1, 3, float>,
+    convolution_params<3, false, 1, 15, float>,
+    convolution_params<3, false, 1, 51, float>,
+    convolution_params<3, false, 1, 101, float>,
     // 3D inner
-    convolution_params<3, false, 2, 3, float>, convolution_params<3, false, 2, 15, float>,
-    convolution_params<3, false, 2, 51, float>, convolution_params<3, false, 2, 101, float>,
+    convolution_params<3, false, 2, 3, float>,
+    convolution_params<3, false, 2, 15, float>,
+    convolution_params<3, false, 2, 51, float>,
+    convolution_params<3, false, 2, 101, float>,
     // 3D outer with channels
-    convolution_params<4, true, 0, 3, float>, convolution_params<4, true, 0, 15, float>,
-    convolution_params<4, true, 0, 51, float>, convolution_params<4, true, 0, 101, float>,
+    convolution_params<4, true, 0, 3, float>,
+    convolution_params<4, true, 0, 15, float>,
+    convolution_params<4, true, 0, 51, float>,
+    convolution_params<4, true, 0, 101, float>,
     // 3D "middle" with channels
-    convolution_params<4, true, 1, 3, float>, convolution_params<4, true, 1, 15, float>,
-    convolution_params<4, true, 1, 51, float>, convolution_params<4, true, 1, 101, float>,
+    convolution_params<4, true, 1, 3, float>,
+    convolution_params<4, true, 1, 15, float>,
+    convolution_params<4, true, 1, 51, float>,
+    convolution_params<4, true, 1, 101, float>,
     // 3D outer with channels
-    convolution_params<4, true, 2, 3, float>, convolution_params<4, true, 2, 15, float>,
-    convolution_params<4, true, 2, 51, float>, convolution_params<4, true, 2, 101, float> >;
+    convolution_params<4, true, 2, 3, float>,
+    convolution_params<4, true, 2, 15, float>,
+    convolution_params<4, true, 2, 51, float>,
+    convolution_params<4, true, 2, 101, float> >;
 TYPED_TEST_P(ConvolutionGpuKernelTest, DoConvolution) {
   this->RunTest();
 }

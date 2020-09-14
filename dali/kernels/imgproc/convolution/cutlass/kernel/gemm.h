@@ -65,7 +65,7 @@ struct Conv {
   using ThreadblockSwizzle = ThreadblockSwizzle_;
   static bool const kSplitKSerial = SplitKSerial;
 
-  static int const kInnerConv = Mma::kInnerConv;
+  static int const kIsInnerConv = Mma::kIsInnerConv;
 
   /// Linear buffer with window values
   using WindowElement = typename Mma::IteratorWindow::Element;
@@ -115,7 +115,7 @@ struct Conv {
           sample_grid_tiled_shape(sample_grid_tiled_shape),
           params_In(ref_In.layout()),
           ref_In(ref_In),
-          params_Window(layout::RowMajor(kInnerConv ? problem_size.n() : problem_size.m()),
+          params_Window(layout::RowMajor(kIsInnerConv ? problem_size.n() : problem_size.m()),
                         window_size, channels),
           // do not pass explicit window, we construct it later
           ref_conv_Window(ref_conv_Window),
@@ -267,9 +267,9 @@ struct Conv {
       // Take this into account when calculating the non-zero region
       // For right side conv-matrix the non-zero regions starts at (n() - radius_span, n()),
       // for the left side it's (m(), m() - radius_span)
-      int conv_diag_position = kInnerConv ? threadblock_tile_offset.n() * Mma::Shape::kN
+      int conv_diag_position = kIsInnerConv ? threadblock_tile_offset.n() * Mma::Shape::kN
                                           : threadblock_tile_offset.m() * Mma::Shape::kM;
-      constexpr int tile_extent = kInnerConv ? Mma::Shape::kN : Mma::Shape::kM;
+      constexpr int tile_extent = kIsInnerConv ? Mma::Shape::kN : Mma::Shape::kM;
 
       // in this row/column we cover a rectangle starting at (diag - radius), and ending at
       // (diag + tile_extent + radius)
@@ -313,13 +313,13 @@ struct Conv {
       // Construct iterators to A and B operands
       // One is proper GMEM iterator, one generates the matrix on the fly from conv window
       typename Mma::IteratorA iterator_A(
-          select_A<kInnerConv>(params.params_In, params.params_Window),
-          select_A<kInnerConv>(params.ref_In.data(), window_smem.data()),
+          select_A<kIsInnerConv>(params.params_In, params.params_Window),
+          select_A<kIsInnerConv>(params.ref_In.data(), window_smem.data()),
           {params.problem_size.m(), problem_size_k}, thread_idx, tb_offset_A);
 
       typename Mma::IteratorB iterator_B(
-          select_B<kInnerConv>(params.params_In, params.params_Window),
-          select_B<kInnerConv>(params.ref_In.data(), window_smem.data()),
+          select_B<kIsInnerConv>(params.params_In, params.params_Window),
+          select_B<kIsInnerConv>(params.ref_In.data(), window_smem.data()),
           {problem_size_k, params.problem_size.n()}, thread_idx, tb_offset_B);
 
       // Broadcast the warp_id computed by lane 0 to ensure dependent code

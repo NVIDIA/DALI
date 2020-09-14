@@ -30,6 +30,8 @@ namespace kernels {
 /**
  * @brief Apply convolution with 1-channel `window` in specified axis.
  *
+ * The window is centered over input and thus it is required to be of odd size.
+ *
  * Operation is done by using GEMM and generating the matrix from convolution window on the fly
  *
  * CUTLASS allows to calculate GEMM: D = alpha * A * B + beta * C. To calculate convolution,
@@ -77,15 +79,15 @@ struct ConvolutionGpu {
     auto* window_tmp_buffer_gpu =
         ctx.scratchpad->Allocate<W>(AllocType::GPU, num_samples * kWindowCopyBufferSize);
 
-    // Pad and align windows
-    AlignWindows(window_tmp_buffer_host, window, in.shape);
+    // Pad and align windows in tmp memory, transfer the aligned windows to GPU
+    FillAlignedWindow(window_tmp_buffer_host, window, in.shape);
     cudaMemcpyAsync(window_tmp_buffer_gpu, window_tmp_buffer_host,
                     sizeof(W) * num_samples * kWindowCopyBufferSize, cudaMemcpyHostToDevice,
                     ctx.gpu.stream);
 
     Arguments args;
-    if (kInnerConv) {
-      // Inner (or rather innermost) - repack arguments
+    if (kIsInnerConv) {
+      // Inner (innermost) - repack arguments
       for (int i = 0; i < num_samples; i++) {
         cutlass::Array<int, 2> size;
         auto sample_shape = in.tensor_shape(i);
@@ -98,14 +100,14 @@ struct ConvolutionGpu {
         auto* window_gpu = window_tmp_buffer_gpu + i * kWindowCopyBufferSize;
         int window_diameter = static_cast<int>(window.tensor_shape_span(i)[0]);
         args.push_back(SampleArguments{
-            size,                             // Input matrix dimensions
-            window_diameter,                  // Window size
-            num_channels,                     // channels count (innermost)
-            {in.tensor_data(i), row_stride},  // Tensor-ref for source matrix A
-            window_gpu,                       // Pointers to windows
-            {out.tensor_data(i), row_stride}, // Tensor-ref for source matrix C
-            {out.tensor_data(i), row_stride}, // Tensor-ref for destination matrix D
-            {scale, 0}                        // Scalars used in the Epilogue
+            size,                              // Input matrix dimensions
+            window_diameter,                   // Window size
+            num_channels,                      // channels count (innermost)
+            {in.tensor_data(i), row_stride},   // Tensor-ref for source matrix A
+            window_gpu,                        // Pointers to windows
+            {out.tensor_data(i), row_stride},  // Tensor-ref for source matrix C
+            {out.tensor_data(i), row_stride},  // Tensor-ref for destination matrix D
+            {scale, 0}                         // Scalars used in the Epilogue
         });
       }
     } else {
@@ -145,15 +147,21 @@ struct ConvolutionGpu {
   }
 
  private:
-  static constexpr bool kInnerConv = axis == ndim - has_channels - 1;
+  // Innermost convolution requires channel handling and multiplies by "kernel matrix"
+  // (matrix generated based on convolution kernel windows) from right.
+  // Non-innermost convolutions are channel agnostic (assume channels = 1) and place the
+  // generated matrix on the left hand side of GEMM.
+  static constexpr bool kIsInnerConv = axis == ndim - has_channels - 1;
   using RowMajor = cutlass::layout::RowMajor;
   // Basic SIMT kernel with no additional conversions
+  // 2nd and 5th template parameter (In and W now) allow for additional conversion when loadind
+  // data inside the cutlass kernel. For now it's no-op (hence the same types twice).
   using CutlassConv = typename cutlass::gemm::device::Conv<In, In,    // Data-type of Input matrix
                                                            RowMajor,  // Layout of Input matrix
                                                            W, W,      // Data-type of Conv window
                                                            Out,       // Data-type of Output matrix
                                                            RowMajor,  // Layout of Output matrix
-                                                           kInnerConv>;
+                                                           kIsInnerConv>;
 
   static constexpr int kMaxRadiusSpan = CutlassConv::ConvWindowConfiguration::kMaxWindowRadiusSpan;
   static constexpr int kWindowCopyBufferSize =
@@ -167,8 +175,9 @@ struct ConvolutionGpu {
                 "Selected axis must be in [0, ndim) when there is no channel axis, or in [0, ndim "
                 "- 1) for channel-last input");
 
-  void AlignWindows(W* window_tmp_buffer_host, const TensorListView<StorageCPU, const W, 1>& window,
-                    const TensorListShape<ndim>& in_shape) {
+  void FillAlignedWindow(W* window_tmp_buffer_host,
+                         const TensorListView<StorageCPU, const W, 1>& window,
+                         const TensorListShape<ndim>& in_shape) {
     for (int i = 0; i < window.num_samples(); i++) {
       using dst_win_t = typename CutlassConv::ConvWindowConfiguration::PaddedWindowBuffer<W>;
       int num_channels = has_channels ? in_shape[i][ndim - 1] : 1;

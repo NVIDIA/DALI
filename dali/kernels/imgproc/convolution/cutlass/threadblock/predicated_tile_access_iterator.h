@@ -561,10 +561,10 @@ class PositionPredicatedTileAccessIterator<Shape_, Element_, layout::ColumnMajor
   }
 
   /// Adds a pointer offset in units of Element
-  // CUTLASS_HOST_DEVICE
-  // void add_pointer_offset(LongIndex pointer_offset) {
-  //   iterator_.add_pointer_offset(pointer_offset);
-  // }
+  CUTLASS_HOST_DEVICE
+  void add_pointer_offset(LongIndex pointer_offset) {
+    iterator_.add_pointer_offset(pointer_offset);
+  }
 
   /// Advances an iterator along logical dimensions of matrix in units of whole
   /// tiles

@@ -177,9 +177,9 @@ template <
     /// Layout type for C and D matrix operands
     typename LayoutOut_,
     /// Type of convolution
-    bool InnerConv = true,
+    bool IsInnerConv = true,
     /// Convolution window storage configuration
-    typename ConvWindowConfiguration_ = ConvWindowConfiguration<1024, InnerConv>,
+    typename ConvWindowConfiguration_ = ConvWindowConfiguration<1024, IsInnerConv>,
     /// Element type for internal accumulation
     typename ElementAccumulator_ = ElementOut_,
     /// Operator class tag
@@ -189,51 +189,51 @@ template <
     /// Threadblock-level tile size (concept: GemmShape)
     typename ThreadblockShape_ = typename DefaultConvConfiguration<
         OperatorClass_, ArchTag_,
-        select_A_t<InnerConv, ElementIn_, ElementWindow_>,
-        select_B_t<InnerConv, ElementIn_, ElementWindow_>,
+        select_A_t<IsInnerConv, ElementIn_, ElementWindow_>,
+        select_B_t<IsInnerConv, ElementIn_, ElementWindow_>,
         ElementOut_, ElementAccumulator_>::ThreadblockShape,
     /// Warp-level tile size (concept: GemmShape)
     typename WarpShape_ = typename DefaultConvConfiguration<
         OperatorClass_, ArchTag_,
-        select_A_t<InnerConv, ElementIn_, ElementWindow_>,
-        select_B_t<InnerConv, ElementIn_, ElementWindow_>,
+        select_A_t<IsInnerConv, ElementIn_, ElementWindow_>,
+        select_B_t<IsInnerConv, ElementIn_, ElementWindow_>,
         ElementOut_, ElementAccumulator_>::WarpShape,
     /// Instruction-level tile size (concept: GemmShape)
     typename InstructionShape_ = typename DefaultConvConfiguration<
         OperatorClass_, ArchTag_,
-        select_A_t<InnerConv, ElementIn_, ElementWindow_>,
-        select_B_t<InnerConv, ElementIn_, ElementWindow_>,
+        select_A_t<IsInnerConv, ElementIn_, ElementWindow_>,
+        select_B_t<IsInnerConv, ElementIn_, ElementWindow_>,
         ElementOut_, ElementAccumulator_>::InstructionShape,
     /// Epilogue output operator
     typename EpilogueOutputOp_ = typename DefaultConvConfiguration<
         OperatorClass_, ArchTag_,
-        select_A_t<InnerConv, ElementIn_, ElementWindow_>,
-        select_B_t<InnerConv, ElementIn_, ElementWindow_>,
+        select_A_t<IsInnerConv, ElementIn_, ElementWindow_>,
+        select_B_t<IsInnerConv, ElementIn_, ElementWindow_>,
         ElementOut_, ElementAccumulator_>::EpilogueOutputOp,
     /// Threadblock-level swizzling operator
     typename ThreadblockSwizzle_ = typename threadblock::GemmIdentityThreadblockSwizzle<>,
     /// Number of stages used in the pipelined mainloop
     int Stages = DefaultConvConfiguration<OperatorClass_, ArchTag_,
-                                          select_A_t<InnerConv, ElementIn_, ElementWindow_>,
-                                          select_B_t<InnerConv, ElementIn_, ElementWindow_>,
+                                          select_A_t<IsInnerConv, ElementIn_, ElementWindow_>,
+                                          select_B_t<IsInnerConv, ElementIn_, ElementWindow_>,
                                           ElementOut_, ElementAccumulator_>::kStages,
     /// Access granularity of A matrix in units of elements
     int AlignmentA = DefaultConvConfiguration<OperatorClass_, ArchTag_,
-                                              select_A_t<InnerConv, ElementIn_, ElementWindow_>,
-                                              select_B_t<InnerConv, ElementIn_, ElementWindow_>,
+                                              select_A_t<IsInnerConv, ElementIn_, ElementWindow_>,
+                                              select_B_t<IsInnerConv, ElementIn_, ElementWindow_>,
                                               ElementOut_, ElementAccumulator_>::kAlignmentA,
     /// Access granularity of B matrix in units of elements
     int AlignmentB = DefaultConvConfiguration<OperatorClass_, ArchTag_,
-                                              select_A_t<InnerConv, ElementIn_, ElementWindow_>,
-                                              select_B_t<InnerConv, ElementIn_, ElementWindow_>,
+                                              select_A_t<IsInnerConv, ElementIn_, ElementWindow_>,
+                                              select_B_t<IsInnerConv, ElementIn_, ElementWindow_>,
                                               ElementOut_, ElementAccumulator_>::kAlignmentB,
     /// If true, kernel supports split-K with serial reduction
     bool SplitKSerial = false,
     /// Operation performed by GEMM
     typename Operator_ = typename DefaultConvConfiguration<
         OperatorClass_, ArchTag_,
-        select_A_t<InnerConv, ElementIn_, ElementWindow_>,
-        select_B_t<InnerConv, ElementIn_, ElementWindow_>,
+        select_A_t<IsInnerConv, ElementIn_, ElementWindow_>,
+        select_B_t<IsInnerConv, ElementIn_, ElementWindow_>,
         ElementOut_, ElementAccumulator_>::Operator,
     /// Whether Beta is zero or not
     bool IsBetaZero = false>
@@ -271,17 +271,17 @@ class Conv {
   // Set this to 1, we don't split k, instead we iterate over samples
   static int const split_k_slices = 1;
   static int const kAxes = 2;
-  static bool const kInnerConv = InnerConv;
+  static bool const kIsInnerConv = IsInnerConv;
 
     /// Define the kernel
   using ConvKernel = typename kernel::DefaultConv<
-    select_A_t<InnerConv, ElementIn_, ElementWindow_>,
-    select_A_t<InnerConv, ElementCastIn_, ElementCastWindow_>,
-    select_A_t<InnerConv, LayoutIn, LayoutWindow>,
+    select_A_t<IsInnerConv, ElementIn_, ElementWindow_>,
+    select_A_t<IsInnerConv, ElementCastIn_, ElementCastWindow_>,
+    select_A_t<IsInnerConv, LayoutIn, LayoutWindow>,
     kAlignmentA,
-    select_B_t<InnerConv, ElementIn_, ElementWindow_>,
-    select_B_t<InnerConv, ElementCastIn_, ElementCastWindow_>,
-    select_B_t<InnerConv, LayoutIn, LayoutWindow>,
+    select_B_t<IsInnerConv, ElementIn_, ElementWindow_>,
+    select_B_t<IsInnerConv, ElementCastIn_, ElementCastWindow_>,
+    select_B_t<IsInnerConv, LayoutIn, LayoutWindow>,
     kAlignmentB,
     ConvWindowConfiguration,
     ElementOut,
@@ -298,7 +298,7 @@ class Conv {
     kSplitKSerial,
     Operator,
     kIsBetaZero,
-    kInnerConv
+    kIsInnerConv
   >::GemmKernel;
 
   /// Argument structure
@@ -406,11 +406,11 @@ class Conv {
 
     // Initialize the Params structure
     for (auto &arg : args) {
-      GemmCoord sample_size = GetProblemSize(arg.matrix_size, arg.channels, kInnerConv);
+      GemmCoord sample_size = GetProblemSize(arg.matrix_size, arg.channels, kIsInnerConv);
       cutlass::gemm::GemmCoord sample_grid_shape = threadblock_swizzle.get_tiled_shape(
           sample_size, {ThreadblockShape::kM, ThreadblockShape::kN, ThreadblockShape::kK},
           split_k_slices);
-      if (!kInnerConv) {
+      if (!kIsInnerConv) {
         DALI_ENFORCE(arg.channels == 1, "For outer convolution channels should be set to 1.");
       }
 

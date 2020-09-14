@@ -57,8 +57,8 @@ namespace threadblock {
 
 /// Wraps DefaultMma by adding the PositionPredicatedTile iterator and selection
 /// between Inner and Outer Conv.
-/// Redirects the appropriate iterators to IteratorA (default for InnerConv)
-///  and IteratorB (default for !InnerConv)
+/// Redirects the appropriate iterators to IteratorA (default for IsInnerConv)
+///  and IteratorB (default for !IsInnerConv)
 template <
     /// Element type for A matrix operand (input in Gmem)
     typename ElementA,
@@ -100,7 +100,7 @@ template <
     /// when output layout is interleaved.
     bool AccumulatorsInRowMajor = false,
     /// If the convolution is computed in the innermost or outer dimension
-    bool InnerConv = true
+    bool IsInnerConv = true
     >
 struct SpecializedConvMma {
   // Select SMEM iterators that use ElementAccumulator type as storage (and computation)
@@ -113,7 +113,7 @@ struct SpecializedConvMma {
   // Define the MmaCore components
   using MmaCore = typename UnderlyingMmaProcessing::MmaCore;
 
-  static int const kInnerConv = InnerConv;
+  static int const kIsInnerConv = IsInnerConv;
 
   // PositionPredicatedTileIterators that build matrix on the fly from SMEM
   using IteratorA_outer_conv_smem_ =
@@ -135,17 +135,17 @@ struct SpecializedConvMma {
       typename MmaCore::IteratorThreadMapB, kAlignmentB>;
 
   // Define iterators over tiles from the A operand
-  using IteratorA = std::conditional_t<kInnerConv, IteratorA_regular, IteratorA_outer_conv_smem_>;
+  using IteratorA = std::conditional_t<kIsInnerConv, IteratorA_regular, IteratorA_outer_conv_smem_>;
 
   // Define iterators over tiles from the B operand
-  using IteratorB = std::conditional_t<kInnerConv, IteratorB_inner_conv_smem_, IteratorB_regular>;
+  using IteratorB = std::conditional_t<kIsInnerConv, IteratorB_inner_conv_smem_, IteratorB_regular>;
 
   // We pass here all the iterators and there is the actual impl of load GMEM->SMEM happening
   // Overwrite the one from UnderlyingMma
   using ThreadblockMma = cutlass::gemm::threadblock::ConvMmaPipelined<
       typename MmaCore::Shape, IteratorA, typename MmaCore::SmemIteratorA, IteratorB,
       typename MmaCore::SmemIteratorB, ElementAccumulator, layout::RowMajor,
-      typename MmaCore::MmaPolicy, kInnerConv, ConvWindowConfiguration>;
+      typename MmaCore::MmaPolicy, kIsInnerConv, ConvWindowConfiguration>;
 };
 
 }  // namespace threadblock

@@ -71,7 +71,7 @@ template <
     /// Policy describing tuning details (concept: ConvMmaPolicy)
     typename Policy_,
     /// Type of convolution
-    bool InnerConv,
+    bool IsInnerConv,
     /// Convolution window storage configuration
     typename ConvWindowConfiguration,
     /// Transformation applied to A operand
@@ -86,27 +86,27 @@ template <
     /// Used for partial specialization
     typename Enable = bool>
 class ConvMmaPipelined
-    : public ConvMmaBase<
-          Shape_, Policy_, 2,
-          std::conditional_t<InnerConv, typename IteratorB_::Element, typename IteratorA_::Element>,
-          ConvWindowConfiguration> {
+    : public ConvMmaBase<Shape_, Policy_, 2,
+                         std::conditional_t<IsInnerConv, typename IteratorB_::Element,
+                                            typename IteratorA_::Element>,
+                         ConvWindowConfiguration> {
  public:
   ///< Base class
   using Base = ConvMmaBase<
       Shape_, Policy_, 2,
-      std::conditional_t<InnerConv, typename IteratorB_::Element, typename IteratorA_::Element>,
+      std::conditional_t<IsInnerConv, typename IteratorB_::Element, typename IteratorA_::Element>,
       ConvWindowConfiguration>;
 
-  static int const kInnerConv = InnerConv;
+  static int const kIsInnerConv = IsInnerConv;
 
   using Shape = Shape_;          ///< Size of the Gemm problem - concept: gemm::GemmShape<>
   using IteratorA = IteratorA_;  ///< Iterates over tiles of A operand
   using IteratorB = IteratorB_;  ///< Iterates over tiles of B operand
 
-  using IteratorIn =
-      std::conditional_t<kInnerConv, IteratorA, IteratorB>;  ///< Input operand in global memory
-  using IteratorWindow =
-      std::conditional_t<kInnerConv, IteratorB, IteratorA>;  ///< Window Matrix generated on the fly
+  /// Input operand in global memory
+  using IteratorIn = std::conditional_t<kIsInnerConv, IteratorA, IteratorB>;
+  /// Window Matrix generated on the fly
+  using IteratorWindow = std::conditional_t<kIsInnerConv, IteratorB, IteratorA>;
 
   using ElementC = ElementC_;  ///< Data type of accumulator matrix
   using LayoutC = LayoutC_;    ///< Layout of accumulator matrix
@@ -115,14 +115,14 @@ class ConvMmaPipelined
   using SmemIteratorA = SmemIteratorA_;
   using SmemIteratorB = SmemIteratorB_;
 
-  using SmemIteratorIn = std::conditional_t<kInnerConv, SmemIteratorA, SmemIteratorB>;
-  using SmemIteratorWindow = std::conditional_t<kInnerConv, SmemIteratorB, SmemIteratorA>;
+  using SmemIteratorIn = std::conditional_t<kIsInnerConv, SmemIteratorA, SmemIteratorB>;
+  using SmemIteratorWindow = std::conditional_t<kIsInnerConv, SmemIteratorB, SmemIteratorA>;
 
   using TransformA = TransformA_;
   using TransformB = TransformB_;
 
-  using TransformIn = std::conditional_t<kInnerConv, TransformA, TransformB>;
-  using TransformWindow = std::conditional_t<kInnerConv, TransformB, TransformA>;
+  using TransformIn = std::conditional_t<kIsInnerConv, TransformA, TransformB>;
+  using TransformWindow = std::conditional_t<kIsInnerConv, TransformB, TransformA>;
 
   //
   // Dependent types
@@ -195,7 +195,7 @@ class ConvMmaPipelined
         {Base::kWarpGemmIterations * warp_idx_k, warp_idx_n});
   }
 
-    /// Perform a threadblock-scoped matrix multiply-accumulate
+  /// Perform a threadblock-scoped matrix multiply-accumulate
   CUTLASS_DEVICE
   void operator()(
       int gemm_k_iterations,                      ///< number of starting iteration of the mainloop

@@ -123,7 +123,7 @@ template <
     /// Beta is zero or not
     bool IsBetaZero = false,
     /// If the convolution is computed in the innermost or outer dimension
-    bool InnerConv = true>
+    bool IsInnerConv = true>
 struct DefaultConv {
   using UnderlyingConv =
       DefaultGemm<ElementCastA, LayoutA, kAlignmentA, ElementCastB, LayoutB, kAlignmentB, ElementC,
@@ -135,7 +135,7 @@ struct DefaultConv {
       ElementA, ElementCastA, LayoutA, kAlignmentA, ElementB, ElementCastB, LayoutB, kAlignmentB,
       ConvWindowConfiguration, ElementAccumulator, LayoutC, OperatorClass, ArchTag,
       ThreadblockShape, WarpShape, InstructionShape, Stages, Operator, IsBetaZero,
-      InnerConv>::ThreadblockMma;
+      IsInnerConv>::ThreadblockMma;
 
   /// Define the epilogue
   using Epilogue = typename UnderlyingConv::Epilogue;

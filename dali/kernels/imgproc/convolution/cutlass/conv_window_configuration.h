@@ -22,40 +22,40 @@
 namespace cutlass {
 namespace gemm {
 
-template <int TotalAlignedSize, bool InnerConv, bool UseSharedMem = true>
+template <int TotalAlignedSize, bool IsInnerConv, bool UseSharedMem = true>
 struct ConvWindowConfiguration {
   static int const kTotalAlignedSize = TotalAlignedSize;
-  static bool const kInnerConv = InnerConv;
+  static bool const kIsInnerConv = IsInnerConv;
   static bool const kUseSharedMem = UseSharedMem;
   static_assert(kUseSharedMem, "Reading window directly from GMEM is not yet implemented");
-  static_assert((!kInnerConv && kTotalAlignedSize % 4 == 0) ||
-                    (kInnerConv && kTotalAlignedSize % 2 == 0),
+  static_assert((!kIsInnerConv && kTotalAlignedSize % 4 == 0) ||
+                    (kIsInnerConv && kTotalAlignedSize % 2 == 0),
                 "The total window size needs to be divisible for alignment purposes");
   static int const kWindowDecreasingCenter =
-      kInnerConv ? kTotalAlignedSize / 2 : kTotalAlignedSize / 4;
-  static int const kWindowIncreasingCenter = kInnerConv ? -1 : (kTotalAlignedSize / 4) * 3;
+      kIsInnerConv ? kTotalAlignedSize / 2 : kTotalAlignedSize / 4;
+  static int const kWindowIncreasingCenter = kIsInnerConv ? -1 : (kTotalAlignedSize / 4) * 3;
 
   template <typename T>
   using PaddedWindowBuffer = dali::span<T, ConvWindowConfiguration::kTotalAlignedSize>;
 
   template <bool mirrored>
   CUTLASS_HOST_DEVICE constexpr static int getWindowCenter() {
-    if (mirrored) {
-      return kWindowDecreasingCenter;
-    }
-    return kWindowIncreasingCenter;
+    return mirrored ? kWindowDecreasingCenter : kWindowIncreasingCenter;
   }
 
   static int const kMaxWindowRadiusSpan =
-      kInnerConv ? kTotalAlignedSize / 2 : kTotalAlignedSize / 4;
+      kIsInnerConv ? kTotalAlignedSize / 2 : kTotalAlignedSize / 4;
 
+  /**
+   * @brief Layouts the window with the padding required by the PositionPredicatedTileIterator
+   */
   template <typename T>
   static void prepare_window(PaddedWindowBuffer<T> dst, dali::span<const T> src,
                              int num_channels = 1) {
     int radius = src.size() / 2;
     memset(dst.data(), 0, sizeof(T) * kTotalAlignedSize);
     for (int i = 0; i <= radius; i++) {
-      if (kInnerConv) {
+      if (kIsInnerConv) {
         dst[kWindowDecreasingCenter + num_channels * i] = src[radius - i];
         dst[kWindowDecreasingCenter - num_channels * i] = src[radius + i];
       } else {

@@ -24,36 +24,36 @@ namespace gemm {
 
 // For inner convolution the input is on the left and convolution kernel window matrix on the right
 
-template <bool InnerConv, typename Input, typename Window>
+template <bool IsInnerConv, typename Input, typename Window>
 __host__ __device__
-std::enable_if_t<InnerConv, Input&&> select_A(Input&& input, Window&& window) {
+std::enable_if_t<IsInnerConv, Input&&> select_A(Input&& input, Window&& window) {
   return dali::cuda_forward<Input>(input);
 }
 
-template <bool InnerConv, typename Input, typename Window>
+template <bool IsInnerConv, typename Input, typename Window>
 __host__ __device__
-std::enable_if_t<InnerConv, Window&&> select_B(Input&& input, Window&& window) {
+std::enable_if_t<IsInnerConv, Window&&> select_B(Input&& input, Window&& window) {
   return dali::cuda_forward<Window>(window);
 }
 
 
-template <bool InnerConv, typename Input, typename Window>
+template <bool IsInnerConv, typename Input, typename Window>
 __host__ __device__
-std::enable_if_t<!InnerConv, Window&&> select_A(Input&& input, Window&& window) {
+std::enable_if_t<!IsInnerConv, Window&&> select_A(Input&& input, Window&& window) {
   return dali::cuda_forward<Window>(window);
 }
 
-template <bool InnerConv, typename Input, typename Window>
+template <bool IsInnerConv, typename Input, typename Window>
 __host__ __device__
-std::enable_if_t<!InnerConv, Input&&> select_B(Input&& input, Window&& window) {
+std::enable_if_t<!IsInnerConv, Input&&> select_B(Input&& input, Window&& window) {
   return dali::cuda_forward<Input>(input);
 }
 
-template <bool InnerConv, typename Input, typename Window>
-using select_A_t = std::conditional_t<InnerConv, Input, Window>;
+template <bool IsInnerConv, typename Input, typename Window>
+using select_A_t = std::conditional_t<IsInnerConv, Input, Window>;
 
-template <bool InnerConv, typename Input, typename Window>
-using select_B_t = std::conditional_t<InnerConv, Window, Input>;
+template <bool IsInnerConv, typename Input, typename Window>
+using select_B_t = std::conditional_t<IsInnerConv, Window, Input>;
 
 }  // namespace gemm
 }  // namespace cutlass
