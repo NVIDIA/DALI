@@ -167,6 +167,12 @@ class _DaliBaseIterator(object):
         self._reader_name = reader_name
         self._extract_from_reader_and_validate()
 
+        # We need data about the batches (like shape information),
+        # so we need to run a single batch as part of setup to get that info
+        for p in self._pipes:
+            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
+                p.schedule_run()
+
     def _calculate_shard_sizes(self, shard_nums):
         shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num).astype(np.int)
         shards_end = np.floor((shard_nums + 1) * self._size_no_pad / self._shards_num).astype(np.int)

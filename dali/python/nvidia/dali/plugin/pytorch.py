@@ -154,22 +154,22 @@ class DALIGenericIterator(_DaliBaseIterator):
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL):
 
+        # check the assert first as _DaliBaseIterator would run the prefetch
+        assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
+        self._output_categories = set(output_map)
+        self.output_map = output_map
+
         _DaliBaseIterator.__init__(self, pipelines, size, reader_name, auto_reset, fill_last_batch, last_batch_padded, last_batch_policy)
         self._dynamic_shape = dynamic_shape
 
         # Use double-buffering of data batches
         self._data_batches = [None for i in range(self._num_gpus)]
-        assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
-        self._output_categories = set(output_map)
-        self.output_map = output_map
 
-        # We need data about the batches (like shape information),
-        # so we need to run a single batch as part of setup to get that info
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.schedule_run()
         self._first_batch = None
-        self._first_batch = DALIGenericIterator.__next__(self)
+        try:
+            self._first_batch = DALIGenericIterator.__next__(self)
+        except StopIteration:
+            assert False, "It seems that there is not data in the pipeline, please check if last_batch_policy is set PARTIAL and batch size is bigger than the shard size"
 
     def __next__(self):
         if self._first_batch is not None:

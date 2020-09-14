@@ -217,6 +217,17 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                  dynamic_shape=False,
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL):
+
+        # check the assert first as _DaliBaseIterator would run the prefetch
+        self._output_names_map = [x[0] for x in output_map]
+        self._output_categories_map = [x[1] for x in output_map]
+        self._output_categories = {DALIGenericIterator.DATA_TAG, DALIGenericIterator.LABEL_TAG}
+        assert set(self._output_categories_map) <= self._output_categories, \
+            "Only DATA_TAG and LABEL_TAG are allowed"
+        assert len(set(self._output_names_map)) == len(self._output_names_map), \
+            "output_names in output_map should be distinct"
+        self.output_map = output_map
+
         super(DALIGenericIterator, self).__init__(
             pipelines,
             size,
@@ -230,22 +241,12 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
         # Use double-buffering of data batches
         self._data_batches = [[None] for i in range(self._num_gpus)]
         self._current_data_batch = 0
-        self._output_names_map = [x[0] for x in output_map]
-        self._output_categories_map = [x[1] for x in output_map]
-        self._output_categories = {DALIGenericIterator.DATA_TAG, DALIGenericIterator.LABEL_TAG}
-        assert set(self._output_categories_map) <= self._output_categories, \
-            "Only DATA_TAG and LABEL_TAG are allowed"
-        assert len(set(self._output_names_map)) == len(self._output_names_map), \
-            "output_names in output_map should be distinct"
-        self.output_map = output_map
 
-        # We need data about the batches (like shape information),
-        # so we need to run a single batch as part of setup to get that info
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.schedule_run()
         self._first_batch = None
-        self._first_batch = DALIGenericIterator.__next__(self)
+        try:
+            self._first_batch = DALIGenericIterator.__next__(self)
+        except StopIteration:
+            assert False, "It seems that there is not data in the pipeline, please check if last_batch_policy is set PARTIAL and batch size is bigger than the shard size"
         # Set data descriptors for MXNet
         self.provide_data = []
         self.provide_label = []
@@ -261,7 +262,6 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             label_shape = (label.shape[0] * self._num_gpus,) + label.shape[1:]
             self.provide_label.append(mx.io.DataDesc(category_names[DALIGenericIterator.LABEL_TAG][i], \
                 label_shape, label.dtype))
-
 
     def __next__(self):
         if self._first_batch is not None:
@@ -615,6 +615,14 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                  fill_last_batch=None,
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL):
+
+        # check the assert first as _DaliBaseIterator would run the prefetch
+        self._output_tags = {DALIGluonIterator.DENSE_TAG, DALIGluonIterator.SPARSE_TAG}
+        assert output_types is None or set(output_types) <= self._output_tags, \
+            "Only DENSE_TAG and SPARSE_TAG are allowed"
+
+        self._outputs_types = output_types
+
         super(DALIGluonIterator, self).__init__(
             pipelines,
             size,
@@ -625,20 +633,19 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
             last_batch_policy)
 
         self._data_batches = [None for i in range(self._num_gpus)]
-        self._output_tags = {DALIGluonIterator.DENSE_TAG, DALIGluonIterator.SPARSE_TAG}
-        assert output_types is None or set(output_types) <= self._output_tags, \
-            "Only DENSE_TAG and SPARSE_TAG are allowed"
 
-        self._outputs_types = output_types
-
-        # We need data about the batches (like shape information),
-        # so we need to run a single batch as part of setup to get that info
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.schedule_run()
-
+        self._first_batch = None
+        try:
+            self._first_batch = self.next()
+        except StopIteration:
+            assert False, "It seems that there is not data in the pipeline, please check if last_batch_policy is set PARTIAL and batch size is bigger than the shard size"
 
     def __next__(self):
+        if self._first_batch is not None:
+            batch = self._first_batch
+            self._first_batch = None
+            return batch
+
         self._check_stop()
         # Gather outputs
         dali_outputs = []

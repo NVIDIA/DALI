@@ -20,7 +20,7 @@ import nvidia.dali.fn as fn
 import numpy as np
 import os
 from test_utils import get_dali_extra_path
-from nose.tools import raises
+from nose.tools import raises, assert_raises
 
 class COCOReaderPipeline(Pipeline):
     def __init__(self, data_paths, batch_size, num_threads, shard_id, num_gpus, random_shuffle, stick_to_shard, shuffle_after_epoch, pad_last_batch, initial_fill=1024, return_labels=False):
@@ -335,11 +335,11 @@ def check_mxnet_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
     epoch_counter = 0
     sample_counter = 0
 
-    try:
-        dali_train_iter = MXNetIterator(pipes, [("ids", MXNetIterator.DATA_TAG)], reader_name="Reader", last_batch_policy=last_batch_policy)
-    except StopIteration:
-        assert batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP
+    if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
+        assert_raises(AssertionError, MXNetIterator, pipes, [("ids", MXNetIterator.DATA_TAG)], reader_name="Reader", last_batch_policy=last_batch_policy)
         return
+    else:
+        dali_train_iter = MXNetIterator(pipes, [("ids", MXNetIterator.DATA_TAG)], reader_name="Reader", last_batch_policy=last_batch_policy)
 
     for _ in range(iters):
         out_set = []
@@ -492,7 +492,11 @@ def check_gluon_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
     epoch_counter = 0
     sample_counter = 0
 
-    dali_train_iter = GluonIterator(pipes, reader_name="Reader", last_batch_policy=last_batch_policy)
+    if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
+        assert_raises(AssertionError, GluonIterator, pipes, reader_name="Reader", last_batch_policy=last_batch_policy)
+        return
+    else:
+        dali_train_iter = GluonIterator(pipes, reader_name="Reader", last_batch_policy=last_batch_policy)
 
     for _ in range(iters):
         out_set = []
@@ -723,11 +727,11 @@ def check_pytorch_iterator_pass_reader_name(shards_num, pipes_number, batch_size
     epoch_counter = 0
     sample_counter = 0
 
-    try:
-        dali_train_iter = PyTorchIterator(pipes, output_map=["data"], reader_name="Reader", last_batch_policy=last_batch_policy)
-    except StopIteration:
-        assert batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP
+    if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
+        assert_raises(AssertionError, PyTorchIterator, pipes, output_map=["data"], reader_name="Reader", last_batch_policy=last_batch_policy)
         return
+    else:
+        dali_train_iter = PyTorchIterator(pipes, output_map=["data"], reader_name="Reader", last_batch_policy=last_batch_policy)
 
     for _ in range(iters):
         out_set = []
@@ -854,11 +858,11 @@ def check_paddle_iterator_pass_reader_name(shards_num, pipes_number, batch_size,
     epoch_counter = 0
     sample_counter = 0
 
-    try:
-        dali_train_iter = PaddleIterator(pipes, output_map=["data"], reader_name="Reader", last_batch_policy=last_batch_policy)
-    except StopIteration:
-        assert batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP
+    if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
+        assert_raises(AssertionError, PaddleIterator, pipes, output_map=["data"], reader_name="Reader", last_batch_policy=last_batch_policy)
         return
+    else:
+        dali_train_iter = PaddleIterator(pipes, output_map=["data"], reader_name="Reader", last_batch_policy=last_batch_policy)
 
     for _ in range(iters):
         out_set = []
