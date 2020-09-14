@@ -139,9 +139,8 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   sample.audio.SetMeta(meta);
 
   // Ignoring copy_read_data_, Sharing data is not supported with this loader
-  // TODO(janton): do not create a new decoder each time (?)
-  using DecoderType = int16_t;
 
+  using DecoderType = int16_t;
   GenericAudioDecoder<DecoderType> decoder;
   sample.audio_meta = decoder.OpenFromFile(entry.audio_filepath);
   assert(sample.audio_meta.channels_interleaved);  // it's always true
