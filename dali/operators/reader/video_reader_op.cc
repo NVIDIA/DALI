@@ -91,7 +91,7 @@ This parameter can be used to trade off memory usage with performance.)code",
       R"(The color space of the output frames (RGB or YCbCr).)",
       DALI_RGB)
   .AddOptionalArg("dtype",
-      R"(The data type of the output frames (UINT8 or FLOAT).)",
+      R"(Output data type. Supported types: ``UINT8`` or ``FLOAT``.).)",
       DALI_UINT8)
   .AddOptionalArg("stride",
       R"code(Distance between consecutive frames in the sequence.)code", 1u, false)

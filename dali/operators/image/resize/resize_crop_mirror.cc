@@ -22,7 +22,7 @@ DALI_SCHEMA(ResizeCropMirrorAttr)
   .AddOptionalArg("mirror",
       R"code(Mask for the horizontal flip.
 
-Example values:
+Supported values:
 
 - `0` - Do not perform horizontal flip for this image.
 - `1` - Performs horizontal flip for this image.)code", 0, true)

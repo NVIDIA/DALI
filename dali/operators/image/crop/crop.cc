@@ -23,7 +23,8 @@
 namespace dali {
 
 DALI_SCHEMA(Crop)
-    .DocStr(R"code(Crops an image with the specified window dimensions and window position (upper left corner).)code")
+    .DocStr(R"code(Crops the images with the specified window dimensions and window position
+(upper left corner).)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowSequences()

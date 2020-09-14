@@ -52,7 +52,12 @@ Example directory structure::
       - 00004.png
       - 00005.png
       - 00006.png
-      ....)code")
+      ....
+
+.. note::
+  This operator is an analogue of VideoReader working on video frames extracted as separate images.
+It's main purpose is for test baseline. For regular usage, the VideoReader is
+the recommended approach.)code")
     .NumInput(0)
     .NumOutput(1)  // ([Frames])
     .AddArg("file_root",

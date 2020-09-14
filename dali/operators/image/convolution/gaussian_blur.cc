@@ -70,7 +70,7 @@ The same input can be provided as per-sample tensors.
     .AddOptionalArg<float>(kSigmaArgName, "Sigma value for the Gaussian Kernel.",
                            std::vector<float>{0.f}, true)
     .AddOptionalArg(
-        "dtype", "Output data type; if not set, the input type is used. Supported type: `FLOAT`.",
+        "dtype", "Output data type. Supported type: `FLOAT`. If not set, the input type is used.",
         DALI_NO_TYPE);
 
 /**

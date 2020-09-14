@@ -26,7 +26,7 @@ and then samples are selected randomly to form a batch.)code", false)
   .AddOptionalArg("initial_fill",
       R"code(Size of the buffer that is used for shuffling.
 
-If ``random_shuffle`` is turned off,  this parameter is ignored.)code", 1024)
+If ``random_shuffle`` is False,  this parameter is ignored.)code", 1024)
   .AddOptionalArg("num_shards",
       R"code(Partitions the data into the specified number of parts (shards). This is typically
 used for multi-GPU or multi-node training.)code", 1)
@@ -38,8 +38,8 @@ used for multi-GPU or multi-node training.)code", 1)
       R"code(Determines whether the reader should stick to a data shard instead of going through
 the entire dataset.
 
-If you use the decoder caching, it significantly reduces the amount of data to be cached, but
-might affect accuracy.)code", false)
+If decoder caching is used, it significantly reduces the amount of data to be cached, but
+might affect accuracy of the training.)code", false)
   .AddOptionalArg("read_ahead",
       R"code(Determines whether the accessed data should be read ahead.
 
@@ -56,8 +56,8 @@ in the decoder cache.
 
 In this case, the output of the loader will be empty.)code", false)
   .AddOptionalArg("lazy_init",
-      R"code(If set to True, the Loader parses and prepares the dataset metadata only during the
-first run instead of in the constructor.)code", false)
+            R"code(Parse and prepare the dataset metadata only during the first run instead of
+in the constructor.)code", false)
   .AddOptionalArg("pad_last_batch",
       R"code(If set to True, when the batch size is not aligned with the shard size, the Loader
 pads the last batch with the last image.

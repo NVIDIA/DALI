@@ -32,9 +32,7 @@ If a value is not specified, the source coordinates are clamped and the border p
 repeated.)code", 0.0f)
   .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("dtype",
-      R"code(Output data type.
-
-By default, it is identical to the input type.)code",
+      R"code(Output data type. If not set, the input type is used.)code",
       DALI_NO_TYPE)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",

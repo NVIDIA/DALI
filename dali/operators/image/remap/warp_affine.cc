@@ -17,7 +17,7 @@
 namespace dali {
 
 DALI_SCHEMA(WarpAffine)
-  .DocStr(R"code(Applies an affine transformation to the image.)code")
+  .DocStr(R"code(Applies an affine transformation to the images.)code")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputLayout(0, { "HWC", "DHWC" })

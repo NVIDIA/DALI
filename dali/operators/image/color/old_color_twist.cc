@@ -290,38 +290,35 @@ This is an old implementation which uses NPP.)code")
     .AddOptionalArg("saturation",
                     R"code(Saturation change factor.
 
+Values must be non-negative.
+
 Example values:
 
-* 0: A completely desaturated image.
-* 1: No change to an image’s saturation.
-
-.. note::
-  Values must be non-negative.)code",
-                    1.f, true)
+- `0` – Completely desaturated image.
+- `1` - No change to image’s saturation.
+)code", 1.f, true)
     .AddOptionalArg("contrast",
                     R"code(Contrast change factor.
 
+Values must be non-negative.
+
 Example values:
 
-* 0: Uniform grey image.
-* 1: No change.
-* 2: Increase the contrast twice.
-
-.. note::
-  Values must be non-negative.)code",
-                    1.f, true)
+* `0` - Uniform grey image.
+* `1` - No change.
+* `2` - Increase brightness twice.
+)code", 1.f, true)
     .AddOptionalArg("brightness",
                     R"code(Brightness change factor.
 
+Values must be non-negative.
+
 Example values:
 
-* 0: A black image.
-* 1: No change.
-* 2: Increase the brightness twice.
-
-.. note::
-  Values must be non-negative.)code",
-                    1.f, true)
+* `0` - Black image.
+* `1` - No change.
+* `2` - Increase brightness twice.
+)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 

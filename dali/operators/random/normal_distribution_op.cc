@@ -17,9 +17,11 @@
 namespace dali {
 
 DALI_SCHEMA(NormalDistribution)
-  .DocStr(R"code(Creates a tensor filled with random values following a normal distribution.
+    .DocStr(R"code(Creates a batch of tensors filled with random values following a normal
+distribution.
 
-This operator can be run in the following modes, which determine the ``shape`` of the output tensor:
+This operator can be run in the following modes, which determine the ``shape`` of the output
+tensors/batch:
 
 * Providing an input batch to this operator results in a batch of output tensors, which have
   the same ``shape`` as the input tensors.
@@ -36,7 +38,7 @@ This operator can be run in the following modes, which determine the ``shape`` o
   .AddOptionalArg(detail::kShape,
                   R"code(Shape of an output tensor in a batch.)code",
                   detail::kShapeDefaultValue)
-  .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output.)code",
+  .AddOptionalArg(arg_names::kDtype, R"code(Output data type.)code",
                   DALI_FLOAT);
 
 DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCpu, CPU);

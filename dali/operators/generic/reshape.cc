@@ -75,7 +75,7 @@ The buffer contents are not copied.)")
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg("dtype", R"code(The desired output type.
+  .AddOptionalArg("dtype", R"code(Output data type.
 
 The total size, in bytes, of the output must match the input. If no shape is provided,
 the innermost dimension is adjusted accordingly. If the byte size of the innermost

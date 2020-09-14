@@ -54,14 +54,14 @@ DALI_SCHEMA(LookupTable)
   .DocStr(R"code(Maps the input to output by using a lookup table that is specified by
 ``keys`` and ``values``, and a ``default_value`` for unspecified keys.
 
-The following ``keys`` and ``values`` are used to define the lookup table::
+For example when ``keys`` and ``values`` are used to define the lookup table in the following way::
 
   keys[] =   {0,     2,   3,   4,   5,    3}
   values[] = {0.2, 0.4, 0.5, 0.6, 0.7, 0.10}
   default_value = 0.99
 
 
-which yields the following::
+the operator yields::
 
   lut[] = {0.2, 0.99, 0.4, 0.10, 0.6, 0.7}  // only last occurrence of a key is considered
 
@@ -70,7 +70,7 @@ and produces the output according to this formula::
    Output[i] = lut[Input[i]]   if 0 <= Input[i] <= len(lut)
    Output[i] = default_value   otherwise
 
-Here is an example::
+Another example example::
 
   Input[] =  {1,      4,    1,   0,  100,   2,     3,   4}
   Output[] = {0.99, 0.6, 0.99, 0.2, 0.99, 0.4,  0.10, 0.6}

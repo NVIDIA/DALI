@@ -76,15 +76,17 @@ from invoking other operators.
 The expressions that are used will be incorporated into the pipeline without needing to explicitly
 instantiate operators and will describe the element-wise operations on Tensors.
 
-At least one of the inputs must be a TensorList input that is returned by other DALI operators.
+At least one of the inputs to the arithmetic expression must be returned by other DALI operator -
+that is a value of :class:`nvidia.dali.pipeline.DataNode` representing a batch of tensors.
 The other input can be :meth:`nvidia.dali.types.Constant` or regular Python value of type ``bool``,
 ``int``, or ``float``. As the operations performed are element-wise, the shapes of all
 operands must match.
 
 .. note::
     If one of the operands is a batch of Tensors that represent scalars, the scalar values
-    are *broadcasted* to the other operand. For details and examples see
-    :doc:`expressions tutorials <examples/general/expressions/index>`.
+    are *broadcasted* to the other operand.
+
+For details and examples see :doc:`expressions tutorials <examples/general/expressions/index>`.
 
 Supported arithmetic operations
 -------------------------------

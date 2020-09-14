@@ -36,7 +36,7 @@ DALI_SCHEMA(DLTensorPythonFunction)
 
 The function should not modify input tensors.
 
-For the GPU operator, it is your responsibility to synchronize the device code with DALI.
+For the GPU operator, it is  a user's responsibility to synchronize the device code with DALI.
 To synchronize the device code with DALI, synchronize DALI’s work before the operator call
 with the ``synchronize_stream`` flag (enabled by default) and ensure that the scheduled device
 tasks are finished in the operator call. The GPU code can be executed on the CUDA stream used

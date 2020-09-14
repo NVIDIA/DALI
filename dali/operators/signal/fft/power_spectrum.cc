@@ -25,7 +25,7 @@ static constexpr int kNumOutputs = 1;
 namespace dali {
 
 DALI_SCHEMA(PowerSpectrum)
-    .DocStr(R"code(Power spectrum of the signal.)code")
+    .DocStr(R"code(Calculates power spectrum of the signal.)code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
     .AddOptionalArg("nfft",

@@ -28,7 +28,7 @@ DALI_REGISTER_OPERATOR(VideoReaderResize, VideoReaderResize, GPU);
 
 DALI_SCHEMA(VideoReaderResize)
   .DocStr(R"code(Loads and decodes video files with FFmpeg and NVDECODE, which is
-the hardware-accelerated video decoding feature in the GPU’s hardware-accelerated video decoding.
+NVIDIA GPU's hardware-accelerated video decoding.
 
 The video streams can be in most of the container file formats. FFmpeg is used to parse video
 containers and returns a batch of sequences with shape ``(N, F, H, W, C)``, with N being
@@ -37,8 +37,7 @@ the batch size, and F the number of frames in the sequence.
 This operator combines the features of :meth:`nvidia.dali.ops.VideoDecoder` and :meth:`nvidia.dali.ops.Resize`.
 
 .. note::
-
-  Note: The decoder supports only constant frame-rate videos.
+  The decoder supports only constant frame-rate videos.
 )code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderOutputFn)

@@ -58,7 +58,7 @@ class TransposeCPU : public Transpose<CPUBackend> {
 DALI_REGISTER_OPERATOR(Transpose, TransposeCPU, CPU);
 
 DALI_SCHEMA(Transpose)
-    .DocStr(R"code(Transposes the tensor by reordering the dimensions based on .
+    .DocStr(R"code(Transposes the tensors by reordering the dimensions based on
 the ``perm`` parameter.
 
 Destination dimension ``i`` is obtained from source dimension ``perm[i]``.

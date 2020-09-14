@@ -216,7 +216,7 @@ is between 0 and 1.)code",
         0.5f, false)
     .AddOptionalArg(
         "offset",
-        R"code(Returns normalized offsets `((encoded_bboxes*scale - anchors*scale) - mean) / stds`
+        R"code(Returns normalized offsets ``((encoded_bboxes*scale - anchors*scale) - mean) / stds``
 in EncodedBBoxes that use ``std`` and the ``mean`` and ``scale`` arguments.\n
 The default values are transparent.)code",
         false)

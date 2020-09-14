@@ -27,7 +27,7 @@ DALI_SCHEMA(FileReader)
   .AddArg("file_root",
       R"code(Path to a directory that contains the data files.
 
-``FileReader`` supports a flat directory structure. The ``file_root`` directory contains
+``FileReader`` supports a flat directory structure. The ``file_root`` directory must contain
 directories with data files. To obtain the labels, ``FileReader`` sorts directories in ``file_root``
 in alphabetical order and takes an index in this order as a class label.)code",
       DALI_STRING)
@@ -42,7 +42,7 @@ When traversing subdirectories, the labels are assigned consecutive numbers.)cod
 .AddOptionalArg("shuffle_after_epoch",
       R"code(If set to True, the reader shuffles the entire dataset after each epoch.
 
-``stick_to_shard`` and ``random_shuffle`` are mutually exclusive.)code",
+``stick_to_shard`` and ``random_shuffle`` cannot be used when this argument is set to True.)code",
       false)
   .AddParent("LoaderBase");
 

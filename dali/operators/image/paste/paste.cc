@@ -17,7 +17,7 @@
 namespace dali {
 
 DALI_SCHEMA(Paste)
-  .DocStr(R"code(Paste the input image on a larger canvas, and the canvas size is equal to
+  .DocStr(R"code(Pastes the input images on a larger canvas, where the canvas size is equal to
 ``input size * ratio``.)code")
   .NumInput(1)
   .NumOutput(1)

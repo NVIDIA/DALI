@@ -25,7 +25,7 @@ DALI_SCHEMA(CropMirrorNormalize)
   .DocStr(R"code(Performs fused cropping, normalization, format conversion
 (NHWC to NCHW) if desired, and type casting.
 
-Normalization takes the input image and produces the output by using the following formula::
+Normalization takes the input images and produces the output by using the following formula::
 
   output = (input - mean) / std
 
@@ -39,13 +39,9 @@ Normalization takes the input image and produces the output by using the followi
   .DeprecateArg("image_type", true)  // deprecated since 0.24dev
   .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("dtype",
-       R"code(Output data type.
+       R"code(Output data type. Supported types: ``FLOAT``, ``FLOAT16``, and ``UINT8``.
 
-By default, the same data type as the input will be used.
-Here are the supported types:
-- `FLOAT`
-- `FLOAT16`
-- `UINT8`)code", DALI_FLOAT)
+If not set, the input type is used.)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",
     R"code(Tensor data layout for the output.)code", TensorLayout("CHW"))
   .AddOptionalArg("pad_output",

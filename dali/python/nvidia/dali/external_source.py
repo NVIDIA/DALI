@@ -140,7 +140,7 @@ class ExternalSource():
     """ExternalSource is a special operator that can provide data to a DALI pipeline
 from Python by using several methods.
 
-The simplest and preferred way is to specify a source, which can be a callable or iterable.
+The simplest and preferred way is to specify a ``source``, which can be a callable or iterable.
 
 .. warning::
     :meth:`nvidia.dali.ops.ExternalSource` operator is not compatible with TensorFlow integration.
@@ -162,13 +162,13 @@ Args
     the source can supply one or more data batches. If ``num_outputs`` is not set, the ``source``
     is expected to return one batch. If this value is specified, the data is expected to a be tuple,
     or list, where each element corresponds to respective return value of the external_source.
-    If the source is a callable and has a positional argument, it is assumed to be the current
+    If the source is a callable that accepts a positional argument, it is assumed to be the current
     iteration number and consecutive calls will be ``source(0)``, ``source(1)``, and so on.
     If the source is a generator function, the function is invoked and treated as an iterable.
     However, unlike a generator, the function can be used with ``cycle``. In this case, the function
     will be called again when the generator reaches the end of iteration.
 
-    For the GPU input, it is your responsibility to modify the provided GPU memory content
+    For the GPU input, it is a user's responsibility to modify the provided GPU memory content
     by using the provided stream. DALI schedules a copy on the stream, and all work is properly
     queued. If no stream is provided, DALI will use a default, with a best-effort approach at
     correctness. See the ``cuda_stream`` argument documentation for more information.

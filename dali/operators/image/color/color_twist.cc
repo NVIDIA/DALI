@@ -24,18 +24,18 @@ using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 3>;
 }  // namespace
 
 DALI_SCHEMA(Hsv)
-    .DocStr(R"code(Adjusts hue, saturation and value (brightness) for an image.
+    .DocStr(R"code(Adjusts hue, saturation and value (brightness) for the images.
 
 To change the hue, the saturation, and/or the value of the image, pass the corresponding
 coefficients. Remember that the ``hue`` is an additive delta argument,
-while for ``saturation`` and value, the arguments are multiplicative.
+while for ``saturation`` and ``value``, the arguments are multiplicative.
 
 This operator accepts images in the RGB color space.
 
 For performance reasons, the operation is approximated by a linear transform in the RGB space.
 The color vector is projected along the neutral (gray) axis,
-is rotated based on the hue delta, is scaled based on the value and saturation multipliers,
-and is restored to the original color space.)code")
+rotated based on the hue delta, scaled based on the value and saturation multipliers,
+and restored to the original color space.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg(color::kHue,
@@ -60,26 +60,26 @@ DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
     .AddOptionalArg("image_type",
         R"code(The color space of the input and the output image.)code", DALI_RGB)
-    .AddOptionalArg(color::kOutputType, R"code(The output data type.
+    .AddOptionalArg(color::kOutputType, R"code(Output data type.
 
-If a value is not set, the input type is used.)code",
+If not set, the input type is used.)code",
                     DALI_UINT8);
 
 DALI_SCHEMA(Brightness)
-    .DocStr(R"code(Changes the brightness of an image.)code")
+    .DocStr(R"code(Changes the brightness of the image.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("brightness",
                     R"code(Brightness change factor.
+
+Values must be non-negative.
 
 Example values:
 
 * `0` - Black image.
 * `1` - No change.
 * `2` - Increase brightness twice.
-
-.. note::
-    Values must be non-negative.)code", 1.f, true)
+)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
@@ -90,14 +90,14 @@ DALI_SCHEMA(Contrast)
     .AddOptionalArg("contrast",
                     R"code(Contrast change factor.
 
+Values must be non-negative.
+
 Example values:
 
 * `0` - Uniform grey image.
 * `1` - No change.
 * `2` - Increase brightness twice.
-
-.. note::
-    Values must be non-negative.)code", 1.f, true)
+.)code", 1.f, true)
     .AddParent("ColorTransformBase");
 
 DALI_SCHEMA(Hue)
@@ -116,12 +116,12 @@ DALI_SCHEMA(Saturation)
     .AddOptionalArg("saturation",
                     R"code(The saturation change factor.
 
+Values must be non-negative.
+
 Example values:
 - `0` – Completely desaturated image.
 - `1` - No change to image’s saturation.
-
-.. note::
-    Values must be non-negative.)code", 1.f, true)
+)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
@@ -134,35 +134,35 @@ DALI_SCHEMA(ColorTwist)
     .AddOptionalArg("saturation",
                     R"code(Saturation change factor.
 
+Values must be non-negative.
+
 Example values:
 
 - `0` – Completely desaturated image.
 - `1` - No change to image’s saturation.
-
-.. note::
-    Values must be non-negative.)code", 1.f, true)
+)code", 1.f, true)
     .AddOptionalArg("contrast",
                     R"code(Contrast change factor.
+
+Values must be non-negative.
 
 Example values:
 
 * `0` - Uniform grey image.
 * `1` - No change.
 * `2` - Increase brightness twice.
-
-.. note::
-    Values must be non-negative.)code", 1.f, true)
+)code", 1.f, true)
     .AddOptionalArg("brightness",
                     R"code(Brightness change factor.
+
+Values must be non-negative.
 
 Example values:
 
 * `0` - Black image.
 * `1` - No change.
 * `2` - Increase brightness twice.
-
-.. note::
-    Values must be non-negative.)code", 1.f, true)
+)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 

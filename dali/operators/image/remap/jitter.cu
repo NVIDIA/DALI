@@ -21,7 +21,7 @@ namespace dali {
 DALI_SCHEMA(Jitter)
   .DocStr(R"code(Performs a random Jitter augmentation.
 
-The output image is produced by moving each pixel by a random amount, in the x and y dimensions,
+The output images are produced by moving each pixel by a random amount, in the x and y dimensions,
 and bounded by half of the ``nDegree`` parameter.)code")
   .NumInput(1)
   .NumOutput(1)

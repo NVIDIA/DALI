@@ -24,14 +24,9 @@ DALI_SCHEMA(SliceBase)
     .MakeInternal()
     .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
     .AddOptionalArg("dtype",
-       R"code(Output data type.
+            R"code(Output data type. Supported types: ``FLOAT``, ``FLOAT16``, and ``UINT8``.
 
-By default, the same data type as the input will be used, and here  are the supported types:
-
-- ``FLOAT``
-- ``FLOAT16``
-- ``UINT8``
-)code", DALI_NO_TYPE);
+If not set, the input type is used.)code", DALI_NO_TYPE);
 
 
 template <typename OutputType, typename InputType, int Dims>

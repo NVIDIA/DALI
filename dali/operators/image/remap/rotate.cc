@@ -17,7 +17,7 @@
 namespace dali {
 
 DALI_SCHEMA(Rotate)
-  .DocStr(R"code(Rotates the image by the specified angle.)code")
+  .DocStr(R"code(Rotates the images by the specified angle.)code")
   .NumInput(1)
   .NumOutput(1)
   .InputLayout(0, { "HWC", "DHWC" })

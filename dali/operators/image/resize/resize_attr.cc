@@ -45,7 +45,7 @@ on other extents and ``mode`` argument.)code", 0.f, true)
  .AddOptionalArg<vector<float>>("size", R"(The desired output size.
 
 Must be a list/tuple with the one entry per spatial dimension, excluding video
-frames and channels. imensions with a 0 extent are treated as absent, and the output size will
+frames and channels. Dimensions with a 0 extent are treated as absent, and the output size will
 be calculated based on other extents and ``mode`` argument.)", {}, true)
   .AddOptionalArg("mode", R"code(Resize mode.
 

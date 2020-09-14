@@ -10,7 +10,7 @@ This section covers a few advanced topics that are mentioned in the API document
 DALI Internal Data Format
 -------------------------
 
-Internally, DALI processes data in the [N, Width, Height, Channels] (HNHWC) format. To reshape it
+Internally, DALI processes data in the [N, Width, Height, Channels] (NHWC) format. To reshape it
 to NCHW, use the ``\*Permute`` operator family. If these operators are used in the middle of
 a pipeline, the subsequent operations in the pipeline will make incorrect assumptions about the
 processed data format, and the result will be undefined.
@@ -59,8 +59,8 @@ Allocating and freeing the GPU and host page-locked (or pinned) memory require
 device synchronization. As a result, when possible, DALI avoids reallocating these kinds of memory.
 The buffers that are allocated with this storage type will only grow when the existing buffer is too
 small to accommodate the requested shape. This strategy reduces the number of total memory
-management operations and increases the processing speed up to the point where memory requirements
-are stable and no more allocations occur.
+management operations and increases the processing speed when the memory requirements become stable
+and no more allocations are required.
 
 By contrast, ordinary host memory is relatively inexpensive to allocate and free. To reduce
 host memory consumption, the buffers might shrink when the new requested size is smaller than
@@ -97,7 +97,7 @@ Operator Buffer Presizing
 -------------------------
 
 When you can precisely forecast the memory consumption during a DALI run, this functionality helps
-you fine tune the processing pipeline . One of the benefits is that the overhead of some
+you fine tune the processing pipeline. One of the benefits is that the overhead of some
 reallocations can be avoided.
 
 DALI uses intermediate buffers to pass data between operators in the processing graph. The capacity
@@ -113,10 +113,10 @@ The following parameters are available:
 - The ``bytes_per_sample_hint`` per operator argument, which accepts one value or a list of values.
 
 When one value is provided, it is used for all output buffers for an operator. When a list is
-provided, each buffer is presized to the corresponding size.
+provided, each operator output buffer is presized to the corresponding size.
 To determine the amount of memory output that each operator needs, complete the following tasks:
 
-1) you might Create the pipeline by setting ``enable_memory_stats`` to True.
+1) Create the pipeline by setting ``enable_memory_stats`` to True.
 2) Query the pipeline for the operator's output memory statistics by calling the ``executor_meta``
    method on the pipeline.
 
@@ -139,7 +139,7 @@ we recommend that you prefetch more data ahead of time.
 Running DALI pipeline
 ---------------------
 
-You can run a pipeline in DALI in one of the following ways:
+DALI pipeline can be run in one of the following ways:
 
 - | Simple run method, which runs the computations and returns the results.
   | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.BASIC` API type.

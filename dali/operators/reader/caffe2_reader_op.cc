@@ -44,7 +44,7 @@ Required when sparse labels are used.)code", 1)
 
 Here is a list of the available values:
 
-* 0 = SINGLE_LABEL: which is the integer  label for the multi-class classification.
+* 0 = SINGLE_LABEL: which is the integer label for the multi-class classification.
 * 1 = MULTI_LABEL_SPARSE: which is the sparse active label indices for multi-label classification.
 * 2 = MULTI_LABEL_DENSE: which is the dense label embedding vector for label embedding regression.
 * 3 = MULTI_LABEL_WEIGHTED_SPARSE: which is the sparse active label indices with per-label weights for multi-label classification.

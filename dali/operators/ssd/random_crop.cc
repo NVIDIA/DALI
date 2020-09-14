@@ -29,7 +29,7 @@ DALI_SCHEMA(SSDRandomCrop)
 meets a randomly selected threshold between 0-1.
 
 When the IoU falls below the threshold, a new random crop is generated up to num_attempts.
-As an input, the IoU accepts image, bounding boxes and labels. At the output cropped image,
+As an input, the operator accepts image, bounding boxes and labels. At the output cropped image,
 cropped and valid bounding boxes and valid labels are returned.)code")
   .NumInput(3)   // [img, bbox, label]
   .NumOutput(3)  // [img, bbox, label]

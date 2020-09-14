@@ -96,7 +96,7 @@ struct Range {
 DALI_SCHEMA(RandomBBoxCrop)
     .DocStr(
         R"code(Applies a prospective random crop to an image coordinate space while keeping
-the bounding boxes, and optional labels, consistent.
+the bounding boxes, (and optionally labels), consistent.
 
 This means that after applying the random crop operator to the image coordinate space, the bounding
 boxes will be adjusted or filtered out to match the cropped ROI. The applied random crop operation
@@ -128,8 +128,9 @@ The following modes of a random crop are available:
 The num_attempts argument can be used to control the maximum number of attempts to produce
 a valid crop to match a minimum overlap metric value from ``thresholds``.
 
-**Important**: When ``allow_no_crop`` is ``False`` and ``thresholds`` does not contain ``0.0``, if
-you do not increase the ``num_attempts`` value,  it might continue to loop for a long time.
+.. note::
+  When ``allow_no_crop`` is ``False`` and ``thresholds`` does not contain ``0.0``, if
+  you do not increase the ``num_attempts`` value,  it might continue to loop for a long time.
 
 **Inputs: 0**: ``bboxes``, (1:``labels``, )
 
@@ -138,7 +139,7 @@ tensor where the first dimension refers to the index of the bounding box, and th
 refers to the index of the coordinate.
 
 The coordinates are relative to the original image dimensions
-(for example, a range of ``[0.0, 1.0]``) that represent the start and, depending on the value of
+(that means, a range of ``[0.0, 1.0]``) that represent the start and, depending on the value of
 bbox_layout, the end of the region or start and shape. For example, ``bbox_layout="xyXY"``
 means the bounding box coordinates follow the ``start_x``, ``start_y``, ``end_x``,
 and ``end_y`` order, and ``bbox_layout="xyWH"`` indicates that the order is ``start_x``,
