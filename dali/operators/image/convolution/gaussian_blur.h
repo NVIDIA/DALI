@@ -32,12 +32,6 @@ namespace dali {
 
 #define GAUSSIAN_BLUR_SUPPORTED_AXES (1, 2, 3)
 
-
-// #define GAUSSIAN_BLUR_SUPPORTED_TYPES \
-//   (uint8_t)
-
-// #define GAUSSIAN_BLUR_SUPPORTED_AXES (1, 2, 3)
-
 template <typename Backend>
 class GaussianBlur : public Operator<Backend> {
  public:
