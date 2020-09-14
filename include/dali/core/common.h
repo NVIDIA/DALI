@@ -119,7 +119,7 @@ enum DALIImageType {
   DALI_BGR          = 1,
   DALI_GRAY         = 2,
   DALI_YCbCr        = 3,
-  DALI_ANY_DATA     = 4
+  DALI_ANY_DATA     = -1
 };
 
 
