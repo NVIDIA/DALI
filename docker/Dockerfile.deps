@@ -71,6 +71,14 @@ RUN LIBTIFF_VERSION=4.1.0 && \
     cd && \
     rm -rf /tmp/tiff-${LIBTIFF_VERSION}
 
+RUN OPENJPEG_VERSION=2.3.1 && \
+    cd /tmp && \
+    curl -L https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz | tar -xzf - && \
+    cd openjpeg-${OPENJPEG_VERSION} && mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local .. && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+    rm -rf openjpeg-${OPENJPEG_VERSION}
+
 # OpenCV
 RUN OPENCV_VERSION=4.4.0 && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \

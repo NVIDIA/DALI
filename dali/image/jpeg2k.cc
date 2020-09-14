@@ -14,6 +14,7 @@
 
 #include "dali/image/jpeg2k.h"
 #include "dali/core/span.h"
+#include "dali/core/byte_io.h"
 
 namespace dali {
 
@@ -21,32 +22,19 @@ using block_type_t = std::array<uint8_t, 4>;
 
 namespace {
 
-constexpr block_type_t jp2_sig_type = {'j', 'P', ' ', ' '};
+constexpr block_type_t jp2_sig_type = {{'j', 'P', ' ', ' '}};
 
-constexpr block_type_t jp2_format_type = {'f', 't', 'y', 'p'};
+constexpr block_type_t jp2_format_type = {{'f', 't', 'y', 'p'}};
 
-constexpr block_type_t jp2_header_type = {'j', 'p', '2', 'h'};
+constexpr block_type_t jp2_header_type = {{'j', 'p', '2', 'h'}};
 
-constexpr block_type_t jp2_im_header_type = {'i', 'h', 'd', 'r'};
+constexpr block_type_t jp2_im_header_type = {{'i', 'h', 'd', 'r'}};
 
 constexpr int kBlockHdrSize = 8;
 
-template <typename T, int B = sizeof(T),
-          bool is_int = std::is_integral<T>::value,
-          bool is_unsigned = std::is_unsigned<T>::value>
-std::enable_if_t<is_int && is_unsigned, T> read_uint(const uint8_t *data) {
-  // We need to convert from big-endian.
-  std::array<uint8_t, B> swapped;
-  for (int i = 0; i < B; ++i)
-    swapped[B - 1 - i] = data[i];
-  T result;
-  memcpy(&result, swapped.data(), B);
-  return result;
-}
-
 inline uint32_t read_block_size(const uint8_t *data) {
   // Size is the first 4-byte chunk of a block.
-  return read_uint<uint32_t>(data);
+  return ReadValueBE<uint32_t>(data);
 }
 
 bool validate_block_type(const uint8_t *block_ptr, const block_type_t &type) {
@@ -54,7 +42,7 @@ bool validate_block_type(const uint8_t *block_ptr, const block_type_t &type) {
   return span<const uint8_t, 4>(block_ptr + 4) == make_cspan(type);
 }
 
-uint32_t progress_block(span<const uint8_t> data, uint32_t index, const block_type_t &type) {
+uint32_t advance_one_block(span<const uint8_t> data, uint32_t index, const block_type_t &type) {
   DALI_ENFORCE(validate_block_type(&data[index], type));
   index += read_block_size(&data[index]);
   DALI_ENFORCE(index < data.size());
@@ -64,7 +52,9 @@ uint32_t progress_block(span<const uint8_t> data, uint32_t index, const block_ty
 }  // namespace
 
 bool CheckIsJPEG2k(const uint8_t *jpeg2k, int size) {
-  DALI_ENFORCE(jpeg2k);
+  if (size == 0)
+    return false;
+  assert(jpeg2k != nullptr && "null pointer passed with non-zero size");
   return validate_block_type(jpeg2k, jp2_sig_type);
 }
 
@@ -72,18 +62,18 @@ Image::Shape Jpeg2kImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t le
   assert(encoded_buffer);
   auto data = span<const uint8_t>(encoded_buffer, length);
   uint32_t index = 0;
-  index = progress_block(data, index, jp2_sig_type);
-  index = progress_block(data, index, jp2_format_type);
+  index = advance_one_block(data, index, jp2_sig_type);
+  index = advance_one_block(data, index, jp2_format_type);
   DALI_ENFORCE(validate_block_type(&data[index], jp2_header_type));
   index += kBlockHdrSize;
   DALI_ENFORCE(validate_block_type(&data[index], jp2_im_header_type));
   DALI_ENFORCE(index + kBlockHdrSize + 2*sizeof(uint32_t) + sizeof(uint16_t) < data.size());
   index += kBlockHdrSize;
-  auto height = read_uint<uint32_t>(&data[index]);
+  auto height = ReadValueBE<uint32_t>(&data[index]);
   index += sizeof(uint32_t);
-  auto width = read_uint<uint32_t>(&data[index]);
+  auto width = ReadValueBE<uint32_t>(&data[index]);
   index += sizeof(uint32_t);
-  auto channels = read_uint<uint16_t>(&data[index]);
+  auto channels = ReadValueBE<uint16_t>(&data[index]);
   return {height, width, channels};
 }
 

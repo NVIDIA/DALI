@@ -25,7 +25,7 @@ namespace dali {
 
 bool CheckIsJPEG2k(const uint8_t *jpeg2k, int size);
 
-class Jpeg2kImage final : public GenericImage {
+class Jpeg2kImage : public GenericImage {
  public:
   Jpeg2kImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type)
   : GenericImage(encoded_buffer, length, image_type) {}
