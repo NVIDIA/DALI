@@ -42,6 +42,7 @@ BENCHMARK_DEFINE_F(OperatorBench, NormalDistributionGPU_NonUniform)(benchmark::S
   TensorListShape<3> shape(batch_size);
   int vol_log2 = 0;
   for (int i = 1; i < max_sample_vol; i *= 2) vol_log2++;
+  assert(vol_log2 > 0);
   shape.set_tensor_shape(0, {1, 1, 1});
   for (int i = 1; i < batch_size; ++i) {
     auto prev = volume(shape[i - 1]);

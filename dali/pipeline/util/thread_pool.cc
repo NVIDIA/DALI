@@ -42,13 +42,7 @@ ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity)
 }
 
 ThreadPool::~ThreadPool() {
-  // Wait for work to find errors
-  // terminate explicitly as we are finishing the program anyway
-  try {
-    WaitForWork(false);
-  } catch (...) {
-    std::terminate();
-  }
+  WaitForWork(false);
 
   std::unique_lock<std::mutex> lock(mutex_);
   running_ = false;

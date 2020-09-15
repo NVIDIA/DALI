@@ -79,12 +79,7 @@ class WorkerThread {
 
   inline ~WorkerThread() {
 #if NVML_ENABLED
-    try {
-      nvml::Shutdown();
-    } catch (const std::exception &) {
-      // Something went terribly wrong while releasing resources. We'd better die right now.
-      std::terminate();
-    }
+    nvml::Shutdown();
 #endif
   }
 

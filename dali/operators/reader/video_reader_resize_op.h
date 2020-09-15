@@ -87,7 +87,6 @@ class VideoReaderResize : public VideoReader,
 
   ResizeAttr resize_attr_;
   ResamplingFilterAttr resampling_attr_;
-  DALIDataType out_type_;
  private:
   std::vector<kernels::ResamplingParams2D> resample_params_;
   TensorListShape<> input_shape_, output_shape_;

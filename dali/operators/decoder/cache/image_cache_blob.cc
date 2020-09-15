@@ -43,16 +43,12 @@ ImageCacheBlob::ImageCacheBlob(std::size_t cache_size,
 }
 
 ImageCacheBlob::~ImageCacheBlob() {
-  try {
-    CUDA_CALL(cudaStreamSynchronize(cache_stream_));
-    CUDA_CALL(cudaEventDestroy(cache_read_event_));
-    CUDA_CALL(cudaEventDestroy(cache_write_event_));
-    CUDA_CALL(cudaStreamDestroy(cache_stream_));
+  CUDA_CALL(cudaStreamSynchronize(cache_stream_));
+  CUDA_CALL(cudaEventDestroy(cache_read_event_));
+  CUDA_CALL(cudaEventDestroy(cache_write_event_));
+  CUDA_CALL(cudaStreamDestroy(cache_stream_));
 
-    if (stats_enabled_ && images_seen() > 0) print_stats();
-  } catch (...) {
-    std::terminate();
-  }
+  if (stats_enabled_ && images_seen() > 0) print_stats();
 }
 
 bool ImageCacheBlob::IsCached(const ImageKey& image_key) const {

@@ -177,7 +177,7 @@ class ColorTwistBase : public Operator<Backend> {
   }
 
   USE_OPERATOR_MEMBERS();
-  float half_range_;
+  float half_range_ = 0.0f;
   std::vector<float> hue_, saturation_, value_, brightness_, contrast_;
   std::vector<mat3> tmatrices_;
   std::vector<vec3> toffsets_;

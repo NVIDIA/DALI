@@ -32,8 +32,7 @@ template<typename Backend>
 class MakeContiguousBase : public Operator<Backend> {
  public:
   inline explicit MakeContiguousBase(const OpSpec &spec) :
-      Operator<Backend>(spec),
-      coalesced(true) {
+      Operator<Backend>(spec) {
     std::vector<int> hints;
     GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", spec.NumOutput());
     if (!hints.empty())
@@ -59,8 +58,8 @@ class MakeContiguousBase : public Operator<Backend> {
  protected:
   USE_OPERATOR_MEMBERS();
   TensorList<CPUBackend> cpu_output_buff;
-  bool coalesced;
-  int bytes_per_sample_hint;
+  bool coalesced = true;
+  int bytes_per_sample_hint = 0;
 };
 
 class MakeContiguousMixed : public MakeContiguousBase<MixedBackend> {

@@ -121,7 +121,6 @@ class RandomResizedCrop : public Operator<Backend>
   RandomCropAttr crop_attr_;
 
   std::vector<int> size_;
-  DALIInterpType interp_type_;
   kernels::ResamplingParams2D shared_params_;
   std::vector<kernels::ResamplingParams2D> resample_params_;
   std::vector<CropWindow> crops_;
