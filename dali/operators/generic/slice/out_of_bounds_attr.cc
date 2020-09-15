@@ -26,7 +26,7 @@ DALI_SCHEMA(OutOfBoundsAttr)
 Here is a list of the supported values:
 
 - "error" (default): Attempting to slice outside of the bounds of the image will produce an error.
-- "pad": The input will be padded as needed with zeros or any other value that are specified
+- "pad": The input will be padded as needed with zeros or any other value that is specified
   with the ``fill_values`` argument.
 - "trim_to_shape": The slice window will be cut to the bounds of the input.)code", "error")
     .AddOptionalArg("fill_values",

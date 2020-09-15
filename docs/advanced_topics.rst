@@ -22,7 +22,7 @@ This functionality allows you to pin DALI threads to the specified CPU. Thread a
 the overhead of worker threads jumping from core to core and improves performance with CPU-heavy
 workloads. You can set the DALI CPU thread affinity by using the ``DALI_AFFINITY_MASK`` environment
 variable, which is a comma-separated list of CPU IDs that will be assigned to corresponding DALI
-threads. The number of DALI threads are set during the pipeline construction by the num_threads
+threads. The number of DALI threads is set during the pipeline construction by the num_threads
 argument and set_affinity enables thread affinity for the CPU worker threads.
 
 .. note::
@@ -64,10 +64,10 @@ and no more allocations are required.
 
 By contrast, ordinary host memory is relatively inexpensive to allocate and free. To reduce
 host memory consumption, the buffers might shrink when the new requested size is smaller than
-the fraction of the old size. This is called shrink threshold, and the value and it can be
-adjusted to a value between 0 (never shrink) and 1 (always shrink). The default is 0.9.
-The value can be controlled by the ``DALI_HOST_BUFFER_SHRINK_THRESHOLD`` environmental variable
-or be set in Python by using the `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
+the fraction of the old size. This is called shrink threshold. It can be adjusted to a value
+between 0 (never shrink) and 1 (always shrink). The default is 0.9. The value can be controlled
+by the ``DALI_HOST_BUFFER_SHRINK_THRESHOLD`` environmental variable or be set in Python by
+using the `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
 
 During processing, DALI works on batches of samples. For the GPU and some CPU operators, each batch
 is stored as contiguous memory and is processed at once, which reduces the number of

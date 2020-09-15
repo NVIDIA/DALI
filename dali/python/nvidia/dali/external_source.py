@@ -138,7 +138,7 @@ def _get_callback_from_source(source, cycle):
 
 class ExternalSource():
     """ExternalSource is a special operator that can provide data to a DALI pipeline
-from Python by using several methods.
+from Python by several methods.
 
 The simplest and preferred way is to specify a ``source``, which can be a callable or iterable.
 

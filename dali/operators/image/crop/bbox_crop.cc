@@ -218,7 +218,7 @@ equal to the ``max`` value.  By default, square windows are generated.
         "scaling",
         R"code(Range ``[min, max]`` for the crop size with respect to the original image dimensions.
 
-The value values of ``min`` and ``max`` must satisfy the condition ``0.0 <= min <= max``.
+The value of ``min`` and ``max`` must satisfy the condition ``0.0 <= min <= max``.
 
 .. note::
   Providing ``aspect_ratio`` and ``scaling`` is incompatible when explicitly specifying the
@@ -291,7 +291,7 @@ The order of dimensions is determined by the layout that is provided in ``shape_
 
 .. note::
   ``crop_shape`` and ``input_shape`` should be provided together but providing those arguments
-  is incompatible when using ``scaling`` and ``aspect_ratio`` arguments.
+  is incompatible ``scaling`` and ``aspect_ratio`` arguments.
 )code",
         std::vector<int>{}, true)
     .AddOptionalArg<TensorLayout>(

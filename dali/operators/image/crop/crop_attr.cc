@@ -20,7 +20,7 @@ namespace dali {
 DALI_SCHEMA(CropAttr)
     .DocStr(R"code(Crops attributes placeholder)code")
     .AddOptionalArg(
-        "crop", R"code(Shape of the cropped image, specified as a list of value (for example,
+        "crop", R"code(Shape of the cropped image, specified as a list of values (for example,
 ``(crop_H, crop_W)`` for the 2D crop and ``(crop_D, crop_H, crop_W)`` for the volumetric crop).
 
 Providing crop argument is incompatible with providing separate arguments such as ``crop_d``,
@@ -53,16 +53,14 @@ of the cropping window.)code",
     .AddOptionalArg(
         "crop_w", R"code(Cropping window width (in pixels).
 
-If the ``crop_w`` value is provided together with ``crop_h``. Providing values
-for ``crop_w`` and ``crop_h`` is incompatible with providing fixed crop window dimensions
-(argument ``crop``).)code",
+Providing values for ``crop_w`` and ``crop_h`` is incompatible with providing fixed crop window
+dimensions (argument ``crop``).)code",
         0.0f, true)
     .AddOptionalArg(
         "crop_h", R"code(Cropping the window height (in pixels).
 
-If the ```crop_h`` value is provided together with ``crop_w``. Providing values
-for ``crop_w`` and ``crop_h`` is incompatible with providing fixed crop window dimensions
-(argument ``crop``).)code",
+Providing values for ``crop_w`` and ``crop_h`` is incompatible with providing fixed crop
+window dimensions (argument ``crop``).)code",
         0.0f, true)
     .AddOptionalArg(
         "crop_d", R"code(Applies **only** to volumetric inputs.

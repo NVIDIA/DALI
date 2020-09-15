@@ -36,7 +36,7 @@ void BoxEncoder<CPUBackend>::CalculateIousForBox(float *ious, const BoundingBox 
   }
 
   // For best default box matched with current object let iou = 2, to make sure there is a match,
-  // as this object will be the best (highest IOU), for this default box
+  // as this object will be the best (highest IoU), for this default box
   ious[best_idx] = 2.;
 }
 
@@ -191,7 +191,7 @@ DALI_SCHEMA(BoxEncoder)
         R"code(Encodes the input bounding boxes and labels using a set of default boxes (anchors)
 passed as an argument.
 
-This class follows the algorithm described in "SSD: Single Shot MultiBox Detector"
+This operator follows the algorithm described in "SSD: Single Shot MultiBox Detector"
 and implemented in https://github.com/mlperf/training/tree/master/single_stage_detector/ssd.
 Inputs must be supplied as the following Tensors:
 
@@ -206,19 +206,19 @@ The results are two tensors:
     .NumInput(2)
     .NumOutput(2)
     .AddArg("anchors",
-            R"code(Anchors to be used for encoding, and the list of floats are in the ltrb
+            R"code(Anchors to be used for encoding, as the list of floats is in the ltrb
 format.)code",
             DALI_FLOAT_VEC)
     .AddOptionalArg(
         "criteria",
-        R"code(Threshold IOU for matching bounding boxes with anchors, and the value
-is between 0 and 1.)code",
+        R"code(Threshold IoU for matching bounding boxes with anchors.
+
+The value needs to be between 0 and 1.)code",
         0.5f, false)
     .AddOptionalArg(
         "offset",
         R"code(Returns normalized offsets ``((encoded_bboxes*scale - anchors*scale) - mean) / stds``
-in EncodedBBoxes that use ``std`` and the ``mean`` and ``scale`` arguments.\n
-The default values are transparent.)code",
+in EncodedBBoxes that use ``std`` and the ``mean`` and ``scale`` arguments.)code",
         false)
     .AddOptionalArg("scale",
             R"code(Rescales the box and anchor values before the offset is calculated

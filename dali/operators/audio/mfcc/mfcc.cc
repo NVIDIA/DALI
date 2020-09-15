@@ -65,7 +65,7 @@ a mel spectrogram.)code")
       R"code(The supported types are 1, 2, 3, 4.
 
 The formulas that are used to calculate the DCT are equivalent to those described in
-https://en.wikipedia.org/wiki/Discrete_cosine_transform (the numbers corresponds to types
+https://en.wikipedia.org/wiki/Discrete_cosine_transform (the numbers correspond to types
 listed in https://en.wikipedia.org/wiki/Discrete_cosine_transform#Formal_definition).)code",
       2)
     .AddOptionalArg("normalize",

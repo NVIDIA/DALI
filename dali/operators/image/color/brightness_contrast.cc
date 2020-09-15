@@ -35,9 +35,7 @@ Where:
 -	The output_range is 1 for float outputs or the maximum positive value for integral types.
 -	Grey denotes the value of 0.5 for ``float``, 128 for ``uint8``, and 16384 for ``int16``, and so on.
 
-This operator can also change the type of data.
-
-Additionally, this operator can change the type of data.)code")
+This operator can also change the type of data.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("brightness",

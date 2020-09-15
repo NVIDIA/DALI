@@ -102,7 +102,9 @@ that are larger than ``cache_threshold`` will be cached in GPU memory.
   .AddOptionalArg("cache_threshold",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-The size threshold, in bytes, for decoded images to be cached.)code",
+The size threshold, in bytes, for decoded images to be cached. When an image is cached, it no
+longer needs to be decoded when it is encountered at the operator input saving processing time.
+)code",
       0)
   .AddOptionalArg("cache_debug",
       R"code(Applies **only** to the ``mixed`` backend type.

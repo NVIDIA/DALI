@@ -40,7 +40,7 @@ Tensor (``m * category_id``).)code")
   .AddOptionalArg("ltrb",
       R"code(If set to True, bboxes are returned as [left, top, right, bottom].
 
-If set to False, the bboxes are returned as else [x, y, width, height].)code",
+If set to False, the bboxes are returned as [x, y, width, height].)code",
       false)
   .AddOptionalArg("masks",
       R"code(If set to True, segmentation masks are read and returned as polygons,
@@ -52,7 +52,7 @@ following tensors:
 - ``masks_meta`` -> list of tuples (mask_idx, start_idx, end_idx)
 - ``masks_coords``-> list of (x,y) coordinates
 
-One mask can have one or more ``masks_meta`` values that have the same ``mask_idx.``
+One mask can have one or more ``masks_meta`` values that have the same ``mask_idx``.
 This means that the mask for that given index consists of several polygons.
 ``start_idx`` indicates the index of the first coordinates in ``masks_coords``.
 Currently objects with ``iscrowd=1`` annotations are skipped because RLE masks are not suitable
@@ -73,8 +73,7 @@ The value is represented as an absolute value.)code",
   .AddOptionalArg("file_list",
       R"code(Path to the file that contains a list of whitespace separated ``file id`` pairs.
 
-To traverse the file_root directory and obtain files and labels, leave empty
-this value empty.)code",
+To traverse the file_root directory and obtain files and labels, leave this value empty.)code",
       std::string())
   .AddOptionalArg("save_img_ids",
       R"code(If set to True, the image IDs are also returned.)code",

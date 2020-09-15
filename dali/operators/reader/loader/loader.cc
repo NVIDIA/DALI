@@ -21,12 +21,12 @@ DALI_SCHEMA(LoaderBase)
   .AddOptionalArg("random_shuffle",
       R"code(Determines whether to randomly shuffle data.
 
-A Prefetch the buffer with a size equal to ``initial_fill`` is used to read data sequentially,
+A prefetch buffer with a size equal to ``initial_fill`` is used to read data sequentially,
 and then samples are selected randomly to form a batch.)code", false)
   .AddOptionalArg("initial_fill",
       R"code(Size of the buffer that is used for shuffling.
 
-If ``random_shuffle`` is False,  this parameter is ignored.)code", 1024)
+If ``random_shuffle`` is False, this parameter is ignored.)code", 1024)
   .AddOptionalArg("num_shards",
       R"code(Partitions the data into the specified number of parts (shards). This is typically
 used for multi-GPU or multi-node training.)code", 1)

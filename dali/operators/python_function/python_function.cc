@@ -30,7 +30,7 @@ DALI_SCHEMA(PythonFunction)
 
 This operator can be used to execute custom Python code in the DALI pipeline.
 The function receives the data from DALI as NumPy arrays in case of CPU operators or
-as CuPy arrays for GPU operators. It is expected to return the results in the same format, but for
+as CuPy arrays for GPU operators. It is expected to return the results in the same format. For
 a more universal data format, see :meth:`nvidia.dali.ops.DLTensorPythonFunction`.
 The function should not modify input tensors.
 

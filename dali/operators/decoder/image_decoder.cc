@@ -100,7 +100,7 @@ allocation might be useful to determine suitable values for ``device_memory_padd
 ``host_memory_padding`` for a dataset.
 
 .. note::
-  The statistics are global for the entire process, not per operator instance, and includes
+  The statistics are global for the entire process, not per operator instance, and include
   the allocations made during construction when the padding hints are non-zero.
 )code",
       false);
@@ -132,7 +132,8 @@ The following formats are supported:
 
 Determines the percentage of the workload that will be offloaded to the hardware decoder,
 if available. The optimal workload depends on the number of threads that are provided to
-the DALI pipeline and should be found empirically.)code",
+the DALI pipeline and should be found empirically. More details can be found at
+https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100)code",
       0.65f)
   .NumInput(1)
   .NumOutput(1)

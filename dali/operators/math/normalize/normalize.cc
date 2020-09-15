@@ -78,7 +78,7 @@ This argument also requires that the input sample shapes in the non-reduced axes
     false)
   .AddOptionalArg<float>("mean", R"code(Mean value to be subtracted from the data.
 
-The value can be a scalar or a batch of tensors with same dimensionality as the input.
+The value can be a scalar or a batch of tensors with the same dimensionality as the input.
 The extent in each dimension must match the value of the input or be equal to 1. If the
 extent is 1, the value will be broadcast in this dimension. If the value is not specified, the
 mean is calculated from the input. A non-scalar mean cannot be used when batch argument
