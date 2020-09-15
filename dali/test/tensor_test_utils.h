@@ -167,12 +167,8 @@ struct EqualEps {
 
   template <typename T1, typename T2>
   bool operator()(const T1 &a, const T2 &b) const {
-    return std::abs(b - a) <= eps;
-  }
-
-  bool operator()(const float16 &a, const float16 &b) const {
-    auto abs_diff = b - a >= float16{0} ? b - a : a - b;
-    return abs_diff <= float16{eps};
+    auto abs_diff = b >= a ? b - a : a - b;
+    return abs_diff <= eps;
   }
 
   double eps = 1e-6;
@@ -303,12 +299,6 @@ uniform_distribution(T lo, T hi) {
   return std::uniform_real_distribution<T>(lo, hi);
 }
 
-template <typename T>
-auto uniform_distribution(float16 lo, float16 hi, std::enable_if_t<is_half<T>::value>* = nullptr) {
-  return [lo, hi](auto &g) {
-    return static_cast<float16>(std::uniform_real_distribution<float>(lo, hi)(g));
-  };
-}
 
 template <typename T>
 std::enable_if_t<std::is_integral<T>::value,

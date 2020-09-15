@@ -31,24 +31,24 @@
 namespace dali {
 namespace kernels {
 
-template <int ndim_, bool has_channels_, int axis_, int window_size_, typename InType_,
-          typename OutType_ = float>
+template <int ndim_, bool has_channels_, int axis_, typename InType_, typename OutType_ = float,
+          typename WinType_ = float>
 struct convolution_params {
   static constexpr int ndim = ndim_;
   static constexpr bool has_channels = has_channels_;
   static constexpr int axis = axis_;
-  static constexpr int window_size = window_size_;
   using InType = InType_;
+  using WinType = WinType_;
   using OutType = OutType_;
 };
 
 template <typename T>
 struct ConvolutionGpuKernelTest : public ::testing::Test {
+  using InType = typename T::InType;
+  using WinType = typename T::WinType;
   using OutType = typename T::OutType;
-  using KernelCpu =
-      ConvolutionCpu<OutType, typename T::InType, float, T::ndim, T::axis, T::has_channels>;
-  using KernelGpu =
-      ConvolutionGpu<OutType, typename T::InType, float, T::ndim, T::axis, T::has_channels>;
+  using KernelCpu = ConvolutionCpu<OutType, InType, WinType, T::ndim, T::axis, T::has_channels>;
+  using KernelGpu = ConvolutionGpu<OutType, InType, WinType, T::ndim, T::axis, T::has_channels>;
 
   TensorListShape<T::ndim> GetShape() {
     if (T::has_channels) {
@@ -123,15 +123,15 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
     Check(out_cpu_, baseline_out_, EqualEps(eps));
   }
 
-  TestTensorList<float, 1> kernel_window_;
-  TestTensorList<typename T::InType, T::ndim> input_;
+  TestTensorList<WinType, 1> kernel_window_;
+  TestTensorList<InType, T::ndim> input_;
   TestTensorList<OutType, T::ndim> output_;
   TestTensorList<OutType, T::ndim> baseline_output_;
 
-  TensorListView<StorageCPU, float, 1> k_win_;
-  TensorListView<StorageGPU, typename T::InType, T::ndim> in_;
+  TensorListView<StorageCPU, WinType, 1> k_win_;
+  TensorListView<StorageGPU, InType, T::ndim> in_;
   TensorListView<StorageGPU, OutType, T::ndim> out_;
-  TensorListView<StorageCPU, typename T::InType, T::ndim> baseline_in_;
+  TensorListView<StorageCPU, InType, T::ndim> baseline_in_;
   TensorListView<StorageCPU, OutType, T::ndim> baseline_out_;
 
   const TensorListShape<> shape_ch_ = {{29, 145, 128, 3}, {64, 64, 64, 3},  {164, 164, 164, 3},
@@ -140,74 +140,46 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
   const TensorListShape<> shape_noch_ = {{29, 145, 128}, {64, 64, 64},  {164, 164, 164},
                                          {12, 12, 12},   {4, 200, 180}, {200, 4, 180},
                                          {75, 75, 75}};
-  const TensorListShape<1> shape_window =
-      uniform_list_shape(shape_ch_.num_samples(), TensorShape<1>{T::window_size});
+  const TensorListShape<1> shape_window = {{1, 3, 5, 15, 25, 51, 101}};
 };
 
 TYPED_TEST_SUITE_P(ConvolutionGpuKernelTest);
 
-  // ndim, has_channels, convolution axis, window size, input type, [output type = float]
+  // ndim, has_channels, convolution axis, input type, [output type = float]
 using ConvolutionTestValues = ::testing::Types<
     // 1D
-    convolution_params<1, false, 0, 3, int16_t, int16_t>,
-    convolution_params<1, false, 0, 15, int16_t, float>,
-    convolution_params<1, false, 0, 51, float16, float16>,
-     convolution_params<1, false, 0, 101, uint32_t, uint32_t>,
+    convolution_params<1, false, 0, uint8_t, float>,
+    convolution_params<1, false, 0, int16_t, int16_t>,
+    // TODO(klecki): cannot test this as it tries to use device __half for CPU kernel
+    // convolution_params<1, false, 0, float16, float16, float16>,
+    convolution_params<1, false, 0, float, float>,
+    convolution_params<1, false, 0, int32_t, int32_t>,
+    convolution_params<1, false, 0, uint32_t, uint32_t>,
+    convolution_params<1, false, 0, int16_t, int16_t>,
+    convolution_params<1, false, 0, int16_t, float>,
+    convolution_params<1, false, 0, uint32_t, uint32_t>,
     // 1D with channels
-    convolution_params<2, true, 0, 3, float>,
-    convolution_params<2, true, 0, 15, float>,
-    convolution_params<2, true, 0, 51, float>,
-    convolution_params<2, true, 0, 101, float>,
+    convolution_params<2, true, 0, float>,
     // 2D outer, double
-    convolution_params<2, false, 0, 3, float>,
-    convolution_params<2, false, 0, 15, float>,
-    convolution_params<2, false, 0, 51, float>,
-    convolution_params<2, false, 0, 101, float>,
+    convolution_params<2, false, 0, float>,
     // 2D inner
-    convolution_params<2, false, 1, 3, float>,
-    convolution_params<2, false, 1, 15, float>,
-    convolution_params<2, false, 1, 51, float>,
-    convolution_params<2, false, 1, 101, float>,
+    convolution_params<2, false, 1, float>,
     // 2D outer with channels
-    convolution_params<3, true, 0, 3, float>,
-    convolution_params<3, true, 0, 15, float>,
-    convolution_params<3, true, 0, 51, float>,
-    convolution_params<3, true, 0, 101, float>,
+    convolution_params<3, true, 0, float>,
     // 2D inner with channels
-    convolution_params<3, true, 1, 3, float>,
-    convolution_params<3, true, 1, 15, float>,
-    convolution_params<3, true, 1, 51, float>,
-    convolution_params<3, true, 1, 101, float>,
+    convolution_params<3, true, 1, float>,
     // 3D outer
-    convolution_params<3, false, 0, 3, float>,
-    convolution_params<3, false, 0, 15, float>,
-    convolution_params<3, false, 0, 51, float>,
-    convolution_params<3, false, 0, 101, float>,
+    convolution_params<3, false, 0, float>,
     // 3D "middle"
-    convolution_params<3, false, 1, 3, float>,
-    convolution_params<3, false, 1, 15, float>,
-    convolution_params<3, false, 1, 51, float>,
-    convolution_params<3, false, 1, 101, float>,
+    convolution_params<3, false, 1, float>,
     // 3D inner
-    convolution_params<3, false, 2, 3, float>,
-    convolution_params<3, false, 2, 15, float>,
-    convolution_params<3, false, 2, 51, float>,
-    convolution_params<3, false, 2, 101, float>,
+    convolution_params<3, false, 2, float>,
     // 3D outer with channels
-    convolution_params<4, true, 0, 3, float>,
-    convolution_params<4, true, 0, 15, float>,
-    convolution_params<4, true, 0, 51, float>,
-    convolution_params<4, true, 0, 101, float>,
+    convolution_params<4, true, 0, float>,
     // 3D "middle" with channels
-    convolution_params<4, true, 1, 3, float>,
-    convolution_params<4, true, 1, 15, float>,
-    convolution_params<4, true, 1, 51, float>,
-    convolution_params<4, true, 1, 101, float>,
+    convolution_params<4, true, 1, float>,
     // 3D outer with channels
-    convolution_params<4, true, 2, 3, float>,
-    convolution_params<4, true, 2, 15, float>,
-    convolution_params<4, true, 2, 51, float>,
-    convolution_params<4, true, 2, 101, float> >;
+    convolution_params<4, true, 2, float>>;
 TYPED_TEST_P(ConvolutionGpuKernelTest, DoConvolution) {
   this->RunTest();
 }
