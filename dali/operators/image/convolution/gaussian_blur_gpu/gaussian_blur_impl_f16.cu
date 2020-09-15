@@ -32,8 +32,8 @@ namespace gaussian_blur {
 
 using op_impl_uptr = std::unique_ptr<OpImplBase<GPUBackend>>;
 
-// template op_impl_uptr GetGaussianBlurGpuImpl<float16, float16>(const OpSpec&, DimDesc);
-// template op_impl_uptr GetGaussianBlurGpuImpl<float, float16>(const OpSpec&, DimDesc);
+template op_impl_uptr GetGaussianBlurGpuImpl<float16, float16>(const OpSpec&, DimDesc);
+template op_impl_uptr GetGaussianBlurGpuImpl<float, float16>(const OpSpec&, DimDesc);
 
 }  // namespace gaussian_blur
 }  // namespace dali

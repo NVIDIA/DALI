@@ -104,7 +104,7 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
   static constexpr int sequence_axes = static_cast<int>(is_sequence);
   static constexpr int channel_axes = static_cast<int>(has_channels);
   static constexpr int ndim = sequence_axes + axes + channel_axes;
-  using Intermediate = decltype(std::declval<W>() * std::declval<In>());
+  using Intermediate = W;
 
   KernelRequirements Setup(KernelContext& ctx, const TensorListShape<ndim>& in_shape,
                            const std::array<TensorListShape<1>, axes>& window_sizes) {
@@ -145,7 +145,7 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
   static constexpr int sequence_axes = static_cast<int>(is_sequence);
   static constexpr int channel_axes = static_cast<int>(has_channels);
   static constexpr int ndim = sequence_axes + axes + channel_axes;
-  using Intermediate = decltype(std::declval<W>() * std::declval<In>());
+  using Intermediate = W;
 
   KernelRequirements Setup(KernelContext& ctx, const TensorListShape<ndim>& in_shape,
                            const std::array<TensorListShape<1>, axes>& window_sizes) {

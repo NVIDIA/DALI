@@ -25,10 +25,8 @@
 
 namespace dali {
 
-
-// TODO(klecki): float16 -> cutlass::half
 #define GAUSSIAN_BLUR_SUPPORTED_TYPES \
-  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)
+  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, float16)
 
 #define GAUSSIAN_BLUR_SUPPORTED_AXES (1, 2, 3)
 

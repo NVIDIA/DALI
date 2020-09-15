@@ -39,7 +39,8 @@ namespace gaussian_blur {
 template <typename Out, typename In, int axes, bool has_channels, bool is_sequence>
 class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
  public:
-  using Kernel = kernels::SeparableConvolutionGpu<Out, In, float, axes, has_channels, is_sequence>;
+  using Win = std::conditional_t<std::is_same<In, float16>::value, float16, float>;
+  using Kernel = kernels::SeparableConvolutionGpu<Out, In, Win, axes, has_channels, is_sequence>;
   static constexpr int ndim = Kernel::ndim;
 
   explicit GaussianBlurOpGpu(const OpSpec& spec, const DimDesc& dim_desc)

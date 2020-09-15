@@ -317,6 +317,8 @@ def dali_type(t):
     import_numpy()
     if t is None:
         return None
+    if t is np.float16:
+        return types.FLOAT16
     if t is np.float32:
         return types.FLOAT
     if t is np.uint8:

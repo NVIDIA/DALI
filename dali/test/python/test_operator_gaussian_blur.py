@@ -179,7 +179,7 @@ def check_generic_gaussian_blur(
 
 def test_generic_gaussian_blur():
     for dev in ["cpu", "gpu"]:
-        for t_in in [np.uint8, np.int32, np.float32]:
+        for t_in in [np.uint8, np.int32, np.float16, np.float32]:
             for t_out in [types.NO_TYPE, types.FLOAT, dali_type(t_in)]:
                 for shape, layout, axes in [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
                                             ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
