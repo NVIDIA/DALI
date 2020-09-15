@@ -43,7 +43,8 @@ bool validate_block_type(const uint8_t *block_ptr, const block_type_t &type) {
 }
 
 uint32_t advance_one_block(span<const uint8_t> data, uint32_t index, const block_type_t &type) {
-  DALI_ENFORCE(validate_block_type(&data[index], type));
+  DALI_ENFORCE(index + kBlockHdrSize < static_cast<size_t>(data.size()) &&
+               validate_block_type(&data[index], type));
   index += read_block_size(&data[index]);
   DALI_ENFORCE(index < data.size());
   return index;
@@ -52,7 +53,7 @@ uint32_t advance_one_block(span<const uint8_t> data, uint32_t index, const block
 }  // namespace
 
 bool CheckIsJPEG2k(const uint8_t *jpeg2k, int size) {
-  if (size == 0)
+  if (size < static_cast<int>(kBlockHdrSize))
     return false;
   assert(jpeg2k != nullptr && "null pointer passed with non-zero size");
   return validate_block_type(jpeg2k, jp2_sig_type);
