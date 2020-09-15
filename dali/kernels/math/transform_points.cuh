@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_MATH_TRASNFROM_POINTS_CUH_
-#define DALI_KERNELS_MATH_TRASNFROM_POINTS_CUH_
+#ifndef DALI_KERNELS_MATH_TRANSFORM_POINTS_CUH_
+#define DALI_KERNELS_MATH_TRANSFORM_POINTS_CUH_
 
+#include "dali/core/convert.h"
 #include "dali/core/geom/mat.h"
+#include "dali/core/format.h"
 #include "dali/kernels/kernel.h"
 
 namespace dali {
 namespace kernels {
 
 template <typename OutCoord, typename InCoord, int out_pt_dim, int in_pt_dim>
-struct TransformPointsDesc {
+struct TransformPointsSampleDesc {
   OutCoord *__restrict__ out;       // output point coordinates
   const InCoord *__restrict__ in;   // input point coordinates
   int64_t size;                     // number of points
@@ -31,7 +33,8 @@ struct TransformPointsDesc {
 };
 
 template <typename Out, typename In, int out_pt_dim, int in_pt_dim>
-__global__ void TransformPointsKernel(const TransformPointsDesc<Out, In, out_pt_dim, in_pt_dim> *descs) {
+__global__ void TransformPointsKernel(
+      const TransformPointsSampleDesc<Out, In, out_pt_dim, in_pt_dim> *descs) {
   auto desc = descs[blockIdx.y];
   int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blockDim.x;
   int64_t start_idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -53,6 +56,7 @@ __global__ void TransformPointsKernel(const TransformPointsDesc<Out, In, out_pt_
 template <typename Out, typename In, int out_pt_dim, int in_pt_dim>
 class TransformPointsGPU {
   using SampleDesc = TransformPointsSampleDesc<Out, In, out_pt_dim, in_pt_dim>;
+
  public:
   KernelRequirements Setup(KernelContext &ctx, const TensorListShape<> &in_shape) {
     KernelRequirements req;
@@ -77,10 +81,12 @@ class TransformPointsGPU {
       host_descs[i].in  = in.data[i];
       auto sample_shape = in.shape[i];
       host_descs[i].size  = volume(sample_shape.begin(), sample_shape.end() - 1);
+
       if (!M.empty())
         host_descs[i].M = M[i_m];
       else
         host_descs[i].M = 1.0f;  // diagonal 1 = identity
+
       if (!T.empty())
         host_descs[i].T = T[i_t];
       else
@@ -88,6 +94,7 @@ class TransformPointsGPU {
 
       if (host_descs[i].size > max_size)
         max_size = host_descs[i].size;
+
       i_m += (M.size() > 1);  // if there's just one value in M, don't advance the index
       i_t += (T.size() > 1);  // if there's just one value in T, don't advance the index
     }
@@ -95,6 +102,7 @@ class TransformPointsGPU {
     const int block = 256;
     dim3 grid = GetGridSize(max_size, N, block);
     TransformPointsKernel<<<grid, block>>>(gpu_descs);
+    CUDA_CALL(cudaGetLastError());
   }
 
  private:
@@ -102,19 +110,20 @@ class TransformPointsGPU {
     int N = in_shape.num_samples();
     int D = in_shape.sample_dim();
     TensorListShape<> out_shape;
-    out_shape.resize(N, out_pt_dim);
+    out_shape.resize(N, D);
     TensorShape<> tshape;
     for (int i = 0; i < N; i++) {
       tshape = in_shape[i];
-      DALI_ENFORCE(tshape[D] != in_pt_dim, "Incompatible number of dim in the input");
-      tshape[D] = out_pt_dim;
+      DALI_ENFORCE(tshape[D-1] == in_pt_dim, make_string("Input contains points "
+        "of incompatible dimensionality: ", tshape[D-1], " (expected ", in_pt_dim, ")"));
+      tshape[D-1] = out_pt_dim;
       out_shape.set_tensor_shape(i, tshape);
     }
     return out_shape;
   }
 
   static dim3 GetGridSize(int64_t max_size, int num_samples, int block_size) {
-    int max_blocks = max_size / block_size;
+    int max_blocks = div_ceil(max_size, block_size);
     int blocks_per_sample = div_ceil(max_blocks, 4);
     return dim3(std::min(blocks_per_sample, 1024), num_samples);
   }
@@ -123,4 +132,4 @@ class TransformPointsGPU {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_MATH_TRASNFROM_POINTS_CUH_
+#endif  // DALI_KERNELS_MATH_TRANSFORM_POINTS_CUH_

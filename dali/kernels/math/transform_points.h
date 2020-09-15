@@ -12,33 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_MATH_TRASNFROM_POINTS_H_
-#define DALI_KERNELS_MATH_TRASNFROM_POINTS_H_
+#ifndef DALI_KERNELS_MATH_TRANSFORM_POINTS_H_
+#define DALI_KERNELS_MATH_TRANSFORM_POINTS_H_
 
+#include "dali/core/convert.h"
 #include "dali/core/geom/mat.h"
 #include "dali/kernels/kernel.h"
 
+namespace dali {
+namespace kernels {
 
 template <typename Out, typename In, int out_pt_dim, int in_pt_dim>
 class TransformPointsCPU {
-  using SampleDesc = TransformPointsSampleDesc<Out, In, out_pt_dim, in_pt_dim>;
  public:
-
   KernelRequirements Setup(KernelContext &ctx, const TensorShape<> &in_shape) {
     KernelRequirements req;
     TensorShape<> out_shape = in_shape;
-    out_shape[in_shape.size()-1] = out_dim;
-    req.output_shapes = { GetOutputShape(in_shape) };
+    out_shape[in_shape.size()-1] = out_pt_dim;
+    req.output_shapes = { TensorListShape<>{{ out_shape }} };
     return req;
   }
 
   void Run(KernelContext &ctx, const OutTensorCPU<Out> &out, const InTensorCPU<In> &in,
-           const mat<out_dim, in_dim + 1> MT) {
-    Run(ctx, out, in, sub<out_dim, in_dim>(M), MT.col(in_dim));
+           mat<out_pt_dim, in_pt_dim + 1> MT) {
+    Run(ctx, out, in, sub<out_pt_dim, in_pt_dim>(MT), MT.col(in_pt_dim));
   }
 
   void Run(KernelContext &ctx, const OutTensorCPU<Out> &out, const InTensorCPU<In> &in,
-           const mat<out_dim, in_dim> M, const vec<out_dim> T) {
+           const mat<out_pt_dim, in_pt_dim> M, const vec<out_pt_dim> T) {
     int64_t n = volume(in.shape.begin(), in.shape.end() - 1);
     assert(in.num_elements() == n * in_pt_dim);
     assert(out.num_elements() == n * out_pt_dim);
@@ -47,13 +48,16 @@ class TransformPointsCPU {
       for (int c = 0; c < in_pt_dim; c++)
         v_in[c] = in.data[i * in_pt_dim + c];  // put the input in a vector
 
-      vec<out_pt_dim> v_out = desc.M * v_in + desc.T;
+      vec<out_pt_dim> v_out = M * v_in + T;
 
       for (int c = 0; c < out_pt_dim; c++)
         out.data[i * out_pt_dim + c] = ConvertSat<Out>(v_out[c]);  // unpack the vector and convert
     }
   }
-}
+};
 
-#endif  // DALI_KERNELS_MATH_TRASNFROM_POINTS_H_
 
+}  // namespace kernels
+}  // namespace dali
+
+#endif  // DALI_KERNELS_MATH_TRANSFORM_POINTS_H_

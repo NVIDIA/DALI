@@ -99,8 +99,6 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
       shape_source_ = ShapeSource::ArgInput;
     } else {
       auto shape_vec = spec.GetRepeatedArgument<int>("shape");
-      DALI_ENFORCE(!shape_vec.empty(),
-                   make_string(OpName(), ": `shape` specified as an empty list"));
 
       uniform_shape_.resize(shape_vec.size());
       int num_negative = 0;
