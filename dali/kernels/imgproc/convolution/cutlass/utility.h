@@ -18,8 +18,23 @@
 #include <type_traits>
 
 #include "dali/core/cuda_utils.h"
+#include "include/dali/core/float16.h"
 
 namespace cutlass {
+
+template <typename T>
+struct to_cutlass {
+  using type = T;
+};
+
+template <>
+struct to_cutlass<dali::float16> {
+  using type = cutlass::half_t;
+};
+
+template <typename T>
+using to_cutlass_t = typename to_cutlass<T>::type;
+
 namespace gemm {
 
 // For inner convolution the input is on the left and convolution kernel window matrix on the right

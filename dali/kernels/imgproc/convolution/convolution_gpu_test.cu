@@ -31,18 +31,20 @@
 namespace dali {
 namespace kernels {
 
-template <int ndim_, bool has_channels_, int axis_, int window_size_, typename InType_>
+template <int ndim_, bool has_channels_, int axis_, int window_size_, typename InType_,
+          typename OutType_ = float>
 struct convolution_params {
   static constexpr int ndim = ndim_;
   static constexpr bool has_channels = has_channels_;
   static constexpr int axis = axis_;
   static constexpr int window_size = window_size_;
   using InType = InType_;
+  using OutType = OutType_;
 };
 
 template <typename T>
 struct ConvolutionGpuKernelTest : public ::testing::Test {
-  using OutType = float;
+  using OutType = typename T::OutType;
   using KernelCpu =
       ConvolutionCpu<OutType, typename T::InType, float, T::ndim, T::axis, T::has_channels>;
   using KernelGpu =
@@ -144,19 +146,19 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
 
 TYPED_TEST_SUITE_P(ConvolutionGpuKernelTest);
 
-  // ndim, has_channels, convolution axis, window size, input type
+  // ndim, has_channels, convolution axis, window size, input type, [output type = float]
 using ConvolutionTestValues = ::testing::Types<
     // 1D
-    convolution_params<1, false, 0, 3, float>,
-    convolution_params<1, false, 0, 15, float>,
-    convolution_params<1, false, 0, 51, float>,
-     convolution_params<1, false, 0, 101, float>,
+    convolution_params<1, false, 0, 3, int16_t, int16_t>,
+    convolution_params<1, false, 0, 15, int16_t, float>,
+    convolution_params<1, false, 0, 51, float16, float16>,
+     convolution_params<1, false, 0, 101, uint32_t, uint32_t>,
     // 1D with channels
     convolution_params<2, true, 0, 3, float>,
     convolution_params<2, true, 0, 15, float>,
     convolution_params<2, true, 0, 51, float>,
     convolution_params<2, true, 0, 101, float>,
-    // 2D outer
+    // 2D outer, double
     convolution_params<2, false, 0, 3, float>,
     convolution_params<2, false, 0, 15, float>,
     convolution_params<2, false, 0, 51, float>,

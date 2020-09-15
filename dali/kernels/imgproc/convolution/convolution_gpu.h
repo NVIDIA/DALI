@@ -23,6 +23,7 @@
 #include "dali/kernels/imgproc/convolution/cutlass/device/gemm.h"
 #include "dali/kernels/kernel.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
+#include "dali/kernels/imgproc/convolution/cutlass/utility.h"
 
 namespace dali {
 namespace kernels {
@@ -99,15 +100,17 @@ struct ConvolutionGpu {
         int row_stride = sample_shape[ndim - has_channels - 1] * num_channels;
         auto* window_gpu = window_tmp_buffer_gpu + i * kWindowCopyBufferSize;
         int window_diameter = static_cast<int>(window.tensor_shape_span(i)[0]);
+        const auto* cutlass_in = reinterpret_cast<const cutlass_In*>(in.tensor_data(i));
+        auto* cutlass_out = reinterpret_cast<cutlass_Out*>(out.tensor_data(i));
         args.push_back(SampleArguments{
-            size,                              // Input matrix dimensions
-            window_diameter,                   // Window size
-            num_channels,                      // channels count (innermost)
-            {in.tensor_data(i), row_stride},   // Tensor-ref for source matrix A
-            window_gpu,                        // Pointers to windows
-            {out.tensor_data(i), row_stride},  // Tensor-ref for source matrix C
-            {out.tensor_data(i), row_stride},  // Tensor-ref for destination matrix D
-            {scale, 0}                         // Scalars used in the Epilogue
+            size,                       // Input matrix dimensions
+            window_diameter,            // Window size
+            num_channels,               // channels count (innermost)
+            {cutlass_in, row_stride},   // Tensor-ref for source matrix A
+            window_gpu,                 // Pointers to windows
+            {cutlass_out, row_stride},  // Tensor-ref for source matrix C
+            {cutlass_out, row_stride},  // Tensor-ref for destination matrix D
+            {scale, 0}                  // Scalars used in the Epilogue
         });
       }
     } else {
@@ -125,16 +128,18 @@ struct ConvolutionGpu {
         int plane_stride = axis > 0 ? strides[axis - 1] : 0;
         auto* window_gpu = window_tmp_buffer_gpu + i * kWindowCopyBufferSize;
         int window_diameter = static_cast<int>(window.tensor_shape_span(i)[0]);
+        const auto* cutlass_in = reinterpret_cast<const cutlass_In*>(in.tensor_data(i));
+        auto* cutlass_out = reinterpret_cast<cutlass_Out*>(out.tensor_data(i));
         args.push_back(SampleArguments{
-            size,                              // Input matrix dimensions
-            window_diameter,                   // Window sizes
-            1,                                 // channels don't matter for outer dimensions
-            {in.tensor_data(i), row_stride},   // Tensor-ref for source matrix A
-            window_gpu,                        // Pointers to windows
-            {out.tensor_data(i), row_stride},  // Tensor-ref for source matrix C
-            {out.tensor_data(i), row_stride},  // Tensor-ref for destination matrix D
-            {scale, 0},                        // Scalars used in the Epilogue
-            planes,                            // For non-outermost we can have 1+ planes
+            size,                       // Input matrix dimensions
+            window_diameter,            // Window sizes
+            1,                          // channels don't matter for outer dimensions
+            {cutlass_in, row_stride},   // Tensor-ref for source matrix A
+            window_gpu,                 // Pointers to windows
+            {cutlass_out, row_stride},  // Tensor-ref for source matrix C
+            {cutlass_out, row_stride},  // Tensor-ref for destination matrix D
+            {scale, 0},                 // Scalars used in the Epilogue
+            planes,                     // For non-outermost we can have 1+ planes
             plane_stride});
       }
     }
@@ -152,16 +157,33 @@ struct ConvolutionGpu {
   // Non-innermost convolutions are channel agnostic (assume channels = 1) and place the
   // generated matrix on the left hand side of GEMM.
   static constexpr bool kIsInnerConv = axis == ndim - has_channels - 1;
+
   using RowMajor = cutlass::layout::RowMajor;
+
+  using CutlassWindowConfig = cutlass::gemm::ConvWindowConfiguration<1024, kIsInnerConv>;
+
+
+  using cutlass_In = cutlass::to_cutlass_t<In>;
+  using cutlass_W = cutlass::to_cutlass_t<W>;
+  using cutlass_Out = cutlass::to_cutlass_t<Out>;
+  using Accumulator = cutlass::to_cutlass_t<decltype(std::declval<W>() * std::declval<In>())>;
+
+
+
   // Basic SIMT kernel with no additional conversions
-  // 2nd and 5th template parameter (In and W now) allow for additional conversion when loadind
+  // 2nd and 5th template parameter (In and W now) allow for additional conversion when loading
   // data inside the cutlass kernel. For now it's no-op (hence the same types twice).
-  using CutlassConv = typename cutlass::gemm::device::Conv<In, In,    // Data-type of Input matrix
-                                                           RowMajor,  // Layout of Input matrix
-                                                           W, W,      // Data-type of Conv window
-                                                           Out,       // Data-type of Output matrix
-                                                           RowMajor,  // Layout of Output matrix
-                                                           kIsInnerConv>;
+  using CutlassConv = typename cutlass::gemm::device::Conv<
+      cutlass_In,            /// Data-type of Input matrix
+      cutlass_In,            /// Additional cast for Input matrix type when loading
+      RowMajor,                             /// Layout of Input matrix
+      cutlass_W,                /// Data-type of Conv window
+      cutlass_W,                /// Additional cast for Conv window type when loading
+      cutlass_Out,           /// Data-type of Output matrix
+      RowMajor,                             /// Layout of Output matrix
+      kIsInnerConv,                         /// convolution kind
+      CutlassWindowConfig,                  /// Size and layout of SMEM for window kernel lookups
+      Accumulator>;  /// Element type for internal accumulation
 
   static constexpr int kMaxRadiusSpan = CutlassConv::ConvWindowConfiguration::kMaxWindowRadiusSpan;
   static constexpr int kWindowCopyBufferSize =
