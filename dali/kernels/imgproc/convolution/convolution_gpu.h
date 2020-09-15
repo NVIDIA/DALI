@@ -111,7 +111,7 @@ struct ConvolutionGpu {
             window_gpu,                 // Pointers to windows
             {cutlass_out, row_stride},  // Tensor-ref for source matrix C
             {cutlass_out, row_stride},  // Tensor-ref for destination matrix D
-            {static_cast<cutlass_W>(scale), static_cast<cutlass_W>(0)}
+            {static_cast<cutlass_W>(scale), static_cast<cutlass_W>(0)}  // Epilogue scalars
         });
       }
     } else {
@@ -140,7 +140,7 @@ struct ConvolutionGpu {
             window_gpu,                 // Pointers to windows
             {cutlass_out, row_stride},  // Tensor-ref for source matrix C
             {cutlass_out, row_stride},  // Tensor-ref for destination matrix D
-            {static_cast<cutlass_W>(scale), static_cast<cutlass_W>(0)},
+            {static_cast<cutlass_W>(scale), static_cast<cutlass_W>(0)},  // Epilogue scalars
             planes,                     // For non-outermost we can have 1+ planes
             plane_stride});
       }
