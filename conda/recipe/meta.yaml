@@ -80,7 +80,7 @@ requirements:
     # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
     # we link it statically so it doesn't carry the dependency, so we need to add it manually
     - libwebp-base
-    - libopenjp2 >=2.3.1
+    - openjpeg >=2.3.1
   run:
     - python
     - future >=0.17.1
@@ -96,4 +96,4 @@ requirements:
     # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
     # we link it statically so it doesn't carry the dependency, so we need to add it manually
     - libwebp-base
-    - libopenjp2 >=2.3.1
+    - openjpeg >=2.3.1
