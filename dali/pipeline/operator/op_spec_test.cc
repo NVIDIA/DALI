@@ -218,8 +218,39 @@ TEST(OpSpecTest, DeprecatedArgs) {
       .AddArg("batch_size", 2)
       .AddArg("deprecated_ignored_arg", 42);
 
-  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "deprecated_arg"));
+  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "deprecated_ignored_arg"));
+}
 
+TEST(OpSpecTest, DeserializeDeprecated) {
+  int num_thread = 2;
+  int batch_size = 2;
+
+  Pipeline pipe(batch_size, num_thread, 0);
+
+  pipe.AddOperator(
+      OpSpec("DummyOpForSpecTest")
+      .AddArg("device", "cpu")
+      .AddArg("preserve", true)
+      .AddArg("deprecated_arg", 1)
+      .AddArg("deprecated_ignored_arg", 1), "dummy_op_name");
+
+  vector<std::pair<string, string>> outputs = {
+      {"out0", "cpu"}};
+  pipe.AddExternalInput("out0");
+  pipe.Build(outputs);
+
+  auto serialized = pipe.SerializeToProtobuf();
+  auto *op_node0 = pipe.GetOperatorNode("dummy_op_name");
+  Pipeline deserialized_pipe(serialized);
+  std::cout << serialized << std::endl;
+  // auto *op_node = deserialized_pipe.GetOperatorNode("dummy_op_name");
+
+//   int result = 0;
+//   ASSERT_FALSE(op_node->spec.TryGetArgument<int>(result, "deprecated_arg"));
+//   ASSERT_TRUE(op_node->spec.TryGetArgument<int>(result, "replacing_arg"));
+//   ASSERT_EQ(result, 1);
+
+//   ASSERT_FALSE(op_node->spec.TryGetArgument<int>(result, "deprecated_ignored_arg"));
 }
 
 class TestArgumentInput_Producer : public Operator<CPUBackend> {

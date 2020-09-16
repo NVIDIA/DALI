@@ -163,7 +163,11 @@ class DLL_PUBLIC OpSpec {
                         "' deprecated argument when '", new_arg_name, "' was already provided."));
 
         set_through_deprecated_arguments_[new_arg_name] = arg_name;
-        arguments_[deprecation_meta.renamed_to].reset(arg);
+        // Adjust the arg so it carries the proper name for serialization
+        if (arg->has_name()) {
+          arg->set_name(new_arg_name);
+        }
+        arguments_[new_arg_name].reset(arg);
         return *this;
       }
     }
