@@ -19,6 +19,8 @@
 
 namespace dali {
 
+using DecoderType = int16_t;
+
 DALI_SCHEMA(AudioDecoder)
   .DocStr(R"code(Decodes waveforms from encoded audio data.
 

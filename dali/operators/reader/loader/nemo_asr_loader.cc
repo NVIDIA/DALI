@@ -44,9 +44,7 @@ std::string NormalizeText(std::string& text) {
 
   // Convert to lowercase
   for (auto &c : norm_text) {
-    if (std::isupper(c)) {
-      c = std::tolower(c);
-    }
+    c = std::tolower(c);
   }
   return norm_text;
 }

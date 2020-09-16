@@ -30,12 +30,17 @@ Example manifest file::
     {"audio_filepath": "path/to/audio1.wav", "offset": 3.45, "duration": 1.45, "text": "same audio file but using offset"}
     {"audio_filepath": "path/to/audio2.wav", "duration": 3.45, "text": "third transcript in this example"}
 
+.. note::
+    Only ``audio_filepath`` is field mandatory. If ``duration`` is not specified, the whole audio file will be used. A missing ``text`` field
+    will produce an empty string as a text.
+
+.. warning::
+    Handing of ``offset`` field is not yet implemented.
+
 This reader produces between 1 and 3 outputs:
 
 - Decoded audio data: float, shape=``(audio_length,)``
-
 - (optional, if ``read_sample_rate=True``) Audio sample rate: float, shape=``(1,)``
-
 - (optional, if ``read_text=True``) Transcript text as a null terminated string: uint8, shape=``(text_len + 1,)``
 
 )code")
@@ -55,9 +60,9 @@ This reader produces between 1 and 3 outputs:
     "If specified, the target sample rate, in Hz, to which the audio is resampled.",
     -1.0f)
   .AddOptionalArg("quality",
-    "Resampling quality, 0 is lowest, 100 is highest.\n"
-    "0 corresponds to 3 lobes of the sinc filter; "
-    "50 gives 16 lobes and 100 gives 64 lobes.",
+    R"code(Resampling quality, 0 is lowest, 100 is highest.
+
+  0 corresponds to 3 lobes of the sinc filter; 50 gives 16 lobes and 100 gives 64 lobes.)code",
      50.0f)
   .AddOptionalArg("downmix",
     "If True, downmix all input channels to mono. "
@@ -67,14 +72,16 @@ This reader produces between 1 and 3 outputs:
     "Type of the output data. Supports types: `INT16`, `INT32`, `FLOAT`",
     DALI_FLOAT)
   .AddOptionalArg("min_duration",
-    "It a value greater than 0 is provided, it specifies the minimum allowed duration, "
-    "in seconds, of the audio samples.\n"
-    "Samples with a duration shorter than this value will be ignored.\n",
+    R"code(It a value greater than 0 is provided, it specifies the minimum allowed duration,
+ in seconds, of the audio samples.
+
+Samples with a duration shorter than this value will be ignored.)code",
     0.0f)
   .AddOptionalArg("max_duration",
-    "It a value greater than 0 is provided, it specifies the maximum allowed duration, "
-    "in seconds, of the audio samples.\n"
-    "Samples with a duration longer than this value will be ignored.\n",
+    R"code(It a value greater than 0 is provided, it specifies the maximum allowed duration,
+in seconds, of the audio samples.
+
+Samples with a duration longer than this value will be ignored.)code",
     0.0f)
   .AddOptionalArg("normalize_text",
     "If set to True, the text transcript will be stripped of leading and trailing whitespace "

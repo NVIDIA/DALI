@@ -1,4 +1,5 @@
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import scipy.io.wavfile
@@ -8,29 +9,7 @@ import json
 import librosa
 import tempfile
 import os
-
-# generate sinewaves with given frequencies,
-# add Hann envelope and store in channel-last layout
-def generate_waveforms(length, frequencies):
-  n = int(math.ceil(length))
-  X = np.arange(n, dtype=np.float32)
-  def window(x):
-    x = 2 * x / length - 1
-    np.clip(x, -1, 1, out=x)
-    return 0.5 * (1 + np.cos(x * math.pi))
-
-  return np.sin(X[:,np.newaxis] * (np.array(frequencies) * (2 * math.pi))) * window(X)[:,np.newaxis]
-
-def rosa_resample(input, in_rate, out_rate):
-  if input.shape[1] == 1:
-    return librosa.resample(input[:,0], in_rate, out_rate)[:,np.newaxis]
-
-  channels = [librosa.resample(np.array(input[:,c]), in_rate, out_rate) for c in range(input.shape[1])]
-  ret = np.zeros(shape = [channels[0].shape[0], len(channels)], dtype=channels[0].dtype)
-  for c, a in enumerate(channels):
-    ret[:,c] = a
-
-  return ret
+from test_audio_decoder_utils import generate_waveforms, rosa_resample
 
 tmp_dir = tempfile.TemporaryDirectory()
 
@@ -101,25 +80,19 @@ class NemoAsrReaderPipeline(Pipeline):
   def __init__(self, batch_size=8):
     super(NemoAsrReaderPipeline, self).__init__(batch_size=batch_size, num_threads=3, device_id=0,
                                                 exec_async=True, exec_pipelined=True)
-    fixed_seed = 12345
-    self.reader_plain = ops.NemoAsrReader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = False,
-                                          read_sample_rate = False, read_text = False, seed=fixed_seed)
-    self.reader_downmix = ops.NemoAsrReader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
-                                            read_sample_rate=False, read_text=False, seed=fixed_seed)
-    self.reader_resample1 = ops.NemoAsrReader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
-                                              sample_rate=rate1, read_sample_rate=True, read_text=False, seed=fixed_seed)
-    self.reader_resample2 = ops.NemoAsrReader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
-                                              sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
-    self.reader_text = ops.NemoAsrReader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
-                                         read_sample_rate=True, read_text=True, seed=fixed_seed)
 
   def define_graph(self):
-    audio_plain = self.reader_plain()
-    audio_downmix = self.reader_downmix()
-    audio_resampled1, sr1 = self.reader_resample1()
-    audio_resampled2, sr1 = self.reader_resample2()
-    _, _, text = self.reader_text()
-#    return audio_plain, audio_downmixed, audio_resampled1, audio_resampled2, audio5, audio6, text5, text6
+    fixed_seed = 12345
+    audio_plain = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = False,
+                                     read_sample_rate = False, read_text = False, seed=fixed_seed)
+    audio_downmix = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
+                                       read_sample_rate=False, read_text=False, seed=fixed_seed)
+    audio_resampled1, sr1 = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
+                                               sample_rate=rate1, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    audio_resampled2, sr1 = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
+                                               sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    _, _, text = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
+                                    read_sample_rate=True, read_text=True, seed=fixed_seed)
     return audio_plain, audio_downmix, audio_resampled1, audio_resampled2, text
 
 
