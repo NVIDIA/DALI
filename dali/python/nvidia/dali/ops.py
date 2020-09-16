@@ -380,17 +380,6 @@ def python_op_factory(name, op_device = "cpu"):
                 if not self._schema.IsDeprecatedArg(arg_name):
                     continue
                 meta = self._schema.DeprecatedArgMeta(arg_name)
-                new_name = meta['renamed_to']
-                removed = meta['removed']
-                msg = meta['msg']
-                if new_name:
-                    if new_name in kwargs:
-                        raise TypeError("Operator {} got an unexpected '{}' deprecated argument when '{}' was already provided".format(
-                            type(self).__name__, arg_name, new_name))
-                    kwargs[new_name] = kwargs[arg_name]
-                    del kwargs[arg_name]
-                elif removed:
-                    del kwargs[arg_name]
 
                 with warnings.catch_warnings():
                     warnings.simplefilter("default")

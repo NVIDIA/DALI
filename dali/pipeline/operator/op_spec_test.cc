@@ -38,7 +38,10 @@ DALI_SCHEMA(DummyOpForSpecTest)
   .AddOptionalArg<std::vector<int>>("no_default_vec", "argument without default", nullptr)
   .AddArg("required_tensor", "required argument", DALIDataType::DALI_INT32, true)
   .AddOptionalArg("default_tensor", "argument with default", 11, true)
-  .AddOptionalArg<int>("no_default_tensor", "argument without default", nullptr, true);
+  .AddOptionalArg<int>("no_default_tensor", "argument without default", nullptr, true)
+  .AddOptionalArg("replacing_arg", "arg that replaces deprecated arg", 0)
+  .DeprecateArgInFavorOf("deprecated_arg", "replacing_arg")
+  .DeprecateArg("deprecated_ignored_arg", true);
 
 TEST(OpSpecTest, GetArgumentTensorSet) {
   // Check how required and optional arguments handle Argument Inputs
@@ -188,6 +191,35 @@ TEST(OpSpecTest, GetArgumentNonExisting) {
   ASSERT_THROW(spec0.GetRepeatedArgument<int>("<no_such_argument>"), std::runtime_error);
   std::vector<int> result_vec;
   ASSERT_FALSE(spec0.TryGetRepeatedArgument<int>(result_vec, "<no_such_argument>"));
+}
+
+TEST(OpSpecTest, DeprecatedArgs) {
+  auto spec0 = OpSpec("DummyOpForSpecTest")
+      .AddArg("batch_size", 2)
+      .AddArg("deprecated_arg", 1);
+  ASSERT_THROW(spec0.GetArgument<int>("deprecated_arg"), std::runtime_error);
+  ASSERT_EQ(spec0.GetArgument<int>("replacing_arg"), 1);
+  int result = 0;
+  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "deprecated_arg"));
+  ASSERT_TRUE(spec0.TryGetArgument<int>(result, "replacing_arg"));
+  ASSERT_EQ(result, 1);
+
+  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+      .AddArg("batch_size", 2)
+      .AddArg("deprecated_arg", 1)
+      .AddArg("replacing_arg", 2), std::runtime_error);
+
+  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+      .AddArg("batch_size", 2)
+      .AddArg("replacing_arg", 1)
+      .AddArg("deprecated_arg", 2), std::runtime_error);
+
+  auto spec1 = OpSpec("DummyOpForSpecTest")
+      .AddArg("batch_size", 2)
+      .AddArg("deprecated_ignored_arg", 42);
+
+  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "deprecated_arg"));
+
 }
 
 class TestArgumentInput_Producer : public Operator<CPUBackend> {

@@ -94,6 +94,7 @@ class DLL_PUBLIC OpSpec {
    */
   template <typename T>
   DLL_PUBLIC inline OpSpec& AddArg(const string &name, const T &val) {
+    VerifyRenamedAfterDeprecated(name);
     DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
         "AddArg failed. Argument with name \"" + name +
         "\" already exists. ");
@@ -135,20 +136,52 @@ class DLL_PUBLIC OpSpec {
    * @brief Add an instantiated argument with given name
    */
   DLL_PUBLIC inline OpSpec& AddInitializedArg(const string& name, Argument* arg) {
+    VerifyRenamedAfterDeprecated(name);
     DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
         "AddArg failed. Argument with name \"" + name +
         "\" already exists. ");
-    arguments_[name].reset(arg);
-    return *this;
+    return SetInitializedArg(name, arg);
   }
 
   /**
    * @brief Sets or adds an argument with given name
+   *
+   * Routes the deprecated argument to appropriate name or drops them
    */
-  DLL_PUBLIC inline OpSpec& SetInitializedArg(const string& name, Argument* arg) {
-    arguments_[name].reset(arg);
+  DLL_PUBLIC inline OpSpec& SetInitializedArg(const string& arg_name, Argument* arg) {
+    if (GetSchema().IsDeprecatedArg(arg_name)) {
+      const auto& deprecation_meta = GetSchema().DeprecatedArgMeta(arg_name);
+      // Argument is removed, and we can discard it
+      if (deprecation_meta.removed) {
+        return *this;
+      }
+      if (!deprecation_meta.renamed_to.empty()) {
+        const auto& new_arg_name = deprecation_meta.renamed_to;
+        DALI_ENFORCE(
+            arguments_.find(new_arg_name) == arguments_.end(),
+            make_string("Operator ", name(), " got an unexpected '", arg_name,
+                        "' deprecated argument when '", new_arg_name, "' was already provided."));
+
+        set_through_deprecated_arguments_[new_arg_name] = arg_name;
+        arguments_[deprecation_meta.renamed_to].reset(arg);
+        return *this;
+      }
+    }
+    VerifyRenamedAfterDeprecated(arg_name);
+    arguments_[arg_name].reset(arg);
     return *this;
   }
+
+  /**
+   * @brief Check if the `arg_name` was already set through deprecated argument
+   */
+  DLL_PUBLIC inline void VerifyRenamedAfterDeprecated(const string& arg_name) {
+    auto set_through = set_through_deprecated_arguments_.find(arg_name);
+    DALI_ENFORCE(set_through == set_through_deprecated_arguments_.end(),
+                 make_string("Operator ", name(), " got an unexpected '", set_through->second,
+                             "' deprecated argument when '", arg_name, "' was already provided."));
+  }
+
   // Forward to string implementation
   template <unsigned N>
   DLL_PUBLIC inline OpSpec& SetArg(const string &name, const char (&c_str)[N]) {
@@ -455,6 +488,9 @@ class DLL_PUBLIC OpSpec {
   std::unordered_map<string, std::shared_ptr<Argument>> arguments_;
   std::unordered_map<string, Index> argument_inputs_;
   std::set<Index> argument_inputs_indexes_;
+  // Regular arguments that were already set through renamed deprecated arguments
+  // Maps regular_argument -> deprecated_argument
+  std::map<std::string, std::string> set_through_deprecated_arguments_;
 
   std::map<InOutDeviceDesc, int> output_name_idx_;
   vector<InOutDeviceDesc> inputs_, outputs_;
