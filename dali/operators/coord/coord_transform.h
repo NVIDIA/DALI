@@ -159,8 +159,11 @@ class CoordTransform : public Operator<Backend> {
       }
     } else {
       output_pt_dim_ = input_pt_dim_;
-      mtx_.resize(output_pt_dim_ * input_pt_dim_, 0);
-      FillDiag(mtx_, 1);
+      if (static_cast<int>(mtx_.size()) != output_pt_dim_ * input_pt_dim_) {
+        mtx_.resize(output_pt_dim_ * input_pt_dim_, 0);
+        FillDiag(mtx_, 1);
+        Repeat(per_sample_mtx_, mtx_, N);
+      }
     }
   }
 
@@ -197,6 +200,9 @@ class CoordTransform : public Operator<Backend> {
           for (int j = 0; j < output_pt_dim_; j++, k++)
             per_sample_translation_[k] = T.data[i][j];
       }
+    } else {
+      translation_.resize(output_pt_dim_, 0.0f);
+      per_sample_translation_.resize(N * output_pt_dim_, 0.0f);
     }
   }
 

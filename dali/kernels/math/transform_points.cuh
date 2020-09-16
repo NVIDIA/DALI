@@ -101,7 +101,7 @@ class TransformPointsGPU {
     auto *gpu_descs = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(host_descs, N));
     const int block = 256;
     dim3 grid = GetGridSize(max_size, N, block);
-    TransformPointsKernel<<<grid, block>>>(gpu_descs);
+    TransformPointsKernel<<<grid, block, 0, ctx.gpu.stream>>>(gpu_descs);
     CUDA_CALL(cudaGetLastError());
   }
 

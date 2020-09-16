@@ -39,10 +39,11 @@ This operator can be used for many operations. Here's the (incomplete) list:
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg<vector<float>>("M", R"(The matrix used for transforming the input vectors.
+
 If left unspecified, identity matrix is used.
 
 The matrix ``M`` does not need to be square - if it's not, the output vectors will have a
-different number of dimensions.
+different number of components.
 
 If a scalar value is provided, ``M`` is assumed to be a square matrix with that value on the
 diagonal. The size of the matrix is then assumed to match the number of components in the
