@@ -1126,11 +1126,12 @@ PYBIND11_MODULE(backend_impl, m) {
 
   // DALIImageType
   py::enum_<DALIImageType>(types_m, "DALIImageType", "Image type")
+    .value("ANY_DATA", DALI_ANY_DATA)
     .value("RGB", DALI_RGB)
     .value("BGR", DALI_BGR)
     .value("GRAY", DALI_GRAY)
     .value("YCbCr", DALI_YCbCr)
-    .value("ANY_DATA", DALI_ANY_DATA)
+    .value("Lab", DALI_Lab)
     .export_values();
 
   // DALIInterpType

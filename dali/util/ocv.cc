@@ -57,6 +57,9 @@ static cv::ColorConversionCodes GetOpenCvColorConversionCode(
 
         { {DALI_GRAY, DALI_RGB}, cv::COLOR_GRAY2RGB },
         { {DALI_GRAY, DALI_BGR}, cv::COLOR_GRAY2BGR },
+
+        { {DALI_RGB, DALI_Lab}, cv::COLOR_RGB2Lab },
+        { {DALI_Lab, DALI_RGB}, cv::COLOR_Lab2RGB },
     };
 
     const ColorConversionPair color_conversion_pair{ input_type, output_type };
@@ -158,6 +161,55 @@ inline void custom_conversion(const cv::Mat& img, cv::Mat& output_img) {
   }
 }
 
+template <>
+inline void custom_conversion<DALI_BGR, DALI_Lab>(const cv::Mat& img, cv::Mat& output_img) {
+  cv::Mat tmp_img;
+  cv::cvtColor(img, tmp_img, cv::COLOR_BGR2RGB);
+  cv::cvtColor(tmp_img, output_img, cv::COLOR_RGB2Lab);
+  return;
+}
+
+template <>
+inline void custom_conversion<DALI_YCbCr, DALI_Lab>(const cv::Mat& img, cv::Mat& output_img) {
+  cv::Mat tmp_img;
+  custom_conversion<DALI_YCbCr, DALI_RGB>(img, tmp_img);
+  cv::cvtColor(tmp_img, output_img, cv::COLOR_RGB2Lab);
+  return;
+}
+
+template <>
+inline void custom_conversion<DALI_GRAY, DALI_Lab>(const cv::Mat& img, cv::Mat& output_img) {
+  cv::Mat tmp_img;
+  cv::cvtColor(img, tmp_img, cv::COLOR_GRAY2RGB);
+  cv::cvtColor(tmp_img, output_img, cv::COLOR_RGB2Lab);
+  return;
+}
+
+template <>
+inline void custom_conversion<DALI_Lab, DALI_BGR>(const cv::Mat& img, cv::Mat& output_img) {
+  cv::Mat tmp_img;
+  cv::cvtColor(img, tmp_img, cv::COLOR_Lab2RGB);
+  cv::cvtColor(tmp_img, output_img, cv::COLOR_RGB2BGR);
+  return;
+}
+
+template <>
+inline void custom_conversion<DALI_Lab, DALI_YCbCr>(const cv::Mat& img, cv::Mat& output_img) {
+  cv::Mat tmp_img;
+  cv::cvtColor(img, tmp_img, cv::COLOR_Lab2RGB);
+  custom_conversion<DALI_RGB, DALI_YCbCr>(tmp_img, output_img);
+  return;
+}
+
+template <>
+inline void custom_conversion<DALI_Lab, DALI_GRAY>(const cv::Mat& img, cv::Mat& output_img) {
+  cv::Mat tmp_img;
+  cv::cvtColor(img, tmp_img, cv::COLOR_Lab2RGB);
+  cv::cvtColor(tmp_img, output_img, cv::COLOR_RGB2GRAY);
+  return;
+}
+
+
 void OpenCvColorConversion(DALIImageType input_type, const cv::Mat& input_img,
                            DALIImageType output_type, cv::Mat& output_img) {
   DALI_ENFORCE(input_img.elemSize() == static_cast<size_t>(NumberOfChannels(input_type)),
@@ -179,6 +231,12 @@ void OpenCvColorConversion(DALIImageType input_type, const cv::Mat& input_img,
   const ColorConversionPair kYCbCrToBGR  { DALI_YCbCr, DALI_BGR };
   const ColorConversionPair kGrayToYCbCr { DALI_GRAY,  DALI_YCbCr };
   const ColorConversionPair kYCbCrToGray { DALI_YCbCr, DALI_GRAY };
+  const ColorConversionPair kBGRToLab    { DALI_BGR,   DALI_Lab };
+  const ColorConversionPair kYCbCrToLab  { DALI_YCbCr, DALI_Lab };
+  const ColorConversionPair kGrayToLab   { DALI_GRAY,  DALI_Lab };
+  const ColorConversionPair kLabToBGR    { DALI_Lab,   DALI_BGR };
+  const ColorConversionPair kLabToYCbCr  { DALI_Lab,   DALI_YCbCr };
+  const ColorConversionPair kLabToGray   { DALI_Lab,   DALI_GRAY };
 
   if ( conversion == kRGBToYCbCr ) {
     custom_conversion<DALI_RGB, DALI_YCbCr>(input_img, output_img);
@@ -198,8 +256,25 @@ void OpenCvColorConversion(DALIImageType input_type, const cv::Mat& input_img,
   } else if ( conversion == kYCbCrToGray ) {
     custom_conversion<DALI_YCbCr, DALI_GRAY>(input_img, output_img);
     return;
+  } else if ( conversion == kBGRToLab ) {
+    custom_conversion<DALI_BGR, DALI_Lab>(input_img, output_img);
+    return;
+  } else if ( conversion == kYCbCrToLab ) {
+    custom_conversion<DALI_YCbCr, DALI_Lab>(input_img, output_img);
+    return;
+  } else if ( conversion == kGrayToLab ) {
+    custom_conversion<DALI_GRAY, DALI_Lab>(input_img, output_img);
+    return;
+  } else if ( conversion == kLabToBGR ) {
+    custom_conversion<DALI_Lab, DALI_BGR>(input_img, output_img);
+    return;
+  } else if ( conversion == kLabToYCbCr ) {
+    custom_conversion<DALI_Lab, DALI_YCbCr>(input_img, output_img);
+    return;
+  } else if ( conversion == kLabToGray ) {
+    custom_conversion<DALI_Lab, DALI_GRAY>(input_img, output_img);
+    return;
   }
-
   DALI_FAIL("conversion not supported");
 }
 

@@ -115,11 +115,12 @@ enum DALIInterpType {
  * @brief Supported image formats
  */
 enum DALIImageType {
+  DALI_ANY_DATA     = -1,
   DALI_RGB          = 0,
   DALI_BGR          = 1,
   DALI_GRAY         = 2,
   DALI_YCbCr        = 3,
-  DALI_ANY_DATA     = 4
+  DALI_Lab          = 4,
 };
 
 

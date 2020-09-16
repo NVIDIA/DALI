@@ -155,6 +155,14 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       const ImageTypePair kGRAY_TO_RGB { DALI_GRAY, DALI_RGB };
       const ImageTypePair kGRAY_TO_BGR { DALI_GRAY, DALI_BGR };
       const ImageTypePair kGRAY_TO_YCbCr { DALI_GRAY, DALI_YCbCr };
+      const ImageTypePair kRGB_TO_Lab { DALI_RGB, DALI_Lab };
+      const ImageTypePair kBGR_TO_Lab { DALI_BGR, DALI_Lab };
+      const ImageTypePair kGRAY_TO_Lab { DALI_GRAY, DALI_Lab };
+      const ImageTypePair kYCbCr_TO_Lab { DALI_YCbCr, DALI_Lab };
+      const ImageTypePair kLab_TO_RGB { DALI_Lab, DALI_RGB };
+      const ImageTypePair kLab_TO_BGR { DALI_Lab, DALI_BGR };
+      const ImageTypePair kLab_TO_GRAY { DALI_Lab, DALI_GRAY };
+      const ImageTypePair kLab_TO_YCbCr { DALI_Lab, DALI_YCbCr };
 
       if (conversion == kRGB_TO_BGR || conversion == kBGR_TO_RGB) {
         // RGB -> BGR
@@ -211,6 +219,73 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
         // YCbCr -> GRAY
         detail::ConvertYCbCrToGray8uKernel<<<grid, block, 0, stream>>>(
           input_data, output_data, total_size);
+      } else if (conversion == kRGB_TO_Lab) {
+        // First from RGB to BGR
+        detail::ConvertRGBToBGR8uKernel<<<grid, block, 0, stream>>>(
+            input_data, output_data, total_size);
+        // Then from BGR to Lab
+        DALI_CHECK_NPP(
+          nppiBGRToLab_8u_C3R(
+            output_data, nStepOutput, output_data, nStepOutput, size));
+      } else if (conversion == kBGR_TO_Lab) {
+        // BGR -> Lab
+        DALI_CHECK_NPP(
+          nppiBGRToLab_8u_C3R(
+            output_data, nStepOutput, output_data, nStepOutput, size));
+      } else if (conversion == kGRAY_TO_Lab) {
+        // GRAY -> BGR
+        detail::ConvertGrayToRGB8uKernel<<<grid, block, 0, stream>>>(
+          input_data, output_data, total_size);
+        // BGR -> Lab
+        DALI_CHECK_NPP(
+          nppiBGRToLab_8u_C3R(
+            output_data, nStepOutput, output_data, nStepOutput, size));
+      } else if (conversion == kYCbCr_TO_Lab) {
+        // YCbCr -> BGR
+        DALI_CHECK_NPP(
+          nppiYCbCrToRGB_8u_C3R(
+            input_data, nStepInput, output_data, nStepOutput, size));
+        detail::ConvertRGBToBGR8uKernel<<<grid, block, 0, stream>>>(
+          output_data, output_data, total_size);
+        // BGR -> Lab
+        DALI_CHECK_NPP(
+          nppiBGRToLab_8u_C3R(
+            output_data, nStepOutput, output_data, nStepOutput, size));
+      } else if (conversion == kLab_TO_RGB) {
+        // First from Lab to BGR
+        DALI_CHECK_NPP(
+          nppiLabToBGR_8u_C3R(
+            output_data, nStepOutput, output_data, nStepOutput, size));
+        // Then from BGR to RGB
+        detail::ConvertBGRToRGB8uKernel<<<grid, block, 0, stream>>>(
+          input_data, output_data, total_size);
+      } else if (conversion == kLab_TO_BGR) {
+        // Lab -> BGR
+        DALI_CHECK_NPP(
+          nppiLabToBGR_8u_C3R(
+            output_data, nStepOutput, output_data, nStepOutput, size));
+      } else if (conversion == kLab_TO_GRAY) {
+        // Lab -> BGR
+        DALI_CHECK_NPP(
+          nppiLabToBGR_8u_C3R(
+            output_data, nStepOutput, output_data, nStepOutput, size));
+        // BGR -> GRAY
+        const Npp32f aCoefs[3] = {0.114f, 0.587f, 0.299f};
+        DALI_CHECK_NPP(
+          nppiColorToGray_8u_C3C1R(
+            input_data, nStepInput, output_data, nStepOutput, size, aCoefs));
+      } else if (conversion == kLab_TO_YCbCr) {
+        // Lab -> BGR
+        DALI_CHECK_NPP(
+          nppiLabToBGR_8u_C3R(
+            output_data, nStepOutput, output_data, nStepOutput, size));
+        // BGR -> RGB
+        detail::ConvertBGRToRGB8uKernel<<<grid, block, 0, stream>>>(
+          input_data, output_data, total_size);
+        // RGB -> YCbCr
+        DALI_CHECK_NPP(
+          nppiRGBToYCbCr_8u_C3R(
+            output_data, nStepOutput, output_data, nStepOutput, size));
       } else {
         DALI_FAIL("conversion not supported");
       }

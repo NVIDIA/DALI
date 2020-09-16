@@ -53,6 +53,9 @@ struct Gray {
 struct YCbCr {
   static const DALIImageType type = DALI_YCbCr;
 };
+struct Lab {
+  static const DALIImageType type = DALI_Lab;
+};
 
 // Main testing fixture to provide common functionality across tests
 class DALITest : public ::testing::Test {
