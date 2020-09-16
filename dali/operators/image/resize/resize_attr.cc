@@ -64,8 +64,8 @@ Here is a list of the supported values:
   | For example, a 640x480 image with a desired output size of 1920x1080, actually produces
     a 1920x1440 output.
 
-  This argument is mutually exclusive with ``resize_longer`` and ``resize_shorter``)", "default")
-  .AddOptionalArg("resize_shorter", R"(The length of the shorter dimension of the resized image.
+  This argument is mutually exclusive with ``resize_longer`` and ``resize_shorter``)code", "default")
+  .AddOptionalArg("resize_shorter", R"code(The length of the shorter dimension of the resized image.
 
 This option is mutually exclusive with ``resize_longer`` and explicit size arguments, and
 the operator keeps the aspect ratio of the original image.
