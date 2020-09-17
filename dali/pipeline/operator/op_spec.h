@@ -149,8 +149,8 @@ class DLL_PUBLIC OpSpec {
    * Routes the deprecated argument to appropriate name or drops them
    */
   DLL_PUBLIC inline OpSpec& SetInitializedArg(const string& arg_name, Argument* arg) {
-    if (GetSchema().IsDeprecatedArg(arg_name)) {
-      const auto& deprecation_meta = GetSchema().DeprecatedArgMeta(arg_name);
+    if (schema_ && schema_->IsDeprecatedArg(arg_name)) {
+      const auto& deprecation_meta = schema_->DeprecatedArgMeta(arg_name);
       // Argument is removed, and we can discard it
       if (deprecation_meta.removed) {
         return *this;
