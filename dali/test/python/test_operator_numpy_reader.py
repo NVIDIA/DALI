@@ -23,22 +23,16 @@ import tempfile
 import nose.tools
 
 class NumpyReaderPipeline(Pipeline):
-    def __init__(self, path, batch_size, file_list=None,
+    def __init__(self, path, batch_size, file_list="",
                  path_filter="*.npy", num_threads=1, device_id=0, num_gpus=1):
         super(NumpyReaderPipeline, self).__init__(batch_size,
                                                   num_threads,
                                                   device_id)
         
-        if file_list is not None:
-            self.input = ops.NumpyReader(file_root = path,
-                                         file_list = file_list,
-                                         shard_id = device_id,
-                                         num_shards = num_gpus)
-        else:
-            self.input = ops.NumpyReader(file_root = path,
-                                         file_filter = path_filter,
-                                         shard_id = device_id,
-                                         num_shards = num_gpus)
+        self.input = ops.NumpyReader(file_root = path,
+                                     file_list = file_list,
+                                     shard_id = device_id,
+                                     num_shards = num_gpus)
 
     def define_graph(self):
         inputs = self.input(name="Reader")
