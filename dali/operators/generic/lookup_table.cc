@@ -64,7 +64,7 @@ For example when ``keys`` and ``values`` are used to define the lookup table in 
   lut[i] = values[keys.index[i]]   if i in keys
   lut[i] = default_value           otherwise
 
-the operator creates the following::
+the operator creates the following table::
 
   lut[] = {0.2, 0.99, 0.4, 0.10, 0.6, 0.7}  // only last occurrence of a key is considered
 
@@ -73,7 +73,7 @@ and produces the output according to this formula::
   Output[i] = lut[Input[i]]   if 0 <= Input[i] <= len(lut)
   Output[i] = default_value   otherwise
 
-For the lut defined above the following example applies::
+Here is a practical example, considering the table defined above::
 
   Input[] =  {1,      4,    1,   0,  100,   2,     3,   4}
   Output[] = {0.99, 0.6, 0.99, 0.2, 0.99, 0.4,  0.10, 0.6}
