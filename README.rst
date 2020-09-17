@@ -16,8 +16,8 @@ pre-processing implementations, resulting in challenges such as
 portability of training and inference workflows, and code
 maintainability.
 
-NVIDIA DALI (TM) (Data Loading Library) is a collection of highly optimized
-building blocks, and an execution engine, to accelerate the
+DALI (R), the NVIDIA (R) Data Loading Library, is a collection of highly
+optimized building blocks, and an execution engine, to accelerate the
 pre-processing of the input data for deep learning applications. DALI
 provides both the performance and the flexibility to accelerate
 different data pipelines as one library. This library can
