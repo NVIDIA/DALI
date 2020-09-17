@@ -16,17 +16,19 @@
 #define DALI_OPERATORS_READER_LOADER_NEMO_ASR_LOADER_H_
 
 #include <algorithm>
-#include <memory>
+#include <future>
 #include <istream>
+#include <memory>
 #include <string>
-#include <vector>
 #include <utility>
+#include <vector>
 
-#include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/operators/decoder/audio/audio_decoder.h"
 #include "dali/kernels/signal/resampling.h"
+#include "dali/operators/decoder/audio/audio_decoder.h"
+#include "dali/operators/reader/loader/file_label_loader.h"
+#include "dali/pipeline/util/thread_pool.h"
 
 namespace dali {
 
@@ -38,9 +40,34 @@ struct NemoAsrEntry {
 };
 
 struct AsrSample {
-  Tensor<CPUBackend> audio;
-  std::string text;
-  AudioMetadata audio_meta;
+  AsrSample() {
+    audio_ready_future_ = audio_ready_promise_.get_future();
+  }
+
+  const Tensor<CPUBackend>& audio() const {
+    audio_ready_future_.wait();
+    return audio_;
+  }
+
+  const std::string& text() const {
+    return text_;
+  }
+
+  const AudioMetadata &audio_meta() const {
+    return audio_meta_;
+  }
+
+  friend class NemoAsrLoader;
+
+ private:
+  Tensor<CPUBackend> audio_;
+  std::string text_;
+  AudioMetadata audio_meta_;
+
+  // Audio is decoded and resampled asynchronously.
+  // The promise will be set when the audio data is ready to be consumed
+  std::promise<void> audio_ready_promise_;
+  mutable std::future<void> audio_ready_future_;
 };
 
 namespace detail {
@@ -62,7 +89,10 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
         downmix_(spec.GetArgument<bool>("downmix")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
         max_duration_(spec.GetArgument<float>("max_duration")),
-        normalize_text_(spec.GetArgument<bool>("normalize_text")) {
+        normalize_text_(spec.GetArgument<bool>("normalize_text")),
+        num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
+        thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false),
+        scratch_(num_threads_) {
     DALI_ENFORCE(!manifest_filepaths_.empty(), "``manifest_filepaths`` can not be empty");
     /*
      * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks
@@ -97,10 +127,13 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   void Reset(bool wrap_to_shard) override;
 
  private:
+  void ReadAudio(Tensor<CPUBackend> &audio,
+                 AudioMetadata &audio_meta,
+                 const NemoAsrEntry &entry,
+                 Tensor<CPUBackend> &scratch);
+
   std::vector<std::string> manifest_filepaths_;
   std::vector<NemoAsrEntry> entries_;
-
-  Tensor<CPUBackend> scratch_;
 
   bool shuffle_after_epoch_;
   Index current_index_ = 0;
@@ -110,10 +143,13 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   float quality_;
   bool downmix_;
   DALIDataType dtype_;
-  float max_duration_ = 0.0;
-  bool normalize_text_ = false;
+  float max_duration_;
+  bool normalize_text_;
 
+  int num_threads_;
+  ThreadPool thread_pool_;
   kernels::signal::resampling::Resampler resampler_;
+  std::vector<Tensor<CPUBackend>> scratch_;
 };
 
 }  // namespace dali

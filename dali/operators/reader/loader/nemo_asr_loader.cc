@@ -121,7 +121,56 @@ void NemoAsrLoader::Reset(bool wrap_to_shard) {
 }
 
 void NemoAsrLoader::PrepareEmpty(AsrSample &sample) {
-  PrepareEmptyTensor(sample.audio);
+  PrepareEmptyTensor(sample.audio_);
+}
+
+void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
+                              AudioMetadata &audio_meta,
+                              const NemoAsrEntry &entry,
+                              Tensor<CPUBackend> &scratch) {
+  using DecoderType = int16_t;
+  GenericAudioDecoder<DecoderType> decoder;
+  audio_meta = decoder.OpenFromFile(entry.audio_filepath);
+  assert(audio_meta.channels_interleaved);  // it's always true
+
+  audio.set_type(TypeTable::GetTypeInfo(dtype_));
+  auto shape = DecodedAudioShape(audio_meta, sample_rate_, downmix_);
+  assert(shape.size() > 0);
+  audio.Resize(shape);
+
+  bool should_resample = sample_rate_ > 0 && audio_meta.sample_rate != sample_rate_;
+  bool should_downmix = audio_meta.channels > 1 && downmix_;
+
+  int64_t decode_scratch_sz = 0;
+  int64_t resample_scratch_sz = 0;
+  if (should_resample || should_downmix || dtype_ != DALI_INT16)
+    decode_scratch_sz = audio_meta.length * audio_meta.channels;
+
+  // resample scratch is used to prepare a single or multiple (depending if
+  // downmixing is needed) channel float input, required by the resampling
+  // kernel
+  int64_t out_channels = should_downmix ? 1 : audio_meta.channels;
+  if (should_resample)
+    resample_scratch_sz = audio_meta.length * out_channels;
+
+  int64_t total_scratch_sz =
+      decode_scratch_sz * sizeof(DecoderType) + resample_scratch_sz * sizeof(float);
+  scratch.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+  scratch.Resize({total_scratch_sz});
+  uint8_t* scratch_mem = scratch.mutable_data<uint8_t>();
+
+  span<DecoderType> decoder_scratch_mem(reinterpret_cast<DecoderType *>(scratch_mem),
+                                        decode_scratch_sz);
+  span<float> resample_scratch_mem(
+        reinterpret_cast<float *>(scratch_mem + decode_scratch_sz * sizeof(DecoderType)),
+        resample_scratch_sz);
+  TYPE_SWITCH(dtype_, type2id, OutType, (float, int16_t), (
+    DecodeAudio(view<OutType>(audio), decoder, audio_meta, resampler_,
+                decoder_scratch_mem, resample_scratch_mem, sample_rate_, downmix_,
+                entry.audio_filepath.c_str());
+  ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));  // NOLINT
+
+  decoder.Close();
 }
 
 void NemoAsrLoader::ReadSample(AsrSample& sample) {
@@ -131,57 +180,20 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   MoveToNextShard(current_index_);
 
   // metadata info
+  sample = {};
   DALIMeta meta;
   meta.SetSourceInfo(entry.audio_filepath);
   meta.SetSkipSample(false);
-  sample.audio.SetMeta(meta);
+  sample.audio_.SetMeta(meta);
+  sample.text_ = entry.text;
 
   // Ignoring copy_read_data_, Sharing data is not supported with this loader
 
-  using DecoderType = int16_t;
-  GenericAudioDecoder<DecoderType> decoder;
-  sample.audio_meta = decoder.OpenFromFile(entry.audio_filepath);
-  assert(sample.audio_meta.channels_interleaved);  // it's always true
-
-  sample.audio.set_type(TypeTable::GetTypeInfo(dtype_));
-  auto shape = DecodedAudioShape(sample.audio_meta, sample_rate_, downmix_);
-  assert(shape.size() > 0);
-  sample.audio.Resize(shape);
-
-  bool should_resample = sample_rate_ > 0 && sample.audio_meta.sample_rate != sample_rate_;
-  bool should_downmix = sample.audio_meta.channels > 1 && downmix_;
-
-  int64_t decode_scratch_sz = 0;
-  int64_t resample_scratch_sz = 0;
-  if (should_resample || should_downmix || dtype_ != DALI_INT16)
-    decode_scratch_sz = sample.audio_meta.length * sample.audio_meta.channels;
-
-  // resample scratch is used to prepare a single or multiple (depending if
-  // downmixing is needed) channel float input, required by the resampling
-  // kernel
-  int64_t out_channels = should_downmix ? 1 : sample.audio_meta.channels;
-  if (should_resample)
-    resample_scratch_sz = sample.audio_meta.length * out_channels;
-
-  int64_t total_scratch_sz =
-      decode_scratch_sz * sizeof(DecoderType) + resample_scratch_sz * sizeof(float);
-  scratch_.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
-  scratch_.Resize({total_scratch_sz});
-  uint8_t* scratch_mem = scratch_.mutable_data<uint8_t>();
-
-  span<DecoderType> decoder_scratch_mem(reinterpret_cast<DecoderType *>(scratch_mem),
-                                        decode_scratch_sz);
-  span<float> resample_scratch_mem(
-        reinterpret_cast<float *>(scratch_mem + decode_scratch_sz * sizeof(DecoderType)),
-        resample_scratch_sz);
-  TYPE_SWITCH(dtype_, type2id, OutType, (float, int16_t), (
-    DecodeAudio(view<OutType>(sample.audio), decoder, sample.audio_meta, resampler_,
-            decoder_scratch_mem, resample_scratch_mem, sample_rate_, downmix_,
-            entry.audio_filepath.c_str());
-  ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));  // NOLINT
-
-  decoder.Close();
-  sample.text = entry.text;
+  thread_pool_.DoWorkWithID(
+    [this, &sample, &entry](int tid) {
+      ReadAudio(sample.audio_, sample.audio_meta_, entry, scratch_[tid]);
+      sample.audio_ready_promise_.set_value();
+    });
 }
 
 Index NemoAsrLoader::SizeImpl() {

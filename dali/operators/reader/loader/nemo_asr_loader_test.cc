@@ -189,6 +189,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
                     .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
                     .AddArg("downmix", false)
                     .AddArg("dtype", DALI_INT16)
+                    .AddArg("num_threads", 4)
                     .AddArg("batch_size", 32)
                     .AddArg("device_id", -1);
 
@@ -196,16 +197,22 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.PrepareMetadata();
     AsrSample sample;
     loader.ReadSample(sample);
-
-    TensorView<StorageCPU, int16_t, 2> ref(ref_data.data(), {ref_samples, 2});
-    Check(ref, view<int16_t, 2>(sample.audio));
+    TensorView<StorageCPU, int16_t> ref(ref_data.data(), {ref_samples, 2});
+    Check(ref, view<const int16_t>(sample.audio()));
   }
 
+  std::vector<float> downmixed(ref_samples, 0.0f);
+  for (int i = 0; i < ref_samples; i++) {
+    double l = ConvertSatNorm<float>(ref_data[2*i]);
+    double r = ConvertSatNorm<float>(ref_data[2*i+1]);
+    downmixed[i] = (l + r) / 2;
+  }
   {
     auto spec = OpSpec("NemoAsrReader")
                     .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
                     .AddArg("downmix", true)
                     .AddArg("dtype", DALI_FLOAT)
+                    .AddArg("num_threads", 4)
                     .AddArg("batch_size", 32)
                     .AddArg("device_id", -1);
 
@@ -213,37 +220,28 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.PrepareMetadata();
     AsrSample sample;
     loader.ReadSample(sample);
-
-    std::vector<float> downmixed(ref_samples, 0.0f);
-    for (int i = 0; i < ref_samples; i++) {
-      double l = ConvertSatNorm<float>(ref_data[2*i]);
-      double r = ConvertSatNorm<float>(ref_data[2*i+1]);
-      downmixed[i] = (l + r) / 2;
-    }
-    TensorView<StorageCPU, float, 1> ref(downmixed.data(), {ref_samples});
-    Check(ref, view<float, 1>(sample.audio));
+    TensorView<StorageCPU, float> ref(downmixed.data(), {ref_samples});
+    Check(ref, view<const float>(sample.audio()));
   }
 
   {
-    double sr_in = 44100.0;
-    double sr_out = 22050.0;
+    float sr_in = 44100.0f;
+    float sr_out = 22050.0f;
 
     AsrSample sample;
     {
       auto spec = OpSpec("NemoAsrReader")
                       .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
                       .AddArg("downmix", true)
-                      .AddArg("sample_rate", static_cast<float>(sr_out))
+                      .AddArg("sample_rate", sr_out)
                       .AddArg("dtype", DALI_FLOAT)
+                      .AddArg("num_threads", 4)
                       .AddArg("batch_size", 32)
                       .AddArg("device_id", -1);
       NemoAsrLoader loader(spec);
       loader.PrepareMetadata();
       loader.ReadSample(sample);
     }
-
-    std::vector<float> downmixed(ref_samples, 0.0f);
-    kernels::signal::Downmix(downmixed.data(), ref_data.data(), ref_samples, 2);
 
     int64_t downsampled_len =
         kernels::signal::resampling::resampled_length(ref_samples, sr_in, sr_out);
@@ -253,10 +251,10 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     kernels::signal::resampling::Resampler resampler;
     resampler.Initialize(lobes, lobes * 64 + 1);
     resampler.Resample(downsampled.data(), 0, downsampled_len, sr_out, downmixed.data(),
-                       downmixed.size(), sr_in);
+                       downmixed.size(), sr_in, 1);
 
-    TensorView<StorageCPU, float, 1> ref(downsampled.data(), {downsampled_len});
-    Check(ref, view<float, 1>(sample.audio));
+    TensorView<StorageCPU, float> ref(downsampled.data(), {downsampled_len});
+    Check(ref, view<const float>(sample.audio()), EqualEpsRel(1e-6, 1e-6));
 
     AsrSample sample_int16;
     {
@@ -265,6 +263,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
                     .AddArg("downmix", true)
                     .AddArg("sample_rate", static_cast<float>(sr_out))
                     .AddArg("dtype", DALI_INT16)
+                    .AddArg("num_threads", 4)
                     .AddArg("batch_size", 32)
                     .AddArg("device_id", -1);
       NemoAsrLoader loader(spec);
@@ -272,11 +271,11 @@ TEST(NemoAsrLoaderTest, ReadSample) {
       loader.ReadSample(sample_int16);
     }
 
-    ASSERT_EQ(volume(sample.audio.shape()), volume(sample_int16.audio.shape()));
+    ASSERT_EQ(volume(sample.audio().shape()), volume(sample_int16.audio().shape()));
     std::vector<float> converted(downsampled_len, 0.0f);
     for (size_t i = 0; i < converted.size(); i++)
-      converted[i] = ConvertSatNorm<float>(sample_int16.audio.data<int16_t>()[i]);
-    TensorView<StorageCPU, float, 1> converted_from_int16(converted.data(), {downsampled_len});
+      converted[i] = ConvertSatNorm<float>(sample_int16.audio().data<int16_t>()[i]);
+    TensorView<StorageCPU, float> converted_from_int16(converted.data(), {downsampled_len});
     Check(ref, converted_from_int16, EqualEpsRel(1e-6, 1e-6));
   }
 }

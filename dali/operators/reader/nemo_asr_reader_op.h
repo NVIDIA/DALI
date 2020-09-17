@@ -37,29 +37,38 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
     loader_ = InitLoader<NemoAsrLoader>(spec);
   }
 
+  void Prefetch() override {
+    DataReader<CPUBackend, AsrSample>::Prefetch();
+    auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
+    // Waiting until all the audio samples are ready to be consumed
+    for (auto &sample : curr_batch) {
+      (void) sample->audio();  // waits until the data is ready
+    }
+  }
+
   void RunImpl(SampleWorkspace &ws) override {
     const AsrSample& sample = GetSample(ws.data_idx());
 
     auto &audio = ws.Output<CPUBackend>(0);
-    audio.Copy(sample.audio, 0);
+    audio.Copy(sample.audio(), 0);
 
     int next_out_idx = 1;
     if (read_sr_) {
       auto &sample_rate = ws.Output<CPUBackend>(next_out_idx++);
       sample_rate.Resize({1});
       sample_rate.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
-      sample_rate.mutable_data<float>()[0] = sample.audio_meta.sample_rate;
-      sample_rate.SetSourceInfo(sample.audio.GetSourceInfo());
+      sample_rate.mutable_data<float>()[0] = sample.audio_meta().sample_rate;
+      sample_rate.SetSourceInfo(sample.audio().GetSourceInfo());
     }
 
     if (read_text_) {
       auto &text = ws.Output<CPUBackend>(next_out_idx++);
       text.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
-      int64_t text_sz = sample.text.length() + 1;  // +1 for null character
+      int64_t text_sz = sample.text().length() + 1;  // +1 for null character
       text.Resize({text_sz});
-      std::memcpy(text.mutable_data<uint8_t>(), sample.text.c_str(), sample.text.length());
-      text.mutable_data<uint8_t>()[sample.text.length()] = '\0';
-      text.SetSourceInfo(sample.audio.GetSourceInfo());
+      std::memcpy(text.mutable_data<uint8_t>(), sample.text().c_str(), sample.text().length());
+      text.mutable_data<uint8_t>()[sample.text().length()] = '\0';
+      text.SetSourceInfo(sample.audio().GetSourceInfo());
     }
   }
 
