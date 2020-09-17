@@ -36,6 +36,8 @@
     host:
       - libjpeg-turbo >=2.0.3
       - libtiff >=4.1.0
+      - openjpeg >=2.3.1
     run:
       - libjpeg-turbo >=2.0.3
       - libtiff >=4.1.0
+      - openjpeg >=2.3.1

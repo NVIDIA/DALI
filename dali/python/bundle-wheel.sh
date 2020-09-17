@@ -99,6 +99,7 @@ DEPS_LIST=(
     "/usr/local/lib/libogg.so.0"
     "/usr/local/lib/libvorbis.so.0"
     "/usr/local/lib/libvorbisenc.so.2"
+    "/usr/local/lib/libopenjp2.so.7"
 )
 
 DEPS_SONAME=(
@@ -113,6 +114,7 @@ DEPS_SONAME=(
     "libogg.so.0"
     "libvorbis.so.0"
     "libvorbisenc.so.2"
+    "libopenjp2.so.7"
 )
 
 TMPDIR=$(mktemp -d)

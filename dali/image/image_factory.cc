@@ -17,6 +17,7 @@
 #include "dali/image/png.h"
 #include "dali/image/bmp.h"
 #include "dali/image/jpeg.h"
+#include "dali/image/jpeg2k.h"
 #if LIBTIFF_ENABLED
 #include "dali/image/tiff_libtiff.h"
 #else
@@ -83,10 +84,13 @@ std::unique_ptr<Image>
 ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type) {
   DALI_ENFORCE(CheckIsPNG(encoded_image, length) + CheckIsBMP(encoded_image, length) +
                CheckIsGIF(encoded_image, length) + CheckIsJPEG(encoded_image, length) +
-               CheckIsTiff(encoded_image, length) + CheckIsPNM(encoded_image, length) == 1,
+               CheckIsTiff(encoded_image, length) + CheckIsPNM(encoded_image, length) +
+               CheckIsJPEG2k(encoded_image, length) == 1,
                "Encoded image has ambiguous format");
   if (CheckIsPNG(encoded_image, length)) {
     return std::make_unique<PngImage>(encoded_image, length, image_type);
+  } else if (CheckIsJPEG2k(encoded_image, length)) {
+    return std::make_unique<Jpeg2kImage>(encoded_image, length, image_type);
   } else if (CheckIsJPEG(encoded_image, length)) {
     return std::make_unique<JpegImage>(encoded_image, length, image_type);
   } else if (CheckIsBMP(encoded_image, length)) {
