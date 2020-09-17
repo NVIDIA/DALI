@@ -28,7 +28,7 @@ the ``cutoff_db``. where::
 
   short_term_power_db = 10 * log10( short_term_power / reference_power )
 
-Unless specified otherwise, ``reference_power`` is the maximum of the signal.
+Unless specified otherwise, ``reference_power`` is the maximum power of the signal.
 
 Inputs and outputs:
 
