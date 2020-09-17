@@ -31,7 +31,7 @@ void Uniform::RunImpl(HostWorkspace &ws) {
 DALI_REGISTER_OPERATOR(Uniform, Uniform, CPU);
 
 DALI_SCHEMA(Uniform)
-  .DocStr("Produces batch of tensors uniformly distributed random numbers.")
+  .DocStr("Produces random numbers following a uniform distribution.")
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("range",

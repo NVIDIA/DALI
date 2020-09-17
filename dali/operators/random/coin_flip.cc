@@ -28,7 +28,7 @@ DALI_REGISTER_OPERATOR(CoinFlip, CoinFlip, CPU);
 
 DALI_SCHEMA(CoinFlip)
   .DocStr(R"code(Produces a batch of tensors filled with 0s and 1s, which is the result of random
-coin flips and is usable as an argument for select operators.)code")
+coin flips.)code")
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("probability",

@@ -128,7 +128,7 @@ The following modes of a random crop are available:
 The num_attempts argument can be used to control the maximum number of attempts to produce
 a valid crop to match a minimum overlap metric value from ``thresholds``.
 
-.. note::
+.. warning::
   When ``allow_no_crop`` is False and ``thresholds`` does not contain ``0.0``, if
   you do not increase the ``num_attempts`` value,  it might continue to loop for a long time.
 
@@ -177,7 +177,7 @@ associated with each of the bounding boxes.)code")
 bounding boxes with respect to the cropping window.
 
 Each sample randomly selects one of the ``thresholds``, and the operator will complete
-the specified number of attempts to produce a random crop window that has
+up to the specified number of attempts to produce a random crop window that has
 the selected metric above that threshold. See ``num_attempts`` for more information about
 configuring the number of attempts.)code",
         std::vector<float>{0.f})

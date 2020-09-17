@@ -115,7 +115,7 @@ This argument is ignored when an externally supplied standard deviation is used.
   .AddOptionalArg("dtype", R"code(Output data type.
 
 When using integral types, use ``shift`` and ``scale`` to improve the usage of the output
-type’s dynamic range. If ``dtype`` is an integral type, out of range values are clamped,
+type's dynamic range. If ``dtype`` is an integral type, out of range values are clamped,
 and non-integer values are rounded to nearest integer.)code", DALI_FLOAT);
 
 template <>

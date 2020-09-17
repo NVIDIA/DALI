@@ -21,7 +21,7 @@ namespace dali {
 DALI_SCHEMA(AudioDecoder)
   .DocStr(R"code(Decodes waveforms from encoded audio data.
 
-It supports following audio formats: wav, flac and ogg.
+It supports the following audio formats: wav, flac and ogg.
 This operator produces the following outputs:
 
 * output[0]: A batch of decoded data
@@ -38,7 +38,8 @@ If downmixing is turned off, it produces 2D output with interleaved channels.", 
   .AddOptionalArg("sample_rate",
           "If specified, the target sample rate, in Hz, to which the audio is resampled.",
           0.0f, true)
-  .AddOptionalArg("quality", R"code(Resampling quality, where 0 is lowest, and 100 is the highest.
+  .AddOptionalArg("quality", R"code(Resampling quality, where 0 is the lowest, and 100 is
+the highest.
 
 0 gives 3 lobes of the sinc filter, 50 gives 16 lobes, and 100 gives 64 lobes.)code",
           50.0f, false);

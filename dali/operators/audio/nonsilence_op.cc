@@ -19,12 +19,12 @@
 namespace dali {
 
 DALI_SCHEMA(NonsilentRegion)
-  .DocStr(R"code(Performs the leading and trailing silence detection in an audio buffer.
+  .DocStr(R"code(Performs leading and trailing silence detection in an audio buffer.
 
 The operator returns the beginning and length of the non-silent region by comparing the
 short term power calculated for ``window_length`` of the signal with a silence cut-off threshold.
 The signal is considered to be silent when the ``short_term_power_db`` is less than
-the ``cutoff_db`` where::
+the ``cutoff_db``. where::
 
   short_term_power_db = 10 * log10( short_term_power / reference_power )
 
@@ -48,8 +48,7 @@ the short-term power of the signal.)code", 2048)
   .AddOptionalArg("reference_power",
                   R"code(The reference power that is used to convert the signal to dB.
 
-If a value for reference_power is not provided, the maximum power of the signal will be used as the
-reference.)code",
+If a value is not provided, the maximum power of the signal will be used as the reference.)code",
                   0.f)
   .AddOptionalArg("reset_interval",
                   R"code(The number of samples after which the moving mean average is recalculated

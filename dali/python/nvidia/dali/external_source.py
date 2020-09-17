@@ -206,7 +206,7 @@ Keyword Args
 
 `cuda_stream` : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``, such as
     ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
-    The CUDA stream is going to be used to copy data to a GPU or from the GPU source.
+    The CUDA stream is used to copy data to a GPU or from the GPU source.
 
     If this parameter is not set, a best-effort will be taken to maintain correctness. For example,
     if the data is provided as a tensor/array from a recognized library such as CuPy or PyTorch,

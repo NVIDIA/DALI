@@ -67,7 +67,7 @@ fail when it is not)code", true)
       R"code(Determines whether DALI should copy the buffer when feed_input is called.
 
 If set to True, DALI passes the user's memory directly to the pipeline, instead of copying it.
-It is a user's responsibility to keep the buffer alive and unmodified until it is
+It is the user's responsibility to keep the buffer alive and unmodified until it is
 consumed by the pipeline.
 
 The buffer can be modified or freed again after the outputs of the relevant iterations

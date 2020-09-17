@@ -19,7 +19,7 @@ namespace dali {
 
 DALI_SCHEMA(Slice)
     .DocStr(
-        R"code(Extracts a subtensor, or ``slice``, with a specified shape and anchor.
+        R"code(Extracts a subtensor, or slice, with a specified shape and anchor.
 
 Inputs must be supplied as the following separate tensors in the following order:
 

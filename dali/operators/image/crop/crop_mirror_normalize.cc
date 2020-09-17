@@ -30,7 +30,7 @@ Normalization takes the input images and produces the output by using the follow
   output = (input - mean) / std
 
 .. note::
-    If no cropping method is specified, only mirroring and normalization will occur.
+    If no cropping arguments are specified, only mirroring and normalization will occur.
 )code")
   .NumInput(1)
   .NumOutput(1)

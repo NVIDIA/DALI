@@ -44,7 +44,7 @@ If set to False, the bboxes are returned as [x, y, width, height].)code",
       false)
   .AddOptionalArg("masks",
       R"code(If set to True, segmentation masks are read and returned as polygons,
-which is a list of points (2 floats).
+represented by a list of coordinates.
 
 Each mask can be one or more polygons, and for a given sample, the polygons are represented by the
 following tensors:
@@ -63,7 +63,8 @@ for instance segmentation.)code",
       false)
   .AddOptionalArg("size_threshold",
       R"code(If the width or the height of a bounding box that represents an instance of an object
-is lower than this value, the object will be skipped during reading.\n
+is lower than this value, the object will be ignored.
+
 The value is represented as an absolute value.)code",
       0.1f,
       false)

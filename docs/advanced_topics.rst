@@ -7,14 +7,6 @@ This section covers a few advanced topics that are mentioned in the API document
   For typical use cases, the default DALI configuration performs well out of the box, and you do
   not need to review this section.
 
-DALI Internal Data Format
--------------------------
-
-Internally, DALI processes data in the [N, Width, Height, Channels] (NHWC) format. To reshape it
-to NCHW, use the ``\*Permute`` operator family. If these operators are used in the middle of
-a pipeline, the subsequent operations in the pipeline will make incorrect assumptions about the
-processed data format, and the result will be undefined.
-
 Thread Affinity
 ---------------
 
@@ -179,7 +171,7 @@ Deep Learning Frameworks. The data is returned in the framework’s native buffe
 implementation copies the data internally from DALI buffers and recycles the data by calling
 :meth:`nvidia.dali.pipeline.Pipeline.release_outputs()`.
 
-We recommend that you do not mix the  APIs. The APIs follow a different logic for the output
+We recommend that you do not mix the APIs. The APIs follow a different logic for the output
 buffer lifetime management, and the details of the process are subject to change without notice.
 Mixing the APIs might result in undefined behavior, such as a deadlock or an attempt to access
 an invalid buffer.

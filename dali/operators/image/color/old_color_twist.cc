@@ -282,7 +282,8 @@ void OldColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 DALI_SCHEMA(OldColorTwist)
     .DocStr(R"code(A combination of hue, saturation, contrast, and brightness.
 
-This is an old implementation which uses NPP.)code")
+.. note::
+    This is an old implementation which uses NPP.)code")
     .Deprecate("ColorTwist")
     .NumInput(1)
     .NumOutput(1)

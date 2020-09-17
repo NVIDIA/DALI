@@ -23,11 +23,11 @@ DALI_SCHEMA(BBoxPaste)
         R"code(Transforms bounding boxes so that the boxes remain in the same
 place in the image after the image is pasted on a larger canvas.
 
-Corner coordinates are transformed according to following formula::
+Corner coordinates are transformed according to the following formula::
 
   (x', y') = (x/ratio + paste_x', y/ratio + paste_y')
 
-Box sizes (if ``xywh`` is used) are transformed according to following formula::
+Box sizes (if ``xywh`` is used) are transformed according to the following formula::
 
   (w', h') = (w/ratio, h/ratio)
 

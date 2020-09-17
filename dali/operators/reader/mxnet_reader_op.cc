@@ -20,7 +20,7 @@ namespace dali {
 DALI_REGISTER_OPERATOR(MXNetReader, MXNetReader, CPU);
 
 DALI_SCHEMA(MXNetReader)
-  .DocStr("Reads the data from a MXNet RecordIO.")
+  .DocStr("Reads the data from an MXNet RecordIO.")
   .NumInput(0)
   .NumOutput(2)
   .AddArg("path",

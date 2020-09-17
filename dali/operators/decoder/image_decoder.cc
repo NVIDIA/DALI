@@ -34,8 +34,8 @@ DALI_SCHEMA(ImageDecoderAttr)
   .AddOptionalArg("hybrid_huffman_threshold",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-Images with number of pixels ``height * width`` that are higher than this threshold will use the
-nvJPEG hybrid Huffman decoder. Images that have fewer pixels will use the nvJPEG host-side
+Images with a total number of pixels (``height * width``) that is higher than this threshold will
+use the nvJPEG hybrid Huffman decoder. Images that have fewer pixels will use the nvJPEG host-side
 Huffman decoder.
 
 .. note::
@@ -64,7 +64,7 @@ to be reallocated to decode the image.
 If you provide a value greater than 0, the operator preallocates two (because of double-buffering)
 host-pinned buffers of the requested size per thread. If selected correctly, no additional
 allocations will occur during the pipeline execution. One way to find the ideal value is to
-do a complete run over the dataset with the ``memory_stats`` argument set to True and then copy
+do a complete run over the dataset with the ``memory_stats`` argument set to True, and then copy
 the largest allocation value that is printed in the statistics.)code",
       8*1024*1024)  // based on ImageNet heuristics (8MB)
   .AddOptionalArg("affine",
@@ -86,8 +86,9 @@ Uses the chunk pinned memory allocator and allocates a chunk of the
 them at runtime. When ``split_stages`` is false, this argument is ignored.)code",
       false)
   .AddOptionalArg("use_fast_idct",
-      R"code(Enables fast IDCT in a CPU-based decompressor when the GPU implementation cannot
-handle an  image.
+      R"code(Enables fast IDCT in the libjpeg-turbo based CPU decoder, used when ``device`` is set
+to "cpu" or when the it is set to "mixed" but the particular image can not be handled by
+the GPU implementation.
 
 According to the libjpeg-turbo documentation, decompression performance is improved by up to 14%
 with a low reduction in quality.)code",
@@ -95,7 +96,7 @@ with a low reduction in quality.)code",
   .AddOptionalArg("memory_stats",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-Prints the debug information about nvJPEG allocations. The information about the largest
+Prints debug information about nvJPEG allocations. The information about the largest
 allocation might be useful to determine suitable values for ``device_memory_padding`` and
 ``host_memory_padding`` for a dataset.
 
@@ -147,7 +148,7 @@ DALI_SCHEMA(ImageDecoderCrop)
 by constant window dimensions and a variable anchor.
 
 When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
-to optimize the decoding time and memory usage. When the ROI decoding is not supported for given
+to optimize the decoding time and memory usage. When the ROI decoding is not supported for a given
 image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
@@ -178,7 +179,7 @@ DALI_SCHEMA(ImageDecoderRandomCrop)
 generated from a range of valid ``aspect_ratio`` and ``area`` values.
 
 When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
-to optimize the decoding time and memory usage. When the ROI decoding is not supported for given
+to optimize the decoding time and memory usage. When the ROI decoding is not supported for a given
 image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
@@ -206,8 +207,13 @@ The followingformats are supported:
 
 
 DALI_SCHEMA(ImageDecoderSlice)
+<<<<<<< HEAD
   .DocStr(R"code(Decodes images and extracts an externally provided ROI that are specified by an
 anchor and a shape of the ROI.
+=======
+  .DocStr(R"code(Decodes images and extracts a region of interest based on externally provided
+anchors and shapes.
+>>>>>>> Review fixes
 
 Inputs must be supplied as tensors in the following order:
 
@@ -225,7 +231,7 @@ By default, the :meth:`nvidia.dali.ops.ImageDecoderSlice` operator uses normaliz
 and "WH" order for the slice arguments.
 
 When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
-to optimize the decoding time and memory usage. When the ROI decoding is not supported for given
+to optimize the decoding time and memory usage. When the ROI decoding is not supported for a given
 image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
