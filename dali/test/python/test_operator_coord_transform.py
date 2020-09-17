@@ -27,15 +27,14 @@ def make_data_batch(batch_size, in_dim, type):
     batch = []
     lo = 0
     hi = 1
-    try:
+    if np.issubdtype(type, np.integer):
         info = np.iinfo(type)
+        # clip range to +/- 1000000 to prevent excessively large epsilons
         lo = max(info.min / 2, -1000000)
-        hi = min(info.max / 2,  1000000)
-    except:
-        pass
+        hi = min(info.max / 2, 1000000)
 
     for i in range(batch_size):
-        batch.append((np.random.rand(np.random.randint(1, 10), in_dim)*(hi-lo) + lo).astype(type))
+        batch.append((np.random.rand(np.random.randint(1, 10000), in_dim)*(hi-lo) + lo).astype(type))
     return batch
 
 def get_data_source(batch_size, in_dim, type):
@@ -73,12 +72,18 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
             T = outputs[2].at(idx)
 
             if M.size == 1:
-               ref.append(X.astype(np.float32) * M + T)
+               Y = X.astype(np.float32) * M + T
             else:
-               ref.append(np.matmul(X.astype(np.float32), M.transpose()) + T)
-            scale = max(scale, np.max(np.abs(ref[-1])) - np.min(np.abs(ref[-1])))
+               Y = np.matmul(X.astype(np.float32), M.transpose()) + T
+
+            if np.issubdtype(out_dtype, np.integer):
+                info = np.iinfo(out_dtype)
+                Y = Y.clip(info.min, info.max)
+
+            ref.append(Y)
+            scale = max(scale, np.max(np.abs(Y)) - np.min(np.abs(Y)))
         avg = 1e-6 * scale
-        eps = 1e-4 * scale
+        eps = 1e-6 * scale
         if out_dtype != np.float32:  # headroom for rounding
             avg += 0.33
             eps += 0.5
