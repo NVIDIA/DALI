@@ -380,6 +380,7 @@ def python_op_factory(name, op_device = "cpu"):
                 if not self._schema.IsDeprecatedArg(arg_name):
                     continue
                 meta = self._schema.DeprecatedArgMeta(arg_name)
+                msg = meta['msg']
 
                 with warnings.catch_warnings():
                     warnings.simplefilter("default")
