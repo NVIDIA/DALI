@@ -33,7 +33,7 @@ Unless specified otherwise, ``reference_power`` is the maximum power of the sign
 Inputs and outputs:
 
 * **Input 0** - 1D audio buffer.
-* **Output 0** - Begin index of nonsilent region.
+* **Output 0** - Index of the first sample in the nonsilent region.
 * **Output 1** - Length of nonsilent region.
 
 .. note::
