@@ -59,7 +59,7 @@ DALI_SCHEMA(TFRecordReader)
       R"code(A dictionary that maps names of the TFRecord features to extract to the feature type.
 
 Typically obtained by using the ``dali.tfrecord.FixedLenFeature`` and
-``dali.tfrecord.VarLenFeature`` helper functions, which are equal to TensorFlow’s
+``dali.tfrecord.VarLenFeature`` helper functions, which are equal to TensorFlow's
 ``tf.FixedLenFeature`` and ``tf.VarLenFeature`` types, respectively. For additional flexibility,
 ``dali.tfrecord.VarLenFeature`` supports the ``partial_shape`` parameter. If provided,
 the data will be reshaped to match its value, and the first dimension will be inferred from

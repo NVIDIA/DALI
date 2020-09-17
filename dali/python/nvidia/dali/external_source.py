@@ -185,7 +185,7 @@ Keyword Args
     If set to True, the source will be wrapped.
 
     If set to False, StopIteration is raised when the end of data is reached.
-    This flag requires that the ``source`` is a collection, for example, an iterative object where
+    This flag requires that the ``source`` is a collection, for example, an iterable object where
     ``iter(source)`` returns a fresh iterator on each call or a generator function.
     In the latter case, the generator function is called again when more data than was
     yielded by the function is requested.
@@ -208,9 +208,9 @@ Keyword Args
     ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
     The CUDA stream is used to copy data to a GPU or from the GPU source.
 
-    If this parameter is not set, a best-effort will be taken to maintain correctness. For example,
+    If this parameter is not set, a best-effort will be taken to maintain correctness. That is,
     if the data is provided as a tensor/array from a recognized library such as CuPy or PyTorch,
-    the library’s current stream is used. Although this process works in typical scenarios,
+    the library's current stream is used. Although this process works in typical scenarios,
     with advanced use cases, and code that uses unsupported libraries, you might need to
     explicitly supply the stream handle.
 

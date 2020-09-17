@@ -170,7 +170,7 @@ The extent on ``axis = axes[i]`` will be adjusted to be a multiple of ``align[i]
 
 If an integer value is provided, the alignment restrictions are applied to all the padded axes.
 
-To use alignment only, for example without any default or explicit padding behavior,
+To use alignment only, that is without any default or explicit padding behavior,
 set the minimum ``shape`` to 1 for the specified axis.)code",
     std::vector<int>())
   .AddOptionalArg<int>("shape",

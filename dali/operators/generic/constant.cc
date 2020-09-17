@@ -33,7 +33,7 @@ to fill the entire shape.
 The operator only performs meaningful work at first invocation; subsequent calls will return
 a reference to the same memory.
 
-To automatically instantiate the operator in Python, call
+The operator can be automatically instantiated in Python with a call to
 :func:`types.Constant(value, dtype, shape, layout) <nvidia.dali.types.Constant>`.
 The value can be a scalar, a tuple, a list, or a numpy array. If not explicitly overridden,
 the ``shape`` and ``dtype``, will be taken from the array.

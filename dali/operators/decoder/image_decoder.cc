@@ -44,7 +44,7 @@ Huffman decoder.
   .AddOptionalArg("device_memory_padding",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-The padding for nvJPEG’s device memory allocations in bytes. This parameter helps you avoid
+The padding for nvJPEG's device memory allocations, in bytes. This parameter helps to avoid
 reallocation in nvJPEG when a larger image is encountered, and the internal buffer needs to be
 reallocated to decode the image.
 
@@ -57,7 +57,7 @@ allocation value that was printed in the statistics.)code",
   .AddOptionalArg("host_memory_padding",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-The padding for nvJPEG’s host memory allocations, in bytes. This parameter helps to prevent
+The padding for nvJPEG's host memory allocations, in bytes. This parameter helps to prevent
 the reallocation in nvJPEG when a larger image is encountered, and the internal buffer needs
 to be reallocated to decode the image.
 
@@ -68,7 +68,7 @@ do a complete run over the dataset with the ``memory_stats`` argument set to Tru
 the largest allocation value that is printed in the statistics.)code",
       8*1024*1024)  // based on ImageNet heuristics (8MB)
   .AddOptionalArg("affine",
-      R"code(Applies **only** to them ``mixed`` backend type.
+      R"code(Applies **only** to the ``mixed`` backend type.
 
 If set to True, the threads from the internal thread pool will be affined to
 the CPU cores Otherwise, the threads are free to be assigned to any CPU core by the OS.)code",
@@ -91,7 +91,7 @@ to "cpu" or when the it is set to "mixed" but the particular image can not be ha
 the GPU implementation.
 
 According to the libjpeg-turbo documentation, decompression performance is improved by up to 14%
-with a low reduction in quality.)code",
+with little reduction in quality.)code",
       false)
   .AddOptionalArg("memory_stats",
       R"code(Applies **only** to the ``mixed`` backend type.
@@ -102,15 +102,15 @@ allocation might be useful to determine suitable values for ``device_memory_padd
 
 .. note::
   The statistics are global for the entire process, not per operator instance, and include
-  the allocations made during construction when the padding hints are non-zero.
+  the allocations made during construction if the padding hints are non-zero.
 )code",
       false);
 
 DALI_SCHEMA(ImageDecoder)
-  .DocStr(R"code(Decodes the images.
+  .DocStr(R"code(Decodes images.
 
-For jpeg images, depending on the backend you select (mixed and cpu), the implementation uses
-the *nvJPEG* library or *libjpeg-turbo*, respectively . Other image formats are decoded
+For jpeg images, depending on the backend selected ("mixed" and "cpu"), the implementation uses
+the *nvJPEG* library or *libjpeg-turbo*, respectively. Other image formats are decoded
 with *OpenCV* or other specific libraries, such as *libtiff*).
 
 If used with a ``mixed`` backend, and the hardware is available, the operator will use
@@ -118,16 +118,7 @@ a dedicated hardware decoder.
 
 The output of the decoder is in the *HWC* layout.
 
-The following formats are supported:
-
-* JPG
-* BMP
-* PNG
-* TIFF
-* PNM
-* PPM
-* PGM
-* PBM)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM.)code")
   .AddOptionalArg("hw_decoder_load",
       R"code(Applies **only** to the ``mixed`` backend type.
 
@@ -144,11 +135,11 @@ https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decod
 // Fused
 
 DALI_SCHEMA(ImageDecoderCrop)
-  .DocStr(R"code(Decodes images and extracts a fixed region-of-interest (ROI) that is specified
-by constant window dimensions and a variable anchor.
+  .DocStr(R"code(Decodes images and extracts regions-of-interest (ROI) that are specified
+by fixed window dimensions and variable anchors.
 
 When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
-to optimize the decoding time and memory usage. When the ROI decoding is not supported for a given
+to reduce the decoding time and memory usage. When the ROI decoding is not supported for a given
 image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
@@ -157,7 +148,7 @@ image format, it will decode the entire image and crop the selected ROI.
   decoding. To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
   :meth:`nvidia.dali.ops.Crop` operators instead.
 
-The output of the decoder is in the *HWC* layout.
+The output of the decoder is in *HWC* layout.
 
 The followingformats are supported:
 
@@ -175,11 +166,13 @@ The followingformats are supported:
   .AddParent("CropAttr");
 
 DALI_SCHEMA(ImageDecoderRandomCrop)
-  .DocStr(R"code(Decodes images and extracts a random ROI with window dimensions that were
-generated from a range of valid ``aspect_ratio`` and ``area`` values.
+ .DocStr(R"code(Decodes images and randomly crops them.
 
-When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
-to optimize the decoding time and memory usage. When the ROI decoding is not supported for a given
+The cropping window's area (relative to the entire image) and aspect ratio can be restricted to
+a range of values specified by ``area`` and ``aspect_ratio`` arguments, respectively.
+
+When possible, the operator uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
+to reduce the decoding time and memory usage. When the ROI decoding is not supported for a given
 image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
@@ -188,7 +181,7 @@ image format, it will decode the entire image and crop the selected ROI.
   decoding. To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
   :meth:`nvidia.dali.ops.RandomResizedCrop` operators instead.
 
-The output of the decoder is in the *HWC* layout.
+The output of the decoder is in *HWC* layout.
 
 The followingformats are supported:
 
@@ -208,17 +201,21 @@ The followingformats are supported:
 
 DALI_SCHEMA(ImageDecoderSlice)
 <<<<<<< HEAD
+<<<<<<< HEAD
   .DocStr(R"code(Decodes images and extracts an externally provided ROI that are specified by an
 anchor and a shape of the ROI.
 =======
   .DocStr(R"code(Decodes images and extracts a region of interest based on externally provided
+=======
+  .DocStr(R"code(Decodes images and extracts regions of interest based on externally provided
+>>>>>>> Review fixes
 anchors and shapes.
 >>>>>>> Review fixes
 
 Inputs must be supplied as tensors in the following order:
 
 * ``data`` that contains the input data.
-* An ``anchor`` that contains normalized or absolute coordinates, depending on the
+* ``anchor`` that contains normalized or absolute coordinates, depending on the
   ``normalized_anchor`` value, for the starting point of the slice (x0, x1, x2, and so on),
 * ``shape`` that contains normalized or absolute coordinates, depending on the
   ``normalized_shape`` value, for the dimensions of the slice (s0, s1, s2, and so on).

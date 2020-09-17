@@ -30,7 +30,7 @@ DALI_SCHEMA(BbFlip)
 
 The bounding box coordinates for the  input are in the [x, y, width, height] - ``xywh`` or
 [left, top, right, bottom] - ``ltrb`` format. All coordinates are in the image coordinate
-system (for example, 0.0-1.0))code")
+system, that is 0.0-1.0)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg(kCoordinatesTypeArgName,

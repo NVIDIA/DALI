@@ -58,10 +58,10 @@ The mel scale is a perceptual scale of pitches, so there is no single formula.
 
 The supported values are:
 
-- | ``slaney``, which follows Slaney’s MATLAB Auditory Modelling Work behavior.
+- | ``slaney``, which follows Slaney's MATLAB Auditory Modelling Work behavior.
   | This formula is linear under 1 KHz and logarithmic above this value. The implementation is
-    consistent with Librosa’s default implementation.
-- | ``htk``, which follows O’Shaughnessy’s book formula, ``m = 2595 * log10(1 + (f/700))``.
+    consistent with Librosa's default implementation.
+- | ``htk``, which follows O'Shaughnessy's book formula, ``m = 2595 * log10(1 + (f/700))``.
   | This value is consistent with the implementation of the Hidden Markov Toolkit (HTK).
 )code", "slaney");
 

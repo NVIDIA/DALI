@@ -136,7 +136,7 @@ DALI pipeline can be run in one of the following ways:
 - | Simple run method, which runs the computations and returns the results.
   | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.BASIC` API type.
 - | `Schedule_run`, `share_outputs`, and `release_outputs` that allows a fine-grain control for
-    the duration of the output buffers’ lifetime.
+    the duration of the output buffers' lifetime.
   | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.SCHEDULED` API type.
 - | Built-in iterators for MXNet, PyTorch, and TensorFlow.
   | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.ITERATOR` API type.
@@ -167,7 +167,7 @@ already been consumed, call :meth:`nvidia.dali.pipeline.Pipeline.release_outputs
 the DALI buffers for reuse in subsequent iterations.
 
 Built-in iterators use the second API to provide convenient wrappers for immediate use in
-Deep Learning Frameworks. The data is returned in the framework’s native buffers. The iterator’s
+Deep Learning Frameworks. The data is returned in the framework's native buffers. The iterator's
 implementation copies the data internally from DALI buffers and recycles the data by calling
 :meth:`nvidia.dali.pipeline.Pipeline.release_outputs()`.
 
@@ -190,7 +190,7 @@ number of pipelines used or when the shard size is not divisible by the batch si
 issue, and adjust the behavior, you can use the ``pad_last_batch`` reader parameter.
 
 This parameter asks the reader to duplicate the last sample in the last batch of a shard,
-which prevents DALI from reading data from the next shard when the batch doesn’t divide its size.
+which prevents DALI from reading data from the next shard when the batch doesn't divide its size.
 The parameter also ensures that all pipelines return the same number of batches, when one batch
 is divisible by the batch size but other batches are bigger by one sample. This process pads every
 shard to the same size, which is a multiple of the batch size.

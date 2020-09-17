@@ -25,7 +25,7 @@ DALI_SCHEMA(RandomCropAttr)
   .AddOptionalArg("random_area",
       R"code(Range from which to choose random area fraction ``A``.
 
-The cropped image’s area will be equal to ``A`` * original image’s area.)code",
+The cropped image's area will be equal to ``A`` * original image's area.)code",
       std::vector<float>{0.08, 1.0})
   .AddOptionalArg("num_attempts",
       R"code(Maximum number of attempts used to choose random area and aspect ratio.)code",

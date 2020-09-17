@@ -105,7 +105,7 @@ This argument is useful for unsigned output types.)code", 0.0f, false)
 This argument is useful for integral output types.)code", 1.0f, false)
   .AddOptionalArg("epsilon", R"code(A value that is added to the variance to avoid division by
 small numbers.)code", 0.0f, false)
-  .AddOptionalArg("ddof", R"code(Delta Degrees of Freedom for Bessel’s correction.
+  .AddOptionalArg("ddof", R"code(Delta Degrees of Freedom for Bessel's correction.
 
 The variance is estimated by using the following formula::
 

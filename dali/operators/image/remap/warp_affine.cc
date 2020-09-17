@@ -30,7 +30,7 @@ by using the following formula::
 
   dst(x,y) = src(M11 * x + M12 * y + M13, M21 * x + M22 * y + M23)
 
-It is equivalent to OpenCV’s ``warpAffine`` operation with the ``WARP_INVERSE_MAP`` flag set.)code",
+It is equivalent to OpenCV's ``warpAffine`` operation with the ``WARP_INVERSE_MAP`` flag set.)code",
       vector<float>(), true)
   .AddParent("WarpAttr");
 
