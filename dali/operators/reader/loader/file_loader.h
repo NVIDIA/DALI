@@ -49,6 +49,7 @@ class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
     vector<std::string> images = std::vector<std::string>(),
     bool shuffle_after_epoch = false)
     : Loader<CPUBackend, ImageFileWrapper >(spec),
+      file_list_(spec.GetArgument<string>("file_list")),
       file_root_(spec.GetArgument<string>("file_root")),
       file_filter_(spec.GetArgument<string>("file_filter")),
       images_(std::move(images)),
@@ -91,7 +92,19 @@ class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
 
   void PrepareMetadataImpl() override {
     if (images_.empty()) {
-      images_ = filesystem::traverse_directories(file_root_, file_filter_);
+      if (file_list_ == "") {
+        images_ = filesystem::traverse_directories(file_root_, file_filter_);
+      } else {
+        // load paths from list
+        std::ifstream s(file_list_);
+        DALI_ENFORCE(s.is_open(), "Cannot open: " + file_list_);
+
+        string image_file;
+        while (s >> image_file) {
+          images_.push_back(image_file);
+        }
+        DALI_ENFORCE(s.eof(), "Wrong format of file_list: " + file_list_);
+      }
     }
     DALI_ENFORCE(Size() > 0, "No files found.");
 
@@ -122,7 +135,7 @@ class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
   using Loader<CPUBackend, ImageFileWrapper >::shard_id_;
   using Loader<CPUBackend, ImageFileWrapper >::num_shards_;
 
-  string file_root_, file_list_, file_filter_;
+  string file_list_, file_root_, file_filter_;
   vector<std::string> images_;
   bool shuffle_after_epoch_;
   Index current_index_;
