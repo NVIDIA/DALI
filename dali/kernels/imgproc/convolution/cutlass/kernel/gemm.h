@@ -140,7 +140,7 @@ struct Conv {
 
   using HostParams = std::vector<SampleParams>;
   struct Params {
-    int sample_count = 0;
+    int num_samples = 0;
     SampleParams *params = nullptr;
     cutlass::gemm::GemmCoord grid_tiled_shape;
 

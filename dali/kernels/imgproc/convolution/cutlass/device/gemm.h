@@ -272,6 +272,7 @@ class Conv {
   static int const split_k_slices = 1;
   static int const kAxes = 2;
   static bool const kIsInnerConv = IsInnerConv;
+  // static size_t const kSampleParamsSizeof = sizeof(typename ConvKernel::SampleParams);
 
     /// Define the kernel
   using ConvKernel = typename kernel::DefaultConv<
@@ -343,7 +344,10 @@ class Conv {
           epilogue(epilogue_) {}
   };
 
-  using Arguments = std::vector<SampleArguments>;
+  struct Arguments {
+    typename ConvKernel::SampleParams *device_sample_params_ptr;
+    std::vector<SampleArguments> sample_arguments;
+  };
 
  private:
   /// Kernel parameters object
@@ -371,6 +375,11 @@ class Conv {
     }
 
     return Status::kSuccess;
+  }
+
+  /// Calculate size of device memory needed for passing params to the CUDA kernel
+  static size_t get_params_sizeof(int num_samples) {
+    return num_samples * sizeof(typename ConvKernel::SampleParams);
   }
 
   /// Prepare convolution layout (in host memory) to use required layout

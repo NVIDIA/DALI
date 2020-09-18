@@ -78,6 +78,7 @@ struct ConvolutionGpu {
     }
     se.add<W>(AllocType::Host, num_samples * kWindowCopyBufferSize);
     se.add<W>(AllocType::GPU, num_samples * kWindowCopyBufferSize);
+    se.add
     req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(in_shape);
     return req;
@@ -126,7 +127,7 @@ struct ConvolutionGpu {
             reinterpret_cast<cutlass_W*>(window_tmp_buffer_gpu + i * kWindowCopyBufferSize);
         const auto* cutlass_in = reinterpret_cast<const cutlass_In*>(in.tensor_data(i));
         auto* cutlass_out = reinterpret_cast<cutlass_Out*>(out.tensor_data(i));
-        args.push_back(SampleArguments{
+        args.sample_arguments.push_back(SampleArguments{
             size,                       // Input matrix dimensions
             window_size,                // Window size
             window_anchor,              // Window anchor
@@ -161,7 +162,7 @@ struct ConvolutionGpu {
             reinterpret_cast<cutlass_W*>(window_tmp_buffer_gpu + i * kWindowCopyBufferSize);
         const auto* cutlass_in = reinterpret_cast<const cutlass_In*>(in.tensor_data(i));
         auto* cutlass_out = reinterpret_cast<cutlass_Out*>(out.tensor_data(i));
-        args.push_back(SampleArguments{
+        args.sample_arguments.push_back(SampleArguments{
             size,                       // Input matrix dimensions
             window_size,                // Window size
             window_anchor,              // Window anchor
