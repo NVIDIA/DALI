@@ -21,6 +21,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/core/tensor_view.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/util/crop_window.h"
@@ -50,62 +51,27 @@ class SliceAttr {
     }
   }
 
-  void ProcessArguments(const DeviceWorkspace &ws) {
+  template <typename Backend>
+  void ProcessArguments(const workspace_t<Backend> &ws) {
     DALI_ENFORCE(ws.NumInput() == 3,
       "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
     // slice args are CPU inputs
-    const auto &crop_anchor = ws.template Input<CPUBackend>(1);
-    const auto &crop_shape = ws.template Input<CPUBackend>(2);
+    const auto &crop_anchor = ws.template InputRef<CPUBackend>(1);
+    const auto &crop_shape = ws.template InputRef<CPUBackend>(2);
     DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
-                  make_string("Anchor and shape should have the same type. Got: ",
-                              crop_anchor.type().id(), " and ", crop_shape.type().id()));
+                 make_string("Anchor and shape should have the same type. Got: ",
+                             crop_anchor.type().id(), " and ", crop_shape.type().id()));
     auto args_dtype = crop_anchor.type().id();
-    for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
-      VerifyArgsShape(crop_anchor.tensor_shape(data_idx), crop_shape.tensor_shape(data_idx));
-      TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
+    TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
+      auto anchor_view = view<const ArgsType, 1>(crop_anchor);
+      auto shape_view = view<const ArgsType, 1>(crop_shape);
+      for (size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
+        VerifyArgsShape(anchor_view.tensor_shape(data_idx), shape_view.tensor_shape(data_idx));
         ProcessArgumentsHelper(data_idx,
-                               crop_anchor.template tensor<ArgsType>(data_idx),
-                               crop_shape.template tensor<ArgsType>(data_idx));
-      ), DALI_FAIL(make_string("Unsupported type anchor and shape arguments: ", args_dtype)));  // NOLINT
-    }
-  }
-
-  void ProcessArguments(const HostWorkspace &ws) {
-    DALI_ENFORCE(ws.NumInput() == 3,
-      "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
-    for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
-      const auto &crop_anchor = ws.Input<CPUBackend>(1, data_idx);
-      const auto &crop_shape = ws.Input<CPUBackend>(2, data_idx);
-      DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
-                   make_string("Anchor and shape should have the same type. Got: ",
-                               crop_anchor.type().id(), " and ", crop_shape.type().id()));
-      auto args_dtype = crop_anchor.type().id();
-      VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
-      TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
-        ProcessArgumentsHelper(data_idx,
-                               crop_anchor.data<ArgsType>(),
-                               crop_shape.data<ArgsType>());
-      ), DALI_FAIL(make_string("Unsupported type anchor and shape arguments: ", args_dtype)));  // NOLINT
-    }
-  }
-
-  void ProcessArguments(const MixedWorkspace &ws) {
-    DALI_ENFORCE(ws.NumInput() == 3,
-      "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
-    for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
-      const auto &crop_anchor = ws.Input<CPUBackend>(1, data_idx);
-      const auto &crop_shape = ws.Input<CPUBackend>(2, data_idx);
-      DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
-                   make_string("Anchor and shape should have the same type. Got: ",
-                               crop_anchor.type().id(), " and ", crop_shape.type().id()));
-      auto args_dtype = crop_anchor.type().id();
-      VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
-      TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
-        ProcessArgumentsHelper(data_idx,
-                               crop_anchor.data<ArgsType>(),
-                               crop_shape.data<ArgsType>());
-      ), DALI_FAIL(make_string("Unsupported type anchor and shape arguments: ", args_dtype)));  // NOLINT
-    }
+                               anchor_view.tensor_data(data_idx),
+                               shape_view.tensor_data(data_idx));
+      }
+    ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT
   }
 
   void ProcessArguments(const SampleWorkspace &ws) {
@@ -122,7 +88,7 @@ class SliceAttr {
       ProcessArgumentsHelper(ws.data_idx(),
                              crop_anchor.data<ArgsType>(),
                              crop_shape.data<ArgsType>());
-    ), DALI_FAIL(make_string("Unsupported type anchor and shape arguments: ", args_dtype)));  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT
   }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {

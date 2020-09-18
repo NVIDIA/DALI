@@ -35,7 +35,7 @@ class Slice : public SliceBase<Backend> {
 
  protected:
   void ProcessCroppingAttrs(const workspace_t<Backend> &ws) override {
-    slice_attr_.ProcessArguments(ws);
+    slice_attr_.ProcessArguments<Backend>(ws);
   }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const override {
