@@ -24,6 +24,9 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/util/crop_window.h"
+#include "dali/core/static_switch.h"
+
+#define SLICE_ARGS_TYPES (int32_t, int64_t, float)
 
 namespace dali {
 
@@ -53,11 +56,17 @@ class SliceAttr {
     // slice args are CPU inputs
     const auto &crop_anchor = ws.template Input<CPUBackend>(1);
     const auto &crop_shape = ws.template Input<CPUBackend>(2);
+    DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
+                  make_string("Anchor and shape should have the same type. Got: ",
+                              crop_anchor.type().id(), " and ", crop_shape.type().id()));
+    auto args_dtype = crop_anchor.type().id();
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
       VerifyArgsShape(crop_anchor.tensor_shape(data_idx), crop_shape.tensor_shape(data_idx));
-      ProcessArgumentsHelper(data_idx,
-                             crop_anchor.template tensor<float>(data_idx),
-                             crop_shape.template tensor<float>(data_idx));
+      TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
+        ProcessArgumentsHelper(data_idx,
+                               crop_anchor.template tensor<ArgsType>(data_idx),
+                               crop_shape.template tensor<ArgsType>(data_idx));
+      ), DALI_FAIL(make_string("Unsupported type anchor and shape arguments: ", args_dtype)));  // NOLINT
     }
   }
 
@@ -67,8 +76,16 @@ class SliceAttr {
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
       const auto &crop_anchor = ws.Input<CPUBackend>(1, data_idx);
       const auto &crop_shape = ws.Input<CPUBackend>(2, data_idx);
+      DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
+                   make_string("Anchor and shape should have the same type. Got: ",
+                               crop_anchor.type().id(), " and ", crop_shape.type().id()));
+      auto args_dtype = crop_anchor.type().id();
       VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
-      ProcessArgumentsHelper(data_idx, crop_anchor.data<float>(), crop_shape.data<float>());
+      TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
+        ProcessArgumentsHelper(data_idx,
+                               crop_anchor.data<ArgsType>(),
+                               crop_shape.data<ArgsType>());
+      ), DALI_FAIL(make_string("Unsupported type anchor and shape arguments: ", args_dtype)));  // NOLINT
     }
   }
 
@@ -78,8 +95,16 @@ class SliceAttr {
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
       const auto &crop_anchor = ws.Input<CPUBackend>(1, data_idx);
       const auto &crop_shape = ws.Input<CPUBackend>(2, data_idx);
+      DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
+                   make_string("Anchor and shape should have the same type. Got: ",
+                               crop_anchor.type().id(), " and ", crop_shape.type().id()));
+      auto args_dtype = crop_anchor.type().id();
       VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
-      ProcessArgumentsHelper(data_idx, crop_anchor.data<float>(), crop_shape.data<float>());
+      TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
+        ProcessArgumentsHelper(data_idx,
+                               crop_anchor.data<ArgsType>(),
+                               crop_shape.data<ArgsType>());
+      ), DALI_FAIL(make_string("Unsupported type anchor and shape arguments: ", args_dtype)));  // NOLINT
     }
   }
 
@@ -88,8 +113,16 @@ class SliceAttr {
       "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
     const auto &crop_anchor = ws.Input<CPUBackend>(1);
     const auto &crop_shape = ws.Input<CPUBackend>(2);
+    DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
+                  make_string("Anchor and shape should have the same type. Got: ",
+                              crop_anchor.type().id(), " and ", crop_shape.type().id()));
+    auto args_dtype = crop_anchor.type().id();
     VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
-    ProcessArgumentsHelper(ws.data_idx(), crop_anchor.data<float>(), crop_shape.data<float>());
+    TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
+      ProcessArgumentsHelper(ws.data_idx(),
+                             crop_anchor.data<ArgsType>(),
+                             crop_shape.data<ArgsType>());
+    ), DALI_FAIL(make_string("Unsupported type anchor and shape arguments: ", args_dtype)));  // NOLINT
   }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
@@ -98,12 +131,22 @@ class SliceAttr {
   }
 
  private:
+  template <typename T>
   void ProcessArgumentsHelper(int data_idx,
-                              const float *slice_anchor_data,
-                              const float *slice_shape_data) {
+                              const T *slice_anchor_data,
+                              const T *slice_shape_data) {
+    bool normalized_anchor = normalized_anchor_;
+    bool normalized_shape  = normalized_shape_;
+    // If integer anchor and shape were provided, assume absolute coordinates silently
+    if (!std::is_floating_point<T>::value) {
+      normalized_anchor = false;
+      normalized_shape = false;
+    }
+    assert(std::is_floating_point<T>::value || (!normalized_anchor && !normalized_shape));
+
     crop_window_generators_[data_idx] =
-      [this, slice_anchor_data, slice_shape_data](const TensorShape<> &shape,
-                                                  const TensorLayout& shape_layout) {
+      [this, slice_anchor_data, slice_shape_data, normalized_anchor, normalized_shape]
+      (const TensorShape<> &shape, const TensorLayout& shape_layout) {
         CropWindow slice;
         slice.anchor = std::vector<int64_t>(shape.size(), 0);
         slice.shape = shape;
@@ -119,15 +162,15 @@ class SliceAttr {
           double shape_val = slice_shape_data[i];
           int64_t slice_end;
           // special case - minimize the floating point error by multiplying only once after sum
-          if (normalized_anchor_ && normalized_shape_) {
+          if (normalized_anchor && normalized_shape) {
             slice_end = std::llround((anchor_val + shape_val) * shape[dim]);
             anchor_val *= shape[dim];
             shape_val *= shape[dim];
           } else {
-            if (normalized_anchor_) {
+            if (normalized_anchor) {
               anchor_val *= shape[dim];
             }
-            if (normalized_shape_) {
+            if (normalized_shape) {
               shape_val *= shape[dim];
             }
             slice_end = std::llround(anchor_val + shape_val);
