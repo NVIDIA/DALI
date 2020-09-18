@@ -82,15 +82,8 @@ class TransformPointsGPU {
       auto sample_shape = in.shape[i];
       host_descs[i].size  = volume(sample_shape.begin(), sample_shape.end() - 1);
 
-      if (!M.empty())
-        host_descs[i].M = M[i_m];
-      else
-        host_descs[i].M = 1.0f;  // diagonal 1 = identity
-
-      if (!T.empty())
-        host_descs[i].T = T[i_t];
-      else
-        host_descs[i].T = 0.0f;  // zero vector
+      host_descs[i].M = M.empty() ? 1.0f : M[i_m];
+      host_descs[i].T = T.empty() ? 0.0f : T[i_t];
 
       if (host_descs[i].size > max_size)
         max_size = host_descs[i].size;

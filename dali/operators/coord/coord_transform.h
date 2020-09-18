@@ -32,18 +32,18 @@ class CoordTransform : public Operator<Backend> {
  public:
   explicit CoordTransform(const OpSpec &spec) : Operator<Backend>(spec) {
     dtype_ = spec_.template GetArgument<DALIDataType>("dtype");
-    has_mt_ = spec_.HasArgument("MT");  // checks if there's a regular argument MT (not input)
-    has_mt_input_ = spec_.HasTensorArgument("MT");  // cheks if there's an Argument Input MT
-    has_matrix_ = spec_.HasArgument("M");  // checks if there's a regular argument M (not input)
-    has_matrix_input_ = spec_.HasTensorArgument("M");  // cheks if there's an Argument Input M
+    has_mt_ = spec_.HasArgument("MT");  // check if there's a regular argument MT (not input)
+    has_mt_input_ = spec_.HasTensorArgument("MT");  // check if there's an Argument Input MT
+    has_matrix_ = spec_.HasArgument("M");  // check if there's a regular argument M (not input)
+    has_matrix_input_ = spec_.HasTensorArgument("M");  // check if there's an Argument Input M
     has_translation_ = spec_.HasArgument("T");  // ...and similarly, for T
     has_translation_input_ = spec.HasTensorArgument("T");
 
     bool has_fused_arg = has_mt_ || has_mt_input_;
     bool has_separate_args = has_matrix_ || has_matrix_input_ ||
                              has_translation_ || has_translation_input_;
-    DALI_ENFORCE(!(has_fused_arg && has_separate_args), "The fused ``MT`` argument cannot be used "
-      "together with separate ``M``, ``T`` arguments.");
+    DALI_ENFORCE(!(has_fused_arg && has_separate_args), "The combined ``MT`` argument cannot be "
+      "used together with separate ``M``, ``T`` arguments.");
   }
 
   bool CanInferOutputs() const override { return true; }
