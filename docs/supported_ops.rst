@@ -9,10 +9,9 @@ Here is a list of the supported operations:
 - **GPU** operator means that the operator can be scheduled on the GPU. Their outputs can only be
   used as
   regular inputs for other GPU operators and pipeline outputs.
-- **Mixed** operator means that the operator accepts input on the CPU while producing the output
-  on the GPU.
-- **Sequences** means that the operator can produce or accept as an input a sequence, or a video
-  type of input.
+- **Mixed** operator means that the operator accepts CPU inputs and produces GPU outputs.
+- **Sequences** means that the operator can produce or accept as an input a sequence
+  (for example, a video).
 - **Volumetric** means that the operator supports 3D data processing.
 
 Reading this guide
@@ -96,7 +95,7 @@ Currently, DALI supports the following operations:
 .. function:: Unary arithmetic operators: +, -
 
     Unary operators that implement ``__pos__(self)`` and ``__neg__(self)``.
-    The result of an unary arithmetic operation always keeps the input type.
+    The result of a unary arithmetic operation always preserves the input type.
     Unary operators accept only TensorList inputs from other operators.
 
     :rtype: TensorList of the same type
@@ -106,9 +105,9 @@ Currently, DALI supports the following operations:
     Binary operators that implement ``__add__``, ``__sub__``, ``__mul__``, ``__truediv__``
     and ``__floordiv__`` respectively.
 
-    The result of the arithmetic operation between two operands is described below,
+    The result of an arithmetic operation between two operands is described below,
     with the exception of ``/``, the ``__truediv__`` operation, which always
-    returns ``float32`` or ``float64`` types.
+    returns ``float32`` or ``float64`` type.
 
      ============== ============== ================== ========================
       Operand Type   Operand Type   Result Type        Additional Conditions
@@ -146,7 +145,7 @@ Currently, DALI supports the following operations:
 
 .. function:: Bitwise binary operations: &, |, ^
 
-    The bitwise binary operations follow the same type promotion type as arithmetic binary
+    The bitwise binary operations follow the same type promotion rules as arithmetic binary
     operations, but their inputs are restricted to integral types (including ``bool``).
 
     .. note::
