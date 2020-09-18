@@ -59,12 +59,11 @@ In this case, the output of the loader will be empty.)code", false)
             R"code(Parse and prepare the dataset metadata only during the first run instead of
 in the constructor.)code", false)
   .AddOptionalArg("pad_last_batch",
-      R"code(If set to True, when the batch size is not aligned with the shard size, the Loader
-pads the last batch with the last image.
+      R"code(If set to True, pads the shard by repeating the last sample.
 
-The rest of the batch, or even an entire batch, can be added when the dataset size is not equally
-divisible by the number of shards, and the shard is not equally divisible by the batch size. The
-shard size will ultimately be equalized between shards.)code", false)
+.. note::
+  If the number of batches differs across shards, this option can cause an entire batch of repeated
+  samples to be added to the dataset.)code", false)
 .AddOptionalArg("dont_use_mmap",
       R"code(If set to True, instead of trying to map the file memory,
 the Loader will use plain file I/O.
