@@ -22,7 +22,7 @@ DALI_REGISTER_OPERATOR(OneHot, OneHot, CPU);
 
 
 DALI_SCHEMA(OneHot)
-  .DocStr(R"code(Produces one-hot encoding of the provided input.
+  .DocStr(R"code(Produces a one-hot encoding of the input.
 
 If the input is not a scalar (tensor consisting from one value per sample), the operator
 will fail.)code")

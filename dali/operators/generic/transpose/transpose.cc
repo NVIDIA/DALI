@@ -84,14 +84,16 @@ for all valid coordinates.
             DALI_INT_VEC)
     .AddOptionalArg(
         "transpose_layout",
-        R"code(When set to True, the output data layout is transposed based on the perm.
+        R"code(When set to True, the axis names in the output data layout are permuted according
+to ``perm``, Otherwise, the input layout is copied to the output.
 
-Otherwise, the input layout is copied to the output.)code",
+If ``output_layout`` is set, this argument is ignored.)code",
         true)
     .AddOptionalArg(
         "output_layout",
-        R"code(If a value is provided, sets output data layout, overriding any ``transpose_layout``
-setting.)code",
+        R"code(Explicitly sets the output data layout.
+
+If this argument is specified, ``transpose_layout`` is ignored.)code",
         TensorLayout(""));
 
 }  // namespace dali

@@ -23,7 +23,8 @@
 namespace dali {
 
 DALI_SCHEMA(Flip)
-    .DocStr(R"code(Flips the selected dimensions (horizontal, vertical, and depthwise).)code")
+    .DocStr(R"code(Flips the images in selected dimensions (horizontal, vertical,
+and depthwise).)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("horizontal", R"code(Flip the horizontal  dimension.)code", 1, true)

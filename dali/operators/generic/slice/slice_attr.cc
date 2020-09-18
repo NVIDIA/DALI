@@ -23,7 +23,7 @@ DALI_SCHEMA(SliceAttr)
     .DocStr(R"code(Slice attributes placeholder)code")
     .AddOptionalArg("axes",
         R"code(Order of dimensions used for the anchor and shape slice inputs as dimension
-indexes.)code",
+indices.)code",
         std::vector<int>{1, 0})
     .AddOptionalArg("axis_names",
         R"code(Order of the dimensions used for the anchor and shape slice inputs,

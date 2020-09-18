@@ -24,7 +24,7 @@ using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 3>;
 }  // namespace
 
 DALI_SCHEMA(Hsv)
-    .DocStr(R"code(Adjusts hue, saturation and value (brightness) for the images.
+    .DocStr(R"code(Adjusts hue, saturation and value (brightness) of the images.
 
 To change the hue, the saturation, and/or the value of the image, pass the corresponding
 coefficients. Remember that the ``hue`` is an additive delta argument,
@@ -39,16 +39,16 @@ and restored to the original color space.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg(color::kHue,
-                    R"code(Hue delta, in degrees; 0 is a no-op.
+                    R"code(Hue delta, in degrees.
 
 The hue component can be interpreted as an angle and values outside 0-360 range wrap around, as
 they would in case of rotation.)code",
                     0.0f, true)
     .AddOptionalArg(color::kSaturation,
-                    R"code(The saturation multiplier; 1.0 is a no-op.)code",
+                    R"code(The saturation multiplier.)code",
                     1.0f, true)
     .AddOptionalArg(color::kValue,
-                    R"code(The value multiplier; 1.0 is a no-op.)code",
+                    R"code(The value multiplier.)code",
                     1.0f, true)
     .AddOptionalArg(color::kOutputType, R"code(The output data type.
 

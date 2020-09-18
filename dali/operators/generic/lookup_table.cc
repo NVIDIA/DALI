@@ -93,15 +93,15 @@ Here is a practical example, considering the table defined above::
     R"code(Default output value for keys that are not present in the table.)code",
     0.0f)
   .AddOptionalArg("keys",
-    R"code(A list of input values (keys) that are present in the lookup table.
+    R"code(A list of input values (keys) in the lookup table.
 
-The length of ``keys`` and ``values`` argument should match. ``keys`` values should be in the
+The length of ``keys`` and ``values`` argument must match. The values in ``keys`` should be in the
 [0, )code" + std::to_string(LookupTable<CPUBackend>::kMaxKey) + " ] range.",
     std::vector<int>{})
   .AddOptionalArg("values",
     R"code(A list of mapped output ``values`` for each ``keys`` entry.
 
-The length of the ``keys`` and the ``values`` argument should match.
+The length of the ``keys`` and the ``values`` argument must match.
 )code",
     std::vector<float>{});
 

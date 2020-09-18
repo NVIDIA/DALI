@@ -108,7 +108,7 @@ Only the coordinates of the relevant dimensions that are specified by *axis_name
 should be provided.)code",
     vector<float>(), true)
   .AddOptionalArg("axes",
-    R"code(Order of dimensions used for *anchor* and *shape* arguments, as dimension indexes.
+    R"code(Order of dimensions used for *anchor* and *shape* arguments, as dimension indices.
 
 For instance, axes=(1, 0) means the coordinates in *anchor* and *shape* refer
 to axes 1 and 0 in that particular order.)code",

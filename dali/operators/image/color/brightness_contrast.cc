@@ -19,7 +19,7 @@ namespace dali {
 namespace {
 
 template <typename Out, typename In>
-using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;
+using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;I think
 
 }  // namespace
 
@@ -39,15 +39,15 @@ This operator can also change the type of data.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("brightness",
-                    "Brightness mutliplier, where 1.0 is neutral.",
+                    "Brightness mutliplier.",
                     1.0f, true)
-    .AddOptionalArg("brightness_shift", R"code(The brightness shift, where 0 is neutral.
+    .AddOptionalArg("brightness_shift", R"code(The brightness shift.
 
 For signed types, 1.0 represents the maximum positive value that can be represented by
 the type.)code",
                     0.0f, true)
-    .AddOptionalArg("contrast", R"code(The contrast multiplier, where 1.0 is neutral, and 0.0
-produces the uniform grey.)code",
+    .AddOptionalArg("contrast", R"code(The contrast multiplier, where 0.0 produces
+the uniform grey.)code",
                     1.0f, true)
     .AddOptionalArg("contrast_center", R"code(The intensity level that is unaffected by contrast.
 

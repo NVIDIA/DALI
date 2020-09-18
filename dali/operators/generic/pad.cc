@@ -27,8 +27,6 @@ DALI_SCHEMA(Pad)
   .DocStr(R"code(Pads all samples with the ``fill_value`` in the specified axes to match
 the biggest extent in the batch for those axes or to match the minimum shape specified.
 
-The supported types are integer and floating point numeric types.
-
 Here are a few examples:
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,)
@@ -62,8 +60,8 @@ The samples are padded in the first axis to a minimum extent of 7.
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `align` = (4,)
 
 The samples are padded in the first axis to match the extent of the largest sample and the
-alignment requirements. The largest extent is 5, but it is extended to 8 to satisfy the
-alignment requirements.
+alignment requirements. The output extent is 8, which is a result of rounding up the largest
+extent (5) to a multiple of alignment (4).
 
 ::
 
@@ -153,7 +151,7 @@ axis to match the largest sample in the batch and an alignment of 2.
   .AddOptionalArg<int>("axes",
     R"code(Indices of the axes on which the batch samples will be padded.
 
-Indexes are zero-based, with 0 being the outer-most dimension of the tensor. The ``axis_names``
+Indices are zero-based, with 0 being the outer-most dimension of the tensor. The ``axis_names``
 and ``axes`` arguments are mutually exclusive. If ``axes`` and ``axis_names`` are empty, or
 have not been provided, the output will be padded on all of the axes.)code", std::vector<int>())
   .AddOptionalArg<TensorLayout>("axis_names",
