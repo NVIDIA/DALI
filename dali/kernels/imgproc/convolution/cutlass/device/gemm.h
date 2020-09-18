@@ -114,16 +114,16 @@ namespace device {
   A simplified view of the template is listed below.
 
     template <
-      /// Element type for A matrix operand
+      /// Element type for Input matrix operand
       typename ElementIn,
 
-      /// Layout type for A matrix operand
+      /// Layout type for Input matrix operand
       typename LayoutIn,
 
-      /// Element type for B matrix operand
+      /// Element type for window operands
       typename ElementWindow,
 
-      /// Layout type for B matrix operand
+      /// Layout type for window operands
       typename LayoutWindow,
 
       /// Element type for C and D matrix operands
@@ -308,6 +308,7 @@ class Conv {
     //
     Array<int, kAxes> matrix_size;
     int window_size;
+    int window_anchor;
     int channels;
     TensorRef<ElementIn const, LayoutIn> ref_In;
     ElementWindow *ref_Window;
@@ -324,13 +325,14 @@ class Conv {
     /// Constructs an Arguments structure
     CUTLASS_HOST_DEVICE
     SampleArguments(
-        Array<int, kAxes> matrix_size_, int window_size_, int channels_,
+        Array<int, kAxes> matrix_size_, int window_size_, int window_anchor_, int channels_,
         TensorRef<ElementIn const, LayoutIn> ref_In_, ElementWindow *ref_Window_,
         TensorRef<ElementOut const, LayoutOut> ref_C_, TensorRef<ElementOut, LayoutOut> ref_D_,
         typename EpilogueOutputOp::Params epilogue_ = typename EpilogueOutputOp::Params(),
         int planes_ = 1, int plane_stride_ = 0)
         : matrix_size(matrix_size_),
           window_size(window_size_),
+          window_anchor(window_anchor_),
           channels(channels_),
           ref_In(ref_In_),
           ref_Window(ref_Window_),
@@ -384,7 +386,7 @@ class Conv {
     ThreadblockSwizzle threadblock_swizzle;
 
     // Find the biggest grid necessary among the samples,
-    // smaller samples skip unused blocks on entrence
+    // smaller samples skip unused blocks on entry
     GemmCoord max_problem_size(0, 0, 1);
     for (auto &arg : args) {
       // The basic threadblock swizzle takes only M and N dims into account here
@@ -411,7 +413,7 @@ class Conv {
           sample_size, {ThreadblockShape::kM, ThreadblockShape::kN, ThreadblockShape::kK},
           split_k_slices);
       if (!kIsInnerConv) {
-        DALI_ENFORCE(arg.channels == 1, "For outer convolution channels should be set to 1.");
+        assert(arg.channels == 1 && "For outer convolution channels should be set to 1.");
       }
 
       // TODO(klecki): the kernel part uses Params that we create based on Arguments
@@ -461,7 +463,7 @@ class Conv {
     }
 
     size_t params_sizeof = host_params_.size() * sizeof(typename ConvKernel::SampleParams);
-    cudaMalloc(&params_.params, params_sizeof);
+    cudaMalloc(&params_.params, params_sizeof); // TODO:: TODO(klecki): fixme, leak, move this out
     cudaMemcpyAsync(params_.params, host_params_.data(), params_sizeof, cudaMemcpyHostToDevice,
                     stream);
 

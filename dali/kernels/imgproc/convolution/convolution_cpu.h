@@ -185,7 +185,7 @@ void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size,
     // Left border
     for (; x0 < 0 && xout < axis_size; x0++, xout++) {
       for (int c = 0; c < channels; c++) {
-        W acc = 0;
+        float acc = 0;
         for (int k = 0; k < window_size; k++) {
           int x = boundary::idx_reflect_101(x0 + k, axis_size);
           acc += in_axis[x * channels + c] * window[k];
@@ -197,7 +197,7 @@ void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size,
     int64_t flat_xout = xout * channels;
     // This loop won't execute if the window_size > axis_size
     for (; flat_x < flat_x_limit; flat_x++, flat_xout++) {
-      W acc = 0;
+      float acc = 0;
       for (int k = 0; k < window_size; k++) {
         acc += in_axis[flat_x + k * channels] * window[k];
       }
@@ -209,7 +209,7 @@ void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size,
     // Right border
     for (; xout < axis_size; x0++, xout++) {
       for (int c = 0; c < channels; c++) {
-        W acc = 0;
+        float acc = 0;
         for (int k = 0; k < window_size; k++) {
           int x = boundary::idx_reflect_101(x0 + k, axis_size);
           acc += in_axis[x * channels + c] * window[k];

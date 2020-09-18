@@ -27,7 +27,12 @@ struct ConvWindowConfiguration {
   static int const kTotalAlignedSize = TotalAlignedSize;
   static bool const kIsInnerConv = IsInnerConv;
   static bool const kUseSharedMem = UseSharedMem;
-  static_assert(kUseSharedMem, "Reading window directly from GMEM is not yet implemented");
+  static_assert(kUseSharedMem, "Reading window directly from global memory is not yet implemented");
+
+  // For inner convolution we only need a reversed window (decreasing order)
+  // For outer convolution we need both the regular window (increasing order) and the reversed
+  // window (decreasing order). For details, see the PositionPredicatedTileIterator.
+
   static_assert((!kIsInnerConv && kTotalAlignedSize % 4 == 0) ||
                     (kIsInnerConv && kTotalAlignedSize % 2 == 0),
                 "The total window size needs to be divisible for alignment purposes");
