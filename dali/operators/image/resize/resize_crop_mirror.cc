@@ -29,8 +29,8 @@ Supported values:
   .AddParent("ResizeAttr");
 
 DALI_SCHEMA(ResizeCropMirror)
-  .DocStr(R"code(Performs a fused resize, crop, mirror operation and handles both fixed and
-random resizing and cropping.)code")
+  .DocStr(R"code(Performs a fused resize, crop, mirror operation. Both fixed and
+random resizing and cropping are supported.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("interp_type",  // TODO(michalz): Replace with ResamplingFilterAttr when ready
@@ -43,9 +43,9 @@ random resizing and cropping.)code")
 DALI_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
 
 DALI_SCHEMA(FastResizeCropMirror)
-  .DocStr(R"code(Performs a fused resize, crop, mirror operation and handles both fixed
-and random resizing and cropping.
+  .DocStr(R"code(Performs a fused resize, crop, mirror operation.
 
+The operator handles both fixed and random resizing and cropping.
 Backprojects the desired crop through the resize operation to reduce the amount of
 work that is performed.)code")
   .NumInput(1)

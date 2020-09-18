@@ -25,31 +25,31 @@ DALI_SCHEMA(ResizeAttr)
   .AddOptionalArg("resize_x", R"code(The length of the X dimension of the resized image.
 
 This option is mutually exclusive with ``resize_shorter``, ``resize_longer`` and ``size``.
-If the ``resize_y`` is left at 0, the operator keeps the aspect ratio of the original image.
+If the ``resize_y`` is unspecified or 0, the operator keeps the aspect ratio of the original image.
 A negative value flips the image.)code", 0.f, true)
   .AddOptionalArg("resize_y", R"code(The length of the Y dimension of the resized image.
 
 This option is mutually exclusive with ``resize_shorter``, ``resize_longer`` and ``size``.
-If the ``resize_x`` is left at 0, the operator keeps the aspect ratio of the original image.
+If the ``resize_x`` is unspecified or 0, the operator keeps the aspect ratio of the original image.
 A negative value flips the image.)code", 0.f, true)
   .AddOptionalArg("resize_z", R"code(The length of the Z dimension of the resized volume.
 
 This option is mutually exclusive with ``resize_shorter``, ``resize_longer`` and ``size``.
 If the ``resize_x`` and ``resize_y`` are left unspecified or 0, then the op will keep
 the aspect ratio of the original volume. Negative value flips the volume.)", 0.f, true)
-  .AddOptionalArg<vector<float>>("size", R"(The desired output size. Must be a list/tuple with the
+  .AddOptionalArg<vector<float>>("size", R"(The desired output size. Must be a list/tuple with
 one entry per spatial dimension (i.e. excluding video frames and channels).
 
 Dimensions with 0 extent are treated as absent and the output size will be calculated based
 on other extents and ``mode`` argument.)code", 0.f, true)
   .AddOptionalArg<vector<float>>("size", R"(The desired output size.
 
-Must be a list/tuple with the one entry per spatial dimension, excluding video
-frames and channels. Dimensions with a 0 extent are treated as absent, and the output size will
-be calculated based on other extents and ``mode`` argument.)", {}, true)
+Must be a list/tuple with one entry per spatial dimension, excluding video frames and channels.
+Dimensions with a 0 extent are treated as absent, and the output size will be calculated based on
+other extents and ``mode`` argument.)", {}, true)
   .AddOptionalArg("mode", R"code(Resize mode.
 
-Here is a list of the supported values:
+Here is a list of supported modes:
 
 * | ``"default"`` - image is resized to the specified size.
   | Missing extents are scaled with the average scale of the provided ones extents.
@@ -94,23 +94,23 @@ or uniformly for all axes.
   1400x700.
 )code", {}, false)
   .AddOptionalArg("subpixel_scale", R"code(If True, fractional sizes, directly specified or
-calculated, will cause the input RoI to be adjusted to keep the scale factor.
+calculated, will cause the input ROI to be adjusted to keep the scale factor.
 
 Otherwise, the scale factor will be adjusted so that the source image maps to
 the rounded output size.)code", true)
-  .AddOptionalArg<vector<float>>("roi_start", R"code(Origin of the input region of interest (RoI).
+  .AddOptionalArg<vector<float>>("roi_start", R"code(Origin of the input region of interest (ROI).
 
 Must be specified together with ``roi_end``. The coordinates follow the tensor shape order, which is
 the same as ``size``. The coordinates can be either absolute (in pixels, which is the default) or
-relative (0..1), depending on the value of ``relative_roi`` argument. If the RoI origin is greater
-than the RoI end in any dimension, the region is flipped in that dimension.)code", nullptr, true)
-  .AddOptionalArg<vector<float>>("roi_end", R"code(End of the input region of interest (RoI).
+relative (0..1), depending on the value of ``relative_roi`` argument. If the ROI origin is greater
+than the ROI end in any dimension, the region is flipped in that dimension.)code", nullptr, true)
+  .AddOptionalArg<vector<float>>("roi_end", R"code(End of the input region of interest (ROI).
 
 Must be specified together with ``roi_start``. The coordinates follow the tensor shape order, which is
 the same as ``size``. The coordinates can be either absolute (in pixels, which is the default) or
-relative (0..1), depending on the value of ``relative_roi`` argument. If the RoI origin is greater
-than the RoI end in any dimension, the region is flipped in that dimension.))code", nullptr, true)
-  .AddOptionalArg("roi_relative", R"code(If true, RoI coordinates are relative to the input size,
+relative (0..1), depending on the value of ``relative_roi`` argument. If the ROI origin is greater
+than the ROI end in any dimension, the region is flipped in that dimension.))code", nullptr, true)
+  .AddOptionalArg("roi_relative", R"code(If true, ROI coordinates are relative to the input size,
 where 0 denotes top/left and 1 denotes bottom/right)code", false);
 
 
@@ -177,7 +177,7 @@ void ResizeAttr::ParseLayout(
   first_spatial_dim = spatial_dims_begin;
 }
 
-void ResizeAttr::CalculateInputRoI(SmallVector<float, 3> &in_lo,
+void ResizeAttr::CalculateInputROI(SmallVector<float, 3> &in_lo,
                                    SmallVector<float, 3> &in_hi,
                                    const TensorListShape<> &input_shape,
                                    int sample_idx) const {
@@ -193,8 +193,8 @@ void ResizeAttr::CalculateInputRoI(SmallVector<float, 3> &in_lo,
         lo *= in_size[d];
         hi *= in_size[d];
       }
-      // if input RoI is too small (e.g. due to numerical error), but the input is not empty,
-      // we can stretch the RoI a bit to avoid division by 0 - this will possibly stretch just
+      // if input ROI is too small (e.g. due to numerical error), but the input is not empty,
+      // we can stretch the ROI a bit to avoid division by 0 - this will possibly stretch just
       // a single pixel to the entire output, but it's better than throwing
       if (std::fabs(hi - lo) < min_size) {
         float offset = lo <= hi ? 0.5f * min_size : -0.5f * min_size;
@@ -269,7 +269,7 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
         requested_size[d] = size_vecs[d][i];
       }
 
-      CalculateInputRoI(in_lo, in_hi, input_shape, i);
+      CalculateInputROI(in_lo, in_hi, input_shape, i);
       CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
     }
   } else if (has_resize_shorter_ || has_resize_longer_) {
@@ -281,7 +281,7 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
         requested_size[d] = res_x_[i];
       }
 
-      CalculateInputRoI(in_lo, in_hi, input_shape, i);
+      CalculateInputROI(in_lo, in_hi, input_shape, i);
       CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
     }
   } else if (has_size_) {
@@ -291,7 +291,7 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
         requested_size[d] = size_arg_[i * spatial_ndim_ + d];
       }
 
-      CalculateInputRoI(in_lo, in_hi, input_shape, i);
+      CalculateInputROI(in_lo, in_hi, input_shape, i);
       CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
     }
   }

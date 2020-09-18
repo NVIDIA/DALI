@@ -37,11 +37,11 @@ be either tensors of same shape, scalars, or a mix of these.
 .. note::
   The expression follows the *numpy* broadcasting rules.
 
-Sizes of the non-scalar ``mean`` and ``stddev`` must have an extent of 1, if the specified axis
+Sizes of the non-scalar ``mean`` and ``stddev`` must have an extent of 1, if given axis
 is reduced, or match the corresponding extent of the input. A dimension is considered reduced
 if it is listed in ``axes`` or ``axis_names``. If neither the ``axes`` nor the ``axis_names``
-argument is present, the set of reduced ``axes`` is inferred by comparing the input
-shape to the shape of the mean/stddev arguments, but the set of reduced ``axes`` must
+argument is present, the set of reduced axes is inferred by comparing the input
+shape to the shape of the mean/stddev arguments, but the set of reduced axes must
 be the same for all tensors in the batch.
 
 Here are some examples of valid argument combinations:
