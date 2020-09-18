@@ -49,7 +49,7 @@ void NumpyReader::TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBa
 DALI_REGISTER_OPERATOR(NumpyReader, NumpyReader, CPU);
 
 DALI_SCHEMA(NumpyReader)
-  .DocStr("Reads the Numpy arrays from a directory.")
+  .DocStr("Reads Numpy arrays from a directory.")
   .NumInput(0)
   .NumOutput(1)  // (Arrays)
   .AddArg("file_root",

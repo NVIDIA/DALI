@@ -19,7 +19,7 @@ namespace dali {
 namespace {
 
 template <typename Out, typename In>
-using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;I think
+using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;
 
 }  // namespace
 

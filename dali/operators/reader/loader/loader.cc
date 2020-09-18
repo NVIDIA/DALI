@@ -65,8 +65,8 @@ in the constructor.)code", false)
   If the number of batches differs across shards, this option can cause an entire batch of repeated
   samples to be added to the dataset.)code", false)
 .AddOptionalArg("dont_use_mmap",
-      R"code(If set to True, instead of trying to map the file memory,
-the Loader will use plain file I/O.
+      R"code(If set to True, the Loader will use plain file I/O instead of trying to map
+the file in memory.
 
 Mapping provides a small performance benefit when accessing a local file system, but most network file
 systems, do not provide optimum performance.

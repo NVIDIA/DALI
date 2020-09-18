@@ -177,7 +177,7 @@ void ResizeAttr::ParseLayout(
   first_spatial_dim = spatial_dims_begin;
 }
 
-void ResizeAttr::CalculateInputROI(SmallVector<float, 3> &in_lo,
+void ResizeAttr::CalculateInputRoI(SmallVector<float, 3> &in_lo,
                                    SmallVector<float, 3> &in_hi,
                                    const TensorListShape<> &input_shape,
                                    int sample_idx) const {
@@ -269,7 +269,7 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
         requested_size[d] = size_vecs[d][i];
       }
 
-      CalculateInputROI(in_lo, in_hi, input_shape, i);
+      CalculateInputRoI(in_lo, in_hi, input_shape, i);
       CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
     }
   } else if (has_resize_shorter_ || has_resize_longer_) {
@@ -281,7 +281,7 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
         requested_size[d] = res_x_[i];
       }
 
-      CalculateInputROI(in_lo, in_hi, input_shape, i);
+      CalculateInputRoI(in_lo, in_hi, input_shape, i);
       CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
     }
   } else if (has_size_) {
@@ -291,7 +291,7 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
         requested_size[d] = size_arg_[i * spatial_ndim_ + d];
       }
 
-      CalculateInputROI(in_lo, in_hi, input_shape, i);
+      CalculateInputRoI(in_lo, in_hi, input_shape, i);
       CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
     }
   }
