@@ -116,8 +116,8 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
     if (pixelwise_masks_) {
       auto &masks_output = ws.Output<CPUBackend>(3);
-      masks_output.Resize({1, widths_[image_id], heights_[image_id]});
-      masks_output.SetLayout("CWH");
+      masks_output.Resize({heights_[image_id], widths_[image_id], 1});
+      masks_output.SetLayout("HWC");
       auto masks_out_data = masks_output.mutable_data<int>();
       PixelwiseMasks(image_id, masks_out_data);
     }

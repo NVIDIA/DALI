@@ -133,10 +133,9 @@ void COCOReader::ValidateOptions(const OpSpec &spec) {
       "When reading data from meta files `dump_meta_files_path` option is not supported.");
   }
 
-  if (spec.HasArgument("masks")) {
-    DALI_ENFORCE(
-      !spec.HasArgument("pixelwise_masks"),
-      "`masks` and `pixelwise_masks` cannot be both provided.");
+  if (spec.HasArgument("masks") && spec.HasArgument("pixelwise_masks")) {
+    DALI_ENFORCE(!(spec.GetArgument<bool>("masks") && spec.GetArgument<bool>("pixelwise_masks")),
+      "`masks` and `pixelwise_masks` cannot be both true.");
   }
 
   if (spec.HasArgument("dump_meta_files")) {
@@ -278,9 +277,15 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
 
   // Decode final pixelwise masks encoded via RLE
   memset(mask, 0, h * w * sizeof(int));
+  int x = 0, y = 0;
   for (uint i = 0; i < A.m; i++)
-    for (uint j = 0; j < A.cnts[i]; j++)
-      *mask++ = A.vals[i];
+    for (uint j = 0; j < A.cnts[i]; j++) {
+      mask[x + y * w] = A.vals[i];
+      if (++y >= h) {
+        y = 0;
+        x++;
+      }
+    }
 
   // Destroy RLEs
   rlesFree(&R, *labels.rbegin() + 1);
