@@ -32,10 +32,18 @@ class CoordTransform : public Operator<Backend> {
  public:
   explicit CoordTransform(const OpSpec &spec) : Operator<Backend>(spec) {
     dtype_ = spec_.template GetArgument<DALIDataType>("dtype");
+    has_mt_ = spec_.HasArgument("MT");  // checks if there's a regular argument MT (not input)
+    has_mt_input_ = spec_.HasTensorArgument("MT");  // cheks if there's an Argument Input MT
     has_matrix_ = spec_.HasArgument("M");  // checks if there's a regular argument M (not input)
     has_matrix_input_ = spec_.HasTensorArgument("M");  // cheks if there's an Argument Input M
     has_translation_ = spec_.HasArgument("T");  // ...and similarly, for T
     has_translation_input_ = spec.HasTensorArgument("T");
+
+    bool has_fused_arg = has_mt_ || has_mt_input_;
+    bool has_separate_args = has_matrix_ || has_matrix_input_ ||
+                             has_translation_ || has_translation_input_;
+    DALI_ENFORCE(!(has_fused_arg && has_separate_args), "The fused ``MT`` argument cannot be used "
+      "together with separate ``M``, ``T`` arguments.");
   }
 
   bool CanInferOutputs() const override { return true; }
@@ -113,24 +121,52 @@ class CoordTransform : public Operator<Backend> {
     if (input_pt_dim_ == 0)
       return;  // data is degenerate - empty batch or a batch of empty tensors
 
-    ProcessMatrixArg(ws, "M", N);
-    ProcessTranslationArg(ws, "T", N);
+    if (HasFusedMT()) {
+      ProcessMatrixArg(ws, "MT", N);
+    } else {
+      ProcessMatrixArg(ws, "M", N);
+      ProcessTranslationArg(ws, "T", N);
+    }
+  }
+
+  bool HasFusedMT() const {
+    return has_mt_ || has_mt_input_;
+  }
+
+  bool HasMatrixRegularArg() const {
+    return has_matrix_ || has_mt_;
+  }
+
+  bool HasMatrixInputArg() const {
+    return has_matrix_input_ || has_mt_input_;
   }
 
   void ProcessMatrixArg(const workspace_t<Backend> &ws, const char *name, int N) {
-    if (has_matrix_) {
+    bool is_fused = HasFusedMT();
+    int cols = input_pt_dim_ + (is_fused ? 1 : 0);
+    if (is_fused)
+      translation_.clear();
+
+    if (HasMatrixRegularArg()) {
       mtx_ = spec_.template GetRepeatedArgument<float>(name);
       if (mtx_.size() == 1) {
         output_pt_dim_ = input_pt_dim_;
         mtx_.resize(output_pt_dim_ * input_pt_dim_);
         FillDiag(mtx_, mtx_[0]);
+        if (is_fused) {
+          translation_.resize(output_pt_dim_, 0);
+        }
       } else {
-        DALI_ENFORCE(mtx_.size() % input_pt_dim_ == 0, make_string("Cannot form a matrix ",
-          mtx_.size(), " elements and ", input_pt_dim_, "columns"));
-        output_pt_dim_ = mtx_.size() / input_pt_dim_;
+        DALI_ENFORCE(mtx_.size() % cols == 0, make_string("Cannot form a matrix ",
+          mtx_.size(), " elements and ", cols, "columns"));
+        output_pt_dim_ = mtx_.size() / cols;
+        if (is_fused)
+          SplitFusedMT();
       }
       Repeat(per_sample_mtx_, mtx_, N);
-    } else if (has_matrix_input_) {
+      if (is_fused)
+        Repeat(per_sample_translation_, translation_, N);
+    } else if (HasMatrixInputArg()) {
       const auto &M_inp = ws.ArgumentInput(name);
       auto M = view<const float>(M_inp);
       DALI_ENFORCE(is_uniform(M.shape), "Matrices for all samples int the batch must have "
@@ -139,22 +175,30 @@ class CoordTransform : public Operator<Backend> {
         "The parameter M must be a list of 2D matrices of same size or a list of scalars. Got: ",
         M.shape));
       if (M.shape.sample_dim() == 0) {  // we have a list of scalars - put them on diagonals
-        output_pt_dim_ = input_pt_dim_;
-        int mat_size = output_pt_dim_ * input_pt_dim_;
+        output_pt_dim_ = cols;
+        int mat_size = output_pt_dim_ * cols;
         per_sample_mtx_.resize(mat_size * N);
         for (int i = 0; i < N; i++) {
           FillDiag(make_span(&per_sample_mtx_[i * mat_size], mat_size), M.data[i][0]);
         }
+        translation_.resize(output_pt_dim_, 0);
+        Repeat(per_sample_translation_, translation_, N);
       } else {
-        DALI_ENFORCE(M.shape[0][1] == input_pt_dim_, make_string("The shape of the matrix argument "
-           "does not match the input shape. Got ", M.shape[0], " matrices and the input requires "
-           "matrices with ", input_pt_dim_, " columns"));
+        DALI_ENFORCE(M.shape[0][1] == cols, make_string("The shape of the argument ``", name,
+           "`` does not match the input shape. Got ", M.shape[0], " matrices and the input "
+           "requires matrices with ", cols, " columns"));
         output_pt_dim_ = M.shape[0][0];
         int mat_size = output_pt_dim_ * input_pt_dim_;
         per_sample_mtx_.resize(mat_size * N);
-        for (int i = 0; i < N; i++) {
-          for (int j = 0; j < mat_size; j++)
-              per_sample_mtx_[i * mat_size + j] = M.data[i][j];
+        if (is_fused)
+          per_sample_translation_.resize(output_pt_dim_ * N);
+        for (int s = 0; s < N; s++) {
+          for (int i = 0; i < output_pt_dim_; i++) {
+            for (int j = 0; j < input_pt_dim_; j++)
+                per_sample_mtx_[s * mat_size + i * input_pt_dim_ + j] = M.data[s][i * cols + j];
+            if (is_fused)
+              per_sample_translation_[s * output_pt_dim_ + i] = M.data[s][i * cols + cols - 1];
+          }
         }
       }
     } else {
@@ -163,8 +207,28 @@ class CoordTransform : public Operator<Backend> {
         mtx_.resize(output_pt_dim_ * input_pt_dim_, 0);
         FillDiag(mtx_, 1);
         Repeat(per_sample_mtx_, mtx_, N);
+        if (is_fused) {
+          translation_.resize(output_pt_dim_, 0);
+          Repeat(per_sample_translation_, translation_, N);
+        }
       }
     }
+  }
+
+  void SplitFusedMT() {
+    int cols = input_pt_dim_ + 1;
+    translation_.resize(output_pt_dim_);
+    for (int i = 0; i < output_pt_dim_; i++) {
+      // store the last column in the translation vector
+      translation_[i] = mtx_[i * cols + input_pt_dim_];
+
+      // compact the matrix
+      if (i > 0) {
+        for (int j = 0; j < input_pt_dim_; j++)
+          mtx_[i * input_pt_dim_ + j] = mtx_[i * cols + j];
+      }  // else: the first row is already where it should be
+    }
+    mtx_.resize(output_pt_dim_ * input_pt_dim_);
   }
 
   /** @brief Fill the diagonal with a scalar value, put zeros elsewhere */
@@ -226,6 +290,8 @@ class CoordTransform : public Operator<Backend> {
   vector<float> per_sample_translation_;
   int input_pt_dim_ = 0, output_pt_dim_ = 0;
 
+  bool has_mt_                = false;
+  bool has_mt_input_          = false;
   bool has_matrix_            = false;
   bool has_matrix_input_      = false;
   bool has_translation_       = false;

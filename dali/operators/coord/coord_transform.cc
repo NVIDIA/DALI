@@ -57,6 +57,16 @@ If left unspecified, no translation is applied.
 The number of components of this vector must match the number of rows in matrix ``M``.
 If a scalar value is provided, that value is broadcast to all components of ``T`` and the number
 of components is chosen to match the number of rows in ``M``.)", nullptr, true)
+  .AddOptionalArg<vector<float>>("MT", R"(A block matrix [M T] which combines the arguments
+``M`` and ``T``.
+
+Providing a scalar value for this argument is equivalent to providing the same scalar for
+M and leaving T unspecified.
+
+The number of columns must be one more than the number of components in the input.
+This argument is mutually exclusive with ``M`` and ``T``.)",
+    nullptr,
+    true)
   .AddOptionalArg("dtype", R"(Data type of the output coordinates.
 
 If an integral type is used, the output values are rounded to the nearest integer and clamped
