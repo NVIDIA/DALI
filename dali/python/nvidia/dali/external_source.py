@@ -169,7 +169,7 @@ Args
     will be called again when the generator reaches the end of iteration.
 
     For the GPU input, it is a user's responsibility to modify the provided GPU memory content
-    by using the provided stream. DALI schedules a copy on the stream, and all work is properly
+    only in the provided stream. DALI schedules a copy on this stream, and all work is properly
     queued. If no stream is provided, DALI will use a default, with a best-effort approach at
     correctness. See the ``cuda_stream`` argument documentation for more information.
     The data batch produced by ``source`` may be anything that's accepted by
@@ -206,21 +206,21 @@ Keyword Args
 
 `cuda_stream` : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``, such as
     ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
-    The CUDA stream is used to copy data to a GPU or from the GPU source.
+    The CUDA stream is used to copy data to the GPU or from a GPU source.
 
     If this parameter is not set, a best-effort will be taken to maintain correctness. That is,
     if the data is provided as a tensor/array from a recognized library such as CuPy or PyTorch,
-    the library's current stream is used. Although this process works in typical scenarios,
+    the library's current stream is used. Although this approach works in typical scenarios,
     with advanced use cases, and code that uses unsupported libraries, you might need to
     explicitly supply the stream handle.
 
-    Here are the special values:
+    This argument has two special values:
       *  0 - Use the default CUDA stream
       * -1 - Use DALI's internal stream
 
-    Since you cannot synchronize with this stream to prevent overwriting the array with new data
-    in another stream, if an internal stream is used, the call to ``feed_input`` will block
-    until the copy to the internal buffer is complete.
+    If internal stream is used, the call to ``feed_input`` will block until the copy to internal
+    buffer is complete, since there's no way to synchronize with this stream to prevent
+    overwriting the array with new data in another stream.
 
 `use_copy_kernel` : optional, `bool`
     If set to True, DALI will use a CUDA kernel to feed the data instead of cudaMemcpyAsync (default).

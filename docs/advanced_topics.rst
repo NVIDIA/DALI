@@ -47,9 +47,9 @@ DALI uses the following memory types:
 - Host-page-locked
 - GPU
 
-Allocating and freeing the GPU and host page-locked (or pinned) memory require
+Allocating and freeing GPU and host page-locked (or pinned) memory require
 device synchronization. As a result, when possible, DALI avoids reallocating these kinds of memory.
-The buffers that are allocated with this storage type will only grow when the existing buffer is too
+The buffers that are allocated with these storage types will only grow when the existing buffer is too
 small to accommodate the requested shape. This strategy reduces the number of total memory
 management operations and increases the processing speed when the memory requirements become stable
 and no more allocations are required.
@@ -59,31 +59,30 @@ host memory consumption, the buffers might shrink when the new requested size is
 the fraction of the old size. This is called shrink threshold. It can be adjusted to a value
 between 0 (never shrink) and 1 (always shrink). The default is 0.9. The value can be controlled
 by the ``DALI_HOST_BUFFER_SHRINK_THRESHOLD`` environmental variable or be set in Python by
-using the `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
+calling the `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
 
-During processing, DALI works on batches of samples. For the GPU and some CPU operators, each batch
+During processing, DALI works on batches of samples. For GPU and some CPU operators, each batch
 is stored as contiguous memory and is processed at once, which reduces the number of
 necessary allocations. For some CPU operators that cannot calculate their output size ahead of
 time, the batch is stored as a vector of separately allocated samples.
 
 For example, if your batch consists of nine 480p images and one 4K image in random order, the
 contiguous allocation can accommodate all possible combinations of these batches. On the other
-hand, the CPU batch that is presented as separate buffers needs to keep a 4K allocation for every
-sample after several iterations.
-The GPU buffers that are allocated to keep the transformation results are as large as the largest
-possible batch, and the CPU buffers can be as large as the batch size multiplied by the size of
-the largest sample.
+hand, the CPU batch that is stored as separate buffers needs to keep a 4K allocation for every
+sample after several iterations. The GPU buffers that keep the operator outputs can grow are
+as large as the largest possible batch, whereas the non-contiguous CPU buffers can reach
+the size of the largest sample in the data set multiplied by the number of samples in the batch.
 
 The host and the GPU buffers have configurable growth factor. If the factor is greater than 1, and
-the requested new size exceeds the buffer capacity, the buffer will be allocated with extra margin
+The host and the GPU buffers have a configurable growth factor. If the factor is greater than 1, and
 to potentially avoid subsequent reallocations.
 This functionality is disabled by default, and the growth factor is set to 1. The growth factors
 can be controlled with the ``DALI_HOST_BUFFER_GROWTH_FACTOR`` and ``DALI_DEVICE_BUFFER_GROWTH_FACTOR``
 environmental variables and with the `nvidia.dali.backend.SetHostBufferGrowthFactor` and
 `nvidia.dali.backend.SetDeviceBufferGrowthFactor` Python API functions.
-For convenience, the DALI_BUFFER_GROWTH_FACTOR variable and the the
-`nvidia.dali.backend.SetBufferGrowthFactor` Python function set the same growth factor for the
-host and the GPU buffers.
+For convenience, the DALI_BUFFER_GROWTH_FACTOR environment variable and the
+`nvidia.dali.backend.SetBufferGrowthFactor` Python function can be used to set the same
+growth factor for the host and the GPU buffers.
 
 Operator Buffer Presizing
 -------------------------
