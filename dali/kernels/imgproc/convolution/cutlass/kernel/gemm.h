@@ -79,6 +79,7 @@ struct Conv {
   struct SampleParams {
     int channels;
     int window_size;
+    int window_anchor;
     cutlass::gemm::GemmCoord problem_size;
     cutlass::gemm::GemmCoord sample_grid_tiled_shape;
     typename Mma::IteratorIn::Params params_In;
@@ -101,7 +102,7 @@ struct Conv {
     SampleParams() : gemm_k_size(0) {}
 
     CUTLASS_HOST_DEVICE
-    SampleParams(int channels, cutlass::gemm::GemmCoord const &problem_size,
+    SampleParams(int channels, int window_anchor, cutlass::gemm::GemmCoord const &problem_size,
                  cutlass::gemm::GemmCoord const &sample_grid_tiled_shape,
                  typename Mma::IteratorIn::TensorRef ref_In, WindowRef ref_conv_Window,
                  typename Epilogue::OutputTileIterator::TensorRef ref_C,
@@ -110,6 +111,7 @@ struct Conv {
                  int planes = 1, int plane_stride = 0)
         : channels(channels),
           window_size(ref_conv_Window.stride(0)),
+          window_anchor(window_anchor),
           problem_size(problem_size),  // actual problem size
           // the grid used for the run (m, n, k), we assume k = 1
           sample_grid_tiled_shape(sample_grid_tiled_shape),
@@ -263,21 +265,23 @@ struct Conv {
                                        threadblock_tile_offset.n() * Mma::Shape::kN};
 
       // effective span of the window in the generated matrix
-      int radius_span = (params.window_size / 2) * params.channels;
+      // (excluding element corresponding to current coordinate - center for default case)
+      int left_span = params.window_anchor * params.channels;
+      int right_span = (params.window_size - params.window_anchor - 1) * params.channels;
 
       // We need to start at aligned tile, otherwise tensor ops aren't happy.
       // Take this into account when calculating the non-zero region
-      // For right side conv-matrix the non-zero regions starts at (n() - radius_span, n()),
-      // for the left side it's (m(), m() - radius_span)
+      // For right side conv-matrix the non-zero regions starts at (n() - left_span, n()),
+      // for the left side it's (m(), m() - left_span)
       int conv_diag_position = kIsInnerConv ? threadblock_tile_offset.n() * Mma::Shape::kN
                                           : threadblock_tile_offset.m() * Mma::Shape::kM;
       constexpr int tile_extent = kIsInnerConv ? Mma::Shape::kN : Mma::Shape::kM;
 
-      // in this row/column we cover a rectangle starting at (diag - radius), and ending at
-      // (diag + tile_extent + radius)
+      // in this row/column we cover a rectangle starting at (diag - left_span), and ending at
+      // (diag + tile_extent + right_span)
 
       // this handles the border, we don't extend the matrix shapes, where the data starts
-      int k_skipped_offset = max(0, conv_diag_position - radius_span);
+      int k_skipped_offset = max(0, conv_diag_position - left_span);
       // where we should start on tile boundary
       k_skipped_offset = (k_skipped_offset / Mma::Shape::kK) * Mma::Shape::kK;
 
@@ -293,7 +297,7 @@ struct Conv {
       int total_gemm_k_iterations = (problem_size_k + Mma::Shape::kK - 1) / Mma::Shape::kK;
 
       // where the data ends
-      int k_end_offset = min(problem_size_k - 1, conv_diag_position + tile_extent + radius_span);
+      int k_end_offset = min(problem_size_k - 1, conv_diag_position + tile_extent + right_span);
       int k_last_iter = ((k_end_offset + Mma::Shape::kK - 1) / Mma::Shape::kK);
 
       // this is how many iterations we need if we start at the offset

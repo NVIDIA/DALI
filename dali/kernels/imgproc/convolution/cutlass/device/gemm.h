@@ -431,6 +431,7 @@ class Conv {
       // and copy it to device, we might try to persist the memory
       host_params_.push_back(typename ConvKernel::SampleParams{
           arg.channels,
+          arg.window_anchor,
           sample_size,
           sample_grid_shape,
           arg.ref_In.non_const_ref(),
