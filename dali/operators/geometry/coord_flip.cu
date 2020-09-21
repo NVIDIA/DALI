@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/coord/coord_flip.h"
+#include "dali/operators/geometry/coord_flip.h"
 #include <utility>
 #include <vector>
 

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_COORD_COORD_TRANSFORM_H_
-#define DALI_OPERATORS_COORD_COORD_TRANSFORM_H_
+#ifndef DALI_OPERATORS_GEOMETRY_COORD_TRANSFORM_H_
+#define DALI_OPERATORS_GEOMETRY_COORD_TRANSFORM_H_
 
 #include <vector>
 #include "dali/core/format.h"
@@ -304,4 +304,4 @@ class CoordTransform : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_COORD_COORD_TRANSFORM_H_
+#endif  // DALI_OPERATORS_GEOMETRY_COORD_TRANSFORM_H_

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/coord/coord_transform.h"
+#include "dali/operators/geometry/coord_transform.h"
 #include "dali/kernels/math/transform_points.h"
 #include "dali/pipeline/data/views.h"
 
