@@ -33,11 +33,19 @@ If a value is provided, ``axis_names`` will have a higher priority than ``axes``
         TensorLayout("WH"))
     .AddOptionalArg("normalized_anchor",
         R"code(Determines whether the anchor input should be interpreted as normalized
-(range [0.0, 1.0]) or as absolute coordinates.)code",
+(range [0.0, 1.0]) or as absolute coordinates.
+
+.. note::
+    This argument is only relevant when anchor data type is ``float``. For integer types,
+ the coordinates are always absolute..)code",
         true)
     .AddOptionalArg("normalized_shape",
         R"code(Determines whether the shape input should be interpreted as normalized
-(range [0.0, 1.0]) or as absolute coordinates.)code",
+(range [0.0, 1.0]) or as absolute coordinates.
+
+.. note::
+    This argument is only relevant when anchor data type is ``float``. For integer types,
+ the coordinates are always absolute.)code",
         true);
 
 }  // namespace dali

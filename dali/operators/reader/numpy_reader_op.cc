@@ -60,6 +60,12 @@ with numpy files in them.)code", DALI_STRING)
   .AddOptionalArg("file_filter",
       R"code(If a value is specified, the string is interpreted as glob string to filter the
 list of files in the sub-directories of the ``file_root``.)code", "*.npy")
+  .AddOptionalArg("file_list",
+            R"code(Path to a text file that contains the rows of ``filename`` entries,
+where the filenames are relative to ``file_root``.
+
+If left empty, ``file_root`` is traversed for subdirectories, which are only at one level
+down from ``file_root``.)code", std::string())
   .AddOptionalArg("shuffle_after_epoch",
       R"code(If set to True, the reader shuffles the entire dataset after each epoch.
 

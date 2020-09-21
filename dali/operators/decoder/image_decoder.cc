@@ -61,7 +61,7 @@ The padding for nvJPEG's host memory allocations, in bytes. This parameter helps
 the reallocation in nvJPEG when a larger image is encountered, and the internal buffer needs
 to be reallocated to decode the image.
 
-If you provide a value greater than 0, the operator preallocates two (because of double-buffering)
+If a value greater than 0 is provided, the operator preallocates two (because of double-buffering)
 host-pinned buffers of the requested size per thread. If selected correctly, no additional
 allocations will occur during the pipeline execution. One way to find the ideal value is to
 do a complete run over the dataset with the ``memory_stats`` argument set to True, and then copy
@@ -70,8 +70,8 @@ the largest allocation value that is printed in the statistics.)code",
   .AddOptionalArg("affine",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-If set to True, the threads from the internal thread pool will be affined to
-the CPU cores Otherwise, the threads are free to be assigned to any CPU core by the OS.)code",
+If set to True, each thread in the internal thread pool will be tied to a specific CPU core.
+Otherwise, the threads can be reassigned to any CPU core by the operating system.)code",
       true)
   .AddOptionalArg("split_stages",
       R"code(Applies **only** to the ``mixed`` backend type.
@@ -116,9 +116,9 @@ with *OpenCV* or other specific libraries, such as *libtiff*).
 If used with a ``mixed`` backend, and the hardware is available, the operator will use
 a dedicated hardware decoder.
 
-The output of the decoder is in the *HWC* layout.
+The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM.)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
   .AddOptionalArg("hw_decoder_load",
       R"code(Applies **only** to the ``mixed`` backend type.
 
@@ -150,23 +150,14 @@ image format, it will decode the entire image and crop the selected ROI.
 
 The output of the decoder is in *HWC* layout.
 
-The followingformats are supported:
-
-* JPG
-* BMP
-* PNG
-* TIFF
-* PNM
-* PPM
-* PGM
-* PBM)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
   .AddParent("CropAttr");
 
 DALI_SCHEMA(ImageDecoderRandomCrop)
- .DocStr(R"code(Decodes images and randomly crops them.
+  .DocStr(R"code(Decodes images and randomly crops them.
 
 The cropping window's area (relative to the entire image) and aspect ratio can be restricted to
 a range of values specified by ``area`` and ``aspect_ratio`` arguments, respectively.
@@ -183,16 +174,7 @@ image format, it will decode the entire image and crop the selected ROI.
 
 The output of the decoder is in *HWC* layout.
 
-The followingformats are supported:
-
-* JPG
-* BMP
-* PNG
-* TIFF
-* PNM
-* PPM
-* PGM
-* PBM)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -200,17 +182,8 @@ The followingformats are supported:
 
 
 DALI_SCHEMA(ImageDecoderSlice)
-<<<<<<< HEAD
-<<<<<<< HEAD
-  .DocStr(R"code(Decodes images and extracts an externally provided ROI that are specified by an
-anchor and a shape of the ROI.
-=======
-  .DocStr(R"code(Decodes images and extracts a region of interest based on externally provided
-=======
   .DocStr(R"code(Decodes images and extracts regions of interest based on externally provided
->>>>>>> Review fixes
 anchors and shapes.
->>>>>>> Review fixes
 
 Inputs must be supplied as tensors in the following order:
 
@@ -239,16 +212,7 @@ image format, it will decode the entire image and crop the selected ROI.
 
 The output of the decoder is in the *HWC* layout.
 
-The followingformats are supported:
-
-* JPG
-* BMP
-* PNG
-* TIFF
-* PNM
-* PPM
-* PGM
-* PBM)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
   .NumInput(3)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")

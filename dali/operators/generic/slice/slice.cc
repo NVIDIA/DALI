@@ -35,12 +35,20 @@ order for the slice arguments.)code")
     .NumInput(3)
     .NumOutput(1)
     .InputDox(0, "data", "TensorList", R"code(Batch that contains the input data.)code")
-    .InputDox(1, "anchor", "1D TensorList of float",
-                 R"code(Input that contains normalized or absolute coordinates, depending on
-the value of ``normalized_anchor``, for the starting point of the slice (x0, x1, x2, …).)code")
-    .InputDox(2, "shape", "1D TensorList of float",
-                 R"code(Input that contains normalized or absolute coordinates, depending on
-the value of normalized_shape, for the dimensions of the slice (s0, s1, s2, …).)code")
+    .InputDox(1, "anchor", "1D TensorList of float or int",
+                 R"code(Input that contains normalized or absolute coordinates for the starting
+point of the slice (x0, x1, x2, …).
+
+Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
+interpreted as absolute or relative coordinates, depending on the value of
+``normalized_anchor``.)code")
+    .InputDox(2, "shape", "1D TensorList of float or int",
+                 R"code(Input that contains normalized or absolute coordinates for the dimensions
+of the slice (s0, s1, s2, …).
+
+Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
+interpreted as absolute or relative coordinates, depending on the value of
+``normalized_shape``.)code")
     .SupportVolumetric()
     .DeprecateArg("image_type", true)  // deprecated since 0.24dev
     .AddParent("SliceBase")
