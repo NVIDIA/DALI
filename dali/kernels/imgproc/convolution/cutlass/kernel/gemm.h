@@ -118,7 +118,7 @@ struct Conv {
           params_In(ref_In.layout()),
           ref_In(ref_In),
           params_Window(layout::RowMajor(kIsInnerConv ? problem_size.n() : problem_size.m()),
-                        window_size, channels),
+                        window_size, window_anchor, channels),
           // do not pass explicit window, we construct it later
           ref_conv_Window(ref_conv_Window),
           params_C(ref_C.layout()),

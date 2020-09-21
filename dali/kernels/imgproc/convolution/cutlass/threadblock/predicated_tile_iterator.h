@@ -317,6 +317,7 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
    public:
     friend PositionPredicatedTileIterator;
     int window_size_;
+    int window_anchor_;
     int channels_;
 
    private:
@@ -326,8 +327,11 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
    public:
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
-    Params(Layout const &layout, int window_size, int channels) :
-        params_(layout), window_size_(window_size), channels_(channels) { }
+    Params(Layout const &layout, int window_size, int window_anchor, int channels)
+        : params_(layout),
+          window_size_(window_size),
+          window_anchor_(window_anchor),
+          channels_(channels) {}
 
     CUTLASS_HOST_DEVICE
     Params() {}
@@ -346,6 +350,7 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
   TileAccessIterator address_iterator_;
   Pointer pointer_;
   int window_size_;
+  int window_anchor_;
   int channels_ = 1;
 
  public:
@@ -366,6 +371,7 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
       : address_iterator_(params.params_, pointer, extent, thread_id, threadblock_offset),
         pointer_(pointer),
         window_size_(params.window_size_),
+        window_anchor_(params.window_anchor_),
         channels_(params.channels_) {}
 
   /// Construct a PositionPredicatedTileIterator with zero threadblock offset
@@ -912,7 +918,8 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::ColumnMajor, Adva
 
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
-    explicit Params(Layout const &layout) : params_(layout::PitchLinear(layout.stride(0))) {}
+    explicit Params(Layout const &layout, int window_size, int window_anchor, int channels)
+        : params_(layout::PitchLinear(layout.stride(0)), window_size, window_anchor, channels) {}
   };
 
  private:
@@ -1098,10 +1105,8 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::RowMajor, Advance
 
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
-    Params(Layout const &layout,
-           int window_size,  ///< window size to be sampled
-           int channels = 1)
-        : params_(layout::PitchLinear(layout.stride(0)), window_size, channels) {}
+    Params(Layout const &layout, int window_size, int window_anchor, int channels)
+        : params_(layout::PitchLinear(layout.stride(0)), window_size, window_anchor, channels) {}
   };
 
  private:
@@ -1291,7 +1296,8 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::ColumnMajorInterl
 
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
-    explicit Params(Layout const &layout) : params_(layout::PitchLinear(layout.stride(0))) {}
+    explicit Params(Layout const &layout, int window_size, int window_anchor, int channels)
+        : params_(layout::PitchLinear(layout.stride(0)), window_size, window_anchor, channels) {}
   };
 
  private:
@@ -1477,7 +1483,8 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::RowMajorInterleav
 
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
-    explicit Params(Layout const &layout) : params_(layout::PitchLinear(layout.stride(0))) {}
+    explicit Params(Layout const &layout, int window_size, int window_anchor, int channels)
+        : params_(layout::PitchLinear(layout.stride(0)), window_size, window_anchor, channels) {}
   };
 
  private:
