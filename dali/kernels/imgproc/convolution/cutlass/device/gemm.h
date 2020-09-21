@@ -302,6 +302,8 @@ class Conv {
     kIsInnerConv
   >::GemmKernel;
 
+  using SampleParams = typename ConvKernel::SampleParams;
+
   /// Argument structure
   struct SampleArguments {
     //
@@ -345,7 +347,7 @@ class Conv {
   };
 
   struct Arguments {
-    typename ConvKernel::SampleParams *device_sample_params_ptr;
+    SampleParams *device_params_ptr;
     std::vector<SampleArguments> sample_arguments;
   };
 
@@ -363,7 +365,7 @@ class Conv {
     if (!kSplitKSerial && split_k_slices > 1) {
       return Status::kErrorInvalidProblem;
     }
-    for (const auto &arg : args) {
+    for (const auto &arg : args.sample_arguments) {
       if ((arg.window_size / 2) * arg.channels > ConvWindowConfiguration::kMaxWindowRadiusSpan) {
         return Status::kErrorInvalidProblem;
       }
@@ -391,20 +393,19 @@ class Conv {
 
   /// Initializes GEMM state from arguments.
   Status initialize(Arguments const &args, cudaStream_t stream = nullptr) {
+    params_.params = args.device_params_ptr;
     // Determine grid shape
     ThreadblockSwizzle threadblock_swizzle;
 
     // Find the biggest grid necessary among the samples,
     // smaller samples skip unused blocks on entry
-    GemmCoord max_problem_size(0, 0, 1);
-    for (auto &arg : args) {
-      // The basic threadblock swizzle takes only M and N dims into account here
-      GemmCoord sample_size(arg.matrix_size[0], arg.matrix_size[1] * arg.channels, 1);
-      GemmCoord tmp(std::max(max_problem_size.m(), sample_size.m()),
-                    std::max(max_problem_size.n(), sample_size.n()),
-                    std::max(max_problem_size.k(), sample_size.k()));
-      max_problem_size = tmp;
+    int max_m = 0, max_n = 0;
+    for (auto &arg : args.sample_arguments) {
+      max_m = std::max(max_m, arg.matrix_size[0]);
+      max_n = std::max(max_n, arg.matrix_size[1] * arg.channels);
     }
+    // The basic threadblock swizzle takes only M and N dims into account here
+    GemmCoord max_problem_size(max_m, max_n, 1);
 
     cutlass::gemm::GemmCoord grid_shape = threadblock_swizzle.get_tiled_shape(
         max_problem_size, {ThreadblockShape::kM, ThreadblockShape::kN, ThreadblockShape::kK},
@@ -413,10 +414,10 @@ class Conv {
     assert(grid_shape.k() == 1);
 
     // Assign the number of samples to gridDim.z to iterate over them
-    grid_shape[2] = args.size();
+    grid_shape[2] = args.sample_arguments.size();
 
     // Initialize the Params structure
-    for (auto &arg : args) {
+    for (auto &arg : args.sample_arguments) {
       GemmCoord sample_size = GetProblemSize(arg.matrix_size, arg.channels, kIsInnerConv);
       cutlass::gemm::GemmCoord sample_grid_shape = threadblock_swizzle.get_tiled_shape(
           sample_size, {ThreadblockShape::kM, ThreadblockShape::kN, ThreadblockShape::kK},
@@ -471,8 +472,7 @@ class Conv {
       }
     }
 
-    size_t params_sizeof = host_params_.size() * sizeof(typename ConvKernel::SampleParams);
-    cudaMalloc(&params_.params, params_sizeof); // TODO:: TODO(klecki): fixme, leak, move this out
+    size_t params_sizeof = host_params_.size() * sizeof(SampleParams);
     cudaMemcpyAsync(params_.params, host_params_.data(), params_sizeof, cudaMemcpyHostToDevice,
                     stream);
 

@@ -224,7 +224,7 @@ namespace threadblock {
 ///  x,  x,  x,  x,  x,  x,  2
 ///
 /// We need to consider a case, when we're using aligned vector loads through an AlignedArray.
-/// Same principles will apply, but we can observe that the window element indexes decreese
+/// Same principles will apply, but we can observe that the window element indexes decrease
 /// along the rows. We place the kernel window in reverse in memory (with the necessary empty
 /// spaces for channels) so we can utilize the vector loads:
 ///

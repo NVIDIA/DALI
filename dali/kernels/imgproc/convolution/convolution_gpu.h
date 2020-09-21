@@ -78,7 +78,7 @@ struct ConvolutionGpu {
     }
     se.add<W>(AllocType::Host, num_samples * kWindowCopyBufferSize);
     se.add<W>(AllocType::GPU, num_samples * kWindowCopyBufferSize);
-    se.add
+    se.add<typename CutlassConv::SampleParams>(AllocType::GPU, num_samples);
     req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(in_shape);
     return req;
@@ -106,6 +106,7 @@ struct ConvolutionGpu {
     auto* window_tmp_buffer_gpu = ctx.scratchpad->ToGPU(ctx.gpu.stream, window_tmp_buffer_host);
 
     Arguments args;
+    args.device_params_ptr = ctx.scratchpad->Allocate<typename CutlassConv::SampleParams>(AllocType::GPU, num_samples);
     if (kIsInnerConv) {
       // Inner (innermost) - repack arguments
       for (int i = 0; i < num_samples; i++) {

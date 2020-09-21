@@ -180,6 +180,7 @@ using ConvolutionTestValues = ::testing::Types<
     convolution_params<4, true, 1, float>,
     // 3D outer with channels
     convolution_params<4, true, 2, float>>;
+
 TYPED_TEST_P(ConvolutionGpuKernelTest, DoConvolution) {
   this->RunTest();
 }

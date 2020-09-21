@@ -128,6 +128,7 @@ struct Conv {
           plane_stride(plane_stride) {
       gemm_k_size = calc_gemm_k_size(problem_size, sample_grid_tiled_shape);
     }
+
     CUTLASS_HOST_DEVICE
     static int calc_gemm_k_size(gemm::GemmCoord const &problem_size,
                                 GemmCoord const &grid_tiled_shape) {
@@ -247,6 +248,7 @@ struct Conv {
     int sample_idx = threadblock_tile_offset.k();
 
     SampleParams params = params_vec.params[sample_idx];
+
     for (int plane_batch = 0; plane_batch < params.planes; plane_batch++) {
       // Early exit if CTA is out of range
       if (params.sample_grid_tiled_shape.m() <= threadblock_tile_offset.m() ||
@@ -377,6 +379,7 @@ struct Conv {
       // Execute the epilogue operator to update the destination tensor.
       epilogue(output_op, iterator_D, accumulators, iterator_C);
 
+      // Move to next plane
       params.ref_In.add_pointer_offset(params.plane_stride);
       params.ref_C.add_pointer_offset(params.plane_stride);
       params.ref_D.add_pointer_offset(params.plane_stride);
