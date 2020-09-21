@@ -14,8 +14,8 @@ This functionality allows you to pin DALI threads to the specified CPU. Thread a
 the overhead of worker threads jumping from core to core and improves performance with CPU-heavy
 workloads. You can set the DALI CPU thread affinity by using the ``DALI_AFFINITY_MASK`` environment
 variable, which is a comma-separated list of CPU IDs that will be assigned to corresponding DALI
-threads. The number of DALI threads is set during the pipeline construction by the num_threads
-argument and set_affinity enables thread affinity for the CPU worker threads.
+threads. The number of DALI threads is set during the pipeline construction by the ``num_threads``
+argument and ``set_affinity`` enables thread affinity for the CPU worker threads.
 
 .. note::
   For performance reasons, the hybrid :meth:`nvidia.dali.ops.ImageDecoder` operator, which is
@@ -56,7 +56,7 @@ and no more allocations are required.
 
 By contrast, ordinary host memory is relatively inexpensive to allocate and free. To reduce
 host memory consumption, the buffers might shrink when the new requested size is smaller than
-the fraction of the old size. This is called shrink threshold. It can be adjusted to a value
+the fraction of the old size. This is called *shrink threshold*. It can be adjusted to a value
 between 0 (never shrink) and 1 (always shrink). The default is 0.9. The value can be controlled
 by the ``DALI_HOST_BUFFER_SHRINK_THRESHOLD`` environmental variable or be set in Python by
 calling the `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
@@ -107,8 +107,8 @@ provided, each operator output buffer is presized to the corresponding size.
 To determine the amount of memory output that each operator needs, complete the following tasks:
 
 1) Create the pipeline by setting ``enable_memory_stats`` to True.
-2) Query the pipeline for the operator's output memory statistics by calling the ``executor_meta``
-   method on the pipeline.
+2) Query the pipeline for the operator's output memory statistics by calling the
+   :meth:`nvidia.dali.pipeline.Pipeline.executor_statistics` method on the pipeline.
 
 The ``max_real_memory_size`` value represents the biggest tensor in the batch for the outputs that
 allocate memory per sample and not for the entire batch at the time or the average tensor size when
@@ -133,7 +133,9 @@ DALI pipeline can be run in one of the following ways:
 
 - | Simple run method, which runs the computations and returns the results.
   | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.BASIC` API type.
-- | `Schedule_run`, `share_outputs`, and `release_outputs` that allows a fine-grain control for
+- | :meth:`nvidia.dali.pipeline.Pipeline.schedule_runs`,
+    :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`,
+    :meth:`nvidia.dali.pipeline.Pipeline.release_outputs` that allows a fine-grain control for
     the duration of the output buffers' lifetime.
   | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.SCHEDULED` API type.
 - | Built-in iterators for MXNet, PyTorch, and TensorFlow.
@@ -157,12 +159,13 @@ allows you to explicitly manage the lifetime of the output buffers. The
 :meth:`nvidia.dali.pipeline.Pipeline.schedule_run()` method instructs DALI to prepare the next
 batch of data, and, if necessary, to prefetch. If the execution mode is set to asynchronous,
 this call returns immediately, without waiting for the results. This way, another task can be
-simultaneously executed. The data batch can be requested from DALI by calling share_outputs,
-which returns the result buffer. If the data batch is not yet ready, DALI will wait for it.
-The data is ready as soon as the :meth:`nvidia.dali.pipeline.Pipeline.share_outputs()``
-is complete. When the DALI buffers are no longer needed, because data was copied or has
-already been consumed, call :meth:`nvidia.dali.pipeline.Pipeline.release_outputs()` to return
-the DALI buffers for reuse in subsequent iterations.
+simultaneously executed. The data batch can be requested from DALI by calling
+:meth:`nvidia.dali.pipeline.Pipeline.share_outputs`, which returns the result buffer. If the data
+batch is not yet ready, DALI will wait for it. The data is ready as soon as the
+:meth:`nvidia.dali.pipeline.Pipeline.share_outputs()`` is complete. When the DALI buffers are
+no longer needed, because data was copied or has already been consumed, call
+:meth:`nvidia.dali.pipeline.Pipeline.release_outputs()` to return the DALI buffers for reuse
+in subsequent iterations.
 
 Built-in iterators use the second API to provide convenient wrappers for immediate use in
 Deep Learning Frameworks. The data is returned in the framework's native buffers. The iterator's
@@ -199,9 +202,9 @@ to be aware of this padding and other reader properties.
 Here are the iterator options:
 
 - ``fill_last_batch`` – Determines whether the last batch should be full, regardless of whether
-   the shard size is divisible by the batch size.
-- |	``reader_name`` - Allows you to provide the name of the reader that drives the iterator and
-    provides the necessary parameters.
+  the shard size is divisible by the batch size.
+- | ``reader_name`` - Allows you to provide the name of the reader that drives the iterator and
+   provides the necessary parameters.
 
   .. note::
     We recommend that you use this option. With this option, the next two options are excluded and

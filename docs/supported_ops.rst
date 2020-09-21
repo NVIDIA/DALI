@@ -18,8 +18,9 @@ Reading this guide
 ^^^^^^^^^^^^^^^^^^^^
 
 DALI operators are used in two steps:
-1. Parameterizing the operator with ``__init__``.
-2. Invoking the parameterized operator like a function (effectively invoking its ``__call__``
+
+#. Parameterizing the operator with ``__init__``.
+#. Invoking the parameterized operator like a function (effectively invoking its ``__call__``
    method) in pipeline's :meth:`~nvidia.dali.pipeline.Pipeline.define_graph` method.
 
 In the documentation for every DALI Operator, see the lists of **Keyword Arguments**
