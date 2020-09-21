@@ -483,16 +483,13 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
     // this is the starting element of the window, for inner-conv vector load goes in negative order
     // for default case, it's distance from center, for general it's distance from anchor
     int window_element = dist_diag;  // offset from anchor
-    int absolute_window_element = dist_diag + window_anchor_ * Channels(); // index starting from 0
-    int radius = (window_size_ / 2) * Channels();
-    int span_neg = window_anchor_ * Channels();
-    int span_pos = (window_size_ - window_anchor_ - 1) * Channels();
+    int absolute_window_element = to_absolute(window_element); // index starting from 0
 
     bool is_used = any_acces_within_window<kIsInnerConv>(absolute_window_element) && address_iterator_.valid();
     if (is_used) {
       AccessType dst;
-      load_vec<kIsInnerConv>(dst, window_element);
-      add_border_reflect_101(dst, window_element, radius, dist_first, dist_last);
+      load_vec<kIsInnerConv>(dst, absolute_window_element);
+      add_border_reflect_101(dst, absolute_window_element, dist_first, dist_last);
       frag_ptr[idx] = dst;
     } else {
       for (int i = 0; i < AccessSize; i++) {
@@ -608,32 +605,41 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
   }
 
   /**
+   * @brief Calculate the element for lookup in window that is stored in reversed order
+   */
+  CUTLASS_DEVICE int get_mirrored_element(int abs_window_element) {
+    return window_size_ * Channels() - abs_window_element - 1;
+  }
+
+  /**
    * @brief Get the offset for loading the window_element, that includes mirroring the coordinates,
    * that is aligned and is before the non-aligned access to `window_element`
+   *
+   * Uses absolute window coordinates
    */
   template <bool mirrored>
-  CUTLASS_DEVICE int get_aligned_window_element(int window_element) {
+  CUTLASS_DEVICE int get_aligned_window_element(int abs_window_element) {
     // for Inner Convolution the window is in reverse when traversing in contiguous axis
     if (mirrored) {
-      window_element *= -1;
+      abs_window_element = get_mirrored_element(abs_window_element);
     }
-    if (window_element >= 0) {
-      return (window_element / AccessSize) * AccessSize;
+    if (abs_window_element >= 0) {
+      return (abs_window_element / AccessSize) * AccessSize;
     }
-    return ((window_element - (AccessSize - 1)) / AccessSize) * AccessSize;
+    return ((abs_window_element - (AccessSize - 1)) / AccessSize) * AccessSize;
   }
 
   /**
    * @brief Get offset from aligned `lo_offset` to current `window_element`
+   *
+   * `lo_offset` should be already mirrored
    */
   template <bool mirrored>
-  CUTLASS_DEVICE int get_offset(int window_element, int lo_offset) {
+  CUTLASS_DEVICE int get_offset(int abs_window_element, int lo_offset) {
     if (mirrored) {
-      assert(lo_offset <= -window_element);
-      return -window_element - lo_offset;
+      return get_mirrored_element(abs_window_element) - lo_offset;
     }
-    assert(lo_offset <= window_element);
-    return window_element - lo_offset;
+    return abs_window_element - lo_offset;
   }
 
   struct aligned_offset_data {
@@ -656,36 +662,36 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
    * Note that it's always mirrored=true for Inner conv.
    */
   template <bool mirrored = true>
-  CUTLASS_DEVICE void load_vec(AccessType &dst, int window_element) {
-    auto aligned_offset = get_aligned_offset<mirrored>(window_element);
-    constexpr int window_center = ConvWindowConfiguration::template getWindowCenter<mirrored>();
-    const auto *access_ptr = reinterpret_cast<AccessType const *>(pointer_ + window_center +
+  CUTLASS_DEVICE void load_vec(AccessType &dst, int abs_window_element) {
+    auto aligned_offset = get_aligned_offset<mirrored>(abs_window_element);
+    constexpr int window_start = ConvWindowConfiguration::template getWindowStart<mirrored>();
+    const auto *access_ptr = reinterpret_cast<AccessType const *>(pointer_ + window_start +
                                                                   aligned_offset.aligned_element);
     mux(dst, access_ptr[0], access_ptr[1], aligned_offset.offset);
   }
 
   /**
-   * @brief Load and add kernel elements from window_element - Inner Conv variant
+   * @brief Load and add kernel elements from abs_window_element - Inner Conv variant
    *
    * In inner conv, we skip first and last row for border handling,
    * as the loads are row-wise, this can be a no-op if mask_first or mask_last is true.
    */
   template <bool mirrored = true, bool IsInnerConv_ = kIsInnerConv>
-  CUTLASS_DEVICE std::enable_if_t<IsInnerConv_> add_vec(AccessType &dst, int window_element,
+  CUTLASS_DEVICE std::enable_if_t<IsInnerConv_> add_vec(AccessType &dst, int abs_window_element,
                                                       bool mask_first, bool mask_last) {
     static_assert(mirrored, "All accesses should be mirrored for inner conv.");
     if (mask_first || mask_last) {
       return;
     }
-    auto aligned_offset = get_aligned_offset<mirrored>(window_element);
-    constexpr int window_center = ConvWindowConfiguration::template getWindowCenter<mirrored>();
-    const auto *access_ptr = reinterpret_cast<AccessType const *>(pointer_ + window_center +
+    auto aligned_offset = get_aligned_offset<mirrored>(abs_window_element);
+    constexpr int window_start = ConvWindowConfiguration::template getWindowStart<mirrored>();
+    const auto *access_ptr = reinterpret_cast<AccessType const *>(pointer_ + window_start +
                                                                   aligned_offset.aligned_element);
     mux_add(dst, access_ptr[0], access_ptr[1], aligned_offset.offset);
   }
 
   /**
-   * @brief Load and add kernel elements from window_element - Outer Conv variant
+   * @brief Load and add kernel elements from abs_window_element - Outer Conv variant
    *
    * In inner conv, we skip first and last column for border handling,
    * so we sometimes need to mask the addition of first of last vector element.
@@ -693,14 +699,13 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
    * for the first or last element.
    */
   template <bool mirrored, bool IsInnerConv_ = kIsInnerConv>
-  CUTLASS_DEVICE std::enable_if_t<!IsInnerConv_> add_vec(AccessType &dst, int window_element,
+  CUTLASS_DEVICE std::enable_if_t<!IsInnerConv_> add_vec(AccessType &dst, int abs_window_element,
                                                          bool mask_first, bool mask_last) {
     // In outer conv we skip columns
-    int lo_offset = get_aligned_window_element<mirrored>(window_element);
-    int offset = get_offset<mirrored>(window_element, lo_offset);
-    constexpr int window_center = ConvWindowConfiguration::template getWindowCenter<mirrored>();
-    const auto *access_ptr =
-        reinterpret_cast<AccessType const *>(pointer_ + window_center + lo_offset);
+    auto aligned_offset = get_aligned_offset<mirrored>(abs_window_element);
+    constexpr int window_start = ConvWindowConfiguration::template getWindowStart<mirrored>();
+    const auto *access_ptr = reinterpret_cast<AccessType const *>(pointer_ + window_start +
+                                                                  aligned_offset.aligned_element);
     Element tmp = static_cast<Element>(0);
 
     if (mask_first) {
@@ -709,7 +714,7 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
       tmp = static_cast<Element>(dst[AccessSize - 1]);
     }
 
-    mux_add(dst, access_ptr[0], access_ptr[1], offset);
+    mux_add(dst, access_ptr[0], access_ptr[1], aligned_offset.offset);
 
     if (mask_first) {
       dst[0] = static_cast<Element>(tmp);
@@ -816,8 +821,7 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
    * for the outer/inner convolution (windows are placed as rows/columns).
    */
   CUTLASS_DEVICE
-  void add_border_reflect_101(AccessType &dst, int window_element, int radius, int dist_first,
-                              int dist_last) {
+  void add_border_reflect_101(AccessType &dst, int abs_window_element, int dist_first, int dist_last) {
     // add all negative coordinates, pattern is twice the dist to first, twice the dist to last
     if (kIsInnerConv) {
       // Border handling, eliminate the remainder (channel offset from the position calculation,
@@ -825,36 +829,34 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
       dist_first = (dist_first / Channels()) * Channels();
       dist_last = (dist_last / Channels()) * Channels();
     }
-    int neg_element = window_element;
-    int absolute_window_element = 0;
+    int neg_abs_element = abs_window_element;
     while (true) {
-      neg_element -= 2 * dist_first;
-      absolute_window_element = to_absolute(neg_element);
-      if (any_acces_within_window<true>(neg_element + window_anchor_ * Channels())) {
-        add_vec<true>(dst, neg_element, mask_first(dist_first), false);
+      neg_abs_element -= 2 * dist_first;
+      if (any_acces_within_window<true>(neg_abs_element)) {
+        add_vec<true>(dst, neg_abs_element, mask_first(dist_first), false);
       } else {
         break;
       }
-      neg_element -= 2 * dist_last;
-      if (any_acces_within_window<kIsInnerConv>(neg_element + window_anchor_ * Channels())) {
-        add_vec<kIsInnerConv>(dst, neg_element, false, mask_last(dist_last));
+      neg_abs_element -= 2 * dist_last;
+      if (any_acces_within_window<kIsInnerConv>(neg_abs_element)) {
+        add_vec<kIsInnerConv>(dst, neg_abs_element, false, mask_last(dist_last));
       } else {
         break;
       }
     }
     // add all positive coordinates
-    int pos_element = window_element;
+    int pos_abs_element = abs_window_element;
     // twice the dist to last, twice the dist to first
     while (true) {
-      pos_element += 2 * dist_last;
-      if (any_acces_within_window<true>(pos_element + window_anchor_ * Channels())) {
-        add_vec<true>(dst, pos_element, false, mask_last(dist_last));
+      pos_abs_element += 2 * dist_last;
+      if (any_acces_within_window<true>(pos_abs_element)) {
+        add_vec<true>(dst, pos_abs_element, false, mask_last(dist_last));
       } else {
         break;
       }
-      pos_element += 2 * dist_first;
-      if (any_acces_within_window<kIsInnerConv>(pos_element + window_anchor_ * Channels())) {
-        add_vec<kIsInnerConv>(dst, pos_element, mask_first(dist_first), false);
+      pos_abs_element += 2 * dist_first;
+      if (any_acces_within_window<kIsInnerConv>(pos_abs_element)) {
+        add_vec<kIsInnerConv>(dst, pos_abs_element, mask_first(dist_first), false);
       } else {
         break;
       }

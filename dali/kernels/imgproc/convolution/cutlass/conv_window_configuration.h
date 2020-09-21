@@ -22,11 +22,12 @@
 namespace cutlass {
 namespace gemm {
 
-template <int TotalAlignedSize, bool IsInnerConv, bool UseSharedMem = true>
+template <int TotalAlignedSize, bool IsInnerConv, int AccessSize = 1, bool UseSharedMem = true>
 struct ConvWindowConfiguration {
   static int const kTotalAlignedSize = TotalAlignedSize;
   static bool const kIsInnerConv = IsInnerConv;
   static bool const kUseSharedMem = UseSharedMem;
+  static int const kAccessSize = AccessSize;
   static_assert(kUseSharedMem, "Reading window directly from global memory is not yet implemented");
 
   // For inner convolution we only need a reversed window (decreasing order)
@@ -36,20 +37,31 @@ struct ConvWindowConfiguration {
   static_assert((!kIsInnerConv && kTotalAlignedSize % 4 == 0) ||
                     (kIsInnerConv && kTotalAlignedSize % 2 == 0),
                 "The total window size needs to be divisible for alignment purposes");
-  static int const kWindowDecreasingCenter =
-      kIsInnerConv ? kTotalAlignedSize / 2 : kTotalAlignedSize / 4;
-  static int const kWindowIncreasingCenter = kIsInnerConv ? -1 : (kTotalAlignedSize / 4) * 3;
+  // static int const kWindowDecreasingCenter =
+  //     kIsInnerConv ? kTotalAlignedSize / 2 : kTotalAlignedSize / 4;
+  // static int const kWindowIncreasingCenter = kIsInnerConv ? -1 : (kTotalAlignedSize / 4) * 3;
+
+
+  static int const kWindowDecreasingStart = kIsInnerConv ?  kAccessSize : kTotalAlignedSize / 2 + kAccessSize;
+  static int const kWindowIncreasingStart = kIsInnerConv ? -1 : kAccessSize;
+
 
   template <typename T>
   using PaddedWindowBuffer = dali::span<T, ConvWindowConfiguration::kTotalAlignedSize>;
 
+  // template <bool mirrored>
+  // CUTLASS_HOST_DEVICE constexpr static int getWindowCenter() {
+  //   return mirrored ? kWindowDecreasingCenter : kWindowIncreasingCenter;
+  // }
+
   template <bool mirrored>
-  CUTLASS_HOST_DEVICE constexpr static int getWindowCenter() {
-    return mirrored ? kWindowDecreasingCenter : kWindowIncreasingCenter;
+  CUTLASS_HOST_DEVICE constexpr static int getWindowStart() {
+    return mirrored ? kWindowDecreasingStart : kWindowIncreasingStart;
   }
 
+  // TODO(klecki): Adjust this
   static int const kMaxWindowRadiusSpan =
-      kIsInnerConv ? kTotalAlignedSize / 2 : kTotalAlignedSize / 4;
+      kIsInnerConv ? kTotalAlignedSize / 2 - kAccessSize : kTotalAlignedSize / 4 - kAccessSize;
 
   /**
    * @brief Layouts the window with the padding required by the PositionPredicatedTileIterator
@@ -57,18 +69,18 @@ struct ConvWindowConfiguration {
   template <typename T>
   static void prepare_window(PaddedWindowBuffer<T> dst, dali::span<const T> src,
                              int num_channels = 1) {
-    int radius = src.size() / 2;
+    int window_size = src.size();
     memset(dst.data(), 0, sizeof(T) * kTotalAlignedSize);
-    for (int i = 0; i <= radius; i++) {
-      if (kIsInnerConv) {
-        dst[kWindowDecreasingCenter + num_channels * i] = src[radius - i];
-        dst[kWindowDecreasingCenter - num_channels * i] = src[radius + i];
-      } else {
-        dst[kWindowIncreasingCenter - i] = src[radius - i];
-        dst[kWindowIncreasingCenter + i] = src[radius + i];
-
-        dst[kWindowDecreasingCenter + i] = src[radius - i];
-        dst[kWindowDecreasingCenter - i] = src[radius + i];
+    if (kIsInnerConv) {
+      for (int i = 0; i < window_size; i++) {
+        dst[kWindowDecreasingStart + num_channels * i] = src[window_size - i - 1];
+      }
+    } else {
+      for (int i = 0; i < window_size; i++) {
+        dst[kWindowIncreasingStart + i] = src[i];
+      }
+      for (int i = 0; i < window_size; i++) {
+        dst[kWindowDecreasingStart + i] = src[window_size - i - 1];
       }
     }
   }
