@@ -144,6 +144,9 @@ namespace threadblock {
 /// case where channels = 1, let's take window_size = 5 and disregard the border handling.
 /// We also assume, that the windows are centered over the inputs, that is:
 /// ``anchor = window_size / 2``.
+/// For now, we consider a window as having elements of indexes in range:
+/// [-window_size / 2, window_size / 2], in this example it's [-2, 2].
+///
 /// We want to convolve gray image, HWC along 'W' axis. For this we multiply the image
 /// from the right by following matrix, placing the convolution window in columns.
 /// (Note that the window center is always on the diagonal of the matrix):
@@ -251,7 +254,11 @@ namespace threadblock {
 /// Additionally when using vector loads with border handling for the outer kernel matrix,
 /// we need in turns mirrored window and regular window order.
 ///
-///
+/// In general case, instead of the center of the window placed on the diagonal, we have
+/// the element specified by the window anchor. By adding the window_anchor value to the indices
+/// described earlier, we can convert those window indices
+/// from [-window_anchor, window_size - window_anchor - 1] range to [0, window_size - 1] range,
+/// where 0 is the leftmost element of the kernel.
 ///
 template <typename Shape, typename Element, typename Layout, int AdvanceRank, typename ThreadMap,
           typename ConvWindowConfiguration, int AccessSize = ThreadMap::kElementsPerAccess>
@@ -474,10 +481,14 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
       dist_last = width - 1 - col;
     }
     // this is the starting element of the window, for inner-conv vector load goes in negative order
-    int window_element = dist_diag;
+    // for default case, it's distance from center, for general it's distance from anchor
+    int window_element = dist_diag;  // offset from anchor
+    int absolute_window_element = dist_diag + window_anchor_ * Channels(); // index starting from 0
     int radius = (window_size_ / 2) * Channels();
+    int span_neg = window_anchor_ * Channels();
+    int span_pos = (window_size_ - window_anchor_ - 1) * Channels();
 
-    bool is_used = any_valid<kIsInnerConv>(window_element, radius) && address_iterator_.valid();
+    bool is_used = any_acces_within_window<kIsInnerConv>(absolute_window_element) && address_iterator_.valid();
     if (is_used) {
       AccessType dst;
       load_vec<kIsInnerConv>(dst, window_element);
@@ -754,18 +765,31 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
   }
 
   /**
-   * @brief Check whether any of the `AccesType` elements to be loaded lies within the kernel window
+   * @brief Check if [a0, a1] overlaps with [b0, b1]
+   *
+   * Assumes that a0 <= a1 and b0 <= b1
+   */
+  CUTLASS_DEVICE bool range_overlap(int a0, int a1, int b0, int b1) {
+    return a0 <= b1 && b0 <= a1;
+  }
+
+  /**
+   * @brief Check whether any of the `AccesType` elements to be loaded lies within the kernel
+   *
+   * Uses window indexing starting from 0
    */
   template <bool mirrored>
-  CUTLASS_DEVICE bool any_valid(int window_element, int radius) {
+  CUTLASS_DEVICE bool any_acces_within_window(int window_element) {
     if (mirrored) {
       // We will try to access [window_element, window_element - 1, ...,
       // window_element - AccessSize + 1]
-      return ::abs(window_element) <= radius || ::abs(window_element - AccessSize + 1) <= radius;
+      // So, a range: [window_element - AccessSize + 1, window_element]
+      return range_overlap(window_element - AccessSize + 1, window_element, 0, window_size_ * Channels() - 1);
     } else {
       // We will try to access [window_element, window_element + 1, ...,
       // window_element + AccessSize - 1]
-      return ::abs(window_element) <= radius || ::abs(window_element + AccessSize - 1) <= radius;
+      // so, a range: [window_element, window_element + AccessSize - 1]
+      return range_overlap(window_element, window_element + AccessSize - 1, 0, window_size_ * Channels() - 1);
     }
   }
 
