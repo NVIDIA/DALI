@@ -608,11 +608,11 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
   }
 
   /**
-   * @brief Get the index of window_element that is multiple of AccessSize and smaller than
-   * window_element
+   * @brief Get the offset for loading the window_element, that includes mirroring the coordinates,
+   * that is aligned and is before the non-aligned access to `window_element`
    */
   template <bool mirrored>
-  CUTLASS_DEVICE int get_lo_offset(int window_element) {
+  CUTLASS_DEVICE int get_aligned_window_element(int window_element) {
     // for Inner Convolution the window is in reverse when traversing in contiguous axis
     if (mirrored) {
       window_element *= -1;
@@ -637,14 +637,14 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
   }
 
   struct aligned_offset_data {
-    int aligned_element;  // aligned to multiple of AccessSize window element
-    int offset;           // positive offset to original element
+    int aligned_element;  /// aligned to multiple of AccessSize window element
+    int offset;           /// positive offset to original element from the aligned access
   };
 
   template <bool mirrored>
   CUTLASS_DEVICE aligned_offset_data get_aligned_offset(int window_element) {
     static_assert(!kIsInnerConv || mirrored, "All lookups are mirrored for Inner Conv.");
-    int lo_element = get_lo_offset<mirrored>(window_element);
+    int lo_element = get_aligned_window_element<mirrored>(window_element);
     int offset = get_offset<mirrored>(window_element, lo_element);
     return {lo_element, offset};
   }
@@ -694,9 +694,9 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
    */
   template <bool mirrored, bool IsInnerConv_ = kIsInnerConv>
   CUTLASS_DEVICE std::enable_if_t<!IsInnerConv_> add_vec(AccessType &dst, int window_element,
-                                                       bool mask_first, bool mask_last) {
+                                                         bool mask_first, bool mask_last) {
     // In outer conv we skip columns
-    int lo_offset = get_lo_offset<mirrored>(window_element);
+    int lo_offset = get_aligned_window_element<mirrored>(window_element);
     int offset = get_offset<mirrored>(window_element, lo_offset);
     constexpr int window_center = ConvWindowConfiguration::template getWindowCenter<mirrored>();
     const auto *access_ptr =
