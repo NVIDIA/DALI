@@ -80,7 +80,7 @@ class CoordTransform : public Operator<Backend>, private MTTransformAttr {
           )   // NOLINT
         )  // NOLINT
       ), (  // NOLINT
-        DALI_FAIL(make_string("Unsupported input point dimensionality: ", input_pt_dim_));
+        DALI_FAIL(make_string("Unsupported output point dimensionality: ", input_pt_dim_));
       )  // NOLINT
     )  // NOLINT
   }

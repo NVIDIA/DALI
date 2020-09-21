@@ -21,7 +21,6 @@ namespace dali {
 DALI_SCHEMA(CoordTransform)
   .DocStr(R"(Applies a linear transformation to points or vectors.
 
-
 The transformation has the form::
 
   out = M * in + T

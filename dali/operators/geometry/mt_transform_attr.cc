@@ -96,8 +96,10 @@ void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspa
       for (int i = 0; i < N; i++) {
         FillDiag(make_span(&per_sample_mtx_[i * mat_size], mat_size), M.data[i][0]);
       }
-      translation_.resize(output_pt_dim_, 0);
-      Repeat(per_sample_translation_, translation_, N);
+      if (is_fused) {
+        translation_.resize(output_pt_dim_, 0);
+        Repeat(per_sample_translation_, translation_, N);
+      }
     } else {
       DALI_ENFORCE(M.shape[0][1] == cols, make_string("The shape of the argument ``", name,
           "`` does not match the input shape. Got ", M.shape[0], " matrices and the input "
