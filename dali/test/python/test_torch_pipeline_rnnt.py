@@ -212,8 +212,7 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
                                     device="cpu")
 
         self.get_nonsilent_region = ops.NonsilentRegion(device="cpu", cutoff_db=silence_threshold)
-        self.trim_silence = ops.Slice(device="cpu", normalized_anchor=False, normalized_shape=False,
-                                      axes=[0])
+        self.trim_silence = ops.Slice(device="cpu", axes=[0])
         self.to_float = ops.Cast(dtype=types.FLOAT)
 
     @staticmethod
@@ -238,7 +237,7 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
 
     def remove_silence(self, input):
         begin, len = self.get_nonsilent_region(input)
-        out = self.trim_silence(input, self.to_float(begin), self.to_float(len))
+        out = self.trim_silence(input, begin, len)
         return out
 
     def define_graph(self):
