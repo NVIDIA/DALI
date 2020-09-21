@@ -765,6 +765,14 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
   }
 
   /**
+   * @brief Converts from anchor-relative indexing inside the window to the absolute offset starting
+   * from 0.
+   */
+  CUTLASS_DEVICE int to_absolute(int window_element) {
+    return window_element + window_anchor_ * Channels();
+  }
+
+  /**
    * @brief Check if [a0, a1] overlaps with [b0, b1]
    *
    * Assumes that a0 <= a1 and b0 <= b1
@@ -774,59 +782,31 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
   }
 
   /**
+   * @brief Check if range [a0, a1] overlaps with window span.
+   *
+   * Assumes that a0 <= a1, window range includes the channel stride.
+   */
+  CUTLASS_DEVICE bool range_overlap_with_window(int a0, int a1) {
+    return range_overlap(a0, a1, 0, window_size_ * Channels() - 1);
+  }
+
+  /**
    * @brief Check whether any of the `AccesType` elements to be loaded lies within the kernel
    *
-   * Uses window indexing starting from 0
+   * Uses absolute window indexing starting from 0
    */
   template <bool mirrored>
-  CUTLASS_DEVICE bool any_acces_within_window(int window_element) {
+  CUTLASS_DEVICE bool any_acces_within_window(int abs_window_element) {
     if (mirrored) {
-      // We will try to access [window_element, window_element - 1, ...,
-      // window_element - AccessSize + 1]
-      // So, a range: [window_element - AccessSize + 1, window_element]
-      return range_overlap(window_element - AccessSize + 1, window_element, 0, window_size_ * Channels() - 1);
+      // We will try to access [abs_window_element, abs_window_element - 1, ...,
+      // abs_window_element - AccessSize + 1]
+      // So, a range: [abs_window_element - AccessSize + 1, abs_window_element]
+      return range_overlap_with_window(abs_window_element - AccessSize + 1, abs_window_element);
     } else {
-      // We will try to access [window_element, window_element + 1, ...,
-      // window_element + AccessSize - 1]
-      // so, a range: [window_element, window_element + AccessSize - 1]
-      return range_overlap(window_element, window_element + AccessSize - 1, 0, window_size_ * Channels() - 1);
-    }
-  }
-
-  /**
-   * @brief Check whether any of the `AccesType` elements to be loaded lies within the kernel window
-   * assuming that window_element is nonpositive
-   */
-  template <bool mirrored>
-  CUTLASS_DEVICE bool any_neg_valid(int window_element, int radius) {
-    // assert(window_element <= 0)
-    if (mirrored) {
-      // We will try to access [window_element, window_element - 1, ...,
-      // window_element - AccessSize + 1]
-      // so with with window_element < 0, the smallest dist to 0 is -window_element
-      return -window_element <= radius;
-    } else {
-      // We will try to access [window_element, window_element + 1, ...,
-      // window_element + AccessSize - 1]
-      return -window_element <= radius || ::abs(window_element + AccessSize - 1) <= radius;
-    }
-  }
-
-  /**
-   * @brief Check whether any of the `AccesType` elements to be loaded lies within the kernel window
-   * assuming that window_element is nonnegative
-   */
-  template <bool mirrored>
-  CUTLASS_DEVICE bool any_pos_valid(int window_element, int radius) {
-    // assert(window_element >= 0)
-    if (mirrored) {
-      // We will try to access [window_element, window_element - 1, ...,
-      // window_element - AccessSize + 1]
-      return window_element <= radius || ::abs(window_element - AccessSize + 1) <= radius;
-    } else {
-      // We will try to access [window_element, window_element + 1, ...,
-      // window_element + AccessSize - 1]
-      return window_element <= radius;
+      // We will try to access [abs_window_element, abs_window_element + 1, ...,
+      // abs_window_element + AccessSize - 1]
+      // so, a range: [abs_window_element, abs_window_element + AccessSize - 1]
+      return range_overlap_with_window(abs_window_element, abs_window_element + AccessSize - 1);
     }
   }
 
@@ -846,15 +826,17 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
       dist_last = (dist_last / Channels()) * Channels();
     }
     int neg_element = window_element;
+    int absolute_window_element = 0;
     while (true) {
       neg_element -= 2 * dist_first;
-      if (any_neg_valid<true>(neg_element, radius)) {
+      absolute_window_element = to_absolute(neg_element);
+      if (any_acces_within_window<true>(neg_element + window_anchor_ * Channels())) {
         add_vec<true>(dst, neg_element, mask_first(dist_first), false);
       } else {
         break;
       }
       neg_element -= 2 * dist_last;
-      if (any_neg_valid<kIsInnerConv>(neg_element, radius)) {
+      if (any_acces_within_window<kIsInnerConv>(neg_element + window_anchor_ * Channels())) {
         add_vec<kIsInnerConv>(dst, neg_element, false, mask_last(dist_last));
       } else {
         break;
@@ -865,13 +847,13 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
     // twice the dist to last, twice the dist to first
     while (true) {
       pos_element += 2 * dist_last;
-      if (any_pos_valid<true>(pos_element, radius)) {
+      if (any_acces_within_window<true>(pos_element + window_anchor_ * Channels())) {
         add_vec<true>(dst, pos_element, false, mask_last(dist_last));
       } else {
         break;
       }
       pos_element += 2 * dist_first;
-      if (any_pos_valid<kIsInnerConv>(pos_element, radius)) {
+      if (any_acces_within_window<kIsInnerConv>(pos_element + window_anchor_ * Channels())) {
         add_vec<kIsInnerConv>(dst, pos_element, mask_first(dist_first), false);
       } else {
         break;
