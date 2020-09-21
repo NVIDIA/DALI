@@ -197,6 +197,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.PrepareMetadata();
     AsrSample sample;
     loader.ReadSample(sample);
+    sample.decode_audio(0);
     TensorView<StorageCPU, int16_t> ref(ref_data.data(), {ref_samples, 2});
     Check(ref, view<const int16_t>(sample.audio()));
   }
@@ -220,6 +221,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.PrepareMetadata();
     AsrSample sample;
     loader.ReadSample(sample);
+    sample.decode_audio(0);
     TensorView<StorageCPU, float> ref(downmixed.data(), {ref_samples});
     Check(ref, view<const float>(sample.audio()));
   }
@@ -241,6 +243,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
       NemoAsrLoader loader(spec);
       loader.PrepareMetadata();
       loader.ReadSample(sample);
+      sample.decode_audio(0);
     }
 
     int64_t downsampled_len =
@@ -269,6 +272,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
       NemoAsrLoader loader(spec);
       loader.PrepareMetadata();
       loader.ReadSample(sample_int16);
+      sample_int16.decode_audio(0);
     }
 
     ASSERT_EQ(volume(sample.audio().shape()), volume(sample_int16.audio().shape()));

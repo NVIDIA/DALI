@@ -33,17 +33,29 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
   explicit NemoAsrReader(const OpSpec& spec):
       DataReader<CPUBackend, AsrSample>(spec),
       read_sr_(spec.GetArgument<bool>("read_sample_rate")),
-      read_text_(spec.GetArgument<bool>("read_text")) {
+      read_text_(spec.GetArgument<bool>("read_text")),
+      num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
+      thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
     loader_ = InitLoader<NemoAsrLoader>(spec);
+  }
+
+  ~NemoAsrReader() override {
+    // Need to stop the prefetch thread before destroying the thread pool
+    DataReader<CPUBackend, AsrSample>::StopPrefetchThread();
   }
 
   void Prefetch() override {
     DataReader<CPUBackend, AsrSample>::Prefetch();
     auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
+
     // Waiting until all the audio samples are ready to be consumed
     for (auto &sample : curr_batch) {
-      (void) sample->audio();  // waits until the data is ready
+      thread_pool_.AddWork(
+        [&sample](int tid) {
+          sample->decode_audio(tid);
+        });
     }
+    thread_pool_.RunAll();
   }
 
   void RunImpl(SampleWorkspace &ws) override {
@@ -75,6 +87,9 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
  private:
   bool read_sr_;
   bool read_text_;
+
+  int num_threads_;
+  ThreadPool thread_pool_;
 };
 
 }  // namespace dali

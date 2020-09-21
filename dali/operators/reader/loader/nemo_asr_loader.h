@@ -40,12 +40,8 @@ struct NemoAsrEntry {
 };
 
 struct AsrSample {
-  AsrSample() {
-    audio_ready_future_ = audio_ready_promise_.get_future();
-  }
-
   const Tensor<CPUBackend>& audio() const {
-    audio_ready_future_.wait();
+    assert(audio_ready);
     return audio_;
   }
 
@@ -57,6 +53,12 @@ struct AsrSample {
     return audio_meta_;
   }
 
+  void decode_audio(int tid) {
+    assert(!audio_ready);
+    decode_f(tid);
+    audio_ready = true;
+  }
+
   friend class NemoAsrLoader;
 
  private:
@@ -64,10 +66,8 @@ struct AsrSample {
   std::string text_;
   AudioMetadata audio_meta_;
 
-  // Audio is decoded and resampled asynchronously.
-  // The promise will be set when the audio data is ready to be consumed
-  std::promise<void> audio_ready_promise_;
-  mutable std::future<void> audio_ready_future_;
+  std::function<void(int)> decode_f;
+  bool audio_ready = false;
 };
 
 namespace detail {
@@ -91,7 +91,6 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
         max_duration_(spec.GetArgument<float>("max_duration")),
         normalize_text_(spec.GetArgument<bool>("normalize_text")),
         num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
-        thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false),
         scratch_(num_threads_) {
     DALI_ENFORCE(!manifest_filepaths_.empty(), "``manifest_filepaths`` can not be empty");
     /*
@@ -145,9 +144,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   DALIDataType dtype_;
   float max_duration_;
   bool normalize_text_;
-
   int num_threads_;
-  ThreadPool thread_pool_;
   kernels::signal::resampling::Resampler resampler_;
   std::vector<Tensor<CPUBackend>> scratch_;
 };

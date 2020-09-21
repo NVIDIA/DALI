@@ -97,7 +97,7 @@ void NemoAsrLoader::PrepareMetadataImpl() {
     std::ifstream fstream(manifest_filepath);
     DALI_ENFORCE(fstream,
                  make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath, "\""));
-    detail::ParseManifest(entries_, fstream, max_duration_);
+    detail::ParseManifest(entries_, fstream, max_duration_, normalize_text_);
   }
 
   DALI_ENFORCE(Size() > 0, "No files found.");
@@ -189,11 +189,9 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
 
   // Ignoring copy_read_data_, Sharing data is not supported with this loader
 
-  thread_pool_.DoWorkWithID(
-    [this, &sample, &entry](int tid) {
-      ReadAudio(sample.audio_, sample.audio_meta_, entry, scratch_[tid]);
-      sample.audio_ready_promise_.set_value();
-    });
+  sample.decode_f = [this, &sample, &entry](int tid) {
+    ReadAudio(sample.audio_, sample.audio_meta_, entry, scratch_[tid]);
+  };
 }
 
 Index NemoAsrLoader::SizeImpl() {
