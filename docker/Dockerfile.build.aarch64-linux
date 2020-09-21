@@ -80,7 +80,8 @@ RUN JPEG_TURBO_VERSION=2.0.5 && \
 RUN ZSTANDARD_VERSION=1.4.5 && \
     curl -L https://github.com/facebook/zstd/releases/download/v${ZSTANDARD_VERSION}/zstd-${ZSTANDARD_VERSION}.tar.gz | tar -xzf - && \
     cd zstd-${ZSTANDARD_VERSION} && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
+    CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ prefix=/usr/aarch64-linux-gnu \
+      make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /zstd-${ZSTANDARD_VERSION}
 
 # libtiff
@@ -95,7 +96,9 @@ RUN LIBTIFF_VERSION=4.1.0 && \
       CC=aarch64-linux-gnu-gcc \
       CXX=aarch64-linux-gnu-g++ \
       --host=aarch64-unknown-linux-gnu \
-      --prefix=/usr/aarch64-linux-gnu/ && \
+      --prefix=/usr/aarch64-linux-gnu/ \
+      --with-zstd-include-dir=/usr/aarch64-linux-gnu/include \
+      --with-zstd-lib-dir=/usr/aarch64-linux-gnu/lib && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     make install && \
     cd && \
