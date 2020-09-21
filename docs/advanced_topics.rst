@@ -73,7 +73,6 @@ sample after several iterations. The GPU buffers that keep the operator outputs 
 as large as the largest possible batch, whereas the non-contiguous CPU buffers can reach
 the size of the largest sample in the data set multiplied by the number of samples in the batch.
 
-The host and the GPU buffers have configurable growth factor. If the factor is greater than 1, and
 The host and the GPU buffers have a configurable growth factor. If the factor is greater than 1, and
 to potentially avoid subsequent reallocations.
 This functionality is disabled by default, and the growth factor is set to 1. The growth factors
