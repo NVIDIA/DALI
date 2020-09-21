@@ -12,18 +12,58 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/geometry/coord_transform.h"
+#include <vector>
+#include "dali/core/tensor_shape_print.h"
+#include "dali/operators/geometry/mt_transform_attr.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/op_schema.h"
 
 namespace dali {
 
-void MTTransformAttr::ProcessMatrixArg(const workspace_t<Backend> &ws, int N) {
+DALI_SCHEMA(MTTransformAttr)
+  .DocStr(R"(A base schema for operators that require affine-like transform parameters as matrix
+M and translation T or one fused argument MT.)")
+  .AddOptionalArg<vector<float>>("M", R"(The matrix used for transforming the input vectors.
+
+If left unspecified, identity matrix is used.
+
+The matrix ``M`` does not need to be square - if it's not, the output vectors will have a
+different number of components.
+
+If a scalar value is provided, ``M`` is assumed to be a square matrix with that value on the
+diagonal. The size of the matrix is then assumed to match the number of components in the
+input vectors.)",
+    nullptr,  // no default value
+    true)
+  .AddOptionalArg<vector<float>>("T", R"(The translation vector.
+
+If left unspecified, no translation is applied.
+
+The number of components of this vector must match the number of rows in matrix ``M``.
+If a scalar value is provided, that value is broadcast to all components of ``T`` and the number
+of components is chosen to match the number of rows in ``M``.)", nullptr, true)
+  .AddOptionalArg<vector<float>>("MT", R"(A block matrix [M T] which combines the arguments
+``M`` and ``T``.
+
+Providing a scalar value for this argument is equivalent to providing the same scalar for
+M and leaving T unspecified.
+
+The number of columns must be one more than the number of components in the input.
+This argument is mutually exclusive with ``M`` and ``T``.)",
+    nullptr,
+    true);
+
+void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspace &ws, int N) {
   bool is_fused = HasFusedMT();
+  const char *name = is_fused ? "MT" : "M";
+
   int cols = input_pt_dim_ + (is_fused ? 1 : 0);
   if (is_fused)
     translation_.clear();
 
   if (HasMatrixRegularArg()) {
-    mtx_ = spec_.template GetRepeatedArgument<float>(name);
+    mtx_ = spec.template GetRepeatedArgument<float>(name);
     if (mtx_.size() == 1) {
       SetOutputPtDim(input_pt_dim_);
       mtx_.resize(output_pt_dim_ * input_pt_dim_);
@@ -34,7 +74,7 @@ void MTTransformAttr::ProcessMatrixArg(const workspace_t<Backend> &ws, int N) {
     } else {
       DALI_ENFORCE(mtx_.size() % cols == 0, make_string("Cannot form a matrix ",
         mtx_.size(), " elements and ", cols, "columns"));
-      output_pt_dim_ = mtx_.size() / cols;
+      SetOutputPtDim(mtx_.size() / cols);
       if (is_fused)
         SplitFusedMT();
     }
@@ -77,7 +117,7 @@ void MTTransformAttr::ProcessMatrixArg(const workspace_t<Backend> &ws, int N) {
       }
     }
   } else {
-    output_pt_dim_ = input_pt_dim_;
+    SetOutputPtDim(input_pt_dim_);
     if (static_cast<int>(mtx_.size()) != output_pt_dim_ * input_pt_dim_) {
       mtx_.resize(output_pt_dim_ * input_pt_dim_, 0);
       FillDiag(mtx_, 1);
@@ -106,11 +146,12 @@ void MTTransformAttr::SplitFusedMT() {
   mtx_.resize(output_pt_dim_ * input_pt_dim_);
 }
 
-void MTTransformAttr::ProcessTranslationArg(const workspace_t<Backend> &ws,
+void MTTransformAttr::ProcessTranslationArg(const OpSpec &spec,
+                                            const ArgumentWorkspace &ws,
                                             int N) {
   const char *name = "T";
   if (has_translation_) {
-    GetSingleOrRepeatedArg(spec_, translation_, name, output_pt_dim_);
+    GetSingleOrRepeatedArg(spec, translation_, name, output_pt_dim_);
     Repeat(per_sample_translation_, translation_, N);
   } else if (has_translation_input_) {
     const auto &T_inp = ws.ArgumentInput(name);

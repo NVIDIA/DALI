@@ -30,14 +30,14 @@ void CoordTransform<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   using Kernel = kernels::TransformPointsGPU<OutputType, InputType, out_dim, in_dim>;
   kmgr_.template Resize<Kernel>(1, 1);
 
-  auto *M = reinterpret_cast<mat<out_dim, in_dim> *>(per_sample_mtx_.data());
-  auto *T = reinterpret_cast<vec<out_dim> *>(per_sample_translation_.data());
   int N = in_view.num_samples();
+  auto M = GetMatrices<out_dim, in_dim>();
+  auto T = GetTranslations<out_dim>();
 
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
   kmgr_.Setup<Kernel>(0, ctx, in_view.shape);
-  kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, make_span(M, N), make_span(T, N));
+  kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, M, T);
 }
 
 DALI_REGISTER_OPERATOR(CoordTransform, CoordTransform<GPUBackend>, GPU);

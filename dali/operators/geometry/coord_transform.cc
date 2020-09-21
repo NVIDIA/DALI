@@ -38,41 +38,13 @@ This operator can be used for many operations. Here's the (incomplete) list:
 )")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg<vector<float>>("M", R"(The matrix used for transforming the input vectors.
-
-If left unspecified, identity matrix is used.
-
-The matrix ``M`` does not need to be square - if it's not, the output vectors will have a
-different number of components.
-
-If a scalar value is provided, ``M`` is assumed to be a square matrix with that value on the
-diagonal. The size of the matrix is then assumed to match the number of components in the
-input vectors.)",
-    nullptr,  // no default value
-    true)
-  .AddOptionalArg<vector<float>>("T", R"(The translation vector.
-
-If left unspecified, no translation is applied.
-
-The number of components of this vector must match the number of rows in matrix ``M``.
-If a scalar value is provided, that value is broadcast to all components of ``T`` and the number
-of components is chosen to match the number of rows in ``M``.)", nullptr, true)
-  .AddOptionalArg<vector<float>>("MT", R"(A block matrix [M T] which combines the arguments
-``M`` and ``T``.
-
-Providing a scalar value for this argument is equivalent to providing the same scalar for
-M and leaving T unspecified.
-
-The number of columns must be one more than the number of components in the input.
-This argument is mutually exclusive with ``M`` and ``T``.)",
-    nullptr,
-    true)
   .AddOptionalArg("dtype", R"(Data type of the output coordinates.
 
 If an integral type is used, the output values are rounded to the nearest integer and clamped
 to the dynamic range of this type.)",
     DALI_FLOAT,
-    false);
+    false)
+  .AddParent("MTTransformAttr");
 
 template <>
 template <typename OutputType, typename InputType, int out_dim, int in_dim>
@@ -89,8 +61,8 @@ void CoordTransform<CPUBackend>::RunTyped(HostWorkspace &ws) {
   using Kernel = kernels::TransformPointsCPU<OutputType, InputType, out_dim, in_dim>;
   kmgr_.template Resize<Kernel>(nthreads, nthreads);
 
-  auto *M = reinterpret_cast<mat<out_dim, in_dim> *>(per_sample_mtx_.data());
-  auto *T = reinterpret_cast<vec<out_dim> *>(per_sample_translation_.data());
+  auto M = GetMatrices<out_dim, in_dim>();
+  auto T = GetTranslations<out_dim>();
 
   for (int idx = 0; idx < in_view.num_samples(); idx++) {
     tp.AddWork([&, idx](int tid) {

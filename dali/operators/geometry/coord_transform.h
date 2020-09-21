@@ -21,6 +21,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/operators/geometry/mt_transform_attr.h"
 
 namespace dali {
 
@@ -109,31 +110,13 @@ class CoordTransform : public Operator<Backend>, private MTTransformAttr {
     if (input_pt_dim_ == 0)
       return;  // data is degenerate - empty batch or a batch of empty tensors
 
-    if (HasFusedMT()) {
-      ProcessMatrixArg(ws, "MT", N);
-    } else {
-      ProcessMatrixArg(ws, "M", N);
-      ProcessTranslationArg(ws, "T", N);
-    }
+    SetTransformDims(input_pt_dim_);
+    ProcessTransformArgs(spec_, ws, N);
   }
 
  private:
   template <typename OutputType, typename InputType, int out_dim, int in_dim>
   void RunTyped(workspace_t<Backend> &ws);
-
-
-  vector<float> mtx_;
-  vector<float> translation_;
-  vector<float> per_sample_mtx_;
-  vector<float> per_sample_translation_;
-  int input_pt_dim_ = 0, output_pt_dim_ = 0;
-
-  bool has_mt_                = false;
-  bool has_mt_input_          = false;
-  bool has_matrix_            = false;
-  bool has_matrix_input_      = false;
-  bool has_translation_       = false;
-  bool has_translation_input_ = false;
 
   DALIDataType dtype_;
 
