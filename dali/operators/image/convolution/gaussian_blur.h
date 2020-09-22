@@ -26,9 +26,16 @@
 namespace dali {
 
 #define GAUSSIAN_BLUR_SUPPORTED_TYPES \
-  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, float16)
+  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float) //, float16)
 
 #define GAUSSIAN_BLUR_SUPPORTED_AXES (1, 2, 3)
+
+
+// #define GAUSSIAN_BLUR_SUPPORTED_TYPES \
+//   (uint8_t)
+
+// #define GAUSSIAN_BLUR_SUPPORTED_AXES (1)
+
 
 template <typename Backend>
 class GaussianBlur : public Operator<Backend> {

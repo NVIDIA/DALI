@@ -92,7 +92,7 @@ struct SeparableConvolutionGpu<Out, In, W, 1, has_channels, is_sequence> {
            const TensorListView<StorageGPU, const In, ndim>& in,
            const std::array<TensorListView<StorageCPU, const W, 1>, axes>& windows,
            W scale = 1) {
-    conv_.Run(ctx, out, in, windows[0], scale);
+    conv_.Run(ctx, out, in, windows[0], span<const int>{}, scale);
   }
 
   ConvolutionGpu<Out, In, W, ndim, sequence_axes + 0, has_channels> conv_;
@@ -132,7 +132,7 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
     auto intermediate = TensorListView<StorageGPU, Intermediate, ndim>(tmp, in.shape);
 
     conv_innermost_.Run(ctx, intermediate, in, windows[1]);
-    conv_outermost_.Run(ctx, out, intermediate, windows[0], scale);
+    conv_outermost_.Run(ctx, out, intermediate, windows[0], span<const int>{}, scale);
   }
 
   ConvolutionGpu<Intermediate, In, W, ndim, sequence_axes + 1, has_channels> conv_innermost_;
@@ -180,7 +180,7 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
     // TODO(klecki): it probably doesn't work inplace - this will do for now,
     // but probably it's better to maybe do it in smaller batches/slices
     conv_middle_.Run(ctx, intermediate_outer, intermediate_inner, windows[1]);
-    conv_outermost_.Run(ctx, out, intermediate_outer, windows[0], scale);
+    conv_outermost_.Run(ctx, out, intermediate_outer, windows[0], span<const int>{}, scale);
   }
 
   ConvolutionGpu<Intermediate, In, W, ndim, sequence_axes + 2, has_channels> conv_innermost_;
