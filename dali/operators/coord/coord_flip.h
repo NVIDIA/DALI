@@ -94,9 +94,11 @@ class CoordFlip : public Operator<Backend> {
     return true;
   }
 
-
+  // Layout of the coordinates
   TensorLayout layout_;
+  // Number of dimensions
   int ndim_ = -1;
+  // Indices of x, y and z dimensions
   int x_dim_ = -1, y_dim_ = -1, z_dim_ = -1;
 };
 
