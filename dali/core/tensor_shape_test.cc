@@ -1179,5 +1179,112 @@ TEST(TensorTest, WontCompile) {
   // TensorView<EmptyBackendTag, int, DynamicDimensions>{TensorView<EmptyBackendTag, int8_t, 4>{}};
 }
 
+
+TEST(AppendTest, NonuniformShapes) {
+  TensorListShape<4> tls0 = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<-1> tls1 = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<-1> tls2 = {{{9, 10, 11}, {13, 14, 15}}};
+  TensorListShape<3> tls3 = {{{17, 18, 19}, {22, 23, 24}}};
+  TensorListShape<4> tls4 = {{{17, 18, 19, 20}, {21, 22, 23, 24}}};
+
+  EXPECT_THROW(tls1.append({tls3, tls4}), std::invalid_argument);
+  EXPECT_THROW(tls1.append({tls1, tls3}), std::invalid_argument);
+  EXPECT_THROW(tls1.append({tls1, tls2}), std::invalid_argument);
+  EXPECT_THROW(tls1.append(tls2), std::invalid_argument);
+}
+
+
+TEST(AppendTest, AppendToEmpty) {
+  TensorListShape<4> tls1 = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<-1> tls2 = {{{9, 10, 11, 12}, {13, 14, 15, 16}}};
+  TensorListShape<4> tls3 = {{{17, 18, 19, 20}, {21, 22, 23, 24}}};
+  TensorListShape<4> ref = {{
+    {1, 2, 3, 4}, {5, 6, 7, 8},
+    {9, 10, 11, 12}, {13, 14, 15, 16},
+    {17, 18, 19, 20}, {21, 22, 23, 24}
+  }};
+  TensorListShape<-1> empty_dyn;
+  TensorListShape<4> empty_st;
+  empty_st.append({tls1, tls2.to_static<4>(), tls3});
+  empty_dyn.append({tls1, tls2, tls3});
+  EXPECT_EQ(empty_st, ref);
+  EXPECT_EQ(empty_dyn, ref);
+}
+
+
+TEST(AppendTest, AllEmpty) {
+  TensorListShape<-1> tls_tested_dyn;
+  TensorListShape<-1> empty_dyn;
+  TensorListShape<4> tls_tested_st;
+  TensorListShape<4> empty_st;
+  TensorListShape<4> ref_st;
+  TensorListShape<-1> ref_dyn;
+
+  tls_tested_st.append({empty_st, empty_dyn.to_static<4>()});
+  tls_tested_dyn.append({empty_st, empty_dyn});
+  EXPECT_EQ(tls_tested_st, ref_st);
+  EXPECT_EQ(tls_tested_dyn, ref_dyn);
+}
+
+
+TEST(AppendTest, AppendEmpty) {
+  TensorListShape<4> tls_tested_st = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<-1> tls_tested_dyn = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<4> ref = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<-1> empty_dyn;
+  TensorListShape<4> empty_st;
+
+  tls_tested_st.append({empty_st, empty_dyn.to_static<4>()});
+  tls_tested_dyn.append({empty_st, empty_dyn});
+  EXPECT_EQ(tls_tested_st, ref);
+  EXPECT_EQ(tls_tested_dyn, ref);
+}
+
+
+TEST(AppendTest, AppendTest) {
+  TensorListShape<4> tls_tested_st = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<-1> tls_tested_dyn = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<4> tls2 = {{{9, 10, 11, 12}, {13, 14, 15, 16}}};
+  TensorListShape<-1> tls3 = {{{17, 18, 19, 20}, {21, 22, 23, 24}}};
+  TensorListShape<4> ref = {{
+    {1, 2, 3, 4}, {5, 6, 7, 8},
+    {9, 10, 11, 12}, {13, 14, 15, 16},
+    {17, 18, 19, 20}, {21, 22, 23, 24}
+  }};
+
+  tls_tested_st.append({tls2, tls3.to_static<4>()});
+  tls_tested_dyn.append({tls2, tls3});
+  EXPECT_EQ(tls_tested_st, ref);
+  EXPECT_EQ(tls_tested_dyn, ref);
+}
+
+TEST(AppendTest, ZeroDim) {
+  TensorListShape<0> tls_tested_st = {{1, 2, 3, 4}, 0};
+  TensorListShape<-1> tls_tested_dyn = {{1, 2, 3, 4}, 0};
+  TensorListShape<0> tls1 = {{5, 6, 7, 8}, 0};
+  TensorListShape<-1> tls2 = {{5, 6, 7, 8}, 0};
+  TensorListShape<0> tls3 = {{9, 10, 11, 12}, 0};
+  TensorListShape<0> ref = {{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}, 0};
+
+  tls_tested_st.append({tls2.to_static<0>(), tls3});
+  tls_tested_dyn.append({tls2, tls3});
+  EXPECT_EQ(tls_tested_st, ref);
+  EXPECT_EQ(tls_tested_dyn, ref);
+}
+
+
+TEST(AppendTest, AppendSingleTLS) {
+  TensorListShape<4> tls_tested_st = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<-1> tls_tested_dyn = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<4> tls2 = {{{9, 10, 11, 12}, {13, 14, 15, 16}}};
+  TensorListShape<-1> tls3 = {{{9, 10, 11, 12}, {13, 14, 15, 16}}};
+  TensorListShape<4> ref = {{{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}, {13, 14, 15, 16}}};
+
+  tls_tested_st.append(tls2);
+  tls_tested_dyn.append(tls3);
+  EXPECT_EQ(tls_tested_st, ref);
+  EXPECT_EQ(tls_tested_dyn, ref);
+}
+
 }  // namespace kernels
 }  // namespace dali
