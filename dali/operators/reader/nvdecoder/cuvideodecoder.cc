@@ -92,14 +92,9 @@ CUVideoDecoder::CUVideoDecoder(CUvideodecoder decoder)
 }
 
 CUVideoDecoder::~CUVideoDecoder() {
-    if (decoder_) {
-        try {
-          NVCUVID_CALL(cuvidDestroyDecoder(decoder_));
-        } catch (...) {
-          // something went totally wrong, terminate
-          std::terminate();
-        }
-    }
+  if (decoder_) {
+    NVCUVID_CALL(cuvidDestroyDecoder(decoder_));
+  }
 }
 
 CUVideoDecoder::CUVideoDecoder(CUVideoDecoder&& other)

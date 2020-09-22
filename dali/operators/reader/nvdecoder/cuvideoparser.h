@@ -94,11 +94,7 @@ class CUVideoParser {
 
   ~CUVideoParser() {
     if (initialized_) {
-      try {
-        NVCUVID_CALL(cuvidDestroyVideoParser(parser_));
-      } catch (...) {
-        std::terminate();
-      }
+      NVCUVID_CALL(cuvidDestroyVideoParser(parser_));
     }
   }
 

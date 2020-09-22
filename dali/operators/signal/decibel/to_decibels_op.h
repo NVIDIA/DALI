@@ -60,7 +60,7 @@ class ToDecibels : public Operator<Backend> {
   kernels::signal::ToDecibelsArgs<float> args_;
 
   std::unique_ptr<OpImplBase<Backend>> impl_;
-  DALIDataType type_;
+  DALIDataType type_ = DALI_NO_TYPE;
 };
 
 }  // namespace dali

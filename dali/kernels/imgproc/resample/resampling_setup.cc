@@ -170,7 +170,7 @@ struct ProcessingOrderCalculator {
     }
   }
 
-  float min_cost;
+  float min_cost = 1e+30f;
   ivec<ndim> in_size, out_size, curr_size, filter_support;
   ProcessingOrder<ndim> best_order, curr_order;
   bvec<ndim> axis_mask;

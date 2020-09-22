@@ -94,11 +94,12 @@ class CoordFlip : public Operator<Backend> {
     return true;
   }
 
-
-
+  // Layout of the coordinates
   TensorLayout layout_;
-  int ndim_;
-  int x_dim_, y_dim_, z_dim_;
+  // Number of dimensions
+  int ndim_ = -1;
+  // Indices of x, y and z dimensions
+  int x_dim_ = -1, y_dim_ = -1, z_dim_ = -1;
 };
 
 }  // namespace dali

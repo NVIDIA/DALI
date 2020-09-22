@@ -103,6 +103,7 @@ TYPED_TEST_P(CyclicWindowWrapperTest, DotProduct) {
   int baseline[num_lanes], result[num_lanes];
   for (int c = 0; c < num_lanes; c++) {
     baseline[c] = 0;
+    result[c] = 0;
     for (int i = 0; i < size; i++) {
       baseline[c] += window[i] * input_buffer[i * num_lanes + c];
     }

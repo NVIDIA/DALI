@@ -172,7 +172,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   }
 
   template <typename W>
-  inline void FillStats(ExecutorMetaMap &memory_stats, W ws, std::string op_name,
+  inline void FillStats(ExecutorMetaMap &memory_stats, W &ws, std::string op_name,
                         std::mutex &write_mutex) {
     if (enable_memory_stats_) {
         size_t out_size = 0;
