@@ -191,12 +191,8 @@ list(APPEND DALI_LIBS CUTLASS)
 ##################################################################
 # CocoAPI
 ##################################################################
-set(GENERATE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "-fPIC")
-set(ENABLE_SHARED OFF CACHE BOOL "shared library target")
-set(ENABLE_STATIC ON CACHE BOOL "static library target")
-
-project(cocoapi)
 set(SOURCE_FILES third_party/cocoapi/common/maskApi.c)
 add_library(cocoapi STATIC ${SOURCE_FILES})
+set_target_properties(cocoapi PROPERTIES POSITION_INDEPENDENT_CODE ON)
 list(APPEND DALI_LIBS cocoapi)
 list(APPEND DALI_EXCLUDES libcocoapi.a)
