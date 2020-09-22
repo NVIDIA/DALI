@@ -183,12 +183,12 @@ TEST(OpSpecTest, GetArgumentVec) {
 TEST(OpSpecTest, GetArgumentNonExisting) {
   auto spec0 = OpSpec("DummyOpForSpecTest")
       .AddArg("batch_size", 2);
-  ASSERT_THROW(spec0.GetArgument<int>("<no_such_argument>"), std::runtime_error);
+  ASSERT_THROW(spec0.GetArgument<int>("<no_such_argument>"), DALIException);
   int result = 0;
   ASSERT_FALSE(spec0.TryGetArgument<int>(result, "<no_such_argument>"));
 
 
-  ASSERT_THROW(spec0.GetRepeatedArgument<int>("<no_such_argument>"), std::runtime_error);
+  ASSERT_THROW(spec0.GetRepeatedArgument<int>("<no_such_argument>"), DALIException);
   std::vector<int> result_vec;
   ASSERT_FALSE(spec0.TryGetRepeatedArgument<int>(result_vec, "<no_such_argument>"));
 }
@@ -197,7 +197,7 @@ TEST(OpSpecTest, DeprecatedArgs) {
   auto spec0 = OpSpec("DummyOpForSpecTest")
       .AddArg("batch_size", 2)
       .AddArg("deprecated_arg", 1);
-  ASSERT_THROW(spec0.GetArgument<int>("deprecated_arg"), std::runtime_error);
+  ASSERT_THROW(spec0.GetArgument<int>("deprecated_arg"), DALIException);
   ASSERT_EQ(spec0.GetArgument<int>("replacing_arg"), 1);
   int result = 0;
   ASSERT_FALSE(spec0.TryGetArgument<int>(result, "deprecated_arg"));
@@ -207,12 +207,12 @@ TEST(OpSpecTest, DeprecatedArgs) {
   ASSERT_THROW(OpSpec("DummyOpForSpecTest")
       .AddArg("batch_size", 2)
       .AddArg("deprecated_arg", 1)
-      .AddArg("replacing_arg", 2), std::runtime_error);
+      .AddArg("replacing_arg", 2), DALIException);
 
   ASSERT_THROW(OpSpec("DummyOpForSpecTest")
       .AddArg("batch_size", 2)
       .AddArg("replacing_arg", 1)
-      .AddArg("deprecated_arg", 2), std::runtime_error);
+      .AddArg("deprecated_arg", 2), DALIException);
 
   auto spec1 = OpSpec("DummyOpForSpecTest")
       .AddArg("batch_size", 2)

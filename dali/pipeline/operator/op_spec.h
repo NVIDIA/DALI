@@ -94,7 +94,7 @@ class DLL_PUBLIC OpSpec {
    */
   template <typename T>
   DLL_PUBLIC inline OpSpec& AddArg(const string &name, const T &val) {
-    VerifyRenamedAfterDeprecated(name);
+    EnforceNoAliasWithDeprecated(name);
     DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
         "AddArg failed. Argument with name \"" + name +
         "\" already exists. ");
@@ -136,7 +136,7 @@ class DLL_PUBLIC OpSpec {
    * @brief Add an instantiated argument with given name
    */
   DLL_PUBLIC inline OpSpec& AddInitializedArg(const string& name, Argument* arg) {
-    VerifyRenamedAfterDeprecated(name);
+    EnforceNoAliasWithDeprecated(name);
     DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
         "AddArg failed. Argument with name \"" + name +
         "\" already exists. ");
@@ -146,12 +146,12 @@ class DLL_PUBLIC OpSpec {
   /**
    * @brief Sets or adds an argument with given name
    *
-   * Routes the deprecated argument to appropriate name or drops them
+   * @remarks Deprecated arguments are renamed (or dropped, if no longer used).
    */
   DLL_PUBLIC inline OpSpec& SetInitializedArg(const string& arg_name, Argument* arg) {
     if (schema_ && schema_->IsDeprecatedArg(arg_name)) {
       const auto& deprecation_meta = schema_->DeprecatedArgMeta(arg_name);
-      // Argument is removed, and we can discard it
+      // Argument was removed, and we can discard it
       if (deprecation_meta.removed) {
         return *this;
       }
@@ -171,15 +171,15 @@ class DLL_PUBLIC OpSpec {
         return *this;
       }
     }
-    VerifyRenamedAfterDeprecated(arg_name);
+    EnforceNoAliasWithDeprecated(arg_name);
     arguments_[arg_name].reset(arg);
     return *this;
   }
 
   /**
-   * @brief Check if the `arg_name` was already set through deprecated argument
+   * @brief Check if the `arg_name` was already set through a deprecated argument
    */
-  DLL_PUBLIC inline void VerifyRenamedAfterDeprecated(const string& arg_name) {
+  DLL_PUBLIC inline void EnforceNoAliasWithDeprecated(const string& arg_name) {
     auto set_through = set_through_deprecated_arguments_.find(arg_name);
     DALI_ENFORCE(set_through == set_through_deprecated_arguments_.end(),
                  make_string("Operator ", name(), " got an unexpected '", set_through->second,
