@@ -17,6 +17,7 @@
 
 #include <rapidjson/reader.h>
 #include <rapidjson/document.h>
+#include "dali/core/api_helper.h"
 
 RAPIDJSON_DIAG_PUSH
 #ifdef __GNUC__
@@ -109,7 +110,7 @@ void LookaheadParserHandler::ParseNext() {
   r_.IterativeParseNext<parseFlags>(ss_, *this);
 }
 
-class LookaheadParser : protected LookaheadParserHandler {
+class DLL_PUBLIC LookaheadParser : protected LookaheadParserHandler {
  public:
   inline explicit LookaheadParser(char* str) : LookaheadParserHandler(str) {}
 
@@ -133,7 +134,7 @@ class LookaheadParser : protected LookaheadParserHandler {
   inline bool IsValid() { return st_ != kError; }
 
  protected:
-  inline void SkipOut(int depth);
+  void SkipOut(int depth);
 };
 
 bool LookaheadParser::EnterObject() {
@@ -237,20 +238,6 @@ const char* LookaheadParser::GetString() {
   const char* result = v_.GetString();
   ParseNext();
   return result;
-}
-
-void LookaheadParser::SkipOut(int depth) {
-  do {
-    if (st_ == kEnteringArray || st_ == kEnteringObject) {
-      ++depth;
-    } else if (st_ == kExitingArray || st_ == kExitingObject) {
-      --depth;
-    } else if (st_ == kError) {
-      return;
-    }
-
-    ParseNext();
-  } while (depth > 0);
 }
 
 void LookaheadParser::SkipValue() {
