@@ -37,7 +37,8 @@ DALI_SCHEMA(Caffe2Reader)
       R"code(List of paths to the Caffe2 LMDB directories.)code",
       DALI_STRING_VEC)
   .AddOptionalArg("num_labels",
-      R"code(Number of classes in the dataset.\n
+      R"code(Number of classes in the dataset.
+
 Required when sparse labels are used.)code", 1)
   .AddOptionalArg("label_type",
       R"code(Type of label stored in dataset.

@@ -28,8 +28,9 @@ and then samples are selected randomly to form a batch.)code", false)
 
 If ``random_shuffle`` is False, this parameter is ignored.)code", 1024)
   .AddOptionalArg("num_shards",
-      R"code(Partitions the data into the specified number of parts (shards). This is typically
-used for multi-GPU or multi-node training.)code", 1)
+      R"code(Partitions the data into the specified number of parts (shards).
+
+This is typically used for multi-GPU or multi-node training.)code", 1)
   .AddOptionalArg("shard_id",
       R"code(Index of the shard to read.)code", 0)
   .AddOptionalArg("tensor_init_bytes",

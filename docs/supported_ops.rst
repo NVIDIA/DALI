@@ -59,6 +59,7 @@ Operators Documentation
 .. automodule:: nvidia.dali.ops
    :members:
    :special-members: __call__
+   :exclude-members: PythonFunctionBase
 
 .. autoclass:: nvidia.dali.plugin.pytorch.TorchPythonFunction
    :members:

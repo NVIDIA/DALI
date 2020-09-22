@@ -32,9 +32,10 @@ This operator produces the following outputs:
   .AddOptionalArg("downmix", R"code(If set to True, downmix all input channels to mono.
 
 If downmixing is turned on, the decoder output is 1D.
-If downmixing is turned off, it produces 2D output with interleaved channels.", false)code", false)
-  .AddOptionalArg("dtype", R"code(Output data type. Supported types: ``INT16``, ``INT32``,
-``FLOAT``.)code", DALI_FLOAT)
+If downmixing is turned off, it produces 2D output with interleaved channels.)code", false)
+  .AddOptionalArg("dtype", R"code(Output data type.
+
+Supported types: ``INT16``, ``INT32``, ``FLOAT``.)code", DALI_FLOAT)
   .AddOptionalArg("sample_rate",
           "If specified, the target sample rate, in Hz, to which the audio is resampled.",
           0.0f, true)

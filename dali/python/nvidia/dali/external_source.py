@@ -157,7 +157,7 @@ Args
 `source` : callable or iterable
     The source of the data.
 
-    The source is polled for data (via a call ``source()`` or ``next(source)``
+    The source is polled for data (via a call ``source()`` or ``next(source)``)
     when the pipeline needs input for the next iteration. Depending on the value of ``num_outputs``,
     the source can supply one or more data batches. If ``num_outputs`` is not set, the ``source``
     is expected to return one batch. If this value is specified, the data is expected to a be tuple,
@@ -186,7 +186,7 @@ Keyword Args
 
     If set to False, StopIteration is raised when the end of data is reached.
     This flag requires that the ``source`` is a collection, for example, an iterable object where
-    ``iter(source)`` returns a fresh iterator on each call or a generator function.
+    ``iter(source)`` returns a fresh iterator on each call or a gensource erator function.
     In the latter case, the generator function is called again when more data than was
     yielded by the function is requested.
 
@@ -204,8 +204,7 @@ Keyword Args
     output. If the list has fewer than ``num_outputs`` elements, only the first
     outputs have the layout set, the rest of the outputs don't have a layout set.
 
-`cuda_stream` : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``, such as
-    ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
+`cuda_stream` : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``, such as ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
     The CUDA stream is used to copy data to the GPU or from a GPU source.
 
     If this parameter is not set, a best-effort will be taken to maintain correctness. That is,
@@ -215,8 +214,8 @@ Keyword Args
     explicitly supply the stream handle.
 
     This argument has two special values:
-      *  0 - Use the default CUDA stream
-      * -1 - Use DALI's internal stream
+      * 0 - Use the default CUDA stream
+      * 1 - Use DALI's internal stream
 
     If internal stream is used, the call to ``feed_input`` will block until the copy to internal
     buffer is complete, since there's no way to synchronize with this stream to prevent
@@ -228,20 +227,21 @@ Keyword Args
     .. note::
         This is applicable only when copying data to and from GPU memory.
 
-`blocking` : optional,
+`blocking` : optional
     Determines whether the external source should wait until data is available or just fail
     when the data is not available.
 
-`no_copy` : Determines whether DALI should copy the buffer when feed_input is called.
+`no_copy` : optional
+    Determines whether DALI should copy the buffer when feed_input is called.
 
     If set to True, DALI passes the user memory directly to the pipeline, instead of copying it.
-    It is your responsibility to keep the buffer alive and unmodified until it is
+    It is the user responsibility to keep the buffer alive and unmodified until it is
     consumed by the pipeline.
 
     The buffer can be modified or freed again after the output of the relevant iterations
     has been consumed. Effectively, it happens after ``prefetch_queue_depth`` or
     ``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
-    the``feed_input`` call.
+    the ``feed_input`` call.
 
     The memory location must match the specified ``device`` parameter of the operator.
     For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.

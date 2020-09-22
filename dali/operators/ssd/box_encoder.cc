@@ -200,13 +200,14 @@ Inputs must be supplied as the following Tensors:
 
 The results are two tensors:
 
-- ``EncodedBBoxes`` that contain M-encoded bounding boxes as ``[l,t,r,b]``. where M is number of anchors.
+- ``EncodedBBoxes`` that contain M-encoded bounding boxes as ``[l,t,r,b]``, where M is number of
+  anchors.
 - ``EncodedLabels`` that contain the corresponding label for each encoded box.
 )code")
     .NumInput(2)
     .NumOutput(2)
     .AddArg("anchors",
-            R"code(Anchors to be used for encoding, as the list of floats is in the ltrb
+            R"code(Anchors to be used for encoding, as the list of floats is in the ``ltrb``
 format.)code",
             DALI_FLOAT_VEC)
     .AddOptionalArg(

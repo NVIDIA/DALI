@@ -51,11 +51,17 @@ class FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> {
     bool shuffle_after_epoch = false)
     : Loader<CPUBackend, ImageLabelWrapper>(spec),
       file_root_(spec.GetArgument<string>("file_root")),
-      file_list_(spec.GetArgument<string>("file_list")),
+      file_list_(),
       image_label_pairs_(std::move(image_label_pairs)),
       shuffle_after_epoch_(shuffle_after_epoch),
       current_index_(0),
       current_epoch_(0) {
+
+      // COCO doesn't have this argument, other inheriting class may not as well
+      if (spec.HasArgument("file_list")) {
+        file_list_ = spec.GetArgument<string>("file_list");
+      }
+
       /*
       * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks differently
       * after each epoch so coexistence with `stick_to_shard` doesn't make any sense

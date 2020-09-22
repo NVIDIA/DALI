@@ -39,7 +39,9 @@ Normalization takes the input images and produces the output by using the follow
   .DeprecateArg("image_type", true)  // deprecated since 0.24dev
   .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("dtype",
-       R"code(Output data type. Supported types: ``FLOAT``, ``FLOAT16``, and ``UINT8``.
+       R"code(Output data type.
+
+Supported types: ``FLOAT``, ``FLOAT16``, and ``UINT8``.
 
 If not set, the input type is used.)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",

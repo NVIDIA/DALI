@@ -711,8 +711,6 @@ class PythonFunctionBase(metaclass=_DaliOperatorMeta):
             outputs.append(t)
         return outputs[0] if len(outputs) == 1 else outputs
 
-PythonFunctionBase.__call__.__doc__ = _docstring_generator_call("PythonFunctionBase")
-
 def _dlpack_to_array(dlpack):
     return nvidia.dali.python_function_plugin.DLTensorToArray(dlpack)
 

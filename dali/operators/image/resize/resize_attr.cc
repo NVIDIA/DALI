@@ -36,17 +36,12 @@ A negative value flips the image.)code", 0.f, true)
 
 This option is mutually exclusive with ``resize_shorter``, ``resize_longer`` and ``size``.
 If the ``resize_x`` and ``resize_y`` are left unspecified or 0, then the op will keep
-the aspect ratio of the original volume. Negative value flips the volume.)", 0.f, true)
-  .AddOptionalArg<vector<float>>("size", R"(The desired output size. Must be a list/tuple with
-one entry per spatial dimension (i.e. excluding video frames and channels).
-
-Dimensions with 0 extent are treated as absent and the output size will be calculated based
-on other extents and ``mode`` argument.)code", 0.f, true)
-  .AddOptionalArg<vector<float>>("size", R"(The desired output size.
+the aspect ratio of the original volume. Negative value flips the volume.)code", 0.f, true)
+  .AddOptionalArg<vector<float>>("size", R"code(The desired output size.
 
 Must be a list/tuple with one entry per spatial dimension, excluding video frames and channels.
 Dimensions with a 0 extent are treated as absent, and the output size will be calculated based on
-other extents and ``mode`` argument.)", {}, true)
+other extents and ``mode`` argument.)code", {}, true)
   .AddOptionalArg("mode", R"code(Resize mode.
 
 Here is a list of supported modes:
@@ -54,7 +49,7 @@ Here is a list of supported modes:
 * | ``"default"`` - image is resized to the specified size.
   | Missing extents are scaled with the average scale of the provided ones extents.
 * | ``"stretch"`` - image is resized to the specified size.
-  | Missing extents are not at all scaled.
+  | Missing extents are not scaled at all.
 * | ``"not_larger"`` - image is resized, keeping the aspect ratio, so that no extent of the
     output image exceeds the specified size.
   | For example, a 1280x720, with a desired output size of 640x480, actually produces
@@ -109,7 +104,7 @@ than the ROI end in any dimension, the region is flipped in that dimension.)code
 Must be specified together with ``roi_start``. The coordinates follow the tensor shape order, which is
 the same as ``size``. The coordinates can be either absolute (in pixels, which is the default) or
 relative (0..1), depending on the value of ``relative_roi`` argument. If the ROI origin is greater
-than the ROI end in any dimension, the region is flipped in that dimension.))code", nullptr, true)
+than the ROI end in any dimension, the region is flipped in that dimension.)code", nullptr, true)
   .AddOptionalArg("roi_relative", R"code(If true, ROI coordinates are relative to the input size,
 where 0 denotes top/left and 1 denotes bottom/right)code", false);
 

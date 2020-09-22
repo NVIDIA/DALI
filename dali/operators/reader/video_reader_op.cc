@@ -58,7 +58,7 @@ and ``file_root``.)code",
 the frame number output.)code",
       false)
   .AddOptionalArg("enable_timestamps",
-      R"code(If the`` file_list`` or ``file_root`` arguments are passed, returns
+      R"code(If the ``file_list`` or ``file_root`` arguments are passed, returns
 the timestamps output. )code",
       false)
   .AddArg("sequence_length",
@@ -91,7 +91,9 @@ This parameter can be used to trade off memory usage with performance.)code",
       R"(The color space of the output frames (RGB or YCbCr).)",
       DALI_RGB)
   .AddOptionalArg("dtype",
-      R"(Output data type. Supported types: ``UINT8`` or ``FLOAT``.).)",
+      R"(Output data type.
+
+Supported types: ``UINT8`` or ``FLOAT``.)",
       DALI_UINT8)
   .AddOptionalArg("stride",
       R"code(Distance between consecutive frames in the sequence.)code", 1u, false)

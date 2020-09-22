@@ -146,7 +146,7 @@ axis to match the largest sample in the batch and an alignment of 2.
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("fill_value",
-    R"code(The value to pad the batch with)code",
+    R"code(The value to pad the batch with.)code",
     0.0f)
   .AddOptionalArg<int>("axes",
     R"code(Indices of the axes on which the batch samples will be padded.

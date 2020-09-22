@@ -22,7 +22,7 @@ DALI_SCHEMA(Paste)
   .NumInput(1)
   .NumOutput(1)
   .AddArg("ratio",
-      R"code(Ratio of canvas size to input size. Must be > 1.)code",
+      R"code(Ratio of canvas size to input size. Must be >= 1.)code",
       DALI_FLOAT, true)
   .AddOptionalArg("n_channels",
       R"code(Number of channels in the image.)code", 3)

@@ -97,7 +97,7 @@ Example values:
 * `0` - Uniform grey image.
 * `1` - No change.
 * `2` - Increase brightness twice.
-.)code", 1.f, true)
+)code", 1.f, true)
     .AddParent("ColorTransformBase");
 
 DALI_SCHEMA(Hue)
@@ -119,7 +119,8 @@ DALI_SCHEMA(Saturation)
 Values must be non-negative.
 
 Example values:
-- `0` – Completely desaturated image.
+
+- `0` - Completely desaturated image.
 - `1` - No change to image's saturation.
 )code", 1.f, true)
     .AddParent("ColorTransformBase")

@@ -62,7 +62,7 @@ a mel spectrogram.)code")
       R"code(Number of MFCC coefficients.)code",
       20)
     .AddOptionalArg("dct_type",
-      R"code((Discrete Cosine Transform type.
+      R"code(Discrete Cosine Transform type.
 
 The supported types are 1, 2, 3, 4. The formulas that are used to calculate the DCT are equivalent
 to those described in https://en.wikipedia.org/wiki/Discrete_cosine_transform (the numbers

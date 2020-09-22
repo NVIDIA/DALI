@@ -55,7 +55,9 @@ This is the value that all pixels assume when the contrast is zero. When not set
 the half of the input type's positive range (or 0.5 for ``float``) is used.)code",
                     0.5f, false)
     .AddOptionalArg("dtype",
-                    "Output data type. If not set, the input type is used.", DALI_NO_TYPE);
+                    R"code(Output data type.
+
+If not set, the input type is used.)code", DALI_NO_TYPE);
 
 DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrastCpu, CPU)
 

@@ -29,6 +29,7 @@ If the input has a non-empty layout description, it must start with ``F`` (frame
     .AddArg("new_order", R"code(List that describes the new order for the elements in each sample.
 
 Output sequence at position ``i`` will contain element ``new_order[i]`` from input sequence::
+
   out[i, ...] = in[new_order[i], ...]
 
 Elements can be repeated or dropped, but empty output sequences are not allowed. Only indices in

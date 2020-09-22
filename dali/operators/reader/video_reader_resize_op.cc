@@ -27,7 +27,7 @@ namespace dali {
 DALI_REGISTER_OPERATOR(VideoReaderResize, VideoReaderResize, GPU);
 
 DALI_SCHEMA(VideoReaderResize)
-  .DocStr(R"code(Loads and decodes video files with FFmpeg and NVDECODE, which is
+  .DocStr(R"code(Loads, decodes and resizes video files with FFmpeg and NVDECODE, which is
 NVIDIA GPU's hardware-accelerated video decoding.
 
 The video streams can be in most of the container file formats. FFmpeg is used to parse video

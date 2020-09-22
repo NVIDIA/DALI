@@ -96,7 +96,7 @@ struct Range {
 DALI_SCHEMA(RandomBBoxCrop)
     .DocStr(
         R"code(Applies a prospective random crop to an image coordinate space while keeping
-the bounding boxes, (and optionally labels), consistent.
+the bounding boxes, and optionally labels, consistent.
 
 This means that after applying the random crop operator to the image coordinate space, the bounding
 boxes will be adjusted or filtered out to match the cropped ROI. The applied random crop operation
@@ -114,8 +114,8 @@ the valid results of the operator.
 The following modes of a random crop are available:
 
 - | Randomly shaped window, which is randomly placed in the original input space.
-  | The random crop window dimensions are selected based on the provided aspect_ratio and relative
-    area restrictions.
+  | The random crop window dimensions are selected based on the provided ``aspect_ratio`` and
+    relative area restrictions.
 - | Fixed size window, which is randomly placed in the original input space.
   | The random crop window dimensions are taken from the ``crop_shape`` argument and the anchor is
   | randomly selected.
@@ -132,7 +132,7 @@ a valid crop to match a minimum overlap metric value from ``thresholds``.
   When ``allow_no_crop`` is False and ``thresholds`` does not contain ``0.0``, if
   you do not increase the ``num_attempts`` value,  it might continue to loop for a long time.
 
-**Inputs: 0**: ``bboxes``, (1:``labels``, )
+**Inputs: 0**: bboxes, (1: labels)
 
 The first input, ``bboxes``, refers to the bounding boxes that are provided as a two-dimensional
 tensor where the first dimension refers to the index of the bounding box, and the second dimension
@@ -140,21 +140,21 @@ refers to the index of the coordinate.
 
 The coordinates are relative to the original image dimensions
 (that means, a range of ``[0.0, 1.0]``) that represent the start and, depending on the value of
-bbox_layout, the end of the region or start and shape. For example, ``bbox_layout="xyXY"``
+bbox_layout, the end of the region or start and shape. For example, ``bbox_layout``\="xyXY"
 means the bounding box coordinates follow the ``start_x``, ``start_y``, ``end_x``,
-and ``end_y`` order, and ``bbox_layout="xyWH"`` indicates that the order is ``start_x``,
+and ``end_y`` order, and ``bbox_layout``\="xyWH" indicates that the order is ``start_x``,
 ``start_y``, ``width``, and ``height``. See the ``bbox_layout`` argument description
 for more information.
 
 Optionally, a second input, called ``labels``, can be provided, which represents the labels that are
 associated with each of the bounding boxes.
 
-**Outputs: 0**:``anchor``, 1:``shape``, 2:``bboxes``, (3:``labels``,)
+**Outputs: 0**: anchor, 1: shape, 2: bboxes, (3: labels)
 
 The resulting crop parameters are provided as two separate outputs, ``anchor`` and ``shape``,
 that can be fed directly to the :meth:`nvidia.dali.ops.Slice` operator to complete the cropping
 of the original image. ``anchor`` and ``shape`` contain the starting coordinates and dimensions
-for the crop in the ``[x, y, (z,)]`` and ``[w, h, (d,)]`` formats, respectively. The coordinates can
+for the crop in the ``[x, y, (z)]`` and ``[w, h, (d)]`` formats, respectively. The coordinates can
 be represented in absolute or relative terms, and the represetnation depends on whether
 the fixed ``crop_shape`` was used.
 
@@ -232,8 +232,8 @@ otherwise they are provided as ``[left, top, width, height]``.
 
 .. warning::
   This argument has been deprecated. To specify the bbox encoding, use ``bbox_layout`` instead.
-  For example, ``ltrb=True`` is equal to ``bbox_layout="xyXY"``, and ``ltrb=False`` corresponds
-  to ``bbox_layout="xyWH"``.
+  For example, ``ltrb=True`` is equal to ``bbox_layout``\="xyXY", and ``ltrb=False`` corresponds
+  to ``bbox_layout``\="xyWH".
 )code",
         true)
     .AddOptionalArg(
@@ -265,7 +265,7 @@ crop is found.
 window as specified by ``thresholds``.
 
 If the bounding boxes do not overlap, the cropping window is considered to be invalid. If set to
-False, and at least a bounding box overlaps the window, the window is considered to
+False, and at least one bounding box overlaps the window, the window is considered to
 be valid.)code",
          true)
     .AddOptionalArg(
@@ -298,15 +298,15 @@ The order of dimensions is determined by the layout that is provided in ``shape_
         "bbox_layout",
         R"code(Determines the meaning of the coordinates of the bounding boxes.
 
-The value of this argument is a string containing the following characters:
+The value of this argument is a string containing the following characters::
 
-  ``x`` (horizontal start anchor), ``y`` (vertical start anchor), ``z`` (depthwise start anchor),
-  ``X`` (horizontal end anchor),   ``Y`` (vertical end anchor),   ``Z`` (depthwise end anchor),
-  ``W`` (width),                   ``H`` (height),                ``D`` (depth).
+  x (horizontal start anchor), y (vertical start anchor), z (depthwise start anchor),
+  X (horizontal end anchor),   Y (vertical end anchor),   Z (depthwise end anchor),
+  W (width),                   H (height),                D (depth).
 
 .. note::
-  If this value is left empty, depending on the number of dimensions, ``xyXY`` or
-  ``xyzXYZ`` is assumed.
+  If this value is left empty, depending on the number of dimensions, "xyXY" or
+  "xyzXYZ" is assumed.
 )code",
         TensorLayout{""})
     .AddOptionalArg<TensorLayout>(

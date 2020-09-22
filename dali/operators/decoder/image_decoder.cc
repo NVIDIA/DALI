@@ -111,7 +111,7 @@ DALI_SCHEMA(ImageDecoder)
 
 For jpeg images, depending on the backend selected ("mixed" and "cpu"), the implementation uses
 the *nvJPEG* library or *libjpeg-turbo*, respectively. Other image formats are decoded
-with *OpenCV* or other specific libraries, such as *libtiff*).
+with *OpenCV* or other specific libraries, such as *libtiff*.
 
 If used with a ``mixed`` backend, and the hardware is available, the operator will use
 a dedicated hardware decoder.

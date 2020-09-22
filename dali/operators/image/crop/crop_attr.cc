@@ -63,8 +63,7 @@ Providing values for ``crop_w`` and ``crop_h`` is incompatible with providing fi
 window dimensions (argument ``crop``).)code",
         0.0f, true)
     .AddOptionalArg(
-        "crop_d", R"code(Applies **only** to volumetric inputs.
-Cropping window depth (in voxels).
+        "crop_d", R"code(Applies **only** to volumetric inputs; cropping window depth (in voxels).
 
 ``crop_w``, ``crop_h``, and ``crop_d`` must be specified together. Providing values
 for ``crop_w``, ``crop_h``, and ``crop_d`` is incompatible with providing the fixed crop

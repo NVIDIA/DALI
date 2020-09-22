@@ -25,8 +25,9 @@
 namespace dali {
 
 DALI_SCHEMA(Reshape)
-  .DocStr(R"(Treats content of the input as if it had a different shape and/or layout.
-  The buffer contents are not copied.)")
+  .DocStr(R"code(Treats content of the input as if it had a different shape and/or layout.
+
+The buffer contents are not copied.)code")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be reshaped")

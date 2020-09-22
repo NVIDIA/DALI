@@ -25,10 +25,10 @@ DALI_SCHEMA(OutOfBoundsAttr)
 
 Here is a list of the supported values:
 
-- "error" (default): Attempting to slice outside of the bounds of the image will produce an error.
-- "pad": The input will be padded as needed with zeros or any other value that is specified
+- ``"error"`` (default): Attempting to slice outside of the bounds of the image will produce an error.
+- ``"pad"``: The input will be padded as needed with zeros or any other value that is specified
   with the ``fill_values`` argument.
-- "trim_to_shape": The slice window will be cut to the bounds of the input.)code", "error")
+- ``"trim_to_shape"``: The slice window will be cut to the bounds of the input.)code", "error")
     .AddOptionalArg("fill_values",
         R"code(Determines padding values and is only relevant if ``out_of_bounds_policy``
 is set to “pad”.
