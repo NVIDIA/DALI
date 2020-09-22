@@ -489,8 +489,8 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
     int window_element = dist_diag;  // offset from anchor
     int absolute_window_element = to_absolute(window_element);  // index starting from 0
 
-    bool is_used =
-        any_access_within_window<kIsInnerConv>(absolute_window_element) && address_iterator_.valid();
+    bool is_used = any_access_within_window<kIsInnerConv>(absolute_window_element) &&
+                   address_iterator_.valid();
     if (is_used) {
       AccessType dst;
       load_vec<kIsInnerConv>(dst, absolute_window_element);
