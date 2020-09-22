@@ -642,12 +642,12 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
   }
 
   /**
-   * @brief Get offset from aligned `lo_offset` to current `window_element`
+   * @brief Get distance from aligned `lo_offset` to current `window_element`
    *
    * `lo_offset` should be already mirrored
    */
   template <bool mirrored>
-  CUTLASS_DEVICE int get_offset(int abs_window_element, int lo_offset) {
+  CUTLASS_DEVICE int get_distance(int abs_window_element, int lo_offset) {
     if (mirrored) {
       return get_mirrored_element(abs_window_element) - lo_offset;
     }
@@ -663,7 +663,7 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
   CUTLASS_DEVICE aligned_offset_data get_aligned_offset(int window_element) {
     static_assert(!kIsInnerConv || mirrored, "All lookups are mirrored for Inner Conv.");
     int lo_element = get_aligned_window_element<mirrored>(window_element);
-    int offset = get_offset<mirrored>(window_element, lo_element);
+    int offset = get_distance<mirrored>(window_element, lo_element);
     return {lo_element, offset};
   }
 
