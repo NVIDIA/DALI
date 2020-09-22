@@ -34,7 +34,8 @@ class CocoReaderTest : public ::testing::Test {
     std::remove("/tmp/original_ids.txt");
   }
 
-  std::vector<std::pair<std::string, std::string>> Outputs(bool masks = false, bool pixelwise_masks = false) {
+  std::vector<std::pair<std::string, std::string>>
+  Outputs(bool masks = false, bool pixelwise_masks = false) {
     if (masks)
       return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"},
               {"masks_meta", "cpu"}, {"masks_coord", "cpu"}, {"image_ids", "cpu"}};
@@ -547,7 +548,8 @@ TEST_F(CocoReaderTest, PixelwiseMasks) {
     std::vector<uchar> labels(masks_output.tensor<int>(i),
       masks_output.tensor<int>(i) + pixelwise_masks_shape[i][0] * pixelwise_masks_shape[i][1]);
 
-    std::string file_root = dali::testing::dali_extra_path() + "/db/coco_pixelwise/pixelwise_masks/";
+    std::string file_root = dali::testing::dali_extra_path() +
+      "/db/coco_pixelwise/pixelwise_masks/";
     cv::Mat cv_mask =  cv::imread(file_root + files[i], cv::IMREAD_COLOR);
     cv::cvtColor(cv_mask, cv_mask, cv::COLOR_BGR2RGB);
     cv::Mat channels[3];
@@ -557,7 +559,7 @@ TEST_F(CocoReaderTest, PixelwiseMasks) {
 
     ASSERT_EQ(pixelwise_masks_shape[i][1], s.width);
     ASSERT_EQ(pixelwise_masks_shape[i][0], s.height);
-    EXPECT_TRUE(0 == std::memcmp(mask.data, labels.data(), s.width * s.height * sizeof(uchar)));
+    EXPECT_EQ(0, std::memcmp(mask.data, labels.data(), s.width * s.height * sizeof(uchar)));
   }
 }
 

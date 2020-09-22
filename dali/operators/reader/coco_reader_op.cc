@@ -14,6 +14,8 @@
 
 #include "dali/operators/reader/coco_reader_op.h"
 
+#include <set>
+
 
 namespace dali {
 DALI_REGISTER_OPERATOR(COCOReader, COCOReader, CPU);
@@ -153,7 +155,7 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
   const int *labels_in = labels_.data() + offsets_[image_id];
   int labels_size = counts_[image_id];
   std::set<int> labels(labels_in, labels_in + labels_size);
-  if (! labels.size()) {
+  if (!labels.size()) {
     return;
   }
 
@@ -168,7 +170,7 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
     // Convert polygon to encoded mask
     in.resize(end_idx - start_idx);
     for (int i = 0; i < end_idx - start_idx; i++)
-      in[i] = (double) coords[start_idx + i];
+      in[i] = static_cast<double>(coords[start_idx + i]);
     RLE M;
     rleInit(&M, 0, 0, 0, 0);
     rleFrPoly(&M, in.data(), (end_idx - start_idx) / 2, h, w);
@@ -184,7 +186,7 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
     auto mask_idx = masks_rles_idx_[image_id][ann_id];
     const auto &str = masks_rles_[image_id][ann_id];
     int label = *(labels_in + mask_idx);
-    rleFrString(&R[label], (char *) str.c_str(), h, w);
+    rleFrString(&R[label], const_cast<char*>(str.c_str()), h, w);
   }
 
   // Merge each label (from multi-polygons annotations)
@@ -200,7 +202,7 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
     std::unique_ptr<int[]> vals;
   };
   Encoding A;
-  A.cnts = std::make_unique<uint[]>(h * w + 1); // upper-bound
+  A.cnts = std::make_unique<uint[]>(h * w + 1);  // upper-bound
   A.vals = std::make_unique<int[]>(h * w + 1);
 
   // first copy the content of the first label to the output
@@ -231,28 +233,28 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
     nb_seq_a = nb_seq_b = 1;
     int m = 0;
 
-    int cnt_tot = 1; // check if we advanced at all
+    int cnt_tot = 1;  // check if we advanced at all
     while (cnt_tot > 0) {
       uint c = std::min(cnt_a, cnt_b);
       cnt_tot = 0;
       // advance A
       cnt_a -= c;
       if (!cnt_a && nb_seq_a < A.m) {
-        cnt_a = A.cnts[nb_seq_a]; // next sequence for A
-        next_val_a =A.vals[nb_seq_a];
+        cnt_a = A.cnts[nb_seq_a];  // next sequence for A
+        next_val_a = A.vals[nb_seq_a];
         nb_seq_a++;
       }
       cnt_tot += cnt_a;
       // advance B
       cnt_b -= c;
       if (!cnt_b && nb_seq_b < B.m) {
-        cnt_b = B.cnts[nb_seq_b++]; // next sequence for B
+        cnt_b = B.cnts[nb_seq_b++];  // next sequence for B
         next_vb = !next_vb;
       }
       cnt_tot += cnt_b;
 
-      if (val_a && vb) // there's already a class at this pixel
-                       // in this case, the last annotation wins (it's undefined by the spec)
+      if (val_a && vb)  // there's already a class at this pixel
+                        // in this case, the last annotation wins (it's undefined by the spec)
         vals[m] = (!cnt_a) ? val_a : val_b;
       else if (val_a)
         vals[m] = val_a;
