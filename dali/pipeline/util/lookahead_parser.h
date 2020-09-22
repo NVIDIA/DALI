@@ -43,7 +43,7 @@ inline int safe_strcmp(const char *str1, const char (&str2)[N]) {
 
 // taken from https://github.com/Tencent/rapidjson/blob/master/example/lookaheadparser/lookaheadparser.cpp
 
-class DLL_PUBLIC LookaheadParserHandler {
+class LookaheadParserHandler {
  public:
   inline bool Null() { st_ = kHasNull; v_.SetNull(); return true; }
   inline bool Bool(bool b) { st_ = kHasBool; v_.SetBool(b); return true; }
@@ -95,7 +95,6 @@ class DLL_PUBLIC LookaheadParserHandler {
   static const int parseFlags = kParseDefaultFlags | kParseInsituFlag;
 };
 
-<<<<<<< HEAD
 LookaheadParserHandler::LookaheadParserHandler(char* str) :
     v_(), st_(kInit), r_(), ss_(str) {
   r_.IterativeParseInit();
@@ -111,8 +110,6 @@ void LookaheadParserHandler::ParseNext() {
   r_.IterativeParseNext<parseFlags>(ss_, *this);
 }
 
-=======
->>>>>>> WIP
 class DLL_PUBLIC LookaheadParser : protected LookaheadParserHandler {
  public:
   inline explicit LookaheadParser(char* str) : LookaheadParserHandler(str) {}
@@ -140,7 +137,6 @@ class DLL_PUBLIC LookaheadParser : protected LookaheadParserHandler {
   void SkipOut(int depth);
 };
 
-<<<<<<< HEAD
 bool LookaheadParser::EnterObject() {
   if (st_ != kEnteringObject) {
     st_  = kError;
@@ -280,8 +276,6 @@ int LookaheadParser::PeekType() {
   return -1;
 }
 
-=======
->>>>>>> WIP
 }  // namespace detail
 
 RAPIDJSON_DIAG_POP
