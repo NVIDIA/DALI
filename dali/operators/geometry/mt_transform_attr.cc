@@ -38,7 +38,7 @@ input vectors.)",
     true)
   .AddOptionalArg<vector<float>>("T", R"(The translation vector.
 
-If left unspecified, no translation is applied.
+If left unspecified, no translation is applied unless MT argument is used.
 
 The number of components of this vector must match the number of rows in matrix ``M``.
 If a scalar value is provided, that value is broadcast to all components of ``T`` and the number
@@ -72,7 +72,7 @@ void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspa
         translation_.resize(output_pt_dim_, 0);
       }
     } else {
-      DALI_ENFORCE(mtx_.size() % cols == 0, make_string("Cannot form a matrix ",
+      DALI_ENFORCE(mtx_.size() % cols == 0, make_string("Cannot form a matrix with ",
         mtx_.size(), " elements and ", cols, "columns"));
       SetOutputPtDim(mtx_.size() / cols);
       if (is_fused)
