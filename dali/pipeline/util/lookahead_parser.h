@@ -17,6 +17,7 @@
 
 #include <rapidjson/reader.h>
 #include <rapidjson/document.h>
+#include "dali/core/api_helper.h"
 
 RAPIDJSON_DIAG_PUSH
 #ifdef __GNUC__
@@ -35,36 +36,41 @@ using rapidjson::kParseInsituFlag;
 using rapidjson::kArrayType;
 using rapidjson::kObjectType;
 
+template<size_t N>
+inline int safe_strcmp(const char *str1, const char (&str2)[N]) {
+  return strncmp(str1, str2, N-1);
+}
+
 // taken from https://github.com/Tencent/rapidjson/blob/master/example/lookaheadparser/lookaheadparser.cpp
 
 class LookaheadParserHandler {
  public:
-  bool Null() { st_ = kHasNull; v_.SetNull(); return true; }
-  bool Bool(bool b) { st_ = kHasBool; v_.SetBool(b); return true; }
-  bool Int(int i) { st_ = kHasNumber; v_.SetInt(i); return true; }
-  bool Uint(unsigned u) { st_ = kHasNumber; v_.SetUint(u); return true; }
-  bool Int64(int64_t i) { st_ = kHasNumber; v_.SetInt64(i); return true; }
-  bool Uint64(uint64_t u) { st_ = kHasNumber; v_.SetUint64(u); return true; }
-  bool Double(double d) { st_ = kHasNumber; v_.SetDouble(d); return true; }
-  bool RawNumber(const char*, SizeType, bool) { return false; }
-  bool String(const char* str, SizeType length, bool) {
+  inline bool Null() { st_ = kHasNull; v_.SetNull(); return true; }
+  inline bool Bool(bool b) { st_ = kHasBool; v_.SetBool(b); return true; }
+  inline bool Int(int i) { st_ = kHasNumber; v_.SetInt(i); return true; }
+  inline bool Uint(unsigned u) { st_ = kHasNumber; v_.SetUint(u); return true; }
+  inline bool Int64(int64_t i) { st_ = kHasNumber; v_.SetInt64(i); return true; }
+  inline bool Uint64(uint64_t u) { st_ = kHasNumber; v_.SetUint64(u); return true; }
+  inline bool Double(double d) { st_ = kHasNumber; v_.SetDouble(d); return true; }
+  inline bool RawNumber(const char*, SizeType, bool) { return false; }
+  inline bool String(const char* str, SizeType length, bool) {
     st_ = kHasString;
     v_.SetString(str, length);
     return true;
   }
-  bool StartObject() { st_ = kEnteringObject; return true; }
-  bool Key(const char* str, SizeType length, bool) {
+  inline bool StartObject() { st_ = kEnteringObject; return true; }
+  inline bool Key(const char* str, SizeType length, bool) {
     st_ = kHasKey;
     v_.SetString(str, length);
     return true;
   }
-  bool EndObject(SizeType) { st_ = kExitingObject; return true; }
-  bool StartArray() { st_ = kEnteringArray; return true; }
-  bool EndArray(SizeType) { st_ = kExitingArray; return true; }
+  inline bool EndObject(SizeType) { st_ = kExitingObject; return true; }
+  inline bool StartArray() { st_ = kEnteringArray; return true; }
+  inline bool EndArray(SizeType) { st_ = kExitingArray; return true; }
 
  protected:
-  explicit LookaheadParserHandler(char* str);
-  void ParseNext();
+  inline explicit LookaheadParserHandler(char* str);
+  inline void ParseNext();
 
  protected:
   enum LookaheadParsingState {
@@ -104,28 +110,28 @@ void LookaheadParserHandler::ParseNext() {
   r_.IterativeParseNext<parseFlags>(ss_, *this);
 }
 
-class LookaheadParser : protected LookaheadParserHandler {
+class DLL_PUBLIC LookaheadParser : protected LookaheadParserHandler {
  public:
-  explicit LookaheadParser(char* str) : LookaheadParserHandler(str) {}
+  inline explicit LookaheadParser(char* str) : LookaheadParserHandler(str) {}
 
-  bool EnterObject();
-  bool EnterArray();
-  const char* NextObjectKey();
-  bool NextArrayValue();
-  int GetInt();
-  double GetDouble();
-  const char* GetString();
-  bool GetBool();
-  void GetNull();
+  inline bool EnterObject();
+  inline bool EnterArray();
+  inline const char* NextObjectKey();
+  inline bool NextArrayValue();
+  inline int GetInt();
+  inline double GetDouble();
+  inline const char* GetString();
+  inline bool GetBool();
+  inline void GetNull();
 
-  void SkipObject();
-  void SkipArray();
-  void SkipValue();
-  Value* PeekValue();
+  inline void SkipObject();
+  inline void SkipArray();
+  inline void SkipValue();
+  inline Value* PeekValue();
   // returns a rapidjson::Type, or -1 for no value (at end of object/array)
-  int PeekType();
+  inline int PeekType();
 
-  bool IsValid() { return st_ != kError; }
+  inline bool IsValid() { return st_ != kError; }
 
  protected:
   void SkipOut(int depth);
@@ -232,20 +238,6 @@ const char* LookaheadParser::GetString() {
   const char* result = v_.GetString();
   ParseNext();
   return result;
-}
-
-void LookaheadParser::SkipOut(int depth) {
-  do {
-    if (st_ == kEnteringArray || st_ == kEnteringObject) {
-      ++depth;
-    } else if (st_ == kExitingArray || st_ == kExitingObject) {
-      --depth;
-    } else if (st_ == kError) {
-      return;
-    }
-
-    ParseNext();
-  } while (depth > 0);
 }
 
 void LookaheadParser::SkipValue() {
