@@ -27,7 +27,7 @@ from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
 
 class LookupTablePipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, data_shape, data_layout, num_threads=1,
+    def __init__(self, device, batch_size, iterator, data_shape, data_layout, dtype, num_threads=1,
                  device_id=0, dictionary={}, default_value=0.0):
         super(LookupTablePipeline, self).__init__(batch_size,
                                                   num_threads,
@@ -42,13 +42,13 @@ class LookupTablePipeline(Pipeline):
             keys = [k for k in dictionary.keys()]
             values = [dictionary[k] for k in keys]
             self.lookup = ops.LookupTable(device = self.device,
-                                        dtype = types.FLOAT,
+                                        dtype = dtype,
                                         default_value = default_value,
                                         keys = keys,
                                         values = values)
         else:
             self.lookup = ops.LookupTable(device = self.device,
-                                          dtype = types.FLOAT,
+                                          dtype = dtype,
                                           default_value = default_value)
 
     def define_graph(self):
@@ -62,7 +62,7 @@ class LookupTablePipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.data_layout)
 
 class LookupTablePythonOpPipeline(Pipeline):
-    def __init__(self, function, batch_size, iterator, data_shape, data_layout,
+    def __init__(self, function, batch_size, iterator, data_shape, data_layout, dtype,
                  num_threads=1, device_id=0, dictionary={}, default_value=0.0):
         super(LookupTablePythonOpPipeline, self).__init__(batch_size,
                                                           num_threads,
@@ -81,11 +81,13 @@ class LookupTablePythonOpPipeline(Pipeline):
                             default_value=default_value)
         self.lookup = ops.PythonFunction(function=lookup_table_func)
         self.set_layout = ops.Reshape(layout = data_layout)
+        self.cast = ops.Cast(dtype=dtype)
 
     def define_graph(self):
         self.data = self.inputs()
         out = self.lookup(self.data)
         out = self.set_layout(out)
+        out = self.cast(out)
         return out
 
     def iter_setup(self):
@@ -99,7 +101,7 @@ def lookup_func(image, shape, dictionary, default_value):
     lut = np.array(arr)
     return lut[image]
 
-def check_lookup_table_vs_python_op(device, batch_size, layout, shape, dictionary_type, default_value):
+def check_lookup_table_vs_python_op(device, batch_size, layout, shape, dtype, dictionary_type, default_value):
     eii1 = RandomDataIterator(batch_size, shape=shape)
     eii2 = RandomDataIterator(batch_size, shape=shape)
     if dictionary_type == 'empty':
@@ -111,11 +113,11 @@ def check_lookup_table_vs_python_op(device, batch_size, layout, shape, dictionar
     else:
         assert(False)
     compare_pipelines(LookupTablePipeline(device, batch_size, iter(eii1),
-                                          data_shape=shape, data_layout=layout,
+                                          data_shape=shape, data_layout=layout, dtype=dtype,
                                           dictionary=dictionary,
                                           default_value=default_value),
                       LookupTablePythonOpPipeline(lookup_func, batch_size, iter(eii2),
-                                                  data_shape=shape, data_layout=layout,
+                                                  data_shape=shape, data_layout=layout, dtype=dtype,
                                                   dictionary=dictionary,
                                                   default_value=default_value),
                       batch_size=batch_size, N_iterations=3)
@@ -123,8 +125,10 @@ def check_lookup_table_vs_python_op(device, batch_size, layout, shape, dictionar
 def test_lookup_table_vs_python_op():
     layout = types.NHWC
     for device in {'cpu', 'gpu'}:
-        for batch_size, shape, dictionary_type, default_value in [(1,  (300, 300, 3), 'random', 0.0),
-                                                                  (1,  (300, 300, 3), 'empty',  0.33),
-                                                                  (10, (300, 300, 3), 'random', 0.9),
-                                                                  (3,  (300, 300, 3), 'small',  0.4)]:
-            yield check_lookup_table_vs_python_op, device, batch_size, layout, shape, dictionary_type, default_value
+        for dtype in {types.FLOAT, types.FLOAT16, types.INT64}:
+            for batch_size, shape, dictionary_type, default_value in \
+                [(1,  (300, 300, 3), 'random', 0.0),
+                 (1,  (300, 300, 3), 'empty',  0.33),
+                 (10, (300, 300, 3), 'random', 0.9),
+                 (3,  (300, 300, 3), 'small',  0.4)]:
+                yield check_lookup_table_vs_python_op, device, batch_size, layout, shape, dtype, dictionary_type, default_value

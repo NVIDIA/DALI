@@ -15,6 +15,11 @@
 #ifndef DALI_OPERATORS_GENERIC_LOOKUP_TABLE_H_
 #define DALI_OPERATORS_GENERIC_LOOKUP_TABLE_H_
 
+#define LUT_IN_TYPES (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t)
+#define LUT_OUT_TYPES                                                        \
+  (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, \
+  float16, float, double, bool)
+
 #include <limits>
 #include <memory>
 #include <algorithm>
@@ -63,7 +68,7 @@ class LookupTable : public Operator<Backend> {
     DALI_ENFORCE(keys.size() == values_f.size(),
       "`keys` size should match `values` size");
 
-    TYPE_SWITCH(output_type_, dali::type2id, OutputType, (float, uint8_t, int16_t, int32_t), (
+    TYPE_SWITCH(output_type_, dali::type2id, OutputType, LUT_OUT_TYPES, (
         value_mem_ = {new OutputType[kLookupTableSize], detail::value_mem_deleter<OutputType>};
         OutputType *values = static_cast<OutputType*>(value_mem_.get());
         for (size_t i = 0; i < kLookupTableSize; i++) {
