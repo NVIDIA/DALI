@@ -137,7 +137,7 @@ TYPED_TEST(DataLoadStoreTest, CocoLoaderMmmap) {
     shared_ptr<dali::CocoLoader> reader(
         new CocoLoader(
             coco_spec, widths, heights, offsets, boxes, labels, counts, masks_meta,
-            masks_coords, masks_rles, masks_rles_idx, false, false, original_ids));
+            masks_coords, masks_rles, masks_rles_idx, false, false, false, original_ids));
 
     reader->PrepareMetadata();
     auto sample = reader->ReadOne(false);
