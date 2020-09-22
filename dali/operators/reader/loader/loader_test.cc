@@ -115,12 +115,16 @@ TYPED_TEST(DataLoadStoreTest, TFRecordLoaderMmmap) {
 
 TYPED_TEST(DataLoadStoreTest, CocoLoaderMmmap) {
   for (bool dont_use_mmap : {true, false}) {
+    std::vector<int> heights;
+    std::vector<int> widths;
     std::vector<int> offsets;
     std::vector<float> boxes;
     std::vector<int> labels;
     std::vector<int> counts;
     std::vector<std::vector<int> > masks_meta;
     std::vector<std::vector<float> > masks_coords;
+    std::vector<std::vector<std::string> > masks_rles;
+    std::vector<std::vector<int> > masks_rles_idx;
     std::vector<int> original_ids;
     std::string file_root = testing::dali_extra_path() + "/db/coco/images";
     std::string annotations_file = testing::dali_extra_path() + "/db/coco/instances.json";
@@ -132,8 +136,8 @@ TYPED_TEST(DataLoadStoreTest, CocoLoaderMmmap) {
                       .AddArg("dont_use_mmap", dont_use_mmap);
     shared_ptr<dali::CocoLoader> reader(
         new CocoLoader(
-            coco_spec, offsets, boxes, labels, counts, masks_meta,
-            masks_coords, false, false, original_ids));
+            coco_spec, widths, heights, offsets, boxes, labels, counts, masks_meta,
+            masks_coords, masks_rles, masks_rles_idx, false, false, original_ids));
 
     reader->PrepareMetadata();
     auto sample = reader->ReadOne(false);
