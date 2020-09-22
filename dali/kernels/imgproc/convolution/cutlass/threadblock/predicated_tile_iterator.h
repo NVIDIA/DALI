@@ -606,9 +606,16 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
 
   /**
    * @brief Calculate the element for lookup in window that is stored in reversed order
+   *
+   * This mirroring is channel-aware, we need to calculate what channel the abs_window_element
+   * points to, remove that component, mirror the coordinate and revert to the proper channel,
+   * otherwise we would swap channels while doing so.
    */
   CUTLASS_DEVICE int get_mirrored_element(int abs_window_element) {
-    return window_size_ * Channels() - abs_window_element - 1;
+    int current_channel = abs_window_element % Channels();
+    current_channel = current_channel < 0 ? current_channel + Channels() : current_channel;
+    int non_channel_element = abs_window_element - current_channel;
+    return (window_size_ - 1) * Channels() - non_channel_element + current_channel;
   }
 
   /**
