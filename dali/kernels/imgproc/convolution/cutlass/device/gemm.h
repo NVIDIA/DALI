@@ -379,11 +379,6 @@ class Conv {
     return Status::kSuccess;
   }
 
-  /// Calculate size of device memory needed for passing params to the CUDA kernel
-  static size_t get_params_sizeof(int num_samples) {
-    return num_samples * sizeof(typename ConvKernel::SampleParams);
-  }
-
   /// Prepare convolution layout (in host memory) to use required layout
   template <typename T>
   void prepare_window(dali::span<T, ConvWindowConfiguration::kTotalAlignedSize> dst,
