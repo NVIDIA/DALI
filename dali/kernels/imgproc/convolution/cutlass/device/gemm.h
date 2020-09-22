@@ -366,7 +366,7 @@ class Conv {
       return Status::kErrorInvalidProblem;
     }
     for (const auto &arg : args.sample_arguments) {
-      if ((arg.window_size / 2) * arg.channels > ConvWindowConfiguration::kMaxWindowRadiusSpan) {
+      if (arg.window_size * arg.channels > ConvWindowConfiguration::kMaxWindowSize) {
         return Status::kErrorInvalidProblem;
       }
       Status status = ConvKernel::can_implement(arg.matrix_size, arg.ref_In.non_const_ref(),

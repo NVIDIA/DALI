@@ -72,9 +72,9 @@ struct ConvolutionGpu {
               "Even or non-centered windows are not supported yet, got window with even length: ",
               window_size, " for sample ", i, "."));
 
-      DALI_ENFORCE((window_size[i][0] / 2) * num_channels < kMaxRadiusSpan,
+      DALI_ENFORCE(window_size[i][0] * num_channels < kMaxWindowSize,
                    make_string("Window is too big for sample ", i, ", got: ", window_size[i][0],
-                               ", expected at most: ", (kMaxRadiusSpan / num_channels) * 2, "."));
+                               ", expected at most: ", kMaxWindowSize / num_channels, "."));
     }
     se.add<W>(AllocType::Host, num_samples * kWindowCopyBufferSize);
     se.add<W>(AllocType::GPU, num_samples * kWindowCopyBufferSize);
@@ -106,7 +106,8 @@ struct ConvolutionGpu {
     auto* window_tmp_buffer_gpu = ctx.scratchpad->ToGPU(ctx.gpu.stream, window_tmp_buffer_host);
 
     Arguments args;
-    args.device_params_ptr = ctx.scratchpad->Allocate<typename CutlassConv::SampleParams>(AllocType::GPU, num_samples);
+    args.device_params_ptr =
+        ctx.scratchpad->Allocate<typename CutlassConv::SampleParams>(AllocType::GPU, num_samples);
     if (kIsInnerConv) {
       // Inner (innermost) - repack arguments
       for (int i = 0; i < num_samples; i++) {
@@ -216,7 +217,7 @@ struct ConvolutionGpu {
       CutlassWindowConfig,  /// Size and layout of SMEM for window kernel lookups
       cutlass_W>;           /// Element type for internal accumulation
 
-  static constexpr int kMaxRadiusSpan = CutlassConv::ConvWindowConfiguration::kMaxWindowRadiusSpan;
+  static constexpr int kMaxWindowSize = CutlassConv::ConvWindowConfiguration::kMaxWindowSize;
   static constexpr int kWindowCopyBufferSize =
       CutlassConv::ConvWindowConfiguration::kTotalAlignedSize;
 

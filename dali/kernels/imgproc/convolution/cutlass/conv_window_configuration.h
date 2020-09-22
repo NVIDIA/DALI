@@ -33,35 +33,24 @@ struct ConvWindowConfiguration {
   // For inner convolution we only need a reversed window (decreasing order)
   // For outer convolution we need both the regular window (increasing order) and the reversed
   // window (decreasing order). For details, see the PositionPredicatedTileIterator.
-
   static_assert((!kIsInnerConv && kTotalAlignedSize % 4 == 0) ||
                     (kIsInnerConv && kTotalAlignedSize % 2 == 0),
                 "The total window size needs to be divisible for alignment purposes");
-  // static int const kWindowDecreasingCenter =
-  //     kIsInnerConv ? kTotalAlignedSize / 2 : kTotalAlignedSize / 4;
-  // static int const kWindowIncreasingCenter = kIsInnerConv ? -1 : (kTotalAlignedSize / 4) * 3;
 
-
-  static int const kWindowDecreasingStart = kIsInnerConv ?  kAccessSize : kTotalAlignedSize / 2 + kAccessSize;
+  static int const kWindowDecreasingStart =
+      kIsInnerConv ? kAccessSize : kTotalAlignedSize / 2 + kAccessSize;
   static int const kWindowIncreasingStart = kIsInnerConv ? -1 : kAccessSize;
-
 
   template <typename T>
   using PaddedWindowBuffer = dali::span<T, ConvWindowConfiguration::kTotalAlignedSize>;
-
-  // template <bool mirrored>
-  // CUTLASS_HOST_DEVICE constexpr static int getWindowCenter() {
-  //   return mirrored ? kWindowDecreasingCenter : kWindowIncreasingCenter;
-  // }
 
   template <bool mirrored>
   CUTLASS_HOST_DEVICE constexpr static int getWindowStart() {
     return mirrored ? kWindowDecreasingStart : kWindowIncreasingStart;
   }
 
-  // TODO(klecki): Adjust this
-  static int const kMaxWindowRadiusSpan =
-      kIsInnerConv ? kTotalAlignedSize / 2 - kAccessSize : kTotalAlignedSize / 4 - kAccessSize;
+  static int const kMaxWindowSize =
+      kIsInnerConv ? kTotalAlignedSize - 2 * AccessSize : kTotalAlignedSize / 2 - 2 * kAccessSize;
 
   /**
    * @brief Layouts the window with the padding required by the PositionPredicatedTileIterator
@@ -71,16 +60,18 @@ struct ConvWindowConfiguration {
                              int num_channels = 1) {
     int window_size = src.size();
     memset(dst.data(), 0, sizeof(T) * kTotalAlignedSize);
+    // As the PositionPredicatedTileIterator handles accesses like in case of correllation
+    // and not convolution, we have additional window-flip here
     if (kIsInnerConv) {
       for (int i = 0; i < window_size; i++) {
-        dst[kWindowDecreasingStart + num_channels * i] = src[window_size - i - 1];
+        dst[kWindowDecreasingStart + num_channels * i] = src[i];
       }
     } else {
       for (int i = 0; i < window_size; i++) {
-        dst[kWindowIncreasingStart + i] = src[i];
+        dst[kWindowIncreasingStart + i] = src[window_size - i - 1];
       }
       for (int i = 0; i < window_size; i++) {
-        dst[kWindowDecreasingStart + i] = src[window_size - i - 1];
+        dst[kWindowDecreasingStart + i] = src[i];
       }
     }
   }
