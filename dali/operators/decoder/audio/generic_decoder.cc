@@ -186,6 +186,13 @@ GenericAudioDecoder<SampleType>::GenericAudioDecoder() :
         impl_(std::make_unique<Impl>()) {
 }
 
+template <typename SampleType>
+GenericAudioDecoder<SampleType>::GenericAudioDecoder(GenericAudioDecoder &&decoder) = default;
+
+template <typename SampleType>
+GenericAudioDecoder<SampleType> &GenericAudioDecoder<SampleType>::operator=(
+    GenericAudioDecoder &&decoder) = default;
+
 template<typename SampleType>
 struct GenericAudioDecoder<SampleType>::Impl {
   ptrdiff_t DecodeTyped(span<SampleType> output) {

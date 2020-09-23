@@ -36,6 +36,9 @@ class DLL_PUBLIC GenericAudioDecoder : public TypedAudioDecoderBase<SampleType> 
  public:
   DLL_PUBLIC GenericAudioDecoder();
 
+  DLL_PUBLIC GenericAudioDecoder(GenericAudioDecoder&&);
+  DLL_PUBLIC GenericAudioDecoder& operator=(GenericAudioDecoder&&);
+
   DLL_PUBLIC ptrdiff_t DecodeTyped(span<SampleType> output) override;
 
   DLL_PUBLIC ~GenericAudioDecoder() override;
