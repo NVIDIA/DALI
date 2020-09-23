@@ -101,6 +101,7 @@ DEPS_LIST=(
     "/usr/local/lib/libvorbisenc.so.2"
     "/usr/local/lib/libopenjp2.so.7"
     "/usr/local/lib/libzstd.so.1"
+    "/usr/local/lib/libz.so.1"
 )
 
 DEPS_SONAME=(
@@ -117,6 +118,7 @@ DEPS_SONAME=(
     "libvorbisenc.so.2"
     "libopenjp2.so.7"
     "libzstd.so.1"
+    "libz.so.1"
 )
 
 TMPDIR=$(mktemp -d)

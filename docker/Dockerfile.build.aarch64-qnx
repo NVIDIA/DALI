@@ -43,6 +43,20 @@ RUN dpkg -i $REPO_DEBS && \
    && rm -rf /var/lib/apt/lists/* \
    && rm -rf /tmp/cuda-packages.txt
 
+#zlib
+RUN LIBZ_VERSION=1.2.11 && \
+    cd /tmp && \
+    curl -L https://github.com/madler/zlib/archive/v${LIBZ_VERSION}.tar.gz | tar -xzf - && \
+    cd zlib-${LIBZ_VERSION} && \
+    CFLAGS="-fPIC" \
+    CXXFLAGS="-fPIC" \
+    CC=aarch64-unknown-nto-qnx7.0.0-gcc \
+    CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
+    ./configure -prefix=/usr/aarch64-unknown-nto-qnx/aarch64le && \
+    make install -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    cd && \
+    rm -rf /tmp/zlib-${LIBZ_VERSION}
+
 # CMake
 RUN CMAKE_VERSION=3.13 && \
     CMAKE_BUILD=3.13.5 && \
@@ -115,6 +129,8 @@ RUN LIBTIFF_VERSION=4.1.0 && \
       --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
       --with-zstd-include-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/include \
       --with-zstd-lib-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/lib && \
+      --with-zlib-include-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/include \
+      --with-zlib-lib-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/lib && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     make install && \
     cd && \
