@@ -58,16 +58,15 @@ void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecode
   const int64_t out_channels = should_downmix ? 1 : meta.channels;
   constexpr bool is_float_decoder = std::is_same<DecoderOutputType, float>::value;
   if (should_resample) {
-    // If not downmixing, we expect the decoder output type to be float so that it can be
-    // directly fed into the resampling kernel
-    DALI_ENFORCE(should_downmix || is_float_decoder,
-      "Audio should be decoded in float when resampling is required and downmixing is not");
-
-    if (should_downmix) {  // need extra buffer for the input of resampling
-      int64_t req_resample_scratch = meta.length * out_channels;
-      DALI_ENFORCE(resample_scratch_mem.size() >= req_resample_scratch,
-                  make_string("Resample scratch memory provided is not big enough. Got: ",
-                              resample_scratch_mem.size(), ", need: ", req_resample_scratch));
+    if (should_downmix) {
+      // When downmixing, we need an extra buffer for the input of resampling
+      assert(resample_scratch_mem.size() >= meta.length * out_channels &&
+        "Resample scratch memory provided is not big enough");
+    } else {
+      // If not downmixing, we expect the decoder output type to be float so that it can be
+      // directly fed into the resampling kernel
+      assert(is_float_decoder &&
+        "Audio should be decoded in float when resampling is required and downmixing is not");
     }
   }
 
@@ -103,8 +102,8 @@ void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecode
 
 #define DECLARE_IMPL(OutType, DecoderOutputType)                                                  \
   template void DecodeAudio<OutType, DecoderOutputType>(                                          \
-      TensorView<StorageCPU, OutType, DynamicDimensions> audio, AudioDecoderBase & decoder, \
-      const AudioMetadata &meta, kernels::signal::resampling::Resampler &resampler,         \
+      TensorView<StorageCPU, OutType, DynamicDimensions> audio, AudioDecoderBase & decoder,       \
+      const AudioMetadata &meta, kernels::signal::resampling::Resampler &resampler,               \
       span<DecoderOutputType> decode_scratch_mem, span<float> resample_scratch_mem,               \
       float target_sample_rate, bool downmix, const char *audio_filepath)
 
