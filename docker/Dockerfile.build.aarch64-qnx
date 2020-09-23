@@ -48,10 +48,10 @@ RUN LIBZ_VERSION=1.2.11 && \
     cd /tmp && \
     curl -L https://github.com/madler/zlib/archive/v${LIBZ_VERSION}.tar.gz | tar -xzf - && \
     cd zlib-${LIBZ_VERSION} && \
-    CFLAGS="-fPIC" \
-    CXXFLAGS="-fPIC" \
-    CC=aarch64-unknown-nto-qnx7.0.0-gcc \
-    CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
+      CFLAGS="-fPIC" \
+      CXXFLAGS="-fPIC" \
+      CC=aarch64-unknown-nto-qnx7.0.0-gcc \
+      CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
     ./configure -prefix=/usr/aarch64-unknown-nto-qnx/aarch64le && \
     make install -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     cd && \
@@ -109,9 +109,9 @@ RUN JPEG_TURBO_VERSION=2.0.5 && \
 RUN ZSTANDARD_VERSION=1.4.5 && \
     curl -L https://github.com/facebook/zstd/releases/download/v${ZSTANDARD_VERSION}/zstd-${ZSTANDARD_VERSION}.tar.gz | tar -xzf - && \
     cd zstd-${ZSTANDARD_VERSION} && \
-    CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
-     prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
-     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
+      CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
+      prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /zstd-${ZSTANDARD_VERSION}
 
 # libtiff
@@ -128,9 +128,9 @@ RUN LIBTIFF_VERSION=4.1.0 && \
       --host=aarch64-unknown-nto-qnx7.0.0 \
       --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
       --with-zstd-include-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/include \
-      --with-zstd-lib-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/lib && \
+      --with-zstd-lib-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/lib         \
       --with-zlib-include-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/include \
-      --with-zlib-lib-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/lib && \
+      --with-zlib-lib-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/lib      && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     make install && \
     cd && \

@@ -8,7 +8,7 @@ FROM ${CUDA_IMAGE} as cuda
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
-RUN yum install -y wget nasm doxygen graphviz zlib-devel gettext xz openssl
+RUN yum install -y wget nasm doxygen graphviz gettext xz openssl
 
 # add devtoolset-7 to paths
 ENV PATH=/opt/rh/devtoolset-7/root/usr/bin:$PATH \
@@ -26,11 +26,9 @@ RUN LIBZ_VERSION=1.2.11 && \
     cd /tmp && \
     curl -L https://github.com/madler/zlib/archive/v${LIBZ_VERSION}.tar.gz | tar -xzf - && \
     cd zlib-${LIBZ_VERSION} && \
-    CFLAGS="-fPIC" \
-    CXXFLAGS="-fPIC" \
-    CC=aarch64-linux-gnu-gcc \
-    CXX=aarch64-linux-gnu-g++ \
-    ./configure -prefix=/usr/aarch64-linux-gnu/ && \
+      CFLAGS="-fPIC" \
+      CXXFLAGS="-fPIC" \
+    ./configure --prefix=/usr/local && \
     make install -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     cd && \
     rm -rf /tmp/zlib-${LIBZ_VERSION}
@@ -75,6 +73,7 @@ RUN JPEG_TURBO_VERSION=2.0.5 && \
 RUN ZSTANDARD_VERSION=1.4.5 && \
     curl -L https://github.com/facebook/zstd/releases/download/v${ZSTANDARD_VERSION}/zstd-${ZSTANDARD_VERSION}.tar.gz | tar -xzf - && \
     cd zstd-${ZSTANDARD_VERSION} && \
+      CFLAGS="-fPIC" CXXFLAGS="-fPIC" \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /zstd-${ZSTANDARD_VERSION}
 
