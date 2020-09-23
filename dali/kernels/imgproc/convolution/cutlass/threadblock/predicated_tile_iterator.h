@@ -741,16 +741,7 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
   CUTLASS_DEVICE
   int Channels() {
     if (kIsInnerConv) {
-      switch (channels_) {
-        case 1:
-          return 1;
-        case 3:
-          return 3;
-        case 4:
-          return 4;
-        default:
-          return channels_;
-      }
+      return channels_;
     }
     return 1;
   }
