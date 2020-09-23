@@ -45,6 +45,8 @@ class CoordTransform : public Operator<Backend>, private MTTransformAttr {
     output_descs.resize(1);                          // only one output
     output_descs[0].type = TypeTable::GetTypeInfo(dtype_);
 
+    CheckType(input.type().id());
+
     PrepareTransformArguments(ws, input_shape);      // this is where the magic happens
     // Now we know the matrix size and therefore number of output vector components.
     // This allows us to set the output shape.
@@ -58,8 +60,20 @@ class CoordTransform : public Operator<Backend>, private MTTransformAttr {
     return true;
   }
 
+  void CheckType(DALIDataType input_type) {
+    DALI_ENFORCE(dtype_ == input_type || dtype_ == DALI_FLOAT,
+      make_string("CoordTransform output type must be the same as input type, which is ",
+                  input_type, ", or `float`. Got: ", dtype_));
+  }
+
   void RunImpl(workspace_t<Backend> &ws) override {
     auto &in = ws.template InputRef<Backend>(0);
+    auto &out = ws.template OutputRef<Backend>(0);
+    out.SetLayout(in.GetLayout());
+
+    if (out.shape().num_elements() == 0)
+      return;
+
     DALIDataType in_type = in.type().id();
     VALUE_SWITCH(output_pt_dim_, static_out_dim, COORD_TRANSFORM_DIMS, (
         VALUE_SWITCH(input_pt_dim_, static_in_dim, COORD_TRANSFORM_DIMS, (
@@ -67,8 +81,7 @@ class CoordTransform : public Operator<Backend>, private MTTransformAttr {
                 if (dtype_ == in_type) {
                   RunTyped<InputType, InputType, static_out_dim, static_in_dim>(ws);
                 } else {
-                  DALI_ENFORCE(dtype_ == DALI_FLOAT, make_string("CoordTransform output type "
-                    "must be the same as input type or `float`. Got: ", dtype_));
+                  CheckType(in_type);
                   RunTyped<float, InputType, static_out_dim, static_in_dim>(ws);
                 }
               ), (  // NOLINT

@@ -278,6 +278,16 @@ TEST(MTTransformAttr, MVectorTVector_ErrorVectorSize) {
   EXPECT_THROW(attr.ProcessTransformArgs(spec, ws, N), DALIException);
 }
 
+TEST(MTTransformAttr, MVector_ErrorEmpty) {
+  OpSpec spec("MTTransformAttr");
+  ArgumentWorkspace ws;
+  spec.AddArg("M", vector<float>{});
+  MTTransformAttr attr(spec);
+  attr.SetTransformDims(3);
+  int N = 10;
+  EXPECT_THROW(attr.ProcessTransformArgs(spec, ws, N), DALIException);
+}
+
 TEST(MTTransformAttr, MVectorTScalar_ErrorNotDivisible) {
   OpSpec spec("MTTransformAttr");
   ArgumentWorkspace ws;
@@ -344,5 +354,21 @@ TEST(MTTransformAttr, MTInput_ErrorSize) {
   EXPECT_THROW(attr.ProcessTransformArgs(spec, ws, N), DALIException);
 }
 
+TEST(MTTransformAttr, MInput_ZeroRows) {
+  OpSpec spec("MTTransformAttr");
+  ArgumentWorkspace ws;
+  auto MTinp = std::make_shared<TensorVector<CPUBackend>>();
+  MTinp->set_pinned(false);
+  TensorListShape<> tls = {{{ 0, 3 }, { 0, 3 }}};
+  int N = tls.num_samples();;
+  MTinp->Resize(tls, TypeTable::GetTypeInfo(DALI_FLOAT));
+
+
+  ws.AddArgumentInput("MT", MTinp);
+  spec.AddArgumentInput("MT", "MT");
+  MTTransformAttr attr(spec);
+  attr.SetTransformDims(3);
+  EXPECT_THROW(attr.ProcessTransformArgs(spec, ws, N), DALIException);
+}
 
 }  // namespace dali

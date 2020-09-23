@@ -34,7 +34,7 @@ def make_data_batch(batch_size, in_dim, type):
         hi = min(info.max / 2, 1000000)
 
     for i in range(batch_size):
-        batch.append((np.random.rand(np.random.randint(1, 10000), in_dim)*(hi-lo) + lo).astype(type))
+        batch.append((np.random.rand(np.random.randint(0, 10000), in_dim)*(hi-lo) + lo).astype(type))
     return batch
 
 def get_data_source(batch_size, in_dim, type):
@@ -43,7 +43,7 @@ def get_data_source(batch_size, in_dim, type):
 def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, T_kind):
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
-        X = fn.external_source(source=get_data_source(batch_size, in_dim, in_dtype), device=device)
+        X = fn.external_source(source=get_data_source(batch_size, in_dim, in_dtype), device=device, layout = "NX")
         M = None
         T = None
         MT = None
@@ -100,13 +100,13 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
                 Y = Y.clip(info.min, info.max)
 
             ref.append(Y)
-            scale = max(scale, np.max(np.abs(Y)) - np.min(np.abs(Y)))
+            scale = max(scale, np.max(np.abs(Y)) - np.min(np.abs(Y))) if Y.size > 0 else 1
         avg = 1e-6 * scale
         eps = 1e-6 * scale
         if out_dtype != np.float32:  # headroom for rounding
             avg += 0.33
             eps += 0.5
-        check_batch(outputs[1], ref, batch_size, eps, eps, compare_layouts=False)
+        check_batch(outputs[1], ref, batch_size, eps, eps, expected_layout="NX", compare_layouts=True)
 
 
 def test_all():
@@ -136,3 +136,23 @@ def test_all():
                 for out_dim in out_dims:
                     yield _run_test, device, 2, out_dim, in_dim, np.float32, np.float32, MT_kind, "fused"
 
+
+def _test_empty_input(device):
+    pipe = dali.pipeline.Pipeline(batch_size=2, num_threads=4, device_id=0, seed=1234)
+    with pipe:
+        X = fn.external_source(source=[[np.zeros([0,3]), np.zeros([0, 3])]], device="cpu", layout="AB")
+        Y = fn.coord_transform(X,
+                               M = (1,2,3,4,5,6),
+                               T = (1,2)
+                               )
+        pipe.set_outputs(Y)
+    pipe.build()
+    o = pipe.run()
+    assert o[0].layout() == "AB"
+    assert len(o[0]) == 2
+    for i in range(len(o[0])):
+        assert o[0].at(0).size == 0
+
+def test_empty_input():
+    for device in ["cpu", "gpu"]:
+        yield _test_empty_input, device

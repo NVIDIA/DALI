@@ -23,7 +23,6 @@ template <typename OutputType, typename InputType, int out_dim, int in_dim>
 void CoordTransform<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   auto &in = ws.InputRef<GPUBackend>(0);
   auto &out = ws.OutputRef<GPUBackend>(0);
-  out.SetLayout(in.GetLayout());
   auto in_view = view<const InputType>(in);
   auto out_view = view<OutputType>(out);
 

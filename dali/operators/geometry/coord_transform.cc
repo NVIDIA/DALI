@@ -50,7 +50,6 @@ template <typename OutputType, typename InputType, int out_dim, int in_dim>
 void CoordTransform<CPUBackend>::RunTyped(HostWorkspace &ws) {
   auto &in = ws.InputRef<CPUBackend>(0);
   auto &out = ws.OutputRef<CPUBackend>(0);
-  out.SetLayout(in.GetLayout());
   auto in_view = view<const InputType>(in);
   auto out_view = view<OutputType>(out);
   auto &tp = ws.GetThreadPool();

@@ -29,7 +29,7 @@ M and translation T or one fused argument MT.)")
 If left unspecified, identity matrix is used.
 
 The matrix ``M`` does not need to be square - if it's not, the output vectors will have a
-different number of components.
+number of components equal to the number of rows in ``M``.
 
 If a scalar value is provided, ``M`` is assumed to be a square matrix with that value on the
 diagonal. The size of the matrix is then assumed to match the number of components in the
@@ -67,11 +67,13 @@ void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspa
     if (mtx_.size() == 1) {
       SetOutputPtDim(input_pt_dim_);
       mtx_.resize(output_pt_dim_ * input_pt_dim_);
-      FillDiag(mtx_, mtx_[0]);
+      MakeDiagonalMatrix(mtx_, mtx_[0]);
       if (is_fused) {
         translation_.resize(output_pt_dim_, 0);
       }
     } else {
+      DALI_ENFORCE(mtx_.size() > 0, make_string("The matrix argument ``", name,
+        "`` must not be an empty list."));
       DALI_ENFORCE(mtx_.size() % cols == 0, make_string("Cannot form a matrix with ",
         mtx_.size(), " elements and ", cols, "columns"));
       SetOutputPtDim(mtx_.size() / cols);
@@ -84,7 +86,7 @@ void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspa
   } else if (HasMatrixInputArg()) {
     const auto &M_inp = ws.ArgumentInput(name);
     auto M = view<const float>(M_inp);
-    DALI_ENFORCE(is_uniform(M.shape), "Matrices for all samples int the batch must have "
+    DALI_ENFORCE(is_uniform(M.shape), "Matrices for all samples in the batch must have "
       "the same shape.");
     DALI_ENFORCE(M.shape.sample_dim() == 0 || M.shape.sample_dim() == 2, make_string(
       "The parameter M must be a list of 2D matrices of same size or a list of scalars. Got: ",
@@ -94,13 +96,15 @@ void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspa
       int mat_size = output_pt_dim_ * cols;
       per_sample_mtx_.resize(mat_size * N);
       for (int i = 0; i < N; i++) {
-        FillDiag(make_span(&per_sample_mtx_[i * mat_size], mat_size), M.data[i][0]);
+        MakeDiagonalMatrix(make_span(&per_sample_mtx_[i * mat_size], mat_size), M.data[i][0]);
       }
       if (is_fused) {
         translation_.resize(output_pt_dim_, 0);
         Repeat(per_sample_translation_, translation_, N);
       }
     } else {
+      DALI_ENFORCE(M.shape[0][0] > 0, make_string("The matrix arugment ``", name,
+        "`` with 0 rows is illegal."));
       DALI_ENFORCE(M.shape[0][1] == cols, make_string("The shape of the argument ``", name,
           "`` does not match the input shape. Got ", M.shape[0], " matrices and the input "
           "requires matrices with ", cols, " columns"));
@@ -122,7 +126,7 @@ void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspa
     SetOutputPtDim(input_pt_dim_);
     if (static_cast<int>(mtx_.size()) != output_pt_dim_ * input_pt_dim_) {
       mtx_.resize(output_pt_dim_ * input_pt_dim_, 0);
-      FillDiag(mtx_, 1);
+      MakeDiagonalMatrix(mtx_, 1);
       Repeat(per_sample_mtx_, mtx_, N);
       if (is_fused) {
         translation_.resize(output_pt_dim_, 0);

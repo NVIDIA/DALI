@@ -105,7 +105,7 @@ class DLL_PUBLIC MTTransformAttr {
 
   /** @brief Fill the diagonal with a scalar value, put zeros elsewhere */
   template <typename Container>
-  void FillDiag(Container &&mtx, float value) {
+  void MakeDiagonalMatrix(Container &&mtx, float value) {
     assert(static_cast<int>(size(mtx)) == input_pt_dim_ * output_pt_dim_);
     for (int i = 0, k = 0; i < output_pt_dim_; i++)
       for (int j = 0; j < input_pt_dim_; j++, k++)
