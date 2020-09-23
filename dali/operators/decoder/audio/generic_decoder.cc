@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
 #include "dali/operators/decoder/audio/generic_decoder.h"
 
 namespace dali {
@@ -139,6 +140,18 @@ sf_count_t Tell(void *self) {
   return static_cast<MemoryStream *>(self)->Tell();
 }
 
+/**
+ * @brief Produce audio metadata instace from SF_INFO
+ */
+AudioMetadata GetAudioMetadata(SF_INFO &sf_info) {
+  AudioMetadata ret;
+  ret.length = sf_info.frames;
+  ret.channels = sf_info.channels;
+  ret.sample_rate = sf_info.samplerate;
+  ret.channels_interleaved = true;
+  return ret;
+}
+
 }  // namespace
 
 
@@ -153,6 +166,10 @@ AudioMetadata GenericAudioDecoder<SampleType>::OpenImpl(span<const char> encoded
   return impl_->OpenImpl(encoded);
 }
 
+template<typename SampleType>
+AudioMetadata GenericAudioDecoder<SampleType>::OpenFromFileImpl(const std::string &filepath) {
+  return impl_->OpenFromFileImpl(filepath);
+}
 
 template<typename SampleType>
 void GenericAudioDecoder<SampleType>::CloseImpl() {
@@ -169,7 +186,6 @@ GenericAudioDecoder<SampleType>::GenericAudioDecoder() :
         impl_(std::make_unique<Impl>()) {
 }
 
-
 template<typename SampleType>
 struct GenericAudioDecoder<SampleType>::Impl {
   ptrdiff_t DecodeTyped(span<SampleType> output) {
@@ -182,9 +198,7 @@ struct GenericAudioDecoder<SampleType>::Impl {
 
   AudioMetadata OpenImpl(span<const char> encoded) {
     assert(!encoded.empty());
-    AudioMetadata ret;
     sf_info_ = {};
-    sf_info_.format = 0;
     mem_stream_ = {encoded.data(), static_cast<int>(encoded.size())};
     SF_VIRTUAL_IO sf_virtual_io = {
             &GetFileLen,
@@ -197,14 +211,19 @@ struct GenericAudioDecoder<SampleType>::Impl {
     if (!sound_) {
       throw DALIException(make_string("Failed to open encoded data: ", sf_strerror(sound_)));
     }
-
-    ret.length = sf_info_.frames;
-    ret.channels = sf_info_.channels;
-    ret.sample_rate = sf_info_.samplerate;
-    ret.channels_interleaved = true;
-    return ret;
+    return GetAudioMetadata(sf_info_);
   }
 
+  AudioMetadata OpenFromFileImpl(const std::string &filepath) {
+    DALI_ENFORCE(!filepath.empty(), "filepath is empty");
+    sf_info_ = {};
+    sound_ = sf_open(filepath.c_str(), SFM_READ, &sf_info_);
+    if (!sound_) {
+      throw DALIException(make_string("Failed to open encoded data: ", sf_strerror(sound_),
+                                      ", filepath: ", filepath));
+    }
+    return GetAudioMetadata(sf_info_);
+  }
 
   void CloseImpl() {
     if (sound_) {

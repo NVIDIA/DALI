@@ -51,7 +51,6 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
     }
   }
 
-
   inline ~AudioDecoderCpu() override = default;
 
  protected:
@@ -89,7 +88,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   const float quality_ = 50.0f;
   std::vector<std::string> files_names_;
   std::vector<AudioMetadata> sample_meta_;
-  std::vector<std::vector<float>> intermediate_buffers_;
+  std::vector<std::vector<uint8_t>> scratch_;
   std::vector<std::unique_ptr<AudioDecoderBase>> decoders_;
 };
 
