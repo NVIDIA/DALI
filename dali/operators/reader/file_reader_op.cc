@@ -21,25 +21,28 @@ namespace dali {
 DALI_REGISTER_OPERATOR(FileReader, FileReader, CPU);
 
 DALI_SCHEMA(FileReader)
-  .DocStr("Read (Image, label) pairs from a directory")
+  .DocStr("Reads (file, label) pairs from a directory.")
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
   .AddArg("file_root",
-      R"code(Path to a directory containing data files.
-``FileReader`` supports flat directory structure. ``file_root`` directory should contain
-directories with images in them. To obtain labels ``FileReader`` sorts directories in
-``file_root`` in alphabetical order and takes an index in this order as a class label.)code",
+      R"code(Path to a directory that contains the data files.
+
+``FileReader`` supports a flat directory structure. The ``file_root`` directory must contain
+directories with data files. To obtain the labels, ``FileReader`` sorts directories in ``file_root``
+in alphabetical order and takes an index in this order as a class label.)code",
       DALI_STRING)
   .AddOptionalArg("file_list",
-      R"code(Path to a text file containing rows of ``filename label`` pairs, where the filenames are
-relative to ``file_root``.
-If left empty, ``file_root`` is traversed for subdirectories (only those at one level deep from 
-``file_root``) containing files associated with the same label. When traversing subdirectories, 
-labels are assigned consecutive numbers.)code",
+      R"code(Path to a text file that contains the rows of ``filename label`` pairs,
+where the filenames are relative to ``file_root``.
+
+If left empty, ``file_root`` is traversed for subdirectories, which are only at one level
+down from ``file_root``, and contain files that are associated with the same label.
+When traversing subdirectories, the labels are assigned consecutive numbers.)code",
       std::string())
 .AddOptionalArg("shuffle_after_epoch",
-      R"code(If true, reader shuffles whole dataset after each epoch. It is exclusive with
-``stick_to_shard`` and ``random_shuffle``.)code",
+      R"code(If set to True, the reader shuffles the entire dataset after each epoch.
+
+``stick_to_shard`` and ``random_shuffle`` cannot be used when this argument is set to True.)code",
       false)
   .AddParent("LoaderBase");
 

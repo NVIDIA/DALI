@@ -17,28 +17,29 @@
 namespace dali {
 
 DALI_SCHEMA(Paste)
-  .DocStr(R"code(Paste the input image on a larger canvas.
-The canvas size is equal to `input size * ratio`.)code")
+  .DocStr(R"code(Pastes the input images on a larger canvas, where the canvas size is equal to
+``input size * ratio``.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddArg("ratio",
-      R"code(Ratio of canvas size to input size, must be > 1.)code",
+      R"code(Ratio of canvas size to input size. Must be >= 1.)code",
       DALI_FLOAT, true)
   .AddOptionalArg("n_channels",
-      R"code(Number of channels in the image.)code",
-      3)
+      R"code(Number of channels in the image.)code", 3)
   .AddArg("fill_value",
-      R"code(Tuple of values of the color to fill the canvas.
-Length of the tuple needs to be equal to `n_channels`.)code",
+      R"code(Tuple of the values of the color that is used to fill the canvas.
+
+The length of the tuple must be equal to ``n_channels``.)code",
       DALI_INT_VEC)
   .AddOptionalArg("paste_x",
-      R"code(Horizontal position of the paste in image coordinates (0.0 - 1.0))code",
+      R"code(Horizontal position of the paste in (0.0 - 1.0) image coordinates.)code",
       0.5f, true)
   .AddOptionalArg("paste_y",
-      R"code(Vertical position of the paste in image coordinates (0.0 - 1.0))code",
+      R"code(Vertical position of the paste in (0.0 - 1.0) image coordinates.)code",
       0.5f, true)
   .AddOptionalArg("min_canvas_size",
-      R"code(Enforce minimum paste canvas dimension after scaling input size by ratio.)code",
+      R"code(Enforces the minimum paste canvas dimension after scaling the input size
+by the ratio.)code",
       0.0f, true)
   .InputLayout("HWC");
 

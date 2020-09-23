@@ -21,15 +21,20 @@ namespace dali {
 DALI_SCHEMA(OutOfBoundsAttr)
     .DocStr(R"code(Out-of-bounds slicing attributes placeholder)code")
     .AddOptionalArg("out_of_bounds_policy",
-        R"code(Determines the policy when slicing out of bounds of the input.
-Supported values are:
+        R"code(Determines the policy when slicing the out of bounds area of the input.
 
-- "error" (default) : Attempting to slice outside of the bounds of the image will produce an error.
-- "pad": The input will be padded as needed with zeros or any other value specified with ``fill_values`` argument.
-- "trim_to_shape": The slice window will be cut to the bounds of the input.))code", "error")
+Here is a list of the supported values:
+
+- ``"error"`` (default): Attempting to slice outside of the bounds of the image will produce an error.
+- ``"pad"``: The input will be padded as needed with zeros or any other value that is specified
+  with the ``fill_values`` argument.
+- ``"trim_to_shape"``: The slice window will be cut to the bounds of the input.)code", "error")
     .AddOptionalArg("fill_values",
-        R"code(Determines padding values, only relevant if ``out_of_bounds_policy`` is set to "pad".
-If a scalar is provided, it will be used for all the channels. If multiple values are given, there should be as many values as
-channels (extent of dimension 'C' in the layout) in the output slice.)code", std::vector<float>{0.f});
+        R"code(Determines padding values and is only relevant if ``out_of_bounds_policy``
+is set to “pad”.
+
+If a scalar value is provided, it will be used for all the channels. If multiple values are
+provided, the number of values and channels must be identical (extent of dimension ``C``
+in the layout) in the output slice.)code", std::vector<float>{0.f});
 
 }  // namespace dali

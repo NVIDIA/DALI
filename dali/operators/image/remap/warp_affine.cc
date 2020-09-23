@@ -17,22 +17,20 @@
 namespace dali {
 
 DALI_SCHEMA(WarpAffine)
-  .DocStr(R"code(Apply an affine transformation to the image.)code")
+  .DocStr(R"code(Applies an affine transformation to the images.)code")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputLayout(0, { "HWC", "DHWC" })
   .SupportVolumetric()
   .AddOptionalArg<float>("matrix",
       R"code(Transform matrix (dst -> src).
-Given list of values `(M11, M12, M13, M21, M22, M23)`
-this operation will produce a new image using the following formula
 
-..
+With a list of values ``(M11, M12, M13, M21, M22, M23)``, this operation produces a new image
+by using the following formula::
 
-dst(x,y) = src(M11 * x + M12 * y + M13, M21 * x + M22 * y + M23)
+  dst(x,y) = src(M11 * x + M12 * y + M13, M21 * x + M22 * y + M23)
 
-It is equivalent to OpenCV's `warpAffine` operation
-with a flag `WARP_INVERSE_MAP` set.)code",
+It is equivalent to OpenCV's ``warpAffine`` operation with the ``WARP_INVERSE_MAP`` flag set.)code",
       vector<float>(), true)
   .AddParent("WarpAttr");
 

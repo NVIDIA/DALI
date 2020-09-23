@@ -25,33 +25,39 @@ using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;
 
 
 DALI_SCHEMA(BrightnessContrast)
-    .DocStr(R"code(Adjust the brightness and contrast of the image according to the formula::
+    .DocStr(R"code(Adjusts the brightness and contrast of the images based on the following
+formula::
 
   out = brightness_shift * output_range + brightness * (grey + contrast * (in - grey))
 
-where output_range is 1 for float outputs or the maximum positive value for integral types;
-grey denotes the value of 0.5 for float, 128 for `uint8`, 16384 for `int16`, etc.
+Where:
 
-Additionally, this operator can change the type of data.)code")
+-	The output_range is 1 for float outputs or the maximum positive value for integral types.
+-	Grey denotes the value of 0.5 for ``float``, 128 for ``uint8``, and 16384 for ``int16``, and so on.
+
+This operator can also change the type of data.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("brightness",
-                    "Brightness mutliplier; 1.0 is neutral.",
+                    "Brightness mutliplier.",
                     1.0f, true)
-    .AddOptionalArg("brightness_shift",
-                    "Brightness shift; 0 is neutral; for signed types, 1.0 means maximum positive "
-                    "value that can be represented by the type.",
+    .AddOptionalArg("brightness_shift", R"code(The brightness shift.
+
+For signed types, 1.0 represents the maximum positive value that can be represented by
+the type.)code",
                     0.0f, true)
-    .AddOptionalArg("contrast",
-                    "Set the contrast multiplier; 1.0 is neutral, 0.0 produces uniform grey.",
+    .AddOptionalArg("contrast", R"code(The contrast multiplier, where 0.0 produces
+the uniform grey.)code",
                     1.0f, true)
-    .AddOptionalArg("contrast_center",
-                    "Sets the instensity level that is unaffected by contrast - this is the value "
-                    "which all pixels assume when contrast is zero. When not set, the half of the "
-                    "input types's positive range (or 0.5 for float) is used.",
+    .AddOptionalArg("contrast_center", R"code(The intensity level that is unaffected by contrast.
+
+This is the value that all pixels assume when the contrast is zero. When not set,
+the half of the input type's positive range (or 0.5 for ``float``) is used.)code",
                     0.5f, false)
     .AddOptionalArg("dtype",
-                    "Output data type; if not set, the input type is used.", DALI_NO_TYPE);
+                    R"code(Output data type.
+
+If not set, the input type is used.)code", DALI_NO_TYPE);
 
 DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrastCpu, CPU)
 

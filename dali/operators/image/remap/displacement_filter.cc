@@ -20,16 +20,17 @@ namespace dali {
 DALI_SCHEMA(DisplacementFilter)
   .DocStr("Base schema for displacement operators.")
   .AddOptionalArg("mask",
-      R"code(Whether to apply this augmentation to the input image.
+      R"code(Determines whether to apply this augmentation to the input image.
 
-* 0 - do not apply this transformation
-* 1 - apply this transformation
-)code", 1, true)
+Here are the values:
+
+* 0: Do not apply this transformation.
+* 1: Apply this transformation.)code", 1, true)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
       DALI_INTERP_NN)
   .AddOptionalArg("fill_value",
-      R"code(Color value used for padding pixels.)code",
+      R"code(Color value that is used for padding.)code",
       0.f);
 
 }  // namespace dali

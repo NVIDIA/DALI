@@ -22,36 +22,44 @@ DALI_SCHEMA(PythonFunctionBase)
         .AddArg("function",
                 R"code(Function object.)code",
                 DALI_PYTHON_OBJECT)
-        .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
+        .AddOptionalArg("num_outputs", R"code(Number of outputs.)code", 1)
         .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)
-        .DocStr("Executes a python function. \n"
-                "The operator can be used to execute custom python code within the DALI pipeline. "
-                "The called function will get tensors' data as NumPy arrays for CPU operators"
-                " or as CuPy arrays for GPU operators and should return results in the same format"
-                " (for more universal data format see `DLTensorPythonFunction`). "
-                "The function should not modify input tensors. \n\n"
-                "For now, this operator can be used only in pipelines with "
-                "`exec_async=False` and `exec_pipelined=False` specified. Due to "
-                "inferior performance, it is intended for prototyping and debugging.")
+        .DocStr(R"code(Executes a Python function.
+
+This operator can be used to execute custom Python code in the DALI pipeline.
+The function receives the data from DALI as NumPy arrays in case of CPU operators or
+as CuPy arrays for GPU operators. It is expected to return the results in the same format. For
+a more universal data format, see :meth:`nvidia.dali.ops.DLTensorPythonFunction`.
+The function should not modify input tensors.
+
+.. warning::
+  Currently, this operator can be used only in pipelines with the
+  ``exec_async=False`` and ``exec_pipelined=False`` values specified and should only be
+  used for prototyping and debugging.)code")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()
         .NoPrune()
         .AddParent("PythonFunctionBase")
-        .AddOptionalArg("batch_processing",
-                        "Whether the function should get the whole batch as input.", false);
+        .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked
+once per batch or separately for every sample in the batch.
+
+If set to True, the function will receive its arguments as lists of NumPy or CuPy arrays,
+for CPU and GPU backend, respectively.)code", false);
 
 DALI_SCHEMA(TorchPythonFunction)
-        .DocStr("Executes a function operating on Torch tensors. "
-                "Analogous to PythonFunction but tensors' data is handled as PyTorch tensors.")
+        .DocStr(R"code(Executes a function that is operating on Torch tensors.
+
+This class is analogous to :meth:`nvidia.dali.ops.PythonFunction` but the tensor data is handled
+as PyTorch tensors.)code")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()
         .NoPrune()
         .AddParent("PythonFunctionBase")
-        .AddOptionalArg("batch_processing",
-                        "Whether the function should get the whole batch as input.", false);
+        .AddOptionalArg("batch_processing", R"code(Determines whether the function gets
+an entire batch as an input.)code", false);
 
 }  // namespace dali

@@ -36,7 +36,7 @@ void BoxEncoder<CPUBackend>::CalculateIousForBox(float *ious, const BoundingBox 
   }
 
   // For best default box matched with current object let iou = 2, to make sure there is a match,
-  // as this object will be the best (highest IOU), for this default box
+  // as this object will be the best (highest IoU), for this default box
   ious[best_idx] = 2.;
 }
 
@@ -188,33 +188,45 @@ DALI_REGISTER_OPERATOR(BoxEncoder, BoxEncoder<CPUBackend>, CPU);
 
 DALI_SCHEMA(BoxEncoder)
     .DocStr(
-        R"code(Encodes input bounding boxes and labels using set of default boxes (anchors) passed
-during op construction. Follows algorithm described in https://arxiv.org/abs/1512.02325 and
-implemented in https://github.com/mlperf/training/tree/master/single_stage_detector/ssd
-Inputs must be supplied as two Tensors: `BBoxes` containing bounding boxes represented as
-`[l,t,r,b]`, and `Labels` containing the corresponding label for each bounding box.
-Results are two tensors: `EncodedBBoxes` containing M encoded bounding boxes as `[l,t,r,b]`,
-where M is number of anchors and `EncodedLabels` containing the corresponding label for each
-encoded box.)code")
+        R"code(Encodes the input bounding boxes and labels using a set of default boxes (anchors)
+passed as an argument.
+
+This operator follows the algorithm described in "SSD: Single Shot MultiBox Detector"
+and implemented in https://github.com/mlperf/training/tree/master/single_stage_detector/ssd.
+Inputs must be supplied as the following Tensors:
+
+- ``BBoxes`` that contain bounding boxes that are represented as ``[l,t,r,b]``.
+- ``Labels`` that contain the corresponding label for each bounding box.
+
+The results are two tensors:
+
+- ``EncodedBBoxes`` that contain M-encoded bounding boxes as ``[l,t,r,b]``, where M is number of
+  anchors.
+- ``EncodedLabels`` that contain the corresponding label for each encoded box.
+)code")
     .NumInput(2)
     .NumOutput(2)
     .AddArg("anchors",
-            R"code(Anchors to be used for encoding. List of floats in ltrb format.)code",
+            R"code(Anchors to be used for encoding, as the list of floats is in the ``ltrb``
+format.)code",
             DALI_FLOAT_VEC)
     .AddOptionalArg(
         "criteria",
-        R"code(Threshold IOU for matching bounding boxes with anchors. Value between 0 and 1.)code",
+        R"code(Threshold IoU for matching bounding boxes with anchors.
+
+The value needs to be between 0 and 1.)code",
         0.5f, false)
     .AddOptionalArg(
         "offset",
-        R"code(Returns normalized offsets `((encoded_bboxes*scale - anchors*scale) - mean) / stds`
-in `EncodedBBoxes` using `std`, `mean` and `scale` arguments (default values are transparent).)code",
+        R"code(Returns normalized offsets ``((encoded_bboxes*scale - anchors*scale) - mean) / stds``
+in EncodedBBoxes that use ``std`` and the ``mean`` and ``scale`` arguments.)code",
         false)
     .AddOptionalArg("scale",
-            R"code(Rescale the box and anchors values before offset calculation (e.g. to get back to absolute values).)code",
+            R"code(Rescales the box and anchor values before the offset is calculated
+(for example, to return to the absolute values).)code",
             1.0f)
     .AddOptionalArg("means",
-            R"code([x y w h] means for offset normalization.)code",
+            R"code([x y w h] mean values for normalization.)code",
             std::vector<float>{0.f, 0.f, 0.f, 0.f})
     .AddOptionalArg("stds",
             R"code([x y w h] standard deviations for offset normalization.)code",

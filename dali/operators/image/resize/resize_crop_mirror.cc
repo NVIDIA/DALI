@@ -20,31 +20,34 @@ DALI_REGISTER_OPERATOR(ResizeCropMirror, ResizeCropMirror<CPUBackend>, CPU);
 
 DALI_SCHEMA(ResizeCropMirrorAttr)
   .AddOptionalArg("mirror",
-      R"code(Mask for horizontal flip.
+      R"code(Mask for the horizontal flip.
 
-- `0` - do not perform horizontal flip for this image
-- `1` - perform horizontal flip for this image.
-)code", 0, true)
+Supported values:
+
+- `0` - Do not perform horizontal flip for this image.
+- `1` - Performs horizontal flip for this image.)code", 0, true)
   .AddParent("ResizeAttr");
 
 DALI_SCHEMA(ResizeCropMirror)
-  .DocStr("Perform a fused resize, crop, mirror operation. Handles both fixed"
-          " and random resizing and cropping.")
+  .DocStr(R"code(Performs a fused resize, crop, mirror operation. Both fixed and
+random resizing and cropping are supported.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("interp_type",  // TODO(michalz): Replace with ResamplingFilterAttr when ready
       R"code(Type of interpolation used.)code",
-      DALI_INTERP_LINEAR)  .AddParent("Crop")
+      DALI_INTERP_LINEAR)
+  .AddParent("Crop")
   .AddParent("ResizeCropMirrorAttr")
   .InputLayout("HWC");
 
 DALI_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
 
 DALI_SCHEMA(FastResizeCropMirror)
-  .DocStr(
-      "Perform a fused resize, crop, mirror operation. Handles both fixed "
-      "and random resizing and cropping. Backprojects the desired crop "
-      "through the resize operation to reduce the amount of work performed.")
+  .DocStr(R"code(Performs a fused resize, crop, mirror operation.
+
+The operator handles both fixed and random resizing and cropping.
+Backprojects the desired crop through the resize operation to reduce the amount of
+work that is performed.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ResizeCropMirror")

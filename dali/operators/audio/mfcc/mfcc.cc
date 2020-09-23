@@ -54,29 +54,37 @@ void ApplyLifter(const kernels::OutTensorCPU<T, Dims> &inout, int axis, const T*
 }  // namespace detail
 
 DALI_SCHEMA(MFCC)
-    .DocStr(R"code(Mel Frequency Cepstral Coefficiencs (MFCC).
-Computes MFCCs from a mel spectrogram.)code")
+    .DocStr(R"code(Computes Mel Frequency Cepstral Coefficiencs (MFCC) from
+a mel spectrogram.)code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
     .AddOptionalArg("n_mfcc",
-      R"code(Number of MFCC coefficients)code",
+      R"code(Number of MFCC coefficients.)code",
       20)
     .AddOptionalArg("dct_type",
-      R"code(Discrete Cosine Transform type. Supported types are: 1, 2, 3, 4.
-The formulas used to calculate the DCT are equivalent to those described in
-https://en.wikipedia.org/wiki/Discrete_cosine_transform)code",
+      R"code(Discrete Cosine Transform type.
+
+The supported types are 1, 2, 3, 4. The formulas that are used to calculate the DCT are equivalent
+to those described in https://en.wikipedia.org/wiki/Discrete_cosine_transform (the numbers
+correspond to types listed in
+https://en.wikipedia.org/wiki/Discrete_cosine_transform#Formal_definition).)code",
       2)
     .AddOptionalArg("normalize",
-      R"code(If true, the DCT will use an ortho-normal basis.
-Note: Normalization is not supported for dct_type=1.)code",
+      R"code(If set to True, the DCT uses an ortho-normal basis.
+
+.. note::
+  Normalization is not supported when dct_type=1.)code",
       false)
     .AddOptionalArg("axis",
       R"code(Axis over which the transform will be applied.
-If not provided, the outer-most dimension will be used.)code",
+
+If a value is not provided, the outer-most dimension will be used.)code",
       0)
     .AddOptionalArg("lifter",
-      R"code(Cepstral filtering (also known as liftering) coefficient.
-If lifter > 0, the MFCCs will be scaled according to the following formula::
+      R"code(Cepstral filtering coefficient, which is also known as the liftering coefficient.
+
+If the lifter coefficient is greater than 0, the MFCCs will be scaled based on
+the following formula::
 
     MFFC[i] = MFCC[i] * (1 + sin(pi * (i + 1) / lifter)) * (lifter / 2)
 )code",

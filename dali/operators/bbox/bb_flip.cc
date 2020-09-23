@@ -26,15 +26,15 @@ const std::string kVerticalArgName = "vertical";      // NOLINT
 DALI_REGISTER_OPERATOR(BbFlip, BbFlip<CPUBackend>, CPU);
 
 DALI_SCHEMA(BbFlip)
-    .DocStr(R"code(Operator for horizontal or vertical flip (mirror) of bounding boxes.
-Input: Bounding box coordinates; in either `[x, y, w, h]`
-or `[left, top, right, bottom]` format. All coordinates are
-in the image coordinate system (i.e. 0.0-1.0))code")
+    .DocStr(R"code(Flips bounding boxes horizontaly or verticaly (mirror).
+
+The bounding box coordinates for the  input are in the [x, y, width, height] - ``xywh`` or
+[left, top, right, bottom] - ``ltrb`` format. All coordinates are in the image coordinate
+system, that is 0.0-1.0)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg(kCoordinatesTypeArgName,
-                    R"code(True, for two-point (ltrb).
-False for for width-height representation.)code",
+                    R"code(True for ``ltrb`` or False for ``xywh``.)code",
                     false, false)
     .AddOptionalArg(kHorizontalArgName,
                     R"code(Flip horizontal dimension.)code",

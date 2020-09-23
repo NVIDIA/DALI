@@ -19,30 +19,31 @@
 namespace dali {
 
 DALI_SCHEMA(AudioDecoder)
-  .DocStr(R"code(Decode audio data.
-This operator is a generic way of handling encoded data in DALI.
-It supports most of well-known audio formats (wav, flac, ogg).
+  .DocStr(R"code(Decodes waveforms from encoded audio data.
 
-This operator produces two outputs:
+It supports the following audio formats: wav, flac and ogg.
+This operator produces the following outputs:
 
-* output[0]: batch of decoded data
-* output[1]: batch of sampling rates [Hz]
+* output[0]: A batch of decoded data
+* output[1]: A batch of sampling rates [Hz].
 )code")
   .NumInput(1)
   .NumOutput(2)
+  .AddOptionalArg("downmix", R"code(If set to True, downmix all input channels to mono.
+
+If downmixing is turned on, the decoder output is 1D.
+If downmixing is turned off, it produces 2D output with interleaved channels.)code", false)
+  .AddOptionalArg("dtype", R"code(Output data type.
+
+Supported types: ``INT16``, ``INT32``, ``FLOAT``.)code", DALI_FLOAT)
   .AddOptionalArg("sample_rate",
           "If specified, the target sample rate, in Hz, to which the audio is resampled.",
           0.0f, true)
-  .AddOptionalArg("quality",
-          "Resampling quality, 0 is lowest, 100 is highest.\n"
-          "0 corresponds to 3 lobes of the sinc filter; "
-          "50 gives 16 lobes and 100 gives 64 lobes.",
-          50.0f, false)
-  .AddOptionalArg("downmix",
-          "If True, downmix all input channels to mono. "
-          "If downmixing is turned on, decoder will produce always 1-D output", false)
-  .AddOptionalArg("dtype",
-          "Type of the output data. Supports types: `INT16`, `INT32`, `FLOAT`", DALI_FLOAT);
+  .AddOptionalArg("quality", R"code(Resampling quality, where 0 is the lowest, and 100 is
+the highest.
+
+0 gives 3 lobes of the sinc filter, 50 gives 16 lobes, and 100 gives 64 lobes.)code",
+          50.0f, false);
 
 DALI_REGISTER_OPERATOR(AudioDecoder, AudioDecoderCpu, CPU);
 

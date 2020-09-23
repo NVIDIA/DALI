@@ -40,7 +40,9 @@ void DumpImage<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 DALI_REGISTER_OPERATOR(DumpImage, DumpImage<CPUBackend>, CPU);
 
 DALI_SCHEMA(DumpImage)
-  .DocStr(R"code(Save images in batch to disk in PPM format. Useful for debugging.)code")
+  .DocStr(R"code(Save images in batch to disk in PPM format.
+
+Useful for debugging.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("suffix",

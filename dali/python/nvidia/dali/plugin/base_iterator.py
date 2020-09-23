@@ -68,10 +68,10 @@ class _DaliBaseIterator(object):
                 if the iterator returning last batch with data only partially filled with
                 data from the current epoch is dropping padding samples or samples from
                 the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
-                so the following code could use it to drop the data). If set to ``False`` next
+                so the following code could use it to drop the data). If set to False next
                 epoch will end sooner as data from it was consumed but dropped. If set to
-                ``True`` next epoch would be the same length as the first one. For this to happen,
-                the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
+                True next epoch would be the same length as the first one. For this to happen,
+                the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
 
     Example

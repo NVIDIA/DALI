@@ -80,7 +80,7 @@ class ShapesOpTest<ShapesTestArgs<OutputBackend, InputBackend, OutputType>>
 
   void Run() {
     testing::Arguments args;
-    args.emplace("type", TestArgs::type_id());
+    args.emplace("dtype", TestArgs::type_id());
     args.emplace("device", testing::detail::BackendStringName<OutputBackend>());
     for (auto &in : inputs<InputBackend>) {
       testing::TensorListWrapper out;

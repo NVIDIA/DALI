@@ -34,27 +34,30 @@ constexpr static const char* kSigmaArgName = "sigma";
 constexpr static const char* kWindowSizeArgName = "window_size";
 
 DALI_SCHEMA(GaussianBlur)
-    .DocStr(R"code(Apply Gaussian Blur to the input.
+    .DocStr(R"code(Applies a Gaussian Blur to the input.
 
-User can specify sigma, kernel window size or both.
-If only the sigma is provided, the radius of kernel is calculated as ``ceil(3 * sigma)``,
-thus the kernel window size is ``2 * ceil(3 * sigma) + 1``.
+Gaussian blur is calculated by applying a convolution with a Gaussian kernel, which can be
+parameterized with ``windows_size`` and ``sigma``.
+If only the sigma is specified, the radius of the Gaussian kernel defaults to
+``ceil(3 * sigma)``, so the kernel window size is ``2 * ceil(3 * sigma) + 1``.
 
-If only the kernel window size is provided, the sigma is calculated using the following formula::
+If only the window size is provided, the sigma is calculated by using the following formula::
 
   radius = (window_size - 1) / 2
   sigma = (radius - 1) * 0.3 + 0.8
 
-Both sigma and kernel window size can be specified as single value for all data axes
-or per data axis.
+The sigma and kernel window size can be specified as one value for all data axes or a value
+per data axis.
 
-When specifying the sigma or window size per axis, they are provided same as layouts: from outermost
-to innermost.
-The channel ``C`` and frame ``F`` dimensions are not considered data axes.
-If channels are present only channel-first or channel-last inputs are supported.
+When specifying the sigma or window size per axis, the axes are provided same as layouts, from
+outermost to innermost.
 
-For example, with ``HWC`` input, user can provide ``sigma=1.0`` or ``sigma=(1.0, 2.0)`` as there
-are two data axes H and W.
+.. note::
+  The channel ``C`` and frame ``F`` dimensions are not considered data axes. If channels are present,
+  only channel-first or channel-last inputs are supported.
+
+For example, with ``HWC`` input, you can provide ``sigma=1.0`` or ``sigma=(1.0, 2.0)`` because
+there are two data axes, H and W.
 
 The same input can be provided as per-sample tensors.
 )code")
@@ -62,11 +65,14 @@ The same input can be provided as per-sample tensors.
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .AddOptionalArg<int>(kWindowSizeArgName, "The diameter of kernel.", std::vector<int>{0}, true)
-    .AddOptionalArg<float>(kSigmaArgName, "Sigma value for Gaussian Kernel.",
+    .AddOptionalArg<int>(kWindowSizeArgName, "The diameter of the kernel.",
+                         std::vector<int>{0}, true)
+    .AddOptionalArg<float>(kSigmaArgName, "Sigma value for the Gaussian Kernel.",
                            std::vector<float>{0.f}, true)
     .AddOptionalArg(
-        "dtype", "Output data type; if not set, the input type is used. Supported type: `FLOAT`.",
+        "dtype", R"code(Output data type.
+
+Supported type: `FLOAT`. If not set, the input type is used.)code",
         DALI_NO_TYPE);
 
 /**

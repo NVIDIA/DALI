@@ -22,14 +22,15 @@
 namespace dali {
 
 DALI_SCHEMA(CropMirrorNormalize)
-  .DocStr(R"code(Perform fused cropping, normalization, format conversion
+  .DocStr(R"code(Performs fused cropping, normalization, format conversion
 (NHWC to NCHW) if desired, and type casting.
-Normalization takes input image and produces output using formula::
+
+Normalization takes the input images and produces the output by using the following formula::
 
   output = (input - mean) / std
 
-Note that not providing any crop argument will result into mirroring and
-normalization only.
+.. note::
+    If no cropping arguments are specified, only mirroring and normalization will occur.
 )code")
   .NumInput(1)
   .NumOutput(1)
@@ -38,16 +39,17 @@ normalization only.
   .DeprecateArg("image_type", true)  // deprecated since 0.24dev
   .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("dtype",
-    R"code(Output data type. Supported types: `FLOAT` and `FLOAT16`)code", DALI_FLOAT)
+       R"code(Output data type.
+
+Supported types: ``FLOAT``, ``FLOAT16``, and ``UINT8``.
+
+If not set, the input type is used.)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",
-    R"code(Output tensor data layout)code", TensorLayout("CHW"))
+    R"code(Tensor data layout for the output.)code", TensorLayout("CHW"))
   .AddOptionalArg("pad_output",
-    R"code(Whether to pad the output to number of channels being a power of 2.)code", false)
+    R"code(Determines whether to pad the output to the number of channels as a power of 2).)code", false)
   .AddOptionalArg("mirror",
-    R"code(Mask for horizontal flip.
-- `0` - do not perform horizontal flip for this image
-- `1` - perform horizontal flip for this image.
-)code",
+    R"code(If nonzero, the image will be flipped (mirrored) horizontally.)code",
     0, true)
   .AddOptionalArg("mean",
     R"code(Mean pixel values for image normalization.)code",

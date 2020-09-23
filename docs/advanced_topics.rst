@@ -1,114 +1,245 @@
-Advanced topics
+Advanced Topics
 =================
 
-This section covers a few advanced topics that are mentioned in the API description. However, for the typical use case the default DALI configuration will perform well out of the box, and you don't need to worry about these advanced topics.
+This section covers a few advanced topics that are mentioned in the API documentation.
 
-DALI internal data format
--------------------------
+.. note::
+  For typical use cases, the default DALI configuration performs well out of the box, and you do
+  not need to review this section.
 
-Internally, DALI processes data in NHWC format. To reshape it to NCHW, please use ``\*Permute`` operator family. Also note that if such operators are used in the middle of a pipeline, then the subsequent operations in the pipeline will make incorrect assumptions about the processed data format, and the result will be undefined.
-
-Thread affinity
+Thread Affinity
 ---------------
 
-The purpose of this functionality is to allow pinning DALI threads to the given CPU. Thread affinity can save the overhead of worker threads jumping from core to core. Hence this functionality can increase the performance for CPU heavy workloads.
-It is possible to set the CPU thread affinity for DALI using the ```DALI_AFFINITY_MASK``` environment variable. ```DALI_AFFINITY_MASK`` should be a comma separated list of CPU ids numbers which will be assigned to corresponding DALI threads.
-The number of DALI threads are set during the pipeline construction by num_threads argument, and the set_affinity enables setting the thread affinity for the CPU worker threads. Note that for performance reasons the hybrid ```ImageDecoder``` operator (nvJPEG based) houses threads on its own, and they are always affined.
-If the number of threads are more than the CPU id numbers in the environment variable ``DALI_AFFINITY_MASK``, then the following applies: First, the threads are assigned to CPU id numbers until all CPU id numbers from ``DALI_AFFINITY_MASK are assigned``. Then, for the remaining threads, the CPU id numbers from nvmlDeviceGetCpuAffinity will be used. See below example:
+This functionality allows you to pin DALI threads to the specified CPU. Thread affinity avoids
+the overhead of worker threads jumping from core to core and improves performance with CPU-heavy
+workloads. You can set the DALI CPU thread affinity by using the ``DALI_AFFINITY_MASK`` environment
+variable, which is a comma-separated list of CPU IDs that will be assigned to corresponding DALI
+threads. The number of DALI threads is set during the pipeline construction by the ``num_threads``
+argument and ``set_affinity`` enables thread affinity for the CPU worker threads.
+
+.. note::
+  For performance reasons, the hybrid :meth:`nvidia.dali.ops.ImageDecoder` operator, which is
+  nvJPEG based, creates threads on its own, and these threads are always affined.
+
+In ``DALI_AFFINITY_MASK``, if the number of threads is higher than the number of CPU IDs,
+the following process is applied:
+
+1) The threads are assigned to the CPU IDs until all of the CPU IDs from ``DALI_AFFINITY_MASK``
+   are assigned.
+2) For the remaining threads, the CPU IDs from nvmlDeviceGetCpuAffinity will be used.
+
+An example:
 
 .. code-block:: bash
 
   num_threads=5
   DALI_AFFINITY_MASK=3,5,6,10
 
-this will set thread 0 to CPU 3, thread 1 to CPU 5, thread 2 to CPU 6, thread 3 to CPU 10 and thread 4 to CPU id that is returned by nvmlDeviceGetCpuAffinity.
+This example sets thread 0 to CPU 3, thread 1 to CPU 5, thread 2 to CPU 6, thread 3 to CPU 10,
+and thread 4 to the CPU ID that is returned by nvmlDeviceGetCpuAffinity.
 
-
-Memory consumption
+Memory Consumption
 ------------------
 
-DALI uses three kinds of memory: host, host page-locked (pinned) and GPU.
-GPU and host pinned memory allocation and freeing require device synchronization. For this reason, DALI avoids reallocating these kinds of memory whenever possible. The buffers allocated with this kind of storage will only grow when the existing buffer is too small to accommodate the requested shape. This allocation strategy reduces the number of total memory management operations and greatly increases the processing speed after the allocations have stabilized.
+DALI uses the following memory types:
 
-In contrast, ordinary host memory is relatively cheap to allocate and free. To reduce host memory consumption, the buffers may shrink if the new requested size is smaller than a specified fraction of the old size (called shrink threshold). It can be adjusted to any value between 0 (never shrink) and 1 (always shrink), with the default being 0.9. The value can be controlled either via environment variable `DALI_HOST_BUFFER_SHRINK_THRESHOLD` or set in Python using `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
+- Host
+- Host-page-locked
+- GPU
 
-During processing, DALI works on batches of samples. For GPU and some CPU Operators, the batch is stored as contiguous allocation which is processed in one go, which reduces the number of necessary allocations.
-For some CPU Operators, that cannot calculate their output size ahead of time, the batch is instead stored as a vector of separately allocated samples.
+Allocating and freeing GPU and host page-locked (or pinned) memory require
+device synchronization. As a result, when possible, DALI avoids reallocating these kinds of memory.
+The buffers that are allocated with these storage types will only grow when the existing buffer is too
+small to accommodate the requested shape. This strategy reduces the number of total memory
+management operations and increases the processing speed when the memory requirements become stable
+and no more allocations are required.
 
-For example, if your batch consists of nine 480p images and one 4K image in random order, the single contiguous allocation would be able to accommodate all possible combinations of such batches.
-On the other hand, the CPU batch presented as separate buffers will need to keep a 4K allocation for every sample after several iterations.
-In effect, GPU buffers are allocated to house transformation results is as large as the largest possible batch, while the CPU buffers can be as large as batch size multiplied by the size of the largest sample. Note that even though the CPU processes one sample at a time per thread, a vector of samples needs to reside in the memory.
+By contrast, ordinary host memory is relatively inexpensive to allocate and free. To reduce
+host memory consumption, the buffers might shrink when the new requested size is smaller than
+the fraction of the old size. This is called *shrink threshold*. It can be adjusted to a value
+between 0 (never shrink) and 1 (always shrink). The default is 0.9. The value can be controlled
+by the ``DALI_HOST_BUFFER_SHRINK_THRESHOLD`` environmental variable or be set in Python by
+calling the `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
 
-Moreover, both host and GPU buffers have configurable growth factor - if it's above 1 and the requested new size exceeds buffer capacity, the buffer will be allocated with extra margin to potentially avoid subsequent reallocations. This functionality is disabled by default (the growth factor is set to 1). These factors can be controlled via environment variables `DALI_HOST_BUFFER_GROWTH_FACTOR` and `DALI_DEVICE_BUFFER_GROWTH_FACTOR`, respectively as well as with Python API functions `nvidia.dali.backend.SetHostBufferGrowthFactor` and `nvidia.dali.backend.SetDeviceBufferGrowthFactor`. For convenience, the variable ``DALI_BUFFER_GROWTH_FACTOR`` and corresponding Python function `nvidia.dali.backend.SetBufferGrowthFactor` set the same growth factor for host and GPU buffers.
+During processing, DALI works on batches of samples. For GPU and some CPU operators, each batch
+is stored as contiguous memory and is processed at once, which reduces the number of
+necessary allocations. For some CPU operators that cannot calculate their output size ahead of
+time, the batch is stored as a vector of separately allocated samples.
 
-Operator buffer presizing
+For example, if your batch consists of nine 480p images and one 4K image in random order, the
+contiguous allocation can accommodate all possible combinations of these batches. On the other
+hand, the CPU batch that is stored as separate buffers needs to keep a 4K allocation for every
+sample after several iterations. The GPU buffers that keep the operator outputs can grow are
+as large as the largest possible batch, whereas the non-contiguous CPU buffers can reach
+the size of the largest sample in the data set multiplied by the number of samples in the batch.
+
+The host and the GPU buffers have a configurable growth factor. If the factor is greater than 1, and
+to potentially avoid subsequent reallocations.
+This functionality is disabled by default, and the growth factor is set to 1. The growth factors
+can be controlled with the ``DALI_HOST_BUFFER_GROWTH_FACTOR`` and ``DALI_DEVICE_BUFFER_GROWTH_FACTOR``
+environmental variables and with the `nvidia.dali.backend.SetHostBufferGrowthFactor` and
+`nvidia.dali.backend.SetDeviceBufferGrowthFactor` Python API functions.
+For convenience, the DALI_BUFFER_GROWTH_FACTOR environment variable and the
+`nvidia.dali.backend.SetBufferGrowthFactor` Python function can be used to set the same
+growth factor for the host and the GPU buffers.
+
+Operator Buffer Presizing
 -------------------------
 
-The purpose of this functionality is to enable the user to fine-tune the processing pipeline in situations when it is possible to forecast precisely the memory consumption during a DALI run. This results in saving the overhead of some reallocations.
+When you can precisely forecast the memory consumption during a DALI run, this functionality helps
+you fine tune the processing pipeline. One of the benefits is that the overhead of some
+reallocations can be avoided.
 
-DALI uses intermediate buffers to pass data between operators in the processing graph. With DALI, the memory is never freed but just enlarged when present buffers are not sufficient to hold the data. However, in some cases, even this limited number of allocations still could affect DALI performance. Hence, if the user knows how much memory each operator buffer needs, then it is possible to provide a hint to presize buffers before the first run.
+DALI uses intermediate buffers to pass data between operators in the processing graph. The capacity
+of this buffers is increased to accommodate new data, but is never reduced. Sometimes, however,
+even this limited number of allocations might still affect DALI performance.
+If you know how much memory each operator buffer requires, you can add a hint to preallocate the
+buffers before the pipeline is first run.
 
-Two parameters are available: First, the ``bytes_per_sample`` pipeline argument, which accepts one value that is used globally across all operators for all buffers.
-The second parameter is the ``bytes_per_sample_hint`` per operator argument, which accepts one value or a list of values. When one value is provided it is used for all output buffers for a given operator. When a list is provided then each buffer is presized to the corresponding size.
+The following parameters are available:
 
-To learn how much memory outputs of each operator need, the user may create the pipeline with ``enable_memory_stats`` set to ``True`` and then query the pipeline for the operator's output memory statistics by calling ``executor_meta`` method on the pipeline. The ``max_real_memory_size`` value tells what is the biggest tensor in the batch for the outputs that allocate memory per sample, not for the whole batch at the time, or average tensor size when the allocation is contiguous. Usually this value is the one that should be provided to ``bytes_per_sample_hint``.
+- The ``bytes_per_sample`` pipeline argument, which accepts one value that is used globally across
+  all operators for all buffers.
+- The ``bytes_per_sample_hint`` per operator argument, which accepts one value or a list of values.
 
-Prefetching queue depth
+When one value is provided, it is used for all output buffers for an operator. When a list is
+provided, each operator output buffer is presized to the corresponding size.
+To determine the amount of memory output that each operator needs, complete the following tasks:
+
+1) Create the pipeline by setting ``enable_memory_stats`` to True.
+2) Query the pipeline for the operator's output memory statistics by calling the
+   :meth:`nvidia.dali.pipeline.Pipeline.executor_statistics` method on the pipeline.
+
+The ``max_real_memory_size`` value represents the biggest tensor in the batch for the outputs that
+allocate memory per sample and not for the entire batch at the time or the average tensor size when
+the allocation is contiguous. This value should be provided to ``bytes_per_sample_hint``.
+
+Prefetching Queue Depth
 -----------------------
 
-The purpose of this functionality is to average the processing time between batches when the variation from batch to batch is high.
-DALI pipeline allows buffering one or more batches of data ahead. This becomes important when the data processing time between batches could vary a lot. Default prefetch depth is 2. The user can change this value using the ``prefetch_queue_depth`` pipeline argument. For example, if the variation is bigger then it is recommended to prefetch more ahead.
+The DALI pipeline allows the buffering of one or more batches of data, which is important when
+the processing time varies from batch to batch.
+The default prefetch depth is 2. You can change this value by using the ``prefetch_queue_depth``
+pipeline argument. If the variation is not hidden by the default prefetch depth value,
+we recommend that you prefetch more data ahead of time.
+
+.. note::
+  Increasing queue depth also increases memory consumption.
 
 Running DALI pipeline
 ---------------------
 
-DALI provides a couple of ways to run a pipeline:
+DALI pipeline can be run in one of the following ways:
 
-- simple `run` method, which runs the computations and returns the results (corresponds to :meth:`nvidia.dali.types.PipelineAPIType.BASIC` API type)
-- `schedule_run`, `share_outputs` and `release_outputs` with fine grain control of the output buffers' lifetime (corresponds to :meth:`nvidia.dali.types.PipelineAPIType.SCHEDULED` API type)
-- built-in iterators for MXNet, PyTorch, and TensorFlow (corresponds to :meth:`nvidia.dali.types.PipelineAPIType.ITERATOR` API type)
+- | Simple run method, which runs the computations and returns the results.
+  | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.BASIC` API type.
+- | :meth:`nvidia.dali.pipeline.Pipeline.schedule_runs`,
+    :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`,
+    :meth:`nvidia.dali.pipeline.Pipeline.release_outputs` that allows a fine-grain control for
+    the duration of the output buffers' lifetime.
+  | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.SCHEDULED` API type.
+- | Built-in iterators for MXNet, PyTorch, and TensorFlow.
+  | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.ITERATOR` API type.
 
-The first API - :meth:`nvidia.dali.pipeline.Pipeline.run` method launches the DALI pipeline, executing prefetch iterations if necessary, waits until the first batch is ready and returns the resulting buffers. Buffers are marked as in-use untill the next call to `nvidia.dali.pipeline.Pipeline.run`. In many cases, it is wasteful as data is usually copied out to the native framework tensors after which they can be returned to DALI to be reused
+The first API, :meth:`nvidia.dali.pipeline.Pipeline.run()` method completes the following tasks:
 
-The second API, consisting of :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`, :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` and :meth:`nvidia.dali.pipeline.Pipeline.release_outputs` allows the user to explicitly manage the lifetime of the output buffers. The :meth:`nvidia.dali.pipeline.Pipeline.schedule_run` method instructs DALI to prepare the next batch of data, prefetching if necessary. If the execution mode is set to asynchronous, this call returns immediately, without waiting for the results, so another task can be executed in parallel. The data batch can be requested from DALI by calling `share_outputs`, which returns the result buffer. If it is not ready yet, DALI will wait for it. The data is ready as soon as the :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` method returns. When DALI buffers are no longer needed, because data was copied or already consumed, :meth:`nvidia.dali.pipeline.Pipeline.release_outputs` should be called to return DALI buffers to be reused in subsequent iterations.
+#. Launches the DALI pipeline.
+#. Executes the prefetch iterations if necessary.
+#. Waits until the first batch is ready.
+#. Returns the resulting buffers.
 
-Built-in iterators use the second API to provide convenient wrappers for immediate use in DL frameworks. The data is returned in framework's native buffers - the iterator's implementation internally copies the data from DALI buffers and recycles them by calling :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`.
+Buffers are marked as in-use until the next call to
+:meth:`nvidia.dali.pipeline.Pipeline.run`. This process can be wasteful because the data is usually
+copied to the DL framework's native storage objects and DALI pipeline outputs could be returned to
+DALI for reuse.
 
-It is not recommended to mix any of the aforementioned APIs together, because they follow different logic for output buffer lifetime management and the details of the process are subject to change without notice. Mixing the APIs may result in an undefined behavior, like a deadlock or attempt to access an invalid buffer.
+The second API, which consists of :meth:`nvidia.dali.pipeline.Pipeline.schedule_run()`,
+:meth:`nvidia.dali.pipeline.Pipeline.share_outputs()`, and :meth:`nvidia.dali.pipeline.Pipeline.release_outputs()`
+allows you to explicitly manage the lifetime of the output buffers. The
+:meth:`nvidia.dali.pipeline.Pipeline.schedule_run()` method instructs DALI to prepare the next
+batch of data, and, if necessary, to prefetch. If the execution mode is set to asynchronous,
+this call returns immediately, without waiting for the results. This way, another task can be
+simultaneously executed. The data batch can be requested from DALI by calling
+:meth:`nvidia.dali.pipeline.Pipeline.share_outputs`, which returns the result buffer. If the data
+batch is not yet ready, DALI will wait for it. The data is ready as soon as the
+:meth:`nvidia.dali.pipeline.Pipeline.share_outputs()`` is complete. When the DALI buffers are
+no longer needed, because data was copied or has already been consumed, call
+:meth:`nvidia.dali.pipeline.Pipeline.release_outputs()` to return the DALI buffers for reuse
+in subsequent iterations.
+
+Built-in iterators use the second API to provide convenient wrappers for immediate use in
+Deep Learning Frameworks. The data is returned in the framework's native buffers. The iterator's
+implementation copies the data internally from DALI buffers and recycles the data by calling
+:meth:`nvidia.dali.pipeline.Pipeline.release_outputs()`.
+
+We recommend that you do not mix the APIs. The APIs follow a different logic for the output
+buffer lifetime management, and the details of the process are subject to change without notice.
+Mixing the APIs might result in undefined behavior, such as a deadlock or an attempt to access
+an invalid buffer.
 
 Sharding
 --------
 
-Sharding allows DALI to partition the dataset into nonoverlapping pieces that every separate DALI pipeline instance can work on. This addresses the problem of having a global and shared state that allows the distribution of training samples among the ranks. After each epoch, the DALI pipeline by default advances to the next shard to increase the entropy of data seen by this particular pipeline. The user may customize this behavior through ``stick_to_shard`` reader parameter.
+Sharding allows DALI to partition the dataset into nonoverlapping pieces on which each DALI pipeline
+instance can work. This functionality addresses the issue of having a global and a shared state
+that allows the distribution of training samples among the ranks. After each epoch, by default,
+the DALI pipeline advances to the next shard to increase the entropy of the data that is seen by
+this pipeline. You can alter this behavior by setting the ``stick_to_shard`` reader parameter.
 
-This however leads to problems when the dataset size is not divisible by the number of used Pipelines, and when the shard size is not divisible by the batch size. To address this problem and adjust behavior depending on the user needs DALI provides several options.
+This mode of operation, however, leads to problems when the dataset size is not divisible by the
+number of pipelines used or when the shard size is not divisible by the batch size. To address this
+issue, and adjust the behavior, you can use the ``pad_last_batch`` reader parameter.
 
-The first is ``pad_last_batch`` Reader parameter which asks the reader to duplicate the last sample in the last batch of given shard, so DALI won't read ahead data from the next shard when the batch doesn't divide its size. Also, it makes sure that all pipelines return the same number of batches - when one is dividable by the batch size but others are bigger by one sample. This pads every shard to the same size which is multiple of batch size.
+This parameter asks the reader to duplicate the last sample in the last batch of a shard,
+which prevents DALI from reading data from the next shard when the batch doesn't divide its size.
+The parameter also ensures that all pipelines return the same number of batches, when one batch
+is divisible by the batch size but other batches are bigger by one sample. This process pads every
+shard to the same size, which is a multiple of the batch size.
 
-As DALI is used in the Deep Learning Frameworks through dedicated iterators, they need to be aware of this padding and other reader properties as well. Let us look into the following Iterator options:
+DALI is used in the Deep Learning Frameworks through dedicated iterators, and these iterators need
+to be aware of this padding and other reader properties.
 
-- ``fill_last_batch`` - whether the last batch should be full no matter if shard size is divisible by the batch size
-- ``reader_name`` - **(The recommended way that excludes the options below)** Allows the user to provide the name of the reader that would drive the iterator, and provide the necessary parameters. It is more flexible and accurate (takes into account that shards size for the given pipeline can differ epoch to epoch when shards are rotated).
-- ``size`` - the size of the shard for given iterator (or sum of all shard sizes for all wrapped pipelines if there is more than one)
-- ``last_batch_padded`` - whether the data that is reminder between multiple of batch size and shard size consists of data from the next shard or duplicated dummy data
+Here are the iterator options:
 
-Shard size for given shard id is computed as:
+- ``fill_last_batch`` – Determines whether the last batch should be full, regardless of whether
+  the shard size is divisible by the batch size.
+- | ``reader_name`` - Allows you to provide the name of the reader that drives the iterator and
+   provides the necessary parameters.
+
+  .. note::
+    We recommend that you use this option. With this option, the next two options are excluded and
+    cannot be used.
+
+  | This option is more flexible and accurate and takes into account that shard size for a pipeline
+    can differ between epochs when the shards are rotated.
+- ``size``: Displays the size of the shard for an iterator or, if there is more than one shard,
+  the sum of all shard sizes for all wrapped pipelines.
+- | ``last_batch_padded``: Determines whether the tail of the data consists of data from the next
+    shard (``False``) or is duplicated dummy data (``True``).
+  | It is applicable when the shard size is not a multiple of the batch size,
+
+
+Here is the formula to calculate the shard size for a shard ID:
 
 *floor((id + 1) * dataset_size / num_shards) - floor(id * dataset_size / num_shards)*
 
-When pipeline advances through the epochs and reader moves to next shard the equation need to be extended to reflect that as well:
+When the pipeline advances through the epochs and the reader moves to the next shard, the formula
+needs to be extended to reflect this change:
 
 *floor(((id + epoch_num) % num_shards + 1) * dataset_size / num_shards) - floor(((id + epoch_num) % num_shards) * dataset_size / num_shards)*
 
-When the last equation is used it is clear that providing one ``size`` value once at the beginning of the training doesn't work really well. It works only when the ``stick_to_shard`` reader option is enabled and prevents DALI from rotating shards, in such cases the first equation applies.
+When the second formula is used, providing a size value once at the beginning of the training works
+only when the ``stick_to_shard`` reader option is enabled and prevents DALI from rotating shards.
+When this occurs, use the first formula.
 
-To address above challenges the user should use ``reader_name`` parameter and let the iterator do the rest.
+To address these challenges, use the ``reader_name`` parameter and allow the iterator
+handle the details.
 
 C++ API
 -------
 
 .. note::
-
   **This feature is not officially supported and may change without notice**
 
-The C++ API enables using DALI as a library from native applications. **The API is experimental, unstable and can change without notice**. Refer to ``PipelineTest`` family of tests for how to use the C++ API.
+The C++ API allows you to use DALI as a library from native applications. Refer to
+the ``PipelineTest`` family of tests for more information about how to use this API.

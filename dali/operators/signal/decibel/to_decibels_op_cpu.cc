@@ -20,24 +20,31 @@
 namespace dali {
 
 DALI_SCHEMA(ToDecibels)
-    .DocStr(R"code(Converts a magnitude (real, positive) to the decibel scale, according to the
-formula::
+    .DocStr(R"code(Converts a magnitude (real, positive) to the decibel scale by using
+the following formula::
 
   min_ratio = pow(10, cutoff_db / multiplier)
   out[i] = multiplier * log10( max(min_ratio, input[i] / reference) ))code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
     .AddOptionalArg("multiplier",
-      R"code(Factor by which we multiply the logarithm (typically 10.0 or 20.0 depending if we
-are dealing with a squared magnitude or not).)code",
+      R"code(Factor by which the logarithm is multiplied. The value is typically 10.0 or 20.0,
+which depends on whether the magnitude is squared.)code",
       10.0f)
     .AddOptionalArg("reference",
-      R"code(Reference magnitude. If not provided, the maximum of the input will be used as
-reference. Note: The maximum of the input will be calculated on a per-sample basis.)code",
+      R"code(Reference magnitude.
+
+If a value is not provided, the maximum value for the input will be used as reference.
+
+.. note::
+  The maximum of the input will be calculated on a per-sample basis.
+)code",
       0.0f)
     .AddOptionalArg("cutoff_db",
-      R"code(Minimum or cut-off ratio in dB. Any value below this value will saturate. Example:
-A value of `cutoff_db=-80` corresponds to a minimum ratio of `1e-8`.)code",
+      R"code(Minimum or cut-off ratio in dB.
+
+Any value below this value will saturate. For example, a value of ``cutoff_db=-80`` corresponds
+to a minimum ratio of ``1e-8``.)code",
       -200.0f);
 
 template <>

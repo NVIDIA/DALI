@@ -19,25 +19,36 @@ namespace dali {
 
 DALI_SCHEMA(Slice)
     .DocStr(
-        R"code(Extract a subtensor or ``slice`` with a given shape and anchor.
-Inputs must be supplied as 3 separate tensors in a specific order: ``data``, ``anchor`` and ``shape``.
-Both ``anchor`` and ``shape`` coordinates must be within the interval
-[0.0, 1.0] for normalized coordinates, or within the image shape for absolute
-coordinates. Both ``anchor`` and ``shape`` inputs will provide as many dimensions as specified
-with arguments ``axis_names`` or ``axes``. By default ``Slice`` operator uses normalized
-coordinates and ``WH`` order for the slice arguments.)code")
+        R"code(Extracts a subtensor, or slice, with a specified shape and anchor.
+
+Inputs must be supplied as the following separate tensors in the following order:
+
+#. ``data``
+#. ``anchor``
+#. ``shape``
+
+The ``anchor`` and ``shape`` coordinates must be in the  [0.0, 1.0] interval for normalized
+coordinates, or in the image shape for absolute coordinates. The ``anchor`` and ``shape`` inputs
+must provide as many dimensions as are specified with the ``axis_names`` or ``axes`` arguments.
+By default, the :meth:`nvidia.dali.ops.Slice` operator uses normalized coordinates and ``WH``
+order for the slice arguments.)code")
     .NumInput(3)
     .NumOutput(1)
-    .InputDox(0, "data", "TensorList", "Batch containing input data")
+    .InputDox(0, "data", "TensorList", R"code(Batch that contains the input data.)code")
     .InputDox(1, "anchor", "1D TensorList of float or int",
-                 R"code(Input that contains normalized or absolute coordinates for the starting point of
- the slice (x0, x1, x2, …). Integer coordinates are interpreted as absolute coordinates, while float coordinates
- can be interpreted as absolute or relative coordinates, depending on the value of ``normalized_anchor``.)code")
+                 R"code(Input that contains normalized or absolute coordinates for the starting
+point of the slice (x0, x1, x2, …).
+
+Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
+interpreted as absolute or relative coordinates, depending on the value of
+``normalized_anchor``.)code")
     .InputDox(2, "shape", "1D TensorList of float or int",
-                 R"code(Input that contains normalized or absolute coordinates for the dimensions of the
- slice (s0, s1, s2, …). Integer coordinates are interpreted as absolute coordinates, while float coordinates
- can be interpreted as absolute or relative coordinates, depending on the value of ``normalized_shape``.)code")
-    .AllowSequences()
+                 R"code(Input that contains normalized or absolute coordinates for the dimensions
+of the slice (s0, s1, s2, …).
+
+Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
+interpreted as absolute or relative coordinates, depending on the value of
+``normalized_shape``.)code")
     .SupportVolumetric()
     .DeprecateArg("image_type", true)  // deprecated since 0.24dev
     .AddParent("SliceBase")

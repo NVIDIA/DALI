@@ -19,38 +19,44 @@
 namespace dali {
 
 DALI_SCHEMA(NonsilentRegion)
-                .DocStr(R"code(The operator performs leading and trailing silence detection in an audio buffer.
-The operator returns the beginning and length of the non-silent region by comparing short term power of the signal
-with a silence cut-off threshold. The signal is consider silence when ``short_term_power_db < cutoff_db`` with::
+  .DocStr(R"code(Performs leading and trailing silence detection in an audio buffer.
+
+The operator returns the beginning and length of the non-silent region by comparing the
+short term power calculated for ``window_length`` of the signal with a silence cut-off threshold.
+The signal is considered to be silent when the ``short_term_power_db`` is less than
+the ``cutoff_db``. where::
 
   short_term_power_db = 10 * log10( short_term_power / reference_power )
 
-and ``reference_power`` being typically the maximum of the signal, unless specified otherwise.
+Unless specified otherwise, ``reference_power`` is the maximum power of the signal.
 
-Inputs/Outputs
-  **Input 0** - 1D audio buffer
-  **Output 0** - Begin index of nonsilent region
-  **Output 1** - Length of nonsilent region
+Inputs and outputs:
 
-Remarks
-  - If ``Outputs[1] == 0``, ``Outputs[0]`` value is undefined
-)code")
-                .NumInput(1)
-                .NumOutput(detail::kNumOutputs)
-                .AddOptionalArg("cutoff_db",
-                                R"code(The threshold [dB], below which everything is considered as silence)code",
-                                -60.f)
-                .AddOptionalArg("window_length", R"code(Size of a sliding window.
-The sliding window is used to calculate short-term power of the signal.)code", 2048)
-                .AddOptionalArg("reference_power",
-                                R"code(The reference power used for converting signal to db.
-If ``reference_power`` is not provided, the maximum of the signal will be used as the reference power)code",
-                                0.f)
-                .AddOptionalArg("reset_interval",
-                                R"code(The number of samples after which the moving mean average is
-recalculated to avoid loss of precision. If ``reset_interval == -1`` or the input type allows exact calculation,
-the average won't be reset. The default value should fit most of the use cases.)code",
-                                8192);
+* **Input 0** - 1D audio buffer.
+* **Output 0** - Index of the first sample in the nonsilent region.
+* **Output 1** - Length of nonsilent region.
+
+.. note::
+  If ``Outputs[1] == 0``,  the value in ``Outputs[0]`` is undefined.)code")
+  .NumInput(1)
+  .NumOutput(detail::kNumOutputs)
+  .AddOptionalArg("cutoff_db",
+                  R"code(The threshold, in dB, below which the signal is considered silent.)code",
+                  -60.f)
+  .AddOptionalArg("window_length", R"code(Size of the sliding window used to calculate of
+the short-term power of the signal.)code", 2048)
+  .AddOptionalArg("reference_power",
+                  R"code(The reference power that is used to convert the signal to dB.
+
+If a value is not provided, the maximum power of the signal will be used as the reference.)code",
+                  0.f)
+  .AddOptionalArg("reset_interval",
+                  R"code(The number of samples after which the moving mean average is recalculated
+to avoid loss of precision.
+
+If ``reset_interval == -1``, or the input type allows exact calculation, the average will not be
+reset. The default value can be used for most of the use cases.)code",
+                  8192);
 
 DALI_REGISTER_OPERATOR(NonsilentRegion, NonsilenceOperatorCpu, CPU);
 

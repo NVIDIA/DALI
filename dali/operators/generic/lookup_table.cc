@@ -50,31 +50,36 @@ void LookupTable<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 DALI_REGISTER_OPERATOR(LookupTable, LookupTable<CPUBackend>, CPU);
 
 DALI_SCHEMA(LookupTable)
-  .DocStr(R"code(Maps input to output by using a lookup table specified by `keys` and `values`
-and a `default_value` for non specified keys.
+  .DocStr(R"code(Maps the input to output by using a lookup table that is specified by
+``keys`` and ``values``, and a ``default_value`` for unspecified keys.
 
-`keys` and `values` are used to define the lookup table::
+For example when ``keys`` and ``values`` are used to define the lookup table in the following way::
 
   keys[] =   {0,     2,   3,   4,   5,    3}
   values[] = {0.2, 0.4, 0.5, 0.6, 0.7, 0.10}
   default_value = 0.99
 
+  0 <= i < max(keys)
+  lut[i] = values[keys.index[i]]   if i in keys
+  lut[i] = default_value           otherwise
 
-yielding::
+the operator creates the following table::
 
   lut[] = {0.2, 0.99, 0.4, 0.10, 0.6, 0.7}  // only last occurrence of a key is considered
 
-producing the output according to the formula::
+and produces the output according to this formula::
 
-   Output[i] = lut[Input[i]]   if 0 <= Input[i] <= len(lut)
-   Output[i] = default_value   otherwise
+  Output[i] = lut[Input[i]]   if 0 <= Input[i] <= len(lut)
+  Output[i] = default_value   otherwise
 
-Example::
+Here is a practical example, considering the table defined above::
 
   Input[] =  {1,      4,    1,   0,  100,   2,     3,   4}
   Output[] = {0.99, 0.6, 0.99, 0.2, 0.99, 0.4,  0.10, 0.6}
 
-Note: Only integer types can be used as input to this operator.)code")
+.. note::
+  Only integer types can be used as inputs for this operator.
+)code")
   .NumInput(1)
   .NumOutput(1)
   .AllowSequences()
@@ -84,17 +89,19 @@ Note: Only integer types can be used as input to this operator.)code")
     R"code(Output data type.)code",
     DALI_FLOAT)
   .AddOptionalArg("default_value",
-    R"code(Default output value for keys not present in the table.)code",
+    R"code(Default output value for keys that are not present in the table.)code",
     0.0f)
   .AddOptionalArg("keys",
-    "input values (keys) present in the lookup table."
-    " Length of `keys` and `values` argument should match."
-    "`keys` should be in the range [0, " +
-    std::to_string(LookupTable<CPUBackend>::kMaxKey) + "].",
+    R"code(A list of input values (keys) in the lookup table.
+
+The length of ``keys`` and ``values`` argument must match. The values in ``keys`` should be in the
+[0, )code" + std::to_string(LookupTable<CPUBackend>::kMaxKey) + " ] range.",
     std::vector<int>{})
   .AddOptionalArg("values",
-    R"code(mapped output values for each `keys` entry.
-Length of `keys` and `values` argument should match.)code",
+    R"code(A list of mapped output ``values`` for each ``keys`` entry.
+
+The length of the ``keys`` and the ``values`` argument must match.
+)code",
     std::vector<float>{});
 
 }  // namespace dali

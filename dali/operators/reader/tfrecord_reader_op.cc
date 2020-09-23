@@ -30,13 +30,14 @@ DALI_SCHEMA(_TFRecordReaderBase)
       R"code(List of paths to TFRecord files.)code",
       DALI_STRING_VEC)
   .AddArg("index_path",
-      R"code(List of paths to index files (1 index file for every TFRecord file).
-Index files may be obtained from TFRecord files using
-`tfrecord2idx` script distributed with DALI.)code",
+      R"code(List of paths to index files. There should be one index file for every TFRecord file.
+
+The index files can be obtained from TFRecord files by using the ``tfrecord2idx`` script
+that is distributed with DALI.)code",
       DALI_STRING_VEC);
 
 DALI_SCHEMA(_TFRecordReader)
-  .DocStr(R"code(Read sample data from a TensorFlow TFRecord file.)code")
+  .DocStr(R"code(Reads samples from a TensorFlow TFRecord file.)code")
   .OutputFn([](const OpSpec &spec) {
       std::vector<std::string> v = spec.GetRepeatedArgument<std::string>("feature_names");
       return v.size();
@@ -53,14 +54,16 @@ DALI_SCHEMA(_TFRecordReader)
 // Schema for the actual TFRecordReader op exposed
 // in Python. It is here for proper docstring generation
 DALI_SCHEMA(TFRecordReader)
-  .DocStr(R"code(Read sample data from a TensorFlow TFRecord file.)code")
+  .DocStr(R"code(Reads samples from a TensorFlow TFRecord file.)code")
   .AddArg("features",
-      R"code(Dictionary of names and configuration of features existing in TFRecord file.
-Typically obtained using helper functions `dali.tfrecord.FixedLenFeature`
-and `dali.tfrecord.VarLenFeature`, they are equivalent to TensorFlow's `tf.FixedLenFeature` and
-`tf.VarLenFeature` respectively. For more flexibility `dali.tfrecord.VarLenFeature`
-supports `partial_shape` parameter. If provided, data will be reshaped to match its value.
-First dimension will be inferred from the data size.)code",
+      R"code(A dictionary that maps names of the TFRecord features to extract to the feature type.
+
+Typically obtained by using the ``dali.tfrecord.FixedLenFeature`` and
+``dali.tfrecord.VarLenFeature`` helper functions, which are equal to TensorFlow's
+``tf.FixedLenFeature`` and ``tf.VarLenFeature`` types, respectively. For additional flexibility,
+``dali.tfrecord.VarLenFeature`` supports the ``partial_shape`` parameter. If provided,
+the data will be reshaped to match its value, and the first dimension will be inferred from
+the data size.)code",
       DALI_TF_FEATURE_DICT)
   .AddParent("_TFRecordReaderBase")
   .AddParent("LoaderBase");

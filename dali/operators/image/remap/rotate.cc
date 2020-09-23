@@ -17,22 +17,28 @@
 namespace dali {
 
 DALI_SCHEMA(Rotate)
-  .DocStr(R"code(Rotate the image by given angle.)code")
+  .DocStr(R"code(Rotates the images by the specified angle.)code")
   .NumInput(1)
   .NumOutput(1)
   .InputLayout(0, { "HWC", "DHWC" })
   .SupportVolumetric()
-  .AddOptionalArg<float>("axis", "3D only: axis around which to rotate.\n"
-  "The vector does not need to be normalized, but must have non-zero length.\n"
-  "Reversing the vector is equivalent to changing the sign of `angle`.\n",
+  .AddOptionalArg<float>("axis", R"code(Applies **only** to three-dimension and is the axis
+around which to rotate the image.
+
+The vector does not need to be normalized, but it must have a non-zero length.
+Reversing the vector is equivalent to changing the sign of ``angle``.
+)code",
   std::vector<float>(), true)
-  .AddArg("angle",
-      "Angle, in degrees, by which the image is rotated.\n"
-      "For 2D data, the rotation is counter-clockwise, assuming top-left corner at (0,0)\n"
-      "For 3D data, the angle is a positive rotation around given axis", DALI_FLOAT, true)
-  .AddOptionalArg("keep_size", "If `True`, original canvas size is kept. If `False` (default) "
-"and `size` is not set, then the canvas size is adjusted to acommodate the rotated image with "
-"least padding possible", false, false)
+  .AddArg("angle", R"code(Angle, in degrees, by which the image is rotated.
+
+For two-dimensional data, the rotation is counter-clockwise, assuming the top-left corner is
+at ``(0,0)``. For three-dimensional data, the ``angle`` is a positive rotation around the provided
+axis.)code", DALI_FLOAT, true)
+  .AddOptionalArg("keep_size", R"code(If True, original canvas size is kept.
+
+If set to False (default), and the size is not set, the canvas size is adjusted to
+accommodate the rotated image with the least padding possible.
+)code", false, false)
   .AddParent("WarpAttr");
 
 DALI_REGISTER_OPERATOR(Rotate, Rotate<CPUBackend>, CPU);

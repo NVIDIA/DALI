@@ -20,7 +20,7 @@ namespace dali {
 DALI_REGISTER_OPERATOR(Caffe2Reader, Caffe2Reader, CPU);
 
 DALI_SCHEMA(Caffe2Reader)
-  .DocStr("Read sample data from a Caffe2 Lightning Memory-Mapped Database (LMDB).")
+  .DocStr("Reads sample data from a Caffe2 Lightning Memory-Mapped Database (LMDB).")
   .NumInput(0)
   .OutputFn([](const OpSpec& spec) {
       int img_idx = spec.GetArgument<bool>("image_available") ? 1 : 0;
@@ -34,25 +34,29 @@ DALI_SCHEMA(Caffe2Reader)
     return img_idx + num_label_outputs + additional_inputs + has_bbox;
   })
   .AddArg("path",
-      R"code(List of paths to Caffe2 LMDB directories.)code",
+      R"code(List of paths to the Caffe2 LMDB directories.)code",
       DALI_STRING_VEC)
   .AddOptionalArg("num_labels",
-      R"code(Number of classes in dataset. Required when sparse labels are used.)code", 1)
+      R"code(Number of classes in the dataset.
+
+Required when sparse labels are used.)code", 1)
   .AddOptionalArg("label_type",
       R"code(Type of label stored in dataset.
 
-* 0 = SINGLE_LABEL : single integer label for multi-class classification
-* 1 = MULTI_LABEL_SPARSE : sparse active label indices for multi-label classification
-* 2 = MULTI_LABEL_DENSE : dense label embedding vector for label embedding regression
-* 3 = MULTI_LABEL_WEIGHTED_SPARSE : sparse active label indices with per-label weights for multi-label classification.
-* 4 = NO_LABEL : no label is available.
+Here is a list of the available values:
+
+* 0 = SINGLE_LABEL: which is the integer label for the multi-class classification.
+* 1 = MULTI_LABEL_SPARSE: which is the sparse active label indices for multi-label classification.
+* 2 = MULTI_LABEL_DENSE: which is the dense label embedding vector for label embedding regression.
+* 3 = MULTI_LABEL_WEIGHTED_SPARSE: which is the sparse active label indices with per-label weights for multi-label classification.
+* 4 = NO_LABEL: where no label is available.
 )code", 0)
   .AddOptionalArg("image_available",
-      R"code(If image is available at all in this LMDB.)code", true)
+      R"code(Determines whether an image is available in this LMDB.)code", true)
   .AddOptionalArg("additional_inputs",
-      R"code(Additional auxiliary data tensors provided for each sample.)code", 0)
+      R"code(Additional auxiliary data tensors that are provided for each sample.)code", 0)
   .AddOptionalArg("bbox",
-      R"code(Denotes if bounding-box information is present.)code", false)
+      R"code(Denotes whether the bounding-box information is present.)code", false)
   .AddParent("LoaderBase");
 
 }  // namespace dali

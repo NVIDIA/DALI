@@ -93,27 +93,47 @@ void CachedDecoderImpl::CacheStore(const std::string& file_name, const uint8_t *
 DALI_SCHEMA(CachedDecoderAttr)
   .DocStr(R"code(Attributes for cached decoder.)code")
   .AddOptionalArg("cache_size",
-      R"code(**`mixed` backend only** Total size of the decoder cache in megabytes. When provided, decoded
-images bigger than `cache_threshold` will be cached in GPU memory.)code",
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+Total size of the decoder cache in megabytes. When provided, the decoded images
+that are larger than ``cache_threshold`` will be cached in GPU memory.
+)code",
       0)
   .AddOptionalArg("cache_threshold",
-      R"code(**`mixed` backend only** Size threshold (in bytes) for images (after decoding) to be cached.)code",
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+The size threshold, in bytes, for decoded images to be cached. When an image is cached, it no
+longer needs to be decoded when it is encountered at the operator input saving processing time.
+)code",
       0)
   .AddOptionalArg("cache_debug",
-      R"code(**`mixed` backend only** Print debug information about decoder cache.)code",
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+Prints the debug information about the decoder cache.)code",
       false)
   .AddOptionalArg("cache_batch_copy",
-      R"code(**`mixed` backend only** If true, multiple images from cache are copied with a single batched copy kernel call;
-otherwise, each image is copied using cudaMemcpy unless order in the batch is the same as in the cache)code",
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+If set to True, multiple images from the cache are copied with a batched copy kernel call.
+Otherwise, unless the order in the batch is the same as in the cache, each image is
+copied with ``cudaMemcpy``.)code",
       true)
   .AddOptionalArg("cache_type",
-      R"code(**`mixed` backend only** Choose cache type:
-`threshold`: Caches every image with size bigger than `cache_threshold` until cache is full.
-Warm up time for `threshold` policy is 1 epoch.
-`largest`: Store largest images that can fit the cache.
-Warm up time for `largest` policy is 2 epochs
-To take advantage of caching, it is recommended to use the option `stick_to_shard=True` with
-the reader operators, to limit the amount of unique images seen by the decoder in a multi node environment)code",
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+Here is a list of the available cache types:
+
+* | ``threshold``: caches every image with a size that is larger than ``cache_threshold`` until
+  | the cache is full.
+
+  The warm-up time for threshold policy is 1 epoch.
+* | ``largest``: stores the largest images that can fit in the cache.
+  | The warm-up time for largest policy is 2 epochs
+
+  .. note::
+    To take advantage of caching, it is recommended to configure readers with `stick_to_shard=True`
+    to limit the amount of unique images seen by each decoder instance in a multi node environment.
+)code",
       std::string());
 
 }  // namespace dali

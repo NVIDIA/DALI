@@ -24,7 +24,7 @@ DALI_SCHEMA(ImageDecoderAttr)
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("output_type",
-      R"code(The color space of output image.)code",
+      R"code(The color space of the output image.)code",
       DALI_RGB)
 // TODO(janton): Remove this when we remove the old nvJPEGDecoder implementation (DALI-971)
 #if !defined(NVJPEG_DECOUPLED_API)
@@ -32,71 +32,100 @@ DALI_SCHEMA(ImageDecoderAttr)
       R"code(**`mixed` backend only** Use nvJPEG's batched decoding API.)code", false)
 #endif
   .AddOptionalArg("hybrid_huffman_threshold",
-      R"code(**`mixed` backend only** Images with number of pixels (height * width) above this threshold will use the nvJPEG hybrid Huffman decoder.
-Images below will use the nvJPEG full host huffman decoder.
-N.B.: Hybrid Huffman decoder still uses mostly the CPU.)code",
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+Images with a total number of pixels (``height * width``) that is higher than this threshold will
+use the nvJPEG hybrid Huffman decoder. Images that have fewer pixels will use the nvJPEG host-side
+Huffman decoder.
+
+.. note::
+  Hybrid Huffman decoder still largely uses the CPU.)code",
       1000u*1000u)
   .AddOptionalArg("device_memory_padding",
-      R"code(**`mixed` backend only** Padding for nvJPEG's device memory allocations in bytes.
-This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
-is encountered and the internal buffer needs to be reallocated to decode it.
+      R"code(Applies **only** to the ``mixed`` backend type.
 
-If a value bigger than 0 is provided, the operator will pre-allocate one device buffer of the
-requested size per thread. If chosen correctly, no more allocations will occur during the pipeline
-execution. One way to find the ideal value is to do a full run over the dataset with the argument
-``memory_stats`` set to True and then copy the "biggest" allocation value printed in the statistics.)code",
+The padding for nvJPEG's device memory allocations, in bytes. This parameter helps to avoid
+reallocation in nvJPEG when a larger image is encountered, and the internal buffer needs to be
+reallocated to decode the image.
+
+If a value greater than 0 is provided, the operator preallocates one device buffer of the
+requested size per thread. If the value is correctly selected, no additional allocations
+will occur during the pipeline execution. One way to find the ideal value is to do a complete
+run over the dataset with the ``memory_stats`` argument set to True and then copy the largest
+allocation value that was printed in the statistics.)code",
       16*1024*1024)
   .AddOptionalArg("host_memory_padding",
-      R"code(**`mixed` backend only** Padding for nvJPEG's host memory allocations in bytes.
-This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
-is encountered and internal buffer needs to be reallocated to decode it.
+      R"code(Applies **only** to the ``mixed`` backend type.
 
-If a value bigger than 0 is provided, the operator will pre-allocate two (because of double-buffering)
-host pinned buffers of the requested size per thread. If chosen correctly, no more allocations will occur
-during the pipeline execution. One way to find the ideal value is to do a full run over the dataset with the
-argument ``memory_stats`` set to True and then copy the "biggest" allocation value printed in the statistics.)code",
+The padding for nvJPEG's host memory allocations, in bytes. This parameter helps to prevent
+the reallocation in nvJPEG when a larger image is encountered, and the internal buffer needs
+to be reallocated to decode the image.
+
+If a value greater than 0 is provided, the operator preallocates two (because of double-buffering)
+host-pinned buffers of the requested size per thread. If selected correctly, no additional
+allocations will occur during the pipeline execution. One way to find the ideal value is to
+do a complete run over the dataset with the ``memory_stats`` argument set to True, and then copy
+the largest allocation value that is printed in the statistics.)code",
       8*1024*1024)  // based on ImageNet heuristics (8MB)
   .AddOptionalArg("affine",
-      R"code(**`mixed` backend only** If internal threads should be affined to CPU cores)code",
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+If set to True, each thread in the internal thread pool will be tied to a specific CPU core.
+Otherwise, the threads can be reassigned to any CPU core by the operating system.)code",
       true)
   .AddOptionalArg("split_stages",
-      R"code(**`mixed` backend only** Split into separated CPU stage and GPU stage operators)code",
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+If True, the operator will be split into two sub-stages: a CPU and GPU one.)code",
       false)
   .AddOptionalArg("use_chunk_allocator",
-      R"code(**Experimental, `mixed` backend only** Use chunk pinned memory allocator, allocating chunk of size
-`batch_size*prefetch_queue_depth` during the construction and suballocate them
-in runtime. Ignored when `split_stages` is false.)code",
+      R"code(**Experimental**, applies **only** to the ``mixed`` backend type.
+
+Uses the chunk pinned memory allocator and allocates a chunk of the
+``batch_size * prefetch_queue_depth`` size during the construction and suballocates
+them at runtime. When ``split_stages`` is false, this argument is ignored.)code",
       false)
   .AddOptionalArg("use_fast_idct",
-      R"code(Enables fast IDCT in CPU based decompressor when GPU implementation cannot handle given image.
-According to libjpeg-turbo documentation, decompression performance is improved by 4-14% with very little
-loss in quality.)code",
+      R"code(Enables fast IDCT in the libjpeg-turbo based CPU decoder, used when ``device`` is set
+to "cpu" or when the it is set to "mixed" but the particular image can not be handled by
+the GPU implementation.
+
+According to the libjpeg-turbo documentation, decompression performance is improved by up to 14%
+with little reduction in quality.)code",
       false)
   .AddOptionalArg("memory_stats",
-      R"code(**`mixed` backend only** Print debug information about nvJPEG allocations.
-The information about the largest allocation might be useful to determine suitable values for
-`device_memory_padding` and `host_memory_padding` for a given dataset.
+      R"code(Applies **only** to the ``mixed`` backend type.
 
-Note: The statistics are global for the whole process (and not per operator instance) and include
-the allocations made during construction (when the padding hints are non-zero).)code",
+Prints debug information about nvJPEG allocations. The information about the largest
+allocation might be useful to determine suitable values for ``device_memory_padding`` and
+``host_memory_padding`` for a dataset.
+
+.. note::
+  The statistics are global for the entire process, not per operator instance, and include
+  the allocations made during construction if the padding hints are non-zero.
+)code",
       false);
 
 DALI_SCHEMA(ImageDecoder)
-  .DocStr(R"code(Decode images
+  .DocStr(R"code(Decodes images.
 
-For jpeg images, the implementation will use *nvJPEG* library or *libjpeg-turbo* depending on the
-selected backend (*mixed* and *cpu* respectively). Other image formats are decoded with *OpenCV* or
-other specific libraries (e.g. *libtiff*).
+For jpeg images, depending on the backend selected ("mixed" and "cpu"), the implementation uses
+the *nvJPEG* library or *libjpeg-turbo*, respectively. Other image formats are decoded
+with *OpenCV* or other specific libraries, such as *libtiff*.
 
-If used with *mixed* device, the operator will use a dedicated hardware decoder if available.
+If used with a ``mixed`` backend, and the hardware is available, the operator will use
+a dedicated hardware decoder.
 
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
   .AddOptionalArg("hw_decoder_load",
-      R"code(**`mixed` backend only** Determines the percentage of the workload that will be
-offloaded to the hardware decoder, if available. The optimal workload will depend on the number of
-threads given to the DALI pipeline and should be found empirically.)code",
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+Determines the percentage of the workload that will be offloaded to the hardware decoder,
+if available. The optimal workload depends on the number of threads that are provided to
+the DALI pipeline and should be found empirically. More details can be found at
+https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100)code",
       0.65f)
   .NumInput(1)
   .NumOutput(1)
@@ -106,16 +135,18 @@ threads given to the DALI pipeline and should be found empirically.)code",
 // Fused
 
 DALI_SCHEMA(ImageDecoderCrop)
-  .DocStr(R"code(Decode images and extract a fixed region-of-interest (ROI) specified by a constant
-window dimensions and a variable anchor.
+  .DocStr(R"code(Decodes images and extracts regions-of-interest (ROI) that are specified
+by fixed window dimensions and variable anchors.
 
-When possible, it will make use of region-of-interest decoding APIs (e.g. *libjpeg-turbo*, *nvJPEG*)
-thus optimizing decoding time and memory usage. When not supported, it will decode the whole image
-and then crop the selected ROI.
+When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
+to reduce the decoding time and memory usage. When the ROI decoding is not supported for a given
+image format, it will decode the entire image and crop the selected ROI.
 
-Note: ROI decoding is currently not compatible with hardware based decoding.
-Using *ImageDecoderCrop* will automatically disable hardware accelerated decoding.
-To make use of the hardware decoder, use *ImageDecoder* and *Crop* operators instead.
+.. note::
+  ROI decoding is currently not compatible with hardware-based decoding. Using
+  :meth:`nvidia.dali.ops.ImageDecoderCrop` automatically disables hardware accelerated
+  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
+  :meth:`nvidia.dali.ops.Crop` operators instead.
 
 The output of the decoder is in *HWC* layout.
 
@@ -126,16 +157,20 @@ Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
   .AddParent("CropAttr");
 
 DALI_SCHEMA(ImageDecoderRandomCrop)
-  .DocStr(R"code(Decode images and extract a random region-of-interest (ROI) with window dimensions
-generated from within a range of valid *aspect_ratio* and *area* values.
+  .DocStr(R"code(Decodes images and randomly crops them.
 
-When possible, it will make use of region-of-interest decoding APIs (e.g. *libjpeg-turbo*, *nvJPEG*)
-thus optimizing decoding time and memory usage. When not supported, it will decode the whole image
-and then crop the selected ROI.
+The cropping window's area (relative to the entire image) and aspect ratio can be restricted to
+a range of values specified by ``area`` and ``aspect_ratio`` arguments, respectively.
 
-Note: ROI decoding is currently not compatible with hardware based decoding.
-Using *ImageDecoderRandomCrop* will automatically disable hardware accelerated decoding.
-To make use of the hardware decoder, use *ImageDecoder* and *RandomResizedCrop* operators instead.
+When possible, the operator uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
+to reduce the decoding time and memory usage. When the ROI decoding is not supported for a given
+image format, it will decode the entire image and crop the selected ROI.
+
+.. note::
+  ROI decoding is currently not compatible with hardware-based decoding. Using
+  :meth:`nvidia.dali.ops.ImageDecoderRandomCrop` automatically disables hardware accelerated
+  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
+  :meth:`nvidia.dali.ops.RandomResizedCrop` operators instead.
 
 The output of the decoder is in *HWC* layout.
 
@@ -147,31 +182,35 @@ Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
 
 
 DALI_SCHEMA(ImageDecoderSlice)
-  .DocStr(R"code(Decode images and extract an externally provided region-of-interest (ROI) specified
-by an anchor and a shape of the ROI.
+  .DocStr(R"code(Decodes images and extracts regions of interest based on externally provided
+anchors and shapes.
 
-Inputs must be supplied as 3 separate tensors in a specific order: `data`
-containing input data, `anchor` containing either normalized or absolute coordinates
-(depending on the value of `normalized_anchor`) for the starting point of the
-slice (x0, x1, x2, ...), and `shape` containing either normalized or absolute coordinates
-(depending on the value of `normalized_shape`) for the dimensions of the slice
-(s0, s1, s2, ...). Both `anchor` and `shape` coordinates must be within the interval
-[0.0, 1.0] for normalized coordinates, or within the image shape for absolute
-coordinates. Both `anchor` and `shape` inputs will provide as many dimensions as specified
-with arguments `axis_names` or `axes`.
+Inputs must be supplied as tensors in the following order:
 
-By default `ImageDecoderSlice` operator uses normalized coordinates and `WH` order for the slice
-arguments.
+* ``data`` that contains the input data.
+* ``anchor`` that contains normalized or absolute coordinates, depending on the
+  ``normalized_anchor`` value, for the starting point of the slice (x0, x1, x2, and so on),
+* ``shape`` that contains normalized or absolute coordinates, depending on the
+  ``normalized_shape`` value, for the dimensions of the slice (s0, s1, s2, and so on).
 
-When possible, it will make use of region-of-interest decoding APIs (e.g. *libjpeg-turbo*, *nvJPEG*)
-thus optimizing decoding time and memory usage. When not supported, it will decode the whole image
-and then crop the selected ROI.
+The anchor and shape coordinates must be within the interval [0.0, 1.0] for normalized
+coordinates or within the image shape for the absolute coordinates. The ``anchor`` and ``shape``
+inputs will provide as many dimensions as were specified with arguments ``axis_names`` or ``axes``.
 
-Note: ROI decoding is currently not compatible with hardware based decoding.
-Using *ImageDecoderSlice* will automatically disable hardware accelerated decoding.
-To make use of the hardware decoder, use *ImageDecoder* and *Slice* operators instead.
+By default, the :meth:`nvidia.dali.ops.ImageDecoderSlice` operator uses normalized coordinates
+and "WH" order for the slice arguments.
 
-The output of the decoder is in *HWC* layout.
+When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
+to optimize the decoding time and memory usage. When the ROI decoding is not supported for a given
+image format, it will decode the entire image and crop the selected ROI.
+
+.. note::
+  ROI decoding is currently not compatible with hardware-based decoding. Using
+  :meth:`nvidia.dali.ops.ImageDecoderSlice` automatically disables hardware accelerated decoding.
+  To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
+  :meth:`nvidia.dali.ops.Slice` operators instead.
+
+The output of the decoder is in the *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
   .NumInput(3)

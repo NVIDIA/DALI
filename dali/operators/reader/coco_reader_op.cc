@@ -20,62 +20,72 @@ DALI_REGISTER_OPERATOR(COCOReader, COCOReader, CPU);
 DALI_SCHEMA(COCOReader)
   .NumInput(0)
   .NumOutput(3)
-  .DocStr(R"code(Read data from a COCO dataset composed of directory with images
-and an annotation files. For each image, with `m` bboxes, returns its bboxes as `(m,4)`
-Tensor (``m * [x, y, w, h]`` or ``m * [left, top, right, bottom]``) and labels as `(m,1)` Tensor (``m * category_id``).)code")
+  .DocStr(R"code(Reads data from a COCO dataset that is composed of a directory with
+images and annotation files. For each image with m bboxes, the bboxes are returned as  ``(m,4)``
+Tensor (``m * [x, y, w, h]`` or ``m * [left, top, right, bottom]``) and labels as ``(m,1)``
+Tensor (``m * category_id``).)code")
   .AddOptionalArg(
     "meta_files_path",
-    "Path to directory with meta files containing preprocessed COCO annotations.",
+    "Path to the directory with meta files that contain preprocessed COCO annotations.",
     std::string())
   .AddOptionalArg("annotations_file",
       R"code(List of paths to the JSON annotations files.)code",
       std::string())
   .AddOptionalArg("shuffle_after_epoch",
-      R"code(If true, reader shuffles whole dataset after each epoch.)code",
+      R"code(If set to True, the reader shuffles the entire  dataset after each epoch.)code",
       false)
   .AddArg("file_root",
-      R"code(Path to a directory containing data files.)code",
+      R"code(Path to a directory that contains the data files.)code",
       DALI_STRING)
   .AddOptionalArg("ltrb",
-      R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height].)code",
+      R"code(If set to True, bboxes are returned as [left, top, right, bottom].
+
+If set to False, the bboxes are returned as [x, y, width, height].)code",
       false)
   .AddOptionalArg("masks",
-      R"code(If true, segmentation masks are read and returned as polygons.
-Each mask can be one or more polygons. A polygon is a list of points (2 floats).
-For a given sample, the polygons are represented by two tensors:
+      R"code(If set to True, segmentation masks are read and returned as polygons,
+represented by a list of coordinates.
 
-- `masks_meta` -> list of tuples (mask_idx, start_idx, end_idx)
-- `masks_coords`-> list of (x,y) coordinates
+Each mask can be one or more polygons, and for a given sample, the polygons are represented by the
+following tensors:
 
-One mask can have one or more `masks_meta` having the same `mask_idx`, which means that the mask for that given
-index consists of several polygons).
-`start_idx` indicates the index of the first coords in `masks_coords`.
-Currently skips objects with `iscrowd=1` annotations (RLE masks, not suitable for instance segmentation).)code",
+- ``masks_meta`` -> list of tuples (mask_idx, start_idx, end_idx)
+- ``masks_coords``-> list of (x,y) coordinates
+
+One mask can have one or more ``masks_meta`` values that have the same ``mask_idx``.
+This means that the mask for that given index consists of several polygons.
+``start_idx`` indicates the index of the first coordinates in ``masks_coords``.
+Currently objects with ``iscrowd=1`` annotations are skipped because RLE masks are not suitable
+for instance segmentation.)code",
       false)
   .AddOptionalArg("skip_empty",
       R"code(If true, reader will skip samples with no object instances in them)code",
       false)
   .AddOptionalArg("size_threshold",
-      R"code(If width or height of a bounding box representing an instance of an object is under this value,
-object will be skipped during reading. It is represented as absolute value.)code",
+      R"code(If the width or the height of a bounding box that represents an instance of an object
+is lower than this value, the object will be ignored.
+
+The value is represented as an absolute value.)code",
       0.1f,
       false)
   .AddOptionalArg("ratio",
-      R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height.)code",
+      R"code(If set to True, the returned bbox coordinates are relative to the image size.)code",
       false)
   .AddOptionalArg("file_list",
-      R"code(Path to the file with a list of pairs ``file id``
-(leave empty to traverse the `file_root` directory to obtain files and labels))code",
+      R"code(Path to the file that contains a list of whitespace separated ``file id`` pairs.
+
+To traverse the file_root directory and obtain files and labels, leave this value empty.)code",
       std::string())
   .AddOptionalArg("save_img_ids",
-      R"code(If true, image IDs will also be returned.)code",
+      R"code(If set to True, the image IDs are also returned.)code",
       false)
   .AddOptionalArg("dump_meta_files",
-      R"code(If true, operator will dump meta files in folder provided with `dump_meta_files_path`.)code",
+      R"code(If set to True, the operator dumps the meta files in the folder that
+is provided with ``dump_meta_files_path``.)code",
       false)
   .AddOptionalArg(
-    "dump_meta_files_path",
-    "Path to directory for saving meta files containing preprocessed COCO annotations.",
+    "dump_meta_files_path", R"code(Path to the directory in which to save the meta files that
+contain the preprocessed COCO annotations.)code",
     std::string())
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("masks")) * 2

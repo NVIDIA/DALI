@@ -24,10 +24,10 @@ DALI_SCHEMA(ColorSpaceConversion)
     .NumOutput(1)
     .InputLayout("HWC")
     .AddArg("image_type",
-        R"code(The color space of the input image)code",
+        R"code(The color space of the input image.)code",
         DALI_IMAGE_TYPE)
     .AddArg("output_type",
-        R"code(The color space of the output image)code",
+        R"code(The color space of the output image.)code",
         DALI_IMAGE_TYPE);
 
 template <>

@@ -17,23 +17,29 @@
 namespace dali {
 
 DALI_SCHEMA(NormalDistribution)
-                .DocStr(R"code(Creates a tensor that consists of data distributed normally.
-This operator can be ran in 3 modes, which determine the shape of the output tensor:
-1. Providing an input batch to this operator results in a batch of output tensors, which have the same shape as the input tensors.
-2. Providing a custom `shape` as an argument results in an output batch, where every tensor has the same (given) shape.
-3. Providing no input arguments results in an output batch of scalars, distributed normally.)code")
-                .NumInput(0, 1)
-                .NumOutput(detail::kNumOutputs)
-                .AddOptionalArg(detail::kMean, R"code(Mean value of the distribution)code",
-                                0.f, true)
-                .AddOptionalArg(detail::kStddev,
-                                R"code(Standard deviation of the distribution)code",
-                                1.f, true)
-                .AddOptionalArg(detail::kShape,
-                                R"code(Shape of single output tensor in a batch)code",
-                                detail::kShapeDefaultValue)
-                .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
-                                DALI_FLOAT);
+    .DocStr(R"code(Creates a batch of tensors filled with random values following a normal
+distribution.
+
+This operator can be run in the following modes, which determine the ``shape`` of the output
+tensors/batch:
+
+* Providing an input batch to this operator results in a batch of output tensors, which have
+  the same ``shape`` as the input tensors.
+* Providing a custom ``shape`` as an argument results in an output batch, where every tensor has
+  the same (given) ``shape``.
+* Providing no input arguments results in an output batch of scalars, distributed normally.)code")
+  .NumInput(0, 1)
+  .NumOutput(detail::kNumOutputs)
+  .AddOptionalArg(detail::kMean, R"code(Mean value of the distribution.)code",
+                  0.f, true)
+  .AddOptionalArg(detail::kStddev,
+                  R"code(Standard deviation of the distribution.)code",
+                  1.f, true)
+  .AddOptionalArg(detail::kShape,
+                  R"code(Shape of an output tensor in a batch.)code",
+                  detail::kShapeDefaultValue)
+  .AddOptionalArg(arg_names::kDtype, R"code(Output data type.)code",
+                  DALI_FLOAT);
 
 DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCpu, CPU);
 

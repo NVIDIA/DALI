@@ -22,21 +22,21 @@ namespace dali {
 DALI_REGISTER_OPERATOR(Water, Water<CPUBackend>, CPU);
 
 DALI_SCHEMA(Water)
-    .DocStr("Perform a water augmentation (make image appear to be underwater).")
+    .DocStr("Performs a water augmentation, which makes the image appear to be underwater.")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("ampl_x",
-        R"code(Amplitude of the wave in x direction.)code", 10.f)
+        R"code(Amplitude of the wave in the x direction.)code", 10.f)
     .AddOptionalArg("ampl_y",
-        R"code(Amplitude of the wave in y direction.)code", 10.f)
+        R"code(Amplitude of the wave in the y direction.)code", 10.f)
     .AddOptionalArg<float>("freq_x",
-        R"code(Frequency of the wave in x direction.)code", 2.0 * M_PI / 128)
+        R"code(Frequency of the wave in the x direction.)code", 2.0 * M_PI / 128)
     .AddOptionalArg<float>("freq_y",
-        R"code(Frequence of the wave in y direction.)code", 2.0 * M_PI / 128)
+        R"code(Frequence of the wave in the y direction.)code", 2.0 * M_PI / 128)
     .AddOptionalArg("phase_x",
-        R"code(Phase of the wave in x direction.)code", 0.f)
+        R"code(Phase of the wave in the x direction.)code", 0.f)
     .AddOptionalArg("phase_y",
-        R"code(Phase of the wave in y direction.)code", 0.f)
+        R"code(Phase of the wave in the y direction.)code", 0.f)
     .InputLayout(0, "HWC")
     .AddParent("DisplacementFilter");
 

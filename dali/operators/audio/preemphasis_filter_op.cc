@@ -21,14 +21,22 @@
 namespace dali {
 
 DALI_SCHEMA(PreemphasisFilter)
-    .DocStr(R"code(This operator performs preemphasis filter on the input data.
-This filter in simple form can be expressed by the formula::
+    .DocStr(R"code(Applies preemphasis filter to the input data.
 
-  Y(t) = X[t] - coeff * X[t-1])code")
+This filter, in simple form, can be expressed by the formula::
+
+  Y[t] = X[t] - coeff * X[t-1]
+
+Where:
+
+  - ``X`` is the input singal.
+  - ``Y`` is the output signal.
+
+)code")
     .NumInput(1)
     .NumOutput(detail::kNumOutputs)
-    .AddOptionalArg(detail::kCoeff, R"code(Preemphasis coefficient `coeff`)code", 0.97f, true)
-    .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code", DALI_FLOAT);
+    .AddOptionalArg(detail::kCoeff, R"code(Preemphasis coefficient ``coeff``.)code", 0.97f, true)
+    .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output.)code", DALI_FLOAT);
 
 class PreemphasisFilterCPU : public PreemphasisFilter<CPUBackend> {
  public:
@@ -54,7 +62,7 @@ void PreemphasisFilterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
         const auto in_ptr = input[sample_id].data<InputType>();
         auto out_ptr = output[sample_id].mutable_data<OutputType>();
         DALI_ENFORCE(input[sample_id].shape() == output[sample_id].shape(),
-                      "Input and output shapes don't match");
+                     "Input and output shapes don't match");
         auto n = volume(output[sample_id].shape());
         auto coeff = preemph_coeff_[sample_id];
         if (coeff == 0.0f) {

@@ -70,14 +70,17 @@ class DLL_PUBLIC OpSchema {
     AddInternalArg("inplace", "Whether Op can be run in place", false);
     AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);
 
-    AddOptionalArg("seed", "Random seed (If not provided it will be populated based "
-      "on the global seed of the pipeline)", -1);
+    AddOptionalArg("seed", R"code(Random seed.
 
-    AddOptionalArg("bytes_per_sample_hint", "Output size hint (bytes), "
-      "per sample. The memory will be preallocated if it uses GPU or page-locked memory", 0);
+If not provided, it will be populated based on the global seed of the pipeline.)code", -1);
 
-    AddOptionalArg("preserve", "Do not remove the Op from the "
-                               "graph even if its outputs are unused.", false);
+    AddOptionalArg("bytes_per_sample_hint", R"code(Output size hint, in bytes per sample.
+
+If specified, the operator's outputs residing in GPU or page-locked host memory will be preallocated
+to accommodate a batch of samples of this size.)code", 0);
+
+    AddOptionalArg("preserve",  R"code(Prevents the operator from being removed from the
+graph even if its outputs are not used.)code", false);
   }
 
 

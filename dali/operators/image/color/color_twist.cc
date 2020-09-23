@@ -24,51 +24,62 @@ using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 3>;
 }  // namespace
 
 DALI_SCHEMA(Hsv)
-    .DocStr(R"code(This operator performs HSV manipulation.
-To change hue, saturation and/or value of the image, pass corresponding coefficients.
-Keep in mind, that `hue` has additive delta argument,
-while for `saturation` and `value` they are multiplicative.
+    .DocStr(R"code(Adjusts hue, saturation and value (brightness) of the images.
 
-This operator accepts RGB color space as an input.
+To change the hue, the saturation, and/or the value of the image, pass the corresponding
+coefficients. Remember that the ``hue`` is an additive delta argument,
+while for ``saturation`` and ``value``, the arguments are multiplicative.
 
-For performance reasons, the operation is approximated by a linear transform in RGB space.
+This operator accepts images in the RGB color space.
+
+For performance reasons, the operation is approximated by a linear transform in the RGB space.
 The color vector is projected along the neutral (gray) axis,
-rotated (according to hue delta) and scaled according to value and saturation multiplers,
-and then restored to original color space.
-)code")
+rotated based on the hue delta, scaled based on the value and saturation multipliers,
+and restored to the original color space.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg(color::kHue,
-                    R"code(Set additive change of hue. 0 denotes no-op)code",
+                    R"code(Hue delta, in degrees.
+
+The hue component can be interpreted as an angle and values outside 0-360 range wrap around, as
+they would in case of rotation.)code",
                     0.0f, true)
     .AddOptionalArg(color::kSaturation,
-                    R"code(Set multiplicative change of saturation. 1 denotes no-op)code",
+                    R"code(The saturation multiplier.)code",
                     1.0f, true)
     .AddOptionalArg(color::kValue,
-                    R"code(Set multiplicative change of value. 1 denotes no-op)code",
+                    R"code(The value multiplier.)code",
                     1.0f, true)
-    .AddOptionalArg(color::kOutputType, "Output data type; if not set, the input type is used.",
+    .AddOptionalArg(color::kOutputType, R"code(The output data type.
+
+If a value is not set, the input type is used.)code",
                     DALI_UINT8)
     .InputLayout(0, "HWC");
 
 DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
     .AddOptionalArg("image_type",
-        R"code(The color space of input and output image)code", DALI_RGB)
-    .AddOptionalArg(color::kOutputType, "Output data type; if not set, the input type is used.",
+        R"code(The color space of the input and the output image.)code", DALI_RGB)
+    .AddOptionalArg(color::kOutputType, R"code(Output data type.
+
+If not set, the input type is used.)code",
                     DALI_UINT8);
 
 DALI_SCHEMA(Brightness)
-    .DocStr(R"code(Changes the brightness of an image)code")
+    .DocStr(R"code(Changes the brightness of the image.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("brightness",
-        R"code(Brightness change factor.
-Values >= 0 are accepted. For example:
+                    R"code(Brightness change factor.
 
-* `0` - black image,
-* `1` - no change
-* `2` - increase brightness twice)code", 1.f, true)
+Values must be non-negative.
+
+Example values:
+
+* `0` - Black image.
+* `1` - No change.
+* `2` - Increase brightness twice.
+)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
@@ -77,12 +88,16 @@ DALI_SCHEMA(Contrast)
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("contrast",
-        R"code(Contrast change factor.
-Values >= 0 are accepted. For example:
+                    R"code(Contrast change factor.
 
-* `0` - gray image,
-* `1` - no change
-* `2` - increase contrast twice)code", 1.f, true)
+Values must be non-negative.
+
+Example values:
+
+* `0` - Uniform grey image.
+* `1` - No change.
+* `2` - Increase brightness twice.
+)code", 1.f, true)
     .AddParent("ColorTransformBase");
 
 DALI_SCHEMA(Hue)
@@ -90,49 +105,65 @@ DALI_SCHEMA(Hue)
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue",
-        R"code(Hue change, in degrees.)code", 0.f, true)
+        R"code(The hue change in degrees.)code", 0.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
 DALI_SCHEMA(Saturation)
-    .DocStr(R"code(Changes saturation level of the image.)code")
+    .DocStr(R"code(Changes the saturation level of the image.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("saturation",
-        R"code(Saturation change factor.
-Values >= 0 are supported. For example:
+                    R"code(The saturation change factor.
 
-* `0` - completely desaturated image
-* `1` - no change to image's saturation)code", 1.f, true)
+Values must be non-negative.
+
+Example values:
+
+- `0` - Completely desaturated image.
+- `1` - No change to image's saturation.
+)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
 DALI_SCHEMA(ColorTwist)
-    .DocStr(R"code(Combination of hue, saturation, contrast and brightness.)code")
+    .DocStr(R"code(Adjusts hue, saturation and brightness of the image.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue",
         R"code(Hue change, in degrees.)code", 0.f, true)
     .AddOptionalArg("saturation",
-        R"code(Saturation change factor.
-Values >= 0 are supported. For example:
+                    R"code(Saturation change factor.
 
-* `0` - completely desaturated image
-* `1` - no change to image's saturation)code", 1.f, true)
+Values must be non-negative.
+
+Example values:
+
+- `0` – Completely desaturated image.
+- `1` - No change to image's saturation.
+)code", 1.f, true)
     .AddOptionalArg("contrast",
-        R"code(Contrast change factor.
-Values >= 0 are accepted. For example:
+                    R"code(Contrast change factor.
 
-* `0` - gray image,
-* `1` - no change
-* `2` - increase contrast twice)code", 1.f, true)
+Values must be non-negative.
+
+Example values:
+
+* `0` - Uniform grey image.
+* `1` - No change.
+* `2` - Increase brightness twice.
+)code", 1.f, true)
     .AddOptionalArg("brightness",
-        R"code(Brightness change factor.
-Values >= 0 are accepted. For example:
+                    R"code(Brightness change factor.
 
-* `0` - black image,
-* `1` - no change
-* `2` - increase brightness twice)code", 1.f, true)
+Values must be non-negative.
+
+Example values:
+
+* `0` - Black image.
+* `1` - No change.
+* `2` - Increase brightness twice.
+)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, "HWC");
 
