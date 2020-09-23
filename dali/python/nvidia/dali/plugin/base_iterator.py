@@ -136,7 +136,7 @@ class _DaliBaseIterator(object):
 
         if fill_last_batch is not None:
             warnings.warn("Please do not use `fill_last_batch` and use `last_batch_policy` instead.",
-                  Warning, stacklevel=2)
+                          Warning, stacklevel=2)
             if fill_last_batch:
                 self._last_batch_policy = LastBatchPolicy.FILL
             else:

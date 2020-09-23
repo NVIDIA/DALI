@@ -21,6 +21,7 @@ import numpy as np
 import os
 from test_utils import get_dali_extra_path
 from nose.tools import raises, assert_raises
+from nvidia.dali.plugin.base_iterator import LastBatchPolicy as LastBatchPolicy
 
 class COCOReaderPipeline(Pipeline):
     def __init__(self, data_paths, batch_size, num_threads, shard_id, num_gpus, random_shuffle, stick_to_shard, shuffle_after_epoch, pad_last_batch, initial_fill=1024, return_labels=False):
@@ -131,7 +132,6 @@ def test_mxnet_iterator_model_fit():
 
 def test_mxnet_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-    from nvidia.dali.plugin.mxnet import LastBatchPolicy as LastBatchPolicy
     num_gpus = 1
     batch_size = 100
 
@@ -200,7 +200,6 @@ def test_mxnet_iterator_empty_array():
 
 def test_mxnet_iterator_last_batch_pad_last_batch():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-    from nvidia.dali.plugin.mxnet import LastBatchPolicy as LastBatchPolicy
     num_gpus = 1
     batch_size = 100
 
@@ -228,7 +227,6 @@ def test_mxnet_iterator_last_batch_pad_last_batch():
 
 def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-    from nvidia.dali.plugin.mxnet import LastBatchPolicy as LastBatchPolicy
     num_gpus = 1
     batch_size = 100
 
@@ -256,7 +254,6 @@ def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
     assert len(next_img_ids_list_set) == data_size
     assert len(set(next_mirrored_data)) == 1
 
-LastBatchPolicy = None
 def check_iterator_results(pad, pipes_number, shards_num, out_set, last_batch_policy, img_ids_list,
                            ids, data_set_size, sample_counter, per_gpu_counter, stick_to_shard,
                            epoch_counter, rounded_shard_size):
@@ -319,8 +316,6 @@ def check_iterator_results(pad, pipes_number, shards_num, out_set, last_batch_po
 
 def check_mxnet_iterator_pass_reader_name(shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy):
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-    from nvidia.dali.plugin.mxnet import LastBatchPolicy as LastBatchPolicy
-    global LastBatchPolicy
 
     pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
@@ -362,7 +357,6 @@ def check_mxnet_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
         (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
 
 def test_mxnet_iterator_pass_reader_name():
-    from nvidia.dali.plugin.mxnet import LastBatchPolicy as LastBatchPolicy
     for shards_num in [3, 5, 17]:
         for batch_size in [3, 5, 7]:
             for stick_to_shard in [False, True]:
@@ -374,7 +368,6 @@ def test_mxnet_iterator_pass_reader_name():
 
 def test_gluon_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
-    from nvidia.dali.plugin.mxnet import LastBatchPolicy as LastBatchPolicy
     num_gpus = 1
     batch_size = 100
 
@@ -393,7 +386,6 @@ def test_gluon_iterator_last_batch_no_pad_last_batch():
 
 def test_gluon_iterator_last_batch_pad_last_batch():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
-    from nvidia.dali.plugin.mxnet import LastBatchPolicy as LastBatchPolicy
     num_gpus = 1
     batch_size = 100
 
@@ -421,7 +413,6 @@ def test_gluon_iterator_last_batch_pad_last_batch():
 
 def test_gluon_iterator_not_fill_last_batch_pad_last_batch():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
-    from nvidia.dali.plugin.mxnet import LastBatchPolicy as LastBatchPolicy
     num_gpus = 1
     batch_size = 100
 
@@ -450,7 +441,6 @@ def test_gluon_iterator_not_fill_last_batch_pad_last_batch():
 
 def test_gluon_iterator_sparse_batch():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
-    from nvidia.dali.plugin.mxnet import LastBatchPolicy as LastBatchPolicy
     from mxnet.ndarray.ndarray import NDArray
     num_gpus = 1
     batch_size = 16
@@ -476,8 +466,6 @@ def test_gluon_iterator_sparse_batch():
 
 def check_gluon_iterator_pass_reader_name(shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy):
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
-    from nvidia.dali.plugin.mxnet import LastBatchPolicy as LastBatchPolicy
-    global LastBatchPolicy
 
     pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
@@ -526,7 +514,6 @@ def check_gluon_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
         (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
 
 def test_gluon_iterator_pass_reader_name():
-    from nvidia.dali.plugin.mxnet import LastBatchPolicy as LastBatchPolicy
     for shards_num in [3, 5, 17]:
         for batch_size in [3, 5, 7]:
             for stick_to_shard in [False, True]:
@@ -538,7 +525,6 @@ def test_gluon_iterator_pass_reader_name():
 
 def test_pytorch_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
-    from nvidia.dali.plugin.pytorch import LastBatchPolicy as LastBatchPolicy
     num_gpus = 1
     batch_size = 100
 
@@ -557,7 +543,6 @@ def test_pytorch_iterator_last_batch_no_pad_last_batch():
 
 def test_pytorch_iterator_last_batch_pad_last_batch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
-    from nvidia.dali.plugin.pytorch import LastBatchPolicy as LastBatchPolicy
     num_gpus = 1
     batch_size = 100
 
@@ -585,7 +570,6 @@ def test_pytorch_iterator_last_batch_pad_last_batch():
 
 def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
-    from nvidia.dali.plugin.pytorch import LastBatchPolicy as LastBatchPolicy
     num_gpus = 1
     batch_size = 100
 
@@ -710,8 +694,6 @@ def test_paddle_iterator_feed_ndarray():
 
 def check_pytorch_iterator_pass_reader_name(shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy):
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
-    from nvidia.dali.plugin.pytorch import LastBatchPolicy as LastBatchPolicy
-    global LastBatchPolicy
 
     pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
@@ -752,7 +734,6 @@ def check_pytorch_iterator_pass_reader_name(shards_num, pipes_number, batch_size
         (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
 
 def test_pytorch_iterator_pass_reader_name():
-    from nvidia.dali.plugin.pytorch import LastBatchPolicy as LastBatchPolicy
     for shards_num in [3, 5, 17]:
         for batch_size in [3, 5, 7]:
             for stick_to_shard in [False, True]:
@@ -764,7 +745,6 @@ def test_pytorch_iterator_pass_reader_name():
 
 def test_paddle_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
-    from nvidia.dali.plugin.paddle import LastBatchPolicy as LastBatchPolicy
     num_gpus = 1
     batch_size = 100
 
@@ -783,7 +763,6 @@ def test_paddle_iterator_last_batch_no_pad_last_batch():
 
 def test_paddle_iterator_last_batch_pad_last_batch():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
-    from nvidia.dali.plugin.paddle import LastBatchPolicy as LastBatchPolicy
     num_gpus = 1
     batch_size = 100
 
@@ -809,7 +788,6 @@ def test_paddle_iterator_last_batch_pad_last_batch():
     assert len(set(next_mirrored_data)) == 1
 
 def test_paddle_iterator_not_fill_last_batch_pad_last_batch():
-    from nvidia.dali.plugin.paddle import LastBatchPolicy as LastBatchPolicy
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     num_gpus = 1
     batch_size = 100
@@ -841,8 +819,6 @@ def test_paddle_iterator_not_fill_last_batch_pad_last_batch():
 
 def check_paddle_iterator_pass_reader_name(shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy):
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
-    from nvidia.dali.plugin.paddle import LastBatchPolicy as LastBatchPolicy
-    global LastBatchPolicy
 
     pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
                                 data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
@@ -883,7 +859,6 @@ def check_paddle_iterator_pass_reader_name(shards_num, pipes_number, batch_size,
         (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
 
 def test_paddle_iterator_pass_reader_name():
-    from nvidia.dali.plugin.paddle import LastBatchPolicy as LastBatchPolicy
     for shards_num in [3, 5, 17]:
         for batch_size in [3, 5, 7]:
             for stick_to_shard in [False, True]:
