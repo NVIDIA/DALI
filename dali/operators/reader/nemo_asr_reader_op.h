@@ -50,10 +50,12 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
 
     // Waiting until all the audio samples are ready to be consumed
     for (auto &sample : curr_batch) {
+      const auto &audio_meta = sample->audio_meta();
+      int64_t priority = audio_meta.length * audio_meta.channels;
       thread_pool_.AddWork(
         [&sample](int tid) {
           sample->decode_audio(tid);
-        });
+        }, priority);
     }
     thread_pool_.RunAll();
   }

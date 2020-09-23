@@ -27,6 +27,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/kernels/signal/resampling.h"
 #include "dali/operators/decoder/audio/audio_decoder.h"
+#include "dali/operators/decoder/audio/audio_decoder_impl.h"
 #include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/pipeline/util/thread_pool.h"
 
@@ -41,7 +42,7 @@ struct NemoAsrEntry {
 
 struct AsrSample {
   const Tensor<CPUBackend>& audio() const {
-    assert(audio_ready);
+    assert(audio_ready_);
     return audio_;
   }
 
@@ -54,20 +55,29 @@ struct AsrSample {
   }
 
   void decode_audio(int tid) {
-    assert(!audio_ready);
-    decode_f(tid);
-    audio_ready = true;
+    assert(!audio_ready_);
+    decode_f_(tid);
+    audio_ready_ = true;
   }
 
   friend class NemoAsrLoader;
 
+  AsrSample() = default;
+  AsrSample(AsrSample &&) = default;
+  AsrSample& operator=(AsrSample&&) = default;
+
  private:
+  AudioDecoderBase &decoder() { return decoder_; }
+
   Tensor<CPUBackend> audio_;
   std::string text_;
   AudioMetadata audio_meta_;
 
-  std::function<void(int)> decode_f;
-  bool audio_ready = false;
+  std::function<void(int)> decode_f_;
+  bool audio_ready_ = false;
+
+  using DecoderType = int16_t;
+  GenericAudioDecoder<DecoderType> decoder_;
 };
 
 namespace detail {
@@ -126,9 +136,13 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   void Reset(bool wrap_to_shard) override;
 
  private:
+  void ReadAudioMetadata(AudioMetadata &audio_meta,
+                         const NemoAsrEntry &entry,
+                         AudioDecoderBase &decoder);
   void ReadAudio(Tensor<CPUBackend> &audio,
-                 AudioMetadata &audio_meta,
+                 const AudioMetadata &audio_meta,
                  const NemoAsrEntry &entry,
+                 AudioDecoderBase &decoder,
                  Tensor<CPUBackend> &scratch);
 
   std::vector<std::string> manifest_filepaths_;
