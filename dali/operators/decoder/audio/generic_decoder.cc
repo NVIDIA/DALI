@@ -143,7 +143,7 @@ sf_count_t Tell(void *self) {
 /**
  * @brief Produce audio metadata instace from SF_INFO
  */
-AudioMetadata GetAudioMetadata(SF_INFO &sf_info) {
+AudioMetadata GetAudioMetadata(const SF_INFO &sf_info) {
   AudioMetadata ret;
   ret.length = sf_info.frames;
   ret.channels = sf_info.channels;

@@ -114,15 +114,15 @@ AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, DynamicDi
     resample_scratch_sz = meta.length * out_channels;
 
   auto &scratch_decoder = scratch_decoder_[thread_idx];
-  scratch_decoder.Resize({decode_scratch_sz});
+  scratch_decoder.resize(decode_scratch_sz * sizeof(DecoderOutputType));
 
   auto &scratch_resampler = scratch_resampler_[thread_idx];
-  scratch_resampler.Resize({resample_scratch_sz});
+  scratch_resampler.resize(resample_scratch_sz);
 
   DecodeAudio<OutputType, DecoderOutputType>(
     audio, *decoders_[sample_idx], meta, resampler_,
-    {scratch_decoder.mutable_data<DecoderOutputType>(), decode_scratch_sz},
-    {scratch_resampler.mutable_data<float>(), resample_scratch_sz},
+    {reinterpret_cast<DecoderOutputType*>(scratch_decoder.data()), decode_scratch_sz},
+    {scratch_resampler.data(), resample_scratch_sz},
     target_sr, downmix_,
     files_names_[sample_idx].c_str());
 }
@@ -135,15 +135,7 @@ void AudioDecoderCpu::DecodeBatch(workspace_t<Backend> &ws) {
   auto &tp = ws.GetThreadPool();
 
   scratch_decoder_.resize(tp.size());
-  for (auto &buf : scratch_decoder_) {
-    buf.set_pinned(false);
-    buf.set_type(TypeInfo::Create<DecoderOutputType>());
-  }
   scratch_resampler_.resize(tp.size());
-  for (auto &buf : scratch_resampler_) {
-    buf.set_pinned(false);
-    buf.set_type(TypeInfo::Create<float>());
-  }
 
   for (int i = 0; i < batch_size; i++) {
     tp.AddWork([&, i](int thread_id) {

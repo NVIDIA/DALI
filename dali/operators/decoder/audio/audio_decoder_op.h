@@ -88,8 +88,8 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   const float quality_ = 50.0f;
   std::vector<std::string> files_names_;
   std::vector<AudioMetadata> sample_meta_;
-  std::vector<Tensor<CPUBackend>> scratch_decoder_;
-  std::vector<Tensor<CPUBackend>> scratch_resampler_;
+  std::vector<vector<uint8_t>> scratch_decoder_;
+  std::vector<vector<float>> scratch_resampler_;
   std::vector<std::unique_ptr<AudioDecoderBase>> decoders_;
 };
 
