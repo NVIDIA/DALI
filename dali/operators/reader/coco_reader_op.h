@@ -24,6 +24,10 @@
 #include <istream>
 #include <memory>
 
+extern "C" {
+#include "third_party/cocoapi/common/maskApi.h"
+}
+
 #include "dali/operators/reader/reader_op.h"
 #include "dali/operators/reader/loader/coco_loader.h"
 
@@ -33,18 +37,24 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   explicit COCOReader(const OpSpec& spec):
     DataReader<CPUBackend, ImageLabelWrapper>(spec),
     read_masks_(spec.GetArgument<bool>("masks")),
+    pixelwise_masks_(spec.GetArgument<bool>("pixelwise_masks")),
     save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
     ValidateOptions(spec);
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<CocoLoader>(
       spec,
+      heights_,
+      widths_,
       offsets_,
       boxes_,
       labels_,
       counts_,
       masks_meta_,
       mask_coords_,
+      masks_rles_,
+      masks_rles_idx_,
       read_masks_,
+      pixelwise_masks_,
       save_img_ids_,
       original_ids_,
       shuffle_after_epoch);
@@ -104,8 +114,17 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
         coords.size() * sizeof(float));
     }
 
+    if (pixelwise_masks_) {
+      auto &masks_output = ws.Output<CPUBackend>(3);
+      masks_output.Resize({heights_[image_id], widths_[image_id], 1});
+      masks_output.SetLayout("HWC");
+      auto masks_out_data = masks_output.mutable_data<int>();
+      PixelwiseMasks(image_id, masks_out_data);
+    }
+
     if (save_img_ids_) {
-      auto &id_output = ws.Output<CPUBackend>(3 + 2 * static_cast<int>(read_masks_));
+      auto &id_output = ws.Output<CPUBackend>(3 + 2 * static_cast<int>(read_masks_)
+        + static_cast<int>(pixelwise_masks_));
       id_output.Resize({1});
       auto id_out_data = id_output.mutable_data<int>();
       memcpy(
@@ -119,6 +138,8 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
 
  private:
+  std::vector<int> heights_;
+  std::vector<int> widths_;
   std::vector<int> offsets_;
   std::vector<float> boxes_;
   std::vector<int> labels_;
@@ -126,13 +147,17 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
   std::vector<std::vector<int> > masks_meta_;
   std::vector<std::vector<float> > mask_coords_;
+  std::vector<std::vector<int> > masks_rles_idx_;
+  std::vector<std::vector<std::string> > masks_rles_;
 
   bool read_masks_ = false;
+  bool pixelwise_masks_ = false;
 
   bool save_img_ids_;
   std::vector<int> original_ids_;
 
   void ValidateOptions(const OpSpec &spec);
+  void PixelwiseMasks(int image_id, int* masks_output);
 };
 
 }  // namespace dali

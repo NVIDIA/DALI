@@ -23,3 +23,6 @@
 	path = third_party/cutlass
 	url = https://github.com/NVIDIA/cutlass
 	ignore = untracked
+[submodule "third_party/cocoapi"]
+	path = third_party/cocoapi
+	url = https://github.com/cocodataset/cocoapi

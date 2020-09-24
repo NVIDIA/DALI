@@ -14,6 +14,10 @@
 
 #include <gtest/gtest.h>
 
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/pipeline.h"
 
@@ -30,15 +34,19 @@ class CocoReaderTest : public ::testing::Test {
     std::remove("/tmp/original_ids.txt");
   }
 
-  std::vector<std::pair<std::string, std::string>> Outputs(bool masks = false) {
+  std::vector<std::pair<std::string, std::string>>
+  Outputs(bool masks = false, bool pixelwise_masks = false) {
     if (masks)
       return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"},
               {"masks_meta", "cpu"}, {"masks_coord", "cpu"}, {"image_ids", "cpu"}};
+    if (pixelwise_masks)
+      return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"},
+              {"pixelwise_masks", "cpu"}, {"image_ids", "cpu"}};
     else
       return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"}, {"image_ids", "cpu"}};
   }
 
-  OpSpec BasicCocoReaderOpSpec(bool masks = false) {
+  OpSpec BasicCocoReaderOpSpec(bool masks = false, bool pixelwise_masks = false) {
     OpSpec spec =  OpSpec("COCOReader")
       .AddArg("device", "cpu")
       .AddArg("file_root", file_root_)
@@ -50,12 +58,15 @@ class CocoReaderTest : public ::testing::Test {
         spec = spec.AddOutput("masks_meta", "cpu")
                    .AddOutput("masks_coord", "cpu");
       }
+      if (pixelwise_masks) {
+        spec = spec.AddOutput("pixelwise_masks", "cpu");
+      }
       spec = spec.AddOutput("image_ids", "cpu");
       return spec;
   }
 
-  OpSpec CocoReaderOpSpec(bool masks = false) {
-    auto spec = BasicCocoReaderOpSpec(masks)
+  OpSpec CocoReaderOpSpec(bool masks = false, bool pixelwise_masks = false) {
+    auto spec = BasicCocoReaderOpSpec(masks, pixelwise_masks)
       .AddArg("annotations_file", annotations_filename_);
     return spec;
   }
@@ -495,6 +506,61 @@ TEST_F(CocoReaderTest, LtrbRatioSkipEmpty) {
 
 TEST_F(CocoReaderTest, Masks) {
   this->RunTest(false, false, false, true);
+}
+
+TEST_F(CocoReaderTest, PixelwiseMasks) {
+  this->file_root_ = dali::testing::dali_extra_path() + "/db/coco_pixelwise/images";
+  this->annotations_filename_ = dali::testing::dali_extra_path() +
+                                      "/db/coco_pixelwise/instances.json";
+  int expected_size = 6;
+  Pipeline pipe(expected_size, 1, 0);
+  pipe.AddOperator(
+    CocoReaderOpSpec(false, true)
+    .AddArg("masks", false)
+    .AddArg("pixelwise_masks", true)
+    .AddArg("dump_meta_files", true)
+    .AddArg("dump_meta_files_path", "/tmp/")
+    ,
+    "coco_reader");
+  pipe.Build(Outputs(false, true));
+
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
+
+  const auto &masks_output = ws.Output<dali::CPUBackend>(3);
+
+  const auto &masks_shape = masks_output.shape();
+  TensorListShape<3> pixelwise_masks_shape({
+    {815, 1280, 1}, {853, 1280, 1}, {853, 1280, 1},
+    {853, 1280, 1}, {853, 1280, 1}, {848, 1280, 1}
+  });
+  ASSERT_EQ(masks_shape.size(), expected_size);
+  ASSERT_EQ(masks_shape, pixelwise_masks_shape);
+
+  std::vector<std::string> files {
+    "eat-1237431_1280.png", "home-office-336373_1280.png", "home-office-336377_1280.png",
+    "home-office-336378_1280.png", "pizza-2000614_1280.png", "pizza-2068272_1280.png"
+  };
+
+  for (int i = 0; i < expected_size; ++i) {
+    std::vector<uchar> labels(masks_output.tensor<int>(i),
+      masks_output.tensor<int>(i) + pixelwise_masks_shape[i][0] * pixelwise_masks_shape[i][1]);
+
+    std::string file_root = dali::testing::dali_extra_path() +
+      "/db/coco_pixelwise/pixelwise_masks/";
+    cv::Mat cv_mask =  cv::imread(file_root + files[i], cv::IMREAD_COLOR);
+    cv::cvtColor(cv_mask, cv_mask, cv::COLOR_BGR2RGB);
+    cv::Mat channels[3];
+    split(cv_mask, channels);
+    cv::Mat mask = channels[0] / 255 + 2 * channels[1] / 255 + 3 * channels[2] / 255;
+    cv::Size s = mask.size();
+
+    ASSERT_EQ(pixelwise_masks_shape[i][1], s.width);
+    ASSERT_EQ(pixelwise_masks_shape[i][0], s.height);
+    EXPECT_EQ(0, std::memcmp(mask.data, labels.data(), s.width * s.height * sizeof(uchar)));
+  }
 }
 
 TEST_F(CocoReaderTest, BigSizeThreshold) {

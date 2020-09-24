@@ -187,3 +187,12 @@ endif()
 set(CUTLASS_ENABLE_HEADERS_ONLY ON CACHE BOOL "Enable only the header library")
 check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/cutlass)
 list(APPEND DALI_LIBS CUTLASS)
+
+##################################################################
+# CocoAPI
+##################################################################
+set(SOURCE_FILES third_party/cocoapi/common/maskApi.c)
+add_library(cocoapi STATIC ${SOURCE_FILES})
+set_target_properties(cocoapi PROPERTIES POSITION_INDEPENDENT_CODE ON)
+list(APPEND DALI_LIBS cocoapi)
+list(APPEND DALI_EXCLUDES libcocoapi.a)
