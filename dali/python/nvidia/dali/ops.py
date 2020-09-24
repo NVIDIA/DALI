@@ -967,6 +967,17 @@ def _arithm_op(name, *inputs):
     # Call it immediately
     return op(*dev_inputs)
 
+
+# TODO(klecki): do we want to place it somewhere in a module?
+def min(left, right):
+    return _arithm_op("min", left, right)
+
+def max(left, right):
+    return _arithm_op("max", left, right)
+
+def clamp(value, lo, hi):
+    return _arithm_op("clamp", value, lo, hi)
+
 def cpu_ops():
     return _cpu_ops
 

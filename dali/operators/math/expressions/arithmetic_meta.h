@@ -50,6 +50,8 @@ enum class ArithmeticOp : int {
   div,
   fdiv,
   mod,
+  min,
+  max,
   // Binary comparisons
   eq,   // ==
   neq,  // !=
@@ -59,7 +61,9 @@ enum class ArithmeticOp : int {
   geq,  // >=
   bit_and,
   bit_or,
-  bit_xor
+  bit_xor,
+  // Ternary Ops
+  clamp
 };
 
 DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
@@ -73,6 +77,8 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
     case ArithmeticOp::div:
     case ArithmeticOp::fdiv:
     case ArithmeticOp::mod:
+    case ArithmeticOp::min:
+    case ArithmeticOp::max:
     case ArithmeticOp::eq:
     case ArithmeticOp::neq:
     case ArithmeticOp::lt:
@@ -83,6 +89,8 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
     case ArithmeticOp::bit_or:
     case ArithmeticOp::bit_xor:
       return 2;
+    case ArithmeticOp::clamp:
+      return 3;
     default:
       return -1;
   }
@@ -98,6 +106,9 @@ DALI_HOST_DEV constexpr bool IsArithmetic(ArithmeticOp op) {
     case ArithmeticOp::div:
     case ArithmeticOp::fdiv:
     case ArithmeticOp::mod:
+    case ArithmeticOp::min:
+    case ArithmeticOp::max:
+    case ArithmeticOp::clamp:
       return true;
     default:
       return false;
@@ -367,6 +378,70 @@ REGISTER_BINARY_IMPL(ArithmeticOp::add, +);
 REGISTER_BINARY_IMPL(ArithmeticOp::sub, -);
 REGISTER_BINARY_IMPL(ArithmeticOp::mul, *);
 
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::min, Backend> {
+  template <typename L, typename R>
+  using result_t = binary_result_t<L, R>;
+
+  template <typename L, typename R>
+  DALI_HOST_DEV static constexpr result_t<L, R> impl(L l, R r) {
+    auto l_ = static_cast<result_t<L, R>>(l);
+    auto r_ = static_cast<result_t<L, R>>(r);
+    return l_ <= r_ ? l_ : r_;
+  }
+
+  static inline std::string to_string() {
+    return "min";
+  }
+
+  static constexpr int num_inputs = 2;
+  static constexpr int num_outputs = 1;
+};
+
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::max, Backend> {
+  template <typename L, typename R>
+  using result_t = binary_result_t<L, R>;
+
+  template <typename L, typename R>
+  DALI_HOST_DEV static constexpr result_t<L, R> impl(L l, R r) {
+    auto l_ = static_cast<result_t<L, R>>(l);
+    auto r_ = static_cast<result_t<L, R>>(r);
+    return l_ >= r_ ? l_ : r_;
+  }
+
+  static inline std::string to_string() {
+    return "max";
+  }
+
+  static constexpr int num_inputs = 2;
+  static constexpr int num_outputs = 1;
+};
+
+
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::clamp, Backend> {
+  template <typename T, typename Min, typename Max>
+  using result_t = binary_result_t<binary_result_t<T, Min>, Max>;
+
+  template <typename T, typename Min, typename Max>
+  DALI_HOST_DEV static constexpr result_t<T, Min, Max> impl(T v, Min lo, Max hi) {
+    auto v_ = static_cast<result_t<T, Min, Max>>(v);
+    auto lo_ = static_cast<result_t<T, Min, Max>>(lo);
+    auto hi_ = static_cast<result_t<T, Min, Max>>(hi);
+    auto lo_clamp_ = v_ <= lo_ ? lo_ : v_;
+    return lo_clamp_ >= hi_ ? hi_ : lo_clamp_;
+  }
+
+  static inline std::string to_string() {
+    return "clamp";
+  }
+
+  static constexpr int num_inputs = 3;
+  static constexpr int num_outputs = 1;
+};
+
+
 // Specialization for mul and bool so we use && instead of * so the compiler is happy
 template <>
 DALI_HOST_DEV constexpr binary_result_t<bool, bool>
@@ -475,7 +550,7 @@ using to_signed_t = typename to_signed<T>::type;
  *                      and it is compared with unsigned operand.
  * @param RIGHT_NEGATIVE as above but for right negative operand compared with left unsigned type
  *
- * For example if we have `<=`, when comparing negative value on the left with unsigedn value on the
+ * For example if we have `<=`, when comparing negative value on the left with unsigned value on the
  * right, the result is always true, like `-1 <= 1u`.
  *
  * The result of cmp is direct use of the provided EXPR or special case for comparing signed
@@ -640,13 +715,14 @@ struct arithm_meta<ArithmeticOp::mod, GPUBackend> {
 
 inline std::string to_string(ArithmeticOp op) {
   std::string result;
-  VALUE_SWITCH(op, op_static, (ArithmeticOp::plus, ArithmeticOp::minus,
-      ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::mod,
-      ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq, ArithmeticOp::gt,
-      ArithmeticOp::geq, ArithmeticOp::bit_and, ArithmeticOp::bit_or, ArithmeticOp::bit_xor),
-      (result = arithm_meta<op_static, CPUBackend>::to_string();),
-      (result = "InvalidOp";)
-  );  // NOLINT(whitespace/parens)
+  VALUE_SWITCH(op, op_static,
+               (ArithmeticOp::plus, ArithmeticOp::minus, ArithmeticOp::add, ArithmeticOp::sub,
+                ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::mod, ArithmeticOp::min,
+                ArithmeticOp::max, ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt,
+                ArithmeticOp::leq, ArithmeticOp::gt, ArithmeticOp::geq, ArithmeticOp::bit_and,
+                ArithmeticOp::bit_or, ArithmeticOp::bit_xor, ArithmeticOp::clamp),
+               (result = arithm_meta<op_static, CPUBackend>::to_string();),
+               (result = "InvalidOp";));  // NOLINT(whitespace/parens)
   return result;
 }
 
@@ -680,7 +756,13 @@ inline DALIDataType TypePromotion(ArithmeticOp op, span<DALIDataType> types) {
       return DALIDataType::DALI_FLOAT;
     }
   }
-  return BinaryTypePromotion(types[0], types[1]);
+  DALIDataType result = BinaryTypePromotion(types[0], types[1]);
+  if (types.size() > 2) {
+    for (int i = 2; i < types.size(); i++) {
+      result = BinaryTypePromotion(result, types[i]);
+    }
+  }
+  return result;
 }
 
 
@@ -694,6 +776,8 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
       {"div",    ArithmeticOp::div},
       {"fdiv",   ArithmeticOp::fdiv},
       {"mod",    ArithmeticOp::mod},
+      {"min",    ArithmeticOp::min},
+      {"max",    ArithmeticOp::max},
       {"eq",     ArithmeticOp::eq},
       {"neq",    ArithmeticOp::neq},
       {"lt",     ArithmeticOp::lt},
@@ -703,6 +787,7 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
       {"bitand", ArithmeticOp::bit_and},
       {"bitor",  ArithmeticOp::bit_or},
       {"bitxor", ArithmeticOp::bit_xor},
+      {"clamp", ArithmeticOp::clamp},
   };
   auto it = token_to_op.find(op_name);
   DALI_ENFORCE(it != token_to_op.end(), "No implementation for op \"" + op_name + "\".");

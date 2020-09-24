@@ -105,6 +105,59 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
   return result;
 }
 
+
+/**
+ * @brief Inspect `expr` to transform runtime information to static information, obtain the
+ *        implementation for ternary op (executor for given expression) and return it.
+ *
+ * The static type switch goes over input types and input kinds.
+ * This is ternary case and seven possible input kind combinations are supported,
+ * that is all combinations of Tensors and Constants, except (Constant, Constant, Constant)
+ *
+ * @tparam Impl template that maps binary Arithmetic Op and input/output types
+ *                          to a functor that can execute it over a tile of three tensors.
+ *                          The implementation need to loop over inputs and output.
+ *                          @see ExprImplCpuTernary or ExprImplGpuTernary
+ * @param expr The expression node for which we return the executor
+ */
+template <ArithmeticOp op, typename Backend,
+          template <ArithmeticOp, typename, typename, typename, typename, bool, bool, bool> class ImplsAll>
+std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
+  std::unique_ptr<ExprImplBase> result;
+  DALIDataType types[3];
+  bool is_tensor[3];
+  for (int i = 0; i < 3; i++) {
+    types[i] = expr[i].GetTypeId();
+    is_tensor[i] = !IsScalarLike(expr[i]);
+  }
+
+  TYPE_SWITCH(types[0], type2id, First, ARITHMETIC_ALLOWED_TYPES, (
+    TYPE_SWITCH(types[1], type2id, Second, ARITHMETIC_ALLOWED_TYPES, (
+      TYPE_SWITCH(types[2], type2id, Third, ARITHMETIC_ALLOWED_TYPES, (
+        using Out_t = typename arithm_meta<op, Backend>::template result_t<First, Second, Third>;
+        if (is_tensor[0] && is_tensor[1] && is_tensor[2]) {
+          result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, true, true>());
+        } else if (is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
+          result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, true, false>());
+        } else if (is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
+          result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, false, true>());
+        } else if (is_tensor[0] && !is_tensor[1] && !is_tensor[2]) {
+          result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, false, false>());
+        } else if (!is_tensor[0] && is_tensor[1] && is_tensor[2]) {
+          result.reset(new ImplsAll<op, Out_t, First, Second, Third, false, true, true>());
+        } else if (!is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
+          result.reset(new ImplsAll<op, Out_t, First, Second, Third, false, true, false>());
+        } else if (!is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
+          result.reset(new ImplsAll<op, Out_t, First, Second, Third, false, false, true>());
+        } else {
+          DALI_FAIL("Expression cannot have three scalar operands");
+        }
+      ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
+    ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
+  return result;
+}
+
 #define IMPLEMENT_OP_FACTORY_GPU_UNARY(OP)                                           \
   std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, GPUBackend>, \
                                           const ExprFunc &expr) {                    \
@@ -129,6 +182,12 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
                                           const ExprFunc &expr) {                           \
     return ExprImplFactoryBinOp<ArithmeticOp::OP, CPUBackend, ExprImplCpuTT, ExprImplCpuTC, \
                                 ExprImplCpuCT>(expr);                                       \
+  }
+
+#define IMPLEMENT_OP_FACTORY_CPU_TERNARY(OP)                                                \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, CPUBackend>,        \
+                                          const ExprFunc &expr) {                           \
+    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, CPUBackend, ExprImplCpuTernary>(expr); \
   }
 
 
@@ -200,6 +259,24 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::mod, CPUBacken
                                         const ExprFunc &expr);
 
 /**
+ * @brief Factory function returning proper variant of implementation for `min`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::min, CPUBackend>,
+                                        const ExprFunc &expr);
+
+
+/**
+ * @brief Factory function returning proper variant of implementation for `max`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::max, CPUBackend>,
+                                        const ExprFunc &expr);
+
+
+/**
  * @brief Factory function returning proper variant of implementation for `eq`
  *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
  *        specified in `expr`.
@@ -269,6 +346,15 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_or, CPUBac
  *        specified in `expr`.
  */
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_xor, CPUBackend>,
+                                        const ExprFunc &expr);
+
+
+/**
+ * @brief Factory function returning proper variant of implementation for `clamp`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::clamp, CPUBackend>,
                                         const ExprFunc &expr);
 
 

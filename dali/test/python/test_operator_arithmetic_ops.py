@@ -56,13 +56,15 @@ input_types = integer_types + float_types
 
 selected_input_types = [np.bool_, np.int32, np.uint8, np.float32]
 
-selected_bin_input_kinds = [("cpu", "cpu"), ("gpu", "gpu"), ("cpu", "cpu_scalar"), ("gpu", "gpu_scalar"),
-                            ("const", "cpu"), ("const", "gpu")]
+# selected_bin_input_kinds = [("cpu", "cpu"), ("gpu", "gpu"), ("cpu", "cpu_scalar"), ("gpu", "gpu_scalar"),
+#                             ("const", "cpu"), ("const", "gpu")]
+
+selected_bin_input_kinds = [("cpu", "cpu"), ("cpu", "cpu_scalar"), ("const", "cpu")]
 
 unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
-                   ((lambda x, y: x * y), "*")]
+                   ((lambda x, y: x * y), "*"), (((lambda x, y: ops.min(x, y)), (lambda x, y: np.minimum(x, y))), "min")]
 
 bitwise_operations = [((lambda x, y: x & y), "&"), ((lambda x, y: x | y), "|"),
                       ((lambda x, y: x ^ y), "^")]
@@ -226,7 +228,7 @@ class ExprOpPipeline(Pipeline):
         for i in range(self.length):
             self.source.append(self.external_source[i]())
             inputs.append(self.get_operand(self.source[i], self.kinds[i], self.types[i]))
-        return self.unary_plus_war(tuple(self.source) + (self.op(*inputs), ))
+        return tuple(self.source) + (self.op(*inputs), )
 
     def get_operand(self, operand, kind, operand_type):
         if kind == "const":
@@ -240,14 +242,6 @@ class ExprOpPipeline(Pipeline):
         inputs = self.iterator.next()
         for i in range(len(inputs)):
             self.feed_input(self.source[i], inputs[i])
-
-    # Workaround for unary `+` operator
-    # It is just a passthrough on python level and we cannot return the same output twice
-    # from the pipeline, so I just put one of the outputs on GPU in case it would happen
-    def unary_plus_war(self, result):
-        if len(result) == 2 and result[0].name == result[1].name and result[0].device == result[1].device:
-            return result[0].gpu(), result[1]
-        return result
 
 # orig_type - the original type of used input
 # target_type - the type of the result after type promotions
@@ -304,10 +298,16 @@ def test_unary_arithmetic_ops():
 
 # Regular arithmetic ops that can be validated as straight numpy
 def check_arithm_op(kinds, types, op, shape, _):
+    if isinstance(op, tuple):
+        dali_op = op[0]
+        numpy_op = op[1]
+    else:
+        dali_op = op
+        numpy_op = op
     left_type, right_type = types
     target_type = bin_promote(left_type, right_type)
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
-    pipe = ExprOpPipeline(kinds, types, iterator, op, batch_size = batch_size, num_threads = 2,
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size = batch_size, num_threads = 2,
             device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
@@ -315,10 +315,10 @@ def check_arithm_op(kinds, types, op, shape, _):
         l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
         if 'f' in np.dtype(target_type).kind:
-            np.testing.assert_allclose(out, op(l_np, r_np),
+            np.testing.assert_allclose(out, numpy_op(l_np, r_np),
                 rtol=1e-07 if target_type != np.float16 else 0.005)
         else:
-            np.testing.assert_array_equal(out, op(l_np, r_np))
+            np.testing.assert_array_equal(out, numpy_op(l_np, r_np))
 
 def test_arithmetic_ops_big():
     for kinds in bin_input_kinds:

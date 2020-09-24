@@ -44,10 +44,10 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryGpuUnary(const ExprFunc &expr) {
 std::unique_ptr<ExprImplBase> ExprImplFactoryGpuBinary(const ExprFunc &expr) {
   std::unique_ptr<ExprImplBase> result;
   auto op = NameToOp(expr.GetFuncName());
-  VALUE_SWITCH(op, op_static, ALLOWED_BIN_OPS, (
-          arithm_meta<op_static, GPUBackend> dummy;
-          result = OpFactory(dummy, expr);
-      ), DALI_FAIL("No suitable op value found"););  // NOLINT(whitespace/parens)
+  // VALUE_SWITCH(op, op_static, ALLOWED_BIN_OPS, (
+  //         arithm_meta<op_static, GPUBackend> dummy;
+  //         result = OpFactory(dummy, expr);
+  //     ), DALI_FAIL("No suitable op value found"););  // NOLINT(whitespace/parens)
   return result;
 }
 

@@ -122,6 +122,58 @@ class ExprImplCpuTC : public ExprImplBase {
   }
 };
 
+// Ternary operators
+
+template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third, bool FirstTensor, bool SecondTensor, bool ThirdTensor>
+class ExprImplCpuTernary : public ExprImplBase {
+ public:
+  void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
+               TileRange range) override {
+    assert(range.begin + 1 == range.end &&
+           "CPU Expression implementation can handle only one tile at a time");
+    const auto &tile = tiles[range.begin];
+    auto output = static_cast<Result *>(tile.output);
+    auto first = static_cast<const First *>(tile.args[0]);
+    auto second = static_cast<const Second *>(tile.args[1]);
+    auto third = static_cast<const Third *>(tile.args[2]);
+    Execute(output, pass<FirstTensor>(first), pass<SecondTensor>(second), pass<ThirdTensor>(third), tile.desc.extent_size);
+  }
+
+ private:
+  using meta = arithm_meta<op, CPUBackend>;
+
+  template <bool is_ptr, typename T>
+  using param_t = std::conditional_t<is_ptr, const T*, T>;
+
+  template <typename T>
+  static T access(const T* ptr, int64_t idx) {
+    return ptr[idx];
+  }
+
+  template <typename T>
+  static T access(T value, int64_t) {
+    return value;
+  }
+
+  template <bool is_ptr, typename T>
+  static std::enable_if_t<is_ptr, const T*> pass(const T* ptr) {
+    return ptr;
+  }
+
+  template <bool is_ptr, typename T>
+  static std::enable_if_t<!is_ptr, T> pass(const T* ptr) {
+    return *ptr;
+  }
+
+  static void Execute(Result *result, param_t<FirstTensor, First> first, param_t<SecondTensor, Second>  second, param_t<ThirdTensor, Third> third,
+                      int64_t extent) {
+    for (int64_t i = 0; i < extent; i++) {
+      result[i] = meta::impl(access(first, i), access(second, i), access(third, i));
+    }
+  }
+};
+
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_IMPL_CPU_H_
