@@ -2646,6 +2646,13 @@ POSSIBILITY OF SUCH DAMAGE.
 
 ========================
 
+Acknowledgments:
+
+  The deflate format used by zlib was defined by Phil Katz.  The deflate and
+  zlib specifications were written by L.  Peter Deutsch.  Thanks to all the
+  people who reported problems and suggested various improvements in zlib; they
+  are too numerous to cite here.
+
 Copyright notice:
 
  (C) 1995-2017 Jean-loup Gailly and Mark Adler
