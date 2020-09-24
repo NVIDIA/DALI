@@ -115,8 +115,8 @@ DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
   int subexpression_count = func.GetSubexpressionCount();
-  DALI_ENFORCE(subexpression_count == 1 || subexpression_count == 2,
-               "Only unary and binary expressions are supported");
+  DALI_ENFORCE(1 <= subexpression_count && subexpression_count <= kMaxArity,
+               "Only unary, binary and ternary expressions are supported");
 
   SmallVector<DALIDataType, kMaxArity> types;
   types.resize(subexpression_count);
@@ -193,8 +193,8 @@ DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
   int subexpression_count = expr.GetSubexpressionCount();
-  DALI_ENFORCE(subexpression_count == 1 || subexpression_count == 2,
-               "Only unary and binary expressions are supported");
+  DALI_ENFORCE(1 <= subexpression_count && subexpression_count <= kMaxArity,
+               "Only unary, binary and ternary expressions are supported");
 
   SmallVector<const TensorListShape<> *, kMaxArity> shapes;
   shapes.resize(subexpression_count);
@@ -338,7 +338,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
     auto &expr = *expr_;
     bool is_simple_expression = expr.GetNodeType() == NodeType::Function &&
                                 expr.GetSubexpressionCount() > 0 &&
-                                expr.GetSubexpressionCount() <= 2;
+                                expr.GetSubexpressionCount() <= kMaxArity;
     auto &func = dynamic_cast<ExprFunc &>(expr);
     for (int i = 0; i < func.GetSubexpressionCount(); i++) {
       is_simple_expression = is_simple_expression && func[i].GetNodeType() != NodeType::Function;

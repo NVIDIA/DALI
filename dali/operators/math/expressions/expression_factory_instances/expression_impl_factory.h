@@ -121,7 +121,8 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
  * @param expr The expression node for which we return the executor
  */
 template <ArithmeticOp op, typename Backend,
-          template <ArithmeticOp, typename, typename, typename, typename, bool, bool, bool> class ImplsAll>
+          template <ArithmeticOp, typename, typename, typename, typename, bool, bool, bool>
+          class ImplsAll>
 std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
   std::unique_ptr<ExprImplBase> result;
   DALIDataType types[3];
@@ -184,13 +185,17 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
                                 ExprImplCpuCT>(expr);                                       \
   }
 
-#define IMPLEMENT_OP_FACTORY_CPU_TERNARY(OP)                                                \
-  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, CPUBackend>,        \
-                                          const ExprFunc &expr) {                           \
+#define IMPLEMENT_OP_FACTORY_CPU_TERNARY(OP)                                                 \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, CPUBackend>,         \
+                                          const ExprFunc &expr) {                            \
     return ExprImplFactoryTernaryOp<ArithmeticOp::OP, CPUBackend, ExprImplCpuTernary>(expr); \
   }
 
-
+#define IMPLEMENT_OP_FACTORY_GPU_TERNARY(OP)                                                 \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, GPUBackend>,         \
+                                          const ExprFunc &expr) {                            \
+    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, GPUBackend, ExprImplGpuTernary>(expr); \
+  }
 
 /**
  * @brief Factory function returning proper variant of implementation for `plus`
@@ -426,6 +431,23 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::mod, GPUBacken
                                         const ExprFunc &expr);
 
 /**
+ * @brief Factory function returning proper variant of implementation for `min`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::min, GPUBackend>,
+                                        const ExprFunc &expr);
+
+
+/**
+ * @brief Factory function returning proper variant of implementation for `max`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::max, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
  * @brief Factory function returning proper variant of implementation for `eq`
  *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
  *        specified in `expr`.
@@ -497,7 +519,13 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_or, GPUBac
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_xor, GPUBackend>,
                                         const ExprFunc &expr);
 
-
+/**
+ * @brief Factory function returning proper variant of implementation for `clamp`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::clamp, GPUBackend>,
+                                        const ExprFunc &expr);
 
 }  // namespace dali
 

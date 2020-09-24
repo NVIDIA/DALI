@@ -38,13 +38,39 @@ namespace dali {
 
 #define ALLOWED_BIN_OPS                                                                            \
   (ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::fdiv, \
-      ArithmeticOp::mod, ArithmeticOp::min, ArithmeticOp::max, ArithmeticOp::eq, ArithmeticOp::neq,\
-      ArithmeticOp::lt, ArithmeticOp::leq, \
-      ArithmeticOp::gt, ArithmeticOp::geq, ArithmeticOp::bit_and, ArithmeticOp::bit_or,            \
-      ArithmeticOp::bit_xor)
+  ArithmeticOp::mod, ArithmeticOp::min, ArithmeticOp::max, ArithmeticOp::eq, ArithmeticOp::neq,    \
+  ArithmeticOp::lt, ArithmeticOp::leq, ArithmeticOp::gt, ArithmeticOp::geq,                        \
+  ArithmeticOp::bit_and, ArithmeticOp::bit_or, ArithmeticOp::bit_xor)
 
 #define ALLOWED_TERNARY_OPS \
   (ArithmeticOp::clamp)
+
+namespace expression_detail {
+
+template <bool is_ptr, typename T>
+DALI_HOST_DEV std::enable_if_t<is_ptr, const T*> pass(const T* ptr) {
+  return ptr;
+}
+
+template <bool is_ptr, typename T>
+DALI_HOST_DEV std::enable_if_t<!is_ptr, T> pass(const T* ptr) {
+  return *ptr;
+}
+
+template <typename T>
+DALI_HOST_DEV T access(const T* ptr, int64_t idx) {
+  return ptr[idx];
+}
+
+template <typename T>
+DALI_HOST_DEV T access(T value, int64_t) {
+  return value;
+}
+
+template <bool is_ptr, typename T>
+using param_t = std::conditional_t<is_ptr, const T*, T>;
+
+}  // namespace expression_detail
 
 struct ExprImplTask {
   ExprImplBase *impl;

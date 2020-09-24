@@ -30,7 +30,7 @@
 
 namespace dali {
 
-constexpr int kMaxArity = 2;
+constexpr int kMaxArity = 3;
 
 /**
  * @brief Registered arithmetic and mathematical operations
@@ -744,7 +744,6 @@ inline DALIDataType BinaryTypePromotion(DALIDataType left, DALIDataType right) {
  * @brief Calculate type promotion for given `op` and input `types` at runtime
  */
 inline DALIDataType TypePromotion(ArithmeticOp op, span<DALIDataType> types) {
-  assert(types.size() == 1 || types.size() == 2);
   if (types.size() == 1) {
     return types[0];
   }

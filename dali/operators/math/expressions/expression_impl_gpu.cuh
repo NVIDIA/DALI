@@ -102,6 +102,30 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t ext
 }
 
 /**
+ * @brief Loop over tile of `extent` length and apply the ternary op
+ */
+template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third,
+          bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
+__device__ void ExecuteTernaryOp(Result *result,
+                                 expression_detail::param_t<IsFirstTensor, First> first,
+                                 expression_detail::param_t<IsSecondTensor, Second> second,
+                                 expression_detail::param_t<IsThirdTensor, Third> third,
+                                 int64_t extent) {
+  using meta = arithm_meta<op, GPUBackend>;
+  int64_t offset = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
+  auto *tile_end = result + extent;
+  result += offset;
+  while (result < tile_end) {
+    *result = meta::impl(expression_detail::access(first, offset),
+                         expression_detail::access(second, offset),
+                         expression_detail::access(third, offset));
+    result += stride;
+    offset += stride;
+  }
+}
+
+/**
  * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
  */
 template <ArithmeticOp op, typename Result, typename Input>
@@ -113,25 +137,6 @@ __global__ void ExecuteTiledUnOp(const ExtendedTileDesc *tiles) {
 }
 
 /**
- * @brief Pass as a pointer or dereference the variable
- */
-template <bool pass_as_pointer>
-struct argument {
-  template <typename T>
-  static DALI_HOST_DEV T pass(const T *ptr) {
-    return *ptr;
-  }
-};
-
-template <>
-struct argument<true> {
-  template <typename T>
-  static DALI_HOST_DEV const T *pass(const T *ptr) {
-    return ptr;
-  }
-};
-
-/**
  * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
  */
 template <ArithmeticOp op, typename Result, typename Left, typename Right, bool IsLeftTensor,
@@ -141,8 +146,26 @@ __global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles) {
   auto output = static_cast<Result *>(tile.output);
   auto left = static_cast<const Left *>(tile.args[0]);
   auto right = static_cast<const Right *>(tile.args[1]);
-  ExecuteBinOp<op>(output, argument<IsLeftTensor>::pass(left), argument<IsRightTensor>::pass(right),
-                   tile.desc.extent_size);
+  ExecuteBinOp<op>(output, expression_detail::pass<IsLeftTensor>(left),
+                   expression_detail::pass<IsRightTensor>(right), tile.desc.extent_size);
+}
+
+
+/**
+ * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
+ */
+template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third,
+          bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
+__global__ void ExecuteTiledTernaryOp(const ExtendedTileDesc *tiles) {
+  const auto &tile = tiles[blockIdx.y];
+  auto output = static_cast<Result *>(tile.output);
+  auto first = static_cast<const First *>(tile.args[0]);
+  auto second = static_cast<const Second *>(tile.args[1]);
+  auto third = static_cast<const Third *>(tile.args[2]);
+  ExecuteTernaryOp<op, Result, First, Second, Third, IsFirstTensor, IsSecondTensor, IsThirdTensor>(
+      output, expression_detail::pass<IsFirstTensor>(first),
+      expression_detail::pass<IsSecondTensor>(second),
+      expression_detail::pass<IsThirdTensor>(third), tile.desc.extent_size);
 }
 
 template <ArithmeticOp op, typename Result, typename Input>
@@ -158,6 +181,15 @@ struct InvokerBinOp {
   static void Invoke(const ExtendedTileDesc *tiles, dim3 grid, dim3 block, cudaStream_t stream) {
     ExecuteTiledBinOp<op, Result, Left, Right, IsLeftTensor, IsRightTensor>
         <<<grid, block, 0, stream>>>(tiles);
+  }
+};
+
+template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third,
+          bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
+struct InvokerTernaryOp {
+  static void Invoke(const ExtendedTileDesc *tiles, dim3 grid, dim3 block, cudaStream_t stream) {
+    ExecuteTiledTernaryOp<op, Result, First, Second, Third, IsFirstTensor, IsSecondTensor,
+                          IsThirdTensor><<<grid, block, 0, stream>>>(tiles);
   }
 };
 
@@ -194,6 +226,12 @@ using ExprImplGpuCT = ExprImplGPUInvoke<InvokerBinOp<op, Result, Left, Right, fa
 
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 using ExprImplGpuTC = ExprImplGPUInvoke<InvokerBinOp<op, Result, Left, Right, true, false>>;
+
+template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third,
+          bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
+using ExprImplGpuTernary =
+    ExprImplGPUInvoke<InvokerTernaryOp<op, Result, First, Second, Third, IsFirstTensor,
+                                       IsSecondTensor, IsThirdTensor>>;
 
 }  // namespace dali
 
