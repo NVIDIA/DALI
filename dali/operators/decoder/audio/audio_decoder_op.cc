@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/decoder/audio/audio_decoder_op.h"
+#include "dali/operators/decoder/audio/audio_decoder_impl.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/data/views.h"
 
@@ -47,7 +48,6 @@ the highest.
 
 DALI_REGISTER_OPERATOR(AudioDecoder, AudioDecoderCpu, CPU);
 
-
 bool
 AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) {
   GetPerSampleArgument<float>(target_sample_rates_, "sample_rate", ws);
@@ -59,14 +59,13 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
   }
   DALI_ENFORCE(IsType<uint8_t>(input.type()), "Raw files must be stored as uint8 data.");
   decoders_.resize(batch_size);
-  intermediate_buffers_.resize(batch_size);
   sample_meta_.resize(batch_size);
   files_names_.resize(batch_size);
 
-  decode_type_ = use_resampling_ || downmix_ ? DALI_FLOAT : output_type_;
-  TYPE_SWITCH(decode_type_, type2id, OutputType, (int16_t, int32_t, float), (
-      for (int i=0; i < batch_size; i++)
-        decoders_[i] = std::make_unique<GenericAudioDecoder<OutputType>>();
+  decode_type_ = (use_resampling_ && !downmix_) ? DALI_FLOAT : output_type_;
+  TYPE_SWITCH(decode_type_, type2id, DecoderOutputType, (int16_t, int32_t, float), (
+    for (int i = 0; i < batch_size; i++)
+      decoders_[i] = std::make_unique<GenericAudioDecoder<DecoderOutputType>>();
   ), DALI_FAIL(make_string("Unsupported output type: ", decode_type_)))  // NOLINT
 
   output_desc.resize(2);
@@ -82,13 +81,8 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
                                     input[i].shape().num_elements()});
     sample_meta_[i] = meta;
     int64_t out_length = OutputLength(meta.length, meta.sample_rate, i);
-    TensorShape<> data_sample_shape;
-    if (downmix_) {
-      data_sample_shape = {out_length};
-    } else {
-      data_sample_shape = {out_length, meta.channels};
-    }
-
+    TensorShape<> data_sample_shape = DecodedAudioShape(
+        meta, use_resampling_ ? target_sample_rates_[i] : -1.0f, downmix_);
     shape_data.set_tensor_shape(i, data_sample_shape);
     shape_rate.set_tensor_shape(i, {1});
     files_names_[i] = input[i].GetSourceInfo();
@@ -99,95 +93,59 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
   return true;
 }
 
-
-template <typename T>
-span<char> as_raw_span(T *buffer, ptrdiff_t length) {
-  return make_span(reinterpret_cast<char*>(buffer), length*sizeof(T));
-}
-
-
-template<typename OutputType>
+template<typename OutputType, typename DecoderOutputType>
 void
 AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, DynamicDimensions> &audio,
                               int thread_idx, int sample_idx) {
-  const AudioMetadata &meta = sample_meta_[sample_idx];
-
-  auto &tmp_buf = intermediate_buffers_[thread_idx];
-  double output_rate = meta.sample_rate;
-  if (use_resampling_) {
-    output_rate = target_sample_rates_[sample_idx];
-    DALI_ENFORCE(meta.sample_rate > 0, make_string("Unknown or invalid input sampling rate."));
-    DALI_ENFORCE(output_rate > 0, make_string(
-        "Output sampling rate must be positive; got ", output_rate));
-  }
-  bool should_resample = meta.sample_rate != output_rate;
+  auto &meta = sample_meta_[sample_idx];
+  float target_sr = use_resampling_ ? target_sample_rates_[sample_idx] : meta.sample_rate;
+  bool should_resample = target_sr != meta.sample_rate;
   bool should_downmix = meta.channels > 1 && downmix_;
-  if (should_resample || should_downmix || output_type_ != decode_type_) {
-    assert(decode_type_ == DALI_FLOAT);
-    int64_t tmp_size = should_downmix && should_resample
-      ? meta.length * (meta.channels + 1)   // downmix to intermediate buffer, then resample
-      : meta.length * meta.channels;        // decode to intermediate, then resample or downmix
-                                            // directly to the output
+  int64_t decode_scratch_sz = 0;
+  int64_t resample_scratch_sz = 0;
+  if (should_resample || should_downmix || !std::is_same<OutputType, DecoderOutputType>::value)
+    decode_scratch_sz = meta.length * meta.channels;
 
-    tmp_buf.resize(tmp_size);
-    size_t num_samples = meta.length * meta.channels;
-    size_t ret = decoders_[sample_idx]->Decode(as_raw_span(tmp_buf.data(), num_samples));
-    DALI_ENFORCE(ret == num_samples,
-                 make_string("Error decoding audio file: ", files_names_[sample_idx]));
+  // resample scratch is used to prepare a single or multiple (depending if
+  // downmixing is needed) channel float input, required by the resampling
+  // kernel
+  int64_t out_channels = should_downmix ? 1 : meta.channels;
+  if (should_resample)
+    resample_scratch_sz = meta.length * out_channels;
 
-    if (should_downmix) {
-      if (should_resample) {
-        // downmix and resample
-        float *downmixed = tmp_buf.data() + meta.length * meta.channels;
-        assert(downmixed + meta.length <= tmp_buf.data() + tmp_buf.size());
-        kernels::signal::Downmix(downmixed, tmp_buf.data(), meta.length, meta.channels);
-        resampler_.Resample(audio.data, 0, audio.shape[0], output_rate,
-                            downmixed, meta.length, meta.sample_rate);
-      } else {
-        // downmix only
-        kernels::signal::Downmix(audio.data, tmp_buf.data(), meta.length, meta.channels);
-      }
-    } else if (should_resample) {
-      // multi-channel resample
-      resampler_.Resample(audio.data, 0, audio.shape[0], output_rate,
-                          tmp_buf.data(), meta.length, meta.sample_rate, meta.channels);
+  auto &scratch_decoder = scratch_decoder_[thread_idx];
+  scratch_decoder.resize(decode_scratch_sz * sizeof(DecoderOutputType));
 
-    } else {
-      // convert or copy only - this will only happen if resampling is specified, but this
-      // recording's sampling rate and number of channels coincides with the target
-      int64_t len = std::min<int64_t>(volume(audio.shape), meta.length*meta.channels);
-      for (int64_t ofs = 0; ofs < len; ofs++) {
-        audio.data[ofs] = ConvertSatNorm<OutputType>(tmp_buf[ofs]);
-      }
-    }
-  } else {
-    assert(!should_downmix && !should_resample);
-    size_t num_samples = volume(audio.shape);
-    size_t ret = decoders_[sample_idx]->Decode(as_raw_span(audio.data, num_samples));
-    DALI_ENFORCE(ret == num_samples,
-                 make_string("Error decoding audio file: ", files_names_[sample_idx]));
-  }
+  auto &scratch_resampler = scratch_resampler_[thread_idx];
+  scratch_resampler.resize(resample_scratch_sz);
+
+  DecodeAudio<OutputType, DecoderOutputType>(
+    audio, *decoders_[sample_idx], meta, resampler_,
+    {reinterpret_cast<DecoderOutputType*>(scratch_decoder.data()), decode_scratch_sz},
+    {scratch_resampler.data(), resample_scratch_sz},
+    target_sr, downmix_,
+    files_names_[sample_idx].c_str());
 }
 
-template <typename OutputType>
+template <typename OutputType, typename DecoderOutputType>
 void AudioDecoderCpu::DecodeBatch(workspace_t<Backend> &ws) {
   auto decoded_output = view<OutputType, DynamicDimensions>(ws.template OutputRef<Backend>(0));
   auto sample_rate_output = view<float, 1>(ws.template OutputRef<Backend>(1));
   int batch_size = decoded_output.shape.num_samples();
   auto &tp = ws.GetThreadPool();
 
-  intermediate_buffers_.resize(tp.size());
+  scratch_decoder_.resize(tp.size());
+  scratch_resampler_.resize(tp.size());
 
   for (int i = 0; i < batch_size; i++) {
     tp.AddWork([&, i](int thread_id) {
       try {
-        DecodeSample<OutputType>(decoded_output[i], thread_id, i);
+        DecodeSample<OutputType, DecoderOutputType>(decoded_output[i], thread_id, i);
         sample_rate_output[i].data[0] = use_resampling_
           ? target_sample_rates_[i]
           : sample_meta_[i].sample_rate;
       } catch (const DALIException &e) {
-        DALI_FAIL(make_string("Error decoding file.\nError: ", e.what(), "\nFile: ",
-                              files_names_[i], "\n"));
+        DALI_FAIL(make_string("Error decoding file ", files_names_[i], ". Error: ", e.what()));
       }
     }, sample_meta_[i].length * sample_meta_[i].channels);
   }
@@ -198,7 +156,9 @@ void AudioDecoderCpu::DecodeBatch(workspace_t<Backend> &ws) {
 
 void AudioDecoderCpu::RunImpl(workspace_t<Backend> &ws) {
   TYPE_SWITCH(output_type_, type2id, OutputType, (int16_t, int32_t, float), (
-      DecodeBatch<OutputType>(ws);
+    TYPE_SWITCH(decode_type_, type2id, DecoderOutputType, (int16_t, int32_t, float), (
+      DecodeBatch<OutputType, DecoderOutputType>(ws);
+    ), DALI_FAIL(make_string("Unsupported decoder output type: ", decode_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
 }
 

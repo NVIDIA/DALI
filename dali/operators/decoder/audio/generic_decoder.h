@@ -19,6 +19,7 @@
 #include <cassert>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <vector>
 #include "dali/core/format.h"
 #include "dali/core/error_handling.h"
@@ -35,13 +36,16 @@ class DLL_PUBLIC GenericAudioDecoder : public TypedAudioDecoderBase<SampleType> 
  public:
   DLL_PUBLIC GenericAudioDecoder();
 
+  DLL_PUBLIC GenericAudioDecoder(GenericAudioDecoder&&);
+  DLL_PUBLIC GenericAudioDecoder& operator=(GenericAudioDecoder&&);
+
   DLL_PUBLIC ptrdiff_t DecodeTyped(span<SampleType> output) override;
 
   DLL_PUBLIC ~GenericAudioDecoder() override;
 
  private:
   AudioMetadata OpenImpl(span<const char> encoded) override;
-
+  AudioMetadata OpenFromFileImpl(const std::string &filepath) override;
   void CloseImpl() override;
 
   struct Impl;

@@ -74,7 +74,7 @@ struct ResamplingWindow {
   std::vector<float> lookup;
 };
 
-void windowed_sinc(ResamplingWindow &window,
+inline void windowed_sinc(ResamplingWindow &window,
     int coeffs, int lobes, std::function<double(double)> envelope = Hann) {
   assert(coeffs > 1 && lobes > 0 && "Degenerate parameters specified.");
   float scale = 2.0f * lobes / (coeffs - 1);

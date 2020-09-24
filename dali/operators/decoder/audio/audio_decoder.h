@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_DECODER_AUDIO_AUDIO_DECODER_H_
 
 #include <memory>
+#include <string>
 #include "dali/core/span.h"
 
 namespace dali {
@@ -36,11 +37,14 @@ class AudioDecoderBase {
     return OpenImpl(encoded);
   }
 
+  AudioMetadata OpenFromFile(const std::string &filepath) {
+    Close();
+    return OpenFromFileImpl(filepath);
+  }
 
   void Close() {
     CloseImpl();
   }
-
 
   /**
    * @brief Decode audio data and store it in the supplied buffer
@@ -52,7 +56,7 @@ class AudioDecoderBase {
 
  private:
   virtual AudioMetadata OpenImpl(span<const char> encoded) = 0;
-
+  virtual AudioMetadata OpenFromFileImpl(const std::string &filepath) = 0;
   virtual void CloseImpl() = 0;
 };
 
