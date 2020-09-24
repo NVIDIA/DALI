@@ -12,37 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/coord/coord_flip.h"
+#include "dali/operators/geometry/coord_flip.h"
 
 namespace dali {
 
 DALI_SCHEMA(CoordFlip)
     .DocStr(
-        R"code(Transforms coordinates so that they are flipped (point reflected) with respect
-to a center point.)code")
+        R"code(Transforms vectors or points by flipping (reflecting) their coordinates with
+respect to a given center.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg<TensorLayout>(
       "layout",
-      R"code(Determines the layout of the coordinates.
+      R"code(Determines the order of coordinates in the input.
 
-Here are the possible values:
+The string should consist of the following characters:
 
-  - ``x`` (horizontal position),
-  - ``y`` (vertical position),
-  - ``z`` (depthwise position),
+  - "x" (horizontal coordinate),
+  - "y" (vertical coordinate),
+  - "z" (depthwise coordinate),
 
 .. note::
-  If left empty, depending on the number of dimensions, the ``x``, ``xy``,
-  or ``xyz`` values are assumed.
+  If left empty, depending on the number of dimensions, the "x", "xy",
+  or "xyz" values are assumed.
 )code",
       TensorLayout{""})
-    .AddOptionalArg("flip_x", R"code(Flip the horizontal (x) dimension.)code", 1, true)
-    .AddOptionalArg("flip_y", R"code(Flip the vertical (y) dimension.)code", 0, true)
-    .AddOptionalArg("flip_z", R"code(Flip the depthwise (z) dimension.)code", 0, true)
-    .AddOptionalArg("center_x", R"code(Flip center in the horizontal dimension.)code", 0.5f, true)
-    .AddOptionalArg("center_y", R"code(Flip center in the vertical dimension.)code", 0.5f, true)
-    .AddOptionalArg("center_z", R"code(Flip center in the depthwise dimension.)code", 0.5f, true);
+    .AddOptionalArg("flip_x", R"code(Flip the horizontal (x) coordinate.)code", 1, true)
+    .AddOptionalArg("flip_y", R"code(Flip the vertical (y) coordinate.)code", 0, true)
+    .AddOptionalArg("flip_z", R"code(Flip the depthwise (z) coordinate.)code", 0, true)
+    .AddOptionalArg("center_x", R"code(Flip center in the horizontal axis.)code", 0.5f, true)
+    .AddOptionalArg("center_y", R"code(Flip center in the vertical axis.)code", 0.5f, true)
+    .AddOptionalArg("center_z", R"code(Flip center in the depthwise axis.)code", 0.5f, true);
 
 
 class CoordFlipCPU : public CoordFlip<CPUBackend> {
