@@ -8,7 +8,7 @@ FROM ${CUDA_IMAGE} as cuda
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
-RUN yum install -y zip wget nasm doxygen graphviz zlib-devel gettext xz openssl
+RUN yum install -y wget nasm doxygen graphviz gettext xz openssl
 
 # add devtoolset-7 to paths
 ENV PATH=/opt/rh/devtoolset-7/root/usr/bin:$PATH \
@@ -20,6 +20,18 @@ RUN yum remove -y devtoolset* && \
 
 # Don't want the short-unicode version for Python 2.7
 RUN rm -f /opt/python/cp27-cp27m
+
+#zlib
+RUN LIBZ_VERSION=1.2.11 && \
+    cd /tmp && \
+    curl -L https://github.com/madler/zlib/archive/v${LIBZ_VERSION}.tar.gz | tar -xzf - && \
+    cd zlib-${LIBZ_VERSION} && \
+      CFLAGS="-fPIC" \
+      CXXFLAGS="-fPIC" \
+    ./configure --prefix=/usr/local && \
+    make install -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    cd && \
+    rm -rf /tmp/zlib-${LIBZ_VERSION}
 
 # CMake
 RUN CMAKE_VERSION=3.13 && \
@@ -57,9 +69,15 @@ RUN JPEG_TURBO_VERSION=2.0.5 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
+# zstandard compression library
+RUN ZSTANDARD_VERSION=1.4.5 && \
+    curl -L https://github.com/facebook/zstd/releases/download/v${ZSTANDARD_VERSION}/zstd-${ZSTANDARD_VERSION}.tar.gz | tar -xzf - && \
+    cd zstd-${ZSTANDARD_VERSION} && \
+      CFLAGS="-fPIC" CXXFLAGS="-fPIC" \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
+    rm -rf /zstd-${ZSTANDARD_VERSION}
+
 # libtiff
-# Note: libtiff should be built with support for zlib. If running this step alone on a custom
-#       system, zlib should be installed first
 RUN LIBTIFF_VERSION=4.1.0 && \
     cd /tmp && \
     curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \

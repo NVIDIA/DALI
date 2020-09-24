@@ -29,6 +29,20 @@ RUN dpkg -i *.deb && \
    && rm -rf /var/lib/apt/lists/* \
    && rm -rf /tmp/cuda-packages.txt
 
+# zlib
+RUN LIBZ_VERSION=1.2.11 && \
+    cd /tmp && \
+    curl -L https://github.com/madler/zlib/archive/v${LIBZ_VERSION}.tar.gz | tar -xzf - && \
+    cd zlib-${LIBZ_VERSION} && \
+      CFLAGS="-fPIC" \
+      CXXFLAGS="-fPIC" \
+      CC=aarch64-linux-gnu-gcc \
+      CXX=aarch64-linux-gnu-g++ \
+    ./configure -prefix=/usr/aarch64-linux-gnu/ && \
+    make install -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    cd && \
+    rm -rf /tmp/zlib-${LIBZ_VERSION}
+
 # CMake
 RUN CMAKE_VERSION=3.13 && \
     CMAKE_BUILD=3.13.5 && \
@@ -61,7 +75,7 @@ RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
 RUN JPEG_TURBO_VERSION=2.0.5 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
-    echo "set(CMAKE_SYSTEM_NAME  Linux)" > toolchain.cmake && \
+    echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain.cmake && \
     echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake && \
     echo "set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)" >> toolchain.cmake && \
       CFLAGS="-fPIC" \
@@ -76,6 +90,14 @@ RUN JPEG_TURBO_VERSION=2.0.5 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
+# zstandard compression library
+RUN ZSTANDARD_VERSION=1.4.5 && \
+    curl -L https://github.com/facebook/zstd/releases/download/v${ZSTANDARD_VERSION}/zstd-${ZSTANDARD_VERSION}.tar.gz | tar -xzf - && \
+    cd zstd-${ZSTANDARD_VERSION} && \
+      CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ prefix=/usr/aarch64-linux-gnu \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
+    rm -rf /zstd-${ZSTANDARD_VERSION}
+
 # libtiff
 RUN LIBTIFF_VERSION=4.1.0 && \
     cd /tmp && \
@@ -88,7 +110,11 @@ RUN LIBTIFF_VERSION=4.1.0 && \
       CC=aarch64-linux-gnu-gcc \
       CXX=aarch64-linux-gnu-g++ \
       --host=aarch64-unknown-linux-gnu \
-      --prefix=/usr/aarch64-linux-gnu/ && \
+      --prefix=/usr/aarch64-linux-gnu/ \
+      --with-zstd-include-dir=/usr/aarch64-linux-gnu/include \
+      --with-zstd-lib-dir=/usr/aarch64-linux-gnu/lib         \
+      --with-zlib-include-dir=/usr/aarch64-linux-gnu/include \
+      --with-zlib-lib-dir=/usr/aarch64-linux-gnu/lib      && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     make install && \
     cd && \
