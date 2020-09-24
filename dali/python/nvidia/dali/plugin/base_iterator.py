@@ -29,8 +29,8 @@ def _iterator_deprecation_warning():
 @unique
 class LastBatchPolicy(Enum):
     """
-        Describes the last batch policy behavior when there are no enough samples in the epoch
-        to fully fill it
+        Describes the last batch policy behavior when there are not enough samples in the epoch
+        to fill a whole batch.
 
         FILL - Fills the last batch with the data wrapping up the data set. The precise
                behavior depends on the reader which may duplicate the last sample to fill the batch
@@ -65,11 +65,11 @@ class _DaliBaseIterator(object):
                 the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-                Name of the reader which will be queried to the shard size, number of shards and
+                Name of the reader which will be queried to the shard size, number of shards, and
                 all other properties necessary to count properly the number of relevant and padded
-                samples that iterator needs to deal with. It automatically sets `last_batch_policy` to
-                PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
-                the reader's configuration
+                samples that iterator needs to deal with. It allows `last_batch_policy` to be
+                PARTIAL or DROP, if FILL is used it is changed to PARTIAL. Sets `last_batch_padded`
+                accordingly to the reader's configuration (`pad_last_batch` reader argument)
     auto_reset : bool, optional, default = False
                 Whether the iterator resets itself for the next epoch
                 or it requires reset() to be called separately.
@@ -247,7 +247,7 @@ class _DaliBaseIterator(object):
 
     def _advance_and_check_drop_last(self):
         """
-        Checks if the current batch is not fully filled and if drop it
+        Checks whether the current batch is not fully filled and whether it should be dropped.
         """
         # check if for given initial count in any GPU with the current value of the samples read
         # if we read one more batch would we overflow

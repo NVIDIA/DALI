@@ -217,10 +217,14 @@ Here are the iterator options:
 - | ``last_batch_padded``: Determines whether the tail of the data consists of data from the next
     shard (``False``) or is duplicated dummy data (``True``).
   | It is applicable when the shard size is not a multiple of the batch size,
-- | ``last_batch_policy`` - whether the last batch should be full no matter if shard size is
+- | ``last_batch_policy`` - Determines the police about the last batch when the shard size is not
     divisible by the batch size.
-  | Only partially filled with the data or dropped entirely if it
-    cannot be filled with the epoch data.
+  | Only partially filled with the data or dropped entirely if it. The possible options are:
+
+  - FILL - Fills the last batch with the data wrapping up the data set. The precise
+            behavior depends on the reader which may duplicate the last sample to fill the batch
+  - DROP - If the last batch cannot be fully filled by the data from given epoch it is dropped
+  - PARTIAL - Returns the part of the last batch filled with the data relevant to given epoch
 
 Here is the formula to calculate the shard size for a shard ID:
 
