@@ -25,10 +25,15 @@
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/operator/operator.h"
 
-#define TRANSFORM_FACTORY_INPUT_TYPES (float)
-#define TRANSFORM_FACTORY_DIMS (2, 3)
+#define TRANSFORM_INPUT_TYPES (float)
 
 namespace dali {
+
+template <int... values>
+using dims = std::integer_sequence<int, values...>;
+
+template <typename T, int ndim>
+using affine_mat_t = mat<ndim+1, ndim+1, T>;
 
 /**
  * @brief Base CRTP class for affine transform generators.
@@ -40,7 +45,7 @@ class TransformBaseOp : public Operator<Backend> {
  public:
   explicit TransformBaseOp(const OpSpec &spec)
       : Operator<Backend>(spec),
-        batch_size_(spec.GetArgument<int>("batch_size")) {
+        nsamples_(spec.GetArgument<int>("batch_size")) {
   }
 
   bool CanInferOutputs() const override { return true; }
@@ -50,48 +55,74 @@ class TransformBaseOp : public Operator<Backend> {
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
-    int nsamples = batch_size_;
     has_input_ = ws.template NumInput() > 0;
     if (has_input_) {
       auto &input = ws.template InputRef<Backend>(0);
-      nsamples = input.shape().num_samples();
+      const auto &shape = input.shape();
+
+      DALI_ENFORCE(input.type().id() == dtype_,
+        make_string("Unexpected input data type. Expected ", dtype_, ", got: ", input.type().id()));
+
+      DALI_ENFORCE(shape.sample_dim() == 2 &&
+                   shape.size() > 0 &&
+                   shape[0][1] == (shape[0][0] + 1),
+        make_string(
+          "The input, if provided, is expected to be a 2D tensor with dimensions "
+          "(ndim, ndim+1) representing an affine transform. Got: ", shape));
+      nsamples_ = shape.num_samples();
+      for (int i = 0; i < nsamples_; i++) {
+        DALI_ENFORCE(shape[i] == shape[0],
+          make_string("Samples are expected to have the same dimensionality. Got: ", shape));
+      }
     }
 
     ndim_ = This().ndim(ws);
 
     output_descs.resize(1);  // only one output
     output_descs[0].type = TypeTable::GetTypeInfo(dtype_);
-    output_descs[0].shape = uniform_list_shape(nsamples, {ndim_, ndim_+1});
+    output_descs[0].shape = uniform_list_shape(nsamples_, {ndim_, ndim_+1});
     return true;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
-    // auto &in = ws.template InputRef<Backend>(0);
-    // DALIDataType in_type = in.type().id();
+  template <typename T>
+  void RunImplTyped(workspace_t<Backend> &ws, dims<>) {
+    DALI_FAIL(make_string("Unsupported number of dimensions ", ndim_));  // NOLINT
+  }
+
+  template <typename T, int ndim, int... ndims>
+  void RunImplTyped(workspace_t<Backend> &ws, dims<ndim, ndims...>) {
+    if (ndim_ != ndim) {
+      RunImplTyped<T>(ws, dims<ndims...>());
+      return;
+    }
+
     auto &out = ws.template OutputRef<Backend>(0);
     out.SetLayout("");  // TODO(janton): Decide what layout we want for transforms
-    int nsamples = batch_size_;
 
-    TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_FACTORY_INPUT_TYPES, (
-      VALUE_SWITCH(ndim_, ndim, TRANSFORM_FACTORY_DIMS, (
-        auto M = mat<ndim+1, ndim+1, T>::identity();
-        This().template DefineTransform<T, ndim>(M, ws);
-        auto out_view = view<T>(out);
-        if (has_input_) {
-          auto &in = ws.template InputRef<Backend>(0);
-          DALI_ENFORCE(in.type().id() == dtype_,
-            make_string("Unexpected input data type. Expected float, got: ", in.type().id()));
-          nsamples = in.shape().num_samples();
-          auto in_view = view<T>(in);
-          for (int i = 0; i < nsamples; i++) {
-            ApplyTransform<T, ndim>(out_view[i].data, in_view[i].data, M);
-          }
-        } else {
-          for (int i = 0; i < nsamples; i++) {
-            ApplyTransform<T, ndim>(out_view[i].data, M);
-          }
-        }
-      ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim_)));  // NOLINT
+    SmallVector<affine_mat_t<T, ndim>, 128> matrices;
+    matrices.resize(nsamples_);
+    for (int i = 0; i < nsamples_; i++) { 
+      matrices[i] = affine_mat_t<T, ndim>::identity();
+    }
+    This().template DefineTransform<T, ndim>(make_span(matrices), ws);
+    auto out_view = view<T>(out);
+    if (has_input_) {
+      auto &in = ws.template InputRef<Backend>(0);
+      auto in_view = view<T>(in);
+      for (int i = 0; i < nsamples_; i++) {
+        ApplyTransform<T, ndim>(out_view[i].data, in_view[i].data, matrices[i]);
+      }
+    } else {
+      for (int i = 0; i < nsamples_; i++) {
+        ApplyTransform<T, ndim>(out_view[i].data, matrices[i]);
+      }
+    }
+  }
+
+  void RunImpl(workspace_t<Backend> &ws) override {
+    TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_INPUT_TYPES, (
+      using SupportedDims = typename TransformImpl::SupportedDims;
+      RunImplTyped<T>(ws, SupportedDims());
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
   }
 
@@ -101,15 +132,23 @@ class TransformBaseOp : public Operator<Backend> {
    */
   int ndim(const workspace_t<Backend> &ws) const {
     if (has_input_) {
-      auto &input = ws.template InputRef<Backend>(0);
-      // TODO(janton): infer dimensionality here ?
+      return input_transform_ndim(ws);
     }
     return 2;  // default
   }
 
+  int input_transform_ndim(const workspace_t<Backend> &ws) const {
+    assert(has_input_);
+    auto &input = ws.template InputRef<Backend>(0);
+    const auto& shape = input.shape();
+    int ndims = shape[0][0];
+    assert(shape[0][1] == ndims + 1);
+    return ndims;
+  }
+
  private:
   template <typename T, int ndim>
-  void ApplyTransform(T *transform_out, const mat<ndim+1, ndim+1, T> &M) {
+  void ApplyTransform(T *transform_out, const affine_mat_t<T, ndim> &M) {
     for (int i = 0, k = 0; i < ndim; i++) {
       for (int j = 0; j < ndim + 1; j++, k++) {
         transform_out[k] = M(i, j);
@@ -118,8 +157,8 @@ class TransformBaseOp : public Operator<Backend> {
   }
 
   template <typename T, int ndim>
-  void ApplyTransform(T *transform_out, const T* transform_in, const mat<ndim+1, ndim+1, T> &M) {
-    auto mat_in = mat<ndim+1, ndim+1, T>::identity();
+  void ApplyTransform(T *transform_out, const T* transform_in, const affine_mat_t<T, ndim> &M) {
+    auto mat_in = affine_mat_t<T, ndim>::identity();
     for (int i = 0, k = 0; i < ndim; i++) {
       for (int j = 0; j < ndim + 1; j++, k++) {
         mat_in(i, j) = transform_in[k];
@@ -138,26 +177,12 @@ class TransformBaseOp : public Operator<Backend> {
 
  protected:
   DALIDataType dtype_ = DALI_FLOAT;
-  int ndim_ = 2; // TODO(janton): Fix  // will be inferred from the arguments
-  int batch_size_ = -1;
+  int ndim_ = -1;  // will be inferred from the arguments or the input
+  int nsamples_ = -1;
   bool has_input_ = false;
 };
 
 
-/**
- * @brief Identity transformation. Just an example of a transform implementation
- */
-class IdentityTransformCPU : public TransformBaseOp<CPUBackend, IdentityTransformCPU> {
- public:
-  explicit IdentityTransformCPU(const OpSpec &spec)
-      : TransformBaseOp<CPUBackend, IdentityTransformCPU>(spec) {}
-
-  template <typename T, int ndim>
-  void DefineTransform(mat<ndim+1, ndim+1, T> &M, workspace_t<CPUBackend> &ws) {
-    (void) ws;
-    M = mat<ndim+1, ndim+1, T>::identity();
-  }
-};
 
 }  // namespace dali
 
