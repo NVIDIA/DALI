@@ -29,10 +29,11 @@
 #ifndef DALI_KERNELS_IMGPROC_CONVOLUTION_CUTLASS_THREADBLOCK_MMA_BASE_H_
 #define DALI_KERNELS_IMGPROC_CONVOLUTION_CUTLASS_THREADBLOCK_MMA_BASE_H_
 
+#include "cutlass/cutlass.h"
+
 #include "cutlass/aligned_buffer.h"
 #include "cutlass/arch/memory.h"
 #include "cutlass/array.h"
-#include "cutlass/cutlass.h"
 #include "cutlass/gemm/gemm.h"
 #include "cutlass/matrix_shape.h"
 #include "cutlass/numeric_types.h"
@@ -54,8 +55,8 @@ template <
     typename SmemPaddingB_,
     /// Number of partitions of K dimension of GEMM
     int PartitionsK = 1>
-struct MmaPolicy {
-  /// Warp-level GEMM operator (concept: gemm::warp::MmaTensorOp or gemm::warp::MmaSimt)
+struct ConvMmaPolicy {
+  /// Warp-level GEMM operator (concept: gemm::warp::MmaTensorOp or gemm::warp::ConvMmaSimt)
   using Operator = Operator_;
 
   /// Padding used for A operand in shared memory
@@ -75,13 +76,16 @@ struct MmaPolicy {
 template <
     /// Size of the Gemm problem - concept: gemm::GemmShape<>
     typename Shape_,
-    /// Policy describing tuning details (concept: MmaPolicy)
+    /// Policy describing tuning details (concept: ConvMmaPolicy)
     typename Policy_,
     /// Number of stages,
     int Stages,
+    typename WindowGlobalElement_,
+    /// Convolution window storage configuration
+    typename ConvWindowConfiguration,
     /// Used for partial specialization
     typename Enable = bool>
-class MmaBase {
+class ConvMmaBase {
  public:
   ///< Size of the Gemm problem - concept: gemm::GemmShape<>
   using Shape = Shape_;
@@ -93,6 +97,7 @@ class MmaBase {
   // Dependent types
   //
 
+  using WindowGlobalElement = WindowGlobalElement_;
   /// Warp-level Mma
   using Operator = typename Policy::Operator;
 
@@ -104,7 +109,7 @@ class MmaBase {
   using WarpCount =
       GemmShape<Shape::kM / WarpGemm::kM, Shape::kN / WarpGemm::kN, Shape::kK / WarpGemm::kK>;
 
-  /// Number of warp-level GEMM oeprations
+  /// Number of warp-level GEMM operations
   static int const kWarpGemmIterations = (WarpGemm::kK / Operator::Policy::MmaShape::kK);
 
   /// Number of stages
@@ -116,6 +121,10 @@ class MmaBase {
   /// Tensor reference to the B operand
   using TensorRefB = TensorRef<typename Operator::ElementB, typename Operator::LayoutB>;
 
+  /// Tensor reference to the window lookup in SMEM
+  using TensorRefWindow = TensorRef<WindowGlobalElement, layout::PitchLinear>;
+
+  static int const kWindowLength = ConvWindowConfiguration::kTotalAlignedSize;
   //
   // Nested structs
   //
@@ -135,6 +144,8 @@ class MmaBase {
     using ShapeB = MatrixShape<Shape::kK * kStages + Policy::SmemPaddingB::kRow,
                                Shape::kN + Policy::SmemPaddingB::kColumn>;
 
+    using ShapeWindow = layout::PitchLinearShape<kWindowLength, 1>;
+
    public:
     //
     // Data members
@@ -145,6 +156,9 @@ class MmaBase {
 
     /// Buffer for B operand
     AlignedBuffer<typename Operator::ElementB, ShapeB::kCount> operand_B;
+
+    // Buffer for Convolution Window
+    AlignedBuffer<WindowGlobalElement, ShapeWindow::kCount> operand_Window;
 
    public:
     //
@@ -174,6 +188,17 @@ class MmaBase {
     TensorRefB operand_B_ref() {
       return TensorRefB{operand_B.data(), LayoutB()};
     }
+
+    CUTLASS_HOST_DEVICE
+    static typename layout::PitchLinear LayoutWindow(int required_len) {
+      return layout::PitchLinear{required_len};
+    }
+
+    /// Returns a TensorRef to the convolution window
+    CUTLASS_HOST_DEVICE
+    TensorRefWindow operand_Window_ref(int required_len) {
+      return TensorRefWindow{operand_Window.data(), LayoutWindow(required_len)};
+    }
   };
 
  protected:
@@ -190,7 +215,7 @@ class MmaBase {
  public:
   /// Construct from tensor references
   CUTLASS_DEVICE
-  MmaBase(
+  ConvMmaBase(
       ///< Shared storage needed for internal use by threadblock-scoped GEMM
       SharedStorage &shared_storage,
       ///< ID within the threadblock

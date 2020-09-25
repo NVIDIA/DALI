@@ -167,7 +167,8 @@ struct EqualEps {
 
   template <typename T1, typename T2>
   bool operator()(const T1 &a, const T2 &b) const {
-    return std::abs(b - a) <= eps;
+    auto abs_diff = b >= a ? b - a : a - b;
+    return abs_diff <= eps;
   }
 
   double eps = 1e-6;

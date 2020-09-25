@@ -105,7 +105,7 @@ class CyclicWindowWrapper {
   }
 
   template <typename U, typename W>
-  void CalculateDot(U* __restrict__ output, const W* __restrict__ window, W scale) const {
+  void CalculateDot(U* __restrict__ output, const W* __restrict__ window, float scale) const {
     std::array<W, max_lanes> tmp;
     CalculateDot(tmp.data(), window);
     for (int c = 0; c < NumLanes(); c++) {
@@ -168,7 +168,8 @@ void load_pixel_no_border(CyclicWindowWrapper<T, max_lanes>& cww, const T* in_pt
 
 template <bool has_channels, typename Out, typename In, typename W, int ndim>
 void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size,
-                      const TensorShape<ndim>& shape, const TensorShape<ndim>& strides, W scale) {
+                      const TensorShape<ndim>& shape, const TensorShape<ndim>& strides,
+                      float scale) {
   constexpr int last_dim = has_channels ? ndim - 2 : ndim - 1;
   int channels = has_channels ? strides[last_dim] : 1;
   int64_t outer_elements = volume(&shape[0], &shape[last_dim]);
@@ -224,7 +225,7 @@ template <int axis, bool has_channels, int max_lanes, typename Out, typename In,
           int ndim>
 void ConvolveInplaceAxisLoop(Out* out, const In* in, const W* window,
                              const TensorShape<ndim>& shape, const TensorShape<ndim>& strides,
-                             int diameter, int64_t offset, In* input_window_buffer, W scale,
+                             int diameter, int64_t offset, In* input_window_buffer, float scale,
                              int num_lanes) {
   auto axis_stride = strides[axis];
   auto axis_size = shape[axis];
@@ -268,7 +269,7 @@ template <int axis, bool has_channels, int max_lanes, typename Out, typename In,
           int ndim>
 void ConvolveInplaceOuterLoop(Out* out, const In* in, const W* window,
                               const TensorShape<ndim>& shape, const TensorShape<ndim>& strides,
-                              int diameter, In* input_window_buffer, W scale = 1) {
+                              int diameter, In* input_window_buffer, float scale = 1.f) {
   int64_t outer_elements = volume(&shape[0], &shape[axis]);
   int64_t axis_elements = shape[axis];
   int64_t inner_elements = volume(&shape[axis + 1], &shape[ndim]);
@@ -322,7 +323,7 @@ struct ConvolutionCpu {
 
   void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> out,
            const TensorView<StorageCPU, const In, ndim>& in,
-           const TensorView<StorageCPU, const W, 1>& window, W scale = 1) {
+           const TensorView<StorageCPU, const W, 1>& window, float scale = 1) {
     auto diameter = window.num_elements();
     int input_window_buf_size = GetInputWindowBufSize(in.shape, diameter);
     auto* input_window_buffer =
