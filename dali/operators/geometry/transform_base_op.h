@@ -45,6 +45,7 @@ class TransformBaseOp : public Operator<Backend> {
  public:
   explicit TransformBaseOp(const OpSpec &spec)
       : Operator<Backend>(spec),
+        spec_(spec),
         nsamples_(spec.GetArgument<int>("batch_size")) {
   }
 
@@ -54,12 +55,22 @@ class TransformBaseOp : public Operator<Backend> {
   const TransformImpl &This() const noexcept { return static_cast<const TransformImpl&>(*this); }
 
  protected:
+  void CheckInputDimensionality(const workspace_t<CPUBackend> &ws) {
+    if (has_input_) {
+      auto in_t_ndim = input_transform_ndim(ws);
+      DALI_ENFORCE(in_t_ndim == ndim_,
+        make_string(
+          "Unexpected number of dimensions: expected ", ndim_, 
+          " dimensions but the input transform has ", in_t_ndim));
+    }
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
     has_input_ = ws.template NumInput() > 0;
     if (has_input_) {
       auto &input = ws.template InputRef<Backend>(0);
       const auto &shape = input.shape();
-
+      DALI_ENFORCE(is_uniform(shape), "All matrices must have the same shape.");
       DALI_ENFORCE(input.type().id() == dtype_,
         make_string("Unexpected input data type. Expected ", dtype_, ", got: ", input.type().id()));
 
@@ -70,13 +81,10 @@ class TransformBaseOp : public Operator<Backend> {
           "The input, if provided, is expected to be a 2D tensor with dimensions "
           "(ndim, ndim+1) representing an affine transform. Got: ", shape));
       nsamples_ = shape.num_samples();
-      for (int i = 0; i < nsamples_; i++) {
-        DALI_ENFORCE(shape[i] == shape[0],
-          make_string("Samples are expected to have the same dimensionality. Got: ", shape));
-      }
     }
 
-    ndim_ = This().ndim(ws);
+    This().ProcessArgs(spec_, ws);
+    CheckInputDimensionality(ws);
 
     output_descs.resize(1);  // only one output
     output_descs[0].type = TypeTable::GetTypeInfo(dtype_);
@@ -86,7 +94,7 @@ class TransformBaseOp : public Operator<Backend> {
 
   template <typename T>
   void RunImplTyped(workspace_t<Backend> &ws, dims<>) {
-    DALI_FAIL(make_string("Unsupported number of dimensions ", ndim_));  // NOLINT
+    DALI_FAIL(make_string("Unsupported number of dimensions ", ndim_));
   }
 
   template <typename T, int ndim, int... ndims>
@@ -99,12 +107,8 @@ class TransformBaseOp : public Operator<Backend> {
     auto &out = ws.template OutputRef<Backend>(0);
     out.SetLayout("");  // TODO(janton): Decide what layout we want for transforms
 
-    SmallVector<affine_mat_t<T, ndim>, 128> matrices;
-    matrices.resize(nsamples_);
-    for (int i = 0; i < nsamples_; i++) { 
-      matrices[i] = affine_mat_t<T, ndim>::identity();
-    }
-    This().template DefineTransform<T, ndim>(make_span(matrices), ws);
+    span<affine_mat_t<T, ndim>> matrices{
+        reinterpret_cast<affine_mat_t<T, ndim> *>(matrices_data_.data()), nsamples_};
     auto out_view = view<T>(out);
     if (has_input_) {
       auto &in = ws.template InputRef<Backend>(0);
@@ -124,17 +128,6 @@ class TransformBaseOp : public Operator<Backend> {
       using SupportedDims = typename TransformImpl::SupportedDims;
       RunImplTyped<T>(ws, SupportedDims());
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
-  }
-
-  /**
-   * @brief Infers number of dimension.
-   * Transform implementations are expected to override (shadow) this
-   */
-  int ndim(const workspace_t<Backend> &ws) const {
-    if (has_input_) {
-      return input_transform_ndim(ws);
-    }
-    return 2;  // default
   }
 
   int input_transform_ndim(const workspace_t<Backend> &ws) const {
@@ -176,10 +169,13 @@ class TransformBaseOp : public Operator<Backend> {
   }
 
  protected:
+  const OpSpec& spec_;
   DALIDataType dtype_ = DALI_FLOAT;
   int ndim_ = -1;  // will be inferred from the arguments or the input
   int nsamples_ = -1;
   bool has_input_ = false;
+
+  std::vector<uint8_t> matrices_data_;
 };
 
 

@@ -17,32 +17,11 @@
 
 namespace dali {
 
-/**
- * @brief Identity transformation. Just an example of a transform implementation
- */
-class IdentityTransformCPU
-    : public TransformBaseOp<CPUBackend, IdentityTransformCPU> {
- public:
-  explicit IdentityTransformCPU(const OpSpec &spec)
-      : TransformBaseOp<CPUBackend, IdentityTransformCPU>(spec) {}
-  using SupportedDims = dims<1, 2, 3, 4, 5, 6>;
-
-  template <typename T, int ndim>
-  void DefineTransform(span<affine_mat_t<T, ndim>> matrices, workspace_t<CPUBackend> &ws) {
-    (void) ws;
-    for (auto &m : matrices) {
-      m = affine_mat_t<T, ndim>::identity();
-    }
-  }
-};
-
-DALI_SCHEMA(IdentityTransform)
-  .DocStr(R"(IdentityTransform)")
+DALI_SCHEMA(TranslateTransform)
+  .DocStr(R"(TranslateTransform)")
+  .AddArg("offset", "Translation vector", DALI_FLOAT_VEC, true)
   .NumInput(0, 1)
   .NumOutput(1);
-
-DALI_REGISTER_OPERATOR(IdentityTransform, IdentityTransformCPU, CPU);
-
 
 /**
  * @brief Translation transformation.
@@ -53,68 +32,67 @@ class TranslateTransformCPU
   using SupportedDims = dims<1, 2, 3, 4, 5, 6>;
 
   explicit TranslateTransformCPU(const OpSpec &spec) :
-      TransformBaseOp<CPUBackend, TranslateTransformCPU>(spec), 
+      TransformBaseOp<CPUBackend, TranslateTransformCPU>(spec),
       has_offset_input_(spec.HasTensorArgument("offset")) {
-    if (!has_offset_input_) {
-      offset_ = spec.GetArgument<std::vector<float>>("offset");
-    }
   }
 
-  int ndim(const workspace_t<CPUBackend> &ws) const {
-    int ndim = -1;
-    int expected_ndim = offset_.size();
-    if (has_input_) {
-      ndim = input_transform_ndim(ws);
-      DALI_ENFORCE(ndim == expected_ndim,
-        make_string(
-          "Unexpected number of dimensions: ``offset`` provided , ", expected_ndim, 
-          " dimensions but the input transport has ", ndim, " dimensions"));
-    } else {
-      ndim = expected_ndim;
-    }
-    return ndim;
+  template <typename T>
+  void DefineAffineMatrixTyped(int, const float*, dims<>) {
+    DALI_FAIL(make_string("Unsupported number of dimensions ", ndim_));
   }
 
-  template <typename T, int ndim>
-  void DefineTransform(span<affine_mat_t<T, ndim>> matrices, workspace_t<CPUBackend> &ws) {
-    if (matrices.empty())
+  template <typename T, int ndim, int... ndims>
+  void DefineAffineMatrixTyped(int sample_idx, const float* offset, dims<ndim, ndims...>) {
+    if (ndim_ != ndim) {
+      DefineAffineMatrixTyped<T>(sample_idx, offset, dims<ndims...>());
       return;
+    }
+    auto mat_ptr = reinterpret_cast<affine_mat_t<T, ndim> *>(
+      matrices_data_.data() + sample_idx * sizeof(affine_mat_t<T, ndim>));
+    *mat_ptr = affine_mat_t<T, ndim>::identity();  // identity
+    for (int d = 0; d < ndim; d++) {
+      (*mat_ptr)(d, ndim) = offset[d];
+    }
+  }
 
-    if (has_offset_input_) {
-      const auto& offset = ws.ArgumentInput("offset");
-      auto offset_view = view<const T>(offset);
-      assert(offset_view.shape.sample_dim() == 1);
-      for (int i = 0; i < matrices.size(); i++) {
-        assert(ndim == offset_view.shape[i][0]);
-        auto &matrix = matrices[i];
-        matrix = affine_mat_t<T, ndim>::identity();
-        for (int d = 0; d < ndim; d++) {
-          matrix(d, ndim) = offset_view.data[i][d];
-        }
+  void ProcessOffsetConstant(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+    auto offset = spec.GetArgument<std::vector<float>>("offset");
+    ndim_ = offset.size();
+    TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_INPUT_TYPES, (
+      matrices_data_.resize(nsamples_ * (ndim_+1) * (ndim_+1) * sizeof(T));
+      for (int i = 0; i < nsamples_; i++) {
+        DefineAffineMatrixTyped<T>(i, offset.data(), SupportedDims());
       }
+    ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
+  }
+
+  void ProcessOffsetArgInput(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+    const auto& offset = ws.ArgumentInput("offset");
+    auto offset_view = view<const float>(offset);
+    DALI_ENFORCE(is_uniform(offset_view.shape),
+      "All samples in argument ``offset`` should have the same shape");
+    DALI_ENFORCE(offset_view.shape.sample_dim() == 1,
+      "``offset`` must be a 1D tensor");
+    ndim_ = offset_view[0].shape[0];
+    TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_INPUT_TYPES, (
+      matrices_data_.resize(nsamples_ * (ndim_+1) * (ndim_+1) * sizeof(T));
+      for (int i = 0; i < nsamples_; i++) {
+        DefineAffineMatrixTyped<T>(i, offset_view[i].data, SupportedDims());
+      }
+    ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
+  }
+
+  void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+    if (!has_offset_input_) {
+      ProcessOffsetConstant(spec, ws);
     } else {
-      assert(ndim == offset_.size());
-      auto &matrix = matrices[0];
-      matrix = affine_mat_t<T, ndim>::identity();
-      for (int d = 0; d < ndim; d++) {
-        matrix(d, ndim) = offset_[d];
-      }
-      for (int i = 1; i < matrices.size(); i++) {
-        matrices[i] = matrix;
-      }
+      ProcessOffsetArgInput(spec, ws);
     }
   }
 
  private:
-  std::vector<float> offset_;
   bool has_offset_input_ = false;
 };
-
-DALI_SCHEMA(TranslateTransform)
-  .DocStr(R"(TranslateTransform)")
-  .AddArg("offset", "Translation vector", DALI_FLOAT_VEC, true)
-  .NumInput(0, 1)
-  .NumOutput(1);
 
 DALI_REGISTER_OPERATOR(TranslateTransform, TranslateTransformCPU, CPU);
 
