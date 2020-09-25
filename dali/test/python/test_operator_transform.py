@@ -19,15 +19,15 @@ import nvidia.dali.fn as fn
 import numpy as np
 import os
 
-def test_identity_transform_op(batch_size=1, num_threads=4, device_id=0):
+def test_translate_transform_op(batch_size=1, num_threads=4, device_id=0):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
     with pipe:
-        T = fn.identity_transform(device='cpu')
-        pipe.set_outputs(T)
+        T1 = fn.translate_transform(device='cpu', offset=(2, 3))
+        pipe.set_outputs(T1)
     pipe.build()
     outs = pipe.run()
     for idx in range(batch_size):
-        T = outs[0].at(idx)
-        print(T)
+        T1 = outs[0].at(idx)
+        print(T1)
 
-test_identity_transform_op()
+test_translate_transform_op()
