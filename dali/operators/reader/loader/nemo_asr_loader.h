@@ -149,6 +149,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
 
   std::vector<std::string> manifest_filepaths_;
   std::vector<NemoAsrEntry> entries_;
+  std::vector<size_t> shuffled_indices_;
 
   bool shuffle_after_epoch_;
   Index current_index_ = 0;

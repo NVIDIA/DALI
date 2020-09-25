@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <string>
+#include <numeric>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/operators/decoder/audio/generic_decoder.h"
@@ -39,7 +40,7 @@ std::string trim(const std::string& str,
   return str.substr(str_begin, str_len);
 }
 
-std::string NormalizeText(std::string& text) {
+std::string NormalizeText(const std::string& text) {
   // Remove trailing and leading whitespace
   auto norm_text = trim(text);
 
@@ -62,14 +63,14 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
     parser.EnterObject();
     NemoAsrEntry entry;
     while (const char* key = parser.NextObjectKey()) {
-      if (0 == detail::safe_strcmp(key, "audio_filepath")) {
+      if (detail::IsEqualString(key, "audio_filepath")) {
         entry.audio_filepath = parser.GetString();
-      } else if (0 == detail::safe_strcmp(key, "duration")) {
+      } else if (detail::IsEqualString(key, "duration")) {
         entry.duration = parser.GetDouble();
-      } else if (0 == detail::safe_strcmp(key, "offset")) {
+      } else if (detail::IsEqualString(key, "offset")) {
         entry.offset = parser.GetDouble();
         DALI_WARN("Handing of ``offset`` is not yet implemented and will be ignored.");
-      } else if (0 == detail::safe_strcmp(key, "text")) {
+      } else if (detail::IsEqualString(key, "text")) {
         entry.text = parser.GetString();
         if (normalize_text)
           entry.text = NormalizeText(entry.text);
@@ -99,6 +100,8 @@ void NemoAsrLoader::PrepareMetadataImpl() {
     DALI_ENFORCE(fstream,
                  make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath, "\""));
     detail::ParseManifest(entries_, fstream, max_duration_, normalize_text_);
+    shuffled_indices_.resize(entries_.size());
+    std::iota(shuffled_indices_.begin(), shuffled_indices_.end(), 0);
   }
 
   DALI_ENFORCE(Size() > 0, "No files found.");
@@ -106,7 +109,7 @@ void NemoAsrLoader::PrepareMetadataImpl() {
     // seeded with hardcoded value to get
     // the same sequence on every shard
     std::mt19937 g(kDaliDataloaderSeed);
-    std::shuffle(entries_.begin(), entries_.end(), g);
+    std::shuffle(shuffled_indices_.begin(), shuffled_indices_.end(), g);
   }
   Reset(true);
 }
@@ -117,7 +120,7 @@ void NemoAsrLoader::Reset(bool wrap_to_shard) {
 
   if (shuffle_after_epoch_) {
     std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
-    std::shuffle(entries_.begin(), entries_.end(), g);
+    std::shuffle(shuffled_indices_.begin(), shuffled_indices_.end(), g);
   }
 }
 
@@ -165,9 +168,10 @@ void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
 }
 
 void NemoAsrLoader::ReadSample(AsrSample& sample) {
-  auto &entry = entries_[current_index_++];
+  auto &entry = entries_[shuffled_indices_[current_index_]];
 
   // handle wrap-around
+  ++current_index_;
   MoveToNextShard(current_index_);
 
   // metadata info
