@@ -120,7 +120,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
  *                          @see ExprImplCpuTernary or ExprImplGpuTernary
  * @param expr The expression node for which we return the executor
  */
-template <ArithmeticOp op, typename Backend,
+template <ArithmeticOp op, typename First, typename Backend,
           template <ArithmeticOp, typename, typename, typename, typename, bool, bool, bool>
           class ImplsAll>
 std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
@@ -131,29 +131,28 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
     types[i] = expr[i].GetTypeId();
     is_tensor[i] = !IsScalarLike(expr[i]);
   }
+  DALI_ENFORCE(type2id<First>::value == types[0], "Type mismatch when selecting first argument.");
 
-  TYPE_SWITCH(types[0], type2id, First, ARITHMETIC_ALLOWED_TYPES, (
-    TYPE_SWITCH(types[1], type2id, Second, ARITHMETIC_ALLOWED_TYPES, (
-      TYPE_SWITCH(types[2], type2id, Third, ARITHMETIC_ALLOWED_TYPES, (
-        using Out_t = typename arithm_meta<op, Backend>::template result_t<First, Second, Third>;
-        if (is_tensor[0] && is_tensor[1] && is_tensor[2]) {
-          result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, true, true>());
-        } else if (is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
-          result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, true, false>());
-        } else if (is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
-          result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, false, true>());
-        } else if (is_tensor[0] && !is_tensor[1] && !is_tensor[2]) {
-          result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, false, false>());
-        } else if (!is_tensor[0] && is_tensor[1] && is_tensor[2]) {
-          result.reset(new ImplsAll<op, Out_t, First, Second, Third, false, true, true>());
-        } else if (!is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
-          result.reset(new ImplsAll<op, Out_t, First, Second, Third, false, true, false>());
-        } else if (!is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
-          result.reset(new ImplsAll<op, Out_t, First, Second, Third, false, false, true>());
-        } else {
-          DALI_FAIL("Expression cannot have three scalar operands");
-        }
-      ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
+  TYPE_SWITCH(types[1], type2id, Second, ARITHMETIC_ALLOWED_TYPES, (
+    TYPE_SWITCH(types[2], type2id, Third, ARITHMETIC_ALLOWED_TYPES, (
+      using Out_t = typename arithm_meta<op, Backend>::template result_t<First, Second, Third>;
+      if (is_tensor[0] && is_tensor[1] && is_tensor[2]) {
+        result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, true, true>());
+      } else if (is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
+        result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, true, false>());
+      } else if (is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
+        result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, false, true>());
+      } else if (is_tensor[0] && !is_tensor[1] && !is_tensor[2]) {
+        result.reset(new ImplsAll<op, Out_t, First, Second, Third, true, false, false>());
+      } else if (!is_tensor[0] && is_tensor[1] && is_tensor[2]) {
+        result.reset(new ImplsAll<op, Out_t, First, Second, Third, false, true, true>());
+      } else if (!is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
+        result.reset(new ImplsAll<op, Out_t, First, Second, Third, false, true, false>());
+      } else if (!is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
+        result.reset(new ImplsAll<op, Out_t, First, Second, Third, false, false, true>());
+      } else {
+        DALI_FAIL("Expression cannot have three scalar operands");
+      }
     ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
   ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
   return result;
@@ -185,16 +184,56 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
                                 ExprImplCpuCT>(expr);                                       \
   }
 
-#define IMPLEMENT_OP_FACTORY_CPU_TERNARY(OP)                                                 \
-  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, CPUBackend>,         \
+#define OP_FACTORY_CPU_TERNARY_PROTO(OP, BACKEND)                                             \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, BACKEND>, \
+                                          const ExprFunc &expr, bool);               \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, BACKEND>, \
+                                          const ExprFunc &expr, uint8_t);            \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, BACKEND>, \
+                                          const ExprFunc &expr, uint16_t);           \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, BACKEND>, \
+                                          const ExprFunc &expr, uint32_t);           \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, BACKEND>, \
+                                          const ExprFunc &expr, uint64_t);           \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, BACKEND>, \
+                                          const ExprFunc &expr, int8_t);             \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, BACKEND>, \
+                                          const ExprFunc &expr, int16_t);            \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, BACKEND>, \
+                                          const ExprFunc &expr, int32_t);            \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, BACKEND>, \
+                                          const ExprFunc &expr, int64_t);            \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, BACKEND>, \
+                                          const ExprFunc &expr, float);              \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, BACKEND>, \
+                                          const ExprFunc &expr, double);
+
+#define IMPLEMENT_OP_FACTORY_CPU_TERNARY_FIRST_TYPED(OP, FIRST_TYPE)                                  \
+    std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, CPUBackend>,         \
+                                          const ExprFunc &expr, FIRST_TYPE) {                            \
+      return ExprImplFactoryTernaryOp<ArithmeticOp::OP, FIRST_TYPE, CPUBackend, ExprImplCpuTernary>(expr); \
+  }
+
+#define IMPLEMENT_OP_FACTORY_GPU_TERNARY_FIRST_TYPED(OP, FIRST_TYPE)                                  \
+    std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, GPUBackend>,         \
+                                          const ExprFunc &expr, FIRST_TYPE) {                            \
+      return ExprImplFactoryTernaryOp<ArithmeticOp::OP, FIRST_TYPE, GPUBackend, ExprImplGpuTernary>(expr); \
+  }
+
+#define IMPLEMENT_OP_FACTORY_CPU_TERNARY(OP)                                  \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, CPUBackend> op,         \
                                           const ExprFunc &expr) {                            \
-    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, CPUBackend, ExprImplCpuTernary>(expr); \
+    TYPE_SWITCH(expr[0].GetTypeId(), type2id, First, ARITHMETIC_ALLOWED_TYPES, ( \
+      return OpFactory(op, expr, First{}); \
+    ), DALI_FAIL("No suitable type found"););  \
   }
 
 #define IMPLEMENT_OP_FACTORY_GPU_TERNARY(OP)                                                 \
-  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, GPUBackend>,         \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, GPUBackend> op,         \
                                           const ExprFunc &expr) {                            \
-    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, GPUBackend, ExprImplGpuTernary>(expr); \
+  TYPE_SWITCH(expr[0].GetTypeId(), type2id, First, ARITHMETIC_ALLOWED_TYPES, ( \
+      return OpFactory(op, expr, First{}); \
+    ), DALI_FAIL("No suitable type found"););  \
   }
 
 /**

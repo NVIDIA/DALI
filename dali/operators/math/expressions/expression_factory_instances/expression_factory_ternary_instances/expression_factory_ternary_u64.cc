@@ -13,13 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/core/static_switch.h"
 #include "dali/operators/math/expressions/arithmetic_meta.h"
-#include "dali/operators/math/expressions/expression_impl_gpu.cuh"
+#include "dali/operators/math/expressions/expression_impl_cpu.h"
 #include "dali/operators/math/expressions/expression_factory_instances/expression_impl_factory.h"
+#include "dali/operators/math/expressions/expression_factory_instances/expression_factory_ternary.h"
 
 namespace dali {
 
-IMPLEMENT_OP_FACTORY_GPU_TERNARY(clamp);
+IMPLEMENT_OP_FACTORY_CPU_TERNARY_FIRST_TYPED(clamp, uint64_t);
 
 }  // namespace dali
