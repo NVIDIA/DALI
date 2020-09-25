@@ -317,7 +317,7 @@ struct Conv {
       void *window_data = window_smem.data();
 
       // Construct iterators to A and B operands
-      // One is proper GMEM iterator, one generates the matrix on the fly from conv window
+      // One is proper GMEM iterator, the other generates the matrix on the fly from conv window
       typename Mma::IteratorA iterator_A(
           select_A<kIsInnerConv>(params.params_In, params.params_Window),
           select_A<kIsInnerConv>(params.ref_In.data(), window_smem.data()),
