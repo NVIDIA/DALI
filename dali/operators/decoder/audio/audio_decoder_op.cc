@@ -19,8 +19,6 @@
 
 namespace dali {
 
-using DecoderType = int16_t;
-
 DALI_SCHEMA(AudioDecoder)
   .DocStr(R"code(Decodes waveforms from encoded audio data.
 
@@ -64,7 +62,7 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
   sample_meta_.resize(batch_size);
   files_names_.resize(batch_size);
 
-  decode_type_ = (use_resampling_ && !downmix_) ? DALI_FLOAT : output_type_;
+  decode_type_ = use_resampling_ ? DALI_FLOAT : output_type_;
   TYPE_SWITCH(decode_type_, type2id, DecoderOutputType, (int16_t, int32_t, float), (
     for (int i = 0; i < batch_size; i++)
       decoders_[i] = std::make_unique<GenericAudioDecoder<DecoderOutputType>>();

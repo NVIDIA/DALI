@@ -223,7 +223,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.ReadSample(sample);
     sample.decode_audio(0);
     TensorView<StorageCPU, float> ref(downmixed.data(), {ref_samples});
-    Check(ref, view<const float>(sample.audio()));
+    Check(ref, view<const float>(sample.audio()), EqualEpsRel(1e-5, 1e-5));
   }
 
   {
@@ -257,7 +257,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
                        downmixed.size(), sr_in, 1);
 
     TensorView<StorageCPU, float> ref(downsampled.data(), {downsampled_len});
-    Check(ref, view<const float>(sample.audio()), EqualEpsRel(1e-6, 1e-6));
+    Check(ref, view<const float>(sample.audio()), EqualEpsRel(1e-5, 1e-5));
 
     AsrSample sample_int16;
     {
@@ -280,7 +280,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     for (size_t i = 0; i < converted.size(); i++)
       converted[i] = ConvertSatNorm<float>(sample_int16.audio().data<int16_t>()[i]);
     TensorView<StorageCPU, float> converted_from_int16(converted.data(), {downsampled_len});
-    Check(ref, converted_from_int16, EqualEpsRel(1e-6, 1e-6));
+    Check(ref, converted_from_int16, EqualEpsRel(1e-5, 1e-5));
   }
 }
 

@@ -67,7 +67,10 @@ struct AsrSample {
   AsrSample& operator=(AsrSample&&) = default;
 
  private:
-  AudioDecoderBase &decoder() { return decoder_; }
+  AudioDecoderBase &decoder() {
+    assert(decoder_);
+    return *decoder_;
+  }
 
   Tensor<CPUBackend> audio_;
   std::string text_;
@@ -76,8 +79,7 @@ struct AsrSample {
   std::function<void(int)> decode_f_;
   bool audio_ready_ = false;
 
-  using DecoderType = int16_t;
-  GenericAudioDecoder<DecoderType> decoder_;
+  std::unique_ptr<AudioDecoderBase> decoder_;
 };
 
 namespace detail {
@@ -101,7 +103,8 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
         max_duration_(spec.GetArgument<float>("max_duration")),
         normalize_text_(spec.GetArgument<bool>("normalize_text")),
         num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
-        scratch_(num_threads_) {
+        decode_scratch_(num_threads_),
+        resample_scratch_(num_threads_) {
     DALI_ENFORCE(!manifest_filepaths_.empty(), "``manifest_filepaths`` can not be empty");
     /*
      * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks
@@ -136,14 +139,13 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   void Reset(bool wrap_to_shard) override;
 
  private:
-  void ReadAudioMetadata(AudioMetadata &audio_meta,
-                         const NemoAsrEntry &entry,
-                         AudioDecoderBase &decoder);
+  template <typename OutputType, typename DecoderOutputType>
   void ReadAudio(Tensor<CPUBackend> &audio,
                  const AudioMetadata &audio_meta,
                  const NemoAsrEntry &entry,
                  AudioDecoderBase &decoder,
-                 Tensor<CPUBackend> &scratch);
+                 std::vector<uint8_t> &decode_scratch,
+                 std::vector<float> &resample_scratch);
 
   std::vector<std::string> manifest_filepaths_;
   std::vector<NemoAsrEntry> entries_;
@@ -160,7 +162,8 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   bool normalize_text_;
   int num_threads_;
   kernels::signal::resampling::Resampler resampler_;
-  std::vector<Tensor<CPUBackend>> scratch_;
+  std::vector<std::vector<uint8_t>> decode_scratch_;
+  std::vector<std::vector<float>> resample_scratch_;
 };
 
 }  // namespace dali

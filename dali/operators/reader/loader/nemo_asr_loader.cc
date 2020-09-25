@@ -21,6 +21,7 @@
 #include "dali/operators/reader/loader/utils.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/core/tensor_shape_print.h"
+#include "dali/core/static_switch.h"
 #include "dali/pipeline/util/lookahead_parser.h"
 #include "dali/util/file.h"
 
@@ -124,19 +125,13 @@ void NemoAsrLoader::PrepareEmpty(AsrSample &sample) {
   PrepareEmptyTensor(sample.audio_);
 }
 
-void NemoAsrLoader::ReadAudioMetadata(AudioMetadata &audio_meta,
-                                      const NemoAsrEntry &entry,
-                                      AudioDecoderBase &decoder) {
-  audio_meta = decoder.OpenFromFile(entry.audio_filepath);
-  assert(audio_meta.channels_interleaved);  // it's always true
-}
-
+template <typename OutputType, typename DecoderOutputType>
 void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
                               const AudioMetadata &audio_meta,
                               const NemoAsrEntry &entry,
                               AudioDecoderBase &decoder,
-                              Tensor<CPUBackend> &scratch) {
-  using DecoderType = AsrSample::DecoderType;
+                              std::vector<uint8_t> &decode_scratch,
+                              std::vector<float> &resample_scratch) {
   audio.set_type(TypeTable::GetTypeInfo(dtype_));
   auto shape = DecodedAudioShape(audio_meta, sample_rate_, downmix_);
   assert(shape.size() > 0);
@@ -150,6 +145,8 @@ void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
   if (should_resample || should_downmix || dtype_ != DALI_INT16)
     decode_scratch_sz = audio_meta.length * audio_meta.channels;
 
+  decode_scratch.resize(decode_scratch_sz * sizeof(DecoderOutputType));
+
   // resample scratch is used to prepare a single or multiple (depending if
   // downmixing is needed) channel float input, required by the resampling
   // kernel
@@ -157,24 +154,14 @@ void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
   if (should_resample)
     resample_scratch_sz = audio_meta.length * out_channels;
 
-  int64_t total_scratch_sz =
-      decode_scratch_sz * sizeof(DecoderType) + resample_scratch_sz * sizeof(float);
-  scratch.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
-  scratch.Resize({total_scratch_sz});
-  uint8_t* scratch_mem = scratch.mutable_data<uint8_t>();
+  resample_scratch.resize(resample_scratch_sz);
 
-  span<DecoderType> decoder_scratch_mem(reinterpret_cast<DecoderType *>(scratch_mem),
-                                        decode_scratch_sz);
-  span<float> resample_scratch_mem(
-        reinterpret_cast<float *>(scratch_mem + decode_scratch_sz * sizeof(DecoderType)),
-        resample_scratch_sz);
-  TYPE_SWITCH(dtype_, type2id, OutType, (float, int16_t), (
-    DecodeAudio(view<OutType>(audio), decoder, audio_meta, resampler_,
-                decoder_scratch_mem, resample_scratch_mem, sample_rate_, downmix_,
-                entry.audio_filepath.c_str());
-  ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));  // NOLINT
-
-  decoder.Close();
+  DecodeAudio<OutputType, DecoderOutputType>(
+    view<OutputType>(audio), decoder, audio_meta, resampler_,
+    {reinterpret_cast<DecoderOutputType *>(decode_scratch.data()), decode_scratch_sz},
+    {resample_scratch.data(), resample_scratch_sz},
+    sample_rate_, downmix_,
+    entry.audio_filepath.c_str());
 }
 
 void NemoAsrLoader::ReadSample(AsrSample& sample) {
@@ -193,11 +180,30 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
 
   // Ignoring copy_read_data_, Sharing data is not supported with this loader
 
-  ReadAudioMetadata(sample.audio_meta_, entry, sample.decoder());
-  // Audio decoding will be run in the prefetch function, once the batch is formed
-  sample.decode_f_ = [this, &sample, &entry](int tid) {
-    ReadAudio(sample.audio_, sample.audio_meta_, entry, sample.decoder(), scratch_[tid]);
-  };
+  bool use_resampling = sample_rate_ > 0;
+  DALIDataType decode_type = use_resampling ? DALI_FLOAT : dtype_;
+  TYPE_SWITCH(dtype_, type2id, OutputType, (int16_t, int32_t, float), (
+    TYPE_SWITCH(decode_type, type2id, DecoderOutputType, (int16_t, int32_t, float), (
+      sample.decoder_ = std::make_unique<GenericAudioDecoder<DecoderOutputType>>();
+
+      sample.audio_meta_ = sample.decoder().OpenFromFile(entry.audio_filepath);
+      assert(sample.audio_meta_.channels_interleaved);  // it's always true
+
+      // Audio decoding will be run in the prefetch function, once the batch is formed
+      sample.decode_f_ = [this, &sample, &entry](int tid) {
+        ReadAudio<OutputType, DecoderOutputType>(
+          sample.audio_, sample.audio_meta_, entry, sample.decoder(),
+          decode_scratch_[tid], resample_scratch_[tid]);
+        sample.decoder().Close();
+      };
+    ), (  // NOLINT
+      DALI_FAIL(make_string("Unsupported decoder output type: ", decode_type,
+                            ". Supported types are int16, int32, and float."));
+    ));  // NOLINT
+  ), (  // NOLINT
+    DALI_FAIL(make_string("Unsupported output type: ", dtype_,
+                          ". Supported types are int16, int32, and float."));
+  ));  // NOLINT
 }
 
 Index NemoAsrLoader::SizeImpl() {
