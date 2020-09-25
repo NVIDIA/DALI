@@ -112,10 +112,9 @@ struct ConvolutionGpu {
       // Inner (innermost) - repack arguments
       for (int i = 0; i < num_samples; i++) {
         int window_size = static_cast<int>(windows.tensor_shape_span(i)[0]);
-        int window_anchor = window_anchors.size() ? window_anchors[i] : window_size / 2;
-        // TODO(klecki): when lifting the constraint decide where the 0-anchor should put the
-        // convolution window. Now, due to the convolution formula the window is reversed,
-        // and anchor 0 still puts it to the "right" of the input.
+        // convert anchor to the correlation formula used internally
+        int window_anchor =
+            window_size - 1 - (window_anchors.size() ? window_anchors[i] : window_size / 2);
         DALI_ENFORCE(
             window_anchor == window_size / 2,
             make_string("Support for non-centered window is not yet implemented, got anchor: ",
@@ -148,10 +147,9 @@ struct ConvolutionGpu {
       // Outer or not-innermost - repack arguments
       for (int i = 0; i < num_samples; i++) {
         int window_size = static_cast<int>(windows.tensor_shape_span(i)[0]);
-        int window_anchor = window_anchors.size() ? window_anchors[i] : window_size / 2;
-        // TODO(klecki): when lifting the constraint decide where the 0-anchor should put the
-        // convolution window. Now, due to the convolution formula the window is reversed,
-        // and anchor 0 still puts it to the "right" of the input.
+        // convert anchor to the correlation formula used internally
+        int window_anchor =
+            window_size - 1 - (window_anchors.size() ? window_anchors[i] : window_size / 2);
         DALI_ENFORCE(
             window_anchor == window_size / 2,
             make_string("Support for non-centered window is not yet implemented, got anchor: ",
