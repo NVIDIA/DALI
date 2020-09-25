@@ -136,11 +136,16 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
 
   const TensorListShape<> shape_ch_ = {{29, 145, 128, 3}, {64, 64, 64, 3},  {164, 164, 164, 3},
                                        {12, 12, 12, 3},   {4, 200, 180, 3}, {200, 4, 180, 3},
-                                       {75, 75, 75, 5}};
+                                       {75, 75, 75, 5}, {16, 512, 512, 1}, {16, 512, 512, 1},
+                                       {16, 512, 512, 1}};
   const TensorListShape<> shape_noch_ = {{29, 145, 128}, {64, 64, 64},  {164, 164, 164},
                                          {12, 12, 12},   {4, 200, 180}, {200, 4, 180},
-                                         {75, 75, 75}};
-  const TensorListShape<1> shape_window = {{1, 3, 5, 15, 25, 51, 101}};
+                                         {75, 75, 75}, {16, 512, 512}, {16, 512, 512},
+                                         {16, 512, 512}};
+  // Three last window sizes are used to verify against off-by-one error when calculating
+  // where the nonzero region ends in the kernel::Conv, as the ThreadblockShape::kK == 8.
+  const TensorListShape<1> shape_window = {
+      {1, 3, 5, 15, 25, 51, 101, 2 * 7 + 1, 2 * 8 + 1, 2 * 9 + 1}};
 };
 
 TYPED_TEST_SUITE_P(ConvolutionGpuKernelTest);

@@ -199,7 +199,7 @@ class ConvMmaPipelined
   CUTLASS_DEVICE
   void operator()(
       int gemm_k_iterations,                      ///< number of starting iteration of the mainloop
-      int end_iteration,                          ///< number of ending iteration of the mainloop
+      int skip_last_iterations,                   ///< how many iterations we skip at the end
       FragmentC &accum,                           ///< destination accumulator tile
       IteratorA iterator_A,                       ///< iterator over A operand in global memory
       IteratorB iterator_B,                       ///< iterator over B operand in global memory
@@ -266,7 +266,7 @@ class ConvMmaPipelined
 
     // Note: The main loop does not support Base::kWarpGemmIterations == 2.
     CUTLASS_GEMM_LOOP
-    for (; gemm_k_iterations > end_iteration; --gemm_k_iterations) {
+    for (; gemm_k_iterations > skip_last_iterations; --gemm_k_iterations) {
       //
       // Loop over GEMM K dimension
       //

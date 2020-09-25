@@ -297,13 +297,13 @@ struct Conv {
       int total_gemm_k_iterations = (problem_size_k + Mma::Shape::kK - 1) / Mma::Shape::kK;
 
       // where the data ends
-      int k_end_offset = min(problem_size_k - 1, conv_diag_position + tile_extent + right_span);
+      int k_end_offset = min(problem_size_k - 1, conv_diag_position + tile_extent + right_span - 1);
       int k_last_iter = ((k_end_offset + Mma::Shape::kK - 1) / Mma::Shape::kK);
 
       // this is how many iterations we need if we start at the offset
-      int start_iteration =
+      int gemm_k_iterations =
           (problem_size_k - k_skipped_offset + Mma::Shape::kK - 1) / Mma::Shape::kK;
-      int end_iteration = max(total_gemm_k_iterations - k_last_iter - 1, 0);
+      int skip_last_iterations = max(total_gemm_k_iterations - k_last_iter - 1, 0);
 
       // Compute position within threadblock
       int thread_idx = threadIdx.x;
@@ -344,9 +344,10 @@ struct Conv {
 
       accumulators.clear();
 
-      if (!kSplitKSerial || start_iteration > 0) {
+      if (!kSplitKSerial || gemm_k_iterations > 0) {
           // Compute threadblock-scoped matrix multiply-add
-          mma(start_iteration, end_iteration, accumulators, iterator_A, iterator_B, accumulators);
+          mma(gemm_k_iterations, skip_last_iterations, accumulators, iterator_A, iterator_B,
+              accumulators);
         }
 
       //
