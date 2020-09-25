@@ -706,9 +706,9 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
    * @brief Load and add kernel elements from abs_window_element - Outer Conv variant
    *
    * In inner conv, we skip first and last column for border handling,
-   * so we sometimes need to mask the addition of first of last vector element.
-   * As for "vector aligned" loads, the data must be a multpile of that size, we only do it
-   * for the first or last element.
+   * so we sometimes need to mask the addition of first or last vector element.
+   * As for "vector aligned" loads, the loaded data consist of several elements, we only mask
+   * the first or last element of AccessType.
    */
   template <bool mirrored, bool IsInnerConv_ = kIsInnerConv>
   CUTLASS_DEVICE std::enable_if_t<!IsInnerConv_> add_vec(AccessType &dst, int abs_window_element,
@@ -740,10 +740,7 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
    */
   CUTLASS_DEVICE
   int Channels() {
-    if (kIsInnerConv) {
-      return channels_;
-    }
-    return 1;
+    return kIsInnerConv ? channels_ : 1;
   }
 
   /**

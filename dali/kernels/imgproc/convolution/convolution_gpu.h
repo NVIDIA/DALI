@@ -113,6 +113,9 @@ struct ConvolutionGpu {
       for (int i = 0; i < num_samples; i++) {
         int window_size = static_cast<int>(windows.tensor_shape_span(i)[0]);
         int window_anchor = window_anchors.size() ? window_anchors[i] : window_size / 2;
+        // TODO(klecki): when lifting the constraint decide where the 0-anchor should put the
+        // convolution window. Now, due to the convolution formula the window is reversed,
+        // and anchor 0 still puts it to the "right" of the input.
         DALI_ENFORCE(
             window_anchor == window_size / 2,
             make_string("Support for non-centered window is not yet implemented, got anchor: ",
@@ -138,7 +141,7 @@ struct ConvolutionGpu {
             window_gpu,                 // Pointers to windows
             {cutlass_out, row_stride},  // Tensor-ref for source matrix C
             {cutlass_out, row_stride},  // Tensor-ref for destination matrix D
-            {scale, 0}                  // Epilogue scalars
+            {scale, 0.f}                // Epilogue scalars
         });
       }
     } else {
@@ -146,6 +149,9 @@ struct ConvolutionGpu {
       for (int i = 0; i < num_samples; i++) {
         int window_size = static_cast<int>(windows.tensor_shape_span(i)[0]);
         int window_anchor = window_anchors.size() ? window_anchors[i] : window_size / 2;
+        // TODO(klecki): when lifting the constraint decide where the 0-anchor should put the
+        // convolution window. Now, due to the convolution formula the window is reversed,
+        // and anchor 0 still puts it to the "right" of the input.
         DALI_ENFORCE(
             window_anchor == window_size / 2,
             make_string("Support for non-centered window is not yet implemented, got anchor: ",
@@ -173,7 +179,7 @@ struct ConvolutionGpu {
             window_gpu,                 // Pointers to windows
             {cutlass_out, row_stride},  // Tensor-ref for source matrix C
             {cutlass_out, row_stride},  // Tensor-ref for destination matrix D
-            {scale, 0},                 // Epilogue scalars
+            {scale, 0.f},               // Epilogue scalars
             planes,                     // For non-outermost we can have 1+ planes
             plane_stride});
       }

@@ -345,8 +345,7 @@ class PositionPredicatedTileAccessIterator<Shape_, Element_, layout::PitchLinear
       thread_offset_ += residue_offset_;
       compute_predicates_(extent_, true);
     } else {
-      // we can get rid of most of the
-      // pointer arithmetic here and just the position calculation
+      // we can get rid of most of the pointer arithmetic here and just calculate the position
       added_offset_ += tile_offset * TensorCoord(Shape::kContiguous, Shape::kStrided);
     }
     is_residue_tile_ = false;
