@@ -67,11 +67,11 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
       int window_size = shape_window[sample][0];
       for (int i = 0; i < window_size; i++) {
         if (i < window_size / 2) {
-          k_win_[sample].data[i] = 1;
-        } else if (i == window_size / 2) {
           k_win_[sample].data[i] = 2;
+        } else if (i == window_size / 2) {
+          k_win_[sample].data[i] = 4;
         } else {
-          k_win_[sample].data[i] = 1;
+          k_win_[sample].data[i] = 2;
         }
       }
     }
@@ -106,7 +106,7 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
       auto scratchpad = scratch_alloc.GetScratchpad();
       ctx_cpu.scratchpad = &scratchpad;
 
-      kernel_cpu.Run(ctx_cpu, baseline_out_[sample], baseline_in_[sample], k_win_[sample]);
+      kernel_cpu.Run(ctx_cpu, baseline_out_[sample], baseline_in_[sample], k_win_[sample], 0.5f);
     }
 
     auto req = kernel_gpu.Setup(ctx_gpu, in_.shape, shape_window);
@@ -115,7 +115,7 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
     scratch_alloc.Reserve(req.scratch_sizes);
     auto scratchpad = scratch_alloc.GetScratchpad();
     ctx_gpu.scratchpad = &scratchpad;
-    kernel_gpu.Run(ctx_gpu, out_, in_, k_win_);
+    kernel_gpu.Run(ctx_gpu, out_, in_, k_win_, span<const int>{}, 0.5f);
 
     auto out_cpu_ = output_.cpu();
 
@@ -150,6 +150,7 @@ using ConvolutionTestValues = ::testing::Types<
     // 1D
     convolution_params<1, false, 0, uint8_t, float>,
     convolution_params<1, false, 0, int16_t, int16_t>,
+    convolution_params<1, false, 0, int16_t, int16_t, int16_t>,
     // TODO(klecki): cannot test this as it tries to use device __half for CPU kernel
     // convolution_params<1, false, 0, float16, float16, float16>,
     convolution_params<1, false, 0, float, float>,

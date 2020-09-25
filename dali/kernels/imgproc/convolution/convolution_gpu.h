@@ -87,7 +87,7 @@ struct ConvolutionGpu {
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim> out,
            const TensorListView<StorageGPU, const In, ndim>& in,
            const TensorListView<StorageCPU, const W, 1>& windows,
-           span<const int> window_anchors = {}, W scale = 1) {
+           span<const int> window_anchors = {}, float scale = 1) {
     int num_samples = in.size();
 
     DALI_ENFORCE(
@@ -138,7 +138,7 @@ struct ConvolutionGpu {
             window_gpu,                 // Pointers to windows
             {cutlass_out, row_stride},  // Tensor-ref for source matrix C
             {cutlass_out, row_stride},  // Tensor-ref for destination matrix D
-            {static_cast<cutlass_W>(scale), static_cast<cutlass_W>(0)}  // Epilogue scalars
+            {scale, 0}                  // Epilogue scalars
         });
       }
     } else {
@@ -173,7 +173,7 @@ struct ConvolutionGpu {
             window_gpu,                 // Pointers to windows
             {cutlass_out, row_stride},  // Tensor-ref for source matrix C
             {cutlass_out, row_stride},  // Tensor-ref for destination matrix D
-            {static_cast<cutlass_W>(scale), static_cast<cutlass_W>(0)},  // Epilogue scalars
+            {scale, 0},                 // Epilogue scalars
             planes,                     // For non-outermost we can have 1+ planes
             plane_stride});
       }
@@ -205,6 +205,8 @@ struct ConvolutionGpu {
   // Basic SIMT kernel with no additional conversions
   // 2nd and 5th template parameter (In and W now) allow for additional conversion when loading
   // data inside the cutlass kernel. For now it's no-op (hence the same types twice).
+  // TODO(klecki): Consider adjusting `ElementAccumulator` from float to some integral type
+  // when calculating convolution of integral input and integral kernel.
   using CutlassConv = typename cutlass::gemm::device::Conv<
       cutlass_In,           /// Data-type of Input matrix
       cutlass_In,           /// Additional cast for Input matrix type when loading
@@ -215,7 +217,8 @@ struct ConvolutionGpu {
       RowMajor,             /// Layout of Output matrix
       kIsInnerConv,         /// convolution kind
       CutlassWindowConfig,  /// Size and layout of SMEM for window kernel lookups
-      cutlass_W>;           /// Element type for internal accumulation
+      float>;               /// Element type for internal accumulation
+
 
   static constexpr int kMaxWindowSize = CutlassConv::ConvWindowConfiguration::kMaxWindowSize;
   static constexpr int kWindowCopyBufferSize =
