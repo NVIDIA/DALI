@@ -231,7 +231,7 @@ parser.add_argument('--number_of_shards', default=None, type=int, metavar='N',
 parser.add_argument('--assign_gpu', default=None, type=int, metavar='N',
                     help='Assign a given GPU. Cannot be used with --gpus')
 parser.add_argument('--assign_shard', default=0, type=int, metavar='N',
-                    help='Assign a given shard id, if used with --gpus it assigns the first GPU to this id and next GPUs get consecutive ids')
+                    help='Assign a given shard id. If used with --gpus, it assigns the first GPU to this id and next GPUs get consecutive ids')
 parser.add_argument('--simulate_N_gpus', default=None, type=int, metavar='N',
                     help='Used to simulate small shard as it would be in a multi gpu setup with this number of gpus. If provided, each gpu will see a shard size as if we were in a multi gpu setup with this number of gpus',
                     dest='number_of_shards')
