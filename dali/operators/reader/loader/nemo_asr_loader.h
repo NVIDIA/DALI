@@ -53,6 +53,10 @@ struct AsrSample {
     return audio_filepath_;
   }
 
+  const TensorShape<>& shape() const {
+    return shape_;
+  }
+
   void decode_audio(Tensor<CPUBackend>& audio, int tid) {
     decode_f_(audio, tid);
   }
@@ -72,6 +76,7 @@ struct AsrSample {
   std::string text_;
   AudioMetadata audio_meta_;
   std::string audio_filepath_;  // for tensor metadata purposes
+  TensorShape<> shape_;
 
   std::function<void(Tensor<CPUBackend>&, int)> decode_f_;
   std::unique_ptr<AudioDecoderBase> decoder_;

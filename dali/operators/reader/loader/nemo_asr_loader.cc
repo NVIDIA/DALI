@@ -135,11 +135,6 @@ void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
                               AudioDecoderBase &decoder,
                               std::vector<uint8_t> &decode_scratch,
                               std::vector<float> &resample_scratch) {
-  audio.set_type(TypeTable::GetTypeInfo(dtype_));
-  auto shape = DecodedAudioShape(audio_meta, sample_rate_, downmix_);
-  assert(shape.size() > 0);
-  audio.Resize(shape);
-
   bool should_resample = sample_rate_ > 0 && audio_meta.sample_rate != sample_rate_;
   bool should_downmix = audio_meta.channels > 1 && downmix_;
 
@@ -187,6 +182,9 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
 
       sample.audio_meta_ = sample.decoder().OpenFromFile(entry.audio_filepath);
       assert(sample.audio_meta_.channels_interleaved);  // it's always true
+
+      sample.shape_ = DecodedAudioShape(sample.audio_meta(), sample_rate_, downmix_);
+      assert(sample.shape_.size() > 0);
 
       // Audio decoding will be run in the prefetch function, once the batch is formed
       sample.decode_f_ = [this, &sample, &entry](Tensor<CPUBackend> &audio, int tid) {
