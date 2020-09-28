@@ -211,11 +211,7 @@ class ExprImplGPUInvoke : public ExprImplBase {
     auto block = dim3(kThreadNum, 1, 1);
     Invoker::Invoke(tiles_.data<ExtendedTileDesc>(), grid, block, ctx.stream);
 
-
-
-
-
-    CUDAEvent start = CUDAEvent::CreateWithFlags(0);
+    CUDAEvent start = CUDAEvent::CreateWithFlags(0);//todo(klecki): remove benchmarking
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
 
     Invoker::Invoke(tiles_.data<ExtendedTileDesc>(), grid, block, ctx.stream);
