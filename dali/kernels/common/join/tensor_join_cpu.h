@@ -127,9 +127,8 @@ struct TensorJoinCpu {
         for (int j = 0; j < ref.size(); j++) {
           if (!new_axis) {
             DALI_ENFORCE(in_shapes[i][j] == ref.shape[j] || j == axis_, make_string(
-                    "Number of samples in every dimension "
-                    "(but the one along which concatenation occurs) must be the same "
-                    "(CONCAT mode). 0-th shape at index ", j, " has dimension ",
+                    "Number of samples in every dimension (except the concatenated one) "
+                    "must be the same (CONCAT mode). 0-th shape at index ", j, " has dimension ",
                     ref.shape[j], ", while ", i, "-th shape at index ", j,
                     " has dimension ", in_shapes[i][j]));
           } else {
