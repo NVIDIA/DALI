@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TENSOR_STACK_CPU_H
-#define DALI_TENSOR_STACK_CPU_H
+#ifndef DALI_TENSOR_JOIN_CPU_H
+#define DALI_TENSOR_JOIN_CPU_H
 
 #include "dali/kernels/kernel.h"
 #include "dali/core/tensor_shape_print.h"
@@ -151,5 +151,5 @@ struct TensorJoinCpu {
 
 }
 }
-#endif //DALI_TENSOR_STACK_CPU_H
+#endif //DALI_TENSOR_JOIN_CPU_H
 
