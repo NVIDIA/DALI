@@ -63,14 +63,14 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
     parser.EnterObject();
     NemoAsrEntry entry;
     while (const char* key = parser.NextObjectKey()) {
-      if (detail::IsEqualString(key, "audio_filepath")) {
+      if (0 == std::strcmp(key, "audio_filepath")) {
         entry.audio_filepath = parser.GetString();
-      } else if (detail::IsEqualString(key, "duration")) {
+      } else if (0 == std::strcmp(key, "duration")) {
         entry.duration = parser.GetDouble();
-      } else if (detail::IsEqualString(key, "offset")) {
+      } else if (0 == std::strcmp(key, "offset")) {
         entry.offset = parser.GetDouble();
         DALI_WARN("Handing of ``offset`` is not yet implemented and will be ignored.");
-      } else if (detail::IsEqualString(key, "text")) {
+      } else if (0 == std::strcmp(key, "text")) {
         entry.text = parser.GetString();
         if (normalize_text)
           entry.text = NormalizeText(entry.text);
