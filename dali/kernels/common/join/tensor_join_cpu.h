@@ -12,27 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TENSOR_JOIN_CPU_H
-#define DALI_TENSOR_JOIN_CPU_H
+#ifndef DALI_KERNELS_COMMON_JOIN_TENSOR_JOIN_CPU_H_
+#define DALI_KERNELS_COMMON_JOIN_TENSOR_JOIN_CPU_H_
 
+#include <vector>
 #include "dali/kernels/kernel.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/core/format.h"
 
 namespace dali {
 namespace kernels {
-
-enum JoinMode {
-  STACK,
-  CONCAT
-};
-
-namespace detail {
+namespace impl {
 
 template<typename T>
-void TransferBuffers(span<T> output, const TensorShape<> &output_shape,
-                     span<TensorView<StorageCPU, const T>> inputs, int axis) {
-  vector<int64_t> copy_sizes(inputs.size());
+void ConcatenateTensors(span<T> output, const TensorShape<> &output_shape,
+                        span<TensorView<StorageCPU, const T>> inputs, int axis) {
+  SmallVector<int64_t, 8> copy_sizes;
   for (int t = 0; t < inputs.size(); t++) {
     copy_sizes[t] = volume(inputs[t].shape.begin() + axis, inputs[t].shape.end());
   }
@@ -49,7 +44,7 @@ void TransferBuffers(span<T> output, const TensorShape<> &output_shape,
 }
 
 
-template<JoinMode mode=STACK>
+template<bool new_axis = true>
 TensorShape<> DetermineShape(span<const TensorShape<>> in_shapes, int axis) {
   TensorShape<> ret;
   auto &insh = in_shapes[0];
@@ -66,16 +61,55 @@ TensorShape<> DetermineShape(span<const TensorShape<>> in_shapes, int axis) {
 
 
 template<>
-TensorShape<> DetermineShape<CONCAT>(span<const TensorShape<>> in_shapes, int axis) {
+TensorShape<> DetermineShape<false>(span<const TensorShape<>> in_shapes, int axis) {
   TensorShape<> ret = in_shapes[0];
-  ret[axis] *= in_shapes.size();
+  ret[axis] = 0;
+  for (const auto &sh : in_shapes) {
+    ret[axis] += sh[axis];
+  }
   return ret;
 }
 
-}  // namespace detail
 
-template<typename Out, typename In, JoinMode mode = STACK, int dims = -1>
+/**
+ * Joins multiple input tensors into one output tensor, along given axis.
+ *
+ * The kernel works in 2 modes: STACK and CONCAT. In CONCAT mode, kernel creates a new tensor,
+ * with joined values along given dimension, e.g.
+ *
+ * arr0 = [[1, 2, 4, 2], [1, 1, 7, 6], [6, 8, 8, 4]])
+ * shape = (3, 4)
+ *
+ * arr1 = [[3, 8, 8, 6], [8, 1, 5, 7], [6, 2, 7, 5]]
+ * shape = (3, 4)
+ *
+ * concatenate([arr0, arr1], axis=1) -> [[1, 2, 4, 2, 3, 8, 8, 6],
+ *                                       [1, 1, 7, 6, 8, 1, 5, 7],
+ *                                       [6, 8, 8, 4, 6, 2, 7, 5]]
+ * shape = (3, 8)
+ *
+ * Stacking, on the other hand, creates new tensor with added dimension, where `axis` points.
+ *
+ * stack([arr0, arr1], axis=1) -> [[[1, 2, 4, 2],
+ *                                  [3, 8, 8, 6]],
+ *
+ *                                 [[1, 1, 7, 6],
+ *                                  [8, 1, 5, 7]],
+ *
+ *                                 [[6, 8, 8, 4],
+ *                                  [6, 2, 7, 5]]]
+ * shape = (3, 2, 4)
+ *
+ * @tparam new_axis if true, STACK mode is applied.
+ */
+template<typename T, bool new_axis = true, int dims = -1>
 struct TensorJoinCpu {
+  ///@{
+  /**
+   * @param in_shapes Shapes of input tensors.
+   * @param axis Axis, along which tensors will be joined. Accepts positive and negative values
+   *             (e.g. axis: -1 <=> ndims-1)
+   */
   KernelRequirements Setup(KernelContext &ctx, span<const TensorShape<dims>> in_shapes, int axis) {
     n_input_tensors_ = in_shapes.size();
     orig_shapes_(in_shapes);
@@ -90,14 +124,13 @@ struct TensorJoinCpu {
         DALI_ENFORCE(in_shapes[i].sample_dim() == ref.sample_dim(),
                      "Every input shape must have the same number of dimensions.");
         for (int j = 0; j < ref.size(); j++) {
-          if (mode == CONCAT) {
-            DALI_ENFORCE(in_shapes[i][j] == ref.shape[j] || (j == axis_ && mode == CONCAT),
-                         make_string(
-                                 "Number of samples in every dimension "
-                                 "(but the one along which concatenation occurs) must be the same "
-                                 "(CONCAT mode). 0-th shape at index ", j, " has dimension ",
-                                 ref.shape[j], ", while ", i, "-th shape at index ", j,
-                                 " has dimension ", in_shapes[i][j]));
+          if (!new_axis) {
+            DALI_ENFORCE(in_shapes[i][j] == ref.shape[j] || j == axis_, make_string(
+                    "Number of samples in every dimension "
+                    "(but the one along which concatenation occurs) must be the same "
+                    "(CONCAT mode). 0-th shape at index ", j, " has dimension ",
+                    ref.shape[j], ", while ", i, "-th shape at index ", j,
+                    " has dimension ", in_shapes[i][j]));
           } else {
             DALI_ENFORCE(in_shapes[i][j] == ref.shape[j], make_string(
                     "Number of samples in every dimension must be the same (STACK mode). "
@@ -109,7 +142,7 @@ struct TensorJoinCpu {
     }
 
     KernelRequirements kr;
-    output_shape_ = detail::DetermineShape<mode>(in_shapes, axis);
+    output_shape_ = DetermineShape<new_axis>(in_shapes, axis);
     kr.output_shapes.resize(1);
     TensorListShape<> tmp({output_shape_});  // clang's destructor bug still haunting
     kr.output_shapes[0] = tmp;
@@ -117,30 +150,41 @@ struct TensorJoinCpu {
   }
 
 
-  KernelRequirements Setup(KernelContext &ctx, span<const InTensorCPU<In, dims>> in, int axis) {
+  KernelRequirements Setup(KernelContext &ctx, span<const InTensorCPU<T, dims>> in, int axis) {
     std::vector<TensorShape<>> in_shapes(in.size());
     for (int i = 0; i < in.size(); i++) {
       in_shapes[i] = in[i].shape;
     }
-    return Setup(ctx, in_shapes, axis);
+    return Setup(ctx, make_span(in_shapes), axis);
   }
+  ///@}
+
+  static constexpr int output_dims = (dims == DynamicDimensions ? DynamicDimensions :
+                                      (new_axis ? dims + 1 : dims));
 
 
-  void Run(KernelContext &ctx, const OutTensorCPU<Out, dims> &out,
-           span<const InTensorCPU<In, dims>> in) {
-    DALI_ENFORCE(in.size() == n_input_tensors_, make_string(
-            "Input must have the same number of tensors as was specified in call to Setup. Expected: ",
-            n_input_tensors_, "Actual: ", in.size()));
+  /**
+   * @param out output tensor. Must be properly allocated
+   * @param in input tensors. The number of these tensors, as well as their shapes,
+   *           must match with what is provided in Setup call.
+   */
+  void Run(KernelContext &ctx, const OutTensorCPU<T, output_dims> &out,
+           span<const InTensorCPU<T, dims>> in) {
+    if (in.size() != n_input_tensors_) {
+      throw std::invalid_argument(make_string(
+              "Input must have the same number of tensors as was specified in call to Setup. "
+              "Expected: ", n_input_tensors_, "Actual: ", in.size()));
+    }
     for (int i = 0; i < n_input_tensors_; i++) {
-      DALI_ENFORCE(in[i].shape == orig_shapes_[i], make_string(
-              "Input must have the same shapes as was specified in call to Setup. Expected: ",
-              orig_shapes_[i], "Actual: ", in[i].shape));
+      if (in[i].shape != orig_shapes_[i]) {
+        throw std::invalid_argument(make_string(
+                "Input must have the same shapes as was specified in call to Setup. Expected: ",
+                orig_shapes_[i], "Actual: ", in[i].shape));
+      }
     }
 
     auto output = make_span(out);
-    detail::TransferBuffers(output, output_shape_, in, axis_);
-
-
+    ConcatenateTensors(output, output_shape_, in, axis_);
   }
 
 
@@ -149,7 +193,19 @@ struct TensorJoinCpu {
   std::vector<TensorShape<dims>> orig_shapes_;
 };
 
-}
-}
-#endif //DALI_TENSOR_JOIN_CPU_H
+}  // namespace impl
 
+///@{
+/**
+ * @see TensorJoinCpu
+ */
+template<typename T, int ndims = -1>
+using TensorStackCpu = impl::TensorJoinCpu<T, true, ndims>;
+
+template<typename T, int ndims = -1>
+using TensorConcatCpu = impl::TensorJoinCpu<T, false, ndims>;
+///@}
+
+}  // namespace kernels
+}  // namespace dali
+#endif  // DALI_KERNELS_COMMON_JOIN_TENSOR_JOIN_CPU_H_
