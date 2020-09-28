@@ -102,13 +102,14 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
     }
 
     if (read_text_) {
-      auto &text = ws.Output<CPUBackend>(next_out_idx++);
-      text.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
-      int64_t text_sz = sample.text().length() + 1;  // +1 for null character
-      text.Resize({text_sz});
-      std::memcpy(text.mutable_data<uint8_t>(), sample.text().c_str(), sample.text().length());
-      text.mutable_data<uint8_t>()[sample.text().length()] = '\0';
-      text.SetMeta(meta);
+      auto &text_out = ws.Output<CPUBackend>(next_out_idx++);
+      text_out.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+      const auto &text = sample.text();
+      int64_t text_sz = text.length() + 1;  // +1 for null character
+      text_out.Resize({text_sz});
+      std::memcpy(text_out.mutable_data<uint8_t>(), text.c_str(), text.length());
+      text_out.mutable_data<uint8_t>()[text.length()] = '\0';
+      text_out.SetMeta(meta);
     }
   }
 
