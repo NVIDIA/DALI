@@ -25,6 +25,9 @@
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
 
+
+ #include "dali/core/cuda_event.h"
+
 namespace dali {
 
 /**
@@ -207,6 +210,37 @@ class ExprImplGPUInvoke : public ExprImplBase {
     auto grid = GetGridLayout(kBlocksX, tiles.size());
     auto block = dim3(kThreadNum, 1, 1);
     Invoker::Invoke(tiles_.data<ExtendedTileDesc>(), grid, block, ctx.stream);
+
+
+
+
+
+    CUDAEvent start = CUDAEvent::CreateWithFlags(0);
+    CUDAEvent end = CUDAEvent::CreateWithFlags(0);
+
+    Invoker::Invoke(tiles_.data<ExtendedTileDesc>(), grid, block, ctx.stream);
+
+    cudaEventRecord(start, ctx.stream);
+    constexpr int kIters = 100;
+    for (int i = 0; i < kIters; i++) {
+      Invoker::Invoke(tiles_.data<ExtendedTileDesc>(), grid, block, ctx.stream);
+    }
+    cudaEventRecord(end, ctx.stream);
+    cudaDeviceSynchronize();
+    float time;
+    CUDA_CALL(cudaEventElapsedTime(&time, start, end));
+    std::cerr << "Elapsed Time: " << time  << " s\n";
+
+    // time *= (1e+6f / kIters);  // convert to nanoseconds / 100 samples
+    // int64_t data_size = 0;
+    // data_size +=
+    //     static_cast<int64_t>(TestConfig::num_tiles) * TestConfig::tile_size * sizeof(Result);
+    // if (TestConfig::IsLeftTensor)
+    //   data_size +=
+    //       static_cast<int64_t>(TestConfig::num_tiles) * TestConfig::tile_size * sizeof(Left);
+    // if (TestConfig::IsRightTensor)
+    //   data_size +=
+    //       static_cast<int64_t>(TestConfig::num_tiles) * TestConfig::tile_size * sizeof(Right);
   }
 
  private:

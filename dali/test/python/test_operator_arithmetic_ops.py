@@ -381,7 +381,7 @@ def test_ternary_ops_selected():
 def test_ternary_ops_big():
     for kinds in selected_ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
-            for types_in in [(np.int32, np.int32, np.int32)]:
+            for types_in in [(np.int32, np.int32, np.int32), (np.int32, np.int8, np.int16), (np.int32, np.uint8, np.float32)]:
                 yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
 
 @attr('slow')
