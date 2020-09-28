@@ -48,7 +48,7 @@ class TranslateTransformCPU
       return;
     }
     auto mat_ptr = reinterpret_cast<affine_mat_t<T, ndim> *>(
-      matrices_data_.data() + sample_idx * sizeof(affine_mat_t<T, ndim>));
+      matrix_data_.mutable_data<T>() + sample_idx * sizeof(affine_mat_t<T, ndim>));
     *mat_ptr = affine_mat_t<T, ndim>::identity();  // identity
     for (int d = 0; d < ndim; d++) {
       (*mat_ptr)(d, ndim) = offset[d];
@@ -59,7 +59,7 @@ class TranslateTransformCPU
     auto offset = spec.GetArgument<std::vector<float>>("offset");
     ndim_ = offset.size();
     TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_INPUT_TYPES, (
-      matrices_data_.resize(nsamples_ * (ndim_+1) * (ndim_+1) * sizeof(T));
+      matrix_data_.Resize({nsamples_ * (ndim_+1) * (ndim_+1)});
       for (int i = 0; i < nsamples_; i++) {
         DefineAffineMatrixTyped<T>(i, offset.data(), SupportedDims());
       }
@@ -75,7 +75,7 @@ class TranslateTransformCPU
       "``offset`` must be a 1D tensor");
     ndim_ = offset_view[0].shape[0];
     TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_INPUT_TYPES, (
-      matrices_data_.resize(nsamples_ * (ndim_+1) * (ndim_+1) * sizeof(T));
+      matrix_data_.Resize({nsamples_ * (ndim_+1) * (ndim_+1)});
       for (int i = 0; i < nsamples_; i++) {
         DefineAffineMatrixTyped<T>(i, offset_view[i].data, SupportedDims());
       }

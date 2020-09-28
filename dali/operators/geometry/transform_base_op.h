@@ -47,6 +47,8 @@ class TransformBaseOp : public Operator<Backend> {
       : Operator<Backend>(spec),
         spec_(spec),
         nsamples_(spec.GetArgument<int>("batch_size")) {
+    matrix_data_.set_pinned(false);
+    matrix_data_.set_type(TypeTable::GetTypeInfo(dtype_));
   }
 
   bool CanInferOutputs() const override { return true; }
@@ -55,13 +57,12 @@ class TransformBaseOp : public Operator<Backend> {
   const TransformImpl &This() const noexcept { return static_cast<const TransformImpl&>(*this); }
 
  protected:
-  void CheckInputDimensionality(const workspace_t<CPUBackend> &ws) {
+  void CheckInputShape(const workspace_t<CPUBackend> &ws) {
     if (has_input_) {
       auto in_t_ndim = input_transform_ndim(ws);
       DALI_ENFORCE(in_t_ndim == ndim_,
-        make_string(
-          "Unexpected number of dimensions: expected ", ndim_, 
-          " dimensions but the input transform has ", in_t_ndim));
+        make_string("The input describes a ", in_t_ndim,
+                    "D transform but other arguments suggest a ", ndim_, "D transform"));
     }
   }
 
@@ -84,7 +85,7 @@ class TransformBaseOp : public Operator<Backend> {
     }
 
     This().ProcessArgs(spec_, ws);
-    CheckInputDimensionality(ws);
+    CheckInputShape(ws);
 
     output_descs.resize(1);  // only one output
     output_descs[0].type = TypeTable::GetTypeInfo(dtype_);
@@ -105,10 +106,10 @@ class TransformBaseOp : public Operator<Backend> {
     }
 
     auto &out = ws.template OutputRef<Backend>(0);
-    out.SetLayout("");  // TODO(janton): Decide what layout we want for transforms
+    out.SetLayout({});  // no layout
 
     span<affine_mat_t<T, ndim>> matrices{
-        reinterpret_cast<affine_mat_t<T, ndim> *>(matrices_data_.data()), nsamples_};
+        reinterpret_cast<affine_mat_t<T, ndim> *>(matrix_data_.mutable_data<T>()), nsamples_};
     auto out_view = view<T>(out);
     if (has_input_) {
       auto &in = ws.template InputRef<Backend>(0);
@@ -175,7 +176,7 @@ class TransformBaseOp : public Operator<Backend> {
   int nsamples_ = -1;
   bool has_input_ = false;
 
-  std::vector<uint8_t> matrices_data_;
+  Tensor<CPUBackend> matrix_data_;
 };
 
 
