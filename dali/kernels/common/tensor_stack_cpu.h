@@ -17,6 +17,7 @@
 
 #include "dali/kernels/kernel.h"
 #include "dali/core/tensor_shape_print.h"
+#include "dali/core/format.h"
 
 namespace dali {
 namespace kernels {
@@ -27,12 +28,6 @@ enum JoinMode {
 };
 
 namespace detail {
-template<typename Out, typename In, int ndims = -1>
-void StackTensors(const OutTensorCPU<Out, ndims> &out,
-                  span<const InTensorCPU<In, ndims>> in, int axis) {
-
-}
-
 
 template<typename T>
 void TransferBuffers(span<T> output, const TensorShape<> &output_shape,
@@ -79,16 +74,60 @@ TensorShape<> DetermineShape<CONCAT>(span<const TensorShape<>> in_shapes, int ax
 
 }  // namespace detail
 
-template<typename Out, typename In, int ndims = -1>
-struct TensorStackCpu {
-  KernelRequirements Setup(KernelContext &ctx, span<const TensorShape<ndims>> in_shapes, int axis) {
+template<typename Out, typename In, JoinMode mode = STACK, int dims = -1>
+struct TensorJoinCpu {
+  KernelRequirements Setup(KernelContext &ctx, span<const TensorShape<dims>> in_shapes, int axis) {
     n_input_tensors_ = in_shapes.size();
-    orig_shapes_ = in_shapes;
+    orig_shapes_(in_shapes);
+    auto ndims = in_shapes[0].sample_dim();
+    DALI_ENFORCE(axis < ndims && axis > -ndims, "Incorrect axis. Actual: ", axis, ". Expected in [",
+                 -ndims + 1, ", ", ndims - 1, "] interval");
+    axis_ = axis >= 0 ? axis : ndims + axis;
+
+    {
+      const auto &ref = in_shapes[0];
+      for (int i = 1; i < n_input_tensors_; i++) {
+        DALI_ENFORCE(in_shapes[i].sample_dim() == ref.sample_dim(),
+                     "Every input shape must have the same number of dimensions.");
+        for (int j = 0; j < ref.size(); j++) {
+          if (mode == CONCAT) {
+            DALI_ENFORCE(in_shapes[i][j] == ref.shape[j] || (j == axis_ && mode == CONCAT),
+                         make_string(
+                                 "Number of samples in every dimension "
+                                 "(but the one along which concatenation occurs) must be the same "
+                                 "(CONCAT mode). 0-th shape at index ", j, " has dimension ",
+                                 ref.shape[j], ", while ", i, "-th shape at index ", j,
+                                 " has dimension ", in_shapes[i][j]));
+          } else {
+            DALI_ENFORCE(in_shapes[i][j] == ref.shape[j], make_string(
+                    "Number of samples in every dimension must be the same (STACK mode). "
+                    "0-th shape at index ", j, " has dimension ", ref.shape[j], ", while ", i,
+                    "-th shape at index ", j, " has dimension ", in_shapes[i][j]));
+          }
+        }
+      }
+    }
+
+    KernelRequirements kr;
+    output_shape_ = detail::DetermineShape<mode>(in_shapes, axis);
+    kr.output_shapes.resize(1);
+    TensorListShape<> tmp({output_shape_});  // clang's destructor bug still haunting
+    kr.output_shapes[0] = tmp;
+    return kr;
   }
 
 
-  void Run(KernelContext &ctx, const OutTensorCPU<Out, ndims> &out,
-           span<const InTensorCPU<In, ndims>> in, int axis) {
+  KernelRequirements Setup(KernelContext &ctx, span<const InTensorCPU<In, dims>> in, int axis) {
+    std::vector<TensorShape<>> in_shapes(in.size());
+    for (int i = 0; i < in.size(); i++) {
+      in_shapes[i] = in[i].shape;
+    }
+    return Setup(ctx, in_shapes, axis);
+  }
+
+
+  void Run(KernelContext &ctx, const OutTensorCPU<Out, dims> &out,
+           span<const InTensorCPU<In, dims>> in) {
     DALI_ENFORCE(in.size() == n_input_tensors_, make_string(
             "Input must have the same number of tensors as was specified in call to Setup. Expected: ",
             n_input_tensors_, "Actual: ", in.size()));
@@ -98,12 +137,16 @@ struct TensorStackCpu {
               orig_shapes_[i], "Actual: ", in[i].shape));
     }
 
+    auto output = make_span(out);
+    detail::TransferBuffers(output, output_shape_, in, axis_);
+
 
   }
 
 
-  size_t n_input_tensors_;
-  std::vector<TensorShape<ndims>> orig_shapes_;
+  int axis_, n_input_tensors_;
+  TensorShape<dims> output_shape_;
+  std::vector<TensorShape<dims>> orig_shapes_;
 };
 
 }

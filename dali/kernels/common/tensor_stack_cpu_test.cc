@@ -5,7 +5,7 @@ namespace dali {
 namespace kernels {
 namespace test {
 
-TEST(TensorStackCpuTest, DetermineShapeStack) {
+TEST(TensorJoinCpuTest, DetermineShapeStack) {
   std::vector<TensorShape<>> shin = {{4, 5, 7, 8}, 2};
   TensorShape<> sh0 = {2, 4, 5, 7, 8};
   TensorShape<> sh1 = {4, 2, 5, 7, 8};
@@ -20,7 +20,7 @@ TEST(TensorStackCpuTest, DetermineShapeStack) {
 }
 
 
-TEST(TensorStackCpuTest, DetermineShapeConcat) {
+TEST(TensorJoinCpuTest, DetermineShapeConcat) {
   std::vector<TensorShape<>> shin = {{4, 5, 7, 8}, 2};
   TensorShape<> sh0 = {8, 5, 7, 8};
   TensorShape<> sh1 = {4, 10, 7, 8};
@@ -33,7 +33,7 @@ TEST(TensorStackCpuTest, DetermineShapeConcat) {
 }
 
 
-TEST(TensorStackCpuTest, TransferBufferTest) {
+TEST(TensorJoinCpuTest, TransferBufferTest) {
   using namespace std;
 
   vector<vector<int>> arr = {{6, 8, 5, 1, 3, 5, 1, 6, 8, 3, 7, 5},
@@ -74,19 +74,39 @@ TEST(TensorStackCpuTest, TransferBufferTest) {
   }
 }
 
-
-//template<typename T>
-//class TensorStackCpuTypedTest : public ::testing::Test {
+//TEST(TensorStackCpuTest, KernelTest) {
+//  using namespace std;
 //
-//};
+//  vector<vector<int>> arr = {{6, 8, 5, 1, 3, 5, 1, 6, 8, 3, 7, 5},
+//                             {4, 5, 1, 8, 4, 4, 1, 4, 1, 7, 6, 6}};
+//  vector<TensorShape<>> sh = {{3, 4},
+//                              {3, 4}};
+//  vector<TensorView<StorageCPU, const int>> in;
+//  for (size_t i = 0; i < arr.size(); i++) {
+//    in.emplace_back(arr[i].data(), sh[i]);
+//  }
 //
-//TYPED_TEST(TensorStackCpuTypedTest, Test) {
+//  // Output shape for this buffer: {2, 3, 4} (STACK) or {6, 4} (CONCAT)
+//  vector<int> arr0 = {6, 8, 5, 1, 3, 5, 1, 6, 8, 3, 7, 5, 4, 5, 1, 8, 4, 4, 1, 4, 1, 7, 6, 6};
+//
+//  // Output shape for this buffer: {3, 2, 4} (STACK) or {3, 8} (CONCAT)
+//  vector<int> arr1 = {6, 8, 5, 1, 4, 5, 1, 8, 3, 5, 1, 6, 4, 4, 1, 4, 8, 3, 7, 5, 1, 7, 6, 6};
+//
+//  // Output shape for this buffer: {4, 3, 2} (STACK), CONCAT unavailable
+//  vector<int> arr2 = {6, 4, 8, 5, 5, 1, 1, 8, 3, 4, 5, 4, 1, 1, 6, 4, 8, 1, 3, 7, 7, 6, 5, 6};
+//
+//  vector<vector<int>> ref_arr;
+//  ref_arr.emplace_back(arr0);
+//  ref_arr.emplace_back(arr1);
+//  ref_arr.emplace_back(arr2);
+//
+//  TensorStackCpu<int, int> kernel;
+//  KernelContext ctx;
+//  auto kr = kernel.Setup(ctx, make_cspan(in), 0);
+//
 //
 //}
-//
-//
-//using TensorStackCpuTypes = ::testing::Types<int>;
-//TYPED_TEST_SUITE(TensorStackCpuTypedTest, TensorStackCpuTypes);
+
 
 }  // namespace test
 }  // namespace kernels
