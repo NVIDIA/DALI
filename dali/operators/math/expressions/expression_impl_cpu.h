@@ -124,7 +124,7 @@ class ExprImplCpuTC : public ExprImplBase {
 
 // Ternary operators
 
-template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third,
+template <ArithmeticOp op, typename Result,
           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
 class ExprImplCpuTernary : public ExprImplBase {
  public:
@@ -134,13 +134,14 @@ class ExprImplCpuTernary : public ExprImplBase {
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
     auto output = static_cast<Result *>(tile.output);
-    auto first = static_cast<const First *>(tile.args[0]);
-    auto second = static_cast<const Second *>(tile.args[1]);
-    auto third = static_cast<const Third *>(tile.args[2]);
+    const void *first = tile.args[0];
+    const void *second = tile.args[1];
+    const void *third = tile.args[2];
     Execute(output,
-            expression_detail::pass<IsFirstTensor>(first),
-            expression_detail::pass<IsSecondTensor>(second),
-            expression_detail::pass<IsThirdTensor>(third),
+            expression_detail::pass2<IsFirstTensor, Result>(first, tile.in_types[0]),
+            expression_detail::pass2<IsSecondTensor, Result>(second, tile.in_types[1]),
+            expression_detail::pass2<IsThirdTensor, Result>(third, tile.in_types[2]),
+            tile.in_types[0], tile.in_types[1], tile.in_types[2],
             tile.desc.extent_size);
   }
 
@@ -148,14 +149,15 @@ class ExprImplCpuTernary : public ExprImplBase {
   using meta = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result,
-                      expression_detail::param_t<IsFirstTensor, First> first,
-                      expression_detail::param_t<IsSecondTensor, Second> second,
-                      expression_detail::param_t<IsThirdTensor, Third> third,
+                      expression_detail::param2_t<IsFirstTensor, Result> first,
+                      expression_detail::param2_t<IsSecondTensor, Result> second,
+                      expression_detail::param2_t<IsThirdTensor, Result> third,
+                      DALIDataType tid1, DALIDataType tid2, DALIDataType tid3,
                       int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
       result[i] =
-          meta::impl(expression_detail::access(first, i), expression_detail::access(second, i),
-                     expression_detail::access(third, i));
+          meta::impl(expression_detail::access<Result>(first, i, tid1), expression_detail::access<Result>(second, i, tid2),
+                     expression_detail::access<Result>(third, i, tid3));
     }
   }
 };

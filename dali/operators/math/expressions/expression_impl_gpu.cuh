@@ -104,12 +104,13 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t ext
 /**
  * @brief Loop over tile of `extent` length and apply the ternary op
  */
-template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third,
+template <ArithmeticOp op, typename Result,
           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
 __device__ void ExecuteTernaryOp(Result *result,
-                                 expression_detail::param_t<IsFirstTensor, First> first,
-                                 expression_detail::param_t<IsSecondTensor, Second> second,
-                                 expression_detail::param_t<IsThirdTensor, Third> third,
+                                 expression_detail::param2_t<IsFirstTensor, Result> first,
+                                 expression_detail::param2_t<IsSecondTensor, Result> second,
+                                 expression_detail::param2_t<IsThirdTensor, Result> third,
+                                 DALIDataType tid1, DALIDataType tid2, DALIDataType tid3,
                                  int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
   int64_t offset = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
@@ -117,9 +118,9 @@ __device__ void ExecuteTernaryOp(Result *result,
   auto *tile_end = result + extent;
   result += offset;
   while (result < tile_end) {
-    *result = meta::impl(expression_detail::access(first, offset),
-                         expression_detail::access(second, offset),
-                         expression_detail::access(third, offset));
+    *result = meta::impl(expression_detail::access<Result>(first, offset, tid1),
+                         expression_detail::access<Result>(second, offset, tid2),
+                         expression_detail::access<Result>(third, offset, tid3));
     result += stride;
     offset += stride;
   }
@@ -154,18 +155,18 @@ __global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles) {
 /**
  * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
  */
-template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third,
+template <ArithmeticOp op, typename Result,
           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
 __global__ void ExecuteTiledTernaryOp(const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
   auto output = static_cast<Result *>(tile.output);
-  auto first = static_cast<const First *>(tile.args[0]);
-  auto second = static_cast<const Second *>(tile.args[1]);
-  auto third = static_cast<const Third *>(tile.args[2]);
-  ExecuteTernaryOp<op, Result, First, Second, Third, IsFirstTensor, IsSecondTensor, IsThirdTensor>(
-      output, expression_detail::pass<IsFirstTensor>(first),
-      expression_detail::pass<IsSecondTensor>(second),
-      expression_detail::pass<IsThirdTensor>(third), tile.desc.extent_size);
+  const void* first = tile.args[0];
+  const void* second = tile.args[1];
+  const void* third = tile.args[2];
+  ExecuteTernaryOp<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor>(
+      output, expression_detail::pass2<IsFirstTensor, Result>(first, tile.in_types[0]),
+      expression_detail::pass2<IsSecondTensor, Result>(second, tile.in_types[1]),
+      expression_detail::pass2<IsThirdTensor, Result>(third, tile.in_types[2]), tile.in_types[0], tile.in_types[1], tile.in_types[2], tile.desc.extent_size);
 }
 
 template <ArithmeticOp op, typename Result, typename Input>
@@ -184,11 +185,11 @@ struct InvokerBinOp {
   }
 };
 
-template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third,
+template <ArithmeticOp op, typename Result,
           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
 struct InvokerTernaryOp {
   static void Invoke(const ExtendedTileDesc *tiles, dim3 grid, dim3 block, cudaStream_t stream) {
-    ExecuteTiledTernaryOp<op, Result, First, Second, Third, IsFirstTensor, IsSecondTensor,
+    ExecuteTiledTernaryOp<op, Result, IsFirstTensor, IsSecondTensor,
                           IsThirdTensor><<<grid, block, 0, stream>>>(tiles);
   }
 };
@@ -227,10 +228,16 @@ using ExprImplGpuCT = ExprImplGPUInvoke<InvokerBinOp<op, Result, Left, Right, fa
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 using ExprImplGpuTC = ExprImplGPUInvoke<InvokerBinOp<op, Result, Left, Right, true, false>>;
 
-template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third,
+// template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third,
+//           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
+// using ExprImplGpuTernary =
+//     ExprImplGPUInvoke<InvokerTernaryOp<op, Result, First, Second, Third, IsFirstTensor,
+//                                        IsSecondTensor, IsThirdTensor>>;
+
+template <ArithmeticOp op, typename Result,
           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
 using ExprImplGpuTernary =
-    ExprImplGPUInvoke<InvokerTernaryOp<op, Result, First, Second, Third, IsFirstTensor,
+    ExprImplGPUInvoke<InvokerTernaryOp<op, Result, IsFirstTensor,
                                        IsSecondTensor, IsThirdTensor>>;
 
 }  // namespace dali

@@ -69,11 +69,17 @@ using ArgPack = SmallVector<InputSamplePtr, kMaxArity>;
  */
 struct ExtendedTileDesc {
   ExtendedTileDesc() = default;
-  ExtendedTileDesc(const TileDesc &desc, const OutputSamplePtr &output, const ArgPack &args)
-      : desc(desc), output(output), args(args) {}
+  // ExtendedTileDesc(const TileDesc &desc, const OutputSamplePtr &output, const ArgPack &args)
+  //     : desc(desc), output(output), args(args) {}
+
+  ExtendedTileDesc(const TileDesc &desc, const OutputSamplePtr &output, const ArgPack &args,
+                   DALIDataType out_type, const SmallVector<DALIDataType, kMaxArity> &in_types)
+      : desc(desc), output(output), args(args), out_type(out_type), in_types(in_types) {}
   TileDesc desc;
   OutputSamplePtr output;
   ArgPack args;
+  DALIDataType out_type;
+  SmallVector<DALIDataType, kMaxArity> in_types;
 };
 
 }  // namespace dali

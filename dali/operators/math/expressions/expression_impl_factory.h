@@ -57,18 +57,52 @@ DALI_HOST_DEV std::enable_if_t<!is_ptr, T> pass(const T* ptr) {
   return *ptr;
 }
 
+
+template <bool is_ptr, typename T>
+DALI_HOST_DEV std::enable_if_t<is_ptr, const void*> pass2(const void* ptr, DALIDataType type_id) {
+  return ptr;
+}
+
+template <bool is_ptr, typename T>
+DALI_HOST_DEV std::enable_if_t<!is_ptr, T> pass2(const void* ptr, DALIDataType type_id) {
+  TYPE_SWITCH(type_id, type2id, AccessType, ARITHMETIC_ALLOWED_TYPES, (
+    const auto *access = reinterpret_cast<const AccessType*>(ptr);
+    return static_cast<T>(*access);
+  ), return {}; );  // NOLINT(whitespace/parens)
+}
+
+
+
 template <typename T>
 DALI_HOST_DEV T access(const T* ptr, int64_t idx) {
   return ptr[idx];
 }
 
 template <typename T>
+DALI_HOST_DEV T access(const void* ptr, int64_t idx, DALIDataType type_id) {
+  TYPE_SWITCH(type_id, type2id, AccessType, ARITHMETIC_ALLOWED_TYPES, (
+    const auto *access = reinterpret_cast<const AccessType*>(ptr);
+    return static_cast<T>(access[idx]);
+  ), return {}; );  // NOLINT(whitespace/parens)
+}
+
+
+template <typename T>
 DALI_HOST_DEV T access(T value, int64_t) {
+  return value;
+}
+
+
+template <typename T>
+DALI_HOST_DEV T access(T value, int64_t, DALIDataType) {
   return value;
 }
 
 template <bool is_ptr, typename T>
 using param_t = std::conditional_t<is_ptr, const T*, T>;
+
+template <bool is_ptr, typename T>
+using param2_t = std::conditional_t<is_ptr, const void*, T>;
 
 }  // namespace expression_detail
 
@@ -142,13 +176,18 @@ inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
  */
 template <typename Backend>
 void TransformDescs(std::vector<ExtendedTileDesc> &extended_tiles,
-                           const std::vector<TileDesc> &tiles, const ExprFunc &func,
-                           workspace_t<Backend> &ws, const ConstantStorage<Backend> &st,
-                           const OpSpec &spec) {
+                    const std::vector<TileDesc> &tiles, const ExprFunc &func,
+                    workspace_t<Backend> &ws, const ConstantStorage<Backend> &st,
+                    const OpSpec &spec) {
   extended_tiles.reserve(tiles.size());
+  SmallVector<DALIDataType, kMaxArity> in_types;
+  in_types.resize(func.GetSubexpressionCount());
+  for (int i = 0; i < func.GetSubexpressionCount(); i++) {
+    in_types[i] = func[i].GetTypeId();
+  }
   for (auto &tile : tiles) {
     extended_tiles.emplace_back(tile, GetOutput<Backend>(func, ws, tile),
-                                GetArgPack(func, ws, st, spec, tile));
+                                GetArgPack(func, ws, st, spec, tile), func.GetTypeId(), in_types);
   }
 }
 

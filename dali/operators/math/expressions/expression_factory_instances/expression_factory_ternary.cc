@@ -14,8 +14,8 @@
 // limitations under the License.
 
 #include "dali/operators/math/expressions/arithmetic_meta.h"
+#include "dali/operators/math/expressions/expression_impl_cpu.h"
 #include "dali/operators/math/expressions/expression_factory_instances/expression_impl_factory.h"
-#include "dali/operators/math/expressions/expression_factory_instances/expression_factory_ternary.h"
 
 namespace dali {
 

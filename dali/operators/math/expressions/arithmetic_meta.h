@@ -729,40 +729,11 @@ inline std::string to_string(ArithmeticOp op) {
 /**
  * @brief Calculate type promotion of Binary Arithmetic op at runtime
  */
-inline DALIDataType BinaryTypePromotion(DALIDataType left, DALIDataType right) {
-  DALIDataType result = DALIDataType::DALI_NO_TYPE;
-  TYPE_SWITCH(left, type2id, Left_t, ARITHMETIC_ALLOWED_TYPES, (
-    TYPE_SWITCH(right, type2id, Right_t, ARITHMETIC_ALLOWED_TYPES, (
-        using Result_t = binary_result_t<Left_t, Right_t>;
-        result = TypeInfo::Create<Result_t>().id();
-    ), (DALI_FAIL(make_string("Right operand data type not supported, DALIDataType: ", right));))  // NOLINT
-  ), (DALI_FAIL(make_string("Left operand data type not supported, DALIDataType: ", left));));  // NOLINT
-  return result;
-}
-
+DLL_PUBLIC DALIDataType BinaryTypePromotion(DALIDataType left, DALIDataType right);
 /**
  * @brief Calculate type promotion for given `op` and input `types` at runtime
  */
-inline DALIDataType TypePromotion(ArithmeticOp op, span<DALIDataType> types) {
-  if (types.size() == 1) {
-    return types[0];
-  }
-  if (IsComparison(op)) {
-    return DALIDataType::DALI_BOOL;
-  }
-  if (op == ArithmeticOp::fdiv) {
-    if (!IsFloatingPoint(types[0]) && !IsFloatingPoint(types[1])) {
-      return DALIDataType::DALI_FLOAT;
-    }
-  }
-  DALIDataType result = BinaryTypePromotion(types[0], types[1]);
-  if (types.size() > 2) {
-    for (int i = 2; i < types.size(); i++) {
-      result = BinaryTypePromotion(result, types[i]);
-    }
-  }
-  return result;
-}
+DLL_PUBLIC DALIDataType TypePromotion(ArithmeticOp op, span<DALIDataType> types);
 
 
 inline ArithmeticOp NameToOp(const std::string &op_name) {
