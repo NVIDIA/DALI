@@ -35,7 +35,7 @@ def create_ref():
     ref.append(wave)
   return ref
 
-ref = create_ref()
+ref_i = create_ref()
 
 ref_text = [
   np.array([100, 97, 108, 105, 32, 116, 101, 115, 116, 32, 49, 67, 0], dtype=np.uint8),
@@ -45,7 +45,7 @@ ref_text = [
 
 def create_wav_files():
   for i in range(len(names)):
-    scipy.io.wavfile.write(names[i], rates[i], ref[i])
+    scipy.io.wavfile.write(names[i], rates[i], ref_i[i])
 
 create_wav_files()
 
@@ -78,23 +78,32 @@ rate2 = 44100
 
 class NemoAsrReaderPipeline(Pipeline):
   def __init__(self, batch_size=8):
-    super(NemoAsrReaderPipeline, self).__init__(batch_size=batch_size, num_threads=3, device_id=0,
+    super(NemoAsrReaderPipeline, self).__init__(batch_size=batch_size, num_threads=1, device_id=0,
                                                 exec_async=True, exec_pipelined=True)
 
   def define_graph(self):
     fixed_seed = 12345
-    audio_plain = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = False,
-                                     read_sample_rate = False, read_text = False, seed=fixed_seed)
-    audio_downmix = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
-                                       read_sample_rate=False, read_text=False, seed=fixed_seed)
-    audio_resampled1, sr1 = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
-                                               sample_rate=rate1, read_sample_rate=True, read_text=False, seed=fixed_seed)
-    audio_resampled2, sr1 = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
-                                               sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    audio_plain_i = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = False,
+                                       read_sample_rate = False, read_text = False, seed=fixed_seed)
+    audio_plain_f = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = False,
+                                       read_sample_rate = False, read_text = False, seed=fixed_seed)
+    audio_downmix_i = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
+                                         read_sample_rate=False, read_text=False, seed=fixed_seed)
+    audio_downmix_f = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = True,
+                                         read_sample_rate=False, read_text=False, seed=fixed_seed)
+    audio_resampled1_i, sr1_i = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
+                                                   sample_rate=rate1, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    audio_resampled1_f, sr1_f = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = True,
+                                                   sample_rate=rate1, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    audio_resampled2_i, sr1_i = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
+                                                   sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    audio_resampled2_f, sr1_f = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = True,
+                                                   sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
     _, _, text = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
                                     read_sample_rate=True, read_text=True, seed=fixed_seed)
-    return audio_plain, audio_downmix, audio_resampled1, audio_resampled2, text
-
+    return audio_plain_i, audio_plain_f, audio_downmix_i, audio_downmix_f, \
+           audio_resampled1_i, audio_resampled1_f, audio_resampled2_i, audio_resampled2_f, \
+           text
 
 def test_decoded_vs_generated(batch_size=3):
   pipeline = NemoAsrReaderPipeline(batch_size=batch_size)
@@ -103,29 +112,48 @@ def test_decoded_vs_generated(batch_size=3):
   for iter in range(1):
     out = pipeline.run()
     for idx in range(batch_size):
-      audio_plain = out[0].at(idx)
-      audio_downmix = out[1].at(idx)
-      audio_resampled1 = out[2].at(idx)
-      audio_resampled2 = out[3].at(idx)
-      text = out[4].at(idx)
+      audio_plain_i = out[0].at(idx)
+      audio_plain_f = out[1].at(idx)
+      audio_downmix_i = out[2].at(idx)
+      audio_downmix_f = out[3].at(idx)
+      audio_resampled1_i = out[4].at(idx)
+      audio_resampled1_f = out[5].at(idx)
+      audio_resampled2_i = out[6].at(idx)
+      audio_resampled2_f = out[7].at(idx)
+      text = out[8].at(idx)
 
-      ref_plain = ref[idx]
-      np.testing.assert_allclose(audio_plain, ref_plain, rtol = 1e-7)
+      ref_plain_i = ref_i[idx]
+      np.testing.assert_allclose(audio_plain_i, ref_plain_i, rtol = 1e-7)
 
-      ref_downmix_float = ref[idx].astype(np.float32).mean(axis = 1, keepdims = 1)
-      ref_downmix = ref_downmix_float.astype(np.int16).flatten()
-      np.testing.assert_allclose(audio_downmix, ref_downmix, atol = 1)
+      ref_plain_f = ref_i[idx].astype(np.float32) / 32767
+      np.testing.assert_allclose(audio_plain_f, ref_plain_f, rtol = 1e-4)
 
-      ref_resampled1_float = generate_waveforms(lengths[idx] * rate1 / rates[idx], freqs[idx] * (rates[idx] / rate1)) * 32767
+      ref_downmix_i_float = ref_i[idx].astype(np.float32).mean(axis = 1, keepdims = 1)
+
+      ref_downmix_i = ref_downmix_i_float.astype(np.int16).flatten()
+      np.testing.assert_allclose(audio_downmix_i, ref_downmix_i, atol = 1)
+
+      ref_downmix_f = (ref_downmix_i_float / 32767).flatten()
+      np.testing.assert_allclose(audio_downmix_f, ref_downmix_f, rtol = 1e-4)
+
+      ref_resampled1_float = generate_waveforms(lengths[idx] * rate1 / rates[idx], freqs[idx] * (rates[idx] / rate1))
       ref_resampled1_downmix = ref_resampled1_float.astype(np.float32).mean(axis = 1, keepdims = 1)
-      ref_resampled1 = ref_resampled1_downmix.astype(np.int16).flatten()
+      ref_resampled1_i = (ref_resampled1_downmix * 32767).astype(np.int16).flatten()
       # resampling - allow for 1e-3 dynamic range error
-      np.testing.assert_allclose(audio_resampled1, ref_resampled1, atol=round(32767 * 1e-3))
+      np.testing.assert_allclose(audio_resampled1_i, ref_resampled1_i, atol=round(32767 * 1e-3))
 
-      ref_resampled2_float = generate_waveforms(lengths[idx] * rate2 / rates[idx], freqs[idx] * (rates[idx] / rate2)) * 32767
-      ref_resampled2_downmix = ref_resampled2_float.astype(np.float32).mean(axis = 1, keepdims = 1)
-      ref_resampled2 = ref_resampled2_downmix.astype(np.int16).flatten()
+      ref_resampled1_f = ref_resampled1_downmix.flatten()
       # resampling - allow for 1e-3 dynamic range error
-      np.testing.assert_allclose(audio_resampled2, ref_resampled2, atol=round(32767 * 1e-3))
+      np.testing.assert_allclose(audio_resampled1_f, ref_resampled1_f, atol=1e-3)
+
+      ref_resampled2_float = generate_waveforms(lengths[idx] * rate2 / rates[idx], freqs[idx] * (rates[idx] / rate2))
+      ref_resampled2_downmix = ref_resampled2_float.astype(np.float32).mean(axis = 1, keepdims = 1)
+      ref_resampled2_i = (ref_resampled2_downmix * 32767).astype(np.int16).flatten()
+      # resampling - allow for 1e-3 dynamic range error
+      np.testing.assert_allclose(audio_resampled2_i, ref_resampled2_i, atol=round(32767 * 1e-3))
+
+      ref_resampled2_f = ref_resampled2_downmix.flatten()
+      # resampling - allow for 1e-3 dynamic range error
+      np.testing.assert_allclose(audio_resampled2_f, ref_resampled2_f, atol=1e-3)
 
       np.testing.assert_equal(text, ref_text[idx])
