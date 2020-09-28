@@ -38,7 +38,7 @@ Prerequisites
 Installation
 ^^^^^^^^^^^^
 
-Execute the following command to install latest DALI for specified CUDA version:
+Execute the following command to install the latest DALI for specified CUDA version:
 
 .. note::
 
@@ -51,6 +51,11 @@ Execute the following command to install latest DALI for specified CUDA version:
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda100
 
 * for CUDA 11:
+
+  .. note::
+    CUDA 11 builds uses CUDA toolkit extended compatibility. It is built with the latest CUDA 11.x
+    toolkit while it can run on any CUDA 11 capable driver. Using the newest driver may enable
+    additional functionalities.
 
 .. code-block:: bash
 

@@ -5,7 +5,7 @@ a build environment
 
 To change build configuration please export appropriate env variables (for exact meaning please check the README):
 PYVER=[default 3.6, required only by Run image]
-CUDA_VERSION=[default 11.0, accepts also 10.0]
+CUDA_VERSION=[default 11.1, accepts also 10.0 and 11.0]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
 CREATE_RUNNER=[default NO]
@@ -44,9 +44,9 @@ export CUDA_VER=${CUDA_VERSION//./}
 
 if [ "${CUDA_VERSION%%\.*}" ]
 then
-  if [ $CUDA_VER != "100" ] && [ $CUDA_VER != "110" ]
+  if [ $CUDA_VER != "100" ] && [ $CUDA_VER != "110" && [ $CUDA_VER != "111" ]
   then
-      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 10.0 and 11.0 are supported"
+      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 10.0, 11.0 and 11.1 are supported"
       exit 1
   fi
 else
