@@ -25,14 +25,15 @@ namespace kernels {
 namespace impl {
 
 template<typename T>
-void ConcatenateTensors(span<T> output, const TensorShape<> &output_shape,
-                        span<TensorView<StorageCPU, const T>> inputs, int axis) {
+void
+ConcatenateTensors(TensorView<StorageCPU, T> output, span<TensorView<StorageCPU, const T>> inputs,
+                   int axis) {
   SmallVector<int64_t, 8> copy_sizes;
   for (int t = 0; t < inputs.size(); t++) {
     copy_sizes[t] = volume(inputs[t].shape.begin() + axis, inputs[t].shape.end());
   }
-  auto nouter = volume(output_shape.begin(), output_shape.end());
-  auto *out = output.data();
+  auto nouter = volume(output.shape.begin(), output.shape.end());
+  auto *out = output.data;
   for (ptrdiff_t outer = 0; outer < nouter; outer++) {
     for (int t = 0; t < inputs.size(); t++) {
       auto *src = inputs[t].data + outer * copy_sizes[t];

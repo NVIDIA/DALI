@@ -87,14 +87,14 @@ TEST(TensorJoinCpuTest, TransferBufferTest) {
   for (size_t ax = 0; ax < ref_arr.size(); ax++) {
     auto outsh = impl::DetermineShape<true>(make_span(sh), ax);
     vector<int> outbuf(volume(outsh));
-    impl::ConcatenateTensors(make_span(outbuf), outsh, make_span(in), ax);
+    impl::ConcatenateTensors({outbuf.data(), outsh}, make_span(in), ax);
     EXPECT_EQ(outbuf, ref_arr[ax]);
   }
 
   for (size_t ax = 0; ax < ref_arr.size() - 1; ax++) {
     auto outsh = impl::DetermineShape<false>(make_span(sh), ax);
     vector<int> outbuf(volume(outsh));
-    impl::ConcatenateTensors(make_span(outbuf), outsh, make_span(in), ax);
+    impl::ConcatenateTensors({outbuf.data(), outsh}, make_span(in), ax);
     EXPECT_EQ(outbuf, ref_arr[ax]);
   }
 }
