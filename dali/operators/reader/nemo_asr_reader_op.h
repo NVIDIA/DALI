@@ -37,6 +37,15 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
       num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
       thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
     loader_ = InitLoader<NemoAsrLoader>(spec);
+
+    prefetched_decoded_audio_.resize(prefetch_queue_depth_);
+    for (auto &batch : prefetched_decoded_audio_) {
+      batch.resize(batch_size_);
+      for (auto &tensor_ptr : batch) {
+        tensor_ptr = std::make_unique<Tensor<CPUBackend>>();
+        loader_->PrepareEmptyTensor(*tensor_ptr);  // Presizes and set pinned=false
+      }
+    }
   }
 
   ~NemoAsrReader() override {
@@ -47,24 +56,34 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
   void Prefetch() override {
     DataReader<CPUBackend, AsrSample>::Prefetch();
     auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
+    auto &audio_batch = prefetched_decoded_audio_[curr_batch_producer_];
 
     // Waiting until all the audio samples are ready to be consumed
-    for (auto &sample : curr_batch) {
-      const auto &audio_meta = sample->audio_meta();
+    for (int i = 0; i < static_cast<int>(curr_batch.size()); i++) {
+      auto &sample = *curr_batch[i];
+      auto &audio = *audio_batch[i];
+
+      const auto &audio_meta = sample.audio_meta();
       int64_t priority = audio_meta.length * audio_meta.channels;
       thread_pool_.AddWork(
-        [&sample](int tid) {
-          sample->decode_audio(tid);
+        [&audio, &sample](int tid) {
+          sample.decode_audio(audio, tid);
         }, priority);
     }
     thread_pool_.RunAll();
   }
 
   void RunImpl(SampleWorkspace &ws) override {
-    const AsrSample& sample = GetSample(ws.data_idx());
+    const auto &sample = GetSample(ws.data_idx());
+    const auto &sample_audio = GetDecodedAudioSample(ws.data_idx());
 
     auto &audio = ws.Output<CPUBackend>(0);
-    audio.Copy(sample.audio(), 0);
+    audio.Copy(sample_audio, 0);
+
+    DALIMeta meta;
+    meta.SetSourceInfo(sample.audio_filepath());
+    meta.SetSkipSample(false);
+    audio.SetMeta(meta);
 
     int next_out_idx = 1;
     if (read_sr_) {
@@ -72,7 +91,7 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
       sample_rate.Resize({1});
       sample_rate.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
       sample_rate.mutable_data<float>()[0] = sample.audio_meta().sample_rate;
-      sample_rate.SetSourceInfo(sample.audio().GetSourceInfo());
+      sample_rate.SetMeta(meta);
     }
 
     if (read_text_) {
@@ -82,16 +101,27 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
       text.Resize({text_sz});
       std::memcpy(text.mutable_data<uint8_t>(), sample.text().c_str(), sample.text().length());
       text.mutable_data<uint8_t>()[sample.text().length()] = '\0';
-      text.SetSourceInfo(sample.audio().GetSourceInfo());
+      text.SetMeta(meta);
     }
   }
 
  private:
+  using Operator<CPUBackend>::batch_size_;
+
+  Tensor<CPUBackend>& GetDecodedAudioSample(int sample_idx) {
+    return *prefetched_decoded_audio_[curr_batch_consumer_][sample_idx];
+  }
+
   bool read_sr_;
   bool read_text_;
 
   int num_threads_;
   ThreadPool thread_pool_;
+
+  // prefetch_depth * batch_size set of buffers that we reuse to decode audio
+  using TensorPtr = std::unique_ptr<Tensor<CPUBackend>>;
+  using AudioBatch = std::vector<TensorPtr>;
+  std::vector<AudioBatch> prefetched_decoded_audio_;
 };
 
 }  // namespace dali

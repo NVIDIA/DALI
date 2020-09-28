@@ -125,7 +125,7 @@ void NemoAsrLoader::Reset(bool wrap_to_shard) {
 }
 
 void NemoAsrLoader::PrepareEmpty(AsrSample &sample) {
-  PrepareEmptyTensor(sample.audio_);
+  sample = {};
 }
 
 template <typename OutputType, typename DecoderOutputType>
@@ -175,11 +175,6 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   MoveToNextShard(current_index_);
 
   // metadata info
-  sample = {};
-  DALIMeta meta;
-  meta.SetSourceInfo(entry.audio_filepath);
-  meta.SetSkipSample(false);
-  sample.audio_.SetMeta(meta);
   sample.text_ = entry.text;
 
   // Ignoring copy_read_data_, Sharing data is not supported with this loader
@@ -194,9 +189,9 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
       assert(sample.audio_meta_.channels_interleaved);  // it's always true
 
       // Audio decoding will be run in the prefetch function, once the batch is formed
-      sample.decode_f_ = [this, &sample, &entry](int tid) {
+      sample.decode_f_ = [this, &sample, &entry](Tensor<CPUBackend> &audio, int tid) {
         ReadAudio<OutputType, DecoderOutputType>(
-          sample.audio_, sample.audio_meta_, entry, sample.decoder(),
+          audio, sample.audio_meta_, entry, sample.decoder(),
           decode_scratch_[tid], resample_scratch_[tid]);
         sample.decoder().Close();
       };

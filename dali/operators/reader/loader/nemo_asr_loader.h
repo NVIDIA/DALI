@@ -41,11 +41,6 @@ struct NemoAsrEntry {
 };
 
 struct AsrSample {
-  const Tensor<CPUBackend>& audio() const {
-    assert(audio_ready_);
-    return audio_;
-  }
-
   const std::string& text() const {
     return text_;
   }
@@ -54,10 +49,12 @@ struct AsrSample {
     return audio_meta_;
   }
 
-  void decode_audio(int tid) {
-    assert(!audio_ready_);
-    decode_f_(tid);
-    audio_ready_ = true;
+  const std::string& audio_filepath() const {
+    return audio_filepath_;
+  }
+
+  void decode_audio(Tensor<CPUBackend>& audio, int tid) {
+    decode_f_(audio, tid);
   }
 
   friend class NemoAsrLoader;
@@ -72,13 +69,11 @@ struct AsrSample {
     return *decoder_;
   }
 
-  Tensor<CPUBackend> audio_;
   std::string text_;
   AudioMetadata audio_meta_;
+  std::string audio_filepath_;  // for tensor metadata purposes
 
-  std::function<void(int)> decode_f_;
-  bool audio_ready_ = false;
-
+  std::function<void(Tensor<CPUBackend>&, int)> decode_f_;
   std::unique_ptr<AudioDecoderBase> decoder_;
 };
 

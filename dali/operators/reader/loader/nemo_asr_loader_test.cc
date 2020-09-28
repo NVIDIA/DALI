@@ -196,10 +196,11 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     NemoAsrLoader loader(spec);
     loader.PrepareMetadata();
     AsrSample sample;
+    Tensor<CPUBackend> sample_audio;
     loader.ReadSample(sample);
-    sample.decode_audio(0);
+    sample.decode_audio(sample_audio, 0);
     TensorView<StorageCPU, int16_t> ref(ref_data.data(), {ref_samples, 2});
-    Check(ref, view<const int16_t>(sample.audio()));
+    Check(ref, view<const int16_t>(sample_audio));
   }
 
   std::vector<float> downmixed(ref_samples, 0.0f);
@@ -220,10 +221,11 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     NemoAsrLoader loader(spec);
     loader.PrepareMetadata();
     AsrSample sample;
+    Tensor<CPUBackend> sample_audio;
     loader.ReadSample(sample);
-    sample.decode_audio(0);
+    sample.decode_audio(sample_audio, 0);
     TensorView<StorageCPU, float> ref(downmixed.data(), {ref_samples});
-    Check(ref, view<const float>(sample.audio()), EqualEpsRel(1e-5, 1e-5));
+    Check(ref, view<const float>(sample_audio), EqualEpsRel(1e-5, 1e-5));
   }
 
   {
@@ -231,6 +233,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     float sr_out = 22050.0f;
 
     AsrSample sample;
+    Tensor<CPUBackend> sample_audio;
     {
       auto spec = OpSpec("NemoAsrReader")
                       .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
@@ -243,7 +246,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
       NemoAsrLoader loader(spec);
       loader.PrepareMetadata();
       loader.ReadSample(sample);
-      sample.decode_audio(0);
+      sample.decode_audio(sample_audio, 0);
     }
 
     int64_t downsampled_len =
@@ -257,9 +260,10 @@ TEST(NemoAsrLoaderTest, ReadSample) {
                        downmixed.size(), sr_in, 1);
 
     TensorView<StorageCPU, float> ref(downsampled.data(), {downsampled_len});
-    Check(ref, view<const float>(sample.audio()), EqualEpsRel(1e-5, 1e-5));
+    Check(ref, view<const float>(sample_audio), EqualEpsRel(1e-5, 1e-5));
 
     AsrSample sample_int16;
+    Tensor<CPUBackend> sample_int16_audio;
     {
       auto spec = OpSpec("NemoAsrReader")
                     .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
@@ -272,13 +276,13 @@ TEST(NemoAsrLoaderTest, ReadSample) {
       NemoAsrLoader loader(spec);
       loader.PrepareMetadata();
       loader.ReadSample(sample_int16);
-      sample_int16.decode_audio(0);
+      sample_int16.decode_audio(sample_int16_audio, 0);
     }
 
-    ASSERT_EQ(volume(sample.audio().shape()), volume(sample_int16.audio().shape()));
+    ASSERT_EQ(volume(sample_audio.shape()), volume(sample_int16_audio.shape()));
     std::vector<float> converted(downsampled_len, 0.0f);
     for (size_t i = 0; i < converted.size(); i++)
-      converted[i] = ConvertSatNorm<float>(sample_int16.audio().data<int16_t>()[i]);
+      converted[i] = ConvertSatNorm<float>(sample_int16_audio.data<int16_t>()[i]);
     TensorView<StorageCPU, float> converted_from_int16(converted.data(), {downsampled_len});
     Check(ref, converted_from_int16, EqualEpsRel(1e-5, 1e-5));
   }
