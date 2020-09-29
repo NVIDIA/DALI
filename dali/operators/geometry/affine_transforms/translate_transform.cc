@@ -48,13 +48,14 @@ class TranslateTransformCPU
       has_offset_input_(spec.HasTensorArgument("offset")) {
   }
 
-  template <typename T, int ndim>
-  void DefineTransforms(span<affine_mat_t<T, ndim>> matrices) {
+  template <typename T, int mat_dim>
+  void DefineTransforms(span<affine_mat_t<T, mat_dim>> matrices) {
+    constexpr int ndim = mat_dim - 1;
     assert(matrices.size() == static_cast<int>(offset_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       auto *offset = offset_[i].data();
-      mat = affine_mat_t<T, ndim>::identity();
+      mat = affine_mat_t<T, mat_dim>::identity();
       for (int d = 0; d < ndim; d++) {
         mat(d, ndim) = offset[d];
       }
