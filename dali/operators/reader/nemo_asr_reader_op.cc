@@ -21,7 +21,7 @@ DALI_REGISTER_OPERATOR(NemoAsrReader, NemoAsrReader, CPU);
 DALI_SCHEMA(NemoAsrReader)
   .NumInput(0)
   .NumOutput(1)
-  .DocStr(R"code(Read automatic speech recognition (ASR) data (audio, text) from a 
+  .DocStr(R"code(Reads automatic speech recognition (ASR) data (audio, text) from an
 NVIDIA NeMo compatible manifest.
 
 Example manifest file::
@@ -35,7 +35,7 @@ Example manifest file::
     will produce an empty string as a text.
 
 .. warning::
-    Handing of ``offset`` field is not yet implemented.
+    Handling of ``duration`` and ``offset`` fields is not yet implemented. The current implementation always reads the whole audio file.
 
 This reader produces between 1 and 3 outputs:
 
@@ -69,28 +69,120 @@ This reader produces between 1 and 3 outputs:
     "If downmixing is turned on, decoder will produce always 1-D output",
     true)
   .AddOptionalArg("dtype",
-    "Type of the output data. Supports types: `INT16`, `INT32`, `FLOAT`",
+    R"code(Output data type.
+
+Supported types: ``INT16``, ``INT32``, and ``FLOAT``.)code",
     DALI_FLOAT)
   .AddOptionalArg("min_duration",
-    R"code(It a value greater than 0 is provided, it specifies the minimum allowed duration,
+    R"code(If a value greater than 0 is provided, it specifies the minimum allowed duration,
  in seconds, of the audio samples.
 
 Samples with a duration shorter than this value will be ignored.)code",
     0.0f)
   .AddOptionalArg("max_duration",
-    R"code(It a value greater than 0 is provided, it specifies the maximum allowed duration,
+    R"code(If a value greater than 0 is provided, it specifies the maximum allowed duration,
 in seconds, of the audio samples.
 
 Samples with a duration longer than this value will be ignored.)code",
     0.0f)
   .AddOptionalArg("normalize_text",
-    "If set to True, the text transcript will be stripped of leading and trailing whitespace "
-    "and converted to lowercase.",
+    R"code(If set to True, the text transcript will be stripped of leading and trailing whitespace
+and converted to lowercase.
+
+.. warning::
+    Non-ASCII strings are not yet supported.
+)code",
     false)
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("read_sample_rate"))
          + static_cast<int>(spec.GetArgument<bool>("read_text"));
   })
   .AddParent("LoaderBase");
+
+NemoAsrReader::NemoAsrReader(const OpSpec& spec)
+    : DataReader<CPUBackend, AsrSample>(spec),
+      read_sr_(spec.GetArgument<bool>("read_sample_rate")),
+      read_text_(spec.GetArgument<bool>("read_text")),
+      dtype_(spec.GetArgument<DALIDataType>("dtype")),
+      num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
+      thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
+  loader_ = InitLoader<NemoAsrLoader>(spec);
+
+  prefetched_decoded_audio_.resize(prefetch_queue_depth_);
+  for (auto& batch : prefetched_decoded_audio_) {
+    batch = std::make_unique<TensorVector<CPUBackend>>();
+    batch->set_pinned(false);
+  }
+}
+
+NemoAsrReader::~NemoAsrReader() {
+  // Need to stop the prefetch thread before destroying the thread pool
+  DataReader<CPUBackend, AsrSample>::StopPrefetchThread();
+}
+
+void NemoAsrReader::Prefetch() {
+  DataReader<CPUBackend, AsrSample>::Prefetch();
+  auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
+  auto &audio_batch = *prefetched_decoded_audio_[curr_batch_producer_];
+  int nsamples = static_cast<int>(curr_batch.size());
+
+  assert(nsamples > 0);
+  auto ndim = curr_batch[0]->shape().sample_dim();
+  TensorListShape<> shape(nsamples, ndim);
+  for (int i = 0; i < nsamples; i++) {
+    shape.set_tensor_shape(i, curr_batch[i]->shape());
+  }
+  audio_batch.Resize(shape, TypeTable::GetTypeInfo(dtype_));
+
+  // Waiting until all the audio samples are ready to be consumed
+  for (int i = 0; i < nsamples; i++) {
+    auto &sample = *curr_batch[i];
+    auto &audio = audio_batch[i];
+    const auto &audio_meta = sample.audio_meta();
+    int64_t priority = audio_meta.length * audio_meta.channels;
+    thread_pool_.AddWork(
+      [&audio, &sample](int tid) {
+        sample.decode_audio(audio, tid);
+      }, priority);
+  }
+  thread_pool_.RunAll();
+}
+
+void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
+  const auto &sample = GetSample(ws.data_idx());
+  const auto &sample_audio = GetDecodedAudioSample(ws.data_idx());
+
+  auto &audio = ws.Output<CPUBackend>(0);
+  audio.Copy(sample_audio, 0);
+
+  DALIMeta meta;
+  meta.SetSourceInfo(sample.audio_filepath());
+  meta.SetSkipSample(false);
+  audio.SetMeta(meta);
+
+  int next_out_idx = 1;
+  if (read_sr_) {
+    auto &sample_rate = ws.Output<CPUBackend>(next_out_idx++);
+    sample_rate.Resize({1});
+    sample_rate.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
+    sample_rate.mutable_data<float>()[0] = sample.audio_meta().sample_rate;
+    sample_rate.SetMeta(meta);
+  }
+
+  if (read_text_) {
+    auto &text_out = ws.Output<CPUBackend>(next_out_idx++);
+    text_out.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+    const auto &text = sample.text();
+    int64_t text_sz = text.length() + 1;  // +1 for null character
+    text_out.Resize({text_sz});
+    std::memcpy(text_out.mutable_data<uint8_t>(), text.c_str(), text_sz);
+    text_out.SetMeta(meta);
+  }
+}
+
+Tensor<CPUBackend>& NemoAsrReader::GetDecodedAudioSample(int sample_idx) {
+  auto &curr_batch = *prefetched_decoded_audio_[curr_batch_consumer_];
+  return curr_batch[sample_idx];
+}
 
 }  // namespace dali

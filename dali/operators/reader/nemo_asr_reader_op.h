@@ -30,93 +30,13 @@
 namespace dali {
 class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
  public:
-  explicit NemoAsrReader(const OpSpec& spec):
-      DataReader<CPUBackend, AsrSample>(spec),
-      read_sr_(spec.GetArgument<bool>("read_sample_rate")),
-      read_text_(spec.GetArgument<bool>("read_text")),
-      dtype_(spec.GetArgument<DALIDataType>("dtype")),
-      num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
-      thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
-    loader_ = InitLoader<NemoAsrLoader>(spec);
-
-    prefetched_decoded_audio_.resize(prefetch_queue_depth_);
-    for (auto &batch : prefetched_decoded_audio_) {
-      batch = std::make_unique<TensorVector<CPUBackend>>();
-      batch->set_pinned(false);
-    }
-  }
-
-  ~NemoAsrReader() override {
-    // Need to stop the prefetch thread before destroying the thread pool
-    DataReader<CPUBackend, AsrSample>::StopPrefetchThread();
-  }
-
-  void Prefetch() override {
-    DataReader<CPUBackend, AsrSample>::Prefetch();
-    auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
-    auto &audio_batch = *prefetched_decoded_audio_[curr_batch_consumer_];
-    int nsamples = static_cast<int>(curr_batch.size());
-
-    assert(nsamples > 0);
-    auto ndim = curr_batch[0]->shape().sample_dim();
-    TensorListShape<> shape(nsamples, ndim);
-    for (int i = 0; i < nsamples; i++) {
-      shape.set_tensor_shape(i, curr_batch[i]->shape());
-    }
-    audio_batch.Resize(shape, TypeTable::GetTypeInfo(dtype_));
-
-    // Waiting until all the audio samples are ready to be consumed
-    for (int i = 0; i < nsamples; i++) {
-      auto &sample = *curr_batch[i];
-      auto &audio = audio_batch[i];
-      const auto &audio_meta = sample.audio_meta();
-      int64_t priority = audio_meta.length * audio_meta.channels;
-      thread_pool_.AddWork(
-        [&audio, &sample](int tid) {
-          sample.decode_audio(audio, tid);
-        }, priority);
-    }
-    thread_pool_.RunAll();
-  }
-
-  void RunImpl(SampleWorkspace &ws) override {
-    const auto &sample = GetSample(ws.data_idx());
-    const auto &sample_audio = GetDecodedAudioSample(ws.data_idx());
-
-    auto &audio = ws.Output<CPUBackend>(0);
-    audio.Copy(sample_audio, 0);
-
-    DALIMeta meta;
-    meta.SetSourceInfo(sample.audio_filepath());
-    meta.SetSkipSample(false);
-    audio.SetMeta(meta);
-
-    int next_out_idx = 1;
-    if (read_sr_) {
-      auto &sample_rate = ws.Output<CPUBackend>(next_out_idx++);
-      sample_rate.Resize({1});
-      sample_rate.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
-      sample_rate.mutable_data<float>()[0] = sample.audio_meta().sample_rate;
-      sample_rate.SetMeta(meta);
-    }
-
-    if (read_text_) {
-      auto &text_out = ws.Output<CPUBackend>(next_out_idx++);
-      text_out.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
-      const auto &text = sample.text();
-      int64_t text_sz = text.length() + 1;  // +1 for null character
-      text_out.Resize({text_sz});
-      std::memcpy(text_out.mutable_data<uint8_t>(), text.c_str(), text.length());
-      text_out.mutable_data<uint8_t>()[text.length()] = '\0';
-      text_out.SetMeta(meta);
-    }
-  }
+  explicit NemoAsrReader(const OpSpec& spec);
+  ~NemoAsrReader() override;
+  void Prefetch() override;
+  void RunImpl(SampleWorkspace &ws);
 
  private:
-  Tensor<CPUBackend>& GetDecodedAudioSample(int sample_idx) {
-    auto &curr_batch = *prefetched_decoded_audio_[curr_batch_consumer_];
-    return curr_batch[sample_idx];
-  }
+  Tensor<CPUBackend>& GetDecodedAudioSample(int sample_idx);
 
   bool read_sr_;
   bool read_text_;

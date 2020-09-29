@@ -31,7 +31,7 @@ namespace dali {
 namespace detail {
 
 std::string trim(const std::string& str,
-                 const std::string& whitespace = " \t") {
+                 const std::string& whitespace = " \t\f\n\r\v") {
   const auto str_begin = str.find_first_not_of(whitespace);
   if (str_begin == std::string::npos)
     return {};  // no content
@@ -43,11 +43,9 @@ std::string trim(const std::string& str,
 std::string NormalizeText(const std::string& text) {
   // Remove trailing and leading whitespace
   auto norm_text = trim(text);
-
-  // Convert to lowercase
-  for (auto &c : norm_text) {
-    c = std::tolower(c);
-  }
+  // TODO(janton): Handle non-ascii
+  std::transform(norm_text.begin(), norm_text.end(), norm_text.begin(),
+    [](char c){ return std::tolower(c); });
   return norm_text;
 }
 
@@ -69,7 +67,7 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
         entry.duration = parser.GetDouble();
       } else if (0 == std::strcmp(key, "offset")) {
         entry.offset = parser.GetDouble();
-        DALI_WARN("Handing of ``offset`` is not yet implemented and will be ignored.");
+        DALI_WARN("Handling of ``offset`` is not yet implemented and will be ignored.");
       } else if (0 == std::strcmp(key, "text")) {
         entry.text = parser.GetString();
         if (normalize_text)
@@ -100,9 +98,9 @@ void NemoAsrLoader::PrepareMetadataImpl() {
     DALI_ENFORCE(fstream,
                  make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath, "\""));
     detail::ParseManifest(entries_, fstream, max_duration_, normalize_text_);
-    shuffled_indices_.resize(entries_.size());
-    std::iota(shuffled_indices_.begin(), shuffled_indices_.end(), 0);
   }
+  shuffled_indices_.resize(entries_.size());
+  std::iota(shuffled_indices_.begin(), shuffled_indices_.end(), 0);
 
   DALI_ENFORCE(Size() > 0, "No files found.");
   if (shuffle_) {

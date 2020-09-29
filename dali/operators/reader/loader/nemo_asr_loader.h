@@ -40,7 +40,8 @@ struct NemoAsrEntry {
   std::string text;  // transcription
 };
 
-struct AsrSample {
+class AsrSample {
+ public:
   const std::string& text() const {
     return text_;
   }
