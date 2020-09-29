@@ -84,7 +84,7 @@ class TransformBaseOp : public Operator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
-    has_input_ = ws.template NumInput() > 0;
+    has_input_ = ws.NumInput() > 0;
     if (has_input_) {
       auto &input = ws.template InputRef<Backend>(0);
       const auto &shape = input.shape();
@@ -144,7 +144,7 @@ class TransformBaseOp : public Operator<Backend> {
     TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_INPUT_TYPES, (
       using SupportedDims = typename TransformImpl::SupportedDims;
       value_switch(ndim_, SupportedDims(),
-        [this](auto &&... args) { RunImplTyped<T>(args...); },
+        [&](auto &&... args) { RunImplTyped<T>(args...); },
         ws);
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
   }
