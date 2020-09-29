@@ -664,7 +664,7 @@ void VideoLoader::push_sequence_to_read(std::string filename, int frame, int cou
     send_queue_.push(req);
 }
 
-void VideoLoader::receive_frames(SequenceWrapper& sequence) {
+void VideoLoader::receive_frames(SequenceWrapper& sequence, void *data_tensor) {
   auto startup_timeout = 1000;
   while (!vid_decoder_) {
     usleep(500);
@@ -672,7 +672,7 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
       DALI_FAIL("Timeout waiting for a valid decoder");
     }
   }
-  vid_decoder_->receive_frames(sequence);
+  vid_decoder_->receive_frames(sequence, data_tensor);
 
   // Stats code
   stats_.frames_used += sequence.count;
@@ -697,18 +697,20 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
   LOG_LINE << ".got sequence\n";
 }
 
-void VideoLoader::PrepareEmpty(SequenceWrapper &tensor) {
-  tensor.sequence.Resize({tensor_init_bytes_});
-}
+void VideoLoader::PrepareEmpty(SequenceWrapper &tensor) {}
 
 void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
     auto& seq_meta = frame_starts_[current_frame_idx_];
     tensor.initialize(count_, seq_meta.height, seq_meta.width, channels_, dtype_);
 
-    push_sequence_to_read(file_info_[seq_meta.filename_idx].video_file,
-                          seq_meta.frame_idx, count_);
-    receive_frames(tensor);
+    tensor.read_sample_f = [this,
+                            file_name = file_info_[seq_meta.filename_idx].video_file,
+                            index = seq_meta.frame_idx, count = count_, &tensor]
+                           (void *data_tensor) {
+      push_sequence_to_read(file_name, index, count);
+      receive_frames(tensor, data_tensor);
+    };
     ++current_frame_idx_;
 
     tensor.label = seq_meta.label;

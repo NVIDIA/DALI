@@ -44,11 +44,10 @@ struct SequenceWrapper {
     this->channels = channels;
     this->dtype = dtype;
 
-    TYPE_SWITCH(dtype, type2id, OutputType, SEQUENCEWRAPPER_SUPPORTED_TYPES, (
-        sequence.set_type(TypeInfo::Create<OutputType>());
-      ), DALI_FAIL(make_string("Not supported output type:", dtype));); // NOLINT
+    // TYPE_SWITCH(dtype, type2id, OutputType, SEQUENCEWRAPPER_SUPPORTED_TYPES, (
+    //     sequence.set_type(TypeInfo::Create<OutputType>());
+    //   ), DALI_FAIL(make_string("Not supported output type:", dtype));); // NOLINT
 
-    sequence.Resize({count, height, width, channels});
     timestamps.clear();
     timestamps.reserve(count);
 
@@ -92,22 +91,14 @@ struct SequenceWrapper {
     LOG_LINE << event_ << " synchronized!" << std::endl;
   }
 
-  void share_frames(TensorList<GPUBackend> &frames) {
-    void *current_sequence = sequence.raw_mutable_data();
-    auto shape = TensorListShape<>::make_uniform(count, frame_shape());
-
-    frames.ShareData(
-      current_sequence,
-      sequence.type().size() * count * height * width * channels,
-      shape,
-      sequence.type());
-  }
-
   TensorShape<3> frame_shape() const {
     return TensorShape<3>{height, width, channels};
   }
 
-  Tensor<GPUBackend> sequence;
+  TensorShape<4> shape() const {
+    return TensorShape<4>{count, height, width, channels};
+  }
+
   int count;
   int height;
   int width;
@@ -116,6 +107,7 @@ struct SequenceWrapper {
   vector<double> timestamps;
   int first_frame_idx;
   DALIDataType dtype;
+  std::function<void(void *)> read_sample_f;
 
  private:
   void wait_until_started_() const {

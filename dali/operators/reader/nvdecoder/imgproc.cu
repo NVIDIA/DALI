@@ -135,7 +135,7 @@ inline constexpr int divUp(int total, int grain) {
 template<typename T>
 void process_frame(
   cudaTextureObject_t chroma, cudaTextureObject_t luma,
-  SequenceWrapper& output, int index, cudaStream_t stream,
+  SequenceWrapper& output, void *data_tensor, int index, cudaStream_t stream,
   uint16_t input_width, uint16_t input_height,
   bool rgb, bool normalized) {
   auto scale_width = input_width;
@@ -150,7 +150,7 @@ void process_frame(
   int frame_stride = index * output.height * output.width * output.channels;
   LOG_LINE << "Processing frame " << index
             << " (frame_stride=" << frame_stride << ")" << std::endl;
-  auto* tensor_out = output.sequence.mutable_data<T>() + frame_stride;
+  auto* tensor_out = static_cast<T*>(data_tensor) + frame_stride;
 
   if (normalized) {
     if (rgb) {
@@ -174,14 +174,14 @@ void process_frame(
 template
 void process_frame<float>(
   cudaTextureObject_t chroma, cudaTextureObject_t luma,
-  SequenceWrapper& output, int index, cudaStream_t stream,
+  SequenceWrapper& output, void *data_tensor, int index, cudaStream_t stream,
   uint16_t input_width, uint16_t input_height,
   bool rgb, bool normalized);
 
 template
 void process_frame<uint8_t>(
   cudaTextureObject_t chroma, cudaTextureObject_t luma,
-  SequenceWrapper& output, int index, cudaStream_t stream,
+  SequenceWrapper& output, void *data_tensor, int index, cudaStream_t stream,
   uint16_t input_width, uint16_t input_height,
   bool rgb, bool normalized);
 

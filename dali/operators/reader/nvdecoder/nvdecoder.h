@@ -106,7 +106,7 @@ class NvDecoder {
 
   void push_req(FrameReq req);
 
-  void receive_frames(SequenceWrapper& batch);
+  void receive_frames(SequenceWrapper& batch, void *data_tensor);
 
   void finish();
 
@@ -169,7 +169,7 @@ class NvDecoder {
                                      uint16_t input_width, uint16_t input_height,
                                      ScaleMethod scale_method);
   void convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
-                     int index);
+                     void *data_tensor, int index);
 
 
   const int device_id_;

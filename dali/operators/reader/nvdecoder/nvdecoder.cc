@@ -352,7 +352,7 @@ void NvDecoder::push_req(FrameReq req) {
   recv_queue_.push(std::move(req));
 }
 
-void NvDecoder::receive_frames(SequenceWrapper& sequence) {
+void NvDecoder::receive_frames(SequenceWrapper& sequence, void *data_tensor) {
   LOG_LINE << "Sequence pushed with " << sequence.count << " frames" << std::endl;
 
   DeviceGuard g(device_id_);
@@ -366,7 +366,7 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
       sequence.timestamps.push_back(frame_disp_info->timestamp * av_q2d(
             nv_time_base_));
       if (stop_) break;
-      convert_frame(frame, sequence, i);
+      convert_frame(frame, sequence, data_tensor, i);
   }
   if (captured_exception_)
     std::rethrow_exception(captured_exception_);
@@ -429,7 +429,7 @@ NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
 }
 
 void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
-                              int index) {
+                              void *data_tensor, int index) {
   auto input_width = ALIGN16(decoder_.width());
   auto input_height = decoder_.height();
 
@@ -443,6 +443,7 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
   TYPE_SWITCH(dtype_, type2id, OutputType, NVDECODER_SUPPORTED_TYPES, (
       process_frame<OutputType>(textures.chroma, textures.luma,
                   sequence,
+                  data_tensor,
                   output_idx, stream_,
                   input_width, input_height,
                   rgb_, normalized_);

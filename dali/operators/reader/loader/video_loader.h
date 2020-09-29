@@ -205,7 +205,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void seek(VideoFile& file, int frame);
   void read_file();
   void push_sequence_to_read(std::string filename, int frame, int count);
-  void receive_frames(SequenceWrapper& sequence);
+  void receive_frames(SequenceWrapper& sequence, void *data_tensor);
 
  protected:
   Index SizeImpl() override;

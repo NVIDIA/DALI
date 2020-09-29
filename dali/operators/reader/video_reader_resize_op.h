@@ -40,10 +40,8 @@ class VideoReaderResize : public VideoReader,
   inline ~VideoReaderResize() override = default;
 
  protected:
-  void SetOutputShape(TensorList<GPUBackend> &output, DeviceWorkspace &ws) override {
-    input_shape_.resize(batch_size_, sequence_dim);
-    for (int data_idx = 0; data_idx < batch_size_; ++data_idx)
-      input_shape_.set_tensor_shape(data_idx, GetSample(data_idx).sequence.shape());
+  void SetOutputShapeType(TensorList<GPUBackend> &output, DeviceWorkspace &ws) override {
+    input_shape_ = prefetched_batch_tensors_[curr_batch_consumer_].shape();
 
     resize_attr_.PrepareResizeParams(spec_, ws, input_shape_, "FHWC");
     resampling_attr_.PrepareFilterParams(spec_, ws, batch_size_);
@@ -51,7 +49,7 @@ class VideoReaderResize : public VideoReader,
     resampling_attr_.GetResamplingParams(make_span(resample_params_),
                                          make_cspan(resize_attr_.params_));
     resize_attr_.GetResizedShape(output_shape_, input_shape_);
-    output.Resize(output_shape_);
+    output.Resize(output_shape_, prefetched_batch_tensors_[curr_batch_consumer_].type());
   }
 
   void ShareSingleOutputAsTensorList(int data_idx, TensorList<GPUBackend> &batch_output,
@@ -63,26 +61,26 @@ class VideoReaderResize : public VideoReader,
     single_output.ShareData(raw_output, shape.num_elements() * type.size(), shape, type);
   }
 
-  void ProcessSingleVideo(
-        int data_idx,
-        TensorList<GPUBackend> &video_output,
-        SequenceWrapper &prefetched_video,
-        DeviceWorkspace &ws) override {
-    TensorList<GPUBackend> input;
+  void ProcessVideo(
+    TensorList<GPUBackend> &video_output,
+    TensorList<GPUBackend> &video_batch,
+    DeviceWorkspace &ws) override {
     TensorListShape<> input_shape(1, sequence_dim);
-    const Tensor<GPUBackend> &sequence = prefetched_video.sequence;
-    input_shape.set_tensor_shape(0, sequence.shape());
-    void *in_data = const_cast<void*>(sequence.raw_data());
-    input.ShareData(in_data, sequence.size(), input_shape, sequence.type());
+    for (size_t data_idx = 0; data_idx < video_batch.ntensor(); ++data_idx) {
+      TensorList<GPUBackend> input;
+      input_shape.set_tensor_shape(0, video_batch.tensor_shape(data_idx));
+      input.ShareData(video_batch.raw_mutable_tensor(data_idx),
+                      volume(video_batch.tensor_shape(data_idx)) * video_batch.type().size(),
+                      input_shape, video_batch.type());
 
-    TensorList<GPUBackend> output;
-    ShareSingleOutputAsTensorList(data_idx, video_output, output);
-
-    TensorListShape<> output_shape;
-    SetupResize(output_shape, output.type().id(), input.shape(), input.type().id(),
-                make_cspan(&resample_params_[data_idx], 1), resize_attr_.first_spatial_dim_);
-    assert(output_shape == output.shape());
-    RunResize(ws, output, input);
+      TensorList<GPUBackend> output;
+      ShareSingleOutputAsTensorList(data_idx, video_output, output);
+      TensorListShape<> output_shape;
+      SetupResize(output_shape, output.type().id(), input.shape(), input.type().id(),
+                  make_cspan(&resample_params_[data_idx], 1), resize_attr_.first_spatial_dim_);
+      assert(output_shape == output.shape());
+      RunResize(ws, output, input);
+    }
   }
 
   ResizeAttr resize_attr_;

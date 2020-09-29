@@ -53,6 +53,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     dtype_(spec.GetArgument<DALIDataType>("dtype")) {
     DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));
 
+    prefetched_batch_tensors_.resize(prefetch_queue_depth_);
+
     int arg_count = !filenames_.empty() + !file_root_.empty() + !file_list_.empty();
 
     DALI_ENFORCE(arg_count == 1,
@@ -86,30 +88,20 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     }
   }
 
-  inline ~VideoReader() override = default;
+  inline ~VideoReader() {
+    // wait for all kernels working on the sequences and the underlying memory is kept in
+    // prefetched_batch_tensors_ and it will be destoryied now
+    for (auto &batch : prefetched_batch_queue_) {
+      for (auto &sample : batch) {
+        sample->wait();
+      }
+    }
+  }
 
  protected:
-  void SetOutputType(TensorList<GPUBackend> &output) {
-    if (dtype_ == DALI_FLOAT) {
-      output.set_type(TypeTable::GetTypeInfoFromStatic<float>());
-    } else {  // dtype_ == DALI_UINT8
-      output.set_type(TypeTable::GetTypeInfoFromStatic<uint8>());
-    }
-  }
-
-  virtual void SetOutputShape(TensorList<GPUBackend> &output, DeviceWorkspace &ws) {
-    TensorListShape<> output_shape(batch_size_, sequence_dim);
-    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      output_shape.set_tensor_shape(
-        data_idx, GetSample(data_idx).sequence.shape());
-    }
-    output.Resize(output_shape);
-  }
-
-  void PrepareVideoOutput(TensorList<GPUBackend> &output, DeviceWorkspace &ws) {
-    SetOutputType(output);
-    SetOutputShape(output, ws);
-    output.SetLayout("FHWC");
+  virtual void SetOutputShapeType(TensorList<GPUBackend> &output, DeviceWorkspace &ws) {
+    output.Resize(prefetched_batch_tensors_[curr_batch_consumer_].shape(),
+                  prefetched_batch_tensors_[curr_batch_consumer_].type());
   }
 
   void PrepareAdditionalOutputs(DeviceWorkspace &ws) {
@@ -132,16 +124,11 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     }
   }
 
-  virtual void ProcessSingleVideo(
-    int data_idx,
+  virtual void ProcessVideo(
     TensorList<GPUBackend> &video_output,
-    SequenceWrapper &prefetched_video,
+    TensorList<GPUBackend> &video_batch,
     DeviceWorkspace &ws) {
-    video_output.type().Copy<GPUBackend, GPUBackend>(
-      video_output.raw_mutable_tensor(data_idx),
-      prefetched_video.sequence.raw_data(),
-      prefetched_video.sequence.size(),
-      ws.stream());
+    video_output.Copy(video_batch, ws.stream());
   }
 
   void ProcessAdditionalOutputs(
@@ -168,17 +155,22 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
   void RunImpl(DeviceWorkspace &ws) override {
     auto& video_output = ws.Output<GPUBackend>(0);
+    auto& curent_batch = prefetched_batch_tensors_[curr_batch_consumer_];
 
-    PrepareVideoOutput(video_output, ws);
+    SetOutputShapeType(video_output, ws);
     PrepareAdditionalOutputs(ws);
 
-    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      auto& prefetched_video = GetSample(data_idx);
+    ProcessVideo(video_output, curent_batch, ws);
+    video_output.SetLayout("FHWC");
 
-      ProcessSingleVideo(data_idx, video_output, prefetched_video, ws);
+    for (size_t data_idx = 0; data_idx < curent_batch.ntensor(); ++data_idx) {
+      auto& prefetched_video = GetSample(data_idx);
       ProcessAdditionalOutputs(data_idx, prefetched_video, ws.stream());
     }
   }
+
+  // override prefetching here
+  void Prefetch() override;
 
   static constexpr int sequence_dim = 4;
   std::vector<std::string> filenames_;
@@ -196,6 +188,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   TensorList<GPUBackend> *label_output_ = NULL;
   TensorList<GPUBackend> *frame_num_output_ = NULL;
   TensorList<GPUBackend> *timestamp_output_ = NULL;
+
+  vector<TensorList<GPUBackend>> prefetched_batch_tensors_;
 
   DALIDataType dtype_;
   bool enable_label_output_;
