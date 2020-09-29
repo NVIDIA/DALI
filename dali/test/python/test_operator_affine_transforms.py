@@ -65,3 +65,46 @@ def test_translate_transform_op(batch_size=3, num_threads=4, device_id=0):
             for reverse_order in [False, True] if has_input else [False]:
                 yield check_translate_transform_op, offset, has_input, reverse_order, \
                                                     batch_size, num_threads, device_id
+
+def scale_affine_mat(scale, center = None):
+    ndim = len(scale)
+
+    s_mat = np.identity(ndim + 1)
+    for d in range(ndim):
+        s_mat[d, d] = scale[d]
+
+    if center is not None:
+        neg_offset = tuple([-x for x in center])
+        t1_mat = translate_affine_mat(neg_offset)
+        t2_mat = translate_affine_mat(center)
+        affine_mat = np.dot(t2_mat, np.dot(s_mat, t1_mat))
+    else:
+        affine_mat = s_mat
+
+    return affine_mat
+
+def check_scale_transform_op(scale, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
+    ndim = len(scale)
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    with pipe:
+        if has_input:
+            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
+            T1 = fn.scale_transform(T0, device='cpu', scale=scale, center=center, reverse_order=reverse_order)
+            pipe.set_outputs(T1, T0)
+        else:
+            T1 = fn.scale_transform(device='cpu', scale=scale, center=center)
+            pipe.set_outputs(T1)
+    pipe.build()
+    outs = pipe.run()
+    ref_mat = scale_affine_mat(scale=scale, center=center)
+    T0 = outs[1] if has_input else None
+    check_results(outs[0], batch_size, ref_mat, T0, reverse_order)
+
+def test_scale_transform_op(batch_size=3, num_threads=4, device_id=0):
+    for scale, center in [((0.0, 1.0), None),
+                           ((2.0, 1.0, 3.0), None),
+                           ((2.0, 1.0), (1.0, 0.5))]:
+        for has_input in [False, True]:
+            for reverse_order in [False, True] if has_input else [False]:
+                yield check_scale_transform_op, scale, center, has_input, reverse_order, \
+                                                batch_size, num_threads, device_id
