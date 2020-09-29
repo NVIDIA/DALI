@@ -63,8 +63,7 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
     for (int i = 0; i < nsamples; i++) {
       shape.set_tensor_shape(i, curr_batch[i]->shape());
     }
-    audio_batch.set_type(TypeTable::GetTypeInfo(dtype_));
-    audio_batch.Resize(shape);
+    audio_batch.Resize(shape, TypeTable::GetTypeInfo(dtype_));
 
     // Waiting until all the audio samples are ready to be consumed
     for (int i = 0; i < nsamples; i++) {
