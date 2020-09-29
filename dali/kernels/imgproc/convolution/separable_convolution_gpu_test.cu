@@ -81,6 +81,15 @@ void InitTriangleWindow(const TensorListView<StorageCPU, T, 1> &windows) {
   }
 }
 
+template <typename T>
+void InitWindow(const TensorListView<StorageCPU, T, 1> &windows, int value) {
+  for (int sample = 0; sample < windows.num_samples(); sample++) {
+    auto window = windows[sample];
+    *window(0) = *window(2) = value;
+    *window(0) = 1;
+  }
+}
+
 // TEST(SeparableConvolutionTest, Axes1WithChannels) {
 //   std::array<int, 1> window_dims = {5};
 //   TestTensorList<float, 1> kernel_window;
@@ -209,65 +218,58 @@ void InitTriangleWindow(const TensorListView<StorageCPU, T, 1> &windows) {
 // }
 
 TEST(SeparableConvolutionGpuTest, Axes2NoChannels) {
-  TestTensorList<float, 1> kernel_window_0, kernel_window_1;
-  TestTensorList<float, 2> input;
-  TestTensorList<float, 2> intermediate;
-  TestTensorList<float, 2> output;
-  TestTensorList<float, 2> output_baseline;
+  constexpr static int kAxes = 2;
+  constexpr static int kChannels = 0;
+  constexpr static int kFrames = 0;
+  constexpr static int kNdim = kFrames + kAxes + kChannels;
+  std::array<TestTensorList<float, 1>, kAxes> kernel_window;
+  TestTensorList<float, kNdim> input;
+  TestTensorList<float, kNdim> output;
+  TestTensorList<float, kNdim> baseline_output;
 
-  TensorListShape<2> data_shape = std::vector<TensorShape<2>>{TensorShape<2>{145, 128}};
+  TensorListShape<kNdim> data_shape = uniform_list_shape<kNdim>(1, {145, 128});
   int num_samples = data_shape.size();
 
-  std::array<TensorListShape<1>, 2> window_dims = {uniform_list_shape<1>(num_samples, {5}), uniform_list_shape<1>(num_samples, {7})};
+  int win_sizes[] = {3, 5, 7};
 
-  kernel_window_0.reshape(window_dims[0]);
-  kernel_window_1.reshape(window_dims[1]);
+  // auto window_dims = uniform_array<kAxes>(uniform_list_shape<1>(num_samples, {3}));
+  std::array<TensorListShape<1>, kAxes> window_dims;
+  for (int i = 0; i < kAxes; i++) {
+    window_dims[i] = uniform_list_shape<1>(num_samples, {win_sizes[i]});
+    kernel_window[i].reshape(window_dims[i]);
+  }
+
   input.reshape(data_shape);
-  // intermediate.reshape(data_shape);
   output.reshape(data_shape);
-  output_baseline.reshape(data_shape);
+  baseline_output.reshape(data_shape);
 
-  auto kernel_window_0_v = kernel_window_0.cpu();
-  auto kernel_window_1_v = kernel_window_1.cpu();
   auto in_cpu_v = input.cpu();
-  // auto interm_cpu_v = intermediate.cpu();
+  auto baseline_out_v = baseline_output.cpu();
   auto out_gpu_v = output.gpu();
-  auto out_cpu_baseline_v = output_baseline.cpu();
+  std::array<TensorListView<StorageCPU, const float, 1>, kAxes> window_v;
+  // std::array<TensorListView<StorageCPU, float, 1>, kAxes> window_v;
 
   std::mt19937 rng;
-  // UniformRandomFill(in_cpu_v, rng, 0, 255);
-  // SequentialFill(in_cpu_v);
-  ConstantFill(in_cpu_v, 42.f);
-  InitTriangleWindow(kernel_window_0_v);
-  // InitNoOpWindow(kernel_window_0_v);
-  InitTriangleWindow(kernel_window_1_v);
+  ConstantFill(in_cpu_v, 1);
+  for (int i = 0; i < kAxes; i++) {
+    auto windows = kernel_window[i].cpu();
+    ConstantFill(windows, 1);
+    // InitWindow(windows, win_values[i]);
+    window_v[i] = windows;
+  }
+
+  int result = 1;
+  for (int i = kAxes - 1; i >= 0; i--) {
+    result *= win_sizes[i];
+  }
+  ConstantFill(baseline_out_v, result);
 
   auto in_gpu_v = input.gpu();
 
-  SeparableConvolutionCpu<float, float, float, 2, false> kernel_cpu;
-  SeparableConvolutionGpu<float, float, float, 2, false> kernel_gpu;
-  // static_assert(
-  //     std::is_same<typename SeparableConvolutionCpu<int, int, float, 2, false>::Intermediate,
-  //                  float>::value,
-  //     "Unexpected intermediate type");
-  KernelContext ctx_cpu, ctx_gpu;
+  SeparableConvolutionGpu<float, float, float, kAxes, kChannels, kFrames> kernel_gpu;
+  KernelContext ctx_gpu;
 
   ctx_gpu.gpu.stream = 0;
-
-  for (int sample = 0; sample < num_samples; sample++) {
-    std::array<int, 2> window_sample_dims;
-    for (int axis = 0; axis < 2; axis++) {
-      window_sample_dims[axis] = window_dims[axis][sample][0];
-    }
-    auto req = kernel_cpu.Setup(ctx_cpu, data_shape[sample], window_sample_dims);
-
-    ScratchpadAllocator scratch_alloc;
-    scratch_alloc.Reserve(req.scratch_sizes);
-    auto scratchpad = scratch_alloc.GetScratchpad();
-    ctx_cpu.scratchpad = &scratchpad;
-
-    kernel_cpu.Run(ctx_cpu, out_cpu_baseline_v[sample], in_cpu_v[sample], {kernel_window_0_v[sample], kernel_window_1_v[sample]});
-  }
 
   auto req = kernel_gpu.Setup(ctx_gpu, data_shape, window_dims);
 
@@ -276,18 +278,19 @@ TEST(SeparableConvolutionGpuTest, Axes2NoChannels) {
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx_gpu.scratchpad = &scratchpad;
 
-  kernel_gpu.Run(ctx_gpu, out_gpu_v, in_gpu_v, {kernel_window_0_v, kernel_window_1_v});
+  kernel_gpu.Run(ctx_gpu, out_gpu_v, in_gpu_v, window_v);
 
   auto out_cpu_v = output.cpu(0);
   cudaDeviceSynchronize();
   CUDA_CALL(cudaGetLastError());
+  Check(out_cpu_v, baseline_out_v);
 
-  double eps = 1e-2;
-  Check(out_cpu_v, out_cpu_baseline_v, EqualEps(eps));
-    printf("CUTLASS\n\n");
-    print_mat(out_cpu_v[0].shape[0], out_cpu_v[0].shape[1], out_cpu_v[0].data);
-    printf("CPU baseline\n\n");
-    print_mat(out_cpu_baseline_v[0].shape[0], out_cpu_baseline_v[0].shape[1], out_cpu_baseline_v[0].data);
+  // double eps = 1e-2;
+  // Check(out_cpu_v, out_cpu_baseline_v, EqualEps(eps));
+  //   printf("CUTLASS\n\n");
+  //   print_mat(out_cpu_v[0].shape[0], out_cpu_v[0].shape[1], out_cpu_v[0].data);
+  //   printf("CPU baseline\n\n");
+  //   print_mat(out_cpu_baseline_v[0].shape[0], out_cpu_baseline_v[0].shape[1], out_cpu_baseline_v[0].data);
 }
 
 // TEST(SeparableConvolutionTest, Axes3WithChannels) {
