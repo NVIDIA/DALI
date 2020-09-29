@@ -12,14 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/geometry/transform_base_op.h"
+#include "dali/operators/geometry/affine_transforms/transform_base_op.h"
 #include "dali/pipeline/data/views.h"
 
 namespace dali {
 
 DALI_SCHEMA(TranslateTransform)
-  .DocStr(R"(TranslateTransform)")
-  .AddArg("offset", "Translation vector", DALI_FLOAT_VEC, true)
+  .DocStr(R"code(Produces a translation affine transform matrix.
+
+If another transform matrix is passed as an input, the operator apply translation to the matrix provided.
+
+.. note::
+    The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
+)code")
+  .AddArg(
+    "offset",
+    R"code(The translation vector.
+
+The number of dimensions of the transform is inferred from this argument.)code",
+    DALI_FLOAT_VEC, true)
   .NumInput(0, 1)
   .NumOutput(1);
 

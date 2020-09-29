@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_GEOMETRY_TRANSFORM_BASE_OP_H_
-#define DALI_OPERATORS_GEOMETRY_TRANSFORM_BASE_OP_H_
+#ifndef DALI_OPERATORS_GEOMETRY_AFFINE_TRANSFORMS_TRANSFORM_BASE_OP_H_
+#define DALI_OPERATORS_GEOMETRY_AFFINE_TRANSFORMS_TRANSFORM_BASE_OP_H_
 
+#include <utility>
 #include <vector>
 #include "dali/core/format.h"
 #include "dali/core/geom/mat.h"
@@ -198,4 +199,4 @@ class TransformBaseOp : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_GEOMETRY_TRANSFORM_BASE_OP_H_
+#endif  // DALI_OPERATORS_GEOMETRY_AFFINE_TRANSFORMS_TRANSFORM_BASE_OP_H_

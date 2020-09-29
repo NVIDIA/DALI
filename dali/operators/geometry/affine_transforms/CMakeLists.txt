@@ -12,22 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
-import nvidia.dali.types as types
-import nvidia.dali.fn as fn
-import numpy as np
-import os
-
-def test_translate_transform_op(batch_size=1, num_threads=4, device_id=0):
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
-    with pipe:
-        T1 = fn.translate_transform(device='cpu', offset=(2, 3))
-        pipe.set_outputs(T1)
-    pipe.build()
-    outs = pipe.run()
-    for idx in range(batch_size):
-        T1 = outs[0].at(idx)
-        print(T1)
-
-test_translate_transform_op()
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
+collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)

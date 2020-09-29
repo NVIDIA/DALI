@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+add_subdirectory(affine_transforms)
+
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
