@@ -26,13 +26,14 @@ namespace impl {
 
 template<typename T>
 void
-ConcatenateTensors(TensorView<StorageCPU, T> output, span<TensorView<StorageCPU, const T>> inputs,
+ConcatenateTensors(TensorView<StorageCPU, T> output,
+                   span<const TensorView<StorageCPU, const T>> inputs,
                    int axis) {
   SmallVector<int64_t, 8> copy_sizes;
   for (int t = 0; t < inputs.size(); t++) {
     copy_sizes[t] = volume(inputs[t].shape.begin() + axis, inputs[t].shape.end());
   }
-  auto nouter = volume(output.shape.begin(), output.shape.end());
+  auto nouter = volume(output.shape.begin(), output.shape.begin() + axis);
   auto *out = output.data;
   for (ptrdiff_t outer = 0; outer < nouter; outer++) {
     for (int t = 0; t < inputs.size(); t++) {
@@ -113,11 +114,12 @@ struct TensorJoinCpu {
    */
   KernelRequirements Setup(KernelContext &ctx, span<const TensorShape<dims>> in_shapes, int axis) {
     n_input_tensors_ = in_shapes.size();
-    orig_shapes_(in_shapes);
     auto ndims = in_shapes[0].sample_dim();
-    DALI_ENFORCE(axis < ndims && axis > -ndims, "Incorrect axis. Actual: ", axis, ". Expected in [",
-                 -ndims + 1, ", ", ndims - 1, "] interval");
-    axis_ = axis >= 0 ? axis : ndims + axis;
+    DALI_ENFORCE(axis >= -ndims + !new_axis && axis <= ndims - !new_axis,
+                 make_string("Incorrect axis. Actual: ", axis, ". Expected in [",
+                             -ndims + !new_axis, ", ", ndims - !new_axis, "] interval (",
+                             new_axis ? "STACK" : "CONCAT", " mode)"));
+    axis_ = axis >= 0 ? axis : ndims + axis + new_axis;
 
     {
       const auto &ref = in_shapes[0];
@@ -142,7 +144,7 @@ struct TensorJoinCpu {
     }
 
     KernelRequirements kr;
-    output_shape_ = DetermineShape<new_axis>(in_shapes, axis);
+    output_shape_ = DetermineShape<new_axis>(in_shapes, axis_);
     kr.output_shapes.resize(1);
     TensorListShape<> tmp({output_shape_});  // clang's destructor bug still haunting
     kr.output_shapes[0] = tmp;
@@ -168,29 +170,25 @@ struct TensorJoinCpu {
    * @param in input tensors. The number of these tensors, as well as their shapes,
    *           must match with what is provided in Setup call.
    */
-  void Run(KernelContext &ctx, const OutTensorCPU<T, output_dims> &out,
-           span<const InTensorCPU<T, dims>> in) {
+  void Run(KernelContext &ctx, OutTensorCPU<T, output_dims> out,
+           span<const InTensorCPU<T>> in) {
     if (in.size() != n_input_tensors_) {
       throw std::invalid_argument(make_string(
-              "Input must have the same number of tensors as was specified in call to Setup. "
-              "Expected: ", n_input_tensors_, "Actual: ", in.size()));
+              "Input must have the same number of tensors as was specified in call to Setup.\n"
+              "Expected: ", n_input_tensors_, "\nActual: ", in.size()));
     }
-    for (int i = 0; i < n_input_tensors_; i++) {
-      if (in[i].shape != orig_shapes_[i]) {
-        throw std::invalid_argument(make_string(
-                "Input must have the same shapes as was specified in call to Setup. Expected: ",
-                orig_shapes_[i], "Actual: ", in[i].shape));
-      }
+    if (out.shape != output_shape_) {
+      throw std::invalid_argument(
+              make_string("Output has incorrect shape.\nExpected: ", output_shape_, "\nActual: ",
+                          out.shape));
     }
 
-    auto output = make_span(out);
-    ConcatenateTensors(output, output_shape_, in, axis_);
+    ConcatenateTensors(out, in, axis_);
   }
 
 
   int axis_, n_input_tensors_;
   TensorShape<dims> output_shape_;
-  std::vector<TensorShape<dims>> orig_shapes_;
 };
 
 }  // namespace impl
