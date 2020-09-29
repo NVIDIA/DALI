@@ -368,7 +368,7 @@ class DALIClassificationIterator(DALIGenericIterator):
 
     .. code-block:: python
 
-       DALIClassificationIterator(pipelines, size, data_name, label_name, data_layout)
+       DALIClassificationIterator(pipelines, reader_name, data_name, label_name, data_layout)
 
     is equivalent to calling
 
@@ -377,7 +377,7 @@ class DALIClassificationIterator(DALIGenericIterator):
        DALIGenericIterator(pipelines,
                            [(data_name, DALIClassificationIterator.DATA_TAG),
                             (label_name, DALIClassificationIterator.LABEL_TAG)],
-                           size,
+                           reader_name,
                            data_layout)
 
     Please keep in mind that NDArrays returned by the iterator are
