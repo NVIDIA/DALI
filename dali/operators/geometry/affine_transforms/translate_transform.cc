@@ -20,7 +20,7 @@ namespace dali {
 DALI_SCHEMA(TranslateTransform)
   .DocStr(R"code(Produces a translation affine transform matrix.
 
-If another transform matrix is passed as an input, the operator applies translation to the matrix provided.
+If another transform matrix is passed as an input, the operator apply translation to the matrix provided.
 
 .. note::
     The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
@@ -32,8 +32,7 @@ If another transform matrix is passed as an input, the operator applies translat
 The number of dimensions of the transform is inferred from this argument.)code",
     DALI_FLOAT_VEC, true)
   .NumInput(0, 1)
-  .NumOutput(1)
-  .AddParent("TransformAttr");
+  .NumOutput(1);
 
 /**
  * @brief Translation transformation.
@@ -48,14 +47,13 @@ class TranslateTransformCPU
       has_offset_input_(spec.HasTensorArgument("offset")) {
   }
 
-  template <typename T, int mat_dim>
-  void DefineTransforms(span<affine_mat_t<T, mat_dim>> matrices) {
-    constexpr int ndim = mat_dim - 1;
+  template <typename T, int ndim>
+  void DefineTransforms(span<affine_mat_t<T, ndim>> matrices) {
     assert(matrices.size() == static_cast<int>(offset_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       auto *offset = offset_[i].data();
-      mat = affine_mat_t<T, mat_dim>::identity();
+      mat = affine_mat_t<T, ndim>::identity();
       for (int d = 0; d < ndim; d++) {
         mat(d, ndim) = offset[d];
       }
