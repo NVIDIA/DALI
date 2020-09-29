@@ -36,23 +36,6 @@ using dims = std::integer_sequence<int, values...>;
 template <typename T, int mat_dim>
 using affine_mat_t = mat<mat_dim, mat_dim, T>;
 
-template <typename Value, typename Callable, typename... Args>
-void value_switch(Value value, std::integer_sequence<Value>,
-                  Callable &&callable, Args&&... args) {
-  throw std::invalid_argument(make_string("Unsupported parameter value: ", value));
-}
-template <typename Value, typename Callable, typename... Args, Value first, Value... values>
-void value_switch(Value value, std::integer_sequence<Value, first, values...>,
-                  Callable &&callable, Args&&... args) {
-  if (value == first) {
-    callable(std::integral_constant<Value, first>(), std::forward<Args>(args)...);
-  } else {
-    value_switch(value, std::integer_sequence<Value, values...>(),
-                 std::forward<Callable>(callable), std::forward<Args>(args)...);
-  }
-}
-
-
 /**
  * @brief Base CRTP class for affine transform generators.
  * The matrix definition comes from the actual TransformImpl implementation.
@@ -112,8 +95,18 @@ class TransformBaseOp : public Operator<Backend> {
     return true;
   }
 
-  template <typename T, int ndim>
-  void RunImplTyped(std::integral_constant<int, ndim>, workspace_t<Backend> &ws) {
+  template <typename T>
+  void RunImplTyped(workspace_t<Backend> &ws, dims<>) {
+    DALI_FAIL(make_string("Unsupported number of dimensions ", ndim_));
+  }
+
+  template <typename T, int ndim, int... ndims>
+  void RunImplTyped(workspace_t<Backend> &ws, dims<ndim, ndims...>) {
+    if (ndim_ != ndim) {
+      RunImplTyped<T>(ws, dims<ndims...>());
+      return;
+    }
+
     constexpr int mat_dim = ndim + 1;
     auto &out = ws.template OutputRef<Backend>(0);
     out.SetLayout({});  // no layout
@@ -143,9 +136,7 @@ class TransformBaseOp : public Operator<Backend> {
   void RunImpl(workspace_t<Backend> &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_INPUT_TYPES, (
       using SupportedDims = typename TransformImpl::SupportedDims;
-      value_switch(ndim_, SupportedDims(),
-        [&](auto &&... args) { RunImplTyped<T>(args...); },
-        ws);
+      RunImplTyped<T>(ws, SupportedDims());
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
   }
 
