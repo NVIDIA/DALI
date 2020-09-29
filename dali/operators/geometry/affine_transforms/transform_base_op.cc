@@ -19,7 +19,7 @@ namespace dali {
 
 DALI_SCHEMA(TransformAttr)
   .DocStr(R"code(Base schema for affine transform generators.)code")
-  .AddOptionalArg("reverse",
+  .AddOptionalArg("reverse_order",
     R"code(Determines the order when combining affine transforms.
 
 If set to False (default), the operator's affine transform will be applied to the input transform.

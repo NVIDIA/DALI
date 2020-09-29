@@ -33,8 +33,8 @@ namespace dali {
 template <int... values>
 using dims = std::integer_sequence<int, values...>;
 
-template <typename T, int ndim>
-using affine_mat_t = mat<ndim+1, ndim+1, T>;
+template <typename T, int mat_dim>
+using affine_mat_t = mat<mat_dim, mat_dim, T>;
 
 template <typename Value, typename Callable, typename... Args>
 void value_switch(Value value, std::integer_sequence<Value>,
@@ -63,7 +63,7 @@ class TransformBaseOp : public Operator<Backend> {
  public:
   explicit TransformBaseOp(const OpSpec &spec) :
       Operator<Backend>(spec),
-      reverse_(spec.GetArgument<bool>("reverse")) {
+      reverse_order_(spec.GetArgument<bool>("reverse_order")) {
     matrix_data_.set_pinned(false);
     matrix_data_.set_type(TypeTable::GetTypeInfo(dtype_));
   }
@@ -114,14 +114,15 @@ class TransformBaseOp : public Operator<Backend> {
 
   template <typename T, int ndim>
   void RunImplTyped(std::integral_constant<int, ndim>, workspace_t<Backend> &ws) {
+    constexpr int mat_dim = ndim + 1;
     auto &out = ws.template OutputRef<Backend>(0);
     out.SetLayout({});  // no layout
 
     int64_t num_mats = This().IsConstantTransform() ? 1 : nsamples_;
-    matrix_data_.Resize({num_mats * static_cast<int64_t>(sizeof(affine_mat_t<T, ndim>))});
-    span<affine_mat_t<T, ndim>> matrices{
-        reinterpret_cast<affine_mat_t<T, ndim> *>(matrix_data_.mutable_data<T>()), num_mats};
-    This().template DefineTransforms<T, ndim>(matrices);
+    matrix_data_.Resize({num_mats * static_cast<int64_t>(sizeof(affine_mat_t<T, mat_dim>))});
+    span<affine_mat_t<T, mat_dim>> matrices{
+        reinterpret_cast<affine_mat_t<T, mat_dim> *>(matrix_data_.mutable_data<T>()), num_mats};
+    This().DefineTransforms(matrices);
 
     auto out_view = view<T>(out);
     if (has_input_) {
@@ -129,12 +130,12 @@ class TransformBaseOp : public Operator<Backend> {
       auto in_view = view<T>(in);
       for (int i = 0; i < nsamples_; i++) {
         int mat_idx = num_mats == 1 ? 0 : i;
-        ApplyTransform<T, ndim>(out_view[i].data, in_view[i].data, matrices[mat_idx]);
+        ApplyTransform(out_view[i].data, in_view[i].data, matrices[mat_idx]);
       }
     } else {
       for (int i = 0; i < nsamples_; i++) {
         int mat_idx = num_mats == 1 ? 0 : i;
-        ApplyTransform<T, ndim>(out_view[i].data, matrices[mat_idx]);
+        ApplyTransform(out_view[i].data, matrices[mat_idx]);
       }
     }
   }
@@ -158,8 +159,9 @@ class TransformBaseOp : public Operator<Backend> {
   }
 
  private:
-  template <typename T, int ndim>
-  void ApplyTransform(T *transform_out, const affine_mat_t<T, ndim> &M) {
+  template <typename T, int mat_dim>
+  void ApplyTransform(T *transform_out, const affine_mat_t<T, mat_dim> &M) {
+    constexpr int ndim = mat_dim - 1;
     for (int i = 0, k = 0; i < ndim; i++) {
       for (int j = 0; j < ndim + 1; j++, k++) {
         transform_out[k] = M(i, j);
@@ -167,9 +169,10 @@ class TransformBaseOp : public Operator<Backend> {
     }
   }
 
-  template <typename T, int ndim>
-  void ApplyTransform(T *transform_out, const T* transform_in, const affine_mat_t<T, ndim> &M) {
-    auto mat_in = affine_mat_t<T, ndim>::identity();
+  template <typename T, int mat_dim>
+  void ApplyTransform(T *transform_out, const T* transform_in, const affine_mat_t<T, mat_dim> &M) {
+    constexpr int ndim = mat_dim - 1;
+    auto mat_in = affine_mat_t<T, mat_dim>::identity();
     for (int i = 0, k = 0; i < ndim; i++) {
       for (int j = 0; j < ndim + 1; j++, k++) {
         mat_in(i, j) = transform_in[k];
@@ -177,7 +180,7 @@ class TransformBaseOp : public Operator<Backend> {
     }
 
     // matrix multiplication
-    auto mat_out = reverse_ ? mat_in * M : M * mat_in;
+    auto mat_out = reverse_order_ ? mat_in * M : M * mat_in;
 
     for (int i = 0, k = 0; i < ndim; i++) {
       for (int j = 0; j < ndim + 1; j++, k++) {
@@ -191,7 +194,7 @@ class TransformBaseOp : public Operator<Backend> {
   int ndim_ = -1;  // will be inferred from the arguments or the input
   int nsamples_ = -1;
   bool has_input_ = false;
-  bool reverse_ = false;
+  bool reverse_order_ = false;
 
   Tensor<CPUBackend> matrix_data_;
 
