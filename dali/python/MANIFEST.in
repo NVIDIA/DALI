@@ -1,6 +1,8 @@
 include Acknowledgements.txt LICENSE COPYRIGHT
 recursive-include nvidia/dali/include *.h
 recursive-include nvidia/dali/include *.hpp
+recursive-include nvidia/dali/include *.cuh
+recursive-include nvidia/dali/include *.inl
 recursive-include nvidia/dali *.bin
 recursive-include nvidia/dali *.so
 recursive-include nvidia/dali/.libs *.so.*
