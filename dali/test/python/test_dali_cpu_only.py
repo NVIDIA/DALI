@@ -631,4 +631,7 @@ def test_sequence_reader_cpu():
     for _ in range(3):
         pipe.run()
 
+def test_affine_transforms_cpu():
+    check_no_input(fn.translate_transform, offset=(2, 3))
+
 # ToDo add tests for DLTensorPythonFunction if easily possible

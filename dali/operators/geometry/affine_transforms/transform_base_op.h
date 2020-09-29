@@ -61,10 +61,9 @@ void value_switch(Value value, std::integer_sequence<Value, first, values...>,
 template <typename Backend, typename TransformImpl>
 class TransformBaseOp : public Operator<Backend> {
  public:
-  explicit TransformBaseOp(const OpSpec &spec)
-      : Operator<Backend>(spec),
-        spec_(spec),
-        nsamples_(spec.GetArgument<int>("batch_size")) {
+  explicit TransformBaseOp(const OpSpec &spec) :
+      Operator<Backend>(spec),
+      reverse_(spec.GetArgument<bool>("reverse")) {
     matrix_data_.set_pinned(false);
     matrix_data_.set_type(TypeTable::GetTypeInfo(dtype_));
   }
@@ -100,6 +99,8 @@ class TransformBaseOp : public Operator<Backend> {
           "The input, if provided, is expected to be a 2D tensor with dimensions "
           "(ndim, ndim+1) representing an affine transform. Got: ", shape));
       nsamples_ = shape.num_samples();
+    } else {
+      nsamples_ = spec_.template GetArgument<int>("batch_size");
     }
 
     This().ProcessArgs(spec_, ws);
@@ -176,7 +177,7 @@ class TransformBaseOp : public Operator<Backend> {
     }
 
     // matrix multiplication
-    auto mat_out = M * mat_in;
+    auto mat_out = reverse_ ? mat_in * M : M * mat_in;
 
     for (int i = 0, k = 0; i < ndim; i++) {
       for (int j = 0; j < ndim + 1; j++, k++) {
@@ -186,13 +187,15 @@ class TransformBaseOp : public Operator<Backend> {
   }
 
  protected:
-  const OpSpec& spec_;
   DALIDataType dtype_ = DALI_FLOAT;
   int ndim_ = -1;  // will be inferred from the arguments or the input
   int nsamples_ = -1;
   bool has_input_ = false;
+  bool reverse_ = false;
 
   Tensor<CPUBackend> matrix_data_;
+
+  using Operator<Backend>::spec_;
 };
 
 
