@@ -19,6 +19,8 @@ import nvidia.dali.fn as fn
 import numpy as np
 import os
 
+from scipy.spatial.transform import Rotation as scipy_rotate
+
 def check_results(T1, batch_size, mat_ref, T0=None, reverse=False, rtol=1e-7):
     ndim = mat_ref.shape[0] - 1
     if T0 is not None:
@@ -123,23 +125,17 @@ def rotate_affine_mat(angle, axis = None, center = None):
     assert center is None or len(center) == ndim
 
     angle_rad = angle * np.pi / 180.0
-    c = np.cos(angle_rad)
-    s = np.sin(angle_rad)
     if ndim == 2:
+        c = np.cos(angle_rad)
+        s = np.sin(angle_rad)
         r_mat = np.array(
             [[  c, -s,  0.],
              [  s,  c,  0.],
              [  0., 0., 1.]])
     else:  # ndim == 3
-        norm_axis = axis / np.linalg.norm(axis)
-        u, v, w = norm_axis
-        uu, vv, ww = u*u, v*v, w*w
-        uv, uw, vw = u*v, u*w, v*w
-        r_mat = np.array(
-            [[uu + (vv+ww)*c, uv*(1-c) - w*s, uw*(1-c) + v*s, 0],
-             [uv*(1-c) + w*s, vv + (uu+ww)*c, vw*(1-c) - u*s, 0],
-             [uw*(1-c) - v*s, vw*(1-c) + u*s, ww + (uu+vv)*c, 0],
-             [0,                           0,              0, 1]])
+        norm_axis = axis / np.linalg.norm(axis)        
+        r_mat = np.identity(ndim + 1)
+        r_mat[:ndim, :ndim] = scipy_rotate.from_rotvec(angle_rad * norm_axis).as_matrix()
     if center is not None:
         neg_offset = tuple([-x for x in center])
         t1_mat = translate_affine_mat(neg_offset)
