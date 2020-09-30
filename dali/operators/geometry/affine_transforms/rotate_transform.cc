@@ -66,12 +66,10 @@ class RotateTransformCPU
 
   explicit RotateTransformCPU(const OpSpec &spec) :
       TransformBaseOp<CPUBackend, RotateTransformCPU>(spec),
-      has_angle_input_(spec.HasTensorArgument("angle")),
-      has_axis_(spec.HasArgument("axis")),
-      has_axis_input_(spec.HasTensorArgument("axis")),
-      has_center_(spec.HasArgument("center")),
-      has_center_input_(spec.HasTensorArgument("center")) {
-
+      angle_("angle", spec),
+      axis_("axis", spec),
+      center_("center", spec) {
+    assert(angle_.IsDefined());
   }
 
   /**
@@ -86,7 +84,7 @@ class RotateTransformCPU
       auto angle = angle_[i];
       mat = rotation2D(deg2rad(angle));
 
-      if (has_center_ || has_center_input_) {
+      if (center_.IsDefined()) {
         vec2 &center = *reinterpret_cast<vec2*>(center_[i].data());
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
@@ -107,131 +105,41 @@ class RotateTransformCPU
       vec3 &axis = *reinterpret_cast<vec3*>(axis_[i].data());
       mat = rotation3D(axis, deg2rad(angle));
 
-      if (has_center_ || has_center_input_) {
+      if (center_.IsDefined()) {
         vec3 &center = *reinterpret_cast<vec3*>(center_[i].data());
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
   }
 
-  void ProcessAngleConstant(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    angle_.resize(1);
-    angle_[0] = spec.GetArgument<float>("angle");
-  }
-
-  void ProcessAxisConstant(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    axis_.resize(1);
-    axis_[0] = spec.GetArgument<std::vector<float>>("axis");
-  }
-
-  void ProcessCenterConstant(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    center_.resize(1);
-    center_[0] = spec.GetArgument<std::vector<float>>("center");
-  }
-
-  void ProcessAngleArgInput(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    const auto& angle = ws.ArgumentInput("angle");
-    auto angle_view = view<const float>(angle);
-    DALI_ENFORCE(is_uniform(angle_view.shape),
-      "All samples in argument ``angle`` should have the same shape");
-    DALI_ENFORCE(angle_view.shape[0][1] == 1,
-      "``angle`` must be a single number");
-
-    angle_.resize(nsamples_);
-    for (int i = 0; i < nsamples_; i++) {
-      angle_[i] = angle_view[i].data[0];
-    }
-  }
-
-  void ProcessAxisArgInput(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    const auto& axis = ws.ArgumentInput("axis");
-    auto axis_view = view<const float>(axis);
-    DALI_ENFORCE(is_uniform(axis_view.shape),
-      "All samples in argument ``axis`` should have the same shape");
-    DALI_ENFORCE(axis_view.shape.sample_dim() == 1,
-      "``axis`` must be a 1D tensor");
-
-    axis_.resize(nsamples_);
-    for (int i = 0; i < nsamples_; i++) {
-      axis_[i].resize(ndim_);
-      for (int d = 0; d < ndim_; d++) {
-        axis_[i][d] = axis_view[i].data[d];
-      }
-    }
-  }
-
-  void ProcessCenterArgInput(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    const auto& center = ws.ArgumentInput("center");
-    auto center_view = view<const float>(center);
-    DALI_ENFORCE(is_uniform(center_view.shape),
-      "All samples in argument ``center`` should have the same shape");
-    DALI_ENFORCE(center_view.shape.sample_dim() == 1,
-      "``center`` must be a 1D tensor");
-
-    center_.resize(nsamples_);
-    for (int i = 0; i < nsamples_; i++) {
-      center_[i].resize(ndim_);
-      for (int d = 0; d < ndim_; d++) {
-        center_[i][d] = center_view[i].data[d];
-      }
-    }
-  }
-
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    if (has_angle_input_) {
-      ProcessAngleArgInput(spec, ws);
-    } else {
-      ProcessAngleConstant(spec, ws);
-    }
-
-    ndim_ = has_axis_ || has_axis_input_ ? 3 : 2;
-
-    if (has_axis_input_ || has_axis_) {
-      if (has_center_input_) {
-        ProcessAxisArgInput(spec, ws);
-      } else {
-        ProcessAxisConstant(spec, ws);
-      }
-
+    int repeat = IsConstantTransform() ? 1 : nsamples_;
+    angle_.Read(spec, ws, repeat);
+    ndim_ = axis_.IsDefined() ? 3 : 2;
+    if (axis_.IsDefined()) {
+      axis_.Read(spec, ws, repeat);
       DALI_ENFORCE(ndim_ == static_cast<int>(axis_[0].size()),
         make_string("Unexpected number of dimensions for ``axis`` argument. Got: ",
                     axis_[0].size(), " but expected ", ndim_,
                     " dimensions."));
     }
-
-    if (has_center_input_ || has_center_) {
-      if (has_center_input_) {
-        ProcessCenterArgInput(spec, ws);
-      } else {
-        ProcessCenterConstant(spec, ws);
-      }
-
+    if (center_.IsDefined()) {
+      center_.Read(spec, ws, repeat);
       DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].size()),
         make_string("Unexpected number of dimensions for ``center`` argument. Got: ",
                     center_[0].size(), " but ``axis`` argument suggested ", ndim_,
                     " dimensions."));
     }
-
-    if (center_.size() > 1 && axis_.size() == 1) {
-      axis_.resize(nsamples_, axis_[0]);
-    } else if (center_.size() == 1 && axis_.size() > 1) {
-      center_.resize(nsamples_, center_[0]);
-    }
   }
 
   bool IsConstantTransform() const {
-    return !has_angle_input_ && !has_axis_input_ && !has_center_input_;
+    return !angle_.IsArgInput() && !axis_.IsArgInput() && !center_.IsArgInput();
   }
 
  private:
-  bool has_angle_input_ = false;
-  bool has_axis_ = false;
-  bool has_axis_input_ = false;
-  bool has_center_ = false;
-  bool has_center_input_ = false;
-  std::vector<float> angle_;
-  std::vector<std::vector<float>> axis_;
-  std::vector<std::vector<float>> center_;
+  Argument<float> angle_;
+  Argument<std::vector<float>> axis_;
+  Argument<std::vector<float>> center_;
 };
 
 DALI_REGISTER_OPERATOR(RotateTransform, RotateTransformCPU, CPU);

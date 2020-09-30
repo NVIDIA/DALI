@@ -51,9 +51,9 @@ class ScaleTransformCPU
 
   explicit ScaleTransformCPU(const OpSpec &spec) :
       TransformBaseOp<CPUBackend, ScaleTransformCPU>(spec),
-      has_scale_input_(spec.HasTensorArgument("scale")),
-      has_center_(spec.HasArgument("center")),
-      has_center_input_(spec.HasTensorArgument("center")) {
+      scale_("scale", spec),
+      center_("center", spec) {
+    assert(scale_.IsDefined());
   }
 
   template <typename T, int mat_dim>
@@ -62,14 +62,14 @@ class ScaleTransformCPU
     assert(matrices.size() == static_cast<int>(scale_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      auto *scale = scale_[i].data();
+      auto scale = scale_[i];
       mat = affine_mat_t<T, mat_dim>::identity();
       for (int d = 0; d < ndim; d++) {
         mat(d, d) = scale[d];
       }
 
-      if (has_center_ || has_center_input_) {
-        auto *center = center_[i].data();
+      if (center_.IsDefined()) {
+        auto center = center_[i];
         for (int d = 0; d < ndim; d++) {
           mat(d, ndim) = center[d] * (T(1) - scale[d]);
         }
@@ -77,88 +77,26 @@ class ScaleTransformCPU
     }
   }
 
-  void ProcessScaleConstant(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    scale_.resize(1);
-    scale_[0] = spec.GetArgument<std::vector<float>>("scale");
-    ndim_ = scale_[0].size();
-  }
-
-  void ProcessCenterConstant(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    center_.resize(1);
-    center_[0] = spec.GetArgument<std::vector<float>>("center");
-  }
-
-  void ProcessScaleArgInput(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    const auto& scale = ws.ArgumentInput("scale");
-    auto scale_view = view<const float>(scale);
-    DALI_ENFORCE(is_uniform(scale_view.shape),
-      "All samples in argument ``scale`` should have the same shape");
-    DALI_ENFORCE(scale_view.shape.sample_dim() == 1,
-      "``scale`` must be a 1D tensor");
-
-    scale_.resize(nsamples_);
-    for (int i = 0; i < nsamples_; i++) {
-      scale_[i].resize(ndim_);
-      for (int d = 0; d < ndim_; d++) {
-        scale_[i][d] = scale_view[i].data[d];
-      }
-    }
-  }
-
-  void ProcessCenterArgInput(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    const auto& center = ws.ArgumentInput("center");
-    auto center_view = view<const float>(center);
-    DALI_ENFORCE(is_uniform(center_view.shape),
-      "All samples in argument ``center`` should have the same shape");
-    DALI_ENFORCE(center_view.shape.sample_dim() == 1,
-      "``center`` must be a 1D tensor");
-
-    center_.resize(nsamples_);
-    for (int i = 0; i < nsamples_; i++) {
-      center_[i].resize(ndim_);
-      for (int d = 0; d < ndim_; d++) {
-        center_[i][d] = center_view[i].data[d];
-      }
-    }
-  }
-
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    if (has_scale_input_) {
-      ProcessScaleArgInput(spec, ws);
-    } else {
-      ProcessScaleConstant(spec, ws);
-    }
-
-    if (has_center_input_ || has_center_) {
-      if (has_center_input_) {
-        ProcessCenterArgInput(spec, ws);
-      } else {
-        ProcessCenterConstant(spec, ws);
-      }
-
-      DALI_ENFORCE(ndim_ == static_cast<int>(scale_[0].size()),
+    int repeat = IsConstantTransform() ? 0 : nsamples_; 
+    scale_.Read(spec, ws, repeat);
+    ndim_ = scale_[0].size();
+    center_.Read(spec, ws, repeat);
+    if (center_.IsDefined()) {
+      DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].size()),
         make_string("Unexpected number of dimensions for ``center`` argument. Got: ",
                     center_[0].size(), " but ``scale`` argument suggested ", ndim_,
                     " dimensions."));
     }
-
-    if (center_.size() > 1 && scale_.size() == 1) {
-      scale_.resize(nsamples_, scale_[0]);
-    } else if (center_.size() == 1 && scale_.size() > 1) {
-      center_.resize(nsamples_, center_[0]);
-    }
   }
 
   bool IsConstantTransform() const {
-    return !has_scale_input_ && !has_center_input_;
+    return !scale_.IsArgInput() && !center_.IsArgInput();
   }
 
  private:
-  bool has_scale_input_ = false;
-  bool has_center_ = false;
-  bool has_center_input_ = false;
-  std::vector<std::vector<float>> scale_;
-  std::vector<std::vector<float>> center_;
+  Argument<std::vector<float>> scale_;
+  Argument<std::vector<float>> center_;
 };
 
 DALI_REGISTER_OPERATOR(ScaleTransform, ScaleTransformCPU, CPU);
