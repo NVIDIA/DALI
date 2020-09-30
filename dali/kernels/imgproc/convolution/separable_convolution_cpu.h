@@ -175,11 +175,11 @@ struct SeparableConvolutionCpu<Out, In, W, 3, has_channels> {
     sub_ctx.scratchpad = &sub_scratch;
 
     // Clear the scratchpad for sub-kernels to reuse memory
-    conv_innermost_.Run(ctx, intermediate, in, windows[2]);
+    conv_innermost_.Run(sub_ctx, intermediate, in, windows[2]);
     sub_scratch.Clear();
-    conv_middle_.Run(ctx, intermediate, intermediate, windows[1]);
+    conv_middle_.Run(sub_ctx, intermediate, intermediate, windows[1]);
     sub_scratch.Clear();
-    conv_outermost_.Run(ctx, out, intermediate, windows[0], scale);
+    conv_outermost_.Run(sub_ctx, out, intermediate, windows[0], scale);
   }
 
   scratch_sizes_t sub_scratch_sizes_;
