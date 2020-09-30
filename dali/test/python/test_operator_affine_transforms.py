@@ -19,7 +19,7 @@ import nvidia.dali.fn as fn
 import numpy as np
 import os
 
-def check_results(T1, batch_size, mat_ref, T0=None, reverse=False):
+def check_results(T1, batch_size, mat_ref, T0=None, reverse=False, rtol=1e-7):
     ndim = mat_ref.shape[0] - 1
     if T0 is not None:
         for idx in range(batch_size):
@@ -30,11 +30,11 @@ def check_results(T1, batch_size, mat_ref, T0=None, reverse=False):
             else:
                 mat_T1 = np.dot(mat_ref, mat_T0)
             ref_T1 = mat_T1[:ndim, :]
-            assert np.allclose(T1.at(idx), ref_T1, rtol=1e-7)
+            assert np.allclose(T1.at(idx), ref_T1, rtol=rtol)
     else:
         ref_T1 = mat_ref[:ndim, :]
         for idx in range(batch_size):
-            assert np.allclose(T1.at(idx), ref_T1, rtol=1e-7)
+            assert np.allclose(T1.at(idx), ref_T1, rtol=rtol)
 
 def translate_affine_mat(offset):
     ndim = len(offset)
@@ -68,6 +68,7 @@ def test_translate_transform_op(batch_size=3, num_threads=4, device_id=0):
 
 def scale_affine_mat(scale, center = None):
     ndim = len(scale)
+    assert center is None or len(center) == ndim
 
     s_mat = np.identity(ndim + 1)
     for d in range(ndim):
@@ -85,6 +86,8 @@ def scale_affine_mat(scale, center = None):
 
 def check_scale_transform_op(scale, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
     ndim = len(scale)
+    assert center is None or len(center) == ndim
+
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
     with pipe:
         if has_input:
@@ -108,3 +111,66 @@ def test_scale_transform_op(batch_size=3, num_threads=4, device_id=0):
             for reverse_order in [False, True] if has_input else [False]:
                 yield check_scale_transform_op, scale, center, has_input, reverse_order, \
                                                 batch_size, num_threads, device_id
+
+def rotate_affine_mat(angle, axis = None, center = None):
+    assert axis is None or len(axis) == 3
+    ndim = 3 if axis is not None else 2
+    assert center is None or len(center) == ndim
+
+    angle_rad = angle * np.pi / 180.0
+    c = np.cos(angle_rad)
+    s = np.sin(angle_rad)
+    if ndim == 2:
+        r_mat = np.array(
+            [[  c, -s,  0.],
+             [  s,  c,  0.],
+             [  0., 0., 1.]])
+    else:  # ndim == 3
+        norm_axis = axis / np.linalg.norm(axis)
+        u, v, w = norm_axis
+        uu, vv, ww = u*u, v*v, w*w
+        uv, uw, vw = u*v, u*w, v*w
+        r_mat = np.array(
+            [[uu + (vv+ww)*c, uv*(1-c) - w*s, uw*(1-c) + v*s, 0],
+             [uv*(1-c) + w*s, vv + (uu+ww)*c, vw*(1-c) - u*s, 0],
+             [uw*(1-c) - v*s, vw*(1-c) + u*s, ww + (uu+vv)*c, 0],
+             [0,                           0,              0, 1]])
+    if center is not None:
+        neg_offset = tuple([-x for x in center])
+        t1_mat = translate_affine_mat(neg_offset)
+        t2_mat = translate_affine_mat(center)
+        affine_mat = np.dot(t2_mat, np.dot(r_mat, t1_mat))
+    else:
+        affine_mat = r_mat
+
+    return affine_mat
+
+def check_rotate_transform_op(angle, axis=None, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
+    assert axis is None or len(axis) == 3
+    ndim = 3 if axis is not None else 2
+    assert center is None or len(center) == ndim
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    with pipe:
+        if has_input:
+            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
+            T1 = fn.rotate_transform(T0, device='cpu', angle=angle, axis=axis, center=center, reverse_order=reverse_order)
+            pipe.set_outputs(T1, T0)
+        else:
+            T1 = fn.rotate_transform(device='cpu', angle=angle, axis=axis, center=center)
+            pipe.set_outputs(T1)
+    pipe.build()
+    outs = pipe.run()
+    ref_mat = rotate_affine_mat(angle=angle, axis=axis, center=center)
+    T0 = outs[1] if has_input else None
+    check_results(outs[0], batch_size, ref_mat, T0, reverse_order, rtol=1e-5)
+
+def test_rotate_transform_op(batch_size=3, num_threads=4, device_id=0):
+    for angle, axis, center in [(30.0, None, None),
+                                (30.0, None, (1.0, 0.5)),
+                                (40.0, (0.4, 0.3, 0.1), None),
+                                (40.0, (0.4, 0.3, 0.1), (1.0, -0.4, 10.0))]:
+        for has_input in [False, True]:
+            for reverse_order in [False, True] if has_input else [False]:
+                yield check_rotate_transform_op, angle, axis, center, has_input, reverse_order, \
+                                                 batch_size, num_threads, device_id
