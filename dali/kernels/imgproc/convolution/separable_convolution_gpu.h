@@ -63,8 +63,7 @@ struct SeparableConvolutionGpu<Out, In, W, 1, has_channels, is_sequence> {
 
     auto req_conv = conv_.Setup(ctx, in_shape, window_sizes[0]);
 
-    sub_scratch_sizes_ = req_conv.scratch_sizes;
-    req.scratch_sizes = GetSumScratch(req.scratch_sizes, sub_scratch_sizes_);
+    req.scratch_sizes = GetSumScratch(req.scratch_sizes, req_conv.scratch_sizes);
 
     return req;
   }
@@ -77,7 +76,6 @@ struct SeparableConvolutionGpu<Out, In, W, 1, has_channels, is_sequence> {
     conv_.Run(ctx, out, in, windows[0], anchors[0], scale);
   }
 
-  scratch_sizes_t sub_scratch_sizes_;
   ConvolutionGpu<Out, In, W, ndim, sequence_axes + 0, has_channels> conv_;
 };
 

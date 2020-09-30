@@ -21,6 +21,7 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/convolution_cpu.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/scratch.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
@@ -58,7 +59,8 @@ struct SeparableConvolutionCpu<Out, In, W, 1, has_channels> {
     req.output_shapes.push_back(uniform_list_shape<ndim>(1, in_shape));
 
     auto req_conv = conv_.Setup(ctx, in_shape, window_sizes[0]);
-    req.AddInputSet(req_conv, false);
+
+    req.scratch_sizes = GetSumScratch(req.scratch_sizes, req_conv.scratch_sizes);
 
     return req;
   }
@@ -91,8 +93,9 @@ struct SeparableConvolutionCpu<Out, In, W, 2, has_channels> {
     auto req_inner = conv_innermost_.Setup(ctx, in_shape, window_sizes[1]);
     auto req_outer = conv_outermost_.Setup(ctx, in_shape, window_sizes[0]);
 
-    req.AddInputSet(req_inner, false);
-    req.AddInputSet(req_outer, false);
+    // Calculate max scratch memory required by sub-kernels
+    sub_scratch_sizes_ = GetMaxScratch(req_inner.scratch_sizes, req_outer.scratch_sizes);
+    req.scratch_sizes = GetSumScratch(req.scratch_sizes, sub_scratch_sizes_);
 
     return req;
   }
@@ -104,10 +107,24 @@ struct SeparableConvolutionCpu<Out, In, W, 2, has_channels> {
     auto *tmp = ctx.scratchpad->Allocate<Intermediate>(AllocType::Host, volume(in.shape));
     auto intermediate = TensorView<StorageCPU, Intermediate, ndim>(tmp, in.shape);
 
-    conv_innermost_.Run(ctx, intermediate, in, windows[1]);
-    conv_outermost_.Run(ctx, out, intermediate, windows[0], scale);
+    // Prepare the scratchpad with all the remaining memory requested by sub-kernels
+    PreallocatedScratchpad sub_scratch;
+    for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
+      auto sz = sub_scratch_sizes_[i];
+      auto alloc_type = static_cast<AllocType>(i);
+      sub_scratch.allocs[i] = BumpAllocator(ctx.scratchpad->Allocate<char>(alloc_type, sz), sz);
+    }
+
+    KernelContext sub_ctx = ctx;
+    sub_ctx.scratchpad = &sub_scratch;
+
+    // Clear the scratchpad for sub-kernels to reuse memory
+    conv_innermost_.Run(sub_ctx, intermediate, in, windows[1]);
+    sub_scratch.Clear();
+    conv_outermost_.Run(sub_ctx, out, intermediate, windows[0], scale);
   }
 
+  scratch_sizes_t sub_scratch_sizes_;
   ConvolutionCpu<Intermediate, In, W, ndim, 1, has_channels> conv_innermost_;
   ConvolutionCpu<Out, Intermediate, W, ndim, 0, has_channels> conv_outermost_;
 };
@@ -131,9 +148,10 @@ struct SeparableConvolutionCpu<Out, In, W, 3, has_channels> {
     auto req_middle = conv_middle_.Setup(ctx, in_shape, window_sizes[1]);
     auto req_outer = conv_outermost_.Setup(ctx, in_shape, window_sizes[0]);
 
-    req.AddInputSet(req_inner, false);
-    req.AddInputSet(req_middle, false);
-    req.AddInputSet(req_outer, false);
+    // Calculate max scratch memory required by sub-kernels
+    sub_scratch_sizes_ = GetMaxScratch(req_inner.scratch_sizes, req_middle.scratch_sizes);
+    sub_scratch_sizes_ = GetMaxScratch(sub_scratch_sizes_, req_outer.scratch_sizes);
+    req.scratch_sizes = GetSumScratch(req.scratch_sizes, sub_scratch_sizes_);
 
     return req;
   }
@@ -145,11 +163,26 @@ struct SeparableConvolutionCpu<Out, In, W, 3, has_channels> {
     auto* tmp = ctx.scratchpad->Allocate<Intermediate>(AllocType::Host, volume(in.shape));
     auto intermediate = TensorView<StorageCPU, Intermediate, ndim>(tmp, in.shape);
 
+    // Prepare the scratchpad with all the remaining memory requested by sub-kernels
+    PreallocatedScratchpad sub_scratch;
+    for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
+      auto sz = sub_scratch_sizes_[i];
+      auto alloc_type = static_cast<AllocType>(i);
+      sub_scratch.allocs[i] = BumpAllocator(ctx.scratchpad->Allocate<char>(alloc_type, sz), sz);
+    }
+
+    KernelContext sub_ctx = ctx;
+    sub_ctx.scratchpad = &sub_scratch;
+
+    // Clear the scratchpad for sub-kernels to reuse memory
     conv_innermost_.Run(ctx, intermediate, in, windows[2]);
+    sub_scratch.Clear();
     conv_middle_.Run(ctx, intermediate, intermediate, windows[1]);
+    sub_scratch.Clear();
     conv_outermost_.Run(ctx, out, intermediate, windows[0], scale);
   }
 
+  scratch_sizes_t sub_scratch_sizes_;
   ConvolutionCpu<Intermediate, In, W, ndim, 2, has_channels> conv_innermost_;
   ConvolutionCpu<Intermediate, Intermediate, W, ndim, 1, has_channels> conv_middle_;
   ConvolutionCpu<Out, Intermediate, W, ndim, 0, has_channels> conv_outermost_;
