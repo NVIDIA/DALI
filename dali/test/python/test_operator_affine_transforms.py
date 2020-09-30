@@ -102,8 +102,8 @@ def check_scale_transform_op(scale, center=None, has_input = False, reverse_orde
 
 def test_scale_transform_op(batch_size=3, num_threads=4, device_id=0):
     for scale, center in [((0.0, 1.0), None),
-                           ((2.0, 1.0, 3.0), None),
-                           ((2.0, 1.0), (1.0, 0.5))]:
+                          ((2.0, 1.0, 3.0), None),
+                          ((2.0, 1.0), (1.0, 0.5))]:
         for has_input in [False, True]:
             for reverse_order in [False, True] if has_input else [False]:
                 yield check_scale_transform_op, scale, center, has_input, reverse_order, \
