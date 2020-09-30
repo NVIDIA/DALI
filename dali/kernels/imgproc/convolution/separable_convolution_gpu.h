@@ -21,15 +21,19 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/convolution_gpu.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/scratch.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 namespace kernels {
 
+
+
 /**
  * @brief Apply convolution in all spatial axes, starting from the innermost to outermost.
  *        If channel axis is pressent, the convolution is not applied there.
- *        If it is marqed as sequence, the first data axis is considered as temporal axis
+ *        If it is marked as sequence, the outermost dimension denotes frames and
+ *        convolution is not applied to it.
  *
  * Sequence convolutions require one less window to be specified
  *
@@ -58,7 +62,9 @@ struct SeparableConvolutionGpu<Out, In, W, 1, has_channels, is_sequence> {
     req.output_shapes.push_back(in_shape);
 
     auto req_conv = conv_.Setup(ctx, in_shape, window_sizes[0]);
-    req.AddInputSet(req_conv, false);
+
+    sub_scratch_sizes_ = req_conv.scratch_sizes;
+    req.scratch_sizes = GetSumScratch(req.scratch_sizes, sub_scratch_sizes_);
 
     return req;
   }
@@ -71,6 +77,7 @@ struct SeparableConvolutionGpu<Out, In, W, 1, has_channels, is_sequence> {
     conv_.Run(ctx, out, in, windows[0], anchors[0], scale);
   }
 
+  scratch_sizes_t sub_scratch_sizes_;
   ConvolutionGpu<Out, In, W, ndim, sequence_axes + 0, has_channels> conv_;
 };
 
@@ -94,8 +101,9 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
     auto req_inner = conv_innermost_.Setup(ctx, in_shape, window_sizes[1]);
     auto req_outer = conv_outermost_.Setup(ctx, in_shape, window_sizes[0]);
 
-    req.AddInputSet(req_inner, false);
-    req.AddInputSet(req_outer, false);
+    // Calculate max scratch memory required by sub-kernels
+    sub_scratch_sizes_ = GetMaxScratch(req_inner.scratch_sizes, req_outer.scratch_sizes);
+    req.scratch_sizes = GetSumScratch(req.scratch_sizes, sub_scratch_sizes_);
 
     return req;
   }
@@ -108,10 +116,24 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
     auto *tmp = ctx.scratchpad->Allocate<Intermediate>(AllocType::GPU, in.shape.num_elements());
     auto intermediate = TensorListView<StorageGPU, Intermediate, ndim>(tmp, in.shape);
 
-    conv_innermost_.Run(ctx, intermediate, in, windows[1], anchors[1]);
-    conv_outermost_.Run(ctx, out, intermediate, windows[0], anchors[0], scale);
+    // Prepare the scratchpad with all the remaining memory requested by sub-kernels
+    PreallocatedScratchpad sub_scratch;
+    for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
+      auto sz = sub_scratch_sizes_[i];
+      auto alloc_type = static_cast<AllocType>(i);
+      sub_scratch.allocs[i] = BumpAllocator(ctx.scratchpad->Allocate<char>(alloc_type, sz), sz);
+    }
+
+    KernelContext sub_ctx = ctx;
+    sub_ctx.scratchpad = &sub_scratch;
+
+    // Clear the scratchpad for sub-kernels to reuse memory
+    conv_innermost_.Run(sub_ctx, intermediate, in, windows[1], anchors[1]);
+    sub_scratch.Clear();
+    conv_outermost_.Run(sub_ctx, out, intermediate, windows[0], anchors[0], scale);
   }
 
+  scratch_sizes_t sub_scratch_sizes_;
   ConvolutionGpu<Intermediate, In, W, ndim, sequence_axes + 1, has_channels> conv_innermost_;
   ConvolutionGpu<Out, Intermediate, W, ndim, sequence_axes + 0, has_channels> conv_outermost_;
 };
@@ -139,9 +161,10 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
     auto req_middle = conv_middle_.Setup(ctx, in_shape, window_sizes[1]);
     auto req_outer = conv_outermost_.Setup(ctx, in_shape, window_sizes[0]);
 
-    req.AddInputSet(req_inner, false);
-    req.AddInputSet(req_middle, false);
-    req.AddInputSet(req_outer, false);
+    // Calculate max scratch memory required by sub-kernels
+    sub_scratch_sizes_ = GetMaxScratch(req_inner.scratch_sizes, req_middle.scratch_sizes);
+    sub_scratch_sizes_ = GetMaxScratch(sub_scratch_sizes_, req_outer.scratch_sizes);
+    req.scratch_sizes = GetSumScratch(req.scratch_sizes, sub_scratch_sizes_);
 
     return req;
   }
@@ -163,11 +186,26 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
       intermediate_outer = {tmp + in.shape.num_elements(), in.shape};
     }
 
-    conv_innermost_.Run(ctx, intermediate_inner, in, windows[2], anchors[2]);
-    conv_middle_.Run(ctx, intermediate_outer, intermediate_inner, windows[1], anchors[1]);
-    conv_outermost_.Run(ctx, out, intermediate_outer, windows[0], anchors[0], scale);
+    // Prepare the scratchpad with all the remaining memory requested by sub-kernels
+    PreallocatedScratchpad sub_scratch;
+    for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
+      auto sz = sub_scratch_sizes_[i];
+      auto alloc_type = static_cast<AllocType>(i);
+      sub_scratch.allocs[i] = BumpAllocator(ctx.scratchpad->Allocate<char>(alloc_type, sz), sz);
+    }
+
+    KernelContext sub_ctx = ctx;
+    sub_ctx.scratchpad = &sub_scratch;
+
+    // Clear the scratchpad for sub-kernels to reuse memory
+    conv_innermost_.Run(sub_ctx, intermediate_inner, in, windows[2], anchors[2]);
+    sub_scratch.Clear();
+    conv_middle_.Run(sub_ctx, intermediate_outer, intermediate_inner, windows[1], anchors[1]);
+    sub_scratch.Clear();
+    conv_outermost_.Run(sub_ctx, out, intermediate_outer, windows[0], anchors[0], scale);
   }
 
+  scratch_sizes_t sub_scratch_sizes_;
   ConvolutionGpu<Intermediate, In, W, ndim, sequence_axes + 2, has_channels> conv_innermost_;
   ConvolutionGpu<Intermediate, Intermediate, W, ndim, sequence_axes + 1, has_channels> conv_middle_;
   ConvolutionGpu<Out, Intermediate, W, ndim, sequence_axes + 0, has_channels> conv_outermost_;

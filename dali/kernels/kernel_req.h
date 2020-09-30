@@ -25,13 +25,31 @@
 namespace dali {
 namespace kernels {
 
+using scratch_sizes_t = std::array<size_t, static_cast<size_t>(AllocType::Count)>;
+
+inline scratch_sizes_t GetMaxScratch(const scratch_sizes_t &a, const scratch_sizes_t &b) {
+  scratch_sizes_t result;
+  for (size_t i = 0; i < result.size(); i++) {
+    result[i] = std::max(a[i], b[i]);
+  }
+  return result;
+}
+
+inline scratch_sizes_t GetSumScratch(const scratch_sizes_t &a, const scratch_sizes_t &b) {
+  scratch_sizes_t result;
+  for (size_t i = 0; i < result.size(); i++) {
+    result[i] = a[i] + b[i];
+  }
+  return result;
+}
+
 /**
  * @brief Represents requirements for kernel to do its job for given inputs and arguments.
  */
 struct KernelRequirements {
   std::vector<TensorListShape<DynamicDimensions>> output_shapes;
 
-  std::array<size_t, (size_t)AllocType::Count> scratch_sizes = {};
+  scratch_sizes_t scratch_sizes = {};
 
   /**
    * @param reuse_scratch  - if true, scratch size is taken to be maximum from that for
@@ -80,7 +98,7 @@ struct ScratchpadEstimator {
     return sizes[(size_t)alloc_type];
   }
 
-  std::array<size_t, (size_t)AllocType::Count> sizes = {};
+  scratch_sizes_t sizes = {};
 };
 
 }  // namespace kernels
