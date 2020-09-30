@@ -24,23 +24,18 @@ DALI_SCHEMA(RotateTransform)
 
 If another transform matrix is passed as an input, the operator applies rotation to the matrix provided.
 
-The number of dimensions will be 2 or 3 depending on whether the argument ``axis`` is provided or not,
-respectively.
+The number of dimensions is assumed to be 3 if a rotation axis is provided or 2 otherwise.
 
 .. note::
     The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
 )code")
   .AddArg(
     "angle",
-    R"code(Angle, in degrees.
-
-For two-dimensional data, the rotation is counter-clockwise, assuming the top-left corner is
-at ``(0,0)``. For three-dimensional data, the ``angle`` is a positive rotation around the provided
-axis.)code",
+    R"code(Angle, in degrees.)code",
     DALI_FLOAT, true)
   .AddOptionalArg<std::vector<float>>(
     "axis",
-    R"code(Applies **only** to three-dimension and is the axis around which to rotate the image.
+    R"code(Axis of rotation (applies **only** to 3D transforms).
 
 The vector does not need to be normalized, but it must have a non-zero length.
 
@@ -48,9 +43,9 @@ Reversing the vector is equivalent to changing the sign of ``angle``.)code",
     nullptr, true)
   .AddOptionalArg<std::vector<float>>(
     "center",
-    R"code(The center of the rotation operation.
+    R"code(The center of the rotation.
 
-If provided, the number of elements should match the number of dimensions.)code",
+If provided, the number of elements should match the dimensionality of the transform.)code",
     nullptr, true)
   .NumInput(0, 1)
   .NumOutput(1)
@@ -85,7 +80,7 @@ class RotateTransformCPU
       mat = rotation2D(deg2rad(angle));
 
       if (center_.IsDefined()) {
-        vec2 &center = *reinterpret_cast<vec2*>(center_[i].data());
+        const vec2 &center = *reinterpret_cast<const vec2*>(center_[i].data());
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
@@ -102,11 +97,11 @@ class RotateTransformCPU
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       auto angle = angle_[i];
-      vec3 &axis = *reinterpret_cast<vec3*>(axis_[i].data());
+      const vec3 &axis = *reinterpret_cast<const vec3*>(axis_[i].data());
       mat = rotation3D(axis, deg2rad(angle));
 
       if (center_.IsDefined()) {
-        vec3 &center = *reinterpret_cast<vec3*>(center_[i].data());
+        const vec3 &center = *reinterpret_cast<const vec3*>(center_[i].data());
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }

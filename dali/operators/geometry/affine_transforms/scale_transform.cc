@@ -78,7 +78,7 @@ class ScaleTransformCPU
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    int repeat = IsConstantTransform() ? 0 : nsamples_; 
+    int repeat = IsConstantTransform() ? 0 : nsamples_;
     assert(scale_.IsDefined());
     scale_.Read(spec, ws, repeat);
     ndim_ = scale_[0].size();

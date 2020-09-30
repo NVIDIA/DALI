@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_GEOMETRY_AFFINE_TRANSFORMS_TRANSFORM_BASE_OP_H_
 #define DALI_OPERATORS_GEOMETRY_AFFINE_TRANSFORMS_TRANSFORM_BASE_OP_H_
 
+#include <string>
 #include <utility>
 #include <vector>
 #include "dali/core/format.h"
@@ -52,7 +53,7 @@ void ReadArgInput(std::vector<T> &out, const std::string &arg_name,
   DALI_ENFORCE(is_uniform(arg_in_view.shape),
     make_string("All samples in argument ``", arg_name, "`` should have the same shape"));
   DALI_ENFORCE(arg_in_view.shape.sample_dim() == 1,
-    make_string("``", arg_name,"`` must be a 1D tensor"));
+    make_string("``", arg_name, "`` must be a 1D tensor"));
 
   auto nsamples = arg_in_view.size();
   out.resize(nsamples);
@@ -69,7 +70,7 @@ void ReadArgInput(std::vector<std::vector<T>> &out, const std::string &arg_name,
   DALI_ENFORCE(is_uniform(arg_in_view.shape),
     make_string("All samples in argument ``", arg_name, "`` should have the same shape"));
   DALI_ENFORCE(arg_in_view.shape.sample_dim() == 1,
-    make_string("``", arg_name,"`` must be a 1D tensor"));
+    make_string("``", arg_name, "`` must be a 1D tensor"));
 
   auto nsamples = arg_in_view.size();
   out.resize(nsamples);
@@ -196,7 +197,7 @@ class TransformBaseOp : public Operator<Backend> {
     assert(shape[0][1] == ndims + 1);
     return ndims;
   }
- 
+
   template <typename ArgType>
   class Argument {
    public:
@@ -228,7 +229,7 @@ class TransformBaseOp : public Operator<Backend> {
 
     void resize(size_t new_sz) {
       assert(new_sz >= 0);
-      data_.resize(new_sz); 
+      data_.resize(new_sz);
     }
     span<const ArgType> data() const { return make_cspan(data_); }
     span<ArgType> data() { return make_span(data_); }

@@ -31,7 +31,7 @@ If another transform matrix is passed as an input, the operator applies the shea
     "shear",
     R"code(The shear factors.
 
-For 2D, ``shear`` contains two elements; shear_xy, shear_yx.
+For 2D, ``shear`` contains two elements: shear_x, shear_y.
 
 For 3D, ``shear`` contains six elements: shear_xy, shear_xz, shear_yx, shear_yz, shear_zx, shear_zy.
 
@@ -49,14 +49,16 @@ direction of the second axis.
 
 This argument is mutually exclusive with ``shear``.
 
-For 2D, ``angles`` contains two elements: angle_xy, angle_yx.
+For 2D, ``angles`` contains two elements: angle_x, angle_y.
 
 For 3D, ``angles`` contains six elements: angle_xy, angle_xz, angle_yx, angle_yz, angle_zx, angle_zy.
 
 A shear angle is translated to a shear factor as follows::
+
     shear_factor = tan(deg2rad(shear_angle))
 
 .. note::
+    The valid range of values is between -90 and 90 degrees.
     This argument is mutually exclusive with ``shear``. 
     If provided, the number of dimensions of the transform is inferred from this argument.
 )code",
@@ -65,7 +67,7 @@ A shear angle is translated to a shear factor as follows::
     "center",
     R"code(The center of the shear operation.
 
-If provided, the number of elements should match the number of dimensions.)code",
+If provided, the number of elements should match the dimensionality of the transform.)code",
     nullptr, true)
   .NumInput(0, 1)
   .NumOutput(1)
@@ -84,7 +86,7 @@ class ShearTransformCPU
       shear_("shear", spec),
       angles_("angles", spec),
       center_("center", spec) {
-    DALI_ENFORCE(static_cast<int>(shear_.IsDefined()) + static_cast<int>(angles_.IsDefined()) == 1,
+    DALI_ENFORCE(shear_.IsDefined() + angles_.IsDefined() == 1,
       "One and only one of the following arguments is expected: ``shear`` or ``angles``");
   }
 
@@ -101,7 +103,7 @@ class ShearTransformCPU
       mat = shear(shear_factors);
 
       if (center_.IsDefined()) {
-        vec2 &center = *reinterpret_cast<vec2*>(center_[i].data());
+        const vec2 &center = *reinterpret_cast<const vec2*>(center_[i].data());
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
@@ -116,17 +118,17 @@ class ShearTransformCPU
     assert(matrices.size() == static_cast<int>(shear_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      mat3x2 &shear_factors = *reinterpret_cast<mat3x2*>(shear_[i].data());
+      const mat3x2 &shear_factors = *reinterpret_cast<const mat3x2*>(shear_[i].data());
       mat = shear(shear_factors);
       if (center_.IsDefined()) {
-        vec3 &center = *reinterpret_cast<vec3*>(center_[i].data());
+        const vec3 &center = *reinterpret_cast<const vec3*>(center_[i].data());
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    int repeat = IsConstantTransform() ? 0 : nsamples_; 
+    int repeat = IsConstantTransform() ? 0 : nsamples_;
     if (shear_.IsDefined()) {
       shear_.Read(spec, ws, repeat);
       ndim_ = InferNumDims(shear_);
@@ -141,6 +143,8 @@ class ShearTransformCPU
         int nangles = angles.size();
         shear.resize(nangles);
         for (int j = 0; j < nangles; j++) {
+          DALI_ENFORCE(angles[j] >= -90.0f && angles[j] <= 90.0f,
+            make_string("Angle is expected to be in the range [-90, 90]. Got: ", angles[j]));
           shear[j] = std::tan(deg2rad(angles[j]));
         }
       }
@@ -160,7 +164,7 @@ class ShearTransformCPU
 
  private:
   int InferNumDims(const Argument<std::vector<float>> &arg) {
-    DALI_ENFORCE(arg[0].size() == 2 || arg[0].size() == 6, 
+    DALI_ENFORCE(arg[0].size() == 2 || arg[0].size() == 6,
       make_string("Unexpected number of elements in ``", arg.name(), "`` argument. "
                   "Expected 2 or 6 arguments. Got: ", arg[0].size()));
     return arg[0].size() == 6 ? 3 : 2;
