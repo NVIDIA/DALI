@@ -28,16 +28,6 @@
 namespace dali {
 namespace kernels {
 
-template <typename T>
-void InitTriangleWindow(const TensorView<StorageCPU, T, 1> &window) {
-  int radius = window.num_elements() / 2;
-  for (int i = 0; i < radius; i++) {
-    *window(i) = i + 1;
-    *window(window.num_elements() - i - 1) = i + 1;
-  }
-  *window(radius) = radius + 1;
-}
-
 TEST(SeparableConvolutionTest, Axes1WithChannels) {
   std::array<int, 1> window_dims = {5};
   TestTensorList<float, 1> kernel_window;
@@ -58,7 +48,7 @@ TEST(SeparableConvolutionTest, Axes1WithChannels) {
 
   std::mt19937 rng;
   UniformRandomFill(in_v, rng, 0, 255);
-  InitTriangleWindow(kernel_window_v);
+  testing::InitTriangleWindow(kernel_window_v);
 
   SeparableConvolutionCpu<int, float, float, 1, true> kernel;
   KernelContext ctx;
@@ -98,7 +88,7 @@ TEST(SeparableConvolutionTest, Axes1NoChannels) {
 
   std::mt19937 rng;
   UniformRandomFill(in_v, rng, 0, 255);
-  InitTriangleWindow(kernel_window_v);
+  testing::InitTriangleWindow(kernel_window_v);
 
   SeparableConvolutionCpu<int, float, float, 1, false> kernel;
   KernelContext ctx;
@@ -142,8 +132,8 @@ TEST(SeparableConvolutionTest, Axes2WithChannels) {
 
   std::mt19937 rng;
   UniformRandomFill(in_v, rng, 0, 255);
-  InitTriangleWindow(kernel_window_0_v);
-  InitTriangleWindow(kernel_window_1_v);
+  testing::InitTriangleWindow(kernel_window_0_v);
+  testing::InitTriangleWindow(kernel_window_1_v);
 
   SeparableConvolutionCpu<int, int, float, 2, true> kernel;
   static_assert(
@@ -192,8 +182,8 @@ TEST(SeparableConvolutionTest, Axes2NoChannels) {
 
   std::mt19937 rng;
   UniformRandomFill(in_v, rng, 0, 255);
-  InitTriangleWindow(kernel_window_0_v);
-  InitTriangleWindow(kernel_window_1_v);
+  testing::InitTriangleWindow(kernel_window_0_v);
+  testing::InitTriangleWindow(kernel_window_1_v);
 
   SeparableConvolutionCpu<int, int, float, 2, false> kernel;
   static_assert(
@@ -245,9 +235,9 @@ TEST(SeparableConvolutionTest, Axes3WithChannels) {
 
   std::mt19937 rng;
   UniformRandomFill(in_v, rng, 0, 255);
-  InitTriangleWindow(kernel_window_0_v);
-  InitTriangleWindow(kernel_window_1_v);
-  InitTriangleWindow(kernel_window_2_v);
+  testing::InitTriangleWindow(kernel_window_0_v);
+  testing::InitTriangleWindow(kernel_window_1_v);
+  testing::InitTriangleWindow(kernel_window_2_v);
 
   SeparableConvolutionCpu<int16_t, int16_t, uint16_t, 3, true> kernel;
   static_assert(
@@ -303,9 +293,9 @@ TEST(SeparableConvolutionTest, Axes3NoChannels) {
 
   std::mt19937 rng;
   UniformRandomFill(in_v, rng, 0, 255);
-  InitTriangleWindow(kernel_window_0_v);
-  InitTriangleWindow(kernel_window_1_v);
-  InitTriangleWindow(kernel_window_2_v);
+  testing::InitTriangleWindow(kernel_window_0_v);
+  testing::InitTriangleWindow(kernel_window_1_v);
+  testing::InitTriangleWindow(kernel_window_2_v);
 
   SeparableConvolutionCpu<float, int, float, 3, false> kernel;
   static_assert(

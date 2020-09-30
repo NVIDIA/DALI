@@ -60,7 +60,7 @@ struct SeparableConvolutionCpu<Out, In, W, 1, has_channels> {
 
     auto req_conv = conv_.Setup(ctx, in_shape, window_sizes[0]);
 
-    req.scratch_sizes = GetSumScratch(req.scratch_sizes, req_conv.scratch_sizes);
+    req.scratch_sizes = AppendScratchSize(req.scratch_sizes, req_conv.scratch_sizes);
 
     return req;
   }
@@ -94,8 +94,8 @@ struct SeparableConvolutionCpu<Out, In, W, 2, has_channels> {
     auto req_outer = conv_outermost_.Setup(ctx, in_shape, window_sizes[0]);
 
     // Calculate max scratch memory required by sub-kernels
-    sub_scratch_sizes_ = GetMaxScratch(req_inner.scratch_sizes, req_outer.scratch_sizes);
-    req.scratch_sizes = GetSumScratch(req.scratch_sizes, sub_scratch_sizes_);
+    sub_scratch_sizes_ = MaxScratchSize(req_inner.scratch_sizes, req_outer.scratch_sizes);
+    req.scratch_sizes = AppendScratchSize(req.scratch_sizes, sub_scratch_sizes_);
 
     return req;
   }
@@ -112,7 +112,7 @@ struct SeparableConvolutionCpu<Out, In, W, 2, has_channels> {
     for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
       auto sz = sub_scratch_sizes_[i];
       auto alloc_type = static_cast<AllocType>(i);
-      sub_scratch.allocs[i] = BumpAllocator(ctx.scratchpad->Allocate<char>(alloc_type, sz), sz);
+      sub_scratch.allocs[i] = BumpAllocator(ctx.scratchpad->Allocate<char>(alloc_type, sz, 64), sz);
     }
 
     KernelContext sub_ctx = ctx;
@@ -149,9 +149,9 @@ struct SeparableConvolutionCpu<Out, In, W, 3, has_channels> {
     auto req_outer = conv_outermost_.Setup(ctx, in_shape, window_sizes[0]);
 
     // Calculate max scratch memory required by sub-kernels
-    sub_scratch_sizes_ = GetMaxScratch(req_inner.scratch_sizes, req_middle.scratch_sizes);
-    sub_scratch_sizes_ = GetMaxScratch(sub_scratch_sizes_, req_outer.scratch_sizes);
-    req.scratch_sizes = GetSumScratch(req.scratch_sizes, sub_scratch_sizes_);
+    sub_scratch_sizes_ = MaxScratchSize(req_inner.scratch_sizes, req_middle.scratch_sizes);
+    sub_scratch_sizes_ = MaxScratchSize(sub_scratch_sizes_, req_outer.scratch_sizes);
+    req.scratch_sizes = AppendScratchSize(req.scratch_sizes, sub_scratch_sizes_);
 
     return req;
   }
@@ -168,7 +168,7 @@ struct SeparableConvolutionCpu<Out, In, W, 3, has_channels> {
     for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
       auto sz = sub_scratch_sizes_[i];
       auto alloc_type = static_cast<AllocType>(i);
-      sub_scratch.allocs[i] = BumpAllocator(ctx.scratchpad->Allocate<char>(alloc_type, sz), sz);
+      sub_scratch.allocs[i] = BumpAllocator(ctx.scratchpad->Allocate<char>(alloc_type, sz, 64), sz);
     }
 
     KernelContext sub_ctx = ctx;
