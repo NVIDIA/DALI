@@ -30,10 +30,15 @@ def check_results(T1, batch_size, mat_ref, T0=None, reverse=False, rtol=1e-7):
             else:
                 mat_T1 = np.dot(mat_ref, mat_T0)
             ref_T1 = mat_T1[:ndim, :]
+            print("ref: ", ref_T1)
+            print("actual: ", T1.at(idx))
+            
             assert np.allclose(T1.at(idx), ref_T1, rtol=rtol)
     else:
         ref_T1 = mat_ref[:ndim, :]
         for idx in range(batch_size):
+            print("ref: ", ref_T1)
+            print("actual: ", T1.at(idx))
             assert np.allclose(T1.at(idx), ref_T1, rtol=rtol)
 
 def translate_affine_mat(offset):
@@ -174,3 +179,74 @@ def test_rotate_transform_op(batch_size=3, num_threads=4, device_id=0):
             for reverse_order in [False, True] if has_input else [False]:
                 yield check_rotate_transform_op, angle, axis, center, has_input, reverse_order, \
                                                  batch_size, num_threads, device_id
+
+def shear_affine_mat(shear = None, angles = None, center = None):
+    assert shear is not None or angles is not None
+    if shear is None:
+        shear = [np.tan(a * np.pi / 180.0) for a in angles]
+    assert len(shear) == 2 or len(shear) == 6
+    ndim = 3 if len(shear) == 6 else 2 
+    assert center is None or len(center) == ndim
+
+    if ndim == 2:
+        sxy, syx = shear
+        s_mat = np.array(
+            [[  1. , sxy,  0.],
+             [  syx,  1.,  0.],
+             [  0. ,  0., 1.]])
+    else:  # ndim == 3
+        sxy, sxz, syx, syz, szx, szy = shear
+        s_mat = np.array(
+            [[  1  , sxy, sxz, 0 ],
+             [  syx,   1, syz, 0 ],
+             [  szx, szy,   1, 0 ],
+             [    0,   0,   0, 1 ]])
+
+    if center is not None:
+        neg_offset = tuple([-x for x in center])
+        t1_mat = translate_affine_mat(neg_offset)
+        t2_mat = translate_affine_mat(center)
+        affine_mat = np.dot(t2_mat, np.dot(s_mat, t1_mat))
+    else:
+        affine_mat = s_mat
+
+    return affine_mat
+
+def check_shear_transform_op(shear=None, angles=None, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
+    assert shear is not None or angles is not None
+    if shear is not None:
+        assert len(shear) == 2 or len(shear) == 6
+        ndim = 3 if len(shear) == 6 else 2 
+    else:
+        assert len(angles) == 2 or len(angles) == 6
+        ndim = 3 if len(angles) == 6 else 2 
+    assert center is None or len(center) == ndim
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    with pipe:
+        if has_input:
+            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
+            T1 = fn.shear_transform(T0, device='cpu', shear=shear, angles=angles, center=center, reverse_order=reverse_order)
+            pipe.set_outputs(T1, T0)
+        else:
+            T1 = fn.shear_transform(device='cpu', shear=shear, angles=angles, center=center)
+            pipe.set_outputs(T1)
+    pipe.build()
+    outs = pipe.run()
+    ref_mat = shear_affine_mat(shear=shear, angles=angles, center=center)
+    T0 = outs[1] if has_input else None
+    check_results(outs[0], batch_size, ref_mat, T0, reverse_order, rtol=1e-5)
+
+def test_shear_transform_op(batch_size=3, num_threads=4, device_id=0):
+    for shear, angles, center in [((1., 2.), None, None),
+                                  ((1., 2.), None, (0.4, 0.5)),
+                                  ((1., 2., 3., 4., 5., 6.), None, None),
+                                  ((1., 2., 3., 4., 5., 6.), None, (0.4, 0.5, 0.6)),
+                                  (None, (30., 10.), None),
+                                  (None, (30., 10.), (0.4, 0.5)),
+                                  (None, (40., 30., 10., 35., 25., 15.), None),
+                                  (None, (40., 30., 10., 35., 25., 15.), (0.4, 0.5, 0.6))]:
+        for has_input in [False, True]:
+            for reverse_order in [False, True] if has_input else [False]:
+                yield check_shear_transform_op, shear, angles, center, has_input, reverse_order, \
+                                                batch_size, num_threads, device_id

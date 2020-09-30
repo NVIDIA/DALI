@@ -62,6 +62,7 @@ class TranslateTransformCPU
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+    assert(offset_.IsDefined());
     offset_.Read(spec, ws);
     ndim_ = offset_[0].size();
   }

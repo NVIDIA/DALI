@@ -206,7 +206,6 @@ class TransformBaseOp : public Operator<Backend> {
         has_arg_input_(spec.HasTensorArgument(arg_name)) {
       assert(!(has_arg_const_ && has_arg_input_));
     }
-
     bool IsDefined() const { return has_arg_const_ || has_arg_input_; }
     bool IsConstant() const { return has_arg_const_; }
     bool IsArgInput() const { return has_arg_input_; }
@@ -222,11 +221,17 @@ class TransformBaseOp : public Operator<Backend> {
       }
     }
 
+    const std::string& name() const { return arg_name_; }
+
     ArgType& operator[](size_t idx) { return data_[idx]; }
     const ArgType& operator[](size_t idx) const { return data_[idx]; }
 
-    ArgType* data() { return data_; }
-    const ArgType* data() const { return data_; }
+    void resize(size_t new_sz) {
+      assert(new_sz >= 0);
+      data_.resize(new_sz); 
+    }
+    span<const ArgType> data() const { return make_cspan(data_); }
+    span<ArgType> data() { return make_span(data_); }
 
     size_t size() const { return data_.size(); }
 
