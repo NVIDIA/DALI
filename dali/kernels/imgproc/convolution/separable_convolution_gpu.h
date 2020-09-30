@@ -41,7 +41,8 @@ namespace kernels {
  *
  * Here be boilerplate.
  */
-template <typename Out, typename In, typename W, int axes, bool has_channels = false, bool is_sequence = false>
+template <typename Out, typename In, typename W, int axes, bool has_channels = false,
+          bool is_sequence = false>
 struct SeparableConvolutionGpu;
 
 template <typename Out, typename In, typename W, bool has_channels, bool is_sequence>
@@ -151,7 +152,8 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
            const std::array<span<const int>, 3> anchors = {},
            float scale = 1) {
     int intermediate_count = kUseOutAsIntermediate ? 1 : 2;
-    auto* tmp = ctx.scratchpad->Allocate<Intermediate>(AllocType::GPU, in.shape.num_elements() * intermediate_count);
+    auto* tmp = ctx.scratchpad->Allocate<Intermediate>(
+        AllocType::GPU, in.shape.num_elements() * intermediate_count);
     TensorListView<StorageGPU, Intermediate, ndim> intermediate_inner, intermediate_outer;
     if (kUseOutAsIntermediate) {
       intermediate_inner = reinterpret<Intermediate>(out, in.shape);

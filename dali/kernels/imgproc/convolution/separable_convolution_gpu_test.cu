@@ -89,7 +89,6 @@ class SepearableConvolutionGpuTestImpl {
   }
 
  public:
-
   void RunTest() {
     ReshapeData();
     FillData();
