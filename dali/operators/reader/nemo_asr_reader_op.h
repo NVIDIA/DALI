@@ -32,8 +32,10 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
  public:
   explicit NemoAsrReader(const OpSpec& spec);
   ~NemoAsrReader() override;
+
+ protected:
   void Prefetch() override;
-  void RunImpl(SampleWorkspace &ws);
+  void RunImpl(SampleWorkspace &ws) override;
 
  private:
   Tensor<CPUBackend>& GetDecodedAudioSample(int sample_idx);
