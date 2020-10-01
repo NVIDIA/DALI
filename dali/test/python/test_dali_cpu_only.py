@@ -631,10 +631,16 @@ def test_sequence_reader_cpu():
     for _ in range(3):
         pipe.run()
 
-def test_affine_transforms_cpu():
+def test_affine_translate_cpu():
     check_no_input(fn.translate_transform, offset=(2, 3))
+
+def test_affine_scale_cpu():
     check_no_input(fn.scale_transform, scale=(2, 3))
+
+def test_affine_rotate_cpu():
     check_no_input(fn.rotate_transform, angle=30.0)
+
+def test_affine_shear_cpu():
     check_no_input(fn.shear_transform, shear=(2., 1.))
 
 # ToDo add tests for DLTensorPythonFunction if easily possible
