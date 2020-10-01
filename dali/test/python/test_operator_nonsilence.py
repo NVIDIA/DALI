@@ -37,7 +37,7 @@ def trim_ref(top_db, ref, frame_length, hop_length, input_data):
     length = index[1] - index[0]
     if length != 0:
         length += frame_length - 1
-    return np.array([begin]), np.array([length])
+    return np.array(begin), np.array(length)
 
 
 class NonsilencePipeline(Pipeline):

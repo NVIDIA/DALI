@@ -73,9 +73,9 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
                 flip_z = outputs[4].at(sample)
             npoints, ndim = in_coords.shape
 
-            flip_dim = [flip_x[0], flip_y[0]]
+            flip_dim = [flip_x, flip_y]
             if ndim == 3:
-                flip_dim.append(flip_z[0])
+                flip_dim.append(flip_z)
 
             center_dim = [center_x, center_y]
             if ndim == 3:

@@ -163,7 +163,7 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
   int next_out_idx = 1;
   if (read_sr_) {
     auto &sample_rate = ws.Output<CPUBackend>(next_out_idx++);
-    sample_rate.Resize({1});
+    sample_rate.Resize({});
     sample_rate.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
     sample_rate.mutable_data<float>()[0] = sample.audio_meta().sample_rate;
     sample_rate.SetMeta(meta);
