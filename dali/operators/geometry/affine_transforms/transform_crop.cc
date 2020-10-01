@@ -18,7 +18,7 @@
 namespace dali {
 
 DALI_SCHEMA(TransformCrop)
-  .DocStr(R"code(Produces an affine transform matrix that maps a reference to another one.
+  .DocStr(R"code(Produces an affine transform matrix that maps a reference coordinate space to another one.
 
 This transform can be used to adjust coordinates after a crop operation so that a ``from_start`` point will
 be mapped to ``to_start`` and ``from_end`` will be mapped to ``to_end``.
@@ -104,7 +104,7 @@ class TransformCropCPU
                       "dimensions. Got: to_start=",
                       to_start, " and to_end=", to_end));
         float scale = to_extent[d] / from_extent[d];
-        mat(d, d) = scale; 
+        mat(d, d) = scale;
         mat(d, ndim) = -scale * offset[d];
       }
     }

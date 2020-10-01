@@ -632,7 +632,7 @@ def test_sequence_reader_cpu():
         pipe.run()
 
 def test_affine_translate_cpu():
-    check_no_input(fn.translate_transform, offset=(2, 3))
+    check_no_input(fn.transform_translation, offset=(2, 3))
 
 def test_affine_scale_cpu():
     check_no_input(fn.transform_scale, scale=(2, 3))

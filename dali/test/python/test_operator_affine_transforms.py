@@ -44,16 +44,16 @@ def translate_affine_mat(offset):
     affine_mat[:ndim, -1] = offset
     return affine_mat
 
-def check_translate_transform_op(offset, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
+def check_transform_translation_op(offset, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
     ndim = len(offset)
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
     with pipe:
         if has_input:
             T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
-            T1 = fn.translate_transform(T0, device='cpu', offset=offset, reverse_order=reverse_order)
+            T1 = fn.transform_translation(T0, device='cpu', offset=offset, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
-            T1 = fn.translate_transform(device='cpu', offset=offset)
+            T1 = fn.transform_translation(device='cpu', offset=offset)
             pipe.set_outputs(T1)
     pipe.build()
     outs = pipe.run()
@@ -61,12 +61,12 @@ def check_translate_transform_op(offset, has_input = False, reverse_order=False,
     T0 = outs[1] if has_input else None
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order)
 
-def test_translate_transform_op(batch_size=3, num_threads=4, device_id=0):
+def test_transform_translation_op(batch_size=3, num_threads=4, device_id=0):
     for offset in [(0.0, 1.0), (2.0, 1.0, 3.0)]:
         for has_input in [False, True]:
             for reverse_order in [False, True] if has_input else [False]:
-                yield check_translate_transform_op, offset, has_input, reverse_order, \
-                                                    batch_size, num_threads, device_id
+                yield check_transform_translation_op, offset, has_input, reverse_order, \
+                                                      batch_size, num_threads, device_id
 
 def scale_affine_mat(scale, center = None):
     ndim = len(scale)
