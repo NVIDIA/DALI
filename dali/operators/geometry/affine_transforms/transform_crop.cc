@@ -77,40 +77,25 @@ class TransformCropCPU
     assert(matrices.size() == static_cast<int>(to_end_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      const vec<ndim> &from_start = *reinterpret_cast<vec<ndim>*>(from_start_[i].data());
-      const vec<ndim> &from_end = *reinterpret_cast<vec<ndim>*>(from_end_[i].data());
-      const vec<ndim> &to_start = *reinterpret_cast<vec<ndim>*>(to_start_[i].data());
-      const vec<ndim> &to_end = *reinterpret_cast<vec<ndim>*>(to_end_[i].data());
+      vec<ndim> from_start = *reinterpret_cast<vec<ndim>*>(from_start_[i].data());
+      vec<ndim> from_end = *reinterpret_cast<vec<ndim>*>(from_end_[i].data());
+      vec<ndim> to_start = *reinterpret_cast<vec<ndim>*>(to_start_[i].data());
+      vec<ndim> to_end = *reinterpret_cast<vec<ndim>*>(to_end_[i].data());
       mat = affine_mat_t<T, mat_dim>::identity();
-      vec<ndim> from_extent = from_end - from_start;
-      vec<ndim> to_extent = to_end - to_start;
-      vec<ndim> offset = to_start - from_start;
 
       if (absolute_) {
         for (int d = 0; d < ndim; d++) {
-          from_extent[d] = std::abs(from_extent[d]);
-          to_extent[d] = std::abs(to_extent[d]);
+          if (from_start[d] > from_end[d]) std::swap(from_start[d], from_end[d]);
+          if (to_start[d] > to_end[d]) std::swap(to_start[d], to_end[d]);
         }
       }
+      vec<ndim> from_extent = from_end - from_start;
+      vec<ndim> to_extent = to_end - to_start;
 
       for (int d = 0; d < ndim; d++) {
-        constexpr float kEps = std::numeric_limits<float>::epsilon();
-        DALI_ENFORCE(std::abs(from_extent[d]) > kEps,
-          make_string("from_end[d] should be different from from_start[d] for all "
-                      "dimensions. Got: from_start=",
-                      from_start, " and from_end=", from_end,
-                      ". Note: the two numbers are considered equal if their absolute "
-                      "difference is equal or smaller than ", kEps));
-        DALI_ENFORCE(std::abs(to_extent[d]) > kEps,
-          make_string("to_end[d] should be different from to_start[d] for all "
-                      "dimensions. Got: to_start=",
-                      to_start, " and to_end=", to_end,
-                      ". Note: the two numbers are considered equal if their absolute "
-                      "difference is equal or smaller than ", kEps));
-
         float scale = to_extent[d] / from_extent[d];
         mat(d, d) = scale;
-        mat(d, ndim) = -scale * offset[d];
+        mat(d, ndim) = to_start[d] - scale * from_start[d];
       }
     }
   }

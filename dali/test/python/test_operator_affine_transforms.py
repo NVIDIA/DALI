@@ -248,13 +248,19 @@ def crop_affine_mat(from_start = None, from_end = None, to_start = None, to_end 
     assert len(from_start) == len(to_end)
     ndim = len(from_start)
 
-    T = tuple([from_start[d] - to_start[d] for d in range(len(from_start))])
-    S = tuple([(to_end[d] - to_start[d]) / (from_end[d] - from_start[d]) for d in range(len(from_start))])
-    if absolute:
-        S = tuple([abs(s) for s in S])
-    t_mat = translate_affine_mat(T)
-    s_mat = scale_affine_mat(S)
-    affine_mat = np.dot(s_mat, t_mat)
+    S = [0.] * ndim
+    T = [0.] * ndim
+    for d in range(ndim):
+        to_start_d, to_end_d = to_start[d], to_end[d]
+        if to_start_d > to_end_d and absolute:
+            to_start_d, to_end_d = to_end_d, to_start_d
+        from_start_d, from_end_d = from_start[d], from_end[d]
+        if from_start_d > from_end_d and absolute:
+            from_start_d, from_end_d = from_end_d, from_start_d
+        S[d] = (to_end_d - to_start_d) / (from_end_d - from_start_d)
+        T[d] = to_start_d - S[d] * from_start_d
+    affine_mat = scale_affine_mat(tuple(S))
+    affine_mat[:ndim, ndim] = T[:]
     return affine_mat
 
 def check_transform_crop_op(from_start = None, from_end = None, to_start = None, to_end = None, 
@@ -287,14 +293,22 @@ def check_transform_crop_op(from_start = None, from_end = None, to_start = None,
                               to_start=to_start, to_end=to_end,
                               absolute=absolute)
     T0 = outs[1] if has_input else None
-    check_results(outs[0], batch_size, ref_mat, T0, reverse_order, rtol=1e-5)
+    T1 = outs[0]
+    check_results(T1, batch_size, ref_mat, T0, reverse_order, rtol=1e-5)
+
+    if not has_input:
+        for idx in range(batch_size):
+            MT = T1.at(idx)
+            M, T = MT[:ndim, :ndim], MT[:, ndim]
+            assert np.allclose(np.dot(M, from_start) + T, to_start, rtol=1e-5)
+            assert np.allclose(np.dot(M, from_end) + T, to_end, rtol=1e-5)
 
 def test_transform_crop_op(batch_size=3, num_threads=4, device_id=0):
     for from_start, from_end, to_start, to_end in \
         [((0., 0.1), (1., 1.2), (0.3, 0.2), (0.5, 0.6)),
          ((0., 0.1, 0.2), (1., 1.2, 1.3), (0.3, 0.2, 0.1), (0.5, 0.6, 0.7))]:
-       for has_input in [False]: #, True]:
-            for reverse_order in [False]: # [False, True] if has_input else [False]:
+       for has_input in [False, True]:
+            for reverse_order in [False, True] if has_input else [False]:
                 yield check_transform_crop_op, from_start, from_end, to_start, to_end, \
                                                False, has_input, reverse_order, \
                                                batch_size, num_threads, device_id
