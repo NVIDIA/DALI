@@ -17,7 +17,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(CropTransform)
+DALI_SCHEMA(TransformCrop)
   .DocStr(R"code(Produces an affine transform matrix that maps a reference to another one.
 
 This transform can be used to adjust coordinates after a crop operation so that a ``from_start`` point will
@@ -55,13 +55,13 @@ If another transform matrix is passed as an input, the operator applies the tran
 /**
  * @brief Scale transformation.
  */
-class CropTransformCPU
-    : public TransformBaseOp<CPUBackend, CropTransformCPU> {
+class TransformCropCPU
+    : public TransformBaseOp<CPUBackend, TransformCropCPU> {
  public:
   using SupportedDims = dims<1, 2, 3, 4, 5, 6>;
 
-  explicit CropTransformCPU(const OpSpec &spec) :
-      TransformBaseOp<CPUBackend, CropTransformCPU>(spec),
+  explicit TransformCropCPU(const OpSpec &spec) :
+      TransformBaseOp<CPUBackend, TransformCropCPU>(spec),
       from_start_("from_start", spec),
       from_end_("from_end", spec),
       to_start_("to_start", spec),
@@ -143,6 +143,6 @@ class CropTransformCPU
   bool absolute_ = false;
 };
 
-DALI_REGISTER_OPERATOR(CropTransform, CropTransformCPU, CPU);
+DALI_REGISTER_OPERATOR(TransformCrop, TransformCropCPU, CPU);
 
 }  // namespace dali

@@ -32,15 +32,10 @@ def check_results(T1, batch_size, mat_ref, T0=None, reverse=False, rtol=1e-7):
             else:
                 mat_T1 = np.dot(mat_ref, mat_T0)
             ref_T1 = mat_T1[:ndim, :]
-            print("ref: ", ref_T1)
-            print("actual: ", T1.at(idx))
-            
             assert np.allclose(T1.at(idx), ref_T1, rtol=rtol)
     else:
         ref_T1 = mat_ref[:ndim, :]
         for idx in range(batch_size):
-            print("ref: ", ref_T1)
-            print("actual: ", T1.at(idx))
             assert np.allclose(T1.at(idx), ref_T1, rtol=rtol)
 
 def translate_affine_mat(offset):
@@ -91,7 +86,7 @@ def scale_affine_mat(scale, center = None):
 
     return affine_mat
 
-def check_scale_transform_op(scale, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
+def check_transform_scale_op(scale, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
     ndim = len(scale)
     assert center is None or len(center) == ndim
 
@@ -99,10 +94,10 @@ def check_scale_transform_op(scale, center=None, has_input = False, reverse_orde
     with pipe:
         if has_input:
             T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
-            T1 = fn.scale_transform(T0, device='cpu', scale=scale, center=center, reverse_order=reverse_order)
+            T1 = fn.transform_scale(T0, device='cpu', scale=scale, center=center, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
-            T1 = fn.scale_transform(device='cpu', scale=scale, center=center)
+            T1 = fn.transform_scale(device='cpu', scale=scale, center=center)
             pipe.set_outputs(T1)
     pipe.build()
     outs = pipe.run()
@@ -110,13 +105,13 @@ def check_scale_transform_op(scale, center=None, has_input = False, reverse_orde
     T0 = outs[1] if has_input else None
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order)
 
-def test_scale_transform_op(batch_size=3, num_threads=4, device_id=0):
+def test_transform_scale_op(batch_size=3, num_threads=4, device_id=0):
     for scale, center in [((0.0, 1.0), None),
                           ((2.0, 1.0, 3.0), None),
                           ((2.0, 1.0), (1.0, 0.5))]:
         for has_input in [False, True]:
             for reverse_order in [False, True] if has_input else [False]:
-                yield check_scale_transform_op, scale, center, has_input, reverse_order, \
+                yield check_transform_scale_op, scale, center, has_input, reverse_order, \
                                                 batch_size, num_threads, device_id
 
 def rotate_affine_mat(angle, axis = None, center = None):
@@ -146,7 +141,7 @@ def rotate_affine_mat(angle, axis = None, center = None):
 
     return affine_mat
 
-def check_rotate_transform_op(angle, axis=None, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
+def check_transform_rotation_op(angle, axis=None, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
     assert axis is None or len(axis) == 3
     ndim = 3 if axis is not None else 2
     assert center is None or len(center) == ndim
@@ -155,10 +150,10 @@ def check_rotate_transform_op(angle, axis=None, center=None, has_input = False, 
     with pipe:
         if has_input:
             T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
-            T1 = fn.rotate_transform(T0, device='cpu', angle=angle, axis=axis, center=center, reverse_order=reverse_order)
+            T1 = fn.transform_rotation(T0, device='cpu', angle=angle, axis=axis, center=center, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
-            T1 = fn.rotate_transform(device='cpu', angle=angle, axis=axis, center=center)
+            T1 = fn.transform_rotation(device='cpu', angle=angle, axis=axis, center=center)
             pipe.set_outputs(T1)
     pipe.build()
     outs = pipe.run()
@@ -166,15 +161,15 @@ def check_rotate_transform_op(angle, axis=None, center=None, has_input = False, 
     T0 = outs[1] if has_input else None
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order, rtol=1e-5)
 
-def test_rotate_transform_op(batch_size=3, num_threads=4, device_id=0):
+def test_transform_rotation_op(batch_size=3, num_threads=4, device_id=0):
     for angle, axis, center in [(30.0, None, None),
                                 (30.0, None, (1.0, 0.5)),
                                 (40.0, (0.4, 0.3, 0.1), None),
                                 (40.0, (0.4, 0.3, 0.1), (1.0, -0.4, 10.0))]:
         for has_input in [False, True]:
             for reverse_order in [False, True] if has_input else [False]:
-                yield check_rotate_transform_op, angle, axis, center, has_input, reverse_order, \
-                                                 batch_size, num_threads, device_id
+                yield check_transform_rotation_op, angle, axis, center, has_input, reverse_order, \
+                                                   batch_size, num_threads, device_id
 
 def shear_affine_mat(shear = None, angles = None, center = None):
     assert shear is not None or angles is not None
@@ -208,7 +203,7 @@ def shear_affine_mat(shear = None, angles = None, center = None):
 
     return affine_mat
 
-def check_shear_transform_op(shear=None, angles=None, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
+def check_transform_shear_op(shear=None, angles=None, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
     assert shear is not None or angles is not None
     if shear is not None:
         assert len(shear) == 2 or len(shear) == 6
@@ -222,10 +217,10 @@ def check_shear_transform_op(shear=None, angles=None, center=None, has_input = F
     with pipe:
         if has_input:
             T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
-            T1 = fn.shear_transform(T0, device='cpu', shear=shear, angles=angles, center=center, reverse_order=reverse_order)
+            T1 = fn.transform_shear(T0, device='cpu', shear=shear, angles=angles, center=center, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
-            T1 = fn.shear_transform(device='cpu', shear=shear, angles=angles, center=center)
+            T1 = fn.transform_shear(device='cpu', shear=shear, angles=angles, center=center)
             pipe.set_outputs(T1)
     pipe.build()
     outs = pipe.run()
@@ -233,7 +228,7 @@ def check_shear_transform_op(shear=None, angles=None, center=None, has_input = F
     T0 = outs[1] if has_input else None
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order, rtol=1e-5)
 
-def test_shear_transform_op(batch_size=3, num_threads=4, device_id=0):
+def test_transform_shear_op(batch_size=3, num_threads=4, device_id=0):
     for shear, angles, center in [((1., 2.), None, None),
                                   ((1., 2.), None, (0.4, 0.5)),
                                   ((1., 2., 3., 4., 5., 6.), None, None),
@@ -244,7 +239,7 @@ def test_shear_transform_op(batch_size=3, num_threads=4, device_id=0):
                                   (None, (40., 30., 10., 35., 25., 15.), (0.4, 0.5, 0.6))]:
         for has_input in [False, True]:
             for reverse_order in [False, True] if has_input else [False]:
-                yield check_shear_transform_op, shear, angles, center, has_input, reverse_order, \
+                yield check_transform_shear_op, shear, angles, center, has_input, reverse_order, \
                                                 batch_size, num_threads, device_id
 
 def crop_affine_mat(from_start = None, from_end = None, to_start = None, to_end = None, absolute = False):
@@ -262,7 +257,7 @@ def crop_affine_mat(from_start = None, from_end = None, to_start = None, to_end 
     affine_mat = np.dot(s_mat, t_mat)
     return affine_mat
 
-def check_crop_transform_op(from_start = None, from_end = None, to_start = None, to_end = None, 
+def check_transform_crop_op(from_start = None, from_end = None, to_start = None, to_end = None, 
                             absolute = False, has_input = False, reverse_order=False,
                             batch_size=1, num_threads=4, device_id=0):
     assert len(from_start) == len(from_end)
@@ -274,14 +269,14 @@ def check_crop_transform_op(from_start = None, from_end = None, to_start = None,
     with pipe:
         if has_input:
             T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
-            T1 = fn.crop_transform(T0, device='cpu',
+            T1 = fn.transform_crop(T0, device='cpu',
                                    from_start=from_start, from_end=from_end,
                                    to_start=to_start, to_end=to_end,
                                    absolute=absolute,
                                    reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
-            T1 = fn.crop_transform(device='cpu',
+            T1 = fn.transform_crop(device='cpu',
                                    from_start=from_start, from_end=from_end,
                                    to_start=to_start, to_end=to_end,
                                    absolute=absolute)
@@ -294,17 +289,17 @@ def check_crop_transform_op(from_start = None, from_end = None, to_start = None,
     T0 = outs[1] if has_input else None
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order, rtol=1e-5)
 
-def test_crop_transform_op(batch_size=3, num_threads=4, device_id=0):
+def test_transform_crop_op(batch_size=3, num_threads=4, device_id=0):
     for from_start, from_end, to_start, to_end in \
         [((0., 0.1), (1., 1.2), (0.3, 0.2), (0.5, 0.6)),
          ((0., 0.1, 0.2), (1., 1.2, 1.3), (0.3, 0.2, 0.1), (0.5, 0.6, 0.7))]:
        for has_input in [False]: #, True]:
             for reverse_order in [False]: # [False, True] if has_input else [False]:
-                yield check_crop_transform_op, from_start, from_end, to_start, to_end, \
+                yield check_transform_crop_op, from_start, from_end, to_start, to_end, \
                                                False, has_input, reverse_order, \
                                                batch_size, num_threads, device_id
                 # Reversed start and end
                 for absolute in [False, True]:
-                    yield check_crop_transform_op, from_end, from_start, to_end, to_start, \
+                    yield check_transform_crop_op, from_end, from_start, to_end, to_start, \
                                                    absolute, has_input, reverse_order, \
                                                    batch_size, num_threads, device_id

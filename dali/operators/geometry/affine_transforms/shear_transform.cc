@@ -19,7 +19,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(ShearTransform)
+DALI_SCHEMA(TransformShear)
   .DocStr(R"code(Produces a shear affine transform matrix.
 
 If another transform matrix is passed as an input, the operator applies the shear mapping to the matrix provided.
@@ -76,13 +76,13 @@ If provided, the number of elements should match the dimensionality of the trans
 /**
  * @brief Scale transformation.
  */
-class ShearTransformCPU
-    : public TransformBaseOp<CPUBackend, ShearTransformCPU> {
+class TransformShearCPU
+    : public TransformBaseOp<CPUBackend, TransformShearCPU> {
  public:
   using SupportedDims = dims<2, 3>;
 
-  explicit ShearTransformCPU(const OpSpec &spec) :
-      TransformBaseOp<CPUBackend, ShearTransformCPU>(spec),
+  explicit TransformShearCPU(const OpSpec &spec) :
+      TransformBaseOp<CPUBackend, TransformShearCPU>(spec),
       shear_("shear", spec),
       angles_("angles", spec),
       center_("center", spec) {
@@ -175,6 +175,6 @@ class ShearTransformCPU
   Argument<std::vector<float>> center_;
 };
 
-DALI_REGISTER_OPERATOR(ShearTransform, ShearTransformCPU, CPU);
+DALI_REGISTER_OPERATOR(TransformShear, TransformShearCPU, CPU);
 
 }  // namespace dali

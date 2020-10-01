@@ -17,7 +17,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(ScaleTransform)
+DALI_SCHEMA(TransformScale)
   .DocStr(R"code(Produces a scale affine transform matrix.
 
 If another transform matrix is passed as an input, the operator applies scaling to the matrix provided.
@@ -44,13 +44,13 @@ If provided, the number of elements should match the one of ``scale`` argument.)
 /**
  * @brief Scale transformation.
  */
-class ScaleTransformCPU
-    : public TransformBaseOp<CPUBackend, ScaleTransformCPU> {
+class TransformScaleCPU
+    : public TransformBaseOp<CPUBackend, TransformScaleCPU> {
  public:
   using SupportedDims = dims<1, 2, 3, 4, 5, 6>;
 
-  explicit ScaleTransformCPU(const OpSpec &spec) :
-      TransformBaseOp<CPUBackend, ScaleTransformCPU>(spec),
+  explicit TransformScaleCPU(const OpSpec &spec) :
+      TransformBaseOp<CPUBackend, TransformScaleCPU>(spec),
       scale_("scale", spec),
       center_("center", spec) {
     assert(scale_.IsDefined());
@@ -101,6 +101,6 @@ class ScaleTransformCPU
   Argument<std::vector<float>> center_;
 };
 
-DALI_REGISTER_OPERATOR(ScaleTransform, ScaleTransformCPU, CPU);
+DALI_REGISTER_OPERATOR(TransformScale, TransformScaleCPU, CPU);
 
 }  // namespace dali

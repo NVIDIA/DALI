@@ -19,7 +19,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(RotateTransform)
+DALI_SCHEMA(TransformRotation)
   .DocStr(R"code(Produces a rotation affine transform matrix.
 
 If another transform matrix is passed as an input, the operator applies rotation to the matrix provided.
@@ -54,13 +54,13 @@ If provided, the number of elements should match the dimensionality of the trans
 /**
  * @brief Rotate transformation.
  */
-class RotateTransformCPU
-    : public TransformBaseOp<CPUBackend, RotateTransformCPU> {
+class TransformRotationCPU
+    : public TransformBaseOp<CPUBackend, TransformRotationCPU> {
  public:
   using SupportedDims = dims<2, 3>;
 
-  explicit RotateTransformCPU(const OpSpec &spec) :
-      TransformBaseOp<CPUBackend, RotateTransformCPU>(spec),
+  explicit TransformRotationCPU(const OpSpec &spec) :
+      TransformBaseOp<CPUBackend, TransformRotationCPU>(spec),
       angle_("angle", spec),
       axis_("axis", spec),
       center_("center", spec) {
@@ -137,6 +137,6 @@ class RotateTransformCPU
   Argument<std::vector<float>> center_;
 };
 
-DALI_REGISTER_OPERATOR(RotateTransform, RotateTransformCPU, CPU);
+DALI_REGISTER_OPERATOR(TransformRotation, TransformRotationCPU, CPU);
 
 }  // namespace dali
