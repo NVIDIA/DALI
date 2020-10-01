@@ -24,6 +24,16 @@ namespace dali {
 namespace kernels {
 namespace testing {
 
+template <typename T>
+void InitTriangleWindow(const TensorView<StorageCPU, T, 1> &window) {
+  int radius = window.num_elements() / 2;
+  for (int i = 0; i < radius; i++) {
+    *window(i) = i + 1;
+    *window(window.num_elements() - i - 1) = i + 1;
+  }
+  *window(radius) = radius + 1;
+}
+
 template <typename Out, typename In, typename W>
 void BaselineConvolveAxis(Out *out, const In *in, const W *window, int len, int r, int channel_num,
                           int64_t stride) {
