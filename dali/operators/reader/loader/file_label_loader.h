@@ -43,7 +43,7 @@ struct ImageLabelWrapper {
   int label;
 };
 
-class FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> {
+class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit inline FileLabelLoader(
     const OpSpec& spec,
