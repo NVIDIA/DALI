@@ -78,7 +78,7 @@ def ToCVMatrix(matrix):
 def CVRotate(output_type, input_type, fixed_size):
   def warp_fn(img, angle):
     in_size = img.shape[0:2]
-    angle = math.radians(angle[0])
+    angle = math.radians(angle)
     out_size = fixed_size if fixed_size is not None else get_output_size(angle, in_size)
     matrix = get_transform(angle, in_size, out_size)
     matrix = ToCVMatrix(matrix)

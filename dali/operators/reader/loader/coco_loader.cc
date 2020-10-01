@@ -227,7 +227,6 @@ void parse_annotations(
               parser.NextArrayValue();
               annotation.rle_.w_ = parser.GetInt();
               parser.NextArrayValue();
-              RAPIDJSON_ASSERT(parser.PeekType() == -1);
             } else if (0 == std::strcmp(another_key, "counts")) {
               annotation.rle_.rle_ = parser.GetString();
             }

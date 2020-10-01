@@ -270,11 +270,11 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
   }
 }
 
-TYPED_TEST(TensorListTest, TestScalarResize) {
+TYPED_TEST(TensorListTest, TestFakeScalarResize) {
   TensorList<TypeParam> tensor_list;
 
   int num_scalar = this->RandInt(1, 128);
-  auto shape = uniform_list_shape(num_scalar, {1});
+  auto shape = uniform_list_shape(num_scalar, {1});  // {1} on purpose
   tensor_list.Resize(shape);
 
   ASSERT_NE(tensor_list.template mutable_data<float>(), nullptr);
@@ -283,7 +283,7 @@ TYPED_TEST(TensorListTest, TestScalarResize) {
   ASSERT_FALSE(tensor_list.shares_data());
 
   for (int i = 0; i < num_scalar; ++i) {
-    ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{1});
+    ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{1});  // {1} on purpose
     ASSERT_EQ(tensor_list.tensor_offset(i), i);
   }
 }

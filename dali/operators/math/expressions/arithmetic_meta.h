@@ -712,11 +712,11 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
 /**
  * @brief Check if input of given `shape` should be considered to represent (tensor of) scalars.
  *
- * A tensor of scalars is uniform tensor with sample dimension equal 1 and only 1 (scalar) element
- * in every sample.
+ * As a backward compatibility, 1D 1-element tensors are considered scalars (in addition to true
+ * scalars).
  */
 inline bool IsScalarLike(const TensorListShape<> &shape) {
-  return is_uniform(shape) && shape.sample_dim() == 1 && shape.tensor_shape_span(0)[0] == 1;
+  return is_uniform(shape) && shape.sample_dim() <= 1 && volume(shape.tensor_shape_span(0)) == 1;
 }
 
 }  // namespace dali

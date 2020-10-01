@@ -508,7 +508,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
 
   // Run the cpu-ops in the thread
   // Process each CPU Op in batch
-  for (int cpu_op_id = 0; cpu_op_id < graph_->NumOp(OpType::CPU); ++cpu_op_id) {
+  for (int cpu_op_id = 0; cpu_op_id < graph_->NumOp(OpType::CPU) && !exec_error_; ++cpu_op_id) {
     OpNode &op_node = graph_->Node(OpType::CPU, cpu_op_id);
     typename WorkspacePolicy::template ws_t<OpType::CPU> ws =
         WorkspacePolicy::template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
@@ -554,7 +554,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
 
   CUDA_CALL(cudaEventSynchronize(mixed_stage_event_));
 
-    for (int i = 0; i < graph_->NumOp(OpType::MIXED); ++i) {
+    for (int i = 0; i < graph_->NumOp(OpType::MIXED) && !exec_error_; ++i) {
       OpNode &op_node = graph_->Node(OpType::MIXED, i);
       try {
         typename WorkspacePolicy::template ws_t<OpType::MIXED> ws =
@@ -615,7 +615,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   // iterations of a stage of the pipeline.
   CUDA_CALL(cudaEventSynchronize(gpu_stage_event_));
 
-    for (int i = 0; i < graph_->NumOp(OpType::GPU); ++i) {
+    for (int i = 0; i < graph_->NumOp(OpType::GPU) && !exec_error_; ++i) {
       OpNode &op_node = graph_->Node(OpType::GPU, i);
       try {
         typename WorkspacePolicy::template ws_t<OpType::GPU> ws =

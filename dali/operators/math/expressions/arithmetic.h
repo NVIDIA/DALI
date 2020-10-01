@@ -170,7 +170,7 @@ inline TensorListShape<> ShapePromotion(std::string op, span<const TensorListSha
                               *out_shape, ", ", *shapes[i], ")."));
     }
   }
-  return out_shape ? *out_shape : uniform_list_shape(batch_size, {1});
+  return out_shape ? *out_shape : TensorListShape<0>(batch_size);
 }
 
 /**
@@ -183,7 +183,7 @@ DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
                                                            const workspace_t<Backend> &ws,
                                                            int batch_size) {
   if (expr.GetNodeType() == NodeType::Constant) {
-    expr.SetShape(uniform_list_shape(batch_size, {1}));
+    expr.SetShape(TensorListShape<0>(batch_size));
     return expr.GetShape();
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
