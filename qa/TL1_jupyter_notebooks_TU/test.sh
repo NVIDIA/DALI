@@ -5,8 +5,6 @@ pip_packages="jupyter matplotlib numpy"
 target_dir=./docs/examples/
 
 test_body() {
-    # workaround for the CI
-    put_optflow_libs
     test_files=("sequence_processing/optical_flow_example.ipynb")
 
     # test code

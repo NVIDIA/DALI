@@ -9,8 +9,6 @@ prolog=(: enable_conda)
 epilog=(: disable_conda)
 
 test_body() {
-    # workaround for the CI
-    put_optflow_libs
     nosetests --verbose test_optical_flow.py
 }
 
