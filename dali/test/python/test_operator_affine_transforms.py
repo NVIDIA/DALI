@@ -246,3 +246,65 @@ def test_shear_transform_op(batch_size=3, num_threads=4, device_id=0):
             for reverse_order in [False, True] if has_input else [False]:
                 yield check_shear_transform_op, shear, angles, center, has_input, reverse_order, \
                                                 batch_size, num_threads, device_id
+
+def crop_affine_mat(from_start = None, from_end = None, to_start = None, to_end = None, absolute = False):
+    assert len(from_start) == len(from_end)
+    assert len(from_start) == len(to_start)
+    assert len(from_start) == len(to_end)
+    ndim = len(from_start)
+
+    T = tuple([from_start[d] - to_start[d] for d in range(len(from_start))])
+    S = tuple([(to_end[d] - to_start[d]) / (from_end[d] - from_start[d]) for d in range(len(from_start))])
+    if absolute:
+        S = tuple([abs(s) for s in S])
+    t_mat = translate_affine_mat(T)
+    s_mat = scale_affine_mat(S)
+    affine_mat = np.dot(s_mat, t_mat)
+    return affine_mat
+
+def check_crop_transform_op(from_start = None, from_end = None, to_start = None, to_end = None, 
+                            absolute = False, has_input = False, reverse_order=False,
+                            batch_size=1, num_threads=4, device_id=0):
+    assert len(from_start) == len(from_end)
+    assert len(from_start) == len(to_start)
+    assert len(from_start) == len(to_end)
+    ndim = len(from_start)
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    with pipe:
+        if has_input:
+            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
+            T1 = fn.crop_transform(T0, device='cpu',
+                                   from_start=from_start, from_end=from_end,
+                                   to_start=to_start, to_end=to_end,
+                                   absolute=absolute,
+                                   reverse_order=reverse_order)
+            pipe.set_outputs(T1, T0)
+        else:
+            T1 = fn.crop_transform(device='cpu',
+                                   from_start=from_start, from_end=from_end,
+                                   to_start=to_start, to_end=to_end,
+                                   absolute=absolute)
+            pipe.set_outputs(T1)
+    pipe.build()
+    outs = pipe.run()
+    ref_mat = crop_affine_mat(from_start=from_start, from_end=from_end,
+                              to_start=to_start, to_end=to_end,
+                              absolute=absolute)
+    T0 = outs[1] if has_input else None
+    check_results(outs[0], batch_size, ref_mat, T0, reverse_order, rtol=1e-5)
+
+def test_crop_transform_op(batch_size=3, num_threads=4, device_id=0):
+    for from_start, from_end, to_start, to_end in \
+        [((0., 0.1), (1., 1.2), (0.3, 0.2), (0.5, 0.6)),
+         ((0., 0.1, 0.2), (1., 1.2, 1.3), (0.3, 0.2, 0.1), (0.5, 0.6, 0.7))]:
+       for has_input in [False]: #, True]:
+            for reverse_order in [False]: # [False, True] if has_input else [False]:
+                yield check_crop_transform_op, from_start, from_end, to_start, to_end, \
+                                               False, has_input, reverse_order, \
+                                               batch_size, num_threads, device_id
+                # Reversed start and end
+                for absolute in [False, True]:
+                    yield check_crop_transform_op, from_end, from_start, to_end, to_start, \
+                                                   absolute, has_input, reverse_order, \
+                                                   batch_size, num_threads, device_id

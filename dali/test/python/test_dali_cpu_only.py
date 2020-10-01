@@ -643,4 +643,8 @@ def test_affine_rotate_cpu():
 def test_affine_shear_cpu():
     check_no_input(fn.shear_transform, shear=(2., 1.))
 
+def test_affine_crop_cpu():
+    check_no_input(fn.crop_transform,
+        from_start=(0., 1.), from_end=(1., 1.), to_start=(0.2, 0.3), to_end=(0.8, 0.5))
+
 # ToDo add tests for DLTensorPythonFunction if easily possible
