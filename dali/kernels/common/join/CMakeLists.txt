@@ -16,4 +16,3 @@
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_KERNEL_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_KERNEL_TEST_SRCS PARENT_SCOPE)
-

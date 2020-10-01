@@ -74,6 +74,11 @@ void CoordTransform<CPUBackend>::RunTyped(HostWorkspace &ws) {
   tp.RunAll();
 }
 
+template <typename Backend, typename Derived>
+class CoordTransformOp : public Operator<Backend> {
+ public:
+};
+
 DALI_REGISTER_OPERATOR(CoordTransform, CoordTransform<CPUBackend>, CPU);
 
 }  // namespace dali

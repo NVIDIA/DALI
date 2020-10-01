@@ -17,6 +17,7 @@
 #include <memory>
 #include <vector>
 #include "dali/core/util.h"
+#include "dali/kernels/common/type_erasure.h"
 #include "dali/kernels/transpose/transpose_gpu_def.h"
 #include "dali/kernels/transpose/transpose_gpu_impl.cuh"
 #include "dali/kernels/transpose/transpose_gpu_setup.cuh"
@@ -96,27 +97,6 @@ void GetTransposeInfo(TransposeInfo *infos, int element_size,
 }  // namespace transpose_impl
 
 using namespace transpose_impl;  // NOLINT
-
-template <int size>
-struct type_of_size_helper;
-
-template <>
-struct type_of_size_helper<1> : same_as<int8_t> {};
-
-template <>
-struct type_of_size_helper<2> : same_as<int16_t> {};
-
-template <>
-struct type_of_size_helper<4> : same_as<int32_t> {};
-
-template <>
-struct type_of_size_helper<8> : same_as<int64_t> {};
-
-template <>
-struct type_of_size_helper<16> : same_as<int4> {};
-
-template <int size>
-using type_of_size = typename type_of_size_helper<size>::type;
 
 class TransposeGPU::Impl {
  public:
