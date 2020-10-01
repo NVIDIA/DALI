@@ -86,11 +86,22 @@ RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
       --with-protoc=/usr/local/bin/protoc && make -j$(nproc) install && \
     rm -rf /protobuf-${PROTOBUF_VERSION}
 
+# LMDB
+COPY docker/Makefile-lmdb.patch /tmp
+RUN LMDB_VERSION=0.9.24 && \
+    git clone -b LMDB_${LMDB_VERSION} --single-branch https://github.com/LMDB/lmdb && \
+    cd /lmdb/libraries/liblmdb && \
+    patch -p3 < /tmp/Makefile-lmdb.patch && \
+    rm -f /tmp/Makefile-lmdb.patch && \
+      CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc CXX=aarch64-unknown-nto-qnx7.0.0-g++ prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+    rm -rf /lmdb
+
 # libjpeg-turbo
 RUN JPEG_TURBO_VERSION=2.0.5 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
-    echo "set(CMAKE_SYSTEM_NAME  Linux)" > toolchain.cmake && \
+    echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain.cmake && \
     echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake && \
     echo "set(CMAKE_C_COMPILER aarch64-unknown-nto-qnx7.0.0-gcc)" >> toolchain.cmake && \
       CFLAGS="-fPIC" \
@@ -281,7 +292,7 @@ CMD cmake \
   -DBUILD_BENCHMARK=OFF \
   -DBUILD_NVTX=OFF \
   -DBUILD_PYTHON=OFF \
-  -DBUILD_LMDB=OFF \
+  -DBUILD_LMDB=ON \
   -DBUILD_TENSORFLOW=OFF \
   -DBUILD_JPEG_TURBO=ON \
   -DBUILD_LIBTIFF=ON \

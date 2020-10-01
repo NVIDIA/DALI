@@ -70,6 +70,17 @@ RUN curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VER
     ./configure CXXFLAGS="-fPIC" --prefix=/usr/local --disable-shared 2>&1 > /dev/null && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 > /dev/null
 
+# LMDB
+COPY docker/Makefile-lmdb.patch /tmp
+RUN LMDB_VERSION=0.9.24 && \
+    git clone -b LMDB_${LMDB_VERSION} --single-branch https://github.com/LMDB/lmdb && \
+    cd /lmdb/libraries/liblmdb && \
+    patch -p3 < /tmp/Makefile-lmdb.patch && \
+    rm -f /tmp/Makefile-lmdb.patch && \
+      CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ prefix=/usr/aarch64-linux-gnu \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+    rm -rf /lmdb
+
 RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
     ./autogen.sh && ./configure \
     CXXFLAGS="-fPIC" \
@@ -92,7 +103,7 @@ RUN JPEG_TURBO_VERSION=2.0.5 && \
       CXXFLAGS="-fPIC" \
       CC=aarch64-linux-gnu-gcc \
       CXX=aarch64-linux-gnu-g++ \
-    cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu/ . 2>&1 >/dev/null && \
+    cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DENABLE_SHARED=TRUE -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu/ . 2>&1 >/dev/null && \
       CFLAGS="-fPIC" \
       CXXFLAGS="-fPIC" \
       CC=aarch64-linux-gnu-gcc \

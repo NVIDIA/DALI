@@ -1,28 +1,31 @@
 #!/bin/bash -e
 
 test_nose() {
-    # we are not able to easilly install this packages in xavier for aarch64 so filter it out
+    # we are not able to easily install this packages in xavier for aarch64 so filter it out
+    # also there is no nvJPEG on xavier so don't run any test with the ImageDecoder having
+    # the device explicitly set
     EXCLUDE_PACKAGES=(
         "cv2"
         "scipy"
         "librosa"
+        "image[_]*decoder\(device\s*="
+        "video[_]*reader"
     )
 
     for test_script in $(ls test_operator_*.py test_pipeline*.py test_external_source_dali.py test_external_source_numpy.py test_functional_api.py test_backend_impl.py); do
         status=0
         for exclude in "${EXCLUDE_PACKAGES[@]}"; do
-            grep -q ${exclude} ${test_script} || status=$((status+1))
+            grep -qiE ${exclude} ${test_script} && status=$((status+1))
         done
-        test ${status} && nosetests --verbose --attr '!slow' ${test_script}
+        # execute only when no machtes are found
+        if [ ${status} -eq 0 ]; then
+            nosetests --verbose --attr '!slow' ${test_script}
+        fi
     done
 }
 
 test_py() {
-    python test_detection_pipeline.py -i 300
-    python test_RN50_data_pipeline.py -s -i 10
-    python test_coco_tfrecord.py -i 64
-    python test_data_containers.py -s -b 20
-    python test_data_containers.py -s -b 20 -n
+    :
 }
 
 test_no_fw() {
