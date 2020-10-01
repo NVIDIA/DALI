@@ -225,7 +225,7 @@ class ExprImplGPUInvoke : public ExprImplBase {
     cudaDeviceSynchronize();
     float time;
     CUDA_CALL(cudaEventElapsedTime(&time, start, end));
-    std::cerr << "Elapsed Time: " << time  << " s\n";
+    std::cerr << "Elapsed Time: " << time * 10.f << " us\n"; // * 1000 / 100samples
 
     // time *= (1e+6f / kIters);  // convert to nanoseconds / 100 samples
     // int64_t data_size = 0;

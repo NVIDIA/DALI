@@ -43,12 +43,18 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
       }
       auto end = std::chrono::steady_clock::now();
 
-    std::cout << "Elapsed time in milliseconds : "
-      << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-      << " ms" << std::endl;
+    std::cout << "Elapsed time : "
+      << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
+      << " us" << std::endl;
     }, -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks
   }
+
+  auto start = std::chrono::steady_clock::now();
   pool.RunAll();
+  auto end = std::chrono::steady_clock::now();
+  std::cout << "Pool elapsed time : "
+    << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
+    << " us" << std::endl;
 }
 
 DALI_SCHEMA(ArithmeticGenericOp)
