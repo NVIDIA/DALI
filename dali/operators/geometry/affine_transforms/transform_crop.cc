@@ -98,11 +98,16 @@ class TransformCropCPU
         DALI_ENFORCE(std::abs(from_extent[d]) > kEps,
           make_string("from_end[d] should be different from from_start[d] for all "
                       "dimensions. Got: from_start=",
-                      from_start, " and from_end=", from_end));
+                      from_start, " and from_end=", from_end,
+                      ". Note: the two numbers are considered equal if their absolute "
+                      "difference is equal or smaller than ", kEps));
         DALI_ENFORCE(std::abs(to_extent[d]) > kEps,
           make_string("to_end[d] should be different from to_start[d] for all "
                       "dimensions. Got: to_start=",
-                      to_start, " and to_end=", to_end));
+                      to_start, " and to_end=", to_end,
+                      ". Note: the two numbers are considered equal if their absolute "
+                      "difference is equal or smaller than ", kEps));
+
         float scale = to_extent[d] / from_extent[d];
         mat(d, d) = scale;
         mat(d, ndim) = -scale * offset[d];
