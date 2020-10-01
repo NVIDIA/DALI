@@ -303,3 +303,35 @@ def test_transform_crop_op(batch_size=3, num_threads=4, device_id=0):
                     yield check_transform_crop_op, from_end, from_start, to_end, to_start, \
                                                    absolute, has_input, reverse_order, \
                                                    batch_size, num_threads, device_id
+
+def check_combine_transforms(num_transforms = 2, ndim = 2, reverse_order = False,
+                             batch_size=1, num_threads=4, device_id=0):
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    with pipe:
+        transforms = [fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234) for _ in range(num_transforms)]
+        T = fn.combine_transforms(*transforms)
+    pipe.set_outputs(T, *transforms)
+    pipe.build()
+    outs = pipe.run()
+    for idx in range(batch_size):
+        num_mats = len(outs) - 1
+        assert num_mats >= 2
+        mats = [np.identity(ndim+1) for _ in range(num_mats)]
+        for in_idx in range(len(mats)):
+            mats[in_idx][:ndim, :] = outs[1 + in_idx].at(idx)
+
+        # by default we want to access them in opposite order
+        if not reverse_order:
+            mats.reverse()
+        ref_mat = np.identity(ndim+1)
+        for mat in mats:
+            ref_mat = np.dot(mat, ref_mat)
+
+        assert np.allclose(outs[0].at(idx), ref_mat[:ndim,:], rtol=1e-5)
+
+def test_combine_transforms(batch_size=3, num_threads=4, device_id=0):
+    for num_transforms in [2, 3, 10]:
+        for ndim in [2, 3, 6]:
+            for reverse_order in [False, True]:
+                yield check_combine_transforms, num_transforms, ndim, reverse_order, \
+                                                batch_size, num_threads, device_id
