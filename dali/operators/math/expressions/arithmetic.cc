@@ -14,6 +14,9 @@
 
 #include <vector>
 
+
+#include <chrono>
+
 #include "dali/kernels/type_tag.h"
 #include "dali/operators/math/expressions/arithmetic.h"
 
@@ -29,6 +32,8 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
     pool.AddWork([this, task_idx](int thread_idx) {
       auto range = tile_range_[task_idx];
       // Go over "tiles"
+
+      auto start = std::chrono::steady_clock::now();
       for (int extent_idx = range.begin; extent_idx < range.end; extent_idx++) {
         // Go over expression tree in some provided order
         for (size_t i = 0; i < exec_order_.size(); i++) {
@@ -36,6 +41,11 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
                                        {extent_idx, extent_idx + 1});
         }
       }
+      auto end = std::chrono::steady_clock::now();
+
+    std::cout << "Elapsed time in milliseconds : "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+      << " ms" << std::endl;
     }, -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks
   }
   pool.RunAll();

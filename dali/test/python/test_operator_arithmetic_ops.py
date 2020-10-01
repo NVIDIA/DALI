@@ -68,9 +68,9 @@ selected_input_arithm_types = [np.int32, np.uint8, np.float32]
 selected_bin_input_kinds = [("cpu", "cpu"), ("gpu", "gpu"), ("cpu", "cpu_scalar"), ("gpu", "gpu_scalar"),
                             ("const", "cpu"), ("const", "gpu")]
 
-selected_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "cpu"),
-                                ("cpu", "cpu_scalar", "cpu_scalar"), ("gpu", "const", "const"),
-                                ("const", "cpu", "cpu")]
+bench_teranry_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
+                             ("cpu", "const", "const"), ("gpu", "const", "const"),
+                             ("cpu", "cpu", "const"), ("gpu", "gpu", "const")]
 
 unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
@@ -378,11 +378,18 @@ def test_ternary_ops_selected():
             for types_in in itertools.product(selected_input_arithm_types, selected_input_arithm_types, selected_input_arithm_types):
                 yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
 
+# def test_ternary_ops_big():
+#     for kinds in selected_ternary_input_kinds:
+#         for (op, op_desc) in ternary_operations:
+#             for types_in in [(np.int32, np.int32, np.int32), (np.int32, np.int8, np.int16), (np.int32, np.uint8, np.float32)]:
+#                 yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
+
 def test_ternary_ops_big():
-    for kinds in selected_ternary_input_kinds:
+    for kinds in bench_teranry_input_kinds:
         for (op, op_desc) in ternary_operations:
             for types_in in [(np.int32, np.int32, np.int32), (np.int32, np.int8, np.int16), (np.int32, np.uint8, np.float32)]:
                 yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
+
 
 @attr('slow')
 def test_arithmetic_ops():
