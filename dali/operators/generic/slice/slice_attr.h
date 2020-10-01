@@ -152,8 +152,7 @@ class SliceAttr {
   void VerifyArgsShape(const TensorShape<>& crop_anchor_shape,
                        const TensorShape<>& crop_shape_shape) {
     DALI_ENFORCE(crop_anchor_shape == crop_shape_shape);
-    DALI_ENFORCE(crop_anchor_shape.sample_dim() <= 1,
-                 "Anchor and shape must be 1D tensors or scalars");
+    DALI_ENFORCE(crop_anchor_shape.size() <= 1, "Anchor and shape must be 1D tensors or scalars");
     size_t args_size = volume(crop_anchor_shape);
     auto axes_size = !axis_names_.empty() ? axis_names_.size() : axes_.size();
     DALI_ENFORCE(args_size == axes_size,
