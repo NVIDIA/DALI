@@ -17,7 +17,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(TranslateTransform)
+DALI_SCHEMA(TransformTranslation)
   .DocStr(R"code(Produces a translation affine transform matrix.
 
 If another transform matrix is passed as an input, the operator applies translation to the matrix provided.
@@ -38,13 +38,13 @@ The number of dimensions of the transform is inferred from this argument.)code",
 /**
  * @brief Translation transformation.
  */
-class TranslateTransformCPU
-    : public TransformBaseOp<CPUBackend, TranslateTransformCPU> {
+class TransformTranslationCPU
+    : public TransformBaseOp<CPUBackend, TransformTranslationCPU> {
  public:
   using SupportedDims = dims<1, 2, 3, 4, 5, 6>;
 
-  explicit TranslateTransformCPU(const OpSpec &spec) :
-      TransformBaseOp<CPUBackend, TranslateTransformCPU>(spec),
+  explicit TransformTranslationCPU(const OpSpec &spec) :
+      TransformBaseOp<CPUBackend, TransformTranslationCPU>(spec),
       offset_("offset", spec) {}
 
   template <typename T, int mat_dim>
@@ -75,6 +75,6 @@ class TranslateTransformCPU
   Argument<std::vector<float>> offset_;
 };
 
-DALI_REGISTER_OPERATOR(TranslateTransform, TranslateTransformCPU, CPU);
+DALI_REGISTER_OPERATOR(TransformTranslation, TransformTranslationCPU, CPU);
 
 }  // namespace dali
