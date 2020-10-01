@@ -63,12 +63,12 @@ class DLL_PUBLIC ReduceAllGPU {
 
     KernelRequirements req;
     req.scratch_sizes = se.sizes;
-    req.output_shapes = {TensorListShape<1>::make_uniform(num_samples, TensorShape<1>{1})};
+    req.output_shapes = {TensorListShape<0>(num_samples)};
     return req;
   }
 
   DLL_PUBLIC void Run(KernelContext &context,
-                      const OutListGPU<Out, 1> &out,
+                      const OutListGPU<Out, 0> &out,
                       const InListGPU<In, DynamicDimensions> &in) {
     DALI_ENFORCE(out.is_contiguous(), "Reduce all kernel expects the output to be contiguous");
     auto* out_start = out[0].data;

@@ -146,6 +146,8 @@ dtype: DALIDataType, optional
     Target type of the constant to be used in types promotions.
     """
     def __init__(self, value, dtype=None):
+        self.shape = []
+
         if not isinstance(value, (bool, int, float)):
             raise TypeError(
                 "Expected scalar value of type 'bool', 'int' or 'float', got {}."
@@ -349,6 +351,7 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
         def _type_from_value_or_list(v):
             if not isinstance(v, (list, tuple)):
                 v = [v]
+                shape = []
 
             has_floats = False
             has_ints = False
