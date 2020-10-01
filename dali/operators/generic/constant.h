@@ -58,7 +58,7 @@ class Constant : public Operator<Backend> {
 
       idata_ = spec.GetRepeatedArgument<int>("idata");
       if (!has_shape) {
-        shape_arg_ = { static_cast<int>(fdata_.size()) };
+        shape_arg_ = { static_cast<int>(idata_.size()) };
       } else {
         DALI_ENFORCE(idata_.size() == static_cast<size_t>(volume(shape_arg_)) || idata_.size() == 1,
           "The number of values does not match the shape specified");

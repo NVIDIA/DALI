@@ -57,7 +57,7 @@ void GetPerSampleArgument(std::vector<T> &output,
     decltype(auto) shape = arg.shape();
     int N = shape.num_samples();
     if (N == 1) {
-      bool is_valid_shape = shape.tensor_shape(0) == TensorShape<1>{batch_size};
+      bool is_valid_shape = volume(shape.tensor_shape(0)) == batch_size;
 
       DALI_ENFORCE(is_valid_shape,
         make_string("`", argument_name, "` must be a 1xN or Nx1 (N = ", batch_size,

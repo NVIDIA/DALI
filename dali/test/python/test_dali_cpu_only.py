@@ -327,7 +327,7 @@ def test_lookup_table_cpu():
         pipe.run()
 
 def test_slice_cpu():
-    anch_shape = [1, 2]
+    anch_shape = [2]
     def get_anchors():
         out = [(np.random.randint(1, 256, size = anch_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
         return out
@@ -346,7 +346,7 @@ def test_slice_cpu():
         pipe.run()
 
 def test_image_decoder_slice_cpu():
-    anch_shape = [1, 2]
+    anch_shape = [2]
     def get_anchors():
         out = [(np.random.randint(1, 128, size = anch_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
         return out
