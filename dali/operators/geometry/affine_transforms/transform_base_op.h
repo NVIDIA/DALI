@@ -210,11 +210,12 @@ class TransformBaseOp : public Operator<Backend> {
     bool IsDefined() const { return has_arg_const_ || has_arg_input_; }
     bool IsConstant() const { return has_arg_const_; }
     bool IsArgInput() const { return has_arg_input_; }
+
     void Read(const OpSpec &spec, const workspace_t<CPUBackend> &ws, int repeat = 0) {
-      if (has_arg_const_) {
-        detail::ReadArgConstant(data_, arg_name_, spec);
-      } else if (has_arg_input_) {
+      if (has_arg_input_) {
         detail::ReadArgInput(data_, arg_name_, spec, ws);
+      } else {
+        detail::ReadArgConstant(data_, arg_name_, spec);
       }
 
       if (repeat > 1 && data_.size() == 1) {

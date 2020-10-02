@@ -28,26 +28,46 @@ If another transform matrix is passed as an input, the operator applies the tran
 .. note::
     The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
 )code")
-  .AddArg(
+  .AddOptionalArg(
     "from_start",
-    R"code(The lower bound of the original coordinate space.)code",
-    DALI_FLOAT_VEC, true)
-  .AddArg(
+    R"code(The lower bound of the original coordinate space.
+
+.. note::
+    If left empty, a vector of zeros will be assumed.
+    If a single value is provided, it will be repeated to match the number of dimensions
+)code",
+    std::vector<float>{0.0}, true)
+  .AddOptionalArg(
     "from_end",
-    R"code(The upper bound of the original coordinate space.)code",
-    DALI_FLOAT_VEC, true)
-  .AddArg(
+    R"code(The upper bound of the original coordinate space.
+
+.. note::
+    If left empty, a vector of ones will be assumed.
+    If a single value is provided, it will be repeated to match the number of dimensions
+)code",
+    std::vector<float>{1.0}, true)
+  .AddOptionalArg(
     "to_start",
-    R"code(The lower bound of the destination coordinate space.)code",
-    DALI_FLOAT_VEC, true)
-  .AddArg(
+    R"code(The lower bound of the destination coordinate space.
+
+.. note::
+    If left empty, a vector of zeros will be assumed.
+    If a single value is provided, it will be repeated to match the number of dimensions
+)code",
+    std::vector<float>{0.0}, true)
+  .AddOptionalArg(
     "to_end",
-    R"code(The upper bound of the destination coordinate space.)code",
-    DALI_FLOAT_VEC, true)
+    R"code(The upper bound of the destination coordinate space.
+
+.. note::
+    If left empty, a vector of ones will be assumed.
+    If a single value is provided, it will be repeated to match the number of dimensions
+)code",
+    std::vector<float>{1.0}, true)
   .AddOptionalArg(
     "absolute",
     R"code(If set to true, start and end coordinates will be swapped if start > end.)code",
-    false, true)
+    false)
   .NumInput(0, 1)
   .NumOutput(1)
   .AddParent("TransformAttr");
@@ -102,22 +122,26 @@ class TransformCropCPU
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
     int repeat = IsConstantTransform() ? 0 : nsamples_;
-    assert(from_start_.IsDefined());
-    assert(from_end_.IsDefined());
-    assert(to_start_.IsDefined());
-    assert(to_end_.IsDefined());
     from_start_.Read(spec, ws, repeat);
     from_end_.Read(spec, ws, repeat);
     to_start_.Read(spec, ws, repeat);
     to_end_.Read(spec, ws, repeat);
-    absolute_ = spec.GetArgument<bool>("absolute");
-    if (from_start_[0].size() != from_end_[0].size() &&
-        from_start_[0].size() != to_start_[0].size() &&
-        from_start_[0].size() != to_end_[0].size()) {
-      DALI_FAIL("Arguments ``from_start``, ``from_end``, ``to_start`` and ``to_end`` should"
-                " have the same number of dimensions");
+
+    auto sizes = {from_start_[0].size(), from_end_[0].size(), to_start_[0].size(), to_end_[0].size()};
+    ndim_ = std::max(sizes);
+    DALI_ENFORCE(
+      std::all_of(sizes.begin(), sizes.end(), [&](size_t sz){ return static_cast<int>(sz) == ndim_ || sz == 1; }),
+      "Arguments ``from_start``, ``from_end``, ``to_start`` and ``to_end`` should"
+      " have the same number of dimensions or be a single element which will be broadcast"
+      " to all dimensions");
+    int nargs = from_start_.size();
+    for (int i = 0; i < nargs; i++) {
+      ExpandDims(from_start_[i]);
+      ExpandDims(from_end_[i]);
+      ExpandDims(to_start_[i]);
+      ExpandDims(to_end_[i]);
     }
-    ndim_ = from_start_[0].size();
+    absolute_ = spec.GetArgument<bool>("absolute");
   }
 
   bool IsConstantTransform() const {
@@ -126,6 +150,13 @@ class TransformCropCPU
   }
 
  private:
+  void ExpandDims(std::vector<float>& sample) {
+    int sz = sample.size();
+    assert(sz == 1 || sz == ndim_);
+    if (sz == 1)
+      sample.resize(ndim_, sample[0]);
+  }
+
   Argument<std::vector<float>> from_start_;
   Argument<std::vector<float>> from_end_;
   Argument<std::vector<float>> to_start_;
