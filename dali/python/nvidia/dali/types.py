@@ -351,7 +351,6 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
         def _type_from_value_or_list(v):
             if not isinstance(v, (list, tuple)):
                 v = [v]
-                shape = []
 
             has_floats = False
             has_ints = False
