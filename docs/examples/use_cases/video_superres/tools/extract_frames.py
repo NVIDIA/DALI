@@ -5,7 +5,7 @@ import subprocess
 default_format = "png"
 default_qscale_jpg = "4"
 
-def extract_frames(master_data, resolution, format, q, quiet,
+def extract_frames(main_data, resolution, format, q, quiet,
                    transcoded, codec, crf, keyint):
 
     if transcoded:
@@ -13,7 +13,7 @@ def extract_frames(master_data, resolution, format, q, quiet,
         desc += [codec] if codec else []
         desc += ["crf"+crf] if crf else []
         desc += ["keyint"+keyint] if keyint else []
-        in_path = os.path.join(master_data,*desc)
+        in_path = os.path.join(main_data,*desc)
     else:
         if codec:
             raise ValueError("--codec specified, but not --transcoded");
@@ -21,7 +21,7 @@ def extract_frames(master_data, resolution, format, q, quiet,
             raise ValueError("--crf specified, but not --transcoded");
         if keyint:
             raise ValueError("--keyint specified, but not --transcoded");
-        in_path = os.path.join(master_data,'orig','scenes')
+        in_path = os.path.join(main_data,'orig','scenes')
 
     desc = [resolution,'frames']
     desc += [codec] if codec else []
@@ -38,7 +38,7 @@ def extract_frames(master_data, resolution, format, q, quiet,
     else:
         desc += ["q" + q]
 
-    out_path = os.path.join(master_data,*desc)
+    out_path = os.path.join(main_data,*desc)
 
     res_args = []
     if resolution == '4K':
@@ -89,7 +89,7 @@ def extract_frames(master_data, resolution, format, q, quiet,
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--master_data', type=str, required=True,
+    parser.add_argument('--main_data', type=str, required=True,
                         help="Path to root data directory")
     parser.add_argument('--resolution', type=str, required=True,
                         choices=['4K', '1080p', '720p', '540p'])
