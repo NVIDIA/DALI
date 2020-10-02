@@ -15,6 +15,7 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import nvidia.dali.math as math
 from nvidia.dali.tensors import TensorListGPU
 import numpy as np
 from nose.tools import assert_equals, raises
@@ -76,8 +77,8 @@ unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x * y), "*"),
-                   (((lambda x, y: ops.min(x, y)), (lambda x, y: np.minimum(x, y))), "min"),
-                   (((lambda x, y: ops.max(x, y)), (lambda x, y: np.maximum(x, y))), "max")]
+                   (((lambda x, y: math.min(x, y)), (lambda x, y: np.minimum(x, y))), "min"),
+                   (((lambda x, y: math.max(x, y)), (lambda x, y: np.maximum(x, y))), "max")]
 
 bitwise_operations = [((lambda x, y: x & y), "&"), ((lambda x, y: x | y), "|"),
                       ((lambda x, y: x ^ y), "^")]
@@ -86,7 +87,7 @@ comparisons_operations = [((lambda x, y: x == y), "=="), ((lambda x, y: x != y),
                           ((lambda x, y: x < y), "<"), ((lambda x, y: x <= y), "<="),
                           ((lambda x, y: x > y), ">"), ((lambda x, y: x >= y), ">="),]
 
-ternary_operations = [(((lambda x, y, z: ops.clamp(x, y, z)), (lambda x, y, z: np.clip(x, y, z))), "clamp")]
+ternary_operations = [(((lambda x, y, z: math.clamp(x, y, z)), (lambda x, y, z: np.clip(x, y, z))), "clamp")]
 
 def as_cpu(tl):
     if isinstance(tl, TensorListGPU):

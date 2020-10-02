@@ -23,3 +23,4 @@ which can be used to define DALI pipelines with less verbosity.
    pipeline
    data_types
    functional_api
+   math
