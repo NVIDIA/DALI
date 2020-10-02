@@ -31,11 +31,9 @@ set(TEST_BINARY_DIR "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 string(REPLACE ";" ":" exclude_libs "${DALI_EXCLUDES}")
 
 ################################################
-# Build libdali
+# Build DALI libraries
 ################################################
-if (BUILD_DALI_CORE)
-  add_subdirectory(core)
-endif()
+add_subdirectory(core)
 
 if (BUILD_DALI_KERNELS)
   add_subdirectory(kernels)

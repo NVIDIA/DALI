@@ -17,11 +17,7 @@
 #  Installing targets                  #
 ########################################
 
-set (DALI_LIBS "")
-
-if (BUILD_DALI_CORE)
-  set(DALI_LIBS ${DALI_LIBS} dali_core)
-endif()
+set (DALI_LIBS dali_core)
 if (BUILD_DALI_KERNELS)
   set(DALI_LIBS ${DALI_LIBS} dali_kernels)
 endif()
