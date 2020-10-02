@@ -33,6 +33,9 @@ using namespace gaussian_blur;  // NOLINT
 
 namespace gaussian_blur {
 
+// Functions below are explicitly instantiated in separate compilation unit to allow
+// for parallel compitlation of underlying kernels.
+
 extern template op_impl_uptr GetGaussianBlurGpuImpl<uint8_t, uint8_t>(const OpSpec&, DimDesc);
 extern template op_impl_uptr GetGaussianBlurGpuImpl<float, uint8_t>(const OpSpec&, DimDesc);
 

@@ -139,7 +139,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     kmgr_.template Resize<Kernel>(nthreads, nsamples);
 
     for (int i = 0; i < nsamples; i++) {
-      params_[i] = GetSampleParams<axes>(i, spec_, ws);
+      params_[i] = ObtainSampleParams<axes>(i, spec_, ws);
       windows_[i].PrepareWindows(params_[i]);
       // We take only last `ndim` siginificant dimensions to handle sequences as well
       auto elem_shape = input[i].shape().template last<ndim>();
@@ -222,7 +222,7 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
         } else {
           impl_ = std::make_unique<GaussianBlurOpCpu<float, In, AXES, has_ch>>(spec_, dim_desc);
         }
-      ), (DALI_FAIL("Got value different than {0, 1} when converting bool to int."))); // NOLINT
+      ), ()); // NOLINT, no other possible conversion
     ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
   // clang-format on

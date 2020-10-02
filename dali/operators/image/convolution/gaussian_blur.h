@@ -63,9 +63,12 @@ namespace gaussian_blur {
 constexpr static const char* kSigmaArgName = "sigma";
 constexpr static const char* kWindowSizeArgName = "window_size";
 
+/**
+ * @brief Obtain the parameters needed for generating Gaussian Windows for GaussianBlur Operator.
+ */
 template <int axes>
-inline GaussianBlurParams<axes> GetSampleParams(int sample, const OpSpec& spec,
-                                                const ArgumentWorkspace& ws) {
+inline GaussianBlurParams<axes> ObtainSampleParams(int sample, const OpSpec& spec,
+                                                   const ArgumentWorkspace& ws) {
   GaussianBlurParams<axes> params;
   GetGeneralizedArg<float>(make_span(params.sigmas), kSigmaArgName, sample, spec, ws);
   GetGeneralizedArg<int>(make_span(params.window_sizes), kWindowSizeArgName, sample, spec, ws);

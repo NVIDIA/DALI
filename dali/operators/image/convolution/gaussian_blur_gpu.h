@@ -39,8 +39,9 @@ using op_impl_uptr = std::unique_ptr<OpImplBase<GPUBackend>>;
 template <typename Out, typename In, int axes, bool has_channels, bool is_sequence>
 class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
  public:
-  using Win = float;
-  using Kernel = kernels::SeparableConvolutionGpu<Out, In, Win, axes, has_channels, is_sequence>;
+  using WindowType = float;
+  using Kernel =
+      kernels::SeparableConvolutionGpu<Out, In, WindowType, axes, has_channels, is_sequence>;
   static constexpr int ndim = Kernel::ndim;
 
   explicit GaussianBlurOpGpu(const OpSpec& spec, const DimDesc& dim_desc)
@@ -72,7 +73,7 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
     kmgr_.template Resize<Kernel>(nthreads, nsamples);
 
     for (int i = 0; i < nsamples; i++) {
-      params_[i] = GetSampleParams<axes>(i, spec_, ws);
+      params_[i] = ObtainSampleParams<axes>(i, spec_, ws);
       windows_[i].PrepareWindows(params_[i]);
     }
     RepackAsTL<axes>(window_shapes_, params_);
@@ -119,6 +120,13 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
   std::array<TensorListView<StorageCPU, const float, 1>, axes> windows_tl_;
 };
 
+/**
+ * @brief Obtain an instance of GaussianBlurGpuImpl for given `Out` and `In` types
+ * and dimensionality provided by runtime DimDesc.
+ *
+ * This function is explicitly instantiated in gaussian_blur_impl_[type].cu files
+ * to allow for parallel compilation of underlying kernels.
+ */
 template <typename Out, typename In>
 std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec& spec,
                                                                DimDesc dim_desc) {
@@ -129,8 +137,8 @@ std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec& spe
         constexpr bool has_ch = HAS_CHANNELS;
         constexpr bool is_seq = IS_SEQUENCE;
           result.reset(new GaussianBlurOpGpu<Out, In, AXES, has_ch, is_seq>(spec, dim_desc));
-      ), (DALI_FAIL("Got value different than {0, 1} when converting bool to int."))); // NOLINT
-    ), (DALI_FAIL("Got value different than {0, 1} when converting bool to int."))); // NOLINT
+      ), ());  // NOLINT, no other possible conversion
+    ), ());  // NOLINT, no other possible conversion
   ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
   return result;
 }
