@@ -123,30 +123,30 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
 
  public:
   static constexpr const size_t static_size = static_size_;  // NOLINT (kOnstant)
-  DALI_HOST_DEV SmallVector() {}
+  DALI_HOST_DEV SmallVector() : dynamic{} {}
 
   DALI_NO_EXEC_CHECK
-  DALI_HOST_DEV explicit SmallVector(allocator &&alloc) : Alloc(cuda_move(alloc)) {}
+  DALI_HOST_DEV explicit SmallVector(allocator &&alloc) : Alloc(cuda_move(alloc)), dynamic{} {}
 
   DALI_NO_EXEC_CHECK
-  DALI_HOST_DEV explicit SmallVector(const allocator &alloc) : Alloc(alloc) {}
+  DALI_HOST_DEV explicit SmallVector(const allocator &alloc) : Alloc(alloc), dynamic{} {}
 
-  DALI_HOST_DEV SmallVector(const T *data, size_t count) {
+  DALI_HOST_DEV SmallVector(const T *data, size_t count) : SmallVector() {
     copy_assign(data, count);
   }
 
   template <typename Iterator>
-  DALI_HOST_DEV SmallVector(Iterator begin, Iterator end) {
+  DALI_HOST_DEV SmallVector(Iterator begin, Iterator end) : SmallVector() {
     copy_assign(begin, end);
   }
 
-  __host__ SmallVector(const std::vector<T> &v) {
+  __host__ SmallVector(const std::vector<T> &v) : SmallVector() {
     *this = v;
   }
 
 
   DALI_NO_EXEC_CHECK
-  DALI_HOST_DEV SmallVector(std::initializer_list<T> il) {
+  DALI_HOST_DEV SmallVector(std::initializer_list<T> il) : SmallVector() {
     auto *data = &*il.begin();
     auto count = il.end() - il.begin();
     copy_assign(data, count);
@@ -163,18 +163,20 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   }
 
   DALI_NO_EXEC_CHECK
-  DALI_HOST_DEV SmallVector(const SmallVector &other) {
+  DALI_HOST_DEV SmallVector(const SmallVector &other) : SmallVector() {
     *this = other;
   }
 
   DALI_NO_EXEC_CHECK
   template <size_t other_static_size, typename alloc>
-  DALI_HOST_DEV SmallVector(const SmallVector<T, other_static_size, alloc> &other) {
+  DALI_HOST_DEV SmallVector(const SmallVector<T, other_static_size, alloc> &other)
+  : SmallVector() {
     *this = other;
   }
 
   template <size_t other_static_size>
-  DALI_HOST_DEV SmallVector(SmallVector<T, other_static_size, allocator> &&other) noexcept {
+  DALI_HOST_DEV SmallVector(SmallVector<T, other_static_size, allocator> &&other) noexcept
+  : SmallVector() {
     *this = cuda_move(other);
   }
 
