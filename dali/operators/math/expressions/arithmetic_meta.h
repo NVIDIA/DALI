@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "dali/core/cuda_utils.h"
+#include "dali/core/math_util.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape.h"
@@ -426,11 +427,7 @@ struct arithm_meta<ArithmeticOp::clamp, Backend> {
 
   template <typename T, typename Min, typename Max>
   DALI_HOST_DEV static constexpr result_t<T, Min, Max> impl(T v, Min lo, Max hi) {
-    auto v_ = static_cast<result_t<T, Min, Max>>(v);
-    auto lo_ = static_cast<result_t<T, Min, Max>>(lo);
-    auto hi_ = static_cast<result_t<T, Min, Max>>(hi);
-    auto lo_clamp_ = v_ <= lo_ ? lo_ : v_;
-    return lo_clamp_ >= hi_ ? hi_ : lo_clamp_;
+    return clamp<result_t<T, Min, Max>>(v, lo, hi);
   }
 
   static inline std::string to_string() {
