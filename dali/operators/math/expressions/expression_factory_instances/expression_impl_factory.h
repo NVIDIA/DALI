@@ -124,19 +124,17 @@ template <ArithmeticOp op, typename Backend,
           template <ArithmeticOp, typename, bool, bool, bool> class ImplsAll>
 std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp2(const ExprFunc &expr) {
   std::unique_ptr<ExprImplBase> result;
-  DALIDataType types[3];
   int scalar_count = 0;
   bool is_tensor[3];
   for (int i = 0; i < 3; i++) {
-    types[i] = expr[i].GetTypeId();
     is_tensor[i] = !IsScalarLike(expr[i]);
     if (!is_tensor[i]) {
       scalar_count++;
     }
   }
 
-  // TODO(klecki): we have a check for this earlier, implementation requires at least
-  // one tensor even if it's scalar-like
+  // We have a check for this earlier, implementation requires at least one tensor even if it's
+  // scalar-like
   if (scalar_count == 3) {
     is_tensor[0] = true;
   }

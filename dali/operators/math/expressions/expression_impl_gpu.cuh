@@ -107,23 +107,23 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t ext
 /**
  * @brief Loop over tile of `extent` length and apply the ternary op
  */
-template <ArithmeticOp op, typename Result,
-          bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
+template <ArithmeticOp op, typename Result, bool IsFirstTensor, bool IsSecondTensor,
+          bool IsThirdTensor>
 __device__ void ExecuteTernaryOp(Result *result,
                                  expression_detail::param2_t<IsFirstTensor, Result> first,
                                  expression_detail::param2_t<IsSecondTensor, Result> second,
                                  expression_detail::param2_t<IsThirdTensor, Result> third,
-                                 DALIDataType tid1, DALIDataType tid2, DALIDataType tid3,
-                                 int64_t extent) {
+                                 DALIDataType first_type, DALIDataType second_type,
+                                 DALIDataType third_type, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
   int64_t offset = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
   result += offset;
   while (result < tile_end) {
-    *result = meta::impl(expression_detail::access<Result>(first, offset, tid1),
-                         expression_detail::access<Result>(second, offset, tid2),
-                         expression_detail::access<Result>(third, offset, tid3));
+    *result = meta::impl(expression_detail::Access<Result>(first, offset, first_type),
+                         expression_detail::Access<Result>(second, offset, second_type),
+                         expression_detail::Access<Result>(third, offset, third_type));
     result += stride;
     offset += stride;
   }
@@ -150,8 +150,8 @@ __global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles) {
   auto output = static_cast<Result *>(tile.output);
   auto left = static_cast<const Left *>(tile.args[0]);
   auto right = static_cast<const Right *>(tile.args[1]);
-  ExecuteBinOp<op>(output, expression_detail::pass<IsLeftTensor>(left),
-                   expression_detail::pass<IsRightTensor>(right), tile.desc.extent_size);
+  ExecuteBinOp<op>(output, expression_detail::Pass<IsLeftTensor>(left),
+                   expression_detail::Pass<IsRightTensor>(right), tile.desc.extent_size);
 }
 
 
@@ -167,9 +167,12 @@ __global__ void ExecuteTiledTernaryOp(const ExtendedTileDesc *tiles) {
   const void* second = tile.args[1];
   const void* third = tile.args[2];
   ExecuteTernaryOp<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor>(
-      output, expression_detail::pass2<IsFirstTensor, Result>(first, tile.in_types[0]),
-      expression_detail::pass2<IsSecondTensor, Result>(second, tile.in_types[1]),
-      expression_detail::pass2<IsThirdTensor, Result>(third, tile.in_types[2]), tile.in_types[0], tile.in_types[1], tile.in_types[2], tile.desc.extent_size);
+      output,
+      expression_detail::Pass<IsFirstTensor, Result>(first, tile.in_types[0]),
+      expression_detail::Pass<IsSecondTensor, Result>(second, tile.in_types[1]),
+      expression_detail::Pass<IsThirdTensor, Result>(third, tile.in_types[2]),
+      tile.in_types[0], tile.in_types[1], tile.in_types[2],
+      tile.desc.extent_size);
 }
 
 template <ArithmeticOp op, typename Result, typename Input>

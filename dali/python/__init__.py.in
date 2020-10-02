@@ -22,6 +22,7 @@ from . import pipeline
 from . import tensors
 from . import fn
 from . import data_node
+from . import math
 from . import tfrecord
 from . import types
 from . import plugin_manager

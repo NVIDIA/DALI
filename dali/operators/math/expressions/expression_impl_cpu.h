@@ -138,9 +138,9 @@ class ExprImplCpuTernary : public ExprImplBase {
     const void *second = tile.args[1];
     const void *third = tile.args[2];
     Execute(output,
-            expression_detail::pass2<IsFirstTensor, Result>(first, tile.in_types[0]),
-            expression_detail::pass2<IsSecondTensor, Result>(second, tile.in_types[1]),
-            expression_detail::pass2<IsThirdTensor, Result>(third, tile.in_types[2]),
+            expression_detail::Pass<IsFirstTensor, Result>(first, tile.in_types[0]),
+            expression_detail::Pass<IsSecondTensor, Result>(second, tile.in_types[1]),
+            expression_detail::Pass<IsThirdTensor, Result>(third, tile.in_types[2]),
             tile.in_types[0], tile.in_types[1], tile.in_types[2],
             tile.desc.extent_size);
   }
@@ -156,8 +156,8 @@ class ExprImplCpuTernary : public ExprImplBase {
                       int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
       result[i] =
-          meta::impl(expression_detail::access<Result>(first, i, tid1), expression_detail::access<Result>(second, i, tid2),
-                     expression_detail::access<Result>(third, i, tid3));
+          meta::impl(expression_detail::Access<Result>(first, i, tid1), expression_detail::Access<Result>(second, i, tid2),
+                     expression_detail::Access<Result>(third, i, tid3));
     }
   }
 };

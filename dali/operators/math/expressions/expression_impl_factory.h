@@ -47,62 +47,72 @@ namespace dali {
 
 namespace expression_detail {
 
-template <bool is_ptr, typename T>
-DALI_HOST_DEV std::enable_if_t<is_ptr, const T*> pass(const T* ptr) {
+/**
+ * @brief Pass through as a pointer to T or return the pointed value based on `as_ptr`
+ */
+template <bool as_ptr, typename T>
+DALI_HOST_DEV std::enable_if_t<as_ptr, const T*> Pass(const T* ptr) {
   return ptr;
 }
 
-template <bool is_ptr, typename T>
-DALI_HOST_DEV std::enable_if_t<!is_ptr, T> pass(const T* ptr) {
+/**
+ * @brief Pass through as a pointer to T or return the pointed value based on `as_ptr`
+ */
+template <bool as_ptr, typename T>
+DALI_HOST_DEV std::enable_if_t<!as_ptr, T> Pass(const T* ptr) {
   return *ptr;
 }
 
-
-template <bool is_ptr, typename T>
-DALI_HOST_DEV std::enable_if_t<is_ptr, const void*> pass2(const void* ptr, DALIDataType type_id) {
+/**
+ * @brief Pass through as a `const void *` or return the pointed value cast from `type_id` to T
+ *        based on `as_ptr`
+ */
+template <bool as_ptr, typename T>
+DALI_HOST_DEV std::enable_if_t<as_ptr, const void*> Pass(const void* ptr, DALIDataType) {
   return ptr;
 }
 
-template <bool is_ptr, typename T>
-DALI_HOST_DEV std::enable_if_t<!is_ptr, T> pass2(const void* ptr, DALIDataType type_id) {
+
+/**
+ * @brief Pass through as a `const void *` or return the pointed value cast from `type_id` to T
+ *        based on `as_ptr`
+ */
+template <bool as_ptr, typename T>
+DALI_HOST_DEV std::enable_if_t<!as_ptr, T> Pass(const void* ptr, DALIDataType type_id) {
   TYPE_SWITCH(type_id, type2id, AccessType, ARITHMETIC_ALLOWED_TYPES, (
     const auto *access = reinterpret_cast<const AccessType*>(ptr);
     return static_cast<T>(*access);
   ), return {}; );  // NOLINT(whitespace/parens)
 }
 
-
-
 template <typename T>
-DALI_HOST_DEV T access(const T* ptr, int64_t idx) {
+DALI_HOST_DEV T Access(const T* ptr, int64_t idx) {
   return ptr[idx];
 }
 
 template <typename T>
-DALI_HOST_DEV T access(const void* ptr, int64_t idx, DALIDataType type_id) {
+DALI_HOST_DEV T Access(T value, int64_t) {
+  return value;
+}
+
+template <typename T>
+DALI_HOST_DEV T Access(const void* ptr, int64_t idx, DALIDataType type_id) {
   TYPE_SWITCH(type_id, type2id, AccessType, ARITHMETIC_ALLOWED_TYPES, (
     const auto *access = reinterpret_cast<const AccessType*>(ptr);
     return static_cast<T>(access[idx]);
   ), return {}; );  // NOLINT(whitespace/parens)
 }
 
-
 template <typename T>
-DALI_HOST_DEV T access(T value, int64_t) {
+DALI_HOST_DEV T Access(T value, int64_t, DALIDataType) {
   return value;
 }
 
+template <bool as_ptr, typename T>
+using param_t = std::conditional_t<as_ptr, const T*, T>;
 
-template <typename T>
-DALI_HOST_DEV T access(T value, int64_t, DALIDataType) {
-  return value;
-}
-
-template <bool is_ptr, typename T>
-using param_t = std::conditional_t<is_ptr, const T*, T>;
-
-template <bool is_ptr, typename T>
-using param2_t = std::conditional_t<is_ptr, const void*, T>;
+template <bool as_ptr, typename T>
+using param2_t = std::conditional_t<as_ptr, const void*, T>;
 
 }  // namespace expression_detail
 
