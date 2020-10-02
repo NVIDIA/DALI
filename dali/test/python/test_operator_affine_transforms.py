@@ -77,7 +77,7 @@ def scale_affine_mat(scale, center = None):
         s_mat[d, d] = scale[d]
 
     if center is not None:
-        neg_offset = tuple([-x for x in center])
+        neg_offset = [-x for x in center]
         t1_mat = translate_affine_mat(neg_offset)
         t2_mat = translate_affine_mat(center)
         affine_mat = np.dot(t2_mat, np.dot(s_mat, t1_mat))
@@ -132,7 +132,7 @@ def rotate_affine_mat(angle, axis = None, center = None):
         r_mat = np.identity(ndim + 1)
         r_mat[:ndim, :ndim] = scipy_rotate.from_rotvec(angle_rad * norm_axis).as_matrix()
     if center is not None:
-        neg_offset = tuple([-x for x in center])
+        neg_offset = [-x for x in center]
         t1_mat = translate_affine_mat(neg_offset)
         t2_mat = translate_affine_mat(center)
         affine_mat = np.dot(t2_mat, np.dot(r_mat, t1_mat))
@@ -194,7 +194,7 @@ def shear_affine_mat(shear = None, angles = None, center = None):
              [    0,   0,   0, 1 ]])
 
     if center is not None:
-        neg_offset = tuple([-x for x in center])
+        neg_offset = [-x for x in center]
         t1_mat = translate_affine_mat(neg_offset)
         t2_mat = translate_affine_mat(center)
         affine_mat = np.dot(t2_mat, np.dot(s_mat, t1_mat))
