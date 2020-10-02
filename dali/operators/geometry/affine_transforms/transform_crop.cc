@@ -126,11 +126,11 @@ class TransformCropCPU
     from_end_.Read(spec, ws, repeat);
     to_start_.Read(spec, ws, repeat);
     to_end_.Read(spec, ws, repeat);
-
-    auto sizes = {from_start_[0].size(), from_end_[0].size(), to_start_[0].size(), to_end_[0].size()};
+    auto sizes = {from_start_[0].size(), from_end_[0].size(),
+                  to_start_[0].size(), to_end_[0].size()};
     ndim_ = std::max(sizes);
-    DALI_ENFORCE(
-      std::all_of(sizes.begin(), sizes.end(), [&](size_t sz){ return static_cast<int>(sz) == ndim_ || sz == 1; }),
+    DALI_ENFORCE(std::all_of(sizes.begin(), sizes.end(),
+        [&](size_t sz){ return static_cast<int>(sz) == ndim_ || sz == 1; }),
       "Arguments ``from_start``, ``from_end``, ``to_start`` and ``to_end`` should"
       " have the same number of dimensions or be a single element which will be broadcast"
       " to all dimensions");
