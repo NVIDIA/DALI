@@ -36,7 +36,9 @@ def to_batch(tl, batch_size):
 def to_cv_sigma(sigma, axes=2):
     if sigma is None:
         return (0,) * axes
-    elif isinstance(sigma, float):
+    elif isinstance(sigma, (int, float)):
+        return (sigma,) * axes
+    elif (isinstance(sigma, np.ndarray) and len(sigma.shape) == 0):
         return (sigma,) * axes
     elif len(sigma) == 1:
         return (sigma[0],) * axes
@@ -51,6 +53,8 @@ def to_cv_win_size(window_size, axes=2, sigma=None):
             return tuple([int(3 * s + 0.5) * 2 + 1 for s in sigma])
         return (0,) * axes
     elif isinstance(window_size, int):
+        return (window_size,) * axes
+    elif (isinstance(window_size, np.ndarray) and len(window_size.shape) == 0):
         return (window_size,) * axes
     elif len(window_size) == 1:
         return (window_size[0],) * axes
