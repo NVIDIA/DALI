@@ -34,7 +34,7 @@ collect_sources(DALI_KERNEL_SRCS)
 collect_test_sources(DALI_KERNEL_TEST_SRCS)
 
 # cuFFT library
-add_library(dali_kernels SHARED ${DALI_KERNEL_SRCS})
+add_library(dali_kernels ${LIBTYPE} ${DALI_KERNEL_SRCS})
 target_link_libraries(dali_kernels PUBLIC dali_core)
 target_link_libraries(dali_kernels PRIVATE ${CUDA_cufft_static_LIBRARY})
 target_link_libraries(dali_kernels PRIVATE ${DALI_LIBS})

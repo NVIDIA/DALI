@@ -17,7 +17,22 @@
 #  Installing targets                  #
 ########################################
 
-install(TARGETS dali dali_core dali_operators dali_kernels
+set (DALI_LIBS "")
+
+if (BUILD_DALI_CORE)
+  set(DALI_LIBS ${DALI_LIBS} dali_core)
+endif()
+if (BUILD_DALI_KERNELS)
+  set(DALI_LIBS ${DALI_LIBS} dali_kernels)
+endif()
+if (BUILD_DALI_PIPELINE)
+  set(DALI_LIBS ${DALI_LIBS} dali)
+endif()
+if (BUILD_DALI_OPERATORS)
+  set(DALI_LIBS ${DALI_LIBS} dali_operators)
+endif()
+
+install(TARGETS ${DALI_LIBS}
         LIBRARY
           DESTINATION lib
           PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ)
