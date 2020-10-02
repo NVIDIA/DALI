@@ -106,8 +106,9 @@ TEST(NemoAsrLoaderTest, WrongManifestPath) {
 void tempfile(std::string& filename, std::string content = "") {
   int fd = mkstemp(&filename[0]);
   ASSERT_NE(-1, fd);
-  if (!content.empty())
-    write(fd, content.c_str(), content.size());
+  if (!content.empty()) {
+    ASSERT_EQ(write(fd, content.c_str(), content.size()), content.size());
+  }
   close(fd);
 }
 
