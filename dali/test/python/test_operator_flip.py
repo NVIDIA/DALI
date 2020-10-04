@@ -83,11 +83,11 @@ class SynthFlipPipeline(Pipeline):
 
 
 def numpy_flip(data, h_dim, v_dim, d_dim, hor, ver, depth):
-    if h_dim >= 0 and hor[0]:
+    if h_dim >= 0 and hor:
         data = np.flip(data, h_dim)
-    if v_dim >= 0 and ver[0]:
+    if v_dim >= 0 and ver:
         data = np.flip(data, v_dim)
-    if d_dim >= 0 and depth[0]:
+    if d_dim >= 0 and depth:
         data = np.flip(data, d_dim)
     return data
 

@@ -229,7 +229,7 @@ class _OpCounter(object):
         return self._id
 
 def _instantiate_constant_node(device, constant):
-    return _Constant(device = device, value = constant.value, dtype = constant.dtype)
+    return _Constant(device=device, value=constant.value, dtype=constant.dtype, shape=constant.shape)
 
 class _OperatorInstance(object):
     def __init__(self, inputs, op, **kwargs):

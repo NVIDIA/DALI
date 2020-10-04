@@ -88,10 +88,10 @@ def test_decoded_vs_generated():
       ref3 = generate_waveforms(ref_len[3], freqs[idx] * (rates[idx] / rate2))
       ref3 = ref3.mean(axis = 1, keepdims = 1)
 
-      assert(out[4].at(i)[0] == rates[idx])
-      assert(out[5].at(i)[0] == rate1)
-      assert(out[6].at(i)[0] == rates[idx])
-      assert(out[7].at(i)[0] == rate2)
+      assert(out[4].at(i) == rates[idx])
+      assert(out[5].at(i) == rate1)
+      assert(out[6].at(i) == rates[idx])
+      assert(out[7].at(i) == rate2)
 
       # just reading - allow only for rounding
       assert np.allclose(plain, ref0, rtol = 0, atol=0.5)

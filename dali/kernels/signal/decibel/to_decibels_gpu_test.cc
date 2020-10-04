@@ -92,7 +92,7 @@ TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
 
   std::vector<T> max_values(batch_size, 0.0);
   memory::KernelUniquePtr<T> max_values_gpu;
-  InListGPU<T, 1> max_values_arg;
+  InListGPU<T, 0> max_values_arg;
   if (args.ref_max) {
     for (int b = 0; b < batch_size; ++b) {
       int64_t sz = volume(data_shape_[b]);
@@ -106,7 +106,7 @@ TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
     cudaMemcpy(max_values_gpu.get(), max_values.data(), batch_size * sizeof(T),
                cudaMemcpyHostToDevice);
     max_values_arg = {max_values_gpu.get(),
-                      TensorListShape<1>::make_uniform(batch_size, TensorShape<1>{1})};
+                      TensorListShape<0>(batch_size)};
   }
 
   kernel.Run(ctx, out.gpu(), in_.gpu(), args, max_values_arg);

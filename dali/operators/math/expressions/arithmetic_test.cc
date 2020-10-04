@@ -64,7 +64,8 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   EXPECT_EQ(func[1].GetOutputDesc(), "CC:int32");
 }
 
-TEST(ArithmeticOpsTest, PropagateScalarLike) {
+
+TEST(ArithmeticOpsTest, PropagateScalarInput) {
   std::string expr_str = "sub(&0 $1:int32))";
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
@@ -72,13 +73,12 @@ TEST(ArithmeticOpsTest, PropagateScalarLike) {
   std::shared_ptr<TensorVector<CPUBackend>> in[1];
   for (auto &ptr : in) {
     ptr = std::make_shared<TensorVector<CPUBackend>>();
-    ptr->Resize({{1}, {1}});
-    ptr->SetLayout(TensorLayout("HW"));
+    ptr->Resize({{}, {}});
   }
   ws.AddInput(in[0]);
 
   auto result_shape = PropagateShapes<CPUBackend>(expr_ref, ws, 2);
-  auto expected_shpe = TensorListShape<>{{1}, {1}};
+  auto expected_shpe = TensorListShape<>{{}, {}};
   EXPECT_EQ(result_shape, expected_shpe);
 }
 
@@ -514,7 +514,7 @@ class ArithmeticOpsScalarTest :  public ::testing::TestWithParam<shape_sequence>
       for (int tensor_idx = 0; tensor_idx < result_shape.num_samples(); tensor_idx++) {
         for (int j = 0; j < result_shape[tensor_idx].num_elements(); j++) {
           auto is_scalar = [] (auto &shape, int tensor_idx) {
-            return shape[tensor_idx] == TensorShape<>{1};
+            return volume(shape[tensor_idx]) == 1;
           };
           int expected = data0[offset_in[0] + (is_scalar(s[0], tensor_idx) ? 0 : j)] +
                          data1[offset_in[1] + (is_scalar(s[1], tensor_idx) ? 0 : j)];
@@ -541,9 +541,12 @@ namespace {
 
 std::array<TensorListShape<>, 3> GetShapesForSequence(int batch_size, int left_elems,
                                                       int right_elems) {
-  return {uniform_list_shape(batch_size, {left_elems}),
-          uniform_list_shape(batch_size, {right_elems}),
-          uniform_list_shape(batch_size, {std::max(left_elems, right_elems)})};
+  auto GetTensorOrScalar = [=](int elems) {
+    return elems != 1 ? uniform_list_shape(batch_size, {elems}) : TensorListShape<0>(batch_size);
+  };
+  return {GetTensorOrScalar(left_elems),
+          GetTensorOrScalar(right_elems),
+          GetTensorOrScalar(std::max(left_elems, right_elems))};
 }
 
 /**

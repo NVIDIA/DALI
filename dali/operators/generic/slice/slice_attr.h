@@ -63,8 +63,8 @@ class SliceAttr {
                              crop_anchor.type().id(), " and ", crop_shape.type().id()));
     auto args_dtype = crop_anchor.type().id();
     TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
-      auto anchor_view = view<const ArgsType, 1>(crop_anchor);
-      auto shape_view = view<const ArgsType, 1>(crop_shape);
+      auto anchor_view = view<const ArgsType>(crop_anchor);
+      auto shape_view = view<const ArgsType>(crop_shape);
       for (size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
         VerifyArgsShape(anchor_view.tensor_shape(data_idx), shape_view.tensor_shape(data_idx));
         ProcessArgumentsHelper(data_idx,
@@ -152,6 +152,8 @@ class SliceAttr {
   void VerifyArgsShape(const TensorShape<>& crop_anchor_shape,
                        const TensorShape<>& crop_shape_shape) {
     DALI_ENFORCE(crop_anchor_shape == crop_shape_shape);
+    DALI_ENFORCE(crop_anchor_shape.sample_dim() <= 1,
+                 "Anchor and shape must be 1D tensors or scalars");
     size_t args_size = volume(crop_anchor_shape);
     auto axes_size = !axis_names_.empty() ? axis_names_.size() : axes_.size();
     DALI_ENFORCE(args_size == axes_size,

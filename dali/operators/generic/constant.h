@@ -33,14 +33,15 @@ class Constant : public Operator<Backend> {
   using Workspace = workspace_t<Backend>;
 
   explicit Constant(const OpSpec &spec) : Operator<Backend>(spec) {
+    bool has_shape = spec.ArgumentDefined("shape");
     spec.TryGetRepeatedArgument<int>(shape_arg_, "shape");
     output_type_ = spec.GetArgument<DALIDataType>("dtype");
     if (spec.HasArgument("fdata")) {
       DALI_ENFORCE(!spec.HasArgument("idata"), "Constant node: `fdata` and `idata` arguments are "
         "mutually exclusive");
       fdata_ = spec.GetRepeatedArgument<float>("fdata");
-      if (shape_arg_.empty()) {
-        shape_arg_.push_back(fdata_.size());
+      if (!has_shape) {
+        shape_arg_ = { static_cast<int>(fdata_.size()) };
       } else {
         DALI_ENFORCE(fdata_.size() == static_cast<size_t>(volume(shape_arg_)) || fdata_.size() == 1,
           "The number of values does not match the shape specified");
@@ -56,8 +57,8 @@ class Constant : public Operator<Backend> {
         output_type_ = DALI_INT32;
 
       idata_ = spec.GetRepeatedArgument<int>("idata");
-      if (shape_arg_.empty()) {
-        shape_arg_.push_back(idata_.size());
+      if (!has_shape) {
+        shape_arg_ = { static_cast<int>(idata_.size()) };
       } else {
         DALI_ENFORCE(idata_.size() == static_cast<size_t>(volume(shape_arg_)) || idata_.size() == 1,
           "The number of values does not match the shape specified");

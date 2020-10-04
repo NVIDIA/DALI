@@ -349,8 +349,9 @@ struct ConvolutionCpu {
     if (axis == ndim - has_channels - 1) {
       int num_channels = has_channels ? in_shape[ndim - 1] : 1;
       return num_channels * window_size;
+    } else {
+      return kStripSize * window_size;
     }
-    return kStripSize * window_size;
   }
 };
 

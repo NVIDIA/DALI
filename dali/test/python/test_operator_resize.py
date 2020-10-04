@@ -369,7 +369,7 @@ def _test_ND(device, dim, batch_size, channel_first, mode, interp, dtype, w_inpu
         if use_size_arg:
             size = np.array(get_output().as_tensor(), np.float32)
         else:
-            size = np.concatenate([x.as_tensor() for x in get_outputs(dim)], axis=1)
+            size = np.stack([x.as_tensor() for x in get_outputs(dim)], axis=1)
 
         roi_size = roi_end - roi_start
 

@@ -91,7 +91,7 @@ void CopyWithStride<CPUBackend>(void *output, const void *input,
                     int ndim,
                     size_t item_size,
                     cudaStream_t) {
-  assert(ndim > 0);
+  assert(ndim >= 0);
   if (!in_strides) {
     std::memcpy(output, input, item_size * volume(shape, shape + ndim));
     return;
