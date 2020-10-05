@@ -58,6 +58,9 @@ Operators Documentation
 
 .. include:: op_autodoc
 
+.. autoclass:: nvidia.dali.plugin.pytorch.TorchPythonFunction
+   :members:
+
 .. _arithmetic expressions:
 
 Arithmetic expressions

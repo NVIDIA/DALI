@@ -7,7 +7,6 @@ import inspect
 # Dictionary with modules that can have registered Ops
 ops_modules = {
     'nvidia.dali.ops': nvidia.dali.ops,
-    'nvidia.dali.plugin.pytorch': nvidia.dali.plugin.pytorch
 }
 
 exclude_members = {
