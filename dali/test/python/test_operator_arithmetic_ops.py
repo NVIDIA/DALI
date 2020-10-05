@@ -48,8 +48,9 @@ all_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "cpu_scalar_legacy"
 # We cannot have 'Constant x Constant' operations with DALI op.
 # And scalar is still a represented by a Tensor, so 'Scalar x Constant' is the same
 # as 'Tensor x Constant'.
-bin_input_kinds = (list_product(["cpu", "gpu"], ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "const"]) +
-               list_product(["cpu_scalar", "gpu_scalar", "const"], ["cpu", "gpu"]))
+bin_input_kinds = (
+        list_product(["cpu", "gpu"], all_input_kinds) +
+        list_product(["cpu_scalar", "gpu_scalar", "const"], ["cpu", "gpu"]))
 
 ternary_input_kinds = list_product(all_input_kinds, all_input_kinds, all_input_kinds)
 ternary_input_kinds.remove(("const", "const", "const"))
@@ -66,7 +67,8 @@ input_types = integer_types + float_types
 selected_input_types = [np.bool_, np.int32, np.uint8, np.float32]
 selected_input_arithm_types = [np.int32, np.uint8, np.float32]
 
-selected_bin_input_kinds = [("cpu", "cpu"), ("gpu", "gpu"), ("cpu", "cpu_scalar"), ("gpu", "gpu_scalar"),
+selected_bin_input_kinds = [("cpu", "cpu"), ("gpu", "gpu"),
+                            ("cpu", "cpu_scalar"), ("gpu", "gpu_scalar"),
                             ("const", "cpu"), ("const", "gpu")]
 
 selected_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
@@ -91,7 +93,8 @@ comparisons_operations = [((lambda x, y: x == y), "=="), ((lambda x, y: x != y),
                           ((lambda x, y: x < y), "<"), ((lambda x, y: x <= y), "<="),
                           ((lambda x, y: x > y), ">"), ((lambda x, y: x >= y), ">="),]
 
-ternary_operations = [(((lambda x, y, z: math.clamp(x, y, z)), (lambda x, y, z: np.clip(x, y, z))), "clamp")]
+# The observable behaviour for hi < lo is the same as numpy
+ternary_operations = [(((lambda v, lo, hi: math.clamp(v, lo, hi)), (lambda v, lo, hi: np.clip(v, lo, hi))), "clamp")]
 
 def as_cpu(tl):
     if isinstance(tl, TensorListGPU):
