@@ -17,11 +17,7 @@
 
 namespace dali {
 
-<<<<<<< HEAD:dali/operators/geometry/affine_transforms/transform_translation.cc
-DALI_SCHEMA(TransformTranslation)
-=======
-DALI_SCHEMA(TranslateTransform, "transforms.Translation")
->>>>>>> [WIP]:dali/operators/geometry/affine_transforms/translate_transform.cc
+DALI_SCHEMA(transforms_Translation)
   .DocStr(R"code(Produces a translation affine transform matrix.
 
 If another transform matrix is passed as an input, the operator applies translation to the matrix provided.
