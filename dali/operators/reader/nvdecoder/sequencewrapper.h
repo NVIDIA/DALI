@@ -44,10 +44,6 @@ struct SequenceWrapper {
     this->channels = channels;
     this->dtype = dtype;
 
-    // TYPE_SWITCH(dtype, type2id, OutputType, SEQUENCEWRAPPER_SUPPORTED_TYPES, (
-    //     sequence.set_type(TypeInfo::Create<OutputType>());
-    //   ), DALI_FAIL(make_string("Not supported output type:", dtype));); // NOLINT
-
     timestamps.clear();
     timestamps.reserve(count);
 

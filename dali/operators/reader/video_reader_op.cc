@@ -30,14 +30,16 @@ void VideoReader::Prefetch() {
 
   // resize the current batch
   std::vector<TensorShape<>> tmp_shapes;
+  tmp_shapes.reserve(curr_batch.size());
   auto ref_type = curr_batch[0]->dtype;
-  for (auto &sample : curr_batch) {
+  for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
+    auto &sample = curr_batch[data_idx];
     DALI_ENFORCE(ref_type == sample->dtype,
                   "The tensors in the input batch do not all have the same type");
-    tmp_shapes.push_back(sample->shape());
+    tmp_shapes.emplace_back(sample->shape());
   }
 
-  curr_tensor_list.Resize(TensorListShape<>(tmp_shapes), TypeTable::GetTypeInfo(ref_type));
+  curr_tensor_list.Resize(tmp_shapes, TypeTable::GetTypeInfo(ref_type));
 
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
