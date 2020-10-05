@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy opencv-python pillow librosa"
+pip_packages="nose numpy opencv-python pillow librosa scipy"
 target_dir=./dali/test/python
 
 test_body() {

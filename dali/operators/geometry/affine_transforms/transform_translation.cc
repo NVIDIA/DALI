@@ -17,7 +17,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(TranslateTransform)
+DALI_SCHEMA(TransformTranslation)
   .DocStr(R"code(Produces a translation affine transform matrix.
 
 If another transform matrix is passed as an input, the operator applies translation to the matrix provided.
@@ -38,15 +38,14 @@ The number of dimensions of the transform is inferred from this argument.)code",
 /**
  * @brief Translation transformation.
  */
-class TranslateTransformCPU
-    : public TransformBaseOp<CPUBackend, TranslateTransformCPU> {
+class TransformTranslationCPU
+    : public TransformBaseOp<CPUBackend, TransformTranslationCPU> {
  public:
   using SupportedDims = dims<1, 2, 3, 4, 5, 6>;
 
-  explicit TranslateTransformCPU(const OpSpec &spec) :
-      TransformBaseOp<CPUBackend, TranslateTransformCPU>(spec),
-      has_offset_input_(spec.HasTensorArgument("offset")) {
-  }
+  explicit TransformTranslationCPU(const OpSpec &spec) :
+      TransformBaseOp<CPUBackend, TransformTranslationCPU>(spec),
+      offset_("offset", spec) {}
 
   template <typename T, int mat_dim>
   void DefineTransforms(span<affine_mat_t<T, mat_dim>> matrices) {
@@ -62,47 +61,20 @@ class TranslateTransformCPU
     }
   }
 
-  void ProcessOffsetConstant(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    offset_.resize(1);
-    offset_[0] = spec.GetArgument<std::vector<float>>("offset");
+  void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+    assert(offset_.IsDefined());
+    offset_.Read(spec, ws);
     ndim_ = offset_[0].size();
   }
 
-  void ProcessOffsetArgInput(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    const auto& offset = ws.ArgumentInput("offset");
-    auto offset_view = view<const float>(offset);
-    DALI_ENFORCE(is_uniform(offset_view.shape),
-      "All samples in argument ``offset`` should have the same shape");
-    DALI_ENFORCE(offset_view.shape.sample_dim() == 1,
-      "``offset`` must be a 1D tensor");
-    ndim_ = offset_view[0].shape[0];
-
-    offset_.resize(nsamples_);
-    for (int i = 0; i < nsamples_; i++) {
-      offset_[i].resize(ndim_);
-      for (int d = 0; d < ndim_; d++) {
-        offset_[i][d] = offset_view[i].data[d];
-      }
-    }
-  }
-
-  void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    if (has_offset_input_) {
-      ProcessOffsetArgInput(spec, ws);
-    } else {
-      ProcessOffsetConstant(spec, ws);
-    }
-  }
-
   bool IsConstantTransform() const {
-    return !has_offset_input_;
+    return !offset_.IsArgInput();
   }
 
  private:
-  bool has_offset_input_ = false;
-  std::vector<std::vector<float>> offset_;
+  Argument<std::vector<float>> offset_;
 };
 
-DALI_REGISTER_OPERATOR(TranslateTransform, TranslateTransformCPU, CPU);
+DALI_REGISTER_OPERATOR(TransformTranslation, TransformTranslationCPU, CPU);
 
 }  // namespace dali
