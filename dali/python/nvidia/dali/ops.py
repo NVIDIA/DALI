@@ -30,6 +30,7 @@ from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali import fn as _functional
 import nvidia.dali.python_function_plugin
 from nvidia.dali.data_node import DataNode as _DataNode
+from nvidia.dali import internal as _internal
 
 cupy = None
 def _setup_cupy():
@@ -543,8 +544,8 @@ def python_op_factory(name, op_device = "cpu"):
     Operator.__call__.__doc__ = _docstring_generator_call(name)
     return Operator
 
-def _wrap_op(op_class):
-    return _functional._wrap_op(op_class)
+def _wrap_op(op_class, submodule = []):
+    return _functional._wrap_op(op_class, submodule)
 
 def _load_ops():
     global _cpu_ops
@@ -554,12 +555,17 @@ def _load_ops():
     _gpu_ops = _gpu_ops.union(set(_b.RegisteredGPUOps()))
     _mixed_ops = _mixed_ops.union(set(_b.RegisteredMixedOps()))
     _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
-    for op_name in _cpu_gpu_ops:
-        if not hasattr(sys.modules[__name__], op_name):
+    ops_module = sys.modules[__name__]
+
+    for full_op_name in _cpu_gpu_ops:
+        *submodule, op_name = full_op_name.split('.')
+        module = _internal.get_submodule(ops_module, submodule)
+        if not hasattr(ops_module, full_op_name):
             op_class = python_op_factory(op_name, op_device = "cpu")
-            setattr(sys.modules[__name__], op_name, op_class)
+            setattr(ops_module, full_op_name, op_class)
+            setattr(module, op_name, op_class)
             if op_name not in ["ExternalSource"]:
-                _wrap_op(op_class)
+                _wrap_op(op_class, submodule)
 
 def Reload():
     _load_ops()
