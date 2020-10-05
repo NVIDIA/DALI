@@ -83,7 +83,7 @@ def _docstring_generator(cls):
 
         This lists all the Keyword args that can be used when creating operator
     """
-    op_name = cls.__name__
+    op_name = cls.schema_name or cls.__name__
     schema = _b.GetSchema(op_name)
     ret = '\n'
 
@@ -361,11 +361,12 @@ class _DaliOperatorMeta(type):
     def __doc__(self):
         return _docstring_generator(self)
 
-def python_op_factory(name, op_device = "cpu"):
+def python_op_factory(name, schema_name = None, op_device = "cpu"):
     class Operator(metaclass=_DaliOperatorMeta):
         def __init__(self, **kwargs):
-            self._spec = _b.OpSpec(type(self).__name__)
-            self._schema = _b.GetSchema(type(self).__name__)
+            schema_name = type(self).schema_name
+            self._spec = _b.OpSpec(schema_name)
+            self._schema = _b.GetSchema(schema_name)
 
             # Get the device argument. We will need this to determine
             # the device that our outputs will be stored on
@@ -537,11 +538,12 @@ def python_op_factory(name, op_device = "cpu"):
 
 
     Operator.__name__ = str(name)
+    Operator.schema_name = schema_name or Operator.__name__
     # The autodoc doesn't generate doc for something that doesn't match the module name
-    if _b.GetSchema(Operator.__name__).IsInternal():
+    if _b.GetSchema(Operator.schema_name).IsInternal():
         Operator.__module__ = Operator.__module__ + ".internal"
 
-    Operator.__call__.__doc__ = _docstring_generator_call(name)
+    Operator.__call__.__doc__ = _docstring_generator_call(Operator.schema_name)
     return Operator
 
 def _wrap_op(op_class, submodule = []):
@@ -557,12 +559,15 @@ def _load_ops():
     _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
     ops_module = sys.modules[__name__]
 
-    for full_op_name in _cpu_gpu_ops:
-        *submodule, op_name = full_op_name.split('.')
+    for op_reg_name in _cpu_gpu_ops:
+        op_full_name = op_reg_name
+        if not op_full_name.startswith('_'):
+            op_full_name = op_full_name.replace('_', '.')
+        *submodule, op_name = op_full_name.split('.')
         module = _internal.get_submodule(ops_module, submodule)
-        if not hasattr(ops_module, full_op_name):
-            op_class = python_op_factory(op_name, op_device = "cpu")
-            setattr(ops_module, full_op_name, op_class)
+        if not hasattr(ops_module, op_full_name):
+            op_class = python_op_factory(op_name, op_reg_name, op_device = "cpu")
+            setattr(ops_module, op_full_name, op_class)
             setattr(module, op_name, op_class)
             if op_name not in ["ExternalSource"]:
                 _wrap_op(op_class, submodule)
@@ -826,7 +831,7 @@ def _load_arithm_ops():
     for op_name in arithm_op_names:
       if not hasattr(sys.modules[__name__], op_name):
           setattr(sys.modules[__name__], op_name,
-                  python_op_factory(op_name, op_device = "cpu"))
+                  python_op_factory(op_name, None, op_device = "cpu"))
 
 _load_arithm_ops()
 

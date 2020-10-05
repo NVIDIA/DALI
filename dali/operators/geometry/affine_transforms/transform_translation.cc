@@ -75,6 +75,6 @@ class TransformTranslationCPU
   Argument<std::vector<float>> offset_;
 };
 
-DALI_REGISTER_OPERATOR(TransformTranslation, TransformTranslationCPU, CPU);
+DALI_REGISTER_OPERATOR(transforms_Translation, TransformTranslationCPU, CPU);
 
 }  // namespace dali
