@@ -182,7 +182,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                                default_cuda_stream_priority_));
         CUDA_CALL(cudaEventCreate(&events_[i]));
       }
-      CUDA_CALL(cudaEventCreate(&master_event_));
+      CUDA_CALL(cudaEventCreate(&main_event_));
   }
 
   ~nvJPEGDecoder() noexcept override {
@@ -208,9 +208,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   void Run(MixedWorkspace &ws) override {
     // TODO(slayton): Is this necessary?
     // CUDA_CALL(cudaStreamSynchronize(ws.stream()));
-    CUDA_CALL(cudaEventRecord(master_event_, ws.stream()));
+    CUDA_CALL(cudaEventRecord(main_event_, ws.stream()));
     for (int i = 0; i < max_streams_; ++i) {
-      CUDA_CALL(cudaStreamWaitEvent(streams_[i], master_event_, 0));
+      CUDA_CALL(cudaStreamWaitEvent(streams_[i], main_event_, 0));
     }
 
     // Get dimensions
@@ -501,7 +501,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   nvjpegHandle_t handle_;
   vector<nvjpegJpegState_t> states_;
-  cudaEvent_t master_event_;
+  cudaEvent_t main_event_;
   vector<cudaStream_t> streams_;
   vector<cudaEvent_t> events_;
 

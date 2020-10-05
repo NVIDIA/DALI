@@ -578,7 +578,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     ProcessImagesHw(ws);
 
     thread_pool_.WaitForWork();
-    // wait for all work in workspace master stream
+    // wait for all work in workspace main stream
     for (int tid = 0; tid < num_threads_; tid++) {
       CUDA_CALL(cudaEventRecord(decode_events_[tid], streams_[tid]));
       CUDA_CALL(cudaStreamWaitEvent(ws.stream(), decode_events_[tid], 0));
