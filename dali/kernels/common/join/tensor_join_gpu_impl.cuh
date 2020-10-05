@@ -28,9 +28,7 @@ struct InputDesc {
   const Element *data;
   /// Extent of the tensor in the joined axis
   uint64_t join_size;
-  /// Combined extent of the joined axes
-  uint64_t inner_size;
-  /// Stride between slices in the joined axis
+  /// Distance between joined slices
   uint64_t outer_stride;
 
   /**
@@ -57,16 +55,16 @@ template <typename Element>
 DALI_HOST_DEV int FindTensor(uint64_t offset, float guess_tensor_mul,
                           const InputDesc<Element> *descs, int njoin) {
   int lo = 0, hi = njoin - 1;
-  int m = min(static_cast<int>(offset * guess_tensor_mul), njoin - 1);
-  while (lo <= hi) {  // binary search with initial guess
+  int m = min(floor_int((offset + 0.5f) * guess_tensor_mul), njoin - 1);
+  do {  // binary search with initial guess
     if (offset < descs[m].join_offset)
       hi = m - 1;
-    else if (m < njoin-1 && descs[m+1].join_offset >= offset)
+    else if (offset >= descs[m].join_offset + descs[m].outer_stride)
       lo = m + 1;
     else
       break;  // Found! For stacking this will always work unless precision fails
     m = (lo + hi) >> 1;  // proceed to regular binary search
-  }
+  } while (lo <= hi);
   // TODO(michalz): remove
   assert(m >= 0 && m < njoin);
   return m;
@@ -82,7 +80,9 @@ __device__ void JoinTensorsLarge(OutputDesc<Element> out,
     uint64_t join_offset;
     uint64_t outer = div_mod(join_offset, out_offset, out.outer_stride);
     int t = FindTensor(join_offset, out.guess_tensor_mul, sh_in, njoin);
-    out.data[out_offset] = sh_in[t].data[join_offset - sh_in[t].join_offset];
+    ptrdiff_t offset_in_tensor = join_offset - sh_in[t].join_offset;
+    assert(offset_in_tensor >= 0);  // TODO(michalz): remove
+    out.data[out_offset] = sh_in[t].data[offset_in_tensor + outer * sh_in[t].outer_stride];
   }
 }
 

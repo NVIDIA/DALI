@@ -146,10 +146,10 @@ struct TensorJoinGPUTest : public ::testing::Test {
       auto out_tensor = out_tls[i];
       auto &out_desc = output_descs[i];
       out_desc.data = out_tensor.data;
-      out_desc.outer_stride = volume(out_tensor.shape.begin(), out_tensor.shape.begin() + axis);
-      out_desc.total_size = volume(out_tensor.num_elements());
       auto join_size = volume(out_tensor.shape.begin() + axis, out_tensor.shape.end());
-      out_desc.guess_tensor_mul = njoin / std::max<int64_t>(join_size - 1, 1);
+      out_desc.outer_stride = join_size;
+      out_desc.total_size = volume(out_tensor.num_elements());
+      out_desc.guess_tensor_mul = 1.0 * njoin / join_size;
     }
 
     DeviceBuffer<tensor_join::InputDesc<int>> gpu_input_descs;
@@ -242,7 +242,7 @@ struct TensorJoinGPUTest : public ::testing::Test {
   }
 
 
-  int N = 10, ndim = 3, njoin = 7, axis = 1, max_outer_extent = 100, max_inner_extent = 100;
+  int N = 1, ndim = 3, njoin = 7, axis = 1, max_outer_extent = 100, max_inner_extent = 100;
   bool new_axis = true;
   std::mt19937_64 rng;
 
