@@ -650,8 +650,9 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
   CUTLASS_DEVICE int get_distance(int abs_window_element, int lo_offset) {
     if (mirrored) {
       return get_mirrored_element(abs_window_element) - lo_offset;
+    } else {
+      return abs_window_element - lo_offset;
     }
-    return abs_window_element - lo_offset;
   }
 
   struct aligned_offset_data {

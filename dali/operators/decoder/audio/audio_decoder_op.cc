@@ -62,7 +62,7 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
   sample_meta_.resize(batch_size);
   files_names_.resize(batch_size);
 
-  decode_type_ = (use_resampling_ && !downmix_) ? DALI_FLOAT : output_type_;
+  decode_type_ = use_resampling_ ? DALI_FLOAT : output_type_;
   TYPE_SWITCH(decode_type_, type2id, DecoderOutputType, (int16_t, int32_t, float), (
     for (int i = 0; i < batch_size; i++)
       decoders_[i] = std::make_unique<GenericAudioDecoder<DecoderOutputType>>();
@@ -73,7 +73,7 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
   // Currently, metadata is only the sampling rate.
   // On the event something else would emerge,
   // this approach should be completely redefined
-  TensorListShape<> shape_rate(batch_size, 1);
+  TensorListShape<> shape_rate(batch_size, 0);
   TensorListShape<> shape_data(batch_size, downmix_ ? 1 : 2);
 
   for (int i = 0; i < batch_size; i++) {
@@ -84,7 +84,7 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
     TensorShape<> data_sample_shape = DecodedAudioShape(
         meta, use_resampling_ ? target_sample_rates_[i] : -1.0f, downmix_);
     shape_data.set_tensor_shape(i, data_sample_shape);
-    shape_rate.set_tensor_shape(i, {1});
+    shape_rate.set_tensor_shape(i, {});
     files_names_[i] = input[i].GetSourceInfo();
   }
 
@@ -130,7 +130,7 @@ AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, DynamicDi
 template <typename OutputType, typename DecoderOutputType>
 void AudioDecoderCpu::DecodeBatch(workspace_t<Backend> &ws) {
   auto decoded_output = view<OutputType, DynamicDimensions>(ws.template OutputRef<Backend>(0));
-  auto sample_rate_output = view<float, 1>(ws.template OutputRef<Backend>(1));
+  auto sample_rate_output = view<float, 0>(ws.template OutputRef<Backend>(1));
   int batch_size = decoded_output.shape.num_samples();
   auto &tp = ws.GetThreadPool();
 

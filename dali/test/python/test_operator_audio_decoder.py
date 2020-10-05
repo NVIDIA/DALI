@@ -5,18 +5,7 @@ import scipy.io.wavfile
 import numpy as np
 import math
 import librosa
-
-# generate sinewaves with given frequencies,
-# add Hann envelope and store in channel-last layout
-def generate_waveforms(length, frequencies):
-  n = int(math.ceil(length))
-  X = np.arange(n, dtype=np.float32)
-  def window(x):
-    x = 2 * x / length - 1
-    np.clip(x, -1, 1, out=x)
-    return 0.5 * (1 + np.cos(x * math.pi))
-
-  return np.sin(X[:,np.newaxis] * (np.array(frequencies) * (2 * math.pi))) * window(X)[:,np.newaxis]
+from test_audio_decoder_utils import generate_waveforms, rosa_resample
 
 names = [
   "/tmp/dali_test_1C.wav",
@@ -74,19 +63,6 @@ class DecoderPipeline(Pipeline):
     self.feed_input(self.raw_file, list)
 
 
-def rosa_resample(input, in_rate, out_rate):
-  if input.shape[1] == 1:
-    return librosa.resample(input[:,0], in_rate, out_rate)[:,np.newaxis]
-
-  channels = [librosa.resample(np.array(input[:,c]), in_rate, out_rate) for c in range(input.shape[1])]
-  ret = np.zeros(shape = [channels[0].shape[0], len(channels)], dtype=channels[0].dtype)
-  for c, a in enumerate(channels):
-    ret[:,c] = a
-
-  return ret
-
-
-
 def test_decoded_vs_generated():
   pipeline = DecoderPipeline()
   pipeline.build()
@@ -112,10 +88,10 @@ def test_decoded_vs_generated():
       ref3 = generate_waveforms(ref_len[3], freqs[idx] * (rates[idx] / rate2))
       ref3 = ref3.mean(axis = 1, keepdims = 1)
 
-      assert(out[4].at(i)[0] == rates[idx])
-      assert(out[5].at(i)[0] == rate1)
-      assert(out[6].at(i)[0] == rates[idx])
-      assert(out[7].at(i)[0] == rate2)
+      assert(out[4].at(i) == rates[idx])
+      assert(out[5].at(i) == rate1)
+      assert(out[6].at(i) == rates[idx])
+      assert(out[7].at(i) == rate2)
 
       # just reading - allow only for rounding
       assert np.allclose(plain, ref0, rtol = 0, atol=0.5)

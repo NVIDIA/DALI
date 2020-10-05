@@ -44,6 +44,8 @@ void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecode
   bool should_resample = target_sample_rate > 0 && meta.sample_rate != target_sample_rate;
   bool should_downmix = meta.channels > 1 && downmix;
   int64_t num_samples = meta.length * meta.channels;
+  assert(audio.data != nullptr);
+  assert(num_samples > 0);
 
   if (!should_resample && !should_downmix && std::is_same<T, DecoderOutputType>::value) {
     int64_t ret = decoder.Decode(as_raw_span(audio.data, num_samples));

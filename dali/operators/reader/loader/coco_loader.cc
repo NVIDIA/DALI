@@ -141,13 +141,13 @@ void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_in
     parser.EnterObject();
     ImageInfo image_info;
     while (const char* internal_key = parser.NextObjectKey()) {
-      if (0 == detail::safe_strcmp(internal_key, "id")) {
+      if (0 == std::strcmp(internal_key, "id")) {
           image_info.original_id_ = parser.GetInt();
-      } else if (0 == detail::safe_strcmp(internal_key, "width")) {
+      } else if (0 == std::strcmp(internal_key, "width")) {
           image_info.width_ = parser.GetInt();
-      } else if (0 == detail::safe_strcmp(internal_key, "height")) {
+      } else if (0 == std::strcmp(internal_key, "height")) {
           image_info.height_ = parser.GetInt();
-      } else if (0 == detail::safe_strcmp(internal_key, "file_name")) {
+      } else if (0 == std::strcmp(internal_key, "file_name")) {
           image_info.filename_ = parser.GetString();
       } else {
         parser.SkipValue();
@@ -172,7 +172,7 @@ void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids)
     id = -1;
     parser.EnterObject();
     while (const char* internal_key = parser.NextObjectKey()) {
-      if (0 == detail::safe_strcmp(internal_key, "id")) {
+      if (0 == std::strcmp(internal_key, "id")) {
         id = parser.GetInt();
       } else {
         parser.SkipValue();
@@ -200,11 +200,11 @@ void parse_annotations(
     bool to_add = true;
     parser.EnterObject();
     while (const char* internal_key = parser.NextObjectKey()) {
-      if (0 == detail::safe_strcmp(internal_key, "image_id")) {
+      if (0 == std::strcmp(internal_key, "image_id")) {
         annotation.image_id_ = parser.GetInt();
-      } else if (0 == detail::safe_strcmp(internal_key, "category_id")) {
+      } else if (0 == std::strcmp(internal_key, "category_id")) {
         annotation.category_id_ = parser.GetInt();
-      } else if (0 == detail::safe_strcmp(internal_key, "bbox")) {
+      } else if (0 == std::strcmp(internal_key, "bbox")) {
         RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
         parser.EnterArray();
         int i = 0;
@@ -212,14 +212,14 @@ void parse_annotations(
           annotation.box_[i] = parser.GetDouble();
           ++i;
         }
-      } else if (read_masks && 0 == detail::safe_strcmp(internal_key, "segmentation")) {
+      } else if (read_masks && 0 == std::strcmp(internal_key, "segmentation")) {
         // That means that the mask encoding is not polygons but RLE
         // (iscrowd==1 in Object Detection task, or Stuff Segmentation)
         if (parser.PeekType() != kArrayType) {
           annotation.tag_ = Annotation::RLE;
           parser.EnterObject();
           while (const char* another_key = parser.NextObjectKey()) {
-            if (0 == detail::safe_strcmp(another_key, "size")) {
+            if (0 == std::strcmp(another_key, "size")) {
               RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
               parser.EnterArray();
               parser.NextArrayValue();
@@ -227,8 +227,7 @@ void parse_annotations(
               parser.NextArrayValue();
               annotation.rle_.w_ = parser.GetInt();
               parser.NextArrayValue();
-              RAPIDJSON_ASSERT(parser.PeekType() == -1);
-            } else if (0 == detail::safe_strcmp(another_key, "counts")) {
+            } else if (0 == std::strcmp(another_key, "counts")) {
               annotation.rle_.rle_ = parser.GetString();
             }
           }
@@ -288,11 +287,11 @@ void parse_json_file(
   RAPIDJSON_ASSERT(parser.PeekType() == kObjectType);
   parser.EnterObject();
   while (const char* key = parser.NextObjectKey()) {
-    if (0 == detail::safe_strcmp(key, "images")) {
+    if (0 == std::strcmp(key, "images")) {
       detail::parse_image_infos(parser, image_infos);
-    } else if (0 == detail::safe_strcmp(key, "categories")) {
+    } else if (0 == std::strcmp(key, "categories")) {
       detail::parse_categories(parser, category_ids);
-    } else if (0 == detail::safe_strcmp(key, "annotations")) {
+    } else if (0 == std::strcmp(key, "annotations")) {
       parse_annotations(
         parser,
         annotations,

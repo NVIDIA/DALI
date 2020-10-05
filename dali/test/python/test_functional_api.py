@@ -110,7 +110,7 @@ def test_scalar_constant():
     ref2 = np.array([
         [20, 40, 60],
         [10, 30, 50]], dtype=np.uint8)[:,:,np.newaxis]
-    ref3 = np.array([90])
+    ref3 = np.array(90)
     assert(np.array_equal(arr1, ref1))
     assert(np.array_equal(arr2, ref2))
     assert(np.array_equal(arr3, ref3))

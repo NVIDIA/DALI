@@ -15,7 +15,6 @@
 import argparse
 import itertools
 import os
-import random
 from math import ceil, sqrt
 
 import numpy as np
@@ -105,7 +104,11 @@ def resize_ref(image, size):
 class DetectionPipeline(Pipeline):
     def __init__(self, args, device_id, file_root, annotations_file):
         super(DetectionPipeline, self).__init__(
-            args.batch_size, args.num_workers, device_id, args.prefetch, args.seed)
+            batch_size=args.batch_size,
+            num_threads=args.num_workers,
+            device_id=device_id,
+            prefetch_queue_depth=args.prefetch,
+            seed=args.seed)
 
         # Reading COCO dataset
         self.input = ops.COCOReader(
@@ -120,7 +123,7 @@ class DetectionPipeline(Pipeline):
         self.decode_cpu = ops.ImageDecoder(device="cpu", output_type=types.RGB)
         self.decode_crop = ops.ImageDecoderSlice(device="cpu", output_type=types.RGB)
 
-        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB, hw_decoder_load=0)
         self.decode_gpu_crop = ops.ImageDecoderSlice(device="mixed", output_type=types.RGB)
 
         self.ssd_crop = ops.SSDRandomCrop(
@@ -130,7 +133,7 @@ class DetectionPipeline(Pipeline):
             aspect_ratio=[0.5, 2.0],
             thresholds=[0, 0.1, 0.3, 0.5, 0.7, 0.9],
             scaling=[0.3, 1.0],
-            ltrb=True,
+            bbox_layout="xyXY",
             seed=args.seed)
 
         self.slice_cpu = ops.Slice(device="cpu")
@@ -488,10 +491,6 @@ def run_test(args):
         run_for_dataset(args, dataset)
 
 
-def random_seed():
-    return int(random.random() * (1 << 32))
-
-
 def make_parser():
     parser = argparse.ArgumentParser(description='Detection pipeline test')
     parser.add_argument(
@@ -501,7 +500,7 @@ def make_parser():
         '-g', '--num_gpus', default=1, type=int, metavar='N',
         help='number of GPUs (default: %(default)s)')
     parser.add_argument(
-        '-s', '--seed', default=random_seed(), type=int, metavar='N',
+        '-s', '--seed', default=0, type=int, metavar='N',
         help='seed for random ops (default: random seed)')
     parser.add_argument(
         '-w', '--num_workers', default=3, type=int, metavar='N',

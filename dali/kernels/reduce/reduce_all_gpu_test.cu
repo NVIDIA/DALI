@@ -214,9 +214,9 @@ void ReduceAllGPUTest<Reduction>::TestReduceAllKernel(int min_size, int max_size
 
   kernels::reduce::ReduceAllGPU<Out, In, Reduction> kernel;
 
-  auto out_shape = TensorListShape<1>::make_uniform(nsamples, TensorShape<1>{1});
-  TestTensorList<Out, 1> out;
-  out.reshape(out_shape.to_static<1>());
+  auto out_shape = TensorListShape<0>(nsamples);
+  TestTensorList<Out, 0> out;
+  out.reshape(out_shape);
 
   auto in_view_gpu = in.gpu();
   auto out_view_gpu = out.gpu();

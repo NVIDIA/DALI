@@ -698,7 +698,7 @@ struct TensorListShape<DynamicDimensions>
 
   TensorListShape(const std::vector<int64_t> &shapes, int num_samples, int sample_dim)
       : Base(shapes, num_samples), ndim(sample_dim) {
-    assert(num_samples == static_cast<int>(shapes.size()) / sample_dim);
+    assert(num_samples * sample_dim == static_cast<int>(shapes.size()));
   }
 
   TensorListShape(std::vector<int64_t> &&shapes, int num_samples, int sample_dim)
@@ -805,7 +805,7 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   TensorListShape(const std::vector<int64_t> &shapes, int num_samples, int sample_dim)
       : Base(shapes, num_samples) {
     assert(sample_dim == sample_ndim);
-    assert(num_samples == static_cast<int>(shapes.size()) / sample_dim);
+    assert(num_samples * sample_dim == static_cast<int>(shapes.size()));
   }
 
   TensorListShape(std::vector<int64_t> &&shapes, int num_samples, int sample_dim)

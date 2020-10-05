@@ -32,7 +32,7 @@ class Uniform : public Operator<CPUBackend> {
     GetSingleOrRepeatedArg(spec, range, "range", 2);
     dis_ = std::uniform_real_distribution<float>(range[0], range[1]);
 
-    std::vector<int> shape_arg{1};
+    std::vector<int> shape_arg{};
     if (spec.HasArgument("shape"))
       shape_arg = spec.GetRepeatedArgument<int>("shape");
     shape_ = std::vector<int64_t>{std::begin(shape_arg), std::end(shape_arg)};

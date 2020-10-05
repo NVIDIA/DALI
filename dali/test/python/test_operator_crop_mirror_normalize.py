@@ -294,7 +294,7 @@ class CMNRandomDataPipeline(Pipeline):
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
         self.extra_outputs = extra_outputs
-        
+
         if layout.count('D') <= 0 and not (crop_seq_as_depth and layout.count('F') > 0):
             crop_d = None
         self.cmn = ops.CropMirrorNormalize(device=self.device, dtype=dtype, output_layout=output_layout,
@@ -450,7 +450,7 @@ def test_cmn_crop_sequence_length():
                             input_layout, input_shape, output_layout, mirror_probability, \
                             mean, std, should_pad
 
-def check_cmn_with_out_of_bounds_policy_support(device, batch_size, dtype, input_layout, input_shape, output_layout, 
+def check_cmn_with_out_of_bounds_policy_support(device, batch_size, dtype, input_layout, input_shape, output_layout,
                                                 mirror_probability, mean, std, should_pad,
                                                 out_of_bounds_policy=None, fill_values=(0x76, 0xb9, 0x00)):
     # This test case is written with HWC layout in mind and "HW" axes in slice arguments
@@ -492,14 +492,14 @@ def check_cmn_with_out_of_bounds_policy_support(device, batch_size, dtype, input
             sample_in = in_data.at(idx)
             sample_out = out.at(idx)
             mirror = mirror_data.at(idx)
-            flip = [0, mirror[0]]
+            flip = [0, mirror]
             in_shape = list(sample_in.shape)
             out_shape = list(sample_out.shape)
             crop_anchor_norm = [crop_y, crop_x]
             crop_shape = [crop_h, crop_w]
             crop_anchor_abs = [crop_anchor_norm[k] * (input_shape[k] - crop_shape[k]) for k in range(2)]
             abs_start, abs_end, abs_slice_shape = abs_slice_start_and_end(in_shape[:2], crop_anchor_abs, crop_shape, False, False)
-            check_slice_output(sample_in, sample_out, crop_anchor_abs, abs_slice_shape, abs_start, abs_end, 
+            check_slice_output(sample_in, sample_out, crop_anchor_abs, abs_slice_shape, abs_start, abs_end,
                                out_of_bounds_policy, fill_values, mean=mean, std=std, flip=flip, permute=permute)
 
 def test_cmn_with_out_of_bounds_policy_support():

@@ -120,7 +120,7 @@ class NormalDistribution : public Operator<Backend> {
 
 
   TensorListShape<> ShapeForDefaultConfig(const workspace_t<Backend> &ws) {
-    return uniform_list_shape(batch_size_, {1});
+    return TensorListShape<0>(batch_size_);
   }
 
 

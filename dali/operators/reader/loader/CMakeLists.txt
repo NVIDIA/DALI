@@ -24,16 +24,25 @@ set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/numpy_loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/utils.cc")
 
+if (BUILD_LIBSND)
+  set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/nemo_asr_loader.cc")
+endif()
+
 if (BUILD_NVDEC)
   set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
-    ${CMAKE_CURRENT_SOURCE_DIR}/video_loader.cc)
+    "${CMAKE_CURRENT_SOURCE_DIR}/video_loader.cc")
 endif()
 
 set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)
 
-# we don't want to test Caffe2 reader if LMDB is not present
-if (BUILD_TEST AND BUILD_LMDB)
-  # get all the test srcs
-  file(GLOB tmp *_test.cc file_loader.cc file_label_loader.cc coco_loader.cc)
-  set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS} ${tmp} PARENT_SCOPE)
+set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/loader_test.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/sequence_loader_test.cc")
+
+if (BUILD_LIBSND)
+  set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/nemo_asr_loader_test.cc")
 endif()
+
+set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS} PARENT_SCOPE)

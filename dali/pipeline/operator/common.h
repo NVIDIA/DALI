@@ -57,7 +57,7 @@ void GetPerSampleArgument(std::vector<T> &output,
     decltype(auto) shape = arg.shape();
     int N = shape.num_samples();
     if (N == 1) {
-      bool is_valid_shape = shape.tensor_shape(0) == TensorShape<1>{batch_size};
+      bool is_valid_shape = volume(shape.tensor_shape(0)) == batch_size;
 
       DALI_ENFORCE(is_valid_shape,
         make_string("`", argument_name, "` must be a 1xN or Nx1 (N = ", batch_size,
@@ -89,6 +89,51 @@ void GetPerSampleArgument(std::vector<T> &output,
   assert(output.size() == static_cast<size_t>(batch_size));
 }
 
+/**
+ * @brief Fill the result span with the argument which can be provided as:
+ * * ArgumentInput - {result.size()}-shaped Tensor
+ * * ArgumentInput - {} or {1}-shaped Tensor, the value will be replicated `result.size()` times
+ * * Vector input - single "repeated argument" of length `result.size()` or 1
+ * * scalar argument - it will be replicated `result.size()` times
+ *
+ * TODO(klecki): we may want to make this a generic utility and propagate the span-approach to
+ * the rest of the related argument gettters
+ *
+ * TODO(michalz): rework it somehow to avoig going through this logic for each sample
+ */
+template <typename T>
+void GetGeneralizedArg(span<T> result, const std::string name, int sample_idx, const OpSpec& spec,
+                       const ArgumentWorkspace& ws) {
+  int argument_length = result.size();
+  if (spec.HasTensorArgument(name)) {
+    const auto& tv = ws.ArgumentInput(name);
+    const auto& tensor = tv[sample_idx];
+    const auto& shape = tensor.shape();
+    auto vol = volume(shape);
+    if (shape.size() != 0) {
+      DALI_ENFORCE(shape.size() == 1,
+                   make_string("Argument ", name, " for sample ", sample_idx,
+                               " is expected to be a scalar or a 1D tensor, got: ",
+                               shape.size(), "D."));
+      DALI_ENFORCE(vol == 1 || vol == argument_length,
+                   make_string("Argument ", name, " for sample ", sample_idx,
+                               " is expected to have 1 or ", argument_length,
+                               "elements, got: ", shape[0], "."));
+    }
+    if (vol == 1) {
+      for (int i = 0; i < argument_length; i++) {
+        result[i] = tensor.data<T>()[0];
+      }
+    } else {
+      memcpy(result.data(), tensor.data<T>(), sizeof(T) * argument_length);
+    }
+    return;
+  }
+  std::vector<T> tmp;
+  // we already handled the argument input, this handles spec-related arguments only
+  GetSingleOrRepeatedArg(spec, tmp, name, argument_length);
+  memcpy(result.data(), tmp.data(), sizeof(T) * argument_length);
+}
 
 template <typename ArgumentType, typename ExtentType>
 int GetShapeLikeArgument(std::vector<ExtentType> &out_shape,

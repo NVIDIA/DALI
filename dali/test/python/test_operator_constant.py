@@ -87,7 +87,7 @@ class ScalarConstantPipeline(Pipeline):
             ops.Reshape(device = device)(types.Constant(np.array([[1,2],[3,4]],
                                                         dtype = np.uint16),
                                                         device = device),
-                                         shape = types.Constant(4))
+                                         shape = types.Constant([4]))
         ]
 
 def check(a1, a2):

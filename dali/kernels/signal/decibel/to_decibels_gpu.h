@@ -42,7 +42,7 @@ class DLL_PUBLIC ToDecibelsGpu {
                       const OutListGPU<T, DynamicDimensions> &out,
                       const InListGPU<T, DynamicDimensions> &in,
                       const ToDecibelsArgs<T> &args,
-                      InListGPU<T, 1> max_values = {});
+                      InListGPU<T, 0> max_values = {});
 };
 
 }  // namespace signal

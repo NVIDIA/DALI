@@ -71,7 +71,7 @@ KernelRequirements ToDecibelsGpu<T>::Setup(KernelContext &context,
 template <typename T>
 void ToDecibelsGpu<T>::Run(KernelContext &context, const OutListGPU<T, DynamicDimensions> &out,
                            const InListGPU<T, DynamicDimensions> &in, const ToDecibelsArgs<T> &args,
-                           InListGPU<T, 1> max_values) {
+                           InListGPU<T, 0> max_values) {
   DALI_ENFORCE(max_values.empty() || max_values.is_contiguous(),
       "Reduce all kernel expects the output to be contiguous");
   const T* max_values_data = max_values.empty() ? nullptr : max_values[0].data;

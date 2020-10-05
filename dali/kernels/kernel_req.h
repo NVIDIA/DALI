@@ -25,13 +25,32 @@
 namespace dali {
 namespace kernels {
 
+using scratch_sizes_t = std::array<size_t, static_cast<size_t>(AllocType::Count)>;
+
+inline scratch_sizes_t MaxScratchSize(const scratch_sizes_t &a, const scratch_sizes_t &b) {
+  scratch_sizes_t result;
+  for (size_t i = 0; i < result.size(); i++) {
+    result[i] = std::max(a[i], b[i]);
+  }
+  return result;
+}
+
+inline scratch_sizes_t AppendScratchSize(const scratch_sizes_t &to, const scratch_sizes_t &what,
+                                         int alignment = 64) {
+  scratch_sizes_t result;
+  for (size_t i = 0; i < result.size(); i++) {
+    result[i] = align_up(to[i], alignment) + what[i];
+  }
+  return result;
+}
+
 /**
  * @brief Represents requirements for kernel to do its job for given inputs and arguments.
  */
 struct KernelRequirements {
   std::vector<TensorListShape<DynamicDimensions>> output_shapes;
 
-  std::array<size_t, (size_t)AllocType::Count> scratch_sizes = {};
+  scratch_sizes_t scratch_sizes = {};
 
   /**
    * @param reuse_scratch  - if true, scratch size is taken to be maximum from that for
@@ -39,7 +58,8 @@ struct KernelRequirements {
    * @param new_req        - requirements for the new input set, to be merged with this one
    * @return               - *this, for chaining
    */
-  KernelRequirements &AddInputSet(const KernelRequirements &new_req, bool reuse_scratch) {
+  KernelRequirements &AddInputSet(const KernelRequirements &new_req, bool reuse_scratch,
+                                  int alignment = 64) {
     auto &r = new_req;
 
     append(output_shapes, r.output_shapes);
@@ -48,7 +68,7 @@ struct KernelRequirements {
       if (reuse_scratch)
         scratch_sizes[i] = std::max(scratch_sizes[i], r.scratch_sizes[i]);
       else
-        scratch_sizes[i] += r.scratch_sizes[i];
+        scratch_sizes[i] = align_up(scratch_sizes[i], alignment) + r.scratch_sizes[i];
     }
     return *this;
   }
@@ -80,7 +100,7 @@ struct ScratchpadEstimator {
     return sizes[(size_t)alloc_type];
   }
 
-  std::array<size_t, (size_t)AllocType::Count> sizes = {};
+  scratch_sizes_t sizes = {};
 };
 
 }  // namespace kernels

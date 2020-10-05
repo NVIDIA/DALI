@@ -28,7 +28,7 @@
 namespace dali {
 
 using ImageIdPairs = std::vector<std::pair<std::string, int>>;
-class CocoLoader : public FileLabelLoader {
+class DLL_PUBLIC CocoLoader : public FileLabelLoader {
  public:
   explicit inline CocoLoader(
     const OpSpec& spec,
