@@ -91,9 +91,14 @@ Got {1} instead when calling operator {2}.""".format(idx, type(inp).__name__, op
 
 def _wrap_op(op_class, submodule):
     wrapper_name = _to_snake_case(op_class.__name__)
-    module = _internal.get_submodule(sys.modules[__name__], submodule)
+    fn_module = sys.modules[__name__]
+    module = _internal.get_submodule(fn_module, submodule)
     if not hasattr(module, wrapper_name):
-        setattr(module, wrapper_name, _wrap_op_fn(op_class, wrapper_name))
+        wrap_func = _wrap_op_fn(op_class, wrapper_name)
+        setattr(module, wrapper_name, wrap_func)
+        if submodule:
+            setattr(fn_module, '.'.join(submodule + [wrapper_name]), wrap_func)
+
 
 from nvidia.dali.external_source import external_source
 external_source.__module__ = __name__
