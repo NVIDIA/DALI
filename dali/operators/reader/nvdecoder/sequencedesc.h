@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_NVDECODER_SEQUENCEWRAPPER_H_
-#define DALI_OPERATORS_READER_NVDECODER_SEQUENCEWRAPPER_H_
+#ifndef DALI_OPERATORS_READER_NVDECODER_SEQUENCEDESC_H_
+#define DALI_OPERATORS_READER_NVDECODER_SEQUENCEDESC_H_
 
 #include <condition_variable>
 #include <mutex>
@@ -29,12 +29,12 @@
 
 namespace dali {
 
-#define SEQUENCEWRAPPER_SUPPORTED_TYPES (float, uint8_t)
+#define SequenceDesc_SUPPORTED_TYPES (float, uint8_t)
 
 // Struct that Loader::ReadOne will read
-struct SequenceWrapper {
+struct SequenceDesc {
  public:
-  SequenceWrapper()
+  SequenceDesc()
   : started_(false) {}
 
   void initialize(int count, int height, int width, int channels, DALIDataType dtype) {
@@ -57,7 +57,7 @@ struct SequenceWrapper {
     started_ = false;
   }
 
-  ~SequenceWrapper() {
+  ~SequenceDesc() {
     std::unique_lock<std::mutex> lock{started_lock_};
     if (started_) {
       try {
@@ -95,6 +95,9 @@ struct SequenceWrapper {
     return TensorShape<4>{count, height, width, channels};
   }
 
+  // non-owning tensor that should only share data allocated somwhere else
+  Tensor<GPUBackend> sequence_view;
+
   int count;
   int height;
   int width;
@@ -103,12 +106,12 @@ struct SequenceWrapper {
   vector<double> timestamps;
   int first_frame_idx;
   DALIDataType dtype;
-  std::function<void(void *)> read_sample_f;
+  std::function<void(void)> read_sample_f;
 
  private:
   void wait_until_started_() const {
-      std::unique_lock<std::mutex> lock{started_lock_};
-      started_cv_.wait(lock, [&](){return started_;});
+    std::unique_lock<std::mutex> lock{started_lock_};
+    started_cv_.wait(lock, [&](){return started_;});
   }
 
   mutable std::mutex started_lock_;
@@ -119,4 +122,4 @@ struct SequenceWrapper {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_NVDECODER_SEQUENCEWRAPPER_H_
+#endif  // DALI_OPERATORS_READER_NVDECODER_SEQUENCEDESC_H_

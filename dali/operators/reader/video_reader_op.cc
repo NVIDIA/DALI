@@ -24,7 +24,7 @@
 namespace dali {
 
 void VideoReader::Prefetch() {
-  DataReader<GPUBackend, SequenceWrapper>::Prefetch();
+  DataReader<GPUBackend, SequenceDesc>::Prefetch();
   auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
   auto &curr_tensor_list = prefetched_batch_tensors_[curr_batch_producer_];
 
@@ -43,7 +43,8 @@ void VideoReader::Prefetch() {
 
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
-    sample->read_sample_f(curr_tensor_list.raw_mutable_tensor(data_idx));
+    sample->sequence_view.ShareData(&curr_tensor_list, static_cast<int>(data_idx));
+    sample->read_sample_f();
   }
 }
 
