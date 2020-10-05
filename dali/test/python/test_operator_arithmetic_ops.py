@@ -73,7 +73,7 @@ selected_bin_input_kinds = [("cpu", "cpu"), ("gpu", "gpu"),
 
 selected_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
                                 ("cpu", "const", "const"), ("gpu", "const", "const"),
-                                ("gpu", "cpu", "cpu_scalar")]
+                                ("gpu", "cpu", "cpu_scalar"), ("cpu_scalar", "cpu_scalar", "cpu_scalar")]
 
 bench_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
                              ("cpu", "const", "const"), ("gpu", "const", "const"),
@@ -211,7 +211,6 @@ class ExternalInputIterator(object):
                 self.shapes += [[(1,)] * batch_size]
             else:
                 self.shapes += [[]] # empty shape, special 0D scalar
-            print(self.shapes)
 
     def __iter__(self):
         return self
@@ -223,7 +222,6 @@ class ExternalInputIterator(object):
             # Handle 0D scalars
             if self.shapes[i] == []:
                 batch = self.gens[i](self.batch_size)
-                print(batch, self.batch_size)
             else:
                 for sample in range(self.batch_size):
                     batch.append(self.gens[i](self.shapes[i][sample]))
@@ -393,33 +391,6 @@ def test_arithmetic_ops_selected():
                 if types_in != (np.bool_, np.bool_) or op_desc == "*":
                     yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
 
-# def test_ternary_ops_limited():
-#     for kinds in [("cpu", "cpu", "cpu")]:
-#         for (op, op_desc) in ternary_operations:
-#             for types_in in [(np.int32, np.int16, np.int16)]:
-#             # for types_in in itertools.product(selected_input_arithm_types, selected_input_arithm_types, selected_input_arithm_types):
-#                 yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
-
-
-def test_ternary_ops_selected():
-    for kinds in selected_ternary_input_kinds:
-        for (op, op_desc) in ternary_operations:
-            for types_in in itertools.product(selected_input_arithm_types, selected_input_arithm_types, selected_input_arithm_types):
-                yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
-
-def test_ternary_ops_big():
-    for kinds in selected_ternary_input_kinds:
-        for (op, op_desc) in ternary_operations:
-            for types_in in [(np.int32, np.int32, np.int32), (np.int32, np.int8, np.int16), (np.int32, np.uint8, np.float32)]:
-                yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
-
-# def test_ternary_ops_bench():
-#     for kinds in bench_teranry_input_kinds:
-#         for (op, op_desc) in ternary_operations:
-#             for types_in in [(np.int32, np.int32, np.int32), (np.int32, np.int8, np.int16), (np.int32, np.uint8, np.float32)]:
-#                 yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
-
-
 @attr('slow')
 def test_arithmetic_ops():
     for kinds in bin_input_kinds:
@@ -428,15 +399,35 @@ def test_arithmetic_ops():
                 if types_in != (np.bool_, np.bool_) or op_desc == "*":
                     yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
 
-@attr('slow')
-def test_ternary_ops():
-    for kinds in ternary_input_kinds:
+def test_ternary_ops_big():
+    for kinds in selected_ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
-            for types_in in itertools.product(selected_input_types, selected_input_types, selected_input_types):
-                if types_in == (np.bool_,) * 3:
-                    continue
+            for types_in in [(np.int32, np.int32, np.int32), (np.int32, np.int8, np.int16), (np.int32, np.uint8, np.float32)]:
+                yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
+
+def test_ternary_ops_selected():
+    for kinds in selected_ternary_input_kinds:
+        for (op, op_desc) in ternary_operations:
+            for types_in in itertools.product(selected_input_arithm_types, selected_input_arithm_types, selected_input_arithm_types):
                 yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
 
+# Only selected types, otherwise it takes too long
+@attr('slow')
+def test_ternary_ops_kinds():
+    for kinds in ternary_input_kinds:
+        for (op, op_desc) in ternary_operations:
+            for types_in in [(np.int32, np.int32, np.int32), (np.float32, np.int32, np.int32),
+                             (np.uint8, np.float32, np.float32), (np.int32, np.float32, np.float32)]:
+                yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
+
+@attr('slow')
+def test_ternary_ops_types():
+    for kinds in selected_ternary_input_kinds:
+        for (op, op_desc) in ternary_operations:
+            for types_in in list_product(input_types, input_types, input_types):
+                if types_in == (np.bool_, np.bool_, np.bool_):
+                    continue
+                yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
 
 def test_bitwise_ops_selected():
     for kinds in selected_bin_input_kinds:
@@ -463,7 +454,7 @@ def check_comparsion_op(kinds, types, op, shape, _):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, None)
+        l_np, r_np, out = extract_data(pipe_out, sample, kinds, None)
         assert_equals(out.dtype, np.bool_)
         np.testing.assert_array_equal(out, op(l_np, r_np), err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
 
@@ -490,7 +481,7 @@ def check_arithm_fdiv(kinds, types, shape):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
+        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
         np.testing.assert_allclose(out, l_np / r_np,
             rtol=1e-07 if target_type != np.float16 else 0.005, err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
@@ -523,7 +514,7 @@ def check_arithm_div(kinds, types, shape):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
+        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
         if 'f' in np.dtype(target_type).kind:
             np.testing.assert_allclose(out, l_np / r_np,
@@ -547,9 +538,6 @@ def test_arithmetic_division_selected():
             if types_in != (np.bool_, np.bool_):
                 yield check_arithm_div, kinds, types_in, shape_small
 
-
-
-
 @attr('slow')
 def test_arithmetic_division():
     for kinds in bin_input_kinds:
@@ -558,13 +546,14 @@ def test_arithmetic_division():
                 yield check_arithm_div, kinds, types_in, shape_small
 
 
-
 @raises(RuntimeError)
 def check_raises(kinds, types, op, shape, _):
-    left_type, right_type = types
-    left_kind, right_kind = kinds
+    if isinstance(op, tuple):
+        dali_op = op[0]
+    else:
+        dali_op = op
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
-    pipe = ExprOpPipeline(kinds, types, iterator, op, batch_size = batch_size, num_threads = 2,
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size = batch_size, num_threads = 2,
             device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
@@ -577,7 +566,9 @@ def test_bool_disallowed():
     for kinds in bin_input_kinds:
         for (op, op_desc) in bool_disallowed:
             yield check_raises, kinds, (np.bool_, np.bool_), op, shape_small, op_desc
-
+    for kinds in selected_ternary_input_kinds:
+        for (op, op_desc) in ternary_operations:
+            yield check_raises, kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc
 
 def test_bitwise_disallowed():
     for kinds in bin_input_kinds:

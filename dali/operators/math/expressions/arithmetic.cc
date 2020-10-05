@@ -32,8 +32,6 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
     pool.AddWork([this, task_idx](int thread_idx) {
       auto range = tile_range_[task_idx];
       // Go over "tiles"
-
-      auto start = std::chrono::steady_clock::now();
       for (int extent_idx = range.begin; extent_idx < range.end; extent_idx++) {
         // Go over expression tree in some provided order
         for (size_t i = 0; i < exec_order_.size(); i++) {
@@ -41,20 +39,10 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
                                        {extent_idx, extent_idx + 1});
         }
       }
-      auto end = std::chrono::steady_clock::now();
-
-    std::cout << "Elapsed time : "
-      << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-      << " us" << std::endl;
     }, -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks
   }
 
-  auto start = std::chrono::steady_clock::now();
   pool.RunAll();
-  auto end = std::chrono::steady_clock::now();
-  std::cout << "Pool elapsed time : "
-    << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-    << " us" << std::endl;
 }
 
 DALI_SCHEMA(ArithmeticGenericOp)

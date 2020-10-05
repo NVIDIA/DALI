@@ -213,33 +213,6 @@ class ExprImplGPUInvoke : public ExprImplBase {
     auto grid = GetGridLayout(kBlocksX, tiles.size());
     auto block = dim3(kThreadNum, 1, 1);
     Invoker::Invoke(tiles_.data<ExtendedTileDesc>(), grid, block, ctx.stream);
-
-    CUDAEvent start = CUDAEvent::CreateWithFlags(0);//todo(klecki): remove benchmarking
-    CUDAEvent end = CUDAEvent::CreateWithFlags(0);
-
-    Invoker::Invoke(tiles_.data<ExtendedTileDesc>(), grid, block, ctx.stream);
-
-    cudaEventRecord(start, ctx.stream);
-    constexpr int kIters = 100;
-    for (int i = 0; i < kIters; i++) {
-      Invoker::Invoke(tiles_.data<ExtendedTileDesc>(), grid, block, ctx.stream);
-    }
-    cudaEventRecord(end, ctx.stream);
-    cudaDeviceSynchronize();
-    float time;
-    CUDA_CALL(cudaEventElapsedTime(&time, start, end));
-    std::cerr << "Elapsed Time: " << time * 10.f << " us\n"; // * 1000 / 100samples
-
-    // time *= (1e+6f / kIters);  // convert to nanoseconds / 100 samples
-    // int64_t data_size = 0;
-    // data_size +=
-    //     static_cast<int64_t>(TestConfig::num_tiles) * TestConfig::tile_size * sizeof(Result);
-    // if (TestConfig::IsLeftTensor)
-    //   data_size +=
-    //       static_cast<int64_t>(TestConfig::num_tiles) * TestConfig::tile_size * sizeof(Left);
-    // if (TestConfig::IsRightTensor)
-    //   data_size +=
-    //       static_cast<int64_t>(TestConfig::num_tiles) * TestConfig::tile_size * sizeof(Right);
   }
 
  private:
@@ -260,12 +233,6 @@ using ExprImplGpuCT = ExprImplGPUInvoke<InvokerBinOp<op, Result, Left, Right, fa
 
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 using ExprImplGpuTC = ExprImplGPUInvoke<InvokerBinOp<op, Result, Left, Right, true, false>>;
-
-// template <ArithmeticOp op, typename Result, typename First, typename Second, typename Third,
-//           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
-// using ExprImplGpuTernary =
-//     ExprImplGPUInvoke<InvokerTernaryOp<op, Result, First, Second, Third, IsFirstTensor,
-//                                        IsSecondTensor, IsThirdTensor>>;
 
 template <ArithmeticOp op, typename Result,
           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
