@@ -374,13 +374,13 @@ class DALIClassificationIterator(DALIGenericIterator):
 
     .. code-block:: python
 
-       DALIClassificationIterator(pipelines, size)
+       DALIClassificationIterator(pipelines, reader_name)
 
     is equivalent to calling
 
     .. code-block:: python
 
-       DALIGenericIterator(pipelines, ["data", "label"], size)
+       DALIGenericIterator(pipelines, ["data", "label"], reader_name)
 
     Please keep in mind that Tensors returned by the iterator are
     still owned by DALI. They are valid till the next iterator call.
