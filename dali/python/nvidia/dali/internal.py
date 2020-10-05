@@ -23,10 +23,12 @@ Parameters
             return root
         path = path.split('.')
 
+    module_name = root.__name__
     for part in path:
         m = getattr(root, part, None)
+        module_name += '.' + part
         if m is None:
-            m = types.ModuleType(part)
+            m = sys.modules[module_name] = types.ModuleType(module_name)
             setattr(root, part, m)
         elif not isinstance(m, types.ModuleType):
             raise RuntimeError("The module {} already contains an attribute \"{}\", which is not a module, but {}".format(

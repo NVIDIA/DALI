@@ -28,14 +28,24 @@ def main(argv):
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
     for op in sorted(all_ops, key=lambda v: str(v).lower()):
         schema = b.GetSchema(op)
+        op_full_name = op
+        if not op_full_name.startswith('_'):
+            op_full_name = op_full_name.replace('_', '.')
+        *submodule, op_name = op_full_name.split('.')
         is_cpu = '|v|' if op in cpu_ops else ''
         is_gpu = '|v|' if op in gpu_ops else ''
         is_mixed = '|v|' if op in mix_ops else ''
         supports_seq = '|v|' if schema.AllowsSequences() or schema.IsSequenceOperator() else ''
         volumetric = '|v|' if schema.SupportsVolumetric() else ''
         for (module_name, module) in ops_modules.items():
-            if hasattr(module, op):
-                op_string = link_formatter.format(op = op, module = module_name)
+            m = module
+            for part in submodule:
+                m = getattr(m, part, None)
+                if m is None:
+                    break
+            if m is not None and hasattr(m, op_name):
+                submodule_str = ".".join([*submodule])
+                op_string = link_formatter.format(op = op_full_name, module = module_name)
         op_doc = formater.format(op_string, is_cpu, is_gpu, is_mixed, supports_seq, volumetric, op_name_max_len = op_name_max_len, c=' ')
         doc_table += op_doc
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')

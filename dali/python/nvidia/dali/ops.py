@@ -567,8 +567,9 @@ def _load_ops():
         module = _internal.get_submodule(ops_module, submodule)
         if not hasattr(ops_module, op_full_name):
             op_class = python_op_factory(op_name, op_reg_name, op_device = "cpu")
-            setattr(ops_module, op_full_name, op_class)
+            op_class.__module__ = module.__name__
             setattr(module, op_name, op_class)
+
             if op_name not in ["ExternalSource"]:
                 _wrap_op(op_class, submodule)
 

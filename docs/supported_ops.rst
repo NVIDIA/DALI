@@ -56,14 +56,7 @@ The following table lists all available operators and devices on which they can 
 Operators Documentation
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: nvidia.dali.ops
-   :members:
-   :special-members: __call__
-   :exclude-members: PythonFunctionBase
-
-.. autoclass:: nvidia.dali.plugin.pytorch.TorchPythonFunction
-   :members:
-
+.. include:: op_autodoc
 
 .. _arithmetic expressions:
 
