@@ -41,9 +41,9 @@ shape_small = [(42, 3), (4, 16), (8, 2), (1, 64)]
 # A number used to test constant inputs
 magic_number = 42
 
-unary_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar"]
+unary_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "cpu_scalar_legacy", "gpu_scalar_legacy"]
 
-all_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "const"]
+all_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "cpu_scalar_legacy", "gpu_scalar_legacy",  "const"]
 
 # We cannot have 'Constant x Constant' operations with DALI op.
 # And scalar is still a represented by a Tensor, so 'Scalar x Constant' is the same
@@ -69,7 +69,11 @@ selected_input_arithm_types = [np.int32, np.uint8, np.float32]
 selected_bin_input_kinds = [("cpu", "cpu"), ("gpu", "gpu"), ("cpu", "cpu_scalar"), ("gpu", "gpu_scalar"),
                             ("const", "cpu"), ("const", "gpu")]
 
-bench_teranry_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
+selected_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
+                                ("cpu", "const", "const"), ("gpu", "const", "const"),
+                                ("gpu", "cpu", "cpu_scalar")]
+
+bench_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
                              ("cpu", "const", "const"), ("gpu", "const", "const"),
                              ("cpu", "cpu", "const"), ("gpu", "gpu", "const")]
 
@@ -169,7 +173,9 @@ def bool_generator(shape, no_zeros):
     return result
 
 def float_generator(shape, type, _):
-    if (len(shape) == 2):
+    if isinstance(shape, int):
+        return type(np.random.rand(shape))
+    elif len(shape) == 2:
         return type(np.random.rand(*shape))
     else:
         return type([np.random.rand()])
@@ -196,7 +202,13 @@ class ExternalInputIterator(object):
         self.shapes = []
         for i in range(self.length):
             self.gens += [self.get_generator(self.types[i], disallow_zeros[i])]
-            self.shapes += [shape if ("scalar" not in kinds[i]) else [(1,)] * batch_size]
+            if "scalar" not in kinds[i]:
+                self.shapes += [shape]
+            elif "scalar_legacy" in kinds[i]:
+                self.shapes += [[(1,)] * batch_size]
+            else:
+                self.shapes += [[]] # empty shape, special 0D scalar
+            print(self.shapes)
 
     def __iter__(self):
         return self
@@ -205,8 +217,13 @@ class ExternalInputIterator(object):
         out = ()
         for i in range(self.length):
             batch = []
-            for sample in range(self.batch_size):
-                batch.append(self.gens[i](self.shapes[i][sample]))
+            # Handle 0D scalars
+            if self.shapes[i] == []:
+                batch = self.gens[i](self.batch_size)
+                print(batch, self.batch_size)
+            else:
+                for sample in range(self.batch_size):
+                    batch.append(self.gens[i](self.shapes[i][sample]))
             out = out + (batch,)
         return out
 
@@ -373,23 +390,31 @@ def test_arithmetic_ops_selected():
                 if types_in != (np.bool_, np.bool_) or op_desc == "*":
                     yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
 
+# def test_ternary_ops_limited():
+#     for kinds in [("cpu", "cpu", "cpu")]:
+#         for (op, op_desc) in ternary_operations:
+#             for types_in in [(np.int32, np.int16, np.int16)]:
+#             # for types_in in itertools.product(selected_input_arithm_types, selected_input_arithm_types, selected_input_arithm_types):
+#                 yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
+
+
 def test_ternary_ops_selected():
     for kinds in selected_ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
             for types_in in itertools.product(selected_input_arithm_types, selected_input_arithm_types, selected_input_arithm_types):
                 yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
 
-# def test_ternary_ops_big():
-#     for kinds in selected_ternary_input_kinds:
-#         for (op, op_desc) in ternary_operations:
-#             for types_in in [(np.int32, np.int32, np.int32), (np.int32, np.int8, np.int16), (np.int32, np.uint8, np.float32)]:
-#                 yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
-
 def test_ternary_ops_big():
-    for kinds in bench_teranry_input_kinds:
+    for kinds in selected_ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
             for types_in in [(np.int32, np.int32, np.int32), (np.int32, np.int8, np.int16), (np.int32, np.uint8, np.float32)]:
                 yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
+
+# def test_ternary_ops_bench():
+#     for kinds in bench_teranry_input_kinds:
+#         for (op, op_desc) in ternary_operations:
+#             for types_in in [(np.int32, np.int32, np.int32), (np.int32, np.int8, np.int16), (np.int32, np.uint8, np.float32)]:
+#                 yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
 
 
 @attr('slow')
@@ -404,7 +429,7 @@ def test_arithmetic_ops():
 def test_ternary_ops():
     for kinds in ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
-            for types_in in itertools.product(input_types, input_types, input_types):
+            for types_in in itertools.product(selected_input_types, selected_input_types, selected_input_types):
                 if types_in == (np.bool_,) * 3:
                     continue
                 yield check_ternary_op, kinds, types_in, op, shape_small, op_desc

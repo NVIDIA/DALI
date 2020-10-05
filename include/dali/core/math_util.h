@@ -58,7 +58,13 @@ inline DALI_HOST_DEV int round_int(float x) {
 
 template <typename T>
 DALI_HOST_DEV constexpr T clamp(const T &value, const T &lo, const T &hi) {
-  return value < lo ? lo : value > hi ? hi : value;
+  // Going through intermediate value saves us a jump
+  #ifdef __CUDA_ARCH__
+    return min(hi, max(value, lo));
+  #else
+    T x = value < lo ? lo : value;
+    return x > hi ? hi : x;
+  #endif
 }
 
 /// @brief Calculate square root reciprocal.
