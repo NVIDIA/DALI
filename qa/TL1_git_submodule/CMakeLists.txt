@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.13)
+project(UsingDali)
+add_subdirectory(DALI)
+add_library(test_lib SHARED main_stub.cc)
+target_link_libraries(test_lib PUBLIC DALI::dali DALI::dali_core DALI::dali_kernels DALI::dali_operators)
