@@ -53,7 +53,7 @@ Execute the following command to install the latest DALI for specified CUDA vers
 * for CUDA 11 and CUDA 11.1:
 
   .. note::
-    CUDA 11.1 builds uses CUDA toolkit extended compatibility. It is built with the latest CUDA 11.x
+    CUDA 11.1 build uses CUDA toolkit extended compatibility. It is built with the latest CUDA 11.x
     toolkit while it can run on CUDA 11.0 capable drivers 450.80 or later. Using the newest driver may enable
     additional functionalities.
 
