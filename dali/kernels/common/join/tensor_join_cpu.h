@@ -79,7 +79,7 @@ TensorShape<> DetermineShape<false>(span<const TensorShape<>> in_shapes, int axi
  * The kernel works in 2 modes: STACK and CONCAT. In CONCAT mode, kernel creates a new tensor,
  * with joined values along given dimension, e.g.
  *
- * arr0 = [[1, 2, 4, 2], [1, 1, 7, 6], [6, 8, 8, 4]])
+ * arr0 = [[1, 2, 4, 2], [1, 1, 7, 6], [6, 8, 8, 4]]
  * shape = (3, 4)
  *
  * arr1 = [[3, 8, 8, 6], [8, 1, 5, 7], [6, 2, 7, 5]]
@@ -109,17 +109,16 @@ struct TensorJoinCpu {
   ///@{
   /**
    * @param in_shapes Shapes of input tensors.
-   * @param axis Axis, along which tensors will be joined. Accepts positive and negative values
-   *             (e.g. axis: -1 <=> ndims-1)
+   * @param axis Axis, along which tensors will be joined.
    */
   KernelRequirements Setup(KernelContext &ctx, span<const TensorShape<dims>> in_shapes, int axis) {
     n_input_tensors_ = in_shapes.size();
     auto ndims = in_shapes[0].sample_dim();
-    DALI_ENFORCE(axis >= -ndims + !new_axis && axis <= ndims - !new_axis,
-                 make_string("Incorrect axis. Actual: ", axis, ". Expected in [",
-                             -ndims + !new_axis, ", ", ndims - !new_axis, "] interval (",
-                             new_axis ? "STACK" : "CONCAT", " mode)"));
-    axis_ = axis >= 0 ? axis : ndims + axis + new_axis;
+    DALI_ENFORCE(axis >= 0 && axis <= ndims - !new_axis,
+                 make_string("Incorrect axis. Actual: ", axis, ". Expected in [0, ",
+                             ndims - !new_axis, "] range (", new_axis ? "STACK" : "CONCAT",
+                             " mode)"));
+    axis_ = axis;
 
     {
       const auto &ref = in_shapes[0];
@@ -187,7 +186,7 @@ struct TensorJoinCpu {
   }
 
 
-  int axis_, n_input_tensors_;
+  int axis_ = -1, n_input_tensors_ = -1;
   TensorShape<dims> output_shape_;
 };
 

@@ -59,7 +59,7 @@ TEST(TensorJoinCpuTest, DetermineShapeConcatVaryingExtent) {
 
 
 TEST(TensorJoinCpuTest, ConcatenateTensorsTest) {
-  using namespace std;  // NOLINT
+  using std::vector;
 
   vector<vector<int>> arr = {{6, 8, 5, 1, 3, 5, 1, 6, 8, 3, 7, 5},
                              {4, 5, 1, 8, 4, 4, 1, 4, 1, 7, 6, 6}};
@@ -127,7 +127,7 @@ KernelRunAndVerify(TensorView<StorageCPU, T> ref, span<const TensorView<StorageC
 
 
 TEST(TensorJoinCpuTest, StackKernelTest) {
-  using namespace std;  // NOLINT
+  using std::vector;
   vector<vector<int>> arr = {{100, 101, 102, 110, 111, 112, 120, 121, 122, 130, 131, 132},
                              {200, 201, 202, 210, 211, 212, 220, 221, 222, 230, 231, 232}};
   vector<TensorShape<>> sh = {{4, 3},
@@ -149,19 +149,15 @@ TEST(TensorJoinCpuTest, StackKernelTest) {
                          221, 122, 222, 130, 230, 131, 231, 132, 232};
   TensorShape<> sh_st2 = {4, 3, 2};
 
-  KernelRunAndVerify<TensorStackCpu>({arr_st1.data(), sh_st1}, make_cspan(in), -2);
-  KernelRunAndVerify<TensorStackCpu>({arr_st2.data(), sh_st2}, make_cspan(in), -1);
   KernelRunAndVerify<TensorStackCpu>({arr_st0.data(), sh_st0}, make_cspan(in), 0);
   KernelRunAndVerify<TensorStackCpu>({arr_st1.data(), sh_st1}, make_cspan(in), 1);
   KernelRunAndVerify<TensorStackCpu>({arr_st2.data(), sh_st2}, make_cspan(in), 2);
-  ASSERT_ANY_THROW(
-          KernelRunAndVerify<TensorStackCpu>({arr_st2.data(), sh_st2}, make_cspan(in), -3));
   ASSERT_ANY_THROW(KernelRunAndVerify<TensorStackCpu>({arr_st2.data(), sh_st2}, make_cspan(in), 3));
 }
 
 
 TEST(TensorJoinCpuTest, ConcatKernelTest) {
-  using namespace std;  // NOLINT
+  using std::vector;
   vector<vector<int>> arr = {{100, 101, 102, 110, 111, 112, 120, 121, 122, 130, 131, 132},
                              {200, 201, 202, 210, 211, 212, 220, 221, 222, 230, 231, 232}};
   vector<TensorShape<>> sh = {{4, 3},
@@ -179,18 +175,15 @@ TEST(TensorJoinCpuTest, ConcatKernelTest) {
                           220, 221, 222, 130, 131, 132, 230, 231, 232};
   TensorShape<> sh_cat1 = {4, 6};
 
-  KernelRunAndVerify<TensorConcatCpu>({arr_cat1.data(), sh_cat1}, make_cspan(in), -1);
   KernelRunAndVerify<TensorConcatCpu>({arr_cat0.data(), sh_cat0}, make_cspan(in), 0);
   KernelRunAndVerify<TensorConcatCpu>({arr_cat1.data(), sh_cat1}, make_cspan(in), 1);
-  ASSERT_ANY_THROW(
-          KernelRunAndVerify<TensorConcatCpu>({arr_cat0.data(), sh_cat0}, make_cspan(in), -2));
   ASSERT_ANY_THROW(
           KernelRunAndVerify<TensorConcatCpu>({arr_cat0.data(), sh_cat0}, make_cspan(in), 2));
 }
 
 
 TEST(TensorJoinCpuTest, ConcatKernelDifferentExtentTest) {
-  using namespace std;  // NOLINT
+  using std::vector;
   vector<vector<int>> arr = {{100, 101, 102, 110, 111, 112, 120, 121, 122, 130, 131, 132},
                              {200, 201, 202, 210, 211, 212, 220, 221, 222}};
   vector<TensorShape<>> sh = {{4, 3},
@@ -205,8 +198,6 @@ TEST(TensorJoinCpuTest, ConcatKernelDifferentExtentTest) {
   TensorShape<> sh_cat0 = {7, 3};
 
   KernelRunAndVerify<TensorConcatCpu>({arr_cat0.data(), sh_cat0}, make_cspan(in), 0);
-  ASSERT_ANY_THROW(
-          KernelRunAndVerify<TensorConcatCpu>({arr_cat0.data(), sh_cat0}, make_cspan(in), -1));
   ASSERT_ANY_THROW(
           KernelRunAndVerify<TensorConcatCpu>({arr_cat0.data(), sh_cat0}, make_cspan(in), 1));
 }
