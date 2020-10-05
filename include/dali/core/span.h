@@ -218,7 +218,7 @@ DALI_HOST_DEV constexpr span<T, N> make_span(T (&a)[N]) {
 }
 
 template <span_extent_t Extent, typename T>
-DALI_HOST_DEV constexpr span<const T, Extent> make_cspan(const T *data) { return { data }; }
+DALI_HOST_DEV constexpr span<const T, Extent> make_cspan(T *data) { return { data }; }
 
 template <span_extent_t Extent = dynamic_extent, typename T>
 DALI_HOST_DEV constexpr span<const T, Extent> make_cspan(const T *data, span_extent_t extent) {
@@ -254,7 +254,7 @@ DALI_HOST_DEV constexpr span<const T, N> make_cspan(std::array<T, N> &&a) {
 }
 
 template <typename T, size_t N>
-DALI_HOST_DEV constexpr span<const T, N> make_cspan(const T (&a)[N]) {
+DALI_HOST_DEV constexpr span<const T, N> make_cspan(T (&a)[N]) {
   return { a };
 }
 

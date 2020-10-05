@@ -620,11 +620,6 @@ TEST(TensorListShapeTest, ConstructorsFromVector) {
   EXPECT_EQ(tls_dyn_3.shapes, shapes);
   EXPECT_EQ(tls_dyn_3.size(), 2);
   EXPECT_EQ(tls_dyn_3.sample_dim(), 3);
-
-  TensorListShape<3> tls_static_3(shapes, 3);
-  EXPECT_EQ(tls_static_3.shapes, shapes);
-  EXPECT_EQ(tls_static_3.size(), 2);
-  EXPECT_EQ(tls_static_3.sample_dim(), 3);
 }
 
 TEST(TensorListShapeTest, IsUniform) {
@@ -1259,12 +1254,12 @@ TEST(AppendTest, AppendTest) {
 }
 
 TEST(AppendTest, ZeroDim) {
-  TensorListShape<0> tls_tested_st = {{1, 2, 3, 4}, 0};
-  TensorListShape<-1> tls_tested_dyn = {{1, 2, 3, 4}, 0};
-  TensorListShape<0> tls1 = {{5, 6, 7, 8}, 0};
-  TensorListShape<-1> tls2 = {{5, 6, 7, 8}, 0};
-  TensorListShape<0> tls3 = {{9, 10, 11, 12}, 0};
-  TensorListShape<0> ref = {{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}, 0};
+  TensorListShape<0> tls_tested_st = {{1, 1, 1, 1}, 4, 0};
+  TensorListShape<-1> tls_tested_dyn = {{1, 1, 1, 1}, 4, 0};
+  TensorListShape<0> tls1 = {{1, 1, 1, 1}, 4, 0};
+  TensorListShape<-1> tls2 = {{1, 1, 1, 1}, 4, 0};
+  TensorListShape<0> tls3 = {{1, 1, 1, 1}, 4, 0};
+  TensorListShape<0> ref = {{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 12, 0};
 
   tls_tested_st.append({tls2.to_static<0>(), tls3});
   tls_tested_dyn.append({tls2, tls3});
