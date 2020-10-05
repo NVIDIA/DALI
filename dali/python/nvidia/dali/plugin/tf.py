@@ -42,9 +42,11 @@ def serialize_pipeline(pipeline):
 def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [],
                         shapes = [], dtypes = [], batch_size = -1, prefetch_queue_depth = 2, **kwargs):
   """
-TF Plugin Wrapper
+  TF Plugin Wrapper
 
-This operator works in the same way as DALI TensorFlow plugin, with the exception that is also accepts Pipeline objects as the input and serializes it internally. For more information, please look **TensorFlow Plugin API reference** in the documentation.
+  This operator works in the same way as DALI TensorFlow plugin, with the exception that is also
+  accepts Pipeline objects as the input and serializes it internally. For more information,
+  please look :meth:`nvidia.dali.plugin.tf.DALIRawIterator` in the documentation.
   """
   if type(prefetch_queue_depth) is dict:
       exec_separated = True
@@ -176,6 +178,8 @@ if dataset_compatible_tensorflow():
       self._pipeline = serialize_pipeline(pipeline)
       self._batch_size = batch_size
       self._num_threads = num_threads
+      if device_id is None:
+          device_id = types.CPU_ONLY_DEVICE_ID
       self._device_id = device_id
       self._exec_separated = exec_separated
       self._prefetch_queue_depth = prefetch_queue_depth
@@ -284,14 +288,13 @@ DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Datase
     DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
     differ based on your use case.
 
-
     Parameters
     ----------
     `pipeline` : `nvidia.dali.Pipeline`
         defining the data processing to be performed.
-    `output_dtypes`: `tf.DType` or `tuple` of `tf.DType`
+    `output_dtypes`: `tf.DType` or `tuple` of `tf.DType`, default = None
         expected output types
-    `output_shapes`: tuple of shapes, optional
+    `output_shapes`: tuple of shapes, optional, default = None
         expected output shapes. If provided, must match arity of the `output_dtypes`.
         When set to None, DALI will infer the shapes on its own.
         Individual shapes can be also set to None or contain None to indicate unknown dimensions.
@@ -300,32 +303,34 @@ DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Datase
         In case of `batch_size = 1` it can be omitted in the shape.
         DALI Dataset will try to match requested shape by squeezing 1-sized dimensions
         from shape obtained from Pipeline.
-    `fail_on_device_mismatch` : bool, optional
+    `fail_on_device_mismatch` : bool, optional, default = True
         When set to `True` runtime check will be performed to ensure DALI device and TF device are
         both CPU or both GPU. In some contexts this check might be inaccurate. When set to `False`
         will skip the check but print additional logs to check the devices. Keep in mind that this
         may allow hidden GPU to CPU copies in the workflow and impact performance.
-    `batch_size` : int, optional
+    `batch_size` : int, optional, default = 1
         batch size of the pipeline.
-    `num_threads` : int, optional
+    `num_threads` : int, optional, default = 4
         number of CPU threads used by the pipeline.
-    `device_id` : int, optional
+    `device_id` : int, optional, default = 0
         id of GPU used by the pipeline.
-    `exec_separated` : bool, optional
+        A None value for this parameter means that DALI should not use GPU nor CUDA runtime.
+        This limits the pipeline to only CPU operators but allows it to run on any CPU capable machine.
+    `exec_separated` : bool, optional, default = False
         Whether to execute the pipeline in a way that enables
         overlapping CPU and GPU computation, typically resulting
         in faster execution speed, but larger memory consumption.
-    `prefetch_queue_depth` : int, optional
+    `prefetch_queue_depth` : int, optional, default = 2
         depth of the executor queue. Deeper queue makes DALI more
         resistant to uneven execution time of each batch, but it also
         consumes more memory for internal buffers.
         Value will be used with `exec_separated` set to False.
-    `cpu_prefetch_queue_depth` : int, optional
+    `cpu_prefetch_queue_depth` : int, optional, default = 2
         depth of the executor cpu queue. Deeper queue makes DALI more
         resistant to uneven execution time of each batch, but it also
         consumes more memory for internal buffers.
         Value will be used with `exec_separated` set to True.
-    `gpu_prefetch_queue_depth` : int, optional
+    `gpu_prefetch_queue_depth` : int, optional, default = 2
         depth of the executor gpu queue. Deeper queue makes DALI more
         resistant to uneven execution time of each batch, but it also
         consumes more memory for internal buffers.
