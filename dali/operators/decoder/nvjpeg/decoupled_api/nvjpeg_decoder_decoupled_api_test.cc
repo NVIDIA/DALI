@@ -249,5 +249,52 @@ TEST_F(HwDecoderUtilizationTest, UtilizationTest) {
 }
 #endif
 
+class Nvjpeg2kTest : public ::testing::Test {
+ public:
+  void SetUp() final {
+    dali::string list_root(testing::dali_extra_path() + "/db/single/jpeg2k");
+
+    pipeline_.AddOperator(
+            OpSpec("FileReader")
+                    .AddArg("device", "cpu")
+                    .AddArg("file_root", list_root)
+                    .AddOutput("compressed_images", "cpu")
+                    .AddOutput("labels", "cpu"));
+    auto decoder_spec =
+            OpSpec("ImageDecoder")
+                    .AddArg("device", "mixed")
+                    .AddArg("output_type", DALI_RGB)
+                    .AddInput("compressed_images", "cpu")
+                    .AddOutput("images", "gpu");
+    pipeline_.AddOperator(decoder_spec, decoder_name_);
+
+    pipeline_.Build(outputs_);
+  }
+
+
+  int batch_size_ = 21;
+  Pipeline pipeline_{batch_size_, 1, 0, -1, false, 2, false};
+  vector<std::pair<string, string>> outputs_ = {{"images", "gpu"}};
+  std::string decoder_name_ = "Lorem Ipsum";
+};
+
+
+TEST_F(Nvjpeg2kTest, UtilizationTest) {
+  this->pipeline_.RunCPU();
+  this->pipeline_.RunGPU();
+
+  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
+  auto nsamples_nvjpeg2k = node->op->GetDiagnostic<int64_t>("nsamples_nvjpeg2k");
+  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+#ifdef DALI_USE_NVJPEG2K
+  EXPECT_EQ(nsamples_nvjpeg2k, 14);
+  EXPECT_EQ(nsamples_host, 7);
+#else
+  EXPECT_EQ(nsamples_nvjpeg2k, 0);
+  EXPECT_EQ(nsamples_host, 21);
+#endif  // DALI_USE_NVJPEG2K
+}
+
+
 }  // namespace dali
 

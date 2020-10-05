@@ -40,6 +40,13 @@ if (BUILD_NVJPEG)
   endif()
 endif()
 
+if (BUILD_NVJPEG2K)
+  CUDA_find_library(NVJPEG2K_LIBRARY nvjpeg2k_static)
+  list(APPEND DALI_LIBS ${NVJPEG2K_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnvjpeg2k_static.a)
+  add_definitions(-DDALI_USE_NVJPEG2K)
+endif (BUILD_NVJPEG2K)
+
 # NVIDIA NPP library
 CUDA_find_library(CUDA_nppicc_static_LIBRARY nppicc_static)
 CUDA_find_library(CUDA_nppc_static_LIBRARY nppc_static)

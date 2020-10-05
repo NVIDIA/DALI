@@ -118,7 +118,8 @@ a dedicated hardware decoder.
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
   .AddOptionalArg("hw_decoder_load",
       R"code(Applies **only** to the ``mixed`` backend type.
 
@@ -150,7 +151,8 @@ image format, it will decode the entire image and crop the selected ROI.
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -174,7 +176,8 @@ image format, it will decode the entire image and crop the selected ROI.
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -212,7 +215,8 @@ image format, it will decode the entire image and crop the selected ROI.
 
 The output of the decoder is in the *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.)code")
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
   .NumInput(3)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
