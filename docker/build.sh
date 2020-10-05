@@ -142,6 +142,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_LMDB=${BUILD_LMDB}                  \
                                         BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}      \
                                         BUILD_NVJPEG=${BUILD_NVJPEG}              \
+                                        BUILD_NVJPEG2K=${BUILD_NVJPEG2K}          \
                                         BUILD_LIBTIFF=${BUILD_LIBTIFF}            \
                                         BUILD_NVOF=${BUILD_NVOF}                  \
                                         BUILD_NVDEC=${BUILD_NVDEC}                \
@@ -173,6 +174,7 @@ else
                                    --build-arg "BUILD_LMDB=${BUILD_LMDB}"                  \
                                    --build-arg "BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}"      \
                                    --build-arg "BUILD_NVJPEG=${BUILD_NVJPEG}"              \
+                                   --build-arg "BUILD_NVJPEG2K=${BUILD_NVJPEG2K}"          \
                                    --build-arg "BUILD_LIBTIFF=${BUILD_LIBTIFF}"            \
                                    --build-arg "BUILD_NVOF=${BUILD_NVOF}"                  \
                                    --build-arg "BUILD_NVDEC=${BUILD_NVDEC}"                \

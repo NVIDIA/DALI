@@ -23,6 +23,7 @@
 #include <mutex>
 #include <utility>
 #include <vector>
+#include <memory>
 #include "dali/core/cuda_error.h"
 #include "dali/kernels/alloc.h"
 
@@ -35,23 +36,46 @@ using kernels::memory::Allocate;
 
 namespace nvjpeg_memory {
 
+struct AllocInfo {
+  AllocType alloc_type;
+  size_t size;
+  std::thread::id thread_id;
+};
+
+std::map<void*, AllocInfo> alloc_info_;
+std::shared_timed_mutex alloc_info_mutex_;
+
+struct Deleter {
+  kernels::memory::Deleter deleter;
+  explicit Deleter(AllocType alloc_type) : deleter(kernels::memory::GetDeleter(alloc_type)) {}
+
+  inline void operator()(void *p) {
+    deleter(p);
+    std::unique_lock<std::shared_timed_mutex> lock(alloc_info_mutex_);
+    alloc_info_.erase(p);
+  }
+};
+
+using unique_ptr_t = std::unique_ptr<char, Deleter>;
+
 struct Buffer {
-  Buffer(KernelUniquePtr<char> unq_ptr, AllocType type, size_t sz)
+  Buffer(unique_ptr_t unq_ptr, AllocType type, size_t sz)
       : ptr(std::move(unq_ptr)), alloc_type(type), size(sz) {}
-  KernelUniquePtr<char> ptr;
+  unique_ptr_t ptr;
   AllocType alloc_type;
   size_t size;
 };
 
 using BufferPool = std::map<std::thread::id,
                             std::array<std::vector<Buffer>, static_cast<size_t>(AllocType::Count)>>;
-std::shared_timed_mutex buffer_pool_mutex_;
 BufferPool buffer_pool_;
+std::shared_timed_mutex buffer_pool_mutex_;
 
 struct MemoryStats {
   size_t nallocs = 0;
   size_t biggest_alloc = 0;
 };
+
 std::array<MemoryStats, static_cast<size_t>(AllocType::Count)> mem_stats_;
 std::mutex mem_stats_mutex_;
 std::atomic<bool> mem_stats_enabled_ = {true};
@@ -90,6 +114,13 @@ void PrintMemStats() {
   }
 }
 
+unique_ptr_t Allocate(std::thread::id thread_id, AllocType alloc_type, size_t size) {
+  auto ptr = kernels::memory::alloc_unique<char>(alloc_type, size);
+  std::unique_lock<std::shared_timed_mutex> lock(alloc_info_mutex_);
+  alloc_info_[ptr.get()] = {alloc_type, size, thread_id};
+  return {ptr.release(), Deleter(alloc_type)};
+}
+
 void* GetBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
   std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
   auto it = buffer_pool_.find(thread_id);
@@ -97,15 +128,45 @@ void* GetBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
   lock.unlock();
 
   auto &buffers = it->second[static_cast<size_t>(alloc_type)];
-  if (!buffers.empty()) {
-    auto buf = std::move(buffers.back());
+  auto best_fit = buffers.end();
+  auto smallest = buffers.end();
+  for (auto it = buffers.begin(); it != buffers.end(); ++it) {
+    if (smallest == buffers.end() || it->size < smallest->size) {
+      smallest = it;
+    }
+    if (it->size >= size && (best_fit == buffers.end() || it->size < best_fit->size)) {
+      best_fit = it;
+    }
+  }
+  if (best_fit != buffers.end()) {
+    std::swap(*best_fit, buffers.back());
+    auto buffer = std::move(buffers.back());
     buffers.pop_back();
-    if (size <= buf.size)
-      return buf.ptr.release();
+    return buffer.ptr.release();
+  }
+  if (smallest != buffers.end()) {
+    std::swap(*smallest, buffers.back());
+    buffers.pop_back();
   }
   // Couldn't find a preallocated buffer, proceed to allocate
   AddMemStats(alloc_type, size);
-  return kernels::memory::Allocate(alloc_type, size);
+  return Allocate(thread_id, alloc_type, size).release();
+}
+
+static int ReturnBufferToPool(void *raw_ptr) {
+  std::shared_lock<std::shared_timed_mutex> info_lock(alloc_info_mutex_);
+  auto info_it = alloc_info_.find(raw_ptr);
+  assert(info_it != alloc_info_.end());
+  auto info = info_it->second;
+  info_lock.unlock();
+  std::unique_ptr<char, Deleter> ptr(reinterpret_cast<char*>(raw_ptr), Deleter(info.alloc_type));
+  std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
+  auto it = buffer_pool_.find(info.thread_id);
+  assert(it != buffer_pool_.end());
+  lock.unlock();
+  auto &buffers = it->second[static_cast<size_t>(info.alloc_type)];
+  buffers.emplace_back(std::move(ptr), info.alloc_type, info.size);
+  return 0;
 }
 
 void AddBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
@@ -114,21 +175,22 @@ void AddBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
   lock.unlock();
 
   auto &buffers = thread_buffer_pool[static_cast<size_t>(alloc_type)];
-  buffers.emplace_back(kernels::memory::alloc_unique<char>(alloc_type, size), alloc_type, size);
+  buffers.emplace_back(Allocate(thread_id, alloc_type, size), alloc_type, size);
   AddMemStats(alloc_type, size);
 }
 
 void DeleteAllBuffers(std::thread::id thread_id) {
-  buffer_pool_.erase(thread_id);
+  std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
+  auto it = buffer_pool_.find(thread_id);
+  assert(it != buffer_pool_.end());
+  lock.unlock();
+  auto &buffers = it->second;
+  for (auto &buffer : buffers)
+    buffer.clear();
 }
 
 static int DeviceNew(void **ptr, size_t size) {
   *ptr = GetBuffer(std::this_thread::get_id(), AllocType::GPU, size);
-  return 0;
-}
-
-static int DeviceDelete(void *ptr) {
-  CUDA_CALL(cudaFree(ptr));
   return 0;
 }
 
@@ -137,24 +199,35 @@ static int PinnedNew(void **ptr, size_t size, unsigned int flags) {
   return 0;
 }
 
-static int PinnedDelete(void *ptr) {
-  CUDA_CALL(cudaFreeHost(ptr));
-  return 0;
-}
-
 nvjpegDevAllocator_t GetDeviceAllocator() {
   nvjpegDevAllocator_t allocator;
   allocator.dev_malloc = &DeviceNew;
-  allocator.dev_free = &DeviceDelete;
+  allocator.dev_free = &ReturnBufferToPool;
   return allocator;
 }
 
 nvjpegPinnedAllocator_t GetPinnedAllocator() {
   nvjpegPinnedAllocator_t allocator;
   allocator.pinned_malloc = &PinnedNew;
-  allocator.pinned_free = &PinnedDelete;
+  allocator.pinned_free = &ReturnBufferToPool;
   return allocator;
 }
+
+#ifdef DALI_USE_NVJPEG2K
+nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k() {
+  nvjpeg2kDeviceAllocator_t allocator;
+  allocator.device_malloc = &DeviceNew;
+  allocator.device_free = &ReturnBufferToPool;
+  return allocator;
+}
+
+nvjpeg2kPinnedAllocator_t GetPinnedAllocatorNvJpeg2k() {
+  nvjpeg2kPinnedAllocator_t allocator;
+  allocator.pinned_malloc = &PinnedNew;
+  allocator.pinned_free = &ReturnBufferToPool;
+  return allocator;
+}
+#endif  // DALI_USE_NVJPEG2K
 
 }  // namespace nvjpeg_memory
 

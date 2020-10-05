@@ -17,6 +17,7 @@
 
 #include <nvjpeg.h>
 #include <thread>
+#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg2k_helper.h"
 #include "dali/kernels/alloc_type.h"
 
 namespace dali {
@@ -57,6 +58,11 @@ void PrintMemStats();
 
 nvjpegDevAllocator_t GetDeviceAllocator();
 nvjpegPinnedAllocator_t GetPinnedAllocator();
+
+#ifdef DALI_USE_NVJPEG2K
+nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k();
+nvjpeg2kPinnedAllocator_t GetPinnedAllocatorNvJpeg2k();
+#endif  // DALI_USE_NVJPEG2K
 
 }  // namespace nvjpeg_memory
 

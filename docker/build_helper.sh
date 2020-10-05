@@ -32,6 +32,8 @@ export BUILD_PYTHON=${BUILD_PYTHON:-ON}
 export BUILD_LMDB=${BUILD_LMDB:-ON}
 export BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO:-ON}
 export BUILD_NVJPEG=${BUILD_NVJPEG:-ON}
+# use a default value as it differs for CUDA 10 and CUDA 11.x
+export BUILD_NVJPEG2K=${BUILD_NVJPEG2K}
 export BUILD_LIBTIFF=${BUILD_LIBTIFF:-ON}
 export BUILD_NVOF=${BUILD_NVOF:-ON}
 export BUILD_NVDEC=${BUILD_NVDEC:-ON}
@@ -64,6 +66,7 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DBUILD_LMDB=${BUILD_LMDB}                   \
       -DBUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}       \
       -DBUILD_NVJPEG=${BUILD_NVJPEG}               \
+      -DBUILD_NVJPEG2K=${BUILD_NVJPEG2K}           \
       -DBUILD_LIBTIFF=${BUILD_LIBTIFF}             \
       -DBUILD_NVOF=${BUILD_NVOF}                   \
       -DBUILD_NVDEC=${BUILD_NVDEC}                 \
