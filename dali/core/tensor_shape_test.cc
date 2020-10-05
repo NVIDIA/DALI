@@ -615,11 +615,6 @@ TEST(TensorListShapeTest, ConstructorsFromVector) {
   EXPECT_EQ(tls_static_2_3.shapes, shapes);
   EXPECT_EQ(tls_static_2_3.size(), 2);
   EXPECT_EQ(tls_static_2_3.sample_dim(), 3);
-
-  TensorListShape<> tls_dyn_3(shapes, 3);
-  EXPECT_EQ(tls_dyn_3.shapes, shapes);
-  EXPECT_EQ(tls_dyn_3.size(), 2);
-  EXPECT_EQ(tls_dyn_3.sample_dim(), 3);
 }
 
 TEST(TensorListShapeTest, IsUniform) {

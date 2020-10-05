@@ -729,14 +729,6 @@ struct TensorListShape<DynamicDimensions>
       : Base(flatten_shapes(sample_shapes), sample_shapes.size()),
         ndim(get_dim_from_uniform(sample_shapes)) {}
 
-  TensorListShape(const std::vector<int64_t> &shapes, int sample_dim)
-      : Base(shapes, shapes.size() / (sample_dim == 0 ? 1 : sample_dim)),
-        ndim(sample_dim) {}
-
-  TensorListShape(std::vector<int64_t> &&shapes, int sample_dim)
-      : Base(std::move(shapes), shapes.size() / (sample_dim == 0 ? 1 : sample_dim)),
-        ndim(sample_dim) {}
-
   TensorListShape(const std::vector<int64_t> &shapes, int num_samples, int sample_dim)
       : Base(shapes, num_samples), ndim(sample_dim) {
     assert(num_samples * sample_dim == static_cast<int>(shapes.size()));
@@ -793,6 +785,7 @@ struct TensorListShape<DynamicDimensions>
   TensorListShape<other_ndim> to_static() const & {
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
+    assert((num_samples() == 0 || sample_dim() == other_ndim) && "Cannot convert to other ndim");
     return { shapes, size(), other_ndim };
   }
 
@@ -800,6 +793,7 @@ struct TensorListShape<DynamicDimensions>
   TensorListShape<other_ndim> to_static() && {
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
+    assert((num_samples() == 0 || sample_dim() == other_ndim) && "Cannot convert to other ndim");
     return { std::move(shapes), size(), other_ndim };
   }
 
