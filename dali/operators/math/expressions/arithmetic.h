@@ -115,7 +115,7 @@ DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
   int subexpression_count = func.GetSubexpressionCount();
-  DALI_ENFORCE(1 <= subexpression_count && subexpression_count <= kMaxArity,
+  DALI_ENFORCE(0 < subexpression_count && subexpression_count <= kMaxArity,
                "Only unary, binary and ternary expressions are supported");
 
   SmallVector<DALIDataType, kMaxArity> types;
@@ -193,7 +193,7 @@ DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
   int subexpression_count = expr.GetSubexpressionCount();
-  DALI_ENFORCE(1 <= subexpression_count && subexpression_count <= kMaxArity,
+  DALI_ENFORCE(0 < subexpression_count && subexpression_count <= kMaxArity,
                "Only unary, binary and ternary expressions are supported");
 
   SmallVector<const TensorListShape<> *, kMaxArity> shapes;
