@@ -17,7 +17,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(TransformCrop)
+DALI_SCHEMA(transforms__Crop)
   .DocStr(R"code(Produces an affine transform matrix that maps a reference coordinate space to another one.
 
 This transform can be used to adjust coordinates after a crop operation so that a ``from_start`` point will
@@ -164,6 +164,6 @@ class TransformCropCPU
   bool absolute_ = false;
 };
 
-DALI_REGISTER_OPERATOR(TransformCrop, TransformCropCPU, CPU);
+DALI_REGISTER_OPERATOR(transforms__Crop, TransformCropCPU, CPU);
 
 }  // namespace dali

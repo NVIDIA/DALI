@@ -15,6 +15,7 @@
 #pylint: disable=no-member
 import sys
 from nvidia.dali.data_node import DataNode as _DataNode
+from nvidia.dali import internal as _internal
 
 _special_case_mapping = {
     "b_box" : "bbox",
@@ -85,13 +86,19 @@ Got {1} instead when calling operator {2}.""".format(idx, type(inp).__name__, op
         return op_class(**scalar_args)(*inputs, **tensor_args)
 
     op_wrapper.__name__ = wrapper_name
-    op_wrapper.__doc__ = "see :class:`nvidia.dali.ops.{0}`".format(op_class.__name__)
+    op_wrapper.__doc__ = "see :class:`{0}.{1}`".format(op_class.__module__, op_class.__name__)
     return op_wrapper
 
-def _wrap_op(op_class):
+def _wrap_op(op_class, submodule):
     wrapper_name = _to_snake_case(op_class.__name__)
-    if not hasattr(sys.modules[__name__], wrapper_name):
-        setattr(sys.modules[__name__], wrapper_name, _wrap_op_fn(op_class, wrapper_name))
+    fn_module = sys.modules[__name__]
+    module = _internal.get_submodule(fn_module, submodule)
+    if not hasattr(module, wrapper_name):
+        wrap_func = _wrap_op_fn(op_class, wrapper_name)
+        setattr(module, wrapper_name, wrap_func)
+        if submodule:
+            wrap_func.__module__ = module.__name__
+
 
 from nvidia.dali.external_source import external_source
 external_source.__module__ = __name__
