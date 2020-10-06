@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <random>
+#include "dali/kernels/common/join/tensor_join_cpu.h"
 #include "dali/kernels/common/join/tensor_join_gpu_impl.h"
 #include "dali/kernels/common/join/tensor_join_gpu_impl.cuh"
 #include "dali/core/dev_buffer.h"
@@ -27,74 +28,6 @@ namespace dali {
 namespace kernels {
 
 template <typename T>
-void RefTensorJoin(const OutTensorCPU<T> &out, span<const InTensorCPU<T>> in, int axis) {
-  int njoin = in.size();
-
-  SmallVector<ptrdiff_t, 8> copy_sizes;
-  copy_sizes.resize(in.size());
-  for (int t = 0; t < njoin; t++)
-    copy_sizes[t] = volume(in[t].shape.begin() + axis, in[t].shape.end());
-
-  ptrdiff_t nouter = volume(out.shape.begin(), out.shape.begin() + axis);
-  T *dst = out.data;
-  for (ptrdiff_t outer = 0; outer < nouter; outer++) {
-    for (int t = 0; t < njoin; t++) {
-      const T *src = in[t].data + outer * copy_sizes[t];
-      for (ptrdiff_t inner = 0; inner < copy_sizes[t]; inner++) {
-        *dst++ = src[inner];
-      }
-    }
-  }
-}
-
-constexpr int joined_ndim(int ndim, bool newaxis) {
-  return ndim < 0 ? ndim : ndim + newaxis;
-}
-
-template <int out_ndim, int ndim>
-void JoinedShape(TensorListShape<out_ndim> &out,
-                 span<const TensorListShape<ndim>> in, int axis, bool newaxis) {
-  static_assert(out_ndim == ndim || (ndim >= 0 && out_ndim == ndim + 1));
-  int njoin = in.size();
-  if (njoin == 0) {
-    out.resize(0, joined_ndim(in[0].sample_dim(), newaxis));
-  }
-
-  int N = in[0].num_samples();
-  out.resize(N, joined_ndim(in[0].sample_dim(), newaxis));
-  int d = in[0].sample_dim();
-
-  int64_t in_volume = 0;
-  for (auto &tls : in)
-    in_volume += tls.num_elements();
-
-  for (int i = 0; i < N; i++) {
-    auto out_ts = out.tensor_shape_span(i);
-
-    // copy outer extents, up to `axis`
-    int oa = 0, ia = 0;  // input axis, output axis
-    for (; ia < axis; ia++, oa++)
-      out_ts[oa] = in[0].tensor_shape_span(i)[ia];
-
-    if (newaxis) {
-      out_ts[oa++] = njoin;  // new axis - number of joined tensor
-    } else {
-      // join along existing axis - sum the extents
-      for (int t = 0; t < njoin; t++) {
-        out_ts[oa] += in[t].tensor_shape_span(i)[ia];
-      }
-      oa++, ia++;  // advance both input and output
-    }
-
-    // copy remaining inner extents
-    for (; ia < d; ia++, oa++)
-      out_ts[oa] = in[0].tensor_shape_span(i)[ia];
-  }
-
-  assert(out.num_elements() == in_volume);
-}
-
-template <typename T>
 void RefTLSJoin(const OutListCPU<T> &out, span<const InListCPU<T> *const> in, int axis) {
   SmallVector<InTensorCPU<T>, 8> in_tensors;
   int njoin = in.size();
@@ -105,7 +38,7 @@ void RefTLSJoin(const OutListCPU<T> &out, span<const InListCPU<T> *const> in, in
   for (int i = 0; i < N; i++) {
     for (int t = 0; t < njoin; t++)
       in_tensors[t] = (*in[t])[i];
-    RefTensorJoin(out[i], make_cspan(in_tensors), axis);
+    tensor_join::ConcatenateTensors(out[i], make_cspan(in_tensors), axis);
   }
 }
 
@@ -124,7 +57,7 @@ struct TensorJoinGPUTest : public ::testing::Test {
   }
 
   void CheckResult() {
-    Check(ref.cpu(), out.cpu());
+    Check(out.cpu(), ref.cpu());
   }
 
   void RunRawKernel(bool stack) {
@@ -149,6 +82,7 @@ struct TensorJoinGPUTest : public ::testing::Test {
       out_desc.data = out_tensor.data;
       auto join_size = volume(out_tensor.shape.begin() + axis, out_tensor.shape.end());
       out_desc.outer_stride = join_size;
+      out_desc.join_stride = volume(out_tensor.shape.begin() + axis + 1, out_tensor.shape.end());
       out_desc.total_size = volume(out_tensor.num_elements());
       out_desc.outer_size = volume(out_tensor.shape.begin(), out_tensor.shape.begin() + axis);
       out_desc.guess_tensor_mul = 1.0 * njoin / join_size;
@@ -258,7 +192,7 @@ struct TensorJoinGPUTest : public ::testing::Test {
       }
     }
 
-    JoinedShape(out_shape, make_cspan(in_shapes), axis, new_axis);
+    tensor_join::JoinedShape(out_shape, make_cspan(in_shapes), axis, new_axis);
   }
 
 
@@ -280,20 +214,19 @@ struct TensorJoinGPUTest : public ::testing::Test {
 
 TEST_F(TensorJoinGPUTest, Test_JoinKernel) {
   max_outer_extent = 1000;
-  max_inner_extent = 3;
-  njoin = 3;
+  max_inner_extent = 1;
+  njoin = 7;
   new_axis = false;
   TestRawKernel(false);
-
 }
 
-/*TEST_F(TensorJoinGPUTest, Test_StacKernel) {
-  max_outer_extent = 300;
-  max_inner_extent = 10;
-  njoin = 256;
+TEST_F(TensorJoinGPUTest, Test_StackKernel) {
+  max_outer_extent = 30;
+  max_inner_extent = 3;
+  njoin = 1024;
   new_axis = true;
-  TestRawKernel(true);
-}*/
+  TestRawKernel(false);
+}
 
 }  // namespace kernels
 }  // namespace dali
