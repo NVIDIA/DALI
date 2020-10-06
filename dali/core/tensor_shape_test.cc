@@ -1249,12 +1249,12 @@ TEST(AppendTest, AppendTest) {
 }
 
 TEST(AppendTest, ZeroDim) {
-  TensorListShape<0> tls_tested_st = {{1, 1, 1, 1}, 4, 0};
-  TensorListShape<-1> tls_tested_dyn = {{1, 1, 1, 1}, 4, 0};
-  TensorListShape<0> tls1 = {{1, 1, 1, 1}, 4, 0};
-  TensorListShape<-1> tls2 = {{1, 1, 1, 1}, 4, 0};
-  TensorListShape<0> tls3 = {{1, 1, 1, 1}, 4, 0};
-  TensorListShape<0> ref = {{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 12, 0};
+  TensorListShape<0> tls_tested_st = {{}, 4, 0};
+  TensorListShape<-1> tls_tested_dyn = {{}, 4, 0};
+  TensorListShape<0> tls1 = {{}, 4, 0};
+  TensorListShape<-1> tls2 = {{}, 4, 0};
+  TensorListShape<0> tls3 = {{}, 4, 0};
+  TensorListShape<0> ref = {{}, 12, 0};
 
   tls_tested_st.append({tls2.to_static<0>(), tls3});
   tls_tested_dyn.append({tls2, tls3});
