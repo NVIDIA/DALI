@@ -127,7 +127,7 @@ class ScalarConstant(object):
     This class should not be instantiated directly; use :func:`Constant` function
     with appropriate arguments to create instances of this class.
 
-Wrapper for a constant value that can be used in DALI :ref:`arithmetic expressions`
+Wrapper for a constant value that can be used in DALI :ref:`mathematical expressions`
 and applied element-wise to the results of DALI Operators representing Tensors in
 :meth:`nvidia.dali.pipeline.Pipeline.define_graph` step.
 
@@ -411,7 +411,7 @@ def Constant(value, dtype = None, shape = None, layout = None, device = None, **
 If the `value` argument is a scalar and neither `shape`, `layout` nor
 `device` is provided, the function will return a :class:`ScalarConstant`
 wrapper object, which receives special, optimized treatment when used in
-:ref:`arithmetic expressions`.
+:ref:`mathematical expressions`.
 
 Otherwise, the function creates a `dali.ops.Constant` node, which produces
 a batch of constant tensors.
@@ -420,7 +420,7 @@ Args
 ----
 value: `bool`, `int`, `float`, a `list` or `tuple` thereof or a `numpy.ndarray`
     The constant value to wrap. If it is a scalar, it can be used as scalar
-    value in arithmetic expressions. Otherwise, it will produce a constant
+    value in mathematical expressions. Otherwise, it will produce a constant
     tensor node (optionally reshaped according to `shape` argument).
     If this argument is is a numpy array, a PyTorch tensor or an MXNet array,
     the values of `shape` and `dtype` will default to `value.shape` and `value.dtype`,
