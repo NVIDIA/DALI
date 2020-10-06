@@ -77,13 +77,15 @@ def _get_kwargs(schema, only_tensor = False):
             ret += '\n'
     return ret
 
+def _schema_name(cls):
+    return getattr(cls, 'schema_name', cls.__name__)
+
 def _docstring_generator(cls):
     """
         Generate docstring for the class obtaining it from schema based on cls.__name__
-
         This lists all the Keyword args that can be used when creating operator
     """
-    op_name = cls.schema_name or cls.__name__
+    op_name = _schema_name(cls)
     schema = _b.GetSchema(op_name)
     ret = '\n'
 
@@ -364,7 +366,7 @@ class _DaliOperatorMeta(type):
 def python_op_factory(name, schema_name = None, op_device = "cpu"):
     class Operator(metaclass=_DaliOperatorMeta):
         def __init__(self, **kwargs):
-            schema_name = type(self).schema_name
+            schema_name = _schema_name(type(self))
             self._spec = _b.OpSpec(schema_name)
             self._schema = _b.GetSchema(schema_name)
 
@@ -739,6 +741,8 @@ class PythonFunction(PythonFunctionBase):
     global _gpu_ops
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
     _gpu_ops = _gpu_ops.union({'PythonFunction'})
+
+    __doc__ = "Some documentation here"
 
     @staticmethod
     def current_stream():
