@@ -24,7 +24,7 @@
 namespace dali {
 
 void VideoReader::Prefetch() {
-  DataReader<GPUBackend, SequenceDesc>::Prefetch();
+  DataReader<GPUBackend, SequenceWrapper>::Prefetch();
   auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
   auto &curr_tensor_list = prefetched_batch_tensors_[curr_batch_producer_];
 
@@ -34,8 +34,7 @@ void VideoReader::Prefetch() {
   auto ref_type = curr_batch[0]->dtype;
   for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
-    DALI_ENFORCE(ref_type == sample->dtype,
-                  "The tensors in the input batch do not all have the same type");
+    assert(ref_type == sample->dtype);
     tmp_shapes.emplace_back(sample->shape());
   }
 
@@ -43,8 +42,10 @@ void VideoReader::Prefetch() {
 
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
-    sample->sequence_view.ShareData(&curr_tensor_list, static_cast<int>(data_idx));
+    sample->sequence.ShareData(&curr_tensor_list, static_cast<int>(data_idx));
     sample->read_sample_f();
+    // data has been read, decouple sequence from the wrapped memory
+    sample->sequence.Reset();
   }
 }
 

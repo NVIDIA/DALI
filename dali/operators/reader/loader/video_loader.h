@@ -36,7 +36,7 @@ extern "C" {
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/nvdecoder/nvdecoder.h"
-#include "dali/operators/reader/nvdecoder/sequencedesc.h"
+#include "dali/operators/reader/nvdecoder/sequencewrapper.h"
 
 template<typename T>
 using av_unique_ptr = std::unique_ptr<T, std::function<void(T*)>>;
@@ -144,11 +144,11 @@ struct sequence_meta {
 };
 
 
-class VideoLoader : public Loader<GPUBackend, SequenceDesc> {
+class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
  public:
   explicit inline VideoLoader(const OpSpec& spec,
     const std::vector<std::string>& filenames)
-    : Loader<GPUBackend, SequenceDesc>(spec),
+    : Loader<GPUBackend, SequenceWrapper>(spec),
       file_root_(spec.GetArgument<std::string>("file_root")),
       file_list_(spec.GetArgument<std::string>("file_list")),
       count_(spec.GetArgument<int>("sequence_length")),
@@ -198,14 +198,14 @@ class VideoLoader : public Loader<GPUBackend, SequenceDesc> {
     }
   }
 
-  void PrepareEmpty(SequenceDesc &tensor) override;
-  void ReadSample(SequenceDesc &tensor) override;
+  void PrepareEmpty(SequenceWrapper &tensor) override;
+  void ReadSample(SequenceWrapper &tensor) override;
 
   VideoFile& get_or_open_file(const std::string &filename);
   void seek(VideoFile& file, int frame);
   void read_file();
   void push_sequence_to_read(std::string filename, int frame, int count);
-  void receive_frames(SequenceDesc& sequence);
+  void receive_frames(SequenceWrapper& sequence);
 
  protected:
   Index SizeImpl() override;

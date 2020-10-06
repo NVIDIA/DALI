@@ -664,7 +664,7 @@ void VideoLoader::push_sequence_to_read(std::string filename, int frame, int cou
     send_queue_.push(req);
 }
 
-void VideoLoader::receive_frames(SequenceDesc& sequence) {
+void VideoLoader::receive_frames(SequenceWrapper& sequence) {
   auto startup_timeout = 1000;
   while (!vid_decoder_) {
     usleep(500);
@@ -697,9 +697,9 @@ void VideoLoader::receive_frames(SequenceDesc& sequence) {
   LOG_LINE << ".got sequence\n";
 }
 
-void VideoLoader::PrepareEmpty(SequenceDesc &tensor) {}
+void VideoLoader::PrepareEmpty(SequenceWrapper &tensor) {}
 
-void VideoLoader::ReadSample(SequenceDesc& tensor) {
+void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
     auto& seq_meta = frame_starts_[current_frame_idx_];
     tensor.initialize(count_, seq_meta.height, seq_meta.width, channels_, dtype_);

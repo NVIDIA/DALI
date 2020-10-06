@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_NVDECODER_SEQUENCEDESC_H_
-#define DALI_OPERATORS_READER_NVDECODER_SEQUENCEDESC_H_
+#ifndef DALI_OPERATORS_READER_NVDECODER_SEQUENCEWRAPPER_H_
+#define DALI_OPERATORS_READER_NVDECODER_SEQUENCEWRAPPER_H_
 
 #include <condition_variable>
 #include <mutex>
@@ -29,12 +29,12 @@
 
 namespace dali {
 
-#define SequenceDesc_SUPPORTED_TYPES (float, uint8_t)
+#define SEQUENCEWRAPPER_SUPPORTED_TYPES (float, uint8_t)
 
 // Struct that Loader::ReadOne will read
-struct SequenceDesc {
+struct SequenceWrapper {
  public:
-  SequenceDesc()
+  SequenceWrapper()
   : started_(false) {}
 
   void initialize(int count, int height, int width, int channels, DALIDataType dtype) {
@@ -57,7 +57,7 @@ struct SequenceDesc {
     started_ = false;
   }
 
-  ~SequenceDesc() {
+  ~SequenceWrapper() {
     std::unique_lock<std::mutex> lock{started_lock_};
     if (started_) {
       try {
@@ -95,8 +95,7 @@ struct SequenceDesc {
     return TensorShape<4>{count, height, width, channels};
   }
 
-  // non-owning tensor that should only share data allocated somwhere else
-  Tensor<GPUBackend> sequence_view;
+  Tensor<GPUBackend> sequence;
 
   int count;
   int height;
@@ -122,4 +121,4 @@ struct SequenceDesc {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_NVDECODER_SEQUENCEDESC_H_
+#endif  // DALI_OPERATORS_READER_NVDECODER_SEQUENCEWRAPPER_H_

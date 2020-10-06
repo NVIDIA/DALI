@@ -32,7 +32,7 @@ extern "C" {
 
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_stream.h"
-#include "dali/operators/reader/nvdecoder/sequencedesc.h"
+#include "dali/operators/reader/nvdecoder/sequencewrapper.h"
 #include "dali/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/operators/reader/nvdecoder/cuvideodecoder.h"
 #include "dali/operators/reader/nvdecoder/dynlink_nvcuvid.h"
@@ -106,14 +106,14 @@ class NvDecoder {
 
   void push_req(FrameReq req);
 
-  void receive_frames(SequenceDesc& batch);
+  void receive_frames(SequenceWrapper& batch);
 
   void finish();
 
  private:
   int decode_av_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base);
 
-  void record_sequence_event_(SequenceDesc& sequence);
+  void record_sequence_event_(SequenceWrapper& sequence);
 
   // implem functions called in the callback
   int handle_sequence_(CUVIDEOFORMAT* format);
@@ -168,7 +168,7 @@ class NvDecoder {
   const TextureObjects& get_textures(uint8_t* input, unsigned int input_pitch,
                                      uint16_t input_width, uint16_t input_height,
                                      ScaleMethod scale_method);
-  void convert_frame(const MappedFrame& frame, SequenceDesc& sequence,
+  void convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                      int index);
 
 

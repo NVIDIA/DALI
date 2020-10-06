@@ -352,7 +352,7 @@ void NvDecoder::push_req(FrameReq req) {
   recv_queue_.push(std::move(req));
 }
 
-void NvDecoder::receive_frames(SequenceDesc& sequence) {
+void NvDecoder::receive_frames(SequenceWrapper& sequence) {
   LOG_LINE << "Sequence pushed with " << sequence.count << " frames" << std::endl;
 
   DeviceGuard g(device_id_);
@@ -428,7 +428,7 @@ NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
   return p.first->second;
 }
 
-void NvDecoder::convert_frame(const MappedFrame& frame, SequenceDesc& sequence,
+void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                               int index) {
   auto input_width = ALIGN16(decoder_.width());
   auto input_height = decoder_.height();
@@ -458,7 +458,7 @@ void NvDecoder::finish() {
   frame_queue_.shutdown();
 }
 
-void NvDecoder::record_sequence_event_(SequenceDesc& sequence) {
+void NvDecoder::record_sequence_event_(SequenceWrapper& sequence) {
   sequence.set_started(stream_);
 }
 

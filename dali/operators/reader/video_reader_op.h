@@ -38,10 +38,10 @@ inline int VideoReaderOutputFn(const OpSpec &spec) {
 }
 }  // namespace detail
 
-class VideoReader : public DataReader<GPUBackend, SequenceDesc> {
+class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
  public:
   explicit VideoReader(const OpSpec &spec)
-      : DataReader<GPUBackend, SequenceDesc>(spec),
+      : DataReader<GPUBackend, SequenceWrapper>(spec),
         filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
         file_root_(spec.GetArgument<std::string>("file_root")),
         file_list_(spec.GetArgument<std::string>("file_list")),
@@ -129,7 +129,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceDesc> {
     video_output.Copy(video_batch, ws.stream());
   }
 
-  void ProcessAdditionalOutputs(int data_idx, SequenceDesc &prefetched_video,
+  void ProcessAdditionalOutputs(int data_idx, SequenceWrapper &prefetched_video,
                                 cudaStream_t stream) {
     if (enable_label_output_) {
       auto *label = label_output_->mutable_tensor<int>(data_idx);
@@ -189,7 +189,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceDesc> {
   DALIDataType dtype_;
   bool enable_label_output_;
 
-  USE_READER_OPERATOR_MEMBERS(GPUBackend, SequenceDesc);
+  USE_READER_OPERATOR_MEMBERS(GPUBackend, SequenceWrapper);
 };
 
 }  // namespace dali

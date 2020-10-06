@@ -17,14 +17,14 @@
 
 
 #include "dali/core/common.h"
-#include "dali/operators/reader/nvdecoder/sequencedesc.h"
+#include "dali/operators/reader/nvdecoder/sequencewrapper.h"
 
 namespace dali {
 
 template<typename T>
 DLL_PUBLIC void process_frame(
     cudaTextureObject_t chroma, cudaTextureObject_t luma,
-    SequenceDesc& output, int index, cudaStream_t stream,
+    SequenceWrapper& output, int index, cudaStream_t stream,
     uint16_t input_width, uint16_t input_height,
     bool rgb, bool normalized);
 
