@@ -17,7 +17,7 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(Reduce, Reduce<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(Reduce, Reduce, CPU);
 
 DALI_SCHEMA(Reduce)
   .DocStr("Base op for reduction operators.")
