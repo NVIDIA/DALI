@@ -645,11 +645,16 @@ struct TensorListShapeBase {
    */
   void append(span<const TensorListShape<sample_ndim>> tlss) {
     int new_samples = 0;
-    for (const auto & tls : tlss) {
+    for (const auto &tls : tlss) {
       new_samples += tls.num_samples();
     }
     if (new_samples == 0) return;
-    auto reference_dim_value = empty() ? tlss[0].sample_dim() : sample_dim();
+
+    // The following line is imperfect, because uninitialized TensorListShape<-1>
+    // has `ndim` == 0, while `0` is legal number of dimensions.
+    bool is_uninitialized = empty() && sample_dim() <= 0;
+
+    auto reference_dim_value = is_uninitialized ? tlss[0].sample_dim() : sample_dim();
     for (const auto &tls : tlss) {
       if (tls.sample_dim() != reference_dim_value) {
         throw std::invalid_argument(
@@ -657,9 +662,9 @@ struct TensorListShapeBase {
       }
     }
     nsamples += new_samples;
-    if (sample_dim() <= 0) {
+    if (is_uninitialized) {
       // If `this` TLS has DynamicDimensions and wasn't initialized yet
-      set_sample_dim(tlss[0].sample_dim());
+      set_sample_dim(reference_dim_value);
     }
     shapes.reserve(nsamples * sample_dim());
     for (const auto &tls : tlss) {
