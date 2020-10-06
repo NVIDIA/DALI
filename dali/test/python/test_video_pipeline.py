@@ -71,7 +71,7 @@ class VideoPipeRoot(Pipeline):
     def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT):
         super(VideoPipeRoot, self).__init__(batch_size, num_threads=2, device_id=device_id)
         self.input = ops.VideoReader(device="gpu", file_root=data, sequence_length=sequence_length,
-                                     random_shuffle=True, initial_fill=10)
+                                     random_shuffle=True)
 
     def define_graph(self):
         output = self.input(name="Reader")

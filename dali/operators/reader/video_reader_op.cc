@@ -23,6 +23,33 @@
 
 namespace dali {
 
+void VideoReader::Prefetch() {
+  DataReader<GPUBackend, SequenceWrapper>::Prefetch();
+  auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
+  auto &curr_tensor_list = prefetched_batch_tensors_[curr_batch_producer_];
+
+  // resize the current batch
+  TensorListShape<4> tmp_shapes;
+  tmp_shapes.resize(curr_batch.size());
+  auto ref_type = curr_batch[0]->dtype;
+  for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
+    auto &sample = curr_batch[data_idx];
+    assert(ref_type == sample->dtype);
+    tmp_shapes.set_tensor_shape(data_idx, sample->shape());
+  }
+
+  curr_tensor_list.Resize(tmp_shapes, TypeTable::GetTypeInfo(ref_type));
+
+  for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
+    auto &sample = curr_batch[data_idx];
+    sample->sequence.ShareData(&curr_tensor_list, static_cast<int>(data_idx));
+    sample->read_sample_f();
+    // data has been read, decouple sequence from the wrapped memory
+    sample->sequence.Reset();
+  }
+}
+
+
 DALI_REGISTER_OPERATOR(VideoReader, VideoReader, GPU);
 
 DALI_SCHEMA(VideoReader)
