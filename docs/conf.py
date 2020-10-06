@@ -52,9 +52,10 @@ release = str(version_long)
 with mock(["torch"]):
     sys.path.insert(0, os.path.abspath('./'))
     import supported_op_devices
-    supported_op_devices.main(["op_inclusion"])
+    supported_op_devices.main("op_inclusion")
     import autodoc_submodules
-    autodoc_submodules.main(["op_autodoc"])
+    autodoc_submodules.op_autodoc("op_autodoc")
+    autodoc_submodules.fn_autodoc("fn_autodoc")
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
 # keep_warnings = True

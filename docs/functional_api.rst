@@ -55,6 +55,4 @@ using object API to pre-configure a file reader and a resize operator::
 Functions
 ---------
 
-.. automodule:: nvidia.dali.fn
-   :members:
-   :undoc-members:
+.. include:: fn_autodoc

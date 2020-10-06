@@ -9,7 +9,7 @@ ops_modules = {
     'nvidia.dali.plugin.pytorch': nvidia.dali.plugin.pytorch
 }
 
-def main(argv):
+def main(out_filename):
     cpu_ops = ops.cpu_ops()
     gpu_ops = ops.gpu_ops()
     mix_ops = ops.mixed_ops()
@@ -28,10 +28,7 @@ def main(argv):
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
     for op in sorted(all_ops, key=lambda v: str(v).lower()):
         schema = b.GetSchema(op)
-        op_full_name = op
-        if not op_full_name.startswith('_'):
-            op_full_name = op_full_name.replace('_', '.')
-        *submodule, op_name = op_full_name.split('.')
+        op_full_name, submodule, op_name = ops._process_op_name(op)
         is_cpu = '|v|' if op in cpu_ops else ''
         is_gpu = '|v|' if op in gpu_ops else ''
         is_mixed = '|v|' if op in mix_ops else ''
@@ -49,8 +46,9 @@ def main(argv):
         op_doc = formater.format(op_string, is_cpu, is_gpu, is_mixed, supports_seq, volumetric, op_name_max_len = op_name_max_len, c=' ')
         doc_table += op_doc
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
-    with open(argv[0], 'w') as f:
+    with open(out_filename, 'w') as f:
         f.write(doc_table)
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    assert(len(sys.argv) == 2)
+    main(sys.argv[1])

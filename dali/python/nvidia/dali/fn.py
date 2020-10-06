@@ -97,7 +97,7 @@ def _wrap_op(op_class, submodule):
         wrap_func = _wrap_op_fn(op_class, wrapper_name)
         setattr(module, wrapper_name, wrap_func)
         if submodule:
-            setattr(fn_module, '.'.join(submodule + [wrapper_name]), wrap_func)
+            wrap_func.__module__ = module.__name__
 
 
 from nvidia.dali.external_source import external_source

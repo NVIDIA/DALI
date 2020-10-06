@@ -17,7 +17,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(transforms_Translation)
+DALI_SCHEMA(transforms__Translation)
   .DocStr(R"code(Produces a translation affine transform matrix.
 
 If another transform matrix is passed as an input, the operator applies translation to the matrix provided.
@@ -75,6 +75,6 @@ class TransformTranslationCPU
   Argument<std::vector<float>> offset_;
 };
 
-DALI_REGISTER_OPERATOR(transforms_Translation, TransformTranslationCPU, CPU);
+DALI_REGISTER_OPERATOR(transforms__Translation, TransformTranslationCPU, CPU);
 
 }  // namespace dali
