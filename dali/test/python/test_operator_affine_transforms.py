@@ -50,10 +50,10 @@ def check_transform_translation_op(offset, has_input = False, reverse_order=Fals
     with pipe:
         if has_input:
             T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
-            T1 = fn.transform_translation(T0, device='cpu', offset=offset, reverse_order=reverse_order)
+            T1 = fn.transforms.translation(T0, device='cpu', offset=offset, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
-            T1 = fn.transform_translation(device='cpu', offset=offset)
+            T1 = fn.transforms.translation(device='cpu', offset=offset)
             pipe.set_outputs(T1)
     pipe.build()
     outs = pipe.run()
@@ -94,10 +94,10 @@ def check_transform_scale_op(scale, center=None, has_input = False, reverse_orde
     with pipe:
         if has_input:
             T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
-            T1 = fn.transform_scale(T0, device='cpu', scale=scale, center=center, reverse_order=reverse_order)
+            T1 = fn.transforms.scale(T0, device='cpu', scale=scale, center=center, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
-            T1 = fn.transform_scale(device='cpu', scale=scale, center=center)
+            T1 = fn.transforms.scale(device='cpu', scale=scale, center=center)
             pipe.set_outputs(T1)
     pipe.build()
     outs = pipe.run()
@@ -150,10 +150,10 @@ def check_transform_rotation_op(angle, axis=None, center=None, has_input = False
     with pipe:
         if has_input:
             T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
-            T1 = fn.transform_rotation(T0, device='cpu', angle=angle, axis=axis, center=center, reverse_order=reverse_order)
+            T1 = fn.transforms.rotation(T0, device='cpu', angle=angle, axis=axis, center=center, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
-            T1 = fn.transform_rotation(device='cpu', angle=angle, axis=axis, center=center)
+            T1 = fn.transforms.rotation(device='cpu', angle=angle, axis=axis, center=center)
             pipe.set_outputs(T1)
     pipe.build()
     outs = pipe.run()
@@ -217,10 +217,10 @@ def check_transform_shear_op(shear=None, angles=None, center=None, has_input = F
     with pipe:
         if has_input:
             T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
-            T1 = fn.transform_shear(T0, device='cpu', shear=shear, angles=angles, center=center, reverse_order=reverse_order)
+            T1 = fn.transforms.shear(T0, device='cpu', shear=shear, angles=angles, center=center, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
-            T1 = fn.transform_shear(device='cpu', shear=shear, angles=angles, center=center)
+            T1 = fn.transforms.shear(device='cpu', shear=shear, angles=angles, center=center)
             pipe.set_outputs(T1)
     pipe.build()
     outs = pipe.run()
@@ -283,14 +283,14 @@ def check_transform_crop_op(from_start = None, from_end = None, to_start = None,
     with pipe:
         if has_input:
             T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
-            T1 = fn.transform_crop(T0, device='cpu',
+            T1 = fn.transforms.crop(T0, device='cpu',
                                    from_start=from_start, from_end=from_end,
                                    to_start=to_start, to_end=to_end,
                                    absolute=absolute,
                                    reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
-            T1 = fn.transform_crop(device='cpu',
+            T1 = fn.transforms.crop(device='cpu',
                                    from_start=from_start, from_end=from_end,
                                    to_start=to_start, to_end=to_end,
                                    absolute=absolute)

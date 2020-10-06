@@ -632,27 +632,27 @@ def test_sequence_reader_cpu():
         pipe.run()
 
 def test_affine_translate_cpu():
-    check_no_input(fn.transform_translation, offset=(2, 3))
+    check_no_input(fn.transforms.translation, offset=(2, 3))
 
 def test_affine_scale_cpu():
-    check_no_input(fn.transform_scale, scale=(2, 3))
+    check_no_input(fn.transforms.scale, scale=(2, 3))
 
 def test_affine_rotate_cpu():
-    check_no_input(fn.transform_rotation, angle=30.0)
+    check_no_input(fn.transforms.rotation, angle=30.0)
 
 def test_affine_shear_cpu():
-    check_no_input(fn.transform_shear, shear=(2., 1.))
+    check_no_input(fn.transforms.shear, shear=(2., 1.))
 
 def test_affine_crop_cpu():
-    check_no_input(fn.transform_crop,
+    check_no_input(fn.transforms.crop,
         from_start=(0., 1.), from_end=(1., 1.), to_start=(0.2, 0.3), to_end=(0.8, 0.5))
 
 def test_combine_transforms_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     with pipe:
-        t = fn.transform_translation(offset=(1, 2))
-        r = fn.transform_rotation(angle=30.0)
-        s = fn.transform_scale(scale=(2, 3))
+        t = fn.transforms.translation(offset=(1, 2))
+        r = fn.transforms.rotation(angle=30.0)
+        s = fn.transforms.scale(scale=(2, 3))
         out = fn.transforms.combine(t, r, s)
     pipe.set_outputs(out)
     pipe.build()
