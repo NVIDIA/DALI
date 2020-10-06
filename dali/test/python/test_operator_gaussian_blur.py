@@ -21,6 +21,7 @@ import cv2
 from scipy.ndimage import convolve1d
 import os
 from nose.tools import raises
+from nose.plugins.attrib import attr
 
 from test_utils import get_dali_extra_path, check_batch, compare_pipelines, RandomlyShapedDataIterator, dali_type
 
@@ -28,6 +29,12 @@ data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
 test_iters = 4
+
+shape_layout_axes_cases = [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
+                           ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
+                           ((3, 30, 20), "CWH", 2), ((5, 20, 30, 3), "FHWC", 2),
+                           ((5, 10, 10, 7, 3), "FDHWC", 3), ((5, 3, 20, 30), "FCHW", 2),
+                           ((3, 5, 10, 10, 7), "CFDHW", 3)]
 
 def to_batch(tl, batch_size):
     return [np.array(tl[i]) for i in range(batch_size)]
@@ -112,13 +119,25 @@ def check_gaussian_blur(batch_size, sigma, window_size, op_type="cpu"):
 
 def test_image_gaussian_blur():
     for dev in ["cpu", "gpu"]:
+        for sigma in [1.0]:
+            for window_size in [3, 5, None]:
+                if sigma is None and window_size is None:
+                    continue
+                yield check_gaussian_blur, 10, sigma, window_size, dev
+        # OpenCv uses fixed values for small windows that are different that Gaussian funcion
+        yield check_gaussian_blur, 10, None, 11, dev
+
+
+@attr('slow')
+def test_image_gaussian_blur_slow():
+    for dev in ["cpu", "gpu"]:
         for sigma in [1.0, [1.0, 2.0]]:
             for window_size in [3, 5, [7, 5], [5, 9], None]:
                 if sigma is None and window_size is None:
                     continue
                 yield check_gaussian_blur, 10, sigma, window_size, dev
         # OpenCv uses fixed values for small windows that are different that Gaussian funcion
-        for window_size in [11, 15]:
+        for window_size in [15, [17, 31]]:
             yield check_gaussian_blur, 10, None, window_size, dev
 
 
@@ -129,6 +148,11 @@ def check_gaussian_blur_cpu_gpu(batch_size, sigma, window_size):
 
 
 def test_gaussian_blur_cpu_gpu():
+    for window_size in [5, [7, 13]]:
+        yield check_gaussian_blur_cpu_gpu, 10, None, window_size
+
+@attr('slow')
+def test_gaussian_blur_cpu_gpu_slow():
     for sigma in [1.0, [1.0, 2.0], None]:
         for window_size in [3, 5, [7, 5], [5, 9], 11, 15, 31, None]:
             if sigma is None and window_size is None:
@@ -180,26 +204,32 @@ def check_generic_gaussian_blur(
         check_batch(result, baseline, batch_size, max_allowed_error=max_error, expected_layout=layout)
 
 
+# Generate tests for single or per-axis sigma and window_size arguments
+def generate_generic_cases(dev, t_in, t_out):
+    for shape, layout, axes in shape_layout_axes_cases:
+        for sigma in [1.0, [1.0, 2.0, 3.0]]:
+            for window_size in [3, 5, [7, 5, 9], [3, 5, 9], None]:
+                if isinstance(sigma, list):
+                    sigma = sigma[0:axes]
+                if isinstance(window_size, list):
+                    window_size = window_size[0:axes]
+                yield check_generic_gaussian_blur, 10, sigma, window_size, shape, layout, axes, dev, t_in, t_out
+    for window_size in [11, 15]:
+        yield check_generic_gaussian_blur, 10, None, window_size, shape, layout, axes, dev, t_in, t_out
+
+
 def test_generic_gaussian_blur():
+    for dev in ["cpu", "gpu"]:
+        for (t_in, t_out) in [(np.uint8, types.NO_TYPE), (np.float32, types.FLOAT), (np.uint8, types.FLOAT)]:
+            yield from generate_generic_cases(dev, t_in, t_out)
+
+
+@attr('slow')
+def test_generic_gaussian_blur_slow():
     for dev in ["cpu", "gpu"]:
         for t_in in [np.uint8, np.int32, np.float32]:
             for t_out in [types.NO_TYPE, types.FLOAT, dali_type(t_in)]:
-                for shape, layout, axes in [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
-                                            ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
-                                            ((3, 30, 20), "CWH", 2),
-                                            ((5, 20, 30, 3), "FHWC", 2),
-                                            ((5, 10, 10, 7, 3), "FDHWC", 3),
-                                            ((5, 3, 20, 30), "FCHW", 2),
-                                            ((3, 5, 10, 10, 7), "CFDHW", 3)]:
-                    for sigma in [1.0, [1.0, 2.0, 3.0]]:
-                        for window_size in [3, 5, [7, 5, 9], [3, 5, 9], None]:
-                            if isinstance(sigma, list):
-                                sigma = sigma[0:axes]
-                            if isinstance(window_size, list):
-                                window_size = window_size[0:axes]
-                            yield check_generic_gaussian_blur, 10, sigma, window_size, shape, layout, axes, dev, t_in, t_out
-                for window_size in [11, 15]:
-                    yield check_generic_gaussian_blur, 10, None, window_size, shape, layout, axes, dev, t_in, t_out
+                yield from generate_generic_cases(dev, t_in, t_out)
 
 
 def check_per_sample_gaussian_blur(
@@ -250,11 +280,7 @@ def check_per_sample_gaussian_blur(
 # TODO(klecki): consider checking mixed ArgumentInput/Scalar value cases
 def test_per_sample_gaussian_blur():
     for dev in ["cpu", "gpu"]:
-        for shape, layout, axes in [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
-                                    ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
-                                    ((3, 30, 20), "CWH", 2), ((5, 20, 30, 3), "FHWC", 2),
-                                    ((5, 10, 10, 7, 3), "FDHWC", 3), ((5, 3, 20, 30), "FCHW", 2),
-                                    ((3, 5, 10, 10, 7), "CFDHW", 3)]:
+        for shape, layout, axes in shape_layout_axes_cases:
             for sigma_dim in [None, 1, axes]:
                 for window_size_dim in [None, 1, axes]:
                     if sigma_dim is None and window_size_dim is None:
