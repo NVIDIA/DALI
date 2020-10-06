@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
+import nvidia.dali.ops.transforms as T  # Just here to verify that import works as expected
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.fn as fn
