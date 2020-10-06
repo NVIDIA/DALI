@@ -25,7 +25,7 @@ namespace tensor_join {
 
 template <typename Element>
 struct InputDesc {
-  const Element *data;
+  const Element *__restrict__ data;
   /// Extent of the tensor in the joined axis
   uint64_t join_size;
   /// Distance between joined slices
@@ -41,15 +41,16 @@ struct InputDesc {
 
 template <typename Element>
 struct OutputDesc {
-  Element *data;
+  Element *__restrict__ data;
   /// Stride between slices in the joined axis
   fast_div<uint64_t> outer_stride;
   float guess_tensor_mul;  // used for quickly estimating which tensor we've hit based on the offset
 
   uint64_t total_size;
+  uint64_t outer_size;
 };
 
-constexpr int kMaxJoin = (16<<10) / sizeof(InputDesc<void>);
+constexpr int kMaxShmJoin = (32<<10) / sizeof(InputDesc<void>);
 
 template <typename Element>
 DALI_HOST_DEV int FindTensor(uint64_t offset, float guess_tensor_mul,
@@ -71,11 +72,13 @@ DALI_HOST_DEV int FindTensor(uint64_t offset, float guess_tensor_mul,
 }
 
 template <typename Element>
-__device__ void JoinTensorsLarge(OutputDesc<Element> out,
-                                 const InputDesc<Element> *sh_in,
-                                 int njoin) {
-  uint64_t out_offset = threadIdx.x + blockDim.x * static_cast<uint64_t>(blockIdx.x);
-  uint64_t step = static_cast<uint64_t>(blockDim.x) * gridDim.x;
+__device__ void JoinTensors(OutputDesc<Element> out,
+                            const InputDesc<Element> *__restrict__ sh_in,
+                            int njoin) {
+  uint64_t block_size = static_cast<uint64_t>(blockDim.x) * blockDim.y;
+  int tid = threadIdx.x + blockDim.x * threadIdx.y;
+  uint64_t out_offset = tid + block_size * blockIdx.x;
+  uint64_t step = block_size * gridDim.x;
   for (; out_offset < out.total_size; out_offset += step) {
     uint64_t join_offset;
     uint64_t outer = div_mod(join_offset, out_offset, out.outer_stride);
@@ -91,13 +94,39 @@ __global__ void JoinTensorsKernel(const OutputDesc<Element> *out,
                                   const InputDesc<Element> *in,
                                   int njoin) {
   int sample_idx = blockIdx.y;
-  __shared__ InputDesc<Element> sh_in[kMaxJoin];
-  for (int i = threadIdx.x; i < njoin; i += blockDim.x)
-    sh_in[i] = in[sample_idx * njoin + i];
-  __syncthreads();
-
-  JoinTensorsLarge(out[sample_idx], sh_in, njoin);
+  JoinTensors(out[sample_idx], in + sample_idx * njoin, njoin);
 }
+
+
+template <typename Element>
+__device__ void StackTensors(OutputDesc<Element> out,
+                             const InputDesc<Element> *in,
+                             fast_div<uint32_t> njoin) {
+  int warp_idx = threadIdx.x >> 5;
+  int lane_idx = threadIdx.x & 31;
+  int warps_per_block = blockDim.x >> 5;
+
+  uint32_t y = threadIdx.y + blockIdx.x * blockDim.y;
+  int t = y % njoin;
+
+  __shared__ Element tmp[32][33];
+
+  uint64_t in_offset = 32 * static_cast<uint64_t>(blockIdx.x);
+  uint64_t step = static_cast<uint64_t>(32) * gridDim.x;
+  for (; in_offset < out.outer_stride; in_offset += step) {
+
+    __syncthreads();
+  }
+}
+
+template <typename Element>
+__global__ void StackTensorsKernel(const OutputDesc<Element> *out,
+                                   const InputDesc<Element> *in,
+                                   fast_div<uint32_t> njoin) {
+  int sample_idx = blockIdx.y;
+  StackTensors(out[sample_idx], in, njoin);
+}
+
 
 }  // namespate tensor_join
 }  // namespace kernels

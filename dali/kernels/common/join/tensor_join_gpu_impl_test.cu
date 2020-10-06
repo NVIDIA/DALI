@@ -18,6 +18,7 @@
 #include "dali/kernels/common/join/tensor_join_gpu_impl.h"
 #include "dali/kernels/common/join/tensor_join_gpu_impl.cuh"
 #include "dali/core/dev_buffer.h"
+#include "dali/core/cuda_event.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/core/tensor_shape_print.h"
@@ -110,11 +111,11 @@ void RefTLSJoin(const OutListCPU<T> &out, span<const InListCPU<T> *const> in, in
 
 struct TensorJoinGPUTest : public ::testing::Test {
 
-  void TestRawKernel() {
+  void TestRawKernel(bool stack) {
     InitData();
 
     RunRef();
-    RunRawKernel();
+    RunRawKernel(stack);
     CheckResult();
   }
 
@@ -126,7 +127,7 @@ struct TensorJoinGPUTest : public ::testing::Test {
     Check(ref.cpu(), out.cpu());
   }
 
-  void RunRawKernel() {
+  void RunRawKernel(bool stack) {
     vector<tensor_join::InputDesc<int>> input_descs(N * njoin);
     vector<tensor_join::OutputDesc<int>> output_descs(N);
 
@@ -149,8 +150,13 @@ struct TensorJoinGPUTest : public ::testing::Test {
       auto join_size = volume(out_tensor.shape.begin() + axis, out_tensor.shape.end());
       out_desc.outer_stride = join_size;
       out_desc.total_size = volume(out_tensor.num_elements());
+      out_desc.outer_size = volume(out_tensor.shape.begin(), out_tensor.shape.begin() + axis);
       out_desc.guess_tensor_mul = 1.0 * njoin / join_size;
     }
+
+
+    CUDAEvent start = CUDAEvent::CreateWithFlags(0);
+    CUDAEvent end = CUDAEvent::CreateWithFlags(0);
 
     DeviceBuffer<tensor_join::InputDesc<int>> gpu_input_descs;
     DeviceBuffer<tensor_join::OutputDesc<int>> gpu_output_descs;
@@ -158,8 +164,22 @@ struct TensorJoinGPUTest : public ::testing::Test {
     gpu_output_descs.from_host(output_descs);
 
     dim3 grid(1024, N);
-    dim3 block(256);
-    JoinTensorsKernel<<<grid, block>>>(gpu_output_descs.data(), gpu_input_descs.data(), njoin);
+    dim3 block(32, 8);
+    cudaEventRecord(start, 0);
+    if (stack) {
+      StackTensorsKernel<<<grid, block>>>(gpu_output_descs.data(), gpu_input_descs.data(), njoin);
+    } else {
+      JoinTensorsKernel<<<grid, block>>>(gpu_output_descs.data(), gpu_input_descs.data(), njoin);
+    }
+    cudaEventRecord(end, 0);
+    CUDA_CALL(cudaDeviceSynchronize());
+
+    float time = 0;
+    CUDA_CALL(cudaEventElapsedTime(&time, start, end));
+    time *= 1e+6;  // to nanoseconds
+    int64_t size = 2 * out_tls.num_elements() * sizeof(int);  // 2x because in+out
+    std::cerr << "Throughput: " << size / time << " GB/s\n";
+
   }
 
   void InitData() {
@@ -242,9 +262,9 @@ struct TensorJoinGPUTest : public ::testing::Test {
   }
 
 
-  int N = 1, ndim = 3, njoin = 7, axis = 1, max_outer_extent = 100, max_inner_extent = 100;
+  int N = 10, ndim = 3, njoin = 256, axis = 2, max_outer_extent = 100, max_inner_extent = 100;
   bool new_axis = true;
-  std::mt19937_64 rng;
+  std::mt19937_64 rng{12345};
 
   vector<TensorListShape<>> in_shapes;
   TensorListShape<> out_shape;
@@ -258,12 +278,22 @@ struct TensorJoinGPUTest : public ::testing::Test {
 
 };
 
-TEST_F(TensorJoinGPUTest, Test_Small) {
-  max_outer_extent = 10;
-  max_inner_extent = 10;
+TEST_F(TensorJoinGPUTest, Test_JoinKernel) {
+  max_outer_extent = 1000;
+  max_inner_extent = 3;
+  njoin = 3;
   new_axis = false;
-  TestRawKernel();
+  TestRawKernel(false);
+
 }
+
+/*TEST_F(TensorJoinGPUTest, Test_StacKernel) {
+  max_outer_extent = 300;
+  max_inner_extent = 10;
+  njoin = 256;
+  new_axis = true;
+  TestRawKernel(true);
+}*/
 
 }  // namespace kernels
 }  // namespace dali
