@@ -29,13 +29,13 @@ void VideoReader::Prefetch() {
   auto &curr_tensor_list = prefetched_batch_tensors_[curr_batch_producer_];
 
   // resize the current batch
-  std::vector<TensorShape<>> tmp_shapes;
-  tmp_shapes.reserve(curr_batch.size());
+  TensorListShape<4> tmp_shapes;
+  tmp_shapes.resize(curr_batch.size());
   auto ref_type = curr_batch[0]->dtype;
   for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
     assert(ref_type == sample->dtype);
-    tmp_shapes.emplace_back(sample->shape());
+    tmp_shapes.set_tensor_shape(data_idx, sample->shape());
   }
 
   curr_tensor_list.Resize(tmp_shapes, TypeTable::GetTypeInfo(ref_type));
