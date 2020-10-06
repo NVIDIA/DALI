@@ -60,7 +60,7 @@ class OperatorRegistry {
     for (const auto &pair : registry_) {
       auto& schema = SchemaRegistry::GetSchema(pair.first);
       if (internal_ops || !schema.IsInternal())
-        names.push_back(pair.first);
+        names.push_back(schema.name().length() ? schema.name() : pair.first);
     }
     return names;
   }

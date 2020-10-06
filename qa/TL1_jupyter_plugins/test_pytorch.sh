@@ -11,10 +11,10 @@ do_once() {
 
 test_body() {
   # dummy
-  black_list_files="#"
+  exclude_files="#"
 
   # test code
-  find frameworks/pytorch/ -name "*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
+  find frameworks/pytorch/ -name "*.ipynb" | sed "/${exclude_files}/d" | xargs -i jupyter nbconvert \
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600 {}

@@ -30,6 +30,7 @@ from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali import fn as _functional
 import nvidia.dali.python_function_plugin
 from nvidia.dali.data_node import DataNode as _DataNode
+from nvidia.dali import internal as _internal
 
 cupy = None
 def _setup_cupy():
@@ -76,13 +77,15 @@ def _get_kwargs(schema, only_tensor = False):
             ret += '\n'
     return ret
 
+def _schema_name(cls):
+    return getattr(cls, 'schema_name', cls.__name__)
+
 def _docstring_generator(cls):
     """
         Generate docstring for the class obtaining it from schema based on cls.__name__
-
         This lists all the Keyword args that can be used when creating operator
     """
-    op_name = cls.__name__
+    op_name = _schema_name(cls)
     schema = _b.GetSchema(op_name)
     ret = '\n'
 
@@ -360,11 +363,12 @@ class _DaliOperatorMeta(type):
     def __doc__(self):
         return _docstring_generator(self)
 
-def python_op_factory(name, op_device = "cpu"):
+def python_op_factory(name, schema_name = None, op_device = "cpu"):
     class Operator(metaclass=_DaliOperatorMeta):
         def __init__(self, **kwargs):
-            self._spec = _b.OpSpec(type(self).__name__)
-            self._schema = _b.GetSchema(type(self).__name__)
+            schema_name = _schema_name(type(self))
+            self._spec = _b.OpSpec(schema_name)
+            self._schema = _b.GetSchema(schema_name)
 
             # Get the device argument. We will need this to determine
             # the device that our outputs will be stored on
@@ -536,15 +540,22 @@ def python_op_factory(name, op_device = "cpu"):
 
 
     Operator.__name__ = str(name)
+    Operator.schema_name = schema_name or Operator.__name__
     # The autodoc doesn't generate doc for something that doesn't match the module name
-    if _b.GetSchema(Operator.__name__).IsInternal():
+    if _b.GetSchema(Operator.schema_name).IsInternal():
         Operator.__module__ = Operator.__module__ + ".internal"
 
-    Operator.__call__.__doc__ = _docstring_generator_call(name)
+    Operator.__call__.__doc__ = _docstring_generator_call(Operator.schema_name)
     return Operator
 
-def _wrap_op(op_class):
-    return _functional._wrap_op(op_class)
+def _process_op_name(op_schema_name):
+    namespace_delim = "__"  # Two underscores (reasoning: we might want to have single underscores in the namespace itself)
+    op_full_name = op_schema_name.replace(namespace_delim, '.')
+    *submodule, op_name = op_full_name.split('.')
+    return op_full_name, submodule, op_name
+
+def _wrap_op(op_class, submodule = []):
+    return _functional._wrap_op(op_class, submodule)
 
 def _load_ops():
     global _cpu_ops
@@ -554,12 +565,18 @@ def _load_ops():
     _gpu_ops = _gpu_ops.union(set(_b.RegisteredGPUOps()))
     _mixed_ops = _mixed_ops.union(set(_b.RegisteredMixedOps()))
     _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
-    for op_name in _cpu_gpu_ops:
-        if not hasattr(sys.modules[__name__], op_name):
-            op_class = python_op_factory(op_name, op_device = "cpu")
-            setattr(sys.modules[__name__], op_name, op_class)
+    ops_module = sys.modules[__name__]
+
+    for op_reg_name in _cpu_gpu_ops:
+        op_full_name, submodule, op_name = _process_op_name(op_reg_name)
+        module = _internal.get_submodule(ops_module, submodule)
+        if not hasattr(module, op_name):
+            op_class = python_op_factory(op_name, op_reg_name, op_device = "cpu")
+            op_class.__module__ = module.__name__
+            setattr(module, op_name, op_class)
+
             if op_name not in ["ExternalSource"]:
-                _wrap_op(op_class)
+                _wrap_op(op_class, submodule)
 
 def Reload():
     _load_ops()
@@ -725,6 +742,8 @@ class PythonFunction(PythonFunctionBase):
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
     _gpu_ops = _gpu_ops.union({'PythonFunction'})
 
+    __doc__ = "Some documentation here"
+
     @staticmethod
     def current_stream():
         """Gets DALI's current CUDA stream."""
@@ -820,7 +839,7 @@ def _load_arithm_ops():
     for op_name in arithm_op_names:
       if not hasattr(sys.modules[__name__], op_name):
           setattr(sys.modules[__name__], op_name,
-                  python_op_factory(op_name, op_device = "cpu"))
+                  python_op_factory(op_name, None, op_device = "cpu"))
 
 _load_arithm_ops()
 

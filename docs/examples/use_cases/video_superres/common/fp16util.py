@@ -52,27 +52,27 @@ def network_to_half(network):
     return nn.Sequential(tofp16(), BN_convert_float(network.half()))
 
 def backwards_debug_hook(grad):
-    print("Uh oh, master_params is receiving a gradient in the backward pass!")
+    print("Uh oh, main_params is receiving a gradient in the backward pass!")
 
-def create_master_params(model):
+def create_main_params(model):
     # flatten_dense_tensors returns a contiguous flat array.
     # http://pytorch.org/docs/master/_modules/torch/_utils.html
-    master_params = _flatten_dense_tensors([param.data for param in model.parameters()]).float()
-    master_params = torch.nn.Parameter(master_params)
-    master_params.requires_grad = True
-    # master_params.register_hook(backwards_debug_hook)
-    if master_params.grad is None:
-        master_params.grad = master_params.new(*master_params.size())
-    return master_params
+    main_params = _flatten_dense_tensors([param.data for param in model.parameters()]).float()
+    main_params = torch.nn.Parameter(main_params)
+    main_params.requires_grad = True
+    # main_params.register_hook(backwards_debug_hook)
+    if main_params.grad is None:
+        main_params.grad = main_params.new(*main_params.size())
+    return main_params
 
-def model_grads_to_master_grads(model, master_params):
-    master_params.grad.data.copy_(
+def model_grads_to_main_grads(model, main_params):
+    main_params.grad.data.copy_(
         _flatten_dense_tensors([p.grad.data for p in model.parameters() if p.requires_grad]))
 
-def master_params_to_model_params(model, master_params):
+def main_params_to_model_params(model, main_params):
     params = [param.data for param in model.parameters()]
-    for param, master in zip(params, _unflatten_dense_tensors(master_params.data, params)):
-        param.copy_(master)
+    for param, main in zip(params, _unflatten_dense_tensors(main_params.data, params)):
+        param.copy_(main)
 
 
 def params_to_type(params, totype):

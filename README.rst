@@ -89,7 +89,7 @@ Also note:
 - Documentation for the latest stable release is available
   |here1|_, and
 - Nightly version of the documentation that stays in sync with the
-  master branch is available |here2|_.
+  main branch is available |here2|_.
 
 .. |here1| replace:: here
 .. _here1: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html

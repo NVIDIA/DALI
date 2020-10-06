@@ -1,4 +1,4 @@
-.. NVIDIA DALI documentation master file, created by
+.. NVIDIA DALI documentation main file, created by
    sphinx-quickstart on Fri Jul  6 10:39:47 2018.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
