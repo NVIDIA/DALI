@@ -35,7 +35,14 @@ template <typename T, int mat_dim>
 using affine_mat_t = mat<mat_dim, mat_dim, T>;
 
 DALI_SCHEMA(transforms__Combine)
-  .DocStr(R"code(Combines two or more affine transforms.)code")
+  .DocStr(R"code(Combines two or more affine transforms.
+  
+By default, the transforms are combined such that applying the resulting transform to a point is equivalent to
+ applying the input transforms in the order as listed.
+
+Example: combining [T1, T2, T3] is equivalent to T3(T2(T1(...))) for default order and equivalent to T1(T2(T3(...))) 
+ for reversed order.
+)code")
   .NumInput(2, 99)
   .NumOutput(1)
   .AddParent("TransformAttr");
@@ -98,15 +105,17 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
     in_views.reserve(ws.NumInput());
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
       auto &in = ws.template InputRef<CPUBackend>(input_idx);
-      in_views.emplace_back(view<T, 2>(in));
+      in_views.push_back(view<T, 2>(in));
     }
     auto out_view = view<T, 2>(out);
-    auto read_mat = [](affine_mat_t<T, mat_dim> &next_mat, const TensorView<StorageCPU, const T, 2> &in_view) {
+    auto read_mat = [](affine_mat_t<T, mat_dim> &next_mat,
+                       const TensorView<StorageCPU, const T, 2> &in_view) {
       for (int i = 0, k = 0; i < ndim; i++)
         for (int j = 0; j < ndim + 1; j++, k++)
           next_mat(i, j) = in_view.data[k];
     };
-    auto copy_to_output = [](const TensorView<StorageCPU, T, 2> &out_view, const affine_mat_t<T, mat_dim> &mat) {
+    auto copy_to_output = [](const TensorView<StorageCPU, T, 2> &out_view,
+                             const affine_mat_t<T, mat_dim> &mat) {
       for (int i = 0, k = 0; i < ndim; i++) {
         for (int j = 0; j < ndim + 1; j++, k++) {
           out_view.data[k] = mat(i, j);
