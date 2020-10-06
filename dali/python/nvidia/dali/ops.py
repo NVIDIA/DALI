@@ -546,10 +546,9 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
     Operator.__call__.__doc__ = _docstring_generator_call(Operator.schema_name)
     return Operator
 
-def _process_op_name(op_full_name):
-    if not op_full_name.startswith('_'):
-        namespace_delim = "__"  # Two underscores (reasoning: we might want to have single underscores in the namespace itself)
-        op_full_name = op_full_name.replace(namespace_delim, '.')
+def _process_op_name(op_schema_name):
+    namespace_delim = "__"  # Two underscores (reasoning: we might want to have single underscores in the namespace itself)
+    op_full_name = op_schema_name.replace(namespace_delim, '.')
     *submodule, op_name = op_full_name.split('.')
     return op_full_name, submodule, op_name
 
@@ -569,7 +568,7 @@ def _load_ops():
     for op_reg_name in _cpu_gpu_ops:
         op_full_name, submodule, op_name = _process_op_name(op_reg_name)
         module = _internal.get_submodule(ops_module, submodule)
-        if not hasattr(module, op_full_name):
+        if not hasattr(module, op_name):
             op_class = python_op_factory(op_name, op_reg_name, op_device = "cpu")
             op_class.__module__ = module.__name__
             setattr(module, op_name, op_class)

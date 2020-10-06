@@ -86,7 +86,7 @@ Got {1} instead when calling operator {2}.""".format(idx, type(inp).__name__, op
         return op_class(**scalar_args)(*inputs, **tensor_args)
 
     op_wrapper.__name__ = wrapper_name
-    op_wrapper.__doc__ = "see :class:`nvidia.dali.ops.{0}`".format(op_class.__name__)
+    op_wrapper.__doc__ = "see :class:`{0}.{1}`".format(op_class.__module__, op_class.__name__)
     return op_wrapper
 
 def _wrap_op(op_class, submodule):
