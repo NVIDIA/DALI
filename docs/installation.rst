@@ -53,7 +53,7 @@ Execute the following command to install the latest DALI for specified CUDA vers
 * for CUDA 11 and CUDA 11.1:
 
   .. note::
-    CUDA 11.1 build uses CUDA toolkit extended compatibility. It is built with the latest CUDA 11.x
+    CUDA 11.1 build uses CUDA toolkit enhanced compatibility. It is built with the latest CUDA 11.x
     toolkit while it can run on CUDA 11.0 capable drivers 450.80 or later. Using the newest driver may enable
     additional functionalities.
 
@@ -173,16 +173,8 @@ Weekly builds
 Also, there is a weekly release channel with more thorough testing. To access most recent weekly
 builds please use flowing release channel:
 
-* for CUDA 10:
-
-.. code-block:: bash
-
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly nvidia-dali-weekly-cuda100 nvidia-dali-tf-plugin-weekly-cuda100
-
-* for CUDA 11 and 11.1:
+* for CUDA 11:
 
 .. code-block:: bash
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly nvidia-dali-weekly-cuda110 nvidia-dali-tf-plugin-weekly-cuda110
-
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly nvidia-dali-weekly-cuda111 nvidia-dali-tf-plugin-weekly-cuda111
