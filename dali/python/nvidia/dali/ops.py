@@ -742,8 +742,6 @@ class PythonFunction(PythonFunctionBase):
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
     _gpu_ops = _gpu_ops.union({'PythonFunction'})
 
-    __doc__ = "Some documentation here"
-
     @staticmethod
     def current_stream():
         """Gets DALI's current CUDA stream."""
