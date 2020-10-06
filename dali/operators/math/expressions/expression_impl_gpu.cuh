@@ -24,10 +24,6 @@
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
-
-
- #include "dali/core/cuda_event.h"
-
 namespace dali {
 
 /**

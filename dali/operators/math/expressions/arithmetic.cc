@@ -14,9 +14,6 @@
 
 #include <vector>
 
-
-#include <chrono>
-
 #include "dali/kernels/type_tag.h"
 #include "dali/operators/math/expressions/arithmetic.h"
 
@@ -41,7 +38,6 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
       }
     }, -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks
   }
-
   pool.RunAll();
 }
 

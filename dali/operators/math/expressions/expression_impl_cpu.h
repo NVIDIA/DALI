@@ -152,12 +152,12 @@ class ExprImplCpuTernary : public ExprImplBase {
                       expression_detail::param2_t<IsFirstTensor, Result> first,
                       expression_detail::param2_t<IsSecondTensor, Result> second,
                       expression_detail::param2_t<IsThirdTensor, Result> third,
-                      DALIDataType tid1, DALIDataType tid2, DALIDataType tid3,
+                      DALIDataType first_type, DALIDataType second_type, DALIDataType third_type,
                       int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
-      result[i] =
-          meta::impl(expression_detail::Access<Result>(first, i, tid1), expression_detail::Access<Result>(second, i, tid2),
-                     expression_detail::Access<Result>(third, i, tid3));
+      result[i] = meta::impl(expression_detail::Access<Result>(first, i, first_type),
+                             expression_detail::Access<Result>(second, i, second_type),
+                             expression_detail::Access<Result>(third, i, third_type));
     }
   }
 };
