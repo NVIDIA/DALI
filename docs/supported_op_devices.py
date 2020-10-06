@@ -9,6 +9,10 @@ ops_modules = {
     'nvidia.dali.plugin.pytorch': nvidia.dali.plugin.pytorch
 }
 
+def name_sort(op_name):
+    _, module, name = ops._process_op_name(op_name)
+    return '.'.join(module + [name.upper()])
+
 def main(out_filename):
     cpu_ops = ops.cpu_ops()
     gpu_ops = ops.gpu_ops()
@@ -26,7 +30,7 @@ def main(out_filename):
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
     doc_table += formater.format('Operator name', 'CPU', 'GPU', 'Mixed', 'Sequences', 'Volumetric', op_name_max_len = op_name_max_len, c=' ')
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
-    for op in sorted(all_ops, key=lambda v: str(v).lower()):
+    for op in sorted(all_ops, key=name_sort):
         schema = b.GetSchema(op)
         op_full_name, submodule, op_name = ops._process_op_name(op)
         is_cpu = '|v|' if op in cpu_ops else ''

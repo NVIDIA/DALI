@@ -25,6 +25,8 @@ def op_autodoc(out_filename):
     for module in sys.modules.keys():
         for doc_module in ops_modules:
             if module.startswith(doc_module):
+                s += module + "\n"
+                s += "~" * len(module) + "\n"
                 s += ".. automodule:: {}\n".format(module)
                 s += "   :members:\n"
                 s += "   :special-members: __call__\n"

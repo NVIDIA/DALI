@@ -58,6 +58,9 @@ Operators Documentation
 
 .. include:: op_autodoc
 
+
+nvidia.dali.plugin.pytorch
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. autoclass:: nvidia.dali.plugin.pytorch.TorchPythonFunction
    :members:
 
