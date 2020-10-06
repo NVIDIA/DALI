@@ -29,7 +29,8 @@ void
 ConcatenateTensors(TensorView<StorageCPU, T> output,
                    span<const TensorView<StorageCPU, const T>> inputs,
                    int axis) {
-  SmallVector<int64_t, 8> copy_sizes;
+  SmallVector<int64_t, 64> copy_sizes;
+  copy_sizes.resize(inputs.size());
   for (int t = 0; t < inputs.size(); t++) {
     copy_sizes[t] = volume(inputs[t].shape.begin() + axis, inputs[t].shape.end());
   }
