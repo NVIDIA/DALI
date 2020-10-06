@@ -833,7 +833,7 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   TensorListShape(const std::vector<int64_t> &shapes, int num_samples, int sample_dim)
       : Base(shapes, num_samples) {
     assert(sample_dim == sample_ndim);
-    assert(num_samples * (sample_dim == 0 ? 1 : sample_dim) == static_cast<int>(shapes.size()));
+    assert(num_samples * sample_dim == static_cast<int>(shapes.size()));
   }
 
   TensorListShape(std::vector<int64_t> &&shapes, int num_samples, int sample_dim)
