@@ -92,24 +92,46 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
     constexpr int mat_dim = ndim + 1;
     auto &out = ws.template OutputRef<CPUBackend>(0);
     out.SetLayout({});  // no layout
-    auto out_view = view<T>(out);
 
-    for (int sample_idx = 0; sample_idx < nsamples_; sample_idx++) {
-      auto mat = affine_mat_t<T, mat_dim>::identity();
-      for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
-        auto &in = ws.template InputRef<CPUBackend>(input_idx);
-        auto in_view = view<T>(in);
-        auto next_mat = affine_mat_t<T, mat_dim>::identity();
-        for (int i = 0, k = 0; i < ndim; i++)
-          for (int j = 0; j < ndim + 1; j++, k++)
-            next_mat(i, j) = in_view[sample_idx].data[k];
-        mat = reverse_order_ ? mat * next_mat : next_mat * mat;  // mat mul
-      }
-
+    SmallVector<TensorListView<StorageCPU, const T, 2>, 64> in_views;
+    assert(ws.NumInput() > 1);
+    in_views.reserve(ws.NumInput());
+    for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
+      auto &in = ws.template InputRef<CPUBackend>(input_idx);
+      in_views.emplace_back(view<T, 2>(in));
+    }
+    auto out_view = view<T, 2>(out);
+    auto read_mat = [](affine_mat_t<T, mat_dim> &next_mat, const TensorView<StorageCPU, const T, 2> &in_view) {
+      for (int i = 0, k = 0; i < ndim; i++)
+        for (int j = 0; j < ndim + 1; j++, k++)
+          next_mat(i, j) = in_view.data[k];
+    };
+    auto copy_to_output = [](const TensorView<StorageCPU, T, 2> &out_view, const affine_mat_t<T, mat_dim> &mat) {
       for (int i = 0, k = 0; i < ndim; i++) {
         for (int j = 0; j < ndim + 1; j++, k++) {
-          out_view[sample_idx].data[k] = mat(i, j);
+          out_view.data[k] = mat(i, j);
         }
+      }
+    };
+    auto mat = affine_mat_t<T, mat_dim>::identity();
+    auto next_mat = affine_mat_t<T, mat_dim>::identity();
+    if (reverse_order_) {
+      for (int sample_idx = 0; sample_idx < nsamples_; sample_idx++) {
+        read_mat(mat, in_views[0][sample_idx]);
+        for (int input_idx = 1; input_idx < ws.NumInput(); input_idx++) {
+          read_mat(next_mat, in_views[input_idx][sample_idx]);
+          mat = mat * next_mat;  // mat mul
+        }
+        copy_to_output(out_view[sample_idx], mat);
+      }
+    } else {
+      for (int sample_idx = 0; sample_idx < nsamples_; sample_idx++) {
+        read_mat(mat, in_views[0][sample_idx]);
+        for (int input_idx = 1; input_idx < ws.NumInput(); input_idx++) {
+          read_mat(next_mat, in_views[input_idx][sample_idx]);
+          mat = next_mat * mat;  // mat mul
+        }
+        copy_to_output(out_view[sample_idx], mat);
       }
     }
   }
