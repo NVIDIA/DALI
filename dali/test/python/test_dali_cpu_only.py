@@ -653,7 +653,7 @@ def test_combine_transforms_cpu():
         t = fn.transform_translation(offset=(1, 2))
         r = fn.transform_rotation(angle=30.0)
         s = fn.transform_scale(scale=(2, 3))
-        out = fn.combine_transforms(t, r, s)
+        out = fn.transforms.combine(t, r, s)
     pipe.set_outputs(out)
     pipe.build()
     for _ in range(3):

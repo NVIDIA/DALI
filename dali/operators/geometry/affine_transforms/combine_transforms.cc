@@ -34,9 +34,9 @@ using dims = std::integer_sequence<int, values...>;
 template <typename T, int mat_dim>
 using affine_mat_t = mat<mat_dim, mat_dim, T>;
 
-DALI_SCHEMA(CombineTransforms)
+DALI_SCHEMA(transforms__Combine)
   .DocStr(R"code(Combines two or more affine transforms.)code")
-  .NumInput(2, 10)
+  .NumInput(2, 99)
   .NumOutput(1)
   .AddParent("TransformAttr");
 
@@ -45,8 +45,6 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
   explicit CombineTransformsCPU(const OpSpec &spec) :
       Operator<CPUBackend>(spec),
       reverse_order_(spec.GetArgument<bool>("reverse_order")) {
-    matrix_data_.set_pinned(false);
-    matrix_data_.set_type(TypeTable::GetTypeInfo(dtype_));
   }
 
   bool CanInferOutputs() const override { return true; }
@@ -70,17 +68,7 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
       const auto &shape = ws.template InputRef<CPUBackend>(i).shape();
       DALI_ENFORCE(shape == in0_shape,
         make_string("All input transforms are expected to have the same shape. Got: ",
-                    in0_shape, " and ", shape, "."));
-    }
-
-    input_order_.clear();
-    input_order_.resize(ws.NumInput());
-
-    // By default we visit the inputs in opposite order to the matrix multiplication order
-    // (descending indices). If we want the reverse order, we use ascending indices instead
-    std::iota(input_order_.begin(), input_order_.end(), 0);
-    if (!reverse_order_) {
-      std::reverse(input_order_.begin(), input_order_.end());  // descending order
+                    in0_shape, " and ", shape, " for the ", i, "-th input."));
     }
 
     output_descs.resize(1);  // only one output
@@ -106,30 +94,18 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
     out.SetLayout({});  // no layout
     auto out_view = view<T>(out);
 
-    matrix_data_.Resize({nsamples_ * static_cast<int64_t>(sizeof(affine_mat_t<T, mat_dim>))});
-    span<affine_mat_t<T, mat_dim>> matrices{
-        reinterpret_cast<affine_mat_t<T, mat_dim> *>(matrix_data_.mutable_data<T>()), nsamples_};
-    for (auto &mat : matrices) {
-      mat = affine_mat_t<T, mat_dim>::identity();
-    }
-
-    for (auto input_idx : input_order_) {
-      auto &in = ws.template InputRef<CPUBackend>(input_idx);
-      auto in_view = view<T>(in);
-      for (int sample_idx = 0; sample_idx < nsamples_; sample_idx++) {
-        auto &mat = matrices[sample_idx];
-        auto next_mat = affine_mat_t<T, mat_dim>::identity();
-        for (int i = 0, k = 0; i < ndim; i++) {
-          for (int j = 0; j < ndim + 1; j++, k++) {
-            next_mat(i, j) = in_view[sample_idx].data[k];
-          }
-        }
-        mat = next_mat * mat;  // mat mul
-      }
-    }
-
     for (int sample_idx = 0; sample_idx < nsamples_; sample_idx++) {
-      auto &mat = matrices[sample_idx];
+      auto mat = affine_mat_t<T, mat_dim>::identity();
+      for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
+        auto &in = ws.template InputRef<CPUBackend>(input_idx);
+        auto in_view = view<T>(in);
+        auto next_mat = affine_mat_t<T, mat_dim>::identity();
+        for (int i = 0, k = 0; i < ndim; i++)
+          for (int j = 0; j < ndim + 1; j++, k++)
+            next_mat(i, j) = in_view[sample_idx].data[k];
+        mat = reverse_order_ ? mat * next_mat : next_mat * mat;  // mat mul
+      }
+
       for (int i = 0, k = 0; i < ndim; i++) {
         for (int j = 0; j < ndim + 1; j++, k++) {
           out_view[sample_idx].data[k] = mat(i, j);
@@ -150,11 +126,8 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
   int ndim_ = -1;  // will be inferred from the arguments or the input
   int nsamples_ = -1;
   bool reverse_order_ = false;
-
-  std::vector<int> input_order_;
-  Tensor<CPUBackend> matrix_data_;
 };
 
-DALI_REGISTER_OPERATOR(CombineTransforms, CombineTransformsCPU, CPU);
+DALI_REGISTER_OPERATOR(transforms__Combine, CombineTransformsCPU, CPU);
 
 }  // namespace dali

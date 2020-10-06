@@ -338,7 +338,7 @@ def check_combine_transforms(num_transforms = 2, ndim = 2, reverse_order = False
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
     with pipe:
         transforms = [fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234) for _ in range(num_transforms)]
-        T = fn.combine_transforms(*transforms)
+        T = fn.transforms.combine(*transforms)
     pipe.set_outputs(T, *transforms)
     pipe.build()
     outs = pipe.run()
