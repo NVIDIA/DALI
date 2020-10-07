@@ -41,11 +41,11 @@ class ExprImplCpuT : public ExprImplBase {
   }
 
  private:
-  using meta = arithm_meta<op, CPUBackend>;
+  using meta_t = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result, const Input *i0, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
-      result[i] = meta::impl(i0[i]);
+      result[i] = meta_t::impl(i0[i]);
     }
   }
 };
@@ -65,11 +65,11 @@ class ExprImplCpuTT : public ExprImplBase {
   }
 
  private:
-  using meta = arithm_meta<op, CPUBackend>;
+  using meta_t = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result, const Left *l, const Right *r, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
-      result[i] = meta::impl(l[i], r[i]);
+      result[i] = meta_t::impl(l[i], r[i]);
     }
   }
 };
@@ -89,11 +89,11 @@ class ExprImplCpuCT : public ExprImplBase {
   }
 
  private:
-  using meta = arithm_meta<op, CPUBackend>;
+  using meta_t = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result, Left l, const Right *r, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
-      result[i] = meta::impl(l, r[i]);
+      result[i] = meta_t::impl(l, r[i]);
     }
   }
 };
@@ -113,11 +113,51 @@ class ExprImplCpuTC : public ExprImplBase {
   }
 
  private:
-  using meta = arithm_meta<op, CPUBackend>;
+  using meta_t = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result, const Left *l, Right r, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
-      result[i] = meta::impl(l[i], r);
+      result[i] = meta_t::impl(l[i], r);
+    }
+  }
+};
+
+// Ternary operators
+
+template <ArithmeticOp op, typename Result,
+          bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
+class ExprImplCpuTernary : public ExprImplBase {
+ public:
+  void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
+               TileRange range) override {
+    assert(range.begin + 1 == range.end &&
+           "CPU Expression implementation can handle only one tile at a time");
+    const auto &tile = tiles[range.begin];
+    auto output = static_cast<Result *>(tile.output);
+    const void *first = tile.args[0];
+    const void *second = tile.args[1];
+    const void *third = tile.args[2];
+    Execute(output,
+            expression_detail::Pass<IsFirstTensor, Result>(first, tile.in_types[0]),
+            expression_detail::Pass<IsSecondTensor, Result>(second, tile.in_types[1]),
+            expression_detail::Pass<IsThirdTensor, Result>(third, tile.in_types[2]),
+            tile.in_types[0], tile.in_types[1], tile.in_types[2],
+            tile.desc.extent_size);
+  }
+
+ private:
+  using meta_t = arithm_meta<op, CPUBackend>;
+
+  static void Execute(Result *result,
+                      expression_detail::param_t<IsFirstTensor, Result> first,
+                      expression_detail::param_t<IsSecondTensor, Result> second,
+                      expression_detail::param_t<IsThirdTensor, Result> third,
+                      DALIDataType first_type, DALIDataType second_type, DALIDataType third_type,
+                      int64_t extent) {
+    for (int64_t i = 0; i < extent; i++) {
+      result[i] = meta_t::impl(expression_detail::Access<Result>(first, i, first_type),
+                               expression_detail::Access<Result>(second, i, second_type),
+                               expression_detail::Access<Result>(third, i, third_type));
     }
   }
 };

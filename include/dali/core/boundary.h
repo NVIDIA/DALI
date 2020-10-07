@@ -109,7 +109,7 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T size) 
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_integral<T>::value, T> idx_clamp(T idx, T lo, T hi) {
-  return idx < lo ? lo : idx > hi-1 ? hi-1 : idx;
+  return clamp(idx, lo, hi - 1);
 }
 
 /// @brief Equivalent to `idx_clamp(idx, 0, size)`

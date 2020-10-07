@@ -1,3 +1,5 @@
+.. _functional api:
+
 Functional API
 ==============
 

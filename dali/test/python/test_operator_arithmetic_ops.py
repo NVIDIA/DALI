@@ -15,6 +15,7 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import nvidia.dali.math as math
 from nvidia.dali.tensors import TensorListGPU
 import numpy as np
 from nose.tools import assert_equals, raises
@@ -22,6 +23,9 @@ from nose.plugins.attrib import attr
 import itertools
 
 from test_utils import check_batch, np_types_to_dali
+
+def list_product(*args):
+    return list(itertools.product(*args))
 
 # Some test in this file are marked as `slow`. They cover all possible type and input kind
 # combinations. The rest of the test cover only subset of selected cases to allow
@@ -37,13 +41,19 @@ shape_small = [(42, 3), (4, 16), (8, 2), (1, 64)]
 # A number used to test constant inputs
 magic_number = 42
 
-unary_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar"]
+unary_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "cpu_scalar_legacy", "gpu_scalar_legacy"]
+
+all_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "cpu_scalar_legacy", "gpu_scalar_legacy",  "const"]
 
 # We cannot have 'Constant x Constant' operations with DALI op.
 # And scalar is still a represented by a Tensor, so 'Scalar x Constant' is the same
 # as 'Tensor x Constant'.
-bin_input_kinds = (list(itertools.product(["cpu", "gpu"], ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "const"])) +
-               list(itertools.product(["cpu_scalar", "gpu_scalar", "const"], ["cpu", "gpu"])))
+bin_input_kinds = (
+        list_product(["cpu", "gpu"], all_input_kinds) +
+        list_product(["cpu_scalar", "gpu_scalar", "const"], ["cpu", "gpu"]))
+
+ternary_input_kinds = list_product(all_input_kinds, all_input_kinds, all_input_kinds)
+ternary_input_kinds.remove(("const", "const", "const"))
 
 integer_types = [np.bool_,
                  np.int8, np.int16, np.int32, np.int64,
@@ -55,14 +65,26 @@ float_types = [np.float32, np.float64]
 input_types = integer_types + float_types
 
 selected_input_types = [np.bool_, np.int32, np.uint8, np.float32]
+selected_input_arithm_types = [np.int32, np.uint8, np.float32]
 
-selected_bin_input_kinds = [("cpu", "cpu"), ("gpu", "gpu"), ("cpu", "cpu_scalar"), ("gpu", "gpu_scalar"),
+selected_bin_input_kinds = [("cpu", "cpu"), ("gpu", "gpu"),
+                            ("cpu", "cpu_scalar"), ("gpu", "gpu_scalar"),
                             ("const", "cpu"), ("const", "gpu")]
+
+selected_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
+                                ("cpu", "const", "const"), ("gpu", "const", "const"),
+                                ("gpu", "cpu", "cpu_scalar"), ("cpu_scalar", "cpu_scalar", "cpu_scalar")]
+
+bench_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
+                             ("cpu", "const", "const"), ("gpu", "const", "const"),
+                             ("cpu", "cpu", "const"), ("gpu", "gpu", "const")]
 
 unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
-                   ((lambda x, y: x * y), "*")]
+                   ((lambda x, y: x * y), "*"),
+                   (((lambda x, y: math.min(x, y)), (lambda x, y: np.minimum(x, y))), "min"),
+                   (((lambda x, y: math.max(x, y)), (lambda x, y: np.maximum(x, y))), "max")]
 
 bitwise_operations = [((lambda x, y: x & y), "&"), ((lambda x, y: x | y), "|"),
                       ((lambda x, y: x ^ y), "^")]
@@ -70,6 +92,9 @@ bitwise_operations = [((lambda x, y: x & y), "&"), ((lambda x, y: x | y), "|"),
 comparisons_operations = [((lambda x, y: x == y), "=="), ((lambda x, y: x != y), "!="),
                           ((lambda x, y: x < y), "<"), ((lambda x, y: x <= y), "<="),
                           ((lambda x, y: x > y), ">"), ((lambda x, y: x >= y), ">="),]
+
+# The observable behaviour for hi < lo is the same as numpy
+ternary_operations = [(((lambda v, lo, hi: math.clamp(v, lo, hi)), (lambda v, lo, hi: np.clip(v, lo, hi))), "clamp")]
 
 def as_cpu(tl):
     if isinstance(tl, TensorListGPU):
@@ -151,7 +176,9 @@ def bool_generator(shape, no_zeros):
     return result
 
 def float_generator(shape, type, _):
-    if (len(shape) == 2):
+    if isinstance(shape, int):
+        return type(np.random.rand(shape))
+    elif len(shape) == 2:
         return type(np.random.rand(*shape))
     else:
         return type([np.random.rand()])
@@ -178,7 +205,12 @@ class ExternalInputIterator(object):
         self.shapes = []
         for i in range(self.length):
             self.gens += [self.get_generator(self.types[i], disallow_zeros[i])]
-            self.shapes += [shape if ("scalar" not in kinds[i]) else [(1,)] * batch_size]
+            if "scalar" not in kinds[i]:
+                self.shapes += [shape]
+            elif "scalar_legacy" in kinds[i]:
+                self.shapes += [[(1,)] * batch_size]
+            else:
+                self.shapes += [[]] # empty shape, special 0D scalar
 
     def __iter__(self):
         return self
@@ -187,8 +219,12 @@ class ExternalInputIterator(object):
         out = ()
         for i in range(self.length):
             batch = []
-            for sample in range(self.batch_size):
-                batch.append(self.gens[i](self.shapes[i][sample]))
+            # Handle 0D scalars
+            if self.shapes[i] == []:
+                batch = self.gens[i](self.batch_size)
+            else:
+                for sample in range(self.batch_size):
+                    batch.append(self.gens[i](self.shapes[i][sample]))
             out = out + (batch,)
         return out
 
@@ -226,7 +262,7 @@ class ExprOpPipeline(Pipeline):
         for i in range(self.length):
             self.source.append(self.external_source[i]())
             inputs.append(self.get_operand(self.source[i], self.kinds[i], self.types[i]))
-        return self.unary_plus_war(tuple(self.source) + (self.op(*inputs), ))
+        return tuple(self.source) + (self.op(*inputs), )
 
     def get_operand(self, operand, kind, operand_type):
         if kind == "const":
@@ -240,14 +276,6 @@ class ExprOpPipeline(Pipeline):
         inputs = self.iterator.next()
         for i in range(len(inputs)):
             self.feed_input(self.source[i], inputs[i])
-
-    # Workaround for unary `+` operator
-    # It is just a passthrough on python level and we cannot return the same output twice
-    # from the pipeline, so I just put one of the outputs on GPU in case it would happen
-    def unary_plus_war(self, result):
-        if len(result) == 2 and result[0].name == result[1].name and result[0].device == result[1].device:
-            return result[0].gpu(), result[1]
-        return result
 
 # orig_type - the original type of used input
 # target_type - the type of the result after type promotions
@@ -270,14 +298,15 @@ def extract_un_data(pipe_out, sample_id, kind, target_type):
 # Extract output for given sample_id from the pipeline
 # Expand the data based on the kinds parameter and optionally cast it into target type
 # as numpy does types promotions a bit differently.
-def extract_bin_data(pipe_out, sample_id, kinds, target_type):
-    left_kind, right_kind = kinds
-    l = as_cpu(pipe_out[0]).at(sample_id)
-    r = as_cpu(pipe_out[1]).at(sample_id)
-    out = as_cpu(pipe_out[2]).at(sample_id)
-    l_np = get_numpy_input(l, left_kind, l.dtype.type, target_type if target_type is not None else l.dtype.type)
-    r_np = get_numpy_input(r, right_kind, r.dtype.type, target_type if target_type is not None else r.dtype.type)
-    return l_np, r_np, out
+def extract_data(pipe_out, sample_id, kinds, target_type):
+    arity = len(kinds)
+    inputs = []
+    for i in range(arity):
+        dali_in = as_cpu(pipe_out[i]).at(sample_id)
+        numpy_in = get_numpy_input(dali_in, kinds[i], dali_in.dtype.type, target_type if target_type is not None else dali_in.dtype.type)
+        inputs.append(numpy_in)
+    out = as_cpu(pipe_out[arity]).at(sample_id)
+    return tuple(inputs) + (out,)
 
 # Regular arithmetic ops that can be validated as straight numpy
 def check_unary_op(kind, type, op, shape, _):
@@ -304,21 +333,46 @@ def test_unary_arithmetic_ops():
 
 # Regular arithmetic ops that can be validated as straight numpy
 def check_arithm_op(kinds, types, op, shape, _):
+    if isinstance(op, tuple):
+        dali_op, numpy_op = op
+    else:
+        dali_op = numpy_op = op
     left_type, right_type = types
     target_type = bin_promote(left_type, right_type)
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
-    pipe = ExprOpPipeline(kinds, types, iterator, op, batch_size = batch_size, num_threads = 2,
-            device_id = 0)
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
+                          device_id=0)
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
+        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
         if 'f' in np.dtype(target_type).kind:
-            np.testing.assert_allclose(out, op(l_np, r_np),
+            np.testing.assert_allclose(out, numpy_op(l_np, r_np),
                 rtol=1e-07 if target_type != np.float16 else 0.005)
         else:
-            np.testing.assert_array_equal(out, op(l_np, r_np))
+            np.testing.assert_array_equal(out, numpy_op(l_np, r_np))
+
+# Regular arithmetic ops that can be validated as straight numpy
+def check_ternary_op(kinds, types, op, shape, _):
+    if isinstance(op, tuple):
+        dali_op, numpy_op = op
+    else:
+        dali_op = numpy_op = op
+    target_type = bin_promote(bin_promote(types[0], types[1]), types[2])
+    iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
+                          device_id=0)
+    pipe.build()
+    pipe_out = pipe.run()
+    for sample in range(batch_size):
+        x, y, z, out = extract_data(pipe_out, sample, kinds, target_type)
+        assert_equals(out.dtype, target_type)
+        if 'f' in np.dtype(target_type).kind:
+            np.testing.assert_allclose(out, numpy_op(x, y, z),
+                rtol=1e-07 if target_type != np.float16 else 0.005)
+        else:
+            np.testing.assert_array_equal(out, numpy_op(x, y, z))
 
 def test_arithmetic_ops_big():
     for kinds in bin_input_kinds:
@@ -340,6 +394,36 @@ def test_arithmetic_ops():
             for types_in in itertools.product(input_types, input_types):
                 if types_in != (np.bool_, np.bool_) or op_desc == "*":
                     yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
+
+def test_ternary_ops_big():
+    for kinds in selected_ternary_input_kinds:
+        for (op, op_desc) in ternary_operations:
+            for types_in in [(np.int32, np.int32, np.int32), (np.int32, np.int8, np.int16), (np.int32, np.uint8, np.float32)]:
+                yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
+
+def test_ternary_ops_selected():
+    for kinds in selected_ternary_input_kinds:
+        for (op, op_desc) in ternary_operations:
+            for types_in in itertools.product(selected_input_arithm_types, selected_input_arithm_types, selected_input_arithm_types):
+                yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
+
+# Only selected types, otherwise it takes too long
+@attr('slow')
+def test_ternary_ops_kinds():
+    for kinds in ternary_input_kinds:
+        for (op, op_desc) in ternary_operations:
+            for types_in in [(np.int32, np.int32, np.int32), (np.float32, np.int32, np.int32),
+                             (np.uint8, np.float32, np.float32), (np.int32, np.float32, np.float32)]:
+                yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
+
+@attr('slow')
+def test_ternary_ops_types():
+    for kinds in selected_ternary_input_kinds:
+        for (op, op_desc) in ternary_operations:
+            for types_in in list_product(input_types, input_types, input_types):
+                if types_in == (np.bool_, np.bool_, np.bool_):
+                    continue
+                yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
 
 def test_bitwise_ops_selected():
     for kinds in selected_bin_input_kinds:
@@ -366,7 +450,7 @@ def check_comparsion_op(kinds, types, op, shape, _):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, None)
+        l_np, r_np, out = extract_data(pipe_out, sample, kinds, None)
         assert_equals(out.dtype, np.bool_)
         np.testing.assert_array_equal(out, op(l_np, r_np), err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
 
@@ -393,7 +477,7 @@ def check_arithm_fdiv(kinds, types, shape):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
+        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
         np.testing.assert_allclose(out, l_np / r_np,
             rtol=1e-07 if target_type != np.float16 else 0.005, err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
@@ -426,7 +510,7 @@ def check_arithm_div(kinds, types, shape):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
+        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
         if 'f' in np.dtype(target_type).kind:
             np.testing.assert_allclose(out, l_np / r_np,
@@ -450,9 +534,6 @@ def test_arithmetic_division_selected():
             if types_in != (np.bool_, np.bool_):
                 yield check_arithm_div, kinds, types_in, shape_small
 
-
-
-
 @attr('slow')
 def test_arithmetic_division():
     for kinds in bin_input_kinds:
@@ -461,14 +542,15 @@ def test_arithmetic_division():
                 yield check_arithm_div, kinds, types_in, shape_small
 
 
-
 @raises(RuntimeError)
 def check_raises(kinds, types, op, shape, _):
-    left_type, right_type = types
-    left_kind, right_kind = kinds
+    if isinstance(op, tuple):
+        dali_op = op[0]
+    else:
+        dali_op = op
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
-    pipe = ExprOpPipeline(kinds, types, iterator, op, batch_size = batch_size, num_threads = 2,
-            device_id = 0)
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
+                          device_id=0)
     pipe.build()
     pipe_out = pipe.run()
 
@@ -480,7 +562,9 @@ def test_bool_disallowed():
     for kinds in bin_input_kinds:
         for (op, op_desc) in bool_disallowed:
             yield check_raises, kinds, (np.bool_, np.bool_), op, shape_small, op_desc
-
+    for kinds in selected_ternary_input_kinds:
+        for (op, op_desc) in ternary_operations:
+            yield check_raises, kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc
 
 def test_bitwise_disallowed():
     for kinds in bin_input_kinds:

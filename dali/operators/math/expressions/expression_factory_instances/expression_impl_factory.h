@@ -105,6 +105,62 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
   return result;
 }
 
+
+/**
+ * @brief Inspect `expr` to transform runtime information to static information, obtain the
+ *        implementation for ternary op (executor for given expression) and return it.
+ *
+ * The static type switch goes over the output type and input kinds.
+ * This is ternary case and seven possible input kind combinations are supported,
+ * that is all combinations of Tensors and Constants, except (Constant, Constant, Constant)
+ *
+ * @tparam Impl template that maps binary Arithmetic Op and input/output types
+ *                          to a functor that can execute it over a tile of three tensors.
+ *                          The implementation need to loop over inputs and output.
+ *                          @see ExprImplCpuTernary or ExprImplGpuTernary
+ * @param expr The expression node for which we return the executor
+ */
+template <ArithmeticOp op, typename Backend,
+          template <ArithmeticOp, typename, bool, bool, bool> class ImplsAll>
+std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
+  std::unique_ptr<ExprImplBase> result;
+  int scalar_count = 0;
+  bool is_tensor[3];
+  for (int i = 0; i < 3; i++) {
+    is_tensor[i] = !IsScalarLike(expr[i]);
+    if (!is_tensor[i]) {
+      scalar_count++;
+    }
+  }
+
+  // We have a check for this earlier, implementation requires at least one tensor even if it's
+  // scalar-like
+  if (scalar_count == 3) {
+    is_tensor[0] = true;
+  }
+
+  TYPE_SWITCH(expr.GetTypeId(), type2id, Out_t, ARITHMETIC_ALLOWED_TYPES, (
+    if (is_tensor[0] && is_tensor[1] && is_tensor[2]) {
+      result.reset(new ImplsAll<op, Out_t, true, true, true>());
+    } else if (is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
+      result.reset(new ImplsAll<op, Out_t, true, true, false>());
+    } else if (is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
+      result.reset(new ImplsAll<op, Out_t, true, false, true>());
+    } else if (is_tensor[0] && !is_tensor[1] && !is_tensor[2]) {
+      result.reset(new ImplsAll<op, Out_t, true, false, false>());
+    } else if (!is_tensor[0] && is_tensor[1] && is_tensor[2]) {
+      result.reset(new ImplsAll<op, Out_t, false, true, true>());
+    } else if (!is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
+      result.reset(new ImplsAll<op, Out_t, false, true, false>());
+    } else if (!is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
+      result.reset(new ImplsAll<op, Out_t, false, false, true>());
+    } else {
+      DALI_FAIL("Expression cannot have three scalar operands");
+    }
+  ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
+  return result;
+}
+
 #define IMPLEMENT_OP_FACTORY_GPU_UNARY(OP)                                           \
   std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, GPUBackend>, \
                                           const ExprFunc &expr) {                    \
@@ -131,7 +187,17 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
                                 ExprImplCpuCT>(expr);                                       \
   }
 
+#define IMPLEMENT_OP_FACTORY_CPU_TERNARY(OP)                                                  \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, CPUBackend> op,       \
+                                          const ExprFunc &expr) {                             \
+    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, CPUBackend, ExprImplCpuTernary>(expr); \
+  }
 
+#define IMPLEMENT_OP_FACTORY_GPU_TERNARY(OP)                                                  \
+  std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, GPUBackend> op,       \
+                                          const ExprFunc &expr) {                             \
+    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, GPUBackend, ExprImplGpuTernary>(expr); \
+  }
 
 /**
  * @brief Factory function returning proper variant of implementation for `plus`
@@ -198,6 +264,24 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::fdiv, CPUBacke
  */
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::mod, CPUBackend>,
                                         const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `min`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::min, CPUBackend>,
+                                        const ExprFunc &expr);
+
+
+/**
+ * @brief Factory function returning proper variant of implementation for `max`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::max, CPUBackend>,
+                                        const ExprFunc &expr);
+
 
 /**
  * @brief Factory function returning proper variant of implementation for `eq`
@@ -272,6 +356,15 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_xor, CPUBa
                                         const ExprFunc &expr);
 
 
+/**
+ * @brief Factory function returning proper variant of implementation for `clamp`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::clamp, CPUBackend>,
+                                        const ExprFunc &expr);
+
+
 
 /**
  * @brief Factory function returning proper variant of implementation for `plus`
@@ -337,6 +430,23 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::fdiv, GPUBacke
  *        specified in `expr`.
  */
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::mod, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `min`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::min, GPUBackend>,
+                                        const ExprFunc &expr);
+
+
+/**
+ * @brief Factory function returning proper variant of implementation for `max`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::max, GPUBackend>,
                                         const ExprFunc &expr);
 
 /**
@@ -411,7 +521,13 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_or, GPUBac
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_xor, GPUBackend>,
                                         const ExprFunc &expr);
 
-
+/**
+ * @brief Factory function returning proper variant of implementation for `clamp`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::clamp, GPUBackend>,
+                                        const ExprFunc &expr);
 
 }  // namespace dali
 

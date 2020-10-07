@@ -51,6 +51,20 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryGpuBinary(const ExprFunc &expr) {
   return result;
 }
 
+/**
+ * @brief Inspect `expr` to transform runtime information to static information, do the static
+ *        type switch to call the OpFactory for given ternary op.
+ */
+std::unique_ptr<ExprImplBase> ExprImplFactoryGpuTernary(const ExprFunc &expr) {
+  std::unique_ptr<ExprImplBase> result;
+  auto op = NameToOp(expr.GetFuncName());
+  VALUE_SWITCH(op, op_static, ALLOWED_TERNARY_OPS, (
+          arithm_meta<op_static, GPUBackend> dummy;
+          result = OpFactory(dummy, expr);
+      ), DALI_FAIL("No suitable op value found"););  // NOLINT(whitespace/parens)
+  return result;
+}
+
 std::unique_ptr<ExprImplBase> ExprImplFactory(const DeviceWorkspace &ws, const ExprNode &expr) {
   DALI_ENFORCE(expr.GetNodeType() == NodeType::Function, "Only function nodes can be executed.");
 
@@ -59,6 +73,8 @@ std::unique_ptr<ExprImplBase> ExprImplFactory(const DeviceWorkspace &ws, const E
       return ExprImplFactoryGpuUnary(dynamic_cast<const ExprFunc&>(expr));
     case 2:
       return ExprImplFactoryGpuBinary(dynamic_cast<const ExprFunc&>(expr));
+    case 3:
+      return ExprImplFactoryGpuTernary(dynamic_cast<const ExprFunc&>(expr));
     default:
       DALI_FAIL("Expressions with " + std::to_string(expr.GetSubexpressionCount()) +
                 " subexpressions are not supported. No implementation found.");

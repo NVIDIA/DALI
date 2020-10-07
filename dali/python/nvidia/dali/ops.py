@@ -967,6 +967,7 @@ def _arithm_op(name, *inputs):
     # Call it immediately
     return op(*dev_inputs)
 
+
 def cpu_ops():
     return _cpu_ops
 
