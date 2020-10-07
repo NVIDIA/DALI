@@ -2,6 +2,8 @@ ARG AARCH64_CUDA_TOOL_IMAGE_NAME
 FROM ${AARCH64_CUDA_TOOL_IMAGE_NAME} as aarch64_cuda_tools
 FROM nvidia/cuda:10.2-devel-ubuntu18.04
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -22,6 +24,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.7 python3.7-dev \
     python3.8 python3.8-dev \
     && \
+    if [ $(apt-cache search python3.9 | wc -l) -eq 0 ]; then \
+        apt-get install software-properties-common -y --no-install-recommends && \
+        add-apt-repository ppa:deadsnakes/ppa -y && \
+        apt-get update; \
+    fi && \
+    apt-get install -y python3.9 python3.9-dev && \
     rm -rf /var/lib/apt/lists/* && \
     curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py && \
     cd /tmp && git clone https://github.com/NixOS/patchelf && cd patchelf && \
@@ -274,6 +282,14 @@ RUN PYVER=3.6.9 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" inclinstall                                           && \
     cd / && rm -rf /tmp/Python* && \
     PYVER=3.8.5 && \
+    cd /tmp && curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - && \
+    rm -rf *.tgz && cd Python* && \
+    ./configure --disable-ipv6 ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no \
+        --disable-shared CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
+        --build=x86_64-pc-linux-gnu --host=aarch64-linux-gnu --prefix=/usr/                                 && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" inclinstall                                           && \
+    cd / && rm -rf /tmp/Python* && \
+    PYVER=3.9.0 && \
     cd /tmp && curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - && \
     rm -rf *.tgz && cd Python* && \
     ./configure --disable-ipv6 ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no \
