@@ -67,7 +67,7 @@ nvidia.dali.plugin.pytorch
 
 Mathematical expressions
 ^^^^^^^^^^^^^^^^^^^^^^^^
-DALI allows you to use regular Python arithmetic operations and some mathematical functions in
+DALI allows you to use regular Python arithmetic operations and other mathematical functions in
 the :meth:`~nvidia.dali.pipeline.Pipeline.define_graph` method on the values that are returned
-from invoking other operators. Full documentation can be found in the dedicated documentation
-for :ref:`mathematical expressions`.
+from invoking other operators. Full documentation can be found in the section dedicated to
+:ref:`mathematical expressions`.

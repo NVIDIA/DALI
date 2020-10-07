@@ -41,11 +41,11 @@ class ExprImplCpuT : public ExprImplBase {
   }
 
  private:
-  using meta = arithm_meta<op, CPUBackend>;
+  using meta_t = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result, const Input *i0, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
-      result[i] = meta::impl(i0[i]);
+      result[i] = meta_t::impl(i0[i]);
     }
   }
 };
@@ -65,11 +65,11 @@ class ExprImplCpuTT : public ExprImplBase {
   }
 
  private:
-  using meta = arithm_meta<op, CPUBackend>;
+  using meta_t = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result, const Left *l, const Right *r, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
-      result[i] = meta::impl(l[i], r[i]);
+      result[i] = meta_t::impl(l[i], r[i]);
     }
   }
 };
@@ -89,11 +89,11 @@ class ExprImplCpuCT : public ExprImplBase {
   }
 
  private:
-  using meta = arithm_meta<op, CPUBackend>;
+  using meta_t = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result, Left l, const Right *r, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
-      result[i] = meta::impl(l, r[i]);
+      result[i] = meta_t::impl(l, r[i]);
     }
   }
 };
@@ -113,11 +113,11 @@ class ExprImplCpuTC : public ExprImplBase {
   }
 
  private:
-  using meta = arithm_meta<op, CPUBackend>;
+  using meta_t = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result, const Left *l, Right r, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
-      result[i] = meta::impl(l[i], r);
+      result[i] = meta_t::impl(l[i], r);
     }
   }
 };
@@ -146,18 +146,18 @@ class ExprImplCpuTernary : public ExprImplBase {
   }
 
  private:
-  using meta = arithm_meta<op, CPUBackend>;
+  using meta_t = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result,
-                      expression_detail::param2_t<IsFirstTensor, Result> first,
-                      expression_detail::param2_t<IsSecondTensor, Result> second,
-                      expression_detail::param2_t<IsThirdTensor, Result> third,
+                      expression_detail::param_t<IsFirstTensor, Result> first,
+                      expression_detail::param_t<IsSecondTensor, Result> second,
+                      expression_detail::param_t<IsThirdTensor, Result> third,
                       DALIDataType first_type, DALIDataType second_type, DALIDataType third_type,
                       int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
-      result[i] = meta::impl(expression_detail::Access<Result>(first, i, first_type),
-                             expression_detail::Access<Result>(second, i, second_type),
-                             expression_detail::Access<Result>(third, i, third_type));
+      result[i] = meta_t::impl(expression_detail::Access<Result>(first, i, first_type),
+                               expression_detail::Access<Result>(second, i, second_type),
+                               expression_detail::Access<Result>(third, i, third_type));
     }
   }
 };

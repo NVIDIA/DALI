@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,10 +46,8 @@ DALIDataType TypePromotion(ArithmeticOp op, span<DALIDataType> types) {
     }
   }
   DALIDataType result = BinaryTypePromotion(types[0], types[1]);
-  if (types.size() > 2) {
-    for (int i = 2; i < types.size(); i++) {
-      result = BinaryTypePromotion(result, types[i]);
-    }
+  for (int i = 2; i < types.size(); i++) {
+    result = BinaryTypePromotion(result, types[i]);
   }
   return result;
 }

@@ -388,7 +388,7 @@ struct arithm_meta<ArithmeticOp::min, Backend> {
   DALI_HOST_DEV static constexpr result_t<L, R> impl(L l, R r) {
     auto l_ = static_cast<result_t<L, R>>(l);
     auto r_ = static_cast<result_t<L, R>>(r);
-    return l_ <= r_ ? l_ : r_;
+    return l_ < r_ ? l_ : r_;
   }
 
   static inline std::string to_string() {
@@ -408,7 +408,7 @@ struct arithm_meta<ArithmeticOp::max, Backend> {
   DALI_HOST_DEV static constexpr result_t<L, R> impl(L l, R r) {
     auto l_ = static_cast<result_t<L, R>>(l);
     auto r_ = static_cast<result_t<L, R>>(r);
-    return l_ >= r_ ? l_ : r_;
+    return l_ > r_ ? l_ : r_;
   }
 
   static inline std::string to_string() {

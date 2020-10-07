@@ -3,7 +3,7 @@
 Mathematical expressions
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-DALI allows you to use regular Python arithmetic operations and some mathematical functions in
+DALI allows you to use regular Python arithmetic operations and other mathematical functions in
 the :meth:`~nvidia.dali.pipeline.Pipeline.define_graph` method on the values that are returned
 from invoking other operators.
 
@@ -54,9 +54,9 @@ with respect to the table above.
 .. note::
     Type promotion is commutative.
 
-For more than two arguments, the resulting type is calculated as reduction from left to right
+For more than two arguments, the resulting type is calculated as a reduction from left to right
 - first calculating the result of operating on first two arguments, next between that intermediate
-result and thirs argument and so on, untill we have only the result type left.
+result and the third argument and so on, until we have only the result type left.
 
 Supported arithmetic operations
 -------------------------------
@@ -110,7 +110,7 @@ Mathematical funcions
 Similarly to arithmetic expressions, one can use selected mathematical functions in the Pipeline
 graph definition. They also accept :class:`nvidia.dali.pipeline.DataNode`,
 :meth:`nvidia.dali.types.Constant` or regular Python value of type ``bool``, ``int``, or ``float``
-as arguments. At least one of the inputs must be output of other DALI Operator.
+as arguments. At least one of the inputs must be the output of other DALI Operator.
 
 .. automodule:: nvidia.dali.math
    :members:

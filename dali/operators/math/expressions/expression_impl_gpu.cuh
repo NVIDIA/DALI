@@ -31,14 +31,14 @@ namespace dali {
  */
 template <ArithmeticOp op, typename Result, typename Input>
 __device__ void ExecuteUnOp(Result *result, const Input *in, int64_t extent) {
-  using meta = arithm_meta<op, GPUBackend>;
+  using meta_t = arithm_meta<op, GPUBackend>;
   int64_t start_ofs = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
   result += start_ofs;
   in += start_ofs;
   while (result < tile_end) {
-    *result = meta::impl(*in);
+    *result = meta_t::impl(*in);
     result += stride;
     in += stride;
   }
@@ -49,7 +49,7 @@ __device__ void ExecuteUnOp(Result *result, const Input *in, int64_t extent) {
  */
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int64_t extent) {
-  using meta = arithm_meta<op, GPUBackend>;
+  using meta_t = arithm_meta<op, GPUBackend>;
   int64_t start_ofs = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
@@ -57,7 +57,7 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int6
   l += start_ofs;
   r += start_ofs;
   while (result < tile_end) {
-    *result = meta::impl(*l, *r);
+    *result = meta_t::impl(*l, *r);
     result += stride;
     l += stride;
     r += stride;
@@ -69,14 +69,14 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int6
  */
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, Left l, const Right *r, int64_t extent) {
-  using meta = arithm_meta<op, GPUBackend>;
+  using meta_t = arithm_meta<op, GPUBackend>;
   int64_t start_ofs = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
   result += start_ofs;
   r += start_ofs;
   while (result < tile_end) {
-    *result = meta::impl(l, *r);
+    *result = meta_t::impl(l, *r);
     result += stride;
     r += stride;
   }
@@ -87,14 +87,14 @@ __device__ void ExecuteBinOp(Result *result, Left l, const Right *r, int64_t ext
  */
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t extent) {
-  using meta = arithm_meta<op, GPUBackend>;
+  using meta_t = arithm_meta<op, GPUBackend>;
   int64_t start_ofs = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
   result += start_ofs;
   l += start_ofs;
   while (result < tile_end) {
-    *result = meta::impl(*l, r);
+    *result = meta_t::impl(*l, r);
     result += stride;
     l += stride;
   }
@@ -106,20 +106,20 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t ext
 template <ArithmeticOp op, typename Result, bool IsFirstTensor, bool IsSecondTensor,
           bool IsThirdTensor>
 __device__ void ExecuteTernaryOp(Result *result,
-                                 expression_detail::param2_t<IsFirstTensor, Result> first,
-                                 expression_detail::param2_t<IsSecondTensor, Result> second,
-                                 expression_detail::param2_t<IsThirdTensor, Result> third,
+                                 expression_detail::param_t<IsFirstTensor, Result> first,
+                                 expression_detail::param_t<IsSecondTensor, Result> second,
+                                 expression_detail::param_t<IsThirdTensor, Result> third,
                                  DALIDataType first_type, DALIDataType second_type,
                                  DALIDataType third_type, int64_t extent) {
-  using meta = arithm_meta<op, GPUBackend>;
+  using meta_t = arithm_meta<op, GPUBackend>;
   int64_t offset = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
   auto *tile_end = result + extent;
   result += offset;
   while (result < tile_end) {
-    *result = meta::impl(expression_detail::Access<Result>(first, offset, first_type),
-                         expression_detail::Access<Result>(second, offset, second_type),
-                         expression_detail::Access<Result>(third, offset, third_type));
+    *result = meta_t::impl(expression_detail::Access<Result>(first, offset, first_type),
+                           expression_detail::Access<Result>(second, offset, second_type),
+                           expression_detail::Access<Result>(third, offset, third_type));
     result += stride;
     offset += stride;
   }

@@ -109,10 +109,7 @@ DALI_HOST_DEV T Access(T value, int64_t, DALIDataType) {
 }
 
 template <bool as_ptr, typename T>
-using param_t = std::conditional_t<as_ptr, const T*, T>;
-
-template <bool as_ptr, typename T>
-using param2_t = std::conditional_t<as_ptr, const void*, T>;
+using param_t = std::conditional_t<as_ptr, const void*, T>;
 
 }  // namespace expression_detail
 

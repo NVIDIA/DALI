@@ -122,7 +122,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
  */
 template <ArithmeticOp op, typename Backend,
           template <ArithmeticOp, typename, bool, bool, bool> class ImplsAll>
-std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp2(const ExprFunc &expr) {
+std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
   std::unique_ptr<ExprImplBase> result;
   int scalar_count = 0;
   bool is_tensor[3];
@@ -190,13 +190,13 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp2(const ExprFunc &expr) {
 #define IMPLEMENT_OP_FACTORY_CPU_TERNARY(OP)                                                  \
   std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, CPUBackend> op,       \
                                           const ExprFunc &expr) {                             \
-    return ExprImplFactoryTernaryOp2<ArithmeticOp::OP, CPUBackend, ExprImplCpuTernary>(expr); \
+    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, CPUBackend, ExprImplCpuTernary>(expr); \
   }
 
 #define IMPLEMENT_OP_FACTORY_GPU_TERNARY(OP)                                                  \
   std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, GPUBackend> op,       \
                                           const ExprFunc &expr) {                             \
-    return ExprImplFactoryTernaryOp2<ArithmeticOp::OP, GPUBackend, ExprImplGpuTernary>(expr); \
+    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, GPUBackend, ExprImplGpuTernary>(expr); \
   }
 
 /**

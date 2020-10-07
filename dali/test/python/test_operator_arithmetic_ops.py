@@ -334,16 +334,14 @@ def test_unary_arithmetic_ops():
 # Regular arithmetic ops that can be validated as straight numpy
 def check_arithm_op(kinds, types, op, shape, _):
     if isinstance(op, tuple):
-        dali_op = op[0]
-        numpy_op = op[1]
+        dali_op, numpy_op = op
     else:
-        dali_op = op
-        numpy_op = op
+        dali_op = numpy_op = op
     left_type, right_type = types
     target_type = bin_promote(left_type, right_type)
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
-    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size = batch_size, num_threads = 2,
-            device_id = 0)
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
+                          device_id=0)
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
@@ -358,15 +356,13 @@ def check_arithm_op(kinds, types, op, shape, _):
 # Regular arithmetic ops that can be validated as straight numpy
 def check_ternary_op(kinds, types, op, shape, _):
     if isinstance(op, tuple):
-        dali_op = op[0]
-        numpy_op = op[1]
+        dali_op, numpy_op = op
     else:
-        dali_op = op
-        numpy_op = op
+        dali_op = numpy_op = op
     target_type = bin_promote(bin_promote(types[0], types[1]), types[2])
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
-    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size = batch_size, num_threads = 2,
-            device_id = 0)
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
+                          device_id=0)
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
@@ -553,8 +549,8 @@ def check_raises(kinds, types, op, shape, _):
     else:
         dali_op = op
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
-    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size = batch_size, num_threads = 2,
-            device_id = 0)
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
+                          device_id=0)
     pipe.build()
     pipe_out = pipe.run()
 
