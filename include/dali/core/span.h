@@ -221,7 +221,7 @@ template <span_extent_t Extent, typename T>
 DALI_HOST_DEV constexpr span<const T, Extent> make_cspan(T *data) { return { data }; }
 
 template <span_extent_t Extent = dynamic_extent, typename T>
-DALI_HOST_DEV constexpr span<const T, Extent> make_cspan(T *data, span_extent_t extent) {
+DALI_HOST_DEV constexpr span<const T, Extent> make_cspan(const T *data, span_extent_t extent) {
   return { data, extent };
 }
 

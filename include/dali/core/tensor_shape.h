@@ -21,6 +21,7 @@
 #include <iostream>
 #include <utility>
 #include <vector>
+#include <numeric>
 #include "dali/core/span.h"
 #include "dali/core/util.h"
 #include "dali/core/permute.h"
@@ -637,6 +638,49 @@ struct TensorListShapeBase {
     shapes.resize(num_samples * sample_dim);
   }
 
+
+  ///@{
+  /**
+   * Append this TensorListShape with shapes from other TensorListShapes.
+   */
+  void append(span<const TensorListShape<sample_ndim>> tlss) {
+    int new_samples = 0;
+    for (const auto &tls : tlss) {
+      new_samples += tls.num_samples();
+    }
+    if (new_samples == 0) return;
+
+    // The following line is imperfect, because uninitialized TensorListShape<-1>
+    // has `ndim` == 0, while `0` is legal number of dimensions.
+    bool is_uninitialized = empty() && sample_dim() <= 0;
+
+    auto reference_dim_value = is_uninitialized ? tlss[0].sample_dim() : sample_dim();
+    for (const auto &tls : tlss) {
+      if (tls.sample_dim() != reference_dim_value) {
+        throw std::invalid_argument(
+                "All samples in TensorListShape must have the same number of dimensions");
+      }
+    }
+    nsamples += new_samples;
+    if (is_uninitialized) {
+      // If `this` TLS has DynamicDimensions and wasn't initialized yet
+      set_sample_dim(reference_dim_value);
+    }
+    shapes.reserve(nsamples * sample_dim());
+    for (const auto &tls : tlss) {
+      shapes.insert(shapes.end(), tls.shapes.begin(), tls.shapes.end());
+    }
+  }
+
+  void append(const TensorListShape<sample_ndim> &tls) {
+    append(make_cspan(&tls, 1));
+  }
+
+  void append(const std::vector<TensorListShape<sample_ndim>> &tlss) {
+    append(make_cspan(tlss.data(), tlss.size()));
+  }
+  ///@}
+
  protected:
   int sample_dim() const { return static_cast<const Derived *>(this)->sample_dim(); }
   void set_sample_dim(int dim) { static_cast<Derived *>(this)->set_sample_dim(dim); }
@@ -689,12 +733,6 @@ struct TensorListShape<DynamicDimensions>
   TensorListShape(std::initializer_list<std::vector<int64_t>> sample_shapes)  // NOLINT
       : Base(flatten_shapes(sample_shapes), sample_shapes.size()),
         ndim(get_dim_from_uniform(sample_shapes)) {}
-
-  TensorListShape(const std::vector<int64_t> &shapes, int sample_dim)
-      : Base(shapes, shapes.size() / sample_dim), ndim(sample_dim) {}
-
-  TensorListShape(std::vector<int64_t> &&shapes, int sample_dim)
-      : Base(std::move(shapes), shapes.size() / sample_dim), ndim(sample_dim) {}
 
   TensorListShape(const std::vector<int64_t> &shapes, int num_samples, int sample_dim)
       : Base(shapes, num_samples), ndim(sample_dim) {
@@ -752,7 +790,7 @@ struct TensorListShape<DynamicDimensions>
   TensorListShape<other_ndim> to_static() const & {
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
-    assert(sample_dim() == other_ndim && "Cannot convert to other ndim");
+    assert((num_samples() == 0 || sample_dim() == other_ndim) && "Cannot convert to other ndim");
     return { shapes, size(), other_ndim };
   }
 
@@ -760,7 +798,7 @@ struct TensorListShape<DynamicDimensions>
   TensorListShape<other_ndim> to_static() && {
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
-    assert(sample_dim() == other_ndim && "Cannot convert to other ndim");
+    assert((num_samples() == 0 || sample_dim() == other_ndim) && "Cannot convert to other ndim");
     return { std::move(shapes), size(), other_ndim };
   }
 
@@ -791,16 +829,6 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
 
   TensorListShape(const std::vector<TensorShape<sample_ndim>> &sample_shapes)  // NOLINT
       : Base(flatten_shapes(sample_shapes), sample_shapes.size()) {}
-
-  TensorListShape(const std::vector<int64_t> &shapes, int sample_dim)
-      : Base(shapes, shapes.size() / sample_dim) {
-    assert(sample_dim == sample_ndim);
-  }
-
-  TensorListShape(std::vector<int64_t> &&shapes, int sample_dim)
-      : Base(std::move(shapes), shapes.size() / sample_dim) {
-    assert(sample_dim == sample_ndim);
-  }
 
   TensorListShape(const std::vector<int64_t> &shapes, int num_samples, int sample_dim)
       : Base(shapes, num_samples) {
