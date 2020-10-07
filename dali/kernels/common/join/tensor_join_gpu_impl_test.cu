@@ -44,11 +44,11 @@ void RefTLSJoin(const OutListCPU<T> &out, span<const InListCPU<T> *const> in, in
 
 struct TensorJoinGPUTest : public ::testing::Test {
 
-  void TestRawKernel(bool stack) {
+  void TestRawKernel() {
     InitData();
 
     RunRef();
-    RunRawKernel(stack);
+    RunRawKernel();
     CheckResult();
   }
 
@@ -60,7 +60,7 @@ struct TensorJoinGPUTest : public ::testing::Test {
     Check(out.cpu(), ref.cpu());
   }
 
-  void RunRawKernel(bool stack) {
+  void RunRawKernel() {
     vector<tensor_join::InputDesc<int>> input_descs(N * njoin);
     vector<tensor_join::OutputDesc<int>> output_descs(N);
 
@@ -82,9 +82,7 @@ struct TensorJoinGPUTest : public ::testing::Test {
       out_desc.data = out_tensor.data;
       auto join_size = volume(out_tensor.shape.begin() + axis, out_tensor.shape.end());
       out_desc.outer_stride = join_size;
-      out_desc.join_stride = volume(out_tensor.shape.begin() + axis + 1, out_tensor.shape.end());
       out_desc.total_size = volume(out_tensor.num_elements());
-      out_desc.outer_size = volume(out_tensor.shape.begin(), out_tensor.shape.begin() + axis);
       out_desc.guess_tensor_mul = 1.0 * njoin / join_size;
     }
 
@@ -98,13 +96,9 @@ struct TensorJoinGPUTest : public ::testing::Test {
     gpu_output_descs.from_host(output_descs);
 
     dim3 grid(1024, N);
-    dim3 block(32, 8);
+    dim3 block(32 * 8);
     cudaEventRecord(start, 0);
-    if (stack) {
-      StackTensorsKernel<<<grid, block>>>(gpu_output_descs.data(), gpu_input_descs.data(), njoin);
-    } else {
-      JoinTensorsKernel<<<grid, block>>>(gpu_output_descs.data(), gpu_input_descs.data(), njoin);
-    }
+    JoinTensorsKernel<<<grid, block>>>(gpu_output_descs.data(), gpu_input_descs.data(), njoin);
     cudaEventRecord(end, 0);
     CUDA_CALL(cudaDeviceSynchronize());
 
@@ -212,21 +206,38 @@ struct TensorJoinGPUTest : public ::testing::Test {
 
 };
 
-TEST_F(TensorJoinGPUTest, Test_JoinKernel) {
-  max_outer_extent = 1000;
-  max_inner_extent = 1;
+TEST_F(TensorJoinGPUTest, Perf_ConcatLongFew) {
+  max_outer_extent = 10;
+  max_inner_extent = 10000;
   njoin = 7;
   new_axis = false;
-  TestRawKernel(false);
+  TestRawKernel();
 }
 
-TEST_F(TensorJoinGPUTest, Test_StackKernel) {
+TEST_F(TensorJoinGPUTest, Perf_ConcatInterleaveFew) {
+  max_outer_extent = 500;
+  max_inner_extent = 10;
+  njoin = 7;
+  new_axis = false;
+  TestRawKernel();
+}
+
+TEST_F(TensorJoinGPUTest, Perf_StackMedium) {
+  max_outer_extent = 200;
+  max_inner_extent = 10;
+  njoin = 64;
+  new_axis = true;
+  TestRawKernel();
+}
+
+TEST_F(TensorJoinGPUTest, Perf_StackInterleaveMany) {
   max_outer_extent = 30;
-  max_inner_extent = 3;
+  max_inner_extent = 1;
   njoin = 1024;
   new_axis = true;
-  TestRawKernel(false);
+  TestRawKernel();
 }
+
 
 }  // namespace kernels
 }  // namespace dali
