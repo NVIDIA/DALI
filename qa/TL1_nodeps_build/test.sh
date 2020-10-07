@@ -4,6 +4,10 @@ pip_packages=""
 target_dir=..  # DALI top dir
 
 do_once() {
+    export TZ=America/Los_Angeles
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+    apt-get update
+    apt-get install -y cmake pkg-config
 }
 
 test_body() {
