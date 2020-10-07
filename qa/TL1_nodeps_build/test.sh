@@ -1,13 +1,21 @@
 #!/bin/bash -e
 
 pip_packages=""
-target_dir=..  # DALI top dir
 
 do_once() {
-    export TZ=America/Los_Angeles
-    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-    apt-get update
-    apt-get install -y cmake pkg-config
+  apt-get update
+  apt-get -y install unzip wget build-essential
+  CMAKE_VERSION=3.13                                                             && \
+  CMAKE_BUILD=3.13.5                                                             && \
+  pushd /tmp                                                                     && \
+  wget -nv https://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_BUILD}.tar.gz && \
+  tar -xf cmake-${CMAKE_BUILD}.tar.gz                                            && \
+  pushd cmake-${CMAKE_BUILD}                                                     && \
+  ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l)                && \
+  make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                      && \
+  rm -rf /tmp/cmake-${CMAKE_BUILD}                                               && \
+  popd                                                                           && \
+  popd
 }
 
 test_body() {
