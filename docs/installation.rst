@@ -38,7 +38,7 @@ Prerequisites
 Installation
 ^^^^^^^^^^^^
 
-Execute the following command to install latest DALI for specified CUDA version:
+Execute the following command to install the latest DALI for specified CUDA version:
 
 .. note::
 
@@ -50,11 +50,22 @@ Execute the following command to install latest DALI for specified CUDA version:
 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda100
 
-* for CUDA 11:
+* for CUDA 11.0:
 
 .. code-block:: bash
 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda110
+
+* for CUDA 11.1:
+
+  .. note::
+    CUDA 11.1 build uses CUDA toolkit enhanced compatibility. It is built with the latest CUDA 11.x
+    toolkit while it can run on CUDA 11.0 capable drivers 450.80 or later. Using the newest driver may enable
+    additional functionalities.
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda111
 
 DALI TensorFlow plugin (nvidia-dali-tf-plugin)
 """"""""""""""""""""""""""""""""""""""""""""""
@@ -68,11 +79,17 @@ which will be built against the currently installed version of TensorFlow:
 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cuda100
 
-* for CUDA 11:
+* for CUDA 11.0:
 
 .. code-block:: bash
 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cuda110
+
+* for CUDA 11.1:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cuda111
 
 
 Installing this package will install ``nvidia-dali-cudaXXX`` and its dependencies, if they are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin-cudaXXX``.
@@ -149,11 +166,17 @@ To access most recent nightly builds please use flowing release channel:
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-nightly-cuda100  nvidia-dali-tf-plugin-nightly-cuda100
 
-* for CUDA 11:
+* for CUDA 11.0:
 
 .. code-block:: bash
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-nightly-cuda110 nvidia-dali-tf-plugin-nightly-cuda110
+
+* for CUDA 11.1:
+
+.. code-block:: bash
+
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-nightly-cuda111 nvidia-dali-tf-plugin-nightly-cuda111
 
 
 Weekly builds
@@ -161,12 +184,6 @@ Weekly builds
 
 Also, there is a weekly release channel with more thorough testing. To access most recent weekly
 builds please use flowing release channel:
-
-* for CUDA 10:
-
-.. code-block:: bash
-
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly nvidia-dali-weekly-cuda100 nvidia-dali-tf-plugin-weekly-cuda100
 
 * for CUDA 11:
 
