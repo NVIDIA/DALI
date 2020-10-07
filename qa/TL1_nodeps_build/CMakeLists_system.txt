@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.13)
+project(nodeps_test CUDA CXX)
+
+add_executable(nodeps_test main.cc)
+target_link_libraries(nodeps_test dali_core dali_kernels)

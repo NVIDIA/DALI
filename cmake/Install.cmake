@@ -18,20 +18,23 @@
 ########################################
 
 set (DALI_LIBS dali_core)
+
 if (BUILD_DALI_KERNELS)
-  set(DALI_LIBS ${DALI_LIBS} dali_kernels)
+  list(APPEND DALI_LIBS dali_kernels)
 endif()
+
 if (BUILD_DALI_PIPELINE)
-  set(DALI_LIBS ${DALI_LIBS} dali)
+  list(APPEND DALI_LIBS dali)
 endif()
+
 if (BUILD_DALI_OPERATORS)
-  set(DALI_LIBS ${DALI_LIBS} dali_operators)
+  list(APPEND DALI_LIBS dali_operators)
 endif()
 
 install(TARGETS ${DALI_LIBS}
-        LIBRARY
-          DESTINATION lib
-          PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ)
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ)
 
 # Note the '/' at the end of first path and not present at the end of the other
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/ ${CMAKE_SOURCE_DIR}/dali

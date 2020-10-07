@@ -35,11 +35,13 @@ check_cxx_compiler_flag(-fopenmp      CXX_HAVE_OMP)
 check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 
 # Build options
-option(NODEPS_BUILD "Disable components that require extra external libraries to be present in the system. Effectively, it builds only the DALI core and kernel libraries")
-set(DEPS_ENABLED NOT NODEPS_BUILD)
+option(BUILD_DALI_NODEPS "Disable components that require extra external libraries to be present in the system. Effectively, it builds only the DALI core and kernel libraries")
 
-option(BUILD_TEST "Build googletest test suite" DEPS_ENABLED)  # Tests use OpenCV...
-option(BUILD_BENCHMARK "Build benchmark suite" DEPS_ENABLED)
+# Tests use OpenCV...
+cmake_dependent_option(BUILD_TEST "Build googletest test suite" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_BENCHMARK "Build benchmark suite" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
 option(BUILD_FUZZING "Build fuzzing suite" OFF)
 # if BUILD_NVTX is empty remove it and let is be default
 if ("${BUILD_NVTX}" STREQUAL "")
@@ -54,21 +56,21 @@ endif()
 
 # Third party library dependencies
 cmake_dependent_option(BUILD_PYTHON "Build Python bindings" ON
-                       "NOT NODEPS_BUILD" OFF)
+                       "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_LMDB "Build LMDB readers" OFF
-                       "NOT NODEPS_BUILD" OFF)
+                       "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_JPEG_TURBO "Build with libjpeg-turbo support" ON
-                       "NOT NODEPS_BUILD" OFF)
+                       "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_LIBTIFF "Build with libtiff support" ON
-                       "NOT NODEPS_BUILD" OFF)
+                       "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_FFMPEG "Build with ffmpeg support" ON
-                       "NOT NODEPS_BUILD" OFF)
+                       "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_LIBSND "Build with suport for libsnd library" ON
-                       "NOT NODEPS_BUILD" OFF)
+                       "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_OPENCV "Build with suport for OpenCV library" ON
-                       "NOT NODEPS_BUILD" OFF)
+                       "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_PROTOBUF "Build with suport for Protobuf library" ON
-                       "NOT NODEPS_BUILD" OFF)
+                       "NOT BUILD_DALI_NODEPS" OFF)
 option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
 
 # NVIDIA libraries
@@ -80,15 +82,18 @@ option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON)
 
 # DALI modules
 # Note dali_core is always enabled
-option(BUILD_DALI_KERNELS "Build dali_kernels library" ON)
-cmake_dependent_option(BUILD_DALI_PIPELINE "Build dali pipeline library" ON
-                       "NOT NODEPS_BUILD;BUILD_DALI_KERNELS" OFF)
-cmake_dependent_option(BUILD_DALI_OPERATORS "Build dali operators library" ON
-                       "NOT NODEPS_BUILD;BUILD_DALI_KERNELS" OFF)
+set(BUILD_DALI_KERNELS ON)
+if (BUILD_DALI_KERNELS AND NOT BUILD_DALI_NODEPS)
+  set(BUILD_DALI_PIPELINE ON)
+  set(BUILD_DALI_OPERATORS ON)
+else()
+  set(BUILD_DALI_PIPELINE OFF)
+  set(BUILD_DALI_OPERATORS OFF)
+endif()
 
-# Experimental, only enabled for NODEPS_BUILD=ON
+# Experimental, only enabled for BUILD_DALI_NODEPS=ON
 cmake_dependent_option(STATIC_LIBS "Build static libraries instead of shared-object libraries" OFF
-                       "NODEPS_BUILD" OFF)
+                       "BUILD_DALI_NODEPS" OFF)
 
 option(VERBOSE_LOGS "Adds verbose loging to DALI" OFF)
 option(WERROR "Treat all warnings as errors" OFF)
@@ -118,9 +123,6 @@ propagate_option(BUILD_FFTS)
 propagate_option(BUILD_FFMPEG)
 propagate_option(BUILD_OPENCV)
 propagate_option(BUILD_PROTOBUF)
-propagate_option(BUILD_DALI_KERNELS)
-propagate_option(BUILD_DALI_PIPELINE)
-propagate_option(BUILD_DALI_OPERATORS)
 
 get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
 
