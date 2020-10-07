@@ -647,4 +647,16 @@ def test_affine_crop_cpu():
     check_no_input(fn.transforms.crop,
         from_start=(0., 1.), from_end=(1., 1.), to_start=(0.2, 0.3), to_end=(0.8, 0.5))
 
+def test_combine_transforms_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+    with pipe:
+        t = fn.transforms.translation(offset=(1, 2))
+        r = fn.transforms.rotation(angle=30.0)
+        s = fn.transforms.scale(scale=(2, 3))
+        out = fn.transforms.combine(t, r, s)
+    pipe.set_outputs(out)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
 # ToDo add tests for DLTensorPythonFunction if easily possible
