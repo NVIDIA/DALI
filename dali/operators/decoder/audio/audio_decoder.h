@@ -27,7 +27,7 @@ struct AudioMetadata {
   /// @brief Sampling rate, in Hz
   int sample_rate;
   int channels;
-  bool channels_interleaved;
+  bool channels_interleaved = true;
 };
 
 class AudioDecoderBase {

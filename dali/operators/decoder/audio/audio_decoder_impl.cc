@@ -17,13 +17,17 @@
 
 namespace dali {
 
-std::pair<int64_t, int64_t> ProcessOffsetAndLength(const AudioMetadata &meta, float offset_sec, float length_sec) {
+std::pair<int64_t, int64_t> ProcessOffsetAndLength(const AudioMetadata &meta,
+                                                   double offset_sec, double length_sec) {
   int64_t offset = 0;
   int64_t length = meta.length;
-  if (offset_sec > 0.0f)
+  if (offset_sec >= 0.0f) {
     offset = static_cast<int64_t>(offset_sec * meta.sample_rate);
-  if (length_sec > 0.0f)
+  }
+
+  if (length_sec >= 0.0f) {
     length = static_cast<int64_t>(length_sec * meta.sample_rate);
+  }
 
   // Limit the duration to the bounds of the input
   if ((offset + length) > meta.length) {
@@ -32,17 +36,14 @@ std::pair<int64_t, int64_t> ProcessOffsetAndLength(const AudioMetadata &meta, fl
   return {offset, length};
 }
 
-TensorShape<> DecodedAudioShape(const AudioMetadata &meta, float target_sample_rate,
-                                bool downmix, float offset_sec, float duration_sec) {
+TensorShape<> DecodedAudioShape(const AudioMetadata &meta, float target_sample_rate, bool downmix) {
   bool should_resample = target_sample_rate > 0 && meta.sample_rate != target_sample_rate;
   bool should_downmix = meta.channels > 1 && downmix;
   int channels = meta.channels == 1 || downmix ? 1 : meta.channels;
 
-  int64_t offset, length;
-  std::tie(offset, length) = ProcessOffsetAndLength(meta, offset_sec, duration_sec);
-
-  int64_t len = should_resample ?
-    kernels::signal::resampling::resampled_length(length, meta.sample_rate, target_sample_rate) : length;
+  int64_t len = should_resample ? kernels::signal::resampling::resampled_length(
+                                      meta.length, meta.sample_rate, target_sample_rate)
+                                : meta.length;
   return downmix ? TensorShape<>{len} : TensorShape<>{len, channels};
 }
 
@@ -52,21 +53,15 @@ void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecode
                  span<float> decode_scratch_mem,
                  span<float> resample_scratch_mem,
                  float target_sample_rate, bool downmix,
-                 const char *audio_filepath,  // audio_filepath for debug purposes
-                 float offset_sec, float duration_sec) {
+                 const char *audio_filepath) {  // audio_filepath for debug purposes
   DALI_ENFORCE(meta.sample_rate > 0, "Invalid sampling rate");
   bool should_resample = target_sample_rate > 0 && meta.sample_rate != target_sample_rate;
   bool should_downmix = meta.channels > 1 && downmix;
   assert(audio.data != nullptr);
-
-  int64_t offset, length;
-  std::tie(offset, length) = ProcessOffsetAndLength(meta, offset_sec, duration_sec);
+  int64_t length = audio.shape[0];
   int64_t num_samples = length * meta.channels;
-  assert(num_samples > 0);
-
-  if (offset > 0) {
-    assert(decoder.CanSeekFrames());
-    decoder.SeekFrames(offset);
+  if (num_samples <= 0) {
+    return;
   }
 
   if (!should_resample && !should_downmix) {
@@ -119,8 +114,7 @@ void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecode
       TensorView<StorageCPU, OutType, DynamicDimensions> audio, AudioDecoderBase & decoder,       \
       const AudioMetadata &meta, kernels::signal::resampling::Resampler &resampler,               \
       span<float> decode_scratch_mem, span<float> resample_scratch_mem,                           \
-      float target_sample_rate, bool downmix, const char *audio_filepath,                         \
-      float offset_sec = 0.0f, float duration_sec = 0.0f);
+      float target_sample_rate, bool downmix, const char *audio_filepath);
 
 DECLARE_IMPL(float);
 DECLARE_IMPL(int16_t);

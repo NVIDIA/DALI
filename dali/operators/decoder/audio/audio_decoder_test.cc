@@ -106,10 +106,16 @@ TEST(AudioDecoderTest, WavDecoderTest) {
     auto meta = decoder->Open(make_cspan(bytes));
     int64_t offset = meta.length / 2;
     int64_t length = meta.length - offset;
-    std::vector<DataType> output(length * meta.channels);
+    // allocating a bigger buffer in purpose
+    std::vector<DataType> output(meta.length * meta.channels, 0xBE);
     decoder->SeekFrames(offset, SEEK_CUR);
     decoder->DecodeFrames(output.data(), length);
-    EXPECT_PRED3(CheckBuffers<DataType>, output.data(), vec.data() + offset * meta.channels, length * meta.channels);
+    EXPECT_PRED3(CheckBuffers<DataType>, output.data(), vec.data() + offset * meta.channels,
+                 length * meta.channels);
+    // Verifying that we didn't read more than we should
+    for (size_t i = length * meta.channels; i < output.size(); i++) {
+      ASSERT_EQ(0xBE, output[i]);
+    }
   }
 }
 

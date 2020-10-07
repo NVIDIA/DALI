@@ -15,13 +15,12 @@
 #include "dali/operators/decoder/audio/generic_decoder.h"
 #include <sndfile.h>
 #include <cassert>
-#include <string>
 #include <cstring>
 #include <memory>
 #include <string>
 #include <vector>
-#include "dali/core/format.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/format.h"
 #include "dali/operators/decoder/audio/audio_decoder.h"
 
 namespace dali {
@@ -151,7 +150,7 @@ class GenericAudioDecoder : public AudioDecoderBase {
   };
 
   int64_t SeekFrames(int64_t nframes, int whence) override {
-    return sf_seek(sndfile_handle_, nframes, whence) ;
+    return sf_seek(sndfile_handle_, nframes, whence);
   }
 
   ptrdiff_t Decode(span<int16_t> output) override {

@@ -117,6 +117,8 @@ AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, DynamicDi
   auto &scratch_resampler = scratch_resampler_[thread_idx];
   scratch_resampler.resize(resample_scratch_sz);
 
+  // TODO(janton): handle offset and duration
+
   DecodeAudio<OutputType>(
     audio, *decoders_[sample_idx], meta, resampler_,
     {scratch_decoder.data(), decode_scratch_sz},

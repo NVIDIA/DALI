@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_DECODER_AUDIO_AUDIO_DECODER_IMPL_H_
 #define DALI_OPERATORS_DECODER_AUDIO_AUDIO_DECODER_IMPL_H_
 
+#include <utility>
 #include "dali/operators/decoder/audio/audio_decoder.h"
 #include "dali/operators/decoder/audio/generic_decoder.h"
 #include "dali/pipeline/data/backend.h"
@@ -23,15 +24,18 @@
 
 namespace dali {
 
-TensorShape<> DecodedAudioShape(const AudioMetadata &meta, float target_sample_rate = -1,
-                                bool downmix = true, float offset_sec = 0.0f, float duration_sec = 0.0f);
+DLL_PUBLIC std::pair<int64_t, int64_t> ProcessOffsetAndLength(const AudioMetadata &meta,
+                                                              double offset_sec, double length_sec);
+
+DLL_PUBLIC TensorShape<> DecodedAudioShape(const AudioMetadata &meta, float target_sample_rate = -1,
+                                           bool downmix = true);
 
 template <typename T>
-void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecoderBase &decoder,
-                 const AudioMetadata &meta, kernels::signal::resampling::Resampler &resampler,
-                 span<float> decode_scratch_mem, span<float> resample_scratch_mem,
-                 float target_sample_rate, bool downmix, const char *audio_filepath,
-                 float offset_sec = 0.0f, float duration_sec = 0.0f);
+DLL_PUBLIC void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio,
+                            AudioDecoderBase &decoder, const AudioMetadata &meta,
+                            kernels::signal::resampling::Resampler &resampler,
+                            span<float> decode_scratch_mem, span<float> resample_scratch_mem,
+                            float target_sample_rate, bool downmix, const char *audio_filepath);
 
 }  // namespace dali
 

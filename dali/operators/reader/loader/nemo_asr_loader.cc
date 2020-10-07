@@ -138,7 +138,7 @@ void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
 
   int64_t decode_scratch_sz = 0;
   int64_t resample_scratch_sz = 0;
-  if (should_resample || should_downmix || dtype_ != DALI_INT16)
+  if (should_resample || should_downmix)
     decode_scratch_sz = audio_meta.length * audio_meta.channels;
 
   decode_scratch.resize(decode_scratch_sz);
@@ -151,6 +151,8 @@ void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
     resample_scratch_sz = audio_meta.length * out_channels;
 
   resample_scratch.resize(resample_scratch_sz);
+
+  // TODO(janton): handle offset and duration
 
   DecodeAudio<OutputType>(
     view<OutputType>(audio), decoder, audio_meta, resampler_,
