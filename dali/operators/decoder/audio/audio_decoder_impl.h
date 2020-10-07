@@ -24,13 +24,14 @@
 namespace dali {
 
 TensorShape<> DecodedAudioShape(const AudioMetadata &meta, float target_sample_rate = -1,
-                                bool downmix = true);
+                                bool downmix = true, float offset_sec = 0.0f, float duration_sec = 0.0f);
 
-template <typename T, typename DecoderOutputType>
+template <typename T>
 void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecoderBase &decoder,
                  const AudioMetadata &meta, kernels::signal::resampling::Resampler &resampler,
-                 span<DecoderOutputType> decode_scratch_mem, span<float> resample_scratch_mem,
-                 float target_sample_rate, bool downmix, const char *audio_filepath);
+                 span<float> decode_scratch_mem, span<float> resample_scratch_mem,
+                 float target_sample_rate, bool downmix, const char *audio_filepath,
+                 float offset_sec = 0.0f, float duration_sec = 0.0f);
 
 }  // namespace dali
 

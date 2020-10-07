@@ -65,11 +65,11 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
 
 
  private:
-  template<typename OutputType, typename DecoderOutputType>
+  template<typename OutputType>
   void DecodeSample(const TensorView<StorageCPU, OutputType, DynamicDimensions> &audio,
                     int thread_idx, int sample_idx);
 
-  template <typename OutputType, typename DecoderOutputType>
+  template <typename OutputType>
   void DecodeBatch(workspace_t<Backend> &ws);
 
   int64_t OutputLength(int64_t in_length, double in_rate, int sample_idx) const {
@@ -88,7 +88,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   const float quality_ = 50.0f;
   std::vector<std::string> files_names_;
   std::vector<AudioMetadata> sample_meta_;
-  std::vector<vector<uint8_t>> scratch_decoder_;
+  std::vector<vector<float>> scratch_decoder_;
   std::vector<vector<float>> scratch_resampler_;
   std::vector<std::unique_ptr<AudioDecoderBase>> decoders_;
 };

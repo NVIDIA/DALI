@@ -47,10 +47,34 @@ class AudioDecoderBase {
   }
 
   /**
-   * @brief Decode audio data and store it in the supplied buffer
-   * @return Number of (multi-channel) samples actually read
+   * @brief Determines whether the particular decoder can seek frames
    */
-  virtual ptrdiff_t Decode(span<char> raw_output) = 0;
+  virtual bool CanSeekFrames() const = 0;
+
+  /**
+   * @brief Seeks full frames, or multichannel samples, much like lseek in unistd.h
+   * @param nframes Number of full frames (1 frame is equivalent to nchannel samples)
+   * @param whence Like in lseek, SEEK_SET. SEEK_CUR, SEEK_END
+   */
+  virtual int64_t SeekFrames(int64_t nframes, int whence = SEEK_CUR) = 0;
+
+  /**
+   * @brief Decode audio samples.
+   * @remarks output length should include the number of channels
+   *          (audio_length * num_channels)
+   * @return Number of samples read
+   */
+  virtual ptrdiff_t Decode(span<float> output) = 0;
+  virtual ptrdiff_t Decode(span<int16_t> output) = 0;
+  virtual ptrdiff_t Decode(span<int32_t> output) = 0;
+
+  /**
+   * @brief Decode audio frames (1 frame is equivalent to nchannel samples)
+   * @return Number of frames read
+   */
+  virtual ptrdiff_t DecodeFrames(float* output, int64_t nframes) = 0;
+  virtual ptrdiff_t DecodeFrames(int16_t* output, int64_t nframes) = 0;
+  virtual ptrdiff_t DecodeFrames(int32_t* output, int64_t nframes) = 0;
 
   virtual ~AudioDecoderBase() = default;
 
@@ -59,20 +83,6 @@ class AudioDecoderBase {
   virtual AudioMetadata OpenFromFileImpl(const std::string &filepath) = 0;
   virtual void CloseImpl() = 0;
 };
-
-template<typename SampleType>
-class TypedAudioDecoderBase : public AudioDecoderBase {
- public:
-  ptrdiff_t Decode(span<char> raw_output) override {
-    int max_samples = static_cast<int>(raw_output.size() / sizeof(SampleType));
-    return DecodeTyped({reinterpret_cast<SampleType *>(raw_output.data()), max_samples});
-  }
-
-  virtual ptrdiff_t DecodeTyped(span<SampleType> typed_output) = 0;
-};
-
-
-
 
 }  // namespace dali
 

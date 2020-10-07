@@ -126,12 +126,12 @@ void NemoAsrLoader::PrepareEmpty(AsrSample &sample) {
   sample = {};
 }
 
-template <typename OutputType, typename DecoderOutputType>
+template <typename OutputType>
 void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
                               const AudioMetadata &audio_meta,
                               const NemoAsrEntry &entry,
                               AudioDecoderBase &decoder,
-                              std::vector<uint8_t> &decode_scratch,
+                              std::vector<float> &decode_scratch,
                               std::vector<float> &resample_scratch) {
   bool should_resample = sample_rate_ > 0 && audio_meta.sample_rate != sample_rate_;
   bool should_downmix = audio_meta.channels > 1 && downmix_;
@@ -141,7 +141,7 @@ void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
   if (should_resample || should_downmix || dtype_ != DALI_INT16)
     decode_scratch_sz = audio_meta.length * audio_meta.channels;
 
-  decode_scratch.resize(decode_scratch_sz * sizeof(DecoderOutputType));
+  decode_scratch.resize(decode_scratch_sz);
 
   // resample scratch is used to prepare a single or multiple (depending if
   // downmixing is needed) channel float input, required by the resampling
@@ -152,9 +152,9 @@ void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
 
   resample_scratch.resize(resample_scratch_sz);
 
-  DecodeAudio<OutputType, DecoderOutputType>(
+  DecodeAudio<OutputType>(
     view<OutputType>(audio), decoder, audio_meta, resampler_,
-    {reinterpret_cast<DecoderOutputType *>(decode_scratch.data()), decode_scratch_sz},
+    {decode_scratch.data(), decode_scratch_sz},
     {resample_scratch.data(), resample_scratch_sz},
     sample_rate_, downmix_,
     entry.audio_filepath.c_str());
@@ -173,28 +173,22 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   // Ignoring copy_read_data_, Sharing data is not supported with this loader
 
   bool use_resampling = sample_rate_ > 0;
-  DALIDataType decode_type = use_resampling ? DALI_FLOAT : dtype_;
+  sample.decoder_ = make_generic_audio_decoder();
+
+  sample.audio_meta_ = sample.decoder().OpenFromFile(entry.audio_filepath);
+  assert(sample.audio_meta_.channels_interleaved);  // it's always true
+
+  sample.shape_ = DecodedAudioShape(sample.audio_meta(), sample_rate_, downmix_);
+  assert(sample.shape_.size() > 0);
+
   TYPE_SWITCH(dtype_, type2id, OutputType, (int16_t, int32_t, float), (
-    TYPE_SWITCH(decode_type, type2id, DecoderOutputType, (int16_t, int32_t, float), (
-      sample.decoder_ = std::make_unique<GenericAudioDecoder<DecoderOutputType>>();
-
-      sample.audio_meta_ = sample.decoder().OpenFromFile(entry.audio_filepath);
-      assert(sample.audio_meta_.channels_interleaved);  // it's always true
-
-      sample.shape_ = DecodedAudioShape(sample.audio_meta(), sample_rate_, downmix_);
-      assert(sample.shape_.size() > 0);
-
-      // Audio decoding will be run in the prefetch function, once the batch is formed
-      sample.decode_f_ = [this, &sample, &entry](Tensor<CPUBackend> &audio, int tid) {
-        ReadAudio<OutputType, DecoderOutputType>(
-          audio, sample.audio_meta_, entry, sample.decoder(),
-          decode_scratch_[tid], resample_scratch_[tid]);
-        sample.decoder().Close();
-      };
-    ), (  // NOLINT
-      DALI_FAIL(make_string("Unsupported decoder output type: ", decode_type,
-                            ". Supported types are int16, int32, and float."));
-    ));  // NOLINT
+    // Audio decoding will be run in the prefetch function, once the batch is formed
+    sample.decode_f_ = [this, &sample, &entry](Tensor<CPUBackend> &audio, int tid) {
+      ReadAudio<OutputType>(
+        audio, sample.audio_meta_, entry, sample.decoder(),
+        decode_scratch_[tid], resample_scratch_[tid]);
+      sample.decoder().Close();
+    };
   ), (  // NOLINT
     DALI_FAIL(make_string("Unsupported output type: ", dtype_,
                           ". Supported types are int16, int32, and float."));

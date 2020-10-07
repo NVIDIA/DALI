@@ -140,12 +140,12 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   void Reset(bool wrap_to_shard) override;
 
  private:
-  template <typename OutputType, typename DecoderOutputType>
+  template <typename OutputType>
   void ReadAudio(Tensor<CPUBackend> &audio,
                  const AudioMetadata &audio_meta,
                  const NemoAsrEntry &entry,
                  AudioDecoderBase &decoder,
-                 std::vector<uint8_t> &decode_scratch,
+                 std::vector<float> &decode_scratch,
                  std::vector<float> &resample_scratch);
 
   std::vector<std::string> manifest_filepaths_;
@@ -164,7 +164,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   bool normalize_text_;
   int num_threads_;
   kernels::signal::resampling::Resampler resampler_;
-  std::vector<std::vector<uint8_t>> decode_scratch_;
+  std::vector<std::vector<float>> decode_scratch_;
   std::vector<std::vector<float>> resample_scratch_;
 };
 

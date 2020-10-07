@@ -15,42 +15,14 @@
 #ifndef DALI_OPERATORS_DECODER_AUDIO_GENERIC_DECODER_H_
 #define DALI_OPERATORS_DECODER_AUDIO_GENERIC_DECODER_H_
 
-#include <sndfile.h>
-#include <cassert>
-#include <cstring>
 #include <memory>
-#include <string>
-#include <vector>
-#include "dali/core/format.h"
-#include "dali/core/error_handling.h"
+#include "dali/core/api_helper.h"
 #include "dali/operators/decoder/audio/audio_decoder.h"
-
 
 namespace dali {
 
-/**
- * Generic decoder, that serves as a fallback to most of the formats we need.
- */
-template<typename SampleType>
-class DLL_PUBLIC GenericAudioDecoder : public TypedAudioDecoderBase<SampleType> {
- public:
-  DLL_PUBLIC GenericAudioDecoder();
+DLL_PUBLIC std::unique_ptr<AudioDecoderBase> make_generic_audio_decoder();
 
-  DLL_PUBLIC GenericAudioDecoder(GenericAudioDecoder&&);
-  DLL_PUBLIC GenericAudioDecoder& operator=(GenericAudioDecoder&&);
-
-  DLL_PUBLIC ptrdiff_t DecodeTyped(span<SampleType> output) override;
-
-  DLL_PUBLIC ~GenericAudioDecoder() override;
-
- private:
-  AudioMetadata OpenImpl(span<const char> encoded) override;
-  AudioMetadata OpenFromFileImpl(const std::string &filepath) override;
-  void CloseImpl() override;
-
-  struct Impl;
-  std::unique_ptr<Impl> impl_;
-};
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_DECODER_AUDIO_GENERIC_DECODER_H_
