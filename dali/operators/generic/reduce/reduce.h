@@ -30,7 +30,7 @@ class Reduce : public Operator<CPUBackend> {
   explicit inline Reduce(const OpSpec &spec) :
     Operator<CPUBackend>(spec) {}
 
-    bool CanInferOutputs() const override { return true; }
+  bool CanInferOutputs() const override { return true; }
 
   inline ~Reduce() override = default;
 
@@ -69,8 +69,6 @@ class Reduce : public Operator<CPUBackend> {
   }
 
  private:
-  kernels::KernelManager kmgr_;
-
   USE_OPERATOR_MEMBERS();
 
   template <typename DataType>
@@ -81,17 +79,28 @@ class Reduce : public Operator<CPUBackend> {
     auto &out = ws.OutputRef<CPUBackend>(0);
     auto out_view = view<DataType>(out);
 
-    // using Kernel = kernels::SumCPU<DataType, DataType>;
+    using Kernel = kernels::SumCPU<DataType, DataType>;
+    Kernel kernel;
 
-    // Brain-dead implementation 
+    int thread_id = 0;
+    int axes[] = { 0 };
+
     for (int sample = 0; sample < in_view.num_samples(); sample++) {
-      auto sample_view = in_view[sample];
-      DataType sum = 0;
-      for (int elem = 0; elem < sample_view.num_elements(); ++elem) {
-        sum += sample_view.data[elem];
-      }
+      auto in_sample_view = in_view[sample];
+      auto out_sample_view = out_view[sample];
 
-      out_view[sample].data[0] = sum;
+      // Brain-dead implementation
+      // DataType sum = 0;
+      // for (int elem = 0; elem < sample_view.num_elements(); ++elem) {
+      //   sum += in_sample_view.data[elem];
+      // }
+      // out_view[sample].data[0] = sum;
+
+      kernel.Setup(
+        out_sample_view,
+        in_sample_view,
+        make_span(axes));
+      kernel.Run();
     }
   }
 };
