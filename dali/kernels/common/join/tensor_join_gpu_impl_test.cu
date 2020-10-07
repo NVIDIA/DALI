@@ -64,27 +64,9 @@ struct TensorJoinGPUTest : public ::testing::Test {
     vector<tensor_join::InputDesc<int>> input_descs(N * njoin);
     vector<tensor_join::OutputDesc<int>> output_descs(N);
 
-    auto out_tls = out.gpu();
-
-    for (int i = 0; i < N; i++) {
-      int64_t join_offset = 0;
-      for (int t = 0; t < njoin; t++) {
-        auto tensor = in_gpu_tls[t][i];
-        auto &desc = input_descs[i*njoin+t];
-        desc.data = tensor.data;
-        desc.outer_stride = volume(tensor.shape.begin() + axis, tensor.shape.end());
-        desc.join_offset = join_offset;
-        join_offset += desc.outer_stride;
-      }
-
-      auto out_tensor = out_tls[i];
-      auto &out_desc = output_descs[i];
-      out_desc.data = out_tensor.data;
-      auto join_size = volume(out_tensor.shape.begin() + axis, out_tensor.shape.end());
-      out_desc.outer_stride = join_size;
-      out_desc.total_size = volume(out_tensor.num_elements());
-      out_desc.guess_tensor_mul = 1.0 * njoin / join_size;
-    }
+    auto out_tlv = out.gpu();
+    FillDescs(make_span(output_descs), make_span(input_descs),
+              out_tlv, make_cspan(in_gpu_ptrs), axis);
 
 
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
@@ -105,7 +87,7 @@ struct TensorJoinGPUTest : public ::testing::Test {
     float time = 0;
     CUDA_CALL(cudaEventElapsedTime(&time, start, end));
     time *= 1e+6;  // to nanoseconds
-    int64_t size = 2 * out_tls.num_elements() * sizeof(int);  // 2x because in+out
+    int64_t size = 2 * out_tlv.num_elements() * sizeof(int);  // 2x because in+out
     std::cerr << "Throughput: " << size / time << " GB/s\n";
 
   }
@@ -186,7 +168,9 @@ struct TensorJoinGPUTest : public ::testing::Test {
       }
     }
 
-    tensor_join::JoinedShape(out_shape, make_cspan(in_shapes), axis, new_axis);
+    tensor_join::JoinedShape(out_shape,
+                             [&](int i) { return in_shapes[i]; }, in_shapes.size(),
+                             axis, new_axis);
   }
 
 

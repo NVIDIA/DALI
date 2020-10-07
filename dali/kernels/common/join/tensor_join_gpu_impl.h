@@ -15,8 +15,11 @@
 #ifndef DALI_KERNELS_COMMON_JOIN_TENSOR_JOIN_GPU_IMPL_H_
 #define DALI_KERNELS_COMMON_JOIN_TENSOR_JOIN_GPU_IMPL_H_
 
+#include <memory>
+#include <functional>
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/common/type_erasure.h"
+#include "dali/kernels/common/join/tensor_join_shape.h"
 
 namespace dali {
 namespace kernels {
@@ -28,11 +31,13 @@ class DLL_PUBLIC TensorJoinImplGPU {
   static_assert(std::is_same<T, type_of_size<sizeof(T)>>::value,
                 "This class must be used with a type prouced by `type_of_size<size>`");
 
-  void Setup(KernelContext &ctx, span<const TensorListShape<> *> &in_shapes, int axis);
+  KernelRequirements Setup(KernelContext &ctx,
+                           const std::function<const TensorListShape<> &(int)> &get_input_shape,
+                           int num_inputs,
+                           int axis);
 
-  void Run(KernelContext &ctx, OutListGPU<T> &out, span<const InListGPU<T> *> &in_lists);
- private:
-  struct Impl;
+  void Run(KernelContext &ctx, OutListGPU<T> &out, span<const InListGPU<T> *const> &in_lists);
+
 };
 
 }  // namespate tensor_join

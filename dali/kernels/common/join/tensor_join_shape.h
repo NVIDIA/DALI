@@ -58,30 +58,31 @@ inline TensorShape<> JoinedShape(span<const TensorShape<>> in_shapes, int axis, 
 }
 
 
-template <int ndim>
-void CheckJoinedShapes(span<const TensorListShape<ndim>> in, int axis, bool new_axis) {
-  if (in.empty())
+template <typename GetInListShapeFunc>
+void CheckJoinedShapes(GetInListShapeFunc &&in_shape, int njoin, int axis, bool new_axis) {
+  if (njoin < 1)
     return;
-  int N = in[0].num_samples();
-  int D = in[0].sample_dim();
-  int njoin = in.size();
+  const auto &shape_0 = in_shape(0);
+  int N = shape_0.num_samples();
+  int D = shape_0.sample_dim();
 
   for (int t = 1; t < njoin; t++) {
+    const auto &shape_t = in_shape(t);
     if (new_axis) {
-      DALI_ENFORCE(in[t] == in[0], make_string("Tensor stacking requires that all tensors being "
-        "stacked are of equal shape. The first batch has a shape: ", in[0], "\nbatch ", t,
-        " has a shape ", in[t]));
+      DALI_ENFORCE(shape_t == shape_0, make_string("Tensor stacking requires that all "
+        "tensors being stacked are of equal shape. The first batch has a shape: ", shape_0,
+        "\nbatch ", t, " has a shape ", shape_t));
     } else {
       for (int i = 0; i < N; i++) {
         for (int d = 0; d < D; d++) {
           if (d == axis)
             continue;
-          auto extent = in[t].tensor_shape_span(i)[d];
-          auto ref_extent = in[0].tensor_shape_span(i)[d];
+          auto extent = shape_t.tensor_shape_span(i)[d];
+          auto ref_extent = shape_0.tensor_shape_span(i)[d];
           DALI_ENFORCE(extent == ref_extent, make_string("Concatenated tensors can differ in "
             "size only in the concatenation axis (", axis, ").\nTensor ", i, " in batch ", t,
-            " has a shape ", in[t][i], " which is not compatible with respective tensor in batch 0"
-            " of shape ", in[0][i], ". Mismatch in axis ", d, "."));
+            " has a shape ", shape_t[i], " which is not compatible with respective tensor in "
+            "batch 0 of shape ", shape_0[i], ". Mismatch in axis ", d, "."));
 
         }
       }
@@ -89,26 +90,23 @@ void CheckJoinedShapes(span<const TensorListShape<ndim>> in, int axis, bool new_
   }
 }
 
-template <int out_ndim, int ndim>
+template <int out_ndim, typename GetInListShapeFunc>
 void JoinedShape(TensorListShape<out_ndim> &out,
-                 span<const TensorListShape<ndim>> in, int axis, bool new_axis) {
-  static_assert(out_ndim == ndim || (ndim >= 0 && out_ndim == ndim + 1));
-  int njoin = in.size();
+                 GetInListShapeFunc &&in_shape, int njoin, int axis, bool new_axis) {
   if (njoin == 0) {
-    out.resize(0, joined_ndim(in[0].sample_dim(), new_axis));
+    out.resize(0, joined_ndim(in_shape(0).sample_dim(), new_axis));
     return;
   }
 
-  CheckJoinedShapes(in, axis, new_axis);
+  CheckJoinedShapes(in_shape, njoin, axis, new_axis);
 
-  int N = in[0].num_samples();
-  int D = in[0].sample_dim();
-  out.resize(N, joined_ndim(in[0].sample_dim(), new_axis));
-
+  int N = in_shape(0).num_samples();
+  int D = in_shape(0).sample_dim();
+  out.resize(N, joined_ndim(in_shape(0).sample_dim(), new_axis));
 
   int64_t in_volume = 0;
-  for (auto &tls : in)
-    in_volume += tls.num_elements();
+  for (int  t = 0; t < njoin; t++)
+    in_volume += in_shape(t).num_elements();
 
   for (int i = 0; i < N; i++) {
     auto out_ts = out.tensor_shape_span(i);
@@ -116,21 +114,21 @@ void JoinedShape(TensorListShape<out_ndim> &out,
     // copy outer extents, up to `axis`
     int oa = 0, ia = 0;  // input axis, output axis
     for (; ia < axis; ia++, oa++)
-      out_ts[oa] = in[0].tensor_shape_span(i)[ia];
+      out_ts[oa] = in_shape(0).tensor_shape_span(i)[ia];
 
     if (new_axis) {
       out_ts[oa++] = njoin;  // new axis - number of joined tensor
     } else {
       // join along existing axis - sum the extents
       for (int t = 0; t < njoin; t++) {
-        out_ts[oa] += in[t].tensor_shape_span(i)[ia];
+        out_ts[oa] += in_shape(t).tensor_shape_span(i)[ia];
       }
       oa++, ia++;  // advance both input and output
     }
 
     // copy remaining inner extents
     for (; ia < D; ia++, oa++)
-      out_ts[oa] = in[0].tensor_shape_span(i)[ia];
+      out_ts[oa] = in_shape(0).tensor_shape_span(i)[ia];
   }
 
   assert(out.num_elements() == in_volume);

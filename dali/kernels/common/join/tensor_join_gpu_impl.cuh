@@ -89,6 +89,47 @@ __global__ void JoinTensorsKernel(const OutputDesc<Element> *__restrict__ out,
 }
 
 
+template <typename ElementType, int out_ndim, int in_ndim>
+void FillDescs(span<OutputDesc<ElementType>> output_descs,
+               span<InputDesc<ElementType>> input_descs,
+               const OutListGPU<ElementType, out_ndim> &output,
+               span<const InListGPU<ElementType, in_ndim> *const> inputs,
+               int axis) {
+  int njoin = inputs.size();
+  int N = output.num_samples();
+  assert(static_cast<int>(output_descs.size()) == N);
+  assert(static_cast<int>(input_descs.size()) == N * njoin);
+
+  for (int i = 0; i < N; i++) {
+    int64_t join_offset = 0;
+    for (int t = 0; t < njoin; t++) {
+      auto in_shape = inputs[t]->tensor_shape_span(i);
+      auto &desc = input_descs[i*njoin+t];
+      desc.data = inputs[t]->data[i];
+      desc.outer_stride = volume(in_shape.begin() + axis, in_shape.end());
+      desc.join_offset = join_offset;
+      join_offset += desc.outer_stride;
+    }
+
+    auto out_shape = output.tensor_shape_span(i);
+    auto &out_desc = output_descs[i];
+    out_desc.data = output.data[i];
+    auto join_size = volume(out_shape.begin() + axis, out_shape.end());
+    out_desc.outer_stride = join_size;
+    out_desc.total_size = volume(out_shape);
+    if (njoin == 2) {
+      // Special case - if there are just two tensors, we can set the multiplier
+      // so that it reaches 1 when the offset is within the second tensor. The fact
+      // that it reach values >= njoin is not a problem, since the value is clamped anyway to
+      // safeguard against loss of precision.
+      out_desc.guess_tensor_mul = input_descs[1].join_offset ? 1.0 / input_descs[1].join_offset : 0;
+    } else {
+      out_desc.guess_tensor_mul = 1.0 * njoin / join_size;
+    }
+  }
+}
+
+
 }  // namespate tensor_join
 }  // namespace kernels
 }  // namespace dali
