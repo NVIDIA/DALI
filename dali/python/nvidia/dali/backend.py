@@ -35,19 +35,10 @@ if not initialized:
     Init(OpSpec("CPUAllocator"), OpSpec("PinnedCPUAllocator"), OpSpec("GPUAllocator"))
     initialized = True
 
-    # py27 deprecation
-    if sys.version_info[0] < 3:
-        deprecation_warning("DALI 0.17 is the last official release for Python 2.7, which "
-                            "reaches the end of life on January 1st, 2020. To stay up to date with "
-                            "DALI, please upgrade to Python 3.5 or later.")
-    # py35 deprecation
-    if sys.version_info[0] == 3 and sys.version_info[1] == 5:
-        deprecation_warning("DALI will soon stop its support for Python 3.5, which "
-                            "reaches the end of life on September 13th, 2020. To stay up to date with "
-                            "DALI, please upgrade to Python 3.6 or later.")
-    if __cuda_version__ < 100:
-        deprecation_warning("DALI 0.22 is the last official release that supports CUDA 9. "
-                            "Please update your environment to CUDA version 10 or newer.")
+    # py39 warning
+    if sys.version_info[0] == 3 and sys.version_info[1] == 9:
+        deprecation_warning("DALI support for Python 3.9 is experimental and some functionalities "
+                            "may not work.")
 
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))
