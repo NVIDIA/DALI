@@ -86,7 +86,7 @@ REGISTER_OP("Dali")
   .Doc(R"doc(
 DALI TensorFlow plugin
 
-Creates a Dali pipeline from serialized DALI pipeline (given in `serialized_pipeline` parameter).
+Creates a DALI pipeline from a serialized pipeline, obtained from `serialized_pipeline` argument.
 `shapes` must match the shape of the coresponding DALI Pipeline output tensor shape.
 `dtypes` must match the type of the coresponding DALI Pipeline output tensors type.
  )doc");

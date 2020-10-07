@@ -183,7 +183,7 @@ Weekly builds
 ^^^^^^^^^^^^^
 
 Also, there is a weekly release channel with more thorough testing. To access most recent weekly
-builds please use flowing release channel (available only for CUDA 11):
+builds please use the following release channel (available only for CUDA 11):
 
 .. code-block:: bash
 

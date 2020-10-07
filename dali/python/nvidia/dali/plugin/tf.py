@@ -15,6 +15,7 @@
 import tensorflow as tf
 from tensorflow.python.data.util import nest
 from tensorflow.python.framework import tensor_shape
+from nvidia.dali import types
 
 from collections import Iterable
 from distutils.version import LooseVersion
@@ -44,9 +45,9 @@ def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = []
   """
   TF Plugin Wrapper
 
-  This operator works in the same way as DALI TensorFlow plugin, with the exception that is also
-  accepts Pipeline objects as the input and serializes it internally. For more information,
-  please look :meth:`nvidia.dali.plugin.tf.DALIRawIterator` in the documentation.
+  This operator works in the same way as DALI TensorFlow plugin, with the exception that it also
+  accepts Pipeline objects as an input, which are serialized internally. For more information,
+  see :meth:`nvidia.dali.plugin.tf.DALIRawIterator`.
   """
   if type(prefetch_queue_depth) is dict:
       exec_separated = True
