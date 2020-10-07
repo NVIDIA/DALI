@@ -18,8 +18,12 @@
 #include <vector>
 
 #include "dali/pipeline/operator/operator.h"
+#include "dali/kernels/kernel_manager.h"
+#include "dali/kernels/reduce/reductions.h"
+#include "dali/kernels/reduce/reduce_cpu.h"
 
 namespace dali {
+#define REDUCE_TYPES (int16_t, int32_t, float)
 
 class Reduce : public Operator<CPUBackend> {
  public:
@@ -52,14 +56,37 @@ class Reduce : public Operator<CPUBackend> {
 
   void RunImpl(workspace_t<CPUBackend> &ws) override {
     auto& in = ws.InputRef<CPUBackend>(0);
-    auto in_view = view<const int>(in);
+    DALIDataType data_type = in.type().id();
+
+    TYPE_SWITCH(
+      data_type, 
+      type2id, 
+      DataType,
+      REDUCE_TYPES,
+      ( RunTyped<DataType>(ws); ),
+      ( DALI_FAIL(make_string("Unsupported input type: ", data_type)); )  // NOLINT
+    )
+  }
+
+ private:
+  kernels::KernelManager kmgr_;
+
+  USE_OPERATOR_MEMBERS();
+
+  template <typename DataType>
+  void RunTyped(workspace_t<CPUBackend> &ws) {
+    auto& in = ws.InputRef<CPUBackend>(0);
+    auto in_view = view<const DataType>(in);
 
     auto &out = ws.OutputRef<CPUBackend>(0);
-    auto out_view = view<int>(out);
+    auto out_view = view<DataType>(out);
 
+    // using Kernel = kernels::SumCPU<DataType, DataType>;
+
+    // Brain-dead implementation 
     for (int sample = 0; sample < in_view.num_samples(); sample++) {
       auto sample_view = in_view[sample];
-      int sum = 0;
+      DataType sum = 0;
       for (int elem = 0; elem < sample_view.num_elements(); ++elem) {
         sum += sample_view.data[elem];
       }
@@ -67,12 +94,6 @@ class Reduce : public Operator<CPUBackend> {
       out_view[sample].data[0] = sum;
     }
   }
-
- private:
-
-  DALIDataType output_type_;
-
-  USE_OPERATOR_MEMBERS();
 };
 
 }  // namespace dali
