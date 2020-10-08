@@ -357,7 +357,7 @@ def check_combine_transforms(num_transforms = 2, ndim = 2, reverse_order = False
         for mat in mats:
             ref_mat = np.dot(mat, ref_mat)
 
-        assert np.allclose(outs[0].at(idx), ref_mat[:ndim,:], rtol=1e-5)
+        assert np.allclose(outs[0].at(idx), ref_mat[:ndim,:], atol=1e-6)
 
 def test_combine_transforms(batch_size=3, num_threads=4, device_id=0):
     for num_transforms in [2, 3, 10]:
@@ -379,5 +379,5 @@ def test_combine_transforms_correct_order(batch_size=3, num_threads=4, device_id
     pipe.build()
     outs = pipe.run()
     for idx in range(batch_size):
-        assert np.allclose(outs[0].at(idx), outs[1].at(idx), rtol=1e-5)
-        assert np.allclose(outs[2].at(idx), outs[3].at(idx), rtol=1e-5)
+        assert np.allclose(outs[0].at(idx), outs[1].at(idx), atol=1e-6)
+        assert np.allclose(outs[2].at(idx), outs[3].at(idx), atol=1e-6)
