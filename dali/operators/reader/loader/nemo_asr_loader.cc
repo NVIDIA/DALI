@@ -137,19 +137,17 @@ void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
   bool should_downmix = audio_meta.channels > 1 && downmix_;
 
   int64_t decode_scratch_sz = 0;
-  int64_t resample_scratch_sz = 0;
   if (should_resample || should_downmix)
     decode_scratch_sz = audio_meta.length * audio_meta.channels;
-
   decode_scratch.resize(decode_scratch_sz);
 
   // resample scratch is used to prepare a single or multiple (depending if
   // downmixing is needed) channel float input, required by the resampling
   // kernel
-  int64_t out_channels = should_downmix ? 1 : audio_meta.channels;
+  int64_t resample_scratch_sz = 0;
   if (should_resample)
-    resample_scratch_sz = audio_meta.length * out_channels;
-
+    resample_scratch_sz =
+        should_downmix ? audio_meta.length : audio_meta.length * audio_meta.channels;
   resample_scratch.resize(resample_scratch_sz);
 
   // TODO(janton): handle offset and duration

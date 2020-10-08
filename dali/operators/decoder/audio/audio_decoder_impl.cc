@@ -21,11 +21,11 @@ std::pair<int64_t, int64_t> ProcessOffsetAndLength(const AudioMetadata &meta,
                                                    double offset_sec, double length_sec) {
   int64_t offset = 0;
   int64_t length = meta.length;
-  if (offset_sec >= 0.0f) {
+  if (offset_sec >= 0.0) {
     offset = static_cast<int64_t>(offset_sec * meta.sample_rate);
   }
 
-  if (length_sec >= 0.0f) {
+  if (length_sec >= 0.0) {
     length = static_cast<int64_t>(length_sec * meta.sample_rate);
   }
 
@@ -54,58 +54,52 @@ void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecode
                  span<float> resample_scratch_mem,
                  float target_sample_rate, bool downmix,
                  const char *audio_filepath) {  // audio_filepath for debug purposes
-  DALI_ENFORCE(meta.sample_rate > 0, "Invalid sampling rate");
+  assert(meta.sample_rate > 0 && "Invalid sampling rate");
   bool should_resample = target_sample_rate > 0 && meta.sample_rate != target_sample_rate;
   bool should_downmix = meta.channels > 1 && downmix;
   assert(audio.data != nullptr);
-  int64_t length = audio.shape[0];
-  int64_t num_samples = length * meta.channels;
-  if (num_samples <= 0) {
+  if (volume(audio.shape) <= 0)
     return;
-  }
 
   if (!should_resample && !should_downmix) {
-    assert(volume(audio.shape) == num_samples);
-    int64_t ret = decoder.DecodeFrames(audio.data, length);
-    DALI_ENFORCE(ret == length, make_string("Error decoding audio file ", audio_filepath));
+    assert(audio.shape[0] <= meta.length && "Requested to decode more data than available.");
+    assert(audio.shape[1] == meta.channels && "Number of channels should match the metadata.");
+    int64_t ret = decoder.DecodeFrames(audio.data, audio.shape[0]);
+    DALI_ENFORCE(ret == audio.shape[0], make_string("Error decoding audio file ", audio_filepath));
     return;
   }
 
-  DALI_ENFORCE(decode_scratch_mem.size() >= num_samples,
-               make_string("Decoder scratch memory provided is not big enough. Got: ",
-                           decode_scratch_mem.size(), ", need: ", num_samples));
-
-  const int64_t out_channels = should_downmix ? 1 : meta.channels;
+  assert(decode_scratch_mem.size() > 0 &&
+         "Dowmixing or resampling is required but decoder scratch memory is empty.");
+  assert(decode_scratch_mem.size() % meta.channels == 0 &&
+         "Expected to decode full audio frames only.");
+  assert(decode_scratch_mem.size() <= meta.length * meta.channels &&
+         "Requested to decode more data than available.");
+  int64_t decoded_audio_len = decode_scratch_mem.size() / meta.channels;
   if (should_resample && should_downmix) {
     // When downmixing, we need an extra buffer for the input of resampling
-    assert(resample_scratch_mem.size() >= meta.length &&
-      "Resample scratch memory provided is not big enough");
+    assert(resample_scratch_mem.size() == decoded_audio_len &&
+           "Downmixing and resampling is required but resampler scratch is either empty or doesn't "
+           "have the expected size");
   }
 
-  assert(decode_scratch_mem.size() == num_samples);
-  int64_t ret = decoder.DecodeFrames(decode_scratch_mem.data(), length);
-  DALI_ENFORCE(ret == length, make_string("Error decoding audio file ", audio_filepath));
+  int64_t ret = decoder.DecodeFrames(decode_scratch_mem.data(), decoded_audio_len);
+  DALI_ENFORCE(ret == decoded_audio_len, make_string("Error decoding audio file ", audio_filepath));
 
-  const int64_t in_len = meta.length * meta.channels;
-  if (should_resample) {
-    if (should_downmix) {
-      assert(resample_scratch_mem.size() == meta.length);
-      float *resample_in = resample_scratch_mem.data();
-      kernels::signal::Downmix(resample_in, decode_scratch_mem.data(), meta.length, meta.channels);
-      resampler.Resample(audio.data, 0, audio.shape[0], target_sample_rate,
-                         resample_scratch_mem.data(), meta.length,
-                         meta.sample_rate, out_channels);
-    } else {  // No downmix, enforcing the output of the decoder is float (resampling kernel expects
-              // float)
-      assert(decode_scratch_mem.size() == meta.length * meta.channels);
-      resampler.Resample(audio.data, 0, audio.shape[0], target_sample_rate,
-                         reinterpret_cast<float *>(decode_scratch_mem.data()), meta.length,
-                         meta.sample_rate, meta.channels);
-    }
+  if (should_resample && should_downmix) {
+    kernels::signal::Downmix(resample_scratch_mem.data(), decode_scratch_mem.data(),
+                             decoded_audio_len, meta.channels);
+    resampler.Resample(audio.data, 0, audio.shape[0], target_sample_rate,
+                       resample_scratch_mem.data(), resample_scratch_mem.size(), meta.sample_rate,
+                       1);
+  } else if (should_resample) {  // No downmix
+    resampler.Resample(audio.data, 0, audio.shape[0], target_sample_rate, decode_scratch_mem.data(),
+                       decode_scratch_mem.size(), meta.sample_rate, meta.channels);
   } else if (should_downmix) {  // downmix only
-    kernels::signal::Downmix(audio.data, decode_scratch_mem.data(), meta.length, meta.channels);
+    kernels::signal::Downmix(audio.data, decode_scratch_mem.data(), decoded_audio_len,
+                             meta.channels);
   } else {
-    assert(false);  // should not happen
+    assert(false && "Logic error. This should never happen.");
   }
 }
 

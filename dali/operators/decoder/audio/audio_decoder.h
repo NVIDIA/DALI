@@ -47,16 +47,14 @@ class AudioDecoderBase {
   }
 
   /**
-   * @brief Determines whether the particular decoder can seek frames
-   */
-  virtual bool CanSeekFrames() const = 0;
-
-  /**
    * @brief Seeks full frames, or multichannel samples, much like lseek in unistd.h
    * @param nframes Number of full frames (1 frame is equivalent to nchannel samples)
    * @param whence Like in lseek, SEEK_SET. SEEK_CUR, SEEK_END
+   * @returns offset in frames from the start of the audio data or -1 if an error occured
    */
-  virtual int64_t SeekFrames(int64_t nframes, int whence = SEEK_CUR) = 0;
+  int64_t SeekFrames(int64_t nframes, int whence = SEEK_CUR) {
+    return SeekFramesImpl(nframes, whence);
+  }
 
   /**
    * @brief Decode audio samples.
@@ -64,21 +62,33 @@ class AudioDecoderBase {
    *          (audio_length * num_channels)
    * @return Number of samples read
    */
-  virtual ptrdiff_t Decode(span<float> output) = 0;
-  virtual ptrdiff_t Decode(span<int16_t> output) = 0;
-  virtual ptrdiff_t Decode(span<int32_t> output) = 0;
+  template <typename T>
+  ptrdiff_t Decode(span<T> output) {
+    return DecodeImpl(output);
+  }
 
   /**
    * @brief Decode audio frames (1 frame is equivalent to nchannel samples)
    * @return Number of frames read
    */
-  virtual ptrdiff_t DecodeFrames(float* output, int64_t nframes) = 0;
-  virtual ptrdiff_t DecodeFrames(int16_t* output, int64_t nframes) = 0;
-  virtual ptrdiff_t DecodeFrames(int32_t* output, int64_t nframes) = 0;
+  template <typename T>
+  ptrdiff_t DecodeFrames(T* output, int64_t nframes) {
+    return DecodeFramesImpl(output, nframes);
+  }
 
   virtual ~AudioDecoderBase() = default;
 
  private:
+  virtual int64_t SeekFramesImpl(int64_t nframes, int whence) = 0;
+
+  virtual ptrdiff_t DecodeImpl(span<float> output) = 0;
+  virtual ptrdiff_t DecodeImpl(span<int16_t> output) = 0;
+  virtual ptrdiff_t DecodeImpl(span<int32_t> output) = 0;
+
+  virtual ptrdiff_t DecodeFramesImpl(float* output, int64_t nframes) = 0;
+  virtual ptrdiff_t DecodeFramesImpl(int16_t* output, int64_t nframes) = 0;
+  virtual ptrdiff_t DecodeFramesImpl(int32_t* output, int64_t nframes) = 0;
+
   virtual AudioMetadata OpenImpl(span<const char> encoded) = 0;
   virtual AudioMetadata OpenFromFileImpl(const std::string &filepath) = 0;
   virtual void CloseImpl() = 0;

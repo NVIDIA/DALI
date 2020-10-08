@@ -107,9 +107,8 @@ AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, DynamicDi
   // resample scratch is used to prepare a single or multiple (depending if
   // downmixing is needed) channel float input, required by the resampling
   // kernel
-  int64_t out_channels = should_downmix ? 1 : meta.channels;
   if (should_resample)
-    resample_scratch_sz = meta.length * out_channels;
+    resample_scratch_sz = should_downmix ? meta.length : meta.length * meta.channels;
 
   auto &scratch_decoder = scratch_decoder_[thread_idx];
   scratch_decoder.resize(decode_scratch_sz);
