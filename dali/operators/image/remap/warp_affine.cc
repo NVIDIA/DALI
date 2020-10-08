@@ -23,15 +23,22 @@ DALI_SCHEMA(WarpAffine)
   .InputLayout(0, { "HWC", "DHWC" })
   .SupportVolumetric()
   .AddOptionalArg<float>("matrix",
-      R"code(Transform matrix (dst -> src).
+      R"code(Transform matrix.
 
+When the ``inverse_map`` option is set to true (default), the matrix represents a destination to source mapping. 
 With a list of values ``(M11, M12, M13, M21, M22, M23)``, this operation produces a new image
 by using the following formula::
 
   dst(x,y) = src(M11 * x + M12 * y + M13, M21 * x + M22 * y + M23)
 
-It is equivalent to OpenCV's ``warpAffine`` operation with the ``WARP_INVERSE_MAP`` flag set.)code",
+If the ``inverse_map`` option is set to false, the matrix represents a source to destination 
+transform and it is inverted before applying to the formula above.
+
+It is equivalent to OpenCV's ``warpAffine`` operation with the ``inverse_map`` argument being 
+analog to the ``WARP_INVERSE_MAP`` flag.)code",
       vector<float>(), true)
+  .AddOptionalArg<bool>("inverse_map", "Set to ``False`` if the given transform is a "
+                        "destination to source mapping, ``True`` otherwise.", false, true)
   .AddParent("WarpAttr");
 
 DALI_REGISTER_OPERATOR(WarpAffine, WarpAffine<CPUBackend>, CPU);

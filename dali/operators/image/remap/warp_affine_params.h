@@ -28,6 +28,11 @@ namespace dali {
 template <int spatial_ndim>
 using WarpAffineParams = kernels::warp::mapping_params_t<kernels::AffineMapping<spatial_ndim>>;
 
+template <int ndims>
+void InvertTransformsGPU(WarpAffineParams<ndims> *output, const WarpAffineParams<ndims> *input,
+                         int count, cudaStream_t stream);
+
+
 template <typename Backend,
           int spatial_ndim,
           typename BorderType>
@@ -44,14 +49,15 @@ class WarpAffineParamProvider
   using Base::num_samples_;
 
   void SetParams() override {
+    bool invert = !spec_->template GetArgument<bool>("inverse_map");
     if (spec_->NumRegularInput() >= 2) {
       if (ws_->template InputIsType<GPUBackend>(1)) {
-        UseInputAsParams(ws_->template InputRef<GPUBackend>(1));
+        UseInputAsParams(ws_->template InputRef<GPUBackend>(1), invert);
       } else {
-        UseInputAsParams(ws_->template InputRef<CPUBackend>(1));
+        UseInputAsParams(ws_->template InputRef<CPUBackend>(1), invert);
       }
     } else if (spec_->HasTensorArgument("matrix")) {
-      UseInputAsParams(ws_->ArgumentInput("matrix"));
+      UseInputAsParams(ws_->ArgumentInput("matrix"), invert);
     } else {
       std::vector<float> matrix = spec_->template GetArgument<std::vector<float>>("matrix");
       DALI_ENFORCE(!matrix.empty(),
@@ -67,7 +73,7 @@ class WarpAffineParamProvider
       for (int i = 0; i < spatial_ndim; i++)
         for (int j = 0; j < spatial_ndim+1; j++, k++)
           M.transform(i, j) = matrix[k];
-
+      if (invert) M = M.invert();
       auto *params = this->AllocParams(kernels::AllocType::Host);
       for (int i = 0; i < num_samples_; i++)
         params[i] = M;
@@ -109,25 +115,35 @@ class WarpAffineParamProvider
     }
   }
 
-  void UseInputAsParams(const TensorList<CPUBackend> &input) {
+  void UseInputAsParams(const TensorList<CPUBackend> &input, bool invert) {
     CheckParamInput(input);
 
-    params_cpu_.data = static_cast<const MappingParams *>(input.raw_data());
-    params_cpu_.shape = { num_samples_ };
+    if (invert) {
+      auto *params = this->AllocParams(kernels::AllocType::Host);
+      for (int i = 0; i < num_samples_; i++) {
+        if (invert)
+          params[i] = static_cast<const MappingParams *>(input.raw_tensor(i))->invert();
+      }
+    } else {
+      params_cpu_.data = static_cast<const MappingParams *>(input.raw_data());
+      params_cpu_.shape = { num_samples_ };
+    }
   }
 
-  void UseInputAsParams(const TensorVector<GPUBackend> &) {
+  void UseInputAsParams(const TensorVector<GPUBackend> &, bool) {
     DALI_FAIL("This function is here only to avoid excessive complexity of mitigating the call.");
   }
 
-  void UseInputAsParams(const TensorVector<CPUBackend> &input) {
+  void UseInputAsParams(const TensorVector<CPUBackend> &input, bool invert) {
     CheckParamInput(input);
 
-    if (!input.IsContiguous()) {
+    if (!input.IsContiguous() || invert) {
       auto *params = this->AllocParams(kernels::AllocType::Host);
       for (int i = 0; i < num_samples_; i++) {
-        auto &tensor = input[i];
-        params[i] = *static_cast<const MappingParams *>(input[i].raw_data());
+        if (invert)
+          params[i] = static_cast<const MappingParams *>(input[i].raw_data())->invert();
+        else
+          params[i] = *static_cast<const MappingParams *>(input[i].raw_data());
       }
     } else {
       params_cpu_.data = static_cast<const MappingParams *>(input[0].raw_data());
@@ -135,11 +151,17 @@ class WarpAffineParamProvider
     }
   }
 
-  void UseInputAsParams(const TensorList<GPUBackend> &input) {
+  void UseInputAsParams(const TensorList<GPUBackend> &input, bool invert) {
     CheckParamInput(input);
 
-    params_gpu_.data = static_cast<const MappingParams *>(input.raw_data());
-    params_gpu_.shape = { num_samples_ };
+    auto input_mappings = static_cast<const MappingParams *>(input.raw_data());
+    if (invert) {
+      auto output = this->AllocParams(kernels::AllocType::GPU);
+      InvertTransformsGPU<spatial_ndim>(output, input_mappings, num_samples_, this->GetStream());
+    } else {
+      params_gpu_.data = input_mappings;
+      params_gpu_.shape = { num_samples_ };
+    }
   }
 };
 

@@ -56,14 +56,14 @@ def ToCVMatrix(matrix):
   result[1][2] = offset[1] - 0.5
   return result
 
-def CVWarp(output_type, input_type, warp_matrix = None):
+def CVWarp(output_type, input_type, warp_matrix = None, inverted = False):
   def warp_fn(img, matrix):
     size = (320, 240)
     matrix = ToCVMatrix(matrix)
     if output_type == dali.types.FLOAT or input_type == dali.types.FLOAT:
       img = np.float32(img)
     out = cv2.warpAffine(img, matrix, size, borderMode = cv2.BORDER_CONSTANT, borderValue = [42,42,42],
-      flags = (cv2.INTER_LINEAR|cv2.WARP_INVERSE_MAP));
+      flags = (cv2.INTER_LINEAR|cv2.WARP_INVERSE_MAP) if inverted else cv2.INTER_LINEAR);
     if output_type == dali.types.UINT8 and input_type == dali.types.FLOAT:
       out = np.uint8(np.clip(out, 0, 255))
     return out
@@ -78,7 +78,7 @@ def CVWarp(output_type, input_type, warp_matrix = None):
 
 
 class WarpPipeline(Pipeline):
-    def __init__(self, device, batch_size, output_type, input_type, use_input, num_threads=3, device_id=0, num_gpus=1):
+    def __init__(self, device, batch_size, output_type, input_type, use_input, num_threads=3, device_id=0, num_gpus=1, inverted=False):
         super(WarpPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.use_input = use_input
         self.use_dynamic_size = use_input  # avoid Cartesian product
@@ -94,10 +94,10 @@ class WarpPipeline(Pipeline):
 
         if use_input:
           self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.batch_size, 10))
-          self.warp = ops.WarpAffine(device = device, size=static_size, fill_value = 42, dtype = output_type)
+          self.warp = ops.WarpAffine(device = device, size=static_size, fill_value = 42, dtype = output_type, inverse_map=inverted)
         else:
           warp_matrix = (0.1, 0.9, 10, 0.8, -0.2, -20)
-          self.warp = ops.WarpAffine(device = device, size=static_size, matrix = warp_matrix, fill_value = 42, dtype = output_type)
+          self.warp = ops.WarpAffine(device = device, size=static_size, matrix = warp_matrix, fill_value = 42, dtype = output_type, inverse_map=inverted)
 
         self.iter = 0
 
@@ -120,7 +120,7 @@ class WarpPipeline(Pipeline):
 
 
 class CVPipeline(Pipeline):
-    def __init__(self, batch_size, output_type, input_type, use_input, num_threads=3, device_id=0, num_gpus=1):
+    def __init__(self, batch_size, output_type, input_type, use_input, num_threads=3, device_id=0, num_gpus=1, inverted=False):
         super(CVPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.use_input = use_input
         self.name = "cv"
@@ -128,9 +128,9 @@ class CVPipeline(Pipeline):
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         if self.use_input:
           self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.batch_size, 10))
-          self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type))
+          self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, inverted=inverted))
         else:
-          self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, [[0.1, 0.9, 10], [0.8, -0.2, -20]]))
+          self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, [[0.1, 0.9, 10], [0.8, -0.2, -20]], inverted))
         self.set_layout = ops.Reshape(layout="HWC")
         self.iter = 0
 
@@ -163,35 +163,39 @@ def test_cpu_vs_cv():
   for batch_size in [1, 4, 19]:
     for use_input in [False, True]:
       for (itype, otype) in io_types:
-        print("Testing cpu vs cv",
-              "\nbatch size: ", batch_size,
-              " matrix as input: ", use_input,
-              " input_type: ", itype,
-              " output_type: ", otype)
-        cv_pipeline = CVPipeline(batch_size, otype, itype, use_input);
-        cv_pipeline.build();
+        for inverted in [False, True]:
+          print("Testing cpu vs cv",
+                "\nbatch size: ", batch_size,
+                " matrix as input: ", use_input,
+                " input_type: ", itype,
+                " output_type: ", otype,
+                " map_inverse:", inverted)
+          cv_pipeline = CVPipeline(batch_size, otype, itype, use_input, inverted=inverted);
+          cv_pipeline.build();
 
-        cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input);
-        cpu_pipeline.build();
+          cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input, inverted=inverted);
+          cpu_pipeline.build();
 
-        compare(cv_pipeline, cpu_pipeline, 8)
+          compare(cv_pipeline, cpu_pipeline, 8)
 
 def test_gpu_vs_cv():
   for batch_size in [1, 4, 19]:
     for use_input in [False, True]:
       for (itype, otype) in io_types:
-        print("Testing gpu vs cv",
-              "\nbatch size: ", batch_size,
-              " matrix as input: ", use_input,
-              " input_type: ", itype,
-              " output_type: ", otype)
-        cv_pipeline = CVPipeline(batch_size, otype, itype, use_input);
-        cv_pipeline.build();
+        for inverted in [False, True]:
+          print("Testing gpu vs cv",
+                "\nbatch size: ", batch_size,
+                " matrix as input: ", use_input,
+                " input_type: ", itype,
+                " output_type: ", otype,
+                " map_inverse:", inverted)
+          cv_pipeline = CVPipeline(batch_size, otype, itype, use_input, inverted=inverted);
+          cv_pipeline.build();
 
-        gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input);
-        gpu_pipeline.build();
+          gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input, inverted=inverted);
+          gpu_pipeline.build();
 
-        compare(cv_pipeline, gpu_pipeline, 8)
+          compare(cv_pipeline, gpu_pipeline, 8)
 
 def test_gpu_vs_cpu():
   for batch_size in [1, 4, 19]:
