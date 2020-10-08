@@ -68,17 +68,13 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
 
   output_desc.resize(2);
 
-  // Currently, metadata is only the sampling rate.
-  // On the event something else would emerge,
-  // this approach should be completely redefined
   TensorListShape<> shape_rate(batch_size, 0);
   TensorListShape<> shape_data(batch_size, downmix_ ? 1 : 2);
 
   for (int i = 0; i < batch_size; i++) {
-    auto meta = decoders_[i]->Open({reinterpret_cast<const char *>(input[i].raw_mutable_data()),
-                                    input[i].shape().num_elements()});
-    sample_meta_[i] = meta;
-    int64_t out_length = OutputLength(meta.length, meta.sample_rate, i);
+    auto &meta = sample_meta_[i] =
+        decoders_[i]->Open({reinterpret_cast<const char *>(input[i].raw_mutable_data()),
+                            input[i].shape().num_elements()});
     TensorShape<> data_sample_shape = DecodedAudioShape(
         meta, use_resampling_ ? target_sample_rates_[i] : -1.0f, downmix_);
     shape_data.set_tensor_shape(i, data_sample_shape);

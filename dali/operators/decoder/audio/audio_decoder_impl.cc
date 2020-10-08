@@ -40,7 +40,6 @@ TensorShape<> DecodedAudioShape(const AudioMetadata &meta, float target_sample_r
   bool should_resample = target_sample_rate > 0 && meta.sample_rate != target_sample_rate;
   bool should_downmix = meta.channels > 1 && downmix;
   int channels = meta.channels == 1 || downmix ? 1 : meta.channels;
-
   int64_t len = should_resample ? kernels::signal::resampling::resampled_length(
                                       meta.length, meta.sample_rate, target_sample_rate)
                                 : meta.length;
@@ -63,7 +62,8 @@ void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecode
 
   if (!should_resample && !should_downmix) {
     assert(audio.shape[0] <= meta.length && "Requested to decode more data than available.");
-    assert(audio.shape[1] == meta.channels && "Number of channels should match the metadata.");
+    assert(meta.channels == (audio.shape.size() == 1 ? 1 : audio.shape[1]) &&
+           "Number of channels should match the metadata.");
     int64_t ret = decoder.DecodeFrames(audio.data, audio.shape[0]);
     DALI_ENFORCE(ret == audio.shape[0], make_string("Error decoding audio file ", audio_filepath));
     return;
@@ -90,11 +90,10 @@ void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecode
     kernels::signal::Downmix(resample_scratch_mem.data(), decode_scratch_mem.data(),
                              decoded_audio_len, meta.channels);
     resampler.Resample(audio.data, 0, audio.shape[0], target_sample_rate,
-                       resample_scratch_mem.data(), resample_scratch_mem.size(), meta.sample_rate,
-                       1);
+                       resample_scratch_mem.data(), decoded_audio_len, meta.sample_rate, 1);
   } else if (should_resample) {  // No downmix
     resampler.Resample(audio.data, 0, audio.shape[0], target_sample_rate, decode_scratch_mem.data(),
-                       decode_scratch_mem.size(), meta.sample_rate, meta.channels);
+                       decoded_audio_len, meta.sample_rate, meta.channels);
   } else if (should_downmix) {  // downmix only
     kernels::signal::Downmix(audio.data, decode_scratch_mem.data(), decoded_audio_len,
                              meta.channels);
