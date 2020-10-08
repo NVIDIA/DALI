@@ -48,9 +48,7 @@ struct SequenceWrapper {
     timestamps.reserve(count);
 
     if (!event_) {
-      int dev;
-      CUDA_CALL(cudaGetDevice(&dev));
-      event_ = CUDAEvent::CreateWithFlags(cudaEventBlockingSync | cudaEventDisableTiming, dev);
+      event_ = CUDAEvent::CreateWithFlags(cudaEventBlockingSync | cudaEventDisableTiming);
     }
   }
 
@@ -83,11 +81,11 @@ struct SequenceWrapper {
   int label = -1;
   vector<double> timestamps;
   int first_frame_idx = -1;
-  DALIDataType dtype = {};
+  DALIDataType dtype = DALI_NO_TYPE;
   std::function<void(void)> read_sample_f;
 
  private:
-  CUDAEvent event_ = {};
+  CUDAEvent event_;
 };
 
 }  // namespace dali
