@@ -29,6 +29,9 @@ will fail.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("num_classes", R"code(Number of all classes in the data.)code", 0)
+  .AddOptionalArg<int>("axis", R"code(On which axis place the on-hot encoding axis of `num_classes`
+size. By default it's appended as the last dimension for non-scalar inputs, for scalar inputs,
+it becomes the only dimension.)code", -1)
   .AddOptionalArg(arg_names::kDtype, R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("on_value",
                   R"code(Value that will be used to fill the output when ``input[j] = i``.
@@ -46,22 +49,45 @@ bool is_scalar(TensorShape<ndims> shape) {
   return volume(shape) == 1;
 }
 
-
-TensorShape<DynamicDimensions>
-determine_shape(TensorShape<DynamicDimensions> in_shape, int nclasses) {
-  if (is_scalar(in_shape)) {
-    return {nclasses};
+TensorShape<> determine_shape(TensorShape<> in_shape, int num_classes, int axis,
+                              int output_sample_dim) {
+  if (output_sample_dim == 1) {
+    return {num_classes};
   }
-  return shape_cat(in_shape, nclasses);
+  axis = axis < 0 ? in_shape.sample_dim() : axis;
+  int outer_axes = axis;
+  int inner_axes = in_shape.sample_dim() - axis;
+  auto outer =  in_shape.first(outer_axes);
+  auto inner = in_shape.last(inner_axes);
+  auto tmp = shape_cat(outer, num_classes);
+  return shape_cat(tmp, inner);
 }
 
 }  // namespace
 
 bool OneHot::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
+  int input_sample_dim = input.shape().sample_dim();
+  int num_samples = input.shape().num_samples();
+  DALI_ENFORCE(-1 <= axis_ && axis_ <= input_sample_dim,
+               make_string("Provided axis is outside of allowed range, got: ", axis_,
+                           ", expected to be in range: [-1, ", input_sample_dim, "]."));
+
+  // Legacy scalar-like support
+  // TODO(klecki): It was already buggy, maybe drop it
+  bool all_scalars = true;
+  for (int i = 0; i < num_samples; i++) {
+    all_scalars = all_scalars && is_scalar(input.shape()[i]);
+  }
+
+  int output_sample_dim = all_scalars ? 1 : input_sample_dim + 1;
   output_desc.resize(1);
-  output_desc[0].shape = uniform_list_shape(batch_size_,
-                                            determine_shape(input[0].shape(), num_classes_));
+
+  output_desc[0].shape.resize(num_samples, output_sample_dim);
+  for (int i = 0; i < num_samples; i++) {
+    output_desc[0].shape.set_tensor_shape(
+        i, determine_shape(input[i].shape(), num_classes_, axis_, output_sample_dim));
+  }
   TYPE_SWITCH(output_type_, type2id, DType, ONE_HOT_TYPES, (
           {
             TypeInfo type;
@@ -72,6 +98,7 @@ bool OneHot::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace
   return true;
 }
 
+// TODO(klecki): Handle layout, maybe introduce a parameter for how to name the new axis
 void OneHot::RunImpl(HostWorkspace &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
@@ -87,8 +114,7 @@ void OneHot::RunImpl(HostWorkspace &ws) {
                     [&, sample_id](int thread_id) {
                         auto in = in_tensor[sample_id];
                         auto out = out_tensor[sample_id];
-                        detail::DoOneHot(out, in, num_classes_, on_value_, off_value_,
-                                         0 ? is_scalar(in.shape) : in.shape.sample_dim(), 0);
+                        detail::DoOneHot(out, in, num_classes_, on_value_, off_value_, axis_);
                     }, in_shape.tensor_size(sample_id));
           }
           tp.RunAll();
