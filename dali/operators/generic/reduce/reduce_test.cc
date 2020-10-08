@@ -24,7 +24,7 @@ namespace testing {
 
 class ReduceTest : public testing::DaliOperatorTest {
     GraphDescr GenerateOperatorGraph() const override {
-        GraphDescr graph("Reduce");
+        GraphDescr graph("Sum");
         return graph;
     }
 };
@@ -59,7 +59,7 @@ input_t PrepareInput() {
     for (int sample = 0; sample < batch_size; ++sample) {
         auto sample_data = input->mutable_tensor<DataType>(sample);
         for (int elem = 0; elem < volume(sample_shape); ++elem) {
-            sample_data[elem] = sample;
+            sample_data[elem] = sample + 100;
         }
     }
 

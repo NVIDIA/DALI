@@ -197,7 +197,7 @@ struct ReduceBaseCPU {
     auto R = This().GetReduction();
     if (axis == output.dim()) {
       Dst &r = *output(pos);
-      if (clear) r = 0;
+      if (clear) r = R.template neutral<Dst>();
       reduce_impl::reduce(r, strided_in, This().GetPreprocessor(pos), R, offset);
     } else {
       for (int64_t i = 0; i < output.shape[axis]; i++) {
@@ -308,6 +308,19 @@ struct ReduceBaseCPU {
 template <typename Dst, typename Src>
 struct SumCPU : ReduceBaseCPU<Dst, Src, SumCPU<Dst, Src>> {
 };
+
+
+template <typename Dst, typename Src>
+struct MinCPU : ReduceBaseCPU<Dst, Src, MinCPU<Dst, Src>> {
+  reductions::min GetReduction() const { return {}; }
+};
+
+
+template <typename Dst, typename Src>
+struct MaxCPU : ReduceBaseCPU<Dst, Src, MaxCPU<Dst, Src>> {
+  reductions::max GetReduction() const { return {}; }
+};
+
 
 template <typename Dst, typename Src>
 struct MeanCPU : ReduceBaseCPU<Dst, Src, MeanCPU<Dst, Src>> {

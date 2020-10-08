@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_GENERIC_REDUCE_H_
 
 #include <vector>
+#include <algorithm>
 
 #include "dali/pipeline/operator/operator.h"
 #include "dali/kernels/kernel_manager.h"
@@ -25,10 +26,13 @@
 namespace dali {
 #define REDUCE_TYPES (int16_t, int32_t, float)
 
+template <template <typename T, typename R> class ReductionType>
 class Reduce : public Operator<CPUBackend> {
  public:
   explicit inline Reduce(const OpSpec &spec) :
-    Operator<CPUBackend>(spec) {}
+    Operator<CPUBackend>(spec),
+    axes_(spec.GetRepeatedArgument<int>("axes")),
+    keep_dims_(spec.GetArgument<bool>("keep_dims")) { }
 
   bool CanInferOutputs() const override { return true; }
 
@@ -44,13 +48,35 @@ class Reduce : public Operator<CPUBackend> {
     int batch_size = input.shape().num_samples();
 
     output_desc[0].type =  input.type();
-    output_desc[0].shape = input.shape();;
-    TensorShape<1> sample_shape {1};
+    output_desc[0].shape = input.shape();
 
-    for (int i = 0; i < batch_size; ++i) {
-      output_desc[0].shape.set_tensor_shape(i, sample_shape);
+    if (axes_.size() == 0) {
+      axes_.resize(input.shape().sample_dim());
+      std::iota(axes_.begin(), axes_.end(), 0);
     }
 
+    for (int sample = 0; sample < batch_size; ++sample) {
+      for (int axis : axes_) {
+        output_desc[0].shape.tensor_shape_span(sample)[axis] = 1;
+      }
+    }
+
+    if (keep_dims_ == false) {
+      vector<TensorShape<>> new_output_shape(batch_size);
+      for (int sample = 0; sample < batch_size; ++sample) {
+        TensorShape<> new_sample_shape;
+        for (auto dim : output_desc[0].shape.tensor_shape_span(sample)) {
+          if (dim != 1) {
+            new_sample_shape.shape.push_back(dim);
+          }
+        }
+        if (new_sample_shape.shape.size() == 0) {
+          new_sample_shape.shape.push_back(1);
+        }
+        new_output_shape[sample] = new_sample_shape;
+      }
+      output_desc[0].shape = new_output_shape;
+    }
     return true;
   }
 
@@ -63,7 +89,7 @@ class Reduce : public Operator<CPUBackend> {
       type2id, 
       DataType,
       REDUCE_TYPES,
-      ( RunTyped<DataType>(ws); ),
+      ( RunTyped<DataType, DataType>(ws); ),
       ( DALI_FAIL(make_string("Unsupported input type: ", data_type)); )  // NOLINT
     )
   }
@@ -71,38 +97,61 @@ class Reduce : public Operator<CPUBackend> {
  private:
   USE_OPERATOR_MEMBERS();
 
-  template <typename DataType>
+  vector<int> axes_;
+  bool keep_dims_;
+
+  template <typename DstType, typename SrcType>
   void RunTyped(workspace_t<CPUBackend> &ws) {
     auto& in = ws.InputRef<CPUBackend>(0);
-    auto in_view = view<const DataType>(in);
+    auto in_view = view<const SrcType>(in);
 
     auto &out = ws.OutputRef<CPUBackend>(0);
-    auto out_view = view<DataType>(out);
+    auto out_view = view<DstType>(out);
 
-    using Kernel = kernels::SumCPU<DataType, DataType>;
-    Kernel kernel;
+    auto &thread_pool = ws.GetThreadPool();
+    int num_threads = thread_pool.size();
+
+    using Kernel = ReductionType<DstType, SrcType>;
+    vector<Kernel> kernels(num_threads);
 
     int thread_id = 0;
-    int axes[] = { 0 };
 
     for (int sample = 0; sample < in_view.num_samples(); sample++) {
-      auto in_sample_view = in_view[sample];
-      auto out_sample_view = out_view[sample];
+      int work_size_estimate = volume(in_view.shape.tensor_shape_span(sample));
+      
+      thread_pool.AddWork(
+        [&, sample](int thread_id) {
+          auto in_sample_view = in_view[sample];
+          auto out_sample_view = out_view[sample];
 
-      // Brain-dead implementation
-      // DataType sum = 0;
-      // for (int elem = 0; elem < sample_view.num_elements(); ++elem) {
-      //   sum += in_sample_view.data[elem];
-      // }
-      // out_view[sample].data[0] = sum;
-
-      kernel.Setup(
-        out_sample_view,
-        in_sample_view,
-        make_span(axes));
-      kernel.Run();
+          kernels[thread_id].Setup(
+            out_sample_view,
+            in_sample_view,
+            make_span(axes_));
+          kernels[thread_id].Run();
+        },
+        work_size_estimate);  
     }
+    thread_pool.RunAll();
   }
+};
+
+class Sum : public Reduce<kernels::SumCPU> {
+ public:
+  explicit inline Sum(const OpSpec &spec) :
+    Reduce<kernels::SumCPU>(spec) {}
+};
+
+class Min : public Reduce<kernels::MinCPU> {
+ public:
+  explicit inline Min(const OpSpec &spec) :
+    Reduce<kernels::MinCPU>(spec) {}
+};
+
+class Max : public Reduce<kernels::MaxCPU> {
+ public:
+  explicit inline Max(const OpSpec &spec) :
+    Reduce<kernels::MaxCPU>(spec) {}
 };
 
 }  // namespace dali

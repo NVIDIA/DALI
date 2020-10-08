@@ -17,11 +17,37 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(Reduce, Reduce, CPU);
+DALI_SCHEMA(ReduceBase)
+  .AddOptionalArg(
+    "axes",
+    "",
+    std::vector<int>{ })
+  .AddOptionalArg(
+    "keep_dims",
+    "",
+    false);
 
-DALI_SCHEMA(Reduce)
-  .DocStr("Base op for reduction operators.")
+DALI_REGISTER_OPERATOR(Sum, Sum, CPU);
+DALI_SCHEMA(Sum)
+  .DocStr("Sum reduction operator.")
   .NumInput(1)
-  .NumOutput(1);
+  .NumOutput(1)
+  .AddParent("ReduceBase");
+
+
+DALI_REGISTER_OPERATOR(Min, Min, CPU);
+DALI_SCHEMA(Min)
+  .DocStr("Min reduction operator.")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("ReduceBase");
+
+
+DALI_REGISTER_OPERATOR(Max, Max, CPU);
+DALI_SCHEMA(Max)
+  .DocStr("Max reduction operator.")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("ReduceBase");
 
 }  // namespace dali

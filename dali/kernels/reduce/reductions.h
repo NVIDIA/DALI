@@ -84,9 +84,9 @@ struct min {
 struct max {
   template <typename T, typename U>
   DALI_HOST_DEV DALI_FORCEINLINE
-  void operator()(T &min_val, const U &val) const noexcept {
-    if (val > min_val)
-      min_val = val;
+  void operator()(T &max_val, const U &val) const noexcept {
+    if (val > max_val)
+      max_val = val;
   }
 
   template <typename T>
