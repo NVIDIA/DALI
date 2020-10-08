@@ -85,7 +85,10 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   }
 
   inline ~VideoReader() {
-    // when this destructor is called some kernels can still be scheduled to work on the meory
+    // stop prefetching so we are not scheduling any more work from here on so we are safe to remove
+    // the underlying memory
+    DataReader<GPUBackend, SequenceWrapper>::StopPrefetchThread();
+    // when this destructor is called some kernels can still be scheduled to work on the memory
     // that is present in the prefetched_batch_tensors_
     // prefetched_batch_queue_ keeps the relevant cuda events recorded that are associated with
     // this memory. Calling wait makes sure that no more work is pending and we can free the GPU

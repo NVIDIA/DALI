@@ -40,12 +40,21 @@ void VideoReader::Prefetch() {
 
   curr_tensor_list.Resize(tmp_shapes, TypeTable::GetTypeInfo(ref_type));
 
+  // ask for frames
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
     sample->sequence.ShareData(&curr_tensor_list, static_cast<int>(data_idx));
     sample->read_sample_f();
     // data has been read, decouple sequence from the wrapped memory
     sample->sequence.Reset();
+  }
+  // make sure that frames have been processed
+  for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
+    auto &sample = curr_batch[data_idx];
+    // We have to wait for all kernel recorded in sequence's event are completed
+    LOG_LINE << "Waiting for sequence..";
+    sample->wait();
+    LOG_LINE << "Got sequence\n";
   }
 }
 

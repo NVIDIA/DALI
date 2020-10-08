@@ -269,7 +269,7 @@ TEST_F(VideoReaderTest, Vp9Profile2) {
   Pipeline pipe(1, 1, 0);
   const int sequence_length = 60;
   const string unsupported_exception_msg = "Decoder hardware does not support this video codec"
-                                          " and/or chroma format";
+                                           " and/or chroma format";
 
   pipe.AddOperator(
     OpSpec("VideoReader")
