@@ -47,6 +47,17 @@ struct OutputDesc {
   uint64_t total_size;
 };
 
+/**
+ * @brief A guided binary search for a tensor at given offset
+ *
+ * The input tensors have their `join_offsets` fields so given the inner offset in the
+ * output, we can find an input that corresponds to this offset.
+ *
+ * The output descriptor contains a factor which is used to estimate which tensor we've hit
+ * without searching. This greatly improves the performance of this function when stacking
+ * (since this guess succeeds unless there's a precision issue) - especially when stacking
+ * many inputs. This guess can also prove useful when concatenating tensors of similar shape.
+ */
 template <typename Element>
 DALI_HOST_DEV int FindTensor(uint64_t offset, float guess_tensor_mul,
                           const InputDesc<Element> *__restrict__ descs, int njoin) {
@@ -89,6 +100,16 @@ __global__ void JoinTensorsKernel(const OutputDesc<Element> *__restrict__ out,
 }
 
 
+/**
+ * @brief Populates the inpu and output descriptors given the input and output tensor lists.
+ *
+ * @tparam ElementType tensor element
+ * @tparam out_ndim   dimensionality of the output, typically DynamicDimensions
+ * @tparam in_ndim    dimensionality of the inputs, typically DynamicDimensions
+ *
+ * @remarks
+ * The descirptors are the same when concatenating and stacking, hence no `new_axis` parameter.
+ */
 template <typename ElementType, int out_ndim, int in_ndim>
 void FillDescs(span<OutputDesc<ElementType>> output_descs,
                span<InputDesc<ElementType>> input_descs,
@@ -130,7 +151,7 @@ void FillDescs(span<OutputDesc<ElementType>> output_descs,
 }
 
 
-}  // namespate tensor_join
+}  // namespace tensor_join
 }  // namespace kernels
 }  // namespace dali
 

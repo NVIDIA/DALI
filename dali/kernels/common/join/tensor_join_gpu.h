@@ -22,25 +22,48 @@
 namespace dali {
 namespace kernels {
 
+/**
+ * @brief Joins (concatenates or stacks) batches of tensors
+ *
+ * This kernel takes a number of batches of tensors as the input and produces a single
+ * batch of tensors, where each tensor is a result of joining (concatenating or stacking)
+ * the respective tensors in the inputs.
+ *
+ * @tparam T        type of the tensor element. sizeof(T) must be 1,2,4,8 or 16
+ * @tparam new_axis if true, stacking is performed, otherwise - concatenation
+ *
+ */
 template <typename T, bool new_axis>
-class TensorJoinGPU : public TensorJoinImplGPU<type_of_size<sizeof(T)>, new_axis> {
+class TensorJoinGPU : public tensor_join::TensorJoinImplGPU<type_of_size<sizeof(T)>, new_axis> {
  public:
   using Placeholder = type_of_size<sizeof(T)>;
-  using Base = TensorJoinImplGPU<Placeholder, new_axis>;
+  using Base = tensor_join::TensorJoinImplGPU<Placeholder, new_axis>;
 
+  using Base::Setup;
+
+  /**
+   * @brief Concatenates or stacks the tensors in `in_lists` and stores the result in `out`.
+   *
+   * @param ctx       Kernel context (CUDA stream, scratchpad)
+   * @param out       Output tensor list
+   * @param in_lists  List of pointers to the inputs
+   */
   template <int in_ndim>
   void Run(KernelContext &ctx, const OutListGPU<T> &out,
-           span<const InListGPU<T, in_ndim> *> &in_lists) {
+           span<const InListGPU<T, in_ndim> *const> in_lists) {
     using U = type_of_size<sizeof(T)>;
-    auto *lists = reinterpret_cast<const InListGPU<Placeholder, in_ndim> *>(in_lists.data());
+    auto *lists = reinterpret_cast<const InListGPU<Placeholder, in_ndim> *const*>(in_lists.data());
     Base::Run(ctx,
         reinterpret_cast<const OutListGPU<U> &>(out),
-        make_span(lists, in_lists.size())
-    );
+        make_span(lists, in_lists.size()));
   }
- private:
-
 };
+
+template <typename T>
+using TensorStackGPU = TensorJoinGPU<T, true>;
+
+template <typename T>
+using TensorConcatGPU = TensorJoinGPU<T, false>;
 
 }  // namespace kernels
 }  // namespace dali
