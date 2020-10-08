@@ -50,7 +50,7 @@ std::string NormalizeText(const std::string& text) {
 }
 
 void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_file,
-                   float min_duration, float max_duration, bool normalize_text) {
+                   double min_duration, double max_duration, bool normalize_text) {
   std::string line;
   while (std::getline(manifest_file, line)) {
     detail::LookaheadParser parser(const_cast<char*>(line.c_str()));
@@ -67,7 +67,6 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
         entry.duration = parser.GetDouble();
       } else if (0 == std::strcmp(key, "offset")) {
         entry.offset = parser.GetDouble();
-        DALI_WARN("Handling of ``offset`` is not yet implemented and will be ignored.");
       } else if (0 == std::strcmp(key, "text")) {
         entry.text = parser.GetString();
         if (normalize_text)
@@ -150,8 +149,6 @@ void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
         should_downmix ? audio_meta.length : audio_meta.length * audio_meta.channels;
   resample_scratch.resize(resample_scratch_sz);
 
-  // TODO(janton): handle offset and duration
-
   DecodeAudio<OutputType>(
     view<OutputType>(audio), decoder, audio_meta, resampler_,
     {decode_scratch.data(), decode_scratch_sz},
@@ -175,10 +172,18 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   bool use_resampling = sample_rate_ > 0;
   sample.decoder_ = make_generic_audio_decoder();
 
-  sample.audio_meta_ = sample.decoder().OpenFromFile(entry.audio_filepath);
-  assert(sample.audio_meta_.channels_interleaved);  // it's always true
+  auto &meta = sample.audio_meta_ = sample.decoder().OpenFromFile(entry.audio_filepath);
+  assert(meta.channels_interleaved);  // it's always true
 
-  sample.shape_ = DecodedAudioShape(sample.audio_meta(), sample_rate_, downmix_);
+  int64_t offset, length;
+  std::tie(offset, length) =
+      ProcessOffsetAndLength(meta, entry.offset, entry.duration);
+  if (offset > 0)
+    sample.decoder().SeekFrames(offset);
+  assert(0 < length && length <= meta.length && "Unexpected length");
+  meta.length = length;
+
+  sample.shape_ = DecodedAudioShape(meta, sample_rate_, downmix_);
   assert(sample.shape_.size() > 0);
 
   TYPE_SWITCH(dtype_, type2id, OutputType, (int16_t, int32_t, float), (

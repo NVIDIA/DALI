@@ -28,12 +28,12 @@ namespace dali {
  * @brief Converts offset and length in seconds to offset and lenght in number of samples
  *        according with the audio metadata
  * @param meta Audio metadata
- * @param offset_sec offset, in seconds. If a negative value is provided, zero offset is assumed
+ * @param offset_sec offset, in seconds (optional)
  * @param length_sec length, in seconds. If a negative value is provided, whole buffer is assumed
  * @returns pair containing offset and length in number of samples
  */
 DLL_PUBLIC std::pair<int64_t, int64_t> ProcessOffsetAndLength(const AudioMetadata &meta,
-                                                              double offset_sec = -1,
+                                                              double offset_sec = 0,
                                                               double length_sec = -1);
 
 /**

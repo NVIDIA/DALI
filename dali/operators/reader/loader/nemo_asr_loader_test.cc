@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <cstdio>
+#include <utility>
 #include <sstream>
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/data/views.h"
@@ -22,6 +24,7 @@
 
 namespace dali {
 
+float original_sample_rate = 44100.0f;
 std::string audio_data_root = make_string(testing::dali_extra_path(), "/db/audio/wav/");  // NOLINT
 
 TEST(NemoAsrLoaderTest, ParseManifest) {
@@ -158,7 +161,7 @@ TEST(NemoAsrLoaderTest, ParseManifestContent) {
     EXPECT_EQ(1, loader.Size());
   }
 
-  ASSERT_EQ(0, remove(manifest_filepath.c_str()));
+  ASSERT_EQ(0, std::remove(manifest_filepath.c_str()));
 }
 
 TEST(NemoAsrLoaderTest, ReadSample) {
@@ -198,7 +201,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.PrepareMetadata();
     AsrSample sample;
     Tensor<CPUBackend> sample_audio;
-    sample_audio.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
+    sample_audio.set_type(TypeTable::GetTypeInfo(DALI_INT16));
     loader.ReadSample(sample);
     sample_audio.Resize(sample.shape());
     sample.decode_audio(sample_audio, 0);
@@ -234,7 +237,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
   }
 
   {
-    float sr_in = 44100.0f;
+    float sr_in = original_sample_rate;
     float sr_out = 22050.0f;
 
     AsrSample sample;
@@ -295,7 +298,84 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     TensorView<StorageCPU, float> converted_from_int16(converted.data(), {downsampled_len});
     Check(ref, converted_from_int16, EqualEpsRel(1e-5, 1e-5));
   }
+
+  ASSERT_EQ(0, std::remove(manifest_filepath.c_str()));
 }
+
+
+TEST(NemoAsrLoaderTest, ReadSample_OffsetAndDuration) {
+  // Contains wav file to be decoded
+  std::string wav_path = make_string(audio_data_root, "dziendobry.wav");
+  // Contains raw PCM data decoded offline
+  std::string decoded_path = make_string(audio_data_root, "dziendobry.txt");
+  std::ifstream file(decoded_path.c_str());
+  std::vector<int16_t> ref_data{std::istream_iterator<int16_t>(file),
+                                std::istream_iterator<int16_t>()};
+  int64_t ref_sz = ref_data.size();
+  int64_t ref_frames = ref_sz / 2;
+  int64_t ref_channels = 2;
+
+  std::string manifest_filepath = "/tmp/nemo_asr_manifest_XXXXXX";
+  tempfile(manifest_filepath);
+
+  std::vector<std::pair<double, double>> offset_and_duration = {
+      std::make_pair(0.0, -1.0),
+      std::make_pair(0.5, -1.0),
+      std::make_pair(0.05, 0.2),
+      std::make_pair(0.05, 100.2)
+  };
+  for (const auto &entry : offset_and_duration) {
+    double offset_sec, duration_sec;
+    std::tie(offset_sec, duration_sec) = entry;
+    std::ofstream f(manifest_filepath);
+    f << "{\"audio_filepath\": \"" << wav_path << "\"";
+    if (offset_sec > 0)
+      f << ", \"offset\": " << offset_sec;
+    if (duration_sec > 0)
+      f << ", \"duration\": " << duration_sec;
+    f << "}";
+    f.close();
+
+    auto spec = OpSpec("NemoAsrReader")
+          .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
+          .AddArg("downmix", false)
+          .AddArg("dtype", DALI_INT16)
+          .AddArg("num_threads", 4)
+          .AddArg("batch_size", 32)
+          .AddArg("device_id", -1);
+
+    NemoAsrLoader loader(spec);
+    loader.PrepareMetadata();
+
+    int64_t offset = 0;
+    int64_t length = ref_frames;
+    if (offset_sec > 0) {
+      offset = static_cast<int64_t>(offset_sec * original_sample_rate);
+    }
+    if (duration_sec > 0) {
+      length = static_cast<int64_t>(duration_sec * original_sample_rate);
+    }
+    if (offset + length > ref_frames) {
+      length = ref_frames - offset;
+    }
+
+    AsrSample sample;
+    Tensor<CPUBackend> sample_audio;
+    sample_audio.set_type(TypeTable::GetTypeInfo(DALI_INT16));
+
+    loader.ReadSample(sample);
+
+    TensorShape<> expected_sh{length, 2};
+    ASSERT_EQ(expected_sh, sample.shape());
+    sample_audio.Resize(sample.shape());
+    sample.decode_audio(sample_audio, 0);
+
+    TensorView<StorageCPU, int16_t> ref(ref_data.data() + offset * 2, expected_sh);
+    Check(ref, view<const int16_t>(sample_audio));
+  }
+  ASSERT_EQ(0, std::remove(manifest_filepath.c_str()));
+}
+
 
 }  // namespace dali
 
