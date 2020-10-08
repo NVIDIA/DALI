@@ -687,14 +687,10 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
     frames_since_warn = 0;
     frames_used_warned = true;
     LOG_LINE << "\e[1mThe video loader is performing suboptimally due to reading "
-                << std::setprecision(2) << ratio_used << "x as many packets as "
-                << "frames being used.\e[0m  Consider reencoding the video with a "
-                << "smaller key frame interval (GOP length).";
+             << std::setprecision(2) << ratio_used << "x as many packets as "
+             << "frames being used.\e[0m  Consider reencoding the video with a "
+             << "smaller key frame interval (GOP length).";
   }
-  // We have to wait for all kernel recorded in sequence's event are completed
-  LOG_LINE << "Waiting for sequence..";
-  sequence.wait();
-  LOG_LINE << ".got sequence\n";
 }
 
 void VideoLoader::PrepareEmpty(SequenceWrapper &tensor) {}
