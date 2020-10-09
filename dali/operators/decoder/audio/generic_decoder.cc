@@ -12,74 +12,58 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string>
 #include "dali/operators/decoder/audio/generic_decoder.h"
+#include <sndfile.h>
+#include <cassert>
+#include <cstring>
+#include <memory>
+#include <string>
+#include <vector>
+#include "dali/core/unique_handle.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/format.h"
+#include "dali/operators/decoder/audio/audio_decoder.h"
 
 namespace dali {
 
 namespace {
 
-template<typename SampleType>
-size_t ReadSamples(SNDFILE *snd_file, span<SampleType> output);
-
-
-template<>
-size_t ReadSamples<short>(SNDFILE *snd_file, span<short> output) {  // NOLINT
-  return sf_read_short(snd_file, output.data(), output.size());
-}
-
-
-template<>
-size_t ReadSamples<int>(SNDFILE *snd_file, span<int> output) {
-  return sf_read_int(snd_file, output.data(), output.size());
-}
-
-
-template<>
-size_t ReadSamples<float>(SNDFILE *snd_file, span<float> output) {
-  return sf_read_float(snd_file, output.data(), output.size());
-}
-
-
-template<>
-size_t ReadSamples<double>(SNDFILE *snd_file, span<double> output) {
-  return sf_read_double(snd_file, output.data(), output.size());
-}
-
-
 class MemoryStream {
  public:
-  MemoryStream(const void *input, int length /* bytes */) :
+  MemoryStream(const void *input, int64_t length /* bytes */) :
           length_(length), curr_(0), input_(static_cast<const char *>(input)) {}
 
+  MemoryStream() = default;
 
-  MemoryStream() : MemoryStream(nullptr, 0) {}
-
-
-  size_t Length() {
+  int64_t Length() {
     return length_;
   }
 
-
-  size_t Seek(sf_count_t offset, int whence) {
+  int64_t Seek(sf_count_t offset, int whence) {
     switch (whence) {
       case SEEK_SET:
+        if (offset < 0 || offset > length_)
+          return kSeekError;
         curr_ = offset;
         break;
       case SEEK_CUR:
+        if ((curr_ + offset) < 0 || (curr_ + offset) > length_)
+          return kSeekError;
         curr_ += offset;
         break;
       case SEEK_END:
+        if ((length_ + offset) < 0 || (length_ + offset) > length_)
+          return kSeekError;
         curr_ = length_ + offset;
         break;
       default:
-        DALI_FAIL("Incorrect `whence` argument")
+        return kSeekError;
     }
     return curr_;
   }
 
 
-  size_t Read(void *dst, sf_count_t num) {
+  int64_t Read(void *dst, sf_count_t num) {
     num = std::min<sf_count_t>(num, length_ - curr_);
     memcpy(dst, input_ + curr_, num);
     curr_ += num;
@@ -87,14 +71,15 @@ class MemoryStream {
   }
 
 
-  size_t Tell() {
+  int64_t Tell() {
     return curr_;
   }
 
 
  private:
-  size_t length_, curr_;
-  const char *input_;
+  static constexpr int kSeekError = -1;
+  int64_t length_ = 0, curr_ = 0;
+  const char *input_ = nullptr;
 };
 
 /*
@@ -152,107 +137,92 @@ AudioMetadata GetAudioMetadata(const SF_INFO &sf_info) {
   return ret;
 }
 
+struct sndfile_handle_t : public UniqueHandle<SNDFILE*, sndfile_handle_t> {
+  DALI_INHERIT_UNIQUE_HANDLE(SNDFILE*, sndfile_handle_t)
+
+  static void DestroyHandle(SNDFILE* handle) {
+    auto err = sf_close(handle);
+    DALI_ENFORCE(err == 0, make_string("Failed to close SNDFILE: ", sf_error_number(err)));
+  }
+};
+
 }  // namespace
 
 
-template<typename SampleType>
-ptrdiff_t GenericAudioDecoder<SampleType>::DecodeTyped(span<SampleType> output) {
-  return impl_->DecodeTyped(output);
-}
-
-
-template<typename SampleType>
-AudioMetadata GenericAudioDecoder<SampleType>::OpenImpl(span<const char> encoded) {
-  return impl_->OpenImpl(encoded);
-}
-
-template<typename SampleType>
-AudioMetadata GenericAudioDecoder<SampleType>::OpenFromFileImpl(const std::string &filepath) {
-  return impl_->OpenFromFileImpl(filepath);
-}
-
-template<typename SampleType>
-void GenericAudioDecoder<SampleType>::CloseImpl() {
-  impl_->CloseImpl();
-}
-
-
-template<typename SampleType>
-GenericAudioDecoder<SampleType>::~GenericAudioDecoder() = default;
-
-
-template<typename SampleType>
-GenericAudioDecoder<SampleType>::GenericAudioDecoder() :
-        impl_(std::make_unique<Impl>()) {
-}
-
-template <typename SampleType>
-GenericAudioDecoder<SampleType>::GenericAudioDecoder(GenericAudioDecoder &&decoder) = default;
-
-template <typename SampleType>
-GenericAudioDecoder<SampleType> &GenericAudioDecoder<SampleType>::operator=(
-    GenericAudioDecoder &&decoder) = default;
-
-template<typename SampleType>
-struct GenericAudioDecoder<SampleType>::Impl {
-  ptrdiff_t DecodeTyped(span<SampleType> output) {
-    return ReadSamples(sound_, output);
+class GenericAudioDecoder : public AudioDecoderBase {
+ private:
+  void CloseImpl() override {
+    *this = {};
   }
 
-  ~Impl() {
-    CloseImpl();
+  int64_t SeekFramesImpl(int64_t nframes, int whence) override {
+    return sf_seek(sndfile_handle_, nframes, whence);
   }
 
-  AudioMetadata OpenImpl(span<const char> encoded) {
-    assert(!encoded.empty());
-    sf_info_ = {};
-    mem_stream_ = {encoded.data(), static_cast<int>(encoded.size())};
-    SF_VIRTUAL_IO sf_virtual_io = {
-            &GetFileLen,
-            &Seek,
-            &Read,
-            nullptr,  // No writing
-            &Tell
-    };
-    sound_ = sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info_, &mem_stream_);
-    if (!sound_) {
-      throw DALIException(make_string("Failed to open encoded data: ", sf_strerror(sound_)));
-    }
-    return GetAudioMetadata(sf_info_);
+  ptrdiff_t DecodeImpl(span<int16_t> output) override {
+    return sf_read_short(sndfile_handle_, output.data(), output.size());
   }
 
-  AudioMetadata OpenFromFileImpl(const std::string &filepath) {
-    DALI_ENFORCE(!filepath.empty(), "filepath is empty");
-    sf_info_ = {};
-    sound_ = sf_open(filepath.c_str(), SFM_READ, &sf_info_);
-    if (!sound_) {
-      throw DALIException(make_string("Failed to open encoded data: ", sf_strerror(sound_),
-                                      ", filepath: ", filepath));
-    }
-    return GetAudioMetadata(sf_info_);
+  ptrdiff_t DecodeImpl(span<int32_t> output) override {
+    return sf_read_int(sndfile_handle_, output.data(), output.size());
   }
 
-  void CloseImpl() {
-    if (sound_) {
-      auto err = sf_close(sound_);
-      DALI_ENFORCE(err == 0, make_string("Failed to close SNDFILE: ", sf_error_number(err)));
-      sound_ = nullptr;
-    }
-    mem_stream_ = {};
+  ptrdiff_t DecodeImpl(span<float> output) override {
+    return sf_read_float(sndfile_handle_, output.data(), output.size());
   }
 
+  ptrdiff_t DecodeFramesImpl(int16_t* output, int64_t nframes) override {
+    return sf_readf_short(sndfile_handle_, output, nframes);
+  }
 
-  SNDFILE *sound_ = nullptr;
+  ptrdiff_t DecodeFramesImpl(int32_t* output, int64_t nframes) override {
+    return sf_readf_int(sndfile_handle_, output, nframes);
+  }
+
+  ptrdiff_t DecodeFramesImpl(float* output, int64_t nframes) override {
+    return sf_readf_float(sndfile_handle_, output, nframes);
+  }
+
+  AudioMetadata OpenImpl(span<const char> encoded) override;
+  AudioMetadata OpenFromFileImpl(const std::string &filepath) override;
+
+  sndfile_handle_t sndfile_handle_;
   SF_INFO sf_info_ = {};
   MemoryStream mem_stream_ = {};
 };
 
-/*
- * Force instantiation only for given types
- */
-template class GenericAudioDecoder<int16_t>;
-template class GenericAudioDecoder<int32_t>;
-template class GenericAudioDecoder<float>;
 
+AudioMetadata GenericAudioDecoder::OpenImpl(span<const char> encoded) {
+  assert(!encoded.empty());
+  mem_stream_ = {encoded.data(), static_cast<int>(encoded.size())};
+  SF_VIRTUAL_IO sf_virtual_io = {
+          &GetFileLen,
+          &Seek,
+          &Read,
+          nullptr,  // No writing
+          &Tell
+  };
+  sndfile_handle_.reset(
+    sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info_, &mem_stream_));
+  if (!sndfile_handle_) {
+    throw DALIException(make_string("Failed to open encoded data: ", sf_strerror(sndfile_handle_)));
+  }
+  return GetAudioMetadata(sf_info_);
+}
+
+AudioMetadata GenericAudioDecoder::OpenFromFileImpl(const std::string &filepath) {
+  DALI_ENFORCE(!filepath.empty(), "filepath is empty");
+  sndfile_handle_.reset(
+    sf_open(filepath.c_str(), SFM_READ, &sf_info_));
+  if (!sndfile_handle_) {
+    throw DALIException(make_string("Failed to open encoded data: ", sf_strerror(sndfile_handle_),
+                                    ", filepath: ", filepath));
+  }
+  return GetAudioMetadata(sf_info_);
+}
+
+std::unique_ptr<AudioDecoderBase> make_generic_audio_decoder() {
+  return std::make_unique<GenericAudioDecoder>();
+}
 
 }  // namespace dali

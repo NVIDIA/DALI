@@ -33,10 +33,12 @@
 
 namespace dali {
 
+static constexpr double kDefaultDuration = -1.0;
+
 struct NemoAsrEntry {
   std::string audio_filepath;
-  float duration = 0.0;  // in seconds
-  float offset = 0.0;  // in seconds, optional
+  double duration = kDefaultDuration;  // in seconds, optional
+  double offset = 0.0;  // in seconds, optional
   std::string text;  // transcription
 };
 
@@ -86,7 +88,8 @@ class AsrSample {
 namespace detail {
 
 DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream &manifest_file,
-                              float min_duration = 0.0f, float max_duration = 0.0f,
+                              double min_duration = kDefaultDuration,
+                              double max_duration = kDefaultDuration,
                               bool normalize_text = false);
 
 }  // namespace detail
@@ -140,12 +143,12 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   void Reset(bool wrap_to_shard) override;
 
  private:
-  template <typename OutputType, typename DecoderOutputType>
+  template <typename OutputType>
   void ReadAudio(Tensor<CPUBackend> &audio,
                  const AudioMetadata &audio_meta,
                  const NemoAsrEntry &entry,
                  AudioDecoderBase &decoder,
-                 std::vector<uint8_t> &decode_scratch,
+                 std::vector<float> &decode_scratch,
                  std::vector<float> &resample_scratch);
 
   std::vector<std::string> manifest_filepaths_;
@@ -160,11 +163,11 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   float quality_;
   bool downmix_;
   DALIDataType dtype_;
-  float max_duration_;
+  double max_duration_;
   bool normalize_text_;
   int num_threads_;
   kernels::signal::resampling::Resampler resampler_;
-  std::vector<std::vector<uint8_t>> decode_scratch_;
+  std::vector<std::vector<float>> decode_scratch_;
   std::vector<std::vector<float>> resample_scratch_;
 };
 

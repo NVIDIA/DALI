@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <fstream>
 #include <string>
+#include <cstring>
 #include "dali/core/format.h"
 #include "dali/operators/decoder/audio/generic_decoder.h"
 #include "dali/test/dali_test_config.h"
@@ -60,7 +61,7 @@ bool CheckBuffers(const T *buf1, const T *buf2, int size) {
 
 TEST(AudioDecoderTest, WavDecoderTest) {
   using DataType = short;  // NOLINT
-  GenericAudioDecoder<DataType> decoder;
+  auto decoder = make_generic_audio_decoder();
 
   // Contains wav file to be decoded
   std::string wav_path = make_string(audio_data_root, "dziendobry.wav");
@@ -79,14 +80,43 @@ TEST(AudioDecoderTest, WavDecoderTest) {
            << "` to exist";
   }
 
-  auto meta = decoder.Open(make_cspan(bytes));
-  std::vector<DataType> output(meta.length * meta.channels);
-  decoder.DecodeTyped(make_span(output));
+  {
+    auto meta = decoder->Open(make_cspan(bytes));
+    EXPECT_EQ(meta.channels, expected_nchannels);
+    EXPECT_EQ(meta.channels_interleaved, true);
+    EXPECT_EQ(meta.sample_rate, expected_frequency);
+    decoder->Close();
+  }
 
-  EXPECT_EQ(meta.channels, expected_nchannels);
-  EXPECT_EQ(meta.channels_interleaved, true);
-  EXPECT_EQ(meta.sample_rate, expected_frequency);
-  EXPECT_PRED3(CheckBuffers<DataType>, output.data(), vec.data(), vec.size());
+  {
+    auto meta = decoder->Open(make_cspan(bytes));
+    std::vector<DataType> output(meta.length * meta.channels);
+    decoder->Decode(make_span(output));
+    EXPECT_PRED3(CheckBuffers<DataType>, output.data(), vec.data(), vec.size());
+  }
+
+  {
+    auto meta = decoder->Open(make_cspan(bytes));
+    std::vector<DataType> output(meta.length * meta.channels);
+    decoder->DecodeFrames(output.data(), meta.length);
+    EXPECT_PRED3(CheckBuffers<DataType>, output.data(), vec.data(), vec.size());
+  }
+
+  {
+    auto meta = decoder->Open(make_cspan(bytes));
+    int64_t offset = meta.length / 2;
+    int64_t length = meta.length - offset;
+    // allocating a bigger buffer in purpose
+    std::vector<DataType> output(meta.length * meta.channels, 0xBE);
+    decoder->SeekFrames(offset, SEEK_CUR);
+    decoder->DecodeFrames(output.data(), length);
+    EXPECT_PRED3(CheckBuffers<DataType>, output.data(), vec.data() + offset * meta.channels,
+                 length * meta.channels);
+    // Verifying that we didn't read more than we should
+    for (size_t i = length * meta.channels; i < output.size(); i++) {
+      ASSERT_EQ(0xBE, output[i]);
+    }
+  }
 }
 
 }  // namespace dali
