@@ -1701,9 +1701,9 @@ def test_pipeline_out_of_scope():
     def get_output():
         pipe = dali.pipeline.Pipeline(1, 1, 0)
         with pipe:
-            pipe.set_outputs(dali.fn.uniform())
+            pipe.set_outputs(dali.fn.external_source(source=[[np.array([-0.5, 1.25])]]))
         pipe.build()
         return pipe.run()
-    data = get_output()
-    out = data[0].as_array()[0]
-    print(out)
+    out = get_output()[0].at(0)
+    assert out[0] == -0.5 and out[1] == 1.25
+
