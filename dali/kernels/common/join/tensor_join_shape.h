@@ -65,6 +65,9 @@ void CheckJoinedShapes(GetInListShapeFunc &&in_shape, int njoin, int axis, bool 
   const auto &shape_0 = *in_shape(0);
   int N = shape_0.num_samples();
   int D = shape_0.sample_dim();
+  DALI_ENFORCE(axis >= 0 && axis < D + new_axis, make_string(
+    "Axis index ", axis, " is invalid for ", D, "-D tensor ",
+    (new_axis ? "stacking" : "concatenation"), "."));
 
   for (int t = 1; t < njoin; t++) {
     const auto &shape_t = *in_shape(t);

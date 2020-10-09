@@ -47,6 +47,7 @@ ConcatenateTensors(TensorView<StorageCPU, T> output,
   }
 }
 
+}  // namespace tensor_join
 
 /**
  * Joins multiple input tensors into one output tensor, along given axis.
@@ -118,7 +119,7 @@ struct TensorJoinCPU {
     }
 
     KernelRequirements kr;
-    output_shape_ = JoinedShape(in_shapes, axis_, new_axis);
+    output_shape_ = tensor_join::JoinedShape(in_shapes, axis_, new_axis);
     kr.output_shapes.resize(1);
     TensorListShape<> tmp({output_shape_});  // clang's destructor bug still haunting
     kr.output_shapes[0] = tmp;
@@ -157,7 +158,7 @@ struct TensorJoinCPU {
                           out.shape));
     }
 
-    ConcatenateTensors(out, in, axis_);
+    tensor_join::ConcatenateTensors(out, in, axis_);
   }
 
 
@@ -165,17 +166,15 @@ struct TensorJoinCPU {
   TensorShape<dims> output_shape_;
 };
 
-}  // namespace tensor_join
-
 ///@{
 /**
  * @see TensorJoinCPU
  */
 template<typename T, int ndims = -1>
-using TensorStackCPU = tensor_join::TensorJoinCPU<T, true, ndims>;
+using TensorStackCPU = TensorJoinCPU<T, true, ndims>;
 
 template<typename T, int ndims = -1>
-using TensorConcatCPU = tensor_join::TensorJoinCPU<T, false, ndims>;
+using TensorConcatCPU = TensorJoinCPU<T, false, ndims>;
 ///@}
 
 }  // namespace kernels
