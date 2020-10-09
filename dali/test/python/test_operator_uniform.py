@@ -57,6 +57,7 @@ def test_uniform_discrete():
     lo = -100
     hi = 100
     test_set = (hi - lo) * np.random.random_sample(10) + lo  # 10 elems from [-100, 100] range
+    test_set = test_set.astype('float32')
     with pipe:
         pipe.set_outputs(dali.fn.uniform(values=test_set.tolist(), shape=[1e6]))
     pipe.build()
@@ -65,6 +66,6 @@ def test_uniform_discrete():
     _, pv = st.kstest(rvs=possibly_uniform_distribution, cdf='uniform')
     assert pv < 1e-8, "`possibly_uniform_distribution` is not an uniform distribution"
     for val in possibly_uniform_distribution:
-        assert any(math.isclose(val, t, rel_tol=1e-6) for t in test_set), \
+        assert val in test_set, \
             "Value returned from the op is outside of requested discrete set"
 
