@@ -15,23 +15,48 @@
 #ifndef DALI_OPERATORS_GENERIC_JOIN_H_
 #define DALI_OPERATORS_GENERIC_JOIN_H_
 
+#include "dali/core/any.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/common/join/tensor_join_cpu.h"
 #include "dali/kernels/common/join/tensor_join_gpu.h"
 
 namespace dali {
 
 template <typename Backend, bool new_axis>
-class TensorJoin<Backend> : public Operator<Backend> {
+class TensorJoin : public Operator<Backend> {
  public:
-  using Operator<Backend>::Operator;
-  bool SetupImpl()
-  bool CanInferOutputs() const override { return true; }
- protected:
-  void CollectInputs(const workspace_t<Backend> &ws);
+  using Storage = detail::storage_tag_map_t<Backend>;
 
-  SmallVector<TensorListView<void>> inputs_;
-  TypeInfo output_type_;
-  KernelManager mgr_;
+  using Operator<Backend>::Operator;
+
+  bool CanInferOutputs() const override { return true; }
+  void RunImpl(workspace_t<Backend> &ws);
+  bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override;
+ protected:
+
+  template <typename T>
+  auto &inputs() {
+    using RetType = vector<const TensorListView<Storage, const T>>;
+    if (!inputs_.is_type<RetType>())
+        inputs_ = RetType();
+    return any_cast<RetType&>(inputs_);
+  }
+
+  template <typename T>
+  void SetupTyped(TensorListShape<> &output_shape, const workspace_t<Backend> &ws);
+
+  template <typename T>
+  void RunTyped(const TensorListView<Storage, T> &out, HostWorkspace &ws);
+
+  template <typename T>
+  void RunTyped(const TensorListView<Storage, T> &out, DeviceWorkspace &ws);
+
+  int axis_ = -1;
+  TensorLayout GetLayout(const workspace_t<Backend> &ws);
+
+  any inputs_;
+  kernels::KernelManager kmgr_;
 };
 
 }  // namespace dali
