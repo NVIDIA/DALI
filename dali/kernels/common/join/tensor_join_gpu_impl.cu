@@ -21,23 +21,19 @@ namespace tensor_join {
 
 
 template <typename T, bool new_axis>
-KernelRequirements TensorJoinImplGPU<T, new_axis>::Setup(
-        KernelContext &ctx,
+void TensorJoinImplGPU<T, new_axis>::Setup(
+        TensorListShape<> &output_shape,
+        ScratchpadEstimator &se,
         const std::function<const TensorListShape<> *(int)> &get_input_shape,
         int num_inputs,
         int axis) {
-  KernelRequirements req;
-  req.output_shapes.resize(1);
-  JoinedShape(req.output_shapes[0], get_input_shape, num_inputs, axis, new_axis);
-  ScratchpadEstimator se;
-  int N = req.output_shapes[0].num_samples();
+  JoinedShape(output_shape, get_input_shape, num_inputs, axis, new_axis);
+  int N = output_shape.num_samples();
   se.add<OutputDesc<T>>(AllocType::GPU, N);
   se.add<InputDesc<T>>(AllocType::GPU, num_inputs * N);
   se.add<OutputDesc<T>>(AllocType::Host, N);
   se.add<InputDesc<T>>(AllocType::Host, num_inputs * N);
-  req.scratch_sizes = se.sizes;
   axis_ = axis;
-  return req;
 }
 
 template <typename T, bool new_axis>
@@ -47,12 +43,12 @@ void TensorJoinImplGPU<T, new_axis>::Run(
         span<const InListGPU<T> *const> in_lists) {
   int njoin = in_lists.size();
   int N = out.num_samples();
-  int Nin = N * njoin;
+  int N_in = N * njoin;
 
   auto output_descs_cpu = make_span(
     ctx.scratchpad->Allocate<OutputDesc<T>>(AllocType::Host, N), N);
   auto input_descs_cpu  = make_span(
-    ctx.scratchpad->Allocate<InputDesc<T>>(AllocType::Host, Nin), Nin);
+    ctx.scratchpad->Allocate<InputDesc<T>>(AllocType::Host, N_in), N_in);
 
   FillDescs(output_descs_cpu, input_descs_cpu, out, in_lists, axis_);
 

@@ -76,12 +76,10 @@ struct TensorJoinGPUTest : public ::testing::Test {
       InitData(stream);
       RunRef();
 
-      KernelRequirements &req = mgr.Setup<Kernel>(0, ctx, [&](int index) {
-        return &in_shapes[index];
-      }, in_shapes.size(), axis);
+      KernelRequirements &req = mgr.Setup<Kernel>(0, ctx, make_cspan(in_gpu_tls), axis);
       ASSERT_EQ(req.output_shapes.size(), 1);
       ASSERT_EQ(req.output_shapes[0], out_shape);
-      mgr.Run<Kernel>(0, 0, ctx, out.gpu(stream), make_cspan(in_gpu_ptrs));
+      mgr.Run<Kernel>(0, 0, ctx, out.gpu(stream), make_cspan(in_gpu_tls));
 
       CUDA_CALL(cudaStreamSynchronize(stream));
       CheckResult(stream);
@@ -136,10 +134,10 @@ struct TensorJoinGPUTest : public ::testing::Test {
     GenerateListPointers(stream);
     out.reshape(out_shape);
     ref.reshape(out_shape);
-    FillOutput(stream);
+    ClearOutput(stream);
   }
 
-  void FillOutput(cudaStream_t stream) {
+  void ClearOutput(cudaStream_t stream) {
     auto out_tl = out.gpu(stream);
     cudaMemsetAsync(out_tl.data[0], 0, sizeof(out_tl.data[0][0]) * out_tl.num_elements(), stream);
   }

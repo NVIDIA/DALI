@@ -29,12 +29,13 @@ template <typename T, bool new_axis>
 class DLL_PUBLIC TensorJoinImplGPU {
  public:
   static_assert(std::is_same<T, type_of_size<sizeof(T)>>::value,
-                "This class must be used with a type prouced by `type_of_size<size>`");
+                "This class must be used with a type proudced by `type_of_size<size>`");
   static_assert(sizeof(T) >= 1 && sizeof(T) <= 16 && (sizeof(T)&sizeof(T)-1) == 0,
                 "TensorJoin works only for types of size 1, 2, 4, 8 and 16 bytes.");
 
   /**
-   * @param ctx             kernel context, not used
+   * @param output_shape    shape of the result of joining the inputs
+   * @param se              scratchpad requirements are added here
    * @param get_input_shape a function called with an input index; returns a reference to a shape
    *                        of the input at given index
    * @param num_inputs      number of joined tensors
@@ -50,10 +51,11 @@ class DLL_PUBLIC TensorJoinImplGPU {
    * Respective tensors in the input must have the same shape (if new_axis == `true`) or can
    * differ at index `axis` (if new_axis == `false`).
    */
-  KernelRequirements Setup(KernelContext &ctx,
-                           const std::function<const TensorListShape<> *(int)> &get_input_shape,
-                           int num_inputs,
-                           int axis);
+  void Setup(TensorListShape<> &output_shape,
+             ScratchpadEstimator &se,
+             const std::function<const TensorListShape<> *(int)> &get_input_shape,
+             int num_inputs,
+             int axis);
 
   void Run(KernelContext &ctx, const OutListGPU<T> &out, span<const InListGPU<T> *const> in_lists);
 

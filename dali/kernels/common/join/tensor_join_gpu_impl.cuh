@@ -25,14 +25,10 @@ namespace tensor_join {
 
 template <typename Element>
 struct InputDesc {
-  /**
-   * @brief Offset of this tensor's slice in the otput tensor's slice
-   *
-   * The "slice" here denotes a slice in the concatenation axis.
-   */
+  // Offset of this tensor's slice in the otput tensor's slice
   uint64_t join_offset;
 
-  /// Distance between joined slices
+  // Distance between joined slices
   uint64_t outer_stride;
 
   const Element *__restrict__ data;
@@ -60,7 +56,7 @@ struct OutputDesc {
  */
 template <typename Element>
 DALI_HOST_DEV int FindTensor(uint64_t offset, float guess_tensor_mul,
-                          const InputDesc<Element> *__restrict__ descs, int njoin) {
+                             const InputDesc<Element> *__restrict__ descs, int njoin) {
   int lo = 0, hi = njoin - 1;
   int m = min(floor_int((offset + 0.5f) * guess_tensor_mul), njoin - 1);
   do {  // binary search with initial guess
@@ -101,7 +97,7 @@ __global__ void JoinTensorsKernel(const OutputDesc<Element> *__restrict__ out,
 
 
 /**
- * @brief Populates the inpu and output descriptors given the input and output tensor lists.
+ * @brief Populates the input and output descriptors given the input and output tensor lists.
  *
  * @tparam ElementType tensor element
  * @tparam out_ndim   dimensionality of the output, typically DynamicDimensions
