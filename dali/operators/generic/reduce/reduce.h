@@ -27,21 +27,22 @@ namespace dali {
 #define REDUCE_TYPES (int16_t, int32_t, float)
 
 template <template <typename T, typename R> class ReductionType>
-class Reduce : public Operator<CPUBackend> {
+class ReduceCPU : public Operator<CPUBackend> {
  public:
-  explicit inline Reduce(const OpSpec &spec) :
+  explicit inline ReduceCPU(const OpSpec &spec) :
     Operator<CPUBackend>(spec),
     axes_(spec.GetRepeatedArgument<int>("axes")),
     keep_dims_(spec.GetArgument<bool>("keep_dims")) { }
 
   bool CanInferOutputs() const override { return true; }
 
-  inline ~Reduce() override = default;
+  inline ~ReduceCPU() override = default;
 
-  DISABLE_COPY_MOVE_ASSIGN(Reduce);
+  DISABLE_COPY_MOVE_ASSIGN(ReduceCPU);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override {
+  bool SetupImpl(
+    std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override {
     output_desc.resize(1);
     auto &input = ws.template InputRef<CPUBackend>(0);
 
@@ -89,8 +90,8 @@ class Reduce : public Operator<CPUBackend> {
       type2id, 
       DataType,
       REDUCE_TYPES,
-      ( RunTyped<DataType, DataType>(ws); ),
-      ( DALI_FAIL(make_string("Unsupported input type: ", data_type)); )  // NOLINT
+      ( RunTyped<DataType>(ws); ),
+      ( DALI_FAIL(make_string("Unsupported input type: ", data_type)); )
     )
   }
 
@@ -100,58 +101,53 @@ class Reduce : public Operator<CPUBackend> {
   vector<int> axes_;
   bool keep_dims_;
 
-  template <typename DstType, typename SrcType>
+  template <typename DataType>
   void RunTyped(workspace_t<CPUBackend> &ws) {
     auto& in = ws.InputRef<CPUBackend>(0);
-    auto in_view = view<const SrcType>(in);
+    auto in_view = view<const DataType>(in);
 
     auto &out = ws.OutputRef<CPUBackend>(0);
-    auto out_view = view<DstType>(out);
+    auto out_view = view<DataType>(out);
 
     auto &thread_pool = ws.GetThreadPool();
     int num_threads = thread_pool.size();
 
-    using Kernel = ReductionType<DstType, SrcType>;
+    using Kernel = ReductionType<DataType, DataType>;
     vector<Kernel> kernels(num_threads);
 
-    int thread_id = 0;
-
-    for (int sample = 0; sample < in_view.num_samples(); sample++) {
-      int work_size_estimate = volume(in_view.shape.tensor_shape_span(sample));
-      
+    for (int sample = 0; sample < in_view.num_samples(); sample++) {      
       thread_pool.AddWork(
         [&, sample](int thread_id) {
           auto in_sample_view = in_view[sample];
           auto out_sample_view = out_view[sample];
-
+ 
           kernels[thread_id].Setup(
             out_sample_view,
             in_sample_view,
             make_span(axes_));
           kernels[thread_id].Run();
-        },
-        work_size_estimate);  
+        });  
     }
     thread_pool.RunAll();
   }
 };
 
-class Sum : public Reduce<kernels::SumCPU> {
+class SumCPU : public ReduceCPU<kernels::SumCPU> {
  public:
-  explicit inline Sum(const OpSpec &spec) :
-    Reduce<kernels::SumCPU>(spec) {}
+  explicit inline SumCPU(const OpSpec &spec) :
+    ReduceCPU<kernels::SumCPU>(spec) {}
 };
 
-class Min : public Reduce<kernels::MinCPU> {
+class MinCPU : public ReduceCPU<kernels::MinCPU> {
  public:
-  explicit inline Min(const OpSpec &spec) :
-    Reduce<kernels::MinCPU>(spec) {}
+  explicit inline MinCPU(const OpSpec &spec) :
+    ReduceCPU<kernels::MinCPU>(spec) {}
 };
 
-class Max : public Reduce<kernels::MaxCPU> {
+class MaxCPU : public ReduceCPU<kernels::MaxCPU> {
  public:
-  explicit inline Max(const OpSpec &spec) :
-    Reduce<kernels::MaxCPU>(spec) {}
+  explicit inline MaxCPU(const OpSpec &spec) :
+    ReduceCPU<kernels::MaxCPU>(spec) {}
 };
 
 }  // namespace dali

@@ -20,32 +20,32 @@ namespace dali {
 DALI_SCHEMA(ReduceBase)
   .AddOptionalArg(
     "axes",
-    "",
+    "Axis or axes along which reduction is performed. Not providing any axis results in reduction of all elements.",
     std::vector<int>{ })
   .AddOptionalArg(
     "keep_dims",
-    "",
+    "If True, maintains original input dimensins.",
     false);
 
-DALI_REGISTER_OPERATOR(Sum, Sum, CPU);
+DALI_REGISTER_OPERATOR(Sum, SumCPU, CPU);
 DALI_SCHEMA(Sum)
-  .DocStr("Sum reduction operator.")
+  .DocStr("Sums input elements along provided axes.")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
 
 
-DALI_REGISTER_OPERATOR(Min, Min, CPU);
+DALI_REGISTER_OPERATOR(Min, MinCPU, CPU);
 DALI_SCHEMA(Min)
-  .DocStr("Min reduction operator.")
+  .DocStr("Gets minimal input element along provided axes.")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
 
 
-DALI_REGISTER_OPERATOR(Max, Max, CPU);
+DALI_REGISTER_OPERATOR(Max, MaxCPU, CPU);
 DALI_SCHEMA(Max)
-  .DocStr("Max reduction operator.")
+  .DocStr("Gets minimal input element along provided axes.")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
