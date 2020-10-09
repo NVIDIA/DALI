@@ -50,7 +50,6 @@ class VideoReaderResize : public VideoReader,
                                          make_cspan(resize_attr_.params_));
     resize_attr_.GetResizedShape(output_shape_, input_shape_);
     output.Resize(output_shape_, prefetched_batch_tensors_[curr_batch_consumer_].type());
-    output.SetLayout("FHWC");
   }
 
   void ShareSingleOutputAsTensorList(int data_idx, TensorList<GPUBackend> &batch_output,
