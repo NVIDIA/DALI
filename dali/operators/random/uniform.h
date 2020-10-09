@@ -26,11 +26,16 @@ namespace dali {
 class Uniform : public Operator<CPUBackend> {
  public:
   inline explicit Uniform(const OpSpec &spec) :
-    Operator<CPUBackend>(spec),
-    rng_(spec.GetArgument<int64_t>("seed")) {
-    std::vector<float> range;
-    GetSingleOrRepeatedArg(spec, range, "range", 2);
-    dis_ = std::uniform_real_distribution<float>(range[0], range[1]);
+          Operator<CPUBackend>(spec),
+          rng_(spec.GetArgument<int64_t>("seed")),
+          discrete_mode_(spec.HasArgument("set")) {
+    DALI_ENFORCE(spec.HasArgument("range") != spec.HasArgument("set"), "asd");//TODO msg
+
+    if (spec.HasArgument("range")) {
+      range_ = spec.GetRepeatedArgument<float>("range");
+    } else {
+      set_ = spec.GetRepeatedArgument<float>("set");
+    }
 
     std::vector<int> shape_arg{};
     if (spec.HasArgument("shape"))
@@ -50,6 +55,7 @@ class Uniform : public Operator<CPUBackend> {
     return true;
   }
 
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
     output_desc[0].shape = uniform_list_shape(batch_size_, shape_);
@@ -57,11 +63,17 @@ class Uniform : public Operator<CPUBackend> {
     return true;
   }
 
+
   void RunImpl(HostWorkspace &ws) override;
 
  private:
-  std::uniform_real_distribution<float> dis_;
+  void AssignRange(HostWorkspace &ws);
+
+  void AssignSet(HostWorkspace &ws);
+
   std::mt19937 rng_;
+  const bool discrete_mode_;  // mode can't change throughout lifetime of this op, due to RNG
+  std::vector<float> range_, set_;
   TensorShape<> shape_;
 };
 
