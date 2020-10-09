@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_GENERIC_REDUCE_H_
-#define DALI_OPERATORS_GENERIC_REDUCE_H_
+#ifndef DALI_OPERATORS_GENERIC_REDUCE_REDUCE_H__
+#define DALI_OPERATORS_GENERIC_REDUCE_REDUCE_H__
 
 #include <vector>
 #include <algorithm>
@@ -86,12 +86,12 @@ class ReduceCPU : public Operator<CPUBackend> {
     DALIDataType data_type = in.type().id();
 
     TYPE_SWITCH(
-      data_type, 
-      type2id, 
+      data_type,
+      type2id,
       DataType,
       REDUCE_TYPES,
-      ( RunTyped<DataType>(ws); ),
-      ( DALI_FAIL(make_string("Unsupported input type: ", data_type)); )
+      (RunTyped<DataType>(ws);),
+      (DALI_FAIL(make_string("Unsupported input type: ", data_type));)
     )
   }
 
@@ -115,18 +115,18 @@ class ReduceCPU : public Operator<CPUBackend> {
     using Kernel = ReductionType<DataType, DataType>;
     vector<Kernel> kernels(num_threads);
 
-    for (int sample = 0; sample < in_view.num_samples(); sample++) {      
+    for (int sample = 0; sample < in_view.num_samples(); sample++) {
       thread_pool.AddWork(
         [&, sample](int thread_id) {
           auto in_sample_view = in_view[sample];
           auto out_sample_view = out_view[sample];
- 
+
           kernels[thread_id].Setup(
             out_sample_view,
             in_sample_view,
             make_span(axes_));
           kernels[thread_id].Run();
-        });  
+        });
     }
     thread_pool.RunAll();
   }
@@ -152,4 +152,4 @@ class MaxCPU : public ReduceCPU<kernels::MaxCPU> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_GENERIC_REDUCE_H_
+#endif  // DALI_OPERATORS_GENERIC_REDUCE_REDUCE_H_

@@ -20,7 +20,9 @@ namespace dali {
 DALI_SCHEMA(ReduceBase)
   .AddOptionalArg(
     "axes",
-    "Axis or axes along which reduction is performed. Not providing any axis results in reduction of all elements.",
+    R"code(Axis or axes along which reduction is performed.
+
+Not providing any axis results in reduction of all elements.)code",
     std::vector<int>{ })
   .AddOptionalArg(
     "keep_dims",
