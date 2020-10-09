@@ -18,18 +18,6 @@ function version_le() { test "$(echo "$@" | tr " " "\n" | sort -V | head -n 1)" 
 function version_lt() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" != "$1"; }
 function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
 
-# None needed for now
-# # If driver version is less than 410 and CUDA version is 10, or less than 450 and 11
-# # add /usr/local/cuda/compat to LD_LIBRARY_PATH
-# ((version_ge "$CUDA_VERSION" "100" && \
-# version_le "$CUDA_VERSION" "100" && \
-# version_lt "$NVIDIA_SMI_DRIVER_VERSION" "410.0" ) ||\
-# (version_ge "$CUDA_VERSION" "110" && \
-# version_le "$CUDA_VERSION" "110" && \
-# version_lt "$NVIDIA_SMI_DRIVER_VERSION" "450.0" )) && \
-# export LD_LIBRARY_PATH="/usr/local/cuda/compat:$LD_LIBRARY_PATH"
-# echo "LD_LIBRARY_PATH is $LD_LIBRARY_PATH"
-
 enable_conda() {
     echo "Activate conda"
     # functions are not exported by default to be made available in subshells
