@@ -288,29 +288,33 @@ ARG DALI_BUILD_DIR=build_aarch64_linux
 
 WORKDIR /dali/${DALI_BUILD_DIR}
 
-CMD cmake \
-  -DWERROR=ON \
-  -DCMAKE_TOOLCHAIN_FILE:STRING="$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake" \
-  -DCMAKE_COLOR_MAKEFILE=ON \
-  -DCMAKE_INSTALL_PREFIX=./install \
-  -DARCH=aarch64-linux \
-  -DCMAKE_CUDA_COMPILER=/usr/local/cuda-10.2/bin/nvcc \
-  -DCUDA_HOST=/usr/local/cuda-10.2 \
-  -DCUDA_TARGET=/usr/local/cuda-10.2/targets/aarch64-linux \
-  -DBUILD_TEST=ON \
-  -DBUILD_BENCHMARK=OFF \
-  -DBUILD_NVTX=OFF \
-  -DBUILD_PYTHON=OFF \
-  -DBUILD_LMDB=OFF \
-  -DBUILD_JPEG_TURBO=ON \
-  -DBUILD_LIBTIFF=ON \
-  -DBUILD_LIBSND=ON \
-  -DBUILD_FFTS=ON \
-  -DBUILD_NVJPEG=OFF \
-  -DBUILD_NVJPEG2K=OFF \
-  -DBUILD_NVOF=OFF \
-  -DBUILD_NVDEC=OFF \
-  -DBUILD_NVML=OFF \
-  -DVERBOSE_LOGS=OFF \
-  ..  && \
-  make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+CMD WERROR=ON           \
+    ARCH=aarch64-linux  \
+    BUILD_TEST=ON       \
+    BUILD_BENCHMARK=OFF \
+    BUILD_NVTX=OFF      \
+    BUILD_LMDB=ON       \
+    BUILD_JPEG_TURBO=ON \
+    BUILD_LIBTIFF=ON    \
+    BUILD_LIBSND=ON     \
+    BUILD_FFTS=ON       \
+    BUILD_NVJPEG=OFF    \
+    DBUILD_NVJPEG2K=OFF \
+    BUILD_NVOF=OFF      \
+    BUILD_NVDEC=OFF     \
+    BUILD_NVML=OFF      \
+    VERBOSE_LOGS=OFF    \
+    TEST_BUNDLED_LIBS=NO\
+    WHL_PLATFORM_NAME=manylinux2014_aarch64 \
+    BUNDLE_PATH_PREFIX=aarch64-linux-gnu    \
+    EXTRA_CMAKE_OPTIONS="-DCMAKE_TOOLCHAIN_FILE:STRING=$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake \
+                        -DCMAKE_COLOR_MAKEFILE=ON                                 \
+                        -DCMAKE_CUDA_COMPILER=/usr/local/cuda-10.2/bin/nvcc       \
+                        -DCUDA_HOST=/usr/local/cuda-10.2                          \
+                        -DCUDA_TARGET=/usr/local/cuda-10.2/targets/aarch64-linux" \
+    /dali/docker/build_helper.sh                    && \
+    rm -rf /dali/${DALI_BUILD_DIR}/nvidia*          && \
+    cd /dali/dali_tf_plugin		            && \
+    bash /dali/dali_tf_plugin/make_dali_tf_sdist.sh && \
+    mv /dali_tf_sdist/*.tar.gz /wheelhouse/*        && \
+    cp -r /wheelhouse /dali/
