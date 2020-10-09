@@ -54,14 +54,19 @@ void Uniform::RunImpl(HostWorkspace &ws) {
 DALI_REGISTER_OPERATOR(Uniform, Uniform, CPU);
 
 DALI_SCHEMA(Uniform)
-  .DocStr("Produces random numbers following a uniform distribution.")//TODO DOCS
+  .DocStr(R"code(Produces random numbers following an uniform distribution.
+
+``range`` and ``set`` arguments are mutually exclusive
+  
+)code")
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("range",
-    R"code(Range of produced random numbers.)code", std::vector<float>({-1, 1}))
+    R"code(Range (``[a, b)``) of produced random numbers.)code", std::vector<float>({-1, 1}))
   .AddOptionalArg("set",
-    R"code(Range of produced random numbers.)code", std::vector<float>({}))
+    R"code(Set, to pick random numbers from.)code", std::vector<float>({}))
   .AddOptionalArg("shape",
     R"code(Shape of the samples.)code", std::vector<int>{1});
+
 
 }  // namespace dali

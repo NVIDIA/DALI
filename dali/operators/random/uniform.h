@@ -29,12 +29,13 @@ class Uniform : public Operator<CPUBackend> {
           Operator<CPUBackend>(spec),
           rng_(spec.GetArgument<int64_t>("seed")),
           discrete_mode_(spec.HasArgument("set")) {
-    DALI_ENFORCE(spec.HasArgument("range") != spec.HasArgument("set"), "asd");//TODO msg
+    DALI_ENFORCE(!(spec.HasArgument("range") && spec.HasArgument("set")),
+            "`range` and `set` arguments are mutually exclusive");
 
-    if (spec.HasArgument("range")) {
-      range_ = spec.GetRepeatedArgument<float>("range");
-    } else {
+    if (discrete_mode_) {
       set_ = spec.GetRepeatedArgument<float>("set");
+    } else {
+      range_ = spec.GetRepeatedArgument<float>("range");
     }
 
     std::vector<int> shape_arg{};

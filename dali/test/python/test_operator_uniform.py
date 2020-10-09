@@ -20,6 +20,20 @@ import scipy.stats as st
 import math
 
 
+
+def test_uniform_default():
+    pipe = dali.pipeline.Pipeline(1, 1, 0)
+    with pipe:
+        pipe.set_outputs(dali.fn.uniform(shape=[1e6]))
+    pipe.build()
+    oo = pipe.run()
+    possibly_uniform_distribution = oo[0].as_array()[0]
+    _, pv = st.kstest(rvs=possibly_uniform_distribution, cdf='uniform')
+    assert pv < 1e-8, "`possibly_uniform_distribution` is not an uniform distribution"
+    for val in possibly_uniform_distribution:
+        assert -1 <= val < 1, "Value returned from the op is outside of requested range"
+
+
 def test_uniform_continuous():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
     lo = -100
