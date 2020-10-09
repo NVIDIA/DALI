@@ -537,11 +537,12 @@ py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
 #endif
 
 void ExposeTensorList(py::module &m) {
-  py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
+  py::class_<TensorList<CPUBackend>, std::shared_ptr<TensorList<CPUBackend>>>(
+      m, "TensorListCPU", py::buffer_protocol())
     .def(py::init([](py::capsule &capsule, string layout = "") {
-            auto t = std::make_unique<TensorList<CPUBackend>>();
+            auto t = std::make_shared<TensorList<CPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
-            return t.release();
+            return t;
           }),
         "object"_a,
         "layout"_a = "",
@@ -556,14 +557,14 @@ void ExposeTensorList(py::module &m) {
     .def(py::init([](TensorList<CPUBackend> *tl, py::object layout) {
           if (!tl)
             throw py::value_error("The source object must not be null");
-          auto t = std::make_unique<TensorList<CPUBackend>>();
+          auto t = std::make_shared<TensorList<CPUBackend>>();
           t->ShareData(tl);
           if (!layout.is_none()) {
             if (!py::isinstance<py::str>(layout))
               throw py::type_error("`layout` must be a string or None");
             t->SetLayout(std::string(layout.cast<py::str>()));
           }
-          return t.release();
+          return t;
         }),
       "tl"_a,
       "layout"_a = py::none())
@@ -586,13 +587,13 @@ void ExposeTensorList(py::module &m) {
         CheckContiguousTensor(info.strides, info.shape, info.itemsize);
 
         // Create the Tensor and wrap the data
-        auto t = std::make_unique<TensorList<CPUBackend>>();
+        auto t = std::make_shared<TensorList<CPUBackend>>();
         t->set_pinned(false);
         TypeInfo type = TypeFromFormatStr(info.format);
         t->ShareData(info.ptr, bytes, type);
         t->SetLayout(layout);
         t->Resize(i_shape);
-        return t.release();
+        return t;
       }),
       "b"_a,
       "layout"_a = "",
@@ -755,11 +756,12 @@ void ExposeTensorList(py::module &m) {
       Returns the address of the first element of TensorList.
       )code");
 
-  py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
+  py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
+      m, "TensorListGPU", py::buffer_protocol())
     .def(py::init([](py::capsule &capsule, string layout = "") {
-            auto t = std::make_unique<TensorList<GPUBackend>>();
+            auto t = std::make_shared<TensorList<GPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
-            return t.release();
+            return t;
           }),
         "object"_a,
         "layout"_a = "",
@@ -774,21 +776,21 @@ void ExposeTensorList(py::module &m) {
     .def(py::init([](TensorList<GPUBackend> *tl, py::object layout) {
           if (!tl)
             throw py::value_error("The source object must not be null");
-          auto t = std::make_unique<TensorList<GPUBackend>>();
+          auto t = std::make_shared<TensorList<GPUBackend>>();
           t->ShareData(tl);
           if (!layout.is_none()) {
             if (!py::isinstance<py::str>(layout))
               throw py::type_error("`layout` must be a string or None");
             t->SetLayout(std::string(layout.cast<py::str>()));
           }
-          return t.release();
+          return t;
         }),
       "tl"_a,
       "layout"_a = py::none())
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
-          auto t = std::make_unique<TensorList<GPUBackend>>();
+          auto t = std::make_shared<TensorList<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
-          return t.release();
+          return t;
         }),
       "object"_a,
       "layout"_a = "",
@@ -810,15 +812,15 @@ void ExposeTensorList(py::module &m) {
       R"code(
       List of tensors residing in the GPU memory.
       )code")
-    .def("as_cpu", [](TensorList<GPUBackend> &t) -> TensorList<CPUBackend>* {
-          auto ret = std::make_unique<TensorList<CPUBackend>>();
+    .def("as_cpu", [](TensorList<GPUBackend> &t) {
+          auto ret = std::make_shared<TensorList<CPUBackend>>();
           ret->set_pinned(false);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
           DeviceGuard g(t.device_id());
           ret->Copy(t, s);
           us->Wait(t);
-          return ret.release();
+          return ret;
         },
       R"code(
       Returns a `TensorListCPU` object being a copy of this `TensorListGPU`.
@@ -1255,9 +1257,9 @@ PYBIND11_MODULE(backend_impl, m) {
           py::list list;
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
-              list.append(&ws.Output<CPUBackend>(i));
+              list.append(ws.OutputPtr<CPUBackend>(i));
             } else {
-              list.append(&ws.Output<GPUBackend>(i));
+              list.append(ws.OutputPtr<GPUBackend>(i));
             }
           }
           return py::cast<py::tuple>(list);
@@ -1270,9 +1272,9 @@ PYBIND11_MODULE(backend_impl, m) {
           py::list list;
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
-              list.append(&ws.Output<CPUBackend>(i));
+              list.append(ws.OutputPtr<CPUBackend>(i));
             } else {
-              list.append(&ws.Output<GPUBackend>(i));
+              list.append(ws.OutputPtr<GPUBackend>(i));
             }
           }
           return py::cast<py::tuple>(list);
