@@ -1254,30 +1254,30 @@ PYBIND11_MODULE(backend_impl, m) {
           DeviceWorkspace ws;
           p->Outputs(&ws);
 
-          py::list list;
+          py::tuple outs(ws.NumOutput());
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
-              list.append(ws.OutputPtr<CPUBackend>(i));
+              outs[i] = ws.OutputPtr<CPUBackend>(i);
             } else {
-              list.append(ws.OutputPtr<GPUBackend>(i));
+              outs[i] = ws.OutputPtr<GPUBackend>(i);
             }
           }
-          return py::cast<py::tuple>(list);
+          return outs;
         }, py::return_value_policy::take_ownership)
     .def("ShareOutputs",
         [](Pipeline *p) {
           DeviceWorkspace ws;
           p->ShareOutputs(&ws);
 
-          py::list list;
+          py::tuple outs(ws.NumOutput());
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
-              list.append(ws.OutputPtr<CPUBackend>(i));
+              outs[i] = ws.OutputPtr<CPUBackend>(i);
             } else {
-              list.append(ws.OutputPtr<GPUBackend>(i));
+              outs[i] = ws.OutputPtr<GPUBackend>(i);
             }
           }
-          return py::cast<py::tuple>(list);
+          return outs;
         }, py::return_value_policy::take_ownership)
     .def("ReleaseOutputs",
         [](Pipeline *p) {
