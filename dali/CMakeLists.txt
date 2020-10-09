@@ -31,42 +31,54 @@ set(TEST_BINARY_DIR "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 string(REPLACE ";" ":" exclude_libs "${DALI_EXCLUDES}")
 
 ################################################
-# Build libdali
+# Build DALI libraries
 ################################################
-add_subdirectory(image)
 add_subdirectory(core)
-add_subdirectory(kernels)
-add_subdirectory(pipeline)
-add_subdirectory(operators)
-add_subdirectory(util)
-add_subdirectory(plugin)
-add_subdirectory(c_api)
+
+if (BUILD_DALI_KERNELS)
+  add_subdirectory(kernels)
+endif()
+
+if (BUILD_DALI_PIPELINE)
+  add_subdirectory(pipeline)
+  add_subdirectory(image)
+  add_subdirectory(util)
+  add_subdirectory(plugin)
+  add_subdirectory(c_api)
+endif()
+
+if (BUILD_DALI_OPERATORS)
+  add_subdirectory(operators)
+endif()
 
 # Collect source files for dali
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_SRCS PARENT_SCOPE)
+if (BUILD_PROTOBUF)
+  set(DALI_PROTO_OBJ $<TARGET_OBJECTS:DALI_PROTO>)
+  add_library(dali ${LIBTYPE} ${DALI_SRCS} ${DALI_PROTO_OBJ} ${CUDART_LIB})
+  set_target_properties(dali PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
+endif()
 
-set(DALI_PROTO_OBJ $<TARGET_OBJECTS:DALI_PROTO>)
-add_library(dali SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ} ${CUDART_LIB})
-set_target_properties(dali PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
+if (BUILD_DALI_PIPELINE)
+  # Define symbol version script for libdali.so
+  set(dali_lib_exports "libdali.map")
+  configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${CMAKE_BINARY_DIR}/${dali_lib_exports}")
+  target_link_libraries(dali PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${dali_lib_exports})
 
-# Define symbol version script for libdali.so
-set(dali_lib_exports "libdali.map")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${CMAKE_BINARY_DIR}/${dali_lib_exports}")
-target_link_libraries(dali PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${dali_lib_exports})
-
-# Link in dali's dependencies
-message(STATUS "Adding dependencies to target `dali`: '${DALI_LIBS}'")
-target_link_libraries(dali PUBLIC dali_core dali_kernels)
-target_link_libraries(dali PRIVATE ${DALI_LIBS} dynlink_cuda)
-# Exclude (most) statically linked dali dependencies from the exports of libdali.so
-target_link_libraries(dali PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+  # Link in dali's dependencies
+  message(STATUS "Adding dependencies to target `dali`: '${DALI_LIBS}'")
+  target_link_libraries(dali PUBLIC dali_core dali_kernels)
+  target_link_libraries(dali PRIVATE ${DALI_LIBS} dynlink_cuda)
+  # Exclude (most) statically linked dali dependencies from the exports of libdali.so
+  target_link_libraries(dali PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+endif()
 
 ################################################
 # Build test suite
 ################################################
-if (BUILD_TEST)
+if (BUILD_DALI_PIPELINE AND BUILD_TEST)
   add_subdirectory(test)
   add_executable(dali_test "${DALI_TEST_SRCS}")
 
@@ -132,20 +144,22 @@ endif()
 
 # Copy all headers from DALI_INST_HDRS list to DALI_WHEEL_DIR using install command
 # with `-D` option, that recursively creates missing directories in destination path
-add_custom_target(install_headers ALL
-    DEPENDS dali dali_operators
-)
+if (BUILD_PYTHON)
+  add_custom_target(install_headers ALL
+      DEPENDS dali dali_operators
+      )
 
-# Process the DALI_INST_HDRS list
-foreach(INSTALL_HEADER ${DALI_INST_HDRS})
-  file(RELATIVE_PATH HEADER_RELATIVE ${PROJECT_SOURCE_DIR} ${INSTALL_HEADER})
+  # Process the DALI_INST_HDRS list
+  foreach(INSTALL_HEADER ${DALI_INST_HDRS})
+    file(RELATIVE_PATH HEADER_RELATIVE ${PROJECT_SOURCE_DIR} ${INSTALL_HEADER})
+    add_custom_command(
+      TARGET install_headers
+      COMMAND install -D "${INSTALL_HEADER}" "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/${HEADER_RELATIVE}")
+  endforeach(INSTALL_HEADER)
+
+  # Copy proper `include` dir
   add_custom_command(
     TARGET install_headers
-    COMMAND install -D "${INSTALL_HEADER}" "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/${HEADER_RELATIVE}")
-endforeach(INSTALL_HEADER)
-
-# Copy proper `include` dir
-add_custom_command(
-  TARGET install_headers
-  COMMAND cp -r "${PROJECT_SOURCE_DIR}/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}"
-)
+    COMMAND cp -r "${PROJECT_SOURCE_DIR}/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}"
+  )
+endif()

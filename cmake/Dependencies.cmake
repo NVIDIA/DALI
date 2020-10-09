@@ -83,22 +83,25 @@ include(cmake/Dependencies.common.cmake)
 # protobuf
 ##################################################################
 # link statically
-if(NOT DEFINED Protobuf_USE_STATIC_LIBS)
-set(Protobuf_USE_STATIC_LIBS YES)
-endif(NOT DEFINED Protobuf_USE_STATIC_LIBS)
-find_package(Protobuf 2.0 REQUIRED)
-if(${Protobuf_VERSION} VERSION_LESS "3.0")
-  message(STATUS "TensorFlow TFRecord file format support is not available with Protobuf 2")
-else()
-  message(STATUS "Enabling TensorFlow TFRecord file format support")
-  add_definitions(-DDALI_BUILD_PROTO3=1)
-  set(BUILD_PROTO3 ON CACHE STRING "Build proto3")
-endif()
 
-include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
-list(APPEND DALI_LIBS ${Protobuf_LIBRARY})
-# hide things from the protobuf, all we export is only is API generated from our proto files
-list(APPEND DALI_EXCLUDES libprotobuf.a)
+if (BUILD_PROTOBUF)
+  if(NOT DEFINED Protobuf_USE_STATIC_LIBS)
+    set(Protobuf_USE_STATIC_LIBS YES)
+  endif(NOT DEFINED Protobuf_USE_STATIC_LIBS)
+  find_package(Protobuf 2.0 REQUIRED)
+  if(${Protobuf_VERSION} VERSION_LESS "3.0")
+    message(STATUS "TensorFlow TFRecord file format support is not available with Protobuf 2")
+  else()
+    message(STATUS "Enabling TensorFlow TFRecord file format support")
+    add_definitions(-DDALI_BUILD_PROTO3=1)
+    set(BUILD_PROTO3 ON CACHE STRING "Build proto3")
+  endif()
+
+  include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
+  list(APPEND DALI_LIBS ${Protobuf_LIBRARY})
+  # hide things from the protobuf, all we export is only is API generated from our proto files
+  list(APPEND DALI_EXCLUDES libprotobuf.a)
+endif()
 
 set(DALI_SYSTEM_LIBS rt pthread m dl)
 list(APPEND DALI_LIBS ${CUDART_LIB} ${DALI_SYSTEM_LIBS})

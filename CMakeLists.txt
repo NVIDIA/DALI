@@ -16,6 +16,7 @@ cmake_minimum_required(VERSION 3.13)
 # allow usage of check_symbol_exists() macro
 include(CheckCXXSymbolExists)
 include(CheckCXXCompilerFlag)
+include(CMakeDependentOption)
 
 include(cmake/Utils.cmake)
 include(cmake/CUDA_utils.cmake)
@@ -34,8 +35,13 @@ check_cxx_compiler_flag(-fopenmp      CXX_HAVE_OMP)
 check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 
 # Build options
-option(BUILD_TEST "Build googletest test suite" ON)
-option(BUILD_BENCHMARK "Build benchmark suite" ON)
+option(BUILD_DALI_NODEPS "Disable components that require extra external libraries to be present in the system. Effectively, it builds only the DALI core and kernel libraries")
+
+# Tests use OpenCV...
+cmake_dependent_option(BUILD_TEST "Build googletest test suite" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_BENCHMARK "Build benchmark suite" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
 option(BUILD_FUZZING "Build fuzzing suite" OFF)
 # if BUILD_NVTX is empty remove it and let is be default
 if ("${BUILD_NVTX}" STREQUAL "")
@@ -47,10 +53,29 @@ if(${CUDA_VERSION} VERSION_GREATER_EQUAL "10.0")
 else()
   option(BUILD_NVTX "Build with NVTX profiling enabled" OFF)
 endif()
-option(BUILD_PYTHON "Build Python bindings" ON)
-option(BUILD_LMDB "Build LMDB readers" OFF)
-option(BUILD_JPEG_TURBO "Build with libjpeg-turbo support" ON)
-option(BUILD_LIBTIFF "Build with libtiff support" ON)
+
+# Third party library dependencies
+cmake_dependent_option(BUILD_PYTHON "Build Python bindings" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_LMDB "Build LMDB readers" OFF
+                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_JPEG_TURBO "Build with libjpeg-turbo support" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_LIBTIFF "Build with libtiff support" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_FFMPEG "Build with ffmpeg support" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_LIBSND "Build with suport for libsnd library" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_OPENCV "Build with suport for OpenCV library" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_PROTOBUF "Build with suport for Protobuf library" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
+option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
+
+# NVIDIA libraries
+cmake_dependent_option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON
+                       "BUILD_FFMPEG" OFF)  # NVDEC support requires FFMPEG
 option(BUILD_NVJPEG "Build with nvJPEG support" ON)
 # if BUILD_NVJPEG2K is empty remove it and let is be default
 if ("${BUILD_NVJPEG2K}" STREQUAL "")
@@ -64,19 +89,36 @@ if(${CUDA_VERSION} VERSION_GREATER_EQUAL "11.0")
 endif()
 
 option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON)
-option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON)
-option(BUILD_LIBSND "Build with suport for libsnd library" ON)
 option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON)
-option(BUILD_FFTS "Build with ffts support" ON)
-option(VERBOSE_LOGS "Adds verbose loging to DALI" OFF)
 
+# DALI modules
+# Note dali_core is always enabled
+set(BUILD_DALI_KERNELS ON)
+if (BUILD_DALI_KERNELS AND NOT BUILD_DALI_NODEPS)
+  set(BUILD_DALI_PIPELINE ON)
+  set(BUILD_DALI_OPERATORS ON)
+else()
+  set(BUILD_DALI_PIPELINE OFF)
+  set(BUILD_DALI_OPERATORS OFF)
+endif()
+
+# Experimental, only enabled for BUILD_DALI_NODEPS=ON
+cmake_dependent_option(STATIC_LIBS "Build static libraries instead of shared-object libraries" OFF
+                       "BUILD_DALI_NODEPS" OFF)
+
+option(VERBOSE_LOGS "Adds verbose loging to DALI" OFF)
 option(WERROR "Treat all warnings as errors" OFF)
 
 # ; creates a list here
 set (PYTHON_VERSIONS "3.6;3.7;3.8;3.9")
 
-# FFmpeg is required when we are using NVDEC for video reader
-set(BUILD_FFMPEG ${BUILD_NVDEC})
+if (STATIC_LIBS)
+  message (STATUS "Building static libraries")
+  set(LIBTYPE STATIC)
+else()
+  message (STATUS "Building shared-object libraries")
+  set(LIBTYPE SHARED)
+endif()
 
 propagate_option(BUILD_NVTX)
 propagate_option(BUILD_PYTHON)
@@ -91,6 +133,8 @@ propagate_option(BUILD_LIBSND)
 propagate_option(BUILD_NVML)
 propagate_option(BUILD_FFTS)
 propagate_option(BUILD_FFMPEG)
+propagate_option(BUILD_OPENCV)
+propagate_option(BUILD_PROTOBUF)
 
 get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
 
@@ -228,7 +272,16 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/lint.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Install.cmake)
 
-add_library(DALI::dali ALIAS dali)
 add_library(DALI::dali_core ALIAS dali_core)
-add_library(DALI::dali_kernels ALIAS dali_kernels)
-add_library(DALI::dali_operators ALIAS dali_operators)
+
+if (BUILD_DALI_KERNELS)
+  add_library(DALI::dali_kernels ALIAS dali_kernels)
+endif()
+
+if (BUILD_DALI_PIPELINE)
+  add_library(DALI::dali ALIAS dali)
+endif()
+
+if (BUILD_DALI_OPERATORS)
+  add_library(DALI::dali_operators ALIAS dali_operators)
+endif()

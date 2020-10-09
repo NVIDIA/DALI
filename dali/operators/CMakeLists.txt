@@ -45,7 +45,7 @@ if (BUILD_PROTO3)
   list(APPEND DALI_OPERATOR_PROTO_OBJ $<TARGET_OBJECTS:TF_PROTO>)
 endif()
 
-add_library(dali_operators SHARED ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_PROTO_OBJ})
+add_library(dali_operators ${LIBTYPE} ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_PROTO_OBJ})
 set_target_properties(dali_operators PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 target_link_libraries(dali_operators PUBLIC dali dali_kernels dali_core)

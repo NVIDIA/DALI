@@ -1,0 +1,11 @@
+cmake_minimum_required(VERSION 3.13)
+project(nodeps_test CUDA CXX)
+
+set(BUILD_DALI_NODEPS ON)
+set(STATIC_LIBS ON)
+add_subdirectory(dali)
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dali/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dali/)
+add_executable(nodeps_test main.cc)
+target_link_libraries(nodeps_test dali_core dali_kernels)

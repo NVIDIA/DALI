@@ -15,17 +15,20 @@
 ##################################################################
 # OpenCV
 ##################################################################
-# For OpenCV 3 and later, 'imdecode()' is in the imgcodecs library
-find_package(OpenCV 4.0 QUIET COMPONENTS core imgproc imgcodecs)
-if(NOT OpenCV_FOUND)
-  find_package(OpenCV 3.0 REQUIRED COMPONENTS core imgproc imgcodecs)
-endif()
+if (BUILD_OPENCV)
+  # For OpenCV 3 and later, 'imdecode()' is in the imgcodecs library
 
-message(STATUS "Found OpenCV: ${OpenCV_INCLUDE_DIRS} (found suitable version \"${OpenCV_VERSION}\", minimum required is \"3.0\")")
-include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
-list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
-message("OpenCV libraries: ${OpenCV_LIBRARIES}")
-list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a;libopencv_imgcodecs.a;liblibwebp.a;libittnotify.a;libpng.a;liblibtiff.a;liblibjasper.a;libIlmImf.a;liblibjpeg-turbo.a)
+  find_package(OpenCV 4.0 QUIET COMPONENTS core imgproc imgcodecs)
+  if(NOT OpenCV_FOUND)
+    find_package(OpenCV 3.0 REQUIRED COMPONENTS core imgproc imgcodecs)
+  endif()
+
+  message(STATUS "Found OpenCV: ${OpenCV_INCLUDE_DIRS} (found suitable version \"${OpenCV_VERSION}\", minimum required is \"3.0\")")
+  include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
+  list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
+  message("OpenCV libraries: ${OpenCV_LIBRARIES}")
+  list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a;libopencv_imgcodecs.a;liblibwebp.a;libittnotify.a;libpng.a;liblibtiff.a;liblibjasper.a;libIlmImf.a;liblibjpeg-turbo.a)
+endif()
 
 ##################################################################
 #
