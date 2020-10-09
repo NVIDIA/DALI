@@ -56,15 +56,22 @@ DALI_REGISTER_OPERATOR(Uniform, Uniform, CPU);
 DALI_SCHEMA(Uniform)
   .DocStr(R"code(Produces random numbers following an uniform distribution.
 
-``range`` and ``set`` arguments are mutually exclusive
+Both continuous and discrete uniform distributions can be defined by defining
+a continuous ``range`` or a discrete ``set`` of values, respectively.
   
 )code")
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("range",
-    R"code(Range (``[a, b)``) of produced random numbers.)code", std::vector<float>({-1, 1}))
-  .AddOptionalArg("set",
-    R"code(Set, to pick random numbers from.)code", std::vector<float>({}))
+    R"code(Range (``[a, b)``) of produced random numbers.
+
+This argument is mutually exclusive with ``values``
+)code", std::vector<float>({-1, 1}))
+  .AddOptionalArg("values",
+    R"code(The discrete set of values from which the random numbers are picked.
+
+This argument is mutually exclusive with ``range``
+)code", std::vector<float>({}))
   .AddOptionalArg("shape",
     R"code(Shape of the samples.)code", std::vector<int>{1});
 
