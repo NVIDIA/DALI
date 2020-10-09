@@ -29,8 +29,8 @@ will fail.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("num_classes", R"code(Number of all classes in the data.)code", 0)
-  .AddOptionalArg<int>("axis", R"code(On which axis place the on-hot encoding axis of `num_classes`
-size. By default it's appended as the last dimension for non-scalar inputs, for scalar inputs,
+  .AddOptionalArg<int>("axis", R"code(Dimension to place the one-hot encoding axis of `num_classes`
+size. By default it's appended as the last dimension for non-scalar inputs. For scalar inputs,
 it becomes the only dimension.)code", -1)
   .AddOptionalArg(arg_names::kDtype, R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("on_value",
@@ -59,8 +59,7 @@ TensorShape<> determine_shape(TensorShape<> in_shape, int num_classes, int axis,
   int inner_axes = in_shape.sample_dim() - axis;
   auto outer =  in_shape.first(outer_axes);
   auto inner = in_shape.last(inner_axes);
-  auto tmp = shape_cat(outer, num_classes);
-  return shape_cat(tmp, inner);
+  return shape_cat(shape_cat(outer, num_classes), inner);
 }
 
 }  // namespace
