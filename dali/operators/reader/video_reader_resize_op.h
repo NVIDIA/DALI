@@ -81,6 +81,7 @@ class VideoReaderResize : public VideoReader,
       assert(output_shape == output.shape());
       RunResize(ws, output, input);
     }
+    video_output.SetLayout("FHWC");
   }
 
   ResizeAttr resize_attr_;

@@ -129,6 +129,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   virtual void ProcessVideo(TensorList<GPUBackend> &video_output,
                             TensorList<GPUBackend> &video_batch, DeviceWorkspace &ws) {
     video_output.Copy(video_batch, ws.stream());
+    video_output.SetLayout("FHWC");
   }
 
   void ProcessAdditionalOutputs(int data_idx, SequenceWrapper &prefetched_video,
@@ -159,9 +160,6 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     PrepareAdditionalOutputs(ws);
 
     ProcessVideo(video_output, curent_batch, ws);
-
-    // set layout here as ProcessVideo may have change it via Copy or other function
-    video_output.SetLayout("FHWC");
 
     for (size_t data_idx = 0; data_idx < curent_batch.ntensor(); ++data_idx) {
       auto &prefetched_video = GetSample(data_idx);
