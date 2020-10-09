@@ -32,7 +32,7 @@ void Uniform::AssignRange(HostWorkspace &ws) {
 
 void Uniform::AssignSet(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
-  auto dist = std::uniform_int_distribution<int>(0, set_.size());
+  auto dist = std::uniform_int_distribution<int>(0, set_.size() - 1);
   for (int i = 0; i < batch_size_; ++i) {
     auto *sample_data = output[i].mutable_data<float>();
     auto sample_len = output[i].size();

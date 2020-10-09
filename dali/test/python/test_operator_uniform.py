@@ -22,24 +22,26 @@ import math
 
 def test_uniform_continuous():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
-    test_range = (-100 - 100) * np.random.random_sample(2) + 100  # 2 elems from [-100, 100] range
+    lo = -100
+    hi = 100
+    test_range = (hi - lo) * np.random.random_sample(2) + lo  # 2 elems from [-100, 100] range
+    test_range.sort()
     with pipe:
         pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[1e6]))
     pipe.build()
     oo = pipe.run()
     possibly_uniform_distribution = oo[0].as_array()[0]
-    _, pv = st.chisquare(possibly_uniform_distribution, axis=None)
+    _, pv = st.kstest(rvs=possibly_uniform_distribution, cdf='uniform')
     assert pv < 1e-8, "`possibly_uniform_distribution` is not an uniform distribution"
     for val in possibly_uniform_distribution:
         assert test_range[0] <= val < test_range[1], \
-            "Value returned from the op is outside of requested range"
+                "Value returned from the op is outside of requested range"
 
 
 def in_float_set(val, test_set):
     for t in test_set:
-        if math.isclose(val, t, rel_tol=1e-2):
+        if math.isclose(val, t, rel_tol=1e-6):
             return True
-    print(val, test_set)
     return False
 
 
@@ -51,15 +53,9 @@ def test_uniform_discreet():
     pipe.build()
     oo = pipe.run()
     possibly_uniform_distribution = oo[0].as_array()[0]
-    _, pv = st.chisquare(possibly_uniform_distribution, axis=None)
-    print(pv, test_set)
-    # if pv >1e-8:
-    #     import ipdb; ipdb.set_trace()
+    _, pv = st.kstest(rvs=possibly_uniform_distribution, cdf='uniform')
     assert pv < 1e-8, "`possibly_uniform_distribution` is not an uniform distribution"
-    # import ipdb; ipdb.set_trace()
     for val in possibly_uniform_distribution:
         assert in_float_set(val, test_set), \
             "Value returned from the op is outside of requested discrete set"
 
-if __name__ == '__main__':
-    test_uniform_continuous()
