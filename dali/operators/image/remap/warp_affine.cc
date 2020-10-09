@@ -38,7 +38,7 @@ It is equivalent to OpenCV's ``warpAffine`` operation with the ``inverse_map`` a
 analog to the ``WARP_INVERSE_MAP`` flag.)code",
       vector<float>(), true)
   .AddOptionalArg<bool>("inverse_map", "Set to ``False`` if the given transform is a "
-                        "destination to source mapping, ``True`` otherwise.", false, true)
+                        "destination to source mapping, ``True`` otherwise.", true, false)
   .AddParent("WarpAttr");
 
 DALI_REGISTER_OPERATOR(WarpAffine, WarpAffine<CPUBackend>, CPU);

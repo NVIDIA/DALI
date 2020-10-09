@@ -19,18 +19,18 @@ namespace dali {
 namespace {
 
 template <int ndims>
-__global__ void InvertTransformsK(WarpAffineParams<ndims> *output,
-                                  const WarpAffineParams<ndims> *input, int count) {
-  for (auto i = blockIdx.x * blockDim.x + threadIdx.x; i < count; i += blockDim.x * gridDim.x)
-    output[i] = input[i].invert();
+__global__ void InvertTransformsKernel(WarpAffineParams<ndims> *output,
+                                       const WarpAffineParams<ndims> *input, int count) {
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < count; i += blockDim.x * gridDim.x)
+    output[i] = input[i].inv();
 }
 
 template <int ndims>
 void InvertTransforms(WarpAffineParams<ndims> *output, const WarpAffineParams<ndims> *input,
                       int count, cudaStream_t stream) {
-  auto blocks = div_ceil(count, 512);
-  auto threads = count < 512 ? count : 512;
-  InvertTransformsK<ndims><<<blocks, threads, 0, stream>>>(output, input, count);
+  int blocks = div_ceil(count, 512);
+  int threads = std::min(count, 512);
+  InvertTransformsKernel<ndims><<<blocks, threads, 0, stream>>>(output, input, count);
 }
 
 }  // namespace
@@ -38,13 +38,13 @@ void InvertTransforms(WarpAffineParams<ndims> *output, const WarpAffineParams<nd
 
 template <>
 void InvertTransformsGPU<2>(WarpAffineParams<2> *output, const WarpAffineParams<2> *input,
-                         int count, cudaStream_t stream) {
+                            int count, cudaStream_t stream) {
   InvertTransforms<2>(output, input, count, stream);
 }
 
 template <>
 void InvertTransformsGPU<3>(WarpAffineParams<3> *output, const WarpAffineParams<3> *input,
-                         int count, cudaStream_t stream) {
+                            int count, cudaStream_t stream) {
   InvertTransforms<3>(output, input, count, stream);
 }
 

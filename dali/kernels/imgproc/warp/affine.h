@@ -34,7 +34,7 @@ struct AffineMapping {
   }
 
   DALI_HOST_DEV
-  AffineMapping invert() const {
+  AffineMapping inv() const {
     return AffineMapping<dim>(affine_mat_inv(transform));;
   }
 };

@@ -73,7 +73,8 @@ class WarpAffineParamProvider
       for (int i = 0; i < spatial_ndim; i++)
         for (int j = 0; j < spatial_ndim+1; j++, k++)
           M.transform(i, j) = matrix[k];
-      if (invert) M = M.invert();
+      if (invert)
+        M = M.inv();
       auto *params = this->AllocParams(kernels::AllocType::Host);
       for (int i = 0; i < num_samples_; i++)
         params[i] = M;
@@ -121,8 +122,7 @@ class WarpAffineParamProvider
     if (invert) {
       auto *params = this->AllocParams(kernels::AllocType::Host);
       for (int i = 0; i < num_samples_; i++) {
-        if (invert)
-          params[i] = static_cast<const MappingParams *>(input.raw_tensor(i))->invert();
+        params[i] = static_cast<const MappingParams *>(input.raw_tensor(i))->inv();
       }
     } else {
       params_cpu_.data = static_cast<const MappingParams *>(input.raw_data());
@@ -141,7 +141,7 @@ class WarpAffineParamProvider
       auto *params = this->AllocParams(kernels::AllocType::Host);
       for (int i = 0; i < num_samples_; i++) {
         if (invert)
-          params[i] = static_cast<const MappingParams *>(input[i].raw_data())->invert();
+          params[i] = static_cast<const MappingParams *>(input[i].raw_data())->inv();
         else
           params[i] = *static_cast<const MappingParams *>(input[i].raw_data());
       }

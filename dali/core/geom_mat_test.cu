@@ -431,6 +431,48 @@ TEST(MatTest, IdentityMatrix) {
   EXPECT_EQ(m3, three_by_two);
 }
 
+TEST(MatTest, SolveGauss) {
+  mat4 system_l = {{
+    {0, 1, 2, 1},
+    {1, 0, 1, 0},
+    {1, 1, 0, 1},
+    {1, 1, 1, 0}
+  }};
+  mat4x1 system_r = {{
+    {3}, {3}, {3}, {3}
+  }};
+  const mat4x1 solution = {{
+    {2}, {0}, {1}, {1}
+  }};
+  solve_gauss(system_l, system_r);
+  EXPECT_EQ(system_l, mat4::eye());
+  EXPECT_EQ(system_r, solution);
+}
+
+TEST(MatTest, Inverse) {
+  mat2 two_by_two = {{
+    {3, 5},
+    {4, 7}
+  }};
+  mat2 inv2x2 = {{
+    {7, -5},
+    {-4, 3}
+  }};
+  EXPECT_EQ(inverse(two_by_two), inv2x2);
+
+  mat3 three_by_three = {{
+    {0.5, 0.5, 0  },
+    {0.5, 0.5, 1  },
+    {0.5, 0,   0.5}
+  }};
+  mat3 inv3x3 = {{
+    { 1, -1,  2},
+    { 1,  1, -2},
+    {-1,  1,  0}
+  }};
+  EXPECT_EQ(inverse(three_by_three), inv3x3);
+}
+
 TEST(MatTest, Print) {
   mat4x3 m = {{
     { 1, 2, 3 },
