@@ -27,7 +27,7 @@
 #define REDUCE_TYPES (uint8_t, int16_t, uint16_t, int32_t, float)
 
 namespace dali {
-  
+
 template <template <typename T, typename R> class ReductionType, typename Backend>
 class Reduce : public Operator<Backend> {
  public:
@@ -73,8 +73,8 @@ class Reduce : public Operator<Backend> {
     DALIDataType data_type = in.type().id();
 
     TYPE_SWITCH(data_type, type2id, DataType, REDUCE_TYPES, (
-      RunTyped<DataType>(ws);
-    ), DALI_FAIL(make_string("Unsupported input type: ", data_type)))
+      RunTyped<DataType>(ws);),
+      DALI_FAIL(make_string("Unsupported input type: ", data_type)))
   }
 
  private:
@@ -129,7 +129,7 @@ class Reduce : public Operator<Backend> {
 
     using Kernel = ReductionType<DataType, DataType>;
     kmgr_.template Resize<Kernel>(1, 1);
-    
+
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
 
