@@ -26,28 +26,32 @@ Not providing any axis results in reduction of all elements.)code",
     std::vector<int>{ })
   .AddOptionalArg(
     "keep_dims",
-    "If True, maintains original input dimensins.",
+    "If True, maintains original input dimensions.",
     false);
 
+using SumCPU = Reduce<kernels::SumCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(Sum, SumCPU, CPU);
+
 DALI_SCHEMA(Sum)
   .DocStr("Sums input elements along provided axes.")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
 
-
+using MinCPU = Reduce<kernels::MinCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(Min, MinCPU, CPU);
+
 DALI_SCHEMA(Min)
   .DocStr("Gets minimal input element along provided axes.")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
 
-
+using MaxCPU = Reduce<kernels::MaxCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(Max, MaxCPU, CPU);
+
 DALI_SCHEMA(Max)
-  .DocStr("Gets minimal input element along provided axes.")
+  .DocStr("Gets maximal input element along provided axes.")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");

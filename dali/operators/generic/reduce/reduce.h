@@ -22,29 +22,29 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_cpu.h"
+#include "dali/kernels/reduce/reduce_setup_utils.h"
+
+#define REDUCE_TYPES (uint8_t, int16_t, uint16_t, int32_t, float)
 
 namespace dali {
-#define REDUCE_TYPES (int16_t, int32_t, float)
-
-template <template <typename T, typename R> class ReductionType>
-class ReduceCPU : public Operator<CPUBackend> {
+  
+template <template <typename T, typename R> class ReductionType, typename Backend>
+class Reduce : public Operator<Backend> {
  public:
-  explicit inline ReduceCPU(const OpSpec &spec) :
-    Operator<CPUBackend>(spec),
+  explicit inline Reduce(const OpSpec &spec) :
+    Operator<Backend>(spec),
     axes_(spec.GetRepeatedArgument<int>("axes")),
     keep_dims_(spec.GetArgument<bool>("keep_dims")) { }
 
   bool CanInferOutputs() const override { return true; }
 
-  inline ~ReduceCPU() override = default;
-
-  DISABLE_COPY_MOVE_ASSIGN(ReduceCPU);
+  inline ~Reduce() override = default;
 
  protected:
   bool SetupImpl(
-    std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override {
+    std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
-    auto &input = ws.template InputRef<CPUBackend>(0);
+    auto &input = ws.template InputRef<Backend>(0);
 
     int batch_size = input.shape().num_samples();
 
@@ -56,43 +56,25 @@ class ReduceCPU : public Operator<CPUBackend> {
       std::iota(axes_.begin(), axes_.end(), 0);
     }
 
-    for (int sample = 0; sample < batch_size; ++sample) {
-      for (int axis : axes_) {
-        output_desc[0].shape.tensor_shape_span(sample)[axis] = 1;
-      }
-    }
+    TensorListShape<> output_shape;
+    kernels::reduce_impl::CalculateReducedShape(
+      output_shape,
+      input.shape(),
+      make_span(axes_),
+      keep_dims_,
+      false);
+    output_desc[0].shape = output_shape;
 
-    if (keep_dims_ == false) {
-      vector<TensorShape<>> new_output_shape(batch_size);
-      for (int sample = 0; sample < batch_size; ++sample) {
-        TensorShape<> new_sample_shape;
-        for (auto dim : output_desc[0].shape.tensor_shape_span(sample)) {
-          if (dim != 1) {
-            new_sample_shape.shape.push_back(dim);
-          }
-        }
-        if (new_sample_shape.shape.size() == 0) {
-          new_sample_shape.shape.push_back(1);
-        }
-        new_output_shape[sample] = new_sample_shape;
-      }
-      output_desc[0].shape = new_output_shape;
-    }
     return true;
   }
 
-  void RunImpl(workspace_t<CPUBackend> &ws) override {
-    auto& in = ws.InputRef<CPUBackend>(0);
+  void RunImpl(workspace_t<Backend> &ws) override {
+    auto& in = ws.template InputRef<Backend>(0);
     DALIDataType data_type = in.type().id();
 
-    TYPE_SWITCH(
-      data_type,
-      type2id,
-      DataType,
-      REDUCE_TYPES,
-      (RunTyped<DataType>(ws);),
-      (DALI_FAIL(make_string("Unsupported input type: ", data_type));)
-    )
+    TYPE_SWITCH(data_type, type2id, DataType, REDUCE_TYPES, (
+      RunTyped<DataType>(ws);
+    ), DALI_FAIL(make_string("Unsupported input type: ", data_type)))
   }
 
  private:
@@ -100,9 +82,10 @@ class ReduceCPU : public Operator<CPUBackend> {
 
   vector<int> axes_;
   bool keep_dims_;
+  kernels::KernelManager kmgr_;
 
   template <typename DataType>
-  void RunTyped(workspace_t<CPUBackend> &ws) {
+  void RunTyped(HostWorkspace &ws) {
     auto& in = ws.InputRef<CPUBackend>(0);
     auto in_view = view<const DataType>(in);
 
@@ -113,41 +96,52 @@ class ReduceCPU : public Operator<CPUBackend> {
     int num_threads = thread_pool.size();
 
     using Kernel = ReductionType<DataType, DataType>;
-    vector<Kernel> kernels(num_threads);
+    kmgr_.template Resize<Kernel>(num_threads, num_threads);
 
     for (int sample = 0; sample < in_view.num_samples(); sample++) {
+      int priority = volume(in_view.shape.tensor_shape_span(sample));
       thread_pool.AddWork(
         [&, sample](int thread_id) {
           auto in_sample_view = in_view[sample];
           auto out_sample_view = out_view[sample];
+          kernels::KernelContext ctx;
 
-          kernels[thread_id].Setup(
+          kmgr_.Setup<Kernel>(
+            thread_id,
+            ctx,
             out_sample_view,
             in_sample_view,
-            make_span(axes_));
-          kernels[thread_id].Run();
-        });
+            make_cspan(axes_));
+          kmgr_.Run<Kernel>(thread_id, thread_id, ctx);
+        },
+        priority);
     }
     thread_pool.RunAll();
   }
-};
 
-class SumCPU : public ReduceCPU<kernels::SumCPU> {
- public:
-  explicit inline SumCPU(const OpSpec &spec) :
-    ReduceCPU<kernels::SumCPU>(spec) {}
-};
+  template <typename DataType>
+  void RunTyped(DeviceWorkspace &ws) {
+    auto& in = ws.InputRef<GPUBackend>(0);
+    auto in_view = view<const DataType>(in);
 
-class MinCPU : public ReduceCPU<kernels::MinCPU> {
- public:
-  explicit inline MinCPU(const OpSpec &spec) :
-    ReduceCPU<kernels::MinCPU>(spec) {}
-};
+    auto &out = ws.OutputRef<GPUBackend>(0);
+    auto out_view = view<DataType>(out);
 
-class MaxCPU : public ReduceCPU<kernels::MaxCPU> {
- public:
-  explicit inline MaxCPU(const OpSpec &spec) :
-    ReduceCPU<kernels::MaxCPU>(spec) {}
+    using Kernel = ReductionType<DataType, DataType>;
+    kmgr_.template Resize<Kernel>(1, 1);
+    
+    kernels::KernelContext ctx;
+    ctx.gpu.stream = ws.stream();
+
+    kmgr_.Setup<Kernel>(
+      0,
+      ctx,
+      in_view.shape,
+      make_cspan(axes_),
+      keep_dims_,
+      false);
+    kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view);
+  }
 };
 
 }  // namespace dali

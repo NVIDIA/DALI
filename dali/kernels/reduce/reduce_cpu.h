@@ -154,6 +154,14 @@ struct ReduceBaseCPU {
     self.PostSetup();
   }
 
+  KernelRequirements Setup(
+      KernelContext ctx, const OutTensorCPU<Dst, -1> &out,
+      const InTensorCPU<Src, -1> &in,
+      span<const int> axes) {
+    Setup(out, in, axes);
+    return KernelRequirements();
+  }
+
   void PostSetup() {}
 
   void Run(bool clear = true, bool postprocess = true) {
@@ -162,6 +170,10 @@ struct ReduceBaseCPU {
     ReduceAxis(clear, make_span(pos), 0, 0);
     if (postprocess)
       This().PostprocessAll();
+  }
+
+  void Run(KernelContext ctx, bool clear = true, bool postprocess = true) {
+    Run(clear, postprocess);
   }
 
   void PostprocessAll() {
@@ -197,7 +209,9 @@ struct ReduceBaseCPU {
     auto R = This().GetReduction();
     if (axis == output.dim()) {
       Dst &r = *output(pos);
-      if (clear) r = R.template neutral<Dst>();
+      if (clear) {
+        r = R.template neutral<Dst>();
+      }
       reduce_impl::reduce(r, strided_in, This().GetPreprocessor(pos), R, offset);
     } else {
       for (int64_t i = 0; i < output.shape[axis]; i++) {
@@ -224,7 +238,7 @@ struct ReduceBaseCPU {
 
   void CheckOutput() {
     if (axis_mask == (static_cast<uint64_t>(1) << ndim()) - 1) {
-      DALI_ENFORCE((output.dim() == 1 || output.dim() == input.dim()) && output.num_elements() == 1,
+      DALI_ENFORCE((output.dim() == 1 || output.dim() == 0 || output.dim() == input.dim()) && output.num_elements() == 1,
         make_string("Full reduction produces a single value (possibly keeping reduced dimensions)."
         "\nOutput shape provided: ", output.shape));
     } else {

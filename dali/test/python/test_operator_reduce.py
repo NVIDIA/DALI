@@ -12,8 +12,8 @@ class Batch1D:
 
     def __call__(self):
         return [
-            np.array([-1, -2,  -3, -4], dtype = self._data_type),
-            np.array([99,  2, -10, 10], dtype = self._data_type)]
+            np.array([ 1, 2,  3,  4], dtype = self._data_type),
+            np.array([99, 2, 10, 10], dtype = self._data_type)]
 
     def valid_axes(self):
         return [None, 0]
@@ -25,10 +25,10 @@ class Batch2D:
 
     def __call__(self):
         return [
-            np.array([[ 1, 0,  2], [ 3, 1,  4]], dtype = self._data_type),
-            np.array([[ 5, 0,  6], [ 7, 0, -8]], dtype = self._data_type),
-            np.array([[-1, 0,  2], [-3, 1,  4]], dtype = self._data_type),
-            np.array([[ 5, 0, -6], [ 7, 0,  8]], dtype = self._data_type)]
+            np.array([[ 1, 0, 2], [ 3, 1, 4]], dtype = self._data_type),
+            np.array([[ 5, 0, 6], [ 7, 0, 8]], dtype = self._data_type),
+            np.array([[ 1, 0, 2], [ 3, 1, 4]], dtype = self._data_type),
+            np.array([[ 5, 0, 6], [ 7, 0, 8]], dtype = self._data_type)]
 
     def valid_axes(self):
         return [None, 0, 1, (0, 1)]
@@ -40,8 +40,8 @@ class Batch3D:
 
     def __call__(self):
         return [
-            np.array([[[1, 0, 1],  [2, -3, 1]], [[0,  4, 1], [0, 4, 1]]], dtype = self._data_type),
-            np.array([[[5, 0, 1],  [6,  7, 1]], [[0, -8, 1], [0, 4, 1]]], dtype = self._data_type)]
+            np.array([[[1, 0, 1], [2, 3, 1]], [[0, 4, 1], [0, 4, 1]]], dtype = self._data_type),
+            np.array([[[5, 0, 1], [6, 7, 1]], [[0, 8, 1], [0, 4, 1]]], dtype = self._data_type)]
 
     def valid_axes(self):
         return [None, 0, 1, 2, (0, 1), (0, 2), (1, 2), (0, 1, 2)]
@@ -58,10 +58,9 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
 
     with pipe:
-        input = fn.external_source(
-            source = get_batch, device = 'cpu')
+        input = fn.external_source(source = get_batch)
         reduced = reduce_fn(
-            input, device = 'cpu', keep_dims = keep_dims, axes = axes)
+            input, keep_dims = keep_dims, axes = axes)
         pipe.set_outputs(reduced)
 
     pipe.build()
@@ -76,11 +75,6 @@ def run_numpy(reduce_fn, batch_fn, keep_dims, axes):
     result = []
     for sample in batch:
         sample_sum = reduce_fn(sample, keepdims = keep_dims, axis = axes)
-
-        # Numpy returns scalar value for full reduction. To match DALI, wrap it with an array
-        if type(sample_sum) != np.ndarray:
-            sample_sum = np.asarray([sample_sum])
-        
         result.append(sample_sum)
     return result
 
@@ -110,7 +104,7 @@ def test_reduce():
         (fn.max, np.max)]
 
     batch_gens = [Batch1D, Batch2D, Batch3D]
-    types = [np.float32, np.int32, np.int16]
+    types = [np.uint8, np.int16, np.uint16, np.int32, np.float32]
 
     for keep_dims in [True, False]:
         for reduce_fns in reductions:
