@@ -107,6 +107,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     size_t device_memory_padding = spec.GetArgument<Index>("device_memory_padding");
     size_t host_memory_padding = spec.GetArgument<Index>("host_memory_padding");
+    size_t device_memory_padding_jpeg2k = spec.GetArgument<Index>("device_memory_padding_jpeg2k");
+    size_t host_memory_padding_jpeg2k = spec.GetArgument<Index>("host_memory_padding_jpeg2k");
     NVJPEG_CALL(nvjpegSetDeviceMemoryPadding(device_memory_padding, handle_));
     NVJPEG_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
 
@@ -158,18 +160,21 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
 #ifdef DALI_USE_NVJPEG2K
     auto nvjpeg2k_thread_id = nvjpeg2k_thread_.GetThreadIds()[0];
-    if (device_memory_padding > 0) {
+    if (device_memory_padding_jpeg2k > 0) {
       // Adding smaller buffers that are allocated by nvjpeg2k on startup.
       // The sizes were obtained empirically.
       nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 1024);
       nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 4 * 1024);
       nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 16 * 1024);
-      nvjpeg2k_intermediate_buffer_.resize(device_memory_padding / 8);
-      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, device_memory_padding);
-      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, device_memory_padding);
+      nvjpeg2k_intermediate_buffer_.resize(device_memory_padding_jpeg2k / 8);
+      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU,
+                               device_memory_padding_jpeg2k);
+      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU,
+                               device_memory_padding_jpeg2k);
     }
-    if (host_memory_padding > 0) {
-      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::Pinned, host_memory_padding);
+    if (host_memory_padding_jpeg2k > 0) {
+      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::Pinned,
+                               host_memory_padding_jpeg2k);
     }
     nvjpeg2k_thread_.AddWork([this, device_memory_padding, host_memory_padding](int) {
       nvjpeg2k_handle_ = NvJPEG2KHandle(device_memory_padding > 0 ? &nvjpeg2k_dev_alloc_ : nullptr,
