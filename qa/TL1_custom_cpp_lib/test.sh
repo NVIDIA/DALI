@@ -1,0 +1,21 @@
+#!/bin/bash -e
+
+export THIS_PATH=`pwd`
+
+do_once() {
+  apt-get update && apt-get -y install wget
+  wget https://github.com/Kitware/CMake/releases/download/v3.18.4/cmake-3.18.4-Linux-x86_64.sh
+  bash cmake-3.18.4-Linux-x86_64.sh --skip-license --prefix=/
+  rm cmake-3.18.4-Linux-x86_64.sh
+}
+
+test_body() {
+    pushd $THIS_PATH
+    cmake -D CUDA_TARGET_ARCHS=60 .
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+    popd
+}
+
+pushd ../..
+source ./qa/test_template.sh
+popd
