@@ -299,8 +299,9 @@ CMD WERROR=ON           \
     BUILD_LIBSND=ON     \
     BUILD_FFTS=ON       \
     BUILD_NVJPEG=OFF    \
-    DBUILD_NVJPEG2K=OFF \
+    BUILD_NVJPEG2K=OFF  \
     BUILD_NVOF=OFF      \
+    BUILD_FFMPEG=OFF    \
     BUILD_NVDEC=OFF     \
     BUILD_NVML=OFF      \
     VERBOSE_LOGS=OFF    \
@@ -316,5 +317,5 @@ CMD WERROR=ON           \
     rm -rf /dali/${DALI_BUILD_DIR}/nvidia*          && \
     cd /dali/dali_tf_plugin		            && \
     bash /dali/dali_tf_plugin/make_dali_tf_sdist.sh && \
-    mv /dali_tf_sdist/*.tar.gz /wheelhouse/*        && \
+    mv /dali_tf_sdist/*.tar.gz /wheelhouse/         && \
     cp -r /wheelhouse /dali/
