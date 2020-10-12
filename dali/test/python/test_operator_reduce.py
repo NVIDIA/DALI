@@ -81,24 +81,29 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes):
     def get_batch():
         return batch_fn()
 
-    result = []
+    result_cpu = []
+    result_gpu = []
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
 
     with pipe:
         input = fn.external_source(source = get_batch)
-        reduced = reduce_fn(
+        reduced_cpu = reduce_fn(
             input, keep_dims = keep_dims, axes = axes)
-        pipe.set_outputs(reduced)
+        reduced_gpu = reduce_fn(
+            input.gpu(), keep_dims = keep_dims, axes = axes)
+        pipe.set_outputs(reduced_cpu, reduced_gpu)
 
     pipe.build()
 
     for _ in range(batch_fn.num_iter()):
         output = pipe.run()
-        reduced = output[0].as_array()
-        result.append(reduced)
+        reduced_cpu = output[0].as_array()
+        reduced_gpu = output[1].as_cpu().as_array()
+        result_cpu.append(reduced_cpu)
+        result_gpu.append(reduced_gpu)
     
-    return result
+    return result_cpu, result_gpu
 
 
 def run_numpy(reduce_fn, batch_fn, keep_dims, axes):
@@ -124,7 +129,7 @@ def run_reduce(keep_dims, reduce_fns, batch_gen, data_type):
     dali_reduce_fn, numpy_reduce_fn = reduce_fns
 
     for axes in batch_fn.valid_axes():
-        dali_res = run_dali(
+        dali_res_cpu, dali_res_gpu = run_dali(
             dali_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes)
 
         batch_fn.reset()
@@ -133,17 +138,13 @@ def run_reduce(keep_dims, reduce_fns, batch_gen, data_type):
             numpy_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes)
         
         for iteration in range(batch_fn.num_iter()):
-            compare(dali_res[iteration], np_res[iteration])
+            compare(dali_res_cpu[iteration], np_res[iteration])
+            compare(dali_res_gpu[iteration], np_res[iteration])
 
 
 def test_reduce():
-    reductions = [
-        (fn.sum, np.sum),
-        (fn.min, np.min),
-        (fn.max, np.max)]
-
+    reductions = [(fn.sum, np.sum), (fn.min, np.min), (fn.max, np.max)]
     batch_gens = [Batch1D, Batch2D, Batch3D]
-
     types = [np.uint8, np.int16, np.uint16, np.int32, np.float32]
 
     for keep_dims in [True, False]:

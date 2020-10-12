@@ -109,6 +109,186 @@ extern template class SumGPU<float, int32_t>;
 
 extern template class SumGPU<float, float>;
 
+extern template class SumGPU<int32_t, int32_t>;
+extern template class SumGPU<int16_t, int16_t>;
+extern template class SumGPU<uint16_t, uint16_t>;
+extern template class SumGPU<uint8_t, uint8_t>;
+
+
+/**
+ * @brief Calculates the min of elements in the tensor(s) along given axes
+ *
+ * @details
+ * The reduction can be described by the following algorithm:
+ *
+ * ```
+ * function reduce(out, in, dim, in_coords, out_coords, in_size, axes)
+ *   if dim == number_of_dimensions(in) - 1
+ *     if in_size[dim] == 0:
+ *       out[out_coords] = neutral_element
+ *     else
+ *       out[out_coords] = reduce(out[out_coords], in[in_coords])
+ *   else
+ *     for i = 0 to in_size[dim]
+ *       if axes contains dim
+ *         out_coords[dim] = 0
+ *       else
+ *         out_coords[dim] = i
+ *       reduce(out, in, dim + 1, in_coords, out_coords, in_size, axes)
+ * ```
+ *
+ * If batch reduction is requested, the corresponding elements of the output tensors
+ * (calculated as in the algorithm above) are also reduced and the output batch contains
+ * just one tensor.
+ *
+ * For batch reduction to be possible, non-reduced extents of all samples must be equal.
+ */
+template <typename Out, typename In>
+class DLL_PUBLIC MinGPU {
+ public:
+  MinGPU();
+  ~MinGPU();
+
+  /**
+   * @brief Sets up the reduction
+   *
+   * Sets up the reduction according to the parameters. The indices of dimensions to be reduced
+   * are provided in `axes` parameter.
+   * For a successful batch reduction, the reduced shape of all samples must be equal (but the
+   * input may have non-uniform shape, as long as the non-uniform dimensions are reduced).
+   *
+   * @param ctx          the execution environment
+   * @param in_shape     shape of the input tensor list
+   * @param axes         indices of axes to reduce along
+   * @param keep_dims    if true, the reduced dimensions are kept in the output shape, with the
+   *                     extent of 1
+   * @param reduce_batch if true, reduces respective output values of all samples in the batch
+   *                     and outputs a single tensor
+   */
+  KernelRequirements Setup(KernelContext &ctx,
+                           const TensorListShape<> &in_shape,
+                           span<const int> axes, bool keep_dims, bool reduce_batch);
+
+  /**
+   * @brief Performs the reduction, according to the parameters specified in Setup.
+   */
+  void Run(KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in);
+
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+extern template class MinGPU<uint64_t, uint8_t>;
+extern template class MinGPU<float, uint8_t>;
+extern template class MinGPU<int64_t, int8_t>;
+extern template class MinGPU<float, int8_t>;
+
+extern template class MinGPU<uint64_t, uint16_t>;
+extern template class MinGPU<float, uint16_t>;
+extern template class MinGPU<int64_t, int16_t>;
+extern template class MinGPU<float, int16_t>;
+
+extern template class MinGPU<uint64_t, uint32_t>;
+extern template class MinGPU<float, uint32_t>;
+extern template class MinGPU<int64_t, int32_t>;
+extern template class MinGPU<float, int32_t>;
+
+extern template class MinGPU<float, float>;
+
+extern template class MinGPU<int32_t, int32_t>;
+extern template class MinGPU<int16_t, int16_t>;
+extern template class MinGPU<uint16_t, uint16_t>;
+extern template class MinGPU<uint8_t, uint8_t>;
+
+
+/**
+ * @brief Calculates the max of elements in the tensor(s) along given axes
+ *
+ * @details
+ * The reduction can be described by the following algorithm:
+ *
+ * ```
+ * function reduce(out, in, dim, in_coords, out_coords, in_size, axes)
+ *   if dim == number_of_dimensions(in) - 1
+ *     if in_size[dim] == 0:
+ *       out[out_coords] = neutral_element
+ *     else
+ *       out[out_coords] = reduce(out[out_coords], in[in_coords])
+ *   else
+ *     for i = 0 to in_size[dim]
+ *       if axes contains dim
+ *         out_coords[dim] = 0
+ *       else
+ *         out_coords[dim] = i
+ *       reduce(out, in, dim + 1, in_coords, out_coords, in_size, axes)
+ * ```
+ *
+ * If batch reduction is requested, the corresponding elements of the output tensors
+ * (calculated as in the algorithm above) are also reduced and the output batch contains
+ * just one tensor.
+ *
+ * For batch reduction to be possible, non-reduced extents of all samples must be equal.
+ */
+template <typename Out, typename In>
+class DLL_PUBLIC MaxGPU {
+ public:
+  MaxGPU();
+  ~MaxGPU();
+
+  /**
+   * @brief Sets up the reduction
+   *
+   * Sets up the reduction according to the parameters. The indices of dimensions to be reduced
+   * are provided in `axes` parameter.
+   * For a successful batch reduction, the reduced shape of all samples must be equal (but the
+   * input may have non-uniform shape, as long as the non-uniform dimensions are reduced).
+   *
+   * @param ctx          the execution environment
+   * @param in_shape     shape of the input tensor list
+   * @param axes         indices of axes to reduce along
+   * @param keep_dims    if true, the reduced dimensions are kept in the output shape, with the
+   *                     extent of 1
+   * @param reduce_batch if true, reduces respective output values of all samples in the batch
+   *                     and outputs a single tensor
+   */
+  KernelRequirements Setup(KernelContext &ctx,
+                           const TensorListShape<> &in_shape,
+                           span<const int> axes, bool keep_dims, bool reduce_batch);
+
+  /**
+   * @brief Performs the reduction, according to the parameters specified in Setup.
+   */
+  void Run(KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in);
+
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+extern template class MaxGPU<uint64_t, uint8_t>;
+extern template class MaxGPU<float, uint8_t>;
+extern template class MaxGPU<int64_t, int8_t>;
+extern template class MaxGPU<float, int8_t>;
+
+extern template class MaxGPU<uint64_t, uint16_t>;
+extern template class MaxGPU<float, uint16_t>;
+extern template class MaxGPU<int64_t, int16_t>;
+extern template class MaxGPU<float, int16_t>;
+
+extern template class MaxGPU<uint64_t, uint32_t>;
+extern template class MaxGPU<float, uint32_t>;
+extern template class MaxGPU<int64_t, int32_t>;
+extern template class MaxGPU<float, int32_t>;
+
+extern template class MaxGPU<float, float>;
+
+extern template class MaxGPU<int32_t, int32_t>;
+extern template class MaxGPU<int16_t, int16_t>;
+extern template class MaxGPU<uint16_t, uint16_t>;
+extern template class MaxGPU<uint8_t, uint8_t>;
+
+
 /**
  * @brief Calculates the mean of elements in the tensor(s) along given axes
  *

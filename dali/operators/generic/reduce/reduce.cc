@@ -50,9 +50,18 @@ DALI_SCHEMA(Max)
 using SumCPU = Reduce<kernels::SumCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(Sum, SumCPU, CPU);
 
+using SumGPU = Reduce<kernels::SumGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(Sum, SumGPU, GPU);
+
 using MinCPU = Reduce<kernels::MinCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(Min, MinCPU, CPU);
 
+using MinGPU = Reduce<kernels::MinGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(Min, MinGPU, GPU);
+
 using MaxCPU = Reduce<kernels::MaxCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(Max, MaxCPU, CPU);
+
+using MaxGPU = Reduce<kernels::MaxGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(Max, MaxGPU, GPU);
 }  // namespace dali

@@ -22,6 +22,7 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_cpu.h"
+#include "dali/kernels/reduce/reduce_gpu.h"
 #include "dali/kernels/reduce/reduce_setup_utils.h"
 
 #define REDUCE_TYPES (uint8_t, int16_t, uint16_t, int32_t, float)
