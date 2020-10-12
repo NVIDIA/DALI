@@ -9,3 +9,4 @@ General
    multigpu.ipynb
    erase.ipynb
    normalize.ipynb
+   tensor_join.ipynb

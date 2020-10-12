@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include <cassert>
+#include <string>
 #include <utility>
+#include <vector>
 #include "dali/core/format.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
@@ -23,13 +25,44 @@
 
 namespace dali {
 
+DALI_SCHEMA(Cat)
+  .DocStr(R"(Joins the input tensors along an existing axis.
+
+The shapes of the inputs must match in all dimensions except the concatenation axis.)")
+  .AddOptionalArg<int>("axis", "Axis along which the input tensors are concatenated.", 0, false)
+  .AddOptionalArg<string>("axis_name", R"(Name of the axis along which the tensors are concatenated.
+
+This argument is mutually exclusive with ``axis``.
+This argument requires that at least one input has a non-empty layout and that all non-empty
+input layouts match.)", nullptr, false)
+  .NumInput(1, 999)
+  .NumOutput(1);
+
+DALI_SCHEMA(Stack)
+  .DocStr(R"(Joins the input tensors along a new axis.
+
+The shapes of respective tensors in the inputs must match.)")
+  .AddOptionalArg<int>("axis", R"(The axis in the output tensor along which the inputs are stacked.
+
+The axis is inserted before a corresponding axis in the inputs. A value of 0 indicates that whole
+tensors are stacked. Speicfying ``axis`` equal to the number of dimensions in the inputs causes
+the values from the inputs to be interleaved)", 0, false)
+  .AddOptionalArg<string>("axis_name", R"(Name of the new axis to be inserted.
+
+A one-character that will denot the new axis in the output layout. The output layout will be
+constructed by inserting that character into the input layout at position indicated by ``axis``.
+For example, specifying ``axis = 0`` and ``axis_name = "C"`` with input layout "HW" will yield
+the output layout "CHW")", nullptr, false)
+  .NumInput(1, 999)
+  .NumOutput(1);
+
 #define TENSOR_JOIN_TYPES (bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, \
                           uint64_t, int64_t, float16, float, double)
 
 template <typename Backend, bool new_axis>
 bool TensorJoin<Backend, new_axis>::SetupImpl(
         vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) {
-  int njoin = ws.NumRegularInput();
+  int njoin = this->spec_.NumRegularInput();
   outputs.resize(1);
   outputs[0].type = ws.template InputRef<Backend>(0).type();
   auto &output_shape = outputs[0].shape;
@@ -43,13 +76,15 @@ bool TensorJoin<Backend, new_axis>::SetupImpl(
         "\nType of input #", i, ": ", type_id));
   }
 
-  // Get the join axis index
-  axis_ = this->spec_.template GetArgument<int>("axis");
+  GetInputLayout(ws);
+  SetupAxis();
+  SetOutputLayout(ws);
 
   // Run ove inputs and store them in a vector
   TYPE_SWITCH(out_type, type2id, T, TENSOR_JOIN_TYPES, (
     SetupTyped<T>(output_shape, ws);
   ), (DALI_FAIL(make_string("The element type ", out_type, " is not supported."))));  // NOLINT
+  return true;
 }
 
 template <typename Backend, bool new_axis>
@@ -58,41 +93,101 @@ void TensorJoin<Backend, new_axis>::SetupTyped(
       TensorListShape<> &output_shape, const workspace_t<Backend> &ws) {
   auto &inputs = this->template inputs<T>();
   inputs.clear();
-  int njoin = ws.NumRegularInput();
-  for (int i = 0; i < njoin; i++) {
+  int ninp = this->spec_.NumRegularInput();
+
+  copy_idx_ = 0;
+  for (int i = 0; i < ninp; i++) {
     auto tlv = view<T>(ws.template InputRef<Backend>(i));
-    if (tlv.num_elements() > 0) {
+    if (new_axis || tlv.num_elements() > 0) {  // when concatenating, we can skip empty inputs
+      if (inputs.empty())
+        copy_idx_ = i;
+      else
+        copy_idx_ = -1;
       inputs.push_back(std::move(tlv));
     }
   }
 
-  JoinedShape(output_shape, [&](int index) {
+  // No non-empty inputs? Use the first one, even if it's empty.
+  if (inputs.empty()) {
+    inputs.push_back(view<T>(ws.template InputRef<Backend>(0)));
+  }
+
+  kernels::tensor_join::JoinedShape(output_shape, [&](int index) {
     return &inputs[index].shape;
-  }, axis_);
+  }, inputs.size(), axis_, new_axis);
   DALI_ENFORCE(axis_ < output_shape.sample_dim(), make_string("Invalid axis index: ", axis_));
 }
 
 template <typename Backend, bool new_axis>
-TensorLayout TensorJoin<Backend, new_axis>::GetLayout(const workspace_t<Backend> &ws) {
-  if (new_axis)
-    return {};
-  int njoin = ws.NumRegularInput();
-  for (int i = 0; i < njoin; i++) {
-    auto &in = ws.template InputRef<Backend>(0).GetLayout();
+void TensorJoin<Backend, new_axis>::GetInputLayout(const workspace_t<Backend> &ws) {
+  input_layout_ = {};
+  if (new_axis && !has_axis_name_)
+    return;
+
+  int ninp = this->spec_.NumRegularInput();
+  for (int i = 0; i < ninp; i++) {
+    auto &in = ws.template InputRef<Backend>(0);
     TensorLayout tl = in.GetLayout();
-    if (!tl.empty())
-        return tl;
+    if (!tl.empty()) {
+        if (!input_layout_.empty())
+          DALI_ENFORCE(input_layout_ == tl, make_string("All non-empty input layouts must match.\n"
+            "Offending values: \"", input_layout_, "\" and \"", tl, "\""));
+
+        input_layout_ = tl;
+    }
   }
-  return {};
 }
 
+template <typename Backend, bool new_axis>
+void TensorJoin<Backend, new_axis>::SetOutputLayout(const workspace_t<Backend> &ws) {
+  if (new_axis) {
+    output_layout_ = {};
+    if (has_axis_name_) {
+      if (input_layout_.empty() && ws.template InputRef<Backend>(0).shape().sample_dim() > 0) {
+        DALI_FAIL("Specifying the new axis name with ``axis_name`` with non-scalar input requires "
+            "a non-empty input layout.");
+      }
+      output_layout_ =
+          input_layout_.first(axis_) +
+          TensorLayout(&axis_name_arg_, 1) +
+          input_layout_.sub(axis_);
+    }
+  } else {
+    output_layout_ = input_layout_;
+  }
+}
+
+template <typename Backend, bool new_axis>
+void TensorJoin<Backend, new_axis>::SetupAxis() {
+  // axis_name indicates the join axis for concatenation only;
+  // for stacking, it's the name of the new axiis
+  if (has_axis_name_ && !new_axis) {
+    axis_ = input_layout_.find(axis_name_arg_);
+    DALI_ENFORCE(axis_ >= 0, make_string("``axis_name`` specifies an undefined axis '",
+      axis_name_arg_, "' for layout \"", input_layout_, "\""));
+  } else {
+    axis_ = axis_arg_;  // this will be validated by the Setup routine
+  }
+}
 
 template <typename Backend, bool new_axis>
 void TensorJoin<Backend, new_axis>::RunImpl(workspace_t<Backend> &ws) {
   auto &out = ws.template OutputRef<Backend>(0);
-  out.SetLayout(GetLayout(ws));
+  if (copy_idx_ >= 0) {
+    // just one non-empty input - copy it to the output and return
+    TensorListShape<> shape;
+    if (new_axis)
+      shape = out.shape();
+    out.Copy(ws.template InputRef<Backend>(copy_idx_), ws.has_stream() ? ws.stream() : 0);
+    if (new_axis)
+      out.Resize(shape);
+    out.SetLayout(output_layout_);
+    return;
+  }
+
+  out.SetLayout(output_layout_);
   TYPE_SWITCH(out.type().id(), type2id, T, TENSOR_JOIN_TYPES, (
-    RunTyped(view<T>(out, ws));
+    RunTyped(view<T>(out), ws);
   ), (DALI_FAIL("Internal error: unsupported type reached RunImpl function")));  // NOLINT
 }
 
@@ -110,22 +205,24 @@ void TensorJoin<Backend, new_axis>::RunTyped(
 
   int N = out.num_samples();
   int njoin = inputs.size();
+
   in_tensors.resize(num_threads * njoin);
   in_shapes.resize(num_threads * njoin);
 
   for (int i = 0; i < N; i++) {
     tp.AddWork([&, i](int tid) {
       kernels::KernelContext ctx;
-      auto sample_in_tensors = make_cspan(&in_tensors[tid * njoin], njoin);
-      auto sample_in_shapes = make_cspan(&in_shapes[tid * njoin], njoin);
+      auto sample_in_tensors = make_span(&in_tensors[tid * njoin], njoin);
+      auto sample_in_shapes = make_span(&in_shapes[tid * njoin], njoin);
       for (int t = 0; t < njoin; t++) {
         sample_in_tensors[t] = inputs[t][i];
         sample_in_shapes[t] = sample_in_tensors[t].shape;
       }
-      kmgr_.Setup<Kernel>(ctx, sample_in_shapes, axis_);
-      kmgr_.Run<Kernel>(ctx, out[i], sample_in_tensors);
-    }, volume(out.tensor_shape_span[i]));
+      kmgr_.Setup<Kernel>(tid, ctx, sample_in_shapes, axis_);
+      kmgr_.Run<Kernel>(tid, tid, ctx, out[i], sample_in_tensors);
+    }, volume(out.tensor_shape_span(i)));
   }
+  tp.RunAll(true);
 }
 
 template <typename Backend, bool new_axis>
@@ -138,10 +235,20 @@ void TensorJoin<Backend, new_axis>::RunTyped(
 
   auto &inputs = this->template inputs<T>();
 
-  kmgr_.Resize<Kernel>(1);
-  kmgr_.Setup(ctx, make_span(inputs), axis_);
-  kmgr_.Run(ctx, out, make_span(inputs));
+  kmgr_.Resize<Kernel>(1, 1);
+  kmgr_.Setup<Kernel>(0, ctx, make_cspan(inputs), axis_);
+  kmgr_.Run<Kernel>(0, 0, ctx, out, make_cspan(inputs));
 }
 
+template <typename Backend>
+using ConcatOp = TensorJoin<Backend, false>;
+
+template <typename Backend>
+using StackOp = TensorJoin<Backend, true>;
+
+DALI_REGISTER_OPERATOR(Cat, ConcatOp<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(Cat, ConcatOp<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(Stack, StackOp<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(Stack, StackOp<GPUBackend>, GPU);
 
 }  // namespace dali
