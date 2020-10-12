@@ -70,6 +70,7 @@ option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
 # NVIDIA libraries
 cmake_dependent_option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)  # Video support requires ffmpeg as well
+set(BUILD_FFMPEG ${BUILD_NVDEC})
 
 option(BUILD_NVJPEG "Build with nvJPEG support" ON)
 # if BUILD_NVJPEG2K is empty remove it and let is be default
@@ -87,11 +88,9 @@ option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON)
 option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON)
 
 if (BUILD_DALI_NODEPS)
-  set(BUILD_FFMPEG OFF)
   set(BUILD_OPENCV OFF)
   set(BUILD_PROTOBUF OFF)
 else()
-  set(BUILD_FFMPEG ON)
   set(BUILD_OPENCV ON)
   set(BUILD_PROTOBUF ON)
 endif()
