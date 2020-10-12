@@ -29,9 +29,9 @@ Adds a new axis or converts scalar input into an axis of ``num_classes`` element
 For given input coordinate ``(x0, x1, ..., xn)``, and ``axis = k``, the output sample is specified as::
 
   cls = input[x0, x1, ..., xn]
-  output[x0, x1, ..., xk-1, xk, xk+1, ..., xn] = on_value if xk == cls else off_value
+  output[x0, x1, ..., xk-1, i, xk, ..., xn] = on_value if i == cls else off_value
 
-for all ``xk`` in range ``[0, num_classes)``.
+for all ``i`` in range ``[0, num_classes)``.
 
 For scalars, the output is set to ``on_value`` at the index taken from ``input`` and
 ``off_value`` elsewhere::
