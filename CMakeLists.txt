@@ -63,15 +63,14 @@ cmake_dependent_option(BUILD_JPEG_TURBO "Build with libjpeg-turbo support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_LIBTIFF "Build with libtiff support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
-cmake_dependent_option(BUILD_FFMPEG "Build with ffmpeg support" ON
-                       "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_LIBSND "Build with suport for libsnd library" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
 
 # NVIDIA libraries
 cmake_dependent_option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON
-                       "BUILD_FFMPEG" OFF)  # NVDEC support requires FFMPEG
+                       "NOT BUILD_DALI_NODEPS" OFF)  # Video support requires ffmpeg as well
+
 option(BUILD_NVJPEG "Build with nvJPEG support" ON)
 # if BUILD_NVJPEG2K is empty remove it and let is be default
 if ("${BUILD_NVJPEG2K}" STREQUAL "")
@@ -88,11 +87,13 @@ option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON)
 option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON)
 
 if (BUILD_DALI_NODEPS)
-  set (BUILD_OPENCV OFF)
-  set (BUILD_PROTOBUF OFF)
+  set(BUILD_FFMPEG OFF)
+  set(BUILD_OPENCV OFF)
+  set(BUILD_PROTOBUF OFF)
 else()
-  set (BUILD_OPENCV ON)
-  set (BUILD_PROTOBUF ON)
+  set(BUILD_FFMPEG ON)
+  set(BUILD_OPENCV ON)
+  set(BUILD_PROTOBUF ON)
 endif()
 
 # DALI modules
@@ -129,7 +130,6 @@ propagate_option(BUILD_PYTHON)
 propagate_option(BUILD_LMDB)
 propagate_option(BUILD_JPEG_TURBO)
 propagate_option(BUILD_LIBTIFF)
-propagate_option(BUILD_FFMPEG)
 propagate_option(BUILD_LIBSND)
 propagate_option(BUILD_FFTS)
 propagate_option(BUILD_NVJPEG)

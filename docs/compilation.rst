@@ -332,7 +332,6 @@ Optional CMake build parameters
 -  ``BUILD_NVTX`` - build with NVTX profiling enabled (default: OFF)
 -  ``BUILD_NVJPEG`` - build with ``nvJPEG`` support (default: ON)
 -  ``BUILD_LIBTIFF`` - build with ``libtiff`` support (default: ON)
--  ``BUILD_FFMPEG`` - build with ``ffmpeg`` support (default: ON)
 -  ``BUILD_FFTS`` - build with ``ffts`` support (default: ON)
 -  ``BUILD_LIBSND`` - build with libsnd support (default: ON)
 -  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
