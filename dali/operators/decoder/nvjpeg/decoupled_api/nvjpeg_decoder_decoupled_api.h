@@ -113,7 +113,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     NVJPEG_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
 
     nvjpegDevAllocator_t *device_allocator_ptr = &device_allocator_;
-    nvjpegPinnedAllocator_t *pinned_allocator_ptr = &pinned_allocator_ ;
+    nvjpegPinnedAllocator_t *pinned_allocator_ptr = &pinned_allocator_;
 
     nvjpeg_memory::SetEnableMemStats(spec.GetArgument<bool>("memory_stats"));
 
@@ -174,7 +174,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::Pinned,
                                host_memory_padding_jpeg2k);
     }
-    nvjpeg2k_thread_.AddWork([this, device_memory_padding_jpeg2k, host_memory_padding_jpeg2k](int) {
+    nvjpeg2k_thread_.AddWork([this](int) {
       nvjpeg2k_handle_ = NvJPEG2KHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
 
       nvjpeg2k_decoder_ = NvJPEG2KDecodeState(nvjpeg2k_handle_);

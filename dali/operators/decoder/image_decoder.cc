@@ -61,8 +61,8 @@ The padding for nvJPEG2k's device memory allocations, in bytes. This parameter h
 reallocation in nvJPEG2k when a larger image is encountered, and the internal buffer needs to be
 reallocated to decode the image.
 
-If a value greater than 0 is provided, the operator preallocates one device buffer of the
-requested size per thread. If the value is correctly selected, no additional allocations
+If a value greater than 0 is provided, the operator preallocates the necessary number of buffers
+according to the hint provided. If the value is correctly selected, no additional allocations
 will occur during the pipeline execution. One way to find the ideal value is to do a complete
 run over the dataset with the ``memory_stats`` argument set to True and then copy the largest
 allocation value that was printed in the statistics.)code",
@@ -87,8 +87,8 @@ The padding for nvJPEG2k's host memory allocations, in bytes. This parameter hel
 the reallocation in nvJPEG2k when a larger image is encountered, and the internal buffer needs
 to be reallocated to decode the image.
 
-If a value greater than 0 is provided, the operator preallocates two (because of double-buffering)
-host-pinned buffers of the requested size per thread. If selected correctly, no additional
+If a value greater than 0 is provided, the operator preallocates the necessary number of buffers
+according to the hint provided. If the value is correctly selected, no additional
 allocations will occur during the pipeline execution. One way to find the ideal value is to
 do a complete run over the dataset with the ``memory_stats`` argument set to True, and then copy
 the largest allocation value that is printed in the statistics.)code",
