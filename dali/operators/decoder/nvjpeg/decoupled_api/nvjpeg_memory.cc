@@ -123,11 +123,10 @@ unique_ptr_t Allocate(std::thread::id thread_id, AllocType alloc_type, size_t si
 
 void* GetBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
   std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
-  auto it = buffer_pool_.find(thread_id);
-  assert(it != buffer_pool_.end());
+  auto &buffer_set = buffer_pool_[thread_id];
   lock.unlock();
 
-  auto &buffers = it->second[static_cast<size_t>(alloc_type)];
+  auto &buffers = buffer_set[static_cast<size_t>(alloc_type)];
   auto best_fit = buffers.end();
   auto smallest = buffers.end();
   for (auto it = buffers.begin(); it != buffers.end(); ++it) {
@@ -161,10 +160,9 @@ static int ReturnBufferToPool(void *raw_ptr) {
   info_lock.unlock();
   std::unique_ptr<char, Deleter> ptr(reinterpret_cast<char*>(raw_ptr), Deleter(info.alloc_type));
   std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
-  auto it = buffer_pool_.find(info.thread_id);
-  assert(it != buffer_pool_.end());
+  auto &buffer_set = buffer_pool_[info.thread_id];
   lock.unlock();
-  auto &buffers = it->second[static_cast<size_t>(info.alloc_type)];
+  auto &buffers = buffer_set[static_cast<size_t>(info.alloc_type)];
   buffers.emplace_back(std::move(ptr), info.alloc_type, info.size);
   return 0;
 }
@@ -182,7 +180,10 @@ void AddBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
 void DeleteAllBuffers(std::thread::id thread_id) {
   std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
   auto it = buffer_pool_.find(thread_id);
-  assert(it != buffer_pool_.end());
+  // if no buffer have been preallocated
+  if (it == buffer_pool_.end()) {
+    return;
+  }
   lock.unlock();
   auto &buffers = it->second;
   for (auto &buffer : buffers)
