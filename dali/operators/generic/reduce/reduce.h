@@ -99,7 +99,7 @@ class Reduce : public Operator<Backend> {
     kmgr_.template Resize<Kernel>(num_threads, num_threads);
 
     for (int sample = 0; sample < in_view.num_samples(); sample++) {
-      int priority = volume(in_view.shape.tensor_shape_span(sample));
+      int64_t priority = volume(in_view.shape.tensor_shape_span(sample));
       thread_pool.AddWork(
         [&, sample](int thread_id) {
           auto in_sample_view = in_view[sample];
