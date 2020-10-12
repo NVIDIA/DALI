@@ -332,14 +332,35 @@ Optional CMake build parameters
 -  ``BUILD_NVTX`` - build with NVTX profiling enabled (default: OFF)
 -  ``BUILD_NVJPEG`` - build with ``nvJPEG`` support (default: ON)
 -  ``BUILD_LIBTIFF`` - build with ``libtiff`` support (default: ON)
+-  ``BUILD_FFMPEG`` - build with ``ffmpeg`` support (default: ON)
+-  ``BUILD_OPENCV`` - build with ``OpenCV`` support (default: ON)
+
+.. warning::
+
+  Disabling ``OpenCV`` support is not recommended, and doing so will result in only the most basic parts of DALI to
+  compile (C++ core and kernels libraries). To build only core and kernels libraries, use ``BUILD_DALI_NODEPS`` instead.
+
+-  ``BUILD_PROTOBUF`` - build with ``protobuf`` support (default: ON)
+
+.. warning::
+
+  Disabling ``protobuf`` support is not recommended, and doing so will result in only the most basic parts of DALI to
+  compile (C++ core and kernels libraries). To build only core and kernels libraries, use ``BUILD_DALI_NODEPS`` instead.
+
+-  ``BUILD_FFTS`` - build with ``ffts`` support (default: ON)
+-  ``BUILD_LIBSND`` - build with libsnd support (default: ON)
 -  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
 -  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
--  ``BUILD_LIBSND`` - build with libsnd support (default: ON)
 -  ``BUILD_NVML`` - build with ``NVIDIA Management Library`` (``NVML``) support (default: ON)
--  ``BUILD_FFTS`` - build with ``ffts`` support (default: ON)
 -  ``VERBOSE_LOGS`` - enables verbose loging in DALI. (default: OFF)
 -  ``WERROR`` - treat all build warnings as errors (default: OFF)
 -  ``BUILD_WITH_ASAN`` - build with ASAN support (default: OFF). To run issue:
+-  ``BUILD_DALI_NODEPS`` - disables support for third party libraries that are normally expected to be available in the system
+
+.. warning::
+
+  Enabling this option effectively results in only the most basic parts of DALI to compile (C++ core and kernels libraries).
+  It is useful when wanting to use DALI processing primitives (kernels) directly without the need to use DALI's executor infrastructure.
 
 .. code-block:: bash
 
