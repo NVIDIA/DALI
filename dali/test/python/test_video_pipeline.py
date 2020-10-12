@@ -82,7 +82,8 @@ def test_simple_videopipeline():
     pipe.build()
     for i in range(ITER):
         print("Iter " + str(i))
-        _ = pipe.run()
+        out = pipe.run()
+        assert(out[0].layout() == "FHWC")
     del pipe
 
 def test_wrong_length_sequence_videopipeline():
