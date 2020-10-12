@@ -1055,7 +1055,7 @@ class CachedPipeline(Pipeline):
                                             cache_batch_copy=is_cached_batch_copy)
         else:
             # hw_decoder_load=0.0 for deterministic results
-            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB, hw_decoder_load = 0.0)  
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB, hw_decoder_load = 0.0)
     def define_graph(self):
         if self.reader_type == "TFRecordReader":
             inputs = self.input()
@@ -1696,3 +1696,14 @@ def test_epoch_size():
     assert(pipe.epoch_size("caffe2_reader") != 0)
     assert(pipe.epoch_size("file_reader") != 0)
     assert(len(pipe.epoch_size()) == 4)
+
+def test_pipeline_out_of_scope():
+    def get_output():
+        pipe = dali.pipeline.Pipeline(1, 1, 0)
+        with pipe:
+            pipe.set_outputs(dali.fn.external_source(source=[[np.array([-0.5, 1.25])]]))
+        pipe.build()
+        return pipe.run()
+    out = get_output()[0].at(0)
+    assert out[0] == -0.5 and out[1] == 1.25
+
