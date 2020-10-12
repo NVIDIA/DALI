@@ -34,11 +34,8 @@ void DoOneHot(kernels::OutTensorCPU<Out, DynamicDimensions> output,
               same_as_t<Out> on_value, same_as_t<Out> off_value, int axis) {
   auto in = input.data;
   auto out = output.data;
-  axis = axis < 0 ? output.shape.sample_dim() - 1 : axis;
-  auto outer = output.shape.first(axis);
-  auto inner = output.shape.last(output.shape.sample_dim() - axis - 1);
-  auto volume_outer = volume(outer);
-  auto volume_inner = volume(inner);
+  auto volume_outer = volume(output.shape.begin(), output.shape.begin() + axis);
+  auto volume_inner = volume(output.shape.begin() + axis + 1, output.shape.end());
   for (int i = 0; i < volume(output.shape); ++i) {
     out[i] = off_value;
   }

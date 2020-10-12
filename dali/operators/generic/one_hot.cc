@@ -24,8 +24,26 @@ DALI_REGISTER_OPERATOR(OneHot, OneHot, CPU);
 DALI_SCHEMA(OneHot)
   .DocStr(R"code(Produces a one-hot encoding of the input.
 
-If the input is not a scalar (tensor consisting from one value per sample), the operator
-will fail.)code")
+Adds a new axis or converts scalar input into an axis of ``num_classes`` elements.
+
+For given input coordinate ``(x0, x1, ..., xn)``, and ``axis=k``, the output sample is specified as::
+
+  cls = input[x0, x1, ..., xn]
+  output[x0, x1, ..., xk-1, :, xk+1, ..., xn] = off_value
+  output[x0, x1, ..., xk-1, cls, xk+1, ..., xn] = on_value
+
+for all ``cls`` values in range ``[0, num_classes)``. The ``k-th`` axis will have ``num_classes`` elements.
+
+For scalars, for given input sample::
+
+  output[:] = off_value
+  output[input] = on_value
+
+The output will have 1 dimension of ``num_classes`` elements.
+
+For legacy support any input in which all tensors have volume equal to 1 is considered
+a scalar input (each of them have only one element). Legacy interpretation of tensors as scalars
+is not supported if ``axis`` argument is specified.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("num_classes", R"code(Number of all classes in the data.)code", 0)
@@ -34,11 +52,13 @@ size. By default it's appended as the last dimension for non-scalar inputs. For 
 it becomes the only dimension.)code", -1)
   .AddOptionalArg(arg_names::kDtype, R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("on_value",
-                  R"code(Value that will be used to fill the output when ``input[j] = i``.
+                  R"code(Value that will be used to fill the output to indicate given class
+in the corresponding input coordinate.
 
 This value will be cast to the ``dtype`` type.)code", 1.f)
   .AddOptionalArg("off_value",
-                  R"code(Value that will be used to fill the output when ``input[j] != i``.
+                  R"code(Value that will be used to fill the output to indicate the lack of given
+class in the corresponding input coordinate.
 
 This value will be cast to the ``dtype`` type.)code", 0.f);
 
@@ -72,10 +92,9 @@ bool OneHot::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace
                make_string("Provided axis is outside of allowed range, got: ", axis_,
                            ", expected to be in range: [-1, ", input_sample_dim, "]."));
 
-  // Legacy scalar-like support
-  // TODO(klecki): It was already buggy, maybe drop it
-  bool all_scalars = true;
-  for (int i = 0; i < num_samples; i++) {
+  // Legacy scalar-like support only if the `axis` parameter was not provided
+  bool all_scalars = !spec_.ArgumentDefined("axis");
+  for (int i = 0; all_scalars && i < num_samples; i++) {
     all_scalars = all_scalars && is_scalar(input.shape()[i]);
   }
 
@@ -103,20 +122,21 @@ void OneHot::RunImpl(HostWorkspace &ws) {
   auto &output = ws.template OutputRef<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
   auto in_shape = input.shape();
+  int placement_axis = axis_ < 0 ? output.shape().sample_dim() - 1 : axis_;
   TYPE_SWITCH(input.type().id(), type2id, InputType, ONE_HOT_TYPES, (
-          TYPE_SWITCH(output_type_, type2id, OutputType, ONE_HOT_TYPES, (
+    TYPE_SWITCH(output_type_, type2id, OutputType, ONE_HOT_TYPES, (
 
-          auto in_tensor = view<const InputType, DynamicDimensions>(input);
-          auto out_tensor = view<OutputType, DynamicDimensions>(output);
-          for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
-            tp.AddWork(
-                    [&, sample_id](int thread_id) {
-                        auto in = in_tensor[sample_id];
-                        auto out = out_tensor[sample_id];
-                        detail::DoOneHot(out, in, num_classes_, on_value_, off_value_, axis_);
-                    }, in_shape.tensor_size(sample_id));
-          }
-          tp.RunAll();
+    auto in_tensor = view<const InputType, DynamicDimensions>(input);
+    auto out_tensor = view<OutputType, DynamicDimensions>(output);
+    for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+      tp.AddWork(
+              [&, sample_id](int thread_id) {
+                  auto in = in_tensor[sample_id];
+                  auto out = out_tensor[sample_id];
+                  detail::DoOneHot(out, in, num_classes_, on_value_, off_value_, placement_axis);
+              }, in_shape.tensor_size(sample_id));
+    }
+    tp.RunAll();
   ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
 }
