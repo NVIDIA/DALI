@@ -26,24 +26,21 @@ DALI_SCHEMA(OneHot)
 
 Adds a new axis or converts scalar input into an axis of ``num_classes`` elements.
 
-For given input coordinate ``(x0, x1, ..., xn)``, and ``axis=k``, the output sample is specified as::
+For given input coordinate ``(x0, x1, ..., xn)``, and ``axis = k``, the output sample is specified as::
 
   cls = input[x0, x1, ..., xn]
-  output[x0, x1, ..., xk-1, :, xk+1, ..., xn] = off_value
-  output[x0, x1, ..., xk-1, cls, xk+1, ..., xn] = on_value
+  output[x0, x1, ..., xk-1, xk, xk+1, ..., xn] = on_value if xk == cls else off_value
 
-for all ``cls`` values in range ``[0, num_classes)``. The ``k-th`` axis will have ``num_classes`` elements.
+for all ``xk`` in range ``[0, num_classes)``.
 
-For scalars, for given input sample::
+For scalars, the output is set to ``on_value`` at the index taken from ``input`` and
+``off_value`` elsewhere::
 
-  output[:] = off_value
-  output[input] = on_value
+  output[i] = on_value if i == input else off_value
 
-The output will have 1 dimension of ``num_classes`` elements.
-
-For legacy support any input in which all tensors have volume equal to 1 is considered
-a scalar input (each of them have only one element). Legacy interpretation of tensors as scalars
-is not supported if ``axis`` argument is specified.)code")
+For backward compatibility, any input in which all tensors have only one element
+(regardless of the number of dimensions) is considered scalar. Legacy interpretation of tensors
+as scalars is not supported if ``axis`` argument is specified.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("num_classes", R"code(Number of all classes in the data.)code", 0)
