@@ -88,7 +88,7 @@ def test_one_hot_legacy():
     for i in range(10):
         premade_batch = [np.array([np.random.randint(0, num_classes)], dtype=np.int32)
                          for x in range(batch_size)]
-        yield check_one_hot_operator, premade_batch
+        yield check_one_hot_operator, premade_batch, None
 
 
 def test_one_hot ():
