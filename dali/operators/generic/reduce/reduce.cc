@@ -27,7 +27,10 @@ Not providing any axis results in reduction of all elements.)code",
   .AddOptionalArg(
     "keep_dims",
     "If True, maintains original input dimensions.",
-    false);
+    false)
+  .AddOptionalArg("output_type",
+    R"code(Output data type. This type is used to accumulate the result.)code",
+    DALI_NO_TYPE);
 
 DALI_SCHEMA(Sum)
   .DocStr("Sums input elements along provided axes.")

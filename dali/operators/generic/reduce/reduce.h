@@ -25,7 +25,7 @@
 #include "dali/kernels/reduce/reduce_gpu.h"
 #include "dali/kernels/reduce/reduce_setup_utils.h"
 
-#define REDUCE_TYPES (uint8_t, int16_t, uint16_t, int32_t, float)
+#define REDUCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
 
 namespace dali {
 
@@ -35,7 +35,11 @@ class Reduce : public Operator<Backend> {
   explicit inline Reduce(const OpSpec &spec) :
     Operator<Backend>(spec),
     axes_(spec.GetRepeatedArgument<int>("axes")),
-    keep_dims_(spec.GetArgument<bool>("keep_dims")) { }
+    keep_dims_(spec.GetArgument<bool>("keep_dims")) {
+    if (!spec.TryGetArgument(output_type_, "output_type")) {
+       output_type_ = DALI_NO_TYPE;
+    }
+  }
 
   bool CanInferOutputs() const override { return true; }
 
@@ -71,11 +75,18 @@ class Reduce : public Operator<Backend> {
 
   void RunImpl(workspace_t<Backend> &ws) override {
     auto& in = ws.template InputRef<Backend>(0);
-    DALIDataType data_type = in.type().id();
+    DALIDataType input_type = in.type().id();
 
-    TYPE_SWITCH(data_type, type2id, DataType, REDUCE_TYPES, (
-      RunTyped<DataType>(ws);),
-      DALI_FAIL(make_string("Unsupported input type: ", data_type)))
+    DALIDataType output_type = output_type_;
+    if (output_type_ == DALI_NO_TYPE) {
+      output_type = input_type;
+    }
+
+    TYPE_SWITCH(output_type, type2id, OutputType, REDUCE_TYPES, (
+      TYPE_SWITCH(input_type, type2id, InputType, REDUCE_TYPES, (
+        RunTyped<OutputType, InputType>(ws);),
+        DALI_FAIL(make_string("Unsupported input type: ", input_type)))),
+      DALI_FAIL(make_string("Unsupported output type: ", output_type_)))
   }
 
  private:
@@ -84,19 +95,20 @@ class Reduce : public Operator<Backend> {
   vector<int> axes_;
   bool keep_dims_;
   kernels::KernelManager kmgr_;
+  DALIDataType output_type_ = DALI_NO_TYPE;
 
-  template <typename DataType>
+  template <typename OutputType, typename InputType>
   void RunTyped(HostWorkspace &ws) {
     auto& in = ws.InputRef<CPUBackend>(0);
-    auto in_view = view<const DataType>(in);
+    auto in_view = view<const InputType>(in);
 
     auto &out = ws.OutputRef<CPUBackend>(0);
-    auto out_view = view<DataType>(out);
+    auto out_view = view<OutputType>(out);
 
     auto &thread_pool = ws.GetThreadPool();
     int num_threads = thread_pool.size();
 
-    using Kernel = ReductionType<DataType, DataType>;
+    using Kernel = ReductionType<OutputType, InputType>;
     kmgr_.template Resize<Kernel>(num_threads, num_threads);
 
     for (int sample = 0; sample < in_view.num_samples(); sample++) {
@@ -120,15 +132,15 @@ class Reduce : public Operator<Backend> {
     thread_pool.RunAll();
   }
 
-  template <typename DataType>
+  template <typename OutputType, typename InputType>
   void RunTyped(DeviceWorkspace &ws) {
     auto& in = ws.InputRef<GPUBackend>(0);
-    auto in_view = view<const DataType>(in);
+    auto in_view = view<const InputType>(in);
 
     auto &out = ws.OutputRef<GPUBackend>(0);
-    auto out_view = view<DataType>(out);
+    auto out_view = view<OutputType>(out);
 
-    using Kernel = ReductionType<DataType, DataType>;
+    using Kernel = ReductionType<OutputType, InputType>;
     kmgr_.template Resize<Kernel>(1, 1);
 
     kernels::KernelContext ctx;

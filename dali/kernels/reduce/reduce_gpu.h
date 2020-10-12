@@ -25,6 +25,7 @@
 #include "dali/kernels/kernel.h"
 #include "dali/core/tensor_view.h"
 
+
 namespace dali {
 namespace kernels {
 
@@ -92,28 +93,6 @@ class DLL_PUBLIC SumGPU {
   std::unique_ptr<Impl> impl_;
 };
 
-extern template class SumGPU<uint64_t, uint8_t>;
-extern template class SumGPU<float, uint8_t>;
-extern template class SumGPU<int64_t, int8_t>;
-extern template class SumGPU<float, int8_t>;
-
-extern template class SumGPU<uint64_t, uint16_t>;
-extern template class SumGPU<float, uint16_t>;
-extern template class SumGPU<int64_t, int16_t>;
-extern template class SumGPU<float, int16_t>;
-
-extern template class SumGPU<uint64_t, uint32_t>;
-extern template class SumGPU<float, uint32_t>;
-extern template class SumGPU<int64_t, int32_t>;
-extern template class SumGPU<float, int32_t>;
-
-extern template class SumGPU<float, float>;
-
-extern template class SumGPU<int32_t, int32_t>;
-extern template class SumGPU<int16_t, int16_t>;
-extern template class SumGPU<uint16_t, uint16_t>;
-extern template class SumGPU<uint8_t, uint8_t>;
-
 
 /**
  * @brief Calculates the min of elements in the tensor(s) along given axes
@@ -178,28 +157,6 @@ class DLL_PUBLIC MinGPU {
   class Impl;
   std::unique_ptr<Impl> impl_;
 };
-
-extern template class MinGPU<uint64_t, uint8_t>;
-extern template class MinGPU<float, uint8_t>;
-extern template class MinGPU<int64_t, int8_t>;
-extern template class MinGPU<float, int8_t>;
-
-extern template class MinGPU<uint64_t, uint16_t>;
-extern template class MinGPU<float, uint16_t>;
-extern template class MinGPU<int64_t, int16_t>;
-extern template class MinGPU<float, int16_t>;
-
-extern template class MinGPU<uint64_t, uint32_t>;
-extern template class MinGPU<float, uint32_t>;
-extern template class MinGPU<int64_t, int32_t>;
-extern template class MinGPU<float, int32_t>;
-
-extern template class MinGPU<float, float>;
-
-extern template class MinGPU<int32_t, int32_t>;
-extern template class MinGPU<int16_t, int16_t>;
-extern template class MinGPU<uint16_t, uint16_t>;
-extern template class MinGPU<uint8_t, uint8_t>;
 
 
 /**
@@ -266,28 +223,9 @@ class DLL_PUBLIC MaxGPU {
   std::unique_ptr<Impl> impl_;
 };
 
-extern template class MaxGPU<uint64_t, uint8_t>;
-extern template class MaxGPU<float, uint8_t>;
-extern template class MaxGPU<int64_t, int8_t>;
-extern template class MaxGPU<float, int8_t>;
-
-extern template class MaxGPU<uint64_t, uint16_t>;
-extern template class MaxGPU<float, uint16_t>;
-extern template class MaxGPU<int64_t, int16_t>;
-extern template class MaxGPU<float, int16_t>;
-
-extern template class MaxGPU<uint64_t, uint32_t>;
-extern template class MaxGPU<float, uint32_t>;
-extern template class MaxGPU<int64_t, int32_t>;
-extern template class MaxGPU<float, int32_t>;
-
-extern template class MaxGPU<float, float>;
-
-extern template class MaxGPU<int32_t, int32_t>;
-extern template class MaxGPU<int16_t, int16_t>;
-extern template class MaxGPU<uint16_t, uint16_t>;
-extern template class MaxGPU<uint8_t, uint8_t>;
-
+extern template class SumGPU<uint8_t, uint8_t>; extern template class SumGPU<uint8_t, int8_t>; extern template class SumGPU<uint8_t, uint16_t>; extern template class SumGPU<uint8_t, int16_t>; extern template class SumGPU<uint8_t, uint32_t>; extern template class SumGPU<uint8_t, int32_t>; extern template class SumGPU<uint8_t, uint64_t>; extern template class SumGPU<uint8_t, int64_t>; extern template class SumGPU<uint8_t, float>; extern template class SumGPU<int8_t, uint8_t>; extern template class SumGPU<int8_t, int8_t>; extern template class SumGPU<int8_t, uint16_t>; extern template class SumGPU<int8_t, int16_t>; extern template class SumGPU<int8_t, uint32_t>; extern template class SumGPU<int8_t, int32_t>; extern template class SumGPU<int8_t, uint64_t>; extern template class SumGPU<int8_t, int64_t>; extern template class SumGPU<int8_t, float>; extern template class SumGPU<uint16_t, uint8_t>; extern template class SumGPU<uint16_t, int8_t>; extern template class SumGPU<uint16_t, uint16_t>; extern template class SumGPU<uint16_t, int16_t>; extern template class SumGPU<uint16_t, uint32_t>; extern template class SumGPU<uint16_t, int32_t>; extern template class SumGPU<uint16_t, uint64_t>; extern template class SumGPU<uint16_t, int64_t>; extern template class SumGPU<uint16_t, float>; extern template class SumGPU<int16_t, uint8_t>; extern template class SumGPU<int16_t, int8_t>; extern template class SumGPU<int16_t, uint16_t>; extern template class SumGPU<int16_t, int16_t>; extern template class SumGPU<int16_t, uint32_t>; extern template class SumGPU<int16_t, int32_t>; extern template class SumGPU<int16_t, uint64_t>; extern template class SumGPU<int16_t, int64_t>; extern template class SumGPU<int16_t, float>; extern template class SumGPU<uint32_t, uint8_t>; extern template class SumGPU<uint32_t, int8_t>; extern template class SumGPU<uint32_t, uint16_t>; extern template class SumGPU<uint32_t, int16_t>; extern template class SumGPU<uint32_t, uint32_t>; extern template class SumGPU<uint32_t, int32_t>; extern template class SumGPU<uint32_t, uint64_t>; extern template class SumGPU<uint32_t, int64_t>; extern template class SumGPU<uint32_t, float>; extern template class SumGPU<int32_t, uint8_t>; extern template class SumGPU<int32_t, int8_t>; extern template class SumGPU<int32_t, uint16_t>; extern template class SumGPU<int32_t, int16_t>; extern template class SumGPU<int32_t, uint32_t>; extern template class SumGPU<int32_t, int32_t>; extern template class SumGPU<int32_t, uint64_t>; extern template class SumGPU<int32_t, int64_t>; extern template class SumGPU<int32_t, float>; extern template class SumGPU<uint64_t, uint8_t>; extern template class SumGPU<uint64_t, int8_t>; extern template class SumGPU<uint64_t, uint16_t>; extern template class SumGPU<uint64_t, int16_t>; extern template class SumGPU<uint64_t, uint32_t>; extern template class SumGPU<uint64_t, int32_t>; extern template class SumGPU<uint64_t, uint64_t>; extern template class SumGPU<uint64_t, int64_t>; extern template class SumGPU<uint64_t, float>; extern template class SumGPU<int64_t, uint8_t>; extern template class SumGPU<int64_t, int8_t>; extern template class SumGPU<int64_t, uint16_t>; extern template class SumGPU<int64_t, int16_t>; extern template class SumGPU<int64_t, uint32_t>; extern template class SumGPU<int64_t, int32_t>; extern template class SumGPU<int64_t, uint64_t>; extern template class SumGPU<int64_t, int64_t>; extern template class SumGPU<int64_t, float>; extern template class SumGPU<float, uint8_t>; extern template class SumGPU<float, int8_t>; extern template class SumGPU<float, uint16_t>; extern template class SumGPU<float, int16_t>; extern template class SumGPU<float, uint32_t>; extern template class SumGPU<float, int32_t>; extern template class SumGPU<float, uint64_t>; extern template class SumGPU<float, int64_t>; extern template class SumGPU<float, float>; // NOLINT
+extern template class MinGPU<uint8_t, uint8_t>; extern template class MinGPU<uint8_t, int8_t>; extern template class MinGPU<uint8_t, uint16_t>; extern template class MinGPU<uint8_t, int16_t>; extern template class MinGPU<uint8_t, uint32_t>; extern template class MinGPU<uint8_t, int32_t>; extern template class MinGPU<uint8_t, uint64_t>; extern template class MinGPU<uint8_t, int64_t>; extern template class MinGPU<uint8_t, float>; extern template class MinGPU<int8_t, uint8_t>; extern template class MinGPU<int8_t, int8_t>; extern template class MinGPU<int8_t, uint16_t>; extern template class MinGPU<int8_t, int16_t>; extern template class MinGPU<int8_t, uint32_t>; extern template class MinGPU<int8_t, int32_t>; extern template class MinGPU<int8_t, uint64_t>; extern template class MinGPU<int8_t, int64_t>; extern template class MinGPU<int8_t, float>; extern template class MinGPU<uint16_t, uint8_t>; extern template class MinGPU<uint16_t, int8_t>; extern template class MinGPU<uint16_t, uint16_t>; extern template class MinGPU<uint16_t, int16_t>; extern template class MinGPU<uint16_t, uint32_t>; extern template class MinGPU<uint16_t, int32_t>; extern template class MinGPU<uint16_t, uint64_t>; extern template class MinGPU<uint16_t, int64_t>; extern template class MinGPU<uint16_t, float>; extern template class MinGPU<int16_t, uint8_t>; extern template class MinGPU<int16_t, int8_t>; extern template class MinGPU<int16_t, uint16_t>; extern template class MinGPU<int16_t, int16_t>; extern template class MinGPU<int16_t, uint32_t>; extern template class MinGPU<int16_t, int32_t>; extern template class MinGPU<int16_t, uint64_t>; extern template class MinGPU<int16_t, int64_t>; extern template class MinGPU<int16_t, float>; extern template class MinGPU<uint32_t, uint8_t>; extern template class MinGPU<uint32_t, int8_t>; extern template class MinGPU<uint32_t, uint16_t>; extern template class MinGPU<uint32_t, int16_t>; extern template class MinGPU<uint32_t, uint32_t>; extern template class MinGPU<uint32_t, int32_t>; extern template class MinGPU<uint32_t, uint64_t>; extern template class MinGPU<uint32_t, int64_t>; extern template class MinGPU<uint32_t, float>; extern template class MinGPU<int32_t, uint8_t>; extern template class MinGPU<int32_t, int8_t>; extern template class MinGPU<int32_t, uint16_t>; extern template class MinGPU<int32_t, int16_t>; extern template class MinGPU<int32_t, uint32_t>; extern template class MinGPU<int32_t, int32_t>; extern template class MinGPU<int32_t, uint64_t>; extern template class MinGPU<int32_t, int64_t>; extern template class MinGPU<int32_t, float>; extern template class MinGPU<uint64_t, uint8_t>; extern template class MinGPU<uint64_t, int8_t>; extern template class MinGPU<uint64_t, uint16_t>; extern template class MinGPU<uint64_t, int16_t>; extern template class MinGPU<uint64_t, uint32_t>; extern template class MinGPU<uint64_t, int32_t>; extern template class MinGPU<uint64_t, uint64_t>; extern template class MinGPU<uint64_t, int64_t>; extern template class MinGPU<uint64_t, float>; extern template class MinGPU<int64_t, uint8_t>; extern template class MinGPU<int64_t, int8_t>; extern template class MinGPU<int64_t, uint16_t>; extern template class MinGPU<int64_t, int16_t>; extern template class MinGPU<int64_t, uint32_t>; extern template class MinGPU<int64_t, int32_t>; extern template class MinGPU<int64_t, uint64_t>; extern template class MinGPU<int64_t, int64_t>; extern template class MinGPU<int64_t, float>; extern template class MinGPU<float, uint8_t>; extern template class MinGPU<float, int8_t>; extern template class MinGPU<float, uint16_t>; extern template class MinGPU<float, int16_t>; extern template class MinGPU<float, uint32_t>; extern template class MinGPU<float, int32_t>; extern template class MinGPU<float, uint64_t>; extern template class MinGPU<float, int64_t>; extern template class MinGPU<float, float>; // NOLINT
+extern template class MaxGPU<uint8_t, uint8_t>; extern template class MaxGPU<uint8_t, int8_t>; extern template class MaxGPU<uint8_t, uint16_t>; extern template class MaxGPU<uint8_t, int16_t>; extern template class MaxGPU<uint8_t, uint32_t>; extern template class MaxGPU<uint8_t, int32_t>; extern template class MaxGPU<uint8_t, uint64_t>; extern template class MaxGPU<uint8_t, int64_t>; extern template class MaxGPU<uint8_t, float>; extern template class MaxGPU<int8_t, uint8_t>; extern template class MaxGPU<int8_t, int8_t>; extern template class MaxGPU<int8_t, uint16_t>; extern template class MaxGPU<int8_t, int16_t>; extern template class MaxGPU<int8_t, uint32_t>; extern template class MaxGPU<int8_t, int32_t>; extern template class MaxGPU<int8_t, uint64_t>; extern template class MaxGPU<int8_t, int64_t>; extern template class MaxGPU<int8_t, float>; extern template class MaxGPU<uint16_t, uint8_t>; extern template class MaxGPU<uint16_t, int8_t>; extern template class MaxGPU<uint16_t, uint16_t>; extern template class MaxGPU<uint16_t, int16_t>; extern template class MaxGPU<uint16_t, uint32_t>; extern template class MaxGPU<uint16_t, int32_t>; extern template class MaxGPU<uint16_t, uint64_t>; extern template class MaxGPU<uint16_t, int64_t>; extern template class MaxGPU<uint16_t, float>; extern template class MaxGPU<int16_t, uint8_t>; extern template class MaxGPU<int16_t, int8_t>; extern template class MaxGPU<int16_t, uint16_t>; extern template class MaxGPU<int16_t, int16_t>; extern template class MaxGPU<int16_t, uint32_t>; extern template class MaxGPU<int16_t, int32_t>; extern template class MaxGPU<int16_t, uint64_t>; extern template class MaxGPU<int16_t, int64_t>; extern template class MaxGPU<int16_t, float>; extern template class MaxGPU<uint32_t, uint8_t>; extern template class MaxGPU<uint32_t, int8_t>; extern template class MaxGPU<uint32_t, uint16_t>; extern template class MaxGPU<uint32_t, int16_t>; extern template class MaxGPU<uint32_t, uint32_t>; extern template class MaxGPU<uint32_t, int32_t>; extern template class MaxGPU<uint32_t, uint64_t>; extern template class MaxGPU<uint32_t, int64_t>; extern template class MaxGPU<uint32_t, float>; extern template class MaxGPU<int32_t, uint8_t>; extern template class MaxGPU<int32_t, int8_t>; extern template class MaxGPU<int32_t, uint16_t>; extern template class MaxGPU<int32_t, int16_t>; extern template class MaxGPU<int32_t, uint32_t>; extern template class MaxGPU<int32_t, int32_t>; extern template class MaxGPU<int32_t, uint64_t>; extern template class MaxGPU<int32_t, int64_t>; extern template class MaxGPU<int32_t, float>; extern template class MaxGPU<uint64_t, uint8_t>; extern template class MaxGPU<uint64_t, int8_t>; extern template class MaxGPU<uint64_t, uint16_t>; extern template class MaxGPU<uint64_t, int16_t>; extern template class MaxGPU<uint64_t, uint32_t>; extern template class MaxGPU<uint64_t, int32_t>; extern template class MaxGPU<uint64_t, uint64_t>; extern template class MaxGPU<uint64_t, int64_t>; extern template class MaxGPU<uint64_t, float>; extern template class MaxGPU<int64_t, uint8_t>; extern template class MaxGPU<int64_t, int8_t>; extern template class MaxGPU<int64_t, uint16_t>; extern template class MaxGPU<int64_t, int16_t>; extern template class MaxGPU<int64_t, uint32_t>; extern template class MaxGPU<int64_t, int32_t>; extern template class MaxGPU<int64_t, uint64_t>; extern template class MaxGPU<int64_t, int64_t>; extern template class MaxGPU<int64_t, float>; extern template class MaxGPU<float, uint8_t>; extern template class MaxGPU<float, int8_t>; extern template class MaxGPU<float, uint16_t>; extern template class MaxGPU<float, int16_t>; extern template class MaxGPU<float, uint32_t>; extern template class MaxGPU<float, int32_t>; extern template class MaxGPU<float, uint64_t>; extern template class MaxGPU<float, int64_t>; extern template class MaxGPU<float, float>; // NOLINT
 
 /**
  * @brief Calculates the mean of elements in the tensor(s) along given axes

@@ -32,10 +32,10 @@ class Batch1D(Batch):
         self._data = [
             [
                 np.array([ 1,  2,  3,  4], dtype = self._data_type),
-                np.array([99,  2, 10, 10], dtype = self._data_type)
+                np.array([33,  2, 10, 10], dtype = self._data_type)
             ], [
                 np.array([10, 20, 30, 20], dtype = self._data_type),
-                np.array([99,  2, 15, 19], dtype = self._data_type)
+                np.array([33,  2, 15, 19], dtype = self._data_type)
             ]]
 
     def valid_axes(self):
@@ -51,7 +51,7 @@ class Batch2D(Batch):
                 np.array([[  5,  0,  6], [  7,  0,  8]], dtype = self._data_type)
             ], [
                 np.array([[ 13, 23, 22], [ 23, 21, 14]], dtype = self._data_type),
-                np.array([[ 53,  3,  6], [  7,  0, 80]], dtype = self._data_type)
+                np.array([[ 23,  3,  6], [  7,  0, 20]], dtype = self._data_type)
             ]]
 
     def valid_axes(self):
@@ -145,7 +145,7 @@ def run_reduce(keep_dims, reduce_fns, batch_gen, data_type):
 def test_reduce():
     reductions = [(fn.sum, np.sum), (fn.min, np.min), (fn.max, np.max)]
     batch_gens = [Batch1D, Batch2D, Batch3D]
-    types = [np.uint8, np.int16, np.uint16, np.int32, np.float32]
+    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64, np.float32]
 
     for keep_dims in [True, False]:
         for reduce_fns in reductions:
