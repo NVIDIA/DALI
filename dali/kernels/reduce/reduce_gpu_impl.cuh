@@ -1264,13 +1264,13 @@ class SumImplGPU : public ReduceImplGPU<Out, In, default_sum_acc_t<Out, In>, Sum
 };
 
 template <typename Out, typename In>
-class MinImplGPU : public ReduceImplGPU<Out, In, default_sum_acc_t<Out, In>, MinImplGPU<Out, In>> {
+class MinImplGPU : public ReduceImplGPU<Out, In, In, MinImplGPU<Out, In>> {
  public:
   reductions::min GetReduction() const { return {}; }
 };
 
 template <typename Out, typename In>
-class MaxImplGPU : public ReduceImplGPU<Out, In, default_sum_acc_t<Out, In>, MaxImplGPU<Out, In>> {
+class MaxImplGPU : public ReduceImplGPU<Out, In, In, MaxImplGPU<Out, In>> {
  public:
   reductions::max GetReduction() const { return {}; }
 };
