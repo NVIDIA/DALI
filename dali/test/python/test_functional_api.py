@@ -132,7 +132,11 @@ def test_to_snake_case_impl():
         ('XYZ1ABC', 'xyz1abc'),
         ('XYZ1abc', 'xyz1abc'),
         ('trailing__', 'trailing__'),
-        ('TRAILING__', 'trailing__')
+        ('TRAILING__', 'trailing__'),
+        ('Caffe2Reader', 'caffe2_reader'),
+        ('COCOReader', 'coco_reader'),
+        ('DLTensorPythonFunction', 'dl_tensor_python_function'),
+        ('TFRecordReader', 'tfrecord_reader'),
     ]
 
     for inp, out in fn_name_tests:
