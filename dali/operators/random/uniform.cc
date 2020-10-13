@@ -30,9 +30,9 @@ void Uniform::AssignRange(HostWorkspace &ws) {
     auto *sample_data = output[i].mutable_data<float>();
     auto sample_len = output[i].size();
     for (int k = 0; k < sample_len; ++k) {
-      while (sample_data[k] >= range_[1]) {
+      do {
         sample_data[k] = dist(rng_);
-      }
+      } while (sample_data[k] >= range_[1]);  // Due to GCC and LLVM bug
     }
   }
 }

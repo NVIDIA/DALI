@@ -34,8 +34,12 @@ class Uniform : public Operator<CPUBackend> {
 
     if (discrete_mode_) {
       set_ = spec.GetRepeatedArgument<float>("values");
+      DALI_ENFORCE(!set_.empty(), "`values` argument cannot be empty");
     } else {
       range_ = spec.GetRepeatedArgument<float>("range");
+      DALI_ENFORCE(range_.size() == 2, "`range` argument shall contain precisely 2 values");
+      DALI_ENFORCE(range_[0] < range_[1],
+                   "Invalid range. It shall be left-closed [a, b), where a < b");
     }
 
     std::vector<int> shape_arg{};
