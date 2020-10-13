@@ -50,7 +50,7 @@ TYPED_TEST(OneHotOpTest, TestVariousTypes) {
     for (int sample = 0; sample < this->buffer_length_; ++sample) {
         auto input = make_tensor_cpu(this->input_.data() + sample, this->input_shape_);
         auto output = make_tensor_cpu(this->output_.data(), this->output_shape_);
-        dali::detail::DoOneHot<Out, In>(output, input, 20, 1, 0, 0, 0);
+        dali::detail::DoOneHot<Out, In>(output, input, 20, 1, 0, 0);
         for (int i = 0; i < this->num_classes_; ++i) {
             if (i == this->input_.data()[sample]) {
                 ASSERT_EQ(output.data[i], 1);
