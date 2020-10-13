@@ -17,6 +17,7 @@
 
 #include <memory>
 #include "dali/core/common.h"
+#include "dali/core/host_dev.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_args.h"
 #include "dali/kernels/audio/mel_scale/mel_scale.h"
@@ -31,8 +32,8 @@ class DLL_PUBLIC MelFilterBankGpu {
   static_assert(std::is_floating_point<T>::value, "Only floating point types are supported");
   static_assert(Dims >= 2, "At least 2 dimensions are expected");
 
-  DLL_PUBLIC MelFilterBankGpu();
-  DLL_PUBLIC ~MelFilterBankGpu();
+  DLL_PUBLIC DALI_HOST MelFilterBankGpu();
+  DLL_PUBLIC DALI_HOST ~MelFilterBankGpu();
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
                                       const InListGPU<T, Dims> &in,

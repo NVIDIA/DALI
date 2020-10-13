@@ -49,6 +49,13 @@ struct SmallVectorAlloc<T, Allocator, true> {
   static __host__ void deallocate(T *ptr, size_t count) {
     Allocator().deallocate(ptr, count);
   }
+  // Add no-op __device__ overload for functions used in __host__ __device__ context by clang
+  #if defined(__clang__) && defined(__CUDA__)
+  static __device__ T *allocate(size_t count) {
+    return nullptr;
+  }
+  static __device__ void deallocate(T *ptr, size_t count) {}
+  #endif
 };
 
 template <typename T>
@@ -109,12 +116,25 @@ class SmallVectorBase<T, true> {
   DALI_HOST_DEV static void destroy(T *, size_t) noexcept {}
 };
 
+#if defined(__clang__) && defined(__CUDA__)
+template <typename T>
+__device__ device_side_allocator<T> GetDefaultAlocatorType() { return {}; }
+
+template <typename T>
+__host__ std::allocator<T> GetDefaultAlocatorType() { return {}; }
+
+template <typename T>
+using default_small_vector_allocator = std::remove_reference_t<decltype(GetDefaultAlocatorType<T>())>;
+
+#else
 #ifdef __CUDA_ARCH__
 template <typename T>
 using default_small_vector_allocator = device_side_allocator<T>;
 #else
 template <typename T>
 using default_small_vector_allocator = std::allocator<T>;
+#endif
+
 #endif
 
 template <typename T, size_t static_size_, typename allocator = default_small_vector_allocator<T>>

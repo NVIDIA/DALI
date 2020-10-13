@@ -485,46 +485,48 @@ clamp(const vec<N, T> &in, const vec<N, T> &lo, const vec<N, T> &hi) {
   IMPL_VEC_ELEMENTWISE(clamp(in[i], lo[i], hi[i]));
 }
 
-#ifdef __CUDA_ARCH__
+#if (defined(__NVCC__) && defined(__CUDA_ARCH__)) || (defined(__clang__) && defined(__CUDA__))
 template <int N>
-__device__ vec<N> floor(const vec<N> &a) {
+constexpr DALI_DEVICE vec<N> floor(const vec<N> &a) {
   IMPL_VEC_ELEMENTWISE(floorf(a[i]));
 }
 
 template <int N>
-__device__ vec<N> ceil(const vec<N> &a) {
+constexpr DALI_DEVICE vec<N> ceil(const vec<N> &a) {
   IMPL_VEC_ELEMENTWISE(ceilf(a[i]));
 }
 
 template <int N, typename T>
-__device__ vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
+constexpr DALI_DEVICE vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
   IMPL_VEC_ELEMENTWISE(::min(a[i], b[i]));
 }
 
 template <int N, typename T>
-__device__ vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
+constexpr DALI_DEVICE vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
   IMPL_VEC_ELEMENTWISE(::max(a[i], b[i]));
 }
 
-#else
+#endif
+
+#if !defined(__CUDA_ARCH__) || (defined(__clang__) && defined(__CUDA__))
 
 template <int N, typename T>
-constexpr vec<N, T> floor(const vec<N, T> &a) {
+constexpr DALI_HOST vec<N, T> floor(const vec<N, T> &a) {
   IMPL_VEC_ELEMENTWISE(std::floor(a[i]));
 }
 
 template <int N, typename T>
-constexpr vec<N, T> ceil(const vec<N, T> &a) {
+constexpr DALI_HOST vec<N, T> ceil(const vec<N, T> &a) {
   IMPL_VEC_ELEMENTWISE(std::ceil(a[i]));
 }
 
 template <int N, typename T>
-constexpr vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
+constexpr DALI_HOST vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
   IMPL_VEC_ELEMENTWISE(std::min(a[i], b[i]));
 }
 
 template <int N, typename T>
-constexpr vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
+constexpr DALI_HOST vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
   IMPL_VEC_ELEMENTWISE(std::max(a[i], b[i]));
 }
 

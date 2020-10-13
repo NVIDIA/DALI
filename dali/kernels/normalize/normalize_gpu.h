@@ -22,6 +22,7 @@
  */
 
 #include <memory>
+#include "dali/core/host_dev.h"
 #include "dali/kernels/kernel.h"
 
 namespace dali {
@@ -69,8 +70,8 @@ namespace kernels {
 template <typename Out, typename In>
 class DLL_PUBLIC NormalizeGPU {
  public:
-  NormalizeGPU();
-  ~NormalizeGPU();
+  DALI_HOST NormalizeGPU();
+  DALI_HOST ~NormalizeGPU();
 
   using Base = float;
   using Scale = float;

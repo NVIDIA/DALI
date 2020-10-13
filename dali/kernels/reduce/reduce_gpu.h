@@ -23,6 +23,7 @@
 
 #include <memory>
 #include "dali/kernels/kernel.h"
+#include "dali/core/host_dev.h"
 #include "dali/core/tensor_view.h"
 
 
@@ -60,8 +61,8 @@ namespace kernels {
 template <typename Out, typename In>
 class DLL_PUBLIC SumGPU {
  public:
-  SumGPU();
-  ~SumGPU();
+  DALI_HOST SumGPU();
+  DALI_HOST ~SumGPU();
 
   /**
    * @brief Sets up the reduction
@@ -150,8 +151,8 @@ extern template class SumGPU<float, float>;
 template <typename Out, typename In>
 class DLL_PUBLIC MinGPU {
  public:
-  MinGPU();
-  ~MinGPU();
+  DALI_HOST MinGPU();
+  DALI_HOST ~MinGPU();
 
   /**
    * @brief Sets up the reduction
@@ -224,8 +225,8 @@ extern template class MinGPU<float, float>;
 template <typename Out, typename In>
 class DLL_PUBLIC MaxGPU {
  public:
-  MaxGPU();
-  ~MaxGPU();
+  DALI_HOST MaxGPU();
+  DALI_HOST ~MaxGPU();
 
   /**
    * @brief Sets up the reduction
@@ -292,8 +293,8 @@ extern template class MaxGPU<float, float>;
 template <typename Out, typename In>
 class DLL_PUBLIC MeanGPU {
  public:
-  MeanGPU();
-  ~MeanGPU();
+  DALI_HOST MeanGPU();
+  DALI_HOST ~MeanGPU();
 
   /**
    * @brief Sets up the reduction
@@ -422,8 +423,8 @@ extern template class MeanSquareGPU<float, float>;
 template <typename Out, typename In>
 class DLL_PUBLIC RootMeanSquareGPU {
  public:
-  RootMeanSquareGPU();
-  ~RootMeanSquareGPU();
+  DALI_HOST RootMeanSquareGPU();
+  DALI_HOST ~RootMeanSquareGPU();
 
   /**
    * @brief Sets up the reduction
@@ -493,8 +494,8 @@ extern template class RootMeanSquareGPU<float, float>;
 template <typename Out, typename In, typename Mean = Out>
 class DLL_PUBLIC StdDevGPU {
  public:
-  StdDevGPU();
-  ~StdDevGPU();
+  DALI_HOST StdDevGPU();
+  DALI_HOST ~StdDevGPU();
 
   /**
    * @brief Sets up the reduction
@@ -642,8 +643,8 @@ extern template class VarianceGPU<float, float>;
 template <typename Out, typename In, typename Mean = Out>
 class DLL_PUBLIC InvStdDevGPU {
  public:
-  InvStdDevGPU();
-  ~InvStdDevGPU();
+  DALI_HOST InvStdDevGPU();
+  DALI_HOST ~InvStdDevGPU();
 
   /**
    * @brief Sets up the reduction

@@ -17,6 +17,7 @@
 
 #include <memory>
 #include "dali/core/convert.h"
+#include "dali/core/host_dev.h"
 #include "dali/kernels/signal/window/extract_windows_args.h"
 #include "dali/kernels/kernel.h"
 
@@ -102,8 +103,8 @@ class DLL_PUBLIC ExtractWindowsGPU {
       const InListGPU<Src, 1> &in,
       const InTensorGPU<float, 1> &window);
 
-  DLL_PUBLIC ExtractWindowsGPU();
-  DLL_PUBLIC ~ExtractWindowsGPU();
+  DLL_PUBLIC DALI_HOST ExtractWindowsGPU();
+  DLL_PUBLIC DALI_HOST ~ExtractWindowsGPU();
 
  private:
   using Impl = ExtractWindowsImplGPU<Dst, Src>;

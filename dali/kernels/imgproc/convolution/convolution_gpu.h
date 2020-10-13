@@ -240,7 +240,8 @@ struct ConvolutionGpu {
                          const TensorListView<StorageCPU, const W, 1>& window,
                          const TensorListShape<ndim>& in_shape) {
     for (int i = 0; i < window.num_samples(); i++) {
-      using dst_win_t = typename CutlassConv::ConvWindowConfiguration::PaddedWindowBuffer<W>;
+      using dst_win_t =
+          typename CutlassConv::ConvWindowConfiguration::template PaddedWindowBuffer<W>;
       int num_channels = has_channels ? in_shape[i][ndim - 1] : 1;
       auto window_src = make_span(window.tensor_data(i), window.tensor_shape_span(i)[0]);
       auto window_padded_dst = dst_win_t(&window_tmp_buffer_host[i * kWindowCopyBufferSize]);

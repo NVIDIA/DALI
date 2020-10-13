@@ -70,6 +70,30 @@ struct needs_clamp {
     (from_unsigned && !to_unsigned && sizeof(To) <= sizeof(From));
 };
 
+// For whatever reason clang tries the templates instead the overloads, so we sfinae the
+// generic clamp out and let it use the explicit overloads for __half
+#if defined(__clang__) && defined(__CUDA__)
+template <typename To>
+struct needs_clamp<__half, To> {
+  static constexpr bool value = false;
+};
+
+template <typename From>
+struct needs_clamp<From, __half> {
+  static constexpr bool value = false;
+};
+
+template <typename T, typename U>
+using skip_template =
+    std::conditional_t<is_half<T>::value || is_half<U>::value, std::true_type, std::false_type>;
+
+#else
+
+template <typename T, typename U>
+using skip_template = std::false_type;
+
+#endif
+
 template <typename To>
 struct needs_clamp<bool, To> {
   static constexpr bool value = false;
@@ -123,7 +147,7 @@ clamp(U value, ret_type<T>) {
 
 template <typename T, typename U>
 DALI_HOST_DEV constexpr std::enable_if_t<
-    !needs_clamp<U, T>::value,
+    !needs_clamp<U, T>::value && !skip_template<T, U>::value,
     T>
 clamp(U value, ret_type<T>) { return value; }
 
@@ -165,13 +189,44 @@ DALI_HOST_DEV constexpr bool clamp(T value, ret_type<bool>) {
   return static_cast<bool>(value);
 }
 
+
+#if defined(__clang__) && defined(__CUDA__)
+
 template <typename T>
-DALI_HOST_DEV constexpr float16 clamp(T value, ret_type<float16>) {
+DALI_HOST constexpr T clamp(float16 value, ret_type<T>) {
+  return clamp(static_cast<float>(value), ret_type<T>());
+}
+
+DALI_HOST constexpr float16 clamp(float16 value, ret_type<float16>) {
+  return value;
+}
+
+template <typename T>
+DALI_DEVICE constexpr T clamp(__half value, ret_type<T>) {
+  return clamp(static_cast<float>(value), ret_type<T>());
+}
+
+DALI_DEVICE constexpr __half clamp(__half value, ret_type<__half>) {
+  return value;
+}
+
+template <typename T>
+DALI_HOST constexpr float16 clamp(T value, ret_type<float16>) {
   constexpr float f16_min = -65504.0f, f16_max = 65504.0f;
   float f = clamp(value, ret_type<float>());
   f = f < f16_min ? f16_min : f > f16_max ? f16_max : f;
   return static_cast<float16>(f);
 }
+
+template <typename T>
+DALI_DEVICE constexpr __half clamp(T value, ret_type<__half>) {
+  constexpr float f16_min = -65504.0f, f16_max = 65504.0f;
+  float f = clamp(value, ret_type<float>());
+  f = f < f16_min ? f16_min : f > f16_max ? f16_max : f;
+  return static_cast<__half>(f);
+}
+
+#else
 
 template <typename T>
 DALI_HOST_DEV constexpr T clamp(float16 value, ret_type<T>) {
@@ -182,6 +237,16 @@ DALI_HOST_DEV constexpr float16 clamp(float16 value, ret_type<float16>) {
   return value;
 }
 
+
+template <typename T>
+DALI_HOST_DEV constexpr float16 clamp(T value, ret_type<float16>) {
+  constexpr float f16_min = -65504.0f, f16_max = 65504.0f;
+  float f = clamp(value, ret_type<float>());
+  f = f < f16_min ? f16_min : f > f16_max ? f16_max : f;
+  return static_cast<float16>(f);
+}
+
+#endif
 
 template <typename T, typename U>
 DALI_HOST_DEV constexpr T clamp(U value) {

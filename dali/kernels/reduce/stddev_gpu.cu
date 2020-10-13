@@ -24,10 +24,10 @@ class StdDevGPU<Out, In, Mean>::Impl : public reduce_impl::StdDevImplGPU<Out, In
 };
 
 template <typename Out, typename In, typename Mean>
-StdDevGPU<Out, In, Mean>::StdDevGPU() = default;
+DALI_HOST StdDevGPU<Out, In, Mean>::StdDevGPU() = default;
 
 template <typename Out, typename In, typename Mean>
-StdDevGPU<Out, In, Mean>::~StdDevGPU() = default;
+DALI_HOST StdDevGPU<Out, In, Mean>::~StdDevGPU() = default;
 
 template <typename Out, typename In, typename Mean>
 KernelRequirements StdDevGPU<Out, In, Mean>::Setup(
@@ -128,10 +128,10 @@ class InvStdDevGPU<Out, In, Mean>::Impl : public reduce_impl::InvStdDevImplGPU<O
 };
 
 template <typename Out, typename In, typename Mean>
-InvStdDevGPU<Out, In, Mean>::InvStdDevGPU() = default;
+DALI_HOST InvStdDevGPU<Out, In, Mean>::InvStdDevGPU() = default;
 
 template <typename Out, typename In, typename Mean>
-InvStdDevGPU<Out, In, Mean>::~InvStdDevGPU() = default;
+DALI_HOST InvStdDevGPU<Out, In, Mean>::~InvStdDevGPU() = default;
 
 template <typename Out, typename In, typename Mean>
 KernelRequirements InvStdDevGPU<Out, In, Mean>::Setup(

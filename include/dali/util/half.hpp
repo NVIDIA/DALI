@@ -2,16 +2,16 @@
 //
 // Copyright (c) 2012-2013 Christian Rau <rauy@users.sourceforge.net>
 //
-// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation 
-// files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, 
-// modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the 
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
+// files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,
+// modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
 // Software is furnished to do so, subject to the following conditions:
 //
 // The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 //
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE 
-// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR 
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // Version 1.11.0
@@ -48,7 +48,7 @@
 	#define HALF_POP_WARNINGS 1
 	// struct vs class, see: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=49174
 	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Wmismatched-tags" 
+	#pragma clang diagnostic ignored "-Wmismatched-tags"
 /*#elif defined(__INTEL_COMPILER)								//Intel C++
 	#if __INTEL_COMPILER >= 1100 && !defined(HALF_ENABLE_CPP11_STATIC_ASSERT)		????????
 		#define HALF_ENABLE_CPP11_STATIC_ASSERT 1
@@ -2691,7 +2691,7 @@ namespace half_float
 		/// Multiply by power of two.
 		/// \param arg number to modify
 		/// \param exp power of two to multiply with
-		/// \return \a arg multplied by 2 raised to \a exp	
+		/// \return \a arg multplied by 2 raised to \a exp
 //		template<typename T> typename enable<half,T>::type scalbln(T arg, long exp) { return functions::scalbln(arg, exp); }
 		inline CAFFE_UTIL_HD half scalbln(half arg, long exp) { return functions::scalbln(arg, exp); }
 		inline CAFFE_UTIL_HD half scalbln(expr arg, long exp) { return functions::scalbln(arg, exp); }
@@ -2871,14 +2871,14 @@ namespace half_float
 		/// \{
 
 		/// Cast to or from half-precision floating point number.
-		/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
-		/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
-		/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
-		/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
+		/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are
+		/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision
+		/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be
+		/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float`
 		/// that a `static_cast` would otherwise do. It uses the default rounding mode.
 		///
-		/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
-		/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
+		/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types
+		/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler
 		/// error and casting between [half](\ref half_float::half)s is just a no-op.
 		/// \tparam T destination type (half or built-in arithmetic type)
 		/// \tparam U source type (half or built-in arithmetic type)
@@ -2889,14 +2889,14 @@ namespace half_float
 		typename half_caster<T,U>::type half_cast(U arg) { return half_caster<T, U>::cast(arg); }
 
 		/// Cast to or from half-precision floating point number.
-		/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
-		/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
-		/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
-		/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
+		/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are
+		/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision
+		/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be
+		/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float`
 		/// that a `static_cast` would otherwise do.
 		///
-		/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
-		/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
+		/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types
+		/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler
 		/// error and casting between [half](\ref half_float::half)s is just a no-op.
 		/// \tparam T destination type (half or built-in arithmetic type)
 		/// \tparam R rounding mode to use.
@@ -3004,7 +3004,7 @@ namespace half_float
 namespace std
 {
 	/// Numeric limits for half-precision floats.
-	/// Because of the underlying single-precision implementation of many operations, it inherits some properties from 
+	/// Because of the underlying single-precision implementation of many operations, it inherits some properties from
 	/// `std::numeric_limits<float>`.
 	template<> class numeric_limits<half_float::half> : public numeric_limits<float>
 	{
@@ -3031,8 +3031,8 @@ namespace std
 		static HALF_CONSTEXPR_CONST float_denorm_style has_denorm = denorm_present;
 
 		/// Rounding mode.
-		/// Due to the mix of internal single-precision computations (using the rounding mode of the underlying 
-		/// single-precision implementation) with explicit truncation of the single-to-half conversions, the actual rounding 
+		/// Due to the mix of internal single-precision computations (using the rounding mode of the underlying
+		/// single-precision implementation) with explicit truncation of the single-to-half conversions, the actual rounding
 		/// mode is indeterminate.
 		static HALF_CONSTEXPR_CONST float_round_style round_style = (std::numeric_limits<float>::round_style==
 			half_float::half::round_style) ? half_float::half::round_style : round_indeterminate;
@@ -3121,7 +3121,7 @@ namespace std
 #undef HALF_NOTHROW
 #ifdef HALF_POP_WARNINGS
 	#if defined(__clang__)
-		#pragma clang diagnostic pop	
+		#pragma clang diagnostic pop
 	#elif defined(_MSC_VER)
 		#pragma warning(pop)
 	#endif

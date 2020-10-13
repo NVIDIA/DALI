@@ -27,4 +27,17 @@
 #define DALI_HOST_DEV
 #endif
 
+#if defined(__CUDACC__)
+#define DALI_HOST __host__
+#else
+#define DALI_HOST
+#endif
+
+#if defined(__CUDACC__)
+#define DALI_DEVICE __device__
+#else
+#define DALI_DEVICE
+#endif
+
+
 #endif  // DALI_CORE_HOST_DEV_H_

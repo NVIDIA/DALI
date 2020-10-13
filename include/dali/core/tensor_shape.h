@@ -305,6 +305,7 @@ struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
 
 template <typename Container, int ndim>
 template <int other_ndim>
+DALI_HOST_DEV
 TensorShape<other_ndim> TensorShapeBase<Container, ndim>::first() const {
   static_assert(other_ndim <= ndim || ndim == DynamicDimensions,
                 "Number of dimensions in subshape must be between 0 and size()");
@@ -320,6 +321,7 @@ TensorShape<other_ndim> TensorShapeBase<Container, ndim>::first() const {
 
 template <typename Container, int ndim>
 template <int other_ndim>
+DALI_HOST_DEV
 TensorShape<other_ndim> TensorShapeBase<Container, ndim>::last() const {
   static_assert(other_ndim <= ndim || ndim == DynamicDimensions,
                 "Number of dimensions in subshape must be between 0 and size()");

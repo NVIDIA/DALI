@@ -104,9 +104,19 @@ class ConstantStorage {
       TYPE_SWITCH(node->GetTypeId(), type2id, Type, CONSTANT_STORAGE_ALLOWED_TYPES, (
           auto idx = node->GetConstIndex();
           auto *ptr = reinterpret_cast<Type *>(data + idx * kPaddingSize);
-          *ptr = static_cast<Type>(constants[idx]);
+          *ptr = cast_const<Type>(constants[idx]);
         ), DALI_FAIL(make_string("Unsupported type: ", node->GetTypeId())););  // NOLINT
     }
+  }
+
+  template <typename T, typename U>
+  std::enable_if_t<std::is_integral<T>::value == std::is_integral<U>::value, T> cast_const(U val) {
+    return static_cast<T>(val);
+  }
+
+  template <typename T, typename U>
+  std::enable_if_t<std::is_integral<T>::value != std::is_integral<U>::value, T> cast_const(U) {
+    return {};
   }
 
   constexpr static int kPaddingSize = 8;  // max(sizeof(int64_t), sizeof(double))

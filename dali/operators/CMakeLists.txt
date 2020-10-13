@@ -50,8 +50,9 @@ if (BUILD_NVDEC)
   list(APPEND DALI_OPERATOR_OBJ $<TARGET_OBJECTS:NVCUVID_GEN>)
 endif(BUILD_NVDEC)
 
-add_library(dali_operators ${LIBTYPE} ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_OBJ})
 
+adjust_source_file_language_property("${DALI_OPERATOR_SRCS}")
+add_library(dali_operators ${LIBTYPE} ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_OBJ})
 set_target_properties(dali_operators PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 target_link_libraries(dali_operators PUBLIC dali dali_kernels dali_core)
@@ -71,6 +72,7 @@ target_link_libraries(dali_operators PRIVATE -Wl,--version-script=${CMAKE_BINARY
 
 if (BUILD_TEST)
   # TODO(janton): create a test_utils_lib with dali_test_config.cc and other common utilities
+  adjust_source_file_language_property("${DALI_OPERATOR_TEST_SRCS}")
   add_executable(dali_operator_test
     ${DALI_OPERATOR_TEST_SRCS}
     ${DALI_ROOT}/dali/test/dali_test_config.cc

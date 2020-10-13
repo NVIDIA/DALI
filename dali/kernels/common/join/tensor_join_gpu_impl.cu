@@ -59,7 +59,7 @@ void TensorJoinImplGPU<T, new_axis>::Run(
     ctx.gpu.stream, output_descs_cpu, input_descs_cpu);
 
   int64_t avg_size = out.num_elements() / N;
-  dim3 grid(max(static_cast<int>(avg_size / 2048), 32), N);
+  dim3 grid(std::max(static_cast<int>(avg_size / 2048), 32), N);
   dim3 block(256);  // tuned!
 
   JoinTensorsKernel<<<grid, block, 0, ctx.gpu.stream>>>(

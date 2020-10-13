@@ -64,10 +64,10 @@ void ExtractWindowsGPU<Dst, Src>::Run(
 }
 
 template <typename Dst, typename Src>
-ExtractWindowsGPU<Dst, Src>::ExtractWindowsGPU() = default;
+DALI_HOST ExtractWindowsGPU<Dst, Src>::ExtractWindowsGPU() = default;
 
 template <typename Dst, typename Src>
-ExtractWindowsGPU<Dst, Src>::~ExtractWindowsGPU() = default;
+DALI_HOST ExtractWindowsGPU<Dst, Src>::~ExtractWindowsGPU() = default;
 
 template class ExtractWindowsGPU<float, float>;
 template class ExtractWindowsGPU<float, int16_t>;

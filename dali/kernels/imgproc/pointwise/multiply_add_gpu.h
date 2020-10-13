@@ -209,7 +209,7 @@ class MultiplyAddGpu {
     dim3 block_dim = block_setup_.BlockDim();
     auto stream = context.gpu.stream;
 
-    MultiplyAddKernel<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
+    multiply_add::MultiplyAddKernel<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
   }
 };
 

@@ -23,10 +23,10 @@ template <typename Out, typename In>
 struct NormalizeGPU<Out, In>::Impl : normalize_impl::NormalizeImplGPU<Out, In, Base, Scale> {};
 
 template <typename Out, typename In>
-NormalizeGPU<Out, In>::NormalizeGPU() = default;
+DALI_HOST NormalizeGPU<Out, In>::NormalizeGPU() = default;
 
 template <typename Out, typename In>
-NormalizeGPU<Out, In>::~NormalizeGPU() = default;
+DALI_HOST NormalizeGPU<Out, In>::~NormalizeGPU() = default;
 
 template <typename Out, typename In>
 KernelRequirements NormalizeGPU<Out, In>::Setup(

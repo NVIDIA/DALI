@@ -64,7 +64,7 @@ template <int Dims, typename OutputType, typename InputType>
 __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__restrict__ in,
                                const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
                                uint64_t offset, uint64_t block_end) {
-  if (Dims > 1 && out_strides[Dims - 1] == in_strides[Dims - 1]) {
+  if (Dims > 1 && out_strides[Dims - 1] == static_cast<uint32_t>(in_strides[Dims - 1])) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
     SliceFuncNoPad<NextDims, OutputType, InputType>(out, in, out_strides, in_strides, offset,
                                                     block_end);
@@ -200,7 +200,7 @@ class SliceGPU {
       if (nfill_values_ == 0) {
         nfill_values_ = args.fill_values.size();
       } else {
-        if (nfill_values_ != args.fill_values.size())
+        if (nfill_values_ != static_cast<int>(args.fill_values.size()))
           throw std::invalid_argument(
               "The number of fill values should be the same for all the samples");
       }
@@ -256,7 +256,7 @@ class SliceGPU {
     for (int i = 0; i < in.size(); i++) {
       if (default_fill_values_) {
         assert(nfill_values_ == 1);
-        fill_values_cpu[i] = OutputType(0);
+        fill_values_cpu[i] = static_cast<OutputType>(0.f);
       } else {
         auto *fill_values = fill_values_cpu + i * nfill_values_;
         for (int d = 0; d < nfill_values_; d++)
@@ -324,10 +324,10 @@ class SliceGPU {
 
     const auto grid = block_count_;
     if (any_padded_sample)
-      detail::SliceKernel<OutputType, InputType, Dims, true>
+      detail::SliceKernel<to_gpu_t<OutputType>, to_gpu_t<InputType>, Dims, true>
         <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
     else
-      detail::SliceKernel<OutputType, InputType, Dims, false>
+      detail::SliceKernel<to_gpu_t<OutputType>, to_gpu_t<InputType>, Dims, false>
         <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
     CUDA_CALL(cudaGetLastError());
   }
