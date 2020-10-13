@@ -90,7 +90,6 @@ void Constant<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
         if (!fdata_.empty()) {
           FillTensorList<type>(output_, output_shape_, fdata_, ws.stream());
         } else {
-          assert(!idata_.empty());
           FillTensorList<type>(output_, output_shape_, idata_, ws.stream());
         }
       ), (DALI_FAIL(make_string("Unsupported type: ", output_type_))));  // NOLINT
