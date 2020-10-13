@@ -19,12 +19,20 @@ namespace dali {
 
 void Uniform::AssignRange(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
+  if (range_[0] >= range_[1]) {
+    for (int i = 0; i < batch_size_; ++i) {
+      sample_data[k] = range_[0];
+    }
+    return;
+  }
   auto dist = std::uniform_real_distribution<float>(range_[0], range_[1]);
   for (int i = 0; i < batch_size_; ++i) {
     auto *sample_data = output[i].mutable_data<float>();
     auto sample_len = output[i].size();
     for (int k = 0; k < sample_len; ++k) {
-      sample_data[k] = dist(rng_);
+      while (sample_data[k] >= range_[1]) {
+        sample_data[k] = dist(rng_);
+      }
     }
   }
 }
@@ -58,7 +66,7 @@ DALI_SCHEMA(Uniform)
 
 Both continuous and discrete uniform distributions can be defined by providing
 a continuous ``range`` or a discrete list of ``values``, respectively.
-  
+
 )code")
   .NumInput(0)
   .NumOutput(1)
