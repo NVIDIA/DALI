@@ -66,8 +66,9 @@ struct Buffer {
   size_t size;
 };
 
-using BufferPool = std::map<std::thread::id,
-                            std::array<std::vector<Buffer>, static_cast<size_t>(AllocType::Count)>>;
+using MemoryPool = std::array<std::vector<Buffer>, static_cast<size_t>(AllocType::Count)>;
+using BufferPool = std::map<std::thread::id, MemoryPool>;
+
 BufferPool buffer_pool_;
 std::shared_timed_mutex buffer_pool_mutex_;
 
@@ -124,29 +125,31 @@ unique_ptr_t Allocate(std::thread::id thread_id, AllocType alloc_type, size_t si
 void* GetBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
   std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
   auto it = buffer_pool_.find(thread_id);
-  assert(it != buffer_pool_.end());
+  auto end_it =  buffer_pool_.end();
   lock.unlock();
-
-  auto &buffers = it->second[static_cast<size_t>(alloc_type)];
-  auto best_fit = buffers.end();
-  auto smallest = buffers.end();
-  for (auto it = buffers.begin(); it != buffers.end(); ++it) {
-    if (smallest == buffers.end() || it->size < smallest->size) {
-      smallest = it;
+  // only if pool exits for given thread_id search it, otherwise just allocate
+  if (it != end_it) {
+    auto &buffers = it->second[static_cast<size_t>(alloc_type)];
+    auto best_fit = buffers.end();
+    auto smallest = buffers.end();
+    for (auto it = buffers.begin(); it != buffers.end(); ++it) {
+      if (smallest == buffers.end() || it->size < smallest->size) {
+        smallest = it;
+      }
+      if (it->size >= size && (best_fit == buffers.end() || it->size < best_fit->size)) {
+        best_fit = it;
+      }
     }
-    if (it->size >= size && (best_fit == buffers.end() || it->size < best_fit->size)) {
-      best_fit = it;
+    if (best_fit != buffers.end()) {
+      std::swap(*best_fit, buffers.back());
+      auto buffer = std::move(buffers.back());
+      buffers.pop_back();
+      return buffer.ptr.release();
     }
-  }
-  if (best_fit != buffers.end()) {
-    std::swap(*best_fit, buffers.back());
-    auto buffer = std::move(buffers.back());
-    buffers.pop_back();
-    return buffer.ptr.release();
-  }
-  if (smallest != buffers.end()) {
-    std::swap(*smallest, buffers.back());
-    buffers.pop_back();
+    if (smallest != buffers.end()) {
+      std::swap(*smallest, buffers.back());
+      buffers.pop_back();
+    }
   }
   // Couldn't find a preallocated buffer, proceed to allocate
   AddMemStats(alloc_type, size);
@@ -162,9 +165,17 @@ static int ReturnBufferToPool(void *raw_ptr) {
   std::unique_ptr<char, Deleter> ptr(reinterpret_cast<char*>(raw_ptr), Deleter(info.alloc_type));
   std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
   auto it = buffer_pool_.find(info.thread_id);
-  assert(it != buffer_pool_.end());
+  auto end_it =  buffer_pool_.end();
   lock.unlock();
-  auto &buffers = it->second[static_cast<size_t>(info.alloc_type)];
+  MemoryPool *pool;
+  if (it != end_it) {
+    pool = &(it->second);
+  } else {
+    // if nothing has been preallocated create a pool for given thread_id
+    std::unique_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
+    pool = &(buffer_pool_[info.thread_id]);
+  }
+  auto &buffers = (*pool)[static_cast<size_t>(info.alloc_type)];
   buffers.emplace_back(std::move(ptr), info.alloc_type, info.size);
   return 0;
 }
@@ -182,7 +193,10 @@ void AddBuffer(std::thread::id thread_id, AllocType alloc_type, size_t size) {
 void DeleteAllBuffers(std::thread::id thread_id) {
   std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
   auto it = buffer_pool_.find(thread_id);
-  assert(it != buffer_pool_.end());
+  // no buffers have been preallocated/returned to the pool
+  if (it == buffer_pool_.end()) {
+    return;
+  }
   lock.unlock();
   auto &buffers = it->second;
   for (auto &buffer : buffers)
