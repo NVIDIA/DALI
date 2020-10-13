@@ -80,7 +80,7 @@ def spectrogram_func_librosa(nfft, win_len, win_step, window, input_data):
     if window is None:
         window = hann_win
 
-    out = np.abs(librosa.stft(y=input_data, n_fft=nfft,
+    out = np.abs(librosa.stft(y=input_data, n_fft=nfft or win_len,
                               win_length=win_len, hop_length=win_step, window=window))**2
 
     # Alternative way to calculate the spectrogram:
@@ -131,6 +131,7 @@ def test_operator_spectrogram_vs_python():
                                                             (256, 256, 128, (1, 1, 4096, 1)),
                                                             (16, 16, 8, (1, 1000)),
                                                             (10, 10, 5, (1, 1000)),
+                                                            (None, 10, 5, (1, 1000)),
                                                             ]:
                 yield check_operator_spectrogram_vs_python, device, batch_size, shape, \
                     nfft, window_length, window_step
