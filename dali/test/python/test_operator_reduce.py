@@ -143,7 +143,7 @@ def run_reduce(keep_dims, reduce_fns, batch_gen, data_type):
 
 
 def test_reduce():
-    reductions = [(fn.min, np.min), (fn.max, np.max)]
+    reductions = [(fn.sum, np.sum), (fn.min, np.min), (fn.max, np.max)]
     batch_gens = [Batch1D, Batch2D, Batch3D]
     types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64, np.float32]
 

@@ -29,6 +29,12 @@ Not providing any axis results in reduction of all elements.)code",
     "If True, maintains original input dimensions.",
     false);
 
+DALI_SCHEMA(Sum)
+  .DocStr("Gets minimal input element along provided axes.")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("ReduceBase");
+
 DALI_SCHEMA(Min)
   .DocStr("Gets minimal input element along provided axes.")
   .NumInput(1)
@@ -40,6 +46,12 @@ DALI_SCHEMA(Max)
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
+
+using SumCPU = Reduce<kernels::SumCPU, CPUBackend>;
+DALI_REGISTER_OPERATOR(Sum, SumCPU, CPU);
+
+using SumGPU = Reduce<kernels::SumGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(Sum, SumGPU, GPU);
 
 using MinCPU = Reduce<kernels::MinCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(Min, MinCPU, CPU);

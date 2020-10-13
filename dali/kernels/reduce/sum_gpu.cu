@@ -57,6 +57,14 @@ template class SumGPU<int64_t, int32_t>;
 template class SumGPU<float, int32_t>;
 template class SumGPU<uint64_t, uint32_t>;
 template class SumGPU<float, uint32_t>;
+template class SumGPU<uint8_t, uint8_t>;
+template class SumGPU<int8_t, int8_t>;
+template class SumGPU<uint16_t, uint16_t>;
+template class SumGPU<int16_t, int16_t>;
+template class SumGPU<uint32_t, uint32_t>;
+template class SumGPU<int32_t, int32_t>;
+template class SumGPU<uint64_t, uint64_t>;
+template class SumGPU<int64_t, int64_t>;
 template class SumGPU<float, float>;
 
 }  // namespace kernels
