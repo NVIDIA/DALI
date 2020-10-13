@@ -30,8 +30,6 @@ import random
 test_data_root = os.environ['DALI_EXTRA_PATH']
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
-random.seed(1009)
-
 def gen_transform(angle, zoom, dst_cx, dst_cy, src_cx, src_cy):
     t1 = np.array([[1, 0, -dst_cx], [0, 1, -dst_cy], [0, 0, 1]])
     cosa = math.cos(angle)/zoom
@@ -163,6 +161,7 @@ io_types = [
 
 
 def test_cpu_vs_cv():
+  random.seed(1009)
   for batch_size in [1, 4, 19]:
     for use_input in [False, True]:
       for (itype, otype) in io_types:
@@ -182,6 +181,7 @@ def test_cpu_vs_cv():
         compare(cv_pipeline, cpu_pipeline, 8)
 
 def test_gpu_vs_cv():
+  random.seed(1007)
   for batch_size in [1, 4, 19]:
     for use_input in [False, True]:
       for (itype, otype) in io_types:
@@ -201,6 +201,7 @@ def test_gpu_vs_cv():
         compare(cv_pipeline, gpu_pipeline, 8)
 
 def test_gpu_vs_cpu():
+  random.seed(1005)
   for batch_size in [1, 4, 19]:
     for use_input in [False, True]:
       for (itype, otype) in io_types:
