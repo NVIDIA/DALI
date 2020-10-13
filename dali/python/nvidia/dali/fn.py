@@ -31,13 +31,14 @@ def _handle_special_case(s):
 def _to_snake_case(pascal):
     out = ""
     nupper = 0
+    nlower = 0
     start = 0
     for i, c in enumerate(pascal):
         if c.isupper():
             if nupper == 0:
                 start = i
             nupper += 1
-        else:
+        elif c.islower():
             if nupper == 0:
                 out += c
             else:
@@ -48,9 +49,16 @@ def _to_snake_case(pascal):
                 out += pascal[i-1].lower()
                 out += c
                 nupper = 0
+            start = i+1
+        else:
+            out += pascal[start:i+1].lower()
+            start = i + 1
+            nupper = 0
 
     if nupper > 0:
-        out += pascal[start:i].lower()
+        if len(out) and out[-1].islower():
+            out += '_'
+        out += pascal[start:].lower()
     out = _handle_special_case(out)
     return out
 
