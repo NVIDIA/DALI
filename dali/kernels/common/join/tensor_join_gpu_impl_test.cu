@@ -238,11 +238,49 @@ TYPED_TEST(TensorJoinGPUTest, RawConcatLongFew) {
   this->TestRawKernel();
 }
 
-TYPED_TEST(TensorJoinGPUTest, RawConcatInterleaveFew) {
+TYPED_TEST(TensorJoinGPUTest, RawConcatInterleave2) {
   this->max_outer_extent = 400;
   this->max_inner_extent = 10;
   this->axis = 2;
+  this->njoin = 2;
+  this->new_axis = false;
+  this->TestRawKernel();
+}
+
+TYPED_TEST(TensorJoinGPUTest, RawConcatInterleave3) {
+  this->max_outer_extent = 400;
+  this->max_inner_extent = 10;
+  this->axis = 2;
+  this->njoin = 3;
+  this->new_axis = false;
+  this->TestRawKernel();
+}
+
+TYPED_TEST(TensorJoinGPUTest, RawConcatInterleave4) {
+  this->max_outer_extent = 400;
+  this->max_inner_extent = 10;
+  this->axis = 2;
+  this->njoin = 4;
+  this->new_axis = false;
+  this->TestRawKernel();
+}
+
+
+TYPED_TEST(TensorJoinGPUTest, RawConcatInterleave7) {
+  this->max_outer_extent = 300;
+  this->max_inner_extent = 10;
+  this->axis = 2;
   this->njoin = 7;
+  this->new_axis = false;
+  this->TestRawKernel();
+}
+
+
+TYPED_TEST(TensorJoinGPUTest, RawConcatInterleave15) {
+  this->max_outer_extent = 200;
+  this->max_inner_extent = 10;
+  this->axis = 2;
+  this->njoin = 15;
   this->new_axis = false;
   this->TestRawKernel();
 }
@@ -253,6 +291,52 @@ TYPED_TEST(TensorJoinGPUTest, RawStackMedium) {
   this->ndim = 3;
   this->axis = 1;
   this->njoin = 64;
+  this->new_axis = true;
+  this->TestRawKernel();
+}
+
+TYPED_TEST(TensorJoinGPUTest, RawStackInterleave2) {
+  this->max_outer_extent = 1000;
+  this->ndim = 2;
+  this->axis = 2;
+  this->njoin = 2;
+  this->new_axis = true;
+  this->TestRawKernel();
+}
+
+
+TYPED_TEST(TensorJoinGPUTest, RawStackInterleave3) {
+  this->max_outer_extent = 800;
+  this->ndim = 2;
+  this->axis = 2;
+  this->njoin = 3;
+  this->new_axis = true;
+  this->TestRawKernel();
+}
+
+TYPED_TEST(TensorJoinGPUTest, RawStackInterleave4) {
+  this->max_outer_extent = 700;
+  this->ndim = 2;
+  this->axis = 2;
+  this->njoin = 4;
+  this->new_axis = true;
+  this->TestRawKernel();
+}
+
+TYPED_TEST(TensorJoinGPUTest, RawStackInterleave7) {
+  this->max_outer_extent = 500;
+  this->ndim = 2;
+  this->axis = 2;
+  this->njoin = 7;
+  this->new_axis = true;
+  this->TestRawKernel();
+}
+
+TYPED_TEST(TensorJoinGPUTest, RawStackInterleave15) {
+  this->max_outer_extent = 500;
+  this->ndim = 2;
+  this->axis = 2;
+  this->njoin = 15;
   this->new_axis = true;
   this->TestRawKernel();
 }

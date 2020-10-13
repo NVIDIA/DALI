@@ -18,6 +18,7 @@
 #include <cuda_runtime.h>
 #include "dali/core/fast_div.h"
 #include "dali/core/math_util.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 namespace kernels {
@@ -39,6 +40,7 @@ struct OutputDesc {
   Element *__restrict__ data;
   fast_div<uint64_t> outer_stride;
   float guess_tensor_mul;  // used for quickly estimating which tensor we've hit based on the offset
+  bool is_uniform_join;    // if true, the inputs have the same shape along
 
   uint64_t total_size;
 };
@@ -56,7 +58,8 @@ struct OutputDesc {
  */
 template <typename Element>
 DALI_HOST_DEV int FindTensor(uint64_t offset, float guess_tensor_mul,
-                             const InputDesc<Element> *__restrict__ descs, int njoin) {
+                             const InputDesc<Element> *__restrict__ descs, int njoin,
+                             std::integral_constant<int, -1> ) {
   int lo = 0, hi = njoin - 1;
   int m = min(floor_int((offset + 0.5f) * guess_tensor_mul), njoin - 1);
   do {  // binary search with initial guess
@@ -71,7 +74,65 @@ DALI_HOST_DEV int FindTensor(uint64_t offset, float guess_tensor_mul,
   return m;
 }
 
+/**
+ * @brief A fast for trivial join
+ */
 template <typename Element>
+DALI_HOST_DEV int FindTensor(uint64_t offset, float /*guess_tensor_mul*/,
+                             const InputDesc<Element> *__restrict__ descs, int /*njoin*/,
+                             std::integral_constant<int, 1> ) {
+  return 0;
+}
+
+/**
+ * @brief A fast path for joining 2 tensors
+ */
+template <typename Element>
+DALI_HOST_DEV int FindTensor(uint64_t offset, float /*guess_tensor_mul*/,
+                             const InputDesc<Element> *__restrict__ descs, int /*njoin*/,
+                             std::integral_constant<int, 2> ) {
+  return offset >= descs[1].join_offset ? 1 : 0;
+}
+
+/**
+ * @brief A fast path for joining 3 tensors
+ */
+template <typename Element>
+DALI_HOST_DEV int FindTensor(uint64_t offset, float /*guess_tensor_mul*/,
+                             const InputDesc<Element> *__restrict__ descs, int /*njoin*/,
+                             std::integral_constant<int, 3> ) {
+  return offset >= descs[2].join_offset ? 2 : offset >= descs[1].join_offset ? 1 : 0;
+}
+
+/**
+ * @brief A fast path for joining 4 tensors
+ */
+template <typename Element>
+DALI_HOST_DEV int FindTensor(uint64_t offset, float /*guess_tensor_mul*/,
+                             const InputDesc<Element> *__restrict__ descs, int /*njoin*/,
+                             std::integral_constant<int, 4> ) {
+  return offset >= descs[2].join_offset
+        ? offset >= descs[3].join_offset ? 3 : 2
+        : offset >= descs[1].join_offset ? 1 : 0;
+}
+
+
+/**
+ * @brief A fast path for joining a small number of tensors
+ */
+template <typename Element, int static_njoin>
+DALI_HOST_DEV int FindTensor(uint64_t offset, float guess_tensor_mul,
+                             const InputDesc<Element> *__restrict__ descs, int njoin,
+                             std::integral_constant<int, static_njoin> ) {
+  const int mid = (static_njoin + 1) / 2;
+  const int hi = static_njoin - mid;
+  return offset >= descs[mid].join_offset
+    ? FindTensor(offset, guess_tensor_mul, descs + mid, hi, std::integral_constant<int, hi>()) + mid
+    : FindTensor(offset, guess_tensor_mul, descs, mid, std::integral_constant<int, mid>());
+}
+
+
+template <int static_njoin, typename Element>
 __device__ void JoinTensors(OutputDesc<Element> out,
                             const InputDesc<Element> *__restrict__ in,
                             int njoin) {
@@ -81,7 +142,10 @@ __device__ void JoinTensors(OutputDesc<Element> out,
   for (; out_offset < out.total_size; out_offset += step) {
     uint64_t join_offset;
     uint64_t outer = div_mod(join_offset, out_offset, out.outer_stride);
-    int t = FindTensor(join_offset, out.guess_tensor_mul, in, njoin);
+
+    int t = FindTensor(join_offset, out.guess_tensor_mul, in, njoin,
+                        std::integral_constant<int, static_njoin>());
+
     ptrdiff_t offset_in_tensor = join_offset - in[t].join_offset;
     out.data[out_offset] = in[t].data[offset_in_tensor + outer * in[t].outer_stride];
   }
@@ -92,9 +156,18 @@ __global__ void JoinTensorsKernel(const OutputDesc<Element> *__restrict__ out,
                                   const InputDesc<Element> *__restrict__ in,
                                   int njoin) {
   int sample_idx = blockIdx.y;
-  JoinTensors(out[sample_idx], in + sample_idx * njoin, njoin);
+  if (out[sample_idx].is_uniform_join) {
+    // uniform join - it's cheaper to calculate use the multiplier to guess the tensor index
+    VALUE_SWITCH(njoin, static_njoin, (1, 2, 3, 4),
+      (JoinTensors<static_njoin>(out[sample_idx], in + sample_idx * njoin, njoin)),
+      (JoinTensors<-1>(out[sample_idx], in + sample_idx * njoin, njoin)));
+  } else {
+    // non-uniform join - the guessing doesn't help much
+    VALUE_SWITCH(njoin, static_njoin, (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16),
+      (JoinTensors<static_njoin>(out[sample_idx], in + sample_idx * njoin, njoin)),
+      (JoinTensors<-1>(out[sample_idx], in + sample_idx * njoin, njoin)));
+  }
 }
-
 
 /**
  * @brief Populates the input and output descriptors given the input and output tensor lists.
@@ -119,6 +192,7 @@ void FillDescs(span<OutputDesc<ElementType>> output_descs,
 
   for (int i = 0; i < N; i++) {
     int64_t join_offset = 0;
+    bool is_uniform_join = true;
     for (int t = 0; t < njoin; t++) {
       auto in_shape = inputs[t]->tensor_shape_span(i);
       auto &desc = input_descs[i*njoin+t];
@@ -126,6 +200,8 @@ void FillDescs(span<OutputDesc<ElementType>> output_descs,
       desc.outer_stride = volume(in_shape.begin() + axis, in_shape.end());
       desc.join_offset = join_offset;
       join_offset += desc.outer_stride;
+      if (desc.outer_stride != input_descs[i*njoin].outer_stride)
+        is_uniform_join = false;
     }
 
     auto out_shape = output.tensor_shape_span(i);
@@ -134,15 +210,8 @@ void FillDescs(span<OutputDesc<ElementType>> output_descs,
     auto join_size = volume(out_shape.begin() + axis, out_shape.end());
     out_desc.outer_stride = join_size;
     out_desc.total_size = volume(out_shape);
-    if (njoin == 2) {
-      // Special case - if there are just two tensors, we can set the multiplier
-      // so that it reaches 1 when the offset is within the second tensor. The fact
-      // that it reach values >= njoin is not a problem, since the value is clamped anyway to
-      // safeguard against loss of precision.
-      out_desc.guess_tensor_mul = input_descs[1].join_offset ? 1.0 / input_descs[1].join_offset : 0;
-    } else {
-      out_desc.guess_tensor_mul = 1.0 * njoin / join_size;
-    }
+    out_desc.guess_tensor_mul = 1.0 * njoin / join_size;
+    out_desc.is_uniform_join = is_uniform_join;
   }
 }
 
