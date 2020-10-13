@@ -51,7 +51,7 @@ class TensorJoin : public Operator<Backend> {
   using Operator<Backend>::Operator;
 
   bool CanInferOutputs() const override { return true; }
-  void RunImpl(workspace_t<Backend> &ws);
+  void RunImpl(workspace_t<Backend> &ws) override;
   bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override;
 
  protected:

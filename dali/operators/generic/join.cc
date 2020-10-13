@@ -45,12 +45,12 @@ The shapes of respective tensors in the inputs must match.)")
   .AddOptionalArg<int>("axis", R"(The axis in the output tensor along which the inputs are stacked.
 
 The axis is inserted before a corresponding axis in the inputs. A value of 0 indicates that whole
-tensors are stacked. Speicfying ``axis`` equal to the number of dimensions in the inputs causes
+tensors are stacked. Specifying ``axis`` equal to the number of dimensions in the inputs causes
 the values from the inputs to be interleaved)", 0, false)
   .AddOptionalArg<string>("axis_name", R"(Name of the new axis to be inserted.
 
-A one-character that will denot the new axis in the output layout. The output layout will be
-constructed by inserting that character into the input layout at position indicated by ``axis``.
+A one-character string that will denote the new axis in the output layout. The output layout will be
+constructed by inserting that character into the input layout at the position indicated by ``axis``.
 For example, specifying ``axis = 0`` and ``axis_name = "C"`` with input layout "HW" will yield
 the output layout "CHW")", nullptr, false)
   .NumInput(1, 999)
@@ -80,7 +80,7 @@ bool TensorJoin<Backend, new_axis>::SetupImpl(
   SetupAxis();
   SetOutputLayout(ws);
 
-  // Run ove inputs and store them in a vector
+  // Run over the inputs and store them in a vector
   TYPE_SWITCH(out_type, type2id, T, TENSOR_JOIN_TYPES, (
     SetupTyped<T>(output_shape, ws);
   ), (DALI_FAIL(make_string("The element type ", out_type, " is not supported."))));  // NOLINT
@@ -160,7 +160,7 @@ void TensorJoin<Backend, new_axis>::SetOutputLayout(const workspace_t<Backend> &
 template <typename Backend, bool new_axis>
 void TensorJoin<Backend, new_axis>::SetupAxis() {
   // axis_name indicates the join axis for concatenation only;
-  // for stacking, it's the name of the new axiis
+  // for stacking, it's the name of the new axis
   if (has_axis_name_ && !new_axis) {
     axis_ = input_layout_.find(axis_name_arg_);
     DALI_ENFORCE(axis_ >= 0, make_string("``axis_name`` specifies an undefined axis '",
@@ -186,9 +186,11 @@ void TensorJoin<Backend, new_axis>::RunImpl(workspace_t<Backend> &ws) {
   }
 
   out.SetLayout(output_layout_);
-  TYPE_SWITCH(out.type().id(), type2id, T, TENSOR_JOIN_TYPES, (
+  TYPE_SWITCH(auto type_id = out.type().id(), type2id, T, TENSOR_JOIN_TYPES, (
     RunTyped(view<T>(out), ws);
-  ), (DALI_FAIL("Internal error: unsupported type reached RunImpl function")));  // NOLINT
+  ), (throw std::logic_error(make_string("Internal error: RunImpl encountered a type that "  // NOLINT
+    "should have been rejected by Setup. Was Setup called?\nOffending type: ", type_id))
+  ));  // NOLINT
 }
 
 template <typename Backend, bool new_axis>
