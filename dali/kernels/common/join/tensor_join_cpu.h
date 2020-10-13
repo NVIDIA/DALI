@@ -17,12 +17,13 @@
 
 #include <vector>
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/common/join/tensor_join_shape.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/core/format.h"
 
 namespace dali {
 namespace kernels {
-namespace impl {
+namespace tensor_join {
 
 template<typename T>
 void
@@ -46,33 +47,7 @@ ConcatenateTensors(TensorView<StorageCPU, T> output,
   }
 }
 
-
-template<bool new_axis = true>
-TensorShape<> DetermineShape(span<const TensorShape<>> in_shapes, int axis) {
-  TensorShape<> ret;
-  auto &insh = in_shapes[0];
-  ret.resize(insh.size() + 1);
-  for (int i = 0; i < axis; i++) {
-    ret[i] = insh[i];
-  }
-  ret[axis] = in_shapes.size();
-  for (int i = axis + 1; i < ret.size(); i++) {
-    ret[i] = insh[i - 1];
-  }
-  return ret;
-}
-
-
-template<>
-TensorShape<> DetermineShape<false>(span<const TensorShape<>> in_shapes, int axis) {
-  TensorShape<> ret = in_shapes[0];
-  ret[axis] = 0;
-  for (const auto &sh : in_shapes) {
-    ret[axis] += sh[axis];
-  }
-  return ret;
-}
-
+}  // namespace tensor_join
 
 /**
  * Joins multiple input tensors into one output tensor, along given axis.
@@ -106,7 +81,7 @@ TensorShape<> DetermineShape<false>(span<const TensorShape<>> in_shapes, int axi
  * @tparam new_axis if true, STACK mode is applied.
  */
 template<typename T, bool new_axis = true, int dims = -1>
-struct TensorJoinCpu {
+struct TensorJoinCPU {
   ///@{
   /**
    * @param in_shapes Shapes of input tensors.
@@ -144,7 +119,7 @@ struct TensorJoinCpu {
     }
 
     KernelRequirements kr;
-    output_shape_ = DetermineShape<new_axis>(in_shapes, axis_);
+    output_shape_ = tensor_join::JoinedShape(in_shapes, axis_, new_axis);
     kr.output_shapes.resize(1);
     TensorListShape<> tmp({output_shape_});  // clang's destructor bug still haunting
     kr.output_shapes[0] = tmp;
@@ -183,7 +158,7 @@ struct TensorJoinCpu {
                           out.shape));
     }
 
-    ConcatenateTensors(out, in, axis_);
+    tensor_join::ConcatenateTensors(out, in, axis_);
   }
 
 
@@ -191,17 +166,15 @@ struct TensorJoinCpu {
   TensorShape<dims> output_shape_;
 };
 
-}  // namespace impl
-
 ///@{
 /**
- * @see TensorJoinCpu
+ * @see TensorJoinCPU
  */
 template<typename T, int ndims = -1>
-using TensorStackCpu = impl::TensorJoinCpu<T, true, ndims>;
+using TensorStackCPU = TensorJoinCPU<T, true, ndims>;
 
 template<typename T, int ndims = -1>
-using TensorConcatCpu = impl::TensorJoinCpu<T, false, ndims>;
+using TensorConcatCPU = TensorJoinCPU<T, false, ndims>;
 ///@}
 
 }  // namespace kernels

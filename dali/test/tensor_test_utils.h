@@ -268,26 +268,26 @@ void Check(const TensorView<Backend1, T1, dim1> &t1, const TensorView<Backend2, 
 // FILLING
 
 template <typename Collection, typename Generator>
-if_iterable<Collection, void> Fill(Collection &&collection, Generator &generator) {
+if_iterable<Collection, void> Fill(Collection &&collection, Generator &&generator) {
   for (auto &x : collection)
     x = generator();
 }
 
 
 template <typename StorageBackend, typename DataType, int ndim, typename Generator>
-void Fill(const TensorView<StorageBackend, DataType, ndim> &tv, Generator &generator) {
+void Fill(const TensorView<StorageBackend, DataType, ndim> &tv, Generator &&generator) {
   static_assert(is_cpu_accessible<StorageBackend>::value,
                 "Function available only for CPU-accessible TensorView backend");
-  Fill(make_span(tv.data, tv.num_elements()), generator);
+  Fill(make_span(tv.data, tv.num_elements()), std::forward<Generator>(generator));
 }
 
 
 template <typename StorageBackend, typename DataType, int ndim, typename Generator>
-void Fill(const TensorListView<StorageBackend, DataType, ndim> &tlv, Generator &generator) {
+void Fill(const TensorListView<StorageBackend, DataType, ndim> &tlv, Generator &&generator) {
   static_assert(is_cpu_accessible<StorageBackend>::value,
                 "Function available only for CPU-accessible TensorListView backend");
   for (int i = 0; i < tlv.num_samples(); i++) {
-    Fill(tlv[i], generator);
+    Fill(tlv[i], std::forward<Generator>(generator));
   }
 }
 
