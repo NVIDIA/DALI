@@ -36,9 +36,6 @@ class Reduce : public Operator<Backend> {
     Operator<Backend>(spec),
     axes_(spec.GetRepeatedArgument<int>("axes")),
     keep_dims_(spec.GetArgument<bool>("keep_dims")) {
-    if (!spec.TryGetArgument(output_type_, "output_type")) {
-       output_type_ = DALI_NO_TYPE;
-    }
   }
 
   bool CanInferOutputs() const override { return true; }
@@ -75,18 +72,11 @@ class Reduce : public Operator<Backend> {
 
   void RunImpl(workspace_t<Backend> &ws) override {
     auto& in = ws.template InputRef<Backend>(0);
-    DALIDataType input_type = in.type().id();
+    DALIDataType data_type = in.type().id();
 
-    DALIDataType output_type = output_type_;
-    if (output_type_ == DALI_NO_TYPE) {
-      output_type = input_type;
-    }
-
-    TYPE_SWITCH(output_type, type2id, OutputType, REDUCE_TYPES, (
-      TYPE_SWITCH(input_type, type2id, InputType, REDUCE_TYPES, (
-        RunTyped<OutputType, InputType>(ws);),
-        DALI_FAIL(make_string("Unsupported input type: ", input_type)))),
-      DALI_FAIL(make_string("Unsupported output type: ", output_type_)))
+    TYPE_SWITCH(data_type, type2id, DataType, REDUCE_TYPES, (
+      RunTyped<DataType, DataType>(ws);),
+      DALI_FAIL(make_string("Unsupported input type: ", data_type)))
   }
 
  private:
@@ -95,7 +85,6 @@ class Reduce : public Operator<Backend> {
   vector<int> axes_;
   bool keep_dims_;
   kernels::KernelManager kmgr_;
-  DALIDataType output_type_ = DALI_NO_TYPE;
 
   template <typename OutputType, typename InputType>
   void RunTyped(HostWorkspace &ws) {

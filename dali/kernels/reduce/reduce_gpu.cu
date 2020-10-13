@@ -20,17 +20,17 @@ namespace dali {
 namespace kernels {
 
 template <typename Out, typename In>
-class MinGPU<Out, In>::Impl : public reduce_impl::MinImplGPU<Out, In> {
+class SumGPU<Out, In>::Impl : public reduce_impl::SumImplGPU<Out, In> {
 };
 
 template <typename Out, typename In>
-MinGPU<Out, In>::MinGPU() = default;
+SumGPU<Out, In>::SumGPU() = default;
 
 template <typename Out, typename In>
-MinGPU<Out, In>::~MinGPU() = default;
+SumGPU<Out, In>::~SumGPU() = default;
 
 template <typename Out, typename In>
-KernelRequirements MinGPU<Out, In>::Setup(
+KernelRequirements SumGPU<Out, In>::Setup(
     KernelContext &ctx,
     const TensorListShape<> &in_shape, span<const int> axes, bool keep_dims, bool reduce_batch) {
   if (!impl_) {
@@ -40,20 +40,24 @@ KernelRequirements MinGPU<Out, In>::Setup(
 }
 
 template <typename Out, typename In>
-void MinGPU<Out, In>::Run(KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in) {
+void SumGPU<Out, In>::Run(KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in) {
   assert(impl_ != nullptr);
   impl_->Run(ctx, out, in);
 }
 
-template class MinGPU<uint8_t, uint8_t>;
-template class MinGPU<int8_t, int8_t>;
-template class MinGPU<uint16_t, uint16_t>;
-template class MinGPU<int16_t, int16_t>;
-template class MinGPU<uint32_t, uint32_t>;
-template class MinGPU<int32_t, int32_t>;
-template class MinGPU<uint64_t, uint64_t>;
-template class MinGPU<int64_t, int64_t>;
-template class MinGPU<float, float>;
+template class SumGPU<uint64_t, uint8_t>;
+template class SumGPU<float, uint8_t>;
+template class SumGPU<int64_t, int8_t>;
+template class SumGPU<float, int8_t>;
+template class SumGPU<uint64_t, uint16_t>;
+template class SumGPU<float, uint16_t>;
+template class SumGPU<int64_t, int16_t>;
+template class SumGPU<float, int16_t>;
+template class SumGPU<int64_t, int32_t>;
+template class SumGPU<float, int32_t>;
+template class SumGPU<uint64_t, uint32_t>;
+template class SumGPU<float, uint32_t>;
+template class SumGPU<float, float>;
 
 }  // namespace kernels
 }  // namespace dali
