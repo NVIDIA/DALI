@@ -34,7 +34,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
   explicit SpectrogramOpImplGPU(const OpSpec &spec) {
     args.window_length = spec.GetArgument<int>("window_length");
     args.window_step = spec.GetArgument<int>("window_step");
-    args.nfft = spec.HasArgument("nfft") ? spec.GetArgument<int>("nfft") : args.window_step;
+    args.nfft = spec.HasArgument("nfft") ? spec.GetArgument<int>("nfft") : args.window_length;
     int power = spec.GetArgument<int>("power");
 
     DALI_ENFORCE(args.window_length > 0,
