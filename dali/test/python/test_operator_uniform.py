@@ -30,8 +30,9 @@ def test_uniform_default():
     possibly_uniform_distribution = oo[0].as_array()[0]
     _, pv = st.kstest(rvs=possibly_uniform_distribution, cdf='uniform')
     assert pv < 1e-8, "`possibly_uniform_distribution` is not an uniform distribution"
-    for val in possibly_uniform_distribution:
-        assert -1 <= val < 1, "Value returned from the op is outside of requested range"
+    assert (-1 <= possibly_uniform_distribution).all() and \
+            (possibly_uniform_distribution < 1).all(), \
+                "Value returned from the op is outside of requested range"
 
 
 def test_uniform_continuous():
@@ -40,6 +41,7 @@ def test_uniform_continuous():
     hi = 100
     test_range = (hi - lo) * np.random.random_sample(2) + lo  # 2 elems from [-100, 100] range
     test_range.sort()
+    test_range = test_range.astype('float32')
     with pipe:
         pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[1e6]))
     pipe.build()
@@ -47,10 +49,28 @@ def test_uniform_continuous():
     possibly_uniform_distribution = oo[0].as_array()[0]
     _, pv = st.kstest(rvs=possibly_uniform_distribution, cdf='uniform')
     assert pv < 1e-8, "`possibly_uniform_distribution` is not an uniform distribution"
-    for val in possibly_uniform_distribution:
-        assert test_range[0] <= val < test_range[1], \
+    assert (test_range[0] <= possibly_uniform_distribution).all() and \
+            (test_range[0] < test_range[1]).all(), \
                 "Value returned from the op is outside of requested range"
 
+def test_uniform_continuous_next_after():
+    pipe = dali.pipeline.Pipeline(1, 1, 0)
+    lo = -100
+    hi = 100
+    test_range = (hi - lo) * np.random.random_sample(2) + lo  # 2 elems from [-100, 100] range
+    test_range.sort()
+    test_range = test_range.astype('float32')
+    with pipe:
+        test_range[1] = np.nextafter(test_range[0], test_range[1])
+        pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[1e6]))
+    pipe.build()
+    oo = pipe.run()
+    possibly_uniform_distribution = oo[0].as_array()[0]
+    _, pv = st.kstest(rvs=possibly_uniform_distribution, cdf='uniform')
+    assert pv < 1e-8, "`possibly_uniform_distribution` is not an uniform distribution"
+    assert (test_range[0] <= possibly_uniform_distribution).all() and \
+            (test_range[0] < test_range[1]).all(), \
+                "Value returned from the op is outside of requested range"
 
 def test_uniform_discrete():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
@@ -68,4 +88,5 @@ def test_uniform_discrete():
     for val in possibly_uniform_distribution:
         assert val in test_set, \
             "Value returned from the op is outside of requested discrete set"
+
 
