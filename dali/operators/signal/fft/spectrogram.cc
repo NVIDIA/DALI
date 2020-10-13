@@ -33,14 +33,14 @@ Input data is expected to be one channel (shape being ``(nsamples,)``, ``(nsampl
 ``(1, nsamples)``) of type float32.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("nfft",
+  .AddOptionalArg<int>("nfft",
     R"code(Size of the FFT.
 
 The number of bins that are created in the output is ``nfft // 2 + 1``.
 
 .. note::
   The output only represents the positive part of the spectrum.)code",
-    -1)
+  nullptr)
   .AddOptionalArg("window_length",
     R"code(Window size in number of samples.)code",
     512)
@@ -97,12 +97,12 @@ struct SpectrogramImplCpu : OpImplBase<CPUBackend> {
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:
-  int nfft_ = -1;
   int window_length_ = -1;
   int window_step_ = -1;
   int power_ = -1;
   std::vector<float> window_fn_;
   int window_center_ = -1;
+  int nfft_ = -1;
 
   using Padding = kernels::signal::Padding;
   Padding padding_;
@@ -141,13 +141,13 @@ namespace {
 }  // namespace
 
 SpectrogramImplCpu::SpectrogramImplCpu(const OpSpec &spec)
-    : nfft_(spec.GetArgument<int>("nfft"))
-    , window_length_(spec.GetArgument<int>("window_length"))
+    : window_length_(spec.GetArgument<int>("window_length"))
     , window_step_(spec.GetArgument<int>("window_step"))
     , power_(spec.GetArgument<int>("power"))
     , window_fn_(spec.GetRepeatedArgument<float>("window_fn")) {
   DALI_ENFORCE(window_length_ > 0, make_string("Invalid window length: ", window_length_));
   DALI_ENFORCE(window_step_ > 0, make_string("Invalid window step: ", window_step_));
+  nfft_ = spec.HasArgument("nfft") ? spec.GetArgument<int>("nfft") : window_length_;
 
   if (window_fn_.empty()) {
     window_fn_.resize(window_length_);

@@ -28,7 +28,7 @@ DALI_SCHEMA(PowerSpectrum)
     .DocStr(R"code(Calculates power spectrum of the signal.)code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
-    .AddOptionalArg("nfft",
+    .AddOptionalArg<int>("nfft",
       R"code(Size of the FFT.
 
 By default, the ``nfft`` is selected to match the length of the data in the transformation axis.
@@ -39,7 +39,7 @@ The number of bins that are created in the output is calculated with the followi
 
 .. note::
   The output only represents the positive part of the spectrum.)code",
-      -1)
+      nullptr)
     .AddOptionalArg("axis",
       R"code(Index of the dimension to be transformed to the frequency domain.
 
