@@ -143,7 +143,7 @@ def test_fw_iter(IteratorClass, args):
                     dtypes = [out_type, tf.int32])
                 images.append(image)
                 labels.append(label)
-        gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.8)
+        gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.5)
         config = ConfigProto(gpu_options=gpu_options)
         sess = Session(config=config)
 

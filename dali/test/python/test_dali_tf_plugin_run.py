@@ -84,7 +84,7 @@ def get_batch_dali(batch_size, pipe_type, label_type, num_gpus=1):
 
     return [images, labels]
 
-def test_dali_tf_op(pipe_type=CaffeReadPipeline, batch_size=32, iterations=32):
+def test_dali_tf_op(pipe_type=CaffeReadPipeline, batch_size=16, iterations=32):
     test_batch = get_batch_dali(batch_size, pipe_type, tf.int32)
     try:
         from tensorflow.compat.v1 import GPUOptions
@@ -96,7 +96,7 @@ def test_dali_tf_op(pipe_type=CaffeReadPipeline, batch_size=32, iterations=32):
         from tensorflow import ConfigProto
         from tensorflow import Session
 
-    gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.8)
+    gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.5)
     config = ConfigProto(gpu_options=gpu_options)
     with Session(config=config) as sess:
         for i in range(iterations):
