@@ -59,7 +59,8 @@ endif()
 # nvjpeg2k is not available prior CUDA 11.0
 if(${CUDA_VERSION} VERSION_GREATER_EQUAL "11.0")
   if(NOT (${ARCH} MATCHES "aarch64"))
-    option(BUILD_NVJPEG2K "Build with nvJPEG2K support" ON)
+    # due to some decoding problems disable nvJPEG2K support for now by the default
+    option(BUILD_NVJPEG2K "Build with nvJPEG2K support" OFF)
   endif()
 endif()
 
