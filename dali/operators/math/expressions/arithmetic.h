@@ -158,19 +158,22 @@ inline std::vector<ExprImplTask> CreateExecutionTasks(const ExprNode &expr, Expr
 inline TensorListShape<> ShapePromotion(std::string op, span<const TensorListShape<> *> shapes,
                                         int batch_size) {
   const TensorListShape<> *out_shape = nullptr;
+  bool only_scalars = true;
   for (int i = 0; i < shapes.size(); i++) {
-    if (IsScalarLike(*shapes[i]))
-      continue;
-    if (!out_shape) {
-      out_shape = shapes[i];
+    bool scalar_input = IsScalarLike(*shapes[i]);
+    if (only_scalars) {
+      if (!out_shape || shapes[i]->sample_dim() > out_shape->sample_dim() || !scalar_input)
+        out_shape = shapes[i];
+      if (!scalar_input)
+        only_scalars = false;
     } else {
-      DALI_ENFORCE(*out_shape == *shapes[i],
+      DALI_ENFORCE(scalar_input || *out_shape == *shapes[i],
                    make_string("Input shapes of elemenetwise arithemtic operator \"", op,
-                              "\" do not match. Expected equal shapes, got: ", op, "(",
-                              *out_shape, ", ", *shapes[i], ")."));
+                               "\" do not match. Expected equal shapes, got: ", op, "(",
+                               *out_shape, ", ", *shapes[i], ")."));
     }
   }
-  return out_shape ? *out_shape : TensorListShape<0>(batch_size);
+  return *out_shape;
 }
 
 /**
