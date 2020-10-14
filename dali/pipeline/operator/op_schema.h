@@ -53,6 +53,12 @@ struct DeprecatedArgDef {
   bool removed;
 };
 
+enum class InputDevice : uint8_t {
+  MatchBackend = 0,
+  CPU = 1,
+  GPU = 2,
+};
+
 class DLL_PUBLIC OpSchema {
  public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
@@ -199,6 +205,7 @@ graph even if its outputs are not used.)code", false);
     min_num_input_ = n;
     input_dox_.resize(n);
     input_layouts_.resize(n);
+    input_devices_.resize(n);
     return *this;
   }
 
@@ -213,7 +220,32 @@ graph even if its outputs are not used.)code", false);
     max_num_input_ = max;
     input_layouts_.resize(max);
     input_dox_.resize(max);
+    input_devices_.resize(max);
     return *this;
+  }
+
+  /**
+   * @brief Sets the input device for given range of inputs
+   */
+  DLL_PUBLIC inline OpSchema& InputDevice(int first, int one_past, dali::InputDevice device) {
+    for (int i = first; i < one_past; i++)
+      input_devices_[i] = device;
+    return *this;
+  }
+
+  /**
+   * @brief Sets the input device for given range of input
+   */
+  DLL_PUBLIC inline OpSchema& InputDevice(int index, dali::InputDevice device) {
+    input_devices_[index] = device;
+    return *this;
+  }
+
+  /**
+   * @brief Gets the supported input device for ginen input
+   */
+  DLL_PUBLIC dali::InputDevice GetInputDevice(int index) const {
+    return input_devices_[index];
   }
 
   /**
@@ -882,6 +914,7 @@ graph even if its outputs are not used.)code", false);
   std::vector<std::unique_ptr<Value> > optional_arguments_unq_;
   std::vector<std::unique_ptr<Value> > internal_arguments_unq_;
   std::vector<std::vector<TensorLayout>> input_layouts_;
+  std::vector<dali::InputDevice> input_devices_;
 
   std::set<std::string> tensor_arguments_;
 };
