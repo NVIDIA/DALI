@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <utility>
 #include <sstream>
+#include <string>
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/test/tensor_test_utils.h"
@@ -55,28 +56,6 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   ss.clear();
   ss.seekg(0);
 
-  detail::ParseManifest(entries, ss, 0.0f, 0.0f, true);
-  ASSERT_EQ(3, entries.size());
-
-  EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
-  EXPECT_NEAR(1.45, entries[0].duration, 1e-7);
-  EXPECT_NEAR(0.0, entries[0].offset, 1e-7);
-  EXPECT_EQ("a ab b c d", entries[0].text);
-
-  EXPECT_EQ("path/to/audio2.wav", entries[1].audio_filepath);
-  EXPECT_NEAR(2.45, entries[1].duration, 1e-7);
-  EXPECT_NEAR(1.03, entries[1].offset, 1e-7);
-  EXPECT_EQ("c da b", entries[1].text);
-
-  EXPECT_EQ("path/to/audio3.wav", entries[2].audio_filepath);
-  EXPECT_NEAR(3.45, entries[2].duration, 1e-7);
-  EXPECT_NEAR(0.0, entries[2].offset, 1e-7);
-  EXPECT_EQ("", entries[2].text);
-
-  entries.clear();
-  ss.clear();
-  ss.seekg(0);
-
   detail::ParseManifest(entries, ss, 2.0f, 3.0f);  // first and third sample should be ignored
   ASSERT_EQ(1, entries.size());
   EXPECT_EQ("path/to/audio2.wav", entries[0].audio_filepath);
@@ -95,6 +74,26 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   detail::ParseManifest(entries, ss, 0.0, 2.44999f);
   ASSERT_EQ(1, entries.size());
   EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
+}
+
+TEST(NemoAsrLoaderTest, ParseNonAsciiTransript) {  
+  {
+    std::stringstream ss;
+    ss << R"code({"audio_filepath": "path/to/audio1.wav", "duration": 1.45, "text": "это проверка"})code" << std::endl;
+    std::vector<NemoAsrEntry> entries;
+    detail::ParseManifest(entries, ss);
+    ASSERT_EQ(1, entries.size());
+    EXPECT_EQ(std::string(u8"это проверка"), entries[0].text);
+  }
+
+  {
+    std::stringstream ss;
+    ss << R"code({"audio_filepath": "path/to/audio1.wav", "duration": 1.45, "text": "这是一个测试"})code" << std::endl;
+    std::vector<NemoAsrEntry> entries;
+    detail::ParseManifest(entries, ss);
+    ASSERT_EQ(1, entries.size());
+    EXPECT_EQ(std::string(u8"这是一个测试"), entries[0].text);
+  }
 }
 
 TEST(NemoAsrLoaderTest, WrongManifestPath) {
