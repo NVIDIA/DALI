@@ -39,9 +39,11 @@ Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If n
 set the following environment variables:
 
 * | CUDA_VERSION - CUDA toolkit version (10.0, 11.0 and 11.1).
-  | The default is ``11.1``. If the value of the version is prefixed with `.` then any value
-    ``.XX.Y`` can be passed, script check for the supported version is bypased and the user needs
-    to make sure that Dockerfile.cudaXXY.deps is present in `docker/` directory.
+  | The default is ``11.1``. Thanks to CUDA extended compatibility mode CUDA 11.1 wheel is named as
+    CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver family (please update to the
+    latest recommended driver version in that family). If the value of the version is prefixed with
+    `.` then any value ``.XX.Y`` can be passed, script check for the supported version is bypassed
+    and the user needs to make sure that Dockerfile.cudaXXY.deps is present in `docker/` directory.
 * | NVIDIA_BUILD_ID - Custom ID of the build.
   | The default is ``1234``.
 * | CREATE_WHL - Create a standalone wheel.

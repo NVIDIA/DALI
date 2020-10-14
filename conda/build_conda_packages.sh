@@ -10,6 +10,11 @@ fi
 
 export CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1.\2/')
 
+# when building for any version >= 11.0 use CUDA compatibility mode and claim it is a CUDA 110 package
+if [ $CUDA_VERSION gt 110 ]; then
+  export CUDA_VERSION=$((CUDA_VERSION/10*10))
+fi
+
 # Adding conda-forge channel for dependencies
 conda config --add channels conda-forge
 
