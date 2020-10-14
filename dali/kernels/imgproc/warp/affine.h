@@ -32,6 +32,11 @@ struct AffineMapping {
   inline vec<dim> operator()(const vec<dim> &v) const {
     return affine(transform, v);
   }
+
+  DALI_HOST_DEV
+  AffineMapping inv() const {
+    return AffineMapping<dim>(affine_mat_inv(transform));;
+  }
 };
 
 using AffineMapping2D = AffineMapping<2>;
