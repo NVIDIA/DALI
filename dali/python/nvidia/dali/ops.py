@@ -948,7 +948,7 @@ def _group_inputs(inputs):
     integers = []
     reals = []
     for input in inputs:
-        if not isinstance(input, (_DataNode, _ScalarConstant)):
+        if not isinstance(input, (_DataNode, _ScalarConstant, int, float)):
             input = nvidia.dali.types.Constant(input)
         if isinstance(input, _DataNode):
             categories_idxs.append(("edge", len(edges)))
