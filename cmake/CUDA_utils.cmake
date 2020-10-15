@@ -19,9 +19,9 @@ if (${ARCH} MATCHES "aarch64-")
   set(CUDA_known_archs "53" "62" "72" "75")
 elseif (${ARCH} MATCHES "aarch64")
   # aarch64 SBSA, only >=Volta
-  set(CUDA_known_archs "70" "75" "80")
+  set(CUDA_known_archs "70" "75" "80" "86")
 else()
-  set(CUDA_known_archs "35" "50" "52" "60" "61" "70" "75" "80")
+  set(CUDA_known_archs "35" "50" "52" "60" "61" "70" "75" "80" "86")
 endif()
 
 set(CUDA_TARGET_ARCHS ${CUDA_known_archs} CACHE STRING "List of target CUDA architectures")
