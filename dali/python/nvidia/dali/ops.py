@@ -242,8 +242,8 @@ class _OperatorInstance(object):
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
 
-        default_input_device = "gpu" if op.device == "gpu" else "cpu"
         if inputs is not None:
+            default_input_device = "gpu" if op.device == "gpu" else "cpu"
             inputs = list(inputs)
             for i in range(len(inputs)):
                 inp = inputs[i]
@@ -866,8 +866,8 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
                 all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x)
 
     for idx, inp in enumerate(inputs):
-        input_device = schema.GetInputDevice(idx) or device if schema else device
         if not is_input(inp):
+            input_device = schema.GetInputDevice(idx) or device if schema else device
             if not isinstance(inp, nvidia.dali.types.ScalarConstant):
                 try:
                     inp = nvidia.dali.types.Constant(inp, device=input_device)
@@ -879,10 +879,6 @@ Attempt to convert it to a constant node failed."""
 
             if not isinstance(inp, _DataNode):
                 inp = nvidia.dali.ops._instantiate_constant_node(input_device, inp)
-
-# Should we?
-#        if inp.device != input_device and input_device == "gpu":
-#            inp = inp.gpu()
 
         inputs[idx] = inp
     return inputs
@@ -952,6 +948,8 @@ def _group_inputs(inputs):
     integers = []
     reals = []
     for input in inputs:
+        if not isinstance(input, (_DataNode, _ScalarConstant)):
+            input = nvidia.dali.types.Constant(input)
         if isinstance(input, _DataNode):
             categories_idxs.append(("edge", len(edges)))
             edges.append(input)
