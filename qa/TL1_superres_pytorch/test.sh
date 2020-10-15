@@ -1,6 +1,5 @@
 #!/bin/bash -e
-# TODO(janton): remove explicit pillow version installation when torch fixes the issue with PILLOW_VERSION not being defined
-pip_packages="pillow==6.2.2 numpy torch torchvision scikit-image tensorboardX"
+pip_packages="pillow numpy torch torchvision scikit-image tensorboardX"
 target_dir=./docs/examples/use_cases/video_superres
 
 do_once() {
