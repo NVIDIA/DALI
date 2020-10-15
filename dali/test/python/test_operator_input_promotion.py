@@ -43,12 +43,10 @@ def test_python_function():
             ret = [x*x for x in inp]
             return [ret]
         out_cpu = fn.python_function(np.array([[1,2],[3,4]]), function=func, batch_processing=True)
-        out_gpu = fn.python_function(np.array([[1,2],[3,4]]), function=func, batch_processing=True, device="gpu")
-        pipe.set_outputs(out_cpu, out_gpu)
+        pipe.set_outputs(out_cpu)
     pipe.build()
     o = pipe.run()
     assert np.array_equal(o[0].at(0), np.array([[1,4],[9,16]]))
-    assert np.array_equal(o[1].as_cpu().at(0), np.array([[1,4],[9,16]]))
 
 
 def test_arithm_ops():
