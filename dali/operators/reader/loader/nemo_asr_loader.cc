@@ -75,7 +75,7 @@ void NemoAsrLoader::PrepareMetadataImpl() {
     std::ifstream fstream(manifest_filepath);
     DALI_ENFORCE(fstream,
                  make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath, "\""));
-    detail::ParseManifest(entries_, fstream, max_duration_);
+    detail::ParseManifest(entries_, fstream, min_duration_, max_duration_);
   }
   shuffled_indices_.resize(entries_.size());
   std::iota(shuffled_indices_.begin(), shuffled_indices_.end(), 0);

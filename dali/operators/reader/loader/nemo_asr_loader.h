@@ -103,6 +103,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
         quality_(spec.GetArgument<float>("quality")),
         downmix_(spec.GetArgument<bool>("downmix")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
+        min_duration_(spec.GetArgument<float>("min_duration")),
         max_duration_(spec.GetArgument<float>("max_duration")),
         num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
         decode_scratch_(num_threads_),
@@ -161,6 +162,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   float quality_;
   bool downmix_;
   DALIDataType dtype_;
+  double min_duration_;
   double max_duration_;
   int num_threads_;
   kernels::signal::resampling::Resampler resampler_;
