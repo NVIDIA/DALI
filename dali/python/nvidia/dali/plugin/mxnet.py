@@ -230,7 +230,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
                 p.schedule_run()
         self._first_batch = None
-        self._first_batch = self.next()
+        self._first_batch = DALIGenericIterator.next(self)
         # Set data descriptors for MXNet
         self.provide_data = []
         self.provide_label = []

@@ -233,7 +233,7 @@ class DALIGenericIterator(_DaliBaseIterator):
             with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
                 p.schedule_run()
         self._first_batch = None
-        self._first_batch = self.next()
+        self._first_batch = DALIGenericIterator.next(self)
 
     def __next__(self):
         if self._first_batch is not None:
