@@ -54,9 +54,6 @@ def test_python_function():
 def test_arithm_ops():
     pipe = dali.pipeline.Pipeline(1,1,0)
     with pipe:
-        def func(inp):
-            ret = [x*x for x in inp]
-            return [ret]
         in1 = fn.external_source([[np.array([[1,2],[3,4]])]])
         pipe.set_outputs(in1 + np.array([[10,20],[30,40]]), in1 + np.array(5))
     pipe.build()
