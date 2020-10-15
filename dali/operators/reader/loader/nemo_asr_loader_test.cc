@@ -76,7 +76,7 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
 }
 
-TEST(NemoAsrLoaderTest, ParseNonAsciiTransript) {  
+TEST(NemoAsrLoaderTest, ParseNonAsciiTransript) {
   {
     std::stringstream ss;
     ss << R"code({"audio_filepath": "path/to/audio1.wav", "duration": 1.45, "text": "это проверка"})code" << std::endl;

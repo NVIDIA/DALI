@@ -174,5 +174,3 @@ def test_decoded_vs_generated(batch_size=3):
       # String comparison (utf-8)
       assert text_non_ascii_str == ref_text_non_ascii_literal[idx], \
           f"'{text_non_ascii_str}' != '{ref_text_non_ascii_literal[idx]}'"
-
- 
