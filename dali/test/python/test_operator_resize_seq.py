@@ -87,12 +87,8 @@ def create_dali_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size = 2
         dali_resized_cpu, size_cpu = resize_cpu_out
         dali_resized_gpu, size_gpu = resize_gpu_out
         # extract just HW part from the input shape
-        shape_anchor = np.array([2 if channel_first else 1], dtype=np.int32)
-        shape_shape = np.array([2], dtype=np.int32)
         ext_size = fn.slice(fn.cast(fn.shapes(ext), dtype=types.INT32),
-                            types.Constant(shape_anchor, device="cpu"),
-                            types.Constant(shape_shape, device="cpu"),
-                            axes=[0])
+                            2 if channel_first else 1, 2, axes=[0])
         pipe.set_outputs(dali_resized_cpu, dali_resized_gpu, ext_size, size_cpu, size_gpu)
     return pipe
 
