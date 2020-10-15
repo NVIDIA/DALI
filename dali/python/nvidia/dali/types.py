@@ -249,7 +249,8 @@ dtype: DALIDataType, optional
         return "{}".format(self.value)
 
 def _is_scalar_shape(shape):
-    return shape is None or shape == 1 or shape == [1] or shape == (1,)
+    return shape is None or shape == () or shape == [] or shape == 1 or \
+           shape == [1] or shape == (1,)  # legacy pseudo-scalars
 
 def _is_mxnet_array(value):
     return 'mxnet.ndarray.ndarray.NDArray' in str(type(value))

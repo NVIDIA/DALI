@@ -66,12 +66,6 @@ def _wrap_op_fn(op_class, wrapper_name):
         import nvidia.dali.ops
         def is_data_node(x):
             return isinstance(x, _DataNode)
-        def is_input(x):
-            if is_data_node(x):
-                return True
-            return isinstance(x, (list, tuple)) and \
-                   any(isinstance(y, _DataNode) for y in x) and \
-                   all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x)
         def is_call_arg(name, value):
             return name == "name" or is_data_node(value)
 
@@ -80,13 +74,11 @@ def _wrap_op_fn(op_class, wrapper_name):
 
         scalar_args = { name:to_scalar(value) for (name, value) in arguments.items() if not is_call_arg(name, value) }
         tensor_args = { name:value for (name, value) in arguments.items() if is_call_arg(name, value) }
-        for idx, inp in enumerate(inputs):
-            if not is_input(inp):
-                raise TypeError("""Input {0} is neither a DALI `DataNode` nor a tuple of data nodes.
-Got {1} instead when calling operator {2}.""".format(idx, type(inp).__name__, op_class.__name__))
+
         default_dev = nvidia.dali.ops._choose_device(inputs)
         if default_dev == "gpu" and scalar_args.get("device") == "cpu":
             raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
+
         if "device" not in scalar_args:
             scalar_args["device"] = default_dev
 
