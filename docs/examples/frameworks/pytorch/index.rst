@@ -7,4 +7,5 @@ Pytorch Framework
    pytorch-basic_example.ipynb
    pytorch-external_input.ipynb
    pytorch-various-readers.ipynb
+   pytorch-lightning.ipynb
 

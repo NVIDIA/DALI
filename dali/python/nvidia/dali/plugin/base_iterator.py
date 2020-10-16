@@ -278,3 +278,9 @@ class _DaliBaseIterator(object):
     @property
     def size(self):
         return self._size
+
+    def __len__(self):
+        if self._reader_name:
+            return math.ceil(self.size / self.batch_size)
+        else:
+            return math.ceil(self.size / (self._num_gpus * self.batch_size))
