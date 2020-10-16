@@ -1004,21 +1004,25 @@ def stop_teration_case_generator():
                         yield batch_size, epochs, iter_num, auto_reset, infinite
 
 def check_iterator_wrapper_first_iteration(BaseIterator, *args, **kwargs):
+    # This wrapper is used to test that the base class iterator doesn't invoke
+    # the wrapper self.__next__ function accidentally
     class IteratorWrapper(BaseIterator):
         def __init__(self, *args, **kwargs):
             self._allow_next = False
             super(IteratorWrapper, self).__init__(*args, **kwargs)
 
+        # Asserting if __next__ is called, unless self._allow_next has been set to True explicitly
         def __next__(self):
             assert(self._allow_next)
             outs = super(IteratorWrapper, self).__next__()
 
     pipe = Pipeline(batch_size = 16, num_threads = 1, device_id = 0)
     with pipe:
-        data = fn.uniform(range=(-1, 1), shape=(20, 30, 3), seed=1234)
+        data = fn.uniform(range=(-1, 1), shape=(2, 2, 2), seed=1234)
     pipe.set_outputs(data)
 
     iterator_wrapper = IteratorWrapper([pipe], *args, **kwargs)
+    # Only now, we allow the wrapper __next__ to run
     iterator_wrapper._allow_next = True
     for i, outputs in enumerate(iterator_wrapper):
         if i == 2:
