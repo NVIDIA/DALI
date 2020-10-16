@@ -1003,6 +1003,31 @@ def stop_teration_case_generator():
                     for infinite in [False, True]:
                         yield batch_size, epochs, iter_num, auto_reset, infinite
 
+def check_iterator_wrapper_first_iteration(BaseIterator, *args, **kwargs):
+    # This wrapper is used to test that the base class iterator doesn't invoke
+    # the wrapper self.__next__ function accidentally
+    class IteratorWrapper(BaseIterator):
+        def __init__(self, *args, **kwargs):
+            self._allow_next = False
+            super(IteratorWrapper, self).__init__(*args, **kwargs)
+
+        # Asserting if __next__ is called, unless self._allow_next has been set to True explicitly
+        def __next__(self):
+            assert(self._allow_next)
+            outs = super(IteratorWrapper, self).__next__()
+
+    pipe = Pipeline(batch_size = 16, num_threads = 1, device_id = 0)
+    with pipe:
+        data = fn.uniform(range=(-1, 1), shape=(2, 2, 2), seed=1234)
+    pipe.set_outputs(data)
+
+    iterator_wrapper = IteratorWrapper([pipe], *args, **kwargs)
+    # Only now, we allow the wrapper __next__ to run
+    iterator_wrapper._allow_next = True
+    for i, outputs in enumerate(iterator_wrapper):
+        if i == 2:
+            break
+
 # MXNet
 def test_stop_iteration_mxnet():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
@@ -1020,6 +1045,10 @@ def test_stop_iteration_mxnet_fail_single():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     fw_iter = lambda pipe, size, auto_reset : MXNetIterator(pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset)
     check_stop_iter_fail_single(fw_iter)
+
+def test_mxnet_iterator_wrapper_first_iteration():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    check_iterator_wrapper_first_iteration(MXNetIterator, [("data", MXNetIterator.DATA_TAG)], size=100)
 
 # Gluon
 def test_stop_iteration_gluon():
@@ -1039,6 +1068,10 @@ def test_stop_iteration_gluon_fail_single():
     fw_iter = lambda pipe, size, auto_reset : GluonIterator(pipe, size=size, auto_reset=auto_reset)
     check_stop_iter_fail_single(fw_iter)
 
+def test_gluon_iterator_wrapper_first_iteration():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    check_iterator_wrapper_first_iteration(GluonIterator,  output_types=[GluonIterator.DENSE_TAG], size=100)
+
 # PyTorch
 def test_stop_iteration_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
@@ -1057,6 +1090,10 @@ def test_stop_iteration_pytorch_fail_single():
     fw_iter = lambda pipe, size, auto_reset : PyTorchIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
     check_stop_iter_fail_single(fw_iter)
 
+def test_pytorch_iterator_wrapper_first_iteration():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    check_iterator_wrapper_first_iteration(PyTorchIterator, output_map=["data"],  size=100)
+
 # PaddlePaddle
 def test_stop_iteration_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
@@ -1074,3 +1111,7 @@ def test_stop_iteration_paddle_fail_single():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     fw_iter = lambda pipe, size, auto_reset : PaddleIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
     check_stop_iter_fail_single(fw_iter)
+
+def test_paddle_iterator_wrapper_first_iteration():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+    check_iterator_wrapper_first_iteration(PaddleIterator, output_map=["data"],  size=100)
