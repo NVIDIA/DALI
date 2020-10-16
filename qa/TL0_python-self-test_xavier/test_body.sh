@@ -17,7 +17,7 @@ test_nose() {
         for exclude in "${EXCLUDE_PACKAGES[@]}"; do
             grep -qiE ${exclude} ${test_script} && status=$((status+1))
         done
-        # execute only when no machtes are found
+        # execute only when no matches are found
         if [ ${status} -eq 0 ]; then
             nosetests --verbose --attr '!slow' ${test_script}
         fi

@@ -44,7 +44,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 INWHL=$(readlink -e $1)
-PATH_PREFIX=${2:-local}
+DEPS_PATH=${2:-local}
 OUTDIR=/wheelhouse
 
 OUTWHLNAME=$(basename $INWHL)
@@ -89,21 +89,21 @@ make_wheel_record() {
 }
 
 DEPS_LIST=(
-    "/usr/${PATH_PREFIX}/lib64/libjpeg.so.62"
-    "/usr/${PATH_PREFIX}/lib/libjpeg.so.62"
-    "/usr/${PATH_PREFIX}/lib/libavformat.so.58"
-    "/usr/${PATH_PREFIX}/lib/libavcodec.so.58"
-    "/usr/${PATH_PREFIX}/lib/libavfilter.so.7"
-    "/usr/${PATH_PREFIX}/lib/libavutil.so.56"
-    "/usr/${PATH_PREFIX}/lib/libtiff.so.5"
-    "/usr/${PATH_PREFIX}/lib/libsndfile.so.1"
-    "/usr/${PATH_PREFIX}/lib/libFLAC.so.8"
-    "/usr/${PATH_PREFIX}/lib/libogg.so.0"
-    "/usr/${PATH_PREFIX}/lib/libvorbis.so.0"
-    "/usr/${PATH_PREFIX}/lib/libvorbisenc.so.2"
-    "/usr/${PATH_PREFIX}/lib/libopenjp2.so.7"
-    "/usr/${PATH_PREFIX}/lib/libzstd.so.1"
-    "/usr/${PATH_PREFIX}/lib/libz.so.1"
+    "/usr/${DEPS_PATH}/lib64/libjpeg.so.62"
+    "/usr/${DEPS_PATH}/lib/libjpeg.so.62"
+    "/usr/${DEPS_PATH}/lib/libavformat.so.58"
+    "/usr/${DEPS_PATH}/lib/libavcodec.so.58"
+    "/usr/${DEPS_PATH}/lib/libavfilter.so.7"
+    "/usr/${DEPS_PATH}/lib/libavutil.so.56"
+    "/usr/${DEPS_PATH}/lib/libtiff.so.5"
+    "/usr/${DEPS_PATH}/lib/libsndfile.so.1"
+    "/usr/${DEPS_PATH}/lib/libFLAC.so.8"
+    "/usr/${DEPS_PATH}/lib/libogg.so.0"
+    "/usr/${DEPS_PATH}/lib/libvorbis.so.0"
+    "/usr/${DEPS_PATH}/lib/libvorbisenc.so.2"
+    "/usr/${DEPS_PATH}/lib/libopenjp2.so.7"
+    "/usr/${DEPS_PATH}/lib/libzstd.so.1"
+    "/usr/${DEPS_PATH}/lib/libz.so.1"
 )
 
 TMPDIR=$(mktemp -d)
