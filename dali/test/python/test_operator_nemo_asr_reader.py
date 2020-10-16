@@ -11,6 +11,20 @@ import tempfile
 import os
 from test_audio_decoder_utils import generate_waveforms, rosa_resample
 
+def create_manifest_file(manifest_file, names, lengths, rates, texts):
+  assert(len(names) == len(lengths) == len(rates) == len(texts))
+  data = []
+  for idx in range(len(names)):
+    entry_i = {}
+    entry_i['audio_filepath'] = names[idx]
+    entry_i['duration'] = lengths[idx] * (1.0 / rates[idx])
+    entry_i["text"] = texts[idx]
+    data.append(entry_i)
+  with open(manifest_file, 'w') as f:
+    for entry in data:
+      json.dump(entry, f)
+      f.write('\n')
+
 tmp_dir = tempfile.TemporaryDirectory()
 
 names = [
@@ -37,41 +51,29 @@ def create_ref():
 
 ref_i = create_ref()
 
-ref_text = [
-  np.array([100, 97, 108, 105, 32, 116, 101, 115, 116, 32, 49, 67, 0], dtype=np.uint8),
-  np.array([100, 97, 108, 105, 32, 116, 101, 115, 116, 32, 50, 67, 0], dtype=np.uint8),
-  np.array([100, 97, 108, 105, 32, 116, 101, 115, 116, 32, 52, 67, 0], dtype=np.uint8)
-]
-
 def create_wav_files():
   for i in range(len(names)):
     scipy.io.wavfile.write(names[i], rates[i], ref_i[i])
 
 create_wav_files()
 
+ref_text_literal = [
+  "dali test 1C",
+  "dali test 2C",
+  "dali test 4C",
+]
 nemo_asr_manifest = os.path.join(tmp_dir.name, "nemo_asr_manifest.json")
+create_manifest_file(nemo_asr_manifest, names, lengths, rates, ref_text_literal)
+ref_text = [np.frombuffer(bytes(s, "utf8"), dtype=np.uint8) for s in ref_text_literal]
 
-def create_manifest_file():
-  entry0 = {}
-  entry0["audio_filepath"] = names[0]
-  entry0["duration"] = lengths[0] * (1.0 / rates[0])
-  entry0["text"] = "dali test 1C"
-  entry1 = {}
-  entry1["audio_filepath"] = names[1]
-  entry1["duration"] = lengths[1] * (1.0 / rates[1])
-  entry1["text"] = "dali test 2C"
-  entry2 = {}
-  entry2["audio_filepath"] = names[2]
-  entry2["duration"] = lengths[2] * (1.0 / rates[2])
-  entry2["text"] = "dali test 4C"
-
-  data = [entry0, entry1, entry2]
-  with open(nemo_asr_manifest, 'w') as f:
-    for entry in data:
-      json.dump(entry, f)
-      f.write('\n')
-
-create_manifest_file()
+ref_text_non_ascii_literal = [
+  u"dzień dobry",
+  u"доброе утро",
+  u"这是一个测试",
+]
+nemo_asr_manifest_non_ascii = os.path.join(tmp_dir.name, "nemo_asr_manifest_non_ascii.json")
+create_manifest_file(nemo_asr_manifest_non_ascii, names, lengths, rates, ref_text_non_ascii_literal)
+ref_text_non_ascii = [np.frombuffer(bytes(s, "utf8"), dtype=np.uint8) for s in ref_text_non_ascii_literal]
 
 rate1 = 16000
 rate2 = 44100
@@ -101,9 +103,11 @@ class NemoAsrReaderPipeline(Pipeline):
                                                    sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
     _, _, text = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
                                     read_sample_rate=True, read_text=True, seed=fixed_seed)
+    _, _, text_non_ascii = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest_non_ascii], dtype = types.INT16, downmix = True,
+                                              read_sample_rate=True, read_text=True, seed=fixed_seed)
     return audio_plain_i, audio_plain_f, audio_downmix_i, audio_downmix_f, \
            audio_resampled1_i, audio_resampled1_f, audio_resampled2_i, audio_resampled2_f, \
-           text
+           text, text_non_ascii
 
 def test_decoded_vs_generated(batch_size=3):
   pipeline = NemoAsrReaderPipeline(batch_size=batch_size)
@@ -121,6 +125,7 @@ def test_decoded_vs_generated(batch_size=3):
       audio_resampled2_i = out[6].at(idx)
       audio_resampled2_f = out[7].at(idx)
       text = out[8].at(idx)
+      text_non_ascii = out[9].at(idx)
 
       ref_plain_i = ref_i[idx]
       np.testing.assert_allclose(audio_plain_i, ref_plain_i, rtol = 1e-7)
@@ -157,3 +162,15 @@ def test_decoded_vs_generated(batch_size=3):
       np.testing.assert_allclose(audio_resampled2_f, ref_resampled2_f, atol=1e-3)
 
       np.testing.assert_equal(text, ref_text[idx])
+
+      np.testing.assert_equal(text_non_ascii, ref_text_non_ascii[idx])
+      text_non_ascii_str = str(text_non_ascii.tobytes(), encoding='utf8')
+
+      # Checking that we don't have any trailing zeros (those won't be caught by the string comparison)
+      ref_text_non_ascii_literal_bytes = bytes(ref_text_non_ascii_literal[idx], 'utf8')
+      assert text_non_ascii.tobytes() == ref_text_non_ascii_literal_bytes, \
+          f"'{text_non_ascii.tobytes()}' != '{ref_text_non_ascii_literal_bytes}'"
+
+      # String comparison (utf-8)
+      assert text_non_ascii_str == ref_text_non_ascii_literal[idx], \
+          f"'{text_non_ascii_str}' != '{ref_text_non_ascii_literal[idx]}'"

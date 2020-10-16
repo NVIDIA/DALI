@@ -89,8 +89,7 @@ namespace detail {
 
 DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream &manifest_file,
                               double min_duration = kDefaultDuration,
-                              double max_duration = kDefaultDuration,
-                              bool normalize_text = false);
+                              double max_duration = kDefaultDuration);
 
 }  // namespace detail
 
@@ -104,8 +103,8 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
         quality_(spec.GetArgument<float>("quality")),
         downmix_(spec.GetArgument<bool>("downmix")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
+        min_duration_(spec.GetArgument<float>("min_duration")),
         max_duration_(spec.GetArgument<float>("max_duration")),
-        normalize_text_(spec.GetArgument<bool>("normalize_text")),
         num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
         decode_scratch_(num_threads_),
         resample_scratch_(num_threads_) {
@@ -163,8 +162,8 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   float quality_;
   bool downmix_;
   DALIDataType dtype_;
+  double min_duration_;
   double max_duration_;
-  bool normalize_text_;
   int num_threads_;
   kernels::signal::resampling::Resampler resampler_;
   std::vector<std::vector<float>> decode_scratch_;
