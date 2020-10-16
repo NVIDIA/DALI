@@ -169,7 +169,7 @@ class DALIGenericIterator(_DaliBaseIterator):
         try:
             self._first_batch = DALIGenericIterator.__next__(self)
         except StopIteration:
-            assert False, "It seems that there is not data in the pipeline, please check if last_batch_policy is set PARTIAL and batch size is bigger than the shard size"
+            assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
 
     def __next__(self):
         if self._first_batch is not None:
