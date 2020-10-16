@@ -2,6 +2,8 @@ ARG AARCH64_CUDA_TOOL_IMAGE_NAME
 FROM ${AARCH64_CUDA_TOOL_IMAGE_NAME} as aarch64_cuda_tools
 FROM nvidia/cuda:10.2-devel-ubuntu18.04
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -16,7 +18,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libtool \
     libtool-bin \
-    && rm -rf /var/lib/apt/lists/*
+    python3-distutils \
+    zip \
+    python3.6 python3.6-dev \
+    python3.7 python3.7-dev \
+    python3.8 python3.8-dev \
+    && \
+    if [ $(apt-cache search python3.9 | wc -l) -eq 0 ]; then \
+        apt-get install software-properties-common -y --no-install-recommends && \
+        add-apt-repository ppa:deadsnakes/ppa -y && \
+        apt-get update; \
+    fi && \
+    apt-get install -y python3.9 python3.9-dev && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py && \
+    cd /tmp && git clone https://github.com/NixOS/patchelf && cd patchelf && \
+    ./bootstrap.sh && ./configure --prefix=/usr/ && make -j install && cd / && rm -rf /tmp/patchelf && \
+    ln -s /usr/bin/python3 /usr/bin/python
 
 COPY --from=aarch64_cuda_tools *.deb ./
 
@@ -60,6 +78,17 @@ RUN curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VER
     ./configure CXXFLAGS="-fPIC" --prefix=/usr/local --disable-shared 2>&1 > /dev/null && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 > /dev/null
 
+# LMDB
+COPY docker/Makefile-lmdb.patch /tmp
+RUN LMDB_VERSION=0.9.24 && \
+    git clone -b LMDB_${LMDB_VERSION} --single-branch https://github.com/LMDB/lmdb && \
+    cd /lmdb/libraries/liblmdb && \
+    patch -p3 < /tmp/Makefile-lmdb.patch && \
+    rm -f /tmp/Makefile-lmdb.patch && \
+      CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ prefix=/usr/aarch64-linux-gnu \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+    rm -rf /lmdb
+
 RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
     ./autogen.sh && ./configure \
     CXXFLAGS="-fPIC" \
@@ -82,7 +111,7 @@ RUN JPEG_TURBO_VERSION=2.0.5 && \
       CXXFLAGS="-fPIC" \
       CC=aarch64-linux-gnu-gcc \
       CXX=aarch64-linux-gnu-g++ \
-    cmake -G"Unix Makefiles" -DENABLE_SHARED=FALSE -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu/ . 2>&1 >/dev/null && \
+    cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DENABLE_SHARED=TRUE -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu/ . 2>&1 >/dev/null && \
       CFLAGS="-fPIC" \
       CXXFLAGS="-fPIC" \
       CC=aarch64-linux-gnu-gcc \
@@ -235,10 +264,23 @@ RUN LIBSND_VERSION=1.0.28 && cd /tmp                                            
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                                  && \
     cd /tmp && rm -rf libsndfile-$LIBSND_VERSION
 
+# hack - install cross headers in the default python paths, so host python3-config would point to them
+RUN export PYVERS="3.6.9 3.7.8 3.8.5 3.9.0" && \
+    for PYVER in ${PYVERS}; do \
+        cd /tmp && curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - && \
+        rm -rf *.tgz && cd Python*                                                                     && \
+        ./configure --disable-ipv6 ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no \
+            --disable-shared CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
+            --build=x86_64-pc-linux-gnu --host=aarch64-linux-gnu --prefix=/usr/                        && \
+        make -j"$(grep ^processor /proc/cpuinfo | wc -l)" inclinstall                                  && \
+        cd / && rm -rf /tmp/Python*;                                                                      \
+    done                                                                                               && \
+    # hack - patch the host pythonX-config to return --extension-suffix for the target
+    find /usr/ -iname x86_64-linux-gnu-python* -exec sed -i "s/\(SO.*\)\(x86_64\)\(.*\)/\1aarch64\3/" {} \;
+
 VOLUME /dali
 
 WORKDIR /dali
-
 
 ENV PATH=/usr/local/cuda-10.2/bin:$PATH
 
@@ -246,29 +288,34 @@ ARG DALI_BUILD_DIR=build_aarch64_linux
 
 WORKDIR /dali/${DALI_BUILD_DIR}
 
-CMD cmake \
-  -DWERROR=ON \
-  -DCMAKE_TOOLCHAIN_FILE:STRING="$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake" \
-  -DCMAKE_COLOR_MAKEFILE=ON \
-  -DCMAKE_INSTALL_PREFIX=./install \
-  -DARCH=aarch64-linux \
-  -DCMAKE_CUDA_COMPILER=/usr/local/cuda-10.2/bin/nvcc \
-  -DCUDA_HOST=/usr/local/cuda-10.2 \
-  -DCUDA_TARGET=/usr/local/cuda-10.2/targets/aarch64-linux \
-  -DBUILD_TEST=ON \
-  -DBUILD_BENCHMARK=OFF \
-  -DBUILD_NVTX=OFF \
-  -DBUILD_PYTHON=OFF \
-  -DBUILD_LMDB=OFF \
-  -DBUILD_JPEG_TURBO=ON \
-  -DBUILD_LIBTIFF=ON \
-  -DBUILD_LIBSND=ON \
-  -DBUILD_FFTS=ON \
-  -DBUILD_NVJPEG=OFF \
-  -DBUILD_NVJPEG2K=OFF \
-  -DBUILD_NVOF=OFF \
-  -DBUILD_NVDEC=OFF \
-  -DBUILD_NVML=OFF \
-  -DVERBOSE_LOGS=OFF \
-  ..  && \
-  make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+CMD WERROR=ON           \
+    ARCH=aarch64-linux  \
+    BUILD_TEST=ON       \
+    BUILD_BENCHMARK=OFF \
+    BUILD_NVTX=OFF      \
+    BUILD_LMDB=ON       \
+    BUILD_JPEG_TURBO=ON \
+    BUILD_LIBTIFF=ON    \
+    BUILD_LIBSND=ON     \
+    BUILD_FFTS=ON       \
+    BUILD_NVJPEG=OFF    \
+    BUILD_NVJPEG2K=OFF  \
+    BUILD_NVOF=OFF      \
+    BUILD_FFMPEG=OFF    \
+    BUILD_NVDEC=OFF     \
+    BUILD_NVML=OFF      \
+    VERBOSE_LOGS=OFF    \
+    TEST_BUNDLED_LIBS=NO\
+    WHL_PLATFORM_NAME=manylinux2014_aarch64            \
+    BUNDLE_PATH_PREFIX="/usr/aarch64-linux-gnu"        \
+    EXTRA_CMAKE_OPTIONS="-DCMAKE_TOOLCHAIN_FILE:STRING=$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake \
+                        -DCMAKE_COLOR_MAKEFILE=ON                                 \
+                        -DCMAKE_CUDA_COMPILER=/usr/local/cuda-10.2/bin/nvcc       \
+                        -DCUDA_HOST=/usr/local/cuda-10.2                          \
+                        -DCUDA_TARGET=/usr/local/cuda-10.2/targets/aarch64-linux" \
+    /dali/docker/build_helper.sh                    && \
+    rm -rf /dali/${DALI_BUILD_DIR}/nvidia*          && \
+    cd /dali/dali_tf_plugin		            && \
+    bash /dali/dali_tf_plugin/make_dali_tf_sdist.sh && \
+    mv /dali_tf_sdist/*.tar.gz /wheelhouse/         && \
+    cp -r /wheelhouse /dali/
