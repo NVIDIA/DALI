@@ -96,7 +96,7 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
         --build-option --plat-name=${WHL_PLATFORM_NAME} \
         --build-option --build-number=${NVIDIA_BUILD_ID}
 
-    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl ${BUNDLE_PATH_PREFIX}
+    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl "${BUNDLE_PATH_PREFIX}"
 
     if [ "${TEST_BUNDLED_LIBS}" = "YES" ]; then
         export UNZIP_PATH="$(mktemp -d)"

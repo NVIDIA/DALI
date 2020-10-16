@@ -306,8 +306,8 @@ CMD WERROR=ON           \
     BUILD_NVML=OFF      \
     VERBOSE_LOGS=OFF    \
     TEST_BUNDLED_LIBS=NO\
-    WHL_PLATFORM_NAME=manylinux2014_aarch64 \
-    BUNDLE_PATH_PREFIX=aarch64-linux-gnu    \
+    WHL_PLATFORM_NAME=manylinux2014_aarch64            \
+    BUNDLE_PATH_PREFIX="/usr/aarch64-linux-gnu"        \
     EXTRA_CMAKE_OPTIONS="-DCMAKE_TOOLCHAIN_FILE:STRING=$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake \
                         -DCMAKE_COLOR_MAKEFILE=ON                                 \
                         -DCMAKE_CUDA_COMPILER=/usr/local/cuda-10.2/bin/nvcc       \
