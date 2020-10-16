@@ -286,7 +286,7 @@ function(parse_cuda_version CUDA_VERSION CUDA_VERSION_MAJOR_VAR CUDA_VERSION_MIN
   set(${CUDA_VERSION_SHORT_VAR} "${${CUDA_VERSION_MAJOR_VAR}}.${${CUDA_VERSION_MINOR_VAR}}" PARENT_SCOPE)
   set(${CUDA_VERSION_SHORT_DIGIT_ONLY_VAR} "${${CUDA_VERSION_MAJOR_VAR}}${${CUDA_VERSION_MINOR_VAR}}" PARENT_SCOPE)
 
-  message(STATUS "CUDA version compatibile: major: ${${CUDA_VERSION_MAJOR_VAR}}, minor: ${${CUDA_VERSION_MINOR_VAR}}, patch: ${${CUDA_VERSION_PATCH_VAR}}, short: ${${CUDA_VERSION_SHORT_VAR}}, digit-only: ${${CUDA_VERSION_SHORT_DIGIT_ONLY_VAR}}")
+  message(STATUS "Compatible CUDA version: major: ${${CUDA_VERSION_MAJOR_VAR}}, minor: ${${CUDA_VERSION_MINOR_VAR}}, patch: ${${CUDA_VERSION_PATCH_VAR}}, short: ${${CUDA_VERSION_SHORT_VAR}}, digit-only: ${${CUDA_VERSION_SHORT_DIGIT_ONLY_VAR}}")
 endfunction()
 
 # Build a .so library variant for each python version provided in PYTHON_VERSIONS variable

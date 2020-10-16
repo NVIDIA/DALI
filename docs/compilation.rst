@@ -40,10 +40,11 @@ set the following environment variables:
 
 * | CUDA_VERSION - CUDA toolkit version (10.0, 11.0 and 11.1).
   | The default is ``11.1``. Thanks to CUDA extended compatibility mode CUDA 11.1 wheel is named as
-    CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver family (please update to the
-    latest recommended driver version in that family). If the value of the version is prefixed with
-    `.` then any value ``.XX.Y`` can be passed, script check for the supported version is bypassed
-    and the user needs to make sure that Dockerfile.cudaXXY.deps is present in `docker/` directory.
+    CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver family. Please update to the
+    latest recommended driver version in that family. If the value of the version is prefixed with
+    `.` then any value ``.XX.Y`` can be passed, and in that case the supported version check is
+    and the user needs to make sure that Dockerfile.cudaXXY.deps is present in the `docker/`
+    directory.
 * | NVIDIA_BUILD_ID - Custom ID of the build.
   | The default is ``1234``.
 * | CREATE_WHL - Create a standalone wheel.
@@ -61,12 +62,13 @@ set the following environment variables:
     PREBUILD_TF_PLUGINS value is disregarded. The default is ``YES``.
 * | CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside.
   | It will create the ``Docker_run_cuda`` image, which needs to be run using |nvidia_docker|_
-    and place the DALI wheel (and optionally the TensorFlow plugin if compiled) in the ``/opt/dali`` directory.
+    and place the DALI wheel (and optionally the TensorFlow plugin if compiled) in the ``/opt/dali``
+    directory.
   | The default is ``NO``.
 * | PYVER - Python version used to create the runner image with DALI installed inside mentioned above.
   | The default is ``3.6``.
-* DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package description,
-  i.e. `nightly` will result in the `nvidia-dali-nightly`
+* DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package
+  description, i.e. `nightly` will result in the `nvidia-dali-nightly`
 * | CMAKE_BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo.
   | The default is ``Release``.
 * | STRIP_BINARY - when used with CMAKE_BUILD_TYPE equal to Debug, DevDebug, or RelWithDebInfo it

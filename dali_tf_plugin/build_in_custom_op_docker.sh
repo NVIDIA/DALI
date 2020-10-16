@@ -9,7 +9,7 @@ DALI_TOPDIR="${PYTHON_DIST_PACKAGES}/nvidia/dali"
 CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
 # when building for any version >= 11.0 use CUDA compatibility mode and claim it is a CUDA 110 package
 if [ $CUDA_VERSION gt 110 ]; then
-  export CUDA_VERSION=$((CUDA_VERSION/10*10))
+  export CUDA_VERSION="${CUDA_VERSION%?}0"
 fi
 
 LAST_CONFIG_INDEX=$(python ../qa/setup_packages.py -n -u tensorflow-gpu --cuda ${CUDA_VERSION})
