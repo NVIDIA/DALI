@@ -77,22 +77,36 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
 }
 
 TEST(NemoAsrLoaderTest, ParseNonAsciiTransript) {
-  {
-    std::stringstream ss;
-    ss << R"code({"audio_filepath": "path/to/audio1.wav", "duration": 1.45, "text": "это проверка"})code" << std::endl;
-    std::vector<NemoAsrEntry> entries;
-    detail::ParseManifest(entries, ss);
-    ASSERT_EQ(1, entries.size());
-    EXPECT_EQ(std::string(u8"это проверка"), entries[0].text);
-  }
+  using TestData = std::pair<std::string, std::vector<uint8_t>>;
 
-  {
+  std::vector<TestData> tests;
+  tests.emplace_back(u8"это проверка",
+    std::vector<uint8_t>{
+      0xd1, 0x8d, 0xd1, 0x82, 0xd0, 0xbe, 0x20, 0xd0,
+      0xbf, 0xd1, 0x80, 0xd0, 0xbe, 0xd0, 0xb2, 0xd0,
+      0xb5, 0xd1, 0x80, 0xd0, 0xba, 0xd0, 0xb0});
+  tests.emplace_back(u8"这是一个测试",
+    std::vector<uint8_t>{
+      0xe8, 0xbf, 0x99, 0xe6, 0x98, 0xaf, 0xe4, 0xb8, 0x80,
+      0xe4, 0xb8, 0xaa, 0xe6, 0xb5, 0x8b, 0xe8, 0xaf, 0x95});
+  tests.emplace_back(u8"Dziękuję",
+    std::vector<uint8_t>{
+      0x44, 0x7a, 0x69, 0xc4, 0x99, 0x6b, 0x75, 0x6a, 0xc4, 0x99});
+  tests.emplace_back(
+      u8"\u0e02\u0e2d\u0e1a\u0e04\u0e38\u0e13\u0e04\u0e23\u0e31\u0e1a",  // u8"ขอบคุณครับ"
+      std::vector<uint8_t>{
+        0xe0, 0xb8, 0x82, 0xe0, 0xb8, 0xad, 0xe0, 0xb8, 0x9a, 0xe0,
+        0xb8, 0x84, 0xe0, 0xb8, 0xb8, 0xe0, 0xb8, 0x93, 0xe0, 0xb8,
+        0x84, 0xe0, 0xb8, 0xa3, 0xe0, 0xb8, 0xb1, 0xe0, 0xb8, 0x9a});
+
+  for (const auto& data : tests) {
     std::stringstream ss;
-    ss << R"code({"audio_filepath": "path/to/audio1.wav", "duration": 1.45, "text": "这是一个测试"})code" << std::endl;
+    ss << R"code({"audio_filepath": "path/to/audio1.wav", "duration": 1.45, "text": ")code" << data.first << R"code("})code" << std::endl;
     std::vector<NemoAsrEntry> entries;
     detail::ParseManifest(entries, ss);
     ASSERT_EQ(1, entries.size());
-    EXPECT_EQ(std::string(u8"这是一个测试"), entries[0].text);
+    ASSERT_EQ(data.second.size(), entries[0].text.length());
+    EXPECT_EQ(0, std::memcmp(data.second.data(), entries[0].text.c_str(), data.second.size()));
   }
 }
 

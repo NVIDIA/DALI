@@ -64,7 +64,7 @@ ref_text_literal = [
 ]
 nemo_asr_manifest = os.path.join(tmp_dir.name, "nemo_asr_manifest.json")
 create_manifest_file(nemo_asr_manifest, names, lengths, rates, ref_text_literal)
-ref_text = [np.frombuffer(bytes(s, "utf8"), dtype=np.uint8).reshape(-1) for s in ref_text_literal]
+ref_text = [np.frombuffer(bytes(s, "utf8"), dtype=np.uint8) for s in ref_text_literal]
 
 ref_text_non_ascii_literal = [
   u"dzień dobry",
