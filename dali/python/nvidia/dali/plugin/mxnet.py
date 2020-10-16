@@ -636,7 +636,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
 
         self._first_batch = None
         try:
-            self._first_batch = self.next()
+            self._first_batch = self._first_batch = DALIGluonIterator.__next__(self)
         except StopIteration:
             assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
 
