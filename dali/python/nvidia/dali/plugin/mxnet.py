@@ -15,6 +15,7 @@
 from nvidia.dali.backend import TensorGPU, TensorListGPU
 from nvidia.dali import types
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
+from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 import mxnet as mx
 import ctypes
 import numpy as np
@@ -76,10 +77,12 @@ class _DALIMXNetIteratorBase(mx.io.DataIter, _DaliBaseIterator):
                  pipelines,
                  size=-1,
                  reader_name=None,
-                 fill_last_batch=False,
+                 fill_last_batch=None,
                  last_batch_padded=False,
-                 auto_reset=False):
-        _DaliBaseIterator.__init__(self, pipelines, size, reader_name, auto_reset, fill_last_batch, last_batch_padded)
+                 auto_reset=False,
+                 last_batch_policy=LastBatchPolicy.FILL):
+        _DaliBaseIterator.__init__(self, pipelines, size, reader_name, auto_reset,
+                                   fill_last_batch, last_batch_padded, last_batch_policy)
 
     def next(self):
         """
@@ -140,23 +143,18 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
     size : int, default = -1
           Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
           Providing -1 means that the iterator will work until StopIteration is raised
-          from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
+          from the inside of iter_setup(). The options `last_batch_policy`, `last_batch_padded` and
           `auto_reset` don't work in such case. It works with only one pipeline inside
           the iterator.
           Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-           Name of the reader which will be queried to the shard size, number of shards and
-           all other properties necessary to count properly the number of relevant and padded
-           samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
-           `last_batch_padded` accordingly to match the reader's configuration
+                Name of the reader which will be queried to the shard size, number of shards and
+                all other properties necessary to count properly the number of relevant and padded
+                samples that iterator needs to deal with. It automatically sets `last_batch_policy` to
+                PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
+                the reader's configuration
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
-    fill_last_batch : bool, optional, default = True
-                 Whether to fill the last batch with data up to 'self.batch_size'.
-                 The iterator would return the first integer multiple
-                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
-                 Setting this flag to False will cause the iterator to return
-                 exactly 'size' entries.
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
@@ -168,29 +166,44 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                  change during execution. If True, the mxnet.ndarray will be resized accordingly
                  if the shape of DALI returned tensors changes during execution.
                  If False, the iterator will fail in case of change.
+    fill_last_batch : bool, optional, default = None
+                **Deprecated** Please use ``last_batch_policy`` instead
+
+                Whether to fill the last batch with data up to 'self.batch_size'.
+                The iterator would return the first integer multiple
+                of self._num_gpus * self.batch_size entries which exceeds 'size'.
+                Setting this flag to False will cause the iterator to return
+                exactly 'size' entries.
+    last_batch_policy : default = FILL
+                What to do with the last batch when there is no enough samples in the epoch
+                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
     last_batch_padded : bool, optional, default = False
-                 Whether the last batch provided by DALI is padded with the last sample
-                 or it just wraps up. In the conjunction with ``fill_last_batch`` it tells
-                 if the iterator returning last batch with data only partially filled with
-                 data from the current epoch is dropping padding samples or samples from
-                 the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
-                 so the following code could use it to drop the data). If set to False next
-                 epoch will end sooner as data from it was consumed but dropped. If set to
-                 True next epoch would be the same length as the first one. For this to happen,
-                 the option `pad_last_batch` in the reader needs to be set to True as well.
-                 It is overwritten when `reader_name` argument is provided
+                Whether the last batch provided by DALI is padded with the last sample
+                or it just wraps up. In the conjunction with ``last_batch_policy`` it tells
+                if the iterator returning last batch with data only partially filled with
+                data from the current epoch is dropping padding samples or samples from
+                the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
+                so the following code could use it to drop the data). If set to ``False`` next
+                epoch will end sooner as data from it was consumed but dropped. If set to
+                True next epoch would be the same length as the first one. For this to happen,
+                the option `pad_last_batch` in the reader needs to be set to True as well.
+                It is overwritten when `reader_name` argument is provided
 
     Example
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    fill_last_batch = False, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
 
-    fill_last_batch = False, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
 
-    fill_last_batch = True, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
 
-    fill_last_batch = True, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+
+    last_batch_policy = DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+
+    last_batch_policy = DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
     def __init__(self,
                  pipelines,
@@ -198,23 +211,14 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                  size=-1,
                  reader_name=None,
                  data_layout='NCHW',
-                 fill_last_batch=True,
+                 fill_last_batch=None,
                  auto_reset=False,
                  squeeze_labels=True,
                  dynamic_shape=False,
-                 last_batch_padded=False):
-        super(DALIGenericIterator, self).__init__(
-            pipelines,
-            size,
-            reader_name,
-            fill_last_batch,
-            last_batch_padded,
-            auto_reset)
-        self._squeeze_labels = squeeze_labels
-        self._dynamic_shape = dynamic_shape
-        # Use double-buffering of data batches
-        self._data_batches = [[None] for i in range(self._num_gpus)]
-        self._current_data_batch = 0
+                 last_batch_padded=False,
+                 last_batch_policy=LastBatchPolicy.FILL):
+
+        # check the assert first as _DaliBaseIterator would run the prefetch
         self._output_names_map = [x[0] for x in output_map]
         self._output_categories_map = [x[1] for x in output_map]
         self._output_categories = {DALIGenericIterator.DATA_TAG, DALIGenericIterator.LABEL_TAG}
@@ -224,13 +228,25 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             "output_names in output_map should be distinct"
         self.output_map = output_map
 
-        # We need data about the batches (like shape information),
-        # so we need to run a single batch as part of setup to get that info
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.schedule_run()
+        super(DALIGenericIterator, self).__init__(
+            pipelines,
+            size,
+            reader_name,
+            fill_last_batch,
+            last_batch_padded,
+            auto_reset,
+            last_batch_policy)
+        self._squeeze_labels = squeeze_labels
+        self._dynamic_shape = dynamic_shape
+        # Use double-buffering of data batches
+        self._data_batches = [[None] for i in range(self._num_gpus)]
+        self._current_data_batch = 0
+
         self._first_batch = None
-        self._first_batch = DALIGenericIterator.__next__(self)
+        try:
+            self._first_batch = DALIGenericIterator.__next__(self)
+        except StopIteration:
+            assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
         # Set data descriptors for MXNet
         self.provide_data = []
         self.provide_label = []
@@ -246,7 +262,6 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             label_shape = (label.shape[0] * self._num_gpus,) + label.shape[1:]
             self.provide_label.append(mx.io.DataDesc(category_names[DALIGenericIterator.LABEL_TAG][i], \
                 label_shape, label.dtype))
-
 
     def __next__(self):
         if self._first_batch is not None:
@@ -324,9 +339,10 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 p.release_outputs()
                 p.schedule_run()
 
+        self._advance_and_check_drop_last()
+
         copy_db_index = self._current_data_batch
         if self._reader_name:
-            self._counter += self.batch_size
             if_drop, left = self._remove_padded()
             if np.any(if_drop):
                 left = [self.batch_size - l for l in left]
@@ -337,10 +353,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                     batch[copy_db_index].pad = 0
 
         else:
-            self._counter += self._num_gpus * self.batch_size
-
             # padding the last batch
-            if (not self._fill_last_batch) and (self._counter > self._size) and self._size > 0:
+            if self._last_batch_policy == LastBatchPolicy.PARTIAL and (self._counter > self._size) and self._size > 0:
                 # this is the last batch and we need to pad
                 overflow = self._counter - self._size
                 overflow_per_device = overflow // self._num_gpus
@@ -391,27 +405,22 @@ class DALIClassificationIterator(DALIGenericIterator):
     size : int, default = -1
            Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
            Providing -1 means that the iterator will work until StopIteration is raised
-           from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
+           from the inside of iter_setup(). The options `last_batch_policy`, `last_batch_padded` and
            `auto_reset` don't work in such case. It works with only one pipeline inside
            the iterator.
            Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-           Name of the reader which will be queried to the shard size, number of shards and
-           all other properties necessary to count properly the number of relevant and padded
-           samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
-           `last_batch_padded` accordingly to match the reader's configuration
+                Name of the reader which will be queried to the shard size, number of shards and
+                all other properties necessary to count properly the number of relevant and padded
+                samples that iterator needs to deal with. It automatically sets `last_batch_policy` to
+                PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
+                the reader's configuration
     data_name : str, optional, default = 'data'
                 Data name for provided symbols.
     label_name : str, optional, default = 'softmax_label'
                  Label name for provided symbols.
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
-    fill_last_batch : bool, optional, default = True
-                 Whether to fill the last batch with data up to 'self.batch_size'.
-                 The iterator would return the first integer multiple
-                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
-                 Setting this flag to False will cause the iterator to return
-                 exactly 'size' entries.
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
@@ -423,29 +432,44 @@ class DALIClassificationIterator(DALIGenericIterator):
                  change during execution. If True, the mxnet.ndarray will be resized accordingly
                  if the shape of DALI returned tensors changes during execution.
                  If False, the iterator will fail in case of change.
+    fill_last_batch : bool, optional, default = None
+                **Deprecated** Please use ``last_batch_policy`` instead
+
+                Whether to fill the last batch with data up to 'self.batch_size'.
+                The iterator would return the first integer multiple
+                of self._num_gpus * self.batch_size entries which exceeds 'size'.
+                Setting this flag to False will cause the iterator to return
+                exactly 'size' entries.
+    last_batch_policy : default = FILL
+                What to do with the last batch when there is no enough samples in the epoch
+                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
     last_batch_padded : bool, optional, default = False
-                 Whether the last batch provided by DALI is padded with the last sample
-                 or it just wraps up. In the conjunction with ``fill_last_batch`` it tells
-                 if the iterator returning last batch with data only partially filled with
-                 data from the current epoch is dropping padding samples or samples from
-                 the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
-                 so the following code could use it to drop the data). If set to False next
-                 epoch will end sooner as data from it was consumed but dropped. If set to
-                 True next epoch would be the same length as the first one. For this to happen,
-                 the option `pad_last_batch` in the reader needs to be set to True as well.
-                 It is overwritten when `reader_name` argument is provided
+                Whether the last batch provided by DALI is padded with the last sample
+                or it just wraps up. In the conjunction with ``last_batch_policy`` it tells
+                if the iterator returning last batch with data only partially filled with
+                data from the current epoch is dropping padding samples or samples from
+                the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
+                so the following code could use it to drop the data). If set to ``False`` next
+                epoch will end sooner as data from it was consumed but dropped. If set to
+                True next epoch would be the same length as the first one. For this to happen,
+                the option `pad_last_batch` in the reader needs to be set to True as well.
+                It is overwritten when `reader_name` argument is provided
 
     Example
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    fill_last_batch = False, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
 
-    fill_last_batch = False, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
 
-    fill_last_batch = True, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
 
-    fill_last_batch = True, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+
+    last_batch_policy = DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+
+    last_batch_policy = DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
     def __init__(self,
                  pipelines,
@@ -454,11 +478,12 @@ class DALIClassificationIterator(DALIGenericIterator):
                  data_name='data',
                  label_name='softmax_label',
                  data_layout='NCHW',
-                 fill_last_batch=True,
+                 fill_last_batch=None,
                  auto_reset=False,
                  squeeze_labels=True,
                  dynamic_shape=False,
-                 last_batch_padded=False):
+                 last_batch_padded=False,
+                 last_batch_policy=LastBatchPolicy.FILL):
         super(DALIClassificationIterator, self).__init__(pipelines,
                                                          [(data_name, DALIClassificationIterator.DATA_TAG),
                                                           (label_name, DALIClassificationIterator.LABEL_TAG)],
@@ -469,7 +494,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                                                          auto_reset = auto_reset,
                                                          squeeze_labels=squeeze_labels,
                                                          dynamic_shape=dynamic_shape,
-                                                         last_batch_padded = last_batch_padded)
+                                                         last_batch_padded = last_batch_padded,
+                                                         last_batch_policy = last_batch_policy)
 
 ###############################################
 ###############################################
@@ -519,15 +545,16 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
     size : int, default = -1
             Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
             Providing -1 means that the iterator will work until StopIteration is raised
-            from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
+            from the inside of iter_setup(). The options `last_batch_policy`, `last_batch_padded` and
             `auto_reset` don't work in such case. It works with only one pipeline inside
             the iterator.
             Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-            Name of the reader which will be queried to the shard size, number of shards and
-            all other properties necessary to count properly the number of relevant and padded
-            samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
-            `last_batch_padded` accordingly to match the reader's configuration
+                Name of the reader which will be queried to the shard size, number of shards and
+                all other properties necessary to count properly the number of relevant and padded
+                samples that iterator needs to deal with. It automatically sets `last_batch_policy` to
+                PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
+                the reader's configuration
     output_types : list of str, optional, default = None
             List of tags indicating whether the pipeline(s) output batch is
             uniform (all the samples have the same size) or not. Batch output marked
@@ -540,36 +567,44 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
     auto_reset : bool, optional, default = False
             Whether the iterator resets itself for the next epoch
             or it requires reset() to be called separately.
-    fill_last_batch : bool, optional, default = True
-            Whether to fill the last batch with data up to 'self.batch_size'.
-            The iterator would return the first integer multiple
-            of self._num_gpus * self.batch_size entries which exceeds 'size'.
-            Setting this flag to False will cause the iterator to return
-            exactly 'size' entries.
+    fill_last_batch : bool, optional, default = None
+                **Deprecated** Please use ``last_batch_policy`` instead
+
+                Whether to fill the last batch with data up to 'self.batch_size'.
+                The iterator would return the first integer multiple
+                of self._num_gpus * self.batch_size entries which exceeds 'size'.
+                Setting this flag to False will cause the iterator to return
+                exactly 'size' entries.
+    last_batch_policy : default = FILL
+                What to do with the last batch when there is no enough samples in the epoch
+                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
     last_batch_padded : bool, optional, default = False
-            Whether the last batch provided by DALI is padded with the last sample
-            or it just wraps up. In the conjunction with ``fill_last_batch`` it tells
-            if the iterator returning last batch with data only partially filled with
-            data from the current epoch is dropping padding samples or samples from
-            the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
-            so the following code could use it to drop the data). If set to False next
-            epoch will end sooner as data from it was consumed but dropped. If set to
-            True next epoch would be the same length as the first one. For this to happen,
-            the option `pad_last_batch` in the reader needs to be set to True as well.
-            It is overwritten when `reader_name` argument is provided
+                Whether the last batch provided by DALI is padded with the last sample
+                or it just wraps up. In the conjunction with ``last_batch_policy`` it tells
+                if the iterator returning last batch with data only partially filled with
+                data from the current epoch is dropping padding samples or samples from
+                the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
+                so the following code could use it to drop the data). If set to ``False`` next
+                epoch will end sooner as data from it was consumed but dropped. If set to
+                True next epoch would be the same length as the first one. For this to happen,
+                the option `pad_last_batch` in the reader needs to be set to True as well.
+                It is overwritten when `reader_name` argument is provided
 
     Example
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    fill_last_batch = False, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
 
-    fill_last_batch = False, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
 
-    fill_last_batch = True, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
 
-    fill_last_batch = True, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
 
+    last_batch_policy = DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+
+    last_batch_policy = DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
     def __init__(self,
                  pipelines,
@@ -577,31 +612,40 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                  reader_name=None,
                  output_types=None,
                  auto_reset=False,
-                 fill_last_batch=True,
-                 last_batch_padded=False):
-        super(DALIGluonIterator, self).__init__(
-            pipelines,
-            size,
-            reader_name,
-            fill_last_batch,
-            last_batch_padded,
-            auto_reset)
+                 fill_last_batch=None,
+                 last_batch_padded=False,
+                 last_batch_policy=LastBatchPolicy.FILL):
 
-        self._data_batches = [None for i in range(self._num_gpus)]
+        # check the assert first as _DaliBaseIterator would run the prefetch
         self._output_tags = {DALIGluonIterator.DENSE_TAG, DALIGluonIterator.SPARSE_TAG}
         assert output_types is None or set(output_types) <= self._output_tags, \
             "Only DENSE_TAG and SPARSE_TAG are allowed"
 
         self._outputs_types = output_types
 
-        # We need data about the batches (like shape information),
-        # so we need to run a single batch as part of setup to get that info
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.schedule_run()
+        super(DALIGluonIterator, self).__init__(
+            pipelines,
+            size,
+            reader_name,
+            fill_last_batch,
+            last_batch_padded,
+            auto_reset,
+            last_batch_policy)
 
+        self._data_batches = [None for i in range(self._num_gpus)]
+
+        self._first_batch = None
+        try:
+            self._first_batch = self._first_batch = DALIGluonIterator.__next__(self)
+        except StopIteration:
+            assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
 
     def __next__(self):
+        if self._first_batch is not None:
+            batch = self._first_batch
+            self._first_batch = None
+            return batch
+
         self._check_stop()
         # Gather outputs
         dali_outputs = []
@@ -643,8 +687,9 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 p.release_outputs()
                 p.schedule_run()
 
+        self._advance_and_check_drop_last()
+
         if self._reader_name:
-            self._counter += self.batch_size
             if_drop, left = self._remove_padded()
             if np.any(if_drop):
                 output = []
@@ -656,8 +701,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 return output
 
         else:
-            self._counter += self._num_gpus * self.batch_size
-            if (not self._fill_last_batch) and (self._counter > self._size) and self._size > 0:
+            if self._last_batch_policy == LastBatchPolicy.PARTIAL and (self._counter > self._size) and self._size > 0:
                 # First calculate how much data is required to return exactly self._size entries.
                 diff = self._num_gpus * self.batch_size - (self._counter - self._size)
                 # Figure out how many GPUs to grab from.
