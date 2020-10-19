@@ -215,6 +215,14 @@ class DALIGenericIterator(_DaliBaseIterator):
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL):
 
+        normalized_map = {}
+        for v in output_map:
+            if isinstance(v, str):
+                normalized_map[v] = 0
+            else:
+                normalized_map[v[0]] = v[1]
+        self.normalized_map = normalized_map
+
         # check the assert first as _DaliBaseIterator would run the prefetch
         output_map = [isinstance(v, str) and v or v[0] for v in output_map]
         assert len(set(output_map)) == len(output_map), \
@@ -227,14 +235,6 @@ class DALIGenericIterator(_DaliBaseIterator):
         # Use double-buffering of data batches
         self._data_batches = [None for i in range(self._num_gpus)]
         self._counter = 0
-
-        normalized_map = {}
-        for v in output_map:
-            if isinstance(v, str):
-                normalized_map[v] = 0
-            else:
-                normalized_map[v[0]] = v[1]
-        self.normalized_map = normalized_map
 
         self._first_batch = None
         try:
