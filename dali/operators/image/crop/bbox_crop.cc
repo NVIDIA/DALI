@@ -523,7 +523,6 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       const auto &labels_in = ws.Input<CPUBackend>(1);
       auto &labels_out = ws.Output<CPUBackend>(next_out_idx++);
       labels_out.Resize({static_cast<Index>(prospective_crop.bbox_indices.size()), 1});
-      int64_t i = 0;
       const auto* labels_in_data = labels_in.data<int>();
       auto *labels_out_data = labels_out.mutable_data<int>();
       for (auto bbox_idx : prospective_crop.bbox_indices) {
