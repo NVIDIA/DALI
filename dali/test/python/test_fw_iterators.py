@@ -903,7 +903,7 @@ class TestIterPipeline(Pipeline):
         self.test_data = self.test_feeder()
         return self.test_data
 
-    def iter_setup(self,):
+    def iter_setup(self):
         try:
             data = self.dataset.next()
             self.feed_input(self.test_data, data)
@@ -923,10 +923,10 @@ def check_stop_iter(fw_iter, iterator_name, batch_size, epochs, iter_num, auto_r
         iter_size = pipe.size
     loader = fw_iter(pipe, iter_size, auto_reset)
     count = 0
-    for e in range(epochs):
-        for i, outputs in enumerate(loader):
+    for _ in range(epochs):
+        for __ in enumerate(loader):
             count += 1
-        if not auto_reset or infinite:
+        if not auto_reset:
             loader.reset()
     assert(count == iter_num * epochs)
 
@@ -973,9 +973,36 @@ def check_iterator_wrapper_first_iteration(BaseIterator, *args, **kwargs):
     iterator_wrapper = IteratorWrapper([pipe], *args, **kwargs)
     # Only now, we allow the wrapper __next__ to run
     iterator_wrapper._allow_next = True
-    for i, outputs in enumerate(iterator_wrapper):
+    for i, _ in enumerate(iterator_wrapper):
         if i == 2:
             break
+
+def check_external_source_autoreset(Iterator, *args, **kwargs):
+    batch_size = 4
+    iter_limit = 4
+    runs = 3
+    test_data_shape = [2, 3, 4]
+    i = 0
+    def get_data():
+        nonlocal i
+        if i == iter_limit:
+            i = 0
+            raise StopIteration
+        out = [[np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]]
+        i += 1
+        return out
+
+    pipe = Pipeline(batch_size = batch_size, num_threads = 1, device_id = 0)
+    with pipe:
+        outs = fn.external_source(source = get_data, num_outputs=1)
+    pipe.set_outputs(*outs)
+
+    it = Iterator([pipe], *args, auto_reset=True, **kwargs)
+    counter = 0
+    for _ in range(runs):
+        for __ in enumerate(it):
+            counter += 1
+    assert counter == iter_limit * runs
 
 # MXNet
 def test_stop_iteration_mxnet():
@@ -999,6 +1026,10 @@ def test_mxnet_iterator_wrapper_first_iteration():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     check_iterator_wrapper_first_iteration(MXNetIterator, [("data", MXNetIterator.DATA_TAG)], size=100)
 
+def test_mxnet_external_source_autoreset():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    check_external_source_autoreset(MXNetIterator, [("data", MXNetIterator.DATA_TAG)])
+
 # Gluon
 def test_stop_iteration_gluon():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
@@ -1020,6 +1051,10 @@ def test_stop_iteration_gluon_fail_single():
 def test_gluon_iterator_wrapper_first_iteration():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     check_iterator_wrapper_first_iteration(GluonIterator,  output_types=[GluonIterator.DENSE_TAG], size=100)
+
+def test_gluon_external_source_autoreset():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    check_external_source_autoreset(GluonIterator, output_types=[GluonIterator.DENSE_TAG])
 
 # PyTorch
 def test_stop_iteration_pytorch():
@@ -1043,6 +1078,10 @@ def test_pytorch_iterator_wrapper_first_iteration():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     check_iterator_wrapper_first_iteration(PyTorchIterator, output_map=["data"],  size=100)
 
+def test_pytorch_external_source_autoreset():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    check_external_source_autoreset(PyTorchIterator, output_map=["data"])
+
 # PaddlePaddle
 def test_stop_iteration_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
@@ -1064,3 +1103,7 @@ def test_stop_iteration_paddle_fail_single():
 def test_paddle_iterator_wrapper_first_iteration():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     check_iterator_wrapper_first_iteration(PaddleIterator, output_map=["data"],  size=100)
+
+def test_paddle_external_source_autoreset():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+    check_external_source_autoreset(PaddleIterator, output_map=["data"])

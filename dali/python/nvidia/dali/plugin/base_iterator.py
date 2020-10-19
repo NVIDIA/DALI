@@ -150,9 +150,7 @@ class _DaliBaseIterator(object):
         assert not reader_name or (reader_name and self._size < 0), "When reader_name is provided, size should not be set"
         assert not reader_name or (reader_name and last_batch_padded == False), "When reader_name is provided, last_batch_padded should not be set"
         if self._size < 0 and not reader_name:
-            self._auto_reset = False
-            if self._last_batch_policy == LastBatchPolicy.FILL:
-                self._last_batch_policy = LastBatchPolicy.PARTIAL
+            self._last_batch_policy = LastBatchPolicy.FILL
             self._last_batch_padded = False
         if self.size > 0 and not reader_name:
             _iterator_deprecation_warning()
@@ -169,9 +167,7 @@ class _DaliBaseIterator(object):
 
         # We need data about the batches (like shape information),
         # so we need to run a single batch as part of setup to get that info
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.schedule_run()
+        self._schedule_runs()
 
     def _calculate_shard_sizes(self, shard_nums):
         shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num).astype(np.int)
@@ -219,15 +215,6 @@ class _DaliBaseIterator(object):
             # memorize the initial shard sizes and then use chaning self._shards_id to index it
             self._shard_sizes_per_gpu_initial = self._shard_sizes_per_gpu.copy()
 
-    def _check_stop(self):
-        """"
-        Checks iterator stop condition and raise StopIteration if needed
-        """
-        if self._counter >= self._size and self._size > 0:
-            if self._auto_reset:
-                self.reset()
-            raise StopIteration
-
     def _remove_padded(self):
         """
         Checks if remove any padded sample and how much.
@@ -244,6 +231,36 @@ class _DaliBaseIterator(object):
             left = self.batch_size - (self._counter - self._shard_sizes_per_gpu_initial[self._shards_id])
             if_drop = np.less(left, self.batch_size)
         return if_drop, left
+
+    def _get_outputs(self):
+        """
+        Checks iterator stop condition, gets DALI outputs and perform reset in case of StopIteration
+        """
+        if self._counter >= self._size and self._size > 0:
+            if self._auto_reset:
+                self.reset()
+            raise StopIteration
+
+        outputs = []
+        try:
+            for p in self._pipes:
+                with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
+                    outputs.append(p.share_outputs())
+        except StopIteration as e:
+            # in case ExternalSource returns StopIteration
+            if self._size < 0 and self._auto_reset:
+                self.reset()
+            raise e
+        return outputs
+
+    def _schedule_runs(self):
+        """
+        Schedule DALI runs
+        """
+        for p in self._pipes:
+            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
+                p.release_outputs()
+                p.schedule_run()
 
     def _advance_and_check_drop_last(self):
         """

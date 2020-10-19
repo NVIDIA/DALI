@@ -268,12 +268,10 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             batch = self._first_batch
             self._first_batch = None
             return batch
-        self._check_stop()
+
         # Gather outputs
-        outputs = []
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                outputs.append(p.share_outputs())
+        outputs = self._get_outputs()
+
         for i in range(self._num_gpus):
             # MXNet wants batches with clear distinction between
             # data and label entries, so segregate outputs into
@@ -334,10 +332,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             for j, l_arr in enumerate(l):
                 feed_ndarray(category_tensors[DALIGenericIterator.LABEL_TAG][j], l_arr)
 
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.release_outputs()
-                p.schedule_run()
+        self._schedule_runs()
 
         self._advance_and_check_drop_last()
 
@@ -646,12 +641,9 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
             self._first_batch = None
             return batch
 
-        self._check_stop()
         # Gather outputs
-        dali_outputs = []
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                dali_outputs.append(p.share_outputs())
+        dali_outputs = self._get_outputs()
+
         for i in range(self._num_gpus):
             output_elements = []
             shapes = []
@@ -682,10 +674,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                     for output_el in batch]
                    for batch in self._data_batches]
 
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.release_outputs()
-                p.schedule_run()
+        self._schedule_runs()
 
         self._advance_and_check_drop_last()
 
