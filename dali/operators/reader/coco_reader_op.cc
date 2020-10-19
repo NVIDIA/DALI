@@ -74,7 +74,7 @@ The value is represented as an absolute value.)code",
       0.1f,
       false)
   .AddOptionalArg("ratio",
-      R"code(If set to True, the returned bbox coordinates are relative to the image size.)code",
+      R"code(If set to True, the returned bbox and masks coordinates are relative to the image size.)code",
       false)
   .AddOptionalArg("file_list",
       R"code(Path to the file that contains a list of whitespace separated ``file id`` pairs.
