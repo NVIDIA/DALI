@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/generic/reduce/reduce.h"
+#include "dali/operators/generic/reduce/sum.h"
 
 
 namespace dali {
@@ -29,8 +30,20 @@ Not providing any axis results in reduction of all elements.)code",
     "If True, maintains original input dimensions.",
     false);
 
+DALI_SCHEMA(Mean)
+  .DocStr("")
+  .AddOptionalArg("output_type",
+    R"code(Output data type. This type is used to accumulate the result.)code",
+    DALI_NO_TYPE)
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("ReduceBase");
+
 DALI_SCHEMA(Sum)
-  .DocStr("Gets minimal input element along provided axes.")
+  .DocStr("")
+  .AddOptionalArg("output_type",
+    R"code(Output data type. This type is used to accumulate the result.)code",
+    DALI_NO_TYPE)
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
@@ -47,21 +60,27 @@ DALI_SCHEMA(Max)
   .NumOutput(1)
   .AddParent("ReduceBase");
 
-using SumCPU = Reduce<kernels::SumCPU, CPUBackend>;
+using MeanCPU = ReduceOp<kernels::MeanCPU, CPUBackend>;
+DALI_REGISTER_OPERATOR(Mean, MeanCPU, CPU);
+
+using MeanGPU = ReduceOp<kernels::MeanGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(Mean, MeanGPU, GPU);
+
+using SumCPU = SumOp<kernels::SumCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(Sum, SumCPU, CPU);
 
-using SumGPU = Reduce<kernels::SumGPU, GPUBackend>;
+using SumGPU = SumOp<kernels::SumGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(Sum, SumGPU, GPU);
 
-using MinCPU = Reduce<kernels::MinCPU, CPUBackend>;
+using MinCPU = ReduceOp<kernels::MinCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(Min, MinCPU, CPU);
 
-using MinGPU = Reduce<kernels::MinGPU, GPUBackend>;
+using MinGPU = ReduceOp<kernels::MinGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(Min, MinGPU, GPU);
 
-using MaxCPU = Reduce<kernels::MaxCPU, CPUBackend>;
+using MaxCPU = ReduceOp<kernels::MaxCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(Max, MaxCPU, CPU);
 
-using MaxGPU = Reduce<kernels::MaxGPU, GPUBackend>;
+using MaxGPU = ReduceOp<kernels::MaxGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(Max, MaxGPU, GPU);
 }  // namespace dali
