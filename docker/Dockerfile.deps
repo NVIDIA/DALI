@@ -115,11 +115,12 @@ RUN OPENCV_VERSION=4.4.0 && \
     rm -rf /opencv-${OPENCV_VERSION}
 
 # Clang
+# use --no-same-owner as extracted files have a weird premissions
 RUN CLANG_VERSION=8.0.1 && \
     cd /usr/local && \
     wget https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz && \
-    tar -xJf clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz --strip 1 && \
-    rm clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz
+    tar --no-same-owner -xJf clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz --strip 1 && \
+    rm -rf clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz
 
 ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
@@ -189,3 +190,6 @@ RUN LIBSND_VERSION=1.0.28 && cd /tmp                                            
 
 # CUDA
 COPY --from=cuda /usr/local/cuda /usr/local/cuda
+
+# fix files permissions just in case
+RUN chown -R root:root / 2> /dev/null || true
