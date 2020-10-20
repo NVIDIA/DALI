@@ -428,9 +428,17 @@ void CocoLoader::ParseJsonAnnotations() {
               sample_mask_meta.push_back(obj_coords_offset + annotation.poly_.segm_meta_[i]);
               sample_mask_meta.push_back(obj_coords_offset + annotation.poly_.segm_meta_[i + 1]);
             }
-            sample_mask_coords.insert(sample_mask_coords.end(),
-                                      annotation.poly_.segm_coords_.begin(),
-                                      annotation.poly_.segm_coords_.end());
+            if (ratio) {
+              auto *coords = annotation.poly_.segm_coords_.data();
+              for (size_t i = 0; i < annotation.poly_.segm_coords_.size(); i += 2) {
+                sample_mask_coords.push_back(coords[i] / image_info.width_);
+                sample_mask_coords.push_back(coords[i + 1] / image_info.height_);
+              }
+            } else {
+              sample_mask_coords.insert(sample_mask_coords.end(),
+                                        annotation.poly_.segm_coords_.begin(),
+                                        annotation.poly_.segm_coords_.end());
+            }
             break;
           }
           case detail::Annotation::RLE: {
