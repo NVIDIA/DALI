@@ -30,15 +30,6 @@ Not providing any axis results in reduction of all elements.)code",
     "If True, maintains original input dimensions.",
     false);
 
-DALI_SCHEMA(Mean)
-  .DocStr("")
-  .AddOptionalArg("output_type",
-    R"code(Output data type. This type is used to accumulate the result.)code",
-    DALI_NO_TYPE)
-  .NumInput(1)
-  .NumOutput(1)
-  .AddParent("ReduceBase");
-
 DALI_SCHEMA(Sum)
   .DocStr("")
   .AddOptionalArg("output_type",
@@ -59,12 +50,6 @@ DALI_SCHEMA(Max)
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
-
-using MeanCPU = ReduceOp<kernels::MeanCPU, CPUBackend>;
-DALI_REGISTER_OPERATOR(Mean, MeanCPU, CPU);
-
-using MeanGPU = ReduceOp<kernels::MeanGPU, GPUBackend>;
-DALI_REGISTER_OPERATOR(Mean, MeanGPU, GPU);
 
 using SumCPU = SumOp<kernels::SumCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(Sum, SumCPU, CPU);
