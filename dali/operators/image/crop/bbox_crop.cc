@@ -504,7 +504,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
   void RunImpl(workspace_t<CPUBackend> &ws) override {
     const auto &in_boxes = ws.template InputRef<CPUBackend>(0);
-    auto in_boxes_shape = in_boxes.shape();
+    auto in_boxes_view = view<const float>(in_boxes);
+    auto in_boxes_shape = in_boxes_view.shape;
     int num_samples = in_boxes_shape.num_samples();
     auto &tp = ws.GetThreadPool();
     auto ncoords = ndim * 2;
@@ -513,13 +514,12 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       auto &data = sample_data_[sample_idx];
       tp.AddWork([&, sample_idx](int thread_id) {
-        auto in_boxes_view = view<const float>(in_boxes[sample_idx]);
-        auto nboxes = in_boxes_view.shape[0];
+        auto nboxes = in_boxes_view.tensor_shape_span(sample_idx)[0];
         data.in_bboxes.resize(nboxes);
-        ReadBoxes(
-          make_span(data.in_bboxes),
-          make_cspan(in_boxes_view.data, in_boxes_view.shape.num_elements()),
-          bbox_layout_);
+        ReadBoxes(make_span(data.in_bboxes),
+                  make_cspan(in_boxes_view.tensor_data(sample_idx),
+                             volume(in_boxes_shape.tensor_size(sample_idx))),
+                  bbox_layout_);
         FindProspectiveCrop(data.prospective_crop, make_cspan(data.in_bboxes), sample_idx);
       }, in_boxes_shape.tensor_size(sample_idx));
     }
@@ -527,18 +527,18 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
     auto &anchor_out = ws.template OutputRef<CPUBackend>(0);
     anchor_out.Resize(uniform_list_shape(num_samples, {ndim}));
+    auto anchor_out_view = view<float>(anchor_out);
 
     auto &shape_out = ws.template OutputRef<CPUBackend>(1);
     shape_out.Resize(uniform_list_shape(num_samples, {ndim}));
+    auto shape_out_view = view<float>(shape_out);
 
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       const auto &prospective_crop = sample_data_[sample_idx].prospective_crop;
       auto extent = prospective_crop.crop.extent();
-      auto anchor_out_view = view<float>(anchor_out[sample_idx]);
-      auto shape_out_view = view<float>(shape_out[sample_idx]);
       for (int d = 0; d < ndim; d++) {
-        anchor_out_view.data[d] = prospective_crop.crop.lo[d];
-        shape_out_view.data[d] = extent[d];
+        anchor_out_view.tensor_data(sample_idx)[d] = prospective_crop.crop.lo[d];
+        shape_out_view.tensor_data(sample_idx)[d] = extent[d];
       }
     }
 
@@ -551,15 +551,18 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
     auto &bbox_out = ws.template OutputRef<CPUBackend>(2);
     bbox_out.Resize(bbox_out_shape);
+    auto bbox_out_view = view<float>(bbox_out);
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      auto bbox_out_view = view<float>(bbox_out[sample_idx]);
-      WriteBoxes(make_span(bbox_out_view.data, volume(bbox_out_view.shape)),
+      WriteBoxes(make_span(bbox_out_view.tensor_data(sample_idx),
+                           volume(bbox_out_view.tensor_shape_span(sample_idx))),
                  make_cspan(sample_data_[sample_idx].prospective_crop.boxes), bbox_layout_);
     }
 
     int next_out_idx = 3;
     if (has_labels_) {
       const auto &labels_in = ws.template InputRef<CPUBackend>(1);
+      auto labels_in_view = view<const int>(labels_in);
+
       auto &labels_out = ws.template OutputRef<CPUBackend>(next_out_idx++);
       TensorListShape<> labels_out_shape;
       labels_out_shape.resize(num_samples, 1);
@@ -570,12 +573,11 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       labels_out.Resize(labels_out_shape);
       auto labels_out_view = view<int>(labels_out);
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-        auto labels_in_view = view<const int>(labels_in[sample_idx]);
-        auto labels_out_view = view<int>(labels_out[sample_idx]);
-        auto *labels_out_data = labels_out_view.data;
+        auto *labels_out_data = labels_out_view.tensor_data(sample_idx);
+        const auto *labels_in_data = labels_in_view.tensor_data(sample_idx);
         for (auto bbox_idx : sample_data_[sample_idx].prospective_crop.bbox_indices) {
-          assert(bbox_idx < labels_in.shape()[sample_idx][0]);
-          *labels_out_data++ = labels_in_view.data[bbox_idx];
+          assert(bbox_idx < labels_in_view.tensor_shape_span(sample_idx)[0]);
+          *labels_out_data++ = labels_in_data[bbox_idx];
         }
       }
     }
@@ -589,9 +591,9 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
             sample_data_[sample_idx].prospective_crop.bbox_indices.size();
       }
       bbox_indices_out.Resize(bbox_indices_out_shape);
+      auto bbox_indices_out_view = view<int>(bbox_indices_out);
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-        auto bbox_indices_out_view = view<int>(bbox_indices_out[sample_idx]);
-        auto *bbox_indices_out_data = bbox_indices_out_view.data;
+        auto *bbox_indices_out_data = bbox_indices_out_view.tensor_data(sample_idx);
         for (auto bbox_idx : sample_data_[sample_idx].prospective_crop.bbox_indices) {
           *bbox_indices_out_data++ = bbox_idx;
         }
@@ -605,6 +607,13 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     Box<ndim, float> crop{};
     std::vector<Box<ndim, float>> boxes;
     std::vector<int> bbox_indices;
+
+    void clear() {
+      success = false;
+      crop = {};
+      boxes.clear();
+      bbox_indices.clear();
+    }
   };
 
   /**
@@ -668,6 +677,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     int count = 0;
     float best_metric = -1.0;
 
+    crop.clear();
     while (!crop.success && (total_num_attempts_ < 0 || count < total_num_attempts_)) {
       auto &rng = rngs_[sample];
       std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
@@ -810,7 +820,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
   }
 
-  void FilterByCentroid(const Box<ndim, float> &crop, 
+  void FilterByCentroid(const Box<ndim, float> &crop,
                         std::vector<Box<ndim, float>> &bboxes,
                         std::vector<int> &indices) {
     std::vector<Box<ndim, float>> new_bboxes;
