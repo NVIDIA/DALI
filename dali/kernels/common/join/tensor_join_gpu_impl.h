@@ -30,7 +30,7 @@ class DLL_PUBLIC TensorJoinImplGPU {
  public:
   static_assert(std::is_same<T, type_of_size<sizeof(T)>>::value,
                 "This class must be used with a type proudced by `type_of_size<size>`");
-  static_assert(sizeof(T) >= 1 && sizeof(T) <= 16 && (sizeof(T)&sizeof(T)-1) == 0,
+  static_assert(sizeof(T) >= 1 && sizeof(T) <= 16 && (sizeof(T)&(sizeof(T)-1)) == 0,
                 "TensorJoin works only for types of size 1, 2, 4, 8 and 16 bytes.");
 
   /**

@@ -23,6 +23,7 @@
 #include "dali/core/util.h"
 #include "dali/core/tuple_helpers.h"
 #include "dali/core/geom/vec.h"
+#include "dali/core/cuda_utils.h"
 
 #ifndef MAT_LAYOUT_ROW_MAJOR
 #define MAT_LAYOUT_ROW_MAJOR 1
@@ -537,6 +538,86 @@ std::ostream &operator<<(std::ostream &os, const dali::mat<rows, cols, T> &m) {
   }
 
   return os;
+}
+
+/**
+ * Use gausian elimination to solve the [A|B] system in-place.
+ * A is transformed into the identitiy matrix.
+ * If B is an identity matrix it is transformed into the inverse of A.
+ */
+template <int N, int M, typename T>
+DALI_HOST_DEV
+inline void solve_gauss(mat<N, N, T> &A, mat<N, M, T> &B) {
+  for (int v = 0; v < N; v++) {
+    T max = std::abs(A(v, v));
+    int maxr = v;
+    for (int i = v + 1; i < N; i++) {
+      T q = std::abs(A(i, v));
+      if (q > max) {
+        max = q;
+        maxr = i;
+      }
+    }
+    if (!max) {
+      #ifdef __CUDA_ARCH__
+        continue;
+      #else
+        throw std::range_error("Cannot solve the system with a singular matrix.");
+      #endif
+    }
+    if (maxr != v) {
+      for (int j = 0; j < N; j++)
+        cuda_swap(A(v, j), A(maxr, j));
+      for (int j = 0; j < M; j++)
+        cuda_swap(B(v, j), B(maxr, j));
+    }
+    T x = T(1) / A(v, v);
+    A(v, v) = 1;
+    for (int j = v + 1; j < N; j++)
+      A(v, j) *= x;
+    for (int j = 0; j < M; j++)
+      B(v, j) *= x;
+    for (int i = 0; i < N; i++) {
+       if (i == v)
+        continue;
+#ifndef __CUDA_ARCH__
+      using std::fma;
+#endif
+      T c = -A(i, v);
+      A(i, v) = 0;
+      for (int j = v + 1; j < N; j++)
+        A(i, j) = fma(c, A(v, j), A(i, j));
+      for (int j = 0; j < M; j++)
+        B(i, j) = fma(c, B(v, j), B(i, j));
+    }
+  }
+}
+
+template <int n, typename T, typename U = decltype(1.0f + T())>
+DALI_HOST_DEV
+inline mat<n, n, U> inverse(mat<n, n, T> A) {
+  mat<n, n, U> O = 1;
+  if (std::is_floating_point<T>::value) {
+    solve_gauss(A, O);
+  } else {
+    mat<n, n, U> tmp = A;
+    solve_gauss(tmp, O);
+  }
+  return O;
+}
+
+template<typename T, typename U = decltype(1.0f + T())>
+DALI_HOST_DEV
+inline mat<2, 2, U> inverse(mat<2, 2, T> A) {
+  auto det = A(0, 0) * A(1, 1) - A(0, 1) * A(1, 0);
+  if (!det) {
+    #ifdef __CUDA_ARCH__
+      return 1;
+    #else
+      throw std::range_error("Cannot calculate the inverse of a singular matrix.");
+    #endif
+  }
+  return mat<2, 2, U>({{A(1, 1), -A(0, 1)}, {-A(1, 0), A(0, 0)}}) / det;
 }
 
 }  // namespace dali

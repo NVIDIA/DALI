@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <utility>
 #include <sstream>
+#include <string>
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/test/tensor_test_utils.h"
@@ -55,28 +56,6 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   ss.clear();
   ss.seekg(0);
 
-  detail::ParseManifest(entries, ss, 0.0f, 0.0f, true);
-  ASSERT_EQ(3, entries.size());
-
-  EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
-  EXPECT_NEAR(1.45, entries[0].duration, 1e-7);
-  EXPECT_NEAR(0.0, entries[0].offset, 1e-7);
-  EXPECT_EQ("a ab b c d", entries[0].text);
-
-  EXPECT_EQ("path/to/audio2.wav", entries[1].audio_filepath);
-  EXPECT_NEAR(2.45, entries[1].duration, 1e-7);
-  EXPECT_NEAR(1.03, entries[1].offset, 1e-7);
-  EXPECT_EQ("c da b", entries[1].text);
-
-  EXPECT_EQ("path/to/audio3.wav", entries[2].audio_filepath);
-  EXPECT_NEAR(3.45, entries[2].duration, 1e-7);
-  EXPECT_NEAR(0.0, entries[2].offset, 1e-7);
-  EXPECT_EQ("", entries[2].text);
-
-  entries.clear();
-  ss.clear();
-  ss.seekg(0);
-
   detail::ParseManifest(entries, ss, 2.0f, 3.0f);  // first and third sample should be ignored
   ASSERT_EQ(1, entries.size());
   EXPECT_EQ("path/to/audio2.wav", entries[0].audio_filepath);
@@ -95,6 +74,40 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   detail::ParseManifest(entries, ss, 0.0, 2.44999f);
   ASSERT_EQ(1, entries.size());
   EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
+}
+
+TEST(NemoAsrLoaderTest, ParseNonAsciiTransript) {
+  using TestData = std::pair<std::string, std::vector<uint8_t>>;
+
+  std::vector<TestData> tests;
+  tests.emplace_back(u8"это проверка",
+    std::vector<uint8_t>{
+      0xd1, 0x8d, 0xd1, 0x82, 0xd0, 0xbe, 0x20, 0xd0,
+      0xbf, 0xd1, 0x80, 0xd0, 0xbe, 0xd0, 0xb2, 0xd0,
+      0xb5, 0xd1, 0x80, 0xd0, 0xba, 0xd0, 0xb0});
+  tests.emplace_back(u8"这是一个测试",
+    std::vector<uint8_t>{
+      0xe8, 0xbf, 0x99, 0xe6, 0x98, 0xaf, 0xe4, 0xb8, 0x80,
+      0xe4, 0xb8, 0xaa, 0xe6, 0xb5, 0x8b, 0xe8, 0xaf, 0x95});
+  tests.emplace_back(u8"Dziękuję",
+    std::vector<uint8_t>{
+      0x44, 0x7a, 0x69, 0xc4, 0x99, 0x6b, 0x75, 0x6a, 0xc4, 0x99});
+  tests.emplace_back(
+      u8"\u0e02\u0e2d\u0e1a\u0e04\u0e38\u0e13\u0e04\u0e23\u0e31\u0e1a",  // u8"ขอบคุณครับ"
+      std::vector<uint8_t>{
+        0xe0, 0xb8, 0x82, 0xe0, 0xb8, 0xad, 0xe0, 0xb8, 0x9a, 0xe0,
+        0xb8, 0x84, 0xe0, 0xb8, 0xb8, 0xe0, 0xb8, 0x93, 0xe0, 0xb8,
+        0x84, 0xe0, 0xb8, 0xa3, 0xe0, 0xb8, 0xb1, 0xe0, 0xb8, 0x9a});
+
+  for (const auto& data : tests) {
+    std::stringstream ss;
+    ss << R"code({"audio_filepath": "path/to/audio1.wav", "duration": 1.45, "text": ")code" << data.first << R"code("})code" << std::endl;
+    std::vector<NemoAsrEntry> entries;
+    detail::ParseManifest(entries, ss);
+    ASSERT_EQ(1, entries.size());
+    ASSERT_EQ(data.second.size(), entries[0].text.length());
+    EXPECT_EQ(0, std::memcmp(data.second.data(), entries[0].text.c_str(), data.second.size()));
+  }
 }
 
 TEST(NemoAsrLoaderTest, WrongManifestPath) {

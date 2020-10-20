@@ -85,14 +85,7 @@ in seconds, of the audio samples.
 
 Samples with a duration longer than this value will be ignored.)code",
     0.0f)
-  .AddOptionalArg("normalize_text",
-    R"code(If set to True, the text transcript will be stripped of leading and trailing whitespace
-and converted to lowercase.
-
-.. warning::
-    Non-ASCII strings are not yet supported.
-)code",
-    false)
+  .DeprecateArg("normalize_text", true)  // deprecated since 0.28dev
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("read_sample_rate"))
          + static_cast<int>(spec.GetArgument<bool>("read_text"));
@@ -173,7 +166,7 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
     auto &text_out = ws.Output<CPUBackend>(next_out_idx++);
     text_out.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
     const auto &text = sample.text();
-    int64_t text_sz = text.length() + 1;  // +1 for null character
+    int64_t text_sz = text.length();
     text_out.Resize({text_sz});
     std::memcpy(text_out.mutable_data<uint8_t>(), text.c_str(), text_sz);
     text_out.SetMeta(meta);

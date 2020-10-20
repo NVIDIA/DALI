@@ -25,7 +25,7 @@ from paddle import fluid
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-from nvidia.dali.plugin.paddle import DALIGenericIterator
+from nvidia.dali.plugin.paddle import DALIGenericIterator, LastBatchPolicy
 
 from ssd import SSD
 from utils import load_weights
@@ -160,7 +160,7 @@ def main():
 
     train_loader = DALIGenericIterator(
         pipelines, ['image', ('gt_box', 1), ('gt_label', 1)],
-        reader_name="Reader", fill_last_batch=False, auto_reset=True, dynamic_shape=True)
+        reader_name="Reader", last_batch_policy=LastBatchPolicy.PARTIAL, auto_reset=True, dynamic_shape=True)
 
     FLAGS.whole_batch_size = FLAGS.batch_size * world_size
     total_steps = 400000

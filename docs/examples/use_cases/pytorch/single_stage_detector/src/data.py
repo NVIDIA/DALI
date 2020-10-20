@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from src.utils import dboxes300_coco, COCODetection, SSDTransformer
 from src.coco import COCO
 from src.coco_pipeline import COCOPipeline
-from nvidia.dali.plugin.pytorch import DALIGenericIterator
+from nvidia.dali.plugin.pytorch import DALIGenericIterator, LastBatchPolicy
 
 
 def set_seeds(args):
@@ -70,7 +70,7 @@ def get_train_dali_loader(args, default_boxes, local_seed):
         train_pipe,
         ["images", "boxes", "labels"],
         reader_name="Reader",
-        fill_last_batch=True)
+        last_batch_policy=LastBatchPolicy.FILL)
 
     return train_loader
 

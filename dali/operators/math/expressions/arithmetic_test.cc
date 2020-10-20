@@ -82,6 +82,23 @@ TEST(ArithmeticOpsTest, PropagateScalarInput) {
   EXPECT_EQ(result_shape, expected_shpe);
 }
 
+TEST(ArithmeticOpsTest, PreservePseudoScalarInput) {
+  std::string expr_str = "sub(&0 $1:int32))";
+  auto expr = ParseExpressionString(expr_str);
+  auto &expr_ref = *expr;
+  HostWorkspace ws;
+  std::shared_ptr<TensorVector<CPUBackend>> in[1];
+  for (auto &ptr : in) {
+    ptr = std::make_shared<TensorVector<CPUBackend>>();
+    ptr->Resize({{1}, {1}});
+  }
+  ws.AddInput(in[0]);
+
+  auto result_shape = PropagateShapes<CPUBackend>(expr_ref, ws, 2);
+  auto expected_shpe = TensorListShape<>{{1}, {1}};
+  EXPECT_EQ(result_shape, expected_shpe);
+}
+
 TEST(ArithmeticOpsTest, TreePropagationError) {
   std::string expr_str = "div(sub(&0 &1) &2)";
   auto expr = ParseExpressionString(expr_str);

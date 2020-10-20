@@ -52,20 +52,14 @@ Execute the following command to install the latest DALI for specified CUDA vers
 
 * for CUDA 11.0:
 
+  .. note::
+    CUDA 11.0 build uses CUDA toolkit enhanced compatibility. It is built with the latest CUDA 11.x
+    toolkit while it can run on the latest, stable CUDA 11.0 capable drivers (450.80 or later).
+    Using the latest driver may enable additional functionality.
+
 .. code-block:: bash
 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda110
-
-* for CUDA 11.1:
-
-  .. note::
-    CUDA 11.1 build uses CUDA toolkit enhanced compatibility. It is built with the latest CUDA 11.x
-    toolkit while it can run on CUDA 11.0 capable drivers 450.80 or later. Using the newest driver may enable
-    additional functionalities.
-
-.. code-block:: bash
-
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda111
 
 DALI TensorFlow plugin (nvidia-dali-tf-plugin)
 """"""""""""""""""""""""""""""""""""""""""""""
@@ -84,12 +78,6 @@ which will be built against the currently installed version of TensorFlow:
 .. code-block:: bash
 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cuda110
-
-* for CUDA 11.1:
-
-.. code-block:: bash
-
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin-cuda111
 
 
 Installing this package will install ``nvidia-dali-cudaXXX`` and its dependencies, if they are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin-cudaXXX``.
@@ -171,12 +159,6 @@ To access most recent nightly builds please use flowing release channel:
 .. code-block:: bash
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-nightly-cuda110 nvidia-dali-tf-plugin-nightly-cuda110
-
-* for CUDA 11.1:
-
-.. code-block:: bash
-
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-nightly-cuda111 nvidia-dali-tf-plugin-nightly-cuda111
 
 
 Weekly builds

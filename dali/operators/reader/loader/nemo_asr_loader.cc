@@ -30,27 +30,8 @@ namespace dali {
 
 namespace detail {
 
-std::string trim(const std::string& str,
-                 const std::string& whitespace = " \t\f\n\r\v") {
-  const auto str_begin = str.find_first_not_of(whitespace);
-  if (str_begin == std::string::npos)
-    return {};  // no content
-  const auto str_end = str.find_last_not_of(whitespace);
-  const auto str_len = str_end - str_begin + 1;
-  return str.substr(str_begin, str_len);
-}
-
-std::string NormalizeText(const std::string& text) {
-  // Remove trailing and leading whitespace
-  auto norm_text = trim(text);
-  // TODO(janton): Handle non-ascii
-  std::transform(norm_text.begin(), norm_text.end(), norm_text.begin(),
-    [](char c){ return std::tolower(c); });
-  return norm_text;
-}
-
 void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_file,
-                   double min_duration, double max_duration, bool normalize_text) {
+                   double min_duration, double max_duration) {
   std::string line;
   while (std::getline(manifest_file, line)) {
     detail::LookaheadParser parser(const_cast<char*>(line.c_str()));
@@ -69,8 +50,6 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
         entry.offset = parser.GetDouble();
       } else if (0 == std::strcmp(key, "text")) {
         entry.text = parser.GetString();
-        if (normalize_text)
-          entry.text = NormalizeText(entry.text);
       } else {
         parser.SkipValue();
       }
@@ -96,7 +75,7 @@ void NemoAsrLoader::PrepareMetadataImpl() {
     std::ifstream fstream(manifest_filepath);
     DALI_ENFORCE(fstream,
                  make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath, "\""));
-    detail::ParseManifest(entries_, fstream, max_duration_, normalize_text_);
+    detail::ParseManifest(entries_, fstream, min_duration_, max_duration_);
   }
   shuffled_indices_.resize(entries_.size());
   std::iota(shuffled_indices_.begin(), shuffled_indices_.end(), 0);

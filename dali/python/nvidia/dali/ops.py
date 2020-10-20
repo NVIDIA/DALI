@@ -242,8 +242,8 @@ class _OperatorInstance(object):
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
 
-        default_input_device = "gpu" if op.device == "gpu" else "cpu"
         if inputs is not None:
+            default_input_device = "gpu" if op.device == "gpu" else "cpu"
             inputs = list(inputs)
             for i in range(len(inputs)):
                 inp = inputs[i]
@@ -449,6 +449,9 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
                             self._schema.MinNumInput(),
                             self._schema.MaxNumInput(),
                             len(inputs)))
+
+            inputs = _preprocess_inputs(inputs, self.__class__.__name__, self._device, self._schema)
+
             # Build input sets, most of the time we only have one
             input_sets = []
             if self._detect_multiple_input_sets(inputs):
@@ -684,6 +687,7 @@ class PythonFunctionBase(metaclass=_DaliOperatorMeta):
         return self._preserve
 
     def __call__(self, *inputs, **kwargs):
+        inputs = _preprocess_inputs(inputs, self._impl_name, self._device, None)
         pipeline = _Pipeline.current()
         if pipeline is None:
             _Pipeline._raise_pipeline_required("PythonFunction operator")
@@ -844,11 +848,40 @@ _load_arithm_ops()
 def _choose_device(inputs):
     for input in inputs:
         if isinstance(input, (tuple, list)):
-            if any(inp.device == "gpu" for inp in input):
+            if any(getattr(inp, "device", None) == "gpu" for inp in input):
                 return "gpu"
-        elif input.device == "gpu":
+        elif getattr(input, "device", None) == "gpu":
             return "gpu"
     return "cpu"
+
+def _preprocess_inputs(inputs, op_name, device, schema=None):
+    if isinstance(inputs, tuple):
+        inputs = list(inputs)
+
+    def is_input(x):
+        if isinstance(x, (_DataNode, nvidia.dali.types.ScalarConstant)):
+            return True
+        return isinstance(x, (list)) and \
+                any(isinstance(y, _DataNode) for y in x) and \
+                all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x)
+
+    for idx, inp in enumerate(inputs):
+        if not is_input(inp):
+            input_device = schema.GetInputDevice(idx) or device if schema else device
+            if not isinstance(inp, nvidia.dali.types.ScalarConstant):
+                try:
+                    inp = nvidia.dali.types.Constant(inp, device=input_device)
+                except Exception as ex:
+                    raise TypeError("""when calling operator {0}:
+Input {1} is neither a DALI `DataNode` nor a list of data nodes but `{2}`.
+Attempt to convert it to a constant node failed."""
+                    .format(op_name, idx, type(inp).__name__)) from ex
+
+            if not isinstance(inp, _DataNode):
+                inp = nvidia.dali.ops._instantiate_constant_node(input_device, inp)
+
+        inputs[idx] = inp
+    return inputs
 
 def _is_boolean_like(input):
     if type(input) == bool:
@@ -915,6 +948,8 @@ def _group_inputs(inputs):
     integers = []
     reals = []
     for input in inputs:
+        if not isinstance(input, (_DataNode, _ScalarConstant, int, float)):
+            input = nvidia.dali.types.Constant(input)
         if isinstance(input, _DataNode):
             categories_idxs.append(("edge", len(edges)))
             edges.append(input)

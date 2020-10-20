@@ -141,6 +141,8 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_PYTHON=${BUILD_PYTHON}              \
                                         BUILD_LMDB=${BUILD_LMDB}                  \
                                         BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}      \
+                                        BUILD_OPENCV=${BUILD_OPENCV}              \
+                                        BUILD_PROTOBUF=${BUILD_PROTOBUF}          \
                                         BUILD_NVJPEG=${BUILD_NVJPEG}              \
                                         BUILD_NVJPEG2K=${BUILD_NVJPEG2K}          \
                                         BUILD_LIBTIFF=${BUILD_LIBTIFF}            \
@@ -173,6 +175,8 @@ else
                                    --build-arg "BUILD_PYTHON=${BUILD_PYTHON}"              \
                                    --build-arg "BUILD_LMDB=${BUILD_LMDB}"                  \
                                    --build-arg "BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}"      \
+                                   --build-arg "BUILD_OPENCV=${BUILD_OPENCV}"              \
+                                   --build-arg "BUILD_PROTOBUF=${BUILD_PROTOBUF}"          \
                                    --build-arg "BUILD_NVJPEG=${BUILD_NVJPEG}"              \
                                    --build-arg "BUILD_NVJPEG2K=${BUILD_NVJPEG2K}"          \
                                    --build-arg "BUILD_LIBTIFF=${BUILD_LIBTIFF}"            \

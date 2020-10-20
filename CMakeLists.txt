@@ -72,7 +72,8 @@ cmake_dependent_option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)  # Video support requires ffmpeg as well
 set(BUILD_FFMPEG ${BUILD_NVDEC})
 
-option(BUILD_NVJPEG "Build with nvJPEG support" ON)
+cmake_dependent_option(BUILD_NVJPEG "Build with nvJPEG support" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
 # if BUILD_NVJPEG2K is empty remove it and let is be default
 if ("${BUILD_NVJPEG2K}" STREQUAL "")
   unset(BUILD_NVJPEG2K CACHE)
@@ -80,12 +81,16 @@ endif()
 # nvjpeg2k is not available prior CUDA 11.0
 if(${CUDA_VERSION} VERSION_GREATER_EQUAL "11.0")
   if(NOT (${ARCH} MATCHES "aarch64"))
-    option(BUILD_NVJPEG2K "Build with nvJPEG2K support" ON)
+    # due to some decoding problems disable nvJPEG2K support for now by the default
+    cmake_dependent_option(BUILD_NVJPEG2K "Build with nvJPEG2K support" OFF
+                           "NOT BUILD_DALI_NODEPS" OFF)
   endif()
 endif()
 
-option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON)
-option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON)
+cmake_dependent_option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
 
 if (BUILD_DALI_NODEPS)
   set(BUILD_OPENCV OFF)

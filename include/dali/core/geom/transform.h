@@ -163,6 +163,16 @@ constexpr vec3 affine<3, 3>(const mat<3, 4> &transform, const vec3 &v) {
   };
 }
 
+template <int ndim, typename T, typename U = decltype(1.0f + T())>
+DALI_HOST_DEV
+constexpr mat<ndim, ndim+1, U> affine_mat_inv(const mat<ndim, ndim+1, T> &affine_m) {
+  auto m = sub<ndim, ndim>(affine_m);
+  auto t = affine_m.col(ndim);
+  m = inverse(m);
+  t = -m * t;
+  return cat_cols(m, t);
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_GEOM_TRANSFORM_H_

@@ -106,7 +106,6 @@ void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
         if (!fdata_.empty()) {
           FillTensorVector<type>(output_, output_shape_, fdata_);
         } else {
-          assert(!idata_.empty());
           FillTensorVector<type>(output_, output_shape_, idata_);
         }
       ), (DALI_FAIL(make_string("Unsupported type: ", output_type_))));  // NOLINT

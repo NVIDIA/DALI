@@ -431,6 +431,115 @@ TEST(MatTest, IdentityMatrix) {
   EXPECT_EQ(m3, three_by_two);
 }
 
+TEST(MatTest, SolveGauss) {
+  mat4 system_l = {{
+    {0, 1, 2, 1},
+    {1, 0, 1, 0},
+    {1, 1, 0, 1},
+    {1, 1, 1, 0}
+  }};
+  mat4x1 system_r = {{
+    {3}, {3}, {3}, {3}
+  }};
+  const mat4x1 solution = {{
+    {2}, {0}, {1}, {1}
+  }};
+  solve_gauss(system_l, system_r);
+  EXPECT_EQ(system_l, mat4::eye());
+  EXPECT_EQ(system_r, solution);
+}
+
+TEST(MatTest, Inverse) {
+  #define EXPECT_MAT_EQ(m1, m2) \
+  for (int r = 0; r < m1.rows; ++r)  \
+    for (int c = 0; c < m1.cols; ++c)  \
+      EXPECT_FLOAT_EQ(m1(r, c), m2(r, c));
+  mat2 two_by_two = {{
+    {3, 5},
+    {4, 7}
+  }};
+  mat2 inv2x2 = {{
+    {7, -5},
+    {-4, 3}
+  }};
+  EXPECT_EQ(inverse(two_by_two), inv2x2);
+
+  mat3 three_by_three = {{
+    {0.5, 0.5, 0  },
+    {0.5, 0.5, 1  },
+    {0.5, 0,   0.5}
+  }};
+  mat3 inv3x3 = {{
+    { 1, -1,  2},
+    { 1,  1, -2},
+    {-1,  1,  0}
+  }};
+  EXPECT_EQ(inverse(three_by_three), inv3x3);
+
+  mat3 three_by_three2 = {{
+    {1, 5, 7},
+    {1, 3, 6},
+    {2, 4, 1}
+  }};
+
+  mat3 inv3x3_2 = {{
+    {-1.05,  1.15, 0.45},
+    { 0.55, -0.65, 0.05},
+    {-0.1,   0.3, -0.1 }
+  }};
+  EXPECT_MAT_EQ(inverse(three_by_three2), inv3x3_2);
+}
+
+DEVICE_TEST(MatTest, DevInverse, 1, 1) {
+  #define DEV_EXPECT_MAT_EQ(m1, m2) \
+  for (int r = 0; r < m1.rows; ++r)  \
+    for (int c = 0; c < m1.cols; ++c)  \
+      DEV_EXPECT_LT(abs(m1(r, c) - m2(r, c)), 1e-6f);
+
+  mat2 two_by_two = {{
+    {3, 5},
+    {4, 7}
+  }};
+  mat2 inv2x2 = {{
+    {7, -5},
+    {-4, 3}
+  }};
+  DEV_EXPECT_MAT_EQ(inverse(two_by_two), inv2x2);
+
+  mat3 three_by_three = {{
+    {0.5, 0.5, 0  },
+    {0.5, 0.5, 1  },
+    {0.5, 0,   0.5}
+  }};
+  mat3 inv3x3 = {{
+    { 1, -1,  2},
+    { 1,  1, -2},
+    {-1,  1,  0}
+  }};
+  DEV_EXPECT_MAT_EQ(inverse(three_by_three), inv3x3);
+
+  mat3 three_by_three2 = {{
+    {1, 5, 7},
+    {1, 3, 6},
+    {2, 4, 1}
+  }};
+
+  mat3 inv3x3_2 = {{
+    {-1.05,  1.15, 0.45},
+    { 0.55, -0.65, 0.05},
+    {-0.1,   0.3, -0.1 }
+  }};
+  DEV_EXPECT_MAT_EQ(inverse(three_by_three2), inv3x3_2);
+}
+
+TEST(MatTest, InverseFail) {
+  mat2 m = {{
+    {1, 2},
+    {1, 2}
+  }};
+  EXPECT_THROW(inverse(m), std::range_error);
+}
+
 TEST(MatTest, Print) {
   mat4x3 m = {{
     { 1, 2, 3 },
