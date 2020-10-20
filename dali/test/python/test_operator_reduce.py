@@ -109,7 +109,7 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type):
 
     args = { 'keep_dims': keep_dims, 'axes': axes}
     if output_type is not None:
-        args['output_type'] = to_dali_type[output_type]
+        args['dtype'] = to_dali_type[output_type]
 
     with pipe:
         input = fn.external_source(source = get_batch)

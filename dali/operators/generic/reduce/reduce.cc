@@ -32,7 +32,7 @@ Not providing any axis results in reduction of all elements.)code",
 
 DALI_SCHEMA(Sum)
   .DocStr("")
-  .AddOptionalArg("output_type",
+  .AddOptionalArg("dtype",
     R"code(Output data type. This type is used to accumulate the result.)code",
     DALI_NO_TYPE)
   .NumInput(1)

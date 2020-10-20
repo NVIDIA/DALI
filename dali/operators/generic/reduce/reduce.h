@@ -38,7 +38,7 @@ class Reduce : public Operator<Backend> {
     Operator<Backend>(spec),
     axes_(spec.GetRepeatedArgument<int>("axes")),
     keep_dims_(spec.GetArgument<bool>("keep_dims")) {
-      if (!spec.TryGetArgument<DALIDataType>(output_type_, "output_type")) {
+      if (!spec.TryGetArgument<DALIDataType>(output_type_, "dtype")) {
         output_type_ = DALI_NO_TYPE;
       }
   }
