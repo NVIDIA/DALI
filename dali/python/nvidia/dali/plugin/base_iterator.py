@@ -167,7 +167,7 @@ class _DaliBaseIterator(object):
 
         # We need data about the batches (like shape information),
         # so we need to run a single batch as part of setup to get that info
-        self._schedule_runs()
+        self._schedule_runs(False)
 
     def _calculate_shard_sizes(self, shard_nums):
         shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num).astype(np.int)
@@ -236,7 +236,7 @@ class _DaliBaseIterator(object):
         """
         Checks iterator stop condition, gets DALI outputs and perform reset in case of StopIteration
         """
-        if self._counter >= self._size and self._size > 0:
+        if self._size > 0 and self._counter >= self._size:
             if self._auto_reset:
                 self.reset()
             raise StopIteration
@@ -253,7 +253,7 @@ class _DaliBaseIterator(object):
             raise e
         return outputs
 
-    def _schedule_runs(self):
+    def _schedule_runs(self, release_outputs=True):
         """
         Schedule DALI runs
         """

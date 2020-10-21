@@ -880,7 +880,7 @@ class TestIterator():
 
     def __next__(self):
         batch = []
-        # setting -1 means that no total iteration limmit is set
+        # setting -1 means that no total iteration limit is set
         if self.i < self.n and self.total_n != 0:
             batch = [np.arange(0, 10 , dtype=np.uint8) for _ in range(self.batch_size)]
             self.i += 1
@@ -927,7 +927,7 @@ def check_stop_iter(fw_iter, iterator_name, batch_size, epochs, iter_num, total_
     loader = fw_iter(pipe, iter_size, auto_reset)
     count = 0
     for _ in range(epochs):
-        for __ in enumerate(loader):
+        for _ in enumerate(loader):
             count += 1
         if not auto_reset:
             loader.reset()
