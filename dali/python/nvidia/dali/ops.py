@@ -18,6 +18,9 @@ import copy
 from itertools import count
 import threading
 import warnings
+import inspect
+from functools import wraps
+
 from nvidia.dali import backend as _b
 from nvidia.dali.types import \
         _type_name_convert_to_string, _type_convert_value, \
@@ -193,6 +196,39 @@ Args
         ret += _numpydoc_formatter("data", fmt, dox, optional=False)
         return ret
     return ""
+
+
+def _call_signature(op_name, include_self, add_kwargs=False):
+    schema = _b.GetSchema(op_name)
+    input_list = []
+    if include_self:
+        input_list.append(inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD))
+    if schema.HasInputDox():
+        for i in range(schema.MinNumInput()):
+            input_list.append(inspect.Parameter(schema.GetInputName(i), inspect.Parameter.POSITIONAL_OR_KEYWORD))
+        for i in range(schema.MinNumInput(), schema.MaxNumInput()):
+            input_list.append(inspect.Parameter(schema.GetInputName(i), inspect.Parameter.POSITIONAL_OR_KEYWORD, default=inspect.Parameter.empty))
+    if add_kwargs:
+        for arg in schema.GetArgumentNames():
+            # providing any defult changes DALI semantics
+            input_list.append(inspect.Parameter(arg, inspect.Parameter.KEYWORD_ONLY))
+    input_list.append(inspect.Parameter("kwargs", inspect.Parameter.VAR_KEYWORD))
+    return inspect.Signature(input_list)
+
+def decorate_signature(op_name, include_self=False):
+    sig = _call_signature(op_name, include_self)
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            ba = sig.bind(*args, **kwargs)
+            return f(*ba.args, **ba.kwargs)
+
+        # Override signature
+        wrapper.__signature__ = sig
+
+        return wrapper
+    return decorator
 
 
 def _docstring_generator_call(op_name):
@@ -439,6 +475,7 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
         def preserve(self):
             return self._preserve
 
+        @decorate_signature(schema_name, True)
         def __call__(self, *inputs, **kwargs):
             if (len(inputs) > self._schema.MaxNumInput() or
                     len(inputs) < self._schema.MinNumInput()):
@@ -549,6 +586,7 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
         Operator.__module__ = Operator.__module__ + ".internal"
 
     Operator.__call__.__doc__ = _docstring_generator_call(Operator.schema_name)
+    # Operator.__call__.__signature__ = _call_signature(Operator.schema_name, True)
     return Operator
 
 def _process_op_name(op_schema_name):
@@ -579,7 +617,8 @@ def _load_ops():
             setattr(module, op_name, op_class)
 
             if op_name not in ["ExternalSource"]:
-                _wrap_op(op_class, submodule)
+                f_op = _wrap_op(op_class, submodule)
+                f_op.__signature__ = _call_signature(op_reg_name, False)
 
 def Reload():
     _load_ops()
@@ -841,7 +880,7 @@ def _load_arithm_ops():
     for op_name in arithm_op_names:
       if not hasattr(sys.modules[__name__], op_name):
           setattr(sys.modules[__name__], op_name,
-                  python_op_factory(op_name, None, op_device = "cpu"))
+                  python_op_factory(op_name, op_name, op_device = "cpu")) # TODO(klecki): what's the difference here??????
 
 _load_arithm_ops()
 

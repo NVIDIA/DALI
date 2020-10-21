@@ -14,8 +14,44 @@
 
 #pylint: disable=no-member
 import sys
+import inspect
+from functools import wraps
+
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali import internal as _internal
+
+def _call_signature(op_name, include_self, add_kwargs=False):
+    schema = _b.GetSchema(op_name)
+    input_list = []
+    if include_self:
+        input_list.append(inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD))
+    if schema.HasInputDox():
+        for i in range(schema.MinNumInput()):
+            input_list.append(inspect.Parameter(schema.GetInputName(i), inspect.Parameter.POSITIONAL_OR_KEYWORD))
+        for i in range(schema.MinNumInput(), schema.MaxNumInput()):
+            input_list.append(inspect.Parameter(schema.GetInputName(i), inspect.Parameter.POSITIONAL_OR_KEYWORD, default=inspect.Parameter.empty))
+    if add_kwargs:
+        for arg in schema.GetArgumentNames():
+            # providing any defult changes DALI semantics
+            input_list.append(inspect.Parameter(arg, inspect.Parameter.KEYWORD_ONLY))
+    input_list.append(inspect.Parameter("kwargs", inspect.Parameter.VAR_KEYWORD))
+    return inspect.Signature(input_list)
+
+def decorate_signature(op_name, include_self=False):
+    sig = _call_signature(op_name, include_self)
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            ba = sig.bind(*args, **kwargs)
+            return f(*ba.args, **ba.kwargs)
+
+        # Override signature
+        wrapper.__signature__ = sig
+
+        return wrapper
+    return decorator
+
 
 _special_case_mapping = {
     "b_box" : "bbox",
@@ -62,6 +98,7 @@ def _to_snake_case(pascal):
     return out
 
 def _wrap_op_fn(op_class, wrapper_name):
+    @decorate_signature(op_class.__name__)
     def op_wrapper(*inputs, **arguments):
         import nvidia.dali.ops
         def is_data_node(x):
@@ -97,6 +134,9 @@ def _wrap_op(op_class, submodule):
         setattr(module, wrapper_name, wrap_func)
         if submodule:
             wrap_func.__module__ = module.__name__
+        return wrap_func
+    else:
+        return module.wrapper_name
 
 
 from nvidia.dali.external_source import external_source
