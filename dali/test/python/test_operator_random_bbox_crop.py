@@ -20,6 +20,7 @@ import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 import os
+import random
 
 bbox_2d_ltrb_1 = [0.0123, 0.0123, 0.2123, 0.2123]
 bbox_2d_ltrb_2 = [0.1123, 0.1123, 0.19123, 0.19123]
@@ -97,6 +98,7 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
                  input_shape = None,
                  crop_shape = None,
                  all_boxes_above_threshold = False,
+                 output_bbox_indices = False,
                  num_threads=1, device_id=0, num_gpus=1):
         super(RandomBBoxCropSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
@@ -115,7 +117,9 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
             allow_no_crop = allow_no_crop,
             input_shape = input_shape,
             crop_shape = crop_shape,
-            all_boxes_above_threshold = all_boxes_above_threshold)
+            all_boxes_above_threshold = all_boxes_above_threshold,
+            output_bbox_indices = output_bbox_indices
+        )
 
     def define_graph(self):
         inputs = fn.external_source(source=self.bbox_source, num_outputs=self.bbox_source.num_outputs)
@@ -164,8 +168,11 @@ def map_box(bbox, crop_anchor, crop_shape):
         new_bbox[ndim + d] = max(0.0, min(1.0, n_end))
     return new_bbox
 
-def check_processed_bboxes(crop_anchor, crop_shape, original_boxes, processed_boxes):
-    filtered_boxes = filter_by_centroid(crop_anchor, crop_shape, original_boxes)
+def check_processed_bboxes(crop_anchor, crop_shape, original_boxes, processed_boxes, bbox_indices=None):
+    if bbox_indices is not None:
+        filtered_boxes = np.array(original_boxes[bbox_indices])
+    else:
+        filtered_boxes = filter_by_centroid(crop_anchor, crop_shape, original_boxes)
     assert(len(original_boxes) >= len(filtered_boxes))
     assert(len(filtered_boxes) == len(processed_boxes))
     nboxes = len(filtered_boxes)
@@ -206,14 +213,15 @@ def check_crop_dims_fixed_size(anchor, shape, expected_crop_shape, input_shape):
         assert shape[d] == expected_crop_shape[d], "{} != {}".format(shape, expected_crop_shape)
         assert(anchor[d] + shape[d] > 0.0 and anchor[d] + shape[d] <= input_shape[d])
 
-def check_random_bbox_crop_variable_shape(batch_size, ndim, scaling, aspect_ratio, use_labels):
+def check_random_bbox_crop_variable_shape(batch_size, ndim, scaling, aspect_ratio, use_labels, output_bbox_indices):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
     bbox_layout = "xyzXYZ" if ndim == 3 else "xyXY"
     pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size,
                                            bbox_source=bbox_source,
                                            bbox_layout=bbox_layout,
                                            scaling=scaling, aspect_ratio=aspect_ratio,
-                                           input_shape=None, crop_shape=None)
+                                           input_shape=None, crop_shape=None,
+                                           output_bbox_indices=output_bbox_indices)
     pipe.build()
     for i in range(100):
         outputs = pipe.run()
@@ -223,10 +231,13 @@ def check_random_bbox_crop_variable_shape(batch_size, ndim, scaling, aspect_rati
             out_crop_shape = outputs[2].at(sample)
             out_boxes = outputs[3].at(sample)
             check_crop_dims_variable_size(out_crop_anchor, out_crop_shape, scaling, aspect_ratio)
-            check_processed_bboxes(out_crop_anchor, out_crop_shape, in_boxes, out_boxes)
+            bbox_indices_out_idx = 4 if not use_labels else 5
+            bbox_indices = outputs[bbox_indices_out_idx].at(sample) if output_bbox_indices else None
+            check_processed_bboxes(out_crop_anchor, out_crop_shape, in_boxes, out_boxes, bbox_indices)
 
 
 def test_random_bbox_crop_variable_shape():
+    random.seed(1234)
     for batch_size in [3]:
         for ndim in [2, 3]:
             for scaling in [[0.3, 0.5], [0.1, 0.3], [0.9, 0.99]]:
@@ -235,9 +246,10 @@ def test_random_bbox_crop_variable_shape():
                     3 :  [[0.5, 2.0, 0.6, 2.1, 0.4, 1.9], [1.0, 1.0], [0.5, 0.5, 0.25, 0.25, 0.5, 0.5]]
                 }
                 for aspect_ratio in aspect_ratio_ranges[ndim]:
-                    for use_labels in [True, False]:
-                        yield check_random_bbox_crop_variable_shape, \
-                                batch_size, ndim, scaling, aspect_ratio, use_labels
+                    use_labels = random.choice([True, False])
+                    out_bbox_indices = random.choice([True, False])
+                    yield check_random_bbox_crop_variable_shape, \
+                        batch_size, ndim, scaling, aspect_ratio, use_labels, out_bbox_indices
 
 def check_random_bbox_crop_fixed_shape(batch_size, ndim, crop_shape, input_shape, use_labels):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
