@@ -4,28 +4,9 @@ import nvidia.dali.fn as fn
 from test_utils import check_batch, dali_type
 import random
 
+from test_segmentation_utils import make_batch_select_masks
 random.seed(1234)
 np.random.seed(4321)
-
-def make_batch_select_masks(batch_size, num_masks_range = (1, 10), coords_per_mask_range = (3, 40), coord_ndim = 2):
-    masks_meta = []
-    masks_coords = []
-    selected_masks = []
-    for i in range(batch_size):
-        nmasks = random.randint(*num_masks_range)
-        available_masks = list(range(nmasks))
-        selected_masks.append(np.array(random.sample(available_masks, random.randint(1, nmasks)), dtype = np.int32))
-        coord_count = 0
-        mask_idx = 0
-        curr_masks_meta = np.zeros([nmasks, 3], dtype=np.int32)
-        for m in range(nmasks):
-            ncoords = random.randint(*coords_per_mask_range)
-            curr_masks_meta[m, :] = (mask_idx, coord_count, coord_count + ncoords - 1)
-            coord_count = coord_count + ncoords
-            mask_idx = mask_idx + 1
-        masks_meta.append(curr_masks_meta)
-        masks_coords.append(np.array(np.random.rand(coord_count, coord_ndim), dtype=np.float32))
-    return masks_meta, masks_coords, selected_masks
 
 def check_select_masks(batch_size, num_masks_range = (1, 10), coords_per_mask_range = (3, 40), coord_ndim = 2, reindex_masks = False):
     def get_data_source(*args, **kwargs):

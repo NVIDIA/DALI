@@ -659,4 +659,23 @@ def test_combine_transforms_cpu():
     for _ in range(3):
         pipe.run()
 
+def test_segmentation_select_masks():
+    def get_data_source(*args, **kwargs):
+        from test_segmentation_utils import make_batch_select_masks
+        return lambda: make_batch_select_masks(*args, **kwargs)
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
+    with pipe:
+        masks_meta, masks_coords, selected_masks = fn.external_source(
+            num_outputs = 3, device='cpu',
+            source = get_data_source(batch_size, coord_ndim=2, num_masks_range=(1, 5),
+                                     coords_per_mask_range=(3, 10))
+        )
+        out_masks_meta, out_masks_coords = fn.segmentation.select_masks(
+            selected_masks, masks_meta, masks_coords, reindex_masks=False
+        )
+    pipe.set_outputs(masks_meta, masks_coords, selected_masks, out_masks_meta, out_masks_coords)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
 # ToDo add tests for DLTensorPythonFunction if easily possible
