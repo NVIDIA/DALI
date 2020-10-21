@@ -207,7 +207,7 @@ def _call_signature(op_name, include_self, add_kwargs=False):
         for i in range(schema.MinNumInput()):
             input_list.append(inspect.Parameter(schema.GetInputName(i), inspect.Parameter.POSITIONAL_OR_KEYWORD))
         for i in range(schema.MinNumInput(), schema.MaxNumInput()):
-            input_list.append(inspect.Parameter(schema.GetInputName(i), inspect.Parameter.POSITIONAL_OR_KEYWORD, default=inspect.Parameter.empty))
+            input_list.append(inspect.Parameter(schema.GetInputName(i), inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None))
     if add_kwargs:
         for arg in schema.GetArgumentNames():
             # providing any defult changes DALI semantics

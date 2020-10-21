@@ -19,6 +19,7 @@ from functools import wraps
 
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali import internal as _internal
+from nvidia.dali import backend as _b
 
 def _call_signature(op_name, include_self, add_kwargs=False):
     schema = _b.GetSchema(op_name)
@@ -29,7 +30,7 @@ def _call_signature(op_name, include_self, add_kwargs=False):
         for i in range(schema.MinNumInput()):
             input_list.append(inspect.Parameter(schema.GetInputName(i), inspect.Parameter.POSITIONAL_OR_KEYWORD))
         for i in range(schema.MinNumInput(), schema.MaxNumInput()):
-            input_list.append(inspect.Parameter(schema.GetInputName(i), inspect.Parameter.POSITIONAL_OR_KEYWORD, default=inspect.Parameter.empty))
+            input_list.append(inspect.Parameter(schema.GetInputName(i), inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None))
     if add_kwargs:
         for arg in schema.GetArgumentNames():
             # providing any defult changes DALI semantics
@@ -98,7 +99,7 @@ def _to_snake_case(pascal):
     return out
 
 def _wrap_op_fn(op_class, wrapper_name):
-    @decorate_signature(op_class.__name__)
+    @decorate_signature(getattr(op_class, 'schema_name', op_class.__name__))
     def op_wrapper(*inputs, **arguments):
         import nvidia.dali.ops
         def is_data_node(x):
