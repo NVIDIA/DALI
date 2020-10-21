@@ -177,13 +177,9 @@ class DALIGenericIterator(_DaliBaseIterator):
             self._first_batch = None
             return batch
 
-        self._check_stop()
-
         # Gather outputs
-        outputs = []
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-               outputs.append(p.share_outputs())
+        outputs = self._get_outputs()
+
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
             # initialize dict for all output categories
@@ -236,10 +232,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 else:
                     feed_ndarray(tensor, pyt_tensors[category])
 
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.release_outputs()
-                p.schedule_run()
+        self._schedule_runs()
 
         self._advance_and_check_drop_last()
 
