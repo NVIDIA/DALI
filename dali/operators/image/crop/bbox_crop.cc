@@ -564,8 +564,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       auto labels_in_view = view<const int>(labels_in);
 
       auto &labels_out = ws.template OutputRef<CPUBackend>(next_out_idx++);
-      TensorListShape<> labels_out_shape;
-      labels_out_shape.resize(num_samples, 1);
+      TensorListShape<> labels_out_shape = labels_in.shape();
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
         auto sh = labels_out_shape.tensor_shape_span(sample_idx);
         sh[0] = sample_data_[sample_idx].prospective_crop.bbox_indices.size();
@@ -575,9 +574,13 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
         auto *labels_out_data = labels_out_view.tensor_data(sample_idx);
         const auto *labels_in_data = labels_in_view.tensor_data(sample_idx);
+        auto in_sh = labels_in_view.tensor_shape_span(sample_idx);
+        int64_t stride = volume(in_sh.begin() + 1, in_sh.end());
         for (auto bbox_idx : sample_data_[sample_idx].prospective_crop.bbox_indices) {
-          assert(bbox_idx < labels_in_view.tensor_shape_span(sample_idx)[0]);
-          *labels_out_data++ = labels_in_data[bbox_idx];
+          assert(bbox_idx < in_sh[0]);
+          const auto *curr_label_data = labels_in_data + bbox_idx * stride;
+          for (int64_t k = 0; k < stride; k++)
+            *labels_out_data++ = *curr_label_data++;
         }
       }
     }
