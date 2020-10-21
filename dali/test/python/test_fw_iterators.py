@@ -869,8 +869,9 @@ def test_paddle_iterator_pass_reader_name():
                                 yield check_paddle_iterator_pass_reader_name, shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy
 
 class TestIterator():
-    def __init__(self, n, batch_size):
-        self.n = n
+    def __init__(self, iters_per_epoch, batch_size, total_iter_num=-1):
+        self.n = iters_per_epoch
+        self.total_n = total_iter_num
         self.batch_size = batch_size
 
     def __iter__(self):
@@ -879,9 +880,11 @@ class TestIterator():
 
     def __next__(self):
         batch = []
-        if self.i < self.n:
+        # setting -1 means that no total iteration limmit is set
+        if self.i < self.n and self.total_n != 0:
             batch = [np.arange(0, 10 , dtype=np.uint8) for _ in range(self.batch_size)]
             self.i += 1
+            self.total_n -= 1
             return batch
         else:
             self.i = 0
@@ -915,8 +918,8 @@ class TestIterPipeline(Pipeline):
     def size(self):
         return self.data_source.size
 
-def check_stop_iter(fw_iter, iterator_name, batch_size, epochs, iter_num, auto_reset, infinite):
-    pipe = TestIterPipeline(batch_size, 0, TestIterator(iter_num, batch_size))
+def check_stop_iter(fw_iter, iterator_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite):
+    pipe = TestIterPipeline(batch_size, 0, TestIterator(iter_num, batch_size, total_iter_num))
     if infinite:
         iter_size = -1
     else:
@@ -928,7 +931,12 @@ def check_stop_iter(fw_iter, iterator_name, batch_size, epochs, iter_num, auto_r
             count += 1
         if not auto_reset:
             loader.reset()
-    assert(count == iter_num * epochs)
+    if total_iter_num < 0:
+        # infinite source of data
+        assert(count == iter_num * epochs)
+    else:
+        # at most total_iter_num should be returned by the iterator
+        assert(count == min(total_iter_num, iter_num * epochs))
 
 @raises(Exception)
 def check_stop_iter_fail_multi(fw_iter):
@@ -944,13 +952,16 @@ def check_stop_iter_fail_single(fw_iter):
     pipes = [TestIterPipeline(batch_size, 0, TestIterator(iter_num, batch_size)) for _ in range(1)]
     fw_iter(pipes, 0, False)
 
-def stop_teration_case_generator():
+def stop_iteration_case_generator():
     for epochs in [1, 3 ,6]:
         for iter_num in [1, 2, 5, 9]:
-            for batch_size in [1, 10, 100]:
-                for auto_reset in [True, False]:
-                    for infinite in [False, True]:
-                        yield batch_size, epochs, iter_num, auto_reset, infinite
+            for total_iters in [-1, iter_num-1, 2*iter_num - 1]:
+                if total_iters == 0 or total_iters > epochs * iter_num:
+                    continue
+                for batch_size in [1, 10, 100]:
+                    for auto_reset in [True, False]:
+                        for infinite in [False, True]:
+                            yield batch_size, epochs, iter_num, total_iters, auto_reset, infinite
 
 def check_iterator_wrapper_first_iteration(BaseIterator, *args, **kwargs):
     # This wrapper is used to test that the base class iterator doesn't invoke
@@ -963,7 +974,7 @@ def check_iterator_wrapper_first_iteration(BaseIterator, *args, **kwargs):
         # Asserting if __next__ is called, unless self._allow_next has been set to True explicitly
         def __next__(self):
             assert(self._allow_next)
-            outs = super(IteratorWrapper, self).__next__()
+            _ = super(IteratorWrapper, self).__next__()
 
     pipe = Pipeline(batch_size = 16, num_threads = 1, device_id = 0)
     with pipe:
@@ -1009,8 +1020,8 @@ def test_stop_iteration_mxnet():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     fw_iter = lambda pipe, size, auto_reset : MXNetIterator(pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset)
     iter_name = "MXNetIterator"
-    for batch_size, epochs, iter_num, auto_reset, infinite in stop_teration_case_generator():
-        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, auto_reset, infinite
+    for batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite in stop_iteration_case_generator():
+        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
 
 def test_stop_iteration_mxnet_fail_multi():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
@@ -1035,8 +1046,8 @@ def test_stop_iteration_gluon():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     fw_iter = lambda pipe, size, auto_reset : GluonIterator(pipe, size, output_types=[GluonIterator.DENSE_TAG], auto_reset=auto_reset)
     iter_name = "GluonIterator"
-    for batch_size, epochs, iter_num, auto_reset, infinite in stop_teration_case_generator():
-        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, auto_reset, infinite
+    for batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite in stop_iteration_case_generator():
+        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
 
 def test_stop_iteration_gluon_fail_multi():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
@@ -1061,8 +1072,8 @@ def test_stop_iteration_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     fw_iter = lambda pipe, size, auto_reset : PyTorchIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
     iter_name = "PyTorchIterator"
-    for batch_size, epochs, iter_num, auto_reset, infinite in stop_teration_case_generator():
-        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, auto_reset, infinite
+    for batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite in stop_iteration_case_generator():
+        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
 
 def test_stop_iteration_pytorch_fail_multi():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
@@ -1087,8 +1098,8 @@ def test_stop_iteration_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     fw_iter = lambda pipe, size, auto_reset : PaddleIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
     iter_name = "PaddleIterator"
-    for batch_size, epochs, iter_num, auto_reset, infinite in stop_teration_case_generator():
-        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, auto_reset, infinite
+    for batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite in stop_iteration_case_generator():
+        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
 
 def test_stop_iteration_paddle_fail_multi():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
