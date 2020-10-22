@@ -42,8 +42,11 @@ class SelectMasksCPU : public Operator<CPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
+ private:
+  template <typename T>
+  void RunImplTyped(workspace_t<CPUBackend> &ws);
+
   struct MaskMeta {
-    int mask_id = -1;
     int new_mask_id = -1;
     int start_coord = -1;
     int end_coord = -1;
