@@ -24,13 +24,13 @@ DALI_SCHEMA(FileReader)
   .DocStr("Reads (file, label) pairs from a directory.")
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
-  .AddArg("file_root",
+  .AddOptionalArg<std::string>("file_root",
       R"code(Path to a directory that contains the data files.
 
 ``FileReader`` supports a flat directory structure. The ``file_root`` directory must contain
 directories with data files. To obtain the labels, ``FileReader`` sorts directories in ``file_root``
 in alphabetical order and takes an index in this order as a class label.)code",
-      DALI_STRING)
+      nullptr)
   .AddOptionalArg("file_list",
       R"code(Path to a text file that contains the rows of ``filename label`` pairs,
 where the filenames are relative to ``file_root``.
@@ -44,6 +44,15 @@ When traversing subdirectories, the labels are assigned consecutive numbers.)cod
 
 ``stick_to_shard`` and ``random_shuffle`` cannot be used when this argument is set to True.)code",
       false)
+  .AddOptionalArg<vector<string>>("files", R"(A list of file paths to read the data from.
+
+If ``file_root`` is provided, it is prepended to the file paths.).
+When using ``files``, the labels are taken from ``labels`` argument or, if it was not supplied,
+contain indices at which given file appeared in the ``files`` list.)", nullptr)
+  .AddOptionalArg<vector<int>>("labels", R"(Labels acoompanying contents of files listed in
+``files`` argument.
+
+If not used, sequential 0-based indices are used as labels)", nullptr)
   .AddParent("LoaderBase");
 
 }  // namespace dali

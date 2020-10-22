@@ -47,19 +47,45 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
  public:
   explicit inline FileLabelLoader(
     const OpSpec& spec,
-    vector<std::pair<string, int>> image_label_pairs = std::vector<std::pair<string, int>>(),
     bool shuffle_after_epoch = false)
     : Loader<CPUBackend, ImageLabelWrapper>(spec),
-      file_root_(spec.GetArgument<string>("file_root")),
-      file_list_(),
-      image_label_pairs_(std::move(image_label_pairs)),
       shuffle_after_epoch_(shuffle_after_epoch),
       current_index_(0),
       current_epoch_(0) {
 
+      if (!spec.TryGetArgument(file_root_, "file_root") && !spec.HasArgument("files")) {
+        DALI_FAIL("``file_root`` argument is required when not supplygin explicit file paths "
+          "through ``files`` argument");
+      }
+
+      DALI_ENFORCE(spec.HasArgument("files") + spec.HasArgument("file_list") <= 1,
+        "File paths can be provided through ``files`` or ``file_list`` but not both.");
+
+      DALI_ENFORCE(spec.HasArgument("files") || !spec.HasArgument("labels"),
+        "The argument ``labels`` is valid only when file paths "
+        "are provided as ``files`` argument.");
+
+
       // COCO doesn't have this argument, other inheriting class may not as well
       if (spec.HasArgument("file_list")) {
         file_list_ = spec.GetArgument<string>("file_list");
+      }
+
+      vector<string> files;
+      if (spec.TryGetArgument(files, "files")) {
+        DALI_ENFORCE(files.size() > 0, "``files`` specified an empty list.");
+        vector<int> labels;
+
+        if (spec.TryGetRepeatedArgument(labels, "labels")) {
+          DALI_ENFORCE(files.size() == labels.size(), make_string("Provided ", labels.size(),
+            " labels for ", files.size(), " files."));
+
+          for (int i = 0, n = files.size(); i < n; i++)
+            image_label_pairs_.emplace_back(std::move(files[i]), labels[i]);
+        } else {
+            for (int i = 0, n = files.size(); i < n; i++)
+              image_label_pairs_.emplace_back(std::move(files[i]), i);
+        }
       }
 
       /*
