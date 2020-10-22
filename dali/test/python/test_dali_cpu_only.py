@@ -675,15 +675,15 @@ def test_segmentation_select_masks():
         return lambda: make_batch_select_masks(*args, **kwargs)
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None, seed=1234)
     with pipe:
-        masks_meta, masks_coords, selected_masks = fn.external_source(
+        polygons, vertices, selected_masks = fn.external_source(
             num_outputs = 3, device='cpu',
-            source = get_data_source(batch_size, coord_ndim=2, num_masks_range=(1, 5),
-                                     coords_per_mask_range=(3, 10))
+            source = get_data_source(batch_size, vertex_ndim=2, npolygons_range=(1, 5),
+                                     nvertices_range=(3, 10))
         )
-        out_masks_meta, out_masks_coords = fn.segmentation.select_masks(
-            selected_masks, masks_meta, masks_coords, reindex_masks=False
+        out_polygons, out_vertices = fn.segmentation.select_masks(
+            selected_masks, polygons, vertices, reindex_masks=False
         )
-    pipe.set_outputs(masks_meta, masks_coords, selected_masks, out_masks_meta, out_masks_coords)
+    pipe.set_outputs(polygons, vertices, selected_masks, out_polygons, out_vertices)
     pipe.build()
     for _ in range(3):
         pipe.run()

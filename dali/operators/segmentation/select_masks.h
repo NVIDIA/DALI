@@ -46,21 +46,21 @@ class SelectMasksCPU : public Operator<CPUBackend> {
   template <typename T>
   void RunImplTyped(workspace_t<CPUBackend> &ws);
 
-  struct MaskMeta {
+  struct PolygonDesc {
     int new_mask_id = -1;
-    int start_coord = -1;
-    int end_coord = -1;
+    int start_vertex = -1;
+    int end_vertex = -1;
   };
 
-  struct SampleMeta {
+  struct SampleDesc {
     span<const int> selected_masks;
-    std::unordered_map<int, MaskMeta> masks_meta;
+    std::unordered_map<int, PolygonDesc> polygons;
     void clear() {
       selected_masks = {};
-      masks_meta.clear();
+      polygons.clear();
     }
   };
-  std::vector<SampleMeta> samples_meta_;
+  std::vector<SampleDesc> samples_;
 
   bool reindex_masks_;
 };
