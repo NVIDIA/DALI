@@ -14,22 +14,22 @@
 
 #include "dali/operators/segmentation/select_masks.h"
 
+#include <utility>
+#include "dali/kernels/common/type_erasure.h"
+#include "dali/core/static_switch.h"
+
 namespace dali {
 
 DALI_SCHEMA(segmentation__SelectMasks)
     .DocStr(R"(Selects a subset of mask by their mask ids.
 
-The operator expects ``mask_meta`` and ``mask_coords``, containing segmentation mask.
-Each sample can contain several mask, and each mask can be composed by several polygons.
-The format of the data is the same as the one produced by COCOReader:
+The operator expects three inputs describing multiple segmentation mask polygons and a list of selected mask ids.
 
-- ``mask_meta`` -> 2D data where each row describes a single mask with three values, ``mask_idx, start_idx, end_idx``,
-where ``start_idx`` and ``end_idx`` refer to indices in ``mask_coords``.
-
-- ``mask_coords``-> 2D data where each row contains a single ``x, y`` coordinate.
+Each sample can contain several masks, and each mask can be composed by several polygons. The masks are described 
+by the inputs ``mask_meta`` and ``mask_coords``. The format of this data is the same as the one produced by COCOReader.
 
 The operator receives a list of mask ids that are to be selected for each sample, and produces
-output ``mask_meta`` and ``mask_coords`` where only the given mask ids are preserved.
+output ``mask_meta`` and ``mask_coords`` where only the masks corresponding to selected mask ids are present.
 
 **Examples:**
 
@@ -46,13 +46,21 @@ Example 1: Selecting a single mask with id ``1``, maintaining the original id::
 
 Example 2: Selecting two out of the three mask, reindexing the mask ids to follow the order of the input mask ids::
 
-``mask_ids`` = [2, 0]
-``reindex_masks`` = True
-``out_mask_meta`` = [[0, 3, 5], [1, 0, 2]]
-``out_mask_coords`` = [[x0, y0], [x1, y1], [x2, y2], [x7, y7], [x8, y8], [x9, y9]]
+    ``mask_ids`` = [2, 0]
+    ``reindex_masks`` = True
+    ``out_mask_meta`` = [[0, 3, 5], [1, 0, 2]]
+    ``out_mask_coords`` = [[x0, y0], [x1, y1], [x2, y2], [x7, y7], [x8, y8], [x9, y9]]
 )")
     .NumInput(3)
     .NumOutput(2)
+    .InputDox(0, "mask_ids", "1D TensorList of int",
+              R"code(List of mask identifiers that are to be selected.)code")
+    .InputDox(
+        1, "mask_meta", "2D TensorList of int",
+        R"code(Each row describes a single mask with three values, ``mask_idx, start_idx, end_idx``,
+where ``start_idx`` and ``end_idx`` refer to indices in ``mask_coords``.)code")
+    .InputDox(2, "mask_coords", "2D TensorList of float or int",
+              R"code(Each row contains a single ``x, y`` coordinate.)code")
     .AddOptionalArg<bool>(
         "reindex_masks",
         R"code(If set to True, new mask ids are reassigned to each of the selected mask, so that they
@@ -76,8 +84,6 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   const auto &in_mask_coords = ws.template InputRef<CPUBackend>(2);
   auto in_mask_coords_shape = in_mask_coords.shape();
-  DALI_ENFORCE(in_mask_coords.type().id() == DALI_FLOAT,
-               "``mask_coords`` input is expected to be float32");
   DALI_ENFORCE(in_mask_coords_shape.sample_dim() == 2,
                make_string("``mask_coords`` input is expected to be 2D. Got ",
                            in_mask_coords_shape.sample_dim(), "D"));
@@ -86,26 +92,32 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
   DALI_ENFORCE(nsamples == in_mask_meta_shape.size() && nsamples == in_mask_coords_shape.size(),
                make_string("All the inputs should have the same number of samples. Got: ", nsamples,
                            ", ", in_mask_meta_shape.size(), ", ", in_mask_coords_shape.size()));
-  assert(nsamples > 0);
 
-  for (int i = 0; i < nsamples; i++) {
-    DALI_ENFORCE(3 == in_mask_meta_shape[i][1],
-                 make_string("``mask_meta`` is expected to contain 3 element rows, containing "
-                             "``mask_id, start_idx, end_idx``. Got ",
-                             in_mask_meta_shape[i][1], " elements"));
+  if (nsamples == 0) {  // empty input
+    output_desc.reserve(2);
+    output_desc.push_back({in_mask_meta_shape, in_mask_meta.type()});
+    output_desc.push_back({in_mask_coords_shape, in_mask_coords.type()});
+    return true;
   }
 
-  int coord_ndim = in_mask_coords_shape[0][1];
+  for (int i = 0; i < nsamples; i++) {
+    auto sh = in_mask_meta_shape.tensor_shape_span(i);
+    DALI_ENFORCE(3 == sh[1],
+                 make_string("``mask_meta`` is expected to contain 3 element rows, containing "
+                             "``mask_id, start_idx, end_idx``. Got ",
+                             sh[1], " elements"));
+  }
+
+  int64_t coord_ndim = in_mask_coords_shape.tensor_shape_span(0)[1];
   for (int i = 1; i < nsamples; i++) {
-    DALI_ENFORCE(
-        coord_ndim == in_mask_coords_shape[i][1],
-        make_string("All coordinates are expected to have the same dimensionality. Got ",
-                    coord_ndim, "D and ", in_mask_coords_shape[i][1], "D in the same batch"));
+    auto sh = in_mask_coords_shape.tensor_shape_span(i);
+    DALI_ENFORCE(coord_ndim == sh[1],
+      make_string("All coordinates are expected to have the same dimensionality. Got ",
+                  coord_ndim, "D and ", sh[1], "D in the same batch"));
   }
 
   const auto &in_mask_ids_view = view<const int32_t, 1>(in_mask_ids);
   const auto &in_mask_meta_view = view<const int32_t, 2>(in_mask_meta);
-  const auto &in_mask_coords_view = view<const float, 2>(in_mask_coords);
 
   auto out_mask_meta_shape = in_mask_meta_shape;
   auto out_mask_coords_shape = in_mask_coords_shape;
@@ -123,32 +135,36 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
         DALI_WARN(make_string("mask_id ", mask_id, " is duplicated. Ignoring..."));
         continue;
       }
-      meta.masks_meta[mask_id].mask_id = mask_id;
       meta.masks_meta[mask_id].new_mask_id = reindex_masks_ ? idx++ : mask_id;
     }
 
     int64_t nmasks = in_mask_meta_shape.tensor_shape_span(i)[0];
+    int64_t input_total_ncoords = in_mask_coords_shape.tensor_shape_span(i)[0];
     for (int64_t k = 0; k < nmasks; k++) {
       const auto *mask_data = in_mask_meta_view.tensor_data(i) + k * 3;
       int mask_id = mask_data[0];
       auto it = meta.masks_meta.find(mask_id);
       if (it == meta.masks_meta.end())
         continue;
-      it->second.start_coord = mask_data[1];
-      it->second.end_coord = mask_data[2];
-    }
+      auto &mask = it->second;
+      mask.start_coord = mask_data[1];
+      mask.end_coord = mask_data[2];
+
+      DALI_ENFORCE(
+        mask.start_coord >= 0 && mask.end_coord < input_total_ncoords,
+        make_string(
+            "Coordinate index range for mask id ", mask_id, " [", mask.start_coord, ", ",
+            mask.end_coord,
+            "] is out of bounds. Expected to be within the range of available coordinates [0, ",
+            input_total_ncoords - 1, "]."));
+  }
 
     int64_t ncoords = 0;
     for (int k = 0; k < nselected; k++) {
       int mask_id = meta.selected_masks[k];
-      auto it = meta.masks_meta.find(mask_id);
-      if (it == meta.masks_meta.end()) {
-        DALI_FAIL(make_string("Selected mask_id ", mask_id,
-                              " is not present in the input mask metadata."));
-      }
-      const auto &mask = it->second;
+      const auto &mask = meta.masks_meta[mask_id];
       if (mask.start_coord >= mask.end_coord)
-        DALI_FAIL(make_string("Selected mask_id ", mask.mask_id, " has no coordinates"));
+        DALI_FAIL(make_string("Selected mask_id ", mask_id, " is not present in the input."));
       ncoords += mask.end_coord - mask.start_coord + 1;
     }
     out_mask_coords_shape.tensor_shape_span(i)[0] = ncoords;
@@ -160,13 +176,13 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
   return true;
 }
 
-void SelectMasksCPU::RunImpl(workspace_t<CPUBackend> &ws) {
+template <typename T>
+void SelectMasksCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   // Inputs were already validated and input 0 was already parsed in SetupImpl
   const auto &in_mask_meta_view = view<const int32_t, 2>(ws.template InputRef<CPUBackend>(1));
-  const auto &in_mask_coords_view = view<const float, 2>(ws.template InputRef<CPUBackend>(2));
-
   const auto &out_mask_meta_view = view<int32_t, 2>(ws.template OutputRef<CPUBackend>(0));
-  const auto &out_mask_coords_view = view<float, 2>(ws.template OutputRef<CPUBackend>(1));
+  const auto &in_mask_coords_view = view<const T, 2>(ws.template InputRef<CPUBackend>(2));
+  const auto &out_mask_coords_view = view<T, 2>(ws.template OutputRef<CPUBackend>(1));
 
   for (int i = 0; i < in_mask_meta_view.num_samples(); i++) {
     const auto &meta = samples_meta_[i];
@@ -192,6 +208,17 @@ void SelectMasksCPU::RunImpl(workspace_t<CPUBackend> &ws) {
       out_coord_i += ncoords;
     }
   }
+}
+
+void SelectMasksCPU::RunImpl(workspace_t<CPUBackend> &ws) {
+  const auto &in_mask_coords = ws.template InputRef<CPUBackend>(2);
+  VALUE_SWITCH(in_mask_coords.type().size(), dtype_sz, (1, 2, 4, 8, 16), (
+    using T = kernels::type_of_size<dtype_sz>;
+    RunImplTyped<T>(ws);
+  ), (  // NOLINT
+    DALI_FAIL(make_string("Unexpected data type for mask coordinates: ",
+                          in_mask_coords.type().id()));
+  ));  // NOLINT 
 }
 
 DALI_REGISTER_OPERATOR(segmentation__SelectMasks, SelectMasksCPU, CPU);
