@@ -57,7 +57,20 @@ class OneHot : public Operator<CPUBackend> {
         axis_(spec.GetArgument<int>("axis")),
         output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)),
         on_value_(spec.GetArgument<float>("on_value")),
-        off_value_(spec.GetArgument<float>("off_value")) {}
+        off_value_(spec.GetArgument<float>("off_value")),
+        layout_axis_name_(spec.GetArgument<std::string>("layout_axis_name")) {
+    auto axis_name_len = layout_axis_name_.length();
+    unsigned char ch;
+    if (axis_name_len > 1 ||
+        (axis_name_len == 1 &&
+         (!std::isupper(ch = static_cast<unsigned char>(layout_axis_name_[0])) &&
+          !std::isdigit(ch)))) {
+      DALI_FAIL(
+          make_string("Unsupported layout_axis_name value. It must be either a single upper case "
+                      "character, a digit, or it must be an empty string. Got \"",
+                      layout_axis_name_, "\" instead"));
+    }
+  }
 
   inline ~OneHot() override = default;
 
@@ -74,12 +87,14 @@ class OneHot : public Operator<CPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override;
   void RunImpl(HostWorkspace &ws) override;
 
+  TensorLayout GetOutputLayout(const HostWorkspace &ws, int placement_axis) const;
 
   int num_classes_;
   int axis_;
   const DALIDataType output_type_;
   float on_value_;
   float off_value_;
+  const std::string layout_axis_name_;
 };
 
 }  // namespace dali

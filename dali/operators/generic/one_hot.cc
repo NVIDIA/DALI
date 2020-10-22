@@ -57,7 +57,11 @@ This value will be cast to the ``dtype`` type.)code", 1.f)
                   R"code(Value that will be used to fill the output to indicate the lack of given
 class in the corresponding input coordinate.
 
-This value will be cast to the ``dtype`` type.)code", 0.f);
+This value will be cast to the ``dtype`` type.)code", 0.f)
+  .AddOptionalArg("layout_axis_name",
+                  R"code(Single character (an upper case letter or a digit) that newly added
+dimension will be named with in the output layout. Provide empty string for empty output
+layout.)code", "O");
 
 namespace {
 
@@ -74,12 +78,32 @@ TensorShape<> determine_shape(TensorShape<> in_shape, int num_classes, int axis,
   axis = axis < 0 ? in_shape.sample_dim() : axis;
   int outer_axes = axis;
   int inner_axes = in_shape.sample_dim() - axis;
-  auto outer =  in_shape.first(outer_axes);
+  auto outer = in_shape.first(outer_axes);
   auto inner = in_shape.last(inner_axes);
   return shape_cat(shape_cat(outer, num_classes), inner);
 }
 
 }  // namespace
+
+TensorLayout OneHot::GetOutputLayout(const HostWorkspace &ws, int placement_axis) const {
+  const auto &input = ws.template InputRef<CPUBackend>(0);
+  const auto &output = ws.template OutputRef<CPUBackend>(0);
+  auto in_layout = input.GetLayout();
+  auto in_layout_size = in_layout.size();
+  auto out_sample_dim = output.shape().sample_dim();
+  if (layout_axis_name_.length() == 0) {
+    return {};
+  }
+  // Handles the legacy 'multi-dimensional' scalars-like
+  if (out_sample_dim == 1) {
+    return layout_axis_name_;
+  }
+  if (in_layout_size + 1 == out_sample_dim) {
+    return in_layout.first(placement_axis) + layout_axis_name_ +
+           in_layout.last(in_layout_size - placement_axis);
+  }
+  return {};
+}
 
 bool OneHot::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
@@ -113,13 +137,13 @@ bool OneHot::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace
   return true;
 }
 
-// TODO(klecki): Handle layout, maybe introduce a parameter for how to name the new axis
 void OneHot::RunImpl(HostWorkspace &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
   auto in_shape = input.shape();
   int placement_axis = axis_ < 0 ? output.shape().sample_dim() - 1 : axis_;
+  output.SetLayout(GetOutputLayout(ws, placement_axis));
   TYPE_SWITCH(input.type().id(), type2id, InputType, ONE_HOT_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, ONE_HOT_TYPES, (
 
