@@ -22,22 +22,39 @@
 #define BOOST_PP_VARIADICS 1
 #endif
 
+/** @file
+ * 
+ * Parts of this file are based on uSHET Library - CPP Magic
+ *
+ * This file defines compile-time map that are suitable for
+ * specializing over different type pairs.
+ *
+ * The #TYPE_MAP macro switches over types and provides a typedef
+ * with given name for that type in each case block.
+ *
+ * Types containing commas should be enclosed in parenthesis.
+ *
+ * Code blocks (case_code, default_type1_code, default_type2_code) 
+ * must be enclosed in parenthesis if they contain commas.
+ *
+*/
+
 #include <boost/preprocessor/seq/for_each.hpp>
 #include <boost/preprocessor/variadic/to_seq.hpp>
 #include <boost/preprocessor/punctuation/remove_parens.hpp>
 
-#define FIRST(a, ...) a
-#define SECOND(a, b, ...) b
+#define DALI_FIRST_ARG(a, ...) a
+#define DALI_SECOND_ARG(a, b, ...) b
 
-#define IS_PROBE(...) SECOND(__VA_ARGS__, 0)
-#define PROBE() ~, 1
+#define DALI_IS_PROBE(...) DALI_SECOND_ARG(__VA_ARGS__, 0)
+#define DALI_PROBE() ~, 1
 
-#define NOT(x) IS_PROBE(BOOST_PP_CAT(_NOT_, x))
-#define _NOT_0 PROBE()
+#define DALI_NOT(x) DALI_IS_PROBE(BOOST_PP_CAT(_NOT_, x))
+#define _NOT_0 DALI_PROBE()
 
-#define BOOL(x) NOT(NOT(x))
+#define DALI_BOOL(x) DALI_NOT(DALI_NOT(x))
 
-#define HAS_ARGS(...) BOOL(FIRST(_END_OF_ARGUMENTS_ __VA_ARGS__)())
+#define DALI_HAS_ARGS(...) DALI_BOOL(DALI_FIRST_ARG(_END_OF_ARGUMENTS_ __VA_ARGS__)())
 #define _END_OF_ARGUMENTS_() 0
 
 #define DALI_EVAL_IMPL(...) __VA_ARGS__
@@ -51,7 +68,7 @@
 
 #define DALI_MAP(m, args, first, ...) \
   m(args, first) \
-  DALI_IF(HAS_ARGS(__VA_ARGS__))(DALI_DEFER(_DALI_MAP)()(m, args, __VA_ARGS__)) \
+  DALI_IF(DALI_HAS_ARGS(__VA_ARGS__))(DALI_DEFER(_DALI_MAP)()(m, args, __VA_ARGS__)) \
 
 #define _DALI_MAP() DALI_MAP
 
@@ -80,6 +97,40 @@ case BOOST_PP_TUPLE_ELEM(1, args)<TYPE_MAP_GET_KEY(type_map)>::value: \
 } \
 break; \
 
+/// Pastes the case_code specialized for each type pair defined by type map as a switch of switches.
+/// The specialization is performed by aliasing a particular type with a typedef named type1_name
+/// for outer switch and type2_name for inner switch.
+/// @param type1_id           - numerical id of the type 1
+/// @param type2_id           - numerical id of the type 2
+/// @param type_tag           - a class template usable as type_tag<type>::value
+///                             the value should be a type id for type
+/// @param type1_name         - a name given for selected type in the outer switch
+/// @param type2_name         - a name given for selected type in the inner switch
+/// @param type_map           - parenthesised, comma-separated list of pairs. First element is
+///                             parenthesised key type. Second element is parenthesised,
+///                             comma-separated list of value types
+///                             e.g. (int, float, (std::conditional<val, bool, char>::type))
+/// @param case_code          - code to execute for matching cases
+/// @param default_type1_code - code to execute when id doesn't match any type in outer switch
+/// @param default_type2_code - code to execute when id doesn't match any type in inner switch
+///
+/// Usage:
+/// ```
+/// #define TEST_TYPES_MAP ( \
+///     ((uint8_t), (uint8_t, uint64_t, float)), \
+///     ((int8_t), (int64_t))
+/// TYPE_MAP(
+///     input_type,
+///     output_type,
+///     TypeTag,
+///     InputType,
+///     OutputType,
+///     TEST_TYPES_MAP,
+///     (TypedFunc<InputType, OutputType>();),
+///     (cout << "Outer default"),
+///     (cout << "Innder default"))
+///
+/// ```
 #define TYPE_MAP( \
   type1_id, type2_id, type_tag, type1_name, type2_name, type_map, case_code, default_type1_code, default_type2_code) \
 switch(type1_id) { \
