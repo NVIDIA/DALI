@@ -18,6 +18,7 @@
 #include "include/dali/core/static_map.h"
 #include "dali/operators/generic/reduce/reduce.h"
 
+
 #define SUM_TYPES_MAP ( \
     ((uint8_t), (uint8_t, uint64_t, float)), \
     ((int8_t), (int8_t, int64_t, float)), \
@@ -49,11 +50,12 @@ class SumOp : public Reduce<ReductionType, Backend, SumOp> {
     }
 
     TYPE_MAP(
-      SUM_TYPES_MAP,
       input_type,
       output_type,
+      type2id,
       InputType,
       OutputType,
+      SUM_TYPES_MAP,
       (base.template RunTyped<OutputType, InputType>(ws);),
       (DALI_FAIL(make_string("Unsupported input type: ", input_type));),
       (DALI_FAIL(make_string("Unsupported types: ", input_type, ", ", output_type));))
