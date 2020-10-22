@@ -39,7 +39,7 @@ masks are present.
 
 Let us assume the following input mask, where symbolic coordinates are used for a clearer example::
 
-    polygons = [[0, 0, 2], [1, 3, 6], [2, 7, 9]]
+    polygons = [[0, 0, 3], [1, 3, 7], [2, 7, 10]]
     vertices = [[x0, y0], [x1, y1], [x2, y2], [x3, y3], [x4, y4], [x5, y5], [x6, y6], [x7, y7], [x8, y8], [x9, y9]]
 
 Example 1: Selecting a single mask with id ``1``, maintaining the original id::
@@ -53,7 +53,7 @@ they appeared in ``mask_ids`` input::
 
     mask_ids = [2, 0]
     reindex_masks = True
-    out_polygons = [[0, 3, 5], [1, 0, 2]]
+    out_polygons = [[0, 3, 6], [1, 0, 3]]
     out_vertices = [[x0, y0], [x1, y1], [x2, y2], [x7, y7], [x8, y8], [x9, y9]]
 )")
     .NumInput(3)
@@ -158,21 +158,21 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
       poly.end_vertex = poly_data[2];
 
       DALI_ENFORCE(
-        poly.start_vertex >= 0 && poly.end_vertex < in_nvertices,
+        poly.start_vertex >= 0 && poly.end_vertex <= in_nvertices,
         make_string(
             "Vertex index range for mask id ", mask_id, " [", poly.start_vertex, ", ",
             poly.end_vertex,
-            "] is out of bounds. Expected to be within the range of available vertices [0, ",
-            in_nvertices - 1, "]."));
+            ") is out of bounds. Expected to be within the range of available vertices [0, ",
+            in_nvertices, ")."));
     }
 
     int64_t nvertices = 0;
     for (int k = 0; k < nselected; k++) {
       int mask_id = selected_masks[k];
       const auto &poly = polygons[mask_id];
-      if (poly.start_vertex >= poly.end_vertex)
+      if (poly.start_vertex == -1 && poly.end_vertex == -1)
         DALI_FAIL(make_string("Selected mask_id ", mask_id, " is not present in the input."));
-      nvertices += poly.end_vertex - poly.start_vertex + 1;
+      nvertices += poly.end_vertex - poly.start_vertex;
     }
     out_vertices_shape.tensor_shape_span(i)[0] = nvertices;
   }
@@ -204,10 +204,10 @@ void SelectMasksCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
       auto it = polygons.find(mask_id);
       assert(it != polygons.end());
       const auto &poly = it->second;
-      int64_t nvertices = poly.end_vertex - poly.start_vertex + 1;
+      int64_t nvertices = poly.end_vertex - poly.start_vertex;
       *out_polygons_data++ = poly.new_mask_id;
       *out_polygons_data++ = out_vertex_i;  // start vertex
-      *out_polygons_data++ = out_vertex_i + nvertices - 1;  // end vertex
+      *out_polygons_data++ = out_vertex_i + nvertices;  // end vertex
       auto vertex_ndim = out_vertices_shape[1];
       auto *in_vertex_data = in_vertices_data + poly.start_vertex * vertex_ndim;
       for (int64_t j = 0; j < nvertices * vertex_ndim; j++)

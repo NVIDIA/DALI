@@ -28,7 +28,7 @@ def make_batch_select_masks(batch_size, npolygons_range = (1, 10), nvertices_ran
         curr_polygons = np.zeros([nmasks, 3], dtype=np.int32)
         for m in range(nmasks):
             nvertices = random.randint(*nvertices_range)
-            curr_polygons[m, :] = (mask_id, vertex_count, vertex_count + nvertices - 1)
+            curr_polygons[m, :] = (mask_id, vertex_count, vertex_count + nvertices)
             vertex_count = vertex_count + nvertices
             mask_id = mask_id + 1
         polygons.append(curr_polygons)

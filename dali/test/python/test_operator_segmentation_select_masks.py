@@ -47,16 +47,16 @@ def check_select_masks(batch_size, npolygons_range = (1, 10), nvertices_range = 
             for m in range(len(mask_ids)):
                 mask_id = mask_ids[m]
                 in_vertex_start, in_vertex_end = in_polygons_dict[mask_id]
-                in_nvertices = in_vertex_end + 1 - in_vertex_start
+                in_nvertices = in_vertex_end - in_vertex_start
 
                 expected_out_mask_id = index_map[mask_id] if reindex_masks else mask_id
                 out_mask_id, out_vertex_start, out_vertex_end = out_polygons[m]
                 assert out_mask_id == expected_out_mask_id
                 assert out_vertex_start == vertex_count
-                assert out_vertex_end == (vertex_count + in_nvertices - 1)
+                assert out_vertex_end == (vertex_count + in_nvertices)
                 vertex_count = vertex_count + in_nvertices
-                expected_out_vertex = in_vertices[in_vertex_start:in_vertex_end+1]
-                out_vertex = out_vertices[out_vertex_start:out_vertex_end+1]
+                expected_out_vertex = in_vertices[in_vertex_start:in_vertex_end]
+                out_vertex = out_vertices[out_vertex_start:out_vertex_end]
                 assert (expected_out_vertex == out_vertex).all()
 
 def test_select_masks():
@@ -98,7 +98,6 @@ def test_select_masks_wrong_mask_meta_dim():
         vertices = [np.array(np.random.rand(9, 2), dtype=np.float32)]
         mask_ids = [np.array([0], dtype=np.int32)]
         return polygons, vertices, mask_ids
-    fn = lambda: test_data()
     check_select_masks_wrong_input(lambda: test_data())
 
 def test_select_masks_wrong_vertex_ids():
