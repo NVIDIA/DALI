@@ -18,7 +18,8 @@
 #include "include/dali/core/static_map.h"
 #include "dali/operators/generic/reduce/reduce.h"
 
-
+/// Definition of mapping between input types and possible output types
+/// for Sum operator. Is uesed as parameter to TYPE_MAP macro.
 #define SUM_TYPES_MAP ( \
     ((uint8_t), (uint8_t, uint64_t, float)), \
     ((int8_t), (int8_t, int64_t, float)), \

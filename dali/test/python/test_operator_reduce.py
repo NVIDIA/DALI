@@ -1,21 +1,11 @@
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.ops as ops
-
 from nvidia.dali.pipeline import Pipeline
+
 import numpy as np
 
-to_dali_type = {
-    np.int8: types.INT8,
-    np.uint8: types.UINT8,
-    np.int16: types.INT16,
-    np.uint16: types.UINT16,
-    np.int32: types.INT32,
-    np.uint32: types.UINT32,
-    np.int64: types.INT64,
-    np.uint64: types.UINT64,
-    np.float32: types.FLOAT,
-    None: types.NO_TYPE}
+from test_utils import np_types_to_dali
 
 
 class Batch:
@@ -109,7 +99,7 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type):
 
     args = { 'keep_dims': keep_dims, 'axes': axes}
     if output_type is not None:
-        args['dtype'] = to_dali_type[output_type]
+        args['dtype'] = np_types_to_dali(output_type)
 
     with pipe:
         input = fn.external_source(source = get_batch)

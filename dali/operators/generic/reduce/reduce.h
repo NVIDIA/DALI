@@ -80,8 +80,7 @@ class Reduce : public Operator<Backend> {
   }
 
   void RunImpl(workspace_t<Backend> &ws) override {
-    ImplType<ReductionType, Backend>& reduce_impl =
-      static_cast<ImplType<ReductionType, Backend>&>(*this);
+    auto& reduce_impl = static_cast<ImplType<ReductionType, Backend>&>(*this);
     reduce_impl.RunImplImpl(ws);
   }
 
@@ -162,8 +161,7 @@ class ReduceOp : public Reduce<ReductionType, Backend, ReduceOp> {
     DALIDataType input_type = in.type().id();
 
     TYPE_SWITCH(input_type, type2id, DataType, REDUCE_TYPES, (
-      Reduce<ReductionType, Backend, ReduceOp>& base =
-        static_cast<Reduce<ReductionType, Backend, ReduceOp>&>(*this);
+      auto& base = static_cast<Reduce<ReductionType, Backend, ReduceOp>&>(*this);
       base.template RunTyped<DataType, DataType>(ws);),
       DALI_FAIL(make_string("Unsupported input type: ", input_type)))
   }

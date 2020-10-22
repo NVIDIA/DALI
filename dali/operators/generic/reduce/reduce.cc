@@ -31,7 +31,7 @@ Not providing any axis results in reduction of all elements.)code",
     false);
 
 DALI_SCHEMA(Sum)
-  .DocStr("")
+  .DocStr("Gets sum of elements along provided axes.")
   .AddOptionalArg("dtype",
     R"code(Output data type. This type is used to accumulate the result.)code",
     DALI_NO_TYPE)

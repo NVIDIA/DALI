@@ -40,34 +40,35 @@ using TypeTagMap = std::unordered_map<int, std::vector<int>>;
 template <typename T>
 struct StaticMap : public testing::Test {
   StaticMap() {
-    type_mapping_[dali::TypeTag<uint8_t>()] = { 
+    type_mapping_[dali::TypeTag<uint8_t>()] = {
       dali::TypeTag<uint8_t>(), dali::TypeTag<uint64_t>(), dali::TypeTag<float>() };
     type_mapping_[dali::TypeTag<int8_t>()] = { dali::TypeTag<int64_t>() };
-    type_mapping_[dali::TypeTag<uint16_t>()] = { 
+    type_mapping_[dali::TypeTag<uint16_t>()] = {
       dali::TypeTag<uint16_t>(), dali::TypeTag<uint64_t>() };
     type_mapping_[dali::TypeTag<int16_t>()] = { dali::TypeTag<int16_t>() };
-    type_mapping_[dali::TypeTag<uint32_t>()] = { 
+    type_mapping_[dali::TypeTag<uint32_t>()] = {
       dali::TypeTag<uint32_t>(), dali::TypeTag<float>() };
     type_mapping_[dali::TypeTag<int32_t>()] = { dali::TypeTag<int32_t>() };
     type_mapping_[dali::TypeTag<int64_t>()] = { dali::TypeTag<int64_t>() };
     type_mapping_[dali::TypeTag<float>()] = { dali::TypeTag<float>() };
   }
 
-  protected:    
-    template <typename P, typename R>
-    void TypedMethod(int input_arg_type, int output_arg_type) {
-      int input_call_type = dali::TypeTag<P>();
-      int output_call_type = dali::TypeTag<R>();
+ protected:
+  template <typename P, typename R>
+  void TypedMethod(int input_arg_type, int output_arg_type) {
+    int input_call_type = dali::TypeTag<P>();
+    int output_call_type = dali::TypeTag<R>();
 
-      ASSERT_EQ(input_arg_type, input_call_type);
-      ASSERT_EQ(output_arg_type, output_call_type);
-    }
-    TypeTagMap type_mapping_;
+    ASSERT_EQ(input_arg_type, input_call_type);
+    ASSERT_EQ(output_arg_type, output_call_type);
+  }
+  TypeTagMap type_mapping_;
 };
 
-}
+}  // namespace
 
-typedef testing::Types<uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, int64_t, float> TypesToTest;
+typedef testing::Types<
+  uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, int64_t, float> TypesToTest;
 
 TYPED_TEST_SUITE(StaticMap, TypesToTest);
 
@@ -75,7 +76,7 @@ TYPED_TEST(StaticMap, ValidTypes) {
   using TestedType = gtest_TypeParam_;
 
   int input_type = dali::TypeTag<TestedType>();
-  for(auto &output_type : this->type_mapping_[input_type]) {
+  for  (auto &output_type : this->type_mapping_[input_type]) {
     TYPE_MAP(
       input_type,
       output_type,
@@ -99,10 +100,7 @@ TEST(StaticMapFailure, InvalidInputType) {
     InputType,
     OutputType,
     TEST_TYPES_MAP,
-    (
-      TypedFunc<InputType, OutputType>();
-      FAIL();
-    ),
+    (TypedFunc<InputType, OutputType>(); FAIL();),
     (SUCCEED()),
     (FAIL()))
 }
@@ -117,10 +115,7 @@ TEST(StaticMapFailure, InvalidOutputType) {
     InputType,
     OutputType,
     TEST_TYPES_MAP,
-    (
-      TypedFunc<InputType, OutputType>();
-      FAIL();
-    ),
+    (TypedFunc<InputType, OutputType>(); FAIL();),
     (FAIL()),
     (SUCCEED()))
 }

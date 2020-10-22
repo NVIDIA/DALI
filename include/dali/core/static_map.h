@@ -63,8 +63,8 @@
 #define DALI_DEFER(m) m BOOST_PP_EMPTY BOOST_PP_EMPTY()()
 
 #define DALI_IF(condition) BOOST_PP_CAT(DALI_IF_, condition)
-#define DALI_IF_1(...) __VA_ARGS__ 
-#define DALI_IF_0(...) 
+#define DALI_IF_1(...) __VA_ARGS__
+#define DALI_IF_0(...)
 
 #define DALI_MAP(m, args, first, ...) \
   m(args, first) \
@@ -116,8 +116,8 @@ break; \
 ///
 /// Usage:
 /// ```
-/// #define TEST_TYPES_MAP ( \
-///     ((uint8_t), (uint8_t, uint64_t, float)), \
+/// #define TEST_TYPES_MAP (
+///     ((uint8_t), (uint8_t, uint64_t, float)),
 ///     ((int8_t), (int64_t))
 /// TYPE_MAP(
 ///     input_type,
@@ -131,8 +131,8 @@ break; \
 ///     (cout << "Innder default"))
 ///
 /// ```
-#define TYPE_MAP( \
-  type1_id, type2_id, type_tag, type1_name, type2_name, type_map, case_code, default_type1_code, default_type2_code) \
+#define TYPE_MAP(type1_id, type2_id, type_tag, type1_name, type2_name, \
+  type_map, case_code, default_type1_code, default_type2_code) \
 switch(type1_id) { \
     BOOST_PP_SEQ_FOR_EACH( \
     TYPE_MAP_IMPL, \
