@@ -136,7 +136,7 @@ class Reduce : public Operator<Backend> {
   }
 
   DALIDataType OutputTypeImpl(DALIDataType input_type) const { return input_type; }
-  
+
   DALIDataType output_type_ = DALI_NO_TYPE;
 
  private:
