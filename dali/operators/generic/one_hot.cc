@@ -59,7 +59,7 @@ class in the corresponding input coordinate.
 
 This value will be cast to the ``dtype`` type.)code", 0.f)
   .AddOptionalArg<std::string>("axis_name",
-                  R"code(Single character that will be used as a name for newly added
+                  R"code(Single character that will be used as a name for the newly added
 dimension in the output layout. If no character is provided, the output layout will be
 empty.)code", nullptr);
 
@@ -104,7 +104,7 @@ TensorLayout OneHot::GetOutputLayout(const HostWorkspace &ws, int placement_axis
   }
   DALI_FAIL(make_string("Input layout mismatch - expected input layout to be of size ",
                         output_sample_dim - 1, " but instead got \"", in_layout,
-                        "\" that is of size ", in_layout_size, "."));
+                        "\", which is of size ", in_layout_size, "."));
 }
 
 bool OneHot::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
