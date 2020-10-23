@@ -91,7 +91,7 @@ vector<std::string> filesystem::traverse_directories(const std::string& file_roo
   while ((entry = readdir(dir))) {
     struct stat s;
     std::string entry_name(entry->d_name);
-    std::string full_path = file_root + "/" + entry_name;
+    std::string full_path = filesystem::join_path(file_root, entry_name);
     int ret = stat(full_path.c_str(), &s);
     DALI_ENFORCE(ret == 0,
         "Could not access " + full_path + " during directory traversal.");
@@ -142,7 +142,7 @@ void FileLoader::ReadSample(ImageFileWrapper& imfile) {
     return;
   }
 
-  auto current_image = FileStream::Open(file_root_ + "/" + image_file, read_ahead_,
+  auto current_image = FileStream::Open(filesystem::join_path(file_root_, image_file), read_ahead_,
                                         !copy_read_data_);
   Index image_size = current_image->Size();
 
@@ -169,7 +169,7 @@ void FileLoader::ReadSample(ImageFileWrapper& imfile) {
   imfile.image.SetMeta(meta);
 
   // set string
-  imfile.filename = file_root_ + "/" + image_file;
+  imfile.filename = filesystem::join_path(file_root_, image_file);
 }
 
 Index FileLoader::SizeImpl() {

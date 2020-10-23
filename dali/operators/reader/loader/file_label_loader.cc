@@ -23,16 +23,43 @@
 
 namespace dali {
 
+namespace filesystem {
+#ifdef WINVER
+          constexpr char dir_sep = '\\';
+#else
+          constexpr char dir_sep = '/';
+#endif
+
+
+std::string join_path(const std::string &dir, const std::string &path) {
+  if (dir.empty())
+    return path;
+  if (path.empty())
+    return dir;
+  if (path[0] == dir_sep)  // absolute path
+    return path;
+#ifdef WINVER
+  if (path[1] == ':')
+    return path;
+#endif
+  if (dir[dir.length()-1] == dir_sep)
+    return dir + path;
+  else
+    return dir + dir_sep + path;
+}
+
+}  // namespace filesystem
+
+using filesystem::dir_sep;
 
 inline void assemble_file_list(std::vector<std::pair<std::string, int>>& file_label_pairs,
                                const std::string& path, const std::string& curr_entry, int label) {
-  std::string curr_dir_path = path + "/" + curr_entry;
+  std::string curr_dir_path = path + dir_sep + curr_entry;
   DIR *dir = opendir(curr_dir_path.c_str());
 
   dirent *entry;
 
   while ((entry = readdir(dir))) {
-    std::string full_path = curr_dir_path + "/" + std::string{entry->d_name};
 #ifdef _DIRENT_HAVE_D_TYPE
     /*
      * we support only regular files and symlinks, if FS returns DT_UNKNOWN
@@ -43,7 +70,7 @@ inline void assemble_file_list(std::vector<std::pair<std::string, int>>& file_la
       continue;
     }
 #endif
-    std::string rel_path = curr_entry + "/" + std::string{entry->d_name};
+    std::string rel_path = curr_entry + dir_sep + std::string{entry->d_name};
     if (HasKnownExtension(std::string(entry->d_name))) {
       file_label_pairs.push_back(std::make_pair(rel_path, label));
     }
@@ -66,7 +93,7 @@ vector<std::pair<string, int>> filesystem::traverse_directories(const std::strin
   while ((entry = readdir(dir))) {
     struct stat s;
     std::string entry_name(entry->d_name);
-    std::string full_path = file_root + "/" + entry_name;
+    std::string full_path = filesystem::join_path(file_root, entry_name);
     int ret = stat(full_path.c_str(), &s);
     DALI_ENFORCE(ret == 0,
         "Could not access " + full_path + " during directory traversal.");
@@ -117,7 +144,7 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
     return;
   }
 
-  auto current_image = FileStream::Open(file_root_ + "/" + image_pair.first,
+  auto current_image = FileStream::Open(filesystem::join_path(file_root_, image_pair.first),
                                         read_ahead_, !copy_read_data_);
   Index image_size = current_image->Size();
 

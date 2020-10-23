@@ -33,15 +33,8 @@
 namespace dali {
 
 namespace filesystem {
-
-#ifdef WINVER
-constexpr char dir_sep = '\\';
-#else
-constexpr char dir_sep = '/';
-#endif
-
 vector<std::pair<string, int>> traverse_directories(const std::string& path);
-
+std::string join_path(const std::string &dir, const std::string &path);
 }  // namespace filesystem
 
 struct ImageLabelWrapper {
@@ -79,8 +72,14 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
 
       if (has_file_list_arg_) {
         file_list_ = spec.GetArgument<string>("file_list");
+        DALI_ENFORCE(!file_list_.empty(), "``file_list`` argument cannot be empty");
         if (!has_file_root_arg_) {
-          auto idx = file_list_.rfind(filesystem::dir_sep);
+#ifdef WINVER
+          constexpr char dir_sep = '\\';
+#else
+          constexpr char dir_sep = '/';
+#endif
+          auto idx = file_list_.rfind(dir_sep);
           if (idx != string::npos) {
             file_root_ = file_list_.substr(0, idx);
           }
