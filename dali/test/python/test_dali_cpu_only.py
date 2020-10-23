@@ -240,7 +240,7 @@ def test_mfcc_cpu():
     spectrum = fn.spectrogram(data, nfft = 60, window_length = 50, window_step = 25)
     mel = fn.mel_filter_bank(spectrum)
     dec = fn.to_decibels(mel)
-    processed = fn.mfc(dec)
+    processed = fn.mfcc(dec)
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
@@ -658,5 +658,14 @@ def test_combine_transforms_cpu():
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def test_reduce_min_cpu():
+    check_single_input(fn.min)
+
+def test_reduce_max_cpu():
+    check_single_input(fn.max)
+
+def test_reduce_sum_cpu():
+    check_single_input(fn.sum)
 
 # ToDo add tests for DLTensorPythonFunction if easily possible
