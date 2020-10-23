@@ -87,13 +87,13 @@ TensorShape<> determine_shape(TensorShape<> in_shape, int num_classes, int axis,
 
 TensorLayout OneHot::GetOutputLayout(const HostWorkspace &ws, int placement_axis,
                                      int output_sample_dim) const {
+  if (!new_axis_name_) {
+    return {};
+  }
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto in_layout = input.GetLayout();
   // .size method returns uint_8 which doesn't work well when 0 is printed in error message
   int in_layout_size = in_layout.size();
-  if (!new_axis_name_) {
-    return {};
-  }
   // Handles the legacy 'multi-dimensional' scalars-like
   if (output_sample_dim == 1) {
     return TensorLayout(&new_axis_name_, 1);
