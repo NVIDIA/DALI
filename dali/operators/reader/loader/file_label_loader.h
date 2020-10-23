@@ -34,6 +34,12 @@ namespace dali {
 
 namespace filesystem {
 
+#ifdef WINVER
+constexpr char dir_sep = '\\';
+#else
+constexpr char dir_sep = '/';
+#endif
+
 vector<std::pair<string, int>> traverse_directories(const std::string& path);
 
 }  // namespace filesystem
@@ -53,30 +59,37 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       current_index_(0),
       current_epoch_(0) {
 
-      if (!spec.TryGetArgument(file_root_, "file_root") && !spec.HasArgument("files")) {
-        DALI_FAIL("``file_root`` argument is required when not supplygin explicit file paths "
-          "through ``files`` argument");
-      }
+      vector<string> files;
+      vector<int> labels;
 
-      DALI_ENFORCE(spec.HasArgument("files") + spec.HasArgument("file_list") <= 1,
+      has_files_arg_ = spec.TryGetRepeatedArgument(files, "files");
+      has_labels_arg_ = spec.TryGetRepeatedArgument(labels, "labels");
+      has_file_list_arg_ = spec.TryGetArgument(file_list_, "file_list");
+      has_file_root_arg_ = spec.TryGetArgument(file_root_, "file_root");
+
+      DALI_ENFORCE(has_file_root_arg_ || has_files_arg_ || has_file_list_arg_,
+        "``file_root`` argument is required when not using ``files`` or ``file_list``.");
+
+      DALI_ENFORCE(has_files_arg_ + has_file_list_arg_ <= 1,
         "File paths can be provided through ``files`` or ``file_list`` but not both.");
 
-      DALI_ENFORCE(spec.HasArgument("files") || !spec.HasArgument("labels"),
+      DALI_ENFORCE(has_files_arg_ || !has_labels_arg_,
         "The argument ``labels`` is valid only when file paths "
         "are provided as ``files`` argument.");
 
-
-      // COCO doesn't have this argument, other inheriting class may not as well
-      if (spec.HasArgument("file_list")) {
+      if (has_file_list_arg_) {
         file_list_ = spec.GetArgument<string>("file_list");
+        if (!has_file_root_arg_) {
+          auto idx = file_list_.rfind(filesystem::dir_sep);
+          if (idx != string::npos) {
+            file_root_ = file_list_.substr(0, idx);
+          }
+        }
       }
 
-      vector<string> files;
-      if (spec.TryGetArgument(files, "files")) {
+      if (has_files_arg_) {
         DALI_ENFORCE(files.size() > 0, "``files`` specified an empty list.");
-        vector<int> labels;
-
-        if (spec.TryGetRepeatedArgument(labels, "labels")) {
+        if (has_labels_arg_) {
           DALI_ENFORCE(files.size() == labels.size(), make_string("Provided ", labels.size(),
             " labels for ", files.size(), " files."));
 
@@ -123,7 +136,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
 
   void PrepareMetadataImpl() override {
     if (image_label_pairs_.empty()) {
-      if (file_list_ == "") {
+      if (!has_file_list_arg_ && !has_files_arg_) {
         image_label_pairs_ = filesystem::traverse_directories(file_root_);
       } else {
         // load (path, label) pairs from list
@@ -170,6 +183,12 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
 
   string file_root_, file_list_;
   vector<std::pair<string, int>> image_label_pairs_;
+
+  bool has_files_arg_     = false;
+  bool has_labels_arg_    = false;
+  bool has_file_list_arg_ = false;
+  bool has_file_root_arg_ = false;
+
   bool shuffle_after_epoch_;
   Index current_index_;
   int current_epoch_;
