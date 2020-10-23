@@ -240,7 +240,7 @@ def test_mfcc_cpu():
     spectrum = fn.spectrogram(data, nfft = 60, window_length = 50, window_step = 25)
     mel = fn.mel_filter_bank(spectrum)
     dec = fn.to_decibels(mel)
-    processed = fn.mfc(dec)
+    processed = fn.mfcc(dec)
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
