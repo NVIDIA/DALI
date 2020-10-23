@@ -39,13 +39,34 @@ class SumOp : public Reduce<ReductionType, Backend, SumOp> {
   explicit inline SumOp(const OpSpec &spec) :
     Reduce<ReductionType, Backend, SumOp>(spec) {}
 
+  DALIDataType OutputTypeImpl(DALIDataType input_type) const { 
+    if (this->output_type_ != DALI_NO_TYPE) {
+      return this->output_type_;
+    }
+
+    switch (input_type)
+    {
+      case DALI_UINT8:
+      case DALI_UINT16:
+      case DALI_UINT32:
+        return DALI_UINT64;
+        break;
+
+      case DALI_INT8:
+      case DALI_INT16:
+      case DALI_INT32:
+        return DALI_INT64;
+        break;
+      
+      default:
+        return input_type;
+    }
+  }
+
   void RunImplImpl(workspace_t<Backend> &ws) {
     auto& in = ws.template InputRef<Backend>(0);
     DALIDataType input_type = in.type().id();
-    DALIDataType output_type = this->OutputType();
-    if (output_type == DALI_NO_TYPE) {
-      output_type = input_type;
-    }
+    DALIDataType output_type = this->OutputType(input_type);
 
     TYPE_MAP(
       input_type,

@@ -38,9 +38,7 @@ class Reduce : public Operator<Backend> {
     Operator<Backend>(spec),
     axes_(spec.GetRepeatedArgument<int>("axes")),
     keep_dims_(spec.GetArgument<bool>("keep_dims")) {
-      if (!spec.TryGetArgument<DALIDataType>(output_type_, "dtype")) {
-        output_type_ = DALI_NO_TYPE;
-      }
+    spec.TryGetArgument<DALIDataType>(output_type_, "dtype");
   }
 
   bool CanInferOutputs() const override { return true; }
@@ -52,14 +50,7 @@ class Reduce : public Operator<Backend> {
     output_desc.resize(1);
     auto &input = ws.template InputRef<Backend>(0);
 
-    int batch_size = input.shape().num_samples();
-
-    if (output_type_ == DALI_NO_TYPE) {
-      output_desc[0].type = input.type();
-    } else {
-      output_desc[0].type = dali::TypeTable::GetTypeInfo(output_type_);
-    }
-
+    output_desc[0].type = dali::TypeTable::GetTypeInfo(OutputType(input.type().id()));
     output_desc[0].shape = input.shape();
 
     if (axes_.size() == 0) {
@@ -139,7 +130,14 @@ class Reduce : public Operator<Backend> {
     kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view);
   }
 
-  DALIDataType OutputType() const { return output_type_; }
+  DALIDataType OutputType(DALIDataType input_type) const {
+    auto& reduce_impl = static_cast<const ImplType<ReductionType, Backend>&>(*this);
+    return reduce_impl.OutputTypeImpl(input_type);
+  }
+
+  DALIDataType OutputTypeImpl(DALIDataType input_type) const { return input_type; }
+  
+  DALIDataType output_type_ = DALI_NO_TYPE;
 
  private:
   USE_OPERATOR_MEMBERS();
@@ -147,7 +145,6 @@ class Reduce : public Operator<Backend> {
   vector<int> axes_;
   bool keep_dims_;
   kernels::KernelManager kmgr_;
-  DALIDataType output_type_ = DALI_NO_TYPE;
 };
 
 

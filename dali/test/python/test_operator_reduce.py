@@ -173,6 +173,19 @@ def test_reduce():
                     yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id
 
 
+def test_reduce_with_promotion():
+    reductions = [(fn.reductions.sum, np.sum)]
+
+    batch_gens = [Batch3DOverflow]
+    types = [np.uint8, np.int8, np.uint16, np.int16]
+
+    for keep_dims in [False, True]:
+        for reduce_fns in reductions:
+            for batch_gen in batch_gens:
+                for type_id in types:
+                    yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id
+
+
 def test_reduce_with_output_type():
     reductions = [(fn.reductions.sum, np.sum)]
 
