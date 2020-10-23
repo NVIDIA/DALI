@@ -58,10 +58,10 @@ This value will be cast to the ``dtype`` type.)code", 1.f)
 class in the corresponding input coordinate.
 
 This value will be cast to the ``dtype`` type.)code", 0.f)
-  .AddOptionalArg("layout_axis_name",
-                  R"code(Single character (an upper case letter or a digit) that newly added
-dimension will be named with in the output layout. Provide empty string for empty output
-layout.)code", "O");
+  .AddOptionalArg<std::string>("axis_name",
+                  R"code(Single character that will be used as a name for newly added
+dimension in the output layout. If no character is provided, the output layout will be
+empty.)code", nullptr);
 
 namespace {
 
@@ -85,24 +85,25 @@ TensorShape<> determine_shape(TensorShape<> in_shape, int num_classes, int axis,
 
 }  // namespace
 
-TensorLayout OneHot::GetOutputLayout(const HostWorkspace &ws, int placement_axis) const {
+TensorLayout OneHot::GetOutputLayout(const HostWorkspace &ws, int placement_axis,
+                                     int output_sample_dim) const {
   const auto &input = ws.template InputRef<CPUBackend>(0);
-  const auto &output = ws.template OutputRef<CPUBackend>(0);
   auto in_layout = input.GetLayout();
   auto in_layout_size = in_layout.size();
-  auto out_sample_dim = output.shape().sample_dim();
-  if (layout_axis_name_.length() == 0) {
+  if (!new_axis_name_) {
     return {};
   }
   // Handles the legacy 'multi-dimensional' scalars-like
-  if (out_sample_dim == 1) {
-    return layout_axis_name_;
+  if (output_sample_dim == 1) {
+    return TensorLayout(&new_axis_name_, 1);
   }
-  if (in_layout_size + 1 == out_sample_dim) {
-    return in_layout.first(placement_axis) + layout_axis_name_ +
+  if (in_layout_size + 1 == output_sample_dim) {
+    return in_layout.first(placement_axis) + TensorLayout(&new_axis_name_, 1) +
            in_layout.last(in_layout_size - placement_axis);
   }
-  return {};
+  DALI_FAIL(make_string("Input layout mismatch - expected input layout to be of size ",
+                        output_sample_dim - 1, " but instead got \"", in_layout,
+                        "\" that is of size ", in_layout_size, "."));
 }
 
 bool OneHot::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
@@ -142,8 +143,9 @@ void OneHot::RunImpl(HostWorkspace &ws) {
   auto &output = ws.template OutputRef<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
   auto in_shape = input.shape();
-  int placement_axis = axis_ < 0 ? output.shape().sample_dim() - 1 : axis_;
-  output.SetLayout(GetOutputLayout(ws, placement_axis));
+  int output_sample_dim = output.shape().sample_dim();
+  int placement_axis = axis_ < 0 ? output_sample_dim - 1 : axis_;
+  output.SetLayout(GetOutputLayout(ws, placement_axis, output_sample_dim));
   TYPE_SWITCH(input.type().id(), type2id, InputType, ONE_HOT_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, ONE_HOT_TYPES, (
 
