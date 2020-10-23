@@ -43,7 +43,7 @@ class SumOp : public Reduce<ReductionType, Backend, SumOp> {
     auto& in = ws.template InputRef<Backend>(0);
     DALIDataType input_type = in.type().id();
 
-    Reduce<ReductionType, Backend, SumOp>& base =
+    auto& base =
       static_cast<Reduce<ReductionType, Backend, SumOp>&>(*this);
     DALIDataType output_type = base.OutputType();
     if (output_type == DALI_NO_TYPE) {
