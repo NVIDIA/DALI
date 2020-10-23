@@ -275,11 +275,14 @@ class _OperatorInstance(object):
                 if isinstance(arg_inp, _ScalarConstant):
                     arg_inp = _instantiate_constant_node("cpu", arg_inp)
                 if not isinstance(arg_inp, _DataNode):
-                    raise TypeError(
-                            ("Expected inputs of type " +
-                            "`DataNode`. Received " +
-                            "input of type '{}'.")
-                            .format(type(arg_inp).__name__))
+                    try:
+                        arg_inp = _Constant(arg_inp, device="cpu")
+                    except Exception as e:
+                        raise TypeError(
+                                ("Expected inputs of type " +
+                                "`DataNode` or convertible to constant nodes. Received " +
+                                "input `{}` of type '{}'.")
+                                .format(k, type(arg_inp).__name__)) from e
                 self._spec.AddArgumentInput(k, arg_inp.name)
                 self._inputs = list(self._inputs) + [arg_inp]
 

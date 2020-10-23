@@ -58,3 +58,12 @@ def test_arithm_ops():
     o = pipe.run()
     assert np.array_equal(o[0].at(0), np.array([[11,22],[33,44]]))
     assert np.array_equal(o[1].at(0), np.array([[6,7],[8,9]]))
+
+def test_arg_input():
+    pipe = dali.pipeline.Pipeline(1,1,0)
+    with pipe:
+        in1 = fn.external_source([[np.float32([[1,2,3],[4,5,6]])]])
+        pipe.set_outputs(fn.transforms.translation(in1, offset=np.float32([10,20])))
+    pipe.build()
+    o = pipe.run()
+    assert np.array_equal(o[0].at(0), np.array([[1,2,13],[4,5,26]]))

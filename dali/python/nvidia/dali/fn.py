@@ -67,7 +67,13 @@ def _wrap_op_fn(op_class, wrapper_name):
         def is_data_node(x):
             return isinstance(x, _DataNode)
         def is_call_arg(name, value):
-            return name == "name" or is_data_node(value)
+            if name == "name" or is_data_node(value):
+                return True
+            if value is None:
+                return False
+            if isinstance(value, (bool, int, float, str, list, tuple)):
+                return False
+            return hasattr(value, "shape")
 
         def to_scalar(scalar):
             return scalar.value if isinstance(scalar, nvidia.dali.types.ScalarConstant) else scalar
