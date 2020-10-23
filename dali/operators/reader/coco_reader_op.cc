@@ -13,21 +13,72 @@
 // limitations under the License.
 
 #include "dali/operators/reader/coco_reader_op.h"
-
 #include <set>
 
-
 namespace dali {
-DALI_REGISTER_OPERATOR(COCOReader, COCOReader, CPU);
+
 DALI_SCHEMA(COCOReader)
   .NumInput(0)
   .NumOutput(3)
   .DocStr(R"code(Reads data from a COCO dataset that is composed of a directory with
-images and annotation files. For each image with m bboxes, the bboxes are returned as  ``(m,4)``
-Tensor (``m * [x, y, w, h]`` or ``m * [left, top, right, bottom]``) and labels as ``(m,1)``
-Tensor (``m * category_id``).)code")
-  .AddOptionalArg(
-    "meta_files_path",
+images and annotation JSON files.
+
+This readers produces the following outputs::
+
+    images, bounding_boxes, labels, ((polygons, vertices) | (pixelwise_masks)), (image_ids)
+
+**images**
+
+Each sample contains image data with layout ``HWC`` (height, width, channels).
+
+**bounding_boxes**
+
+Each sample can have an arbitrary ``M`` number of bounding boxes, each described by 4 coordinates::
+
+    [[x_0, y_0, w_0, h_0],
+     [x_1, y_1, w_1, h_1]
+     ...
+     [x_M, y_M, w_M, h_M]]
+
+or in ``[l, t, r, b]`` format if requested (see ``ltrb`` argument).
+
+**labels**
+
+Each bounding box is associated with an integer label representing a category identifier::
+        
+    [label_0, label_1, ..., label_M]
+
+**polygons** and **vertices** (Optional, present if ``polygon_masks`` is set to True)
+    
+If ``polygon_masks`` is enabled, two extra outputs describing masks by a set of polygons.
+    
+Each mask contains an arbitrary number of polygons ``P``, each associated with a mask index in the range [0, M) and 
+composed by a group of ``V`` vertices. The output ``polygons`` describes the polygons as follows::
+
+    [[mask_idx_0, start_vertex_idx_0, end_vertex_idx_0],
+     [mask_idx_1, start_vertex_idx_1, end_vertex_idx_1],
+     ...
+     [mask_idx_P, start_vertex_idx_P, end_vertex_idx_P]]
+
+where ``mask_idx`` is the index of the mask the polygon, in the range ``[0, M)``, and ``start_vertex_idx`` and  ``end_verted_idx``
+define the range of indices of vertices, as they appear in the output ``vertices``, belonging to this polygon.
+
+Each sample in ``vertices`` contains a list of vertices that composed the different polygons in the sample, as 2D coordinates::
+
+    [[x_0, y_0],
+     [x_1, y_1],
+     ...
+     [x_V, y_V]]
+
+**pixelwise_masks** (Optional, present if argument ``pixelwise_masks`` is set to True)
+
+Contains image-like data, same shape and layout as ``images``, representing a pixelwise segmentation mask.
+
+**image_ids** (Optional, present if argument ``image_ids`` is set to True)
+
+One element per sample, representing an image identifier.
+)code")
+  .AddOptionalArg("preprocessed_annotations",
     "Path to the directory with meta files that contain preprocessed COCO annotations.",
     std::string())
   .AddOptionalArg("annotations_file",
@@ -44,53 +95,42 @@ Tensor (``m * category_id``).)code")
 
 If set to False, the bboxes are returned as [x, y, width, height].)code",
       false)
-  .AddOptionalArg("masks",
-      R"code(If set to True, segmentation masks are read and returned as polygons,
-represented by a list of coordinates.
+  .DeprecateArgInFavorOf("masks", "polygon_masks")  // deprecated since 0.28dev
+  .AddOptionalArg("polygon_masks",
+      R"code(If set to True, segmentation mask polygons are read in the form of two outputs:
+``polygons`` and ``vertices``. This argument is mutually exclusive with ``pixelwise_masks``.
 
-Each mask can be one or more polygons, and for a given sample, the polygons are represented by the
-following tensors:
-
-- ``masks_meta`` -> list of tuples (mask_idx, start_idx, end_idx)
-- ``masks_coords``-> list of (x,y) coordinates
-
-One mask can have one or more ``masks_meta`` values that have the same ``mask_idx``.
-This means that the mask for that given index consists of several polygons.
-``start_idx`` indicates the index of the first coordinates in ``masks_coords``.
-Currently objects with ``iscrowd=1`` annotations are skipped because RLE masks are not suitable
-for instance segmentation.)code",
+.. warning::
+    Currently objects with ``iscrowd=1`` annotations are skipped.)code",
       false)
   .AddOptionalArg("pixelwise_masks",
-      R"code(If true, segmentation masks are read and returned as pixel-wise masks.)code",
+      R"code(If true, segmentation masks are read and returned as pixel-wise masks. This argument is
+mutually exclusive with ``polygon_masks``.)code",
       false)
   .AddOptionalArg("skip_empty",
       R"code(If true, reader will skip samples with no object instances in them)code",
       false)
   .AddOptionalArg("size_threshold",
-      R"code(If the width or the height of a bounding box that represents an instance of an object
-is lower than this value, the object will be ignored.
-
-The value is represented as an absolute value.)code",
+      R"code(If the width or the height, in number of pixels, of a bounding box that represents an 
+instance of an object is lower than this value, the object will be ignored.)code",
       0.1f,
       false)
-  .AddOptionalArg("ratio",
-      R"code(If set to True, the returned bbox and masks coordinates are relative to the image size.)code",
+  .DeprecateArgInFavorOf("ratio", "relative_coordinates")  // deprecated since 0.28dev
+  .AddOptionalArg("relative_coordinates",
+      R"code(If set to True, the returned bbox and mask polygon coordinates are relative to the image dimensions.)code",
       false)
-  .AddOptionalArg("file_list",
-      R"code(Path to the file that contains a list of whitespace separated ``file id`` pairs.
-
-To traverse the file_root directory and obtain files and labels, leave this value empty.)code",
-      std::string())
-  .AddOptionalArg("save_img_ids",
-      R"code(If set to True, the image IDs are also returned.)code",
+  .DeprecateArgInFavorOf("save_img_ids", "image_ids")  // deprecated since 0.28dev
+  .AddOptionalArg("image_ids",
+      R"code(If set to True, the image IDs will be produced in an extra output.)code",
       false)
-  .AddOptionalArg("dump_meta_files",
-      R"code(If set to True, the operator dumps the meta files in the folder that
-is provided with ``dump_meta_files_path``.)code",
+  .DeprecateArgInFavorOf("dump_meta_files", "save_preprocessed_annotations")  // deprecated since 0.28dev
+  .AddOptionalArg("save_preprocessed_annotations",
+      R"code(If set to True, the operator saves a set of files containing binary representations of the
+preprocessed COCO annotations.)code",
       false)
-  .AddOptionalArg(
-    "dump_meta_files_path", R"code(Path to the directory in which to save the meta files that
-contain the preprocessed COCO annotations.)code",
+  .DeprecateArgInFavorOf("dump_meta_files_path", "save_preprocessed_annotations_dir")  // deprecated since 0.28dev
+  .AddOptionalArg("dump_meta_files_path",
+      R"code(Path to the directory in which to save the preprocessed COCO annotations files.)code",
     std::string())
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("masks")) * 2
@@ -99,51 +139,29 @@ contain the preprocessed COCO annotations.)code",
   })
   .AddParent("LoaderBase");
 
+DALI_REGISTER_OPERATOR(COCOReader, COCOReader, CPU);
 
 void COCOReader::ValidateOptions(const OpSpec &spec) {
   DALI_ENFORCE(
     spec.HasArgument("meta_files_path") || spec.HasArgument("annotations_file"),
     "`meta_files_path` or `annotations_file` must be provided");
-  DALI_ENFORCE(
-    !spec.HasArgument("file_list"),
-    "Argument `file_list` is no longer supported for `COCOReader`."
-    "The same functionality can be implemented with meta files option.");
   DALI_ENFORCE(!skip_cached_images_,
     "COCOReader doesn't support `skip_cached_images` option");
 
   if (spec.HasArgument("meta_files_path")) {
-    DALI_ENFORCE(
-      !spec.HasArgument("annotations_file"),
-      "`meta_files_path` and `annotations_file` cannot be both provided.");
-    DALI_ENFORCE(
-      !spec.HasArgument("skip_empty"),
-      "When reading data from meta files `skip_empty` option is not supported.");
-    DALI_ENFORCE(
-      !spec.HasArgument("ratio"),
-      "When reading data from meta files `ratio` option is not supported.");
-    DALI_ENFORCE(
-      !spec.HasArgument("ltrb"),
-      "When reading data from meta files `ltrb` option is not supported.");
-    DALI_ENFORCE(
-      !spec.HasArgument("size_threshold"),
-      "When reading data from meta files `size_threshold` option is not supported.");
-    DALI_ENFORCE(
-      !spec.HasArgument("dump_meta_files"),
-      "When reading data from meta files `dump_meta_files` option is not supported.");
-    DALI_ENFORCE(
-      !spec.HasArgument("dump_meta_files_path"),
-      "When reading data from meta files `dump_meta_files_path` option is not supported.");
+    for (const char* arg_name : {"annotations_file", "skip_empty", "ratio", "ltrb", 
+                                 "size_threshold", "dump_meta_files", "dump_meta_files_path"}) {
+      if (spec.HasArgument(arg_name))
+        DALI_FAIL(make_string("When reading data from meta files, \"", arg_name, "\" is not supported."));
+    }
   }
 
-  if (spec.HasArgument("masks") && spec.HasArgument("pixelwise_masks")) {
-    DALI_ENFORCE(!(spec.GetArgument<bool>("masks") && spec.GetArgument<bool>("pixelwise_masks")),
-      "`masks` and `pixelwise_masks` cannot be both true.");
+  if (output_polygon_masks_ && output_pixelwise_masks_) {
+    DALI_FAIL("``pixelwise_masks`` and ``polygon_masks`` are mutually exclusive");
   }
 
-  if (spec.HasArgument("dump_meta_files")) {
-    DALI_ENFORCE(
-      spec.HasArgument("dump_meta_files_path"),
-      "When dumping meta files `dump_meta_files_path` must be provided.");
+  if (spec.HasArgument("dump_meta_files") != spec.HasArgument("dump_meta_files_path")) {
+    DALI_FAIL("``dump_meta_files`` and ``dump_meta_files_path`` should be provided together"); 
   }
 }
 

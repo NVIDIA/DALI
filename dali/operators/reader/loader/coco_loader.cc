@@ -22,6 +22,7 @@
 
 namespace dali {
 namespace detail {
+
 struct ImageInfo {
   std::string filename_;
   int original_id_;
@@ -59,7 +60,7 @@ struct Annotation {
 };
 
 template <typename T>
-void dump_meta_file(std::vector<T> &input, const std::string path) {
+void SaveToFile(std::vector<T> &input, const std::string path) {
   std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
 
@@ -70,7 +71,7 @@ void dump_meta_file(std::vector<T> &input, const std::string path) {
 }
 
 template <typename T>
-void dump_meta_file(std::vector<std::vector<T> > &input, const std::string path) {
+void SaveToFile(std::vector<std::vector<T> > &input, const std::string path) {
   std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
 
@@ -84,7 +85,7 @@ void dump_meta_file(std::vector<std::vector<T> > &input, const std::string path)
   DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 }
 
-void dump_filenames(const ImageIdPairs &image_id_pairs, const std::string path) {
+void SaveFilenamesToFile(const ImageIdPairs &image_id_pairs, const std::string path) {
   std::ofstream file(path);
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
   for (const auto &p : image_id_pairs) {
@@ -94,7 +95,7 @@ void dump_filenames(const ImageIdPairs &image_id_pairs, const std::string path) 
 }
 
 template <typename T>
-void load_meta_file(std::vector<T> &output, const std::string path) {
+void LoadFromFile(std::vector<T> &output, const std::string path) {
   std::ifstream file(path);
   DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 
@@ -105,7 +106,7 @@ void load_meta_file(std::vector<T> &output, const std::string path) {
 }
 
 template <typename T>
-void load_meta_file(std::vector<std::vector<T> > &output, const std::string path) {
+void LoadFromFile(std::vector<std::vector<T> > &output, const std::string path) {
   std::ifstream file(path);
   DALI_ENFORCE(file, "CocoReader meta file error while loading for path: " + path);
 
@@ -119,7 +120,7 @@ void load_meta_file(std::vector<std::vector<T> > &output, const std::string path
   }
 }
 
-void load_filenames(ImageIdPairs &image_id_pairs, const std::string path) {
+void LoadFilenamesFromFile(ImageIdPairs &image_id_pairs, const std::string path) {
   std::ifstream file(path);
   DALI_ENFORCE(file, "CocoReader meta file error while loading for path: " + path);
 
@@ -131,7 +132,7 @@ void load_filenames(ImageIdPairs &image_id_pairs, const std::string path) {
   }
 }
 
-void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_infos) {
+void ParseImageInfo(LookaheadParser &parser, std::vector<ImageInfo> &image_infos) {
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
   while (parser.NextArrayValue()) {
@@ -158,7 +159,7 @@ void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_in
   DALI_ENFORCE(parser.IsValid(), "Error parsing JSON file.");
 }
 
-void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids) {
+void ParseCategories(LookaheadParser &parser, std::map<int, int> &category_ids) {
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
 
@@ -184,12 +185,8 @@ void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids)
   }
 }
 
-void parse_annotations(
-  LookaheadParser &parser,
-  std::vector<Annotation> &annotations,
-  float min_size_threshold,
-  bool ltrb,
-  bool read_masks) {
+void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotations,
+                       float min_size_threshold, bool ltrb, bool read_masks) {
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
   while (parser.NextArrayValue()) {
@@ -263,11 +260,9 @@ void parse_annotations(
   }
 }
 
-void parse_json_file(
-  const OpSpec &spec,
-  std::vector<detail::ImageInfo> &image_infos,
-  std::vector<detail::Annotation> &annotations,
-  std::map<int, int> &category_ids) {
+void ParseJsonFile(const OpSpec &spec, std::vector<detail::ImageInfo> &image_infos,
+                   std::vector<detail::Annotation> &annotations,
+                   std::map<int, int> &category_ids) {
   const auto annotations_file = spec.GetArgument<string>("annotations_file");
 
   std::ifstream f(annotations_file);
@@ -288,11 +283,11 @@ void parse_json_file(
   parser.EnterObject();
   while (const char* key = parser.NextObjectKey()) {
     if (0 == std::strcmp(key, "images")) {
-      detail::parse_image_infos(parser, image_infos);
+      detail::ParseImageInfo(parser, image_infos);
     } else if (0 == std::strcmp(key, "categories")) {
-      detail::parse_categories(parser, category_ids);
+      detail::ParseCategories(parser, category_ids);
     } else if (0 == std::strcmp(key, "annotations")) {
-      parse_annotations(
+      ParseAnnotations(
         parser,
         annotations,
         spec.GetArgument<float>("size_threshold"),
@@ -306,69 +301,41 @@ void parse_json_file(
 
 }  // namespace detail
 
-void CocoLoader::DumpMetaFiles(const std::string path, const ImageIdPairs &image_id_pairs) {
-  detail::dump_meta_file(
-    offsets_,
-    path + "/offsets.dat");
-  detail::dump_meta_file(
-    boxes_,
-    path + "/boxes.dat");
-  detail::dump_meta_file(
-    labels_,
-    path + "/labels.dat");
-  detail::dump_meta_file(
-    counts_,
-    path + "/counts.dat");
-  detail::dump_filenames(
-    image_id_pairs,
-    path + "/filenames.dat");
+void CocoLoader::SavePreprocessedAnnotations(const std::string &path, const ImageIdPairs &image_id_pairs) {
+  using detail::SaveToFile;
+  using detail::SaveFilenamesToFile;
+  SaveToFile(offsets_, path + "/offsets.dat");
+  SaveToFile(boxes_, path + "/boxes.dat");
+  SaveToFile(labels_, path + "/labels.dat");
+  SaveToFile(counts_, path + "/counts.dat");
+  SaveFilenamesToFile(image_id_pairs, path + "/filenames.dat");
 
   if (read_masks_) {
-    detail::dump_meta_file(
-      masks_meta_,
-      path + "/masks_metas.dat");
-    detail::dump_meta_file(
-      masks_meta_,
-      path + "/masks_coords.dat");
+    SaveToFile(masks_meta_, path + "/masks_metas.dat");
+    SaveToFile(masks_meta_, path + "/masks_coords.dat");
   }
 
   if (save_img_ids_) {
-    detail::dump_meta_file(
-      original_ids_,
-      path + "/original_ids.dat");
+    SaveToFile(original_ids_, path + "/original_ids.dat");
   }
 }
 
-void CocoLoader::ParseMetafiles() {
+void CocoLoader::ParsePreprocessedAnnotations() {
   const auto meta_files_path = spec_.GetArgument<string>("meta_files_path");
-  detail::load_meta_file(
-    offsets_,
-    meta_files_path + "/offsets.dat");
-  detail::load_meta_file(
-    boxes_,
-    meta_files_path + "/boxes.dat");
-  detail::load_meta_file(
-    labels_,
-    meta_files_path + "/labels.dat");
-  detail::load_meta_file(
-    counts_,
-    meta_files_path + "/counts.dat");
-  detail::load_filenames(
-    image_label_pairs_,
-    meta_files_path + "/filenames.dat");
+  using detail::LoadFromFile;
+  using detail::LoadFilenamesFromFile;
+  LoadFromFile(offsets_, meta_files_path + "/offsets.dat");
+  LoadFromFile(boxes_, meta_files_path + "/boxes.dat");
+  LoadFromFile(labels_, meta_files_path + "/labels.dat");
+  LoadFromFile(counts_, meta_files_path + "/counts.dat");
+  LoadFilenamesFromFile(image_label_pairs_, meta_files_path + "/filenames.dat");
 
   if (read_masks_) {
-    detail::load_meta_file(
-      masks_meta_,
-      meta_files_path + "/masks_metas.dat");
-    detail::load_meta_file(
-      masks_meta_,
-      meta_files_path + "/masks_coords.dat");
+    LoadFromFile(masks_meta_, meta_files_path + "/masks_metas.dat");
+    LoadFromFile(masks_meta_, meta_files_path + "/masks_coords.dat");
   }
   if (save_img_ids_) {
-    detail::load_meta_file(
-      original_ids_,
-      meta_files_path + "/original_ids.dat");
+    LoadFromFile(original_ids_, meta_files_path + "/original_ids.dat");
   }
 }
 
@@ -377,7 +344,7 @@ void CocoLoader::ParseJsonAnnotations() {
   std::vector<detail::Annotation> annotations;
   std::map<int, int> category_ids;
 
-  detail::parse_json_file(
+  detail::ParseJsonFile(
     spec_,
     image_infos,
     annotations,
@@ -387,9 +354,12 @@ void CocoLoader::ParseJsonAnnotations() {
   bool ratio = spec_.GetArgument<bool>("ratio");
 
   std::sort(image_infos.begin(), image_infos.end(), [](auto &left, auto &right) {
-    return left.original_id_ < right.original_id_;});
+    return left.original_id_ < right.original_id_;
+  });
+
   std::stable_sort(annotations.begin(), annotations.end(), [](auto &left, auto &right) {
-    return left.image_id_ < right.image_id_;});
+    return left.image_id_ < right.image_id_;
+  });
 
   detail::Annotation sentinel;
   sentinel.image_id_ = -1;
@@ -477,9 +447,9 @@ void CocoLoader::ParseJsonAnnotations() {
     }
   }
 
-  if (spec_.GetArgument<bool>("dump_meta_files")) {
-    DumpMetaFiles(
-      spec_.GetArgument<std::string>("dump_meta_files_path"),
+  if (spec_.GetArgument<bool>("save_preprocessed_annotations")) {
+    SavePreprocessedAnnotations(
+      spec_.GetArgument<std::string>("save_preprocessed_annotations_dir"),
       image_label_pairs_);
   }
 }

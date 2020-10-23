@@ -68,9 +68,9 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
  protected:
   void PrepareMetadataImpl() override {
     if (parse_meta_files_) {
-      ParseMetafiles();
+      ParsePreprocessedAnnotations();
     } else {
-       ParseJsonAnnotations();
+      ParseJsonAnnotations();
     }
 
     DALI_ENFORCE(Size() > 0, "No files found.");
@@ -83,11 +83,11 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
     Reset(true);
   }
 
-  void ParseMetafiles();
+  void ParsePreprocessedAnnotations();
 
   void ParseJsonAnnotations();
 
-  void DumpMetaFiles(std::string path, const ImageIdPairs &image_id_pairs);
+  void SavePreprocessedAnnotations(const std::string &path, const ImageIdPairs &image_id_pairs);
 
  private:
   const OpSpec &spec_;
