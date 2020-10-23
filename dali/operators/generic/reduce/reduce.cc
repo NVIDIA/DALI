@@ -14,6 +14,7 @@
 
 #include "dali/operators/generic/reduce/reduce.h"
 #include "dali/operators/generic/reduce/sum.h"
+#include "dali/operators/generic/reduce/mean.h"
 
 
 namespace dali {
@@ -29,6 +30,15 @@ Not providing any axis results in reduction of all elements.)code",
     "keep_dims",
     "If True, maintains original input dimensions.",
     false);
+
+DALI_SCHEMA(reductions__Mean)
+  .DocStr("Gets mean of elements along provided axes.")
+  .AddOptionalArg("dtype",
+    R"code(Output data type. This type is used to accumulate the result.)code",
+    DALI_NO_TYPE)
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("ReduceBase");
 
 DALI_SCHEMA(reductions__Sum)
   .DocStr("Gets sum of elements along provided axes.")
@@ -50,6 +60,12 @@ DALI_SCHEMA(reductions__Max)
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
+
+using MeanCPU = MeanOp<kernels::MeanCPU, CPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__Mean, MeanCPU, CPU);
+
+using MeanGPU = MeanOp<kernels::MeanGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__Mean, MeanGPU, GPU);
 
 using SumCPU = SumOp<kernels::SumCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Sum, SumCPU, CPU);

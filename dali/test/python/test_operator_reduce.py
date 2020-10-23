@@ -138,7 +138,11 @@ def run_numpy(reduce_fn, batch_fn, keep_dims, axes, output_type):
 
 def compare(dali_res, np_res):
     for dali_sample, np_sample in zip(dali_res, np_res):
-        assert np.array_equal(dali_sample, np_sample)
+        assert dali_sample.shape == np_sample.shape
+        if dali_res[0].dtype == np.float32:
+            assert np.allclose(dali_sample, np_sample)
+        else:
+            assert np.array_equal(dali_sample, np_sample)
 
 
 def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type = None):
@@ -174,10 +178,10 @@ def test_reduce():
 
 
 def test_reduce_with_promotion():
-    reductions = [(fn.reductions.sum, np.sum)]
+    reductions = [(fn.reductions.sum, np.sum), (fn.reductions.mean, np.mean)]
 
     batch_gens = [Batch3DOverflow]
-    types = [np.uint8, np.int8, np.uint16, np.int16]
+    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.float32]
 
     for keep_dims in [False, True]:
         for reduce_fns in reductions:

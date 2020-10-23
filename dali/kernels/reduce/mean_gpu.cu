@@ -58,6 +58,10 @@ template class MeanGPU<int32_t, int32_t>;
 template class MeanGPU<float, int32_t>;
 template class MeanGPU<uint32_t, uint32_t>;
 template class MeanGPU<float, uint32_t>;
+template class MeanGPU<int64_t, int64_t>;
+template class MeanGPU<float, int64_t>;
+template class MeanGPU<uint64_t, uint64_t>;
+template class MeanGPU<float, uint64_t>;
 template class MeanGPU<float, float>;
 
 
