@@ -28,29 +28,29 @@
 #define REDUCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
 
 namespace dali {
-
-template <template <typename T, typename R> class ReductionType, typename Backend>
+template <
+  template <typename T, typename R> class ReductionType,
+  typename Backend,
+  template <template <typename X, typename Y> class RType, typename BType> class ImplType>
 class Reduce : public Operator<Backend> {
  public:
   explicit inline Reduce(const OpSpec &spec) :
     Operator<Backend>(spec),
     axes_(spec.GetRepeatedArgument<int>("axes")),
     keep_dims_(spec.GetArgument<bool>("keep_dims")) {
+    spec.TryGetArgument<DALIDataType>(output_type_, "dtype");
   }
 
   bool CanInferOutputs() const override { return true; }
 
   inline ~Reduce() override = default;
 
- protected:
   bool SetupImpl(
     std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
     auto &input = ws.template InputRef<Backend>(0);
 
-    int batch_size = input.shape().num_samples();
-
-    output_desc[0].type =  input.type();
+    output_desc[0].type = dali::TypeTable::GetTypeInfo(OutputType(input.type().id()));
     output_desc[0].shape = input.shape();
 
     if (axes_.size() == 0) {
@@ -71,20 +71,9 @@ class Reduce : public Operator<Backend> {
   }
 
   void RunImpl(workspace_t<Backend> &ws) override {
-    auto& in = ws.template InputRef<Backend>(0);
-    DALIDataType data_type = in.type().id();
-
-    TYPE_SWITCH(data_type, type2id, DataType, REDUCE_TYPES, (
-      RunTyped<DataType, DataType>(ws);),
-      DALI_FAIL(make_string("Unsupported input type: ", data_type)))
+    auto& reduce_impl = static_cast<ImplType<ReductionType, Backend>&>(*this);
+    reduce_impl.RunImplImpl(ws);
   }
-
- private:
-  USE_OPERATOR_MEMBERS();
-
-  vector<int> axes_;
-  bool keep_dims_;
-  kernels::KernelManager kmgr_;
 
   template <typename OutputType, typename InputType>
   void RunTyped(HostWorkspace &ws) {
@@ -109,11 +98,7 @@ class Reduce : public Operator<Backend> {
           kernels::KernelContext ctx;
 
           kmgr_.Setup<Kernel>(
-            thread_id,
-            ctx,
-            out_sample_view,
-            in_sample_view,
-            make_cspan(axes_));
+            thread_id, ctx, out_sample_view, in_sample_view, make_cspan(axes_));
           kmgr_.Run<Kernel>(thread_id, thread_id, ctx);
         },
         priority);
@@ -143,6 +128,39 @@ class Reduce : public Operator<Backend> {
       keep_dims_,
       false);
     kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view);
+  }
+
+  DALIDataType OutputType(DALIDataType input_type) const {
+    auto& reduce_impl = static_cast<const ImplType<ReductionType, Backend>&>(*this);
+    return reduce_impl.OutputTypeImpl(input_type);
+  }
+
+  DALIDataType OutputTypeImpl(DALIDataType input_type) const { return input_type; }
+
+  DALIDataType output_type_ = DALI_NO_TYPE;
+
+ private:
+  USE_OPERATOR_MEMBERS();
+
+  vector<int> axes_;
+  bool keep_dims_;
+  kernels::KernelManager kmgr_;
+};
+
+
+template <template <typename T, typename R> class ReductionType, typename Backend>
+class ReduceOp : public Reduce<ReductionType, Backend, ReduceOp> {
+ public:
+  explicit inline ReduceOp(const OpSpec &spec) :  Reduce<ReductionType, Backend, ReduceOp>(spec) {}
+
+  void RunImplImpl(workspace_t<Backend> &ws) {
+    auto& in = ws.template InputRef<Backend>(0);
+    DALIDataType input_type = in.type().id();
+
+    TYPE_SWITCH(input_type, type2id, DataType, REDUCE_TYPES, (
+      auto& base = static_cast<Reduce<ReductionType, Backend, ReduceOp>&>(*this);
+      base.template RunTyped<DataType, DataType>(ws);),
+      DALI_FAIL(make_string("Unsupported input type: ", input_type)))
   }
 };
 
