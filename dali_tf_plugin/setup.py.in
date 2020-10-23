@@ -41,7 +41,6 @@ setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIG
       author='NVIDIA Corporation',
       license='Apache License 2.0',
       packages=find_namespace_packages(include=['nvidia.*']),
-      package_data={str(find_namespace_packages(include=['nvidia.*'])[0]): ['Acknowledgements.txt', 'COPYRIGHT', 'LICENSE']},
       include_package_data=True,
       zip_safe=False,
       install_requires = [

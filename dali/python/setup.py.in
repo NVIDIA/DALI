@@ -41,6 +41,5 @@ setup(name='nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
               'rec2idx = rec2idx:main',
               ],
           },
-      package_data={'nvidia.dali': ['Acknowledgements.txt', 'COPYRIGHT', 'LICENSE']},
      )
 
