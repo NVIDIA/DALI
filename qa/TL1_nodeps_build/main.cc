@@ -8,9 +8,5 @@ int main(int argc, char **argv) {
     auto mem = dali::kernels::memory::alloc_unique<float>(dali::kernels::AllocType::Host, 30);
   }
 
-  {
-    auto mem = dali::kernels::memory::alloc_unique<float>(dali::kernels::AllocType::GPU, 30);
-  }
-
   return 0;
 }
