@@ -34,13 +34,22 @@ extern "C" {
 namespace dali {
 class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
-  explicit COCOReader(const OpSpec& spec):
-    DataReader<CPUBackend, ImageLabelWrapper>(spec),
-    read_masks_(spec.GetArgument<bool>("masks")),
-    pixelwise_masks_(spec.GetArgument<bool>("pixelwise_masks")),
-    save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
+  explicit COCOReader(const OpSpec& spec): DataReader<CPUBackend, ImageLabelWrapper>(spec) {
     ValidateOptions(spec);
+  
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
+
+    output_polygon_masks_ = spec.HasArgument("masks") && !spec.HasArgument("polygon_masks")
+                                ? spec.GetArgument<bool>("masks")
+                                : spec.GetArgument<bool>("polygon_masks");
+    output_polygon_masks_ = spec.GetArgument<bool>("pixelwise_masks");
+    DALI_ENFORCE(output_polygon_masks_ + output_polygon_masks_,
+      "``polygon_masks`` and ``pixelwise_masks`` are mutually exclusive");
+
+    output_image_ids_ = spec.HasArgument("save_img_ids") && !spec.HasArgument("image_ids")
+                                ? spec.GetArgument<bool>("save_img_ids")
+                                : spec.GetArgument<bool>("image_ids");
+
     loader_ = InitLoader<CocoLoader>(
       spec,
       heights_,
@@ -77,58 +86,52 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
     auto &boxes_output = ws.Output<CPUBackend>(1);
     boxes_output.Resize({counts_[image_id], 4});
-    auto boxes_out_data = boxes_output.mutable_data<float>();
-    memcpy(
-      boxes_out_data,
+    std::memcpy(
+      boxes_output.mutable_data<float>(),
       boxes_.data() + 4 * offsets_[image_id],
       counts_[image_id] * 4 * sizeof(float));
 
     auto &labels_output = ws.Output<CPUBackend>(2);
     labels_output.Resize({counts_[image_id], 1});
-    auto labels_out_data = labels_output.mutable_data<int>();
-    memcpy(
-      labels_out_data,
+    std::memcpy(
+      labels_output.mutable_data<int>(),
       labels_.data() + offsets_[image_id],
       counts_[image_id] * sizeof(int));
 
-    if (read_masks_) {
-      auto &masks_meta_output = ws.Output<CPUBackend>(3);
-      auto &masks_coords_output = ws.Output<CPUBackend>(4);
+    int curr_out_idx = 3;
+    if (output_polygon_masks_) {
+      auto &masks_meta_output = ws.Output<CPUBackend>(curr_out_idx++);
+      auto &masks_coords_output = ws.Output<CPUBackend>(curr_out_idx++);
 
       const auto &meta = masks_meta_[image_id];
       const auto &coords = mask_coords_[image_id];
 
-      masks_meta_output.Resize({static_cast<int>(meta.size()) / 3, 3});
-      masks_coords_output.Resize({static_cast<int>(coords.size()) / 2, 2});
-
-      auto masks_meta_data = masks_meta_output.mutable_data<int>();
-      auto masks_coords_out_data = masks_coords_output.mutable_data<float>();
+      masks_meta_output.Resize({static_cast<int64_t>(meta.size()) / 3, 3});
+      masks_coords_output.Resize({static_cast<int64_t>(coords.size()) / 2, 2});
 
       std::memcpy(
-        masks_meta_data,
+        masks_meta_output.mutable_data<int>(),
         meta.data(),
         meta.size() * sizeof(int));
       std::memcpy(
-        masks_coords_out_data,
+        masks_coords_output.mutable_data<float>(),
         coords.data(),
         coords.size() * sizeof(float));
     }
 
-    if (pixelwise_masks_) {
-      auto &masks_output = ws.Output<CPUBackend>(3);
+    if (output_pixelwise_masks_) {
+      auto &masks_output = ws.Output<CPUBackend>(curr_out_idx++);
       masks_output.Resize({heights_[image_id], widths_[image_id], 1});
       masks_output.SetLayout("HWC");
       auto masks_out_data = masks_output.mutable_data<int>();
       PixelwiseMasks(image_id, masks_out_data);
     }
 
-    if (save_img_ids_) {
-      auto &id_output = ws.Output<CPUBackend>(3 + 2 * static_cast<int>(read_masks_)
-        + static_cast<int>(pixelwise_masks_));
+    if (output_image_ids_) {
+      auto &id_output = ws.Output<CPUBackend>(curr_out_idx++);
       id_output.Resize({1});
-      auto id_out_data = id_output.mutable_data<int>();
-      memcpy(
-        id_out_data,
+      std::memcpy(
+        id_output.mutable_data<int>(),
         original_ids_.data() + image_id,
         sizeof(int));
     }
@@ -150,10 +153,10 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   std::vector<std::vector<int> > masks_rles_idx_;
   std::vector<std::vector<std::string> > masks_rles_;
 
-  bool read_masks_ = false;
-  bool pixelwise_masks_ = false;
+  bool output_polygon_masks_ = false;
+  bool output_pixelwise_masks_ = false;
+  bool output_image_ids_ = false;
 
-  bool save_img_ids_;
   std::vector<int> original_ids_;
 
   void ValidateOptions(const OpSpec &spec);
