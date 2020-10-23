@@ -89,7 +89,8 @@ TensorLayout OneHot::GetOutputLayout(const HostWorkspace &ws, int placement_axis
                                      int output_sample_dim) const {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto in_layout = input.GetLayout();
-  auto in_layout_size = in_layout.size();
+  // .size method returns uint_8 which doesn't work well when 0 is printed in error message
+  int in_layout_size = in_layout.size();
   if (!new_axis_name_) {
     return {};
   }

@@ -170,13 +170,16 @@ def test_one_hot_custom_layout_axis_name():
 @raises(RuntimeError)
 def test_too_long_axis_name():
     np.random.seed(42)
-    premade_batch = random_3d_tensors_batch()
-    check_one_hot_operator(premade_batch, axis=-1,
-                           initial_layout="ABC", axis_name="CD")
+    check_one_hot_operator(random_3d_tensors_batch, axis=-1, initial_layout="ABC", axis_name="CD")
 
 
 @raises(RuntimeError)
 def test_empty_string_axis_name():
     np.random.seed(42)
-    premade_batch = random_3d_tensors_batch()
-    check_one_hot_operator(premade_batch, axis=-1, initial_layout="ABC", axis_name="")
+    check_one_hot_operator(random_3d_tensors_batch, axis=-1, initial_layout="ABC", axis_name="")
+
+
+@raises(RuntimeError)
+def test_axis_name_no_initial_layout_multi_dim():
+    np.random.seed(42)
+    check_one_hot_operator(random_3d_tensors_batch, axis=-1, axis_name="O")

@@ -63,7 +63,7 @@ class OneHot : public Operator<CPUBackend> {
       auto axis_name = spec.GetArgument<std::string>("axis_name");
       DALI_ENFORCE(axis_name.length() == 1,
                    make_string("Unsupported axis_name value. It must be a single "
-                               "character, got \"", axis_name, "\" instead"));
+                               "character, got \"", axis_name, "\" instead."));
       new_axis_name_ = axis_name[0];
     }
   }
