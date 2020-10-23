@@ -61,13 +61,25 @@ they appeared in ``mask_ids`` input::
     .InputDox(0, "mask_ids", "1D TensorList of int",
               R"code(List of identifiers of the masks to be selected.)code")
     .InputDox(1, "polygons", "2D TensorList of int",
-              R"code(Polygons, described by 3 columns:
-- ``mask_id`` - the identifier of the mask this polygon belongs to.
-- ``start_vertex_idx`` - the index of the first vertex in ``vertices`` that belongs to this polygon.
-- ``end_vertex_idx`` - one past the index of the last vertex that belongs to this polygon.)code")
+              R"code(Polygons, described by 3 columns::
+
+    [[mask_id0, start_vertex_idx0, end_vertex_idx0],
+     [mask_id1, start_vertex_idx1, end_vertex_idx1],
+     ...,
+     [mask_idn, start_vertex_idxn, end_vertex_idxn],]
+
+with ``mask_id`` being the identifier of the mask this polygon belongs to, and
+``[start_vertex_idx, end_vertex_idx)`` describing the range of indices from ``vertices`` that belong to
+this polygon.)code")
     .InputDox(2, "vertices", "2D TensorList",
-              R"code(Vertex data, of arbitrary dimensionality
-(the number of dimensions should be the same for every vertex).)code")
+      R"code(Vertex data stored in interleaved format::
+
+    [[x0, y0, ...],
+     [x1, y1, ...],
+     ... ,
+     [xn, yn, ...]]
+
+The operator accepts vertices with arbitrary number of coordinates.)code")
     .AddOptionalArg<bool>("reindex_masks",
       R"code(If set to True, the output mask ids are replaced with the indices at which they appeared
 in ``mask_ids`` input.)code",
@@ -111,15 +123,7 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
     DALI_ENFORCE(3 == sh[1],
                  make_string("``polygons`` is expected to contain 2D tensors with 3 columns: "
                              "``mask_id, start_idx, end_idx``. Got ",
-                             sh[1], " elements"));
-  }
-
-  int64_t vertex_ndim = in_vertices_shape.tensor_shape_span(0)[1];
-  for (int i = 1; i < nsamples; i++) {
-    auto sh = in_vertices_shape.tensor_shape_span(i);
-    DALI_ENFORCE(vertex_ndim == sh[1],
-      make_string("All vertices are expected to have the same dimensionality. Got ",
-                  vertex_ndim, "D and ", sh[1], "D in the same batch"));
+                             sh[1], " columns."));
   }
 
   const auto &in_mask_ids_view = view<const int32_t, 1>(in_mask_ids);
