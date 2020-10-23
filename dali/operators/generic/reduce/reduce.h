@@ -139,7 +139,7 @@ class Reduce : public Operator<Backend> {
     kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view);
   }
 
-  DALIDataType OutputType() { return output_type_; }
+  DALIDataType OutputType() const { return output_type_; }
 
  private:
   USE_OPERATOR_MEMBERS();
