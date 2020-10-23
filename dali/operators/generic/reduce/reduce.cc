@@ -30,7 +30,7 @@ Not providing any axis results in reduction of all elements.)code",
     "If True, maintains original input dimensions.",
     false);
 
-DALI_SCHEMA(Sum)
+DALI_SCHEMA(reductions__Sum)
   .DocStr("Gets sum of elements along provided axes.")
   .AddOptionalArg("dtype",
     R"code(Output data type. This type is used to accumulate the result.)code",
@@ -39,33 +39,33 @@ DALI_SCHEMA(Sum)
   .NumOutput(1)
   .AddParent("ReduceBase");
 
-DALI_SCHEMA(Min)
+DALI_SCHEMA(reductions__Min)
   .DocStr("Gets minimal input element along provided axes.")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
 
-DALI_SCHEMA(Max)
+DALI_SCHEMA(reductions__Max)
   .DocStr("Gets maximal input element along provided axes.")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
 
 using SumCPU = SumOp<kernels::SumCPU, CPUBackend>;
-DALI_REGISTER_OPERATOR(Sum, SumCPU, CPU);
+DALI_REGISTER_OPERATOR(reductions__Sum, SumCPU, CPU);
 
 using SumGPU = SumOp<kernels::SumGPU, GPUBackend>;
-DALI_REGISTER_OPERATOR(Sum, SumGPU, GPU);
+DALI_REGISTER_OPERATOR(reductions__Sum, SumGPU, GPU);
 
 using MinCPU = ReduceOp<kernels::MinCPU, CPUBackend>;
-DALI_REGISTER_OPERATOR(Min, MinCPU, CPU);
+DALI_REGISTER_OPERATOR(reductions__Min, MinCPU, CPU);
 
 using MinGPU = ReduceOp<kernels::MinGPU, GPUBackend>;
-DALI_REGISTER_OPERATOR(Min, MinGPU, GPU);
+DALI_REGISTER_OPERATOR(reductions__Min, MinGPU, GPU);
 
 using MaxCPU = ReduceOp<kernels::MaxCPU, CPUBackend>;
-DALI_REGISTER_OPERATOR(Max, MaxCPU, CPU);
+DALI_REGISTER_OPERATOR(reductions__Max, MaxCPU, CPU);
 
 using MaxGPU = ReduceOp<kernels::MaxGPU, GPUBackend>;
-DALI_REGISTER_OPERATOR(Max, MaxGPU, GPU);
+DALI_REGISTER_OPERATOR(reductions__Max, MaxGPU, GPU);
 }  // namespace dali

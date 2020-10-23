@@ -160,7 +160,7 @@ def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type = None)
 
 
 def test_reduce():
-    reductions = [(fn.sum, np.sum), (fn.min, np.min), (fn.max, np.max)]
+    reductions = [(fn.reductions.sum, np.sum), (fn.reductions.min, np.min), (fn.reductions.max, np.max)]
 
     batch_gens = [Batch1D, Batch2D, Batch3D]
     types = [
@@ -174,7 +174,7 @@ def test_reduce():
 
 
 def test_reduce_with_output_type():
-    reductions = [(fn.sum, np.sum)]
+    reductions = [(fn.reductions.sum, np.sum)]
 
     batch_gens = [Batch3DOverflow]
     types = [

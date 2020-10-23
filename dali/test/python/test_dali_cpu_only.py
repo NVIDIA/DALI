@@ -660,12 +660,12 @@ def test_combine_transforms_cpu():
         pipe.run()
 
 def test_reduce_min_cpu():
-    check_single_input(fn.min)
+    check_single_input(fn.reductions.min)
 
 def test_reduce_max_cpu():
-    check_single_input(fn.max)
+    check_single_input(fn.reductions.max)
 
 def test_reduce_sum_cpu():
-    check_single_input(fn.sum)
+    check_single_input(fn.reductions.sum)
 
 # ToDo add tests for DLTensorPythonFunction if easily possible
