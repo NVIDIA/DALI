@@ -42,10 +42,7 @@ class SumOp : public Reduce<ReductionType, Backend, SumOp> {
   void RunImplImpl(workspace_t<Backend> &ws) {
     auto& in = ws.template InputRef<Backend>(0);
     DALIDataType input_type = in.type().id();
-
-    auto& base =
-      static_cast<Reduce<ReductionType, Backend, SumOp>&>(*this);
-    DALIDataType output_type = base.OutputType();
+    DALIDataType output_type = this->OutputType();
     if (output_type == DALI_NO_TYPE) {
       output_type = input_type;
     }
@@ -57,7 +54,7 @@ class SumOp : public Reduce<ReductionType, Backend, SumOp> {
       InputType,
       OutputType,
       SUM_TYPES_MAP,
-      (base.template RunTyped<OutputType, InputType>(ws);),
+      (this->template RunTyped<OutputType, InputType>(ws);),
       (DALI_FAIL(make_string("Unsupported input type: ", input_type));),
       (DALI_FAIL(make_string("Unsupported types: ", input_type, ", ", output_type));))
   }
