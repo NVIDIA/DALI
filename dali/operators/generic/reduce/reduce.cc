@@ -33,41 +33,35 @@ Not providing any axis results in reduction of all elements.)code",
     "If True, maintains original input dimensions.",
     false);
 
-DALI_SCHEMA(reductions__Mean)
-  .DocStr("Gets mean of elements along provided axes.")
+DALI_SCHEMA(ReduceWithOutputType)
   .AddOptionalArg("dtype",
     R"code(Output data type. This type is used to accumulate the result.)code",
     DALI_NO_TYPE)
+  .AddParent("ReduceBase");
+
+DALI_SCHEMA(reductions__Mean)
+  .DocStr("Gets mean of elements along provided axes.")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("ReduceBase");
+  .AddParent("ReduceWithOutputType");
 
 DALI_SCHEMA(reductions__MeanSquare)
   .DocStr("Gets mean square of elements along provided axes.")
-  .AddOptionalArg("dtype",
-    R"code(Output data type. This type is used to accumulate the result.)code",
-    DALI_NO_TYPE)
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("ReduceBase");
+  .AddParent("ReduceWithOutputType");
 
 DALI_SCHEMA(reductions__RootMeanSquare)
   .DocStr("Gets root mean square of elements along provided axes.")
-  .AddOptionalArg("dtype",
-    R"code(Output data type. This type is used to accumulate the result.)code",
-    DALI_NO_TYPE)
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("ReduceBase");
+  .AddParent("ReduceWithOutputType");
 
 DALI_SCHEMA(reductions__Sum)
   .DocStr("Gets sum of elements along provided axes.")
-  .AddOptionalArg("dtype",
-    R"code(Output data type. This type is used to accumulate the result.)code",
-    DALI_NO_TYPE)
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("ReduceBase");
+  .AddParent("ReduceWithOutputType");
 
 DALI_SCHEMA(reductions__Min)
   .DocStr("Gets minimal input element along provided axes.")

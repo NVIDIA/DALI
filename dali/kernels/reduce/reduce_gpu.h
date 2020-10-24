@@ -352,7 +352,7 @@ extern template class MeanGPU<float, float>;
 /**
  * @brief Calculates the mean square of elements in the tensor(s) along given axes
  *
- * Output elements are calculated as a squre of the mean of squared input elements.
+ * Output elements are calculated as a mean of squared input elements.
  * See MeanGPU for details on calculating the mean.
  */
 template <typename Out, typename In>
