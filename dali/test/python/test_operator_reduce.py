@@ -178,7 +178,7 @@ def test_reduce():
 
 
 def root_mean_square(input, keepdims = False, axis = None, dtype = None):
-    return np.sqrt(np.mean(input**2, keepdims = keepdims, axis = axis, dtype = dtype))
+    return np.sqrt(np.mean(np.square(input), keepdims = keepdims, axis = axis, dtype = dtype))
 
 
 def test_reduce_with_promotion():
