@@ -226,6 +226,3 @@ def test_reduce_with_output_type():
                     input_type = type_map[0]
                     for output_type in type_map[1]:
                         yield run_reduce, keep_dims, reduce_fns, batch_gen, input_type, output_type
-
-if __name__ == "__main__":
-    run_reduce(True, (fn.reductions.root_mean_square, root_mean_square), Batch3D, np.int32)
