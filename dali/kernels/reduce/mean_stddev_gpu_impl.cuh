@@ -97,6 +97,30 @@ class MeanImplGPU : public ReduceImplGPU<Out, In, Acc, MeanImplGPU<Out, In, Acc>
  */
 template <typename Out, typename In, typename Acc =
   default_sum_acc_t<Out, decltype(reductions::square()(In()))>>
+class MeanSquareImplGPU
+    : public ReduceImplGPU<Out, In, Acc, MeanSquareImplGPU<Out, In, Acc>>
+    , public MeanImplBase<Out, In, MeanSquareImplGPU<Out, In, Acc>> {
+ public:
+  using Preprocessor = reductions::square;
+  template <int non_reduced_dims>
+  using PreprocessorBank = UniformPreprocessorBank<non_reduced_dims, Preprocessor>;
+
+  Preprocessor GetPreprocessorImpl(int sample_idx, bool batch) const { return {}; }
+
+  template <int non_reduced_dims>
+  PreprocessorBank<non_reduced_dims> *
+  GetPreprocessorBanksImpl(WorkArea &wa, int axis, int_const<non_reduced_dims>) const {
+    return nullptr;
+  }
+
+  reductions::sum GetReduction() const { return {}; }
+};
+
+/**
+ * @brief Implements root mean square reduction
+ */
+template <typename Out, typename In, typename Acc =
+  default_sum_acc_t<Out, decltype(reductions::square()(In()))>>
 class RootMeanSquareImplGPU
     : public ReduceImplGPU<Out, In, Acc, RootMeanSquareImplGPU<Out, In, Acc>>
     , public RootMeanImplBase<Out, In, RootMeanSquareImplGPU<Out, In, Acc>> {

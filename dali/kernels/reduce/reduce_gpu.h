@@ -350,6 +350,70 @@ extern template class MeanGPU<float, float>;
 
 
 /**
+ * @brief Calculates the mean square of elements in the tensor(s) along given axes
+ *
+ * Output elements are calculated as a squre of the mean of squared input elements.
+ * See MeanGPU for details on calculating the mean.
+ */
+template <typename Out, typename In>
+class DLL_PUBLIC MeanSquareGPU {
+ public:
+  MeanSquareGPU();
+  ~MeanSquareGPU();
+
+  /**
+   * @brief Sets up the reduction
+   *
+   * Sets up the reduction according to the parameters. The indices of dimensions to be reduced
+   * are provided in `axes` parameter.
+   * For a successful batch reduction, the reduced shape of all samples must be equal (but the
+   * input may have non-uniform shape, as long as the non-uniform dimensions are reduced).
+   *
+   * @param ctx          the execution environment
+   * @param in_shape     shape of the input tensor list
+   * @param axes         indices of axes to reduce along
+   * @param keep_dims    if true, the reduced dimensions are kept in the output shape, with the
+   *                     extent of 1
+   * @param reduce_batch if true, reduces respective output values of all samples in the batch
+   *                     and outputs a single tensor
+   */
+  KernelRequirements Setup(KernelContext &ctx,
+                           const TensorListShape<> &in_shape,
+                           span<const int> axes, bool keep_dims, bool reduce_batch);
+
+  /**
+   * @brief Performs the reduction, according to the parameters specified in Setup.
+   */
+  void Run(KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in);
+
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+extern template class MeanSquareGPU<uint8_t, uint8_t>;
+extern template class MeanSquareGPU<float, uint8_t>;
+extern template class MeanSquareGPU<int8_t, int8_t>;
+extern template class MeanSquareGPU<float, int8_t>;
+
+extern template class MeanSquareGPU<uint16_t, uint16_t>;
+extern template class MeanSquareGPU<float, uint16_t>;
+extern template class MeanSquareGPU<int16_t, int16_t>;
+extern template class MeanSquareGPU<float, int16_t>;
+
+extern template class MeanSquareGPU<uint32_t, uint32_t>;
+extern template class MeanSquareGPU<float, uint32_t>;
+extern template class MeanSquareGPU<int32_t, int32_t>;
+extern template class MeanSquareGPU<float, int32_t>;
+
+extern template class MeanSquareGPU<uint64_t, uint64_t>;
+extern template class MeanSquareGPU<float, uint64_t>;
+extern template class MeanSquareGPU<int64_t, int64_t>;
+extern template class MeanSquareGPU<float, int64_t>;
+
+extern template class MeanSquareGPU<float, float>;
+
+/**
  * @brief Calculates the root mean square of elements in the tensor(s) along given axes
  *
  * Output elements are calculated as a squre root of the mean of squared input elements.
