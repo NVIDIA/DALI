@@ -106,6 +106,10 @@ template class RootMeanSquareGPU<float, int32_t>;
 template class RootMeanSquareGPU<uint32_t, uint32_t>;
 template class RootMeanSquareGPU<float, uint32_t>;
 template class RootMeanSquareGPU<float, float>;
+template class RootMeanSquareGPU<uint64_t, uint64_t>;
+template class RootMeanSquareGPU<float, uint64_t>;
+template class RootMeanSquareGPU<int64_t, int64_t>;
+template class RootMeanSquareGPU<float, int64_t>;
 
 }  // namespace kernels
 }  // namespace dali

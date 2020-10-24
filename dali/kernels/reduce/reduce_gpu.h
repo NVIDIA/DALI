@@ -406,6 +406,11 @@ extern template class RootMeanSquareGPU<float, uint32_t>;
 extern template class RootMeanSquareGPU<int32_t, int32_t>;
 extern template class RootMeanSquareGPU<float, int32_t>;
 
+extern template class RootMeanSquareGPU<uint64_t, uint64_t>;
+extern template class RootMeanSquareGPU<float, uint64_t>;
+extern template class RootMeanSquareGPU<int64_t, int64_t>;
+extern template class RootMeanSquareGPU<float, int64_t>;
+
 extern template class RootMeanSquareGPU<float, float>;
 
 

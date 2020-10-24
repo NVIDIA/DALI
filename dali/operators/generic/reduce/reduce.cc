@@ -15,6 +15,7 @@
 #include "dali/operators/generic/reduce/reduce.h"
 #include "dali/operators/generic/reduce/sum.h"
 #include "dali/operators/generic/reduce/mean.h"
+#include "dali/operators/generic/reduce/root_mean_square.h"
 
 
 namespace dali {
@@ -33,6 +34,15 @@ Not providing any axis results in reduction of all elements.)code",
 
 DALI_SCHEMA(reductions__Mean)
   .DocStr("Gets mean of elements along provided axes.")
+  .AddOptionalArg("dtype",
+    R"code(Output data type. This type is used to accumulate the result.)code",
+    DALI_NO_TYPE)
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("ReduceBase");
+
+DALI_SCHEMA(reductions__RootMeanSquare)
+  .DocStr("Gets root mean square of elements along provided axes.")
   .AddOptionalArg("dtype",
     R"code(Output data type. This type is used to accumulate the result.)code",
     DALI_NO_TYPE)
@@ -66,6 +76,12 @@ DALI_REGISTER_OPERATOR(reductions__Mean, MeanCPU, CPU);
 
 using MeanGPU = MeanOp<kernels::MeanGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Mean, MeanGPU, GPU);
+
+using RootMeanSquareCPU = RootMeanSquareOp<kernels::RootMeanSquareCPU, CPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__RootMeanSquare, RootMeanSquareCPU, CPU);
+
+using RootMeanSquareGPU = RootMeanSquareOp<kernels::RootMeanSquareGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__RootMeanSquare, RootMeanSquareGPU, GPU);
 
 using SumCPU = SumOp<kernels::SumCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Sum, SumCPU, CPU);

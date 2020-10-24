@@ -177,7 +177,24 @@ def test_reduce():
                     yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id
 
 
+def root_mean_square(input, keepdims = False, axis = None, dtype = None):
+    return np.sqrt(np.mean(input**2, keepdims = keepdims, axis = axis, dtype = dtype))
+
+
 def test_reduce_with_promotion():
+    reductions = [(fn.reductions.root_mean_square, root_mean_square)]
+
+    batch_gens = [Batch3D]
+    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.float32]
+
+    for keep_dims in [False, True]:
+        for reduce_fns in reductions:
+            for batch_gen in batch_gens:
+                for type_id in types:
+                    yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id
+
+
+def test_reduce_with_promotion_with_overflow():
     reductions = [(fn.reductions.sum, np.sum), (fn.reductions.mean, np.mean)]
 
     batch_gens = [Batch3DOverflow]
@@ -209,3 +226,6 @@ def test_reduce_with_output_type():
                     input_type = type_map[0]
                     for output_type in type_map[1]:
                         yield run_reduce, keep_dims, reduce_fns, batch_gen, input_type, output_type
+
+if __name__ == "__main__":
+    run_reduce(True, (fn.reductions.root_mean_square, root_mean_square), Batch3D, np.int32)
