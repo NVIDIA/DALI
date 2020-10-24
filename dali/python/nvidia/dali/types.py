@@ -147,6 +147,17 @@ dtype: DALIDataType, optional
     """
     def __init__(self, value, dtype=None):
         self.shape = []
+        value_dtype = getattr(value, "dtype", None)  # handle 0D tensors and numpy scalars
+        if value_dtype is not None:
+            dali_type = to_dali_type(value.dtype)
+            if dali_type in _int_types:
+                value = int(value)
+            elif dali_type in _float_types:
+                value = float(value)
+            elif dali_type in _bool_types:
+                value = bool(value)
+            if dtype is None:
+                dtype = dali_type
 
         if not isinstance(value, (bool, int, float)):
             raise TypeError(
@@ -252,6 +263,9 @@ def _is_scalar_shape(shape):
     return shape is None or shape == () or shape == [] or shape == 1 or \
            shape == [1] or shape == (1,)  # legacy pseudo-scalars
 
+def _is_true_scalar(value):
+    return len(getattr(value, "shape", ())) == 0
+
 def _is_mxnet_array(value):
     return 'mxnet.ndarray.ndarray.NDArray' in str(type(value))
 
@@ -259,7 +273,11 @@ def _is_torch_tensor(value):
     return 'torch.Tensor' in str(type(value))
 
 def _is_numpy_array(value):
-    return 'numpy.ndarray' in str(type(value))
+    type_name = str(type(value))
+    return  'numpy.ndarray' in type_name or \
+            'numpy.int' in type_name or \
+            'numpy.uint' in type_name or \
+            'numpy.float' in type_name
 
 def _raw_cuda_stream(stream_obj):
     if stream_obj is None:
@@ -318,6 +336,7 @@ def to_dali_type(framework_type):
     if t is None:
         raise TypeError("'{}' could not be converted into any known DALIDataType.".format(framework_type));
     return t
+
 
 def _is_compatible_array_type(value):
     return _is_numpy_array(value) or _is_mxnet_array(value) or _is_torch_tensor(value)
@@ -442,8 +461,9 @@ device: string, optional, "cpu" or "gpu"
     If present, it forces the constant to become a Constant tensor node
     and the arguments are passed to the `dali.ops.Constant` operator
     """
+
     if device is not None or \
-        _is_compatible_array_type(value) or \
+        (_is_compatible_array_type(value) and not _is_true_scalar(value)) or \
         isinstance(value, (list, tuple)) or \
         not _is_scalar_shape(shape) or \
         kwargs or \

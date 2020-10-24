@@ -71,7 +71,7 @@ def _wrap_op_fn(op_class, wrapper_name):
                 return True
             if value is None:
                 return False
-            if isinstance(value, (bool, int, float, str, list, tuple)):
+            if isinstance(value, (bool, int, float, str, list, tuple, nvidia.dali.types.ScalarConstant)):
                 return False
             return hasattr(value, "shape")
 
