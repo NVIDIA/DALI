@@ -104,8 +104,8 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   int64_t max_length = -1;
 
   int ndim = in_shape.sample_dim();
-  DALI_ENFORCE(args_.axis >= 0 && args_.axis < ndim,
-               make_string("Axis ", args_.axis, " is out of bounds [0,", ndim, ")"));
+  DALI_ENFORCE(axis_ >= 0 && axis_ < ndim,
+               make_string("Axis ", axis_, " is out of bounds [0,", ndim, ")"));
 
   TYPE_SWITCH(input.type().id(), type2id, T, MFCC_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, MFCC_SUPPORTED_NDIMS, (
@@ -116,11 +116,11 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       output_desc[0].shape.resize(nsamples, Dims);
       for (int i = 0; i < nsamples; i++) {
         const auto in_view = view<const T, Dims>(input[i]);
-        auto &req = kmgr_.Setup<DctKernel>(i, ctx, in_view, args_);
+        auto &req = kmgr_.Setup<DctKernel>(i, ctx, in_view, args_, axis_);
         output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
 
-        if (in_view.shape[args_.axis] > max_length) {
-          max_length = in_view.shape[args_.axis];
+        if (in_view.shape[axis_] > max_length) {
+          max_length = in_view.shape[axis_];
         }
       }
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
@@ -147,10 +147,10 @@ void MFCC<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
             kernels::KernelContext ctx;
             auto in_view = view<const T, Dims>(input[i]);
             auto out_view = view<T, Dims>(output[i]);
-            kmgr_.Run<DctKernel>(thread_id, i, ctx, out_view, in_view, args_);
+            kmgr_.Run<DctKernel>(thread_id, i, ctx, out_view, in_view, args_, axis_);
             if (lifter_ != 0.0f) {
-              assert(static_cast<int64_t>(lifter_coeffs_.size()) >= out_view.shape[args_.axis]);
-              detail::ApplyLifter(out_view, args_.axis, lifter_coeffs_.data());
+              assert(static_cast<int64_t>(lifter_coeffs_.size()) >= out_view.shape[axis_]);
+              detail::ApplyLifter(out_view, axis_, lifter_coeffs_.data());
             }
           }, in_shape.tensor_size(i));
       }

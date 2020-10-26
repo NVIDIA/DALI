@@ -92,8 +92,8 @@ class MFCC : public Operator<Backend> {
       DALI_ENFORCE(args_.dct_type != 1, "Ortho-normalization is not supported for DCT type I.");
     }
 
-    args_.axis = spec.GetArgument<int>("axis");
-    DALI_ENFORCE(args_.axis >= 0);
+    axis_ = spec.GetArgument<int>("axis");
+    DALI_ENFORCE(axis_ >= 0);
 
     lifter_ = spec.GetArgument<float>("lifter");
   }
@@ -108,6 +108,7 @@ class MFCC : public Operator<Backend> {
 
   kernels::KernelManager kmgr_;
   kernels::signal::dct::DctArgs args_;
+  int axis_;
   float lifter_ = 0.0f;
   detail::LifterCoeffs lifter_coeffs_;
 };
