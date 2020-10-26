@@ -1085,14 +1085,25 @@ ExternalSource.__module__ = __name__
 
 class CompoundOp:
     def __init__(self, op_list):
-        self.ops = op_list
+        self._ops = []
+        for op in op_list:
+            if isinstance(op, CompoundOp):
+                self._ops += op._ops
+            else:
+                self._ops.append(op)
 
     def __call__(self, *inputs, **kwargs):
-        for op in self.ops:
+        inputs = list(inputs)
+        for op in self._ops:
+            for i in range(len(inputs)):
+                if inputs[i].device == "cpu" and op.device == "gpu" and op.schema.GetInputDevice(i) != "cpu":
+                    inputs[i] = inputs[i].gpu()
             inputs = op(*inputs, **kwargs)
             kwargs = {}
+            if isinstance(inputs, tuple):
+                inputs = list(inputs)
             if isinstance(inputs, _DataNode):
-                inputs = (inputs,)
+                inputs = [inputs]
 
         return inputs[0] if len(inputs) == 1 else inputs
 
@@ -1103,7 +1114,20 @@ The return value is a callable object which, when called, performs::
 
     op_list[n-1](op_list([n-2](...  op_list[0](args))))
 
-If ``op_list`` contains just one element, the function returns that element.
+The example below chains an image decoder and a Resize operation with random square size.
+The  ``decode_and_resize`` object can be called as if it was an operator::
+
+    decode_and_resize = ops.Compose([
+        ops.ImageDecoder(device="cpu"),
+        ops.Resize(size=fn.uniform(range=400,500)), device="gpu")
+    ])
+
+    files, labels = fn.caffe_reader(path=caffe_db_folder, seed=1)
+    pipe.set_ouputs(decode_and_resize(files), labels)
+
+If there's a transition from CPU to GPU in the middle of the ``op_list``, as is the case in this
+example, ``Compose`` automatically arranges copying the data to GPU memory.
+
 
 .. note::
     This is an experimental feature, subject to change without notice.
