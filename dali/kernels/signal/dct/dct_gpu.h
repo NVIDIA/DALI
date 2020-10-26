@@ -43,7 +43,7 @@ namespace dct {
  *
  * @see DCTArgs
  */
-template <typename OutputType = float,  typename InputType = float, int Dims = 2>
+template <typename OutputType = float,  typename InputType = float>
 class DLL_PUBLIC Dct1DGpu {
  public:
   struct SampleDesc {
@@ -57,9 +57,10 @@ class DLL_PUBLIC Dct1DGpu {
 
  private:
   /// @brief Calculate the output shape, reduced to 3D
-  static TensorShape<3> reduce_shape(span<const int64_t, Dims> shape, int axis, int ndct = -1) {
-    auto outer_dim = volume(&shape[0], &shape[axis]);
-    auto inner_dim = volume(&shape[axis + 1], &shape[Dims]);
+  static TensorShape<3> reduce_shape(span<const int64_t> shape, int axis, int ndct = -1) {
+    assert(axis < shape.size());
+    auto outer_dim = volume(shape.begin(), shape.begin() + axis);
+    auto inner_dim = volume(shape.begin() + axis + 1, shape.end());
     if (ndct >= 0)
       return {outer_dim, ndct, inner_dim};
     else
@@ -75,12 +76,12 @@ class DLL_PUBLIC Dct1DGpu {
   DLL_PUBLIC Dct1DGpu(): buffer_events_{CUDAEvent::Create(), CUDAEvent::Create()} {};
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
-                                      const InListGPU<InputType, Dims> &in,
+                                      const InListGPU<InputType> &in,
                                       span<const DctArgs> args, int axis);
 
   DLL_PUBLIC void Run(KernelContext &context,
-                      const OutListGPU<OutputType, Dims> &out,
-                      const InListGPU<InputType, Dims> &in,
+                      const OutListGPU<OutputType> &out,
+                      const InListGPU<InputType> &in,
                       span<const DctArgs> args, int axis);
 
  private:

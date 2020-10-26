@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SIGNAL_DCT_DCT_H_
-#define DALI_KERNELS_SIGNAL_DCT_DCT_H_
+#ifndef DALI_KERNELS_SIGNAL_DCT_TABLE_H_
+#define DALI_KERNELS_SIGNAL_DCT_TABLE_H_
 
 #include <cmath>
 #include "dali/kernels/signal/dct/dct_args.h"
@@ -112,4 +112,4 @@ void FillCosineTable(T *table, int64_t input_length, DctArgs args) {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_DCT_DCT_H_
+#endif  // DALI_KERNELS_SIGNAL_DCT_TABLE_H_

@@ -26,42 +26,54 @@ namespace signal {
 namespace dct {
 namespace test {
 
-constexpr int Dims = 4;
-
-class Dct1DGpuTest : public ::testing::TestWithParam<std::tuple<int, std::vector<int>>> {
+class Dct1DGpuTest : public ::testing::TestWithParam<
+  std::tuple<int, std::pair<int, std::vector<int>>>> {
  public:
   Dct1DGpuTest()
       : batch_size_(std::get<0>(GetParam()))
-      , axes_(std::get<1>(GetParam()))
-      , in_shape_(batch_size_) {}
+      , dims_(std::get<1>(GetParam()).first)
+      , axes_(std::get<1>(GetParam()).second)
+      , in_shape_(batch_size_, dims_) {
+        while (args_.size() < static_cast<size_t>(batch_size_) * axes_.size()) {
+          for (auto dct : dct_type) {
+            for (auto norm : normalize) {
+              for (auto n : ndct) {
+                if (norm && dct == 1) continue;
+                args_.push_back(DctArgs{dct, norm, n});
+              }
+            }
+          }
+        }
+      }
 
   ~Dct1DGpuTest() override = default;
 
  protected:
   void PrepareInput() {
-    args_.clear();
     std::mt19937_64 rng{1223};
     std::uniform_int_distribution<> dim_dist(1, 3);
     auto rand_shape = [&]() {
-      TensorShape<Dims> shape;
-      for (int i = 0; i < Dims; ++i)
+      TensorShape<> shape;
+      shape.resize(dims_);
+      for (int i = 0; i < dims_; ++i)
         shape[i] = dim_dist(rng) * 10;
       return shape;
     };
     for (int s = 0; s < batch_size_; ++s) {
-      auto i = arg_idx_;
       in_shape_.set_tensor_shape(s, rand_shape());
-      args_.emplace_back(get_args());
     }
+    args_span_ = span<DctArgs>(args_.data() + args_idx_, batch_size_);
+    args_idx_ += batch_size_;
     ttl_in_.reshape(in_shape_);
     UniformRandomFill(ttl_in_.cpu(), rng, 0., 1.);
   }
 
-  TensorListShape<Dims> OutputShape(int axis) {
-    TensorListShape<Dims> out_shape(batch_size_);
+  TensorListShape<> OutputShape(int axis) {
+    assert(axis < dims_);
+    TensorListShape<> out_shape(batch_size_, dims_);
     for (int s = 0; s < batch_size_; ++s) {
       auto in_shape = in_shape_[s];
-      int ndct = args_[s].ndct;
+      int ndct = args_span_[s].ndct;
       if (ndct > 0)
         in_shape[axis] = ndct;
       out_shape.set_tensor_shape(s, in_shape);
@@ -69,24 +81,15 @@ class Dct1DGpuTest : public ::testing::TestWithParam<std::tuple<int, std::vector
     return out_shape;
   }
 
-  DctArgs get_args() {
-    auto i = arg_idx_;
-    if (normalize[(i / 3) % 2] && dct_type[(i / 6) % 4] == 1) {
-      i += 3;
-      arg_idx_ += 4;
-    } else {
-      arg_idx_ += 1;
-    }
-    return DctArgs{dct_type[(i / 6) % 4], normalize[(i / 3) % 2], ndct[i % 3]};
-  }
-
   int batch_size_;
+  int dims_;
   std::vector<int> axes_;
-  TensorListShape<Dims> in_shape_;
-  TestTensorList<float, Dims> ttl_in_;
-  TestTensorList<float, Dims> ttl_out_;
+  TensorListShape<> in_shape_;
+  TestTensorList<float> ttl_in_;
+  TestTensorList<float> ttl_out_;
   std::vector<DctArgs> args_;
-  int arg_idx_ = 0;
+  int args_idx_ = 0;
+  span<const DctArgs> args_span_;
   const std::array<int, 4> dct_type = {{1, 2, 3, 4}};
   const std::array<bool, 2> normalize = {{false, true}};
   const std::array<int, 3> ndct = {{-1, 10, 20}};
@@ -94,7 +97,7 @@ class Dct1DGpuTest : public ::testing::TestWithParam<std::tuple<int, std::vector
 
 
 TEST_P(Dct1DGpuTest, DctTest) {
-  using Kernel = Dct1DGpu<float, float, 4>;
+  using Kernel = Dct1DGpu<float, float>;
   KernelContext ctx;
   ctx.gpu.stream = 0;
   KernelManager kmgr;
@@ -105,31 +108,30 @@ TEST_P(Dct1DGpuTest, DctTest) {
     PrepareInput();
     auto out_shape = OutputShape(axis);
     auto in_view = ttl_in_.gpu();
-    auto req = kmgr.Setup<Kernel>(0, ctx, in_view, make_cspan(args_), axis);
+    auto req = kmgr.Setup<Kernel>(0, ctx, in_view, args_span_, axis);
     ASSERT_EQ(out_shape, req.output_shapes[0]);
     ttl_out_.reshape(out_shape);
     auto out_view = ttl_out_.gpu();
-    cudaMemsetAsync(out_view.data[0], 0, batch_size_*volume(out_view.shape[0])*sizeof(float), 0);
-    kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view, make_cspan(args_), axis);
+    kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view, args_span_, axis);
     cudaStreamSynchronize(ctx.gpu.stream);
     auto cpu_in_view = ttl_in_.cpu();
     auto cpu_out_view = ttl_out_.cpu();
     for (int s = 0; s < batch_size_; ++s) {
       auto in = cpu_in_view.tensor_data(s);
       auto out = cpu_out_view.tensor_data(s);
-      auto in_sample_shape = in_shape_[s];
-      auto out_sample_shape = out_shape[s];
-      int64_t n_outer = volume(&in_sample_shape[0], &in_sample_shape[axis]);
-      int64_t n_inner = volume(&in_sample_shape[axis + 1], &in_sample_shape[Dims]);
+      auto in_sample_shape = in_shape_.tensor_shape_span(s);
+      auto out_sample_shape = out_shape.tensor_shape_span(s);
+      int64_t n_outer = volume(in_sample_shape.begin(), in_sample_shape.begin() + axis);
+      int64_t n_inner = volume(in_sample_shape.begin() + axis + 1, in_sample_shape.end());
       int64_t n_frames = n_outer * n_inner;
-      int64_t inner_stride = (axis < Dims - 1)
-                              ? volume(&in_sample_shape[axis + 1], &in_sample_shape[Dims])
+      int64_t inner_stride = (axis < dims_ - 1)
+                              ? volume(in_sample_shape.begin() + axis + 1, in_sample_shape.end())
                               : 1;
-      int64_t axis_stride = volume(&in_sample_shape[axis + 1], &in_sample_shape[Dims]);
-      int64_t in_stride = axis_stride * in_sample_shape[axis];
-      int64_t out_stride = axis_stride * out_sample_shape[axis];
+      int64_t in_stride = inner_stride * in_sample_shape[axis];
+      int64_t out_stride = inner_stride * out_sample_shape[axis];
       int64_t n = in_sample_shape[axis];
       int j = 0;
+      DctArgs args = args_span_[s];
       for (int64_t outer = 0; outer < n_outer; ++outer) {
         for (int64_t inner = 0; inner < n_inner; ++inner) {
           int64_t in_idx = outer * in_stride + inner;
@@ -144,10 +146,10 @@ TEST_P(Dct1DGpuTest, DctTest) {
             in_idx += inner_stride;
           }
           LOG_LINE << "\n";
-          int ndct = args_[s].ndct > 0 ? args_[s].ndct : in_shape_[s][axis];
+          int ndct = args.ndct > 0 ? args.ndct : in_shape_[s][axis];
           std::vector<float> ref(ndct, 0);
-          ReferenceDct(args_[s].dct_type, make_span(ref), make_cspan(in_buf), args_[s].normalize);
-          LOG_LINE << "DCT (type " << args_[s].dct_type << "):";
+          ReferenceDct(args.dct_type, make_span(ref), make_cspan(in_buf), args.normalize);
+          LOG_LINE << "DCT (type " << args.dct_type << "):";
           for (int k = 0; k < ndct; k++) {
             EXPECT_NEAR(ref[k], out[out_idx], 1e-3);
             out_idx += inner_stride;
@@ -162,9 +164,9 @@ TEST_P(Dct1DGpuTest, DctTest) {
 
 INSTANTIATE_TEST_SUITE_P(Dct1DGpuTest, Dct1DGpuTest, testing::Combine(
     testing::Values(1, 6, 12),  // batch_size
-    testing::Values(std::vector<int>{1},
-                    std::vector<int>{0, Dims-1, 1},
-                    std::vector<int>(5, 1))  // axes
+    testing::Values(std::make_pair(2, std::vector<int>{1}),
+                    std::make_pair(4, std::vector<int>{0, 3, 1}),
+                    std::make_pair(1, std::vector<int>{0, 0}))  // dims, axes
   ));  // NOLINT
 
 }  // namespace test

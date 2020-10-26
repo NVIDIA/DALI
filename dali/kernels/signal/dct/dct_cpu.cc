@@ -22,7 +22,7 @@
 #include "dali/kernels/common/for_axis.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/signal/dct/dct.h"
+#include "dali/kernels/signal/dct/table.h"
 
 namespace dali {
 namespace kernels {

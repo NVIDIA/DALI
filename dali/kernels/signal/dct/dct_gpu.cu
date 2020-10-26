@@ -21,7 +21,7 @@
 #include "dali/core/util.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/signal/dct/dct.h"
+#include "dali/kernels/signal/dct/table.h"
 #include "dali/core/tensor_shape_print.h"
 
 namespace dali {
@@ -31,8 +31,8 @@ namespace dct {
 
 // The kernel processes data with the shape reduced to 3D.
 // Transform is applied over the middle axis.
-template <typename OutputType, typename InputType, int Dims>
-__global__ void ApplyDct(const typename Dct1DGpu<OutputType, InputType, Dims>::SampleDesc *samples,
+template <typename OutputType, typename InputType>
+__global__ void ApplyDct(const typename Dct1DGpu<OutputType, InputType>::SampleDesc *samples,
                          const BlockDesc<3> *blocks)  {
   int bid = blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z);
   auto block = blocks[bid];
@@ -57,22 +57,23 @@ __global__ void ApplyDct(const typename Dct1DGpu<OutputType, InputType, Dims>::S
   }
 }
 
-template <typename OutputType, typename InputType, int Dims>
-KernelRequirements Dct1DGpu<OutputType, InputType, Dims>::Setup(KernelContext &ctx,
-                                                               const InListGPU<InputType, Dims> &in,
-                                                               span<const DctArgs> args,
-                                                               int axis) {
+template <typename OutputType, typename InputType>
+KernelRequirements Dct1DGpu<OutputType, InputType>::Setup(KernelContext &ctx,
+                                                          const InListGPU<InputType> &in,
+                                                          span<const DctArgs> args,
+                                                          int axis) {
   DALI_ENFORCE(args.size() == in.num_samples());
   KernelRequirements req{};
   ScratchpadEstimator se{};
   args_.clear();
   cos_tables_.clear();
   sample_descs_.clear();
-  TensorListShape<Dims> out_shape(in.num_samples());
+  int64_t dims = in.sample_dim();
+  TensorListShape<> out_shape(in.num_samples(), dims);
   TensorListShape<3> reduced_shape(in.num_samples());
   max_cos_table_size_ = 0;
-  axis_ = axis >= 0 ? axis : Dims - 1;
-  DALI_ENFORCE(axis_ >= 0 && axis_ < Dims,
+  axis_ = axis >= 0 ? axis : dims - 1;
+  DALI_ENFORCE(axis_ >= 0 && axis_ < dims,
                make_string("Axis is out of bounds: ", axis_));
   for (int s = 0; s < args.size(); ++s) {
     args_.push_back(args[s]);
@@ -115,21 +116,17 @@ KernelRequirements Dct1DGpu<OutputType, InputType, Dims>::Setup(KernelContext &c
   return req;
 }
 
-template <typename OutputType,  typename InputType, int Dims>
-DLL_PUBLIC void Dct1DGpu<OutputType, InputType, Dims>::Run(KernelContext &ctx,
-                                                          const OutListGPU<OutputType, Dims> &out,
-                                                          const InListGPU<InputType, Dims> &in,
-                                                          span<const DctArgs> args, int axis) {
-  (void)args;
-  (void)axis;
+template <typename OutputType, typename InputType>
+DLL_PUBLIC void Dct1DGpu<OutputType, InputType>::Run(KernelContext &ctx,
+                                                          const OutListGPU<OutputType> &out,
+                                                          const InListGPU<InputType> &in,
+                                                          span<const DctArgs>, int) {
   OutputType *cpu_cos_table[2];
   cpu_cos_table[0] =
     ctx.scratchpad->Allocate<OutputType>(AllocType::Pinned, max_cos_table_size_);
-  cudaEventRecord(buffer_events_[0], ctx.gpu.stream);
   if (cos_tables_.size() > 1) {
     cpu_cos_table[1] =
       ctx.scratchpad->Allocate<OutputType>(AllocType::Pinned, max_cos_table_size_);
-    cudaEventRecord(buffer_events_[1], ctx.gpu.stream);
   }
   int i = 0;
   for (auto &table_entry : cos_tables_) {
@@ -165,19 +162,13 @@ DLL_PUBLIC void Dct1DGpu<OutputType, InputType, Dims>::Run(KernelContext &ctx,
     ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, sample_descs_, block_setup_.Blocks());
   dim3 grid_dim = block_setup_.GridDim();
   dim3 block_dim = block_setup_.BlockDim();
-  ApplyDct<OutputType, InputType, Dims>
+  ApplyDct<OutputType, InputType>
     <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(sample_descs_gpu, block_descs_gpu);
 }
 
-template class Dct1DGpu<float, float, 1>;
-template class Dct1DGpu<float, float, 2>;
-template class Dct1DGpu<float, float, 3>;
-template class Dct1DGpu<float, float, 4>;
+template class Dct1DGpu<float, float>;
 
-template class Dct1DGpu<double, double, 1>;
-template class Dct1DGpu<double, double, 2>;
-template class Dct1DGpu<double, double, 3>;
-template class Dct1DGpu<double, double, 4>;
+template class Dct1DGpu<double, double>;
 
 }  // namespace dct
 }  // namespace signal
