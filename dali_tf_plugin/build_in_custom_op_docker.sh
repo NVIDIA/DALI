@@ -6,7 +6,8 @@ set -e
 PYTHON_DIST_PACKAGES=( $(python -c "import site; print(site.getsitepackages()[0])") )
 DALI_TOPDIR="${PYTHON_DIST_PACKAGES}/nvidia/dali"
 
-CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
+CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
+
 LAST_CONFIG_INDEX=$(python ../qa/setup_packages.py -n -u tensorflow-gpu --cuda ${CUDA_VERSION})
 
 PREBUILT_DIR=/prebuilt

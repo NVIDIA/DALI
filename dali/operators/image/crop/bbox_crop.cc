@@ -146,10 +146,10 @@ and ``end_y`` order, and ``bbox_layout``\="xyWH" indicates that the order is ``s
 ``start_y``, ``width``, and ``height``. See the ``bbox_layout`` argument description
 for more information.
 
-Optionally, a second input, called ``labels``, can be provided, which represents the labels that are
-associated with each of the bounding boxes.
+An optional input ``labels`` can be provided, representing the labels that are associated with each of
+the bounding boxes.
 
-**Outputs: 0**: anchor, 1: shape, 2: bboxes, (3: labels)
+**Outputs: 0**: anchor, 1: shape, 2: bboxes (, 3: labels, 4: bboxes_indices)
 
 The resulting crop parameters are provided as two separate outputs, ``anchor`` and ``shape``,
 that can be fed directly to the :meth:`nvidia.dali.ops.Slice` operator to complete the cropping
@@ -158,8 +158,16 @@ for the crop in the ``[x, y, (z)]`` and ``[w, h, (d)]`` formats, respectively. T
 be represented in absolute or relative terms, and the represetnation depends on whether
 the fixed ``crop_shape`` was used.
 
-The third and fourth outputs correspond to the adjusted bounding boxes and, optionally,
-to their corresponding labels. Bounding boxes are always specified in relative coordinates.)code")
+The third output contains the bounding boxes, after filtering out the ones with a centroid outside
+of the cropping window, and with the coordinates mapped to the new coordinate space.
+
+The next output is optional, and it represents the labels associated with the filtered bounding boxes.
+The output will be present if a labels input was provided.
+
+The last output, also optional, correspond to the original indices of the bounding boxes that passed the
+centroid filter and are present in the output.
+This output will be present if the option ``output_bbox_indices`` is set to True.
+)code")
     .NumInput(1, 2)  // [boxes, labels (optional),]
     .InputDox(
         0, "boxes", "2D TensorList of float", R"code(Relative coordinates of the bounding boxes
@@ -167,9 +175,10 @@ that are represented as a 2D tensor, where the first dimension refers to the ind
 box, and the second dimension refers to the index of the coordinate.)code")
     .InputDox(1, "labels", "1D TensorList of integers", R"code(Labels that are
 associated with each of the bounding boxes.)code")
-    .NumOutput(3)  // [anchor, shape, bboxes, labels (optional),]
+    .NumOutput(3)  // [anchor, shape, bboxes, labels (optional), bbox_indices (optional)]
     .AdditionalOutputsFn([](const OpSpec &spec) {
-      return spec.NumRegularInput() - 1;  // +1 if labels are provided
+      return spec.NumRegularInput() - 1 +                    // +1 if labels are provided
+             spec.GetArgument<bool>("output_bbox_indices");  // +1 if output_bbox_indices=True
     })
     .AddOptionalArg(
         "thresholds",
@@ -308,7 +317,7 @@ The value of this argument is a string containing the following characters::
   If this value is left empty, depending on the number of dimensions, "xyXY" or
   "xyzXYZ" is assumed.
 )code",
-        TensorLayout{""})
+        TensorLayout{})
     .AddOptionalArg<TensorLayout>(
         "shape_layout",
         R"code(Determines the meaning of the dimensions provided in ``crop_shape`` and
@@ -323,7 +332,13 @@ The values are:
 .. note::
   If left empty, depending on the number of dimensions ``"WH"`` or ``"WHD"`` will be assumed.
 )code",
-        TensorLayout{""});
+        TensorLayout{})
+    .AddOptionalArg<bool>(
+        "output_bbox_indices",
+        R"code(If set to True, an extra output will be returned, containing
+the original indices of the bounding boxes that passed the centroid filter and are present in
+the output bounding boxes.)code",
+        false);
 
 template <int ndim>
 class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
@@ -346,6 +361,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         bbox_layout_(spec.GetArgument<TensorLayout>("bbox_layout")),
         shape_layout_(spec.GetArgument<TensorLayout>("shape_layout")),
         all_boxes_above_threshold_(spec.GetArgument<bool>("all_boxes_above_threshold")),
+        output_bbox_indices_(spec.GetArgument<bool>("output_bbox_indices")),
         rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int>("batch_size")) {
     auto scaling_arg = spec.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
@@ -486,41 +502,105 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     return false;
   }
 
-  void RunImpl(SampleWorkspace &ws) override {
-    const auto &boxes_tensor = ws.Input<CPUBackend>(0);
-    auto nboxes = boxes_tensor.dim(0);
+  void RunImpl(workspace_t<CPUBackend> &ws) override {
+    const auto &in_boxes = ws.template InputRef<CPUBackend>(0);
+    auto in_boxes_view = view<const float>(in_boxes);
+    auto in_boxes_shape = in_boxes_view.shape;
+    int num_samples = in_boxes_shape.num_samples();
+    auto &tp = ws.GetThreadPool();
     auto ncoords = ndim * 2;
+    sample_data_.clear();
+    sample_data_.resize(num_samples);
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      auto &data = sample_data_[sample_idx];
+      tp.AddWork([&, sample_idx](int thread_id) {
+        auto nboxes = in_boxes_view.tensor_shape_span(sample_idx)[0];
+        data.in_bboxes.resize(nboxes);
+        ReadBoxes(make_span(data.in_bboxes),
+                  make_cspan(in_boxes_view.tensor_data(sample_idx),
+                             volume(in_boxes_shape.tensor_size(sample_idx))),
+                  bbox_layout_);
+        FindProspectiveCrop(data.prospective_crop, make_cspan(data.in_bboxes), sample_idx);
+      }, in_boxes_shape.tensor_size(sample_idx));
+    }
+    tp.RunAll();
 
-    std::vector<Box<ndim, float>> bounding_boxes(nboxes);
-    ReadBoxes(make_span(bounding_boxes),
-              make_cspan(boxes_tensor.data<float>(), boxes_tensor.size()), bbox_layout_);
+    auto &anchor_out = ws.template OutputRef<CPUBackend>(0);
+    anchor_out.Resize(uniform_list_shape(num_samples, {ndim}));
+    auto anchor_out_view = view<float>(anchor_out);
 
-    std::vector<int> labels;
-    if (has_labels_) {
-      const auto &labels_tensor = ws.Input<CPUBackend>(1);
-      auto nlabels = labels_tensor.dim(0);
-      DALI_ENFORCE(nlabels == nboxes,
-        make_string("Unexpected number of labels. Expected: ", nboxes, ", got ", nlabels));
-      labels.resize(nlabels);
-      const auto *label_data = labels_tensor.data<int>();
-      for (int i = 0; i < nlabels; i++) {
-        labels[i] = label_data[i];
+    auto &shape_out = ws.template OutputRef<CPUBackend>(1);
+    shape_out.Resize(uniform_list_shape(num_samples, {ndim}));
+    auto shape_out_view = view<float>(shape_out);
+
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      const auto &prospective_crop = sample_data_[sample_idx].prospective_crop;
+      auto extent = prospective_crop.crop.extent();
+      for (int d = 0; d < ndim; d++) {
+        anchor_out_view.tensor_data(sample_idx)[d] = prospective_crop.crop.lo[d];
+        shape_out_view.tensor_data(sample_idx)[d] = extent[d];
       }
     }
 
-    int sample = ws.data_idx();
-    ProspectiveCrop prospective_crop =
-        FindProspectiveCrop(make_cspan(bounding_boxes), make_cspan(labels), sample);
+    TensorListShape<> bbox_out_shape;
+    bbox_out_shape.resize(num_samples, 2);
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      auto sh = bbox_out_shape.tensor_shape_span(sample_idx);
+      sh[0] = sample_data_[sample_idx].prospective_crop.boxes.size();
+      sh[1] = ncoords;
+    }
+    auto &bbox_out = ws.template OutputRef<CPUBackend>(2);
+    bbox_out.Resize(bbox_out_shape);
+    auto bbox_out_view = view<float>(bbox_out);
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      WriteBoxes(make_span(bbox_out_view.tensor_data(sample_idx),
+                           volume(bbox_out_view.tensor_shape_span(sample_idx))),
+                 make_cspan(sample_data_[sample_idx].prospective_crop.boxes), bbox_layout_);
+    }
 
-    WriteCropToOutput(ws, prospective_crop.crop);
-    WriteBoxesToOutput(ws, make_cspan(prospective_crop.boxes));
-
+    int next_out_idx = 3;
     if (has_labels_) {
-      DALI_ENFORCE(
-          prospective_crop.boxes.size() == prospective_crop.labels.size(),
-          make_string("Expected boxes.size() == labels.size(). Received: ",
-                      prospective_crop.boxes.size(), " != ", prospective_crop.labels.size()));
-      WriteLabelsToOutput(ws, make_cspan(prospective_crop.labels));
+      const auto &labels_in = ws.template InputRef<CPUBackend>(1);
+      auto labels_in_view = view<const int>(labels_in);
+
+      auto &labels_out = ws.template OutputRef<CPUBackend>(next_out_idx++);
+      TensorListShape<> labels_out_shape = labels_in.shape();
+      for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+        auto sh = labels_out_shape.tensor_shape_span(sample_idx);
+        sh[0] = sample_data_[sample_idx].prospective_crop.bbox_indices.size();
+      }
+      labels_out.Resize(labels_out_shape);
+      auto labels_out_view = view<int>(labels_out);
+      for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+        auto *labels_out_data = labels_out_view.tensor_data(sample_idx);
+        const auto *labels_in_data = labels_in_view.tensor_data(sample_idx);
+        auto in_sh = labels_in_view.tensor_shape_span(sample_idx);
+        int64_t stride = volume(in_sh.begin() + 1, in_sh.end());
+        for (auto bbox_idx : sample_data_[sample_idx].prospective_crop.bbox_indices) {
+          assert(bbox_idx < in_sh[0]);
+          const auto *curr_label_data = labels_in_data + bbox_idx * stride;
+          for (int64_t k = 0; k < stride; k++)
+            *labels_out_data++ = *curr_label_data++;
+        }
+      }
+    }
+
+    if (output_bbox_indices_) {
+      auto &bbox_indices_out = ws.template OutputRef<CPUBackend>(next_out_idx++);
+      TensorListShape<> bbox_indices_out_shape;
+      bbox_indices_out_shape.resize(num_samples, 1);
+      for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+        bbox_indices_out_shape.tensor_shape_span(sample_idx)[0] =
+            sample_data_[sample_idx].prospective_crop.bbox_indices.size();
+      }
+      bbox_indices_out.Resize(bbox_indices_out_shape);
+      auto bbox_indices_out_view = view<int>(bbox_indices_out);
+      for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+        auto *bbox_indices_out_data = bbox_indices_out_view.tensor_data(sample_idx);
+        for (auto bbox_idx : sample_data_[sample_idx].prospective_crop.bbox_indices) {
+          *bbox_indices_out_data++ = bbox_idx;
+        }
+      }
     }
   }
 
@@ -529,23 +609,14 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     bool success = false;
     Box<ndim, float> crop{};
     std::vector<Box<ndim, float>> boxes;
-    std::vector<int> labels;
+    std::vector<int> bbox_indices;
 
-    ProspectiveCrop(bool success,
-                    const Box<ndim, float>& crop,
-                    span<const Box<ndim, float>> boxes_data,
-                    span<const int> labels_data,
-                    bool has_labels)
-        : success(success), crop(crop) {
-      assert(boxes_data.size() == labels_data.size() || !has_labels);
-      boxes.resize(boxes_data.size());
-      labels.resize(labels_data.size());
-      for (int i = 0; i < boxes_data.size(); i++) {
-        boxes[i] = boxes_data[i];
-        if (has_labels) labels[i] = labels_data[i];
-      }
+    void clear() {
+      success = false;
+      crop = {};
+      boxes.clear();
+      bbox_indices.clear();
     }
-    ProspectiveCrop() = default;
   };
 
   /**
@@ -604,12 +675,12 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       extent = max_extent * extent / new_max_extent;
   }
 
-  ProspectiveCrop FindProspectiveCrop(span<const Box<ndim, float>> bounding_boxes,
-                                      span<const int> labels, int sample) {
-    ProspectiveCrop crop;
+  void FindProspectiveCrop(ProspectiveCrop &crop, span<const Box<ndim, float>> bounding_boxes,
+                           int sample) {
     int count = 0;
     float best_metric = -1.0;
 
+    crop.clear();
     while (!crop.success && (total_num_attempts_ < 0 || count < total_num_attempts_)) {
       auto &rng = rngs_[sample];
       std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
@@ -623,7 +694,11 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
           for (int d = 0; d < ndim; d++)
             no_crop.hi[d] *= input_shape[d];
         }
-        crop = ProspectiveCrop(true, no_crop, bounding_boxes, labels, has_labels_);
+        crop.success = true;
+        crop.crop = no_crop;
+        crop.boxes.assign(bounding_boxes.begin(), bounding_boxes.end());
+        crop.bbox_indices.resize(crop.boxes.size());
+        std::iota(crop.bbox_indices.begin(), crop.bbox_indices.end(), 0);
         break;
       }
 
@@ -680,25 +755,13 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
         best_metric = metric;
 
-        crop = {};
         crop.crop = out_crop;
-
-        crop.boxes.resize(bounding_boxes.size());
-        for (int i = 0; i < bounding_boxes.size(); i++)
-          crop.boxes[i] = bounding_boxes[i];
-
-        if (!labels.empty()) {
-          assert(labels.size() == bounding_boxes.size());
-          crop.labels.resize(labels.size());
-          for (int i = 0; i < labels.size(); i++)
-            crop.labels[i] = labels[i];
-        }
-
-        FilterByCentroid(rel_crop, crop.boxes, crop.labels);
+        crop.boxes.assign(bounding_boxes.begin(), bounding_boxes.end());
+        crop.bbox_indices.clear();  // indices will be populated by FilterByCentroid
+        FilterByCentroid(rel_crop, crop.boxes, crop.bbox_indices);
         for (auto &box : crop.boxes) {
           box = RemapBox(box, rel_crop);
         }
-
         bool at_least_one_box = !crop.boxes.empty();
         crop.success = is_valid_overlap && at_least_one_box;
       }
@@ -710,7 +773,6 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         count, " times). Using the best cropping window so far (best_metric=", best_metric, ")"));
       crop.success = true;
     }
-    return crop;
   }
 
   bool ValidAspectRatio(vec<ndim, float> shape) {
@@ -763,55 +825,16 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
   void FilterByCentroid(const Box<ndim, float> &crop,
                         std::vector<Box<ndim, float>> &bboxes,
-                        std::vector<int> &labels) {
+                        std::vector<int> &indices) {
     std::vector<Box<ndim, float>> new_bboxes;
-    std::vector<int> new_labels;
-    bool process_labels = !labels.empty();
-    assert(labels.empty() || labels.size() == bboxes.size());
+    indices.clear();
     for (size_t i = 0; i < bboxes.size(); i++) {
       if (crop.contains(bboxes[i].centroid())) {
         new_bboxes.push_back(bboxes[i]);
-        if (process_labels)
-          new_labels.push_back(labels[i]);
+        indices.push_back(static_cast<int>(i));
       }
     }
     std::swap(bboxes, new_bboxes);
-    if (process_labels)
-      std::swap(labels, new_labels);
-  }
-
-  void WriteCropToOutput(SampleWorkspace &ws, const Box<ndim, float> &crop) {
-    // output0 : anchor, output1 : shape
-    auto &anchor_out = ws.Output<CPUBackend>(0);
-    anchor_out.Resize({ndim});
-    auto *anchor_out_data = anchor_out.mutable_data<float>();
-
-    auto &shape_out = ws.Output<CPUBackend>(1);
-    shape_out.Resize({ndim});
-    auto *shape_out_data = shape_out.mutable_data<float>();
-
-    auto extent = crop.extent();
-    for (int d = 0; d < ndim; d++) {
-      anchor_out_data[d] = crop.lo[d];
-      shape_out_data[d] = extent[d];
-    }
-  }
-
-  void WriteBoxesToOutput(SampleWorkspace &ws,
-                          span<const Box<ndim, float>> bounding_boxes) {
-    auto &bbox_out = ws.Output<CPUBackend>(2);
-    bbox_out.Resize({static_cast<int64_t>(bounding_boxes.size()), coords_size});
-    auto *bbox_out_data = bbox_out.mutable_data<float>();
-    WriteBoxes(make_span(bbox_out_data, bbox_out.size()), make_cspan(bounding_boxes),
-               bbox_layout_);
-  }
-
-  void WriteLabelsToOutput(SampleWorkspace &ws, span<const int> labels) {
-    auto &labels_out = ws.Output<CPUBackend>(3);
-    labels_out.Resize({static_cast<Index>(labels.size()), 1});
-    auto *labels_out_data = labels_out.mutable_data<int>();
-    for (int i = 0; i < labels_out.size(); i++)
-      labels_out_data[i] = labels[i];
   }
 
  private:
@@ -827,6 +850,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
   OverlapMetric overlap_metric_ = OverlapMetric::IoU;
   bool all_boxes_above_threshold_ = true;
+  bool output_bbox_indices_ = false;
 
   BatchRNG<std::mt19937> rngs_;
 
@@ -837,6 +861,13 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
   Range scale_range_;
   std::vector<Range> aspect_ratio_ranges_;
+
+  struct SampleData {
+    std::vector<Box<ndim, float>> in_bboxes;
+    ProspectiveCrop prospective_crop;
+  };
+
+  std::vector<SampleData> sample_data_;
 };
 
 template <>
@@ -879,7 +910,7 @@ bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
+void RandomBBoxCrop<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   assert(impl_ != nullptr);
   impl_->RunImpl(ws);
 }

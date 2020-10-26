@@ -19,5 +19,6 @@ cmake .. \
       -DGIT_SHA=${GIT_SHA}
 make -j install
 python setup.py sdist
+mkdir -p /dali_tf_sdist
 cp dist/*.tar.gz /dali_tf_sdist
 popd

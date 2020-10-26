@@ -1429,6 +1429,16 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("GetCallSignatureInputs", &OpSchema::GetCallSignatureInputs)
     .def("GetInputName", &OpSchema::GetInputName)
     .def("GetInputType", &OpSchema::GetInputType)
+    .def("GetInputDevice", [](OpSchema *schema, int index)->py::object {
+      switch (schema->GetInputDevice(index)) {
+        case InputDevice::CPU:
+          return py::str("cpu");
+        case InputDevice::GPU:
+          return py::str("gpu");
+        default:
+          return py::none();
+      }
+    })
     .def("GetInputDox", &OpSchema::GetInputDox)
     .def("MaxNumInput", &OpSchema::MaxNumInput)
     .def("MinNumInput", &OpSchema::MinNumInput)

@@ -19,7 +19,7 @@ import torchvision.models as models
 import numpy as np
 
 try:
-    from nvidia.dali.plugin.pytorch import DALIClassificationIterator
+    from nvidia.dali.plugin.pytorch import DALIClassificationIterator, LastBatchPolicy
     from nvidia.dali.pipeline import Pipeline
     import nvidia.dali.ops as ops
     import nvidia.dali.types as types
@@ -319,7 +319,7 @@ def main():
                            shard_id=args.local_rank,
                            num_shards=args.world_size)
     pipe.build()
-    train_loader = DALIClassificationIterator(pipe, reader_name="Reader", fill_last_batch=False)
+    train_loader = DALIClassificationIterator(pipe, reader_name="Reader", last_batch_policy=LastBatchPolicy.PARTIAL)
 
     pipe = HybridValPipe(batch_size=args.batch_size,
                          num_threads=args.workers,
@@ -330,7 +330,7 @@ def main():
                          shard_id=args.local_rank,
                          num_shards=args.world_size)
     pipe.build()
-    val_loader = DALIClassificationIterator(pipe, reader_name="Reader", fill_last_batch=False)
+    val_loader = DALIClassificationIterator(pipe, reader_name="Reader", last_batch_policy=LastBatchPolicy.PARTIAL)
 
     if args.evaluate:
         validate(val_loader, model, criterion)

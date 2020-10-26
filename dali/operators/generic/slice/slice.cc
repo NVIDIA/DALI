@@ -33,6 +33,7 @@ must provide as many dimensions as are specified with the ``axis_names`` or ``ax
 By default, the :meth:`nvidia.dali.ops.Slice` operator uses normalized coordinates and ``WH``
 order for the slice arguments.)code")
     .NumInput(3)
+    .InputDevice(1, 3, InputDevice::CPU)
     .NumOutput(1)
     .InputDox(0, "data", "TensorList", R"code(Batch that contains the input data.)code")
     .InputDox(1, "anchor", "1D TensorList of float or int",
