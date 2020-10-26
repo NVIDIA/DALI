@@ -72,6 +72,19 @@ class ArgumentWorkspace {
     return *it->second.tvec;
   }
 
+  int GetBatchSize() const {
+    assert(batch_size_ > 0);  // Accessing batch size, which wasn't initialized yet
+    return batch_size_;
+  }
+
+  void SetBatchSize(int batch_size) {
+    DALI_ENFORCE(batch_size > 0, "Batch size has to be positive.");
+    if (batch_size != batch_size_) {
+      DALI_WARN("Assigning batch size that differs from the current one. This shouldn't happen.");
+    }
+    batch_size_ = batch_size;
+  }
+
  protected:
   struct ArgumentInputDesc {
     shared_ptr<TensorVector<CPUBackend>> tvec;
@@ -84,6 +97,7 @@ class ArgumentWorkspace {
 
   // Argument inputs
   std::unordered_map<std::string, ArgumentInputDesc> argument_inputs_;
+  int batch_size_ = -1;
 };
 
 /**
@@ -101,7 +115,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   template <typename Backend>
   using output_t = OutputType<Backend>;
 
-  WorkspaceBase() {}
+  WorkspaceBase() = default;
   ~WorkspaceBase() override = default;
 
   /**
@@ -467,7 +481,6 @@ class WorkspaceBase : public ArgumentWorkspace {
       + ")");
     return index_map[idx];
   }
-
 
   /**
    * @brief Returns CUDA stream or nullptr, if the stream is unavailable

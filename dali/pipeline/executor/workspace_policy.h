@@ -438,6 +438,19 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
     return GetWorkspace<op_type>(idxs, graph, node.partition_index);
   }
 
+  template <OpType op_type>
+  using ws_collection_t = std::vector<std::vector<op_type_to_workspace_t<op_type>>>;
+
+  /**
+   * Access one of `cpu_workspaces_`, `mixed_workspaces_`, `gpu_workspaces_`
+   * based on op_type. Below are specialization for the sake of simplicity
+   */
+  template <OpType op_type>
+  ws_collection_t<op_type> &GetWorkspacesCollection() {
+    return detail::get<ws_collection_t<op_type>&>(
+        std::tie(cpu_workspaces_, mixed_workspaces_, gpu_workspaces_));
+  }
+
  private:
   StageQueues depths_;
   // ws_id -> op_id -> workspace
@@ -445,16 +458,6 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
   std::vector<std::vector<MixedWorkspace>> mixed_workspaces_;
   std::vector<std::vector<DeviceWorkspace>> gpu_workspaces_;
 
-  template <OpType op_type>
-  using ws_collection_t = std::vector<std::vector<op_type_to_workspace_t<op_type>>>;
-
-  // Access one of `cpu_workspaces_`, `mixed_workspaces_`, `gpu_workspaces_`
-  // based on op_type. Below are specialization for the sake of simplicity
-  template <OpType op_type>
-  ws_collection_t<op_type> &GetWorkspacesCollection() {
-    return detail::get<ws_collection_t<op_type>&>(
-        std::tie(cpu_workspaces_, mixed_workspaces_, gpu_workspaces_));
-  }
 
   template <OpType op_type, OpType group_as = op_type, typename T>
   void PlaceWorkspace(
@@ -504,6 +507,9 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
   template <OpType op_type>
   using ws_t = op_type_to_workspace_t<op_type> &;
 
+  template <OpType op_type>
+  using ws_collection_t = std::vector<std::vector<op_type_to_workspace_t<op_type>>>;
+
   void InitializeWorkspaceStore(
       const OpGraph &graph,
       const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, ThreadPool *thread_pool,
@@ -530,6 +536,11 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
                  "Wrong variant of method selected. OpType does not match.");
     auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
     return ws_vec[node.partition_index];
+  }
+
+  template<OpType op_type>
+  ws_collection_t<op_type>& GetWorkspacesCollection() {
+    // TODO
   }
 
  private:

@@ -26,6 +26,7 @@
 
 #include "dali/core/cuda_event.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/input_provider.h"
 #include "dali/pipeline/util/worker_thread.h"
 
 namespace dali {
@@ -100,7 +101,7 @@ class CachingList {
  * may mix the order of inputted data.
  */
 template <typename Backend>
-class ExternalSource : public Operator<Backend> {
+class ExternalSource : public Operator<Backend>, public InputProvider {
   using uptr_tl_type = std::unique_ptr<TensorList<Backend>>;
   using uptr_tv_type = std::unique_ptr<TensorVector<Backend>>;
   using uptr_cuda_event_type = std::unique_ptr<detail::CudaEventWrapper>;

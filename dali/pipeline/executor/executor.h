@@ -34,6 +34,7 @@
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/input_provider.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
 #include "dali/pipeline/util/thread_pool.h"
@@ -338,13 +339,39 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   std::mutex gpu_memory_stats_mutex_;
 
  private:
+  /**
+   * Assign batch size for every workspace in the iteration
+   */
+  void AssignBatchSize(int batch_size) {
+    AssignBatchSize<OpType::CPU>(batch_size);
+    AssignBatchSize<OpType::MIXED>(batch_size);
+    AssignBatchSize<OpType::GPU>(batch_size);
+  }
+
+  template <OpType op_type>
+  void AssignBatchSize(int batch_size) {
+    auto wsc = WorkspacePolicy::template GetWorkspacesCollection<op_type>();
+    for (int i = 0; i < wsc.size(); i++) {
+      for (int j = 0; j < wsc[i].size(); j++) {
+        wsc[i][j].SetBatchSize(batch_size);
+      }
+    }
+  }
+
+  void RegisterBatchSizeObserver() {
+    for (int i = 0; i < graph_->NumOp(); i++) {
+      auto op_ptr = dynamic_cast<InputProvider *>(graph_->Node(i).op.get());
+      if (op_ptr) {
+        op_ptr->Register([this](int batch_size) { AssignBatchSize(batch_size); });
+      }
+    }
+  }
+
   template <typename InputRef>
   static bool SetDefaultLayoutIfNeeded(InputRef &in, const OpSchema &schema, int in_idx) {
-    if (!in.GetLayout().empty())
-      return false;
+    if (!in.GetLayout().empty()) return false;
     auto default_layout = schema.GetInputLayout(in_idx, in.shape().sample_dim(), in.GetLayout());
-    if (default_layout.empty())
-      return false;
+    if (default_layout.empty()) return false;
     in.SetLayout(default_layout);
     return true;
   }
@@ -484,6 +511,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
 
   // Producer-consumer queues info
   SetupOutputQueuesForGraph();
+
+  RegisterBatchSizeObserver();
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
