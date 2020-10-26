@@ -349,7 +349,7 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
     if _is_numpy_array(value):
         import numpy as np
 
-        # 64-bit types are not supported - downgrade the input
+        # 64-bit types require explicit dtype
         if value.dtype == np.float64:
             value = value.astype(np.float32)
         if value.dtype == np.int64:
@@ -423,6 +423,13 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
                       shape = shape, dtype = dtype, layout = layout,
                       **constructor_args)
     return op(**call_args)
+
+def _is_scalar_value(value):
+    if value is None:
+        return True
+    if isinstance(value, (bool, int, float)):
+        return True
+    return not _is_compatible_array_type(value) or _is_scalar_shape(value.shape)
 
 def Constant(value, dtype = None, shape = None, layout = None, device = None, **kwargs):
     """Wraps a constant value which can then be used in
