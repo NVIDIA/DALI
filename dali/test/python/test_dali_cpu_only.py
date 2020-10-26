@@ -668,4 +668,13 @@ def test_reduce_max_cpu():
 def test_reduce_sum_cpu():
     check_single_input(fn.reductions.sum)
 
+def test_arithm_ops_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+    data = fn.external_source(source = get_data, layout = "HWC")
+    processed = [data * 2, data + 2, data - 2, data / 2, data // 2]
+    pipe.set_outputs(*processed)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
 # ToDo add tests for DLTensorPythonFunction if easily possible
