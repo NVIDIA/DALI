@@ -66,6 +66,8 @@ class ConstantStorage {
         real_nodes.push_back(node);
       }
     }
+    integers_.set_pinned(false);
+    reals_.set_pinned(false);
     Rewrite(integers_, integers_vec, integer_nodes, stream);
     Rewrite(reals_, reals_vec, real_nodes, stream);
   }
