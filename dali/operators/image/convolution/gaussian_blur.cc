@@ -122,7 +122,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
   static constexpr int ndim = Kernel::ndim;
 
   explicit GaussianBlurOpCpu(const OpSpec& spec, const DimDesc& dim_desc)
-      : spec_(spec), batch_size_(spec.GetArgument<int>("batch_size")), dim_desc_(dim_desc) {}
+      : spec_(spec), dim_desc_(dim_desc) {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template InputRef<CPUBackend>(0);
@@ -189,7 +189,6 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
 
  private:
   OpSpec spec_;
-  int batch_size_ = 0;
   DimDesc dim_desc_;
 
   kernels::KernelManager kmgr_;

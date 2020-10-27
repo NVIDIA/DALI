@@ -46,7 +46,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
     use_fast_idct_(spec.GetArgument<bool>("use_fast_idct")),
-    decode_params_(batch_size_),
+    decode_params_(max_batch_size_),
     use_chunk_allocator_(spec.GetArgument<bool>("use_chunk_allocator")) {
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
 
@@ -59,7 +59,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     NVJPEG_CALL(nvjpegDecoderCreate(handle_, NVJPEG_BACKEND_HYBRID, &decoder_host_));
     NVJPEG_CALL(nvjpegDecoderCreate(handle_, NVJPEG_BACKEND_GPU_HYBRID, &decoder_hybrid_));
 
-    for (int i = 0; i < batch_size_; i++) {
+    for (int i = 0; i < max_batch_size_; i++) {
       NVJPEG_CALL(nvjpegDecodeParamsCreate(handle_, &decode_params_[i]));
       NVJPEG_CALL(nvjpegDecodeParamsSetOutputFormat(decode_params_[i],
                                                     GetFormat(output_image_type_)));
@@ -67,7 +67,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     }
 
     if (use_chunk_allocator_) {
-      int nbuffers = spec.GetArgument<int>("cpu_prefetch_queue_depth") * batch_size_;
+      int nbuffers = spec.GetArgument<int>("cpu_prefetch_queue_depth") * max_batch_size_;
       PinnedAllocator::PreallocateBuffers(host_memory_padding, nbuffers);
       pinned_allocator_.pinned_malloc = &PinnedAllocator::Alloc;
       pinned_allocator_.pinned_free = &PinnedAllocator::Free;
@@ -78,7 +78,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     try {
       NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
       NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
-      for (int i = 0; i < batch_size_; i++) {
+      for (int i = 0; i < max_batch_size_; i++) {
         NVJPEG_CALL(nvjpegDecodeParamsDestroy(decode_params_[i]));
       }
       NVJPEG_CALL(nvjpegDestroy(handle_));

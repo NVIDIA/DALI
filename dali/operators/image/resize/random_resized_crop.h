@@ -35,11 +35,8 @@ class RandomResizedCrop : public Operator<Backend>
                         , protected ResizeBase<Backend> {
  public:
   explicit inline RandomResizedCrop(const OpSpec &spec)
-      : Operator<Backend>(spec)
-      , ResizeBase<Backend>(spec)
-      , crop_attr_(spec) {
+      : Operator<Backend>(spec), ResizeBase<Backend>(spec), crop_attr_(spec) {
     GetSingleOrRepeatedArg(spec, size_, "size", 2);
-    InitParams(spec);
     BackendInit();
   }
 
@@ -54,6 +51,8 @@ class RandomResizedCrop : public Operator<Backend>
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+    InitParams(curr_batch_size);
     auto &input = ws.template InputRef<Backend>(0);
     const auto &in_shape = input.shape();
     DALIDataType in_type = input.type().id();
@@ -105,13 +104,13 @@ class RandomResizedCrop : public Operator<Backend>
     auto &wnd = crops_[index];
     auto params = shared_params_;
     for (int d = 0; d < 2; d++) {
-      params[d].roi = kernels::ResamplingParams::ROI(wnd.anchor[d], wnd.anchor[d]+wnd.shape[d]);
+      params[d].roi = kernels::ResamplingParams::ROI(wnd.anchor[d], wnd.anchor[d] + wnd.shape[d]);
     }
     return params;
   }
 
-  void InitParams(const OpSpec &spec) {
-    crops_.resize(batch_size_);
+  void InitParams(int curr_batch_size) {
+    crops_.resize(curr_batch_size);
     shared_params_[0].output_size = size_[0];
     shared_params_[1].output_size = size_[1];
   }

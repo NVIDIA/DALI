@@ -42,14 +42,11 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
  public:
   using EraseKernel = kernels::EraseGpu<T, Dims, channel_dim>;
 
-  explicit EraseImplGpu(const OpSpec &spec)
-  : spec_(spec)
-  , batch_size_(spec.GetArgument<int>("batch_size")) {
-      kmgr_.Resize<EraseKernel>(1, 1);
+  explicit EraseImplGpu(const OpSpec &spec) : spec_(spec) {
+    kmgr_.Resize<EraseKernel>(1, 1);
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<GPUBackend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override {
     const auto &input = ws.template InputRef<GPUBackend>(0);
     auto layout = input.GetLayout();
     auto type = input.type();
@@ -79,10 +76,11 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
 
   void AcquireArgs(const DeviceWorkspace &ws, TensorListShape<> in_shape,
                    TensorLayout in_layout) {
+    auto curr_batch_size = ws.GetInputBatchSize(0);
     fill_values_ = spec_.template GetRepeatedArgument<float>("fill_value");
     auto args = detail::GetEraseArgs<T, Dims>(spec_, ws, in_shape, in_layout);
-    auto regions_shape = TensorListShape<1>(batch_size_);
-    for (int i = 0; i < batch_size_; ++i) {
+    auto regions_shape = TensorListShape<1>(curr_batch_size);
+    for (int i = 0; i < curr_batch_size; ++i) {
       auto n_regions = static_cast<int>(args[i].rois.size());
       regions_shape.set_tensor_shape(i, {n_regions});
     }
@@ -90,7 +88,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
     regions_cpu.set_type(TypeInfo::Create<kernels::ibox<Dims>>());
     regions_cpu.Resize(regions_shape);
     auto regions_tlv = view<kernels::ibox<Dims>, 1>(regions_cpu);
-    for (int i = 0; i < batch_size_; ++i) {
+    for (int i = 0; i < curr_batch_size; ++i) {
       auto regions_tv = regions_tlv[i];
       for (int j = 0; j < regions_tv.shape[0]; ++j) {
         auto box = detail::make_box(args[i].rois[j].anchor, args[i].rois[j].shape);
@@ -102,7 +100,6 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
 
  private:
   const OpSpec &spec_;
-  int batch_size_ = 0;
   std::vector<int> axes_;
   std::vector<kernels::EraseArgs<T, Dims>> args_;
   TensorList<GPUBackend> regions_gpu_;

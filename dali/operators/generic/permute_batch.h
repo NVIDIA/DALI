@@ -29,13 +29,14 @@ class PermuteBatchBase : public Operator<Backend> {
   }
 
   bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override {
+    auto curr_batch_size = ws.GetInputBatchSize(0);
     outputs.resize(1);
     auto &input = ws.template InputRef<Backend>(0);
     const auto &in_shape = input.shape();
     outputs[0].type = input.type();
 
     if (has_indices_input_) {
-      GetPerSampleArgument<int>(indices_, "indices", this->spec_, ws);
+      GetPerSampleArgument<int>(indices_, "indices", this->spec_, ws, curr_batch_size);
     } else {
       this->spec_.TryGetRepeatedArgument(indices_, "indices");
     }
@@ -81,7 +82,7 @@ class PermuteBatch<GPUBackend> : public PermuteBatchBase<GPUBackend> {
  public:
   explicit PermuteBatch(const OpSpec &spec)
   : PermuteBatchBase<GPUBackend>(spec)
-  , sg_(1<<18, spec.GetArgument<int>("batch_size")) {}
+  , sg_(1<<18, spec.GetArgument<int>("max_batch_size")) {}
 
 
   void RunImpl(DeviceWorkspace &ws) override;

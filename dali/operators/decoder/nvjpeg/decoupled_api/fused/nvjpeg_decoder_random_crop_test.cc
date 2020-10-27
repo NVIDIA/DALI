@@ -25,7 +25,7 @@ class ImageDecoderRandomCropTest_GPU : public DecodeTestBase<ImgType> {
   ImageDecoderRandomCropTest_GPU()
     : random_crop_attr(
       OpSpec("RandomCropAttr")
-        .AddArg("batch_size", this->batch_size_)
+        .AddArg("max_batch_size", this->batch_size_)
         .AddArg("seed", kSeed)) {}
 
  protected:

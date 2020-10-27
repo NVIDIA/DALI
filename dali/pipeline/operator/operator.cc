@@ -16,6 +16,18 @@
 
 namespace dali {
 
+template <typename Backend>
+void OperatorBase::EnforceConstantBatchSize(const workspace_t<Backend> &ws) const {
+  for (int i = 0; i < ws.NumInput(); i++) {
+    DALI_ENFORCE(ws.GetInputBatchSize(i) == max_batch_size_,
+                 "Batch size has to be constant throughout the processing");
+  }
+}
+
+template void OperatorBase::EnforceConstantBatchSize<CPUBackend>(const workspace_t<CPUBackend>&w) const;  // NOLINT
+template void OperatorBase::EnforceConstantBatchSize<GPUBackend>(const workspace_t<GPUBackend>&w) const;  // NOLINT
+template void OperatorBase::EnforceConstantBatchSize<MixedBackend>(const workspace_t<MixedBackend>&w) const;  // NOLINT
+
 DALI_DEFINE_OPTYPE_REGISTRY(CPUOperator, OperatorBase);
 DALI_DEFINE_OPTYPE_REGISTRY(GPUOperator, OperatorBase);
 DALI_DEFINE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);

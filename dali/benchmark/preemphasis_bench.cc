@@ -25,7 +25,7 @@ BENCHMARK_DEFINE_F(OperatorBench, PreemphasisGPU)(benchmark::State& st) {
   this->RunGPU<uint8_t>(
     st,
     OpSpec("PreemphasisFilter")
-      .AddArg("batch_size", batch_size)
+      .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", 1)
       .AddArg("device", "gpu"),
     batch_size, TensorShape<1>{N, }, "t");

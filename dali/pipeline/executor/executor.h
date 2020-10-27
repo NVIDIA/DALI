@@ -97,11 +97,11 @@ class DLL_PUBLIC ExecutorBase {
 template <typename WorkspacePolicy, typename QueuePolicy>
 class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public QueuePolicy {
  public:
-  DLL_PUBLIC inline Executor(int batch_size, int num_thread, int device_id,
+  DLL_PUBLIC inline Executor(int max_batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
                              int max_num_stream = -1, int default_cuda_stream_priority = 0,
                              QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
-      : batch_size_(batch_size),
+      : max_batch_size_(max_batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
         callback_(nullptr),
@@ -113,7 +113,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
         mixed_op_stream_(0),
         gpu_op_stream_(0),
         enable_memory_stats_(false) {
-    DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
+    DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0.");
 
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
   }
@@ -273,7 +273,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
     vector<cudaEvent_t> events_;
   };
 
-  int batch_size_, device_id_;
+  int max_batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
   cudaEvent_t mixed_stage_event_ = {};
   cudaEvent_t gpu_stage_event_ = {};
@@ -365,9 +365,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
       } else {
         had_empty_layout = SetDefaultLayoutIfNeeded(ws.template InputRef<GPUBackend>(i), schema, i);
       }
-      if (had_empty_layout)
-        empty_layout_in_idxs.push_back(i);
+      if (had_empty_layout) empty_layout_in_idxs.push_back(i);
     }
+
+    ws.set_batch_size(
+        max_batch_size_);  // TODO(mszolucha) change, when BS in inferred from the pipeline
 
     if (op.Setup(output_desc, ws)) {
       DALI_ENFORCE(
@@ -454,7 +456,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   auto queue_sizes = GetTensorQueueSizes(*graph_);
 
   // Create corresponding storage type for TensorNodes in graph
-  tensor_to_store_queue_ = CreateBackingStorageForTensorNodes(*graph_, batch_size_, queue_sizes);
+  tensor_to_store_queue_ =
+      CreateBackingStorageForTensorNodes(*graph_, max_batch_size_, queue_sizes);
   // Setup stream and events that will be used for execution
   if (device_id_ != CPU_ONLY_DEVICE_ID) {
     DeviceGuard g(device_id_);
@@ -891,7 +894,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
           auto& queue = get_queue<op_type_static, dev_static>(tensor_to_store_queue[tensor.id]);
           for (auto storage : queue) {
             if (should_reserve(storage, hint, dev_static)) {
-              reserve_batch(storage, *node.op, hint, batch_size_);
+              reserve_batch(storage, *node.op, hint, max_batch_size_);
             }
             if (node.op->CanInferOutputs()) {
               storage->SetContiguous(true);

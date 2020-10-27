@@ -74,8 +74,9 @@ void SequenceRearrange<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();
   auto out_shape = output.shape();
+  auto curr_batch_size = ws.GetInputBatchSize(0);
 
-  for (int sample_idx = 0; sample_idx < batch_size_; ++sample_idx) {
+  for (int sample_idx = 0; sample_idx < curr_batch_size; ++sample_idx) {
     thread_pool.AddWork([this, &ws, &input, &output, sample_idx](int tid) {
       TypeInfo type = input.type();
       const auto *in_sample = reinterpret_cast<const char *>(input[sample_idx].raw_data());

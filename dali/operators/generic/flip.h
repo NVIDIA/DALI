@@ -58,23 +58,26 @@ class Flip: public Operator<Backend> {
     return this->spec_.template GetArgument<int>("depthwise", &ws, idx);
   }
 
-  std::vector<int> GetHorizontal(const ArgumentWorkspace &ws) {
+  std::vector<int> GetHorizontal(const workspace_t<Backend> &ws, int curr_batch_size) {
     std::vector<int> result;
-    OperatorBase::GetPerSampleArgument(result, "horizontal", ws);
+    OperatorBase::GetPerSampleArgument(result, "horizontal", ws, curr_batch_size);
     return result;
   }
 
-  std::vector<int> GetVertical(const ArgumentWorkspace &ws) {
+  std::vector<int> GetVertical(const workspace_t<Backend> &ws, int curr_batch_size) {
     std::vector<int> result;
-    OperatorBase::GetPerSampleArgument(result, "vertical", ws);
+    OperatorBase::GetPerSampleArgument(result, "vertical", ws, curr_batch_size);
     return result;
   }
 
-  std::vector<int> GetDepthwise(const ArgumentWorkspace &ws) {
+  std::vector<int> GetDepthwise(const workspace_t<Backend> &ws, int curr_batch_size) {
     std::vector<int> result;
-    OperatorBase::GetPerSampleArgument(result, "depthwise", ws);
+    OperatorBase::GetPerSampleArgument(result, "depthwise", ws, curr_batch_size);
     return result;
   }
+
+ private:
+  USE_OPERATOR_MEMBERS();
 };
 
 }  // namespace dali

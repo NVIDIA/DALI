@@ -112,11 +112,24 @@ def check_batch(
         batch1 = batch1.as_cpu()
     if isinstance(batch2, dali.backend_impl.TensorListGPU):
         batch2 = batch2.as_cpu()
+
+    def _verify_batch_size(batch):
+        if isinstance(batch, dali.backend.TensorListCPU):
+            tested_batch_size = len(batch)
+        else:
+            tested_batch_size = batch.shape[0]
+        assert tested_batch_size == batch_size, \
+            "Incorrect batch size. Expected: {}, actual: {}".format(batch_size, tested_batch_size)
+
+    _verify_batch_size(batch1)
+    _verify_batch_size(batch2)
+
     # Check layouts where possible
     for batch in [batch1, batch2]:
         if expected_layout is not None and isinstance(batch, dali.backend.TensorListCPU):
             assert batch.layout() == expected_layout, \
-                'Unexpected layout, expected "{}", got "{}".'.format(expected_layout, batch.layout())
+                'Unexpected layout, expected "{}", got "{}".'.format(expected_layout,
+                                                                     batch.layout())
 
     if compare_layouts and \
             isinstance(batch1, dali.backend.TensorListCPU) and \
@@ -159,14 +172,13 @@ def check_batch(
                 assert False, error_msg
 
 
-def compare_pipelines(
-        pipe1, pipe2, batch_size, N_iterations, eps=1e-07, max_allowed_error=None,
-        expected_layout=None, compare_layouts=True):
+def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps=1e-07, max_allowed_error=None,
+                      expected_layout=None, compare_layouts=True):
     """Compare the outputs of two pipelines across several iterations.
 
     Args:
-        pipe1: input pipeline object
-        pipe2: input pipeline object
+        pipe1: input pipeline object.
+        pipe2: input pipeline object.
         batch_size (int): batch size
         N_iterations (int): Number of iterations used for comparison
         eps (float, optional): Allowed mean error between samples. Defaults to 1e-07.
@@ -184,8 +196,10 @@ def compare_pipelines(
         out2 = pipe2.run()
         assert len(out1) == len(out2)
         for i in range(len(out1)):
-            out1_data = out1[i].as_cpu() if isinstance(out1[i][0], dali.backend_impl.TensorGPU) else out1[i]
-            out2_data = out2[i].as_cpu() if isinstance(out2[i][0], dali.backend_impl.TensorGPU) else out2[i]
+            out1_data = out1[i].as_cpu() if isinstance(out1[i][0], dali.backend_impl.TensorGPU) \
+                else out1[i]
+            out2_data = out2[i].as_cpu() if isinstance(out2[i][0], dali.backend_impl.TensorGPU) \
+                else out2[i]
             if isinstance(expected_layout, tuple):
                 current_expected_layout = expected_layout[i]
             else:
@@ -193,6 +207,7 @@ def compare_pipelines(
             check_batch(out1_data, out2_data, batch_size, eps, max_allowed_error,
                         expected_layout=current_expected_layout, compare_layouts=compare_layouts)
     print("OK: ({} iterations)".format(N_iterations))
+
 
 class RandomDataIterator(object):
     def __init__(self, batch_size, shape=(10, 600, 800, 3), dtype=None):

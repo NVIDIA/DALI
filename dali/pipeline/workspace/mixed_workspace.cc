@@ -18,15 +18,6 @@
 
 namespace dali {
 
-int MixedWorkspace::NumInputAtIdx(int idx) const {
-  DALI_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
-  auto tensor_meta = input_index_map_[idx];
-  if (tensor_meta.storage_device == StorageDevice::CPU) {
-    return cpu_inputs_[tensor_meta.index]->size();
-  }
-  return gpu_inputs_[tensor_meta.index]->size();
-}
-
 template <>
 const Tensor<CPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
   return InputRef<CPUBackend>(idx)[data_idx];

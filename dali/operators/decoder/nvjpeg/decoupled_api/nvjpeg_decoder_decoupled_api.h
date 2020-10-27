@@ -49,14 +49,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
     use_fast_idct_(spec.GetArgument<bool>("use_fast_idct")),
-    output_shape_(batch_size_, kOutputDim),
+    output_shape_(max_batch_size_, kOutputDim),
     pinned_buffers_(num_threads_*2),
     jpeg_streams_(num_threads_*2),
 #if NVJPEG2K_ENABLED
     nvjpeg2k_intermediate_buffer_(),
     nvjpeg2k_dev_alloc_(nvjpeg_memory::GetDeviceAllocatorNvJpeg2k()),
     nvjpeg2k_pin_alloc_(nvjpeg_memory::GetPinnedAllocatorNvJpeg2k()),
-    nvjpeg2k_streams_(batch_size_),
+    nvjpeg2k_streams_(max_batch_size_),
 #endif  // NVJPEG2K_ENABLED
     device_buffers_(num_threads_),
     streams_(num_threads_),
@@ -78,15 +78,15 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     } else {
       hw_decoder_load_ = 0;
     }
-    hw_decoder_bs_ = static_cast<int>(std::round(hw_decoder_load_ * batch_size_));
+    hw_decoder_bs_ = static_cast<int>(std::round(hw_decoder_load_ * max_batch_size_));
 
     constexpr int kNumHwDecoders = 5;
     int tail = hw_decoder_bs_ % kNumHwDecoders;
     if (tail > 0) {
       hw_decoder_bs_ = hw_decoder_bs_ + kNumHwDecoders - tail;
     }
-    if (hw_decoder_bs_ > batch_size_) {
-      hw_decoder_bs_ = batch_size_;
+    if (hw_decoder_bs_ > max_batch_size_) {
+      hw_decoder_bs_ = max_batch_size_;
     }
 
     if (hw_decoder_bs_ > 0 &&
@@ -94,9 +94,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
       NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
       using_hw_decoder_ = true;
-      in_data_.reserve(batch_size_);
-      in_lengths_.reserve(batch_size_);
-      nvjpeg_destinations_.reserve(batch_size_);
+      in_data_.reserve(max_batch_size_);
+      in_lengths_.reserve(max_batch_size_);
+      nvjpeg_destinations_.reserve(max_batch_size_);
     } else {
       LOG_LINE << "NVJPEG_BACKEND_HARDWARE is either disabled or not supported" << std::endl;
       NVJPEG_CALL(nvjpegCreateSimple(&handle_));
@@ -389,7 +389,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     if (sort_method != SORT_METHOD_NO_SORTING)
       std::sort(samples_hw_batched_.begin(), samples_hw_batched_.end(), sample_order);
 
-    assert(hw_decoder_bs_ >= 0 && hw_decoder_bs_ <= batch_size_);
+    assert(hw_decoder_bs_ >= 0 && hw_decoder_bs_ <= max_batch_size_);
 
     // If necessary trim HW batch size and push the remaining samples to the single API batch
     while (samples_hw_batched_.size() > static_cast<size_t>(hw_decoder_bs_)) {
@@ -447,16 +447,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   void ParseImagesInfo(MixedWorkspace &ws) {
     // Parsing and preparing metadata
     if (sample_data_.empty()) {
-      sample_data_.reserve(batch_size_);
-      for (int i = 0; i < batch_size_; i++) {
+      sample_data_.reserve(max_batch_size_);
+      for (int i = 0; i < max_batch_size_; i++) {
         sample_data_.emplace_back(i, handle_, output_image_type_);
       }
-      samples_cache_.reserve(batch_size_);
-      samples_host_.reserve(batch_size_);
-      samples_hw_batched_.reserve(batch_size_);
-      samples_single_.reserve(batch_size_);
+      samples_cache_.reserve(max_batch_size_);
+      samples_host_.reserve(max_batch_size_);
+      samples_hw_batched_.reserve(max_batch_size_);
+      samples_single_.reserve(max_batch_size_);
 #if NVJPEG2K_ENABLED
-      samples_jpeg2k_.reserve(batch_size_);
+      samples_jpeg2k_.reserve(max_batch_size_);
 #endif  // NVJPEG2K_ENABLED
     }
     samples_cache_.clear();
@@ -467,7 +467,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     samples_jpeg2k_.clear();
 #endif  // NVJPEG2K_ENABLED
 
-    for (int i = 0; i < batch_size_; i++) {
+    for (int i = 0; i < max_batch_size_; i++) {
       const auto &in = ws.Input<CPUBackend>(0, i);
       const auto* input_data = in.data<uint8_t>();
       const auto in_size = in.size();

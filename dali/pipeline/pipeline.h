@@ -65,7 +65,7 @@ class DLL_PUBLIC Pipeline {
    * to the true amount of memory that will be needed by the largest image to
    * be processed.
    *
-   * @param batch_size the size of the batch that should be produced.
+   * @param max_batch_size the maximum size of the batch that can be produced.
    * @param num_threads the number of threads to use in the prefetch stage.
    * @param device_id id of the GPU to operate on.
    * @param seed used for random number generation. Leaving the default value
@@ -84,18 +84,18 @@ class DLL_PUBLIC Pipeline {
    * @param default_cuda_stream_priority  CUDA stream priority used by DALI.
    * See `cudaStreamCreateWithPriority` in CUDA documentation
    */
-  DLL_PUBLIC inline Pipeline(int batch_size, int num_threads, int device_id, int64_t seed = -1,
+  DLL_PUBLIC inline Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed = -1,
                              bool pipelined_execution = true, int prefetch_queue_depth = 2,
                              bool async_execution = true, size_t bytes_per_sample_hint = 0,
                              bool set_affinity = false, int max_num_stream = -1,
                              int default_cuda_stream_priority = 0)
       : built_(false), separated_execution_{false} {
-    Init(batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
+    Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
          async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
          default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
   }
 
-  DLL_PUBLIC Pipeline(const string &serialized_pipe, int batch_size = -1, int num_threads = -1,
+  DLL_PUBLIC Pipeline(const string &serialized_pipe, int max_batch_size = -1, int num_threads = -1,
                       int device_id = -1, bool pipelined_execution = true,
                       int prefetch_queue_depth = 2, bool async_execution = true,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
@@ -394,10 +394,13 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void SaveGraphToDotFile(const std::string &filename, bool show_tensors = false,
                                      bool show_ids = false, bool use_colors = false);
 
+  /// @{
   /**
-   * @brief Returns the batch size that will be produced by the pipeline.
+   * @brief Returns the maximum batch size that can be processed by the Pipeline
    */
-  DLL_PUBLIC inline int batch_size() const { return batch_size_; }
+  DLL_PUBLIC inline int batch_size() const { return max_batch_size_; }
+  DLL_PUBLIC inline int max_batch_size() const { return max_batch_size_; }
+  /// @}
 
   /**
    * @brief Returns the map of (node name, reader meta) for all nodes that return a valid meta
@@ -495,7 +498,7 @@ class DLL_PUBLIC Pipeline {
   const int MAX_SEEDS = 1024;
 
   bool built_;
-  int batch_size_, num_threads_, device_id_;
+  int max_batch_size_, num_threads_, device_id_;
   bool pipelined_execution_;
   bool separated_execution_;
   bool async_execution_;

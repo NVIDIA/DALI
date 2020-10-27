@@ -34,10 +34,9 @@ namespace dali {
 class SliceAttr {
  public:
   explicit inline SliceAttr(const OpSpec &spec)
-      : batch_size__(spec.GetArgument<int>("batch_size"))
-      , normalized_anchor_(spec.GetArgument<bool>("normalized_anchor"))
-      , normalized_shape_(spec.GetArgument<bool>("normalized_shape"))
-      , crop_window_generators_(batch_size__) {
+      : normalized_anchor_(spec.GetArgument<bool>("normalized_anchor")),
+        normalized_shape_(spec.GetArgument<bool>("normalized_shape")),
+        crop_window_generators_(spec.GetArgument<int>("max_batch_size")) {
     const bool has_axes_arg = spec.HasArgument("axes");
     const bool has_axis_names_arg = spec.HasArgument("axis_names");
     // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
@@ -56,6 +55,7 @@ class SliceAttr {
     DALI_ENFORCE(ws.NumInput() == 3,
       "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
     // slice args are CPU inputs
+    auto curr_batch_size = ws.GetInputBatchSize(0);
     const auto &crop_anchor = ws.template InputRef<CPUBackend>(1);
     const auto &crop_shape = ws.template InputRef<CPUBackend>(2);
     DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
@@ -65,7 +65,7 @@ class SliceAttr {
     TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
       auto anchor_view = view<const ArgsType>(crop_anchor);
       auto shape_view = view<const ArgsType>(crop_shape);
-      for (size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
+      for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
         VerifyArgsShape(anchor_view.tensor_shape(data_idx), shape_view.tensor_shape(data_idx));
         ProcessArgumentsHelper(data_idx,
                                anchor_view.tensor_data(data_idx),
@@ -161,7 +161,6 @@ class SliceAttr {
   }
 
  private:
-  size_t batch_size__;
   bool normalized_anchor_, normalized_shape_;
   std::vector<CropWindowGenerator> crop_window_generators_;
   std::vector<int> axes_;

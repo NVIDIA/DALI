@@ -64,6 +64,7 @@ DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrastCpu, CPU)
 
 bool BrightnessContrastCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
+  KMgrResize(num_threads_, max_batch_size_);
   const auto &input = ws.template InputRef<CPUBackend>(0);
   const auto &output = ws.template OutputRef<CPUBackend>(0);
   output_desc.resize(1);

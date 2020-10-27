@@ -84,9 +84,9 @@ class DataReader : public Operator<Backend> {
     DomainTimeRange tr("[DALI][DataReader] Prefetch #" + to_string(curr_batch_producer_),
                        DomainTimeRange::kRed);
     auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
-    curr_batch.reserve(Operator<Backend>::batch_size_);
+    curr_batch.reserve(max_batch_size_);
     curr_batch.clear();
-    for (int i = 0; i < Operator<Backend>::batch_size_; ++i) {
+    for (int i = 0; i < max_batch_size_; ++i) {
       curr_batch.push_back(loader_->ReadOne(i == 0));
     }
   }
@@ -182,7 +182,7 @@ class DataReader : public Operator<Backend> {
     // Consume batch
     Operator<Backend>::Run(ws);
     CUDA_CALL(cudaStreamSynchronize(ws.stream()));
-    for (int sample_idx = 0; sample_idx < Operator<Backend>::batch_size_; sample_idx++) {
+    for (int sample_idx = 0; sample_idx < max_batch_size_; sample_idx++) {
       auto sample = MoveSample(sample_idx);
     }
 
@@ -308,14 +308,14 @@ class DataReader : public Operator<Backend> {
   }
 
   bool IsPrefetchQueueEmpty() {
-    return curr_batch_producer_ == curr_batch_consumer_
-           && consumer_cycle_ == producer_cycle_;
+    return curr_batch_producer_ == curr_batch_consumer_ && consumer_cycle_ == producer_cycle_;
   }
 
   bool IsPrefetchQueueFull() {
-    return curr_batch_producer_ == curr_batch_consumer_
-           && consumer_cycle_ != producer_cycle_;
+    return curr_batch_producer_ == curr_batch_consumer_ && consumer_cycle_ != producer_cycle_;
   }
+
+  USE_OPERATOR_MEMBERS();
 
   std::thread prefetch_thread_;
 

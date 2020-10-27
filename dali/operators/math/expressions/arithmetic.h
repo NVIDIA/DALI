@@ -313,6 +313,10 @@ class ArithmeticGenericOp : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
+    for (int i = 1; i < ws.NumInput(); i++) {
+      assert(ws.GetRequestedBatchSize(i) == ws.GetRequestedBatchSize(0));
+    }
+    auto curr_batch_size = ws.GetRequestedBatchSize(0);
 
     if (!types_layout_inferred_) {
       result_type_id_ = PropagateTypes<Backend>(*expr_, ws);
@@ -324,7 +328,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
       types_layout_inferred_ = true;
     }
 
-    result_shape_ = PropagateShapes<Backend>(*expr_, ws, batch_size_);
+    result_shape_ = PropagateShapes<Backend>(*expr_, ws, curr_batch_size);
     AllocateIntermediateNodes();
     exec_order_ = CreateExecutionTasks<Backend>(*expr_, cache_, ws.has_stream() ? ws.stream() : 0);
 

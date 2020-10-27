@@ -76,6 +76,7 @@ def _wrap_op_fn(op_class, wrapper_name):
         return op_class(**init_args)(*inputs, **call_args)
 
     op_wrapper.__name__ = wrapper_name
+    op_wrapper.__qualname__ = wrapper_name
     op_wrapper.__doc__ = "see :class:`{0}.{1}`".format(op_class.__module__, op_class.__name__)
     return op_wrapper
 

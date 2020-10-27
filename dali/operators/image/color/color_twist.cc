@@ -176,6 +176,7 @@ DALI_REGISTER_OPERATOR(Saturation, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistCpu, CPU);
 
 bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
+  KMgrResize(num_threads_, max_batch_size_);
   const auto &input = ws.template InputRef<CPUBackend>(0);
   output_desc.resize(1);
   DetermineTransformation(ws);
