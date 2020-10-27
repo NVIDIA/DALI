@@ -43,7 +43,7 @@ namespace dct {
  *
  * @see DCTArgs
  */
-template <typename OutputType = float,  typename InputType = float>
+template <typename OutputType = float,  typename InputType = OutputType>
 class DLL_PUBLIC Dct1DGpu {
  public:
   struct SampleDesc {

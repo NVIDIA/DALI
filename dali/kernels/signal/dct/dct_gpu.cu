@@ -78,7 +78,8 @@ KernelRequirements Dct1DGpu<OutputType, InputType>::Setup(KernelContext &ctx,
   for (int s = 0; s < args.size(); ++s) {
     args_.push_back(args[s]);
     auto &arg = args_.back();
-    int64_t n = in.shape[s][axis_];
+    auto in_shape = in.tensor_shape_span(s);
+    int64_t n = in_shape[axis_];
 
     if (arg.dct_type == 1) {
       DALI_ENFORCE(n > 1, "DCT type I requires an input length > 1");
@@ -98,7 +99,6 @@ KernelRequirements Dct1DGpu<OutputType, InputType>::Setup(KernelContext &ctx,
         max_cos_table_size_ = n * arg.ndct;
       }
     }
-    auto in_shape = in.tensor_shape_span(s);
     reduced_shape.set_tensor_shape(s, reduce_shape(in_shape, axis_, arg.ndct));
     auto sample_shape = in.shape[s];
     sample_shape[axis_] = arg.ndct;
@@ -118,9 +118,9 @@ KernelRequirements Dct1DGpu<OutputType, InputType>::Setup(KernelContext &ctx,
 
 template <typename OutputType, typename InputType>
 DLL_PUBLIC void Dct1DGpu<OutputType, InputType>::Run(KernelContext &ctx,
-                                                          const OutListGPU<OutputType> &out,
-                                                          const InListGPU<InputType> &in,
-                                                          span<const DctArgs>, int) {
+                                                     const OutListGPU<OutputType> &out,
+                                                     const InListGPU<InputType> &in,
+                                                     span<const DctArgs>, int) {
   OutputType *cpu_cos_table[2];
   cpu_cos_table[0] =
     ctx.scratchpad->Allocate<OutputType>(AllocType::Pinned, max_cos_table_size_);
@@ -150,7 +150,7 @@ DLL_PUBLIC void Dct1DGpu<OutputType, InputType>::Run(KernelContext &ctx,
     auto out_shape = reduce_shape(out.tensor_shape_span(s), axis_);
     ivec3 out_stride = GetStrides(ivec3{out_shape[0], out_shape[1], out_shape[2]});
     ivec3 in_stride = GetStrides(ivec3{in_shape[0], in_shape[1], in_shape[2]});;
-    int n = in.tensor_shape_span(s)[axis_];
+    int n = in_shape[1];
     auto *cos_table = cos_tables_[{n, arg}];
     sample_descs_.push_back(SampleDesc{out.tensor_data(s), in.tensor_data(s),
                                        cos_table, in_stride, out_stride, n});

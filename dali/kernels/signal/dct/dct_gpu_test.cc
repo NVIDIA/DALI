@@ -50,7 +50,7 @@ class Dct1DGpuTest : public ::testing::TestWithParam<
 
  protected:
   void PrepareInput() {
-    std::mt19937_64 rng{1223};
+    std::mt19937_64 rng{12345};
     std::uniform_int_distribution<> dim_dist(1, 3);
     auto rand_shape = [&]() {
       TensorShape<> shape;
@@ -97,7 +97,7 @@ class Dct1DGpuTest : public ::testing::TestWithParam<
 
 
 TEST_P(Dct1DGpuTest, DctTest) {
-  using Kernel = Dct1DGpu<float, float>;
+  using Kernel = Dct1DGpu<float>;
   KernelContext ctx;
   ctx.gpu.stream = 0;
   KernelManager kmgr;
@@ -151,7 +151,7 @@ TEST_P(Dct1DGpuTest, DctTest) {
           ReferenceDct(args.dct_type, make_span(ref), make_cspan(in_buf), args.normalize);
           LOG_LINE << "DCT (type " << args.dct_type << "):";
           for (int k = 0; k < ndct; k++) {
-            EXPECT_NEAR(ref[k], out[out_idx], 1e-3);
+            EXPECT_NEAR(ref[k], out[out_idx], 1e-5);
             out_idx += inner_stride;
           }
           LOG_LINE << "\n";

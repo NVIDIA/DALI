@@ -141,7 +141,7 @@ TEST_P(Dct1DCpuTest, DctTest) {
     LOG_LINE << "DCT (type " << dct_type_ << "):";
     for (int k = 0; k < ndct_; k++) {
       LOG_LINE << " " << ref[k];
-      EXPECT_NEAR(ref[k], out_data[out_idx], 1e-3);
+      EXPECT_NEAR(ref[k], out_data[out_idx], 1e-4);
       out_idx += out_stride;
     }
     LOG_LINE << "\n";
