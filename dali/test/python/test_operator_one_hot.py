@@ -11,13 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from functools import partial
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from test_utils import check_batch
 
+from nose.tools import raises
+
 import numpy as np
+
 
 num_classes = 20
 batch_size = 10
@@ -26,18 +30,51 @@ batch_size = 10
 def insert_as_axis(target, value, axis, total_axes):
     return target[0:axis] + (value,) + target[axis:total_axes]
 
+
+def get_initial_layout(sample_dim=0, base="ABCD"):
+    return base[0:sample_dim]
+
+
+def modify_layout(layout, output_dim, axis=None, axis_name=None):
+    if not axis_name or (not layout and output_dim > 1):
+        return ""
+    if output_dim == 1:
+        return axis_name
+    layout = layout or ""
+    if axis < 0:
+        axis = len(layout)
+    return layout[:axis] + axis_name + layout[axis:]
+
+
+def random_3d_tensors_batch():
+    return [
+        np.random.randint(0, num_classes, size=np.random.randint(2, 8, size=(3,)), dtype=np.int32)
+        for _ in range(batch_size)
+    ]
+
+
+def random_scalars_batch():
+    return np.random.randint(0, num_classes, size=batch_size, dtype=np.int32)
+
+
+def random_scalar_like_tensors_batch(nested_level):
+    return [
+        np.array([np.random.randint(0, num_classes)], dtype=np.int32).reshape((1, ) * nested_level)
+        for x in range(batch_size)
+    ]
+
+
 class OneHotPipeline(Pipeline):
-    def __init__(self, num_classes, input, axis=-1, num_threads=1):
-        super(OneHotPipeline, self).__init__(batch_size,
-                                             num_threads,
-                                             0)
-        sample_dim = len(input[0].shape)
-        self.ext_src = ops.ExternalSource(source=[input], cycle=True, layout="ABCD"[0:sample_dim])
-        self.one_hot = ops.OneHot(num_classes=num_classes, axis=axis, dtype=types.INT32, device="cpu")
+    def __init__(self, num_classes, source, axis=-1, num_threads=1, layout=None, axis_name=None):
+        super(OneHotPipeline, self).__init__(batch_size, num_threads, 0)
+        self.ext_src = ops.ExternalSource(source=source, layout=layout)
+        self.one_hot = ops.OneHot(num_classes=num_classes, axis=axis,
+                                  dtype=types.INT32, device="cpu", axis_name=axis_name)
 
     def define_graph(self):
         self.data = self.ext_src()
-        return self.one_hot(self.data)
+        return self.one_hot(self.data), self.data
+
 
 def one_hot_3_axes(input, axis):
     total_axes = len(input[0].shape)
@@ -58,6 +95,7 @@ def one_hot_3_axes(input, axis):
         results.append(result)
     return results
 
+
 def one_hot(input):
     outp = np.zeros([batch_size, num_classes], dtype=np.int32)
     for i in range(batch_size):
@@ -65,38 +103,83 @@ def one_hot(input):
     return outp
 
 
-
-def check_one_hot_operator(premade_batch, axis=-1):
-    pipeline = OneHotPipeline(num_classes=num_classes, input=premade_batch, axis=axis)
+def check_one_hot_operator(source, axis=-1, expected_output_dim=None, axis_name=None, initial_layout=None):
+    pipeline = OneHotPipeline(
+        num_classes=num_classes, source=source, axis=axis,
+        layout=initial_layout, axis_name=axis_name)
     pipeline.build()
-    outputs = pipeline.run()
-    sample_dim = len(premade_batch[0].shape)
-    reference = one_hot_3_axes(premade_batch, axis) if sample_dim == 3 else one_hot(premade_batch)
-    new_layout = None # TODO(klecki): add layout handling
-    check_batch(outputs[0], reference, batch_size, max_allowed_error=0, expected_layout=new_layout)
+    (outputs, input_batch) = pipeline.run()
+    input_batch = list(map(np.array, input_batch))
+    expected_output_dim = expected_output_dim or len(input_batch[0].shape) + 1
+    reference = one_hot_3_axes(
+        input_batch, axis) if expected_output_dim == 4 else one_hot(input_batch)
+    expected_layout = modify_layout(
+        initial_layout, expected_output_dim, axis, axis_name)
+    check_batch(outputs, reference, batch_size,
+                max_allowed_error=0, expected_layout=expected_layout)
 
 
 def test_one_hot_scalar():
     np.random.seed(42)
     for i in range(10):
-        premade_batch = np.random.randint(0, num_classes, size=batch_size, dtype=np.int32)
-        yield check_one_hot_operator, premade_batch
+        yield partial(check_one_hot_operator, random_scalars_batch, axis_name='O')
 
 
 def test_one_hot_legacy():
     np.random.seed(42)
-    for i in range(10):
-        premade_batch = [np.array([np.random.randint(0, num_classes)], dtype=np.int32)
-                         for x in range(batch_size)]
-        yield check_one_hot_operator, premade_batch, None
+    for j in range(1, 5):  # test 1..4 levels of nested 'multi-dimensional' scalars
+        layout = get_initial_layout(j)
+        for i in range(5):
+            def random_scalar_like_tensors(): return random_scalar_like_tensors_batch(j)
+            yield partial(check_one_hot_operator, random_scalar_like_tensors, axis=None,
+                          axis_name='O', expected_output_dim=1, initial_layout=layout)
 
 
-def test_one_hot ():
+def test_one_hot():
     np.random.seed(42)
+    layout = get_initial_layout(3)
     for i in range(10):
         for axis in [-1, 0, 1, 2, 3]:
-            premade_batch = [
-                np.random.randint(
-                    0, num_classes, size=np.random.randint(2, 8, size=(3,)),
-                    dtype=np.int32) for _ in range(batch_size)]
-            yield check_one_hot_operator, premade_batch, axis
+            yield partial(check_one_hot_operator, random_3d_tensors_batch,
+                          axis, axis_name='O', initial_layout=layout)
+
+
+def test_multi_dim_one_hot_no_initial_layout():
+    np.random.seed(42)
+    for axis in [-1, 0, 1, 2, 3]:
+        yield partial(check_one_hot_operator, random_3d_tensors_batch, axis=axis, initial_layout=None)
+
+
+def test_one_hot_reset_layout():
+    np.random.seed(42)
+    layout = get_initial_layout(3)
+    for axis in [-1, 0, 1, 2, 3]:
+        yield partial(check_one_hot_operator, random_3d_tensors_batch, axis=axis, initial_layout=layout)
+    yield partial(check_one_hot_operator, random_scalars_batch)
+    def random_scalar_like_tensors(): return random_scalar_like_tensors_batch(3)
+    yield partial(check_one_hot_operator, random_scalar_like_tensors, axis=None, expected_output_dim=1, initial_layout=layout)
+
+
+def test_one_hot_custom_layout_axis_name():
+    np.random.seed(42)
+    layout = get_initial_layout(3)
+    for axis_name in "Xx01":
+        yield partial(check_one_hot_operator, random_3d_tensors_batch, axis=-1, initial_layout=layout, axis_name=axis_name)
+
+
+@raises(RuntimeError)
+def test_too_long_axis_name():
+    np.random.seed(42)
+    check_one_hot_operator(random_3d_tensors_batch, axis=-1, initial_layout="ABC", axis_name="CD")
+
+
+@raises(RuntimeError)
+def test_empty_string_axis_name():
+    np.random.seed(42)
+    check_one_hot_operator(random_3d_tensors_batch, axis=-1, initial_layout="ABC", axis_name="")
+
+
+@raises(RuntimeError)
+def test_axis_name_no_initial_layout_multi_dim():
+    np.random.seed(42)
+    check_one_hot_operator(random_3d_tensors_batch, axis=-1, axis_name="O")

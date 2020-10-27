@@ -693,6 +693,12 @@ def test_reduce_variance_cpu():
     mean = fn.reductions.mean(data)
     reduced = fn.reductions.variance(data, mean)
     pipe.set_outputs(reduced)
+
+def test_arithm_ops_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+    data = fn.external_source(source = get_data, layout = "HWC")
+    processed = [data * 2, data + 2, data - 2, data / 2, data // 2]
+    pipe.set_outputs(*processed)
     pipe.build()
     for _ in range(3):
         pipe.run()

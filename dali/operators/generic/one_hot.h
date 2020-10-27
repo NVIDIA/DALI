@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_GENERIC_ONE_HOT_H_
 
 #include <vector>
+#include <string>
 
 #include "dali/pipeline/operator/operator.h"
 #include "dali/kernels/kernel_params.h"
@@ -57,7 +58,15 @@ class OneHot : public Operator<CPUBackend> {
         axis_(spec.GetArgument<int>("axis")),
         output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)),
         on_value_(spec.GetArgument<float>("on_value")),
-        off_value_(spec.GetArgument<float>("off_value")) {}
+        off_value_(spec.GetArgument<float>("off_value")) {
+    if (spec.HasArgument("axis_name")) {
+      auto axis_name = spec.GetArgument<std::string>("axis_name");
+      DALI_ENFORCE(axis_name.length() == 1,
+                   make_string("Unsupported axis_name value. It must be a single "
+                               "character, got \"", axis_name, "\" instead."));
+      new_axis_name_ = axis_name[0];
+    }
+  }
 
   inline ~OneHot() override = default;
 
@@ -74,12 +83,15 @@ class OneHot : public Operator<CPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override;
   void RunImpl(HostWorkspace &ws) override;
 
+  TensorLayout GetOutputLayout(const HostWorkspace &ws, int placement_axis,
+                               int output_sample_dim) const;
 
   int num_classes_;
   int axis_;
   const DALIDataType output_type_;
   float on_value_;
   float off_value_;
+  char new_axis_name_ = 0;
 };
 
 }  // namespace dali
