@@ -78,11 +78,6 @@ The value is represented as an absolute value.)code",
   .AddOptionalArg("ratio",
       R"code(If set to True, the returned bbox and masks coordinates are relative to the image size.)code",
       false)
-  .AddOptionalArg<string>("file_list",
-      R"code(Path to the file that contains a list of whitespace separated ``file id`` pairs.
-
-To traverse the file_root directory and obtain files and labels, skip this argument.)code",
-      nullptr)
   .AddOptionalArg("save_img_ids",
       R"code(If set to True, the image IDs are also returned.)code",
       false)
