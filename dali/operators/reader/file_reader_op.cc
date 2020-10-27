@@ -53,13 +53,19 @@ will yield the following outputs::
 
 2. Use file names and labels stored in a text file.
 
-``file_list`` argument points to a file containing a list of entries containing
-file paths and labels.
+``file_list`` argument points to a file which contains one file name and label per line.
+Example::
+
+  dog.jpg 0
+  cute kitten.jpg 1
+  doge.png 0
+
+The file names can contain spaces in the middle, but cannot contain trailing whitespace.
 
 3. Use file names and labels provided as a list of strings and integers, respectively.
 
 As with other readers, the (file, label) pairs returned by this operator can be randomly shuffled
-and various sharding strageies can be applied. See documentation of this operator's arguments
+and various sharding strategies can be applied. See documentation of this operator's arguments
 for details.
 )")
   .NumInput(0)
@@ -71,8 +77,9 @@ If not using ``file_list`` or ``files``, this directory is traversed to discover
 ``file_root`` is required in this mode of operation.)",
       nullptr)
   .AddOptionalArg<string>("file_list",
-      R"(Path to a text file that contains the rows of ``filename label`` pairs,
-where the filenames are relative to the location of that file or to ``file_root``, if specified.
+      R"(Path to a text file that contains one whitespace-separated ``filename label``
+pair per line. The filenames are relative to the location of that file or to ``file_root``,
+if specified.
 
 This argument is mutually exclusive with ``files``.)", nullptr)
 .AddOptionalArg("shuffle_after_epoch",

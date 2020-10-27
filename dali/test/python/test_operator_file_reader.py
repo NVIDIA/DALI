@@ -24,7 +24,7 @@ def setup_module():
 
     g_tmpdir = tempfile.TemporaryDirectory()
     g_root = g_tmpdir.__enter__()
-    g_files = [str(i)+'.dat' for i in range(10)]
+    g_files = [str(i)+' x.dat' for i in range(10)]  # name with a space in the middle!
     populate(g_root, g_files)
 
 def teardown_module():
@@ -32,11 +32,6 @@ def teardown_module():
     global g_files
     global g_tmpdir
 
-    for f in g_files:
-        try:
-            os.remove(os.path.join(g_root, f))
-        except:
-            pass
     g_tmpdir.__exit__(None, None, None)
     g_tmpdir = None
     g_root = None

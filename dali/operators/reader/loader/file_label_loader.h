@@ -71,7 +71,6 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
         "are provided as ``files`` argument.");
 
       if (has_file_list_arg_) {
-        file_list_ = spec.GetArgument<string>("file_list");
         DALI_ENFORCE(!file_list_.empty(), "``file_list`` argument cannot be empty");
         if (!has_file_root_arg_) {
 #ifdef WINVER
@@ -142,12 +141,40 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
         std::ifstream s(file_list_);
         DALI_ENFORCE(s.is_open(), "Cannot open: " + file_list_);
 
-        string image_file;
-        int label;
-        while (s >> image_file >> label) {
-          auto p = std::make_pair(image_file, label);
-          image_label_pairs_.push_back(p);
+        vector<char> line_buf(16 << 10);  // 16 kB should be more than enough for a line
+        char *line = line_buf.data();
+        for  (int n = 1; s.getline(line, line_buf.size()); n++) {
+          // parse the line backwards:
+          // - skip trailing whitespace
+          // - consume digits
+          // - skip whitespace between label and
+          int i = strlen(line) - 1;
+
+          for (; i >= 0 && isspace(line[i]); i--) {}  // skip trailing spaces
+
+          int label_end = i + 1;
+
+          if (i < 0)  // empty line - skip
+            continue;
+
+          for (; i >= 0 && isdigit(line[i]); i--) {}  // skip
+
+          int label_start = i + 1;
+
+          for (; i >= 0 && isspace(line[i]); i--) {}
+
+          int name_end = i + 1;
+          DALI_ENFORCE(name_end > 0 && name_end < label_start &&
+                       label_start >= 2 && label_end > label_start,
+                       make_string("Incorrect format of the list file \"",  file_list_, "\":", n,
+                       " expected file name followed by a label; got: ", line));
+
+          line[label_end] = 0;
+          line[name_end] = 0;
+
+          image_label_pairs_.emplace_back(line, std::atoi(line + label_start));
         }
+
         DALI_ENFORCE(s.eof(), "Wrong format of file_list: " + file_list_);
       }
     }
