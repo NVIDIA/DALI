@@ -17,7 +17,7 @@
 #include "dali/operators/generic/reduce/mean.h"
 #include "dali/operators/generic/reduce/root_mean_square.h"
 #include "dali/operators/generic/reduce/mean_square.h"
-#include "dali/operators/generic/reduce/std.h"
+#include "dali/operators/generic/reduce/reduce_with_mean_input.h"
 
 
 namespace dali {
@@ -40,17 +40,23 @@ DALI_SCHEMA(ReduceWithOutputType)
     DALI_NO_TYPE)
   .AddParent("ReduceBase");
 
+  DALI_SCHEMA(ReduceWithMeanInput)
+  .AddOptionalArg("ddof",
+    R"code(Delat Degrees of Freedom. Adjusts the divisor used in calculations, which is `N - ddof`.)code",
+    0)
+  .AddParent("ReduceWithOutputType");
+
 DALI_SCHEMA(reductions__Std)
   .DocStr("Gets standard deviation of elements along provided axes.")
   .NumInput(2)
   .NumOutput(1)
-  .AddParent("ReduceWithOutputType");
+  .AddParent("ReduceWithMeanInput");
 
 DALI_SCHEMA(reductions__Variance)
   .DocStr("Gets variance of elements along provided axes.")
   .NumInput(2)
   .NumOutput(1)
-  .AddParent("ReduceWithOutputType");
+  .AddParent("ReduceWithMeanInput");
 
 DALI_SCHEMA(reductions__Mean)
   .DocStr("Gets mean of elements along provided axes.")

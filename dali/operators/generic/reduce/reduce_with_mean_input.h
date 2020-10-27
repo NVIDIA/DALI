@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_GENERIC_REDUCE_STD_H__
-#define DALI_OPERATORS_GENERIC_REDUCE_STD_H__
+#ifndef DALI_OPERATORS_GENERIC_REDUCE_WITH_MEAN_INPUT_H__
+#define DALI_OPERATORS_GENERIC_REDUCE_WITH_MEAN_INPUT_H__
 
 #include <vector>
 #include <algorithm>
@@ -46,7 +46,8 @@ class ReduceWithMeanInput : public Operator<Backend> {
     Operator<Backend>(spec),
     output_type_(spec.GetArgument<DALIDataType>("dtype")),
     axes_(spec.GetRepeatedArgument<int>("axes")),
-    keep_dims_(spec.GetArgument<bool>("keep_dims")) {
+    keep_dims_(spec.GetArgument<bool>("keep_dims")),
+    ddof_(spec.GetArgument<int>("ddof")) {
   }
 
   bool CanInferOutputs() const override { return true; }
@@ -123,7 +124,7 @@ class ReduceWithMeanInput : public Operator<Backend> {
           kernels::KernelContext ctx;
 
           kmgr_.Setup<Kernel>(
-            thread_id, ctx, out_sample_view, in_sample_view, make_cspan(axes_), mean_sample_view);
+            thread_id, ctx, out_sample_view, in_sample_view, make_cspan(axes_), mean_sample_view, ddof_);
           kmgr_.Run<Kernel>(thread_id, thread_id, ctx);
         },
         priority);
@@ -155,7 +156,7 @@ class ReduceWithMeanInput : public Operator<Backend> {
       make_cspan(axes_),
       keep_dims_,
       false);
-    kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, mean_view);
+    kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, mean_view, ddof_);
   }
 
   DALIDataType OutputType(DALIDataType input_type) const { 
@@ -173,9 +174,10 @@ class ReduceWithMeanInput : public Operator<Backend> {
 
   vector<int> axes_;
   bool keep_dims_;
+  int ddof_;
   kernels::KernelManager kmgr_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_GENERIC_REDUCE_STD_H_
+#endif  // DALI_OPERATORS_GENERIC_REDUCE_WITH_MEAN_INPUT_H_

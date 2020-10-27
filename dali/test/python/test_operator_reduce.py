@@ -85,7 +85,7 @@ class Batch3DOverflow(Batch3D):
                 sample *= 100000
 
 
-def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input = False):
+def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input = False, ddof = 0):
     batch_size = batch_fn.batch_size()
 
     # Needed due to how ExternalSource API works. It fails on methods, partials.
@@ -108,6 +108,7 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input =
             reduced_gpu = reduce_fn(input.gpu(), **args)
         else:
             mean = fn.reductions.mean(input, **args)
+            args['ddof'] = ddof
             reduced_cpu = reduce_fn(input, mean, **args)
             reduced_gpu = reduce_fn(input.gpu(), mean.gpu(), **args)
         pipe.set_outputs(reduced_cpu, reduced_gpu)
@@ -124,11 +125,14 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input =
     return result_cpu, result_gpu
 
 
-def run_numpy(reduce_fn, batch_fn, keep_dims, axes, output_type):
+def run_numpy(reduce_fn, batch_fn, keep_dims, axes, output_type, ddof = None):
     result = []
     args = { 'keepdims': keep_dims, 'axis': axes}
     if output_type is not None:
         args['dtype'] = output_type
+
+    if ddof is not None:
+        args['ddof'] = ddof
 
     for _ in range(batch_fn.num_iter()):
         batch = batch_fn()
@@ -150,18 +154,18 @@ def compare(dali_res, np_res):
             assert np.array_equal(dali_sample, np_sample)
 
 
-def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type = None, add_mean_input = False):
+def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type = None, add_mean_input = False, ddof = None):
     batch_fn = batch_gen(input_type)
     dali_reduce_fn, numpy_reduce_fn = reduce_fns
 
     for axes in batch_fn.valid_axes():
         dali_res_cpu, dali_res_gpu = run_dali(
-            dali_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type, add_mean_input = add_mean_input)
+            dali_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type, add_mean_input = add_mean_input, ddof = ddof)
 
         batch_fn.reset()
 
         np_res = run_numpy(
-            numpy_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type)
+            numpy_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type, ddof = ddof)
         
         for iteration in range(batch_fn.num_iter()):
             compare(dali_res_cpu[iteration], np_res[iteration])
@@ -251,7 +255,8 @@ def test_reduce_with_mean_input():
         for reduce_fns in reductions:
             for batch_gen in batch_gens:
                 for type_id in types:
-                    yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id, None, True
+                    for ddof in [0, 1]:
+                        yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id, None, True, ddof
 
 
 if __name__ == "__main__":

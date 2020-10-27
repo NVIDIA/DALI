@@ -418,7 +418,9 @@ struct VarianceCPU : ReduceBaseCPU<Dst, Src, VarianceCPU<Dst, Src, MeanType>> {
       const OutTensorCPU<Dst, -1> &out,
       const InTensorCPU<Src, -1> &in,
       span<const int> axes,
-      const InTensorCPU<MeanType, -1> &mean) {
+      const InTensorCPU<MeanType, -1> &mean,
+      int ddof) {
+    ddof_ = ddof;
     Setup(out, in, axes, mean);
     return KernelRequirements();
   }
@@ -427,6 +429,7 @@ struct VarianceCPU : ReduceBaseCPU<Dst, Src, VarianceCPU<Dst, Src, MeanType>> {
     int64_t v = 1;
     for (auto a : this->axes)
       v *= this->input.shape[a];
+    v -= ddof_;
     norm_factor = 1.0 / v;
   }
 
@@ -439,6 +442,7 @@ struct VarianceCPU : ReduceBaseCPU<Dst, Src, VarianceCPU<Dst, Src, MeanType>> {
   }
 
   std::conditional_t<std::is_same<Dst, double>::value, double, float> norm_factor = 1;
+  int ddof_ = 0;
 };
 
 template <typename Dst, typename Src, typename MeanType = Dst>
@@ -462,7 +466,9 @@ struct StdDevCPU : ReduceBaseCPU<Dst, Src, StdDevCPU<Dst, Src, MeanType>> {
       const OutTensorCPU<Dst, -1> &out,
       const InTensorCPU<Src, -1> &in,
       span<const int> axes,
-      const InTensorCPU<MeanType, -1> &mean) {
+      const InTensorCPU<MeanType, -1> &mean,
+      int ddof) {
+    ddof_ = ddof;
     Setup(out, in, axes, mean);
     return KernelRequirements();
   }
@@ -471,6 +477,7 @@ struct StdDevCPU : ReduceBaseCPU<Dst, Src, StdDevCPU<Dst, Src, MeanType>> {
     int64_t v = 1;
     for (auto a : this->axes)
       v *= this->input.shape[a];
+    v -= ddof_;
     norm_factor = 1.0 / v;
   }
 
@@ -483,6 +490,7 @@ struct StdDevCPU : ReduceBaseCPU<Dst, Src, StdDevCPU<Dst, Src, MeanType>> {
   }
 
   std::conditional_t<std::is_same<Dst, double>::value, double, float> norm_factor = 1;
+  int ddof_ = 0;
 };
 
 
