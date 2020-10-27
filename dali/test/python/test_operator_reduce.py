@@ -196,7 +196,7 @@ def root_mean_square(input, keepdims = False, axis = None, dtype = None):
 
 def test_reduce_with_promotion():
     reductions = [
-        (fn.reductions.root_mean_square, root_mean_square),
+        (fn.reductions.rms, root_mean_square),
         (fn.reductions.mean_square, mean_square)]
 
     batch_gens = [Batch3D]

@@ -675,7 +675,7 @@ def test_reduce_mean_square_cpu():
     check_single_input(fn.reductions.mean_square)
 
 def test_reduce_root_mean_square_cpu():
-    check_single_input(fn.reductions.root_mean_square)
+    check_single_input(fn.reductions.rms)
 
 def test_reduce_std_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)

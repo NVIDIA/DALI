@@ -46,7 +46,7 @@ DALI_SCHEMA(ReduceWithOutputType)
     0)
   .AddParent("ReduceWithOutputType");
 
-DALI_SCHEMA(reductions__Std)
+DALI_SCHEMA(reductions__STD)
   .DocStr("Gets standard deviation of elements along provided axes.")
   .NumInput(2)
   .NumOutput(1)
@@ -70,7 +70,7 @@ DALI_SCHEMA(reductions__MeanSquare)
   .NumOutput(1)
   .AddParent("ReduceWithOutputType");
 
-DALI_SCHEMA(reductions__RootMeanSquare)
+DALI_SCHEMA(reductions__RMS)
   .DocStr("Gets root mean square of elements along provided axes.")
   .NumInput(1)
   .NumOutput(1)
@@ -107,10 +107,10 @@ using MeanSquareGPU = MeanSquareOp<kernels::MeanSquareGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__MeanSquare, MeanSquareGPU, GPU);
 
 using RootMeanSquareCPU = RootMeanSquareOp<kernels::RootMeanSquareCPU, CPUBackend>;
-DALI_REGISTER_OPERATOR(reductions__RootMeanSquare, RootMeanSquareCPU, CPU);
+DALI_REGISTER_OPERATOR(reductions__RMS, RootMeanSquareCPU, CPU);
 
 using RootMeanSquareGPU = RootMeanSquareOp<kernels::RootMeanSquareGPU, GPUBackend>;
-DALI_REGISTER_OPERATOR(reductions__RootMeanSquare, RootMeanSquareGPU, GPU);
+DALI_REGISTER_OPERATOR(reductions__RMS, RootMeanSquareGPU, GPU);
 
 using SumCPU = SumOp<kernels::SumCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Sum, SumCPU, CPU);
@@ -131,10 +131,10 @@ using MaxGPU = ReduceOp<kernels::MaxGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Max, MaxGPU, GPU);
 
 using StdCPU = ReduceWithMeanInput<kernels::StdDevCPU, CPUBackend>;
-DALI_REGISTER_OPERATOR(reductions__Std, StdCPU, CPU);
+DALI_REGISTER_OPERATOR(reductions__STD, StdCPU, CPU);
 
 using StdGPU = ReduceWithMeanInput<kernels::StdDevGPU, GPUBackend>;
-DALI_REGISTER_OPERATOR(reductions__Std, StdGPU, GPU);
+DALI_REGISTER_OPERATOR(reductions__STD, StdGPU, GPU);
 
 using VarianceCPU = ReduceWithMeanInput<kernels::VarianceCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Variance, VarianceCPU, CPU);
