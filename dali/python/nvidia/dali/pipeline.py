@@ -393,6 +393,8 @@ Parameters
             if isinstance(outputs[i], types.ScalarConstant):
                 import nvidia.dali.ops
                 outputs[i] = nvidia.dali.ops._instantiate_constant_node("cpu", outputs[i])
+            elif not isinstance(outputs[i], DataNode):
+                outputs[i] = types.Constant(outputs[i], device="cpu")
             _data_node._check(outputs[i])
 
         # Backtrack to construct the graph

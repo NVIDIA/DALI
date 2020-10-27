@@ -259,6 +259,9 @@ Keyword Args
         self._cuda_stream = cuda_stream
         self._use_copy_kernel = use_copy_kernel
 
+        import nvidia.dali.ops
+        kwargs, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
+
         callback = _get_callback_from_source(source, cycle)
 
         if name is not None and num_outputs is not None:

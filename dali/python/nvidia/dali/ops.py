@@ -234,11 +234,59 @@ class _OpCounter(object):
 def _instantiate_constant_node(device, constant):
     return _Constant(device=device, value=constant.value, dtype=constant.dtype, shape=constant.shape)
 
+
+def _separate_kwargs(kwargs):
+    """Separates arguments into ones that should go to operator's __init__ and to __call__.
+
+    Returns a pair of dictionaries of kwargs - the first for __init__, the second for __call__.
+    """
+    def is_data_node(x):
+        return isinstance(x, _DataNode)
+    def is_call_arg(name, value):
+        if name == "device":
+            return False
+        if name == "name" or is_data_node(value):
+            return True
+        if isinstance(value, (str, list, tuple, nvidia.dali.types.ScalarConstant)):
+            return False
+        return not nvidia.dali.types._is_scalar_value(value)
+
+    def to_scalar(scalar):
+        return scalar.value if isinstance(scalar, nvidia.dali.types.ScalarConstant) else scalar
+
+    init_args = {}
+    call_args = {}
+    for name, value in kwargs.items():
+        if value is None:
+            continue
+        if is_call_arg(name, value):
+            call_args[name] = value
+        else:
+            init_args[name] = to_scalar(value)
+
+    return init_args, call_args
+
+def _add_spec_args(schema, spec, kwargs):
+    for key, value in kwargs.items():
+        if value is None:
+            # None is not a valid value for any argument type, so treat it
+            # as if the argument was not supplied at all
+            continue
+
+        dtype = schema.GetArgumentType(key)
+        if isinstance(value, (list, tuple)):
+            if len(value) == 0:
+                spec.AddArgEmptyList(key, _vector_element_type(dtype))
+                continue
+        converted_value = _type_convert_value(dtype, value)
+        spec.AddArg(key, converted_value)
+
 class _OperatorInstance(object):
     def __init__(self, inputs, op, **kwargs):
         self._counter = _OpCounter()
         self._outputs = []
         self._op = op
+        self._default_call_args = op._call_args
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
 
@@ -253,7 +301,18 @@ class _OperatorInstance(object):
 
         self._inputs = inputs
 
-        name = kwargs.get("name", None)
+        spec_args, kwargs = _separate_kwargs(kwargs)
+        _add_spec_args(op._schema, self._spec, spec_args)
+
+        call_args = {**self._default_call_args}
+        for k, v in kwargs.items():
+            if v is None:
+                continue  # if an argument was specified in __init__ and in __call__ it is None, ignore it
+            if k in self._default_call_args:
+                raise ValueError("The argument `{}` was already specified in __init__.".format(k))
+            call_args[k] = v
+
+        name = call_args.get("name", None)
         if name is not None:
             self._name = name
         else:
@@ -267,19 +326,22 @@ class _OperatorInstance(object):
                         .format(type(inp).__name__))
                 self._spec.AddInput(inp.name, inp.device)
         # Argument inputs
-        for k in sorted(kwargs.keys()):
+        for k in sorted(call_args.keys()):
             if k not in ["name"]:
-                arg_inp = kwargs[k]
+                arg_inp = call_args[k]
                 if arg_inp is None:
                     continue
                 if isinstance(arg_inp, _ScalarConstant):
                     arg_inp = _instantiate_constant_node("cpu", arg_inp)
                 if not isinstance(arg_inp, _DataNode):
-                    raise TypeError(
-                            ("Expected inputs of type " +
-                            "`DataNode`. Received " +
-                            "input of type '{}'.")
-                            .format(type(arg_inp).__name__))
+                    try:
+                        arg_inp = _Constant(arg_inp, device="cpu")
+                    except Exception as e:
+                        raise TypeError(
+                                ("Expected inputs of type " +
+                                "`DataNode` or convertible to constant nodes. Received " +
+                                "input `{}` of type '{}'.")
+                                .format(k, type(arg_inp).__name__)) from e
                 self._spec.AddArgumentInput(k, arg_inp.name)
                 self._inputs = list(self._inputs) + [arg_inp]
 
@@ -379,6 +441,8 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
                 self._device = op_device
             self._spec.AddArg("device", self._device)
 
+            kwargs, self._call_args = _separate_kwargs(kwargs)
+
             if "preserve" in kwargs.keys():
                 self._preserve = kwargs["preserve"]
             else:
@@ -409,19 +473,7 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
                     warnings.warn(msg, DeprecationWarning, stacklevel=2)
 
             # Store the specified arguments
-            for key, value in kwargs.items():
-                if value is None:
-                  # None is not a valid value for any argument type, so treat it
-                  # as if the argument was not supplied at all
-                  continue
-
-                dtype = self._schema.GetArgumentType(key)
-                if isinstance(value, (list, tuple)):
-                    if len(value) == 0:
-                        self._spec.AddArgEmptyList(key, _vector_element_type(dtype))
-                        continue
-                converted_value = _type_convert_value(dtype, value)
-                self._spec.AddArg(key, converted_value)
+            _add_spec_args(self._schema, self._spec, kwargs)
 
         @property
         def spec(self):
@@ -605,6 +657,8 @@ class TFRecordReader(metaclass=_DaliOperatorMeta):
         self._spec.AddArg("path", self._path)
         self._spec.AddArg("index_path", self._index_path)
 
+        kwargs, self._call_args = _separate_kwargs(kwargs)
+
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
 
@@ -662,6 +716,8 @@ class PythonFunctionBase(metaclass=_DaliOperatorMeta):
         self._spec = _b.OpSpec(impl_name)
         self._device = device
         self._impl_name = impl_name
+
+        kwargs, self._call_args = _separate_kwargs(kwargs)
 
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
@@ -1027,5 +1083,61 @@ def register_gpu_op(name):
 from nvidia.dali.external_source import ExternalSource
 ExternalSource.__module__ = __name__
 
-_load_ops()
+class _CompoundOp:
+    def __init__(self, op_list):
+        self._ops = []
+        for op in op_list:
+            if isinstance(op, _CompoundOp):
+                self._ops += op._ops
+            else:
+                self._ops.append(op)
 
+    def __call__(self, *inputs, **kwargs):
+        inputs = list(inputs)
+        for op in self._ops:
+            for i in range(len(inputs)):
+                if inputs[i].device == "cpu" and op.device == "gpu" and op.schema.GetInputDevice(i) != "cpu":
+                    inputs[i] = inputs[i].gpu()
+            inputs = op(*inputs, **kwargs)
+            kwargs = {}
+            if isinstance(inputs, tuple):
+                inputs = list(inputs)
+            if isinstance(inputs, _DataNode):
+                inputs = [inputs]
+
+        return inputs[0] if len(inputs) == 1 else inputs
+
+def Compose(op_list):
+    """Returns a meta-operator that chains the operations in op_list.
+
+The return value is a callable object which, when called, performs::
+
+    op_list[n-1](op_list([n-2](...  op_list[0](args))))
+
+Operators can be composed only when all outputs of the previous operator can be processed directly
+by the next operator in the list.
+
+The example below chains an image decoder and a Resize operation with random square size.
+The  ``decode_and_resize`` object can be called as if it was an operator::
+
+    decode_and_resize = ops.Compose([
+        ops.ImageDecoder(device="cpu"),
+        ops.Resize(size=fn.uniform(range=400,500)), device="gpu")
+    ])
+
+    files, labels = fn.caffe_reader(path=caffe_db_folder, seed=1)
+    pipe.set_ouputs(decode_and_resize(files), labels)
+
+If there's a transition from CPU to GPU in the middle of the ``op_list``, as is the case in this
+example, ``Compose`` automatically arranges copying the data to GPU memory.
+
+
+.. note::
+    This is an experimental feature, subject to change without notice.
+"""
+    return op_list[0] if len(op_list) == 1 else _CompoundOp(op_list)
+
+_cpu_ops = _cpu_ops.union({"Compose"})
+_gpu_ops = _gpu_ops.union({"Compose"})
+
+_load_ops()

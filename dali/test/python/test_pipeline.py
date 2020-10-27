@@ -1707,3 +1707,14 @@ def test_pipeline_out_of_scope():
     out = get_output()[0].at(0)
     assert out[0] == -0.5 and out[1] == 1.25
 
+def test_return_constants():
+    pipe = dali.pipeline.Pipeline(1, 1, None)
+    types = [bool, np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32, np.float32]
+    pipe.set_outputs(np.array([[1,2],[3,4]]), 10, *[t(42) for t in types])
+    pipe.build()
+    a, b, *other = pipe.run()
+    assert np.array_equal(a.at(0), np.array([[1,2],[3,4]]))
+    assert b.at(0) == 10
+    for i, o in enumerate(other):
+        assert o.at(0) == types[i](42)
+        assert o.at(0).dtype == types[i]

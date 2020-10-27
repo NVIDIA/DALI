@@ -14,7 +14,6 @@
 
 #pylint: disable=no-member
 import sys
-from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali import internal as _internal
 
 _special_case_mapping = {
@@ -64,25 +63,16 @@ def _to_snake_case(pascal):
 def _wrap_op_fn(op_class, wrapper_name):
     def op_wrapper(*inputs, **arguments):
         import nvidia.dali.ops
-        def is_data_node(x):
-            return isinstance(x, _DataNode)
-        def is_call_arg(name, value):
-            return name == "name" or is_data_node(value)
-
-        def to_scalar(scalar):
-            return scalar.value if isinstance(scalar, nvidia.dali.types.ScalarConstant) else scalar
-
-        scalar_args = { name:to_scalar(value) for (name, value) in arguments.items() if not is_call_arg(name, value) }
-        tensor_args = { name:value for (name, value) in arguments.items() if is_call_arg(name, value) }
+        init_args, call_args = nvidia.dali.ops._separate_kwargs(arguments)
 
         default_dev = nvidia.dali.ops._choose_device(inputs)
-        if default_dev == "gpu" and scalar_args.get("device") == "cpu":
+        if default_dev == "gpu" and init_args.get("device") == "cpu":
             raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
 
-        if "device" not in scalar_args:
-            scalar_args["device"] = default_dev
+        if "device" not in init_args:
+            init_args["device"] = default_dev
 
-        return op_class(**scalar_args)(*inputs, **tensor_args)
+        return op_class(**init_args)(*inputs, **call_args)
 
     op_wrapper.__name__ = wrapper_name
     op_wrapper.__doc__ = "see :class:`{0}.{1}`".format(op_class.__module__, op_class.__name__)

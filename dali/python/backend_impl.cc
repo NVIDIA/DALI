@@ -942,6 +942,10 @@ static const OpSchema &GetSchema(const string &name) {
   return SchemaRegistry::GetSchema(name);
 }
 
+static const OpSchema *TryGetSchema(const string &name) {
+  return SchemaRegistry::TryGetSchema(name);
+}
+
 static constexpr int GetCxx11AbiFlag() {
 #ifdef _GLIBCXX_USE_CXX11_ABI
   return _GLIBCXX_USE_CXX11_ABI;
@@ -1418,6 +1422,7 @@ PYBIND11_MODULE(backend_impl, m) {
 
   // Registry for OpSchema
   m.def("GetSchema", &GetSchema, py::return_value_policy::reference);
+  m.def("TryGetSchema", &TryGetSchema, py::return_value_policy::reference);
 
   py::class_<OpSchema>(m, "OpSchema")
     .def("Dox", &OpSchema::Dox)
