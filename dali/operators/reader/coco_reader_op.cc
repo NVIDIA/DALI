@@ -13,7 +13,12 @@
 // limitations under the License.
 
 #include "dali/operators/reader/coco_reader_op.h"
+
 #include <set>
+
+extern "C" {
+#include "third_party/cocoapi/common/maskApi.h"
+}
 
 namespace dali {
 
@@ -78,6 +83,7 @@ Contains image-like data, same shape and layout as ``images``, representing a pi
 
 One element per sample, representing an image identifier.
 )code")
+  .DeprecateArgInFavorOf("meta_files_path", "preprocessed_annotations")  // deprecated since 0.28dev
   .AddOptionalArg("preprocessed_annotations",
     "Path to the directory with meta files that contain preprocessed COCO annotations.",
     std::string())
@@ -95,7 +101,9 @@ One element per sample, representing an image identifier.
 
 If set to False, the bboxes are returned as [x, y, width, height].)code",
       false)
-  .DeprecateArgInFavorOf("masks", "polygon_masks")  // deprecated since 0.28dev
+  .DeprecateArg("masks", false,  // deprecated since 0.28dev
+    "``masks`` argument is now deprecated. Please use ``polygon_masks`` instead "
+    "(note that the format has changed).")
   .AddOptionalArg("polygon_masks",
       R"code(If set to True, segmentation mask polygons are read in the form of two outputs:
 ``polygons`` and ``vertices``. This argument is mutually exclusive with ``pixelwise_masks``.
@@ -115,64 +123,118 @@ mutually exclusive with ``polygon_masks``.)code",
 instance of an object is lower than this value, the object will be ignored.)code",
       0.1f,
       false)
-  .DeprecateArgInFavorOf("ratio", "relative_coordinates")  // deprecated since 0.28dev
-  .AddOptionalArg("relative_coordinates",
+  .AddOptionalArg("ratio",
       R"code(If set to True, the returned bbox and mask polygon coordinates are relative to the image dimensions.)code",
       false)
   .DeprecateArgInFavorOf("save_img_ids", "image_ids")  // deprecated since 0.28dev
   .AddOptionalArg("image_ids",
       R"code(If set to True, the image IDs will be produced in an extra output.)code",
       false)
-  .DeprecateArgInFavorOf("dump_meta_files", "save_preprocessed_annotations")  // deprecated since 0.28dev
+  .DeprecateArgInFavorOf("dump_meta_files",
+                         "save_preprocessed_annotations")  // deprecated since 0.28dev
   .AddOptionalArg("save_preprocessed_annotations",
       R"code(If set to True, the operator saves a set of files containing binary representations of the
 preprocessed COCO annotations.)code",
       false)
-  .DeprecateArgInFavorOf("dump_meta_files_path", "save_preprocessed_annotations_dir")  // deprecated since 0.28dev
+  .DeprecateArgInFavorOf("dump_meta_files_path",
+                         "save_preprocessed_annotations_dir")  // deprecated since 0.28dev
   .AddOptionalArg("dump_meta_files_path",
       R"code(Path to the directory in which to save the preprocessed COCO annotations files.)code",
     std::string())
   .AdditionalOutputsFn([](const OpSpec& spec) {
-    return static_cast<int>(spec.GetArgument<bool>("masks")) * 2
-           + static_cast<int>(spec.GetArgument<bool>("pixelwise_masks"))
-           + static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
-  })
+      return OutPolygonMasksEnabled(spec) * 2 +
+             OutPixelwiseMasksEnabled(spec) +
+             OutImageIdsEnabled(spec);
+    })
   .AddParent("LoaderBase");
 
 DALI_REGISTER_OPERATOR(COCOReader, COCOReader, CPU);
 
-void COCOReader::ValidateOptions(const OpSpec &spec) {
-  DALI_ENFORCE(
-    spec.HasArgument("meta_files_path") || spec.HasArgument("annotations_file"),
-    "`meta_files_path` or `annotations_file` must be provided");
-  DALI_ENFORCE(!skip_cached_images_,
-    "COCOReader doesn't support `skip_cached_images` option");
+COCOReader::COCOReader(const OpSpec& spec): DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+  DALI_ENFORCE(!skip_cached_images_, "COCOReader doesn't support `skip_cached_images` option");
+  output_polygon_masks_ = OutPolygonMasksEnabled(spec);
+  legacy_polygon_format_ = spec.HasArgument("masks") && spec.GetArgument<bool>("masks");
+  output_pixelwise_masks_ = OutPixelwiseMasksEnabled(spec);
+  output_image_ids_ = OutImageIdsEnabled(spec);
+  loader_ = InitLoader<CocoLoader>(spec);
 
-  if (spec.HasArgument("meta_files_path")) {
-    for (const char* arg_name : {"annotations_file", "skip_empty", "ratio", "ltrb", 
-                                 "size_threshold", "dump_meta_files", "dump_meta_files_path"}) {
-      if (spec.HasArgument(arg_name))
-        DALI_FAIL(make_string("When reading data from meta files, \"", arg_name, "\" is not supported."));
-    }
-  }
-
-  if (output_polygon_masks_ && output_pixelwise_masks_) {
-    DALI_FAIL("``pixelwise_masks`` and ``polygon_masks`` are mutually exclusive");
-  }
-
-  if (spec.HasArgument("dump_meta_files") != spec.HasArgument("dump_meta_files_path")) {
-    DALI_FAIL("``dump_meta_files`` and ``dump_meta_files_path`` should be provided together"); 
+  if (legacy_polygon_format_) {
+    DALI_WARN("Warning: Using legacy format for polygons. "
+              "Please use ``polygon_masks`` instead of ``masks`` argument.");
   }
 }
 
-void COCOReader::PixelwiseMasks(int image_id, int* mask) {
-  const auto &meta = masks_meta_[image_id];
-  const auto &coords = mask_coords_[image_id];
-  int h = heights_[image_id];
-  int w = widths_[image_id];
-  const int *labels_in = labels_.data() + offsets_[image_id];
-  int labels_size = counts_[image_id];
-  std::set<int> labels(labels_in, labels_in + labels_size);
+void COCOReader::RunImpl(SampleWorkspace &ws) {
+  const ImageLabelWrapper& image_label = GetSample(ws.data_idx());
+
+  Index image_size = image_label.image.size();
+  auto &image_output = ws.Output<CPUBackend>(0);
+  int image_idx = image_label.label;
+
+  image_output.Resize({image_size});
+  image_output.SetSourceInfo(image_label.image.GetSourceInfo());
+  std::memcpy(image_output.mutable_data<uint8_t>(), image_label.image.raw_data(), image_size);
+
+  auto &loader_impl = LoaderImpl();
+  auto bboxes = loader_impl.bboxes(image_idx);
+  auto &boxes_output = ws.Output<CPUBackend>(1);
+  boxes_output.Resize({bboxes.size(), 4});
+  std::memcpy(boxes_output.mutable_data<float>(), bboxes.data(),
+              bboxes.size() * sizeof(vec<4>));
+
+  auto labels = loader_impl.labels(image_idx);
+  auto &labels_output = ws.Output<CPUBackend>(2);
+  labels_output.Resize({labels.size()});  // 0.28dev: changed shape from {N, 1} to {N}
+  std::memcpy(labels_output.mutable_data<int>(), labels.data(),
+              labels.size() * sizeof(int));
+
+  int curr_out_idx = 3;
+  if (output_polygon_masks_) {
+    auto &polygons_output = ws.Output<CPUBackend>(curr_out_idx++);
+    auto polygons = loader_impl.polygons(image_idx);
+    polygons_output.Resize({polygons.size(), 3});
+    std::memcpy(polygons_output.mutable_data<int>(),
+                polygons.data(), polygons.size() * sizeof(ivec3));
+    if (legacy_polygon_format_) {  // TODO(janton): remove this once we remove ``masks`` arg
+      auto *poly_data = polygons_output.mutable_data<int>();
+      for (int64_t i = 0; i < polygons.size(); i++) {
+        poly_data[i * 3 + 1] *= 2;
+        poly_data[i * 3 + 2] *= 2;
+      }
+    }
+    auto &vertices_output = ws.Output<CPUBackend>(curr_out_idx++);
+    auto vertices = loader_impl.vertices(image_idx);
+    vertices_output.Resize({vertices.size(), 2});
+    std::memcpy(vertices_output.mutable_data<float>(),
+                vertices.data(), vertices.size() * sizeof(vec2));
+  }
+
+  if (output_pixelwise_masks_) {
+    auto &masks_output = ws.Output<CPUBackend>(curr_out_idx++);
+    auto masks_info = loader_impl.pixelwise_masks_info(image_idx);
+    masks_output.Resize(masks_info.shape);
+    masks_output.SetLayout("HWC");
+    PixelwiseMasks(image_idx, masks_output.mutable_data<int>());
+  }
+
+  if (output_image_ids_) {
+    auto &id_output = ws.Output<CPUBackend>(curr_out_idx++);
+    id_output.Resize({1});
+    *(id_output.mutable_data<int>()) = loader_impl.image_id(image_idx);
+  }
+}
+
+void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
+  auto &loader_impl = LoaderImpl();
+  auto pol = loader_impl.polygons(image_idx);
+  auto ver = loader_impl.vertices(image_idx);
+  auto masks_info = loader_impl.pixelwise_masks_info(image_idx);
+  int h = masks_info.shape[0];
+  int w = masks_info.shape[1];
+  auto bboxes = loader_impl.bboxes(image_idx);
+  auto labels_span = loader_impl.labels(image_idx);
+  std::set<int> labels(labels_span.data(),
+                       labels_span.data() + labels_span.size());
   if (!labels.size()) {
     return;
   }
@@ -180,18 +242,24 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
   // Create a run-length encoding for each polygon, indexed by label :
   std::map<int, std::vector<RLE> > frPoly;
   std::vector<double> in;
-  for (uint polygon_idx = 0; polygon_idx < meta.size() / 3; polygon_idx++) {
-    int mask_idx = meta[3 * polygon_idx];
-    int start_idx = meta[3 * polygon_idx + 1];
-    int end_idx = meta[3 * polygon_idx + 2];
-    int label = *(labels_in + mask_idx);
+  for (uint polygon_idx = 0; polygon_idx < pol.size(); polygon_idx++) {
+    auto &polygon = pol[polygon_idx];
+    int mask_idx = polygon[0];
+    int start_idx = polygon[1];
+    int end_idx = polygon[2];
+    assert(mask_idx < labels_span.size());
+    int label = labels_span[mask_idx];
     // Convert polygon to encoded mask
-    in.resize(end_idx - start_idx);
-    for (int i = 0; i < end_idx - start_idx; i++)
-      in[i] = static_cast<double>(coords[start_idx + i]);
+    int nver = end_idx - start_idx;
+    auto pol_ver = span<const vec2>{ver.data() + start_idx, nver};
+    in.resize(pol_ver.size() * 2);
+    for (int i = 0, k = 0; i < pol_ver.size(); i++) {
+      in[k++] = static_cast<double>(pol_ver[i].x);
+      in[k++] = static_cast<double>(pol_ver[i].y);
+    }
     RLE M;
     rleInit(&M, 0, 0, 0, 0);
-    rleFrPoly(&M, in.data(), (end_idx - start_idx) / 2, h, w);
+    rleFrPoly(&M, in.data(), pol_ver.size(), h, w);
     frPoly[label].push_back(M);
   }
 
@@ -200,11 +268,10 @@ void COCOReader::PixelwiseMasks(int image_id, int* mask) {
   rlesInit(&R, *labels.rbegin() + 1);
 
   // Create a run-length encoding for each compressed string representation
-  for (uint ann_id = 0 ; ann_id < masks_rles_idx_[image_id].size(); ann_id++) {
-    auto mask_idx = masks_rles_idx_[image_id][ann_id];
-    const auto &str = masks_rles_[image_id][ann_id];
-    int label = *(labels_in + mask_idx);
-    rleFrString(&R[label], const_cast<char*>(str.c_str()), h, w);
+  for (uint ann_id = 0 ; ann_id < masks_info.mask_indices.size(); ann_id++) {
+    auto mask_idx = masks_info.mask_indices[ann_id];
+    int label = labels_span[mask_idx];
+    rleFrString(&R[label], const_cast<char*>(masks_info.rles[ann_id].c_str()), h, w);
   }
 
   // Merge each label (from multi-polygons annotations)
