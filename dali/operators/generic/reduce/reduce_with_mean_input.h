@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_GENERIC_REDUCE_WITH_MEAN_INPUT_H__
-#define DALI_OPERATORS_GENERIC_REDUCE_WITH_MEAN_INPUT_H__
+#ifndef DALI_OPERATORS_GENERIC_REDUCE_REDUCE_WITH_MEAN_INPUT_H__
+#define DALI_OPERATORS_GENERIC_REDUCE_REDUCE_WITH_MEAN_INPUT_H__
 
 #include <vector>
 #include <algorithm>
@@ -94,7 +94,6 @@ class ReduceWithMeanInput : public Operator<Backend> {
       (this->template RunTyped<OutputType, InputType>(ws);),
       (DALI_FAIL(make_string("Unsupported input type: ", input_type));),
       (DALI_FAIL(make_string("Unsupported types: ", input_type, ", ", output_type));))
-    
   }
 
   template <typename OutputType, typename InputType>
@@ -124,7 +123,13 @@ class ReduceWithMeanInput : public Operator<Backend> {
           kernels::KernelContext ctx;
 
           kmgr_.Setup<Kernel>(
-            thread_id, ctx, out_sample_view, in_sample_view, make_cspan(axes_), mean_sample_view, ddof_);
+            thread_id,
+            ctx,
+            out_sample_view,
+            in_sample_view,
+            make_cspan(axes_),
+            mean_sample_view,
+            ddof_);
           kmgr_.Run<Kernel>(thread_id, thread_id, ctx);
         },
         priority);
@@ -159,7 +164,7 @@ class ReduceWithMeanInput : public Operator<Backend> {
     kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, mean_view, ddof_);
   }
 
-  DALIDataType OutputType(DALIDataType input_type) const { 
+  DALIDataType OutputType(DALIDataType input_type) const {
     if (this->output_type_ != DALI_NO_TYPE) {
       return this->output_type_;
     }
@@ -180,4 +185,4 @@ class ReduceWithMeanInput : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_GENERIC_REDUCE_WITH_MEAN_INPUT_H_
+#endif  // DALI_OPERATORS_GENERIC_REDUCE_REDUCE_WITH_MEAN_INPUT_H_
