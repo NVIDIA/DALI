@@ -85,7 +85,7 @@ class Batch3DOverflow(Batch3D):
                 sample *= 100000
 
 
-def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type):
+def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input = False):
     batch_size = batch_fn.batch_size()
 
     # Needed due to how ExternalSource API works. It fails on methods, partials.
@@ -103,8 +103,13 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type):
 
     with pipe:
         input = fn.external_source(source = get_batch)
-        reduced_cpu = reduce_fn(input, **args)
-        reduced_gpu = reduce_fn(input.gpu(), **args)
+        if not add_mean_input:
+            reduced_cpu = reduce_fn(input, **args)
+            reduced_gpu = reduce_fn(input.gpu(), **args)
+        else:
+            mean = fn.reductions.mean(input, **args)
+            reduced_cpu = reduce_fn(input, mean, **args)
+            reduced_gpu = reduce_fn(input.gpu(), mean.gpu(), **args)
         pipe.set_outputs(reduced_cpu, reduced_gpu)
 
     pipe.build()
@@ -145,13 +150,13 @@ def compare(dali_res, np_res):
             assert np.array_equal(dali_sample, np_sample)
 
 
-def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type = None):
+def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type = None, add_mean_input = False):
     batch_fn = batch_gen(input_type)
     dali_reduce_fn, numpy_reduce_fn = reduce_fns
 
     for axes in batch_fn.valid_axes():
         dali_res_cpu, dali_res_gpu = run_dali(
-            dali_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type)
+            dali_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type, add_mean_input = add_mean_input)
 
         batch_fn.reset()
 
@@ -232,3 +237,65 @@ def test_sum_with_output_type():
                     input_type = type_map[0]
                     for output_type in type_map[1]:
                         yield run_reduce, keep_dims, reduce_fns, batch_gen, input_type, output_type
+
+
+def test_reduce_with_mean_input():
+    reductions = [
+        (fn.reductions.std, np.std),
+        (fn.reductions.variance, np.var)]    
+
+    batch_gens = [Batch1D, Batch2D, Batch3D]
+    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64, np.float32]
+
+    for keep_dims in [False, True]:
+        for reduce_fns in reductions:
+            for batch_gen in batch_gens:
+                for type_id in types:
+                    yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id, None, True
+
+
+if __name__ == "__main__":
+    batch_fn = Batch1D(np.int32)
+    batch_size = batch_fn.batch_size()
+
+    # Needed due to how ExternalSource API works. It fails on methods, partials.
+    def get_batch():
+        return batch_fn()
+
+    result_cpu = []
+    result_gpu = []
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+
+    args = { 'keep_dims': False, 'axes': None}
+    np_args = { 'keepdims': False, 'axis': None}
+
+    with pipe:
+        input = fn.external_source(source = get_batch)
+        mean = fn.reductions.mean(input, **args)
+        reduced_cpu = fn.reductions.variance(input, mean, **args)
+        reduced_gpu = fn.reductions.variance(input.gpu(), mean.gpu(), **args)
+        pipe.set_outputs(reduced_cpu, reduced_gpu)
+    pipe.build()
+
+    for _ in range(batch_fn.num_iter()):
+        output = pipe.run()
+        reduced_cpu = output[0].as_array()
+        reduced_gpu = output[1].as_cpu().as_array()
+        print(reduced_cpu)
+        print(reduced_gpu)
+
+    batch_fn.reset()
+    print()
+
+    result = []
+
+    for _ in range(batch_fn.num_iter()):
+        batch = batch_fn()
+        sample_result = []
+        for sample in batch:
+            sample_reduced = np.var(sample, **np_args)
+            sample_result.append(sample_reduced)
+        print(sample_result)
+
+        result.append(sample_result)

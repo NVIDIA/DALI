@@ -544,7 +544,82 @@ extern template class StdDevGPU<float, uint32_t>;
 extern template class StdDevGPU<int32_t, int32_t>;
 extern template class StdDevGPU<float, int32_t>;
 
+extern template class StdDevGPU<uint64_t, uint64_t>;
+extern template class StdDevGPU<float, uint64_t>;
+extern template class StdDevGPU<int64_t, int64_t>;
+extern template class StdDevGPU<float, int64_t>;
+
 extern template class StdDevGPU<float, float>;
+
+
+/**
+ * @brief Calculates the variance of input elements along given axes, given externally
+ *        provided mean values.
+ *
+ * Here, the `mean(in)` term is not calculated internally, but externally provided as a tensor.
+ *
+ * For more details on how directional reductions work, see SumGPU, MeanGPU, RootMeanSquareGPU
+ */
+template <typename Out, typename In, typename Mean = Out>
+class DLL_PUBLIC VarianceGPU {
+ public:
+  VarianceGPU();
+  ~VarianceGPU();
+
+  /**
+   * @brief Sets up the reduction
+   *
+   * Sets up the reduction according to the parameters. The indices of dimensions to be reduced
+   * are provided in `axes` parameter.
+   * For a successful batch reduction, the reduced shape of all samples must be equal (but the
+   * input may have non-uniform shape, as long as the non-uniform dimensions are reduced).
+   *
+   * @param ctx          the execution environment
+   * @param in_shape     shape of the input tensor list
+   * @param axes         indices of axes to reduce along
+   * @param keep_dims    if true, the reduced dimensions are kept in the output shape, with the
+   *                     extent of 1
+   * @param reduce_batch if true, reduces respective output values of all samples in the batch
+   *                     and outputs a single tensor
+   */
+  KernelRequirements Setup(KernelContext &ctx,
+                           const TensorListShape<> &in_shape,
+                           span<const int> axes, bool keep_dims, bool reduce_batch);
+
+  /**
+   * @brief Performs the reduction, according to the parameters specified in Setup.
+   *
+   * @param ddof delta degrees of freedom for Bessel's correction
+   */
+  void Run(KernelContext &ctx, const OutListGPU<Out> &out,
+           const InListGPU<In> &in, const InListGPU<Mean> &mean, int ddof = 0);
+
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+extern template class VarianceGPU<uint8_t, uint8_t>;
+extern template class VarianceGPU<float, uint8_t>;
+extern template class VarianceGPU<int8_t, int8_t>;
+extern template class VarianceGPU<float, int8_t>;
+
+extern template class VarianceGPU<uint16_t, uint16_t>;
+extern template class VarianceGPU<float, uint16_t>;
+extern template class VarianceGPU<int16_t, int16_t>;
+extern template class VarianceGPU<float, int16_t>;
+
+extern template class VarianceGPU<uint32_t, uint32_t>;
+extern template class VarianceGPU<float, uint32_t>;
+extern template class VarianceGPU<int32_t, int32_t>;
+extern template class VarianceGPU<float, int32_t>;
+
+extern template class VarianceGPU<uint64_t, uint64_t>;
+extern template class VarianceGPU<float, uint64_t>;
+extern template class VarianceGPU<int64_t, int64_t>;
+extern template class VarianceGPU<float, int64_t>;
+
+extern template class VarianceGPU<float, float>;
 
 
 /**

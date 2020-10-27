@@ -17,6 +17,7 @@
 #include "dali/operators/generic/reduce/mean.h"
 #include "dali/operators/generic/reduce/root_mean_square.h"
 #include "dali/operators/generic/reduce/mean_square.h"
+#include "dali/operators/generic/reduce/std.h"
 
 
 namespace dali {
@@ -38,6 +39,18 @@ DALI_SCHEMA(ReduceWithOutputType)
     R"code(Output data type. This type is used to accumulate the result.)code",
     DALI_NO_TYPE)
   .AddParent("ReduceBase");
+
+DALI_SCHEMA(reductions__Std)
+  .DocStr("Gets standard deviation of elements along provided axes.")
+  .NumInput(2)
+  .NumOutput(1)
+  .AddParent("ReduceWithOutputType");
+
+DALI_SCHEMA(reductions__Variance)
+  .DocStr("Gets variance of elements along provided axes.")
+  .NumInput(2)
+  .NumOutput(1)
+  .AddParent("ReduceWithOutputType");
 
 DALI_SCHEMA(reductions__Mean)
   .DocStr("Gets mean of elements along provided axes.")
@@ -110,4 +123,17 @@ DALI_REGISTER_OPERATOR(reductions__Max, MaxCPU, CPU);
 
 using MaxGPU = ReduceOp<kernels::MaxGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Max, MaxGPU, GPU);
+
+using StdCPU = ReduceWithMeanInput<kernels::StdDevCPU, CPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__Std, StdCPU, CPU);
+
+using StdGPU = ReduceWithMeanInput<kernels::StdDevGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__Std, StdGPU, GPU);
+
+using VarianceCPU = ReduceWithMeanInput<kernels::VarianceCPU, CPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__Variance, VarianceCPU, CPU);
+
+using VarianceGPU = ReduceWithMeanInput<kernels::VarianceGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__Variance, VarianceGPU, GPU);
+
 }  // namespace dali

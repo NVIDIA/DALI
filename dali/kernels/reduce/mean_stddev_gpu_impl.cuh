@@ -285,6 +285,40 @@ class VarianceImplBase {
 };
 
 /**
+ * @brief Implements variance with externally provided mean
+ */
+template <typename Out, typename In, typename Mean = Out, typename Acc = Out>
+class VarianceImplGPU : public ReduceImplGPU<Out, In, Acc, VarianceImplGPU<Out, In, Mean, Acc>>,
+                      public VarianceImplBase<Out, In, Mean, VarianceImplGPU<Out, In, Mean, Acc>>,
+                      public MeanImplBase<Out, In, VarianceImplGPU<Out, In, Mean, Acc>> {
+ public:
+  using ReduceBase = ReduceImplGPU<Out, In, Acc, VarianceImplGPU<Out, In, Mean, Acc>>;
+  using MeanBase = MeanImplBase<Out, In, VarianceImplGPU<Out, In, Mean, Acc>>;
+
+  reductions::sum GetReduction() const { return {}; }
+
+  typename MeanBase::postprocessor_t
+  GetPostprocessorImpl(int sample_index, bool reduce_batch) const {
+    int64_t reduced_elems = reduce_batch ? this->TotalReducedElements()
+                                         : this->ReducedElements(sample_index);
+    return MeanBase::GetPostprocessorImpl(reduced_elems, ddof_);
+  }
+
+  void Run(KernelContext &kctx,
+           const OutListGPU<Out> &out,
+           const InListGPU<In> &in,
+           const InListGPU<Mean> &mean,
+           int ddof = 0) {
+    ddof_ = ddof;
+    this->InitMean(mean);
+    ReduceBase::Run(kctx, out, in);
+  }
+
+ private:
+  int ddof_ = 0;
+};
+
+/**
  * @brief Implements standard deviation with externally provided mean
  */
 template <typename Out, typename In, typename Mean = Out, typename Acc = Out>
