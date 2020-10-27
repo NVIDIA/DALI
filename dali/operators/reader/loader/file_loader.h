@@ -129,9 +129,11 @@ class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
         std::ifstream s(file_list_);
         DALI_ENFORCE(s.is_open(), "Cannot open: " + file_list_);
 
-        string image_file;
-        while (s >> image_file) {
-          images_.push_back(image_file);
+        vector<char> line_buf(16 << 10);  // 16 kB should be more than enough for a line
+        char *line = line_buf.data();
+        while (s.getline(line, line_buf.size())) {
+          if (line[0])  // skip empty lines
+            images_.emplace_back(line);
         }
         DALI_ENFORCE(s.eof(), "Wrong format of file_list: " + file_list_);
       }
