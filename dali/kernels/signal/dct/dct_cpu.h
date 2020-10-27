@@ -51,15 +51,16 @@ class DLL_PUBLIC Dct1DCpu {
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
                                       const InTensorCPU<InputType, Dims> &in,
-                                      const DctArgs &args);
+                                      const DctArgs &args, int axis);
 
   DLL_PUBLIC void Run(KernelContext &context,
                       const OutTensorCPU<OutputType, Dims> &out,
                       const InTensorCPU<InputType, Dims> &in,
-                      const DctArgs &args);
+                      const DctArgs &args, int axis);
  private:
   std::vector<OutputType> cos_table_;
   DctArgs args_;
+  int axis_;
 };
 
 }  // namespace dct

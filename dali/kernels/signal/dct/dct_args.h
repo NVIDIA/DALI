@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
 #ifndef DALI_KERNELS_SIGNAL_DCT_DCT_ARGS_H_
 #define DALI_KERNELS_SIGNAL_DCT_DCT_ARGS_H_
 
+#include <tuple>
+
 namespace dali {
 namespace kernels {
 namespace signal {
@@ -28,9 +30,6 @@ struct DctArgs {
   /// @remarks DCT type I requires the input data length to be > 1.
   int dct_type = 2;
 
-  /// @brief Index of the dimension to be transformed. Last dimension by default
-  int axis = -1;
-
   /// @brief If true, the output DCT matrix will be normalized to be orthogonal
   /// @remarks Normalization is not supported for DCT type I
   bool normalize = false;
@@ -41,12 +40,18 @@ struct DctArgs {
 
   inline bool operator==(const DctArgs& oth) const {
     return dct_type == oth.dct_type &&
-           axis == oth.axis &&
+           ndct == oth.ndct &&
            normalize == oth.normalize;
   }
 
   inline bool operator!=(const DctArgs& oth) const {
     return !operator==(oth);
+  }
+
+  // needed to use the struct as a key in std::map
+  inline bool operator<(const DctArgs& rhs) const {
+    return std::make_tuple(dct_type, normalize, ndct)
+           < std::make_tuple(rhs.dct_type, rhs.normalize, rhs.ndct);
   }
 };
 
