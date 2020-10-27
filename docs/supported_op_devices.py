@@ -35,11 +35,11 @@ def main(out_filename):
         is_cpu = '|v|' if op in cpu_ops else ''
         is_gpu = '|v|' if op in gpu_ops else ''
         is_mixed = '|v|' if op in mix_ops else ''
-        try:
-            schema = b.GetSchema(op)
+        schema = b.TryGetSchema(op)
+        if schema:
             supports_seq = '|v|' if schema.AllowsSequences() or schema.IsSequenceOperator() else ''
             volumetric = '|v|' if schema.SupportsVolumetric() else ''
-        except:
+        else:
             supports_seq = ''
             volumetric = ''
         for (module_name, module) in ops_modules.items():
