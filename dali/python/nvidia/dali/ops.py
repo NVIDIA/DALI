@@ -1083,11 +1083,11 @@ def register_gpu_op(name):
 from nvidia.dali.external_source import ExternalSource
 ExternalSource.__module__ = __name__
 
-class CompoundOp:
+class _CompoundOp:
     def __init__(self, op_list):
         self._ops = []
         for op in op_list:
-            if isinstance(op, CompoundOp):
+            if isinstance(op, _CompoundOp):
                 self._ops += op._ops
             else:
                 self._ops.append(op)
@@ -1114,6 +1114,9 @@ The return value is a callable object which, when called, performs::
 
     op_list[n-1](op_list([n-2](...  op_list[0](args))))
 
+Operators can be composed only when all outputs of the previous operator can be processed directly
+by the next operator in the list.
+
 The example below chains an image decoder and a Resize operation with random square size.
 The  ``decode_and_resize`` object can be called as if it was an operator::
 
@@ -1132,6 +1135,9 @@ example, ``Compose`` automatically arranges copying the data to GPU memory.
 .. note::
     This is an experimental feature, subject to change without notice.
 """
-    return op_list[0] if len(op_list) == 1 else CompoundOp(op_list)
+    return op_list[0] if len(op_list) == 1 else _CompoundOp(op_list)
+
+_cpu_ops = _cpu_ops.union({"Compose"})
+_gpu_ops = _gpu_ops.union({"Compose"})
 
 _load_ops()

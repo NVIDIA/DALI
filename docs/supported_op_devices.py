@@ -31,13 +31,17 @@ def main(out_filename):
     doc_table += formater.format('Operator name', 'CPU', 'GPU', 'Mixed', 'Sequences', 'Volumetric', op_name_max_len = op_name_max_len, c=' ')
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
     for op in sorted(all_ops, key=name_sort):
-        schema = b.GetSchema(op)
         op_full_name, submodule, op_name = ops._process_op_name(op)
         is_cpu = '|v|' if op in cpu_ops else ''
         is_gpu = '|v|' if op in gpu_ops else ''
         is_mixed = '|v|' if op in mix_ops else ''
-        supports_seq = '|v|' if schema.AllowsSequences() or schema.IsSequenceOperator() else ''
-        volumetric = '|v|' if schema.SupportsVolumetric() else ''
+        try:
+            schema = b.GetSchema(op)
+            supports_seq = '|v|' if schema.AllowsSequences() or schema.IsSequenceOperator() else ''
+            volumetric = '|v|' if schema.SupportsVolumetric() else ''
+        except:
+            supports_seq = ''
+            volumetric = ''
         for (module_name, module) in ops_modules.items():
             m = module
             for part in submodule:
