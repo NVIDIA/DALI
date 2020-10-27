@@ -93,7 +93,7 @@ class MeanImplGPU : public ReduceImplGPU<Out, In, Acc, MeanImplGPU<Out, In, Acc>
 
 
 /**
- * @brief Implements root mean square reduction
+ * @brief Implements mean square reduction
  */
 template <typename Out, typename In, typename Acc =
   default_sum_acc_t<Out, decltype(reductions::square()(In()))>>
