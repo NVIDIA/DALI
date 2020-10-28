@@ -20,6 +20,9 @@ import nvidia.dali.fn as fn
 import numpy as np
 import os
 
+import warnings
+from nose.tools import raises
+
 from scipy.spatial.transform import Rotation as scipy_rotate
 
 def check_results(T1, batch_size, mat_ref, T0=None, reverse=False, rtol=1e-7):
@@ -129,7 +132,7 @@ def rotate_affine_mat(angle, axis = None, center = None):
              [  s,  c,  0.],
              [  0., 0., 1.]])
     else:  # ndim == 3
-        norm_axis = axis / np.linalg.norm(axis)        
+        norm_axis = axis / np.linalg.norm(axis)
         r_mat = np.identity(ndim + 1)
         r_mat[:ndim, :ndim] = scipy_rotate.from_rotvec(angle_rad * norm_axis).as_matrix()
     if center is not None:
@@ -177,7 +180,7 @@ def shear_affine_mat(shear = None, angles = None, center = None):
     if shear is None:
         shear = [np.tan(a * np.pi / 180.0) for a in angles]
     assert len(shear) == 2 or len(shear) == 6
-    ndim = 3 if len(shear) == 6 else 2 
+    ndim = 3 if len(shear) == 6 else 2
     assert center is None or len(center) == ndim
 
     if ndim == 2:
@@ -208,10 +211,10 @@ def check_transform_shear_op(shear=None, angles=None, center=None, has_input = F
     assert shear is not None or angles is not None
     if shear is not None:
         assert len(shear) == 2 or len(shear) == 6
-        ndim = 3 if len(shear) == 6 else 2 
+        ndim = 3 if len(shear) == 6 else 2
     else:
         assert len(angles) == 2 or len(angles) == 6
-        ndim = 3 if len(angles) == 6 else 2 
+        ndim = 3 if len(angles) == 6 else 2
     assert center is None or len(center) == ndim
 
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
@@ -276,7 +279,7 @@ def crop_affine_mat(from_start, from_end, to_start, to_end, absolute = False):
     affine_mat = np.dot(T2, np.dot(S, T1))
     return affine_mat
 
-def check_transform_crop_op(from_start = None, from_end = None, to_start = None, to_end = None, 
+def check_transform_crop_op(from_start = None, from_end = None, to_start = None, to_end = None,
                             absolute = False, has_input = False, reverse_order=False,
                             batch_size=1, num_threads=4, device_id=0):
     ndim = get_ndim(from_start, from_end, to_start, to_end)
@@ -381,3 +384,19 @@ def test_combine_transforms_correct_order(batch_size=3, num_threads=4, device_id
     for idx in range(batch_size):
         assert np.allclose(outs[0].at(idx), outs[1].at(idx), atol=1e-6)
         assert np.allclose(outs[2].at(idx), outs[3].at(idx), atol=1e-6)
+
+def verify_deprecation(callback):
+    with warnings.catch_warnings(record=True) as w:
+        # Cause all warnings to always be triggered.
+        warnings.simplefilter("always")
+        # Trigger a warning.
+        callback()
+        # Verify DeprecationWarning
+        assert len(w) == 1
+        assert issubclass(w[-1].category, DeprecationWarning)
+        assert "WARNING: `TransformTranslation` is now deprecated. Use `transforms.Translation` instead" \
+                == str(w[-1].message)
+
+def test_transform_translation_deprecation():
+    verify_deprecation(lambda : fn.transform_translation(offset=(0, 0)))
+    verify_deprecation(lambda : ops.TransformTranslation(offset=(0, 0))())

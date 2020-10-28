@@ -93,7 +93,7 @@ def _docstring_generator(cls):
         use_instead = schema.DeprecatedInFavorOf()
         ret += ".. warning::\n\n   This operator is now deprecated"
         if use_instead:
-            ret +=". Use `" + use_instead + "` instead."
+            ret +=". Use :class:`" + use_instead + "` instead."
         ret += "\n\n"
 
     ret += schema.Dox()
@@ -350,7 +350,9 @@ class _OperatorInstance(object):
             msg = "WARNING: `{}` is now deprecated".format(type(self._op).__name__)
             if use_instead:
                 msg +=". Use `" + use_instead + "` instead"
-            print(msg)
+            with warnings.catch_warnings():
+                warnings.simplefilter("default")
+                warnings.warn(msg, DeprecationWarning, stacklevel=2)
 
     def check_args(self):
         self._op.schema.CheckArgs(self._spec)
@@ -597,7 +599,8 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
     # The autodoc doesn't generate doc for something that doesn't match the module name
-    if _b.GetSchema(Operator.schema_name).IsInternal():
+    schema = _b.GetSchema(Operator.schema_name)
+    if schema.IsInternal() or schema.IsDocHidden():
         Operator.__module__ = Operator.__module__ + ".internal"
 
     Operator.__call__.__doc__ = _docstring_generator_call(Operator.schema_name)

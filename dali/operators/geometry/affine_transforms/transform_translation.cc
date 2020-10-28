@@ -35,6 +35,26 @@ The number of dimensions of the transform is inferred from this argument.)code",
   .NumOutput(1)
   .AddParent("TransformAttr");
 
+DALI_SCHEMA(TransformTranslation)  // Deprecated in 0.28.0dev
+  .DocStr(R"code(
+.. warning::
+
+   This operator was renamed and moved to dedicated submodule.
+   Please use :class:`transforms.Translation` instead.
+
+)code")
+  .AddArg(
+    "offset",
+    R"code(The translation vector.
+
+The number of dimensions of the transform is inferred from this argument.)code",
+    DALI_FLOAT_VEC, true)
+  .MakeDocHidden()
+  .Deprecate("transforms.Translation")
+  .NumInput(0, 1)
+  .NumOutput(1)
+  .AddParent("TransformAttr");
+
 /**
  * @brief Translation transformation.
  */
@@ -76,5 +96,6 @@ class TransformTranslationCPU
 };
 
 DALI_REGISTER_OPERATOR(transforms__Translation, TransformTranslationCPU, CPU);
+DALI_REGISTER_OPERATOR(TransformTranslation, TransformTranslationCPU, CPU);
 
 }  // namespace dali
