@@ -206,7 +206,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                     category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category].dtype())]
                     if type(category_tensors[category]) is TensorGPU:
                         if not torch_gpu_device:
-                            torch.device('cuda', dev_id)
+                            torch_gpu_device = torch.device('cuda', dev_id)
                         category_device[category] = torch_gpu_device
                     else:
                         category_device[category] = torch_cpu_device
