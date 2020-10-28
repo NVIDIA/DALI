@@ -35,13 +35,13 @@ The number of dimensions of the transform is inferred from this argument.)code",
   .NumOutput(1)
   .AddParent("TransformAttr");
 
-DALI_SCHEMA(TransformTranslation)
-  .DocStr(R"code(Produces a translation affine transform matrix.
+DALI_SCHEMA(TransformTranslation)  // Deprecated in 0.28.0dev
+  .DocStr(R"code(
+.. warning::
 
-If another transform matrix is passed as an input, the operator applies translation to the matrix provided.
+   This operator was renamed and moved to dedicated submodule.
+   Please use :class:`transforms.Translation` instead.
 
-.. note::
-    The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
 )code")
   .AddArg(
     "offset",
@@ -49,6 +49,7 @@ If another transform matrix is passed as an input, the operator applies translat
 
 The number of dimensions of the transform is inferred from this argument.)code",
     DALI_FLOAT_VEC, true)
+  .MakeDocHidden()
   .Deprecate("transforms.Translation")
   .NumInput(0, 1)
   .NumOutput(1)

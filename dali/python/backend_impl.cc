@@ -1465,6 +1465,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("AllowsSequences", &OpSchema::AllowsSequences)
     .def("SupportsVolumetric", &OpSchema::SupportsVolumetric)
     .def("IsInternal", &OpSchema::IsInternal)
+    .def("IsDocHidden", &OpSchema::IsDocHidden)
     .def("IsNoPrune", &OpSchema::IsNoPrune)
     .def("IsDeprecated", &OpSchema::IsDeprecated)
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf)

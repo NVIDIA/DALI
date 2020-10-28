@@ -309,6 +309,14 @@ graph even if its outputs are not used.)code", false);
   }
 
   /**
+   * @brief Notes that this operator doc should not be visible (but the Op is exposed in Python API)
+   */
+  DLL_PUBLIC inline OpSchema& MakeDocHidden() {
+    is_doc_hidden_ = true;
+    return *this;
+  }
+
+  /**
    * @brief Notes that this operator is deprecated and optionally specifies the operator to be used instead
    */
   DLL_PUBLIC inline OpSchema& Deprecate(const std::string &in_favor_of) {
@@ -707,6 +715,10 @@ graph even if its outputs are not used.)code", false);
     return is_internal_;
   }
 
+  DLL_PUBLIC inline bool IsDocHidden() const {
+    return is_doc_hidden_;
+  }
+
   DLL_PUBLIC inline bool IsDeprecated() const {
     return is_deprecated_;
   }
@@ -897,6 +909,7 @@ graph even if its outputs are not used.)code", false);
   bool is_sequence_operator_ = false;
 
   bool is_internal_ = false;
+  bool is_doc_hidden_ = false;
 
   bool no_prune_ = false;
 
