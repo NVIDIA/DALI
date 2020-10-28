@@ -25,6 +25,8 @@ Prerequisites
 .. _pytorch link: https://pytorch.org
 .. |tf link| replace:: **TensorFlow 1.7**
 .. _tf link: https://www.tensorflow.org
+.. |compatibility link| replace:: enhanced CUDA compatibility guide
+.. _compatibility link : https://docs.nvidia.com/deploy/cuda-compatibility/index.html#enhanced-compat-minor-releases
 
 1. Linux x64.
 2. |driver link|_ supporting `CUDA 10.0 <https://developer.nvidia.com/cuda-downloads>`__ or later (i.e., 410.48 or later driver releases).
@@ -55,7 +57,8 @@ Execute the following command to install the latest DALI for specified CUDA vers
   .. note::
     CUDA 11.0 build uses CUDA toolkit enhanced compatibility. It is built with the latest CUDA 11.x
     toolkit while it can run on the latest, stable CUDA 11.0 capable drivers (450.80 or later).
-    Using the latest driver may enable additional functionality.
+    Using the latest driver may enable additional functionality. More details can be found in
+    |compatibility link|_.
 
 .. code-block:: bash
 
