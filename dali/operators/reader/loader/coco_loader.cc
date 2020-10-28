@@ -97,7 +97,8 @@ void SaveFilenamesToFile(const ImageIdPairs &image_id_pairs, const std::string p
 template <typename T>
 void LoadFromFile(std::vector<T> &output, const std::string path) {
   std::ifstream file(path);
-  DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
+  DALI_ENFORCE(file.good(),
+               make_string("CocoReader failed to read preprocessed annotation data from ", path));
 
   unsigned size;
   file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
@@ -108,7 +109,8 @@ void LoadFromFile(std::vector<T> &output, const std::string path) {
 template <typename T>
 void LoadFromFile(std::vector<std::vector<T> > &output, const std::string path) {
   std::ifstream file(path);
-  DALI_ENFORCE(file, "CocoReader meta file error while loading for path: " + path);
+  DALI_ENFORCE(file.good(),
+               make_string("CocoReader failed to read preprocessed annotation data from ", path));
 
   unsigned size;
   file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
@@ -122,7 +124,8 @@ void LoadFromFile(std::vector<std::vector<T> > &output, const std::string path) 
 
 void LoadFilenamesFromFile(ImageIdPairs &image_id_pairs, const std::string path) {
   std::ifstream file(path);
-  DALI_ENFORCE(file, "CocoReader meta file error while loading for path: " + path);
+  DALI_ENFORCE(file.good(),
+               make_string("CocoReader failed to read preprocessed annotation data from ", path));
 
   int id = 0;
   std::string filename;
@@ -319,7 +322,7 @@ void CocoLoader::SavePreprocessedAnnotations(const std::string &path,
   }
 
   if (output_pixelwise_masks_) {
-    DALI_WARN("Saving preprocessed piwelwise masks is not supported");
+    DALI_WARN("Warning: Saving preprocessed piwelwise masks is not supported");
   }
 
   if (output_image_ids_) {
@@ -410,12 +413,15 @@ void CocoLoader::ParseJsonAnnotations() {
       if (parse_masks) {
         switch (annotation.tag_) {
           case detail::Annotation::POLYGON: {
-            assert(annotation.poly_.segm_meta_.size() % 2 == 0);
-            assert(annotation.poly_.segm_coords_.size() % 2 == 0);
-            polygons_sample_count += annotation.poly_.segm_meta_.size() / 2;
-            vertices_sample_count += annotation.poly_.segm_coords_.size() / 2;
-            for (size_t i = 0; i < annotation.poly_.segm_meta_.size(); i += 2) {
-              auto segm_meta = annotation.poly_.segm_meta_.data();
+            auto &segm_meta = annotation.poly_.segm_meta_;
+            assert(segm_meta.size() % 2 == 0);
+            polygons_sample_count += segm_meta.size() / 2;
+
+            auto &coords = annotation.poly_.segm_coords_;
+            assert(coords.size() % 2 == 0);
+            vertices_sample_count += coords.size() / 2;
+
+            for (size_t i = 0; i < segm_meta.size(); i += 2) {
               assert(segm_meta[i] % 2 == 0);
               assert(segm_meta[i + 1] % 2 == 0);
               int vertex_start_idx =
@@ -425,14 +431,12 @@ void CocoLoader::ParseJsonAnnotations() {
               polygon_data_.push_back({objects_in_sample, vertex_start_idx, vertex_end_idx});
             }
             if (ratio) {
-              auto *coords = annotation.poly_.segm_coords_.data();
-              for (size_t i = 0; i < annotation.poly_.segm_coords_.size(); i += 2) {
+              for (size_t i = 0; i < coords.size(); i += 2) {
                 vertices_data_.push_back({coords[i] / image_info.width_,
                                           coords[i + 1] / image_info.height_});
               }
             } else {
-              auto *coords = annotation.poly_.segm_coords_.data();
-              for (size_t i = 0; i < annotation.poly_.segm_coords_.size(); i += 2) {
+              for (size_t i = 0; i < coords.size(); i += 2) {
                 vertices_data_.push_back({coords[i], coords[i + 1]});
               }
             }

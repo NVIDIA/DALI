@@ -90,11 +90,6 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
     }
   }
 
-  struct BboxesInfo {
-    span<const vec<4>> bboxes;
-    span<const int> labels;
-  };
-
   struct PixelwiseMasksInfo {
     TensorShape<3> shape;
     span<const std::string> rles;
