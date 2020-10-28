@@ -21,12 +21,12 @@
 /// Definition of mapping between input types and possible output types
 /// for MeanSquare operator. Is uesed as parameter to TYPE_MAP macro.
 #define MEAN_SQUARE_TYPES_MAP ( \
-    ((uint8_t), (uint8_t, float)), \
-    ((int8_t), (int8_t, float)), \
-    ((uint16_t), (uint16_t, float)), \
-    ((int16_t), (int16_t, float)), \
-    ((uint32_t), (uint32_t, float)), \
-    ((int32_t), (int32_t, float)), \
+    ((uint8_t), (uint64_t, float)), \
+    ((int8_t), (int64_t, float)), \
+    ((uint16_t), (uint64_t, float)), \
+    ((int16_t), (int64_t, float)), \
+    ((uint32_t), (uint64_t, float)), \
+    ((int32_t), (int64_t, float)), \
     ((uint64_t), (uint64_t, float)), \
     ((int64_t), (int64_t, float)), \
     ((float), (float)))

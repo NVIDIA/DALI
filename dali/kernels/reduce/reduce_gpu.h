@@ -391,19 +391,19 @@ class DLL_PUBLIC MeanSquareGPU {
   std::unique_ptr<Impl> impl_;
 };
 
-extern template class MeanSquareGPU<uint8_t, uint8_t>;
+extern template class MeanSquareGPU<uint64_t, uint8_t>;
 extern template class MeanSquareGPU<float, uint8_t>;
-extern template class MeanSquareGPU<int8_t, int8_t>;
+extern template class MeanSquareGPU<int64_t, int8_t>;
 extern template class MeanSquareGPU<float, int8_t>;
 
-extern template class MeanSquareGPU<uint16_t, uint16_t>;
+extern template class MeanSquareGPU<uint64_t, uint16_t>;
 extern template class MeanSquareGPU<float, uint16_t>;
-extern template class MeanSquareGPU<int16_t, int16_t>;
+extern template class MeanSquareGPU<int64_t, int16_t>;
 extern template class MeanSquareGPU<float, int16_t>;
 
-extern template class MeanSquareGPU<uint32_t, uint32_t>;
+extern template class MeanSquareGPU<uint64_t, uint32_t>;
 extern template class MeanSquareGPU<float, uint32_t>;
-extern template class MeanSquareGPU<int32_t, int32_t>;
+extern template class MeanSquareGPU<int64_t, int32_t>;
 extern template class MeanSquareGPU<float, int32_t>;
 
 extern template class MeanSquareGPU<uint64_t, uint64_t>;

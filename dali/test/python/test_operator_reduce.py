@@ -245,7 +245,7 @@ def test_sum_with_output_type():
 
 def test_reduce_with_mean_input():
     reductions = [
-        (fn.reductions.std, np.std),
+        (fn.reductions.std_dev, np.std),
         (fn.reductions.variance, np.var)]    
 
     batch_gens = [Batch1D, Batch2D, Batch3D]

@@ -25,16 +25,8 @@
 #include "dali/kernels/reduce/reduce_gpu.h"
 #include "dali/kernels/reduce/reduce_setup_utils.h"
 
-#define REDUCE_WITH_MEAN_TYPES_MAP ( \
-    ((uint8_t), (uint8_t, float)), \
-    ((int8_t), (int8_t, float)), \
-    ((uint16_t), (uint16_t, float)), \
-    ((int16_t), (int16_t, float)), \
-    ((uint32_t), (uint32_t, float)), \
-    ((int32_t), (int32_t, float)), \
-    ((uint64_t), (uint64_t, float)), \
-    ((int64_t), (int64_t, float)), \
-    ((float), (float)))
+#define REDUCE_WITH_MEAN_INPUT_TYPES ( \
+  uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)
 
 namespace dali {
 template <
@@ -44,7 +36,6 @@ class ReduceWithMeanInput : public Operator<Backend> {
  public:
   explicit inline ReduceWithMeanInput(const OpSpec &spec) :
     Operator<Backend>(spec),
-    output_type_(spec.GetArgument<DALIDataType>("dtype")),
     axes_(spec.GetRepeatedArgument<int>("axes")),
     keep_dims_(spec.GetArgument<bool>("keep_dims")),
     ddof_(spec.GetArgument<int>("ddof")) {
@@ -59,7 +50,7 @@ class ReduceWithMeanInput : public Operator<Backend> {
     output_desc.resize(1);
     auto &input = ws.template InputRef<Backend>(0);
 
-    output_desc[0].type = dali::TypeTable::GetTypeInfo(OutputType(input.type().id()));
+    output_desc[0].type = dali::TypeTable::GetTypeInfoFromStatic<float>();
     output_desc[0].shape = input.shape();
 
     if (axes_.size() == 0) {
@@ -82,18 +73,15 @@ class ReduceWithMeanInput : public Operator<Backend> {
   void RunImpl(workspace_t<Backend> &ws) override {
     auto& in = ws.template InputRef<Backend>(0);
     DALIDataType input_type = in.type().id();
-    DALIDataType output_type = this->OutputType(input_type);
+    DALIDataType output_type = DALI_FLOAT;
 
-    TYPE_MAP(
+    TYPE_SWITCH(
       input_type,
-      output_type,
       type2id,
       InputType,
-      OutputType,
-      REDUCE_WITH_MEAN_TYPES_MAP,
-      (this->template RunTyped<OutputType, InputType>(ws);),
-      (DALI_FAIL(make_string("Unsupported input type: ", input_type));),
-      (DALI_FAIL(make_string("Unsupported types: ", input_type, ", ", output_type));))
+      REDUCE_WITH_MEAN_INPUT_TYPES,
+      (this->template RunTyped<float, InputType>(ws);),
+      (DALI_FAIL(make_string("Unsupported input type: ", input_type));))
   }
 
   template <typename OutputType, typename InputType>
@@ -163,16 +151,6 @@ class ReduceWithMeanInput : public Operator<Backend> {
       false);
     kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, mean_view, ddof_);
   }
-
-  DALIDataType OutputType(DALIDataType input_type) const {
-    if (this->output_type_ != DALI_NO_TYPE) {
-      return this->output_type_;
-    }
-
-    return DALI_FLOAT;
-  }
-
-  DALIDataType output_type_ = DALI_NO_TYPE;
 
  private:
   USE_OPERATOR_MEMBERS();

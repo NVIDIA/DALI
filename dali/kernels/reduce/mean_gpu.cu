@@ -92,17 +92,17 @@ void MeanSquareGPU<Out, In>::Run(
   impl_->Run(ctx, out, in);
 }
 
-template class MeanSquareGPU<uint8_t, uint8_t>;
+template class MeanSquareGPU<uint64_t, uint8_t>;
 template class MeanSquareGPU<float, uint8_t>;
-template class MeanSquareGPU<int8_t, int8_t>;
+template class MeanSquareGPU<int64_t, int8_t>;
 template class MeanSquareGPU<float, int8_t>;
-template class MeanSquareGPU<uint16_t, uint16_t>;
+template class MeanSquareGPU<uint64_t, uint16_t>;
 template class MeanSquareGPU<float, uint16_t>;
-template class MeanSquareGPU<int16_t, int16_t>;
+template class MeanSquareGPU<int64_t, int16_t>;
 template class MeanSquareGPU<float, int16_t>;
-template class MeanSquareGPU<int32_t, int32_t>;
+template class MeanSquareGPU<int64_t, int32_t>;
 template class MeanSquareGPU<float, int32_t>;
-template class MeanSquareGPU<uint32_t, uint32_t>;
+template class MeanSquareGPU<uint64_t, uint32_t>;
 template class MeanSquareGPU<float, uint32_t>;
 template class MeanSquareGPU<float, float>;
 template class MeanSquareGPU<uint64_t, uint64_t>;

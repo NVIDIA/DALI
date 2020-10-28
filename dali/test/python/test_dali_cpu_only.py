@@ -681,7 +681,7 @@ def test_reduce_std_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     data = fn.external_source(source = get_data)
     mean = fn.reductions.mean(data)
-    reduced = fn.reductions.std(data, mean)
+    reduced = fn.reductions.std_dev(data, mean)
     pipe.set_outputs(reduced)
     pipe.build()
     for _ in range(3):

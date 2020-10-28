@@ -44,9 +44,9 @@ DALI_SCHEMA(ReduceWithOutputType)
   .AddOptionalArg("ddof",
     R"code(Delat Degrees of Freedom. Adjusts the divisor used in calculations, which is `N - ddof`.)code",
     0)
-  .AddParent("ReduceWithOutputType");
+  .AddParent("ReduceBase");
 
-DALI_SCHEMA(reductions__STD)
+DALI_SCHEMA(reductions__StdDev)
   .DocStr("Gets standard deviation of elements along provided axes.")
   .NumInput(2)
   .NumOutput(1)
@@ -131,10 +131,10 @@ using MaxGPU = ReduceOp<kernels::MaxGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Max, MaxGPU, GPU);
 
 using StdCPU = ReduceWithMeanInput<kernels::StdDevCPU, CPUBackend>;
-DALI_REGISTER_OPERATOR(reductions__STD, StdCPU, CPU);
+DALI_REGISTER_OPERATOR(reductions__StdDev, StdCPU, CPU);
 
 using StdGPU = ReduceWithMeanInput<kernels::StdDevGPU, GPUBackend>;
-DALI_REGISTER_OPERATOR(reductions__STD, StdGPU, GPU);
+DALI_REGISTER_OPERATOR(reductions__StdDev, StdGPU, GPU);
 
 using VarianceCPU = ReduceWithMeanInput<kernels::VarianceCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Variance, VarianceCPU, CPU);
