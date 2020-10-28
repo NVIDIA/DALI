@@ -54,7 +54,7 @@ DALI_SCHEMA(NumpyReader)
 This operator can be used in the following modes:
 
 1. Read all files from a directory indicated by ``file_root`` that match given ``file_filter``.
-2. Read file names from a text file.
+2. Read file names from a text file indicated in ``file_list`` argument.
 3. Read files listed in ``files`` argument.
 )")
   .NumInput(0)

@@ -28,14 +28,10 @@
 
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/loader.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/util/file.h"
 
 namespace dali {
-
-namespace filesystem {
-vector<std::pair<string, int>> traverse_directories(const std::string& path);
-std::string join_path(const std::string &dir, const std::string &path);
-}  // namespace filesystem
 
 struct ImageLabelWrapper {
   Tensor<CPUBackend> image;
@@ -73,12 +69,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       if (has_file_list_arg_) {
         DALI_ENFORCE(!file_list_.empty(), "``file_list`` argument cannot be empty");
         if (!has_file_root_arg_) {
-#ifdef WINVER
-          constexpr char dir_sep = '\\';
-#else
-          constexpr char dir_sep = '/';
-#endif
-          auto idx = file_list_.rfind(dir_sep);
+          auto idx = file_list_.rfind(filesystem::dir_sep);
           if (idx != string::npos) {
             file_root_ = file_list_.substr(0, idx);
           }
@@ -136,7 +127,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
     if (image_label_pairs_.empty()) {
       if (!has_file_list_arg_ && !has_files_arg_) {
         image_label_pairs_ = filesystem::traverse_directories(file_root_);
-      } else {
+      } else if (has_file_list_arg_) {
         // load (path, label) pairs from list
         std::ifstream s(file_list_);
         DALI_ENFORCE(s.is_open(), "Cannot open: " + file_list_);

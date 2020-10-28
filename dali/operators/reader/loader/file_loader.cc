@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dirent.h>
-#include <errno.h>
-#include <glob.h>
 #include <memory>
 
 #include "dali/core/common.h"
@@ -23,97 +20,6 @@
 #include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
-
-
-inline void assemble_file_list(std::vector<std::string>& file_list,
-                               const std::string& path, const std::string& curr_entry,
-                               const std::string& filter) {
-  std::string curr_dir_path = path + "/" + curr_entry;
-  DIR *dir = opendir(curr_dir_path.c_str());
-
-  dirent *entry;
-
-  if (filter.empty()) {
-    while ((entry = readdir(dir))) {
-      std::string full_path = curr_dir_path + "/" + std::string{entry->d_name};
-
-#ifdef _DIRENT_HAVE_D_TYPE
-    /*
-     * we support only regular files and symlinks, if FS returns DT_UNKNOWN
-     * it doesn't mean anything and let us validate filename itself
-     */
-      if (entry->d_type != DT_REG && entry->d_type != DT_LNK &&
-         entry->d_type != DT_UNKNOWN) {
-        continue;
-      }
-#endif
-      std::string rel_path = curr_entry + "/" + std::string{entry->d_name};
-      if (HasKnownExtension(std::string(entry->d_name))) {
-         file_list.push_back(rel_path);
-      }
-    }
-  } else {
-    // use glob to do the file search
-    glob_t pglob;
-    std::string pattern = curr_dir_path + '/' + filter;
-    glob(pattern.c_str(), GLOB_TILDE, NULL, &pglob);
-
-    // iterate through the matched files
-    for (unsigned int count = 0; count < pglob.gl_pathc; ++count) {
-      std::string match(pglob.gl_pathv[count]);
-      std::string rel_path = curr_entry + "/" + match.substr(match.find_last_of("/")+1);
-      file_list.push_back(rel_path);
-    }
-    // clean up
-    globfree(&pglob);
-  }
-  closedir(dir);
-}
-
-
-vector<std::string> filesystem::traverse_directories(const std::string& file_root,
-                                                     const std::string& filter) {
-  // open the root
-  DIR *dir = opendir(file_root.c_str());
-
-  DALI_ENFORCE(dir != nullptr,
-      "Directory " + file_root + " could not be opened.");
-
-  struct dirent *entry;
-
-  std::vector<std::string> file_list;
-  std::vector<std::string> entry_name_list;
-
-  // always append the root current directory
-  entry_name_list.push_back(".");
-
-  // now traverse sub-directories
-  while ((entry = readdir(dir))) {
-    struct stat s;
-    std::string entry_name(entry->d_name);
-    std::string full_path = filesystem::join_path(file_root, entry_name);
-    int ret = stat(full_path.c_str(), &s);
-    DALI_ENFORCE(ret == 0,
-        "Could not access " + full_path + " during directory traversal.");
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-    if (S_ISDIR(s.st_mode)) {
-      entry_name_list.push_back(entry_name);
-    }
-  }
-
-  // sort directories
-  std::sort(entry_name_list.begin(), entry_name_list.end());
-  for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
-    assemble_file_list(file_list, file_root, entry_name_list[dir_count], filter);
-  }
-  // sort file names as well
-  std::sort(file_list.begin(), file_list.end());
-  printf("read %lu files from %lu directories\n", file_list.size(), entry_name_list.size());
-
-  closedir(dir);
-
-  return file_list;
-}
 
 void FileLoader::PrepareEmpty(ImageFileWrapper &image_file) {
   PrepareEmptyTensor(image_file.image);

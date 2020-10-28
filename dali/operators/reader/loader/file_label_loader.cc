@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dirent.h>
-#include <errno.h>
 #include <memory>
 
 #include "dali/core/common.h"
@@ -23,100 +21,7 @@
 
 namespace dali {
 
-namespace filesystem {
-#ifdef WINVER
-          constexpr char dir_sep = '\\';
-#else
-          constexpr char dir_sep = '/';
-#endif
-
-
-std::string join_path(const std::string &dir, const std::string &path) {
-  if (dir.empty())
-    return path;
-  if (path.empty())
-    return dir;
-  if (path[0] == dir_sep)  // absolute path
-    return path;
-#ifdef WINVER
-  if (path[1] == ':')
-    return path;
-#endif
-  if (dir[dir.length()-1] == dir_sep)
-    return dir + path;
-  else
-    return dir + dir_sep + path;
-}
-
-}  // namespace filesystem
-
 using filesystem::dir_sep;
-
-inline void assemble_file_list(std::vector<std::pair<std::string, int>>& file_label_pairs,
-                               const std::string& path, const std::string& curr_entry, int label) {
-  std::string curr_dir_path = path + dir_sep + curr_entry;
-  DIR *dir = opendir(curr_dir_path.c_str());
-
-  dirent *entry;
-
-  while ((entry = readdir(dir))) {
-#ifdef _DIRENT_HAVE_D_TYPE
-    /*
-     * we support only regular files and symlinks, if FS returns DT_UNKNOWN
-     * it doesn't mean anything and let us validate filename itself
-     */
-    if (entry->d_type != DT_REG && entry->d_type != DT_LNK &&
-        entry->d_type != DT_UNKNOWN) {
-      continue;
-    }
-#endif
-    std::string rel_path = curr_entry + dir_sep + std::string{entry->d_name};
-    if (HasKnownExtension(std::string(entry->d_name))) {
-      file_label_pairs.push_back(std::make_pair(rel_path, label));
-    }
-  }
-  closedir(dir);
-}
-
-vector<std::pair<string, int>> filesystem::traverse_directories(const std::string& file_root) {
-  // open the root
-  DIR *dir = opendir(file_root.c_str());
-
-  DALI_ENFORCE(dir != nullptr,
-      "Directory " + file_root + " could not be opened.");
-
-  struct dirent *entry;
-
-  std::vector<std::pair<std::string, int>> file_label_pairs;
-  std::vector<std::string> entry_name_list;
-
-  while ((entry = readdir(dir))) {
-    struct stat s;
-    std::string entry_name(entry->d_name);
-    std::string full_path = filesystem::join_path(file_root, entry_name);
-    int ret = stat(full_path.c_str(), &s);
-    DALI_ENFORCE(ret == 0,
-        "Could not access " + full_path + " during directory traversal.");
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-    if (S_ISDIR(s.st_mode)) {
-      entry_name_list.push_back(entry_name);
-    }
-  }
-  // sort directories to preserve class alphabetic order, as readdir could
-  // return unordered dir list. Otherwise file reader for training and validation
-  // could return directories with the same names in completely different order
-  std::sort(entry_name_list.begin(), entry_name_list.end());
-  for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
-    assemble_file_list(file_label_pairs, file_root, entry_name_list[dir_count], dir_count);
-  }
-  // sort file names as well
-  std::sort(file_label_pairs.begin(), file_label_pairs.end());
-  printf("read %lu files from %lu directories\n", file_label_pairs.size(), entry_name_list.size());
-
-  closedir(dir);
-
-  return file_label_pairs;
-}
 
 void FileLabelLoader::PrepareEmpty(ImageLabelWrapper &image_label) {
   PrepareEmptyTensor(image_label.image);

@@ -28,13 +28,10 @@
 
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/loader.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/util/file.h"
 
 namespace dali {
-namespace filesystem {
-vector<std::string> traverse_directories(const std::string& path, const std::string& filter);
-std::string join_path(const std::string &dir, const std::string &path);
-}  // namespace filesystem
 
 struct ImageFileWrapper {
   Tensor<CPUBackend> image;
@@ -69,12 +66,7 @@ class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
     if (has_file_list_arg_) {
       DALI_ENFORCE(!file_list_.empty(), "``file_list`` argument cannot be empty");
       if (!has_file_root_arg_) {
-#ifdef WINVER
-        constexpr char dir_sep = '\\';
-#else
-        constexpr char dir_sep = '/';
-#endif
-        auto idx = file_list_.rfind(dir_sep);
+        auto idx = file_list_.rfind(filesystem::dir_sep);
         if (idx != string::npos) {
           file_root_ = file_list_.substr(0, idx);
         }
