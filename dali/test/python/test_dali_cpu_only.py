@@ -16,6 +16,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
+from nvidia.dali.plugin.pytorch import DALIGenericIterator
 from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator, dali_type
 from PIL import Image, ImageEnhance
 
@@ -702,5 +703,11 @@ def test_arithm_ops_cpu():
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def test_pytorch_plugin_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    outs = fn.external_source(source = get_data, layout = "HWC")
+    pipe.set_outputs(outs)
+    pii = DALIGenericIterator([pipe], ["data"])
 
 # ToDo add tests for DLTensorPythonFunction if easily possible
