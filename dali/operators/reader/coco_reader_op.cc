@@ -32,56 +32,45 @@ This readers produces the following outputs::
 
     images, bounding_boxes, labels, ((polygons, vertices) | (pixelwise_masks)), (image_ids)
 
-**images**
-
-Each sample contains image data with layout ``HWC`` (height, width, channels).
-
-**bounding_boxes**
-
-Each sample can have an arbitrary ``M`` number of bounding boxes, each described by 4 coordinates::
+* **images**
+  Each sample contains image data with layout ``HWC`` (height, width, channels).
+* **bounding_boxes**
+  Each sample can have an arbitrary ``M`` number of bounding boxes, each described by 4 coordinates::
 
     [[x_0, y_0, w_0, h_0],
      [x_1, y_1, w_1, h_1]
      ...
      [x_M, y_M, w_M, h_M]]
 
-or in ``[l, t, r, b]`` format if requested (see ``ltrb`` argument).
-
-**labels**
-
-Each bounding box is associated with an integer label representing a category identifier::
+  or in ``[l, t, r, b]`` format if requested (see ``ltrb`` argument).
+* **labels**
+  Each bounding box is associated with an integer label representing a category identifier::
         
     [label_0, label_1, ..., label_M]
 
-**polygons** and **vertices** (Optional, present if ``polygon_masks`` is set to True)
-    
-If ``polygon_masks`` is enabled, two extra outputs describing masks by a set of polygons.
-    
-Each mask contains an arbitrary number of polygons ``P``, each associated with a mask index in the range [0, M) and 
-composed by a group of ``V`` vertices. The output ``polygons`` describes the polygons as follows::
+* **polygons** and **vertices** (Optional, present if ``polygon_masks`` is set to True)
+  If ``polygon_masks`` is enabled, two extra outputs describing masks by a set of polygons.
+  Each mask contains an arbitrary number of polygons ``P``, each associated with a mask index in the range [0, M) and
+  composed by a group of ``V`` vertices. The output ``polygons`` describes the polygons as follows::
 
     [[mask_idx_0, start_vertex_idx_0, end_vertex_idx_0],
      [mask_idx_1, start_vertex_idx_1, end_vertex_idx_1],
      ...
      [mask_idx_P, start_vertex_idx_P, end_vertex_idx_P]]
 
-where ``mask_idx`` is the index of the mask the polygon, in the range ``[0, M)``, and ``start_vertex_idx`` and  ``end_verted_idx``
-define the range of indices of vertices, as they appear in the output ``vertices``, belonging to this polygon.
-
-Each sample in ``vertices`` contains a list of vertices that composed the different polygons in the sample, as 2D coordinates::
+  where ``mask_idx`` is the index of the mask the polygon, in the range ``[0, M)``, and ``start_vertex_idx`` and  ``end_verted_idx``
+  define the range of indices of vertices, as they appear in the output ``vertices``, belonging to this polygon.
+  Each sample in ``vertices`` contains a list of vertices that composed the different polygons in the sample, as 2D coordinates::
 
     [[x_0, y_0],
      [x_1, y_1],
      ...
      [x_V, y_V]]
 
-**pixelwise_masks** (Optional, present if argument ``pixelwise_masks`` is set to True)
-
-Contains image-like data, same shape and layout as ``images``, representing a pixelwise segmentation mask.
-
-**image_ids** (Optional, present if argument ``image_ids`` is set to True)
-
-One element per sample, representing an image identifier.
+* **pixelwise_masks** (Optional, present if argument ``pixelwise_masks`` is set to True)
+  Contains image-like data, same shape and layout as ``images``, representing a pixelwise segmentation mask.
+* **image_ids** (Optional, present if argument ``image_ids`` is set to True)
+  One element per sample, representing an image identifier.
 )code")
   .DeprecateArgInFavorOf("meta_files_path", "preprocessed_annotations")  // deprecated since 0.28dev
   .AddOptionalArg("preprocessed_annotations",
@@ -102,8 +91,13 @@ One element per sample, representing an image identifier.
 If set to False, the bboxes are returned as [x, y, width, height].)code",
       false)
   .DeprecateArg("masks", false,  // deprecated since 0.28dev
-    "``masks`` argument is now deprecated. Please use ``polygon_masks`` instead "
-    "(note that the format has changed).")
+    R"code(``masks`` argument is now deprecated. Please use ``polygon_masks`` instead.
+
+.. warning::
+    Note that the polygon format has changed ``mask_id, start_coord, end_coord`` to ``mask_id, start_vertex, end_vertex`` where
+start_coord and end_coord are total number of coordinates, effectly ``start_coord = 2 * start_vertex`` and ``end_coord = 2 * end_vertex``.
+Example: A polygon with vertices ``[[x0, y0], [x1, y1], [x2, y2]]`` would be represented as ``[mask_id, 0, 6]`` when using the deprecated
+argument``masks``, but ``[mask_id, 0, 3]`` when using the new argument ``polygon_masks``.)code")
   .AddOptionalArg("polygon_masks",
       R"code(If set to True, segmentation mask polygons are read in the form of two outputs:
 ``polygons`` and ``vertices``. This argument is mutually exclusive with ``pixelwise_masks``.
