@@ -93,6 +93,30 @@ class MeanImplGPU : public ReduceImplGPU<Out, In, Acc, MeanImplGPU<Out, In, Acc>
 
 
 /**
+ * @brief Implements mean square reduction
+ */
+template <typename Out, typename In, typename Acc =
+  default_sum_acc_t<Out, decltype(reductions::square()(In()))>>
+class MeanSquareImplGPU
+    : public ReduceImplGPU<Out, In, Acc, MeanSquareImplGPU<Out, In, Acc>>
+    , public MeanImplBase<Out, In, MeanSquareImplGPU<Out, In, Acc>> {
+ public:
+  using Preprocessor = reductions::square;
+  template <int non_reduced_dims>
+  using PreprocessorBank = UniformPreprocessorBank<non_reduced_dims, Preprocessor>;
+
+  Preprocessor GetPreprocessorImpl(int sample_idx, bool batch) const { return {}; }
+
+  template <int non_reduced_dims>
+  PreprocessorBank<non_reduced_dims> *
+  GetPreprocessorBanksImpl(WorkArea &wa, int axis, int_const<non_reduced_dims>) const {
+    return nullptr;
+  }
+
+  reductions::sum GetReduction() const { return {}; }
+};
+
+/**
  * @brief Implements root mean square reduction
  */
 template <typename Out, typename In, typename Acc =
@@ -258,6 +282,40 @@ class VarianceImplBase {
   GetPreprocessorBanksImpl(WorkArea &wa, int axis, int_const<non_reduced_dims> nrd) const {
     return GetPreprocessorBanks(wa, axis, nrd);
   }
+};
+
+/**
+ * @brief Implements variance with externally provided mean
+ */
+template <typename Out, typename In, typename Mean = Out, typename Acc = Out>
+class VarianceImplGPU : public ReduceImplGPU<Out, In, Acc, VarianceImplGPU<Out, In, Mean, Acc>>,
+                      public VarianceImplBase<Out, In, Mean, VarianceImplGPU<Out, In, Mean, Acc>>,
+                      public MeanImplBase<Out, In, VarianceImplGPU<Out, In, Mean, Acc>> {
+ public:
+  using ReduceBase = ReduceImplGPU<Out, In, Acc, VarianceImplGPU<Out, In, Mean, Acc>>;
+  using MeanBase = MeanImplBase<Out, In, VarianceImplGPU<Out, In, Mean, Acc>>;
+
+  reductions::sum GetReduction() const { return {}; }
+
+  typename MeanBase::postprocessor_t
+  GetPostprocessorImpl(int sample_index, bool reduce_batch) const {
+    int64_t reduced_elems = reduce_batch ? this->TotalReducedElements()
+                                         : this->ReducedElements(sample_index);
+    return MeanBase::GetPostprocessorImpl(reduced_elems, ddof_);
+  }
+
+  void Run(KernelContext &kctx,
+           const OutListGPU<Out> &out,
+           const InListGPU<In> &in,
+           const InListGPU<Mean> &mean,
+           int ddof = 0) {
+    ddof_ = ddof;
+    this->InitMean(mean);
+    ReduceBase::Run(kctx, out, in);
+  }
+
+ private:
+  int ddof_ = 0;
 };
 
 /**

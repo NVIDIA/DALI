@@ -21,29 +21,83 @@ namespace dali {
 DALI_REGISTER_OPERATOR(FileReader, FileReader, CPU);
 
 DALI_SCHEMA(FileReader)
-  .DocStr("Reads (file, label) pairs from a directory.")
+  .DocStr(R"(Reads file contents and returns file-label pairs.
+
+This operator can be used in the following modes:
+
+1. Listing files from a directory, assigning labels based on subdirectory structure.
+
+In this mode, the directory indicated in ``file_root`` argument should contain one or more
+subdirectories. The files in these subdirectories are listed and assigned labels based on
+lexicographical order of the subdirectory.
+
+For example, this directory structure::
+
+  <file_root>/0/image0.jpg
+  <file_root>/0/world_map.jpg
+  <file_root>/0/antarctic.png
+  <file_root>/1/cat.jpeg
+  <file_root>/1/dog.tif
+  <file_root>/2/car.jpeg
+  <file_root>/2/truck.jp2
+
+will yield the following outputs::
+
+  <contents of 0/image0.jpg>        0
+  <contents of 0/world_map.jpg>     0
+  <contents of 0/antarctic.png>     0
+  <contents of 1/cat.jpeg>          1
+  <contents of 1/dog.tif>           1
+  <contents of 2/car.jpeg>          2
+  <contents of 2/truck.jp2>         2
+
+2. Use file names and labels stored in a text file.
+
+``file_list`` argument points to a file which contains one file name and label per line.
+Example::
+
+  dog.jpg 0
+  cute kitten.jpg 1
+  doge.png 0
+
+The file names can contain spaces in the middle, but cannot contain trailing whitespace.
+
+3. Use file names and labels provided as a list of strings and integers, respectively.
+
+As with other readers, the (file, label) pairs returned by this operator can be randomly shuffled
+and various sharding strategies can be applied. See documentation of this operator's arguments
+for details.
+)")
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
-  .AddArg("file_root",
-      R"code(Path to a directory that contains the data files.
+  .AddOptionalArg<string>("file_root",
+      R"(Path to a directory that contains the data files.
 
-``FileReader`` supports a flat directory structure. The ``file_root`` directory must contain
-directories with data files. To obtain the labels, ``FileReader`` sorts directories in ``file_root``
-in alphabetical order and takes an index in this order as a class label.)code",
-      DALI_STRING)
-  .AddOptionalArg("file_list",
-      R"code(Path to a text file that contains the rows of ``filename label`` pairs,
-where the filenames are relative to ``file_root``.
+If not using ``file_list`` or ``files``, this directory is traversed to discover the files.
+``file_root`` is required in this mode of operation.)",
+      nullptr)
+  .AddOptionalArg<string>("file_list",
+      R"(Path to a text file that contains one whitespace-separated ``filename label``
+pair per line. The filenames are relative to the location of that file or to ``file_root``,
+if specified.
 
-If left empty, ``file_root`` is traversed for subdirectories, which are only at one level
-down from ``file_root``, and contain files that are associated with the same label.
-When traversing subdirectories, the labels are assigned consecutive numbers.)code",
-      std::string())
+This argument is mutually exclusive with ``files``.)", nullptr)
 .AddOptionalArg("shuffle_after_epoch",
-      R"code(If set to True, the reader shuffles the entire dataset after each epoch.
+      R"(If set to True, the reader shuffles the entire dataset after each epoch.
 
-``stick_to_shard`` and ``random_shuffle`` cannot be used when this argument is set to True.)code",
+``stick_to_shard`` and ``random_shuffle`` cannot be used when this argument is set to True.)",
       false)
+  .AddOptionalArg<vector<string>>("files", R"(A list of file paths to read the data from.
+
+If ``file_root`` is provided, the paths are treated as being relative to it.
+When using ``files``, the labels are taken from ``labels`` argument or, if it was not supplied,
+contain indices at which given file appeared in the ``files`` list.
+
+This argument is mutually exclusive with ``file_list``.)", nullptr)
+  .AddOptionalArg<vector<int>>("labels", R"(Labels accompanying contents of files listed in
+``files`` argument.
+
+If not used, sequential 0-based indices are used as labels)", nullptr)
   .AddParent("LoaderBase");
 
 }  // namespace dali

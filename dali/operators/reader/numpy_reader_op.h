@@ -29,8 +29,7 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
   explicit NumpyReader(const OpSpec& spec)
     : DataReader< CPUBackend, ImageFileWrapper >(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    loader_ = InitLoader<NumpyLoader>(spec, std::vector<string>(),
-                                      shuffle_after_epoch);
+    loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch);
   }
 
   void RunImpl(SampleWorkspace &ws) override {

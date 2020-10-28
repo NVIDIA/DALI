@@ -16,6 +16,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
+from nvidia.dali.plugin.pytorch import DALIGenericIterator
 from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator, dali_type
 from PIL import Image, ImageEnhance
 
@@ -668,6 +669,32 @@ def test_reduce_max_cpu():
 def test_reduce_sum_cpu():
     check_single_input(fn.reductions.sum)
 
+def test_reduce_mean_cpu():
+    check_single_input(fn.reductions.mean)
+
+def test_reduce_mean_square_cpu():
+    check_single_input(fn.reductions.mean_square)
+
+def test_reduce_root_mean_square_cpu():
+    check_single_input(fn.reductions.rms)
+
+def test_reduce_std_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+    data = fn.external_source(source = get_data)
+    mean = fn.reductions.mean(data)
+    reduced = fn.reductions.std_dev(data, mean)
+    pipe.set_outputs(reduced)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
+def test_reduce_variance_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+    data = fn.external_source(source = get_data)
+    mean = fn.reductions.mean(data)
+    reduced = fn.reductions.variance(data, mean)
+    pipe.set_outputs(reduced)
+
 def test_arithm_ops_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     data = fn.external_source(source = get_data, layout = "HWC")
@@ -676,5 +703,11 @@ def test_arithm_ops_cpu():
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def test_pytorch_plugin_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    outs = fn.external_source(source = get_data, layout = "HWC")
+    pipe.set_outputs(outs)
+    pii = DALIGenericIterator([pipe], ["data"])
 
 # ToDo add tests for DLTensorPythonFunction if easily possible

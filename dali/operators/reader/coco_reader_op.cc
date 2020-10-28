@@ -82,9 +82,11 @@ This readers produces the following outputs::
   .AddOptionalArg("shuffle_after_epoch",
       R"code(If set to True, the reader shuffles the entire  dataset after each epoch.)code",
       false)
-  .AddArg("file_root",
-      R"code(Path to a directory that contains the data files.)code",
-      DALI_STRING)
+  .AddOptionalArg<string>("file_root",
+      R"code(Path to a directory that contains the data files.
+
+If a file list is not provided, this argument is required.)code",
+      nullptr)
   .AddOptionalArg("ltrb",
       R"code(If set to True, bboxes are returned as [left, top, right, bottom].
 

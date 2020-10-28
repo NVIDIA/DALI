@@ -61,10 +61,8 @@ inline bool HasSavePreprocessedAnnotationsDir(const OpSpec &spec) {
 
 class DLL_PUBLIC CocoLoader : public FileLabelLoader {
  public:
-  explicit inline CocoLoader(const OpSpec& spec)
-      : FileLabelLoader(spec, std::vector<std::pair<string, int>>(),
-                        spec.GetArgument<bool>("shuffle_after_epoch")),
-        spec_(spec) {
+  explicit inline CocoLoader(const OpSpec &spec)
+      : FileLabelLoader(spec, spec.GetArgument<bool>("shuffle_after_epoch")), spec_(spec) {
     has_preprocessed_annotations_ = HasPreprocessedAnnotations(spec);
     DALI_ENFORCE(has_preprocessed_annotations_ || spec.HasArgument("annotations_file"),
         "Either ``annotations_file`` or ``preprocessed_annotations`` must be provided");

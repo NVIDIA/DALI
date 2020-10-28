@@ -85,7 +85,7 @@ class Batch3DOverflow(Batch3D):
                 sample *= 100000
 
 
-def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type):
+def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input = False, ddof = 0):
     batch_size = batch_fn.batch_size()
 
     # Needed due to how ExternalSource API works. It fails on methods, partials.
@@ -103,8 +103,14 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type):
 
     with pipe:
         input = fn.external_source(source = get_batch)
-        reduced_cpu = reduce_fn(input, **args)
-        reduced_gpu = reduce_fn(input.gpu(), **args)
+        if not add_mean_input:
+            reduced_cpu = reduce_fn(input, **args)
+            reduced_gpu = reduce_fn(input.gpu(), **args)
+        else:
+            mean = fn.reductions.mean(input, **args)
+            args['ddof'] = ddof
+            reduced_cpu = reduce_fn(input, mean, **args)
+            reduced_gpu = reduce_fn(input.gpu(), mean.gpu(), **args)
         pipe.set_outputs(reduced_cpu, reduced_gpu)
 
     pipe.build()
@@ -119,11 +125,14 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type):
     return result_cpu, result_gpu
 
 
-def run_numpy(reduce_fn, batch_fn, keep_dims, axes, output_type):
+def run_numpy(reduce_fn, batch_fn, keep_dims, axes, output_type, ddof = None):
     result = []
     args = { 'keepdims': keep_dims, 'axis': axes}
     if output_type is not None:
         args['dtype'] = output_type
+
+    if ddof is not None:
+        args['ddof'] = ddof
 
     for _ in range(batch_fn.num_iter()):
         batch = batch_fn()
@@ -138,21 +147,25 @@ def run_numpy(reduce_fn, batch_fn, keep_dims, axes, output_type):
 
 def compare(dali_res, np_res):
     for dali_sample, np_sample in zip(dali_res, np_res):
-        assert np.array_equal(dali_sample, np_sample)
+        assert dali_sample.shape == np_sample.shape
+        if dali_res[0].dtype == np.float32:
+            assert np.allclose(dali_sample, np_sample)
+        else:
+            assert np.array_equal(dali_sample, np_sample)
 
 
-def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type = None):
+def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type = None, add_mean_input = False, ddof = None):
     batch_fn = batch_gen(input_type)
     dali_reduce_fn, numpy_reduce_fn = reduce_fns
 
     for axes in batch_fn.valid_axes():
         dali_res_cpu, dali_res_gpu = run_dali(
-            dali_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type)
+            dali_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type, add_mean_input = add_mean_input, ddof = ddof)
 
         batch_fn.reset()
 
         np_res = run_numpy(
-            numpy_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type)
+            numpy_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type, ddof = ddof)
         
         for iteration in range(batch_fn.num_iter()):
             compare(dali_res_cpu[iteration], np_res[iteration])
@@ -173,11 +186,21 @@ def test_reduce():
                     yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id
 
 
-def test_reduce_with_promotion():
-    reductions = [(fn.reductions.sum, np.sum)]
+def mean_square(input, keepdims = False, axis = None, dtype = None):
+    return np.mean(np.square(input), keepdims = keepdims, axis = axis, dtype = dtype)
 
-    batch_gens = [Batch3DOverflow]
-    types = [np.uint8, np.int8, np.uint16, np.int16]
+
+def root_mean_square(input, keepdims = False, axis = None, dtype = None):
+    return np.sqrt(mean_square(input, keepdims = keepdims, axis = axis, dtype = dtype))
+
+
+def test_reduce_with_promotion():
+    reductions = [
+        (fn.reductions.rms, root_mean_square),
+        (fn.reductions.mean_square, mean_square)]
+
+    batch_gens = [Batch3D]
+    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.float32]
 
     for keep_dims in [False, True]:
         for reduce_fns in reductions:
@@ -186,7 +209,20 @@ def test_reduce_with_promotion():
                     yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id
 
 
-def test_reduce_with_output_type():
+def test_reduce_with_promotion_with_overflow():
+    reductions = [(fn.reductions.sum, np.sum), (fn.reductions.mean, np.mean)]
+
+    batch_gens = [Batch3DOverflow]
+    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.float32]
+
+    for keep_dims in [False, True]:
+        for reduce_fns in reductions:
+            for batch_gen in batch_gens:
+                for type_id in types:
+                    yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id
+
+
+def test_sum_with_output_type():
     reductions = [(fn.reductions.sum, np.sum)]
 
     batch_gens = [Batch3DOverflow]
@@ -205,3 +241,19 @@ def test_reduce_with_output_type():
                     input_type = type_map[0]
                     for output_type in type_map[1]:
                         yield run_reduce, keep_dims, reduce_fns, batch_gen, input_type, output_type
+
+
+def test_reduce_with_mean_input():
+    reductions = [
+        (fn.reductions.std_dev, np.std),
+        (fn.reductions.variance, np.var)]    
+
+    batch_gens = [Batch1D, Batch2D, Batch3D]
+    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64, np.float32]
+
+    for keep_dims in [False, True]:
+        for reduce_fns in reductions:
+            for batch_gen in batch_gens:
+                for type_id in types:
+                    for ddof in [0, 1]:
+                        yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id, None, True, ddof
