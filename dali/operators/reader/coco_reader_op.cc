@@ -36,9 +36,11 @@ Tensor (``m * category_id``).)code")
   .AddOptionalArg("shuffle_after_epoch",
       R"code(If set to True, the reader shuffles the entire  dataset after each epoch.)code",
       false)
-  .AddArg("file_root",
-      R"code(Path to a directory that contains the data files.)code",
-      DALI_STRING)
+  .AddOptionalArg<string>("file_root",
+      R"code(Path to a directory that contains the data files.
+
+If a file list is not provided, this argument is required.)code",
+      nullptr)
   .AddOptionalArg("ltrb",
       R"code(If set to True, bboxes are returned as [left, top, right, bottom].
 
@@ -76,11 +78,6 @@ The value is represented as an absolute value.)code",
   .AddOptionalArg("ratio",
       R"code(If set to True, the returned bbox and masks coordinates are relative to the image size.)code",
       false)
-  .AddOptionalArg("file_list",
-      R"code(Path to the file that contains a list of whitespace separated ``file id`` pairs.
-
-To traverse the file_root directory and obtain files and labels, leave this value empty.)code",
-      std::string())
   .AddOptionalArg("save_img_ids",
       R"code(If set to True, the image IDs are also returned.)code",
       false)

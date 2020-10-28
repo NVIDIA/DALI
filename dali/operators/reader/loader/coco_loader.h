@@ -47,7 +47,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
     bool save_img_ids,
     std::vector<int> &original_ids,
     bool shuffle_after_epoch = false) :
-      FileLabelLoader(spec, std::vector<std::pair<string, int>>(), shuffle_after_epoch),
+      FileLabelLoader(spec, shuffle_after_epoch),
       spec_(spec),
       parse_meta_files_(spec.HasArgument("meta_files_path")),
       heights_(heights),

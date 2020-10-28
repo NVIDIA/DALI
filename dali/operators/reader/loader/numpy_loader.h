@@ -56,9 +56,8 @@ class NumpyLoader : public FileLoader {
  public:
   explicit inline NumpyLoader(
     const OpSpec& spec,
-    vector<std::string> images = std::vector<std::string>(),
     bool shuffle_after_epoch = false)
-    : FileLoader(spec, images, shuffle_after_epoch),
+    : FileLoader(spec, shuffle_after_epoch),
     header_regex_(R"###(^\{'descr': \'(.*?)\', 'fortran_order': (.*?), 'shape': \((.*?)\), \})###") {}
 
   // we want to make it possible to override this function as well

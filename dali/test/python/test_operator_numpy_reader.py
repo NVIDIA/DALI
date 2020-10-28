@@ -23,13 +23,14 @@ import tempfile
 import nose.tools
 
 class NumpyReaderPipeline(Pipeline):
-    def __init__(self, path, batch_size, file_list="",
+    def __init__(self, path, batch_size, files=None, file_list=None,
                  path_filter="*.npy", num_threads=1, device_id=0, num_gpus=1):
         super(NumpyReaderPipeline, self).__init__(batch_size,
                                                   num_threads,
                                                   device_id)
-        
+
         self.input = ops.NumpyReader(file_root = path,
+                                     files = files,
                                      file_list = file_list,
                                      shard_id = device_id,
                                      num_shards = num_gpus)
@@ -51,7 +52,7 @@ unsupported_numpy_types = set(
      np.complex_])
 test_np_shapes = [(), (11), (4, 7), (6, 2, 5), (1, 2, 7, 4)]
 rng = np.random.RandomState(12345)
-    
+
 # test: compare reader with numpy
 # with different batch_size and num_threads
 def test_types_and_shapes():
@@ -102,7 +103,7 @@ def test_batch():
                 arr_rd = pipe_out[0].as_array()
                 arr_np = np.stack([np.load(x)
                                    for x in filenames[batch:batch+batch_size]], axis=0)
-                
+
                 # compare
                 assert_array_equal(arr_rd, arr_np)
 
@@ -120,7 +121,7 @@ def test_batch_file_list():
             create_numpy_file(filename, (5, 2, 8), np.float32, False)
             arr_np_list.append(np.load(filename))
         arr_np_all = np.stack(arr_np_list, axis=0)
-        
+
         # save filenames
         with open(os.path.join(test_data_root, "input.lst"), "w") as f:
             f.writelines("\n".join([os.path.basename(x) for x in filenames]))
@@ -138,9 +139,44 @@ def test_batch_file_list():
                 pipe_out = pipe.run()
                 arr_rd = pipe_out[0].as_array()
                 arr_np = arr_np_all[batch:batch+batch_size, ...]
-                
+
                 # compare
                 assert_array_equal(arr_rd, arr_np)
+
+
+def test_batch_files_arg():
+    with tempfile.TemporaryDirectory() as test_data_root:
+        # create files
+        num_samples = 20
+        batch_size = 4
+        filenames = []
+        arr_np_list = []
+        for index in range(0,num_samples):
+            rel_name = "test_{:02d}.npy".format(index)
+            filename = os.path.join(test_data_root, rel_name)
+            filenames.append(rel_name)
+            create_numpy_file(filename, (5, 2, 8), np.float32, False)
+            arr_np_list.append(np.load(filename))
+        arr_np_all = np.stack(arr_np_list, axis=0)
+        print(filenames)
+
+        # create pipe
+        for num_threads in [1, 2, 4, 8]:
+            pipe = NumpyReaderPipeline(path = test_data_root,
+                                       files = filenames,
+                                       batch_size = batch_size,
+                                       num_threads = num_threads,
+                                       device_id = 0)
+            pipe.build()
+
+            for batch in range(0, num_samples, batch_size):
+                pipe_out = pipe.run()
+                arr_rd = pipe_out[0].as_array()
+                arr_np = arr_np_all[batch:batch+batch_size, ...]
+
+                # compare
+                assert_array_equal(arr_rd, arr_np)
+
 
 
 def create_numpy_file(filename, shape, typ, fortran_order):
@@ -158,7 +194,7 @@ def delete_numpy_file(filename):
 def check_array(filename, shape, typ, fortran_order=False):
     # setup file
     create_numpy_file(filename, shape, typ, fortran_order)
-    
+
     for num_threads in [1, 2, 4, 8]:
         # load with numpy reader
         pipe = NumpyReaderPipeline(path = os.path.dirname(filename),
@@ -169,10 +205,10 @@ def check_array(filename, shape, typ, fortran_order=False):
         pipe.build()
         pipe_out = pipe.run()
         arr_rd = np.squeeze(pipe_out[0].as_array(), axis=0)
-        
+
         # load manually
         arr_np = np.load(filename)
-        
+
         # compare
         assert_array_equal(arr_rd, arr_np)
 

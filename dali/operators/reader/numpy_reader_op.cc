@@ -49,28 +49,42 @@ void NumpyReader::TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBa
 DALI_REGISTER_OPERATOR(NumpyReader, NumpyReader, CPU);
 
 DALI_SCHEMA(NumpyReader)
-  .DocStr("Reads Numpy arrays from a directory.")
+  .DocStr(R"(Reads Numpy arrays from a directory.
+
+This operator can be used in the following modes:
+
+1. Read all files from a directory indicated by ``file_root`` that match given ``file_filter``.
+2. Read file names from a text file indicated in ``file_list`` argument.
+3. Read files listed in ``files`` argument.
+)")
   .NumInput(0)
   .NumOutput(1)  // (Arrays)
-  .AddArg("file_root",
-      R"code(Path to a directory containing the data files.
+  .AddOptionalArg<string>("file_root",
+      R"(Path to a directory that contains the data files.
 
-Supports flat directory structure. The ``file_root`` directory should contain directories
-with numpy files in them.)code", DALI_STRING)
+If not using ``file_list`` or ``files``, this directory is traversed to discover the files.
+``file_root`` is required in this mode of operation.)",
+      nullptr)
   .AddOptionalArg("file_filter",
-      R"code(If a value is specified, the string is interpreted as glob string to filter the
-list of files in the sub-directories of the ``file_root``.)code", "*.npy")
-  .AddOptionalArg("file_list",
-            R"code(Path to a text file that contains the rows of ``filename`` entries,
-where the filenames are relative to ``file_root``.
+      R"(If a value is specified, the string is interpreted as glob string to filter the
+list of files in the sub-directories of the ``file_root``.
 
-If left empty, ``file_root`` is traversed for subdirectories, which are only at one level
-down from ``file_root``.)code", std::string())
-  .AddOptionalArg("shuffle_after_epoch",
-      R"code(If set to True, the reader shuffles the entire dataset after each epoch.
+This argument is ignored when file paths are taken from ``file_list`` or ``files``.)", "*.npy")
+  .AddOptionalArg<string>("file_list",
+      R"(Path to a text file that contains filenames (one per line)
+where the filenames are relative to the location of that file or to ``file_root``, if specified.
 
-Using this argument is mutually exclusive with using ``stick_to_shard``
-and ``random_shuffle``.)code", false)
+This argument is mutually exclusive with ``files``.)", nullptr)
+.AddOptionalArg("shuffle_after_epoch",
+      R"(If set to True, the reader shuffles the entire dataset after each epoch.
+
+``stick_to_shard`` and ``random_shuffle`` cannot be used when this argument is set to True.)",
+      false)
+  .AddOptionalArg<vector<string>>("files", R"(A list of file paths to read the data from.
+
+If ``file_root`` is provided, the paths are treated as being relative to it.
+
+This argument is mutually exclusive with ``file_list``.)", nullptr)
   .AddParent("LoaderBase");
 
 }  // namespace dali
