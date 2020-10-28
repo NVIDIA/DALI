@@ -231,7 +231,7 @@ class CudaPackage(BasePackage):
         ----------
         `key`: str
             Name this package should be queried for
-        `versions`: str or PckgVer class object
+        `versions`: dict or PckgVer class object
             Dictionary, where the key is a cuda version and vale, is the list of versions supported
         `name`: str, , optional, default = None
             Name of this package used during installation. If empty it is the same as the key.
@@ -352,7 +352,8 @@ class CudaHttpPackage(CudaPackage):
 
 all_packages = [PlainPackage("opencv-python", ["4.4.0.42"]),
                 CudaPackage("cupy",
-                        { "100" : ["7.8.0"] },
+                        { "100" : ["8.0.0"],
+                          "110" : ["8.0.0"] },
                         "cupy-cuda{cuda_v}"),
                 CudaPackage("mxnet",
                         { "100" : ["1.7.0"] },
