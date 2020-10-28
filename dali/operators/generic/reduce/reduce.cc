@@ -14,6 +14,10 @@
 
 #include "dali/operators/generic/reduce/reduce.h"
 #include "dali/operators/generic/reduce/sum.h"
+#include "dali/operators/generic/reduce/mean.h"
+#include "dali/operators/generic/reduce/root_mean_square.h"
+#include "dali/operators/generic/reduce/mean_square.h"
+#include "dali/operators/generic/reduce/reduce_with_mean_input.h"
 
 
 namespace dali {
@@ -30,14 +34,53 @@ Not providing any axis results in reduction of all elements.)code",
     "If True, maintains original input dimensions.",
     false);
 
-DALI_SCHEMA(reductions__Sum)
-  .DocStr("Gets sum of elements along provided axes.")
+DALI_SCHEMA(ReduceWithOutputType)
   .AddOptionalArg("dtype",
     R"code(Output data type. This type is used to accumulate the result.)code",
     DALI_NO_TYPE)
+  .AddParent("ReduceBase");
+
+  DALI_SCHEMA(ReduceWithMeanInput)
+  .AddOptionalArg("ddof",
+    R"code(Delat Degrees of Freedom. Adjusts the divisor used in calculations, which is `N - ddof`.)code",
+    0)
+  .AddParent("ReduceBase");
+
+DALI_SCHEMA(reductions__StdDev)
+  .DocStr("Gets standard deviation of elements along provided axes.")
+  .NumInput(2)
+  .NumOutput(1)
+  .AddParent("ReduceWithMeanInput");
+
+DALI_SCHEMA(reductions__Variance)
+  .DocStr("Gets variance of elements along provided axes.")
+  .NumInput(2)
+  .NumOutput(1)
+  .AddParent("ReduceWithMeanInput");
+
+DALI_SCHEMA(reductions__Mean)
+  .DocStr("Gets mean of elements along provided axes.")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("ReduceBase");
+  .AddParent("ReduceWithOutputType");
+
+DALI_SCHEMA(reductions__MeanSquare)
+  .DocStr("Gets mean square of elements along provided axes.")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("ReduceWithOutputType");
+
+DALI_SCHEMA(reductions__RMS)
+  .DocStr("Gets root mean square of elements along provided axes.")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("ReduceWithOutputType");
+
+DALI_SCHEMA(reductions__Sum)
+  .DocStr("Gets sum of elements along provided axes.")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("ReduceWithOutputType");
 
 DALI_SCHEMA(reductions__Min)
   .DocStr("Gets minimal input element along provided axes.")
@@ -50,6 +93,24 @@ DALI_SCHEMA(reductions__Max)
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ReduceBase");
+
+using MeanCPU = MeanOp<kernels::MeanCPU, CPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__Mean, MeanCPU, CPU);
+
+using MeanGPU = MeanOp<kernels::MeanGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__Mean, MeanGPU, GPU);
+
+using MeanSquareCPU = MeanSquareOp<kernels::MeanSquareCPU, CPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__MeanSquare, MeanSquareCPU, CPU);
+
+using MeanSquareGPU = MeanSquareOp<kernels::MeanSquareGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__MeanSquare, MeanSquareGPU, GPU);
+
+using RootMeanSquareCPU = RootMeanSquareOp<kernels::RootMeanSquareCPU, CPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__RMS, RootMeanSquareCPU, CPU);
+
+using RootMeanSquareGPU = RootMeanSquareOp<kernels::RootMeanSquareGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__RMS, RootMeanSquareGPU, GPU);
 
 using SumCPU = SumOp<kernels::SumCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Sum, SumCPU, CPU);
@@ -68,4 +129,17 @@ DALI_REGISTER_OPERATOR(reductions__Max, MaxCPU, CPU);
 
 using MaxGPU = ReduceOp<kernels::MaxGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Max, MaxGPU, GPU);
+
+using StdCPU = ReduceWithMeanInput<kernels::StdDevCPU, CPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__StdDev, StdCPU, CPU);
+
+using StdGPU = ReduceWithMeanInput<kernels::StdDevGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__StdDev, StdGPU, GPU);
+
+using VarianceCPU = ReduceWithMeanInput<kernels::VarianceCPU, CPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__Variance, VarianceCPU, CPU);
+
+using VarianceGPU = ReduceWithMeanInput<kernels::VarianceGPU, GPUBackend>;
+DALI_REGISTER_OPERATOR(reductions__Variance, VarianceGPU, GPU);
+
 }  // namespace dali

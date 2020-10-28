@@ -63,7 +63,64 @@ template class StdDevGPU<float, uint32_t>;
 template class StdDevGPU<int32_t, int32_t>;
 template class StdDevGPU<float, int32_t>;
 
+template class StdDevGPU<uint64_t, uint64_t>;
+template class StdDevGPU<float, uint64_t>;
+template class StdDevGPU<int64_t, int64_t>;
+template class StdDevGPU<float, int64_t>;
+
 template class StdDevGPU<float, float>;
+
+
+template <typename Out, typename In, typename Mean>
+class VarianceGPU<Out, In, Mean>::Impl : public reduce_impl::VarianceImplGPU<Out, In, Mean> {
+};
+
+template <typename Out, typename In, typename Mean>
+VarianceGPU<Out, In, Mean>::VarianceGPU() = default;
+
+template <typename Out, typename In, typename Mean>
+VarianceGPU<Out, In, Mean>::~VarianceGPU() = default;
+
+template <typename Out, typename In, typename Mean>
+KernelRequirements VarianceGPU<Out, In, Mean>::Setup(
+    KernelContext &ctx,
+    const TensorListShape<> &in_shape, span<const int> axes, bool keep_dims, bool reduce_batch) {
+  if (!impl_) {
+    impl_ = std::make_unique<Impl>();
+  }
+  return impl_->Setup(ctx, in_shape, axes, keep_dims, reduce_batch);
+}
+
+template <typename Out, typename In, typename Mean>
+void VarianceGPU<Out, In, Mean>::Run(KernelContext &ctx, const OutListGPU<Out> &out,
+                             const InListGPU<In> &in, const InListGPU<Mean> &mean,
+                             int ddof) {
+  assert(impl_ != nullptr);
+  impl_->Run(ctx, out, in, mean, ddof);
+}
+
+
+template class VarianceGPU<uint8_t, uint8_t>;
+template class VarianceGPU<float, uint8_t>;
+template class VarianceGPU<int8_t, int8_t>;
+template class VarianceGPU<float, int8_t>;
+
+template class VarianceGPU<uint16_t, uint16_t>;
+template class VarianceGPU<float, uint16_t>;
+template class VarianceGPU<int16_t, int16_t>;
+template class VarianceGPU<float, int16_t>;
+
+template class VarianceGPU<uint32_t, uint32_t>;
+template class VarianceGPU<float, uint32_t>;
+template class VarianceGPU<int32_t, int32_t>;
+template class VarianceGPU<float, int32_t>;
+
+template class VarianceGPU<uint64_t, uint64_t>;
+template class VarianceGPU<float, uint64_t>;
+template class VarianceGPU<int64_t, int64_t>;
+template class VarianceGPU<float, int64_t>;
+
+template class VarianceGPU<float, float>;
 
 
 template <typename Out, typename In, typename Mean>
