@@ -35,6 +35,25 @@ The number of dimensions of the transform is inferred from this argument.)code",
   .NumOutput(1)
   .AddParent("TransformAttr");
 
+DALI_SCHEMA(TransformTranslation)
+  .DocStr(R"code(Produces a translation affine transform matrix.
+
+If another transform matrix is passed as an input, the operator applies translation to the matrix provided.
+
+.. note::
+    The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
+)code")
+  .AddArg(
+    "offset",
+    R"code(The translation vector.
+
+The number of dimensions of the transform is inferred from this argument.)code",
+    DALI_FLOAT_VEC, true)
+  .Deprecate("transforms.Translation")
+  .NumInput(0, 1)
+  .NumOutput(1)
+  .AddParent("TransformAttr");
+
 /**
  * @brief Translation transformation.
  */
@@ -76,5 +95,6 @@ class TransformTranslationCPU
 };
 
 DALI_REGISTER_OPERATOR(transforms__Translation, TransformTranslationCPU, CPU);
+DALI_REGISTER_OPERATOR(TransformTranslation, TransformTranslationCPU, CPU);
 
 }  // namespace dali

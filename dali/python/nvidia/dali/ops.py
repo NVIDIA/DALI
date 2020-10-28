@@ -93,7 +93,7 @@ def _docstring_generator(cls):
         use_instead = schema.DeprecatedInFavorOf()
         ret += ".. warning::\n\n   This operator is now deprecated"
         if use_instead:
-            ret +=". Use `" + use_instead + "` instead."
+            ret +=". Use :class:`" + use_instead + "` instead."
         ret += "\n\n"
 
     ret += schema.Dox()
