@@ -178,7 +178,8 @@ Args
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists that are produced by the source function.
 
-    If set the returned output would be a list.
+    If set, the operator returns a list of ``DataNode`` objects, otherwise a single ``DataNode``
+    object is returned.
 
 Keyword Args
 ------------
