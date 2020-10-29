@@ -359,8 +359,8 @@ extern template class MeanGPU<float, float>;
 template <typename Out, typename In>
 class DLL_PUBLIC MeanSquareGPU {
  public:
-  MeanSquareGPU();
-  ~MeanSquareGPU();
+  DALI_HOST MeanSquareGPU();
+  DALI_HOST ~MeanSquareGPU();
 
   /**
    * @brief Sets up the reduction
@@ -564,8 +564,8 @@ extern template class StdDevGPU<float, float>;
 template <typename Out, typename In, typename Mean = Out>
 class DLL_PUBLIC VarianceGPU {
  public:
-  VarianceGPU();
-  ~VarianceGPU();
+  DALI_HOST VarianceGPU();
+  DALI_HOST ~VarianceGPU();
 
   /**
    * @brief Sets up the reduction

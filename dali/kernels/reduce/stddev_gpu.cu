@@ -76,10 +76,10 @@ class VarianceGPU<Out, In, Mean>::Impl : public reduce_impl::VarianceImplGPU<Out
 };
 
 template <typename Out, typename In, typename Mean>
-VarianceGPU<Out, In, Mean>::VarianceGPU() = default;
+DALI_HOST VarianceGPU<Out, In, Mean>::VarianceGPU() = default;
 
 template <typename Out, typename In, typename Mean>
-VarianceGPU<Out, In, Mean>::~VarianceGPU() = default;
+DALI_HOST VarianceGPU<Out, In, Mean>::~VarianceGPU() = default;
 
 template <typename Out, typename In, typename Mean>
 KernelRequirements VarianceGPU<Out, In, Mean>::Setup(

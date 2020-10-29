@@ -70,10 +70,10 @@ class MeanSquareGPU<Out, In>::Impl : public reduce_impl::MeanSquareImplGPU<Out, 
 };
 
 template <typename Out, typename In>
-MeanSquareGPU<Out, In>::MeanSquareGPU() = default;
+DALI_HOST MeanSquareGPU<Out, In>::MeanSquareGPU() = default;
 
 template <typename Out, typename In>
-MeanSquareGPU<Out, In>::~MeanSquareGPU() = default;
+DALI_HOST MeanSquareGPU<Out, In>::~MeanSquareGPU() = default;
 
 template <typename Out, typename In>
 KernelRequirements MeanSquareGPU<Out, In>::Setup(
