@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #include <algorithm>
 #include <string>
+#include <cstring>
 #include <utility>
 #include <vector>
 #include "dali/operators/reader/loader/filesystem.h"
