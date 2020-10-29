@@ -37,7 +37,11 @@ The function should not modify input tensors.
 .. warning::
   Currently, this operator can be used only in pipelines with the
   ``exec_async=False`` and ``exec_pipelined=False`` values specified and should only be
-  used for prototyping and debugging.)code")
+  used for prototyping and debugging.
+
+.. warning::
+  This operator is not compatible with TensorFlow integration.
+)code")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()

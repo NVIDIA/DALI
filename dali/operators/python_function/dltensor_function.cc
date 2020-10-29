@@ -41,7 +41,11 @@ To synchronize the device code with DALI, synchronize DALI's work before the ope
 with the ``synchronize_stream`` flag (enabled by default) and ensure that the scheduled device
 tasks are finished in the operator call. The GPU code can be executed on the CUDA stream used
 by DALI, which can be obtained by calling the ``current_dali_stream()`` function. In this case,
-the ``synchronize_stream`` flag can be set to False.)code")
+the ``synchronize_stream`` flag can be set to False.
+
+.. warning::
+  This operator is not compatible with TensorFlow integration.
+)code")
     .AddOptionalArg("synchronize_stream",
         R"code(Ensures that DALI synchronizes its CUDA stream before calling the Python function.
 
