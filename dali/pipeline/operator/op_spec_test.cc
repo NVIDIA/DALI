@@ -41,6 +41,8 @@ DALI_SCHEMA(DummyOpForSpecTest)
   .AddOptionalArg<int>("no_default_tensor", "argument without default", nullptr, true)
   .AddOptionalArg("replacing_arg", "arg that replaces deprecated arg", 0)
   .DeprecateArgInFavorOf("deprecated_arg", "replacing_arg")
+  .AddOptionalArg("deprecated_ignored_arg",
+                  "arg that is deprecated and ignored by the implementation", 0)
   .DeprecateArg("deprecated_ignored_arg", true);
 
 TEST(OpSpecTest, GetArgumentTensorSet) {
@@ -199,6 +201,7 @@ TEST(OpSpecTest, DeprecatedArgs) {
       .AddArg("deprecated_arg", 1);
   ASSERT_THROW(spec0.GetArgument<int>("deprecated_arg"), DALIException);
   ASSERT_EQ(spec0.GetArgument<int>("replacing_arg"), 1);
+
   int result = 0;
   ASSERT_FALSE(spec0.TryGetArgument<int>(result, "deprecated_arg"));
   ASSERT_TRUE(spec0.TryGetArgument<int>(result, "replacing_arg"));
@@ -217,8 +220,9 @@ TEST(OpSpecTest, DeprecatedArgs) {
   auto spec1 = OpSpec("DummyOpForSpecTest")
       .AddArg("batch_size", 2)
       .AddArg("deprecated_ignored_arg", 42);
-
-  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "deprecated_ignored_arg"));
+  // It is marked as to be ingored, but there's no reason we should not be
+  // able to query for the argument if it was provided.
+  ASSERT_TRUE(spec0.TryGetArgument<int>(result, "deprecated_ignored_arg"));
 }
 
 class TestArgumentInput_Producer : public Operator<CPUBackend> {

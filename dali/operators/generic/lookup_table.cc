@@ -86,7 +86,7 @@ Here is a practical example, considering the table defined above::
   .SupportVolumetric()
   .AddOptionalArg("dtype",
     R"code(Output data type.)code",
-    DALI_DATA_TYPE)
+    DALI_FLOAT)
   .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("default_value",
     R"code(Default output value for keys that are not present in the table.)code",

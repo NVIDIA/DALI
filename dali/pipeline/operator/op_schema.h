@@ -782,9 +782,6 @@ graph even if its outputs are not used.)code", false);
 
   DLL_PUBLIC bool HasInternalArgument(const std::string &name, const bool local_only = false) const;
 
-  DLL_PUBLIC bool HasDeprecatedArgument(const std::string &name,
-                                        const bool local_only = false) const;
-
   /**
    * @brief Finds default value for a given argument
    * @return A pair of the defining schema and the value
@@ -795,7 +792,7 @@ graph even if its outputs are not used.)code", false);
                    bool include_internal = true) const;
 
   DLL_PUBLIC inline bool HasArgument(const std::string &name, bool include_internal = false) const {
-    return HasRequiredArgument(name) || HasOptionalArgument(name) || HasDeprecatedArgument(name)
+    return HasRequiredArgument(name) || HasOptionalArgument(name)
         || (include_internal && HasInternalArgument(name, true));
   }
 
@@ -868,8 +865,6 @@ graph even if its outputs are not used.)code", false);
   std::map<std::string, RequiredArgumentDef> GetRequiredArguments() const;
 
   std::map<std::string, DefaultedArgumentDef> GetOptionalArguments() const;
-
-  std::map<std::string, DeprecatedArgDef> GetDeprecatedArguments() const;
 
   string dox_;
   string name_;
