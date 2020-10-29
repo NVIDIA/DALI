@@ -72,10 +72,10 @@ This readers produces the following outputs::
 * **image_ids** (Optional, present if argument ``image_ids`` is set to True)
   One element per sample, representing an image identifier.
 )code")
-  .DeprecateArgInFavorOf("meta_files_path", "preprocessed_annotations")  // deprecated since 0.28dev
   .AddOptionalArg("preprocessed_annotations",
     "Path to the directory with meta files that contain preprocessed COCO annotations.",
     std::string())
+  .DeprecateArgInFavorOf("meta_files_path", "preprocessed_annotations")  // deprecated since 0.28dev
   .AddOptionalArg("annotations_file",
       R"code(List of paths to the JSON annotations files.)code",
       std::string())
@@ -92,14 +92,6 @@ If a file list is not provided, this argument is required.)code",
 
 If set to False, the bboxes are returned as [x, y, width, height].)code",
       false)
-  .DeprecateArg("masks", false,  // deprecated since 0.28dev
-    R"code(``masks`` argument is now deprecated. Please use ``polygon_masks`` instead.
-
-.. warning::
-    Note that the polygon format has changed ``mask_id, start_coord, end_coord`` to ``mask_id, start_vertex, end_vertex`` where
-start_coord and end_coord are total number of coordinates, effectly ``start_coord = 2 * start_vertex`` and ``end_coord = 2 * end_vertex``.
-Example: A polygon with vertices ``[[x0, y0], [x1, y1], [x2, y2]]`` would be represented as ``[mask_id, 0, 6]`` when using the deprecated
-argument``masks``, but ``[mask_id, 0, 3]`` when using the new argument ``polygon_masks``.)code")
   .AddOptionalArg("polygon_masks",
       R"code(If set to True, segmentation mask polygons are read in the form of two outputs:
 ``polygons`` and ``vertices``. This argument is mutually exclusive with ``pixelwise_masks``.
@@ -107,6 +99,15 @@ argument``masks``, but ``[mask_id, 0, 3]`` when using the new argument ``polygon
 .. warning::
     Currently objects with ``iscrowd=1`` annotations are skipped.)code",
       false)
+  .AddOptionalArg("masks",
+  R"code(Enable polygon masks.
+
+.. warning::
+    Use ``polygon_masks`` instead. Note that the polygon format has changed ``mask_id, start_coord, end_coord`` to ``mask_id, start_vertex, end_vertex`` where
+start_coord and end_coord are total number of coordinates, effectly ``start_coord = 2 * start_vertex`` and ``end_coord = 2 * end_vertex``.
+Example: A polygon with vertices ``[[x0, y0], [x1, y1], [x2, y2]]`` would be represented as ``[mask_id, 0, 6]`` when using the deprecated
+argument``masks``, but ``[mask_id, 0, 3]`` when using the new argument ``polygon_masks``.)code", false)
+  .DeprecateArg("masks", false)  // deprecated since 0.28dev
   .AddOptionalArg("pixelwise_masks",
       R"code(If true, segmentation masks are read and returned as pixel-wise masks. This argument is
 mutually exclusive with ``polygon_masks``.)code",
@@ -122,21 +123,21 @@ instance of an object is lower than this value, the object will be ignored.)code
   .AddOptionalArg("ratio",
       R"code(If set to True, the returned bbox and mask polygon coordinates are relative to the image dimensions.)code",
       false)
-  .DeprecateArgInFavorOf("save_img_ids", "image_ids")  // deprecated since 0.28dev
   .AddOptionalArg("image_ids",
       R"code(If set to True, the image IDs will be produced in an extra output.)code",
       false)
-  .DeprecateArgInFavorOf("dump_meta_files",
-                         "save_preprocessed_annotations")  // deprecated since 0.28dev
+  .DeprecateArgInFavorOf("save_img_ids", "image_ids")  // deprecated since 0.28dev
   .AddOptionalArg("save_preprocessed_annotations",
       R"code(If set to True, the operator saves a set of files containing binary representations of the
 preprocessed COCO annotations.)code",
       false)
-  .DeprecateArgInFavorOf("dump_meta_files_path",
-                         "save_preprocessed_annotations_dir")  // deprecated since 0.28dev
-  .AddOptionalArg("dump_meta_files_path",
+  .DeprecateArgInFavorOf("dump_meta_files",
+                         "save_preprocessed_annotations")  // deprecated since 0.28dev
+  .AddOptionalArg("save_preprocessed_annotations_dir",
       R"code(Path to the directory in which to save the preprocessed COCO annotations files.)code",
     std::string())
+  .DeprecateArgInFavorOf("dump_meta_files_path",
+                         "save_preprocessed_annotations_dir")  // deprecated since 0.28dev
   .AdditionalOutputsFn([](const OpSpec& spec) {
       return OutPolygonMasksEnabled(spec) * 2 +
              OutPixelwiseMasksEnabled(spec) +

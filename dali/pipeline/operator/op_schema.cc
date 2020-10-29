@@ -111,13 +111,23 @@ std::map<std::string, DefaultedArgumentDef> OpSchema::GetOptionalArguments() con
   return ret;
 }
 
+std::map<std::string, DeprecatedArgDef> OpSchema::GetDeprecatedArguments() const {
+  auto ret = deprecated_arguments_;
+  for (const auto &parent_name : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
+    const auto &parent_args = parent.GetDeprecatedArguments();
+    ret.insert(parent_args.begin(), parent_args.end());
+  }
+  return ret;
+}
+
+
 std::string OpSchema::GetArgumentDox(const std::string &name) const {
   DALI_ENFORCE(HasArgument(name), "Argument \"" + name +
       "\" is not supported by operator \"" + this->name() + "\".");
   if (HasRequiredArgument(name)) {
     return GetRequiredArguments().at(name).doc;
   } else {
-    // optional argument
     return GetOptionalArguments().at(name).doc;
   }
 }
@@ -128,7 +138,6 @@ DALIDataType OpSchema::GetArgumentType(const std::string &name) const {
   if (HasRequiredArgument(name)) {
     return GetRequiredArguments().at(name).dtype;
   } else {
-    // optional argument
     return GetOptionalArguments().at(name).dtype;
   }
 }
@@ -210,6 +219,19 @@ bool OpSchema::HasInternalArgument(const std::string &name, const bool local_onl
   }
   return ret;
 }
+
+bool OpSchema::HasDeprecatedArgument(const std::string &name, const bool local_only) const {
+  bool ret = deprecated_arguments_.find(name) != deprecated_arguments_.end();
+  if (ret || local_only) {
+    return ret;
+  }
+  for (const auto &p : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(p);
+    ret = ret || parent.HasDeprecatedArgument(name);
+  }
+  return ret;
+}
+
 
 std::pair<const OpSchema *, const Value *>
 OpSchema::FindDefaultValue(const std::string &name, bool local_only, bool include_internal) const {

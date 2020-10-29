@@ -36,14 +36,15 @@ Normalization takes the input images and produces the output by using the follow
   .NumOutput(1)
   .AllowSequences()
   .SupportVolumetric()
-  .DeprecateArg("image_type", true)  // deprecated since 0.24dev
-  .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
+  .AddOptionalArg<DALIImageType>("image_type", "Image type", nullptr)
+  .DeprecateArg("image_type")  // deprecated since 0.24dev
   .AddOptionalArg("dtype",
        R"code(Output data type.
 
 Supported types: ``FLOAT``, ``FLOAT16``, and ``UINT8``.
 
 If not set, the input type is used.)code", DALI_FLOAT)
+  .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("output_layout",
     R"code(Tensor data layout for the output.)code", TensorLayout("CHW"))
   .AddOptionalArg("pad_output",
