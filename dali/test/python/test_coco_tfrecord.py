@@ -86,7 +86,7 @@ class TFRecordDetectionPipeline(Pipeline):
             index_path = os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
             features = {
                 'image/encoded' : tfrec.FixedLenFeature((), tfrec.string, ""),
-                'image/object/class/label':  tfrec.VarLenFeature([1], tfrec.int64,  0),
+                'image/object/class/label':  tfrec.VarLenFeature([], tfrec.int64,  0),
                 'image/object/bbox':    tfrec.VarLenFeature([4], tfrec.float32, 0.0),
             },
             shard_id=0,
