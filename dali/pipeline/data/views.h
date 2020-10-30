@@ -191,6 +191,60 @@ view(const TensorVector<Backend> &data) {
   return ret;
 }
 
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
+reinterpret_view(TensorVector<Backend> &data) {
+  if (data.size() == 0)
+    return {};
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
+  ret.shape = convert_dim<ndim>(data.shape());
+  ret.data.resize(ret.shape.num_samples());
+  assert(data.type().size() >= sizeof(T));
+  assert(data.type().size() % sizeof(T) == 0);
+  for (int i = 0; i < ret.shape.num_samples(); i++) {
+    ret.data[i] = static_cast<T*>(data[i].raw_mutable_data());
+  }
+  // If reinterpreting to a smaller type, adjust the inner extent
+  if (data.type().size() > sizeof(T)) {
+    int k = data.type().size() / sizeof(T);
+    for (int i = 0; i < ret.shape.num_samples(); i++) {
+      auto sh = ret.shape.tensor_shape_span(i);
+      sh[sh.size() - 1] *= k;
+    }
+  }
+  return ret;
+}
+
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
+reinterpret_view(const TensorVector<Backend> &data) {
+  static_assert(std::is_const<T>::value,
+                "Cannot create a non-const view of a `const TensorVector<>`. "
+                "Missing `const` in T?");
+  if (data.size() == 0)
+    return {};
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
+  ret.shape = convert_dim<ndim>(data.shape());
+  ret.data.resize(ret.shape.num_samples());
+  assert(data.type().size() >= sizeof(T));
+  assert(data.type().size() % sizeof(T) == 0);
+  for (int i = 0; i < ret.shape.num_samples(); i++) {
+    ret.data[i] = static_cast<T*>(data[i].raw_data());
+  }
+  // If reinterpreting to a smaller type, adjust the inner extent
+  if (data.type().size() > sizeof(T)) {
+    int k = data.type().size() / sizeof(T);
+    for (int i = 0; i < ret.shape.num_samples(); i++) {
+      auto sh = ret.shape.tensor_shape_span(i);
+      sh[sh.size() - 1] *= k;
+    }
+  }
+  return ret;
+}
+
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_DATA_VIEWS_H_
