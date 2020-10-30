@@ -33,7 +33,7 @@ masks are present.
 
 .. note::
   
-  The format of ``polygons`` and ``vertices`` is the same as ``mask_meta`` and ``mask_coords`` outputs from COCOReader.
+  The format of ``polygons`` and ``vertices`` is the same as produced by COCOReader.
 
 **Examples:**
 
@@ -190,10 +190,15 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
 template <typename T>
 void SelectMasksCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   // Inputs were already validated and input 0 was already parsed in SetupImpl
-  const auto &in_polygons_view = view<const int32_t, 2>(ws.template InputRef<CPUBackend>(1));
-  const auto &out_polygons_view = view<int32_t, 2>(ws.template OutputRef<CPUBackend>(0));
-  const auto &in_vertices_view = view<const T, 2>(ws.template InputRef<CPUBackend>(2));
-  const auto &out_vertices_view = view<T, 2>(ws.template OutputRef<CPUBackend>(1));
+  const auto &in_polygons = ws.template InputRef<CPUBackend>(1);
+  const auto &in_polygons_view = view<const int32_t, 2>(in_polygons);
+  auto &out_polygons = ws.template OutputRef<CPUBackend>(0);
+  const auto &out_polygons_view = view<int32_t, 2>(out_polygons);
+
+  const auto &in_vertices = ws.template InputRef<CPUBackend>(2);
+  const auto &in_vertices_view = reinterpret_view<const T, 2>(in_vertices);
+  auto &out_vertices = ws.template OutputRef<CPUBackend>(1);
+  const auto &out_vertices_view = reinterpret_view<T, 2>(out_vertices);
 
   for (int i = 0; i < in_polygons_view.num_samples(); i++) {
     const auto &selected_masks = samples_[i].selected_masks;

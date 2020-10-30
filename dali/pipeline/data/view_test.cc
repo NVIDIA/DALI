@@ -133,4 +133,35 @@ TEST(TensorVector, View) {
   }
 }
 
+TEST(TensorVector, ReinterpretView) {
+  TensorVector<CPUBackend> tvec(10);
+  TypeInfo type = TypeInfo::Create<int>();
+  tvec.set_type(type);
+  std::mt19937_64 rng;
+  for (int i = 0; i < 10; i++) {
+    tvec[i].Resize(TensorShape<3>(100+i, 40+i, 3+i));
+    tvec[i].set_type(type);
+    UniformRandomFill(view<int>(tvec[i]), rng, 0, 10000);
+  }
+
+  auto tlv = view<int, 3>(tvec);
+  auto tlv_i16 = reinterpret_view<int16_t, 3>(tvec);
+  const auto& ctvec = tvec;
+  auto tlv_u8 = reinterpret_view<const uint8_t, 3>(ctvec);
+
+  auto tv_shape = tvec.shape();
+  ASSERT_EQ(tv_shape, tlv.shape);
+  for (int i = 0; i < 10; i++) {
+    auto s = tv_shape[i];
+    TensorShape<3> expected_tlv_i16_shape{s[0], s[1], s[2] * 2};
+    EXPECT_EQ(expected_tlv_i16_shape, tlv_i16[i].shape);
+    EXPECT_EQ(static_cast<const void*>(tlv[i].data), static_cast<const void*>(tlv_i16[i].data));
+
+    TensorShape<3> expected_tlv_iu8_shape{s[0], s[1], s[2] * 4};
+    EXPECT_EQ(expected_tlv_iu8_shape, tlv_u8[i].shape);
+    EXPECT_EQ(static_cast<const void*>(tlv[i].data), static_cast<const void*>(tlv_u8[i].data));
+  }
+}
+
+
 }  // namespace dali
