@@ -40,13 +40,12 @@ void PermuteBatch<CPUBackend>::RunImpl(HostWorkspace &ws) {
 
   auto &tp = ws.GetThreadPool();
   int N = indices_.size();
-  int element_size = output.type().size();
   for (int i = 0; i < N; i++) {
-    auto size = volume(output_shape.tensor_shape_span(i)) * element_size;
+    auto size = volume(output_shape.tensor_shape_span(i));
     int src = indices_[i];
-    tp.AddWork([&, i, src, size](int tid) {
+    tp.AddWork([&, i, src](int tid) {
       output.SetMeta(i, input.GetMeta(i));
-      memcpy(output[i].raw_mutable_data(), input[src].raw_data(), size);
+      output[i].Copy(input[src], 0);
     }, size);
   }
   tp.RunAll();

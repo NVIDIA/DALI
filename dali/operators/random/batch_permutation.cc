@@ -16,6 +16,7 @@
 #include <random>
 #include <vector>
 #include "dali/operators/random/batch_permutation.h"
+#include "dali/core/random.h"
 
 namespace dali {
 
@@ -25,20 +26,9 @@ indexing samples in the batch.)")
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("allow_repetitions",
-      R"(If true, the output can contain repetitions and omissions.)", false);
-
-void BatchPermutation::NoRepetitions(int N) {
-  tmp_out_.resize(N);
-  std::iota(tmp_out_.begin(), tmp_out_.end(), 0);
-  std::shuffle(tmp_out_.begin(), tmp_out_.end(), rng_);
-}
-
-void BatchPermutation::WithRepetitions(int N) {
-  std::uniform_int_distribution<int> dis(0, N-1);
-  tmp_out_.resize(N);
-  for (auto &x : tmp_out_)
-    x = dis(rng_);
-}
+      R"(If true, the output can contain repetitions and omissions.)", false)
+  .AddOptionalArg("no_fixed_points", R"(If true, the the output permutation cannot contain fixed "
+  "points, that is ``out[i] != i``. This argument is ignored when batch size is 1.)", false);
 
 void BatchPermutation::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
@@ -47,10 +37,22 @@ void BatchPermutation::RunImpl(HostWorkspace &ws) {
     return;
   auto out_view = view<int, 0>(output);
 
-  if (spec_.GetArgument<bool>("allow_repetitions"))
-    WithRepetitions(N);
-  else
-    NoRepetitions(N);
+  bool rep = spec_.GetArgument<bool>("allow_repetitions");
+  bool no_fixed = spec_.GetArgument<bool>("no_fixed_points") && N > 1;
+
+  tmp_out_.resize(N);
+
+  if (rep) {
+    if (no_fixed)
+      random_sequence_no_fixed_points(tmp_out_, 0, N, rng_);
+    else
+      random_sequence(tmp_out_, 0, N, rng_);
+  } else {
+    if (no_fixed)
+      random_derangement(tmp_out_, rng_);
+    else
+      random_permutation(tmp_out_, rng_);
+  }
   for (int i = 0; i < N; ++i) {
     out_view.data[i][0] = tmp_out_[i];
   }
@@ -59,4 +61,3 @@ void BatchPermutation::RunImpl(HostWorkspace &ws) {
 DALI_REGISTER_OPERATOR(BatchPermutation, BatchPermutation, CPU);
 
 }  // namespace dali
-

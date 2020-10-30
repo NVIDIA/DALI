@@ -4,25 +4,31 @@ from nvidia.dali.pipeline import Pipeline
 import numpy as np
 from test_utils import check_batch
 
-def _test_permutation_generator(allow_repetitions):
+def _test_permutation_generator(allow_repetitions, no_fixed):
     batch_size = 10
     pipe = Pipeline(batch_size, 1, None)
-    perm = fn.batch_permutation(allow_repetitions=allow_repetitions)
+    perm = fn.batch_permutation(allow_repetitions=allow_repetitions, no_fixed_points=no_fixed)
     pipe.set_outputs(perm)
 
     pipe.build()
-    idxs, = pipe.run()
-    for i in range(batch_size):
-        assert idxs.at(i).shape == ()
-    idxs = [int(idxs.at(i)) for i in range(batch_size)]
-    if allow_repetitions:
-        assert all(x >= 0 and x < batch_size for x in idxs)
-    else:
-        assert list(sorted(idxs)) == list(range(batch_size))
+    for iter in range(100):
+        idxs, = pipe.run()
+        for i in range(batch_size):
+            assert idxs.at(i).shape == ()
+        idxs = [int(idxs.at(i)) for i in range(batch_size)]
+        if allow_repetitions:
+            assert all(x >= 0 and x < batch_size for x in idxs)
+        else:
+            assert list(sorted(idxs)) == list(range(batch_size))
+
+        if no_fixed:
+            assert all(x != i for i, x in enumerate(idxs))
+
 
 def test_permutation_generator():
     for allow_repetitions in [None, False, True]:
-        yield _test_permutation_generator, allow_repetitions
+        for no_fixed in [None, False, True]:
+            yield _test_permutation_generator, allow_repetitions, no_fixed
 
 def random_sample():
     shape = np.random.randint(1, 50, [3])
