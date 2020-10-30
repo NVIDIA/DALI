@@ -48,9 +48,9 @@ struct DefaultedArgumentDef {
 };
 
 struct DeprecatedArgDef {
-  std::string msg;
-  std::string renamed_to;
-  bool removed;
+  std::string renamed_to = {};
+  std::string msg = {};
+  bool removed = false;
 };
 
 enum class InputDevice : uint8_t {
@@ -514,7 +514,7 @@ graph even if its outputs are not used.)code", false);
                                                     std::string msg = {}) {
     if (msg.empty())
       msg = DefaultDeprecatedArgMsg(arg_name, renamed_to, false);
-    deprecated_arguments_[arg_name] = {std::move(msg), std::move(renamed_to), false};
+    deprecated_arguments_[arg_name] = {std::move(renamed_to), std::move(msg), false};
     return *this;
   }
 
@@ -528,11 +528,14 @@ graph even if its outputs are not used.)code", false);
    *          3. For renaming the argument see DeprecateArgInFavorOf
    */
   DLL_PUBLIC inline OpSchema &DeprecateArg(const std::string& arg_name,
-                                           bool removed,
+                                           bool removed = true,
                                            std::string msg = {}) {
+    DALI_ENFORCE(HasArgument(arg_name),
+        make_string("Argument \"", arg_name,
+                    "\" has been marked for deprecation but it is not present in the schema."));
     if (msg.empty())
       msg = DefaultDeprecatedArgMsg(arg_name, {}, removed);
-    deprecated_arguments_[arg_name] = {std::move(msg), {}, removed};
+    deprecated_arguments_[arg_name] = {{}, std::move(msg), removed};
     return *this;
   }
 
@@ -790,6 +793,7 @@ graph even if its outputs are not used.)code", false);
   DLL_PUBLIC bool HasOptionalArgument(const std::string &name, const bool local_only = false) const;
 
   DLL_PUBLIC bool HasInternalArgument(const std::string &name, const bool local_only = false) const;
+
   /**
    * @brief Finds default value for a given argument
    * @return A pair of the defining schema and the value
@@ -871,7 +875,6 @@ graph even if its outputs are not used.)code", false);
   }
 
   std::map<std::string, RequiredArgumentDef> GetRequiredArguments() const;
-
 
   std::map<std::string, DefaultedArgumentDef> GetOptionalArguments() const;
 

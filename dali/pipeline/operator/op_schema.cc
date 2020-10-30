@@ -117,7 +117,6 @@ std::string OpSchema::GetArgumentDox(const std::string &name) const {
   if (HasRequiredArgument(name)) {
     return GetRequiredArguments().at(name).doc;
   } else {
-    // optional argument
     return GetOptionalArguments().at(name).doc;
   }
 }
@@ -128,7 +127,6 @@ DALIDataType OpSchema::GetArgumentType(const std::string &name) const {
   if (HasRequiredArgument(name)) {
     return GetRequiredArguments().at(name).dtype;
   } else {
-    // optional argument
     return GetOptionalArguments().at(name).dtype;
   }
 }

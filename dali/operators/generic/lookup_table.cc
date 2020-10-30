@@ -84,10 +84,10 @@ Here is a practical example, considering the table defined above::
   .NumOutput(1)
   .AllowSequences()
   .SupportVolumetric()
-  .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("dtype",
     R"code(Output data type.)code",
     DALI_FLOAT)
+  .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("default_value",
     R"code(Default output value for keys that are not present in the table.)code",
     0.0f)

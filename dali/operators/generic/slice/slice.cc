@@ -51,7 +51,8 @@ Integer coordinates are interpreted as absolute coordinates, while float coordin
 interpreted as absolute or relative coordinates, depending on the value of
 ``normalized_shape``.)code")
     .SupportVolumetric()
-    .DeprecateArg("image_type", true)  // deprecated since 0.24dev
+    .AddOptionalArg<DALIImageType>("image_type", "Image type", nullptr)
+    .DeprecateArg("image_type")  // deprecated since 0.24dev
     .AddParent("SliceBase")
     .AddParent("SliceAttr")
     .AddParent("OutOfBoundsAttr");

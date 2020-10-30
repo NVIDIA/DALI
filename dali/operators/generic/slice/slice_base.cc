@@ -22,14 +22,13 @@ namespace dali {
 DALI_SCHEMA(SliceBase)
     .DocStr(R"code(Base implementation for `Slice`, `Crop` and related operators)code")
     .MakeInternal()
-    .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
     .AddOptionalArg("dtype",
             R"code(Output data type.
 
 Supported types: ``FLOAT``, ``FLOAT16``, and ``UINT8``.
 
-If not set, the input type is used.)code", DALI_NO_TYPE);
-
+If not set, the input type is used.)code", DALI_NO_TYPE)
+    .DeprecateArgInFavorOf("output_dtype", "dtype");  // deprecated since 0.24dev
 
 template <typename OutputType, typename InputType, int Dims>
 class SliceBaseCpu : public OpImplBase<CPUBackend> {

@@ -29,7 +29,8 @@ DALI_SCHEMA(Crop)
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .DeprecateArg("image_type", true)  // deprecated since 0.24dev
+    .AddOptionalArg<DALIImageType>("image_type", "Image type", nullptr)
+    .DeprecateArg("image_type")  // deprecated since 0.24dev
     .AddParent("CropAttr")
     .AddParent("OutOfBoundsAttr")
     .AddParent("SliceBase");

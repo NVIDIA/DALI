@@ -203,28 +203,28 @@ class CocoReaderTest : public ::testing::Test {
     }
 
     if (read_masks) {
-      const auto &masks_meta_output = ws.Output<dali::CPUBackend>(3);
+      const auto &polygons_output = ws.Output<dali::CPUBackend>(3);
       const auto &masks_coords_output = ws.Output<dali::CPUBackend>(4);
 
-      const auto &masks_meta_shape = masks_meta_output.shape();
+      const auto &polygons_shape = polygons_output.shape();
       const auto &masks_coords_shape = labels_output.shape();
 
-      ASSERT_EQ(masks_meta_shape.size(), expected_size);
+      ASSERT_EQ(polygons_shape.size(), expected_size);
       ASSERT_EQ(masks_coords_shape.size(), expected_size);
 
       int n_poly = 0;
       for (int idx = 0; idx < expected_size; ++idx) {
-        n_poly += masks_meta_shape[idx][0];
+        n_poly += polygons_shape[idx][0];
       }
       ASSERT_EQ(n_poly, number_of_polygons_);
 
-      vector<int> masks_meta(masks_meta_gt_.size());
+      vector<int> masks_meta(polygons_gt_.size());
       vector<float> masks_coords(masks_coords_gt_.size());
 
       MemCopy(
         masks_meta.data(),
-        masks_meta_output.data<int>(),
-        masks_meta_gt_.size() * sizeof(int));
+        polygons_output.data<int>(),
+        polygons_gt_.size() * sizeof(int));
 
       MemCopy(
         masks_coords.data(),
@@ -232,7 +232,7 @@ class CocoReaderTest : public ::testing::Test {
         masks_coords_gt_.size() * sizeof(float));
 
       for (size_t i = 0; i < masks_meta.size(); ++i) {
-        ASSERT_EQ(masks_meta[i], masks_meta_gt_[i]);
+        ASSERT_EQ(masks_meta[i], polygons_gt_[i]);
       }
 
       for (size_t i = 0; i < masks_coords.size(); ++i) {
@@ -368,7 +368,7 @@ class CocoReaderTest : public ::testing::Test {
 
   const int number_of_polygons_ = 9;
 
-  std::vector<int> masks_meta_gt_ {
+  std::vector<int> polygons_gt_ {
     // image 0
     0, 0, 10,
     // image 1
@@ -465,17 +465,6 @@ TEST_F(CocoReaderTest, MutuallyExclusiveOptions3) {
     this->BasicCocoReaderOpSpec()
     .AddArg("meta_files_path", "/tmp/")
     .AddArg("skip_empty", false));
-
-  EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
-}
-
-TEST_F(CocoReaderTest, FileList) {
-  Pipeline pipe(1, 1, 0);
-
-  pipe.AddOperator(
-    CocoReaderOpSpec()
-    .AddArg("file_list", file_list_),
-    "coco_reader");
 
   EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
 }

@@ -85,7 +85,8 @@ in seconds, of the audio samples.
 
 Samples with a duration longer than this value will be ignored.)code",
     0.0f)
-  .DeprecateArg("normalize_text", true)  // deprecated since 0.28dev
+  .AddOptionalArg<bool>("normalize_text", "Normalize text.", nullptr)
+  .DeprecateArg("normalize_text")  // deprecated since 0.28dev
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("read_sample_rate"))
          + static_cast<int>(spec.GetArgument<bool>("read_text"));

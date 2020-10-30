@@ -24,53 +24,120 @@
 #include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/geom/vec.h"
 
 namespace dali {
 
 using ImageIdPairs = std::vector<std::pair<std::string, int>>;
+
+inline bool OutPolygonMasksEnabled(const OpSpec &spec) {
+  return spec.GetArgument<bool>("polygon_masks") ||
+    (spec.HasArgument("masks") && spec.GetArgument<bool>("masks"));
+}
+
+inline bool OutPixelwiseMasksEnabled(const OpSpec &spec) {
+  return spec.GetArgument<bool>("pixelwise_masks");
+}
+
+inline bool OutImageIdsEnabled(const OpSpec &spec) {
+  return spec.GetArgument<bool>("image_ids") ||
+    (spec.HasArgument("save_img_ids") && spec.GetArgument<bool>("save_img_ids"));
+}
+
+inline bool HasPreprocessedAnnotations(const OpSpec &spec) {
+  return spec.HasArgument("preprocessed_annotations") ||
+    (spec.HasArgument("meta_files_path") && spec.GetArgument<bool>("meta_files_path"));
+}
+
+inline bool HasSavePreprocessedAnnotations(const OpSpec &spec) {
+  return spec.HasArgument("save_preprocessed_annotations") ||
+    (spec.HasArgument("dump_meta_files") && spec.GetArgument<bool>("dump_meta_files"));
+}
+
+inline bool HasSavePreprocessedAnnotationsDir(const OpSpec &spec) {
+  return spec.HasArgument("save_preprocessed_annotations_dir") ||
+    (spec.HasArgument("dump_meta_files_path") && spec.GetArgument<bool>("dump_meta_files_path"));
+}
+
 class DLL_PUBLIC CocoLoader : public FileLabelLoader {
  public:
-  explicit inline CocoLoader(
-    const OpSpec& spec,
-    std::vector<int> &heights,
-    std::vector<int> &widths,
-    std::vector<int> &offsets,
-    std::vector<float> &boxes,
-    std::vector<int> &labels,
-    std::vector<int> &counts,
-    std::vector<std::vector<int> > &masks_meta,
-    std::vector<std::vector<float> > &masks_coords,
-    std::vector<std::vector<std::string> > &masks_rles,
-    std::vector<std::vector<int> > &masks_rles_idx,
-    bool read_masks,
-    bool pixelwise_masks,
-    bool save_img_ids,
-    std::vector<int> &original_ids,
-    bool shuffle_after_epoch = false) :
-      FileLabelLoader(spec, shuffle_after_epoch),
-      spec_(spec),
-      parse_meta_files_(spec.HasArgument("meta_files_path")),
-      heights_(heights),
-      widths_(widths),
-      offsets_(offsets),
-      boxes_(boxes),
-      labels_(labels),
-      counts_(counts),
-      masks_meta_(masks_meta),
-      masks_coords_(masks_coords),
-      masks_rles_(masks_rles),
-      masks_rles_idx_(masks_rles_idx),
-      read_masks_(read_masks),
-      pixelwise_masks_(pixelwise_masks),
-      save_img_ids_(save_img_ids),
-      original_ids_(original_ids) {}
+  explicit inline CocoLoader(const OpSpec &spec)
+      : FileLabelLoader(spec, spec.GetArgument<bool>("shuffle_after_epoch")), spec_(spec) {
+    has_preprocessed_annotations_ = HasPreprocessedAnnotations(spec);
+    DALI_ENFORCE(has_preprocessed_annotations_ || spec.HasArgument("annotations_file"),
+        "Either ``annotations_file`` or ``preprocessed_annotations`` must be provided");
+    if (has_preprocessed_annotations_) {
+      for (const char* arg_name : {"annotations_file", "skip_empty", "ratio", "ltrb",
+                                   "size_threshold", "dump_meta_files", "dump_meta_files_path"}) {
+        if (spec.HasArgument(arg_name))
+          DALI_FAIL(make_string("When reading data from preprocessed annotation files, \"",
+                                arg_name, "\" is not supported."));
+      }
+    }
+
+    output_polygon_masks_ = OutPolygonMasksEnabled(spec);
+    output_pixelwise_masks_ = OutPixelwiseMasksEnabled(spec);
+    output_image_ids_ = OutImageIdsEnabled(spec);
+    if (output_polygon_masks_ && output_pixelwise_masks_) {
+      DALI_FAIL("``pixelwise_masks`` and ``polygon_masks`` are mutually exclusive");
+    }
+
+    if (HasSavePreprocessedAnnotations(spec) != HasSavePreprocessedAnnotationsDir(spec)) {
+      DALI_FAIL("``save_preprocessed_annotations`` and ``save_preprocessed_annotations_dir`` "
+                "should be provided together");
+    }
+  }
+
+  struct PixelwiseMasksInfo {
+    TensorShape<3> shape;
+    span<const std::string> rles;
+    span<const int> mask_indices;
+  };
+
+  struct PolygonMasksInfo {
+    span<const ivec3> polygons;
+    span<const vec2> vertices;
+  };
+
+  span<const vec<4>> bboxes(int image_idx) const {
+    return {reinterpret_cast<const vec<4>*>(boxes_.data()) + offsets_[image_idx],
+            counts_[image_idx]};
+  }
+
+  span<const int> labels(int image_idx) const {
+    return {labels_.data() + offsets_[image_idx], counts_[image_idx]};
+  }
+
+  int image_id(int image_idx) const {
+    assert(output_image_ids_);
+    return original_ids_[image_idx];
+  }
+
+  PixelwiseMasksInfo pixelwise_masks_info(int image_idx) const {
+    assert(output_pixelwise_masks_);
+    return {
+      {heights_[image_idx], widths_[image_idx], 1},
+      make_cspan(masks_rles_[image_idx]),
+      make_cspan(masks_rles_idx_[image_idx])
+    };
+  }
+
+  span<const ivec3> polygons(int image_idx) const {
+    assert(output_polygon_masks_ || output_pixelwise_masks_);
+    return {polygon_data_.data() + polygon_offset_[image_idx], polygon_count_[image_idx]};
+  }
+
+  span<const vec2> vertices(int image_idx) const {
+    assert(output_polygon_masks_ || output_pixelwise_masks_);
+    return {vertices_data_.data() + vertices_offset_[image_idx], vertices_count_[image_idx]};
+  }
 
  protected:
   void PrepareMetadataImpl() override {
-    if (parse_meta_files_) {
-      ParseMetafiles();
+    if (has_preprocessed_annotations_) {
+      ParsePreprocessedAnnotations();
     } else {
-       ParseJsonAnnotations();
+      ParseJsonAnnotations();
     }
 
     DALI_ENFORCE(Size() > 0, "No files found.");
@@ -83,35 +150,40 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
     Reset(true);
   }
 
-  void ParseMetafiles();
+  void ParsePreprocessedAnnotations();
 
   void ParseJsonAnnotations();
 
-  void DumpMetaFiles(std::string path, const ImageIdPairs &image_id_pairs);
+  void SavePreprocessedAnnotations(const std::string &path, const ImageIdPairs &image_id_pairs);
 
  private:
   const OpSpec &spec_;
-  bool parse_meta_files_;
 
-  std::vector<int> &heights_;
-  std::vector<int> &widths_;
-  std::vector<int> &offsets_;
-  std::vector<float> &boxes_;
-  std::vector<int> &labels_;
-  std::vector<int> &counts_;
+  std::vector<int> heights_;
+  std::vector<int> widths_;
+  std::vector<int> offsets_;
+  std::vector<float> boxes_;
+  std::vector<int> labels_;
+  std::vector<int> counts_;
+  std::vector<int> original_ids_;
 
-  // mask_meta: (mask_idx, offset, size)
-  // mask_coords: (all polygons concatenated )
+  // polygons: (mask_idx, offset, size)
+  std::vector<ivec3> polygon_data_;
+  std::vector<int64_t> polygon_offset_;  // per sample offset
+  std::vector<int64_t> polygon_count_;  // per sample size
+  // vertices: (all polygons concatenated)
+  std::vector<vec2> vertices_data_;
+  std::vector<int64_t> vertices_offset_;  // per sample offset
+  std::vector<int64_t> vertices_count_;  // per sample size
+
   // masks_rles: (run-length encodings)
-  std::vector<std::vector<int> > &masks_meta_;
-  std::vector<std::vector<float> > &masks_coords_;
-  std::vector<std::vector<std::string> > &masks_rles_;
-  std::vector<std::vector<int> > &masks_rles_idx_;
+  std::vector<std::vector<std::string>> masks_rles_;
+  std::vector<std::vector<int>> masks_rles_idx_;
 
-  bool read_masks_;
-  bool pixelwise_masks_;
-  bool save_img_ids_;
-  std::vector<int> &original_ids_;
+  bool output_polygon_masks_ = false;
+  bool output_pixelwise_masks_ = false;
+  bool output_image_ids_ = false;
+  bool has_preprocessed_annotations_ = false;
 };
 
 }  // namespace dali

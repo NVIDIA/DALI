@@ -30,12 +30,12 @@ be excluded (for example, for RGB images, specify ``(480,640)``, not ``(480,640,
 
 If a value is not specified, the source coordinates are clamped and the border pixel is
 repeated.)code", 0.0f)
-  .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("dtype",
       R"code(Output data type.
 
 If not set, the input type is used.)code",
       DALI_NO_TYPE)
+  .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
       DALI_INTERP_LINEAR);

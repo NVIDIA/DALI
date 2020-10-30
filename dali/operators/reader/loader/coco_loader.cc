@@ -22,6 +22,7 @@
 
 namespace dali {
 namespace detail {
+
 struct ImageInfo {
   std::string filename_;
   int original_id_;
@@ -59,7 +60,7 @@ struct Annotation {
 };
 
 template <typename T>
-void dump_meta_file(std::vector<T> &input, const std::string path) {
+void SaveToFile(std::vector<T> &input, const std::string path) {
   std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
 
@@ -70,7 +71,7 @@ void dump_meta_file(std::vector<T> &input, const std::string path) {
 }
 
 template <typename T>
-void dump_meta_file(std::vector<std::vector<T> > &input, const std::string path) {
+void SaveToFile(std::vector<std::vector<T> > &input, const std::string path) {
   std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
 
@@ -84,7 +85,7 @@ void dump_meta_file(std::vector<std::vector<T> > &input, const std::string path)
   DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 }
 
-void dump_filenames(const ImageIdPairs &image_id_pairs, const std::string path) {
+void SaveFilenamesToFile(const ImageIdPairs &image_id_pairs, const std::string path) {
   std::ofstream file(path);
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
   for (const auto &p : image_id_pairs) {
@@ -94,9 +95,10 @@ void dump_filenames(const ImageIdPairs &image_id_pairs, const std::string path) 
 }
 
 template <typename T>
-void load_meta_file(std::vector<T> &output, const std::string path) {
+void LoadFromFile(std::vector<T> &output, const std::string path) {
   std::ifstream file(path);
-  DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
+  DALI_ENFORCE(file.good(),
+               make_string("CocoReader failed to read preprocessed annotation data from ", path));
 
   unsigned size;
   file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
@@ -105,9 +107,10 @@ void load_meta_file(std::vector<T> &output, const std::string path) {
 }
 
 template <typename T>
-void load_meta_file(std::vector<std::vector<T> > &output, const std::string path) {
+void LoadFromFile(std::vector<std::vector<T> > &output, const std::string path) {
   std::ifstream file(path);
-  DALI_ENFORCE(file, "CocoReader meta file error while loading for path: " + path);
+  DALI_ENFORCE(file.good(),
+               make_string("CocoReader failed to read preprocessed annotation data from ", path));
 
   unsigned size;
   file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
@@ -119,9 +122,10 @@ void load_meta_file(std::vector<std::vector<T> > &output, const std::string path
   }
 }
 
-void load_filenames(ImageIdPairs &image_id_pairs, const std::string path) {
+void LoadFilenamesFromFile(ImageIdPairs &image_id_pairs, const std::string path) {
   std::ifstream file(path);
-  DALI_ENFORCE(file, "CocoReader meta file error while loading for path: " + path);
+  DALI_ENFORCE(file.good(),
+               make_string("CocoReader failed to read preprocessed annotation data from ", path));
 
   int id = 0;
   std::string filename;
@@ -131,7 +135,7 @@ void load_filenames(ImageIdPairs &image_id_pairs, const std::string path) {
   }
 }
 
-void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_infos) {
+void ParseImageInfo(LookaheadParser &parser, std::vector<ImageInfo> &image_infos) {
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
   while (parser.NextArrayValue()) {
@@ -158,7 +162,7 @@ void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_in
   DALI_ENFORCE(parser.IsValid(), "Error parsing JSON file.");
 }
 
-void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids) {
+void ParseCategories(LookaheadParser &parser, std::map<int, int> &category_ids) {
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
 
@@ -184,12 +188,8 @@ void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids)
   }
 }
 
-void parse_annotations(
-  LookaheadParser &parser,
-  std::vector<Annotation> &annotations,
-  float min_size_threshold,
-  bool ltrb,
-  bool read_masks) {
+void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotations,
+                      float min_size_threshold, bool ltrb, bool parse_segmentation) {
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
   while (parser.NextArrayValue()) {
@@ -212,7 +212,7 @@ void parse_annotations(
           annotation.box_[i] = parser.GetDouble();
           ++i;
         }
-      } else if (read_masks && 0 == std::strcmp(internal_key, "segmentation")) {
+      } else if (parse_segmentation && 0 == std::strcmp(internal_key, "segmentation")) {
         // That means that the mask encoding is not polygons but RLE
         // (iscrowd==1 in Object Detection task, or Stuff Segmentation)
         if (parser.PeekType() != kArrayType) {
@@ -263,11 +263,10 @@ void parse_annotations(
   }
 }
 
-void parse_json_file(
-  const OpSpec &spec,
-  std::vector<detail::ImageInfo> &image_infos,
-  std::vector<detail::Annotation> &annotations,
-  std::map<int, int> &category_ids) {
+void ParseJsonFile(const OpSpec &spec, std::vector<detail::ImageInfo> &image_infos,
+                   std::vector<detail::Annotation> &annotations,
+                   std::map<int, int> &category_ids,
+                   bool parse_masks) {
   const auto annotations_file = spec.GetArgument<string>("annotations_file");
 
   std::ifstream f(annotations_file);
@@ -286,18 +285,15 @@ void parse_json_file(
 
   RAPIDJSON_ASSERT(parser.PeekType() == kObjectType);
   parser.EnterObject();
+  float sz_threshold = spec.GetArgument<float>("size_threshold");
+  bool ltrb = spec.GetArgument<bool>("ltrb");
   while (const char* key = parser.NextObjectKey()) {
     if (0 == std::strcmp(key, "images")) {
-      detail::parse_image_infos(parser, image_infos);
+      detail::ParseImageInfo(parser, image_infos);
     } else if (0 == std::strcmp(key, "categories")) {
-      detail::parse_categories(parser, category_ids);
+      detail::ParseCategories(parser, category_ids);
     } else if (0 == std::strcmp(key, "annotations")) {
-      parse_annotations(
-        parser,
-        annotations,
-        spec.GetArgument<float>("size_threshold"),
-        spec.GetArgument<bool>("ltrb"),
-        spec.GetArgument<bool>("masks") || spec.GetArgument<bool>("pixelwise_masks"));
+      ParseAnnotations(parser, annotations, sz_threshold, ltrb, parse_masks);
     } else {
       parser.SkipValue();
     }
@@ -306,69 +302,62 @@ void parse_json_file(
 
 }  // namespace detail
 
-void CocoLoader::DumpMetaFiles(const std::string path, const ImageIdPairs &image_id_pairs) {
-  detail::dump_meta_file(
-    offsets_,
-    path + "/offsets.dat");
-  detail::dump_meta_file(
-    boxes_,
-    path + "/boxes.dat");
-  detail::dump_meta_file(
-    labels_,
-    path + "/labels.dat");
-  detail::dump_meta_file(
-    counts_,
-    path + "/counts.dat");
-  detail::dump_filenames(
-    image_id_pairs,
-    path + "/filenames.dat");
+void CocoLoader::SavePreprocessedAnnotations(const std::string &path,
+                                             const ImageIdPairs &image_id_pairs) {
+  using detail::SaveToFile;
+  using detail::SaveFilenamesToFile;
+  SaveToFile(offsets_, path + "/offsets.dat");
+  SaveToFile(boxes_, path + "/boxes.dat");
+  SaveToFile(labels_, path + "/labels.dat");
+  SaveToFile(counts_, path + "/counts.dat");
+  SaveFilenamesToFile(image_id_pairs, path + "/filenames.dat");
 
-  if (read_masks_) {
-    detail::dump_meta_file(
-      masks_meta_,
-      path + "/masks_metas.dat");
-    detail::dump_meta_file(
-      masks_meta_,
-      path + "/masks_coords.dat");
+  if (output_polygon_masks_) {
+    SaveToFile(polygon_data_, path + "/polygon_data.dat");
+    SaveToFile(polygon_offset_, path + "/polygon_offset.dat");
+    SaveToFile(polygon_count_, path + "/polygons_count.dat");
+    SaveToFile(vertices_data_, path + "/vertices.dat");
+    SaveToFile(vertices_offset_, path + "/vertices_offset.dat");
+    SaveToFile(vertices_count_, path + "/vertices_count.dat");
   }
 
-  if (save_img_ids_) {
-    detail::dump_meta_file(
-      original_ids_,
-      path + "/original_ids.dat");
+  if (output_pixelwise_masks_) {
+    DALI_WARN("Warning: Saving preprocessed piwelwise masks is not supported");
+  }
+
+  if (output_image_ids_) {
+    SaveToFile(original_ids_, path + "/original_ids.dat");
   }
 }
 
-void CocoLoader::ParseMetafiles() {
-  const auto meta_files_path = spec_.GetArgument<string>("meta_files_path");
-  detail::load_meta_file(
-    offsets_,
-    meta_files_path + "/offsets.dat");
-  detail::load_meta_file(
-    boxes_,
-    meta_files_path + "/boxes.dat");
-  detail::load_meta_file(
-    labels_,
-    meta_files_path + "/labels.dat");
-  detail::load_meta_file(
-    counts_,
-    meta_files_path + "/counts.dat");
-  detail::load_filenames(
-    image_label_pairs_,
-    meta_files_path + "/filenames.dat");
+void CocoLoader::ParsePreprocessedAnnotations() {
+  assert(HasPreprocessedAnnotations(spec_));
+  const auto path = spec_.HasArgument("meta_files_path")
+      ? spec_.GetArgument<string>("meta_files_path")
+      : spec_.GetArgument<string>("preprocessed_annotations");
+  using detail::LoadFilenamesFromFile;
+  using detail::LoadFromFile;
+  LoadFromFile(offsets_, path + "/offsets.dat");
+  LoadFromFile(boxes_, path + "/boxes.dat");
+  LoadFromFile(labels_, path + "/labels.dat");
+  LoadFromFile(counts_, path + "/counts.dat");
+  LoadFilenamesFromFile(image_label_pairs_, path + "/filenames.dat");
 
-  if (read_masks_) {
-    detail::load_meta_file(
-      masks_meta_,
-      meta_files_path + "/masks_metas.dat");
-    detail::load_meta_file(
-      masks_meta_,
-      meta_files_path + "/masks_coords.dat");
+  if (output_polygon_masks_) {
+    LoadFromFile(polygon_data_, path + "/polygon_data.dat");
+    LoadFromFile(polygon_offset_, path + "/polygon_offset.dat");
+    LoadFromFile(polygon_count_, path + "/polygons_count.dat");
+    LoadFromFile(vertices_data_, path + "/vertices.dat");
+    LoadFromFile(vertices_offset_, path + "/vertices_offset.dat");
+    LoadFromFile(vertices_count_, path + "/vertices_count.dat");
   }
-  if (save_img_ids_) {
-    detail::load_meta_file(
-      original_ids_,
-      meta_files_path + "/original_ids.dat");
+
+  if (output_pixelwise_masks_) {
+    DALI_WARN("Loading from preprocessed piwelwise masks is not supported");
+  }
+
+  if (output_image_ids_) {
+    LoadFromFile(original_ids_, path + "/original_ids.dat");
   }
 }
 
@@ -377,19 +366,19 @@ void CocoLoader::ParseJsonAnnotations() {
   std::vector<detail::Annotation> annotations;
   std::map<int, int> category_ids;
 
-  detail::parse_json_file(
-    spec_,
-    image_infos,
-    annotations,
-    category_ids);
+  bool parse_masks = output_polygon_masks_ || output_pixelwise_masks_;
+  detail::ParseJsonFile(spec_, image_infos, annotations, category_ids, parse_masks);
 
   bool skip_empty = spec_.GetArgument<bool>("skip_empty");
   bool ratio = spec_.GetArgument<bool>("ratio");
 
   std::sort(image_infos.begin(), image_infos.end(), [](auto &left, auto &right) {
-    return left.original_id_ < right.original_id_;});
+    return left.original_id_ < right.original_id_;
+  });
+
   std::stable_sort(annotations.begin(), annotations.end(), [](auto &left, auto &right) {
-    return left.image_id_ < right.image_id_;});
+    return left.image_id_ < right.image_id_;
+  });
 
   detail::Annotation sentinel;
   sentinel.image_id_ = -1;
@@ -401,13 +390,15 @@ void CocoLoader::ParseJsonAnnotations() {
 
   for (auto &image_info : image_infos) {
     int objects_in_sample = 0;
-    std::vector<int> sample_mask_meta;
-    std::vector<float> sample_mask_coords;
     std::vector<int> sample_rles_idx;
     std::vector<std::string> sample_rles;
+    int64_t polygons_sample_offset = polygon_data_.size();
+    int64_t polygons_sample_count = 0;
+    int64_t vertices_sample_offset = vertices_data_.size();
+    int64_t vertices_sample_count = 0;
     while (annotations[annotation_id].image_id_ == image_info.original_id_) {
       const auto &annotation = annotations[annotation_id];
-      labels_.emplace_back(category_ids[annotation.category_id_]);
+      labels_.push_back(category_ids[annotation.category_id_]);
       if (ratio) {
         boxes_.push_back(annotation.box_[0] / image_info.width_);
         boxes_.push_back(annotation.box_[1] / image_info.height_);
@@ -419,25 +410,35 @@ void CocoLoader::ParseJsonAnnotations() {
         boxes_.push_back(annotation.box_[2]);
         boxes_.push_back(annotation.box_[3]);
       }
-      if (read_masks_ || pixelwise_masks_) {
+      if (parse_masks) {
         switch (annotation.tag_) {
           case detail::Annotation::POLYGON: {
-            auto obj_coords_offset = sample_mask_coords.size();
-            for (size_t i = 0; i < annotation.poly_.segm_meta_.size(); i += 2) {
-              sample_mask_meta.push_back(objects_in_sample);
-              sample_mask_meta.push_back(obj_coords_offset + annotation.poly_.segm_meta_[i]);
-              sample_mask_meta.push_back(obj_coords_offset + annotation.poly_.segm_meta_[i + 1]);
+            auto &segm_meta = annotation.poly_.segm_meta_;
+            assert(segm_meta.size() % 2 == 0);
+            polygons_sample_count += segm_meta.size() / 2;
+
+            auto &coords = annotation.poly_.segm_coords_;
+            assert(coords.size() % 2 == 0);
+            vertices_sample_count += coords.size() / 2;
+
+            for (size_t i = 0; i < segm_meta.size(); i += 2) {
+              assert(segm_meta[i] % 2 == 0);
+              assert(segm_meta[i + 1] % 2 == 0);
+              int vertex_start_idx =
+                  vertices_data_.size() - vertices_sample_offset + segm_meta[i] / 2;
+              int vertex_end_idx =
+                  vertices_data_.size() - vertices_sample_offset + segm_meta[i + 1] / 2;
+              polygon_data_.push_back({objects_in_sample, vertex_start_idx, vertex_end_idx});
             }
             if (ratio) {
-              auto *coords = annotation.poly_.segm_coords_.data();
-              for (size_t i = 0; i < annotation.poly_.segm_coords_.size(); i += 2) {
-                sample_mask_coords.push_back(coords[i] / image_info.width_);
-                sample_mask_coords.push_back(coords[i + 1] / image_info.height_);
+              for (size_t i = 0; i < coords.size(); i += 2) {
+                vertices_data_.push_back({coords[i] / image_info.width_,
+                                          coords[i + 1] / image_info.height_});
               }
             } else {
-              sample_mask_coords.insert(sample_mask_coords.end(),
-                                        annotation.poly_.segm_coords_.begin(),
-                                        annotation.poly_.segm_coords_.end());
+              for (size_t i = 0; i < coords.size(); i += 2) {
+                vertices_data_.push_back({coords[i], coords[i + 1]});
+              }
             }
             break;
           }
@@ -459,16 +460,18 @@ void CocoLoader::ParseJsonAnnotations() {
       offsets_.push_back(total_count);
       counts_.push_back(objects_in_sample);
       total_count += objects_in_sample;
-      if (save_img_ids_) {
+      if (output_image_ids_) {
         original_ids_.push_back(image_info.original_id_);
       }
-      if (read_masks_ || pixelwise_masks_) {
-        masks_meta_.emplace_back(std::move(sample_mask_meta));
-        masks_coords_.emplace_back(std::move(sample_mask_coords));
+      if (parse_masks) {
+        polygon_offset_.push_back(polygons_sample_offset);
+        polygon_count_.push_back(polygons_sample_count);
+        vertices_offset_.push_back(vertices_sample_offset);
+        vertices_count_.push_back(vertices_sample_count);
         masks_rles_.emplace_back(std::move(sample_rles));
         masks_rles_idx_.emplace_back(std::move(sample_rles_idx));
       }
-      if (pixelwise_masks_) {
+      if (output_pixelwise_masks_) {
         heights_.push_back(image_info.height_);
         widths_.push_back(image_info.width_);
       }
@@ -477,9 +480,9 @@ void CocoLoader::ParseJsonAnnotations() {
     }
   }
 
-  if (spec_.GetArgument<bool>("dump_meta_files")) {
-    DumpMetaFiles(
-      spec_.GetArgument<std::string>("dump_meta_files_path"),
+  if (spec_.GetArgument<bool>("save_preprocessed_annotations")) {
+    SavePreprocessedAnnotations(
+      spec_.GetArgument<std::string>("save_preprocessed_annotations_dir"),
       image_label_pairs_);
   }
 }

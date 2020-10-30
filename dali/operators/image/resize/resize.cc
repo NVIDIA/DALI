@@ -29,7 +29,8 @@ DALI_SCHEMA(Resize)
                    "DHWC", "FDHWC", "CDHW", "FCDHW", "CFDHW"  })
   .AddOptionalArg("save_attrs",
       R"code(Save reshape attributes for testing.)code", false)
-  .DeprecateArg("image_type", true)  // deprecated since 0.25dev
+  .AddOptionalArg<DALIImageType>("image_type", "Image type", nullptr)
+  .DeprecateArg("image_type")  // deprecated since 0.25dev
   .SupportVolumetric()
   .AllowSequences()
   .AddParent("ResizeAttr")
