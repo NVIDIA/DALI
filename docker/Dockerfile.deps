@@ -116,6 +116,7 @@ RUN OPENCV_VERSION=4.5.0 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /opencv-${OPENCV_VERSION}
 
+<<<<<<< HEAD
 # Clang, but only for x86_64
 RUN if [ "$(uname -m)" == "x86_64" ]; then \
         CLANG_VERSION=10.0.0 && \
@@ -124,6 +125,13 @@ RUN if [ "$(uname -m)" == "x86_64" ]; then \
         tar -xJf clang+llvm-*.tar.xz --strip 1 && \
         rm clang+llvm-*.tar.xz; \
     fi
+=======
+# Clang
+RUN cd /usr/local && \
+    wget https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-sles11.3.tar.xz && \
+    tar -xJf clang+llvm-10.0.0-x86_64-linux-sles11.3.tar.xz --strip 1 && \
+    rm clang+llvm-10.0.0-x86_64-linux-sles11.3.tar.xz
+>>>>>>> a6d69dd267... Move to clang 10
 
 ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
