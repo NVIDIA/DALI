@@ -59,7 +59,7 @@ they appeared in ``mask_ids`` input::
     .NumInput(3)
     .NumOutput(2)
     .InputDox(0, "mask_ids", "1D TensorList of int",
-              R"code(List of identifiers of the masks to be selected.)code")
+              R"code(List of identifiers of the masks to be selected. The list should not contain duplicates.)code")
     .InputDox(1, "polygons", "2D TensorList of int",
               R"code(Polygons, described by 3 columns::
 
@@ -143,8 +143,8 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
     int idx = 0;
     for (auto mask_id : selected_masks) {
       if (polygons.find(mask_id) != polygons.end()) {
-        DALI_WARN(make_string("mask_id ", mask_id, " is duplicated. Ignoring..."));
-        continue;
+        DALI_FAIL(
+            make_string("mask_ids should not have duplicated values. Got ", mask_id, " repeated."));
       }
       polygons[mask_id].new_mask_id = reindex_masks_ ? idx++ : mask_id;
     }
@@ -168,6 +168,10 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
             poly.end_vertex,
             ") is out of bounds. Expected to be within the range of available vertices [0, ",
             in_nvertices, ")."));
+
+      DALI_ENFORCE(poly.end_vertex >= poly.start_vertex,
+                   make_string("Vertex start index can't be after end index. Got [",
+                               poly.start_vertex, ", ", poly.end_vertex, ")"));
     }
 
     int64_t nvertices = 0;

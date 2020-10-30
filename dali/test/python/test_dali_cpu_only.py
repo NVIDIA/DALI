@@ -18,7 +18,7 @@ import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 from nvidia.dali.plugin.pytorch import DALIGenericIterator
 from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator, dali_type
-from test_segmentation_utils import make_batch_select_masks
+from segmentation_test_utils import make_batch_select_masks
 from PIL import Image, ImageEnhance
 
 import numpy as np

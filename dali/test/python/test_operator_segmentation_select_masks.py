@@ -3,7 +3,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from test_utils import check_batch, dali_type
 import random
-from test_segmentation_utils import make_batch_select_masks
+from segmentation_test_utils import make_batch_select_masks
 from nose.tools import assert_raises
 
 random.seed(1234)
