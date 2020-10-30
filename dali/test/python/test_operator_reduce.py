@@ -258,29 +258,76 @@ def test_reduce_with_mean_input():
                     for ddof in [0, 1]:
                         yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id, None, True, ddof
 
-if __name__ == "__main__":
-    batch_fn = Batch3D(np.float32)
-    batch_size = batch_fn.batch_size()
 
-    def get_batch():
-        return batch_fn()
-
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-
-    with pipe:
-        input = fn.external_source(source=get_batch, layout="ABC")
-        reduced = fn.reductions.sum(input, keep_dims=False, axes=[1])
-        reduced_by_name = fn.reductions.sum(input, keep_dims=False, axes_names="B")
-
-    pipe.set_outputs(reduced, reduced_by_name)
-    pipe.build()
-
+def run_and_compare_with_layout(batch_fn, pipe):
     for _ in range(batch_fn.num_iter()):
         output = pipe.run()
         reduced = output[0].as_array()
         reduced_by_name = output[1].as_array()
 
-        print(reduced)
-        print('-----------------------')
-        print(reduced_by_name)
-        print('=======================')
+        assert np.array_equal(reduced, reduced_by_name)
+
+
+def run_reduce_with_layout(
+    batch_size, get_batch, reduction, axes, axes_names, batch_fn):
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    with pipe:
+        input = fn.external_source(source=get_batch, layout="ABC")
+        reduced = reduction(input, keep_dims=False, axes=axes)
+        reduced_by_name = reduction(input, keep_dims=False, axes_names=axes_names)
+
+    pipe.set_outputs(reduced, reduced_by_name)
+    pipe.build()
+
+    run_and_compare_with_layout(batch_fn, pipe)
+
+
+def run_reduce_with_layout_with_mean_input(
+    batch_size, get_batch, reduction, axes, axes_names, batch_fn):
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    with pipe:
+        input = fn.external_source(source=get_batch, layout="ABC")
+        mean = fn.reductions.mean(input, axes=axes)
+        reduced = reduction(input, mean, keep_dims=False, axes=axes)
+        reduced_by_name = reduction(input, mean, keep_dims=False, axes_names=axes_names)
+
+    pipe.set_outputs(reduced, reduced_by_name)
+    pipe.build()
+
+    run_and_compare_with_layout(batch_fn, pipe)
+
+
+def test_reduce_axes_names():
+    reductions = [
+        fn.reductions.max,
+        fn.reductions.min,
+        fn.reductions.mean,
+        fn.reductions.mean_square,
+        fn.reductions.sum,
+        fn.reductions.rms]
+
+    reductions_with_mean_input = [
+        fn.reductions.std_dev, fn.reductions.variance]
+
+    batch_fn = Batch3D(np.float32)
+    batch_size = batch_fn.batch_size()
+    def get_batch():
+        return batch_fn()
+
+    axes_and_names = [
+        (None, ''),
+        (0, 'A'),
+        (1, 'B'),
+        (2, 'C'),
+        ((0, 1), 'AB'),
+        ((0, 2), 'AC'),
+        ((1, 2), 'BC'),
+        ((0, 1, 2), 'ABC')]
+
+    for axes, axes_names in axes_and_names:
+        for reduction in reductions:
+            yield run_reduce_with_layout, batch_size, get_batch, reduction, axes, axes_names, batch_fn
+        for reduction in reductions_with_mean_input:
+            yield run_reduce_with_layout_with_mean_input, batch_size, get_batch, reduction, axes, axes_names, batch_fn
