@@ -18,13 +18,26 @@ project(dali_core CUDA CXX C)
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_CORE_SRCS)
 collect_test_sources(DALI_CORE_TEST_SRCS)
+
+set(CUDA_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cuda_gen.cc")
+add_custom_command(
+    OUTPUT ${CUDA_GENERATED_STUB}
+    COMMAND python ${CMAKE_SOURCE_DIR}/tools/stub_generator/stub_codegen.py --
+                "${CMAKE_SOURCE_DIR}/tools/stub_generator/cuda.json" ${CUDA_GENERATED_STUB}
+                "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cuda.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
+    DEPENDS ${CMAKE_SOURCE_DIR}/tools/stub_generator/stub_codegen.py
+    COMMENT "Running cuda.h stub generator"
+    VERBATIM )
+
+set_source_files_properties(${CUDA_GENERATED_STUB} PROPERTIES GENERATED TRUE)
+
 list(REMOVE_ITEM DALI_CORE_SRCS dynlink_cuda.cc)
 
-add_library(dynlink_cuda STATIC dynlink_cuda.cc)
+add_library(dynlink_cuda STATIC dynlink_cuda.cc ${CUDA_GENERATED_STUB})
 
 add_library(dali_core ${LIBTYPE} ${DALI_CORE_SRCS})
 target_include_directories(dali_core PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-target_link_libraries(dali_core PRIVATE ${CUDART_LIB})
+target_link_libraries(dali_core PRIVATE ${CUDART_LIB} dynlink_cuda)
 target_link_libraries(dali_core PUBLIC ${DALI_SYSTEM_LIBS})
 target_link_libraries(dali_core PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 set_target_properties(dali_core PROPERTIES

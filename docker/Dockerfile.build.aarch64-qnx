@@ -14,7 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libtool \
     libtool-bin \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* && \
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py && \
+    pip install clang libclang && \
+    rm -rf /root/.cache/pip/
 
 COPY --from=qnx_cuda_tools /qnx /qnx
 RUN mv /qnx/cuda* cuda-qnx-cross.deb

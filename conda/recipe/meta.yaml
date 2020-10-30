@@ -60,6 +60,7 @@ requirements:
     - cmake >=3.12.4
     - make
     - patchelf
+    - python-clang
   host:
     - python
     - future >=0.17.1

@@ -19,8 +19,20 @@ ENV PATH=/opt/python/cp36-cp36/bin:/opt/python/cp37-cp37m/bin:/opt/python/cp38-c
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
-RUN pip install future setuptools wheel && \
+# in aarch64 pip install libclang will fail
+RUN pip install future setuptools wheel clang && \
+    pip install libclang || true && \
     rm -rf /root/.cache/pip/
+
+# install clang for aarch64
+RUN if [ "$(uname -m)" -eq "aarch64" ]; then
+        CLANG_VERSION=11.0.0 && \
+        cd /usr/local && \
+        https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/clang+llvm-${CLANG_VERSION}-aarch64-linux-gnu.tar.xz && \
+        tar -xJf clang+llvm-*.tar.xz --strip 1 && \
+        rm clang+llvm-*.tar.xz && \
+        ln -s /usr/locallib/x86_64-linux-gnu/libclang-11.so.1 /usr/locallib/x86_64-linux-gnu/libclang-11.so \
+    fi
 
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     ldconfig
