@@ -41,7 +41,7 @@ void PermuteBatch<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &tp = ws.GetThreadPool();
   int N = indices_.size();
   for (int i = 0; i < N; i++) {
-    auto size = volume(output_shape.tensor_shape_span(i));
+    auto size = output_shape.tensor_size(i);
     int src = indices_[i];
     tp.AddWork([&, i, src](int tid) {
       output.SetMeta(i, input.GetMeta(i));
@@ -58,13 +58,13 @@ void PermuteBatch<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   output.SetLayout(input.GetLayout());
   int N = indices_.size();
   for (int i = 0; i < N; i++)
-    output.SetMeta(i, input.GetMeta(i));
+    output.SetMeta(i, input.GetMeta(indices_[i]));
 
   const auto &out_shape = output.shape();
   int element_size = output.type().size();
 
   for (int i = 0; i < N; i++) {
-    auto size = volume(out_shape.tensor_shape_span(i)) * element_size;
+    auto size = out_shape.tensor_size(i) * element_size;
     sg_.AddCopy(output.raw_mutable_tensor(i), input.raw_tensor(indices_[i]), size);
   }
   sg_.Run(ws.stream());

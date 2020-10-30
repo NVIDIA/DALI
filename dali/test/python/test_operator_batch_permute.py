@@ -3,6 +3,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
 import numpy as np
 from test_utils import check_batch
+from nose.tools import raises
 
 def _test_permutation_generator(allow_repetitions, no_fixed):
     batch_size = 10
@@ -57,3 +58,37 @@ def test_permute_batch():
     for type in [np.uint8, np.int16, np.uint32, np.int64, np.float32]:
         for device in ["cpu", "gpu"]:
             yield _test_permute_batch, device, type
+
+def _test_permute_batch_fixed(device):
+    batch_size = 10
+    pipe = Pipeline(batch_size, 4, 0)
+    data = fn.external_source(source=lambda: gen_data(batch_size, np.int16), device=device, layout="abc")
+    idxs = [4, 8, 0, 6, 3, 5, 2, 9, 7, 1]
+    pipe.set_outputs(data, fn.permute_batch(data, indices=idxs))
+    pipe.build()
+
+    for i in range(10):
+        orig, permuted = pipe.run()
+        if isinstance(orig, dali.backend.TensorListGPU):
+            orig = orig.as_cpu()
+        ref = [orig.at(idx) for idx in idxs]
+        check_batch(permuted, ref, len(ref), 0, 0, "abc")
+
+def test_permute_batch_fixed():
+    for device in ["cpu", "gpu"]:
+        yield _test_permute_batch_fixed, device
+
+
+@raises(RuntimeError)
+def _test_permute_batch_out_of_range(device):
+    batch_size = 10
+    pipe = Pipeline(batch_size, 4, 0)
+    data = fn.external_source(source=lambda: gen_data(batch_size, np.int32), device=device, layout="abc")
+    perm = fn.batch_permutation()
+    pipe.set_outputs(data, fn.permute_batch(data, indices=[0,1,2,3,4,5,10,7,8,9]), perm)
+    pipe.build()
+    pipe.run()
+
+def test_permute_batch_out_of_range():
+    for device in ["cpu", "gpu"]:
+        yield _test_permute_batch_out_of_range, device

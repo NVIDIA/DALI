@@ -92,7 +92,7 @@ void random_sequence_no_fixed_points(Collection &out, int lo, int hi, RNG &rng) 
         out[i] = x;
     }
   }
-  // we're above hi now - no fixed points posisble
+  // we're above hi now - no fixed points possible
   for (; i < N; i++) {
     out[i] = dist1(rng);
   }

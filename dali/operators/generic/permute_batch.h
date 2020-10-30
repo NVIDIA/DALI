@@ -24,14 +24,22 @@ namespace dali {
 template <typename Backend>
 class PermuteBatchBase : public Operator<Backend> {
  public:
-  explicit PermuteBatchBase(const OpSpec &spec) : Operator<Backend>(spec) {}
+  explicit PermuteBatchBase(const OpSpec &spec) : Operator<Backend>(spec) {
+    has_indices_input_ = spec.HasTensorArgument("indices");
+  }
 
   bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override {
     outputs.resize(1);
     auto &input = ws.template InputRef<Backend>(0);
     const auto &in_shape = input.shape();
     outputs[0].type = input.type();
-    GetPerSampleArgument<int>(indices_, "indices", this->spec_, ws);
+
+    if (has_indices_input_) {
+      GetPerSampleArgument<int>(indices_, "indices", this->spec_, ws);
+    } else {
+      this->spec_.TryGetRepeatedArgument(indices_, "indices");
+    }
+
     auto &out_shape = outputs[0].shape;
     int D = in_shape.sample_dim();
     out_shape.resize(indices_.size(), D);
@@ -54,6 +62,7 @@ class PermuteBatchBase : public Operator<Backend> {
 
  protected:
   vector<int> indices_;
+  bool has_indices_input_ = false;
 };
 
 template <class Backend>
