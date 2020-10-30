@@ -35,7 +35,7 @@ namespace detail {
 template <typename T>
 struct is_half : std::false_type {};
 
-//TODO(klecki): this should be defined per internal type, not for the magic typedef
+// TODO(klecki): this should be defined per internal type, not for the magic typedef
 template <>
 struct is_half<float16> : std::true_type {};
 

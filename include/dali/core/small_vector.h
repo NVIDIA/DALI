@@ -124,7 +124,8 @@ template <typename T>
 __host__ std::allocator<T> GetDefaultAlocatorType() { return {}; }
 
 template <typename T>
-using default_small_vector_allocator = std::remove_reference_t<decltype(GetDefaultAlocatorType<T>())>;
+using default_small_vector_allocator =
+    std::remove_reference_t<decltype(GetDefaultAlocatorType<T>())>;
 
 #else
 #ifdef __CUDA_ARCH__
