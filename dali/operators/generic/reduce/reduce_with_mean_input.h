@@ -19,6 +19,7 @@
 #include <algorithm>
 
 #include "dali/pipeline/operator/operator.h"
+#include "dali/operators/generic/reduce/reduce.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_cpu.h"
@@ -32,11 +33,11 @@ namespace dali {
 template <
   template <typename T, typename R, typename S> class ReductionType,
   typename Backend>
-class ReduceWithMeanInput : public Operator<Backend> {
+class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
  public:
   explicit inline ReduceWithMeanInput(const OpSpec &spec) :
     Operator<Backend>(spec),
-    axes_(spec.GetRepeatedArgument<int>("axes")),
+    AxesHelper(spec),
     keep_dims_(spec.GetArgument<bool>("keep_dims")),
     ddof_(spec.GetArgument<int>("ddof")) {
   }
@@ -53,10 +54,7 @@ class ReduceWithMeanInput : public Operator<Backend> {
     output_desc[0].type = dali::TypeTable::GetTypeInfoFromStatic<float>();
     output_desc[0].shape = input.shape();
 
-    if (axes_.size() == 0) {
-      axes_.resize(input.shape().sample_dim());
-      std::iota(axes_.begin(), axes_.end(), 0);
-    }
+    PrepareAxes(input.GetLayout(), input.shape().sample_dim());
 
     TensorListShape<> output_shape;
     kernels::reduce_impl::CalculateReducedShape(
@@ -155,7 +153,6 @@ class ReduceWithMeanInput : public Operator<Backend> {
  private:
   USE_OPERATOR_MEMBERS();
 
-  vector<int> axes_;
   bool keep_dims_;
   int ddof_;
   kernels::KernelManager kmgr_;

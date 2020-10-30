@@ -257,3 +257,30 @@ def test_reduce_with_mean_input():
                 for type_id in types:
                     for ddof in [0, 1]:
                         yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id, None, True, ddof
+
+if __name__ == "__main__":
+    batch_fn = Batch3D(np.float32)
+    batch_size = batch_fn.batch_size()
+
+    def get_batch():
+        return batch_fn()
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+
+    with pipe:
+        input = fn.external_source(source=get_batch, layout="ABC")
+        reduced = fn.reductions.sum(input, keep_dims=False, axes=[1])
+        reduced_by_name = fn.reductions.sum(input, keep_dims=False, axes_names="B")
+
+    pipe.set_outputs(reduced, reduced_by_name)
+    pipe.build()
+
+    for _ in range(batch_fn.num_iter()):
+        output = pipe.run()
+        reduced = output[0].as_array()
+        reduced_by_name = output[1].as_array()
+
+        print(reduced)
+        print('-----------------------')
+        print(reduced_by_name)
+        print('=======================')
