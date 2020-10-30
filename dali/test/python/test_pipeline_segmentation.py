@@ -71,10 +71,11 @@ def check_bbox_random_crop_adjust_polygons(file_root, annotations_file, batch_si
         bbox_Y = fn.slice(in_bboxes, 3, 1, axes=[1])
         in_bboxes_abs = fn.cat(bbox_x * w, bbox_y * h, bbox_X * w, bbox_Y * h, axis=1)
 
-        # Original masks polygons
-        masks_x = fn.slice(sel_vertices, 0, 1, axes=[1])
-        masks_y = fn.slice(sel_vertices, 1, 1, axes=[1])
-        sel_vertices_abs = fn.cat(masks_x * w, masks_y * h, axis=1)
+        # Transform to convert relative coordinates to absolute
+        scale_rel_to_abs = fn.transforms.scale(scale=fn.cat(w, h))
+
+        # Selected vertices (relative coordinates)
+        sel_vertices_abs= fn.coord_transform(out_vertices, MT=scale_rel_to_abs)
 
         # Output bboxes
         bbox2_x = fn.slice(out_bboxes, 0, 1, axes=[1])
@@ -83,17 +84,12 @@ def check_bbox_random_crop_adjust_polygons(file_root, annotations_file, batch_si
         bbox2_Y = fn.slice(out_bboxes, 3, 1, axes=[1])
         out_bboxes_abs = fn.cat(bbox2_x * w, bbox2_y * h, bbox2_X * w, bbox2_Y * h, axis=1)
 
-        # Output masks polygons
-        out_masks_x = fn.slice(out_vertices, 0, 1, axes=[1])
-        out_masks_y = fn.slice(out_vertices, 1, 1, axes=[1])
+        # Output vertices (absolute coordinates)
+        out_vertices_abs = fn.coord_transform(out_vertices, MT=scale_rel_to_abs)
 
         # Clamped coordinates
-        out_masks_clamped_x = math.clamp(out_masks_x, 0.0, 1.0)
-        out_masks_clamped_y = math.clamp(out_masks_y, 0.0, 1.0)
-        out_vertices_clamped = fn.cat(out_masks_clamped_x, out_masks_clamped_y, axis=1)
-
-        out_vertices_abs = fn.cat(out_masks_x * w, out_masks_y * h, axis=1)
-        out_vertices_clamped_abs = fn.cat(out_masks_clamped_x * w, out_masks_clamped_y * h, axis=1)
+        out_vertices_clamped = math.clamp(out_vertices, 0.0, 1.0)
+        out_vertices_clamped_abs = fn.coord_transform(out_vertices_clamped, MT=scale_rel_to_abs)
 
     pipe.set_outputs(in_vertices, sel_vertices, sel_vertices_abs,
                      out_vertices, out_vertices_clamped, out_vertices_abs, out_vertices_clamped_abs,
