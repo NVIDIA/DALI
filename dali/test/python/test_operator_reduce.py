@@ -269,13 +269,13 @@ def run_and_compare_with_layout(batch_fn, pipe):
 
 
 def run_reduce_with_layout(
-    batch_size, get_batch, reduction, axes, axes_names, batch_fn):
+    batch_size, get_batch, reduction, axes, axis_names, batch_fn):
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
         input = fn.external_source(source=get_batch, layout="ABC")
         reduced = reduction(input, keep_dims=False, axes=axes)
-        reduced_by_name = reduction(input, keep_dims=False, axes_names=axes_names)
+        reduced_by_name = reduction(input, keep_dims=False, axis_names=axis_names)
 
     pipe.set_outputs(reduced, reduced_by_name)
     pipe.build()
@@ -284,14 +284,14 @@ def run_reduce_with_layout(
 
 
 def run_reduce_with_layout_with_mean_input(
-    batch_size, get_batch, reduction, axes, axes_names, batch_fn):
+    batch_size, get_batch, reduction, axes, axis_names, batch_fn):
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
         input = fn.external_source(source=get_batch, layout="ABC")
         mean = fn.reductions.mean(input, axes=axes)
         reduced = reduction(input, mean, keep_dims=False, axes=axes)
-        reduced_by_name = reduction(input, mean, keep_dims=False, axes_names=axes_names)
+        reduced_by_name = reduction(input, mean, keep_dims=False, axis_names=axis_names)
 
     pipe.set_outputs(reduced, reduced_by_name)
     pipe.build()
@@ -299,7 +299,7 @@ def run_reduce_with_layout_with_mean_input(
     run_and_compare_with_layout(batch_fn, pipe)
 
 
-def test_reduce_axes_names():
+def test_reduce_axis_names():
     reductions = [
         fn.reductions.max,
         fn.reductions.min,
@@ -326,8 +326,8 @@ def test_reduce_axes_names():
         ((1, 2), 'BC'),
         ((0, 1, 2), 'ABC')]
 
-    for axes, axes_names in axes_and_names:
+    for axes, axis_names in axes_and_names:
         for reduction in reductions:
-            yield run_reduce_with_layout, batch_size, get_batch, reduction, axes, axes_names, batch_fn
+            yield run_reduce_with_layout, batch_size, get_batch, reduction, axes, axis_names, batch_fn
         for reduction in reductions_with_mean_input:
-            yield run_reduce_with_layout_with_mean_input, batch_size, get_batch, reduction, axes, axes_names, batch_fn
+            yield run_reduce_with_layout_with_mean_input, batch_size, get_batch, reduction, axes, axis_names, batch_fn

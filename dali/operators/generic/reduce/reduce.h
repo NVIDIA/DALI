@@ -34,13 +34,13 @@ class AxesHelper {
  public:
   explicit inline AxesHelper(const OpSpec &spec) {
     const bool has_axes_arg = spec.HasArgument("axes");
-    const bool has_axis_names_arg = spec.HasArgument("axes_names");
+    const bool has_axis_names_arg = spec.HasArgument("axis_names");
 
     DALI_ENFORCE(!has_axes_arg || !has_axis_names_arg,
       "Arguments `axes` and `axis_names` are mutually exclusive");
 
     if (has_axis_names_arg || !has_axes_arg) {
-      axis_names_ = spec.GetArgument<TensorLayout>("axes_names");
+      axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
       axes_ = {};
     } else {
       axes_ = spec.GetRepeatedArgument<int>("axes");

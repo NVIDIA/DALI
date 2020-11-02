@@ -29,7 +29,7 @@ DALI_SCHEMA(ReduceBase)
 
 Not providing any axis results in reduction of all elements.)code",
     std::vector<int>{ })
-  .AddOptionalArg("axes_names", R"code(Axis or axes along which reduction is performed, given by name.
+  .AddOptionalArg("axis_names", R"code(Axis or axes along which reduction is performed, given by name.
 
 Axis indices are taken from the input layout, and this argument cannot be used with ``axes``.)code",
     TensorLayout(""))
