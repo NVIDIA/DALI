@@ -19,6 +19,7 @@
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/signal/dct/dct_test.h"
+#include "dali/core/dev_buffer.h"
 
 namespace dali {
 namespace kernels {
@@ -27,13 +28,24 @@ namespace dct {
 namespace test {
 
 class Dct1DGpuTest : public ::testing::TestWithParam<
-  std::tuple<int, std::pair<int, std::vector<int>>>> {
+  std::tuple<int, float, std::pair<int, std::vector<int>>>> {
  public:
   Dct1DGpuTest()
       : batch_size_(std::get<0>(GetParam()))
-      , dims_(std::get<1>(GetParam()).first)
-      , axes_(std::get<1>(GetParam()).second)
+      , lifter_(std::get<1>(GetParam()))
+      , dims_(std::get<2>(GetParam()).first)
+      , axes_(std::get<2>(GetParam()).second)
       , in_shape_(batch_size_, dims_) {
+        if (lifter_) {
+          FillLifter();
+          const int max_ndct = 40;
+          lifter_coeffs_gpu_buffer.resize(max_ndct);
+          lifter_coeffs_gpu_ = span<float>(lifter_coeffs_gpu_buffer.data(), max_ndct);
+          cudaMemcpy(lifter_coeffs_gpu_.data(), lifter_coeffs_.data(),
+                    lifter_coeffs_.size() * sizeof(float), cudaMemcpyHostToDevice);
+        } else {
+          lifter_coeffs_gpu_ = span<float>();
+        }
         while (args_.size() < static_cast<size_t>(batch_size_) * axes_.size()) {
           for (auto dct : dct_type) {
             for (auto norm : normalize) {
@@ -49,6 +61,14 @@ class Dct1DGpuTest : public ::testing::TestWithParam<
   ~Dct1DGpuTest() override = default;
 
  protected:
+  void FillLifter() {
+    const int max_ndct = 40;
+    lifter_coeffs_.resize(max_ndct);
+    for (int i = 0; i < max_ndct; ++i) {
+      lifter_coeffs_[i] = 1.0 + lifter_ / 2 * std::sin(M_PI / lifter_ * (i + 1));
+    }
+  }
+
   void PrepareInput() {
     std::mt19937_64 rng{12345};
     std::uniform_int_distribution<> dim_dist(1, 3);
@@ -82,12 +102,16 @@ class Dct1DGpuTest : public ::testing::TestWithParam<
   }
 
   int batch_size_;
+  float lifter_;
   int dims_;
   std::vector<int> axes_;
   TensorListShape<> in_shape_;
   TestTensorList<float> ttl_in_;
   TestTensorList<float> ttl_out_;
   std::vector<DctArgs> args_;
+  std::vector<float> lifter_coeffs_;
+  DeviceBuffer<float> lifter_coeffs_gpu_buffer;
+  span<float> lifter_coeffs_gpu_;
   int args_idx_ = 0;
   span<const DctArgs> args_span_;
   const std::array<int, 4> dct_type = {{1, 2, 3, 4}};
@@ -108,11 +132,11 @@ TEST_P(Dct1DGpuTest, DctTest) {
     PrepareInput();
     auto out_shape = OutputShape(axis);
     auto in_view = ttl_in_.gpu();
-    auto req = kmgr.Setup<Kernel>(0, ctx, in_view, args_span_, axis);
+    auto req = kmgr.Setup<Kernel>(0, ctx, in_view, args_span_, axis, lifter_coeffs_gpu_);
     ASSERT_EQ(out_shape, req.output_shapes[0]);
     ttl_out_.reshape(out_shape);
     auto out_view = ttl_out_.gpu();
-    kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view, args_span_, axis);
+    kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view, args_span_, axis, lifter_coeffs_gpu_);
     cudaStreamSynchronize(ctx.gpu.stream);
     auto cpu_in_view = ttl_in_.cpu();
     auto cpu_out_view = ttl_out_.cpu();
@@ -148,7 +172,7 @@ TEST_P(Dct1DGpuTest, DctTest) {
           LOG_LINE << "\n";
           int ndct = args.ndct > 0 ? args.ndct : in_shape_[s][axis];
           std::vector<float> ref(ndct, 0);
-          ReferenceDct(args.dct_type, make_span(ref), make_cspan(in_buf), args.normalize);
+          ReferenceDct(args.dct_type, make_span(ref), make_cspan(in_buf), args.normalize, lifter_);
           LOG_LINE << "DCT (type " << args.dct_type << "):";
           for (int k = 0; k < ndct; k++) {
             EXPECT_NEAR(ref[k], out[out_idx], 1e-5);
@@ -163,7 +187,8 @@ TEST_P(Dct1DGpuTest, DctTest) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Dct1DGpuTest, Dct1DGpuTest, testing::Combine(
-    testing::Values(1, 6, 12),  // batch_size
+    testing::Values(1, 12),  // batch_size
+    testing::Values(0.f, 0.5f),  // lifter
     testing::Values(std::make_pair(2, std::vector<int>{1}),
                     std::make_pair(4, std::vector<int>{0, 3, 1}),
                     std::make_pair(1, std::vector<int>{0, 0}))  // dims, axes

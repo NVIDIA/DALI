@@ -29,11 +29,49 @@ namespace kernels {
 namespace signal {
 namespace dct {
 
+struct Lifter {
+  DALI_HOST_DEV
+  explicit Lifter(float coeff): coeff_(coeff) {}
+
+  DALI_HOST_DEV
+  float operator()(float val) { return val * coeff_; }
+
+  const float coeff_;
+};
+
+struct IdLifter {
+  DALI_HOST_DEV
+  float operator()(float val) { return val; }
+};
+
+template <bool nonzero>
+struct LiftersTable {};
+
+template <>
+struct LiftersTable<true> {
+  explicit LiftersTable(const float *lifter_coeffs): coeffs_(lifter_coeffs) {}
+
+  DALI_HOST_DEV
+  Lifter lifter(int idx) const {
+    return Lifter(coeffs_[idx]);
+  }
+
+ private:
+  const float *coeffs_ = nullptr;
+};
+
+template <>
+struct LiftersTable<false> {
+  DALI_HOST_DEV
+  IdLifter lifter(int) {return IdLifter{}; }
+};
+
+
 // The kernel processes data with the shape reduced to 3D.
 // Transform is applied over the middle axis.
-template <typename OutputType, typename InputType>
+template <typename OutputType, typename InputType, bool nonzero>
 __global__ void ApplyDct(const typename Dct1DGpu<OutputType, InputType>::SampleDesc *samples,
-                         const BlockDesc<3> *blocks)  {
+                         const BlockDesc<3> *blocks, LiftersTable<nonzero> lifters)  {
   int bid = blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z);
   auto block = blocks[bid];
   const auto &sample = samples[block.sample_idx];
@@ -43,6 +81,7 @@ __global__ void ApplyDct(const typename Dct1DGpu<OutputType, InputType>::SampleD
   for (int z = block.start.z + threadIdx.z; z < block.end.z; z += blockDim.z) {
     for (int y = block.start.y + threadIdx.y; y < block.end.y; y += blockDim.y) {
       const OutputType *cos_row = sample.cos_table + sample.input_length * y;
+      auto lifter = lifters.lifter(y);
       for (int x = block.start.x + threadIdx.x; x < block.end.x; x += blockDim.x) {
         int output_idx = dot(out_stride, ivec3{z, y, x});
         const InputType *input = sample.input + dot(in_stride, ivec3{z, 0, x});
@@ -51,7 +90,7 @@ __global__ void ApplyDct(const typename Dct1DGpu<OutputType, InputType>::SampleD
           out_val += *input * cos_row[i];
           input += in_stride[1];
         }
-        sample.output[output_idx] = out_val;
+        sample.output[output_idx] = lifter(out_val);
       }
     }
   }
@@ -60,8 +99,8 @@ __global__ void ApplyDct(const typename Dct1DGpu<OutputType, InputType>::SampleD
 template <typename OutputType, typename InputType>
 KernelRequirements Dct1DGpu<OutputType, InputType>::Setup(KernelContext &ctx,
                                                           const InListGPU<InputType> &in,
-                                                          span<const DctArgs> args,
-                                                          int axis) {
+                                                          span<const DctArgs> args, int axis,
+                                                          span<const float>) {
   DALI_ENFORCE(args.size() == in.num_samples());
   KernelRequirements req{};
   ScratchpadEstimator se{};
@@ -120,7 +159,8 @@ template <typename OutputType, typename InputType>
 DLL_PUBLIC void Dct1DGpu<OutputType, InputType>::Run(KernelContext &ctx,
                                                      const OutListGPU<OutputType> &out,
                                                      const InListGPU<InputType> &in,
-                                                     span<const DctArgs>, int) {
+                                                     span<const DctArgs>, int,
+                                                     span<const float> lifter_coeffs) {
   OutputType *cpu_cos_table[2];
   cpu_cos_table[0] =
     ctx.scratchpad->Allocate<OutputType>(AllocType::Pinned, max_cos_table_size_);
@@ -148,6 +188,10 @@ DLL_PUBLIC void Dct1DGpu<OutputType, InputType>::Run(KernelContext &ctx,
   for (auto arg : args_) {
     auto in_shape = reduce_shape(in.tensor_shape_span(s), axis_);
     auto out_shape = reduce_shape(out.tensor_shape_span(s), axis_);
+    DALI_ENFORCE(lifter_coeffs.size() == 0 || out_shape[1] <= lifter_coeffs.size(),
+                 make_string("Not enough lifter coefficients. NDCT for sample ", s, " is ",
+                             out_shape[1], " and only ", lifter_coeffs.size(),
+                             " coefficients were passed."));
     ivec3 out_stride = GetStrides(ivec3{out_shape[0], out_shape[1], out_shape[2]});
     ivec3 in_stride = GetStrides(ivec3{in_shape[0], in_shape[1], in_shape[2]});;
     int n = in_shape[1];
@@ -162,8 +206,16 @@ DLL_PUBLIC void Dct1DGpu<OutputType, InputType>::Run(KernelContext &ctx,
     ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, sample_descs_, block_setup_.Blocks());
   dim3 grid_dim = block_setup_.GridDim();
   dim3 block_dim = block_setup_.BlockDim();
-  ApplyDct<OutputType, InputType>
-    <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(sample_descs_gpu, block_descs_gpu);
+  const auto *lifter_coeffs_ptr = lifter_coeffs.size() > 0 ? lifter_coeffs.data() : nullptr;
+  if (lifter_coeffs_ptr) {
+    ApplyDct<OutputType, InputType, true>
+      <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(sample_descs_gpu, block_descs_gpu,
+                                                   LiftersTable<true>(lifter_coeffs_ptr));
+  } else {
+    ApplyDct<OutputType, InputType, false>
+      <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(sample_descs_gpu, block_descs_gpu,
+                                                   LiftersTable<false>());
+  }
 }
 
 template class Dct1DGpu<float, float>;
