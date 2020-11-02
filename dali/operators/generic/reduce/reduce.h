@@ -48,7 +48,7 @@ class AxesHelper {
     }
   }
 
-  void PrepareAxes(TensorLayout &&layout, int sample_dim) {
+  void PrepareAxes(const TensorLayout &layout, int sample_dim) {
     if (!axis_names_.empty()) {
       axes_ = GetDimIndices(layout, axis_names_).to_vector();
     }
