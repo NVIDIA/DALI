@@ -64,9 +64,9 @@ class LifterCoeffs {
 
 template <typename Backend>
 class MFCC : public Operator<Backend> {
+ public:
   using DctArgs = kernels::signal::dct::DctArgs;
 
- public:
   explicit MFCC(const OpSpec &spec)
       : Operator<Backend>(spec) {}
 

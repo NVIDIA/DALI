@@ -23,10 +23,12 @@ namespace detail {
 
 __global__ void CalcLifterKernel(float *coeffs, int64_t start_idx, int64_t target_length,
                                  float lifter) {
+  int i = start_idx + blockDim.x * blockIdx.x + threadIdx.x;
+  if (i >= target_length)
+    return;
   float ampl_mult = lifter / 2;
-  float phase_mult = M_PI / lifter;
-  for (int64_t i = start_idx + threadIdx.x; i < target_length; i += blockDim.x)
-    coeffs[i] = 1.0 + ampl_mult * sinf(phase_mult * (i + 1));
+  float phase_mult = static_cast<float>(M_PI) / lifter;
+  coeffs[i] = 1.f + ampl_mult * sinf(phase_mult * (i + 1));
 }
 
 template <>
@@ -48,8 +50,22 @@ DLL_PUBLIC  void LifterCoeffs<GPUBackend>::Calculate(int64_t target_length, floa
     int added_length = target_length - start_idx;
     coeffs_.resize(target_length, stream);
     int threads = std::min(added_length, 256);
-    CalcLifterKernel<<<1, threads, 0, stream>>>(coeffs_.data(), start_idx, target_length, lifter);
+    int blocks = div_ceil(added_length, 256);
+    CalcLifterKernel<<<blocks, threads, 0, stream>>>
+      (coeffs_.data(), start_idx, target_length, lifter);
   }
+}
+
+template <typename T>
+std::vector<OutputDesc> SetupKernel(kernels::KernelManager &kmgr, kernels::KernelContext &ctx,
+                                    const TensorList<GPUBackend> &input,
+                                    span<const MFCC<GPUBackend>::DctArgs> args, int axis) {
+  using Kernel = kernels::signal::dct::Dct1DGpu<T>;
+  kmgr.Initialize<Kernel>();
+  kmgr.Resize<Kernel>(1, 1);
+  auto in_view = view<const T>(input);
+  auto &req = kmgr.Setup<Kernel>(0, ctx, in_view, args, axis);
+  return {{req.output_shapes[0], input.type()}};
 }
 
 }  // namespace detail
@@ -58,24 +74,18 @@ template<>
 bool MFCC<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                  const workspace_t<GPUBackend> &ws) {
   GetArguments(ws);
+  ctx_.gpu.stream = ws.stream();
   auto &input = ws.InputRef<GPUBackend>(0);
   TYPE_SWITCH(input.type().id(), type2id, T, MFCC_SUPPORTED_TYPES, (
-    using Kernel = kernels::signal::dct::Dct1DGpu<T>;
-    kmgr_.Initialize<Kernel>();
-    kmgr_.Resize<Kernel>(1, 1);
-    ctx_.gpu.stream = ws.stream();
-    output_desc.resize(1);
-    output_desc[0].type = input.type();
-    auto in_view = view<const T>(input);
-    auto &req = kmgr_.Setup<Kernel>(0, ctx_, in_view, make_cspan(args_), axis_, span<float>());
-    output_desc[0].shape = req.output_shapes[0];
-    int64_t max_ndct = 0;
-    for (int i = 0; i < nsamples_; ++i) {
-      int64_t ndct = output_desc[0].shape[i][axis_];
-      if (ndct > max_ndct) max_ndct = ndct;
-    }
-    lifter_coeffs_.Calculate(max_ndct, lifter_, ws.stream());
+    output_desc = detail::SetupKernel<T>(kmgr_, ctx_, input, make_cspan(args_), axis_);
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  int64_t max_ndct = 0;
+  for (int i = 0; i < nsamples_; ++i) {
+    int64_t ndct = output_desc[0].shape[i][axis_];
+    if (ndct > max_ndct)
+      max_ndct = ndct;
+  }
+  lifter_coeffs_.Calculate(max_ndct, lifter_, ws.stream());
   return true;
 }
 
@@ -86,8 +96,9 @@ void MFCC<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
     using Kernel = kernels::signal::dct::Dct1DGpu<T>;
     auto in_view = view<const T>(input);
     auto out_view = view<T>(ws.OutputRef<GPUBackend>(0));
-    span<const float> lifter_span(lifter_coeffs_.data(), lifter_coeffs_.size());
-    kmgr_.Run<Kernel>(0, 0, ctx_, out_view, in_view, make_cspan(args_), axis_, lifter_span);
+    auto lifter_view = make_tensor_gpu<1>(lifter_coeffs_.data(),
+                                          {static_cast<int64_t>(lifter_coeffs_.size())});
+    kmgr_.Run<Kernel>(0, 0, ctx_, out_view, in_view, lifter_view);
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 }
 

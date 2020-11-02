@@ -38,13 +38,10 @@ class Dct1DGpuTest : public ::testing::TestWithParam<
       , in_shape_(batch_size_, dims_) {
         if (lifter_) {
           FillLifter();
-          const int max_ndct = 40;
           lifter_coeffs_gpu_buffer.resize(max_ndct);
-          lifter_coeffs_gpu_ = span<float>(lifter_coeffs_gpu_buffer.data(), max_ndct);
-          cudaMemcpy(lifter_coeffs_gpu_.data(), lifter_coeffs_.data(),
+          lifter_coeffs_gpu_ = make_tensor_gpu<1>(lifter_coeffs_gpu_buffer.data(), {max_ndct});
+          cudaMemcpy(lifter_coeffs_gpu_.data, lifter_coeffs_.data(),
                     lifter_coeffs_.size() * sizeof(float), cudaMemcpyHostToDevice);
-        } else {
-          lifter_coeffs_gpu_ = span<float>();
         }
         while (args_.size() < static_cast<size_t>(batch_size_) * axes_.size()) {
           for (auto dct : dct_type) {
@@ -62,7 +59,6 @@ class Dct1DGpuTest : public ::testing::TestWithParam<
 
  protected:
   void FillLifter() {
-    const int max_ndct = 40;
     lifter_coeffs_.resize(max_ndct);
     for (int i = 0; i < max_ndct; ++i) {
       lifter_coeffs_[i] = 1.0 + lifter_ / 2 * std::sin(M_PI / lifter_ * (i + 1));
@@ -111,12 +107,13 @@ class Dct1DGpuTest : public ::testing::TestWithParam<
   std::vector<DctArgs> args_;
   std::vector<float> lifter_coeffs_;
   DeviceBuffer<float> lifter_coeffs_gpu_buffer;
-  span<float> lifter_coeffs_gpu_;
+  OutTensorGPU<float, 1> lifter_coeffs_gpu_{};
   int args_idx_ = 0;
   span<const DctArgs> args_span_;
   const std::array<int, 4> dct_type = {{1, 2, 3, 4}};
   const std::array<bool, 2> normalize = {{false, true}};
   const std::array<int, 3> ndct = {{-1, 10, 20}};
+  const int max_ndct = 40;
 };
 
 
@@ -132,11 +129,11 @@ TEST_P(Dct1DGpuTest, DctTest) {
     PrepareInput();
     auto out_shape = OutputShape(axis);
     auto in_view = ttl_in_.gpu();
-    auto req = kmgr.Setup<Kernel>(0, ctx, in_view, args_span_, axis, lifter_coeffs_gpu_);
+    auto req = kmgr.Setup<Kernel>(0, ctx, in_view, args_span_, axis);
     ASSERT_EQ(out_shape, req.output_shapes[0]);
     ttl_out_.reshape(out_shape);
     auto out_view = ttl_out_.gpu();
-    kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view, args_span_, axis, lifter_coeffs_gpu_);
+    kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view, lifter_coeffs_gpu_);
     cudaStreamSynchronize(ctx.gpu.stream);
     auto cpu_in_view = ttl_in_.cpu();
     auto cpu_out_view = ttl_out_.cpu();

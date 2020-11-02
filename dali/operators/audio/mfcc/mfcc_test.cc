@@ -38,17 +38,17 @@ TEST(LifterCoeffsCPU, correctness) {
 
   lifter = 1.234f;
   coeffs.Calculate(10, lifter);
-  check_lifter_coeffs(span<const float>(coeffs.data(), coeffs.size()), lifter, 10);
+  check_lifter_coeffs(make_cspan(coeffs), lifter, 10);
 
   coeffs.Calculate(20, lifter);
-  check_lifter_coeffs(span<const float>(coeffs.data(), coeffs.size()), lifter, 20);
+  check_lifter_coeffs(make_cspan(coeffs), lifter, 20);
 
   lifter = 2.234f;
   coeffs.Calculate(10, lifter);
-  check_lifter_coeffs(span<const float>(coeffs.data(), coeffs.size()), lifter, 10);
+  check_lifter_coeffs(make_cspan(coeffs), lifter, 10);
 
   coeffs.Calculate(5, lifter);
-  check_lifter_coeffs(span<const float>(coeffs.data(), coeffs.size()), lifter, 10);
+  check_lifter_coeffs(make_cspan(coeffs), lifter, 10);
 }
 
 TEST(LifterCoeffsGPU, correctness) {
@@ -79,6 +79,12 @@ TEST(LifterCoeffsGPU, correctness) {
   check_lifter_coeffs(make_cspan(coeffs_cpu), lifter, coeffs.size());
 
   coeffs.Calculate(5, lifter);
+  coeffs_cpu.resize(coeffs.size());
+  cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
+             coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost);
+  check_lifter_coeffs(make_cspan(coeffs_cpu), lifter, coeffs.size());
+
+  coeffs.Calculate(300, lifter);
   coeffs_cpu.resize(coeffs.size());
   cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
              coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost);
