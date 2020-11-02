@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,8 +19,6 @@
 #include "dali/kernels/common/for_axis.h"
 #include "dali/pipeline/data/views.h"
 
-
-#define MFCC_SUPPORTED_TYPES (float)
 #define MFCC_SUPPORTED_NDIMS (2, 3, 4)
 
 static constexpr int kNumInputs = 1;
@@ -29,6 +27,28 @@ static constexpr int kNumOutputs = 1;
 namespace dali {
 
 namespace detail {
+
+template <>
+DLL_PUBLIC void LifterCoeffs<CPUBackend>::Calculate(int64_t target_length, float lifter,
+                                                    cudaStream_t)  {
+  // If different lifter argument, clear previous coefficients
+  if (lifter_ != lifter) {
+    coeffs_.clear();
+    lifter_ = lifter;
+  }
+
+  // 0 means no liftering
+  if (lifter_ == 0.0f)
+    return;
+
+  // Calculate remaining coefficients (if necessary)
+  if (static_cast<int64_t>(coeffs_.size()) < target_length) {
+    int64_t start = coeffs_.size(), end = target_length;
+    coeffs_.resize(target_length);
+    CalculateCoeffs(coeffs_.data() + start, start, target_length - start);
+  }
+}
+
 
 template <typename T, int Dims>
 void ApplyLifter(const kernels::OutTensorCPU<T, Dims> &inout, int axis, const T* lifter_coeffs) {
@@ -93,6 +113,7 @@ the following formula::
 template <>
 bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                  const workspace_t<CPUBackend> &ws) {
+  GetArguments(ws);
   output_desc.resize(kNumOutputs);
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
@@ -116,11 +137,11 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       output_desc[0].shape.resize(nsamples, Dims);
       for (int i = 0; i < nsamples; i++) {
         const auto in_view = view<const T, Dims>(input[i]);
-        auto &req = kmgr_.Setup<DctKernel>(i, ctx, in_view, args_, axis_);
-        output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
-
-        if (in_view.shape[axis_] > max_length) {
-          max_length = in_view.shape[axis_];
+        auto &req = kmgr_.Setup<DctKernel>(i, ctx, in_view, args_[i], axis_);
+        auto out_shape = req.output_shapes[0][0];
+        output_desc[0].shape.set_tensor_shape(i, out_shape);
+        if (out_shape[axis_] > max_length) {
+          max_length = out_shape[axis_];
         }
       }
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
@@ -147,7 +168,7 @@ void MFCC<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
             kernels::KernelContext ctx;
             auto in_view = view<const T, Dims>(input[i]);
             auto out_view = view<T, Dims>(output[i]);
-            kmgr_.Run<DctKernel>(thread_id, i, ctx, out_view, in_view, args_, axis_);
+            kmgr_.Run<DctKernel>(thread_id, i, ctx, out_view, in_view, args_[i], axis_);
             if (lifter_ != 0.0f) {
               assert(static_cast<int64_t>(lifter_coeffs_.size()) >= out_view.shape[axis_]);
               detail::ApplyLifter(out_view, axis_, lifter_coeffs_.data());

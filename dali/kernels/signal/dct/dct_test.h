@@ -24,7 +24,7 @@ namespace dct {
 namespace test {
 
 template <typename T>
-void ReferenceDctTypeI(span<T> out, span<const T> in, bool normalize) {
+void ReferenceDctTypeI(span<T> out, span<const T> in, bool normalize, float lifter) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
   double phase_mul = M_PI / (in_length - 1);
@@ -34,12 +34,13 @@ void ReferenceDctTypeI(span<T> out, span<const T> in, bool normalize) {
     for (int64_t n = 1; n < in_length - 1; n++) {
       out_val += in[n] * std::cos(phase_mul * n * k);
     }
-    out[k] = out_val;
+    float coeff = lifter ? (1.0 + lifter / 2 * std::sin(M_PI / lifter * (k + 1))) : 1.f;
+    out[k] = out_val * coeff;
   }
 }
 
 template <typename T>
-void ReferenceDctTypeII(span<T> out, span<const T> in, bool normalize) {
+void ReferenceDctTypeII(span<T> out, span<const T> in, bool normalize, float lifter) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
   double phase_mul = M_PI / in_length;
@@ -54,12 +55,13 @@ void ReferenceDctTypeII(span<T> out, span<const T> in, bool normalize) {
       out_val += in[n] * std::cos(phase_mul * (n + 0.5) * k);
     }
     double factor = (k == 0) ? factor_k_0 : factor_k_i;
-    out[k] = factor * out_val;
+    float coeff = lifter ? (1.0 + lifter / 2 * std::sin(M_PI / lifter * (k + 1))) : 1.f;
+    out[k] = factor * out_val * coeff;
   }
 }
 
 template <typename T>
-void ReferenceDctTypeIII(span<T> out, span<const T> in, bool normalize) {
+void ReferenceDctTypeIII(span<T> out, span<const T> in, bool normalize, float lifter) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
   double phase_mul = M_PI / in_length;
@@ -74,12 +76,13 @@ void ReferenceDctTypeIII(span<T> out, span<const T> in, bool normalize) {
     for (int64_t n = 1; n < in_length; n++) {
       out_val += factor_n_i * in[n] * std::cos(phase_mul * n * (k + 0.5));
     }
-    out[k] = out_val;
+    float coeff = lifter ? (1.0 + lifter / 2 * std::sin(M_PI / lifter * (k + 1))) : 1.f;
+    out[k] = out_val * coeff;
   }
 }
 
 template <typename T>
-void ReferenceDctTypeIV(span<T> out, span<const T> in, bool normalize) {
+void ReferenceDctTypeIV(span<T> out, span<const T> in, bool normalize, float lifter) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
   double phase_mul = M_PI / in_length;
@@ -89,28 +92,29 @@ void ReferenceDctTypeIV(span<T> out, span<const T> in, bool normalize) {
     for (int64_t n = 0; n < in_length; n++) {
       out_val += factor * in[n] * std::cos(phase_mul * (n + 0.5) * (k + 0.5));
     }
-    out[k] = out_val;
+    float coeff = lifter ? (1.0 + lifter / 2 * std::sin(M_PI / lifter * (k + 1))) : 1.f;
+    out[k] = out_val * coeff;
   }
 }
 
 
 template <typename T>
-void ReferenceDct(int dct_type, span<T> out, span<const T> in, bool normalize) {
+void ReferenceDct(int dct_type, span<T> out, span<const T> in, bool normalize, float lifter = 0) {
   switch (dct_type) {
     case 1:
-      ReferenceDctTypeI(out, in, normalize);
+      ReferenceDctTypeI(out, in, normalize, lifter);
       break;
 
     case 2:
-      ReferenceDctTypeII(out, in, normalize);
+      ReferenceDctTypeII(out, in, normalize, lifter);
       break;
 
     case 3:
-      ReferenceDctTypeIII(out, in, normalize);
+      ReferenceDctTypeIII(out, in, normalize, lifter);
       break;
 
     case 4:
-      ReferenceDctTypeIV(out, in, normalize);
+      ReferenceDctTypeIV(out, in, normalize, lifter);
       break;
 
     default:
