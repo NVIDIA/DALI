@@ -2,7 +2,7 @@ FROM ubuntu:18.04 as cuda
 
 RUN apt update && apt install -y libxml2 curl perl gcc
 
-RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.1.0/local_installers/cuda_11.1.0_455.23.05_linux.run && \
+RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.1.1/local_installers/cuda_11.1.1_455.32.00_linux.run && \
     chmod +x cuda_*.run && \
     ./cuda_*.run --silent --no-opengl-libs --toolkit && \
     rm -f cuda_*.run;

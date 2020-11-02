@@ -18,6 +18,7 @@ import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 from nvidia.dali.plugin.pytorch import DALIGenericIterator
 from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator, dali_type
+from segmentation_test_utils import make_batch_select_masks
 from PIL import Image, ImageEnhance
 
 import numpy as np
@@ -668,6 +669,24 @@ def test_reduce_max_cpu():
 
 def test_reduce_sum_cpu():
     check_single_input(fn.reductions.sum)
+    
+def test_segmentation_select_masks():
+    def get_data_source(*args, **kwargs):
+        return lambda: make_batch_select_masks(*args, **kwargs)
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None, seed=1234)
+    with pipe:
+        polygons, vertices, selected_masks = fn.external_source(
+            num_outputs = 3, device='cpu',
+            source = get_data_source(batch_size, vertex_ndim=2, npolygons_range=(1, 5),
+                                     nvertices_range=(3, 10))
+        )
+        out_polygons, out_vertices = fn.segmentation.select_masks(
+            selected_masks, polygons, vertices, reindex_masks=False
+        )
+    pipe.set_outputs(polygons, vertices, selected_masks, out_polygons, out_vertices)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
 
 def test_reduce_mean_cpu():
     check_single_input(fn.reductions.mean)
