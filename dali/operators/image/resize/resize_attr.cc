@@ -216,7 +216,7 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
     GetShapeLikeArgument<float>(size_arg_, spec, "size", ws, spatial_ndim_, N);
   }
 
-  max_size_.resize(spatial_ndim_, std::numeric_limits<int>::max());
+  max_size_.resize(spatial_ndim_, static_cast<float>(std::numeric_limits<int>::max()));
   if (has_max_size_) {
     GetSingleOrRepeatedArg(spec, max_size_, "max_size", spatial_ndim_);
   }

@@ -115,10 +115,11 @@ RUN OPENCV_VERSION=4.4.0 && \
     rm -rf /opencv-${OPENCV_VERSION}
 
 # Clang
-RUN cd /usr/local && \
-    wget https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-sles11.3.tar.xz && \
-    tar -xJf clang+llvm-10.0.0-x86_64-linux-sles11.3.tar.xz --strip 1 && \
-    rm clang+llvm-10.0.0-x86_64-linux-sles11.3.tar.xz
+RUN CLANG_VERSION=10.0.0 && \
+    cd /usr/local && \
+    wget https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz && \
+    tar -xJf clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz --strip 1 && \
+    rm clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz
 
 ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
