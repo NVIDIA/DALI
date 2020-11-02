@@ -20,8 +20,8 @@ ENV PATH=/opt/python/cp36-cp36/bin:/opt/python/cp37-cp37m/bin:/opt/python/cp38-c
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
 # in aarch64 pip install libclang will fail
-RUN pip install future setuptools wheel clang && \
-    pip install libclang || true && \
+RUN pip install future setuptools wheel clang==11.0.0 && \
+    pip install libclang==11.0.0 || true && \
     rm -rf /root/.cache/pip/
 
 # install clang for aarch64

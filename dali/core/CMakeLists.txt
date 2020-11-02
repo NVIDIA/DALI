@@ -22,12 +22,14 @@ collect_test_sources(DALI_CORE_TEST_SRCS)
 set(CUDA_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cuda_gen.cc")
 add_custom_command(
     OUTPUT ${CUDA_GENERATED_STUB}
-    COMMAND python ${CMAKE_SOURCE_DIR}/tools/stub_generator/stub_codegen.py --
+    COMMAND python ${CMAKE_SOURCE_DIR}/tools/stub_generator/stub_codegen.py --unique_prefix=Cuda --
                 "${CMAKE_SOURCE_DIR}/tools/stub_generator/cuda.json" ${CUDA_GENERATED_STUB}
                 "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cuda.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
     DEPENDS ${CMAKE_SOURCE_DIR}/tools/stub_generator/stub_codegen.py
+            "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cuda.h"
+            "${CMAKE_SOURCE_DIR}/tools/stub_generator/cuda.json"
     COMMENT "Running cuda.h stub generator"
-    VERBATIM )
+    VERBATIM)
 
 set_source_files_properties(${CUDA_GENERATED_STUB} PROPERTIES GENERATED TRUE)
 

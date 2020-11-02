@@ -865,39 +865,39 @@ typedef struct _CUVIDRECONFIGUREDECODERINFO
 //!   nMaxWidth = 4096; nMaxHeight = 4096; nMaxMBCount = 65536;
 //! CodedWidth*CodedHeight/256 must be less than or equal to nMaxMBCount
 /**********************************************************************************************************************/
-extern CUresult CUDAAPI cuvidGetDecoderCaps(CUVIDDECODECAPS *pdc);
+CUresult CUDAAPI cuvidGetDecoderCaps(CUVIDDECODECAPS *pdc);
 
 /*****************************************************************************************************/
 //! \fn CUresult CUDAAPI cuvidCreateDecoder(CUvideodecoder *phDecoder, CUVIDDECODECREATEINFO *pdci)
 //! Create the decoder object based on pdci. A handle to the created decoder is returned
 /*****************************************************************************************************/
-extern CUresult CUDAAPI cuvidCreateDecoder(CUvideodecoder *phDecoder, CUVIDDECODECREATEINFO *pdci);
+CUresult CUDAAPI cuvidCreateDecoder(CUvideodecoder *phDecoder, CUVIDDECODECREATEINFO *pdci);
 
 /*****************************************************************************************************/
 //! \fn CUresult CUDAAPI cuvidDestroyDecoder(CUvideodecoder hDecoder)
 //! Destroy the decoder object
 /*****************************************************************************************************/
-extern CUresult CUDAAPI cuvidDestroyDecoder(CUvideodecoder hDecoder);
+CUresult CUDAAPI cuvidDestroyDecoder(CUvideodecoder hDecoder);
 
 /*****************************************************************************************************/
 //! \fn CUresult CUDAAPI cuvidDecodePicture(CUvideodecoder hDecoder, CUVIDPICPARAMS *pPicParams)
 //! Decode a single picture (field or frame)
 //! Kicks off HW decoding
 /*****************************************************************************************************/
-extern CUresult CUDAAPI cuvidDecodePicture(CUvideodecoder hDecoder, CUVIDPICPARAMS *pPicParams);
+CUresult CUDAAPI cuvidDecodePicture(CUvideodecoder hDecoder, CUVIDPICPARAMS *pPicParams);
 
 /************************************************************************************************************/
 //! \fn CUresult CUDAAPI cuvidGetDecodeStatus(CUvideodecoder hDecoder, int nPicIdx);
 //! Get the decode status for frame corresponding to nPicIdx
 /************************************************************************************************************/
-extern CUresult CUDAAPI cuvidGetDecodeStatus(CUvideodecoder hDecoder, int nPicIdx, CUVIDGETDECODESTATUS* pDecodeStatus);
+CUresult CUDAAPI cuvidGetDecodeStatus(CUvideodecoder hDecoder, int nPicIdx, CUVIDGETDECODESTATUS* pDecodeStatus);
 
 /*********************************************************************************************************/
 //! \fn CUresult CUDAAPI cuvidReconfigureDecoder(CUvideodecoder hDecoder, CUVIDRECONFIGUREDECODERINFO *pDecReconfigParams)
 //! Used to reuse single decoder for multiple clips. Currently supports resolution change, resize params, display area
 //! params, target area params change for same codec. Must be called during CUVIDPARSERPARAMS::pfnSequenceCallback
 /*********************************************************************************************************/
-extern CUresult CUDAAPI cuvidReconfigureDecoder(CUvideodecoder hDecoder, CUVIDRECONFIGUREDECODERINFO *pDecReconfigParams);
+CUresult CUDAAPI cuvidReconfigureDecoder(CUvideodecoder hDecoder, CUVIDRECONFIGUREDECODERINFO *pDecReconfigParams);
 
 
 #if !defined(__CUVID_DEVPTR64) || defined(__CUVID_INTERNAL)
@@ -907,7 +907,7 @@ extern CUresult CUDAAPI cuvidReconfigureDecoder(CUvideodecoder hDecoder, CUVIDRE
 //! Post-process and map video frame corresponding to nPicIdx for use in cuda. Returns cuda device pointer and associated
 //! pitch of the video frame
 /************************************************************************************************************************/
-extern CUresult CUDAAPI cuvidMapVideoFrame(CUvideodecoder hDecoder, int nPicIdx,
+CUresult CUDAAPI cuvidMapVideoFrame(CUvideodecoder hDecoder, int nPicIdx,
                                            unsigned int *pDevPtr, unsigned int *pPitch,
                                            CUVIDPROCPARAMS *pVPP);
 
@@ -915,7 +915,7 @@ extern CUresult CUDAAPI cuvidMapVideoFrame(CUvideodecoder hDecoder, int nPicIdx,
 //! \fn CUresult CUDAAPI cuvidUnmapVideoFrame(CUvideodecoder hDecoder, unsigned int DevPtr)
 //! Unmap a previously mapped video frame
 /*****************************************************************************************************/
-extern CUresult CUDAAPI cuvidUnmapVideoFrame(CUvideodecoder hDecoder, unsigned int DevPtr);
+CUresult CUDAAPI cuvidUnmapVideoFrame(CUvideodecoder hDecoder, unsigned int DevPtr);
 #endif
 
 #if defined(_WIN64) || defined(__LP64__) || defined(__x86_64) || defined(AMD64) || defined(_M_AMD64)
@@ -925,14 +925,14 @@ extern CUresult CUDAAPI cuvidUnmapVideoFrame(CUvideodecoder hDecoder, unsigned i
 //! Post-process and map video frame corresponding to nPicIdx for use in cuda. Returns cuda device pointer and associated
 //! pitch of the video frame
 /****************************************************************************************************************************/
-extern CUresult CUDAAPI cuvidMapVideoFrame64(CUvideodecoder hDecoder, int nPicIdx, unsigned long long *pDevPtr,
+CUresult CUDAAPI cuvidMapVideoFrame64(CUvideodecoder hDecoder, int nPicIdx, unsigned long long *pDevPtr,
                                              unsigned int *pPitch, CUVIDPROCPARAMS *pVPP);
 
 /**************************************************************************************************/
 //! \fn CUresult CUDAAPI cuvidUnmapVideoFrame64(CUvideodecoder hDecoder, unsigned long long DevPtr);
 //! Unmap a previously mapped video frame
 /**************************************************************************************************/
-extern CUresult CUDAAPI cuvidUnmapVideoFrame64(CUvideodecoder hDecoder, unsigned long long DevPtr);
+CUresult CUDAAPI cuvidUnmapVideoFrame64(CUvideodecoder hDecoder, unsigned long long DevPtr);
 
 #if defined(__CUVID_DEVPTR64) && !defined(__CUVID_INTERNAL)
 #define cuvidMapVideoFrame      cuvidMapVideoFrame64
@@ -961,25 +961,25 @@ extern CUresult CUDAAPI cuvidUnmapVideoFrame64(CUvideodecoder hDecoder, unsigned
 //! \fn CUresult CUDAAPI cuvidCtxLockCreate(CUvideoctxlock *pLock, CUcontext ctx)
 //! This API is used to create CtxLock object
 /********************************************************************************************************************/
-extern CUresult CUDAAPI cuvidCtxLockCreate(CUvideoctxlock *pLock, CUcontext ctx);
+CUresult CUDAAPI cuvidCtxLockCreate(CUvideoctxlock *pLock, CUcontext ctx);
 
 /********************************************************************************************************************/
 //! \fn CUresult CUDAAPI cuvidCtxLockDestroy(CUvideoctxlock lck)
 //! This API is used to free CtxLock object
 /********************************************************************************************************************/
-extern CUresult CUDAAPI cuvidCtxLockDestroy(CUvideoctxlock lck);
+CUresult CUDAAPI cuvidCtxLockDestroy(CUvideoctxlock lck);
 
 /********************************************************************************************************************/
 //! \fn CUresult CUDAAPI cuvidCtxLock(CUvideoctxlock lck, unsigned int reserved_flags)
 //! This API is used to acquire ctxlock
 /********************************************************************************************************************/
-extern CUresult CUDAAPI cuvidCtxLock(CUvideoctxlock lck, unsigned int reserved_flags);
+CUresult CUDAAPI cuvidCtxLock(CUvideoctxlock lck, unsigned int reserved_flags);
 
 /********************************************************************************************************************/
 //! \fn CUresult CUDAAPI cuvidCtxUnlock(CUvideoctxlock lck, unsigned int reserved_flags)
 //! This API is used to release ctxlock
 /********************************************************************************************************************/
-extern CUresult CUDAAPI cuvidCtxUnlock(CUvideoctxlock lck, unsigned int reserved_flags);
+CUresult CUDAAPI cuvidCtxUnlock(CUvideoctxlock lck, unsigned int reserved_flags);
 
 /**********************************************************************************************/
 

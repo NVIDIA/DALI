@@ -16,9 +16,7 @@
 #define DALI_CORE_DYNLINK_CUDA_H
 
 #include <cuda.h>
-#include <string>
 
 bool cuInitChecked();
-void *LoadSymbol(const std::string &name);
 
 #endif //DALI_CORE_DYNLINK_CUDA_H

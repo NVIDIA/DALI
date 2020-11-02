@@ -19,18 +19,12 @@
 
 #include <dlfcn.h>
 
+namespace {
+
 typedef void *CUDADRIVER;
 
 static char __CudaLibName[] = "libcuda.so";
 static char __CudaLibName1[] = "libcuda.so.1";
-
-#define CHECKED_CALL(call)          \
-  do {                              \
-    CUresult result = (call);       \
-    if (CUDA_SUCCESS != result) {   \
-      return nullptr;                \
-    }                               \
-  } while(0)
 
 CUDADRIVER loadCudaLibrary() {
   CUDADRIVER ret = nullptr;
@@ -56,6 +50,12 @@ void *LoadSymbol(const std::string &name) {
   return ret;
 }
 
+} // namespace
+
+// it is defined in the generated file
+typedef void *tLoadSymbol(const std::string &name);
+void CudaSetSymbolLoader(tLoadSymbol loader_func);
+
 bool cuInitChecked() {
   static std::mutex m;
   static bool initialized = false;
@@ -67,6 +67,9 @@ bool cuInitChecked() {
 
   if (initialized)
       return true;
+
+  // set symbol loader for this library
+  CudaSetSymbolLoader(LoadSymbol);
   static CUresult res = cuInit(0);
   initialized = (res == CUDA_SUCCESS);
   return initialized;

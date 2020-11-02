@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libtool \
     libtool-bin \
+    python \
     && rm -rf /var/lib/apt/lists/* && \
-    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py && \
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python get-pip.py && rm get-pip.py && \
     pip install clang libclang && \
     rm -rf /root/.cache/pip/
 
