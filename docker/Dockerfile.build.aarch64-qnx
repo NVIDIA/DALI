@@ -1,6 +1,7 @@
 ARG QNX_CUDA_TOOL_IMAGE_NAME
+ARG QNX_BASE_IMAGE=nvidia/cuda:10.0-devel-ubuntu16.04
 FROM ${QNX_CUDA_TOOL_IMAGE_NAME} as qnx_cuda_tools
-FROM nvidia/cuda:10.0-devel-ubuntu16.04
+FROM ${QNX_BASE_IMAGE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
