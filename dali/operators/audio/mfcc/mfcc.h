@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,9 @@
 #include "dali/kernels/signal/dct/dct_args.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/core/dev_buffer.h"
+
+#define MFCC_SUPPORTED_TYPES (float)
 
 namespace dali {
 
@@ -31,29 +34,20 @@ namespace detail {
 /**
  * @brief Liftering coefficients calculator
  */
+template <typename Backend>
 class LifterCoeffs {
- public:
-  void Calculate(int64_t target_length, float lifter) {
-    // If different lifter argument, clear previous coefficients
-    if (lifter_ != lifter) {
-      coeffs_.clear();
-      lifter_ = lifter;
-    }
+  using Buffer = std::conditional_t<std::is_same<Backend, CPUBackend>::value,
+                                    std::vector<float>, DeviceBuffer<float>>;
 
-    // 0 means no liftering
-    if (lifter_ == 0.0f)
-      return;
-
-    // Calculate remaining coefficients (if necessary)
-    if (static_cast<int64_t>(coeffs_.size()) < target_length) {
-      int64_t start = coeffs_.size(), end = target_length;
-      double ampl_mult = lifter_ / 2;
-      double phase_mult = M_PI / lifter_;
-      for (int64_t i = start; i < end; i++) {
-        coeffs_.push_back(1.0 + ampl_mult * std::sin(phase_mult * (i + 1)));
-      }
-    }
+  void CalculateCoeffs(float *coeffs, int64_t offset, int64_t length) {
+    float ampl_mult = lifter_ / 2;
+    float phase_mult = static_cast<float>(M_PI) / lifter_;
+    for (int64_t idx = 0, i = offset; idx < length; ++idx, ++i)
+    coeffs[idx] = 1.f + ampl_mult * sin(phase_mult * (i + 1));
   }
+
+ public:
+  void Calculate(int64_t target_length, float lifter, cudaStream_t stream = 0);
 
   bool empty() const {
     return coeffs_.empty();
@@ -69,7 +63,7 @@ class LifterCoeffs {
 
  private:
   float lifter_ = 0;
-  std::vector<float> coeffs_;
+  Buffer coeffs_;
 };
 
 }  // namespace detail
@@ -78,40 +72,52 @@ class LifterCoeffs {
 template <typename Backend>
 class MFCC : public Operator<Backend> {
  public:
+  using DctArgs = kernels::signal::dct::DctArgs;
+
   explicit MFCC(const OpSpec &spec)
-      : Operator<Backend>(spec) {
-    args_.ndct = spec.GetArgument<int>("n_mfcc");
-    DALI_ENFORCE(args_.ndct > 0, "number of MFCCs should be > 0");
-
-    args_.dct_type = spec.GetArgument<int>("dct_type");
-    DALI_ENFORCE(args_.dct_type >= 1 && args_.dct_type <= 4,
-      make_string("Unsupported DCT type: ", args_.dct_type, ". Supported types are: 1, 2, 3, 4."));
-
-    args_.normalize = spec.GetArgument<bool>("normalize");
-    if (args_.normalize) {
-      DALI_ENFORCE(args_.dct_type != 1, "Ortho-normalization is not supported for DCT type I.");
-    }
-
-    axis_ = spec.GetArgument<int>("axis");
-    DALI_ENFORCE(axis_ >= 0);
-
-    lifter_ = spec.GetArgument<float>("lifter");
-  }
+      : Operator<Backend>(spec) {}
 
  protected:
   bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  void RunImpl(workspace_t<Backend> &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
+  void GetArguments(const workspace_t<Backend> &ws) {
+    nsamples_ = ws.template InputRef<Backend>(0).shape().size();
+    DctArgs arg;
+    arg.ndct = spec_.template GetArgument<int>("n_mfcc");
+    DALI_ENFORCE(arg.ndct > 0, "number of MFCCs should be > 0");
+
+    arg.dct_type = spec_.template GetArgument<int>("dct_type");
+    DALI_ENFORCE(arg.dct_type >= 1 && arg.dct_type <= 4,
+      make_string("Unsupported DCT type: ", arg.dct_type, ". Supported types are: 1, 2, 3, 4."));
+
+    arg.normalize = spec_.template GetArgument<bool>("normalize");
+    if (arg.normalize) {
+      DALI_ENFORCE(arg.dct_type != 1, "Ortho-normalization is not supported for DCT type I.");
+    }
+
+    axis_ = spec_.template GetArgument<int>("axis");
+    DALI_ENFORCE(axis_ >= 0);
+
+    lifter_ = spec_.template GetArgument<float>("lifter");
+    args_.clear();
+    args_.resize(nsamples_, arg);
+  }
+
+  int64_t nsamples_;
   kernels::KernelManager kmgr_;
-  kernels::signal::dct::DctArgs args_;
+  kernels::KernelContext ctx_;
+  std::vector<DctArgs> args_;
   int axis_;
   float lifter_ = 0.0f;
-  detail::LifterCoeffs lifter_coeffs_;
+  detail::LifterCoeffs<Backend> lifter_coeffs_;
 };
+
+
 
 }  // namespace dali
 

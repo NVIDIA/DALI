@@ -82,7 +82,7 @@ class DLL_PUBLIC Dct1DGpu {
   DLL_PUBLIC void Run(KernelContext &context,
                       const OutListGPU<OutputType> &out,
                       const InListGPU<InputType> &in,
-                      span<const DctArgs> args, int axis);
+                      InTensorGPU<float, 1> lifter_coeffs);
 
  private:
   std::map<std::pair<int, DctArgs>, OutputType*> cos_tables_{};

@@ -108,7 +108,7 @@ def check_operator_mfcc_vs_python(device, batch_size, input_shape,
         batch_size=batch_size, N_iterations=5, eps=1e-03)
 
 def test_operator_mfcc_vs_python():
-    for device in ['cpu']:
+    for device in ['cpu', 'gpu']:
         for batch_size in [1, 3]:
             for dct_type in [1, 2, 3]:
                 for norm in [False] if dct_type == 1 else [True, False]:
@@ -130,13 +130,13 @@ def check_operator_mfcc_wrong_args(device, batch_size, input_shape,
     pipe.run()
 
 def test_operator_mfcc_wrong_args():
-    device = 'cpu'
     batch_size = 3
-    for dct_type, norm, axis, n_mfcc, lifter, shape in \
-        [(1, True, 0, 20, 0.0, (100, 100)),  # DCT-I ortho-normalization is not supported
-         (2, False, -1, 20, 0.0, (100, 100)),  # axis out of bounds
-         (2, False, 2, 20, 0.0, (100, 100)),  # axis out of bounds
-         (10, False, 0, 20, 0.0, (100, 100)),  # not supported DCT type
-        ]:
-        yield check_operator_mfcc_wrong_args, device, batch_size, shape, \
-            axis, dct_type, lifter, n_mfcc, norm
+    for device in ['cpu', 'gpu']:
+        for dct_type, norm, axis, n_mfcc, lifter, shape in \
+            [(1, True, 0, 20, 0.0, (100, 100)),  # DCT-I ortho-normalization is not supported
+            (2, False, -1, 20, 0.0, (100, 100)),  # axis out of bounds
+            (2, False, 2, 20, 0.0, (100, 100)),  # axis out of bounds
+            (10, False, 0, 20, 0.0, (100, 100)),  # not supported DCT type
+            ]:
+            yield check_operator_mfcc_wrong_args, device, batch_size, shape, \
+                axis, dct_type, lifter, n_mfcc, norm
