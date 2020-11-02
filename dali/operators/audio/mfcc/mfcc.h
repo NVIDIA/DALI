@@ -39,6 +39,13 @@ class LifterCoeffs {
   using Buffer = std::conditional_t<std::is_same<Backend, CPUBackend>::value,
                                     std::vector<float>, DeviceBuffer<float>>;
 
+  void CalculateCoeffs(float *coeffs, int64_t offset, int64_t length) {
+    float ampl_mult = lifter_ / 2;
+    float phase_mult = static_cast<float>(M_PI) / lifter_;
+    for (int64_t idx = 0, i = offset; idx < length; ++idx, ++i)
+    coeffs[idx] = 1.f + ampl_mult * sin(phase_mult * (i + 1));
+  }
+
  public:
   void Calculate(int64_t target_length, float lifter, cudaStream_t stream = 0);
 

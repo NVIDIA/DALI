@@ -44,11 +44,8 @@ DLL_PUBLIC void LifterCoeffs<CPUBackend>::Calculate(int64_t target_length, float
   // Calculate remaining coefficients (if necessary)
   if (static_cast<int64_t>(coeffs_.size()) < target_length) {
     int64_t start = coeffs_.size(), end = target_length;
-    double ampl_mult = lifter_ / 2;
-    double phase_mult = M_PI / lifter_;
-    for (int64_t i = start; i < end; i++) {
-      coeffs_.push_back(1.0 + ampl_mult * std::sin(phase_mult * (i + 1)));
-    }
+    coeffs_.resize(target_length);
+    CalculateCoeffs(coeffs_.data() + start, start, target_length - start);
   }
 }
 

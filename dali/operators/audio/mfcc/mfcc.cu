@@ -20,17 +20,6 @@
 namespace dali {
 
 namespace detail {
-
-__global__ void CalcLifterKernel(float *coeffs, int64_t start_idx, int64_t target_length,
-                                 float lifter) {
-  int i = start_idx + blockDim.x * blockIdx.x + threadIdx.x;
-  if (i >= target_length)
-    return;
-  float ampl_mult = lifter / 2;
-  float phase_mult = static_cast<float>(M_PI) / lifter;
-  coeffs[i] = 1.f + ampl_mult * sinf(phase_mult * (i + 1));
-}
-
 template <>
 DLL_PUBLIC  void LifterCoeffs<GPUBackend>::Calculate(int64_t target_length, float lifter,
                                                      cudaStream_t stream)  {
@@ -49,10 +38,10 @@ DLL_PUBLIC  void LifterCoeffs<GPUBackend>::Calculate(int64_t target_length, floa
     int start_idx = coeffs_.size();
     int added_length = target_length - start_idx;
     coeffs_.resize(target_length, stream);
-    int threads = std::min(added_length, 256);
-    int blocks = div_ceil(added_length, 256);
-    CalcLifterKernel<<<blocks, threads, 0, stream>>>
-      (coeffs_.data(), start_idx, target_length, lifter);
+    std::vector<float> new_coeffs(added_length);
+    CalculateCoeffs(new_coeffs.data(), start_idx, added_length);
+    cudaMemcpyAsync(&coeffs_.data()[start_idx], new_coeffs.data(), added_length * sizeof(float),
+                    cudaMemcpyHostToDevice, stream);
   }
 }
 

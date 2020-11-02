@@ -83,12 +83,6 @@ TEST(LifterCoeffsGPU, correctness) {
   cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
              coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost);
   check_lifter_coeffs(make_cspan(coeffs_cpu), lifter, coeffs.size());
-
-  coeffs.Calculate(300, lifter);
-  coeffs_cpu.resize(coeffs.size());
-  cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
-             coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost);
-  check_lifter_coeffs(make_cspan(coeffs_cpu), lifter, coeffs.size());
 }
 
 }  // namespace test
