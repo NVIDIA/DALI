@@ -1,6 +1,7 @@
 ARG AARCH64_CUDA_TOOL_IMAGE_NAME
+ARG AARCH64_BASE_IMAGE=nvidia/cuda:10.2-devel-ubuntu18.04
 FROM ${AARCH64_CUDA_TOOL_IMAGE_NAME} as aarch64_cuda_tools
-FROM nvidia/cuda:10.2-devel-ubuntu18.04
+FROM ${AARCH64_BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
 
