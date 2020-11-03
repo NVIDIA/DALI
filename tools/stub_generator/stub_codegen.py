@@ -74,14 +74,29 @@ void {0}SetSymbolLoader(tLoadSymbol *loader_func) {{
   args.output.write('#include "dali/core/api_helper.h"\n\n')
   args.output.write(prolog.format(args.unique_prefix))
 
+  all_definition = set()
+  all_declaration = set()
+
+  for cursor in translation_unit.cursor.get_children():
+      if cursor.is_definition():
+        all_definition.add(cursor.spelling)
+
+      if cursor.kind == clang.cindex.CursorKind.FUNCTION_DECL:
+        all_declaration.add(cursor.spelling)
+
   for cursor in translation_unit.cursor.get_children():
     if cursor.kind != clang.cindex.CursorKind.FUNCTION_DECL:
       continue
 
-    if cursor.spelling not in config['functions'] or cursor.is_definition():
+    # make sure that we deal  only with functions with no definition
+    if cursor.spelling not in config['functions'] or cursor.spelling in all_definition or \
+       cursor.spelling not in all_declaration:
       continue
 
-    with open(cursor.location.file.name, 'r', encoding='utf-8') as file:
+    # make sure that we deal with every function only once
+    all_declaration.remove(cursor.spelling)
+
+    with open(cursor.location.file.name, 'r', encoding='latin-1') as file:
       start = cursor.extent.start.offset
       end = cursor.extent.end.offset
       declaration = file.read()[start:end]

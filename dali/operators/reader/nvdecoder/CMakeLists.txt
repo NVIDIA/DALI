@@ -57,7 +57,7 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/nvcuvid.h"
             "${CMAKE_CURRENT_SOURCE_DIR}/cuviddec.h"
             "${CMAKE_SOURCE_DIR}/tools/stub_generator/nvcuvid_2.json"
-    COMMENT "Running nvcuvid.h stub generator"
+    COMMENT "Running nvcuvid_2.h stub generator"
     VERBATIM)
 
 set_source_files_properties(${NVCUVID_2_GENERATED_STUB} PROPERTIES GENERATED TRUE)
