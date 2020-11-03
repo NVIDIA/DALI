@@ -190,8 +190,15 @@ struct TensorShape<DynamicDimensions>
     : public TensorShapeBase<DynamicTensorShapeContainer, DynamicDimensions> {
   using Base = TensorShapeBase<DynamicTensorShapeContainer, DynamicDimensions>;
 
+  TensorShape(span<const int64_t> s)  // NOLINT
+  : Base(DynamicTensorShapeContainer(s.begin(), s.end())) {}
+
+  TensorShape(span<const int> s)  // NOLINT
+  : Base(DynamicTensorShapeContainer(s.begin(), s.end())) {}
+
   TensorShape(const std::vector<int64_t> &s)  // NOLINT
   : Base(DynamicTensorShapeContainer(s.data(), s.size())) {}
+
   TensorShape(const DynamicTensorShapeContainer &s) : Base(s) {}  // NOLINT
 
   template <size_t N>

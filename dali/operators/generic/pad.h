@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_GENERIC_PAD_H_
 
 #include <cstring>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -46,15 +47,6 @@ class Pad : public Operator<Backend> {
     } else if (has_axes) {
       axes_ = spec.GetRepeatedArgument<int>("axes");
     }
-
-    if (spec.HasArgument("align")) {
-      align_ = spec.GetRepeatedArgument<int>("align");
-    }
-
-    if (spec.HasArgument("shape")) {
-      auto shape_arg = spec.GetRepeatedArgument<int>("shape");
-      shape_ = std::vector<int64_t>{std::begin(shape_arg), std::end(shape_arg)};
-    }
   }
 
  protected:
@@ -68,6 +60,78 @@ class Pad : public Operator<Backend> {
   }
 
  private:
+  void ReadShapeListArg(std::vector<TensorShape<>> &out, const std::string &arg_name,
+                        const OpSpec &spec, const ArgumentWorkspace &ws,
+                        int nsamples) {
+    out.clear();
+    out.resize(nsamples);
+    if (spec.HasTensorArgument(arg_name)) {
+      auto &arg_in = ws.ArgumentInput(arg_name);
+      DALI_ENFORCE(nsamples == static_cast<int>(arg_in.size()),
+        make_string("Expected ", nsamples, ", got ", arg_in.size()));
+      int nsamples = arg_in.size();
+      auto arg_view = view<const int>(arg_in);
+      for (int i = 0; i < nsamples; i++) {
+        out[i] = TensorShape<>(make_cspan(arg_view[i].data, arg_view[i].shape[0]));
+      }
+    } else if (spec.HasArgument(arg_name)) {
+      auto arg = spec.GetRepeatedArgument<int>(arg_name);
+      TensorShape<> sh(make_cspan(arg));
+      for (int i = 0; i < nsamples; i++) {
+        out[i] = sh;
+      }
+    }
+    assert(static_cast<int>(out.size()) == nsamples);
+  }
+
+  void ReadArguments(const OpSpec &spec, const workspace_t<Backend> &ws) {
+    const auto &input = ws.template InputRef<Backend>(0);
+    auto in_shape = input.shape();
+    auto in_layout = input.GetLayout();
+    int ndim = in_shape.sample_dim();
+    int nsamples = in_shape.num_samples();
+
+    if (!axis_names_.empty()) {
+      axes_ = GetDimIndices(in_layout, axis_names_).to_vector();
+    }
+
+    for (auto axis : axes_) {
+      DALI_ENFORCE(axis >= 0 && axis < ndim,
+        make_string("specified axis is out of bounds. axis=", axis, ", ndim=", ndim));
+    }
+
+    // If no axes are provided, use all
+    if (axes_.empty()) {
+      axes_.resize(ndim);
+      std::iota(axes_.begin(), axes_.end(), 0);
+    }
+
+    ReadShapeListArg(shape_, "shape", spec, ws, nsamples);
+    ReadShapeListArg(align_, "align", spec, ws, nsamples);
+
+    // If a single *align* value is provided, use this value for all the axes
+    for (int i = 0; i < nsamples; i++) {
+      auto &align = align_[i];
+      for (auto &a : align) {
+        DALI_ENFORCE(a > 0, "Values of `align` argument must be positive.");
+      }
+      if (align.size() == 1 && axes_.size() > 1) {
+        align = std::vector<int64_t>(axes_.size(), align[0]);
+      }
+      auto &shape = shape_[i];
+      // If no shape arg is provided, mark all axis as -1 (automatic shape)
+      if (shape.empty()) {
+        shape = std::vector<int64_t>(axes_.size(), -1);
+      }
+      DALI_ENFORCE(
+          static_cast<int>(axes_.size()) == shape.size(),
+          make_string(
+              "If explicit shape is provided, there should be a value per axis to be padded. "
+              "Expected ",
+              axes_.size(), " values for shape, got ", shape.size()));
+    }
+  }
+
   static inline int64_t aligned_extent(int64_t extent, int alignment) {
     int64_t remainder = extent % alignment;
     if (remainder > 0)
@@ -79,53 +143,15 @@ class Pad : public Operator<Backend> {
   std::vector<Args>& FillArgs(TensorListShape<> in_shape, TensorLayout in_layout) {
     int nsamples = in_shape.num_samples();
     int ndim = in_shape.sample_dim();
-
-    for (auto axis : axes_) {
-      DALI_ENFORCE(axis >= 0 && axis < ndim,
-        make_string("specified axis is out of bounds. axis=", axis, ", ndim=", ndim));
-    }
-
-    if (!axis_names_.empty()) {
-      axes_ = GetDimIndices(in_layout, axis_names_).to_vector();
-    }
-
-    // If no axes are provided, use all
-    if (axes_.empty()) {
-      axes_.resize(ndim);
-      std::iota(axes_.begin(), axes_.end(), 0);
-    }
-
-    // If a single *align* value is provided, use this value for all the axes
-    for (auto &align : align_) {
-      DALI_ENFORCE(align > 0, "Values of `align` argument must be positive.");
-    }
-    if (align_.size() == 1 && axes_.size() > 1) {
-      align_.resize(axes_.size(), align_[0]);
-    }
-
-    TensorShape<> padded_shape;
-    padded_shape.resize(ndim);
-
-    // If no shape arg is provided, mark all axis as -1 (automatic shape)
-    if (shape_.empty()) {
-      shape_ = std::vector<int64_t>(axes_.size(), -1);
-    }
-
-    DALI_ENFORCE(static_cast<int>(axes_.size()) == shape_.size(),
-      make_string("If explicit shape is provided, there should be a value per axis to be padded. "
-                  "Expected ", axes_.size(), " values for shape, got ", shape_.size()));
-
     int naxes = axes_.size();
     assert(naxes <= ndim);
+
+    TensorShape<> largest_shape = std::vector<int64_t>(ndim, -1);
     for (int i = 0; i < naxes; i++) {
       auto axis = axes_[i];
-      padded_shape[axis] = shape_[i];
-      if (padded_shape[axis] < 0) {
-        for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-          auto data_shape = in_shape[sample_idx];
-          if (data_shape[axis] > padded_shape[axis])
-            padded_shape[axis] = data_shape[axis];
-        }
+      for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+        auto data_shape = in_shape.tensor_shape_span(sample_idx);
+        largest_shape[axis] = std::max(largest_shape[axis], data_shape[axis]);
       }
     }
 
@@ -139,7 +165,9 @@ class Pad : public Operator<Backend> {
 
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       auto &sample_args = kernel_sample_args[sample_idx];
-      const auto &sample_shape = in_shape[sample_idx];
+      const auto &sample_shape = in_shape.tensor_shape_span(sample_idx);
+      const auto &req_shape = shape_[sample_idx];
+      const auto &req_align = align_[sample_idx];
       for (int d = 0; d < sample_args.anchor.size(); d++) {
         sample_args.anchor[d] = 0;
         sample_args.shape[d] = sample_shape[d];
@@ -152,11 +180,14 @@ class Pad : public Operator<Backend> {
         auto &extent = sample_args.shape[axis];
         // Adjust padded extent only if it is bigger than the sample's extent
         // That is, we are not cropping the image
-        if (padded_shape[axis] > extent)
-          extent = padded_shape[axis];
+        if (req_shape[axis] > 0) {  // explicitly requested padded shape
+          extent = std::max(req_shape[axis], extent);
+        } else {  // pad to largest
+          extent = std::max(largest_shape[axis], extent);
+        }
         // Adjust alignment if required
-        if (!align_.empty())
-          extent = aligned_extent(extent, align_[i]);
+        if (!req_align.empty())
+          extent = aligned_extent(extent, req_align[i]);
       }
     }
 
@@ -166,8 +197,8 @@ class Pad : public Operator<Backend> {
   float fill_value_;
   TensorLayout axis_names_;
   std::vector<int> axes_;
-  std::vector<int> align_;
-  TensorShape<> shape_;
+  std::vector<TensorShape<>> align_;
+  std::vector<TensorShape<>> shape_;
   kernels::KernelManager kmgr_;
   any kernel_sample_args_;
 
