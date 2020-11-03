@@ -56,7 +56,6 @@ class RandomResizedCrop : public Operator<Backend>
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     auto &input = ws.template InputRef<Backend>(0);
     const auto &in_shape = input.shape();
-    DALI_ENFORCE(in_shape.sample_dim() == 3, "Expects 3-dimensional HWC input.");
     DALIDataType in_type = input.type().id();
 
     auto layout = input.GetLayout();
@@ -85,7 +84,7 @@ class RandomResizedCrop : public Operator<Backend>
 
     output_desc.resize(1);
     this->SetupResize(output_desc[0].shape, out_type, in_shape, in_type,
-                      make_cspan(resample_params_));
+                      make_cspan(resample_params_), height_idx);
     output_desc[0].type = TypeTable::GetTypeInfo(out_type);
     return true;
   }
