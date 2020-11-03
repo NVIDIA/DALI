@@ -42,7 +42,8 @@ def main():
   config = json.load(args.input)
 
   function_impl = """
-DLL_PUBLIC {0} {{
+DLL_PUBLIC {0}
+{{
   using FuncPtr = %s (%s *)({2});
   static auto func_ptr = reinterpret_cast<FuncPtr>(load_symbol_func("{1}"));
   if (!func_ptr) return %s;
@@ -68,10 +69,8 @@ void {0}SetSymbolLoader(tLoadSymbol *loader_func) {{
     if diag.severity in [diag.Warning, diag.Fatal]:
       raise Exception(str(diag))
 
-  args.output.write('#include <string>\n')
-  args.output.write('#include <cuda.h>\n')
   for extra_i in config['extra_include']:
-    args.output.write('#include "{}"\n'.format(extra_i))
+    args.output.write('#include {}\n'.format(extra_i))
   args.output.write('#include "dali/core/api_helper.h"\n\n')
   args.output.write(prolog.format(args.unique_prefix))
 
@@ -79,10 +78,10 @@ void {0}SetSymbolLoader(tLoadSymbol *loader_func) {{
     if cursor.kind != clang.cindex.CursorKind.FUNCTION_DECL:
       continue
 
-    if cursor.spelling not in config['functions']:
+    if cursor.spelling not in config['functions'] or cursor.is_definition():
       continue
 
-    with open(cursor.location.file.name, 'r', encoding='latin-1') as file:
+    with open(cursor.location.file.name, 'r', encoding='utf-8') as file:
       start = cursor.extent.start.offset
       end = cursor.extent.end.offset
       declaration = file.read()[start:end]

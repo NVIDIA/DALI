@@ -1,7 +1,9 @@
 {
    "extra_include":[
-      "dali/operators/reader/nvdecoder/cuviddec.h",
-      "dali/operators/reader/nvdecoder/nvcuvid.h"
+      "<string>",
+      "<cuda.h>",
+      "\"dali/operators/reader/nvdecoder/cuviddec.h\"",
+      "\"dali/operators/reader/nvdecoder/nvcuvid.h\""
    ],
    "return_type":"CUresult",
    "not_found_error":"CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND",

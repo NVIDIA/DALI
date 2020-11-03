@@ -19,12 +19,21 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_CORE_SRCS)
 collect_test_sources(DALI_CORE_TEST_SRCS)
 
+# transform a list of paths into a list of include directives
+DETERMINE_GCC_SYSTEM_INCLUDE_DIRS("c++" "${CMAKE_CXX_COMPILER}" "${CMAKE_CXX_FLAGS}" INFERED_COMPILER_INCLUDE)
+set(DEFAULT_COMPILER_INCLUDE)
+foreach(incl_dir ${INFERED_COMPILER_INCLUDE})
+  set(DEFAULT_COMPILER_INCLUDE "${DEFAULT_COMPILER_INCLUDE} -I${incl_dir}")
+endforeach(incl_dir)
+separate_arguments(DEFAULT_COMPILER_INCLUDE UNIX_COMMAND  "${DEFAULT_COMPILER_INCLUDE}")
+
 set(CUDA_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cuda_gen.cc")
 add_custom_command(
     OUTPUT ${CUDA_GENERATED_STUB}
     COMMAND python ${CMAKE_SOURCE_DIR}/tools/stub_generator/stub_codegen.py --unique_prefix=Cuda --
                 "${CMAKE_SOURCE_DIR}/tools/stub_generator/cuda.json" ${CUDA_GENERATED_STUB}
                 "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cuda.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
+                ${DEFAULT_COMPILER_INCLUDE}
     DEPENDS ${CMAKE_SOURCE_DIR}/tools/stub_generator/stub_codegen.py
             "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cuda.h"
             "${CMAKE_SOURCE_DIR}/tools/stub_generator/cuda.json"

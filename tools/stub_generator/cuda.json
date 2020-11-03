@@ -1,5 +1,8 @@
 {
-   "extra_include":[],
+   "extra_include":[
+      "<string>",
+      "<cuda.h>"
+   ],
    "return_type":"CUresult",
    "not_found_error":"CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND",
    "functions":[
