@@ -1,6 +1,8 @@
-FROM ubuntu:18.04 as cuda
+ARG BASE_IMAGE=ubuntu:18.04
+FROM ${BASE_IMAGE} as cuda
 
-RUN apt update && apt install -y libxml2 curl perl gcc
+RUN apt update && apt install -y libxml2 curl perl gcc && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.1.1/local_installers/cuda_11.1.1_455.32.00_linux.run && \
     chmod +x cuda_*.run && \
