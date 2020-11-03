@@ -151,23 +151,24 @@ def test_pad_error():
     pipe.build()
     assert_raises(RuntimeError, pipe.run)
 
-def is_aligned(sh, align):
+def is_aligned(sh, align, axes):
     assert len(sh) == len(align)
-    for i in range(len(sh)):
-        if sh[i] % align[i] > 0:
+    for i, axis in enumerate(axes):
+        if sh[axis] % align[i] > 0:
             return False
     return True
 
 def check_pad_per_sample_shapes_and_alignment(device='cpu', batch_size=3, ndim=2, num_iter=3):
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0, seed=1234)
+    axes = (0, 1)
     with pipe:
         in_shape = fn.cast(fn.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
         in_data = fn.uniform(range=(0., 1.), shape=in_shape)
         req_shape = fn.cast(fn.uniform(range=(21, 30), shape=(ndim,)), dtype=types.INT32)
         req_align = fn.cast(fn.uniform(range=(3, 5), shape=(ndim,)), dtype=types.INT32)
-        out_pad_shape = fn.pad(in_data, axes=[0, 1], axis_names=None, align=None, shape=req_shape)
-        out_pad_align = fn.pad(in_data, axes=[0, 1], axis_names=None, align=req_align, shape=None)
-        out_pad_both = fn.pad(in_data, axes=[0, 1], axis_names=None, align=req_align, shape=req_shape)
+        out_pad_shape = fn.pad(in_data, axes=axes, align=None, shape=req_shape)
+        out_pad_align = fn.pad(in_data, axes=axes, align=req_align, shape=None)
+        out_pad_both = fn.pad(in_data, axes=axes, align=req_align, shape=req_shape)
         pipe.set_outputs(in_shape, in_data, req_shape, req_align, out_pad_shape, out_pad_align, out_pad_both)
     pipe.build()
     for _ in range(num_iter):
@@ -183,12 +184,12 @@ def check_pad_per_sample_shapes_and_alignment(device='cpu', batch_size=3, ndim=2
 
             # Alignment only
             assert (out_pad_align.shape >= in_shape).all()
-            assert is_aligned(out_pad_align.shape, req_align)
+            assert is_aligned(out_pad_align.shape, req_align, axes)
 
             # Explicit shape + alignment
             assert (out_pad_both.shape >= in_shape).all()
             assert (req_shape <= out_pad_both.shape).all()
-            assert is_aligned(out_pad_both.shape, req_align)
+            assert is_aligned(out_pad_both.shape, req_align, axes)
 
 def test_pad_per_sample_shapes_and_alignment():
     yield check_pad_per_sample_shapes_and_alignment, 'cpu'

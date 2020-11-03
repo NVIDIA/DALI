@@ -55,26 +55,13 @@ class Uniform : public Operator<CPUBackend> {
     return true;
   }
 
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
     output_desc[0].type = TypeTable::GetTypeInfo(DALI_FLOAT);
-    auto& sh = output_desc[0].shape;
-    if (spec_.HasTensorArgument("shape")) {
-      auto &sh_arg_in = ws.ArgumentInput("shape");
-      int nsamples = sh_arg_in.size();
-      assert(nsamples > 0);
-      auto sh_view = view<const int>(sh_arg_in);
-      DALI_ENFORCE(is_uniform(sh_view.shape) && sh_view.shape[0].size() == 1,
-                   "Shapes are expected to have the same number of dimensions");
-      int ndim = sh_view.shape.tensor_shape_span(0)[0];
-      sh.resize(nsamples, ndim);
-      for (int i = 0; i < nsamples; i++) {
-        sh.set_tensor_shape(i, TensorShape<>(make_cspan(sh_view[i].data, sh_view[i].shape[0])));
-      }
+    if (spec_.ArgumentDefined("shape")) {
+      GetShapeArgument(output_desc[0].shape, spec_, "shape", ws, -1, batch_size_);
     } else {
-      auto shape_arg = spec_.GetRepeatedArgument<int>("shape");
-      sh = uniform_list_shape(batch_size_, TensorShape<>(make_cspan(shape_arg)));
+      output_desc[0].shape = uniform_list_shape(batch_size_, TensorShape<>{1});
     }
     return true;
   }

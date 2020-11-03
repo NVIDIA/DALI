@@ -99,7 +99,7 @@ void GetPerSampleArgument(std::vector<T> &output,
  * TODO(klecki): we may want to make this a generic utility and propagate the span-approach to
  * the rest of the related argument gettters
  *
- * TODO(michalz): rework it somehow to avoig going through this logic for each sample
+ * TODO(michalz): rework it somehow to avoid going through this logic for each sample
  */
 template <typename T>
 void GetGeneralizedArg(span<T> result, const std::string name, int sample_idx, const OpSpec& spec,
@@ -207,8 +207,9 @@ int GetShapeArgument(TensorListShape<out_ndim> &out_tls,
                       const ArgumentWorkspace &ws,
                       int ndim = out_ndim,
                       int batch_size = -1 /* -1 = get from "batch_size" arg */) {
-  ndim = GetShapeLikeArgument<ArgumentType>(out_tls.shape, spec, argument_name, ndim, batch_size);
-  out_tls.resize(out_tls.shape().num_samples / ndim, ndim);
+  ndim = GetShapeLikeArgument<ArgumentType>(out_tls.shapes, spec, argument_name,
+                                            ws, ndim, batch_size);
+  out_tls.resize(ndim == 0 ? 0 : out_tls.shapes.size() / ndim, ndim);
   return ndim;
 }
 
