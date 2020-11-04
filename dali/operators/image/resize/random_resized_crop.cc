@@ -34,7 +34,8 @@ Expects a three-dimensional input with samples in height, width, channels (HWC) 
       DALI_INT_VEC)
   .AddParent("RandomCropAttr")
   .AddParent("ResamplingFilterAttr")
-  .InputLayout(0, { "HWC", "CHW" });
+  .AllowSequences()
+  .InputLayout(0, { "HWC", "CHW", "FHWC", "FCHW", "CFHW" });
 
 template<>
 void RandomResizedCrop<CPUBackend>::BackendInit() {
