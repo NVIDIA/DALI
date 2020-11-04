@@ -247,6 +247,8 @@ parser.add_argument('--caffe2_read_pipeline_paths', default=None, type=str, meta
                     help='Add custom Caffe2ReadPipeline paths. Separate multiple paths by commas')
 parser.add_argument('--tfrecord_pipeline_paths', default=None, type=str, metavar='N',
                     help='Add custom TFRecordPipeline paths. For a given path, a second path with an .idx extension will be added for the required idx file(s). Separate multiple paths by commas')
+parser.add_argument('--system_id', default="localhost", type=str, metavar='N',
+                    help='Add a system id to denote a unique identifier for the performance output. Defaults to localhost')
 args = parser.parse_args()
 
 N = args.gpus             # number of GPUs
@@ -260,6 +262,7 @@ if args.separate_queue:
     PREFETCH = {'cpu_size': args.cpu_size , 'gpu_size': args.gpu_size}
 FP16 = args.fp16
 NHWC = args.nhwc
+SYS_ID = args.system_id
 
 if args.remove_default_pipeline_paths:
     for pipe_name in test_data.keys():
@@ -375,16 +378,14 @@ for pipe_name in test_data.keys():
         for i in range(args.epochs):
           if i == 0:
               print("Warm up")
-          else:
-              print("Test run " + str(i))
           data_time = AverageMeter()
           for j in range(iters):
               for pipe in pipes:
                   pipe.run()
               data_time.update(time.time() - end)
               if j % LOG_INTERVAL == 0:
-                  print("Run {}: {} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s]"
-                  .format(str(i), pipe_name.__name__, j + 1, iters, data_time.avg, data_time.max_val, N * BATCH_SIZE / data_time.avg))
+                  print("System {}, run {}: {} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s]"
+                  .format(SYS_ID, str(i), pipe_name.__name__, j + 1, iters, data_time.avg, data_time.max_val, N * BATCH_SIZE / data_time.avg))
               end = time.time()
 
         print("OK {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__))
