@@ -13,9 +13,10 @@ ENV PYVER=${PYVER} PYV=${PYV} PYTHONPATH=/opt/python/v
 ENV PYBIN=${PYTHONPATH}/bin \
     PYLIB=${PYTHONPATH}/lib
 
+# add llvm-toolset-7.0 for python clang bindings on aarch64 where libclang wheel is not available
 ENV PATH=/opt/python/cp36-cp36/bin:/opt/python/cp37-cp37m/bin:/opt/python/cp38-cp38/bin:/opt/python/cp39-cp39/bin:/usr/local/cuda/bin:${PYBIN}:${PATH} \
-    LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:${PYLIB}:${LD_LIBRARY_PATH} \
-    LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:${PYLIB}:${LIBRARY_PATH}
+    LD_LIBRARY_PATH=/opt/rh/llvm-toolset-7.0/root/usr/lib64:/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:${PYLIB}:${LD_LIBRARY_PATH} \
+    LIBRARY_PATH=/opt/rh/llvm-toolset-7.0/root/usr/lib64:/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:${PYLIB}:${LIBRARY_PATH}
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
@@ -24,14 +25,13 @@ RUN pip install future setuptools wheel clang==11.0.0 && \
     pip install libclang==11.0.0 || true && \
     rm -rf /root/.cache/pip/
 
-# install clang for aarch64
+# install clang for aarch64 from llvm-toolset-7.0, and patch clang pip package to use it
 RUN if [ "$(uname -m)" == "aarch64" ]; then \
-        CLANG_VERSION=11.0.0 && \
-        cd /usr/local && \
-        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/clang+llvm-${CLANG_VERSION}-aarch64-linux-gnu.tar.xz && \
-        tar -xJf clang+llvm-*.tar.xz --strip 1 && \
-        rm clang+llvm-*.tar.xz && \
-        ln -s /usr/local/lib/x86_64-linux-gnu/libclang-11.so.1 /usr/local/lib/x86_64-linux-gnu/libclang-11.so; \
+        yum install -y centos-release-scl && \
+        yum-config-manager -y --enable rhel-server-rhscl-7-rpms && \
+        yum install -y llvm-toolset-7.0 && \
+        PY_CLANG_PATH=$(echo $(pip show clang) | sed 's/.*Location: \(.*\) Requires.*/\1/')/clang/cindex.py && \
+        sed -i 's/library_file = None/library_file = "\/opt\/rh\/llvm-toolset-7.0\/root\/usr\/lib64\/libclang.so.7"/' ${PY_CLANG_PATH}; \
     fi
 
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \

@@ -42,7 +42,7 @@ def main():
   config = json.load(args.input)
 
   function_impl = """
-DLL_PUBLIC {0}
+{0}
 {{
   using FuncPtr = %s (%s *)({2});
   static auto func_ptr = reinterpret_cast<FuncPtr>(load_symbol_func("{1}"));
@@ -71,7 +71,6 @@ void {0}SetSymbolLoader(tLoadSymbol *loader_func) {{
 
   for extra_i in config['extra_include']:
     args.output.write('#include {}\n'.format(extra_i))
-  args.output.write('#include "dali/core/api_helper.h"\n\n')
   args.output.write(prolog.format(args.unique_prefix))
 
   all_definition = set()

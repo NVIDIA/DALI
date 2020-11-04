@@ -376,6 +376,7 @@ function(build_per_python_lib)
 endfunction()
 
 # get default compiler include paths, needed by the stub generator
+# starting from 3.14.0 CMake will have that inside CMAKE_${LANG}_IMPLICIT_INCLUDE_DIRECTORIES
 macro(DETERMINE_GCC_SYSTEM_INCLUDE_DIRS _lang _compiler _flags _result)
     file(WRITE "${CMAKE_BINARY_DIR}/CMakeFiles/dummy" "\n")
     separate_arguments(_buildFlags UNIX_COMMAND "${_flags}")

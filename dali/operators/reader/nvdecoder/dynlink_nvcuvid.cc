@@ -25,6 +25,8 @@ namespace {
 static char __DriverLibName[] = "libnvcuvid.so";
 static char __DriverLibName1[] = "libnvcuvid.so.1";
 
+using DLLDRIVER = void *;
+
 std::mutex nvcuvid_mutex;
 static DLLDRIVER nvcuvidDrvLib;
 
@@ -58,22 +60,18 @@ typedef void *tLoadSymbol(const std::string &name);
 void NvcuvidSetSymbolLoader(tLoadSymbol loader_func);
 void Nvcuvid_2SetSymbolLoader(tLoadSymbol loader_func);
 
-DLLDRIVER cuvidInitChecked(unsigned int Flags) {
-  std::lock_guard<std::mutex> lock(nvcuvid_mutex);
-  if (!nvcuvidDrvLib) {
-    nvcuvidDrvLib = loadNvcuvidLibrary();
+bool cuvidInitChecked(unsigned int Flags) {
+  {
+    std::lock_guard<std::mutex> lock(nvcuvid_mutex);
+    if (!nvcuvidDrvLib) {
+      nvcuvidDrvLib = loadNvcuvidLibrary();
+      // set symbol loader for this library
+      NvcuvidSetSymbolLoader(LoadSymbol);
+      Nvcuvid_2SetSymbolLoader(LoadSymbol);
+    }
   }
 
-  // set symbol loader for this library
-  NvcuvidSetSymbolLoader(LoadSymbol);
-  Nvcuvid_2SetSymbolLoader(LoadSymbol);
-  return nvcuvidDrvLib;
-}
-
-void cuvidDeinit(DLLDRIVER driver_lib) {
-  std::lock_guard<std::mutex> lock(nvcuvid_mutex);
-  dlclose(driver_lib);
-  nvcuvidDrvLib = nullptr;
+  return true;
 }
 
 bool cuvidIsSymbolAvailable(const std::string &name) {

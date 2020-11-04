@@ -18,13 +18,10 @@
 #include <string>
 #include "dali/operators/reader/nvdecoder/nvcuvid.h"
 
-using DLLDRIVER = void *;
-
 #define NVCUVID_CALL(arg) CUDA_CALL(arg)
 #define NVCUVID_API_EXISTS(arg) (cuvidIsSymbolAvailable(#arg))
 
-DLLDRIVER cuvidInitChecked(unsigned int Flags);
-void cuvidDeinit(DLLDRIVER driver_lib);
+bool cuvidInitChecked(unsigned int Flags);
 bool cuvidIsSymbolAvailable(const std::string &name);
 
 #endif // DALI_OPERATORS_READER_NVDECODER_DYNLINK_NVCUVID_H_
