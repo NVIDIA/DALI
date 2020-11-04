@@ -61,7 +61,7 @@ class Uniform : public Operator<CPUBackend> {
     if (spec_.ArgumentDefined("shape")) {
       GetShapeArgument(output_desc[0].shape, spec_, "shape", ws, -1, batch_size_);
     } else {
-      output_desc[0].shape = uniform_list_shape(batch_size_, TensorShape<>{1});
+      output_desc[0].shape = uniform_list_shape(batch_size_, TensorShape<0>());
     }
     return true;
   }

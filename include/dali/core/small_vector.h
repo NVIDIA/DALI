@@ -135,6 +135,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     copy_assign(data, count);
   }
 
+  DALI_NO_EXEC_CHECK
   template <typename Iterator>
   DALI_HOST_DEV SmallVector(Iterator begin, Iterator end) : SmallVector() {
     copy_assign(begin, end);
@@ -208,6 +209,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     return *this;
   }
 
+  DALI_NO_EXEC_CHECK
   template <typename Iterator>
   DALI_HOST_DEV void copy_assign(Iterator begin, Iterator end) {
     auto n = end - begin;

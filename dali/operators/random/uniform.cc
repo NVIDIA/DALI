@@ -75,7 +75,7 @@ This argument is mutually exclusive with ``values``.
 This argument is mutually exclusive with ``range``.
 )code", std::vector<float>({}))
   .AddOptionalArg("shape",
-    R"code(Shape of the samples.)code", std::vector<int>{1}, true);
+    R"code(Shape of the samples.)code", std::vector<int>{}, true);
 
 
 }  // namespace dali

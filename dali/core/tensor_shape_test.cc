@@ -463,6 +463,23 @@ TEST(TensorShapeTest, ConcatenationMixed) {
             TensorShape<DynamicDimensions>(1, 2, 1, 2, 3));
 }
 
+TEST(TensorShapeTest, ConstructorFromIntegerCollection) {
+  TensorShape<> ref{1, 2, 3, 4, 5};
+  std::vector<int> vec_i{1, 2, 3, 4, 5};
+
+  EXPECT_EQ(ref, TensorShape<>(vec_i));
+  EXPECT_EQ(ref, TensorShape<>(vec_i.begin(), vec_i.end()));
+  TensorShape<> sh1;
+  sh1 = vec_i;
+  EXPECT_EQ(ref, sh1);
+
+  EXPECT_EQ(ref, TensorShape<5>(vec_i));
+  EXPECT_EQ(ref, TensorShape<5>(vec_i.begin(), vec_i.end()));
+  TensorShape<5> sh2;
+  sh2 = vec_i;
+  EXPECT_EQ(ref, sh2);
+}
+
 TEST(VolumeTest, Result) {
   EXPECT_EQ(volume(std::vector<int64_t>{}), 1);
   EXPECT_EQ(volume(std::vector<int64_t>{2}), 2);

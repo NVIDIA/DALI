@@ -15,8 +15,9 @@
 #ifndef DALI_PIPELINE_OPERATOR_COMMON_H_
 #define DALI_PIPELINE_OPERATOR_COMMON_H_
 
-#include <vector>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_shape.h"
@@ -136,12 +137,12 @@ void GetGeneralizedArg(span<T> result, const std::string name, int sample_idx, c
 }
 
 template <typename ArgumentType, typename ExtentType>
-int GetShapeLikeArgument(std::vector<ExtentType> &out_shape,
-                         const OpSpec &spec,
-                         const std::string &argument_name,
-                         const ArgumentWorkspace &ws,
-                         int ndim = -1,
-                         int batch_size = -1 /* -1 = get from "batch_size" arg */) {
+std::pair<int, int> GetShapeLikeArgument(std::vector<ExtentType> &out_shape,
+                                         const OpSpec &spec,
+                                         const std::string &argument_name,
+                                         const ArgumentWorkspace &ws,
+                                         int ndim = -1,
+                                         int batch_size = -1 /* -1 = get from "batch_size" arg */) {
   if (batch_size < 0)
     batch_size = spec.GetArgument<int>("batch_size");
 
@@ -197,20 +198,20 @@ int GetShapeLikeArgument(std::vector<ExtentType> &out_shape,
         out_shape[i * ndim + d] = to_extent(tsvec[d]);
   }
 
-  return ndim;
+  return {batch_size, ndim};
 }
 
 template <typename ArgumentType = int, int out_ndim>
-int GetShapeArgument(TensorListShape<out_ndim> &out_tls,
-                      const OpSpec &spec,
-                      const std::string &argument_name,
-                      const ArgumentWorkspace &ws,
-                      int ndim = out_ndim,
-                      int batch_size = -1 /* -1 = get from "batch_size" arg */) {
-  ndim = GetShapeLikeArgument<ArgumentType>(out_tls.shapes, spec, argument_name,
-                                            ws, ndim, batch_size);
-  out_tls.resize(ndim == 0 ? 0 : out_tls.shapes.size() / ndim, ndim);
-  return ndim;
+std::pair<int, int> GetShapeArgument(TensorListShape<out_ndim> &out_tls,
+                                     const OpSpec &spec,
+                                     const std::string &argument_name,
+                                     const ArgumentWorkspace &ws,
+                                     int ndim = out_ndim,
+                                     int batch_size = -1 /* -1 = get from "batch_size" arg */) {
+  auto ret = GetShapeLikeArgument<ArgumentType>(
+    out_tls.shapes, spec, argument_name, ws, ndim, batch_size);
+  out_tls.resize(ret.first, ret.second);
+  return ret;
 }
 
 }  // namespace dali

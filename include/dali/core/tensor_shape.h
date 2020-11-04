@@ -28,6 +28,7 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/cuda_utils.h"
+#include "dali/core/format.h"
 
 namespace dali {
 
@@ -190,36 +191,23 @@ struct TensorShape<DynamicDimensions>
     : public TensorShapeBase<DynamicTensorShapeContainer, DynamicDimensions> {
   using Base = TensorShapeBase<DynamicTensorShapeContainer, DynamicDimensions>;
 
-  TensorShape(span<const int64_t> s)  // NOLINT
-  : Base(DynamicTensorShapeContainer(s.begin(), s.end())) {}
-
-  TensorShape(span<const int> s)  // NOLINT
-  : Base(DynamicTensorShapeContainer(s.begin(), s.end())) {}
-
-  TensorShape(const std::vector<int64_t> &s)  // NOLINT
-  : Base(DynamicTensorShapeContainer(s.data(), s.size())) {}
-
-  TensorShape(const DynamicTensorShapeContainer &s) : Base(s) {}  // NOLINT
-
-  template <size_t N>
-  TensorShape(const std::array<int64_t, N> &s)  // NOLINT
-      : Base(typename Base::container_type(s.begin(), s.end())) {}
-
-  template <size_t N>
-  TensorShape(const DeviceArray<int64_t, N> &s)  // NOLINT
-      : Base(typename Base::container_type(s.begin(), s.end())) {}
-
   template <typename... Ts,
             typename = std::enable_if_t<
               all_of<std::is_convertible<Ts, int64_t>::value...>::value>>
-  TensorShape(int64_t i0, Ts... s)  // NOLINT
+  TensorShape(int64_t i0, Ts... s)  // NOLINT(runtime/explicit)
       : Base(typename Base::container_type{i0, int64_t{s}...}) {}
 
+  DALI_NO_EXEC_CHECK
   template <typename It,
-            typename = std::enable_if_t<
-              std::is_same<typename std::iterator_traits<It>::value_type, int64_t>::value>>
-  TensorShape(It first, It last)
+            typename = std::enable_if<is_integer_iterator<It>::value>>
+  DALI_HOST_DEV TensorShape(It first, It last)
       : Base(typename Base::container_type{first, last}) {}
+
+  DALI_NO_EXEC_CHECK
+  template <typename Collection,
+            typename = std::enable_if_t<is_integer_collection<Collection>::value>>
+  DALI_HOST_DEV TensorShape(const Collection &c)  // NOLINT(runtime/explicit)
+      : Base(typename Base::container_type(dali::begin(c), dali::end(c))) {}
 
   TensorShape() = default;
   TensorShape(const TensorShape &) = default;
@@ -260,11 +248,36 @@ template <int ndim>
 struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
   using Base = TensorShapeBase<DeviceArray<int64_t, ndim>, ndim>;
 
-  TensorShape(const std::array<int64_t, ndim> &s) : Base(s) {}  // NOLINT
-  DALI_HOST_DEV TensorShape(const DeviceArray<int64_t, ndim> &s) : Base(s) {}  // NOLINT
+  TensorShape(const std::array<int64_t, ndim> &s)  // NOLINT(runtime/explicit)
+      : Base(s) {}
+
+  DALI_HOST_DEV TensorShape(const DeviceArray<int64_t, ndim> &s)  // NOLINT(runtime/explicit)
+      : Base(s) {}
+
+
+  DALI_NO_EXEC_CHECK
+  template <typename It,
+            typename = std::enable_if<is_integer_iterator<It>::value>>
+  DALI_HOST_DEV TensorShape(It first, It last) {
+    int i = 0;
+    It it = first;
+    for (; i < ndim && first != last; i++, it++) {
+      this->shape[i] = *it;
+    }
+#ifndef __CUDA_ARCH__
+    if (i != ndim || it != last)
+      throw std::invalid_argument(make_string("Expected ", ndim, " elements. Got ", i));
+#endif
+  }
+
+  DALI_NO_EXEC_CHECK
+  template <typename Collection,
+            typename = std::enable_if_t<is_integer_collection<Collection>::value>>
+  DALI_HOST_DEV TensorShape(const Collection &c)  // NOLINT(runtime/explicit)
+    : TensorShape(dali::begin(c), dali::end(c)) {}
+
   // Base class constructor will zero-initialize array
-  DALI_HOST_DEV
-  TensorShape() {}
+  DALI_HOST_DEV TensorShape() {}
   // We allow only explicit operations on TensorShape static dim
   TensorShape(const TensorShape &) = default;
   TensorShape &operator=(const TensorShape &other) = default;

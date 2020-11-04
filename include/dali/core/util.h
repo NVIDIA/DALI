@@ -172,6 +172,14 @@ template <typename Collection, typename T = void>
 using if_array_like = if_indexable<Collection,
                                    if_istype<decltype(size(std::declval<Collection>())), T>>;
 
+template <typename It>
+using is_integer_iterator = std::is_integral<
+  std::remove_reference_t<decltype(*std::declval<It>())>>;
+
+template <typename C>
+using is_integer_collection = is_integer_iterator<
+  decltype(dali::begin(std::declval<C>()))>;
+
 template <typename C>
 struct element_type {
   using type = typename C::value_type;
