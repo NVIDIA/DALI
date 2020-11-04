@@ -14,36 +14,9 @@
 
 #include <vector>
 #include "dali/operators/generic/one_hot.h"
+#include "dali/operators/generic/one_hot.cuh"
 
 namespace dali {
-
-namespace detail {
-
-struct SampleDesc {
-  uint64_t outer_vol, inner_vol, output_vol, inner_vol_classes;
-  void *out = nullptr;
-  const void *in = nullptr;
-};
-
-template <typename OutputType, typename InputType>
-__global__ void PopulateOneHot(OutputType on_value, OutputType off_value,
-                               const SampleDesc *samples) {
-  uint64_t out_index = blockIdx.x * blockDim.x + threadIdx.x;
-  const auto &sample = samples[blockIdx.y];
-  if (out_index >= sample.output_vol) {
-    return;
-  }
-  auto *out = static_cast<OutputType*>(sample.out);
-  auto *in = static_cast<const InputType*>(sample.in);
-  uint64_t i = out_index / sample.inner_vol_classes;
-  uint64_t j = out_index % sample.inner_vol;
-  uint64_t in_index = i * sample.inner_vol + j;
-  unsigned int in_val = in[in_index];
-  uint64_t on_out_index = i * sample.inner_vol_classes + in_val * sample.inner_vol + j;
-  out[out_index] = on_out_index == out_index ? on_value : off_value;
-}
-
-}  // namespace detail
 
 class OneHotGPU : public OneHot<GPUBackend> {
  public:
