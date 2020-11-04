@@ -79,11 +79,11 @@ DALI_HOST_DEV std::enable_if_t<as_ptr, const void*> Pass(const void* ptr, DALIDa
  */
 template <bool as_ptr, typename T>
 DALI_HOST_DEV std::enable_if_t<!as_ptr, T> Pass(const void* ptr, DALIDataType type_id) {
-  T result = {};
+  T result;
   TYPE_SWITCH(type_id, type2id, AccessType, ARITHMETIC_ALLOWED_TYPES, (
     const auto *access = reinterpret_cast<const AccessType*>(ptr);
-    return static_cast<T>(*access);
-  ), );  // NOLINT(whitespace/parens)
+    result = static_cast<T>(*access);
+  ), result = {};);  // NOLINT(whitespace/parens)
   return result;
 }
 
@@ -99,11 +99,11 @@ DALI_HOST_DEV T Access(T value, int64_t) {
 
 template <typename T>
 DALI_HOST_DEV T Access(const void* ptr, int64_t idx, DALIDataType type_id) {
-  T result = {};
+  T result;
   TYPE_SWITCH(type_id, type2id, AccessType, ARITHMETIC_ALLOWED_TYPES, (
     const auto *access = reinterpret_cast<const AccessType*>(ptr);
-    return static_cast<T>(access[idx]);
-  ), );  // NOLINT(whitespace/parens)
+    result = static_cast<T>(access[idx]);
+  ), result = {};);  // NOLINT(whitespace/parens)
   return result;
 }
 
