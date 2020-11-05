@@ -22,8 +22,8 @@
 #include <vector>
 
 #include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/tensor_list.h"
 
 #include "dali/core/tensor_shape.h"
 
@@ -92,11 +92,11 @@ class DLL_PUBLIC TensorVector {
   }
 
   auto size() const noexcept {
-    return tensors_.size();
+    return curr_tensors_size_;
   }
 
   size_t ntensor() const noexcept {
-    return tensors_.size();
+    return curr_tensors_size_;
   }
 
   size_t nbytes() const noexcept;
@@ -105,7 +105,9 @@ class DLL_PUBLIC TensorVector {
 
   TensorListShape<> shape() const;
 
-  DLL_PUBLIC void Resize(const TensorListShape<> &new_shape);
+  DLL_PUBLIC void Resize(const TensorListShape<> &new_shape) {
+    return Resize(new_shape, type());
+  }
 
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape, const TypeInfo &new_type);
 
@@ -150,24 +152,10 @@ class DLL_PUBLIC TensorVector {
   void Reset();
 
   template <typename SrcBackend>
-  void Copy(const TensorList<SrcBackend> &in_tl, cudaStream_t stream) {
-    SetContiguous(true);
-    tl_->Copy(in_tl, stream);
-
-    tensors_.clear();
-    views_count_ = 0;
-    UpdateViews();
-  }
+  void Copy(const TensorList<SrcBackend> &in_tl, cudaStream_t stream);
 
   template <typename SrcBackend>
-  void Copy(const TensorVector<SrcBackend> &in_tv, cudaStream_t stream) {
-    SetContiguous(true);
-    tl_->Copy(in_tv, stream);
-
-    tensors_.clear();
-    views_count_ = 0;
-    UpdateViews();
-  }
+  void Copy(const TensorVector<SrcBackend> &in_tv, cudaStream_t stream);
 
   void ShareData(TensorList<Backend> *in_tl);
 
@@ -184,19 +172,18 @@ class DLL_PUBLIC TensorVector {
  private:
   enum class State { contiguous, noncontiguous };
 
-  shared_ptr<Tensor<Backend>> create_tensor() const;
-
-  void allocate_tensors(int batch_size);
-
   struct ViewRefDeleter {
     void operator()(void*) { --*ref; }
     std::atomic<int> *ref;
   };
 
+  void resize_tensors(int size);
+
   void update_view(int idx);
 
   std::atomic<int> views_count_;
   std::vector<std::shared_ptr<Tensor<Backend>>> tensors_;
+  size_t curr_tensors_size_;
   std::shared_ptr<TensorList<Backend>> tl_;
   State state_ = State::noncontiguous;
   // pinned status and type info should be uniform
@@ -208,7 +195,6 @@ class DLL_PUBLIC TensorVector {
   template <typename InBackend>
   friend class TensorVector;
 };
-
 
 }  // namespace dali
 

@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include <gtest/gtest.h>
-
-#include "dali/pipeline/data/tensor_vector.h"
+#include <string>
+#include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/data/tensor_vector.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
+namespace test {
 
 template <typename T>
 class TensorVectorSuite : public ::testing::Test {
@@ -36,8 +39,7 @@ class TensorVectorSuite : public ::testing::Test {
   }
 };
 
-typedef ::testing::Types<CPUBackend,
-                         GPUBackend> Backends;
+typedef ::testing::Types<CPUBackend, GPUBackend> Backends;
 
 TYPED_TEST_SUITE(TensorVectorSuite, Backends);
 
@@ -116,8 +118,6 @@ TYPED_TEST(TensorVectorSuite, BatchResize) {
   ASSERT_EQ(tv.size(), 5);
   tv.reserve(100);
   tv.reserve(200);
-  ASSERT_THROW(tv.Resize({{1}}), std::runtime_error);
-  ASSERT_THROW(tv.reserve(20, 4), std::runtime_error);
   tv.Resize(uniform_list_shape(5, {10, 20}));
   tv.set_type(TypeInfo::Create<int32_t>());
   for (auto &t : tv) {
@@ -125,4 +125,176 @@ TYPED_TEST(TensorVectorSuite, BatchResize) {
   }
 }
 
+TYPED_TEST(TensorVectorSuite, VariableBatchResizeDown) {
+  TensorVector<TypeParam> tv(32);
+  ASSERT_EQ(tv.size(), 32);
+  TensorListShape<> new_size = {{42}, {42}, {42}, {42}, {42}};
+  tv.Resize(new_size);
+  ASSERT_EQ(tv.size(), new_size.num_samples());
+}
+
+TYPED_TEST(TensorVectorSuite, VariableBatchResizeUp) {
+  TensorVector<TypeParam> tv(2);
+  ASSERT_EQ(tv.size(), 2);
+  TensorListShape<> new_size = {{42}, {42}, {42}, {42}, {42}};
+  tv.Resize(new_size);
+  ASSERT_EQ(tv.size(), new_size.num_samples());
+}
+
+namespace {
+
+template <typename T>
+TensorShape<> get_shape(const T &, int) {
+  assert(false);
+  return {};  // To please the compiler
+}
+
+template <>
+TensorShape<> get_shape<TensorList<CPUBackend>>(const TensorList<CPUBackend> &tl, int idx) {
+  return tl.tensor_shape(idx);
+}
+template <>
+TensorShape<> get_shape<TensorVector<CPUBackend>>(const TensorVector<CPUBackend> &tv, int idx) {
+  return tv.shape()[idx];
+}
+
+template <typename T>
+const char *get_ptr(const T &, int) {
+  assert(false);
+  return nullptr;  // To please the compiler
+}
+
+template <>
+const char *get_ptr<TensorList<CPUBackend>>(const TensorList<CPUBackend> &tl, int idx) {
+  return reinterpret_cast<const char *>(tl.raw_tensor(idx));
+}
+
+template <>
+const char *get_ptr<TensorVector<CPUBackend>>(const TensorVector<CPUBackend> &tv, int idx) {
+  return reinterpret_cast<const char *>(tv[idx].raw_data());
+}
+
+/**
+ * GTest predicate formatter. Compares a batch of data contained in TensorList or TensorVector
+ * @tparam T TensorList<CPUBackend> or TensorVector<CPUBackend>
+ * @tparam U TensorList<CPUBackend> or TensorVector<CPUBackend>
+ */
+template <typename T, typename U>
+::testing::AssertionResult Compare(const char *rhs_expr, const char *lhs_expr, const T &rhs,
+                                   const U &lhs) {
+  std::string testing_values = make_string(rhs_expr, ", ", lhs_expr);
+  if (rhs.ntensor() != lhs.ntensor()) {
+    ::testing::AssertionFailure() << make_string("[Testing: ", testing_values,
+                                                 "] Inconsistent number of tensors");
+  }
+  for (size_t tensor_idx = 0; tensor_idx < rhs.ntensor(); tensor_idx++) {
+    if (get_shape(rhs, tensor_idx) != get_shape(lhs, tensor_idx)) {
+      ::testing::AssertionFailure()
+          << make_string("[Testing: ", testing_values, "] Inconsistent shapes");
+    }
+    auto vol = volume(get_shape(rhs, tensor_idx));
+    auto lptr = get_ptr(lhs, tensor_idx);
+    auto rptr = get_ptr(rhs, tensor_idx);
+    for (int i = 0; i < vol; i++) {
+      if (rptr[i] != lptr[i]) {
+        return ::testing::AssertionFailure()
+               << make_string("[Testing: ", testing_values, "] Values at index [", i,
+                              "] don't match: ", static_cast<int>(rptr[i]), " vs ",
+                              static_cast<int>(lptr[i]), "");
+      }
+    }
+  }
+  return ::testing::AssertionSuccess();
+}
+
+}  // namespace
+
+class TensorVectorVariableBatchSizeTest : public ::testing::Test {
+ protected:
+  void SetUp() final {
+    GenerateTestTv();
+    GenerateTestTl();
+  }
+
+  void GenerateTestTv() {
+    test_tv_.Resize(shape_);
+    test_tv_.set_type(TypeInfo::Create<float>());
+    for (int i = 0; i < shape_.num_samples(); i++) {
+      UniformRandomFill(view_as_tensor<float>(test_tv_[i]), rng_, 0.f, 1.f);
+    }
+  }
+
+  void GenerateTestTl() {
+    test_tl_.Resize(shape_);
+    test_tl_.set_type(TypeInfo::Create<float>());
+    for (int i = 0; i < shape_.num_samples(); i++) {
+      UniformRandomFill(view<float>(test_tl_), rng_, 0.f, 1.f);
+    }
+  }
+
+  std::mt19937 rng_;
+  TensorListShape<> shape_ = {{7, 2, 3}, {6, 1, 6}, {9, 3, 6}, {2, 9, 4},
+                              {2, 3, 7}, {5, 3, 5}, {1, 1, 1}, {8, 3, 5}};
+  TensorList<CPUBackend> test_tl_;
+  TensorVector<CPUBackend> test_tv_;
+};
+
+TEST_F(TensorVectorVariableBatchSizeTest, SelfTest) {
+  for (int i = 0; i < shape_.num_samples(); i++) {
+    EXPECT_EQ(get_shape(test_tv_, i), shape_[i]);
+    EXPECT_EQ(get_shape(test_tl_, i), shape_[i]);
+  }
+  EXPECT_PRED_FORMAT2(Compare, test_tv_, test_tv_);
+  EXPECT_PRED_FORMAT2(Compare, test_tl_, test_tl_);
+}
+
+TEST_F(TensorVectorVariableBatchSizeTest, TvShareWithResizeUp) {
+  TensorVector<CPUBackend> tv(2);
+  tv.ShareData(&this->test_tv_);
+  EXPECT_PRED_FORMAT2(Compare, test_tv_, tv);
+}
+
+TEST_F(TensorVectorVariableBatchSizeTest, TvShareWithResizeDown) {
+  TensorVector<CPUBackend> tv(32);
+  tv.ShareData(&this->test_tv_);
+  EXPECT_PRED_FORMAT2(Compare, test_tv_, tv);
+}
+
+TEST_F(TensorVectorVariableBatchSizeTest, TlShareWithResizeUp) {
+  TensorVector<CPUBackend> tv(2);
+  tv.ShareData(&this->test_tl_);
+  EXPECT_PRED_FORMAT2(Compare, test_tl_, tv);
+}
+
+TEST_F(TensorVectorVariableBatchSizeTest, TlShareWithResizeDown) {
+  TensorVector<CPUBackend> tv(32);
+  tv.ShareData(&this->test_tl_);
+  EXPECT_PRED_FORMAT2(Compare, test_tl_, tv);
+}
+
+TEST_F(TensorVectorVariableBatchSizeTest, TvCopyWithResizeUp) {
+  TensorVector<CPUBackend> tv(2);
+  tv.Copy(this->test_tv_, nullptr);
+  EXPECT_PRED_FORMAT2(Compare, test_tv_, tv);
+}
+
+TEST_F(TensorVectorVariableBatchSizeTest, TvCopyWithResizeDown) {
+  TensorVector<CPUBackend> tv(32);
+  tv.Copy(this->test_tv_, nullptr);
+  EXPECT_PRED_FORMAT2(Compare, test_tv_, tv);
+}
+
+TEST_F(TensorVectorVariableBatchSizeTest, TlCopyWithResizeUp) {
+  TensorVector<CPUBackend> tv(2);
+  tv.Copy(this->test_tl_, nullptr);
+  EXPECT_PRED_FORMAT2(Compare, test_tl_, tv);
+}
+
+TEST_F(TensorVectorVariableBatchSizeTest, TlCopyWithResizeDown) {
+  TensorVector<CPUBackend> tv(32);
+  tv.Copy(this->test_tl_, nullptr);
+  EXPECT_PRED_FORMAT2(Compare, test_tl_, tv);
+}
+
+}  // namespace test
 }  // namespace dali
