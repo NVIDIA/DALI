@@ -19,7 +19,7 @@ namespace dali {
 namespace detail {
 
 struct SampleDesc {
-  uint64_t outer_vol, inner_vol, output_vol, inner_vol_classes;
+  uint64_t inner_vol, output_vol, inner_vol_classes;
   void *out = nullptr;
   const void *in = nullptr;
 };

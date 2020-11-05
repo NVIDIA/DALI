@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <vector>
 
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream.h"
@@ -67,7 +66,6 @@ struct OneHotOpGpuPerfTest : public ::testing::Test {
     auto input_gpu = input_.gpu(stream_);
     auto output_gpu = output_.gpu(stream_);
     for (int sample_id = 0; sample_id < config_.batch_size; ++sample_id) {
-      samples_cpu(sample_id)->outer_vol = outer_vol;
       samples_cpu(sample_id)->inner_vol = inner_vol;
       samples_cpu(sample_id)->inner_vol_classes = inner_vol_classes;
       samples_cpu(sample_id)->output_vol = output_vol;

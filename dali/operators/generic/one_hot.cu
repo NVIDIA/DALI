@@ -67,10 +67,10 @@ void OneHotGPU::RunImplTyped(workspace_t<GPUBackend> &ws, int axis) {
   for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
     detail::SampleDesc sample;
     auto output_shape = shape[sample_id];
-    sample.outer_vol = volume(output_shape.begin(), output_shape.begin() + axis);
+    auto outer_vol = volume(output_shape.begin(), output_shape.begin() + axis);
     sample.inner_vol = volume(output_shape.begin() + axis + 1, output_shape.end());
     sample.inner_vol_classes = sample.inner_vol * num_classes_;
-    sample.output_vol = sample.outer_vol * sample.inner_vol_classes;
+    sample.output_vol = outer_vol * sample.inner_vol_classes;
     sample.out = output.mutable_tensor<OutputType>(sample_id);
     sample.in = input.tensor<InputType>(sample_id);
     sample_descs_.push_back(sample);
