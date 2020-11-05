@@ -94,7 +94,7 @@ def _test_rrc(device, max_frames, layout, aspect_ratio_range, area_range, output
     if device == "gpu":
         input = input.gpu()
     out = fn.random_resized_crop(input, random_aspect_ratio=aspect_ratio_range, random_area=area_range,
-                                 size=output_size, interp_type=dali.types.INTERP_NN)
+                                 size=output_size, interp_type=dali.types.INTERP_NN, seed=12321)
     pipe.set_outputs(out, shape)
     pipe.build()
     for iter in range(3):
