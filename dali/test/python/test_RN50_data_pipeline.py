@@ -384,8 +384,8 @@ for pipe_name in test_data.keys():
                   pipe.run()
               data_time.update(time.time() - end)
               if j % LOG_INTERVAL == 0:
-                  print("System {}, run {}: {} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s]"
-                  .format(SYS_ID, str(i), pipe_name.__name__, j + 1, iters, data_time.avg, data_time.max_val, N * BATCH_SIZE / data_time.avg))
+                  print("System {}, GPU {}, run {}: {} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s]"
+                  .format(SYS_ID, GPU_ID, str(i), pipe_name.__name__, j + 1, iters, data_time.avg, data_time.max_val, N * BATCH_SIZE / data_time.avg))
               end = time.time()
 
         print("OK {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__))
