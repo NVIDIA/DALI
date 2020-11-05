@@ -14,6 +14,7 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
@@ -46,7 +47,7 @@ class PadSynthDataPipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.layout)
 
 
-def check_pad_synth_data(device, batch_size, input_max_shape, axes, axis_names, align, shape_arg):
+def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shape_arg):
     eii = RandomlyShapedDataIterator(batch_size, max_shape=input_max_shape)
     layout = "HWC"
     pipe = PadSynthDataPipeline(device, batch_size, iter(eii), axes=axes, axis_names=axis_names,
@@ -107,7 +108,7 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes, axis_names, 
                     expected_extent = expected_extent - remainder + align_val
                 assert(output_shape[dim] == expected_extent)
 
-def test_slice_synth_data_vs_numpy():
+def test_pad():
     for device in ["cpu", "gpu"]:
         for batch_size in {1, 8}:
             for input_max_shape, axes, axis_names, align, shape_arg in \
@@ -131,9 +132,9 @@ def test_slice_synth_data_vs_numpy():
                  ((200, 400, 3), None, None, None, (-1, -1, 4)),
                  ((25, 100, 3), (0,), None, None, (25,)),
                  ((200, 400, 3), (0, 1), None, (4, 16), (1, 200))]:
-                yield check_pad_synth_data, device, batch_size, input_max_shape, axes, axis_names, align, shape_arg
+                yield check_pad, device, batch_size, input_max_shape, axes, axis_names, align, shape_arg
 
-def test_pad_fail():
+def test_pad_error():
     batch_size = 2
     input_max_shape = (5, 5, 3)
     device = "cpu"
@@ -149,3 +150,47 @@ def test_pad_fail():
 
     pipe.build()
     assert_raises(RuntimeError, pipe.run)
+
+def is_aligned(sh, align, axes):
+    assert len(sh) == len(align)
+    for i, axis in enumerate(axes):
+        if sh[axis] % align[i] > 0:
+            return False
+    return True
+
+def check_pad_per_sample_shapes_and_alignment(device='cpu', batch_size=3, ndim=2, num_iter=3):
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0, seed=1234)
+    axes = (0, 1)
+    with pipe:
+        in_shape = fn.cast(fn.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
+        in_data = fn.uniform(range=(0., 1.), shape=in_shape)
+        req_shape = fn.cast(fn.uniform(range=(21, 30), shape=(ndim,)), dtype=types.INT32)
+        req_align = fn.cast(fn.uniform(range=(3, 5), shape=(ndim,)), dtype=types.INT32)
+        out_pad_shape = fn.pad(in_data, axes=axes, align=None, shape=req_shape)
+        out_pad_align = fn.pad(in_data, axes=axes, align=req_align, shape=None)
+        out_pad_both = fn.pad(in_data, axes=axes, align=req_align, shape=req_shape)
+        pipe.set_outputs(in_shape, in_data, req_shape, req_align, out_pad_shape, out_pad_align, out_pad_both)
+    pipe.build()
+    for _ in range(num_iter):
+        outs = pipe.run()
+        for i in range(batch_size):
+            in_shape, in_data, req_shape, req_align, out_pad_shape, out_pad_align, out_pad_both = \
+                [outs[out_idx].at(i) for out_idx in range(len(outs))]
+            assert (in_shape == in_data.shape).all()
+
+            # Pad to explicit shape
+            assert (out_pad_shape.shape >= in_shape).all()
+            assert (req_shape == out_pad_shape.shape).all()
+
+            # Alignment only
+            assert (out_pad_align.shape >= in_shape).all()
+            assert is_aligned(out_pad_align.shape, req_align, axes)
+
+            # Explicit shape + alignment
+            assert (out_pad_both.shape >= in_shape).all()
+            assert (req_shape <= out_pad_both.shape).all()
+            assert is_aligned(out_pad_both.shape, req_align, axes)
+
+def test_pad_per_sample_shapes_and_alignment():
+    yield check_pad_per_sample_shapes_and_alignment, 'cpu'
+    yield check_pad_per_sample_shapes_and_alignment, 'gpu'

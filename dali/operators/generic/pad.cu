@@ -31,6 +31,8 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   int ndim = in_shape.sample_dim();
   int nsamples = in_shape.num_samples();
 
+  this->ReadArguments(spec_, ws);
+
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
       using Kernel = kernels::SliceGPU<T, T, Dims>;

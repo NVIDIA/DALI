@@ -41,11 +41,6 @@ class Uniform : public Operator<CPUBackend> {
       DALI_ENFORCE(range_[0] < range_[1],
                    "Invalid range. It shall be left-closed [a, b), where a < b");
     }
-
-    std::vector<int> shape_arg{};
-    if (spec.HasArgument("shape"))
-      shape_arg = spec.GetRepeatedArgument<int>("shape");
-    shape_ = std::vector<int64_t>{std::begin(shape_arg), std::end(shape_arg)};
   }
 
   inline ~Uniform() override = default;
@@ -60,14 +55,16 @@ class Uniform : public Operator<CPUBackend> {
     return true;
   }
 
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
-    output_desc[0].shape = uniform_list_shape(batch_size_, shape_);
     output_desc[0].type = TypeTable::GetTypeInfo(DALI_FLOAT);
+    if (spec_.ArgumentDefined("shape")) {
+      GetShapeArgument(output_desc[0].shape, spec_, "shape", ws, -1, batch_size_);
+    } else {
+      output_desc[0].shape = uniform_list_shape(batch_size_, TensorShape<0>());
+    }
     return true;
   }
-
 
   void RunImpl(HostWorkspace &ws) override;
 
@@ -79,7 +76,6 @@ class Uniform : public Operator<CPUBackend> {
   std::mt19937 rng_;
   const bool discrete_mode_;  // mode can't change throughout lifetime of this op, due to RNG
   std::vector<float> range_, set_;
-  TensorShape<> shape_;
 };
 
 }  // namespace dali
