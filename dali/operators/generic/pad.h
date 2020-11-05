@@ -82,12 +82,13 @@ class Pad : public Operator<Backend> {
       std::iota(axes_.begin(), axes_.end(), 0);
     }
 
-    GetShapeArgument(shape_, spec_, "shape", ws);
-    GetShapeArgument(align_, spec_, "align", ws);
+    if (spec_.ArgumentDefined("shape"))
+      GetShapeArgument(shape_, spec_, "shape", ws);
+    if (spec_.ArgumentDefined("align"))
+      GetShapeArgument(align_, spec_, "align", ws);
 
     if (shape_.empty())
       shape_ = uniform_list_shape(nsamples, TensorShape<>(std::vector<int64_t>(axes_.size(), -1)));
-
     // If a single *align* value is provided, use this value for all the axes
     for (int i = 0; i < nsamples; i++) {
       if (!align_.empty()) {
@@ -96,8 +97,7 @@ class Pad : public Operator<Backend> {
         }
       }
       auto shape = shape_.tensor_shape_span(i);
-      DALI_ENFORCE(
-          static_cast<int>(axes_.size()) == shape.size(),
+      DALI_ENFORCE(static_cast<int>(axes_.size()) == shape.size(),
           make_string(
               "If explicit shape is provided, there should be a value per axis to be padded. "
               "Expected ",
