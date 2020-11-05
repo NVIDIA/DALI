@@ -74,11 +74,12 @@ class OneHotCPU : public OneHot<CPUBackend> {
   USE_OPERATOR_MEMBERS();
 };
 
-void OneHotCPU::RunImpl(Workspace &ws) {
+void OneHotCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
   auto in_shape = input.shape();
+  auto num_samples = in_shape.num_samples();
   int output_sample_dim = output.shape().sample_dim();
   int placement_axis = get_placement_axis(output_sample_dim);
   output.SetLayout(GetOutputLayout(ws, placement_axis, output_sample_dim));
@@ -87,7 +88,7 @@ void OneHotCPU::RunImpl(Workspace &ws) {
 
     auto in_tensor = view<const InputType, DynamicDimensions>(input);
     auto out_tensor = view<OutputType, DynamicDimensions>(output);
-    for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+    for (int sample_id = 0; sample_id < num_samples; ++sample_id) {
       tp.AddWork(
               [&, sample_id](int thread_id) {
                   auto in = in_tensor[sample_id];

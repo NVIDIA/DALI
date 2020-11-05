@@ -80,8 +80,7 @@ struct OneHotOpGpuPerfTest : public ::testing::Test {
     auto output_vol = input_vol * config_.num_classes;
 
     const int block = 256;
-    auto block_size = (output_vol + (block - 1)) / block;
-    dim3 grid(block_size, config_.batch_size);
+    auto grid = detail::gridHelper(output_vol, config_.batch_size, block);
 
     Out on_value = 1, off_value = 0;
     detail::PopulateOneHot<Out, In><<<grid, block, 0, stream_>>>(on_value, off_value, samples_gpu_);
@@ -130,9 +129,9 @@ using TestConfigs = ::testing::Types<
 OneHotTestParams<int, int, 1, 256, 0, 1024, 1024>,
 OneHotTestParams<int, int, 1, 256, 1, 1024, 1024>,
 OneHotTestParams<int, int, 1, 256, 2, 1024, 1024>,
-OneHotTestParams<int, int64_t, 1, 256, 0, 1024, 1024>,
-OneHotTestParams<int, int64_t, 1, 256, 1, 1024, 1024>,
-OneHotTestParams<int, int64_t, 1, 256, 2, 1024, 1024>,
+OneHotTestParams<int64_t, int, 1, 256, 0, 1024, 1024>,
+OneHotTestParams<int64_t, int, 1, 256, 1, 1024, 1024>,
+OneHotTestParams<int64_t, int, 1, 256, 2, 1024, 1024>,
 OneHotTestParams<int64_t, int64_t, 1, 256, 0, 1024, 1024>,
 OneHotTestParams<int64_t, int64_t, 1, 256, 1, 1024, 1024>,
 OneHotTestParams<int64_t, int64_t, 1, 256, 2, 1024, 1024>,

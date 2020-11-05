@@ -21,27 +21,41 @@ namespace dali {
 class OneHotGPU : public OneHot<GPUBackend> {
  public:
   explicit OneHotGPU(const OpSpec &spec) : OneHot<GPUBackend>(spec) {
-    int64_t samples_size = batch_size_ * sizeof(detail::SampleDesc);
     scratch_mem_.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
-    scratch_mem_.Resize({samples_size});
   }
 
   ~OneHotGPU() override = default;
   DISABLE_COPY_MOVE_ASSIGN(OneHotGPU);
 
+  USE_OPERATOR_MEMBERS();
+
+ protected:
   void RunImpl(workspace_t<GPUBackend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
 
   template<typename OutputType, typename InputType>
   void RunImplTyped(workspace_t<GPUBackend> &ws, int placement_axis);
 
-  USE_OPERATOR_MEMBERS();
-
  private:
   std::vector<detail::SampleDesc> sample_descs_;
   Tensor<GPUBackend> scratch_mem_;
+  int recent_n_samples_ = 0;
 };
 
-void OneHotGPU::RunImpl(Workspace &ws) {
+bool OneHotGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) {
+  const auto &input = ws.template InputRef<GPUBackend>(0);
+  int num_samples = input.shape().num_samples();
+  if (num_samples != recent_n_samples_) {
+    recent_n_samples_ = num_samples;
+    int64_t samples_size = num_samples * sizeof(detail::SampleDesc);
+    scratch_mem_.Resize({samples_size});
+  }
+  sample_descs_.clear();
+  sample_descs_.reserve(num_samples);
+  return OneHot<GPUBackend>::SetupImpl(output_desc, ws);
+}
+
+void OneHotGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
   int output_sample_dim = output.shape().sample_dim();
@@ -58,13 +72,11 @@ template <typename OutputType, typename InputType>
 void OneHotGPU::RunImplTyped(workspace_t<GPUBackend> &ws, int axis) {
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
-
-  sample_descs_.clear();
-  sample_descs_.reserve(batch_size_);
+  int num_samples = input.shape().num_samples();
 
   uint64_t max_out_vol = 1;
   const auto &shape = output.shape();
-  for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+  for (int sample_id = 0; sample_id < num_samples; ++sample_id) {
     detail::SampleDesc sample;
     auto output_shape = shape[sample_id];
     auto outer_vol = volume(output_shape.begin(), output_shape.begin() + axis);
@@ -83,8 +95,7 @@ void OneHotGPU::RunImplTyped(workspace_t<GPUBackend> &ws, int axis) {
   const auto scratch_mem_gpu = scratch_mem_.data<detail::SampleDesc>();
 
   const int block = 256;
-  auto block_size = (max_out_vol + (block - 1)) / block;
-  dim3 grid(block_size, batch_size_);
+  auto grid = detail::gridHelper(max_out_vol, num_samples, block);
 
   OutputType on_value = on_value_, off_value = off_value_;
   detail::PopulateOneHot<OutputType, InputType><<<grid, block>>>(

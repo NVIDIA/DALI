@@ -55,8 +55,6 @@ void DoOneHot(kernels::OutTensorCPU<Out, DynamicDimensions> output,
 template <typename Backend>
 class OneHot : public Operator<Backend> {
  public:
-  using Workspace = workspace_t<Backend>;
-
   explicit OneHot(const OpSpec &spec)
       : Operator<Backend>(spec), num_classes_(spec.GetArgument<int64_t>("num_classes")),
         axis_(spec.GetArgument<int>("axis")),
@@ -75,14 +73,13 @@ class OneHot : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(OneHot);
 
   USE_OPERATOR_MEMBERS();
-  // using Operator<CPUBackend>::RunImpl;
 
  protected:
   bool CanInferOutputs() const override {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     const auto &input = ws.template InputRef<Backend>(0);
     int input_sample_dim = input.shape().sample_dim();
     int num_samples = input.shape().num_samples();
@@ -114,7 +111,8 @@ class OneHot : public Operator<Backend> {
     return true;
   };
 
-  TensorLayout GetOutputLayout(const Workspace &ws, int placement_axis, int output_sample_dim) {
+  TensorLayout GetOutputLayout(const workspace_t<Backend> &ws, int placement_axis,
+                               int output_sample_dim) {
     if (!new_axis_name_) {
       return {};
     }
