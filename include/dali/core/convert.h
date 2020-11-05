@@ -85,8 +85,8 @@ DALI_HOST_DEV constexpr std::enable_if_t<
     needs_clamp<U, T>::value && std::is_signed<U>::value && std::is_signed<T>::value,
     T>
 clamp(U value, ret_type<T>) {
-  return value <= min_value<T>() ? min_value<T>() :
-         value >= max_value<T>() ? max_value<T>() :
+  return value <= static_cast<U>(min_value<T>()) ? min_value<T>() :
+         value >= static_cast<U>(max_value<T>()) ? max_value<T>() :
          static_cast<T>(value);
 }
 
@@ -96,8 +96,8 @@ DALI_HOST_DEV constexpr std::enable_if_t<
         && std::is_unsigned<T>::value,
     T>
 clamp(U value, ret_type<T>) {
-  return value <= min_value<T>() ? min_value<T>() :
-         value >= max_value<T>() ? max_value<T>() :
+  return value <= static_cast<U>(min_value<T>()) ? min_value<T>() :
+         value >= static_cast<U>(max_value<T>()) ? max_value<T>() :
          static_cast<T>(value);
 }
 
@@ -333,7 +333,7 @@ struct ConverterBase<Out, In, false, true> {
       ? clamp<Out>(detail::cuda_round_helper(value * max_value<Out>(), Out()))
       : detail::cuda_round_helper(max_value<Out>() * __saturatef(value), Out());
 #else
-    return clamp<Out>(std::round(value * max_value<Out>()));
+    return clamp<Out>(std::round(value * static_cast<In>(max_value<Out>())));
 #endif
   }
 };

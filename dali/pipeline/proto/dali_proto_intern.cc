@@ -76,7 +76,7 @@ namespace dali {
   }
 
   std::vector<int64> DaliProtoPriv::ints(void) const {
-    std::vector<int64> tmp{intern_->ints().begin(), intern_->ints().end()};
+    std::vector<int64> tmp(intern_->ints().begin(), intern_->ints().end());
     return tmp;
   }
 
@@ -85,7 +85,7 @@ namespace dali {
   }
 
   std::vector<float> DaliProtoPriv::floats(void) const {
-    std::vector<float> tmp{intern_->floats().begin(), intern_->floats().end()};
+    std::vector<float> tmp(intern_->floats().begin(), intern_->floats().end());
     return tmp;
   }
 
@@ -94,7 +94,7 @@ namespace dali {
   }
 
   std::vector<bool> DaliProtoPriv::bools(void) const {
-    std::vector<bool> tmp{intern_->bools().begin(), intern_->bools().end()};
+    std::vector<bool> tmp(intern_->bools().begin(), intern_->bools().end());
     return tmp;
   }
 
@@ -103,7 +103,7 @@ namespace dali {
   }
 
   std::vector<string> DaliProtoPriv::strings(void) const {
-    std::vector<string> tmp{intern_->strings().begin(), intern_->strings().end()};
+    std::vector<string> tmp(intern_->strings().begin(), intern_->strings().end());
     return tmp;
   }
 

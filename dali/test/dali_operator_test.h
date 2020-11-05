@@ -78,7 +78,7 @@ inline std::ostream& operator<<(std::ostream& os, const Arguments& args) {
     indent = "    ";
   }
 
-  for (const auto arg : args) {
+  for (const auto &arg : args) {
     os << indent << "\"" << arg.first << "\" : " << arg.second << separator;
   }
 
