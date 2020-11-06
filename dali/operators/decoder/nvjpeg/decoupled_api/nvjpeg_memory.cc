@@ -204,13 +204,21 @@ void DeleteAllBuffers(std::thread::id thread_id) {
 }
 
 static int DeviceNew(void **ptr, size_t size) {
+  if (size == 0) {
+    *ptr = nullptr;
+    return cudaSuccess;
+  }
   *ptr = GetBuffer(std::this_thread::get_id(), AllocType::GPU, size);
-  return 0;
+  return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
 }
 
 static int PinnedNew(void **ptr, size_t size, unsigned int flags) {
+  if (size == 0) {
+    *ptr = nullptr;
+    return cudaSuccess;
+  }
   *ptr = GetBuffer(std::this_thread::get_id(), AllocType::Pinned, size);
-  return 0;
+  return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
 }
 
 nvjpegDevAllocator_t GetDeviceAllocator() {
