@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_SEGMENTATION_UTILS_SEARCHABLE_RLE_MASK_H_
 #define DALI_OPERATORS_SEGMENTATION_UTILS_SEARCHABLE_RLE_MASK_H_
 
+#include <algorithm>
 #include <vector>
 #include "dali/core/tensor_view.h"
 #include "dali/core/span.h"
@@ -66,25 +67,9 @@ class SearchableRLEMask {
     if (ith < 0 || ith >= count_) {
       return -1;
     }
-
-    int64_t start = 0;
-    int64_t end = groups_.size();
-    int64_t last_idx = groups_.size() - 1;
-    while (end != start) {
-      int64_t pos = (end + start) / 2;
-      const auto &curr = groups_[pos];
-      int64_t next_ith = pos == last_idx ? count_ : groups_[pos + 1].ith;
-      if (curr.ith <= ith && ith < next_ith) {
-        return curr.start + (ith - curr.ith);
-      } else if (ith >= next_ith) {
-        start = next_ith;
-      } else {  // curr.ith > ith
-        end = curr.ith;
-      }
-    }
-    // We should always succeed if it was in range
-    assert(false);
-    return -1;
+    auto it = std::upper_bound(groups_.begin(), groups_.end(), ith,
+                               [](int64_t x, const Group &g) { return x < g.ith; }) - 1;
+    return it->start + (ith - it->ith);
   }
 
   /**
