@@ -208,8 +208,14 @@ static int DeviceNew(void **ptr, size_t size) {
     *ptr = nullptr;
     return cudaSuccess;
   }
-  *ptr = GetBuffer(std::this_thread::get_id(), AllocType::GPU, size);
-  return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+  // this function should not throw, but return a proper result
+  try {
+    *ptr = GetBuffer(std::this_thread::get_id(), AllocType::GPU, size);
+    return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+  } catch (...) {
+    *ptr = nullptr;
+    return cudaErrorMemoryAllocation;
+  }
 }
 
 static int PinnedNew(void **ptr, size_t size, unsigned int flags) {
@@ -217,8 +223,14 @@ static int PinnedNew(void **ptr, size_t size, unsigned int flags) {
     *ptr = nullptr;
     return cudaSuccess;
   }
-  *ptr = GetBuffer(std::this_thread::get_id(), AllocType::Pinned, size);
-  return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+  // this function should not throw, but return a proper result
+  try {
+    *ptr = GetBuffer(std::this_thread::get_id(), AllocType::Pinned, size);
+    return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+  } catch (...) {
+    *ptr = nullptr;
+    return cudaErrorMemoryAllocation;
+  }
 }
 
 nvjpegDevAllocator_t GetDeviceAllocator() {
