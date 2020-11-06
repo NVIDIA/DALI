@@ -78,7 +78,7 @@ void OneHotGPU::RunImplTyped(workspace_t<GPUBackend> &ws, int axis) {
   const auto &shape = output.shape();
   for (int sample_id = 0; sample_id < num_samples; ++sample_id) {
     detail::SampleDesc sample;
-    auto output_shape = shape[sample_id];
+    auto output_shape = shape.tensor_shape_span(sample_id);
     auto outer_vol = volume(output_shape.begin(), output_shape.begin() + axis);
     sample.inner_vol = volume(output_shape.begin() + axis + 1, output_shape.end());
     sample.inner_vol_classes = sample.inner_vol * num_classes_;
@@ -92,14 +92,13 @@ void OneHotGPU::RunImplTyped(workspace_t<GPUBackend> &ws, int axis) {
   auto stream = ws.stream();
 
   scratch_mem_.Copy(sample_descs_, stream);
-  const auto scratch_mem_gpu = scratch_mem_.data<detail::SampleDesc>();
+  const auto *scratch_mem_gpu = scratch_mem_.data<detail::SampleDesc>();
 
   const int block = 256;
   auto grid = detail::gridHelper(max_out_vol, num_samples, block);
 
-  OutputType on_value = on_value_, off_value = off_value_;
-  detail::PopulateOneHot<OutputType, InputType><<<grid, block>>>(
-    on_value, off_value, scratch_mem_gpu);
+  detail::PopulateOneHot<OutputType, InputType><<<grid, block, 0, stream>>>(
+    on_value_, off_value_, scratch_mem_gpu);
 }
 
 DALI_REGISTER_OPERATOR(OneHot, OneHotGPU, GPU);
