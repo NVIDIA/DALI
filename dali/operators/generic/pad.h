@@ -82,10 +82,10 @@ class Pad : public Operator<Backend> {
       std::iota(axes_.begin(), axes_.end(), 0);
     }
 
-    if (spec_.ArgumentDefined("shape"))
-      GetShapeArgument(shape_, spec_, "shape", ws);
-    if (spec_.ArgumentDefined("align"))
-      GetShapeArgument(align_, spec_, "align", ws);
+    if (spec.ArgumentDefined("shape"))
+      GetShapeArgument(shape_, spec, "shape", ws);
+    if (spec.ArgumentDefined("align"))
+      GetShapeArgument(align_, spec, "align", ws);
 
     if (shape_.empty())
       shape_ = uniform_list_shape(nsamples, TensorShape<>(std::vector<int64_t>(axes_.size(), -1)));
