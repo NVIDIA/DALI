@@ -20,7 +20,7 @@ import threading
 import warnings
 from nvidia.dali import backend as _b
 from nvidia.dali.types import \
-        _type_name_convert_to_string, _type_convert_value, \
+        _type_name_convert_to_string, _type_convert_value, _default_converter, \
         _vector_element_type, _bool_types, _int_types, _int_like_types, _float_types, \
         DALIDataType, \
         CUDAStream as _CUDAStream, \
@@ -71,7 +71,7 @@ def _get_kwargs(schema, only_tensor = False):
                 if schema.HasArgumentDefaultValue(arg):
                     default_value_string = schema.GetArgumentDefaultValueString(arg)
                     default_value = eval(default_value_string)
-                    type_name += ", default = {}".format(repr(_type_convert_value(dtype, default_value)))
+                    type_name += ", default = {}".format(_default_converter(dtype, default_value))
             doc = schema.GetArgumentDox(arg)
             ret += _numpydoc_formatter(arg, type_name, doc)
             ret += '\n'
@@ -207,7 +207,8 @@ def _docstring_generator_call(op_name):
     elif schema.CanUseAutoInputDox():
         ret = _docstring_prefix_auto(op_name)
     else:
-        ret = "See :meth:`nvidia.dali.ops." + op_name + "` class for complete information.\n"
+        op_full_name, _, _ = _process_op_name(op_name)
+        ret = "See :meth:`nvidia.dali.ops." + op_full_name + "` class for complete information.\n"
     if schema.AppendKwargsSection():
         # Kwargs section
         tensor_kwargs = _get_kwargs(schema, only_tensor = True)
@@ -599,6 +600,7 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
     # The autodoc doesn't generate doc for something that doesn't match the module name
+    # TODO(klecki): For some reason it's no longer working
     schema = _b.GetSchema(Operator.schema_name)
     if schema.IsInternal() or schema.IsDocHidden():
         Operator.__module__ = Operator.__module__ + ".internal"

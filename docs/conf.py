@@ -17,6 +17,7 @@ import os
 import sys
 import sphinx_rtd_theme
 from sphinx.ext.autodoc.mock import mock
+from sphinx.ext.autodoc import between
 from builtins import str
 import re
 import subprocess
@@ -242,3 +243,7 @@ def setup(app):
     count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
+    # Register a sphinx.ext.autodoc.between listener to ignore everything
+    # between lines that contain the word <SPHINX_IGNORE>
+    app.connect('autodoc-process-docstring', between('^.*<SPHINX_IGNORE>.*$', exclude=True))
+    return app

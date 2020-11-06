@@ -10,7 +10,7 @@ ops_modules = {
 }
 
 exclude_ops_members = {
-    'nvidia.dali.ops': ["PythonFunctionBase"]
+    'nvidia.dali.ops': ["PythonFunctionBase", "TransformTranslation"]
 }
 
 fn_modules = {
@@ -18,6 +18,7 @@ fn_modules = {
 }
 
 exclude_fn_members = {
+    'nvidia.dali.fn': ["transform_translation"]
 }
 
 def op_autodoc(out_filename):
@@ -31,8 +32,8 @@ def op_autodoc(out_filename):
                 s += "   :members:\n"
                 s += "   :special-members: __call__\n"
                 if module in exclude_ops_members:
-                    for excluded in exclude_ops_members[module]:
-                        s += "   :exclude-members: {}\n".format(excluded)
+                    excluded = exclude_ops_members[module]
+                    s += "   :exclude-members: {}\n".format(", ".join(excluded))
                 s += "\n"
     with open(out_filename, 'w') as f:
         f.write(s)
@@ -46,8 +47,8 @@ def fn_autodoc(out_filename):
                 s += "   :members:\n"
                 s += "   :undoc-members:\n"
                 if module in exclude_fn_members:
-                    for excluded in exclude_fn_members[module]:
-                        s += "   :exclude-members: {}\n".format(excluded)
+                    excluded = exclude_fn_members[module]
+                    s += "   :exclude-members: {}\n".format(", ".join(excluded))
                 s += "\n"
     with open(out_filename, 'w') as f:
         f.write(s)

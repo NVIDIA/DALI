@@ -93,6 +93,13 @@ def _vector_element_type(dtype):
         raise RuntimeError(str(dtype) + " is not a vector type.")
     return _vector_types[dtype]
 
+def _default_converter(dtype, default_value):
+    if dtype in _enum_types:
+        return str(_type_convert_value(dtype, default_value))
+    else:
+        return repr(_type_convert_value(dtype, default_value))
+
+
 @unique
 class PipelineAPIType(Enum):
     """Pipeline API type
@@ -119,6 +126,8 @@ _float_types = [DALIDataType.FLOAT16, DALIDataType.FLOAT, DALIDataType.FLOAT64]
 
 _int_like_types = _bool_types + _int_types
 _all_types = _bool_types + _int_types + _float_types
+
+_enum_types = [DALIDataType.IMAGE_TYPE, DALIDataType.DATA_TYPE, DALIDataType.INTERP_TYPE]
 
 
 class ScalarConstant(object):

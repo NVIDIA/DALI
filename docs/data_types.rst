@@ -68,18 +68,21 @@ DALIDataType
 .. autoclass:: DALIDataType
    :members:
    :undoc-members:
+   :exclude-members: name
 
 DALIIterpType
 ^^^^^^^^^^^^^
 .. autoclass:: DALIInterpType
    :members:
    :undoc-members:
+   :exclude-members: name
 
 DALIImageType
 ^^^^^^^^^^^^^
 .. autoclass:: DALIImageType
    :members:
    :undoc-members:
+   :exclude-members: name
 
 TensorLayout
 ^^^^^^^^^^^^
