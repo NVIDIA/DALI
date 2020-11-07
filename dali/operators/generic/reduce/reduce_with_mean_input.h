@@ -116,7 +116,12 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
             make_cspan(axes_),
             mean_sample_view,
             ddof_);
-          kmgr_.Run<Kernel>(thread_id, thread_id, ctx);
+          if (!has_empty_axes_arg_) {
+            kmgr_.Run<Kernel>(thread_id, thread_id, ctx);
+          } else {
+            OutputType *data = out_sample_view.data;
+            std::fill(data, data + out_sample_view.num_elements(), 0);
+          }
         },
         priority);
     }
@@ -147,7 +152,18 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
       make_cspan(axes_),
       keep_dims_,
       false);
-    kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, mean_view, ddof_);
+    if (!has_empty_axes_arg_) {
+      kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, mean_view, ddof_);
+    } else {
+      for (int i = 0; i < out_view.num_samples(); ++i) {
+        auto out_sample_view = out_view[i];
+        CUDA_CALL(cudaMemsetAsync(
+          out_sample_view.data,
+          0,
+          out_sample_view.num_elements()*sizeof(OutputType),
+          ws.stream()));
+      }
+    }
   }
 
  private:

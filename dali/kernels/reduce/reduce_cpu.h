@@ -168,7 +168,11 @@ struct ReduceBaseCPU {
   void Run(bool clear = true, bool postprocess = true) {
     SmallVector<int64_t, 6> pos;
     pos.resize(output.dim());
-    ReduceAxis(clear, make_span(pos), 0, 0);
+    if (axes.size() == 0) {
+      ReduceForEmptyAxes(make_span(pos));
+    } else {
+      ReduceAxis(clear, make_span(pos), 0, 0);
+    }
     if (postprocess)
       This().PostprocessAll();
   }
@@ -219,6 +223,17 @@ struct ReduceBaseCPU {
         pos[axis] = i;
         ReduceAxis(clear, pos, axis+1, offset + i*step[axis]);
       }
+    }
+  }
+
+  void ReduceForEmptyAxes(span<int64_t> pos) {
+    auto R = This().GetReduction();
+    auto P = This().GetPreprocessor(pos);
+    Dst neutral = R.template neutral<Dst>();
+    for (int64_t i = 0; i < output.num_elements(); i++) {
+      Dst preprocessed = P(input.data[i]);
+      R(preprocessed, neutral);
+      output.data[i] = preprocessed;
     }
   }
 

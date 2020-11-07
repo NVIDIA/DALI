@@ -23,16 +23,16 @@
 namespace dali {
 
 DALI_SCHEMA(ReduceBase)
-  .AddOptionalArg(
+  .AddOptionalArg<std::vector<int>>(
     "axes",
     R"code(Axis or axes along which reduction is performed.
 
 Not providing any axis results in reduction of all elements.)code",
-    std::vector<int>{ })
-  .AddOptionalArg("axis_names", R"code(Axis or axes along which reduction is performed, given by name.
+   nullptr)
+  .AddOptionalArg<TensorLayout>("axis_names", R"code(Axis or axes along which reduction is performed, given by name.
 
 Axis indices are taken from the input layout. This argument cannot be used with ``axes``.)code",
-    TensorLayout(""))
+    nullptr)
   .AddOptionalArg(
     "keep_dims",
     "If True, maintains original input dimensions.",

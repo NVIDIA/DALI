@@ -33,32 +33,30 @@ namespace detail {
 class AxesHelper {
  public:
   explicit inline AxesHelper(const OpSpec &spec) {
-    const bool has_axes_arg = spec.HasArgument("axes");
-    const bool has_axis_names_arg = spec.HasArgument("axis_names");
+    has_axes_arg_ = spec.TryGetRepeatedArgument(axes_, "axes");
+    has_axis_names_arg_ = spec.TryGetArgument(axis_names_, "axis_names");
+    has_empty_axes_arg_ =
+      (has_axes_arg_ && (axes_.size() == 0)) || (has_axis_names_arg_ && axis_names_.empty());
 
-    DALI_ENFORCE(!has_axes_arg || !has_axis_names_arg,
+    DALI_ENFORCE(!has_axes_arg_ || !has_axis_names_arg_,
       "Arguments `axes` and `axis_names` are mutually exclusive");
-
-    if (has_axis_names_arg || !has_axes_arg) {
-      axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
-      axes_ = {};
-    } else {
-      axes_ = spec.GetRepeatedArgument<int>("axes");
-      axis_names_ = TensorLayout{};
-    }
   }
 
   void PrepareAxes(const TensorLayout &layout, int sample_dim) {
-    if (!axis_names_.empty()) {
+    if (has_axis_names_arg_) {
       axes_ = GetDimIndices(layout, axis_names_).to_vector();
+      return;
     }
 
-    if (axes_.size() == 0) {
+    if (!has_axes_arg_) {
       axes_.resize(sample_dim);
       std::iota(axes_.begin(), axes_.end(), 0);
     }
   }
 
+  bool has_axes_arg_;
+  bool has_axis_names_arg_;
+  bool has_empty_axes_arg_;
   vector<int> axes_;
   TensorLayout axis_names_;
 };
