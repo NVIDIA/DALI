@@ -67,7 +67,6 @@ class OneHotCPU : public OneHot<CPUBackend> {
       : OneHot<CPUBackend>(spec) {}
 
   ~OneHotCPU() override = default;
-  DISABLE_COPY_MOVE_ASSIGN(OneHotCPU);
 
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 

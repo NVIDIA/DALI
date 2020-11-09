@@ -25,7 +25,6 @@ class OneHotGPU : public OneHot<GPUBackend> {
   }
 
   ~OneHotGPU() override = default;
-  DISABLE_COPY_MOVE_ASSIGN(OneHotGPU);
 
   USE_OPERATOR_MEMBERS();
 
