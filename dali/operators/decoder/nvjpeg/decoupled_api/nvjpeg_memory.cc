@@ -212,9 +212,14 @@ static int DeviceNew(void **ptr, size_t size) {
   try {
     *ptr = GetBuffer(std::this_thread::get_id(), AllocType::GPU, size);
     return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
-  } catch (...) {
+  } catch (const std::bad_alloc &) {
     *ptr = nullptr;
     return cudaErrorMemoryAllocation;
+  } catch (const CUDAError &e) {
+    return e.is_rt_api() ? e.rt_error() : cudaErrorUnknown;
+  } catch (...) {
+    *ptr = nullptr;
+    return cudaErrorUnknown;
   }
 }
 
@@ -227,9 +232,14 @@ static int PinnedNew(void **ptr, size_t size, unsigned int flags) {
   try {
     *ptr = GetBuffer(std::this_thread::get_id(), AllocType::Pinned, size);
     return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
-  } catch (...) {
+  } catch (const std::bad_alloc &) {
     *ptr = nullptr;
     return cudaErrorMemoryAllocation;
+  } catch (const CUDAError &e) {
+    return e.is_rt_api() ? e.rt_error() : cudaErrorUnknown;
+  } catch (...) {
+    *ptr = nullptr;
+    return cudaErrorUnknown;
   }
 }
 
