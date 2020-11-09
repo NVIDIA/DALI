@@ -65,14 +65,17 @@ def random_scalar_like_tensors_batch(nested_level):
 
 
 class OneHotPipeline(Pipeline):
-    def __init__(self, num_classes, source, axis=-1, num_threads=1, layout=None, axis_name=None):
+    def __init__(self, num_classes, source, axis=-1, num_threads=1, layout=None, axis_name=None, device='cpu'):
         super(OneHotPipeline, self).__init__(batch_size, num_threads, 0)
+        self.is_gpu = device == 'gpu'
         self.ext_src = ops.ExternalSource(source=source, layout=layout)
         self.one_hot = ops.OneHot(num_classes=num_classes, axis=axis,
-                                  dtype=types.INT32, device="cpu", axis_name=axis_name)
+                                  dtype=types.INT32, device=device, axis_name=axis_name)
 
     def define_graph(self):
         self.data = self.ext_src()
+        if self.is_gpu:
+            self.data = self.data.gpu()
         return self.one_hot(self.data), self.data
 
 
@@ -103,12 +106,14 @@ def one_hot(input):
     return outp
 
 
-def check_one_hot_operator(source, axis=-1, expected_output_dim=None, axis_name=None, initial_layout=None):
+def check_one_hot_operator(source, device='cpu', axis=-1, expected_output_dim=None, axis_name=None, initial_layout=None):
     pipeline = OneHotPipeline(
         num_classes=num_classes, source=source, axis=axis,
-        layout=initial_layout, axis_name=axis_name)
+        layout=initial_layout, axis_name=axis_name, device=device)
     pipeline.build()
     (outputs, input_batch) = pipeline.run()
+    if device == 'gpu':
+        input_batch = input_batch.as_cpu()
     input_batch = list(map(np.array, input_batch))
     expected_output_dim = expected_output_dim or len(input_batch[0].shape) + 1
     reference = one_hot_3_axes(
@@ -121,27 +126,28 @@ def check_one_hot_operator(source, axis=-1, expected_output_dim=None, axis_name=
 
 def test_one_hot_scalar():
     np.random.seed(42)
-    for i in range(10):
-        yield partial(check_one_hot_operator, random_scalars_batch, axis_name='O')
+    for device in ['cpu', 'gpu']:
+        for i in range(10):
+            yield partial(check_one_hot_operator, axis_name='O'), random_scalars_batch, device
 
 
 def test_one_hot_legacy():
     np.random.seed(42)
-    for j in range(1, 5):  # test 1..4 levels of nested 'multi-dimensional' scalars
-        layout = get_initial_layout(j)
-        for i in range(5):
-            def random_scalar_like_tensors(): return random_scalar_like_tensors_batch(j)
-            yield partial(check_one_hot_operator, random_scalar_like_tensors, axis=None,
-                          axis_name='O', expected_output_dim=1, initial_layout=layout)
+    for device in ['cpu', 'gpu']:
+        for j in range(1, 5):  # test 1..4 levels of nested 'multi-dimensional' scalars
+            layout = get_initial_layout(j)
+            for i in range(5):
+                def random_scalar_like_tensors(): return random_scalar_like_tensors_batch(j)
+                yield partial(check_one_hot_operator, axis=None, axis_name='O', expected_output_dim=1, initial_layout=layout), random_scalar_like_tensors, device
 
 
 def test_one_hot():
     np.random.seed(42)
-    layout = get_initial_layout(3)
-    for i in range(10):
-        for axis in [-1, 0, 1, 2, 3]:
-            yield partial(check_one_hot_operator, random_3d_tensors_batch,
-                          axis, axis_name='O', initial_layout=layout)
+    for device in ['cpu', 'gpu']:
+        layout = get_initial_layout(3)
+        for i in range(10):
+            for axis in [-1, 0, 1, 2, 3]:
+                yield partial(check_one_hot_operator, axis_name='O', initial_layout=layout), random_3d_tensors_batch, device, axis
 
 
 def test_multi_dim_one_hot_no_initial_layout():
