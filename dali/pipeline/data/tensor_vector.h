@@ -105,6 +105,18 @@ class DLL_PUBLIC TensorVector {
 
   TensorListShape<> shape() const;
 
+  TensorShape<> tensor_shape(int idx) const {
+    assert(state_ == State::contiguous && curr_tensors_size_ == views_count_ ||
+           state_ == State::noncontiguous);
+    return tensors_[idx]->shape();
+  }
+
+  const void *raw_tensor(int idx) const {
+    assert(state_ == State::contiguous && curr_tensors_size_ == views_count_ ||
+           state_ == State::noncontiguous);
+    return tensors_[idx]->raw_data();
+  }
+
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape) {
     return Resize(new_shape, type());
   }

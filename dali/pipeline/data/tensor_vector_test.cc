@@ -143,37 +143,6 @@ TYPED_TEST(TensorVectorSuite, VariableBatchResizeUp) {
 
 namespace {
 
-template <typename T>
-TensorShape<> get_shape(const T &, int) {
-  assert(false);
-  return {};  // To please the compiler
-}
-
-template <>
-TensorShape<> get_shape<TensorList<CPUBackend>>(const TensorList<CPUBackend> &tl, int idx) {
-  return tl.tensor_shape(idx);
-}
-template <>
-TensorShape<> get_shape<TensorVector<CPUBackend>>(const TensorVector<CPUBackend> &tv, int idx) {
-  return tv.shape()[idx];
-}
-
-template <typename T>
-const char *get_ptr(const T &, int) {
-  assert(false);
-  return nullptr;  // To please the compiler
-}
-
-template <>
-const char *get_ptr<TensorList<CPUBackend>>(const TensorList<CPUBackend> &tl, int idx) {
-  return reinterpret_cast<const char *>(tl.raw_tensor(idx));
-}
-
-template <>
-const char *get_ptr<TensorVector<CPUBackend>>(const TensorVector<CPUBackend> &tv, int idx) {
-  return reinterpret_cast<const char *>(tv[idx].raw_data());
-}
-
 /**
  * GTest predicate formatter. Compares a batch of data contained in TensorList or TensorVector
  * @tparam T TensorList<CPUBackend> or TensorVector<CPUBackend>
@@ -188,13 +157,13 @@ template <typename T, typename U>
                                                  "] Inconsistent number of tensors");
   }
   for (size_t tensor_idx = 0; tensor_idx < rhs.ntensor(); tensor_idx++) {
-    if (get_shape(rhs, tensor_idx) != get_shape(lhs, tensor_idx)) {
+    if (rhs.tensor_shape(tensor_idx) != lhs.tensor_shape(tensor_idx)) {
       ::testing::AssertionFailure()
           << make_string("[Testing: ", testing_values, "] Inconsistent shapes");
     }
-    auto vol = volume(get_shape(rhs, tensor_idx));
-    auto lptr = get_ptr(lhs, tensor_idx);
-    auto rptr = get_ptr(rhs, tensor_idx);
+    auto vol = volume(rhs.tensor_shape(tensor_idx));
+    auto lptr = reinterpret_cast<const char*>(lhs.raw_tensor(tensor_idx));
+    auto rptr = reinterpret_cast<const char*>(rhs.raw_tensor(tensor_idx));
     for (int i = 0; i < vol; i++) {
       if (rptr[i] != lptr[i]) {
         return ::testing::AssertionFailure()
@@ -241,8 +210,8 @@ class TensorVectorVariableBatchSizeTest : public ::testing::Test {
 
 TEST_F(TensorVectorVariableBatchSizeTest, SelfTest) {
   for (int i = 0; i < shape_.num_samples(); i++) {
-    EXPECT_EQ(get_shape(test_tv_, i), shape_[i]);
-    EXPECT_EQ(get_shape(test_tl_, i), shape_[i]);
+    EXPECT_EQ(test_tv_.tensor_shape(i), shape_[i]);
+    EXPECT_EQ(test_tl_.tensor_shape(i), shape_[i]);
   }
   EXPECT_PRED_FORMAT2(Compare, test_tv_, test_tv_);
   EXPECT_PRED_FORMAT2(Compare, test_tl_, test_tl_);

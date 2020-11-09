@@ -422,7 +422,7 @@ void TensorVector<Backend>::update_view(int idx) {
 
   auto *ptr = tl_->raw_mutable_tensor(idx);
 
-  TensorShape<> shape = tl_->shape()[idx];
+  TensorShape<> shape = tl_->tensor_shape(idx);
 
   tensors_[idx]->Reset();
   // TODO(klecki): deleter that reduces views_count or just noop sharing?
