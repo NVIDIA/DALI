@@ -22,6 +22,6 @@
 #define NVCUVID_API_EXISTS(arg) (cuvidIsSymbolAvailable(#arg))
 
 bool cuvidInitChecked(unsigned int Flags);
-bool cuvidIsSymbolAvailable(const std::string &name);
+bool cuvidIsSymbolAvailable(const char *name);
 
 #endif // DALI_OPERATORS_READER_NVDECODER_DYNLINK_NVCUVID_H_

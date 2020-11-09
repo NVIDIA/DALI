@@ -45,10 +45,10 @@ DLLDRIVER loadNvcuvidLibrary() {
   return ret;
 }
 
-void *LoadSymbol(const std::string &name) {
-  void *ret = nvcuvidDrvLib ? dlsym(nvcuvidDrvLib, name.c_str()) : nullptr;
+void *LoadSymbol(const char *name) {
+  void *ret = nvcuvidDrvLib ? dlsym(nvcuvidDrvLib, name) : nullptr;
   if (!ret) {
-    printf("Failed to find required function \"%s\" in %s\n", name.c_str(), __DriverLibName);
+    printf("Failed to find required function \"%s\" in %s\n", name, __DriverLibName);
   }
   return ret;
 }
@@ -56,7 +56,7 @@ void *LoadSymbol(const std::string &name) {
 }
 
 // it is defined in the generated file
-typedef void *tLoadSymbol(const std::string &name);
+typedef void *tLoadSymbol(const char *name);
 void NvcuvidSetSymbolLoader(tLoadSymbol loader_func);
 
 bool cuvidInitChecked(unsigned int Flags) {
@@ -72,13 +72,15 @@ bool cuvidInitChecked(unsigned int Flags) {
   return true;
 }
 
-bool cuvidIsSymbolAvailable(const std::string &name) {
+bool cuvidIsSymbolAvailable(const char *name) {
   static std::mutex symbol_mutex;
   static std::unordered_map<std::string, void*> symbol_map;
   std::lock_guard<std::mutex> lock(symbol_mutex);
   auto it = symbol_map.find(name);
   if (it == symbol_map.end()) {
-    symbol_map.insert({name, LoadSymbol(name)});
+    auto *ptr = LoadSymbol(name);
+    symbol_map.insert({name, ptr});
+    return ptr != nullptr;
   }
-  return symbol_map[name] != nullptr;
+  return it->second != nullptr;
 }

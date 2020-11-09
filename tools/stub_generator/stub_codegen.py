@@ -42,16 +42,20 @@ def main():
   config = json.load(args.input)
 
   function_impl = """
-{0}
-{{
+{return_type} %s {1}NotFound({2}) {{
+  return {not_found_error};
+}}
+
+{0} {{
   using FuncPtr = {return_type} (%s *)({2});
-  static auto func_ptr = reinterpret_cast<FuncPtr>(load_symbol_func("{1}"));
-  if (!func_ptr) return {not_found_error};
+  static auto func_ptr = reinterpret_cast<FuncPtr>(load_symbol_func("{1}")) ?
+                           reinterpret_cast<FuncPtr>(load_symbol_func("{1}")) :
+                           {1}NotFound;
   return func_ptr({3});
-}}\n""" % ('CUDAAPI')
+}}\n""" % ('CUDAAPI', 'CUDAAPI')
 
   prolog = """
-typedef void *tLoadSymbol(const std::string &name);
+typedef void *tLoadSymbol(const char *name);
 
 static tLoadSymbol *load_symbol_func;
 
@@ -104,7 +108,7 @@ void {0}SetSymbolLoader(tLoadSymbol *loader_func) {{
     arg_names = [arg.spelling for arg in cursor.get_arguments()]
     return_type = config['functions'][cursor.spelling].get('return_type', config['return_type'])
     not_found_error = config['functions'][cursor.spelling].get('not_found_error', config['not_found_error'])
-    implementation = function_impl.format( declaration, cursor.spelling, ', '.join(arg_types),
+    implementation = function_impl.format(declaration, cursor.spelling, ', '.join(arg_types),
                                           ', '.join(arg_names), return_type=return_type,
                                           not_found_error=not_found_error,)
 

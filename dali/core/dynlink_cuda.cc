@@ -41,11 +41,11 @@ CUDADRIVER loadCudaLibrary() {
   return ret;
 }
 
-void *LoadSymbol(const std::string &name) {
+void *LoadSymbol(const char *name) {
   static CUDADRIVER cudaDrvLib = loadCudaLibrary();
-  void *ret = cudaDrvLib ? dlsym(cudaDrvLib, name.c_str()) : nullptr;
+  void *ret = cudaDrvLib ? dlsym(cudaDrvLib, name) : nullptr;
   if (!ret) {
-    printf("Failed to find required function \"%s\" in %s\n", name.c_str(), __CudaLibName);
+    printf("Failed to find required function \"%s\" in %s\n", name, __CudaLibName);
   }
   return ret;
 }
@@ -53,7 +53,7 @@ void *LoadSymbol(const std::string &name) {
 } // namespace
 
 // it is defined in the generated file
-typedef void *tLoadSymbol(const std::string &name);
+typedef void *tLoadSymbol(const char *name);
 void CudaSetSymbolLoader(tLoadSymbol loader_func);
 
 bool cuInitChecked() {
