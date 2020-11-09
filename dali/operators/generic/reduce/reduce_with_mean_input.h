@@ -19,6 +19,7 @@
 #include <algorithm>
 
 #include "dali/pipeline/operator/operator.h"
+#include "dali/operators/generic/reduce/reduce.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_cpu.h"
@@ -32,11 +33,11 @@ namespace dali {
 template <
   template <typename T, typename R, typename S> class ReductionType,
   typename Backend>
-class ReduceWithMeanInput : public Operator<Backend> {
+class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
  public:
   explicit inline ReduceWithMeanInput(const OpSpec &spec) :
     Operator<Backend>(spec),
-    axes_(spec.GetRepeatedArgument<int>("axes")),
+    AxesHelper(spec),
     keep_dims_(spec.GetArgument<bool>("keep_dims")),
     ddof_(spec.GetArgument<int>("ddof")) {
   }
@@ -53,10 +54,7 @@ class ReduceWithMeanInput : public Operator<Backend> {
     output_desc[0].type = dali::TypeTable::GetTypeInfoFromStatic<float>();
     output_desc[0].shape = input.shape();
 
-    if (axes_.size() == 0) {
-      axes_.resize(input.shape().sample_dim());
-      std::iota(axes_.begin(), axes_.end(), 0);
-    }
+    PrepareAxes(input.GetLayout(), input.shape().sample_dim());
 
     TensorListShape<> output_shape;
     kernels::reduce_impl::CalculateReducedShape(
@@ -118,7 +116,12 @@ class ReduceWithMeanInput : public Operator<Backend> {
             make_cspan(axes_),
             mean_sample_view,
             ddof_);
-          kmgr_.Run<Kernel>(thread_id, thread_id, ctx);
+          if (!has_empty_axes_arg_) {
+            kmgr_.Run<Kernel>(thread_id, thread_id, ctx);
+          } else {
+            OutputType *data = out_sample_view.data;
+            std::fill(data, data + out_sample_view.num_elements(), 0);
+          }
         },
         priority);
     }
@@ -149,13 +152,23 @@ class ReduceWithMeanInput : public Operator<Backend> {
       make_cspan(axes_),
       keep_dims_,
       false);
-    kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, mean_view, ddof_);
+    if (!has_empty_axes_arg_) {
+      kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, mean_view, ddof_);
+    } else {
+      for (int i = 0; i < out_view.num_samples(); ++i) {
+        auto out_sample_view = out_view[i];
+        CUDA_CALL(cudaMemsetAsync(
+          out_sample_view.data,
+          0,
+          out_sample_view.num_elements()*sizeof(OutputType),
+          ws.stream()));
+      }
+    }
   }
 
  private:
   USE_OPERATOR_MEMBERS();
 
-  vector<int> axes_;
   bool keep_dims_;
   int ddof_;
   kernels::KernelManager kmgr_;
