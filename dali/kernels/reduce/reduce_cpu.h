@@ -227,12 +227,9 @@ struct ReduceBaseCPU {
   }
 
   void ReduceForEmptyAxes(span<int64_t> pos) {
-    auto R = This().GetReduction();
     auto P = This().GetPreprocessor(pos);
-    Dst neutral = R.template neutral<Dst>();
     for (int64_t i = 0; i < output.num_elements(); i++) {
       Dst preprocessed = P(input.data[i]);
-      R(preprocessed, neutral);
       output.data[i] = preprocessed;
     }
   }
