@@ -65,21 +65,22 @@ Enums
 
 DALIDataType
 ^^^^^^^^^^^^
-.. autoclass:: DALIDataType
+.. autoenum:: DALIDataType
    :members:
    :undoc-members:
+   :member-order: bysource
    :exclude-members: name
 
 DALIIterpType
 ^^^^^^^^^^^^^
-.. autoclass:: DALIInterpType
+.. autoenum:: DALIInterpType
    :members:
    :undoc-members:
    :exclude-members: name
 
 DALIImageType
 ^^^^^^^^^^^^^
-.. autoclass:: DALIImageType
+.. autoenum:: DALIImageType
    :members:
    :undoc-members:
    :exclude-members: name
@@ -92,7 +93,7 @@ TensorLayout
 
 PipelineAPIType
 ^^^^^^^^^^^^^^^
-.. autoclass:: PipelineAPIType
+.. autoenum:: PipelineAPIType
    :members:
    :undoc-members:
 
