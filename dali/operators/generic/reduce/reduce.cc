@@ -29,9 +29,10 @@ DALI_SCHEMA(ReduceBase)
 
 Not providing any axis results in reduction of all elements.)code",
    nullptr)
-  .AddOptionalArg<TensorLayout>("axis_names", R"code(Axis or axes along which reduction is performed, given by name.
+  .AddOptionalArg<TensorLayout>("axis_names", R"code(Name(s) of the axis or axes along which the reduction is performed.
 
-Axis indices are taken from the input layout. This argument cannot be used with ``axes``.)code",
+The input layout is used to translate the axis names to axis indices, for example ``axis_names="HW"`` with input
+layout `"FHWC"` is equivalent to specifying ``axes=[1,2]``. This argument cannot be used together with ``axes``.)code",
     nullptr)
   .AddOptionalArg(
     "keep_dims",

@@ -36,7 +36,7 @@ class AxesHelper {
     has_axes_arg_ = spec.TryGetRepeatedArgument(axes_, "axes");
     has_axis_names_arg_ = spec.TryGetArgument(axis_names_, "axis_names");
     has_empty_axes_arg_ =
-      (has_axes_arg_ && (axes_.size() == 0)) || (has_axis_names_arg_ && axis_names_.empty());
+      (has_axes_arg_ && axes_.empty()) || (has_axis_names_arg_ && axis_names_.empty());
 
     DALI_ENFORCE(!has_axes_arg_ || !has_axis_names_arg_,
       "Arguments `axes` and `axis_names` are mutually exclusive");

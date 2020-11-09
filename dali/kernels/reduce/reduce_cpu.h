@@ -168,7 +168,7 @@ struct ReduceBaseCPU {
   void Run(bool clear = true, bool postprocess = true) {
     SmallVector<int64_t, 6> pos;
     pos.resize(output.dim());
-    if (axes.size() == 0) {
+    if (axes.empty()) {
       ReduceForEmptyAxes(make_span(pos));
     } else {
       ReduceAxis(clear, make_span(pos), 0, 0);
