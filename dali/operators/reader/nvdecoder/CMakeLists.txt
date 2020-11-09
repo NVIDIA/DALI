@@ -45,26 +45,5 @@ add_custom_command(
 
 set_source_files_properties(${NVCUVID_GENERATED_STUB} PROPERTIES GENERATED TRUE)
 
-# there is a one cuvidGetVideoSourceState function that doesn't follow the returned value convention
-# so need a dedicated stub for it
-set(NVCUVID_2_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_nvcuvid_2_gen.cc")
-add_custom_command(
-    OUTPUT ${NVCUVID_2_GENERATED_STUB}
-    COMMAND python ${CMAKE_SOURCE_DIR}/tools/stub_generator/stub_codegen.py --unique_prefix=Nvcuvid_2 --
-                "${CMAKE_SOURCE_DIR}/tools/stub_generator/nvcuvid_2.json" ${NVCUVID_2_GENERATED_STUB}
-                "${CMAKE_CURRENT_SOURCE_DIR}/nvcuvid.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
-                "-I${CMAKE_SOURCE_DIR}/include" "-I${CMAKE_SOURCE_DIR}"
-                # for some reason QNX fails with 'too many errors emitted' is this is not set
-                "-ferror-limit=0"
-                ${DEFAULT_COMPILER_INCLUDE}
-    DEPENDS ${CMAKE_SOURCE_DIR}/tools/stub_generator/stub_codegen.py
-            "${CMAKE_CURRENT_SOURCE_DIR}/nvcuvid.h"
-            "${CMAKE_CURRENT_SOURCE_DIR}/cuviddec.h"
-            "${CMAKE_SOURCE_DIR}/tools/stub_generator/nvcuvid_2.json"
-    COMMENT "Running nvcuvid_2.h stub generator"
-    VERBATIM)
-
-set_source_files_properties(${NVCUVID_2_GENERATED_STUB} PROPERTIES GENERATED TRUE)
-
 # create a obj lib which need to be linked latter with the target
-add_library(NVCUVID_GEN OBJECT ${NVCUVID_GENERATED_STUB} ${NVCUVID_2_GENERATED_STUB})
+add_library(NVCUVID_GEN OBJECT ${NVCUVID_GENERATED_STUB})

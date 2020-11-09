@@ -58,7 +58,6 @@ void *LoadSymbol(const std::string &name) {
 // it is defined in the generated file
 typedef void *tLoadSymbol(const std::string &name);
 void NvcuvidSetSymbolLoader(tLoadSymbol loader_func);
-void Nvcuvid_2SetSymbolLoader(tLoadSymbol loader_func);
 
 bool cuvidInitChecked(unsigned int Flags) {
   {
@@ -67,7 +66,6 @@ bool cuvidInitChecked(unsigned int Flags) {
       nvcuvidDrvLib = loadNvcuvidLibrary();
       // set symbol loader for this library
       NvcuvidSetSymbolLoader(LoadSymbol);
-      Nvcuvid_2SetSymbolLoader(LoadSymbol);
     }
   }
 

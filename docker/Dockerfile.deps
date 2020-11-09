@@ -115,7 +115,7 @@ RUN OPENCV_VERSION=4.4.0 && \
     rm -rf /opencv-${OPENCV_VERSION}
 
 # Clang, but only for x86_64
-RUN RUN if [ "$(uname -m)" == "x86_64" ]; then \
+RUN if [ "$(uname -m)" == "x86_64" ]; then \
         CLANG_VERSION=10.0.0 && \
         cd /usr/local && \
         wget https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz && \

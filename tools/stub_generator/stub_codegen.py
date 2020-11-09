@@ -44,11 +44,11 @@ def main():
   function_impl = """
 {0}
 {{
-  using FuncPtr = %s (%s *)({2});
+  using FuncPtr = {return_type} (%s *)({2});
   static auto func_ptr = reinterpret_cast<FuncPtr>(load_symbol_func("{1}"));
-  if (!func_ptr) return %s;
+  if (!func_ptr) return {not_found_error};
   return func_ptr({3});
-}}\n""" % (config['return_type'], 'CUDAAPI', config['not_found_error'])
+}}\n""" % ('CUDAAPI')
 
   prolog = """
 typedef void *tLoadSymbol(const std::string &name);
@@ -102,8 +102,11 @@ void {0}SetSymbolLoader(tLoadSymbol *loader_func) {{
 
     arg_types = [arg.type.spelling for arg in cursor.get_arguments()]
     arg_names = [arg.spelling for arg in cursor.get_arguments()]
-    implementation = function_impl.format(declaration, cursor.spelling, ', '.join(arg_types),
-                                          ', '.join(arg_names))
+    return_type = config['functions'][cursor.spelling].get('return_type', config['return_type'])
+    not_found_error = config['functions'][cursor.spelling].get('not_found_error', config['not_found_error'])
+    implementation = function_impl.format( declaration, cursor.spelling, ', '.join(arg_types),
+                                          ', '.join(arg_names), return_type=return_type,
+                                          not_found_error=not_found_error,)
 
     args.output.write(implementation)
 
