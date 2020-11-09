@@ -599,12 +599,6 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
-    # The autodoc doesn't generate doc for something that doesn't match the module name
-    # TODO(klecki): For some reason it's no longer working
-    schema = _b.GetSchema(Operator.schema_name)
-    if schema.IsInternal() or schema.IsDocHidden():
-        Operator.__module__ = Operator.__module__ + ".internal"
-
     Operator.__call__.__doc__ = _docstring_generator_call(Operator.schema_name)
     return Operator
 
