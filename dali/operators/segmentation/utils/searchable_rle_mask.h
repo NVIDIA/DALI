@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_SEGMENTATION_UTILS_SEARCHABLE_RLE_MASK_H_
 
 #include <algorithm>
+#include <utility>
 #include <vector>
 #include "dali/core/tensor_view.h"
 #include "dali/core/span.h"
@@ -30,24 +31,30 @@ namespace dali {
 class SearchableRLEMask {
  public:
   struct Group {
-    int64_t ith;    // The group begins with the i-th pixel
-    int64_t start;  // The group starts at this flat position
+    int64_t ith;    // The group begins with the i-th foreground pixel
+    int64_t start;  // The group starts at this flat index
+  };
+
+  struct is_positive {
+    template <typename T>
+    bool operator()(const T &value) const { return value > 0; }
   };
 
   /**
-   * @brief Any value above threshold is consider foreground
+   * @brief Construct a searchable RLE mask. ``predicate`` is used to
+   *        determine the mask values that are considered foreground
    */
-  template <typename T>
-  explicit SearchableRLEMask(span<const T> mask_view, T threshold = T(0)) {
+  template <typename T, typename Predicate = is_positive>
+  explicit SearchableRLEMask(span<const T> mask_view, Predicate &&is_foreground = {}) {
     int64_t idx = 0;
     int64_t sz = mask_view.size();
     while (idx < sz) {
-      while (idx < sz && mask_view[idx] <= threshold) {
+      while (idx < sz && !is_foreground(mask_view[idx])) {
         idx++;
       }
       if (idx < sz) {  // found a foreground pixel
         groups_.push_back({count_++, idx++});
-        while (idx < sz && mask_view[idx] > threshold) {
+        while (idx < sz && is_foreground(mask_view[idx])) {
           idx++;
           count_++;
         }
@@ -55,9 +62,10 @@ class SearchableRLEMask {
     }
   }
 
-  template <typename T>
-  explicit SearchableRLEMask(TensorView<StorageCPU, T> mask_view, T threshold = T(0))
-    : SearchableRLEMask(span<const T>{mask_view.data, volume(mask_view.shape)}, threshold) {}
+  template <typename T, typename Predicate = is_positive>
+  explicit SearchableRLEMask(TensorView<StorageCPU, T> mask_view, Predicate &&is_foreground = {})
+      : SearchableRLEMask(span<const T>{mask_view.data, volume(mask_view.shape)},
+                          std::forward<Predicate>(is_foreground)) {}
 
   /**
    * @brief Returns the position of the i-th foreground pixel.

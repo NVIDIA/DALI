@@ -100,14 +100,14 @@ TEST(SearchableRLEMask, handcrafted_mask2) {
 
 TEST(SearchableRLEMask, all_background) {
   std::vector<float> all_bg(10, 0.0f);
-  SearchableRLEMask all_bg_mask(make_cspan(all_bg), 0.0f);
+  SearchableRLEMask all_bg_mask(make_cspan(all_bg));
   ASSERT_EQ(0, all_bg_mask.count());
   ASSERT_EQ(-1, all_bg_mask.find(0));
 }
 
 TEST(SearchableRLEMask, all_foreground) {
   std::vector<float> all_fg(10, 1.0f);
-  SearchableRLEMask all_fg_mask(make_cspan(all_fg), 0.0f);
+  SearchableRLEMask all_fg_mask(make_cspan(all_fg));
   ASSERT_EQ(all_fg.size(), all_fg_mask.count());
   for (size_t i = 0; i < all_fg.size(); i++)
     ASSERT_EQ(i, all_fg_mask.find(i));
@@ -117,7 +117,7 @@ TEST(SearchableRLEMask, alternative_pattern) {
   std::vector<float> pattern(10, 0.0f);
   for (size_t i = 1; i < pattern.size(); i+=2)
     pattern[i] = 1.0f;
-  SearchableRLEMask pattern_mask(make_cspan(pattern), 0.0f);
+  SearchableRLEMask pattern_mask(make_cspan(pattern));
   ASSERT_EQ(pattern.size() / 2, pattern_mask.count());
   for (int i = 0; i < pattern_mask.count(); i++)
     ASSERT_EQ(2 * i + 1, pattern_mask.find(i));
