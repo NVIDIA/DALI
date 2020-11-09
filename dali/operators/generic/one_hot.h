@@ -138,11 +138,11 @@ class OneHot : public Operator<Backend> {
   }
 
   template <int ndims>
-  bool is_scalar(TensorShape<ndims> shape) {
+  bool is_scalar(const TensorShape<ndims> &shape) {
     return volume(shape) == 1;
   }
 
-  TensorShape<> determine_shape(TensorShape<> in_shape, int output_sample_dim) {
+  TensorShape<> determine_shape(const TensorShape<> &in_shape, int output_sample_dim) {
     if (output_sample_dim == 1) {
       return {num_classes_};
     }

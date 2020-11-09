@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <algorithm>
+#include "dali/core/util.h"
 
 namespace dali {
 
@@ -45,7 +46,7 @@ __global__ void PopulateOneHot(OutputType on_value, OutputType off_value,
 
 dim3 gridHelper(uint64_t output_vol, int batch_size, int block = 256,
                 uint64_t max_block_size = 65535) {
-  auto block_size = std::min((output_vol + (block - 1)) / block, max_block_size);
+  auto block_size = std::min(div_ceil(output_vol, block), max_block_size);
   return dim3(block_size, batch_size);
 }
 
