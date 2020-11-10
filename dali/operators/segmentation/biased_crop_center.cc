@@ -26,25 +26,38 @@
 namespace dali {
 
 DALI_SCHEMA(segmentation__BiasedCropCenter)
-    .DocStr(R"(Selects a cropping window center which can be selected randomly from either
-any position in the input or any position of a foreground pixel in the input, based on an
-``foreground`` argument, typically the result of a coin flip operation.
+    .DocStr(R"(Selects a cropping window center which can be selected randomly either
+at any position in the input or at the position of any nonzero pixel in the input,
+based on an ``nonzero`` argument, typically the result of a coin flip operation.
 
 The purpose of this operator is to obtain a distribution of cropping window centers that
-has a certain bias towards selecting a foreground pixel as a center.
+has a certain bias towards selecting a nonzero pixel as a center.
+
+The output of the operator can be used for cropping the images::
+
+    import nvidia.dali.fn as fn
+    shape = (height, width)
+    center = fn.biased_crop_center(mask, shape=shape)
+    anchor = center - shape // 2
+    cropped = fn.slice(image, anchor, shape, axis_names="HW")
+
+..note::
+
+    Since the centers are selected uniformly from all the available nonzero pixels, larger
+objects in the mask can be oversampled.
 )")
-    .AddOptionalArg("foreground",
-      R"code(If different than 0, the crop center is selected to match any of the foreground
+    .AddOptionalArg("nonzero",
+      R"code(If different than 0, the crop center is selected to match any of the nonzero
  pixels in the input mask. If 0, the crop center is selected randomly.)code",
       0, true)
     .AddOptionalArg<std::vector<int>>("shape",
       R"code(If specified, it represents the shape of the cropping window to be used,
 introducing restrictions to the range of valid crop centers.
 
-When foreground == 0, a random cropping center is selected so that the cropping window
+When nonzero == 0, a random cropping center is selected so that the cropping window
 is fully contained in the input.
 
-When foreground != 0, the cropping center is first picked to match any of the foreground
+When nonzero != 0, the cropping center is first picked to match any of the nonzero
 pixels in the input. If the selected crop center results in an out of bounds cropping window,
 the center is shifted as necessary so that the window remains within bounds.
 
@@ -66,9 +79,10 @@ class BiasedCropCenterCPU : public Operator<CPUBackend> {
   template <typename T>
   void RunImplTyped(workspace_t<CPUBackend> &ws);
 
-  std::mt19937_64 rng_;
+  int64_t seed_;
+  std::vector<std::mt19937_64> rng_;
 
-  std::vector<int> foreground_;
+  std::vector<int> nonzero_;
   TensorListShape<> crop_shape_;
 
   bool has_crop_shape_ = false;
@@ -77,7 +91,7 @@ class BiasedCropCenterCPU : public Operator<CPUBackend> {
 };
 
 BiasedCropCenterCPU::BiasedCropCenterCPU(const OpSpec &spec)
-    : Operator<CPUBackend>(spec), rng_(spec.GetArgument<int64_t>("seed")) {
+    : Operator<CPUBackend>(spec), seed_(spec.GetArgument<int64_t>("seed")) {
 }
 
 bool BiasedCropCenterCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -90,15 +104,15 @@ bool BiasedCropCenterCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc[0].shape = uniform_list_shape(nsamples, {ndim});
   output_desc[0].type = TypeTable::GetTypeInfo(DALI_INT64);
 
-  foreground_.clear();
-  if (spec_.HasTensorArgument("foreground")) {
-    foreground_.resize(nsamples);
-    const auto &foreground_arg_in = ws.ArgumentInput("foreground");
+  nonzero_.clear();
+  if (spec_.HasTensorArgument("nonzero")) {
+    nonzero_.resize(nsamples);
+    const auto &nonzero_arg_in = ws.ArgumentInput("nonzero");
     for (int i = 0; i < nsamples; i++) {
-      foreground_[i] = *foreground_arg_in[i].data<int>();
+      nonzero_[i] = *nonzero_arg_in[i].data<int>();
     }
   } else {
-    foreground_.push_back(spec_.GetArgument<int>("foreground"));
+    nonzero_.resize(nsamples, spec_.GetArgument<int>("nonzero"));
   }
 
   has_crop_shape_ = spec_.ArgumentDefined("shape");
@@ -119,46 +133,56 @@ void BiasedCropCenterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   auto center_view = view<int64_t>(out_center);
   auto& thread_pool = ws.GetThreadPool();
 
+  if (rng_.empty()) {
+    for (int i = 0; i < thread_pool.size(); i++) {
+      rng_.emplace_back(seed_ + i);
+    }
+  }
+  assert(rng_.size() == static_cast<size_t>(thread_pool.size()));
+
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     thread_pool.AddWork(
       [&, sample_idx](int thread_id) {
+        auto &rng = rng_[thread_id];
         auto mask = masks_view[sample_idx];
         auto center = center_view[sample_idx];
-        SearchableRLEMask rle_mask(mask);
-
         const auto &mask_sh = mask.shape;
         auto crop_sh = crop_shape_.tensor_shape_span(sample_idx);
+        if (nonzero_[sample_idx]) {
+          SearchableRLEMask rle_mask(mask);
+          if (rle_mask.count() > 0) {
+            auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
+            int64_t flat_idx = rle_mask.find(dist(rng));
 
-        if (foreground_[sample_idx]) {
-          auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
-          int64_t flat_idx = rle_mask.find(dist(rng_));
-
-          // Convert from flat_idx to per-dim indices
-          auto mask_strides = kernels::GetStrides(mask_sh);
-          for (int d = 0; d < ndim - 1; d++) {
-            center.data[d] = flat_idx / mask_strides[d];
-            flat_idx = flat_idx % mask_strides[d];
-          }
-          center.data[ndim - 1] = flat_idx;
-
-          // Adjust center if necessary
-          if (has_crop_shape_) {
-            for (int d = 0; d < ndim; d++) {
-              int64_t w = crop_sh[d] >> 1;
-              center.data[d] =
-                  boundary::idx_clamp(center.data[d], w, mask_sh[d] - (crop_sh[d] - w));
+            // Convert from flat_idx to per-dim indices
+            auto mask_strides = kernels::GetStrides(mask_sh);
+            for (int d = 0; d < ndim - 1; d++) {
+              center.data[d] = flat_idx / mask_strides[d];
+              flat_idx = flat_idx % mask_strides[d];
             }
+            center.data[ndim - 1] = flat_idx;
+
+            // Adjust center if necessary
+            if (has_crop_shape_) {
+              for (int d = 0; d < ndim; d++) {
+                int64_t half = crop_sh[d] >> 1;
+                center.data[d] = clamp(center.data[d], half, mask_sh[d] - (crop_sh[d] - half));
+              }
+            }
+            return;
+          }
+        }
+        // Either nonzero == 0 or no nonzero pixels found. Get a random center
+        if (has_crop_shape_) {
+          for (int d = 0; d < ndim; d++) {
+            int64_t halfl = crop_sh[d] >> 1;
+            int64_t start = halfl;
+            int64_t end = mask_sh[d] - (crop_sh[d] - halfl);
+            center.data[d] = std::uniform_int_distribution<int64_t>(start, end - 1)(rng);
           }
         } else {
           for (int d = 0; d < ndim; d++) {
-            int64_t start = 0, end = mask_sh[d];
-            if (has_crop_shape_) {
-              int64_t wl = crop_sh[d] >> 1;
-              int64_t wr = crop_sh[d] - wl;
-              start += wl;
-              end -= wr;
-            }
-            center.data[d] = std::uniform_int_distribution<int64_t>(start, end - 1)(rng_);
+            center.data[d] = std::uniform_int_distribution<int64_t>(0, mask_sh[d] - 1)(rng);
           }
         }
       }, in_masks_shape.tensor_size(sample_idx));
