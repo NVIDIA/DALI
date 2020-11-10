@@ -428,14 +428,33 @@ class Tensor : public Buffer<Backend> {
   }
 
   /**
-   * @brief Remove single-dimensional entries from the shape
-   * of a Tensor
+   * @brief Remove any single-dimensional entries from the shape
+   * of a Tensor.
    */
   inline void Squeeze() {
-    std::vector<Index> shape(shape_.begin(), shape_.end());
+    SmallVector<int64_t, 6> shape(shape_.begin(), shape_.end());
     shape.erase(std::remove(shape.begin(), shape.end(), 1), shape.end());
     if (shape.empty()) {
       shape.push_back(1);
+    }
+    shape_ = shape;
+  }
+
+  /**
+   * @brief Removes the specified dimension from the shape, if its extent is
+   * equal to 1.
+   * @param dim Dimension to be squeezed. Negative indexing is also supported
+   */
+  inline void Squeeze(int dim) {
+    SmallVector<int64_t, 6> shape(shape_.begin(), shape_.end());
+    int ndim = shape_.size();
+    DALI_ENFORCE(dim >= -ndim && dim <= (ndim - 1),
+                 make_string("axis ", dim, " is out of bound for a tensor with ", shape_.size(),
+                             " dimensions."));
+    if (dim < 0)
+      dim += shape_.size();
+    if (shape_[dim] == 1) {
+      shape.erase(shape.begin() + dim);
     }
     shape_ = shape;
   }

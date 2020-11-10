@@ -100,3 +100,27 @@ def test_array_interface_types():
 #    two_first_tensors = tensorlist[0:2]
 #    assert(type(two_first_tensors) == tuple)
 #    assert(type(two_first_tensors[0]) == TensorCPU)
+
+def test_squeeze():
+    def check_squeeze(shape, dim=None):
+        arr = np.random.rand(*shape)
+        t = TensorCPU(arr, "")
+        t.squeeze(dim)
+        arr_squeeze = arr.squeeze(dim)
+        t_shape = tuple(t.shape())
+        assert t_shape == arr_squeeze.shape, f"{t_shape} != {arr_squeeze.shape}"
+        assert_array_equal(arr_squeeze, np.array(t))
+
+    for dim, shape in [(None, (3, 5, 6)),
+                       (None, (3, 1, 6)),
+                       (1, (3, 1, 6)),
+                       (-2, (3, 1, 6)),
+                       (None, (1, 1, 6)),
+                       (1, (1, 1, 6)),
+                       #(None, (1, 1, 1)),  # Numpy produces a scalar in this case (probably we should too)
+                       (None, (1, 5, 1)),
+                       (-1, (1, 5, 1)),
+                       (0, (1, 5, 1)),
+                       (None, (3, 5, 1)),
+                       ]:
+        yield check_squeeze, shape, dim

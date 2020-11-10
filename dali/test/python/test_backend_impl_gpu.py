@@ -188,3 +188,27 @@ def test_cuda_array_interface_tensor_gpu_create_from_numpy():
 def test_cuda_array_interface_tensor_list_gpu_create_from_numpy():
     arr = np.random.rand(3, 5, 6)
     tensor = TensorGPU(arr, "NHWC")
+
+
+def test_squeeze():
+    def check_squeeze(shape, dim=None):
+        arr = cp.random.rand(*shape)
+        t = TensorGPU(arr, "")
+        t.squeeze(dim)
+        arr_squeeze = arr.squeeze(dim)
+        t_shape = tuple(t.shape())
+        assert t_shape == arr_squeeze.shape, f"{t_shape} != {arr_squeeze.shape}"
+        assert cp.allclose(arr_squeeze, cp.asanyarray(t))
+
+    for dim, shape in [(None, (3, 5, 6)),
+                       (None, (3, 1, 6)),
+                       (1, (3, 1, 6)),
+                       (-2, (3, 1, 6)),
+                       (None, (1, 1, 6)),
+                       (1, (1, 1, 6)),
+                       #(None, (1, 1, 1)),  # Numpy produces a scalar in this case (probably we should too)
+                       (None, (1, 5, 1)),
+                       (-1, (1, 5, 1)),
+                       (0, (1, 5, 1)),
+                       (None, (3, 5, 1))]:
+        yield check_squeeze, shape, dim

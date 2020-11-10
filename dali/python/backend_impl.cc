@@ -365,10 +365,22 @@ void ExposeTensor(py::module &m) {
          R"code(
          Shape of the tensor.
          )code")
-    .def("squeeze", &Tensor<CPUBackend>::Squeeze,
-         R"code(
-         Remove single-dimensional entries from the shape of the Tensor.
-         )code")
+    .def("squeeze",
+      [](Tensor<CPUBackend> &t, py::object dim_arg) {
+        if (!dim_arg.is_none()) {
+          int dim = dim_arg.cast<int>();
+          t.Squeeze(dim);
+        } else {
+          t.Squeeze();
+        }
+      },
+      "dim"_a = py::none(),
+      R"code(
+      Remove single-dimensional entries from the shape of the Tensor.
+
+      dim : int
+            If >= 0, specifies a single dimension to be squeezed.
+      )code")
     .def("layout", [](Tensor<CPUBackend> &t) {
       return t.GetLayout().str();
     })
@@ -456,10 +468,23 @@ void ExposeTensor(py::module &m) {
       Returns a `TensorCPU` object being a copy of this `TensorGPU`.
       )code",
       py::return_value_policy::take_ownership)
-    .def("squeeze", &Tensor<GPUBackend>::Squeeze,
-         R"code(
-         Remove single-dimensional entries from the shape of the Tensor.
-         )code")
+    .def("squeeze",
+      [](Tensor<GPUBackend> &t, py::object dim_arg) {
+        if (!dim_arg.is_none()) {
+          int dim = dim_arg.cast<int>();
+          t.Squeeze(dim);
+        } else {
+          t.Squeeze();
+        }
+      },
+      "dim"_a = py::none(),
+      R"code(
+      Remove single-dimensional entries from the shape of the Tensor.
+
+      dim : int
+            If >= 0, specifies a single dimension to be squeezed.
+      )code")
+
     .def("copy_to_external",
         [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream,
            bool non_blocking, bool use_copy_kernel) {

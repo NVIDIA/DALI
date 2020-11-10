@@ -158,9 +158,11 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    squeeze_labels: bool, optional, default = True
+    squeeze_labels: (DEPRECATED) bool, optional, default = False
                  Whether the iterator should squeeze the labels before
                  copying them to the ndarray.
+                 This argument is deprecated and will be removed from future releases
+                 without further notice.
     dynamic_shape: bool, optional, default = False
                  Whether the shape of the output of the DALI pipeline can
                  change during execution. If True, the mxnet.ndarray will be resized accordingly
@@ -213,7 +215,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                  data_layout='NCHW',
                  fill_last_batch=None,
                  auto_reset=False,
-                 squeeze_labels=True,
+                 squeeze_labels=None,
                  dynamic_shape=False,
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL):
@@ -237,6 +239,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             auto_reset,
             last_batch_policy)
         self._squeeze_labels = squeeze_labels
+        if self._squeeze_labels is not None:
+            print("``squeeze_labels`` is now deprecated. Any manipulation of the tensor shapes should be done explicitly in the DALI pipeline.")
         self._dynamic_shape = dynamic_shape
         # Use double-buffering of data batches
         self._data_batches = [[None] for i in range(self._num_gpus)]
@@ -292,7 +296,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 [x.as_tensor() for x in category_outputs[DALIGenericIterator.LABEL_TAG]]
             if self._squeeze_labels:
                 for label in category_tensors[DALIGenericIterator.LABEL_TAG]:
-                    label.squeeze()
+                    if label.shape()[-1] == 1:
+                        label.squeeze(-1)
             category_info[DALIGenericIterator.LABEL_TAG] = \
                 [(x.shape(), np.dtype(x.dtype())) for x in category_tensors[DALIGenericIterator.LABEL_TAG]]
 
@@ -419,9 +424,11 @@ class DALIClassificationIterator(DALIGenericIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    squeeze_labels: bool, optional, default = True
+    squeeze_labels: (DEPRECATED) bool, optional, default = False
                  Whether the iterator should squeeze the labels before
                  copying them to the ndarray.
+                 This argument is deprecated and will be removed from future releases
+                 without further notice.
     dynamic_shape: bool, optional, default = False
                  Whether the shape of the output of the DALI pipeline can
                  change during execution. If True, the mxnet.ndarray will be resized accordingly
@@ -475,7 +482,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                  data_layout='NCHW',
                  fill_last_batch=None,
                  auto_reset=False,
-                 squeeze_labels=True,
+                 squeeze_labels=None,
                  dynamic_shape=False,
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL):
