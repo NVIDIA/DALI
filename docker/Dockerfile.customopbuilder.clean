@@ -78,5 +78,12 @@ COPY qa/setup_packages.py qa/setup_packages.py
 RUN export USE_CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*) | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1\2/') && \
     export last_config_index=$(python qa/setup_packages.py -n -u tensorflow-gpu --cuda ${USE_CUDA_VERSION}) && \
     for i in `seq 0 $last_config_index`; do \
-        pip download $(python qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${USE_CUDA_VERSION}) -d /pip-packages; \
+        package=$(python qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${USE_CUDA_VERSION}); \
+        prefix=${package%nvidia-tensorflow*}; \
+        sufix=${package#*nvidia-tensorflow};  \
+        partial=${package#$prefix};           \
+        final=${partial%$sufix};              \
+        if [ "${final}" != "nvidia-tensorflow" ]; then \
+            pip download ${package} -d /pip-packages; \
+        fi \
     done
