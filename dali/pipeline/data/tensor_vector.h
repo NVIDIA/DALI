@@ -105,7 +105,7 @@ class DLL_PUBLIC TensorVector {
 
   TensorListShape<> shape() const;
 
-  TensorShape<> tensor_shape(int idx) const {
+  const TensorShape<> &tensor_shape(int idx) const {
     return tensors_[idx]->shape();
   }
 
