@@ -73,6 +73,8 @@ ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs/:${LD_LIBR
 WORKDIR /opt/dali
 COPY qa/setup_packages.py qa/setup_packages.py
 
+# Install NVIDIA Private Python Package Index in order to make sure next step will install proper packages
+RUN pip install --user nvidia-pyindex
 # get current CUDA version, ask setup_packages.py which TensorFlow we need to support and loop over all version downloading
 # them to /pip-packages dir one by one. In effect all TF versions are stored in only one place setup_packages.py
 RUN export USE_CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*) | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1\2/') && \
