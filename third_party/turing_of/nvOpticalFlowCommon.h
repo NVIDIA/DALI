@@ -1,29 +1,32 @@
 /*
-* This copyright notice applies to this header file only:
+* Copyright(c) 2020, NVIDIA CORPORATION.All rights reserved.
 *
-* Copyright (c) 2018 NVIDIA Corporation
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are met :
 *
-* Permission is hereby granted, free of charge, to any person
-* obtaining a copy of this software and associated documentation
-* files (the "Software"), to deal in the Software without
-* restriction, including without limitation the rights to use,
-* copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the software, and to permit persons to whom the
-* software is furnished to do so, subject to the following
-* conditions:
+* 1. Redistributions of source code must retain the above copyright notice, this
+*    list of conditions and the following disclaimer.
 *
-* The above copyright notice and this permission notice shall be
-* included in all copies or substantial portions of the Software.
+* 2. Redistributions in binary form must reproduce the above copyright notice,
+*    this list of conditions and the following disclaimer in the documentation
+*    and / or other materials provided with the distribution.
 *
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-* OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-* NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-* HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-* WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-* OTHER DEALINGS IN THE SOFTWARE.
+* 3. Neither the name of the copyright holder nor the names of its
+*    contributors may be used to endorse or promote products derived from
+*    this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 /**
 * \file nvOpticalFlowCommon.h
 *   NVIDIA GPUs - Turing and above contains a hardware-based optical flow engine
@@ -56,13 +59,13 @@ typedef unsigned short      uint16_t;
 #else
 #define NVOFAPI
 #endif
-#define NV_OF_API_MAJOR_VERSION 1
+#define NV_OF_API_MAJOR_VERSION 2
 #define NV_OF_API_MINOR_VERSION 0
 #define NV_OF_API_VERSION  (uint16_t)((NV_OF_API_MAJOR_VERSION << 4) | NV_OF_API_MINOR_VERSION)
 #define MIN_ERROR_STRING_SIZE 80
 
 #if defined(__cplusplus)
-extern "C" 
+extern "C"
 {
 #endif /* __cplusplus */
 
@@ -155,16 +158,25 @@ typedef enum _NV_OF_BOOL
 */
 typedef enum _NV_OF_CAPS
 {
-    NV_OF_CAPS_SUPPORTED_OUTPUT_GRID_SIZES,      /**< Indicates supported values of ::NV_OF_OUTPUT_VECTOR_GRID_SIZE, 
+    NV_OF_CAPS_SUPPORTED_OUTPUT_GRID_SIZES,      /**< Indicates supported values of ::NV_OF_OUTPUT_VECTOR_GRID_SIZE,
                                                     ::NV_OF_INIT_PARAMS::outGridSize should be set with a supported output gridsize. */
-    NV_OF_CAPS_SUPPORTED_HINT_GRID_SIZES,        /**< Indicates supported values of ::NV_OF_HINT_VECTOR_GRID_SIZE, 
+    NV_OF_CAPS_SUPPORTED_HINT_GRID_SIZES,        /**< Indicates supported values of ::NV_OF_HINT_VECTOR_GRID_SIZE,
                                                     ::NV_OF_INIT_PARAMS::hintGridSize should be set with a supported hint gridsize. */
-    NV_OF_CAPS_SUPPORT_HINT_WITH_OF_MODE,        /**< Indicates external hint support for ::NV_OF_MODE_OPTICALFLOW mode. 
+    NV_OF_CAPS_SUPPORT_HINT_WITH_OF_MODE,        /**< Indicates external hint support for ::NV_OF_MODE_OPTICALFLOW mode.
                                                     0: External hint not supported for ::NV_OF_MODE_OPTICALFLOW mode.
-                                                    1: External hint is supported for ::NV_OF_MODE_OPTICALFLOW mode. */ 
-    NV_OF_CAPS_SUPPORT_HINT_WITH_ST_MODE         /**< Indicates external hint support for ::NV_OF_MODE_STEREODISPARITY mode. 
+                                                    1: External hint is supported for ::NV_OF_MODE_OPTICALFLOW mode. */
+    NV_OF_CAPS_SUPPORT_HINT_WITH_ST_MODE,        /**< Indicates external hint support for ::NV_OF_MODE_STEREODISPARITY mode.
                                                     0: External hint not supported for ::NV_OF_MODE_STEREODISPARITY mode.
-                                                    1: External hint is supported for ::NV_OF_MODE_STEREODISPARITY mode. */ 
+                                                    1: External hint is supported for ::NV_OF_MODE_STEREODISPARITY mode. */
+    NV_OF_CAPS_WIDTH_MIN,                        /**< Minimum input width supported. */
+    NV_OF_CAPS_HEIGHT_MIN,                       /**< Minimum input height supported. */
+    NV_OF_CAPS_WIDTH_MAX,                        /**< Maximum input width supported. */
+    NV_OF_CAPS_HEIGHT_MAX,                       /**< Maximum input height supported. */
+    NV_OF_CAPS_SUPPORT_ROI,                      /**< Indicates ROI support.
+                                                    0: ROIs cannot be specified.
+                                                    1: One or more ROIs can be specified. */
+    NV_OF_CAPS_SUPPORT_ROI_MAX_NUM,              /**< Indicates maximum number of ROIs supported. */
+    NV_OF_CAPS_SUPPORT_MAX
 } NV_OF_CAPS;
 
 /**
@@ -186,6 +198,8 @@ typedef enum _NV_OF_PERF_LEVEL
 typedef enum _NV_OF_OUTPUT_VECTOR_GRID_SIZE
 {
     NV_OF_OUTPUT_VECTOR_GRID_SIZE_UNDEFINED,
+    NV_OF_OUTPUT_VECTOR_GRID_SIZE_1 = 1,          /**< Output buffer grid size is 1x1  */
+    NV_OF_OUTPUT_VECTOR_GRID_SIZE_2 = 2,          /**< Output buffer grid size is 2x2  */
     NV_OF_OUTPUT_VECTOR_GRID_SIZE_4 = 4,          /**< Output buffer grid size is 4x4  */
     NV_OF_OUTPUT_VECTOR_GRID_SIZE_MAX
 } NV_OF_OUTPUT_VECTOR_GRID_SIZE;
@@ -197,6 +211,8 @@ typedef enum _NV_OF_OUTPUT_VECTOR_GRID_SIZE
 typedef enum _NV_OF_HINT_VECTOR_GRID_SIZE
 {
     NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED,
+    NV_OF_HINT_VECTOR_GRID_SIZE_1 = 1,            /**< Hint buffer grid size is 1x1.*/
+    NV_OF_HINT_VECTOR_GRID_SIZE_2 = 2,            /**< Hint buffer grid size is 2x2.*/
     NV_OF_HINT_VECTOR_GRID_SIZE_4 = 4,            /**< Hint buffer grid size is 4x4.*/
     NV_OF_HINT_VECTOR_GRID_SIZE_8 = 8,            /**< Hint buffer grid size is 8x8.*/
     NV_OF_HINT_VECTOR_GRID_SIZE_MAX
@@ -244,9 +260,24 @@ typedef enum _NV_OF_BUFFER_FORMAT
     NV_OF_BUFFER_FORMAT_ABGR8,                    /**< Input buffer format with 8 bit packed A8B8G8R8 */
     NV_OF_BUFFER_FORMAT_SHORT,                    /**< Output or hint buffer format for stereo disparity */
     NV_OF_BUFFER_FORMAT_SHORT2,                   /**< Output or hint buffer format for optical flow vector */
-    NV_OF_BUFFER_FORMAT_UINT,                     /**< Cost buffer format for optical flow vector / stereo disparity */
+    NV_OF_BUFFER_FORMAT_UINT,                     /**< Legacy 32-bit Cost buffer format for optical flow vector / stereo disparity.
+                                                       This cost buffer format is not performance efficient and results in additional GPU usage.
+                                                       Hence users are strongly recommended to use the 8-bit cost buffer format.
+                                                       Legacy 32-bit cost buffer format is also planned to be deprecated in future. */
+    NV_OF_BUFFER_FORMAT_UINT8,                    /**< 8-bit Cost buffer format for optical flow vector / stereo disparity. */
     NV_OF_BUFFER_FORMAT_MAX
 } NV_OF_BUFFER_FORMAT;
+
+/**
+* Supported stereo disparity range.  Avaialble for GPUs later than Turing
+*/
+typedef enum _NV_OF_STEREO_DISPARITY_RANGE
+{
+    NV_OF_STEREO_DISPARITY_RANGE_UNDEFINED,
+    NV_OF_STEREO_DISPARITY_RANGE_128 = 128,
+    NV_OF_STEREO_DISPARITY_RANGE_256 = 256,
+    NV_OF_STEREO_DISPARITY_RANGE_MAX,
+} NV_OF_STEREO_DISPARITY_RANGE;
 
 /**
 * \struct NV_OF_FLOW_VECTOR
@@ -283,12 +314,16 @@ typedef struct _NV_OF_INIT_PARAMS
     uint32_t                        height;                           /**< [in]: Specifies input buffer height */
     NV_OF_OUTPUT_VECTOR_GRID_SIZE   outGridSize;                      /**< [in]: Specifies flow vector grid size for ::NV_OF_EXECUTE_PARAMS::outputBuffer buffer.*/
     NV_OF_HINT_VECTOR_GRID_SIZE     hintGridSize;                     /**< [in]: Specifies flow vector grid size for ::NV_OF_EXECUTE_PARAMS::externalHints buffer.
-                                                                                 This field is only considered if ::NV_OF_INIT_PARAMS::enableExternalHints is set */
+                                                                                 This field is only considered if ::NV_OF_INIT_PARAMS::enableExternalHints is set.
+                                                                                 hintGridSize should be equal or greater than outGridSize. */
     NV_OF_MODE                      mode;                             /**< [in]: Operating mode for NVOF. Set to a value defined by enum ::NV_OF_MODE. */
     NV_OF_PERF_LEVEL                perfLevel;                        /**< [in]: Specifies perf level. */
     NV_OF_BOOL                      enableExternalHints;              /**< [in]: Set to 1 to enable external hints for optical flow session. */
     NV_OF_BOOL                      enableOutputCost;                 /**< [in]: Set to 1 to enable output cost calculation for optical flow session. */
     NvOFPrivDataHandle              hPrivData;                        /**< [in]: Optical flow private data. It is reserved field and should be set to NULL. */
+    NV_OF_STEREO_DISPARITY_RANGE    disparityRange;                   /**< [in]: Speicifies maximum disparity range.
+                                                                                 Set to NV_OF_STEREO_DISPARITY_RANGE_UNDEFINED for Turing GPUs. */
+    NV_OF_BOOL                      enableRoi;                        /**< [in]: Set to 1 to enable estimation of optical flow/stereo for roi. */
 } NV_OF_INIT_PARAMS;
 
 /**
@@ -309,25 +344,50 @@ typedef struct _NV_OF_BUFFER_DESCRIPTOR
 } NV_OF_BUFFER_DESCRIPTOR;
 
 /**
+* \struct NV_OF_ROI_RECT
+* Specifies the co-ordinates of the Region Of Interest (ROI)
+* ROI rects should satisfy below requirements:
+*   1. NV_OF_ROI_RECT::start_x should align to (32 * NV_OF_INIT_PARAMS::outGridSize)
+*   2. NV_OF_ROI_RECT::width should align to (32 * NV_OF_INIT_PARAMS::outGridSize)
+*   3. NV_OF_ROI_RECT::start_y should align to (8 * max(NV_OF_INIT_PARAMS::outGridSize, 2))
+*   4. NV_OF_ROI_RECT::height should align to (8 * NV_OF_INIT_PARAMS::outGridSize)
+*   5. NV_OF_ROI_RECT::width >= 32 && NV_OF_ROI_RECT::height >= 16; maximum size 8192x8192
+*   6. Whole ROI region should be inside of the image
+* Optical flow/stereo disparity vectors out side of ROI are invalid and should not be used.
+*/
+struct NV_OF_ROI_RECT
+{
+    uint32_t                        start_x;                         /**< [in]: ROI start position in x-direction. */
+    uint32_t                        start_y;                         /**< [in]: ROI start position in y-direction. */
+    uint32_t                        width;                           /**< [in]: Width of ROI. */
+    uint32_t                        height;                          /**< [in]: Height of ROI. */
+};
+
+/**
 * \struct NV_OF_EXECUTE_INPUT_PARAMS
 * Parameters which are sent per frame for optical flow/stereo disparity execution.
 */
 typedef struct _NV_OF_EXECUTE_INPUT_PARAMS
 {
-    NvOFGPUBufferHandle             inputFrame;                      /**< [in]: Specifies the input frame buffers handles. */
-    NvOFGPUBufferHandle             referenceFrame;                  /**< [in]: Specifies the reference frame buffers handles.*/
+    NvOFGPUBufferHandle             inputFrame;                      /**< [in]: If ::NV_OF_INIT_PARAMS::mode is ::NV_OF_MODE_OPTICALFLOW, this specifies the handle to the buffer containing the input frame.
+                                                                                If ::NV_OF_INIT_PARAMS::mode is ::NV_OF_MODE_STEREODISPARITY, this specifies the handle to the buffer containing the rectified left view. */
+    NvOFGPUBufferHandle             referenceFrame;                  /**< [in]: If ::NV_OF_INIT_PARAMS::mode is ::NV_OF_MODE_OPTICALFLOW, this specifies the handle to the buffer containing the reference frame.
+                                                                                If ::NV_OF_INIT_PARAMS::mode is ::NV_OF_MODE_STEREODISPARITY, this specifies the handle to the buffer containing the rectified right view. */
     NvOFGPUBufferHandle             externalHints;                   /**< [in]: It is an optional input, This field will be considered if client had set ::NV_OF_INIT_PARAMS::enableExternalHint flag.
-                                                                                Client can pass some available predictors as hints. 
+                                                                                Client can pass some available predictors as hints.
                                                                                 Optical flow driver will search around those hints to optimize flow vectors quality.
-                                                                                Expected hint buffer format is ::NV_OF_FLOW_VECTOR, ::NV_OF_STEREO_DISPARITY 
+                                                                                Expected hint buffer format is ::NV_OF_FLOW_VECTOR, ::NV_OF_STEREO_DISPARITY
                                                                                 for ::NV_OF_MODE_OPTICALFLOW, ::NV_OF_MODE_STEREODISPARITY modes respectively for
                                                                                 each ::NV_OF_INIT_PARAMS::hintGridSize in a frame. */
-    NV_OF_BOOL                      disableTemporalHints;            /**< [in]: To disable temporal hints per optical flow/stereo disparity execution.
-                                                                                Temporal Hints is set by default.
-                                                                                User can choose to disable temporal hints if there is no
-                                                                                dependancy on previous optical flow execution. */
+    NV_OF_BOOL                      disableTemporalHints;            /**< [in]: Temporal hints yield better accuracy flow vectors when running on successive frames of a continuous video (without major scene changes).
+                                                                                When disableTemporalHints = 0, optical flow vectors from previous NvOFExecute call are automatically used as hints for the current NvOFExecute call.
+                                                                                However, when running optical flow on pairs of images which are completely independent of each other, temporal hints are useless
+                                                                                and in fact, they will degrade the quality. Therefore, it is recommended to set disableTemporalHints = 1 in this case.*/
     uint32_t                        padding;                         /**< [in]: Padding.  Must be set to 0. */
     NvOFPrivDataHandle              hPrivData;                       /**< [in]: Optical flow private data handle. It is reserved field and should be set to NULL. */
+    uint32_t                        padding2;                        /**< [in]: Padding.  Must be set to 0. */
+    uint32_t                        numRois;                         /**< [in]: Number of ROIs. */
+    NV_OF_ROI_RECT*                 roiData;                         /**< [in]: Pointer to the NV_OF_ROI_RECTs data.  Size of this buffer should be atleast numROIs * sizeof(NV_OF_ROI_RECT). */
 } NV_OF_EXECUTE_INPUT_PARAMS;
 
 /**
@@ -338,8 +398,8 @@ typedef struct _NV_OF_EXECUTE_OUTPUT_PARAMS
 {
     NvOFGPUBufferHandle            outputBuffer;                     /**< [in]: Specifies the pointer to optical flow or stereo disparity buffer handle.
                                                                                 ::outputBuffer will be populated with optical flow in
-                                                                                ::NV_OF_FLOW_VECTOR format or stereo disparity in 
-                                                                                ::NV_OF_STEREO_DISPARITY format for each 
+                                                                                ::NV_OF_FLOW_VECTOR format or stereo disparity in
+                                                                                ::NV_OF_STEREO_DISPARITY format for each
                                                                                 ::NV_OF_VECTOR_GRID_SIZE::outGridSize in a frame.*/
     NvOFGPUBufferHandle            outputCostBuffer;                 /**< [in]: Specifies the pointer to output cost calculation buffer handle. */
     NvOFPrivDataHandle             hPrivData;                        /**< [in]: Optical flow private data handle. It is reserved field and should be set to NULL. */
@@ -376,7 +436,7 @@ typedef NV_OF_STATUS(NVOFAPI* PFNNVOFINIT) (NvOFHandle hOf, const NV_OF_INIT_PAR
 *
 * This is asynchronous function call which kicks off computation of optical flow or stereo disparity
 * between ::NV_OF_EXECUTE_INPUT_PARAMS::inputFrame and ::NV_OF_EXECUTE_INPUT_PARAMS::referenceFrame and returns
-* after submitting  execute paramaters to optical flow engine. 
+* after submitting  execute paramaters to optical flow engine.
 * ::NV_OF_EXECUTE_OUTPUT_PARAMS::outputBuffer will be populated with optical flow or stereo disparity
 * based on ::NV_OF_INIT_PARAMS:mode is NV_OF_MODE_OPTICALFLOW or NV_OF_MODE_STEREODISPARITY respectively.
 *
@@ -466,6 +526,23 @@ typedef NV_OF_STATUS(NVOFAPI* PFNNVOFGETLASTERROR) (NvOFHandle hOf, char lastErr
 * ::NV_OF_ERR_GENERIC \n
 */
 typedef NV_OF_STATUS(NVOFAPI* PFNNVOFGETCAPS) (NvOFHandle hOf, NV_OF_CAPS capsParam, uint32_t *capsVal, uint32_t *size);
+
+/**
+* \brief Get the largest API version supported by the driver.
+*
+* This function can be used by clients to determine if the driver supports
+* the API header the application was compiled with.
+*
+* \param [out] version
+*   Pointer to the requested value. The 4 least significant bits in the returned
+*   indicate the minor version and the rest of the bits indicate the major
+*   version of the largest supported version.
+*
+* \return
+* ::NV_OF_SUCCESS \n
+* ::NV_OF_ERR_INVALID_PTR \n
+*/
+NV_OF_STATUS NVOFAPI NvOFGetMaxSupportedApiVersion(uint32_t* version);
 
 #if defined(__cplusplus)
 }

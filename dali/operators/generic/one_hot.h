@@ -88,7 +88,7 @@ class OneHot : public Operator<Backend> {
                              ", expected to be in range: [-1, ", input_sample_dim, "]."));
 
     // Legacy scalar-like support only if the `axis` parameter was not provided
-    bool all_scalars = !spec_.ArgumentDefined("axis");
+    bool all_scalars = !this->spec_.ArgumentDefined("axis");
     for (int i = 0; all_scalars && i < num_samples; i++) {
       all_scalars = all_scalars && is_scalar(input.shape()[i]);
     }

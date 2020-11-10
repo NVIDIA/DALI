@@ -1,5 +1,5 @@
 ARG QNX_CUDA_TOOL_IMAGE_NAME
-ARG QNX_BASE_IMAGE=nvidia/cuda:10.0-devel-ubuntu16.04
+ARG QNX_BASE_IMAGE=nvidia/cuda:10.0-devel-ubuntu18.04
 FROM ${QNX_CUDA_TOOL_IMAGE_NAME} as qnx_cuda_tools
 FROM ${QNX_BASE_IMAGE}
 
@@ -14,7 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libtool \
     libtool-bin \
-    && rm -rf /var/lib/apt/lists/*
+    python3.6 \
+    python3-distutils \
+    && rm -rf /var/lib/apt/lists/* && \
+    ln -s /usr/bin/python3 /usr/bin/python && \
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python get-pip.py && rm get-pip.py && \
+    pip install clang libclang && \
+    rm -rf /root/.cache/pip/
 
 COPY --from=qnx_cuda_tools /qnx /qnx
 RUN mv /qnx/cuda* cuda-qnx-cross.deb
@@ -26,7 +32,9 @@ RUN rsync -a /qnx/host/linux/x86_64/ / && \
     rm -rf /usr/aarch64-unknown-nto-qnx/aarch64le/lib/libjpeg.so* && \
     rm -rf /usr/aarch64-unknown-nto-qnx/usr/include/j* && \
     rm -rf /usr/aarch64-unknown-nto-qnx/armle-v7 /usr/aarch64-unknown-nto-qnx/x86 /usr/aarch64-unknown-nto-qnx/x86_64 && \
-    rm -rf /qnx
+    rm -rf /qnx && \
+    rm /usr/bin/python && \
+    ln -s /usr/bin/python3 /usr/bin/python
 
 ENV QNX_HOST=/
 ENV QNX_TARGET=/usr/aarch64-unknown-nto-qnx

@@ -146,6 +146,8 @@ Prerequisites
 .. _pytorch link: https://pytorch.org
 .. |tf link| replace:: **TensorFlow 1.12**
 .. _tf link: https://www.tensorflow.org
+.. |clang link| replace:: **clang**
+.. _clang link: https://apt.llvm.org/
 
 
 
@@ -157,6 +159,9 @@ Prerequisites
    | Linux x64                              |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |gcc link|_ or later                   |                                                                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |clang link|_                          | Clang and python-clang bindings are needed for compile time code generation. The easiest    |
+   |                                        | way to obtain them is 'pip install clang libclang'                                          |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |boost link|_ or later                 | Modules: *preprocessor*.                                                                    |
    +----------------------------------------+---------------------------------------------------------------------------------------------+

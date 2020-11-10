@@ -31,7 +31,6 @@
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/nvdecoder/imgproc.h"
-#include "dali/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 #include "dali/core/device_guard.h"
 
 namespace dali {
