@@ -1,6 +1,5 @@
 {
    "extra_include":[
-      "<string>",
       "<cuda.h>",
       "\"dali/operators/reader/nvdecoder/cuviddec.h\"",
       "\"dali/operators/reader/nvdecoder/nvcuvid.h\""

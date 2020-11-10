@@ -1,6 +1,5 @@
 {
    "extra_include":[
-      "<string>",
       "<cuda.h>"
    ],
    "return_type":"CUresult",

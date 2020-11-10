@@ -18,5 +18,6 @@
 #include <cuda.h>
 
 bool cuInitChecked();
+bool cuIsSymbolAvailable(const char *name);
 
 #endif //DALI_CORE_DYNLINK_CUDA_H

@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include "dali/core/dynlink_cuda.h"
 
 #include <dlfcn.h>
@@ -44,9 +45,6 @@ CUDADRIVER loadCudaLibrary() {
 void *LoadSymbol(const char *name) {
   static CUDADRIVER cudaDrvLib = loadCudaLibrary();
   void *ret = cudaDrvLib ? dlsym(cudaDrvLib, name) : nullptr;
-  if (!ret) {
-    printf("Failed to find required function \"%s\" in %s\n", name, __CudaLibName);
-  }
   return ret;
 }
 
@@ -73,4 +71,17 @@ bool cuInitChecked() {
   static CUresult res = cuInit(0);
   initialized = (res == CUDA_SUCCESS);
   return initialized;
+}
+
+bool cuIsSymbolAvailable(const char *name) {
+  static std::mutex symbol_mutex;
+  static std::unordered_map<std::string, void*> symbol_map;
+  std::lock_guard<std::mutex> lock(symbol_mutex);
+  auto it = symbol_map.find(name);
+  if (it == symbol_map.end()) {
+    auto *ptr = LoadSymbol(name);
+    symbol_map.insert({name, ptr});
+    return ptr != nullptr;
+  }
+  return it->second != nullptr;
 }

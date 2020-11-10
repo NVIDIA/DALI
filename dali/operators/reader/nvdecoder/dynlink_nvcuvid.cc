@@ -47,9 +47,6 @@ DLLDRIVER loadNvcuvidLibrary() {
 
 void *LoadSymbol(const char *name) {
   void *ret = nvcuvidDrvLib ? dlsym(nvcuvidDrvLib, name) : nullptr;
-  if (!ret) {
-    printf("Failed to find required function \"%s\" in %s\n", name, __DriverLibName);
-  }
   return ret;
 }
 
