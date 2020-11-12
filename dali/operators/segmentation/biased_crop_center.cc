@@ -25,52 +25,37 @@
 
 namespace dali {
 
-DALI_SCHEMA(segmentation__BiasedCropCenter)
-    .DocStr(R"(Selects a cropping window center which can be selected randomly either
-at any position in the input or at the position of any nonzero pixel in the input,
-based on an ``nonzero`` argument, typically the result of a coin flip operation.
+DALI_SCHEMA(segmentation__SelectMaskPixel)
+    .DocStr(R"(Selects random pixel coordinates from the input mask, sampled from a
+uniform distribution. The set of pixels to sample from depend on the value of the
+``foreground`` argument. If ``foreground != 0``, only foreground pixels can be
+selected. Otherwise, any pixel in the input can be selected.
 
-The purpose of this operator is to obtain a distribution of cropping window centers that
-has a certain bias towards selecting a nonzero pixel as a center.
-
-The output of the operator can be used for cropping the images::
-
-    import nvidia.dali.fn as fn
-    shape = (height, width)
-    center = fn.biased_crop_center(mask, shape=shape)
-    anchor = center - shape // 2
-    cropped = fn.slice(image, anchor, shape, axis_names="HW")
-
-..note::
-
-    Since the centers are selected uniformly from all the available nonzero pixels, larger
-objects in the mask can be oversampled.
+The definition of foreground can be defined by a ``threshold`` or a ``value`` argument.
+When using ``threshold``, any input ``value > threshold`` is considered foreground. When
+using ``value``, any pixel matching exactly the given value is considered foreground.
 )")
-    .AddOptionalArg("nonzero",
-      R"code(If different than 0, the crop center is selected to match any of the nonzero
- pixels in the input mask. If 0, the crop center is selected randomly.)code",
+    .AddOptionalArg<int>("value",
+      R"code(Any pixel equal to this value is defined as foreground.
+
+This argument is mutually exclusive with ``threshold`` argument and is meant to be used only
+with integer inputs.
+)code", nullptr, true)
+    .AddOptionalArg<float>("threshold",
+      R"code(Any pixel with value higher than this value is defined as foreground.
+
+This argument is mutually exclusive with ``value`` argument.
+)code", 0.0f, true)
+    .AddOptionalArg("foreground",
+      R"code(If different than 0, the pixel position is sampled uniformly from all foreground pixels.
+If 0, the pixel position is sampled uniformly from all available pixels.)code",
       0, true)
-    .AddOptionalArg<std::vector<int>>("shape",
-      R"code(If specified, it represents the shape of the cropping window to be used,
-introducing restrictions to the range of valid crop centers.
-
-When nonzero == 0, a random cropping center is selected so that the cropping window
-is fully contained in the input.
-
-When nonzero != 0, the cropping center is first picked to match any of the nonzero
-pixels in the input. If the selected crop center results in an out of bounds cropping window,
-the center is shifted as necessary so that the window remains within bounds.
-
-If left unspecified, the shape is not taken into account when selecting the center,
-effectively resulting in any position in the input being a valid center.
-)code",
-      nullptr, true)
     .NumInput(1)
     .NumOutput(1);
 
-class BiasedCropCenterCPU : public Operator<CPUBackend> {
+class SelectMaskPixelCPU : public Operator<CPUBackend> {
  public:
-  explicit BiasedCropCenterCPU(const OpSpec &spec);
+  explicit SelectMaskPixelCPU(const OpSpec &spec);
   bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
   void RunImpl(workspace_t<CPUBackend> &ws) override;
@@ -82,19 +67,26 @@ class BiasedCropCenterCPU : public Operator<CPUBackend> {
   int64_t seed_;
   std::vector<std::mt19937_64> rng_;
 
-  std::vector<int> nonzero_;
-  TensorListShape<> crop_shape_;
+  std::vector<int> foreground_;
+  std::vector<int> value_;
+  std::vector<float> threshold_;
 
-  bool has_crop_shape_ = false;
+  bool has_value_ = false;
 
   USE_OPERATOR_MEMBERS();
 };
 
-BiasedCropCenterCPU::BiasedCropCenterCPU(const OpSpec &spec)
-    : Operator<CPUBackend>(spec), seed_(spec.GetArgument<int64_t>("seed")) {
+SelectMaskPixelCPU::SelectMaskPixelCPU(const OpSpec &spec)
+    : Operator<CPUBackend>(spec),
+      seed_(spec.GetArgument<int64_t>("seed")),
+      has_value_(spec.ArgumentDefined("value")) {
+  if (has_value_) {
+    DALI_ENFORCE(!spec.ArgumentDefined("threshold"),
+      "Arguments ``value`` and ``threshold`` can not be provided together");
+  }
 }
 
-bool BiasedCropCenterCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
+bool SelectMaskPixelCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
                                     const workspace_t<CPUBackend> &ws) {
   const auto &in_masks = ws.template InputRef<CPUBackend>(0);
   int nsamples = in_masks.size();
@@ -104,33 +96,37 @@ bool BiasedCropCenterCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc[0].shape = uniform_list_shape(nsamples, {ndim});
   output_desc[0].type = TypeTable::GetTypeInfo(DALI_INT64);
 
-  nonzero_.clear();
-  if (spec_.HasTensorArgument("nonzero")) {
-    nonzero_.resize(nsamples);
-    const auto &nonzero_arg_in = ws.ArgumentInput("nonzero");
-    for (int i = 0; i < nsamples; i++) {
-      nonzero_[i] = *nonzero_arg_in[i].data<int>();
-    }
-  } else {
-    nonzero_.resize(nsamples, spec_.GetArgument<int>("nonzero"));
+  foreground_.resize(nsamples);
+  value_.clear();
+  threshold_.clear();
+
+  for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+    foreground_[sample_idx] = spec_.template GetArgument<int>("foreground", &ws, sample_idx);
   }
 
-  has_crop_shape_ = spec_.ArgumentDefined("shape");
-  if (has_crop_shape_) {
-    GetShapeArgument(crop_shape_, spec_, "shape", ws, ndim, nsamples);
+  if (spec_.ArgumentDefined("value")) {
+    value_.resize(nsamples);
+    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+      value_[sample_idx] = spec_.template GetArgument<int>("value", &ws, sample_idx);
+    }
+  } else {
+    threshold_.resize(nsamples, 0.0f);
+    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+      threshold_[sample_idx] = spec_.template GetArgument<float>("threshold", &ws, sample_idx);
+    }
   }
   return true;
 }
 
 template <typename T>
-void BiasedCropCenterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
+void SelectMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   const auto &in_masks = ws.template InputRef<CPUBackend>(0);
-  auto &out_center = ws.template OutputRef<CPUBackend>(0);
+  auto &out_pixel_pos = ws.template OutputRef<CPUBackend>(0);
   int nsamples = in_masks.size();
   auto in_masks_shape = in_masks.shape();
   int ndim = in_masks_shape.sample_dim();
   auto masks_view = view<const T>(in_masks);
-  auto center_view = view<int64_t>(out_center);
+  auto pixel_pos_view = view<int64_t>(out_pixel_pos);
   auto& thread_pool = ws.GetThreadPool();
 
   if (rng_.empty()) {
@@ -145,52 +141,48 @@ void BiasedCropCenterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
       [&, sample_idx](int thread_id) {
         auto &rng = rng_[thread_id];
         auto mask = masks_view[sample_idx];
-        auto center = center_view[sample_idx];
+        auto pixel_pos = pixel_pos_view[sample_idx];
         const auto &mask_sh = mask.shape;
-        auto crop_sh = crop_shape_.tensor_shape_span(sample_idx);
-        if (nonzero_[sample_idx]) {
-          SearchableRLEMask rle_mask(mask);
-          if (rle_mask.count() > 0) {
-            auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
-            int64_t flat_idx = rle_mask.find(dist(rng));
-
+        if (foreground_[sample_idx]) {
+          int64_t flat_idx = -1;
+          if (has_value_) {
+            T value = static_cast<T>(value_[sample_idx]);
+            SearchableRLEMask rle_mask(
+                mask, [value](const T &x) { return x == value; });
+            if (rle_mask.count() > 0) {
+              auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
+              flat_idx = rle_mask.find(dist(rng));
+            }
+          } else {
+            T threshold = static_cast<T>(threshold_[sample_idx]);
+            SearchableRLEMask rle_mask(
+                mask, [threshold](const T &x) { return x > threshold; });
+            if (rle_mask.count() > 0) {
+              auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
+              flat_idx = rle_mask.find(dist(rng));
+            }
+          }
+          if (flat_idx >= 0) {
             // Convert from flat_idx to per-dim indices
             auto mask_strides = kernels::GetStrides(mask_sh);
             for (int d = 0; d < ndim - 1; d++) {
-              center.data[d] = flat_idx / mask_strides[d];
+              pixel_pos.data[d] = flat_idx / mask_strides[d];
               flat_idx = flat_idx % mask_strides[d];
             }
-            center.data[ndim - 1] = flat_idx;
-
-            // Adjust center if necessary
-            if (has_crop_shape_) {
-              for (int d = 0; d < ndim; d++) {
-                int64_t half = crop_sh[d] >> 1;
-                center.data[d] = clamp(center.data[d], half, mask_sh[d] - (crop_sh[d] - half));
-              }
-            }
+            pixel_pos.data[ndim - 1] = flat_idx;
             return;
           }
         }
-        // Either nonzero == 0 or no nonzero pixels found. Get a random center
-        if (has_crop_shape_) {
-          for (int d = 0; d < ndim; d++) {
-            int64_t halfl = crop_sh[d] >> 1;
-            int64_t start = halfl;
-            int64_t end = mask_sh[d] - (crop_sh[d] - halfl);
-            center.data[d] = std::uniform_int_distribution<int64_t>(start, end - 1)(rng);
-          }
-        } else {
-          for (int d = 0; d < ndim; d++) {
-            center.data[d] = std::uniform_int_distribution<int64_t>(0, mask_sh[d] - 1)(rng);
-          }
+        // Either foreground == 0 or no foreground pixels found. Get a random center
+        for (int d = 0; d < ndim; d++) {
+          pixel_pos.data[d] = std::uniform_int_distribution<int64_t>(0, mask_sh[d] - 1)(rng);
         }
       }, in_masks_shape.tensor_size(sample_idx));
   }
   thread_pool.RunAll();
 }
 
-void BiasedCropCenterCPU::RunImpl(workspace_t<CPUBackend> &ws) {
+void SelectMaskPixelCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &in_masks = ws.template InputRef<CPUBackend>(0);
   TYPE_SWITCH(in_masks.type().id(), type2id, T, MASK_SUPPORTED_TYPES, (
     RunImplTyped<T>(ws);
@@ -199,6 +191,6 @@ void BiasedCropCenterCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   ));  // NOLINT
 }
 
-DALI_REGISTER_OPERATOR(segmentation__BiasedCropCenter, BiasedCropCenterCPU, CPU);
+DALI_REGISTER_OPERATOR(segmentation__SelectMaskPixel, SelectMaskPixelCPU, CPU);
 
 }  // namespace dali

@@ -37,7 +37,7 @@ class SearchableRLEMask {
 
   struct is_positive {
     template <typename T>
-    bool operator()(const T &value) const { return value > 0; }
+    bool operator()(const T &x) const { return x > 0; }
   };
 
   /**
