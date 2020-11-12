@@ -64,6 +64,7 @@ class RandomMaskPixelCPU : public Operator<CPUBackend> {
 
   int64_t seed_;
   std::vector<std::mt19937_64> rng_;
+  std::vector<SearchableRLEMask> rle_;
 
   std::vector<int> foreground_;
   std::vector<int> value_;
@@ -109,8 +110,10 @@ bool RandomMaskPixelCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
     }
   } else {
     threshold_.resize(nsamples, 0.0f);
-    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-      threshold_[sample_idx] = spec_.template GetArgument<float>("threshold", &ws, sample_idx);
+    if (spec_.ArgumentDefined("threshold")) {
+      for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+        threshold_[sample_idx] = spec_.template GetArgument<float>("threshold", &ws, sample_idx);
+      }
     }
   }
   return true;
@@ -134,6 +137,11 @@ void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   }
   assert(rng_.size() == static_cast<size_t>(thread_pool.size()));
 
+  if (rle_.empty()) {
+    rle_.resize(thread_pool.size());
+  }
+  assert(rle_.size() == static_cast<size_t>(thread_pool.size()));
+
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     thread_pool.AddWork(
       [&, sample_idx](int thread_id) {
@@ -143,9 +151,10 @@ void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
         const auto &mask_sh = mask.shape;
         if (foreground_[sample_idx]) {
           int64_t flat_idx = -1;
+          auto &rle_mask = rle_[thread_id];
           if (has_value_) {
             T value = static_cast<T>(value_[sample_idx]);
-            SearchableRLEMask rle_mask(
+            rle_mask.Init(
                 mask, [value](const T &x) { return x == value; });
             if (rle_mask.count() > 0) {
               auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
@@ -153,7 +162,7 @@ void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
             }
           } else {
             T threshold = static_cast<T>(threshold_[sample_idx]);
-            SearchableRLEMask rle_mask(
+            rle_mask.Init(
                 mask, [threshold](const T &x) { return x > threshold; });
             if (rle_mask.count() > 0) {
               auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
