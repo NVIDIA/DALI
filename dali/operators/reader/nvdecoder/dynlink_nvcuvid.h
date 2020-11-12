@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#if !defined(DALI_OPERATORS_READER_NVDECODER_DYNLINK_NVCUVID_H_)
+#ifndef DALI_OPERATORS_READER_NVDECODER_DYNLINK_NVCUVID_H_
 #define DALI_OPERATORS_READER_NVDECODER_DYNLINK_NVCUVID_H_
 
 #include <string>
@@ -24,4 +24,4 @@
 bool cuvidInitChecked(unsigned int Flags);
 bool cuvidIsSymbolAvailable(const char *name);
 
-#endif // DALI_OPERATORS_READER_NVDECODER_DYNLINK_NVCUVID_H_
+#endif  // DALI_OPERATORS_READER_NVDECODER_DYNLINK_NVCUVID_H_

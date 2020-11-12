@@ -1,271 +1,97 @@
-/*************************************************************************
- * Copyright (c) 2015-2018, NVIDIA CORPORATION. All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- ************************************************************************/
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
+#include <stdio.h>
 #include <dlfcn.h>
-#include <limits>
 #include <mutex>
+#include <atomic>
+#include <string>
+#include <unordered_map>
+
 #include "dali/util/nvml_wrap.h"
-#include "dali/core/cuda_error.h"
 
-
-namespace dali {
-
-namespace nvml {
-
-int symbolsLoaded = 0;
-
-static nvmlReturn_t (*nvmlInternalInit)(void);
-static nvmlReturn_t (*nvmlInternalShutdown)(void);
-static nvmlReturn_t (*nvmlInternalDeviceGetHandleByPciBusId)(const char* pciBusId,
-                                                             nvmlDevice_t* device);
-static nvmlReturn_t (*nvmlInternalDeviceGetHandleByIndex)(const int device_id,
-                                                          nvmlDevice_t* device);
-static nvmlReturn_t (*nvmlInternalDeviceGetIndex)(nvmlDevice_t device, unsigned* index);
-
-static nvmlReturn_t (*nvmlInternalDeviceSetCpuAffinity)(nvmlDevice_t device);
-static nvmlReturn_t (*nvmlInternalDeviceClearCpuAffinity)(nvmlDevice_t device);
-static nvmlReturn_t (*nvmlInternalSystemGetDriverVersion)(char* name, unsigned int length);
-static nvmlReturn_t (*nvmlInternalDeviceGetCpuAffinity)(nvmlDevice_t device,
-                                                        unsigned int cpuSetSize,
-                                                        unsigned long* cpuSet);  // NOLINT(*)
-
-#if (CUDART_VERSION >= 11000)
-static nvmlReturn_t (*nvmlInternalDeviceGetCpuAffinityWithinScope)(nvmlDevice_t device,
-                                                                   unsigned int nodeSetSize,
-                                                                   unsigned long *nodeSet,  // NOLINT(*)
-                                                                   nvmlAffinityScope_t scope);
-static nvmlReturn_t (*nvmlInternalDeviceGetBrand)(nvmlDevice_t device, nvmlBrandType_t *type);
-static nvmlReturn_t (*nvmlInternalDeviceGetCount_v2)(unsigned int *deviceCount);
-static nvmlReturn_t (*nvmlInternalDeviceGetHandleByIndex_v2)(unsigned int index,
-                                                             nvmlDevice_t *device);
-static nvmlReturn_t (*nvmlInternalDeviceGetCudaComputeCapability)(nvmlDevice_t device,
-                                                                  int *major, int *minor);
-#endif
-
-static const char* (*nvmlInternalErrorString)(nvmlReturn_t r);
 
 namespace {
 
-std::once_flag driver_check;
+typedef void *NVMLRIVER;
 
-/*
- * This function is used to learn the real driver version, and compare with the provided value
- * It should be available as soon as possible. However it requires wrapNvmlSystemGetDriverVersion
- * and wrapNvmlInit be intialized first. If they are not it will warn and return INF driver version
- * and all checks will fail
- */
-bool is_driver_sufficient(float requestedDriverVersion) {
-  static float availableDriverVersion = std::numeric_limits<float>::max();
+static char __NvmlLibName[] = "libnvidia-ml.so";
+static char __NvmlLibName1[] = "libnvidia-ml.so.1";
 
-  std::call_once(driver_check, [] {
-      char version[80];
-      if (nvml::wrapNvmlInit() != DALISuccess) {
-        DALI_WARN("wrapNvmlInit failed, driver version check not available");
-        return;
-      }
-      nvml::wrapNvmlSystemGetDriverVersion(version, sizeof version);
-      availableDriverVersion = std::stof(version);
-    });
+NVMLRIVER loadNvmlLibrary() {
+  NVMLRIVER ret = nullptr;
 
-  return requestedDriverVersion <= availableDriverVersion;
+  ret = dlopen(__NvmlLibName1, RTLD_NOW);
+
+  if (!ret) {
+    ret = dlopen(__NvmlLibName, RTLD_NOW);
+
+    if (!ret) {
+      printf("dlopen \"%s\" failed!\n", __NvmlLibName);
+    }
+  }
+  return ret;
+}
+
+void *LoadSymbol(const char *name) {
+  static NVMLRIVER nvmlDrvLib = loadNvmlLibrary();
+  void *ret = nvmlDrvLib ? dlsym(nvmlDrvLib, name) : nullptr;
+  return ret;
 }
 
 }  // namespace
 
-bool wrapHasCuda11NvmlFunctions() {
-  #if (CUDART_VERSION >= 11000)
-    return nvmlInternalDeviceGetCount_v2 && nvmlInternalDeviceGetHandleByIndex_v2 &&
-           nvmlInternalDeviceGetCudaComputeCapability && nvmlInternalDeviceGetBrand &&
-           nvmlInternalDeviceGetCpuAffinityWithinScope;
-  #else
-    return false;
-  #endif
+std::atomic_bool symbolsLoaded{false};
+
+// it is defined in the generated file
+typedef void *tLoadSymbol(const char *name);
+void NvmlSetSymbolLoader(tLoadSymbol loader_func);
+
+nvmlReturn_t nvmlInitChecked() {
+  // set symbol loader for this library
+#if !LINK_DRIVER_ENABLED
+  NvmlSetSymbolLoader(LoadSymbol);
+#endif
+  symbolsLoaded = true;
+  nvmlReturn_t ret = nvmlInit();
+  if (ret != NVML_SUCCESS) {
+    DALI_WARN("nvmlInitChecked failed: " + nvmlErrorString(ret));
+  }
+  return ret;
 }
 
-
-bool wrapIsInitialized(void) {
+bool nvmlIsInitialized(void) {
   return symbolsLoaded;
 }
 
-DALIError_t wrapSymbols(void) {
-  if (symbolsLoaded)
-    return DALISuccess;
-
-  static void* nvmlhandle = nullptr;
-  void* tmp;
-  void** cast;
-
-  nvmlhandle = dlopen("libnvidia-ml.so", RTLD_NOW);
-  if (!nvmlhandle) {
-    nvmlhandle = dlopen("libnvidia-ml.so.1", RTLD_NOW);
-    if (!nvmlhandle) {
-      DALI_FAIL("Failed to open libnvidia-ml.so[.1]");
-    }
+bool nvmlIsSymbolAvailable(const char *name) {
+  static std::mutex symbol_mutex;
+  static std::unordered_map<std::string, void*> symbol_map;
+  std::lock_guard<std::mutex> lock(symbol_mutex);
+  auto it = symbol_map.find(name);
+  if (it == symbol_map.end()) {
+    auto *ptr = LoadSymbol(name);
+    symbol_map.insert({name, ptr});
+    return ptr != nullptr;
   }
-
-#define LOAD_SYM(handle, symbol, funcptr) do {                       \
-    cast = reinterpret_cast<void**>(&funcptr);                       \
-    tmp = dlsym(handle, symbol);                                     \
-    if (tmp == nullptr) {                                            \
-      DALI_FAIL("dlsym failed on " + symbol + " - " + dlerror());    \
-    }                                                                \
-    *cast = tmp;                                                     \
-  } while (0)
-
-#define LOAD_SYM_MIN_DRIVER(handle, symbol, funcptr, driver_v) do {          \
-    if (!is_driver_sufficient(driver_v)) {                                   \
-      funcptr = nullptr;                                                     \
-      break;                                                                 \
-    }                                                                        \
-    cast = reinterpret_cast<void**>(&funcptr);                               \
-    tmp = dlsym(handle, symbol);                                             \
-    if (tmp == nullptr) {                                                    \
-      DALI_FAIL("dlsym failed on " + symbol + " - " + dlerror());            \
-    }                                                                        \
-    *cast = tmp;                                                             \
-  } while (0)
-
-  /*
-   * make sure that nvmlInit and nvmlSystemGetDriverVersion are first on the list as they are needed
-   * by is_driver_sufficient function
-   */
-  LOAD_SYM(nvmlhandle, "nvmlInit", nvmlInternalInit);
-  LOAD_SYM(nvmlhandle, "nvmlSystemGetDriverVersion", nvmlInternalSystemGetDriverVersion);
-
-  LOAD_SYM(nvmlhandle, "nvmlShutdown", nvmlInternalShutdown);
-  LOAD_SYM(nvmlhandle, "nvmlDeviceGetHandleByPciBusId", nvmlInternalDeviceGetHandleByPciBusId);
-  LOAD_SYM(nvmlhandle, "nvmlDeviceGetHandleByIndex", nvmlInternalDeviceGetHandleByIndex);
-  LOAD_SYM(nvmlhandle, "nvmlDeviceGetIndex", nvmlInternalDeviceGetIndex);
-  LOAD_SYM(nvmlhandle, "nvmlDeviceSetCpuAffinity", nvmlInternalDeviceSetCpuAffinity);
-  LOAD_SYM(nvmlhandle, "nvmlDeviceClearCpuAffinity", nvmlInternalDeviceClearCpuAffinity);
-  LOAD_SYM(nvmlhandle, "nvmlDeviceGetCpuAffinity", nvmlInternalDeviceGetCpuAffinity);
-  LOAD_SYM(nvmlhandle, "nvmlErrorString", nvmlInternalErrorString);
-
-  #if (CUDART_VERSION >= 11000)
-    LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCpuAffinityWithinScope",
-                        nvmlInternalDeviceGetCpuAffinityWithinScope, 450.36);
-    LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetBrand", nvmlInternalDeviceGetBrand, 450.36);
-    LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCount_v2", nvmlInternalDeviceGetCount_v2, 450.36);
-    LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetHandleByIndex_v2",
-                        nvmlInternalDeviceGetHandleByIndex_v2, 450.36);
-    LOAD_SYM_MIN_DRIVER(nvmlhandle, "nvmlDeviceGetCudaComputeCapability",
-                        nvmlInternalDeviceGetCudaComputeCapability, 450.36);
-  #endif
-
-  symbolsLoaded = 1;
-  return DALISuccess;
+  return it->second != nullptr;
 }
 
-
-#define FUNC_BODY(INTERNAL_FUNC, ARGS...)            \
-  do {                                               \
-    if (INTERNAL_FUNC == nullptr) {                  \
-      return DALIError;                              \
-    }                                                \
-    nvmlReturn_t ret = INTERNAL_FUNC(ARGS);          \
-    if (ret != NVML_SUCCESS) {                       \
-      DALI_WARN(#INTERNAL_FUNC "(...) failed: " +    \
-                nvmlInternalErrorString(ret));       \
-      return DALIError;                              \
-    }                                                \
-    return DALISuccess;                              \
-  } while (false)
-
-
-DALIError_t wrapNvmlInit(void) {
-  FUNC_BODY(nvmlInternalInit);
+bool nvmlHasCuda11NvmlFunctions(void) {
+  return nvmlIsSymbolAvailable("nvmlDeviceGetCount_v2") &&
+         nvmlIsSymbolAvailable("nvmlDeviceGetHandleByIndex_v2") &&
+         nvmlIsSymbolAvailable("nvmlDeviceGetCudaComputeCapability") &&
+         nvmlIsSymbolAvailable("nvmlDeviceGetBrand") &&
+         nvmlIsSymbolAvailable("nvmlDeviceGetCpuAffinityWithinScope");
 }
-
-DALIError_t wrapNvmlShutdown(void) {
-  if (nvmlInternalInit == nullptr) {
-    return DALISuccess;
-  }
-  if (nvmlInternalShutdown == nullptr) {
-    DALI_FAIL("lib wrapper not initialized.");
-    return DALIError;
-  }
-  nvmlReturn_t ret = nvmlInternalShutdown();
-  if (ret != NVML_SUCCESS) {
-    DALI_FAIL("nvmlShutdown() failed: " +
-      nvmlInternalErrorString(ret));
-    return DALIError;
-  }
-  return DALISuccess;
-}
-
-DALIError_t wrapNvmlDeviceGetHandleByPciBusId(const char* pciBusId, nvmlDevice_t* device) {
-  FUNC_BODY(nvmlInternalDeviceGetHandleByPciBusId, pciBusId, device);
-}
-
-DALIError_t wrapNvmlDeviceGetHandleByIndex(const int device_id, nvmlDevice_t* device) {
-  FUNC_BODY(nvmlInternalDeviceGetHandleByIndex, device_id, device);
-}
-
-DALIError_t wrapNvmlDeviceGetIndex(nvmlDevice_t device, unsigned* index) {
-  FUNC_BODY(nvmlInternalDeviceGetIndex, device, index);
-}
-
-DALIError_t wrapNvmlDeviceSetCpuAffinity(nvmlDevice_t device) {
-  FUNC_BODY(nvmlInternalDeviceSetCpuAffinity, device);
-}
-
-DALIError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device) {
-  FUNC_BODY(nvmlInternalDeviceClearCpuAffinity, device);
-}
-
-DALIError_t wrapNvmlSystemGetDriverVersion(char* name, unsigned int length) {
-  FUNC_BODY(nvmlInternalSystemGetDriverVersion, name, length);
-}
-
-DALIError_t wrapNvmlDeviceGetCpuAffinity(nvmlDevice_t device,
-                                         unsigned int cpuSetSize,
-                                         unsigned long* cpuSet) {  // NOLINT(runtime/int)
-  FUNC_BODY(nvmlInternalDeviceGetCpuAffinity, device, cpuSetSize, cpuSet);
-}
-
-#if (CUDART_VERSION >= 11000)
-
-DALIError_t wrapNvmlDeviceGetCpuAffinityWithinScope(nvmlDevice_t device,
-                                                    unsigned int nodeSetSize,
-                                                    unsigned long *nodeSet,  // NOLINT(runtime/int)
-                                                    nvmlAffinityScope_t scope) {
-  FUNC_BODY(nvmlInternalDeviceGetCpuAffinityWithinScope, device, nodeSetSize, nodeSet, scope);
-}
-
-DALIError_t wrapNvmlDeviceGetBrand(nvmlDevice_t device, nvmlBrandType_t* type) {
-  FUNC_BODY(nvmlInternalDeviceGetBrand, device, type);
-}
-
-DALIError_t wrapNvmlDeviceGetCount_v2(unsigned int* deviceCount) {
-  FUNC_BODY(nvmlInternalDeviceGetCount_v2, deviceCount);
-}
-
-DALIError_t wrapNvmlDeviceGetHandleByIndex_v2(unsigned int index, nvmlDevice_t* device) {
-  FUNC_BODY(nvmlInternalDeviceGetHandleByIndex_v2, index, device);
-}
-
-DALIError_t wrapNvmlDeviceGetCudaComputeCapability(nvmlDevice_t device, int *major, int *minor) {
-  FUNC_BODY(nvmlInternalDeviceGetCudaComputeCapability, device, major, minor);
-}
-
-#endif
-
-#undef FUNC_BODY
-
-}  // namespace nvml
-
-}  // namespace dali

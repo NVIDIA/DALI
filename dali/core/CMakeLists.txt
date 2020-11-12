@@ -27,7 +27,7 @@ foreach(incl_dir ${INFERED_COMPILER_INCLUDE})
 endforeach(incl_dir)
 separate_arguments(DEFAULT_COMPILER_INCLUDE UNIX_COMMAND  "${DEFAULT_COMPILER_INCLUDE}")
 
-if (NOT LINK_LIBCUDA)
+if (NOT LINK_DRIVER)
   set(CUDA_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cuda_gen.cc")
   add_custom_command(
       OUTPUT ${CUDA_GENERATED_STUB}
@@ -67,7 +67,7 @@ if (BUILD_TEST)
   add_executable(dali_core_test "${DALI_CORE_TEST_SRCS}")
   target_link_libraries(dali_core_test PUBLIC dali_core)
   target_link_libraries(dali_core_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
-  target_link_libraries(dali_core_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+    target_link_libraries(dali_core_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
   target_link_libraries(dali_core_test PRIVATE "-pie")
   set_target_properties(dali_core_test PROPERTIES POSITION_INDEPENDENT_CODE ON)
   set_target_properties(dali_core_test PROPERTIES OUTPUT_NAME "dali_core_test.bin")

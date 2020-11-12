@@ -28,6 +28,18 @@
 #include "dali/core/cuda_utils.h"
 #include "dali/util/nvml_wrap.h"
 
+
+#define NVML_CALL(code)                                    \
+  do {                                                     \
+    nvmlReturn_t status = code;                            \
+    if (status != NVML_SUCCESS) {                          \
+      dali::string error = dali::string("NVML error \"") + \
+        nvmlErrorString(status) + "\"";                    \
+      DALI_FAIL(error);                                    \
+    }                                                      \
+  } while (0)
+
+
 namespace dali {
 namespace nvml {
 
@@ -43,9 +55,7 @@ inline std::mutex& Mutex() {
  * @brief Initializes the NVML library
  */
 inline void Init() {
-  std::lock_guard<std::mutex> lock(Mutex());
-  DALI_CALL(wrapSymbols());
-  DALI_CALL(wrapNvmlInit());
+  NVML_CALL(nvmlInitChecked());
 }
 
 /**
@@ -53,7 +63,7 @@ inline void Init() {
  *        respecting previously set mask.
  */
 inline void GetNVMLAffinityMask(cpu_set_t * mask, size_t num_cpus) {
-  if (!wrapIsInitialized()) {
+  if (!nvmlIsInitialized()) {
     return;
   }
   int device_idx;
@@ -64,16 +74,16 @@ inline void GetNVMLAffinityMask(cpu_set_t * mask, size_t num_cpus) {
   std::vector<unsigned long> nvml_mask_container(cpu_set_size);  // NOLINT(runtime/int)
   auto * nvml_mask = nvml_mask_container.data();
   nvmlDevice_t device;
-  DALI_CALL(wrapNvmlDeviceGetHandleByIndex(device_idx, &device));
+  NVML_CALL(nvmlDeviceGetHandleByIndex(device_idx, &device));
   #if (CUDART_VERSION >= 11000)
-    if (wrapHasCuda11NvmlFunctions()) {
-      DALI_CALL(wrapNvmlDeviceGetCpuAffinityWithinScope(device, cpu_set_size, nvml_mask,
+    if (nvmlHasCuda11NvmlFunctions()) {
+      NVML_CALL(nvmlDeviceGetCpuAffinityWithinScope(device, cpu_set_size, nvml_mask,
                                                         NVML_AFFINITY_SCOPE_SOCKET));
     } else {
-      DALI_CALL(wrapNvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
+      NVML_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
     }
   #else
-    DALI_CALL(wrapNvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
+    NVML_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
   #endif
 
   // Convert it to cpu_set_t
@@ -143,10 +153,10 @@ inline void SetCPUAffinity(int core = -1) {
 
 inline void Shutdown() {
   std::lock_guard<std::mutex> lock(Mutex());
-  if (!wrapIsInitialized()) {
+  if (!nvmlIsInitialized()) {
     return;
   }
-  DALI_CALL(wrapNvmlShutdown());
+  NVML_CALL(nvmlShutdown());
 }
 
 #if (CUDART_VERSION >= 11000)
@@ -169,9 +179,9 @@ struct DeviceProperties {
 inline DeviceProperties GetDeviceInfo(int device_idx) {
   DeviceProperties ret;
   nvmlDevice_t device;
-  DALI_CALL(wrapNvmlDeviceGetHandleByIndex_v2(device_idx, &device));
-  DALI_CALL(wrapNvmlDeviceGetBrand(device, &ret.type));
-  DALI_CALL(wrapNvmlDeviceGetCudaComputeCapability(device, &ret.cap_major, &ret.cap_minor));
+  NVML_CALL(nvmlDeviceGetHandleByIndex_v2(device_idx, &device));
+  NVML_CALL(nvmlDeviceGetBrand(device, &ret.type));
+  NVML_CALL(nvmlDeviceGetCudaComputeCapability(device, &ret.cap_major, &ret.cap_minor));
   return ret;
 }
 
@@ -181,7 +191,7 @@ inline DeviceProperties GetDeviceInfo(int device_idx) {
  * @throws std::runtime_error
  */
 inline bool HasHwDecoder(int device_idx) {
-  if (!wrapIsInitialized()) {
+  if (!nvmlIsInitialized()) {
     return false;
   }
   auto info = GetDeviceInfo(device_idx);
@@ -195,11 +205,11 @@ inline bool HasHwDecoder(int device_idx) {
  * @throws std::runtime_error
  */
 inline bool HasHwDecoder() {
-  if (!wrapIsInitialized()) {
+  if (!nvmlIsInitialized()) {
     return false;
   }
   unsigned int device_count;
-  DALI_CALL(wrapNvmlDeviceGetCount_v2(&device_count));
+  NVML_CALL(nvmlDeviceGetCount_v2(&device_count));
   for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
     if (HasHwDecoder(device_idx)) return true;
   }
@@ -211,24 +221,14 @@ inline bool HasHwDecoder() {
  * Checks, whether CUDA11-proper NVML functions have been successfully loaded
  */
 inline bool HasCuda11NvmlFunctions() {
-  if (!wrapIsInitialized()) {
+  if (!nvmlIsInitialized()) {
     return false;
   }
-  return wrapHasCuda11NvmlFunctions();
+  return nvmlHasCuda11NvmlFunctions();
 }
 
 }  // namespace nvml
 }  // namespace dali
-
-#define NVML_CALL(code)                                    \
-  do {                                                     \
-    nvmlReturn_t status = code;                            \
-    if (status != NVML_SUCCESS) {                          \
-      dali::string error = dali::string("NVML error \"") + \
-        nvmlErrorString(status) + "\"";                    \
-      DALI_FAIL(error);                                    \
-    }                                                      \
-  } while (0)
 
 #endif  // DALI_UTIL_NVML_H_
 

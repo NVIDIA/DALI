@@ -5,6 +5,7 @@
       "\"dali/operators/reader/nvdecoder/nvcuvid.h\""
    ],
    "return_type":"CUresult",
+   "calling_conv":"CUDAAPI",
    "not_found_error":"CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND",
    "functions": {
       "cuvidCreateVideoSource": {},

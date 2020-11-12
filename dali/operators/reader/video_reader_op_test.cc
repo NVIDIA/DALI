@@ -107,15 +107,12 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   float driverVersion = 0;
   char version[80];
 
-  if (nvml::wrapSymbols() != DALISuccess) {
-    FAIL() << "wrapSymbols() failed";
-  }
-  if (nvml::wrapNvmlInit() != DALISuccess) {
-    FAIL() << "wrapNvmlInit() failed";
+  if (nvmlInitChecked() != NVML_SUCCESS) {
+    FAIL() << "nvmlInitChecked() failed";
   }
 
-  if (nvml::wrapNvmlSystemGetDriverVersion(version, sizeof version) != DALISuccess) {
-    FAIL() << "wrapNvmlSystemGetDriverVersion failed!";
+  if (nvmlSystemGetDriverVersion(version, sizeof version) != NVML_SUCCESS) {
+    FAIL() << "nvmlSystemGetDriverVersion failed!";
   }
 
   driverVersion = std::stof(version);

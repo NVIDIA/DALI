@@ -57,8 +57,7 @@ collect_sources(DALI_SRCS PARENT_SCOPE)
 if (BUILD_PROTOBUF)
   set(DALI_PROTO_OBJ $<TARGET_OBJECTS:DALI_PROTO>)
   add_library(dali ${LIBTYPE} ${DALI_SRCS} ${DALI_PROTO_OBJ} ${CUDART_LIB})
-  set_target_properties(dali PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
+  set_target_properties(dali PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 endif()
 
 if (BUILD_DALI_PIPELINE)
@@ -75,6 +74,10 @@ if (BUILD_DALI_PIPELINE)
   target_link_libraries(dali PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 endif()
 
+if (BUILD_NVML)
+  target_link_libraries(dali PRIVATE $<TARGET_OBJECTS:dynlink_nvml>)
+endif(BUILD_NVML)
+
 ################################################
 # Build test suite
 ################################################
@@ -84,6 +87,9 @@ if (BUILD_DALI_PIPELINE AND BUILD_TEST)
 
   target_link_libraries(dali_test PUBLIC dali dali_core dali_kernels dali_operators ${DALI_LIBS} gtest)
   target_link_libraries(dali_test PRIVATE dynlink_cuda ${CUDART_LIB})
+  if (BUILD_NVML)
+    target_link_libraries(dali_test PRIVATE $<TARGET_OBJECTS:dynlink_nvml>)
+  endif(BUILD_NVML)
   target_link_libraries(dali_test PRIVATE "-pie")
   set_target_properties(dali_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
   set_target_properties(dali_test PROPERTIES POSITION_INDEPENDENT_CODE ON)

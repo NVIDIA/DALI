@@ -68,6 +68,9 @@ list(APPEND DALI_EXCLUDES libculibos.a)
 if (LINK_LIBCUDA)
   CUDA_find_library_stub(CUDA_cuda_LIBRARY cuda)
   list(APPEND DALI_LIBS ${CUDA_cuda_LIBRARY})
+
+  CUDA_find_library_stub(CUDA_nvml_LIBRARY nvidia-ml)
+  list(APPEND DALI_LIBS ${CUDA_nvml_LIBRARY})
 endif()
 
 # NVTX for profiling

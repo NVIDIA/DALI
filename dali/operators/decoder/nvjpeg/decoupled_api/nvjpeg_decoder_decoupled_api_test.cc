@@ -209,7 +209,7 @@ class HwDecoderUtilizationTest : public ::testing::Test {
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
       if (nvml::HasCuda11NvmlFunctions()) {
           unsigned int device_count;
-          DALI_CALL(nvml::wrapNvmlDeviceGetCount_v2(&device_count));
+          NVML_CALL(nvmlDeviceGetCount_v2(&device_count));
           for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
             auto info = nvml::GetDeviceInfo(device_idx);
             std::cerr << "Device " << device_idx
