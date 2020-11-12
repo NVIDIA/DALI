@@ -33,7 +33,7 @@
 #include "dali/pipeline/operator/operator.h"
 
 #define CMN_IN_TYPES (uint8_t, int16_t, uint16_t, int32_t, float, float16)
-#define CMN_OUT_TYPES (float, float16)
+#define CMN_OUT_TYPES (float, float16, uint8_t, int8_t)
 #define CMN_NDIMS (3, 4, 5)
 
 namespace dali {
