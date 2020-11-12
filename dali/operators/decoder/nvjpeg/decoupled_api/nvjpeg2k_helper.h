@@ -15,7 +15,7 @@
 #ifndef DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG2K_HELPER_H_
 #define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG2K_HELPER_H_
 
-#ifdef DALI_USE_NVJPEG2K
+#ifdef BUILD_NVJPEG2K_ENABLED
 
 #include <nvjpeg2k.h>
 #include <string>
@@ -95,6 +95,6 @@ struct NvJPEG2KDecodeState : public UniqueHandle<nvjpeg2kDecodeState_t, NvJPEG2K
 
 }  // namespace dali
 
-#endif  // DALI_USE_NVJPEG2K
+#endif  // BUILD_NVJPEG2K_ENABLED
 
 #endif  // DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG2K_HELPER_H_

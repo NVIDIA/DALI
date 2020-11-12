@@ -350,6 +350,8 @@ Optional CMake build parameters
 -  ``WERROR`` - treat all build warnings as errors (default: OFF)
 -  ``BUILD_WITH_ASAN`` - build with ASAN support (default: OFF). To run issue:
 -  ``BUILD_DALI_NODEPS`` - disables support for third party libraries that are normally expected to be available in the system
+-  ``LINK_LIBCUDA`` - enables direct linking with libcuda.so or an appropriate stub instead of dlopen
+   it in the runtime (removes the requirement to have clan-python bindings available to generate the stubs)
 
 .. warning::
 

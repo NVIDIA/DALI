@@ -67,7 +67,9 @@ bool cuInitChecked() {
       return true;
 
   // set symbol loader for this library
+#if !LINK_LIBCUDA_ENABLED
   CudaSetSymbolLoader(LoadSymbol);
+#endif
   static CUresult res = cuInit(0);
   initialized = (res == CUDA_SUCCESS);
   return initialized;
