@@ -9,7 +9,7 @@ do_once() {
     rm cmake-3.18.4-Linux-x86_64.sh
     # for stub generation
     pip install clang
-    pip isntall libclang
+    pip install libclang
 }
 
 test_body() {
