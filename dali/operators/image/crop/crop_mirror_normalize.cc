@@ -27,7 +27,7 @@ DALI_SCHEMA(CropMirrorNormalize)
 
 Normalization takes the input images and produces the output by using the following formula::
 
-  output = (input - mean) / std
+  output = scale * (input - mean) / std + shift
 
 .. note::
     If no cropping arguments are specified, only mirroring and normalization will occur.
@@ -41,7 +41,7 @@ Normalization takes the input images and produces the output by using the follow
   .AddOptionalArg("dtype",
        R"code(Output data type.
 
-Supported types: ``FLOAT``, ``FLOAT16``, and ``UINT8``.
+Supported types: ``FLOAT``, ``FLOAT16``, ``INT8``, ``UINT8``.
 
 If not set, the input type is used.)code", DALI_FLOAT)
   .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
@@ -58,6 +58,14 @@ If not set, the input type is used.)code", DALI_FLOAT)
   .AddOptionalArg("std",
     R"code(Standard deviation values for image normalization.)code",
     std::vector<float>{1.0f})
+  .AddOptionalArg("scale", R"(The value by which the result is multiplied.
+
+This argument is useful when using integer outputs to improve dynamic range utiliztion.)",
+    1.0f)
+  .AddOptionalArg("shift", R"(The value added to the (scaled) result.
+
+This argument is useful when using unsigned integer outputs to improve dynamic range utiliztion.)",
+    0.0f)
   .AddParent("CropAttr")
   .AddParent("OutOfBoundsAttr");
 
