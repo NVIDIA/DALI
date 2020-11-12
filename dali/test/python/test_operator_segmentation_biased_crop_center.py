@@ -9,7 +9,7 @@ from nose.tools import assert_raises
 
 np.random.seed(4321)
 
-def check_biased_crop_center(ndim=2, batch_size=3,
+def check_select_mask_pixel(ndim=2, batch_size=3,
                              min_extent=20, max_extent=50):
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
@@ -17,54 +17,48 @@ def check_biased_crop_center(ndim=2, batch_size=3,
         in_shape_dims = [fn.cast(fn.uniform(range=(min_extent, max_extent + 1), shape=(1,), device='cpu'),
                                  dtype=types.INT32) for d in range(ndim)]
         in_shape = fn.cat(*in_shape_dims, axis=0)
-        in_mask = fn.cast(fn.uniform(range=(0, 1), device='cpu', shape=in_shape), dtype=types.INT32)
+        in_mask = fn.cast(fn.uniform(range=(0, 2), device='cpu', shape=in_shape), dtype=types.INT32)
 
-        # Crop dims
-        crop_shape = in_shape - 2  # We want to force the center adjustment, therefore the large crop shape
-
-        # Crop centers
-        always_fg_center = fn.segmentation.biased_crop_center(in_mask, nonzero=1)
-        random_center = fn.segmentation.biased_crop_center(in_mask, nonzero=0)
+        fg_pixel1 = fn.segmentation.select_mask_pixel(in_mask, foreground=1)  # > 0
+        fg_pixel2 = fn.segmentation.select_mask_pixel(in_mask, foreground=1, threshold=0.99)  # > 0.99
+        fg_pixel3 = fn.segmentation.select_mask_pixel(in_mask, foreground=1, value=2)  # == 2
+        rnd_pixel = fn.segmentation.select_mask_pixel(in_mask, foreground=0)
         coin_flip = fn.coin_flip(probability=0.7)
-        biased_center = fn.segmentation.biased_crop_center(in_mask, nonzero=coin_flip)
-        always_fg_center_w_sh = fn.segmentation.biased_crop_center(in_mask, nonzero=1, shape=crop_shape)
-        random_center_w_sh = fn.segmentation.biased_crop_center(in_mask, nonzero=0, shape=crop_shape)
+        fg_biased = fn.segmentation.select_mask_pixel(in_mask, foreground=coin_flip)
 
-        # Transforming center to anchor
-        anchor = always_fg_center_w_sh - crop_shape // 2
-        crop_shape = fn.cast(crop_shape, dtype=types.INT64)  # anchor and shape type should match
+        # Demo purposes: Taking a random pixel and produce a valid anchor to feed slice
+        crop_shape = in_shape - 2  # We want to force the center adjustment, therefore the large crop shape
+        anchor = fg_pixel1 - crop_shape // 2
+        anchor = min(max(0, anchor), in_shape - crop_shape)
         out_mask = fn.slice(in_mask, anchor, crop_shape, axes=tuple(range(ndim)))
-    pipe.set_outputs(in_mask, always_fg_center, random_center, coin_flip, biased_center,
-                     crop_shape, always_fg_center_w_sh, random_center_w_sh, out_mask)
+
+    pipe.set_outputs(in_mask, fg_pixel1, fg_pixel2, fg_pixel3, rnd_pixel, coin_flip, fg_biased,
+                     anchor, crop_shape, out_mask)
     pipe.build()
     for iter in range(3):
         outputs = pipe.run()
         for idx in range(batch_size):
             in_mask = outputs[0].at(idx)
-            always_fg_center = outputs[1].at(idx).tolist()
-            random_center = outputs[2].at(idx).tolist()
-            coin_flip = outputs[3].at(idx)
-            biased_center = outputs[4].at(idx).tolist()
-            crop_shape = tuple(outputs[5].at(idx).tolist())
-            always_fg_center_w_sh = outputs[6].at(idx).tolist()
-            random_center_w_sh = outputs[7].at(idx).tolist()
-            out_mask = outputs[8].at(idx)
+            fg_pixel1 = outputs[1].at(idx).tolist()
+            fg_pixel2 = outputs[2].at(idx).tolist()
+            fg_pixel3 = outputs[3].at(idx).tolist()
+            rnd_pixel = outputs[4].at(idx).tolist()
+            coin_flip = outputs[5].at(idx).tolist()
+            fg_biased = outputs[6].at(idx).tolist()
+            anchor = outputs[7].at(idx).tolist()
+            crop_shape = outputs[8].at(idx).tolist()
+            out_mask = outputs[9].at(idx)
+
+            assert in_mask[tuple(fg_pixel1)] > 0
+            assert in_mask[tuple(fg_pixel2)] > 0.99
+            print(in_mask[tuple(fg_pixel3)])
+            assert in_mask[tuple(fg_pixel3)] == 2, f"{in_mask[tuple(fg_pixel3)]}"
+            assert in_mask[tuple(fg_biased)] > 0 or not coin_flip
 
             for d in range(ndim):
-                assert random_center[d] >= 0 and random_center[d] < in_mask.shape[d]
-                assert always_fg_center[d] >= 0 and always_fg_center[d] < in_mask.shape[d]
-                assert biased_center[d] >= 0 and biased_center[d] < in_mask.shape[d]
+                assert 0 <= anchor[d] and anchor[d] + crop_shape[d] <= in_mask.shape[d]
+            assert out_mask.shape == tuple(crop_shape)
 
-            assert in_mask[tuple(always_fg_center)] > 0
-            assert in_mask[tuple(biased_center)] > 0 or not coin_flip
-
-            for d in range(ndim):
-                always_fg_center_anchor_d = always_fg_center_w_sh[d] - crop_shape[d] // 2
-                random_center_anchor_d = random_center_w_sh[d] - crop_shape[d] // 2
-                assert always_fg_center_anchor_d >= 0 and always_fg_center_anchor_d + crop_shape[d] <= in_mask.shape[d]
-                assert random_center_anchor_d >= 0 and random_center_anchor_d + crop_shape[d] <= in_mask.shape[d]
-            assert out_mask.shape == crop_shape
-
-def test_biased_crop_center():
+def test_select_mask_pixel():
     for ndim in (2, 3):
-        yield check_biased_crop_center, ndim
+        yield check_select_mask_pixel, ndim
