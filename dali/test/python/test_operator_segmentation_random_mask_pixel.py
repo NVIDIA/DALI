@@ -9,8 +9,8 @@ from nose.tools import assert_raises
 
 np.random.seed(4321)
 
-def check_select_mask_pixel(ndim=2, batch_size=3,
-                             min_extent=20, max_extent=50):
+def check_random_mask_pixel(ndim=2, batch_size=3,
+                            min_extent=20, max_extent=50):
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
         # Input mask
@@ -19,12 +19,12 @@ def check_select_mask_pixel(ndim=2, batch_size=3,
         in_shape = fn.cat(*in_shape_dims, axis=0)
         in_mask = fn.cast(fn.uniform(range=(0, 2), device='cpu', shape=in_shape), dtype=types.INT32)
 
-        fg_pixel1 = fn.segmentation.select_mask_pixel(in_mask, foreground=1)  # > 0
-        fg_pixel2 = fn.segmentation.select_mask_pixel(in_mask, foreground=1, threshold=0.99)  # > 0.99
-        fg_pixel3 = fn.segmentation.select_mask_pixel(in_mask, foreground=1, value=2)  # == 2
-        rnd_pixel = fn.segmentation.select_mask_pixel(in_mask, foreground=0)
+        fg_pixel1 = fn.segmentation.random_mask_pixel(in_mask, foreground=1)  # > 0
+        fg_pixel2 = fn.segmentation.random_mask_pixel(in_mask, foreground=1, threshold=0.99)  # > 0.99
+        fg_pixel3 = fn.segmentation.random_mask_pixel(in_mask, foreground=1, value=2)  # == 2
+        rnd_pixel = fn.segmentation.random_mask_pixel(in_mask, foreground=0)
         coin_flip = fn.coin_flip(probability=0.7)
-        fg_biased = fn.segmentation.select_mask_pixel(in_mask, foreground=coin_flip)
+        fg_biased = fn.segmentation.random_mask_pixel(in_mask, foreground=coin_flip)
 
         # Demo purposes: Taking a random pixel and produce a valid anchor to feed slice
         crop_shape = in_shape - 2  # We want to force the center adjustment, therefore the large crop shape
@@ -52,13 +52,13 @@ def check_select_mask_pixel(ndim=2, batch_size=3,
             assert in_mask[tuple(fg_pixel1)] > 0
             assert in_mask[tuple(fg_pixel2)] > 0.99
             print(in_mask[tuple(fg_pixel3)])
-            assert in_mask[tuple(fg_pixel3)] == 2, f"{in_mask[tuple(fg_pixel3)]}"
+            assert in_mask[tuple(fg_pixel3)] == 2
             assert in_mask[tuple(fg_biased)] > 0 or not coin_flip
 
             for d in range(ndim):
                 assert 0 <= anchor[d] and anchor[d] + crop_shape[d] <= in_mask.shape[d]
             assert out_mask.shape == tuple(crop_shape)
 
-def test_select_mask_pixel():
+def test_random_mask_pixel():
     for ndim in (2, 3):
-        yield check_select_mask_pixel, ndim
+        yield check_random_mask_pixel, ndim

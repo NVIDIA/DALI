@@ -25,24 +25,22 @@
 
 namespace dali {
 
-DALI_SCHEMA(segmentation__SelectMaskPixel)
-    .DocStr(R"(Selects random pixel coordinates from the input mask, sampled from a
-uniform distribution. The set of pixels to sample from depend on the value of the
-``foreground`` argument. If ``foreground != 0``, only foreground pixels can be
-selected. Otherwise, any pixel in the input can be selected.
+DALI_SCHEMA(segmentation__RandomMaskPixel)
+    .DocStr(R"(Selects random pixel coordinates in a mask, sampled from a uniform distribution.
 
-The definition of foreground can be defined by a ``threshold`` or a ``value`` argument.
-When using ``threshold``, any input ``value > threshold`` is considered foreground. When
-using ``value``, any pixel matching exactly the given value is considered foreground.
+Based on run-time argument ``foreground``, it returns either only foreground pixels or any pixels.
+
+Pixels are classificed as foreground either when their value exceeds a given ``threshold`` or when
+it's equal to a specific ``value``.
 )")
     .AddOptionalArg<int>("value",
-      R"code(Any pixel equal to this value is defined as foreground.
+      R"code(All pixels equal to this value are  interpreted as foreground.
 
 This argument is mutually exclusive with ``threshold`` argument and is meant to be used only
 with integer inputs.
 )code", nullptr, true)
     .AddOptionalArg<float>("threshold",
-      R"code(Any pixel with value higher than this value is defined as foreground.
+      R"code(All pixels with a value above this threshold are interpreted as foreground.
 
 This argument is mutually exclusive with ``value`` argument.
 )code", 0.0f, true)
@@ -53,9 +51,9 @@ If 0, the pixel position is sampled uniformly from all available pixels.)code",
     .NumInput(1)
     .NumOutput(1);
 
-class SelectMaskPixelCPU : public Operator<CPUBackend> {
+class RandomMaskPixelCPU : public Operator<CPUBackend> {
  public:
-  explicit SelectMaskPixelCPU(const OpSpec &spec);
+  explicit RandomMaskPixelCPU(const OpSpec &spec);
   bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
   void RunImpl(workspace_t<CPUBackend> &ws) override;
@@ -76,7 +74,7 @@ class SelectMaskPixelCPU : public Operator<CPUBackend> {
   USE_OPERATOR_MEMBERS();
 };
 
-SelectMaskPixelCPU::SelectMaskPixelCPU(const OpSpec &spec)
+RandomMaskPixelCPU::RandomMaskPixelCPU(const OpSpec &spec)
     : Operator<CPUBackend>(spec),
       seed_(spec.GetArgument<int64_t>("seed")),
       has_value_(spec.ArgumentDefined("value")) {
@@ -86,7 +84,7 @@ SelectMaskPixelCPU::SelectMaskPixelCPU(const OpSpec &spec)
   }
 }
 
-bool SelectMaskPixelCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
+bool RandomMaskPixelCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
                                     const workspace_t<CPUBackend> &ws) {
   const auto &in_masks = ws.template InputRef<CPUBackend>(0);
   int nsamples = in_masks.size();
@@ -119,7 +117,7 @@ bool SelectMaskPixelCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <typename T>
-void SelectMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
+void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   const auto &in_masks = ws.template InputRef<CPUBackend>(0);
   auto &out_pixel_pos = ws.template OutputRef<CPUBackend>(0);
   int nsamples = in_masks.size();
@@ -182,7 +180,7 @@ void SelectMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   thread_pool.RunAll();
 }
 
-void SelectMaskPixelCPU::RunImpl(workspace_t<CPUBackend> &ws) {
+void RandomMaskPixelCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &in_masks = ws.template InputRef<CPUBackend>(0);
   TYPE_SWITCH(in_masks.type().id(), type2id, T, MASK_SUPPORTED_TYPES, (
     RunImplTyped<T>(ws);
@@ -191,6 +189,6 @@ void SelectMaskPixelCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   ));  // NOLINT
 }
 
-DALI_REGISTER_OPERATOR(segmentation__SelectMaskPixel, SelectMaskPixelCPU, CPU);
+DALI_REGISTER_OPERATOR(segmentation__RandomMaskPixel, RandomMaskPixelCPU, CPU);
 
 }  // namespace dali
