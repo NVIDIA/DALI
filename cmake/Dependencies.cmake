@@ -19,6 +19,8 @@
 CUDA_find_library(CUDART_LIB cudart_static)
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
+include_directories(SYSTEM ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+
 # For NVJPEG
 if (BUILD_NVJPEG)
   find_package(NVJPEG 9.0 REQUIRED)
