@@ -75,15 +75,12 @@ COPY qa/setup_packages.py qa/setup_packages.py
 
 # get current CUDA version, ask setup_packages.py which TensorFlow we need to support and loop over all version downloading
 # them to /pip-packages dir one by one. In effect all TF versions are stored in only one place setup_packages.py
+SHELL ["/bin/bash", "-c"]
 RUN export USE_CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*) | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1\2/') && \
     export last_config_index=$(python qa/setup_packages.py -n -u tensorflow-gpu --cuda ${USE_CUDA_VERSION}) && \
     for i in `seq 0 $last_config_index`; do \
         package=$(python qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${USE_CUDA_VERSION}); \
-        prefix=${package%nvidia-tensorflow*}; \
-        sufix=${package#*nvidia-tensorflow};  \
-        partial=${package#$prefix};           \
-        final=${partial%$sufix};              \
-        if [ "${final}" != "nvidia-tensorflow" ]; then \
+        if [[ "${package}" != *"nvidia-tensorflow"* ]]; then \
             pip download ${package} -d /pip-packages; \
         fi \
     done
