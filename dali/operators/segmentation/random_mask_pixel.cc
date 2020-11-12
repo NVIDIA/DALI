@@ -21,7 +21,7 @@
 #include "dali/core/boundary.h"
 
 #define MASK_SUPPORTED_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, \
-                              uint64_t, int64_t, float)
+                              uint64_t, int64_t, float, bool)
 
 namespace dali {
 
@@ -99,22 +99,11 @@ bool RandomMaskPixelCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
   value_.clear();
   threshold_.clear();
 
-  for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-    foreground_[sample_idx] = spec_.template GetArgument<int>("foreground", &ws, sample_idx);
-  }
-
+  GetPerSampleArgument(foreground_, "foreground", ws, nsamples);
   if (spec_.ArgumentDefined("value")) {
-    value_.resize(nsamples);
-    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-      value_[sample_idx] = spec_.template GetArgument<int>("value", &ws, sample_idx);
-    }
+    GetPerSampleArgument(value_, "value", ws, nsamples);
   } else {
-    threshold_.resize(nsamples, 0.0f);
-    if (spec_.ArgumentDefined("threshold")) {
-      for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-        threshold_[sample_idx] = spec_.template GetArgument<float>("threshold", &ws, sample_idx);
-      }
-    }
+    GetPerSampleArgument(threshold_, "threshold", ws, nsamples);
   }
   return true;
 }
@@ -136,11 +125,7 @@ void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
     }
   }
   assert(rng_.size() == static_cast<size_t>(thread_pool.size()));
-
-  if (rle_.empty()) {
-    rle_.resize(thread_pool.size());
-  }
-  assert(rle_.size() == static_cast<size_t>(thread_pool.size()));
+  rle_.resize(thread_pool.size());
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     thread_pool.AddWork(
@@ -154,14 +139,18 @@ void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
           auto &rle_mask = rle_[thread_id];
           if (has_value_) {
             T value = static_cast<T>(value_[sample_idx]);
-            rle_mask.Init(
-                mask, [value](const T &x) { return x == value; });
-            if (rle_mask.count() > 0) {
-              auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
-              flat_idx = rle_mask.find(dist(rng));
+            // checking if the value is representable by T, otherwise we
+            // just fall back to pick a random pixel.
+            if (static_cast<int>(value) == value_[sample_idx]) {
+              rle_mask.Init(
+                  mask, [value](const T &x) { return x == value; });
+              if (rle_mask.count() > 0) {
+                auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
+                flat_idx = rle_mask.find(dist(rng));
+              }
             }
           } else {
-            T threshold = static_cast<T>(threshold_[sample_idx]);
+            float threshold = threshold_[sample_idx];
             rle_mask.Init(
                 mask, [threshold](const T &x) { return x > threshold; });
             if (rle_mask.count() > 0) {
