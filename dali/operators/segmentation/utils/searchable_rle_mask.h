@@ -65,7 +65,7 @@ class SearchableRLEMask {
   }
 
   template <typename T, typename Predicate = is_positive>
-  void Init(TensorView<StorageCPU, T> mask_view, Predicate &&is_foreground = {}){
+  void Init(TensorView<StorageCPU, T> mask_view, Predicate &&is_foreground = {}) {
     Init(span<const T>{mask_view.data, volume(mask_view.shape)},
          std::forward<Predicate>(is_foreground));
   }
