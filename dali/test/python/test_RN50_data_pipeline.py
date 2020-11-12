@@ -20,7 +20,7 @@ import os
 import glob
 import argparse
 import time
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, AverageMeter
 
 class CommonPipeline(Pipeline):
     def __init__(self, data_paths, num_shards, batch_size, num_threads, device_id, prefetch, fp16, random_shuffle, nhwc,
@@ -321,26 +321,6 @@ if SMALL_DATA_SET:
 
 print("GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, NHWC: {}, READ_SHUFFLE: {}, DISABLE_MMAP: {}, small dataset: {}, GPU ID: {}, shard number: {}, number of shards {}"
       .format(N, BATCH_SIZE, WORKERS, PREFETCH, LOG_INTERVAL, FP16, NHWC, READ_SHUFFLE, DISABLE_MMAP, SMALL_DATA_SET, GPU_ID, DALI_SHARD, NUMBER_OF_SHARDS))
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-        self.avg_last_n = 0
-        self.max_val = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.max_val = max(self.max_val, val)
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
 
 for pipe_name in test_data.keys():
     data_set_len = len(test_data[pipe_name])

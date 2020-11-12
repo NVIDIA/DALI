@@ -25,6 +25,7 @@ import sys
 import random
 import re
 
+
 def get_dali_extra_path():
   try:
       dali_extra_path = os.environ['DALI_EXTRA_PATH']
@@ -33,12 +34,14 @@ def get_dali_extra_path():
       dali_extra_path = "."
   return dali_extra_path
 
+
 # those functions import modules on demand to no impose additional dependency on numpy or matplot
 # to test that are using these utilities
 np = None
 assert_array_equal = None
 assert_allclose = None
 cp = None
+
 
 def import_numpy():
     global np
@@ -47,14 +50,19 @@ def import_numpy():
     import numpy as np
     from numpy.testing import assert_array_equal, assert_allclose
 
+
 def import_cupy():
     global cp
     import cupy as cp
 
+
 Image = None
+
+
 def import_pil():
     global Image
     from PIL import Image
+
 
 def save_image(image, file_name):
     import_numpy()
@@ -69,12 +77,15 @@ def save_image(image, file_name):
         elif min >= -128 and max <= 127:
             image = image + 128
     else:
-        image = (image - np.iinfo(image.dtype).min) * (255.0 / (np.iinfo(image.dtype).max - np.iinfo(image.dtype).min))
+        image = (image - np.iinfo(image.dtype).min) * (255.0 /
+                                                       (np.iinfo(image.dtype).max - np.iinfo(image.dtype).min))
     image = image.astype(np.uint8)
     Image.fromarray(image).save(file_name)
 
+
 def get_gpu_num():
-    sp = subprocess.Popen(['nvidia-smi', '-L'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    sp = subprocess.Popen(['nvidia-smi', '-L'], stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, universal_newlines=True)
     out_str = sp.communicate()
     out_list = out_str[0].split('\n')
     out_list = [elm for elm in out_list if len(elm) > 0]
@@ -163,7 +174,7 @@ def check_batch(
                 is_failed = True
             if is_failed or is_error(err, max_err, eps, max_allowed_error):
                 error_msg = ("Mean error: [{}], Min error: [{}], Max error: [{}]" +
-                                "\n Total error count: [{}], Tensor size: [{}], Error calculation failed: [{}]").format(
+                             "\n Total error count: [{}], Tensor size: [{}], Error calculation failed: [{}]").format(
                     err, min_err, max_err, total_errors, absdiff.size, is_failed)
                 try:
                     save_image(left, "err_1.png")
@@ -239,8 +250,11 @@ class RandomDataIterator(object):
 
     next = __next__
 
+
 class RandomlyShapedDataIterator(object):
-    def __init__(self, batch_size, min_shape=None, max_shape=(10, 600, 800, 3), seed=12345, dtype=None):
+    def __init__(
+            self, batch_size, min_shape=None, max_shape=(10, 600, 800, 3),
+            seed=12345, dtype=None):
         import_numpy()
         # to avoid any numpy reference in the interface
         if dtype is None:
@@ -264,9 +278,12 @@ class RandomlyShapedDataIterator(object):
         for _ in range(self.batch_size):
             # Scale between 0.5 and 1.0
             if self.min_shape is None:
-                shape = [int(self.max_shape[dim] * (0.5 + random.random()*0.5)) for dim in range(len(self.max_shape))]
+                shape = [
+                    int(self.max_shape[dim] * (0.5 + random.random() * 0.5))
+                    for dim in range(len(self.max_shape))]
             else:
-                shape = [random.randint(min_s, max_s) for min_s, max_s in zip(self.min_shape, self.max_shape)]
+                shape = [random.randint(min_s, max_s)
+                         for min_s, max_s in zip(self.min_shape, self.max_shape)]
             if self.dtype == np.float32:
                 self.test_data.append(
                     np.array(np.random.rand(*shape) * (1.0), dtype=self.dtype) - 0.5)
@@ -276,10 +293,11 @@ class RandomlyShapedDataIterator(object):
 
         batch = self.test_data
         self.i = (self.i + 1) % self.n
-        self.seed = self.seed + 12345678;
+        self.seed = self.seed + 12345678
         return (batch)
 
     next = __next__
+
 
 class ConstantDataIterator(object):
     def __init__(self, batch_size, sample_data, dtype):
@@ -301,7 +319,8 @@ class ConstantDataIterator(object):
 
     next = __next__
 
-def check_output(outputs, ref_out, ref_is_list_of_outputs = None):
+
+def check_output(outputs, ref_out, ref_is_list_of_outputs=None):
     """Checks the outputs of the pipeline.
 
     `outputs`
@@ -329,6 +348,7 @@ def check_output(outputs, ref_out, ref_is_list_of_outputs = None):
                 print("Ref: ", ref[i])
             assert(np.array_equal(out[i], ref[i]))
 
+
 def dali_type(t):
     import_numpy()
     if t is None:
@@ -351,8 +371,10 @@ def dali_type(t):
         return types.INT32
     raise TypeError("Unsupported type: " + str(t))
 
-def py_buffer_from_address(address, shape, dtype, gpu = False):
+
+def py_buffer_from_address(address, shape, dtype, gpu=False):
     buff = {'data': (address, False), 'shape': tuple(shape), 'typestr': dtype}
+
     class py_holder(object):
         pass
 
@@ -365,6 +387,7 @@ def py_buffer_from_address(address, shape, dtype, gpu = False):
     else:
         import_cupy()
         return cp.asanyarray(holder)
+
 
 class check_output_pattern():
     def __init__(self, pattern, is_regexp=True):
@@ -396,8 +419,9 @@ class check_output_pattern():
         else:
             pattern_found = self.pattern_ in our_data or self.pattern_ in err_data,
 
-        assert pattern_found, \
-            "Pattern: ``{}`` \n not found in out: \n``{}`` \n and in err: \n ```{}```".format(self.pattern_, our_data, err_data)
+        assert pattern_found, "Pattern: ``{}`` \n not found in out: \n``{}`` \n and in err: \n ```{}```".format(
+            self.pattern_, our_data, err_data)
+
 
 def dali_type_to_np(type):
     import_numpy()
@@ -414,9 +438,10 @@ def dali_type_to_np(type):
         types.UINT64: np.uint64,
         types.FLOAT16: np.float16,
         types.FLOAT:   np.float32,
-        types.FLOAT64 : np.float64,
+        types.FLOAT64: np.float64,
     }
     return dali_types_to_np_dict[type]
+
 
 def np_type_to_dali(type):
     import_numpy()
@@ -461,3 +486,25 @@ def filter_files(dirpath, suffix):
         flist = map(lambda fname: os.path.join(dir_name, fname), flist)
         fnames.extend(flist)
     return fnames
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+        self.avg_last_n = 0
+        self.max_val = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.max_val = max(self.max_val, val)
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count

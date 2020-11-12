@@ -25,7 +25,9 @@
 #include "dali/operators/reader/parser/tfrecord_parser.h"
 #include "dali/plugin/plugin_manager.h"
 #include "dali/util/half.hpp"
+#include "dali/util/shared_mem.h"
 #include "dali/core/device_guard.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/core/python_util.h"
 #include "dali/operators.h"
 #include "dali/pipeline/data/dltensor.h"
@@ -1119,6 +1121,34 @@ PYBIND11_MODULE(backend_impl, m) {
   m.def("LoadLibrary", &PluginManager::LoadLibrary);
 
   m.def("GetCxx11AbiFlag", &GetCxx11AbiFlag);
+
+  m.def("HasCudaContext", []{
+    if (!cuInitChecked()) {
+      return false;
+    }
+    CUcontext context;
+    CUDA_CALL(cuCtxGetCurrent(&context));
+    return context != nullptr;
+  });
+
+  py::class_<SharedMem>(m, "SharedMem")
+      .def(py::init<int, int>())
+      .def_property_readonly("size", &SharedMem::size)
+      .def_property_readonly("fd", &SharedMem::fd)
+      .def("buf",
+        [](SharedMem *shm) {
+          if (shm == nullptr) {
+            throw py::value_error("Cannot create buffer - no shared memory object provided");
+          }
+          auto ptr = shm->get_raw_ptr();
+          if (ptr == nullptr) {
+            throw py::value_error("Cannot create buffer - no memory has been mapped");
+          }
+          return py::memoryview::from_buffer(ptr, {shm->size()}, {sizeof(SharedMem::b_type)});
+        })
+      .def("resize", &SharedMem::resize)
+      .def("close_fd", &SharedMem::close_fd)
+      .def("close_map", &SharedMem::close_map);
 
   // Types
   py::module types_m = m.def_submodule("types");
