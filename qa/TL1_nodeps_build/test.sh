@@ -7,6 +7,9 @@ do_once() {
     wget https://github.com/Kitware/CMake/releases/download/v3.18.4/cmake-3.18.4-Linux-x86_64.sh
     bash cmake-3.18.4-Linux-x86_64.sh --skip-license --prefix=/
     rm cmake-3.18.4-Linux-x86_64.sh
+    # for stub generation
+    pip install clang
+    pip install libclang
 }
 
 test_body() {
