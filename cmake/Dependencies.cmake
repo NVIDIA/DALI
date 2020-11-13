@@ -66,9 +66,7 @@ list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
 list(APPEND DALI_EXCLUDES libculibos.a)
 
 if (LINK_LIBCUDA)
-  find_library(CUDA_cuda_LIBRARY cuda
-                PATHS ${CUDA_TOOLKIT_ROOT_DIR}
-                PATH_SUFFIXES lib lib64 lib/stubs lib64/stubs)
+  CUDA_find_library_stub(CUDA_cuda_LIBRARY cuda)
   list(APPEND DALI_LIBS ${CUDA_cuda_LIBRARY})
 endif()
 
