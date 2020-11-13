@@ -189,7 +189,8 @@ void ParseCategories(LookaheadParser &parser, std::map<int, int> &category_ids) 
 }
 
 void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotations,
-                      float min_size_threshold, bool ltrb, bool parse_segmentation) {
+                      float min_size_threshold, bool ltrb,
+                      bool parse_segmentation, bool parse_rle) {
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
   while (parser.NextArrayValue()) {
@@ -215,7 +216,7 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
       } else if (parse_segmentation && 0 == std::strcmp(internal_key, "segmentation")) {
         // That means that the mask encoding is not polygons but RLE
         // (iscrowd==1 in Object Detection task, or Stuff Segmentation)
-        if (parser.PeekType() != kArrayType) {
+        if (parse_rle && parser.PeekType() == kObjectType) {
           annotation.tag_ = Annotation::RLE;
           parser.EnterObject();
           while (const char* another_key = parser.NextObjectKey()) {
@@ -231,7 +232,7 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
               annotation.rle_.rle_ = parser.GetString();
             }
           }
-        } else {
+        } else if (parser.PeekType() == kArrayType) {
           annotation.tag_ = Annotation::POLYGON;
           int coord_offset = 0;
           auto& segm_meta = annotation.poly_.segm_meta_;
@@ -266,7 +267,7 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
 void ParseJsonFile(const OpSpec &spec, std::vector<detail::ImageInfo> &image_infos,
                    std::vector<detail::Annotation> &annotations,
                    std::map<int, int> &category_ids,
-                   bool parse_masks) {
+                   bool parse_segmentation, bool parse_rle) {
   const auto annotations_file = spec.GetArgument<string>("annotations_file");
 
   std::ifstream f(annotations_file);
@@ -293,7 +294,7 @@ void ParseJsonFile(const OpSpec &spec, std::vector<detail::ImageInfo> &image_inf
     } else if (0 == std::strcmp(key, "categories")) {
       detail::ParseCategories(parser, category_ids);
     } else if (0 == std::strcmp(key, "annotations")) {
-      ParseAnnotations(parser, annotations, sz_threshold, ltrb, parse_masks);
+      ParseAnnotations(parser, annotations, sz_threshold, ltrb, parse_segmentation, parse_rle);
     } else {
       parser.SkipValue();
     }
@@ -366,8 +367,9 @@ void CocoLoader::ParseJsonAnnotations() {
   std::vector<detail::Annotation> annotations;
   std::map<int, int> category_ids;
 
-  bool parse_masks = output_polygon_masks_ || output_pixelwise_masks_;
-  detail::ParseJsonFile(spec_, image_infos, annotations, category_ids, parse_masks);
+  bool parse_segmentation = output_polygon_masks_ || output_pixelwise_masks_;
+  detail::ParseJsonFile(spec_, image_infos, annotations, category_ids,
+                        parse_segmentation, output_pixelwise_masks_);
 
   bool skip_empty = spec_.GetArgument<bool>("skip_empty");
   bool ratio = spec_.GetArgument<bool>("ratio");
@@ -410,7 +412,7 @@ void CocoLoader::ParseJsonAnnotations() {
         boxes_.push_back(annotation.box_[2]);
         boxes_.push_back(annotation.box_[3]);
       }
-      if (parse_masks) {
+      if (parse_segmentation) {
         switch (annotation.tag_) {
           case detail::Annotation::POLYGON: {
             auto &segm_meta = annotation.poly_.segm_meta_;
@@ -463,7 +465,7 @@ void CocoLoader::ParseJsonAnnotations() {
       if (output_image_ids_) {
         original_ids_.push_back(image_info.original_id_);
       }
-      if (parse_masks) {
+      if (parse_segmentation) {
         polygon_offset_.push_back(polygons_sample_offset);
         polygon_count_.push_back(polygons_sample_count);
         vertices_offset_.push_back(vertices_sample_offset);
