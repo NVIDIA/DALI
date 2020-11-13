@@ -40,12 +40,18 @@ class SearchableRLEMask {
     bool operator()(const T &value) const { return value > 0; }
   };
 
+  void Clear() {
+    groups_.clear();
+    count_ = 0;
+  }
+
   /**
    * @brief Construct a searchable RLE mask. ``predicate`` is used to
    *        determine the mask values that are considered foreground
    */
   template <typename T, typename Predicate = is_positive>
-  explicit SearchableRLEMask(span<const T> mask_view, Predicate &&is_foreground = {}) {
+  void Init(span<const T> mask_view, Predicate &&is_foreground = {}) {
+    Clear();
     int64_t idx = 0;
     int64_t sz = mask_view.size();
     while (idx < sz) {
@@ -63,9 +69,10 @@ class SearchableRLEMask {
   }
 
   template <typename T, typename Predicate = is_positive>
-  explicit SearchableRLEMask(TensorView<StorageCPU, T> mask_view, Predicate &&is_foreground = {})
-      : SearchableRLEMask(span<const T>{mask_view.data, volume(mask_view.shape)},
-                          std::forward<Predicate>(is_foreground)) {}
+  void Init(TensorView<StorageCPU, T> mask_view, Predicate &&is_foreground = {}) {
+    Init(span<const T>{mask_view.data, volume(mask_view.shape)},
+         std::forward<Predicate>(is_foreground));
+  }
 
   /**
    * @brief Returns the position of the i-th foreground pixel.

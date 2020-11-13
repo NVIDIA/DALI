@@ -729,4 +729,13 @@ def test_pytorch_plugin_cpu():
     pipe.set_outputs(outs)
     pii = DALIGenericIterator([pipe], ["data"])
 
+def test_random_mask_pixel_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    data = fn.external_source(source = get_data, layout = "HWC")
+    pixel_pos = fn.segmentation.random_mask_pixel(data)
+    pipe.set_outputs(pixel_pos)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
 # ToDo add tests for DLTensorPythonFunction if easily possible
