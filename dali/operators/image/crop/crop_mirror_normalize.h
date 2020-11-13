@@ -33,7 +33,7 @@
 #include "dali/pipeline/operator/operator.h"
 
 #define CMN_IN_TYPES (uint8_t, int16_t, uint16_t, int32_t, float, float16)
-#define CMN_OUT_TYPES (float, float16)
+#define CMN_OUT_TYPES (float, float16, uint8_t, int8_t)
 #define CMN_NDIMS (3, 4, 5)
 
 namespace dali {
@@ -102,13 +102,16 @@ class CropMirrorNormalize : public Operator<Backend> {
         output_layout_(spec.GetArgument<TensorLayout>("output_layout")),
         pad_output_(spec.GetArgument<bool>("pad_output")),
         out_of_bounds_policy_(GetOutOfBoundsPolicy(spec)) {
-    if (!spec.TryGetRepeatedArgument(mean_vec_, "mean")) {
-      mean_vec_ = { spec.GetArgument<float>("mean") };
-    }
+    float scale = spec.GetArgument<float>("scale");
+    float shift = spec.GetArgument<float>("shift");
 
     if (!spec.TryGetRepeatedArgument(inv_std_vec_, "std")) {
       inv_std_vec_ = { spec.GetArgument<float>("std") };
     }
+    if (!spec.TryGetRepeatedArgument(mean_vec_, "mean")) {
+      mean_vec_ = { spec.GetArgument<float>("mean") };
+    }
+
 
     DALI_ENFORCE(!mean_vec_.empty() && !inv_std_vec_.empty(),
       "mean and standard deviation can't be empty");
@@ -118,11 +121,6 @@ class CropMirrorNormalize : public Operator<Backend> {
       "`mean` and `stddev` must either be of the same size, be scalars, or one of them can be a "
       "vector and the other a scalar.");
 
-    // Inverse the std-deviation
-    for (auto &element : inv_std_vec_) {
-      element = 1.f / element;
-    }
-
     // Handle irregular mean/std argument lengths
     auto args_size = std::max(mean_vec_.size(), inv_std_vec_.size());
     if (mean_vec_.size() != inv_std_vec_.size()) {
@@ -131,6 +129,11 @@ class CropMirrorNormalize : public Operator<Backend> {
 
       if (inv_std_vec_.size() == 1)
         inv_std_vec_.resize(args_size, inv_std_vec_[0]);
+    }
+
+    for (int i = 0, d = args_size; i < d; i++) {
+      mean_vec_[i] -= shift * inv_std_vec_[i] / scale;
+      inv_std_vec_[i] = scale / inv_std_vec_[i];
     }
 
     should_normalize_ =
