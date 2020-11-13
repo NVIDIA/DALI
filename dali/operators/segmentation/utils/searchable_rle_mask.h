@@ -40,14 +40,18 @@ class SearchableRLEMask {
     bool operator()(const T &value) const { return value > 0; }
   };
 
+  void Clear() {
+    groups_.clear();
+    count_ = 0;
+  }
+
   /**
    * @brief Construct a searchable RLE mask. ``predicate`` is used to
    *        determine the mask values that are considered foreground
    */
   template <typename T, typename Predicate = is_positive>
   void Init(span<const T> mask_view, Predicate &&is_foreground = {}) {
-    groups_.clear();
-    count_ = 0;
+    Clear();
     int64_t idx = 0;
     int64_t sz = mask_view.size();
     while (idx < sz) {

@@ -34,7 +34,7 @@ Pixels are classificed as foreground either when their value exceeds a given ``t
 it's equal to a specific ``value``.
 )")
     .AddOptionalArg<int>("value",
-      R"code(All pixels equal to this value are  interpreted as foreground.
+      R"code(All pixels equal to this value are interpreted as foreground.
 
 This argument is mutually exclusive with ``threshold`` argument and is meant to be used only
 with integer inputs.
@@ -46,6 +46,7 @@ This argument is mutually exclusive with ``value`` argument.
 )code", 0.0f, true)
     .AddOptionalArg("foreground",
       R"code(If different than 0, the pixel position is sampled uniformly from all foreground pixels.
+
 If 0, the pixel position is sampled uniformly from all available pixels.)code",
       0, true)
     .NumInput(1)
@@ -137,6 +138,7 @@ void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
         if (foreground_[sample_idx]) {
           int64_t flat_idx = -1;
           auto &rle_mask = rle_[thread_id];
+          rle_mask.Clear();
           if (has_value_) {
             T value = static_cast<T>(value_[sample_idx]);
             // checking if the value is representable by T, otherwise we
@@ -144,19 +146,15 @@ void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
             if (static_cast<int>(value) == value_[sample_idx]) {
               rle_mask.Init(
                   mask, [value](const T &x) { return x == value; });
-              if (rle_mask.count() > 0) {
-                auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
-                flat_idx = rle_mask.find(dist(rng));
-              }
             }
           } else {
             float threshold = threshold_[sample_idx];
             rle_mask.Init(
                 mask, [threshold](const T &x) { return x > threshold; });
-            if (rle_mask.count() > 0) {
-              auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
-              flat_idx = rle_mask.find(dist(rng));
-            }
+          }
+          if (rle_mask.count() > 0) {
+            auto dist = std::uniform_int_distribution<int64_t>(0, rle_mask.count() - 1);
+            flat_idx = rle_mask.find(dist(rng));
           }
           if (flat_idx >= 0) {
             // Convert from flat_idx to per-dim indices

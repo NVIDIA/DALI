@@ -51,7 +51,6 @@ def check_random_mask_pixel(ndim=2, batch_size=3,
 
             assert in_mask[tuple(fg_pixel1)] > 0
             assert in_mask[tuple(fg_pixel2)] > 0.99
-            print(in_mask[tuple(fg_pixel3)])
             assert in_mask[tuple(fg_pixel3)] == 2
             assert in_mask[tuple(fg_biased)] > 0 or not coin_flip
 
