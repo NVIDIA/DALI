@@ -257,7 +257,7 @@ nvjpegPinnedAllocator_t GetPinnedAllocator() {
   return allocator;
 }
 
-#ifdef DALI_USE_NVJPEG2K
+#ifdef BUILD_NVJPEG2K_ENABLED
 nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k() {
   nvjpeg2kDeviceAllocator_t allocator;
   allocator.device_malloc = &DeviceNew;
@@ -271,7 +271,7 @@ nvjpeg2kPinnedAllocator_t GetPinnedAllocatorNvJpeg2k() {
   allocator.pinned_free = &ReturnBufferToPool;
   return allocator;
 }
-#endif  // DALI_USE_NVJPEG2K
+#endif  // BUILD_NVJPEG2K_ENABLED
 
 }  // namespace nvjpeg_memory
 
