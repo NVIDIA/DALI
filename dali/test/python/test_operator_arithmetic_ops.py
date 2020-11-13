@@ -22,7 +22,7 @@ from nose.tools import assert_equals, raises
 from nose.plugins.attrib import attr
 import itertools
 
-from test_utils import check_batch, np_types_to_dali
+from test_utils import check_batch, np_type_to_dali
 
 def list_product(*args):
     return list(itertools.product(*args))
@@ -266,7 +266,7 @@ class ExprOpPipeline(Pipeline):
 
     def get_operand(self, operand, kind, operand_type):
         if kind == "const":
-            return types.Constant(magic_number, np_types_to_dali(operand_type))
+            return types.Constant(magic_number, np_type_to_dali(operand_type))
         elif "cpu" in kind:
             return operand
         elif "gpu" in kind:

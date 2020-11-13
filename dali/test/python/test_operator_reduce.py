@@ -5,7 +5,7 @@ from nvidia.dali.pipeline import Pipeline
 
 import numpy as np
 
-from test_utils import np_types_to_dali
+from test_utils import np_type_to_dali
 
 
 class Batch:
@@ -25,7 +25,7 @@ class Batch:
         return 2 * len(self._data)
 
     def reset(self):
-        self._index = 0    
+        self._index = 0
 
 
 class Batch1D(Batch):
@@ -99,7 +99,7 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input =
 
     args = { 'keep_dims': keep_dims, 'axes': axes}
     if output_type is not None:
-        args['dtype'] = np_types_to_dali(output_type)
+        args['dtype'] = np_type_to_dali(output_type)
 
     with pipe:
         input = fn.external_source(source = get_batch)
@@ -121,7 +121,7 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input =
         reduced_gpu = output[1].as_cpu().as_array()
         result_cpu.append(reduced_cpu)
         result_gpu.append(reduced_gpu)
-    
+
     return result_cpu, result_gpu
 
 
@@ -130,7 +130,7 @@ def run_numpy(reduce_fn, batch_fn, keep_dims, axes, output_type, ddof = None):
     args = { 'keepdims': keep_dims, 'axis': axes}
     if output_type is not None:
         args['dtype'] = output_type
-    
+
     if ddof is not None:
         args['ddof'] = ddof
 
@@ -166,7 +166,7 @@ def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type = None)
 
         np_res = run_numpy(
             numpy_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type)
-        
+
         for iteration in range(batch_fn.num_iter()):
             compare(dali_res_cpu[iteration], np_res[iteration])
             compare(dali_res_gpu[iteration], np_res[iteration])
@@ -262,7 +262,7 @@ def run_reduce_with_mean_input(keep_dims, reduce_fns, batch_gen, input_type, out
 
             np_res = run_numpy(
                 numpy_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type, ddof = ddof)
-            
+
             for iteration in range(batch_fn.num_iter()):
                 compare(dali_res_cpu[iteration], np_res[iteration])
                 compare(dali_res_gpu[iteration], np_res[iteration])
@@ -271,7 +271,7 @@ def run_reduce_with_mean_input(keep_dims, reduce_fns, batch_gen, input_type, out
 def test_reduce_with_mean_input():
     reductions = [
         (fn.reductions.std_dev, np.std),
-        (fn.reductions.variance, np.var)]    
+        (fn.reductions.variance, np.var)]
 
     batch_gens = [Batch1D, Batch2D, Batch3D]
     types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64, np.float32]

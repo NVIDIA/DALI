@@ -383,7 +383,7 @@ class check_output_pattern():
         assert pattern_found, \
             "Pattern: ``{}`` \n not found in out: \n``{}`` \n and in err: \n ```{}```".format(self.pattern_, our_data, err_data)
 
-def dali_types_to_np(type):
+def dali_type_to_np(type):
     import_numpy()
 
     dali_types_to_np_dict = {
@@ -402,7 +402,7 @@ def dali_types_to_np(type):
     }
     return dali_types_to_np_dict[type]
 
-def np_types_to_dali(type):
+def np_type_to_dali(type):
     import_numpy()
 
     np_types_to_dali_dict = {
