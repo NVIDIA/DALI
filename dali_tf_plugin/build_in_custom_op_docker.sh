@@ -18,6 +18,9 @@ mkdir -p $PREBUILT_DIR/$COMPILER_SUBDIR_NAME
 
 for i in `seq 0 $LAST_CONFIG_INDEX`; do
     INST=$(python ../qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${CUDA_VERSION})
+    if [[ "${INST}" == *"nvidia-tensorflow"* ]]; then \
+        continue
+    fi
     echo "Building DALI TF plugin for TF version ${INST}"
     pip install ${INST} -f /pip-packages
 
