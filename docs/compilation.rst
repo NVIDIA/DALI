@@ -160,7 +160,7 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |gcc link|_ or later                   |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |clang link|_                          | Clang and python-clang bindings are needed for compile time code generation. The easiest    |
+   | |clang link|_                          | clang and python-clang bindings are needed for compile time code generation. The easiest    |
    |                                        | way to obtain them is 'pip install clang libclang'                                          |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |boost link|_ or later                 | Modules: *preprocessor*.                                                                    |
@@ -351,7 +351,7 @@ Optional CMake build parameters
 -  ``BUILD_WITH_ASAN`` - build with ASAN support (default: OFF). To run issue:
 -  ``BUILD_DALI_NODEPS`` - disables support for third party libraries that are normally expected to be available in the system
 -  ``LINK_LIBCUDA`` - enables direct linking with libcuda.so or an appropriate stub instead of dlopen
-   it in the runtime (removes the requirement to have clan-python bindings available to generate the stubs)
+   it in the runtime (removes the requirement to have clang-python bindings available to generate the stubs)
 
 .. warning::
 

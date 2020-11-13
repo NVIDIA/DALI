@@ -36,7 +36,7 @@ check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 
 # Build options
 option(BUILD_DALI_NODEPS "Disable components that require extra external libraries to be present in the system. Effectively, it builds only the DALI core and kernel libraries")
-option(LINK_LIBCUDA "Links directly with libcuda.so instead of dlopen it at the runtime" OFF)
+option(LINK_LIBCUDA "Links directly with libcuda.so instead of dlopen it at runtime" OFF)
 
 # Tests use OpenCV...
 cmake_dependent_option(BUILD_TEST "Build googletest test suite" ON
