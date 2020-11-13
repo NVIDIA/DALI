@@ -60,11 +60,11 @@ If not set, the input type is used.)code", DALI_FLOAT)
     std::vector<float>{1.0f})
   .AddOptionalArg("scale", R"(The value by which the result is multiplied.
 
-This argument is useful when using integer outputs to improve dynamic range utiliztion.)",
+This argument is useful when using integer outputs to improve dynamic range utilization.)",
     1.0f)
   .AddOptionalArg("shift", R"(The value added to the (scaled) result.
 
-This argument is useful when using unsigned integer outputs to improve dynamic range utiliztion.)",
+This argument is useful when using unsigned integer outputs to improve dynamic range utilization.)",
     0.0f)
   .AddParent("CropAttr")
   .AddParent("OutOfBoundsAttr");
