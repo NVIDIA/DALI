@@ -15,6 +15,7 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
+import nvidia.dali.math as math
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
@@ -164,6 +165,8 @@ def check_pad_per_sample_shapes_and_alignment(device='cpu', batch_size=3, ndim=2
     with pipe:
         in_shape = fn.cast(fn.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
         in_data = fn.uniform(range=(0., 1.), shape=in_shape)
+        if device == 'gpu':
+            in_data = in_data.gpu()
         req_shape = fn.cast(fn.uniform(range=(21, 30), shape=(ndim,)), dtype=types.INT32)
         req_align = fn.cast(fn.uniform(range=(3, 5), shape=(ndim,)), dtype=types.INT32)
         out_pad_shape = fn.pad(in_data, axes=axes, align=None, shape=req_shape)
@@ -172,12 +175,11 @@ def check_pad_per_sample_shapes_and_alignment(device='cpu', batch_size=3, ndim=2
         pipe.set_outputs(in_shape, in_data, req_shape, req_align, out_pad_shape, out_pad_align, out_pad_both)
     pipe.build()
     for _ in range(num_iter):
-        outs = pipe.run()
+        outs = [out.as_cpu() if isinstance(out, TensorListGPU) else out for out in pipe.run()]
         for i in range(batch_size):
             in_shape, in_data, req_shape, req_align, out_pad_shape, out_pad_align, out_pad_both = \
                 [outs[out_idx].at(i) for out_idx in range(len(outs))]
             assert (in_shape == in_data.shape).all()
-
             # Pad to explicit shape
             assert (out_pad_shape.shape >= in_shape).all()
             assert (req_shape == out_pad_shape.shape).all()
@@ -194,3 +196,35 @@ def check_pad_per_sample_shapes_and_alignment(device='cpu', batch_size=3, ndim=2
 def test_pad_per_sample_shapes_and_alignment():
     yield check_pad_per_sample_shapes_and_alignment, 'cpu'
     yield check_pad_per_sample_shapes_and_alignment, 'gpu'
+
+def check_pad_to_square(device='cpu', batch_size=3, ndim=2, num_iter=3):
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0, seed=1234)
+    axes = (0, 1)
+    with pipe:
+        in_shape = fn.cast(fn.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
+        in_data = fn.reshape(fn.uniform(range=(0., 1.), shape=in_shape), layout="HW")
+        shape = fn.shapes(in_data, dtype=types.INT32)
+        h = fn.slice(shape, 0, 1, axes = [0])
+        w = fn.slice(shape, 1, 1, axes = [0])
+        side = math.max(h, w)
+        if device == 'gpu':
+            in_data = in_data.gpu()
+        out_data = fn.pad(in_data, axis_names="HW", shape=fn.cat(side, side, axis=0))
+        pipe.set_outputs(in_data, out_data)
+    pipe.build()
+    for _ in range(num_iter):
+        outs = [out.as_cpu() if isinstance(out, TensorListGPU) else out for out in pipe.run()]
+        for i in range(batch_size):
+            in_data, out_data = \
+                [outs[out_idx].at(i) for out_idx in range(len(outs))]
+            in_shape = in_data.shape
+            max_side = max(in_shape)
+            for s in out_data.shape:
+                assert s == max_side
+            np.testing.assert_equal(out_data[:in_shape[0], :in_shape[1]], in_data)
+            np.testing.assert_equal(out_data[in_shape[0]:, :], 0)
+            np.testing.assert_equal(out_data[:, in_shape[1]:], 0)
+
+def test_pad_to_square():
+    yield check_pad_to_square, 'cpu'
+    yield check_pad_to_square, 'gpu'
