@@ -963,7 +963,7 @@ Parameters
             return
 
         for group in self._input_callbacks:
-            group.call_and_feed(self, self._iter)
+            group.call_and_feed(self, self._batch_size, self._iter)
 
     def _iter_setup(self):
         self._run_input_callbacks()

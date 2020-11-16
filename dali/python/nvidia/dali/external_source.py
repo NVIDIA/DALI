@@ -62,31 +62,51 @@ class _CycleGenFunc():
             return next(self.it)
 
 class _ExternalSourceGroup(object):
-    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None, use_copy_kernel = None):
+    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None, use_copy_kernel = None, batch = True):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
         self._cuda_stream = cuda_stream
         self.use_copy_kernel = use_copy_kernel
+        self.batch = batch
         if callback is not None:
-            if callback.__code__.co_argcount not in [0, 1]:
-                raise TypeError("External source callback must be a callable with 0 or 1 argument")
-            self.accepts_iter_num = (callback.__code__.co_argcount == 1)
+            if batch:
+                if callback.__code__.co_argcount not in [0, 1]:
+                    raise TypeError("External source callback must be a callable with 0 or 1 argument")
+            else:
+                if callback.__code__.co_argcount not in [0, 1, 2]:
+                    raise TypeError("Per-sample external source callback must be a callable with up to 2 arguments: " +
+                                    "``sample_index``, ``iter_index``")
+            self.accepts_iter_num = (callback.__code__.co_argcount == (1 if batch else 2))
+            self.accepts_sample_index = (not batch and callback.__code__.co_argcount > 0)
         else:
-            self.accepts_iter_num = None
+            self.accepts_iter_num = False
+            self.accepts_sample_index = False
 
     def append(self, instance):
         self.instances.append(instance)
 
-    def call_and_feed(self, pipeline, current_iter):
+    def callback_args(self, sample, iter):
+        args = []
+        if self.accepts_sample_index:
+            args.append(sample)
         if self.accepts_iter_num:
-            callback_out = self.callback(current_iter)
+            args.append(iter)
+        return args
+
+    def call_and_feed(self, pipeline, batch_size, current_iter):
+        if self.batch:
+            callback_out = self.callback(*self.callback_args(None, current_iter))
         else:
-            callback_out = self.callback()
+            callback_out = [self.callback(*self.callback_args(i, current_iter)) for i in range(batch_size)]
 
         if self.is_multioutput:
             for op in self.instances:
-                data = callback_out[op._output_index]
+                if self.batch:
+                    data = callback_out[op._output_index]
+                else:
+                    # extract a single output
+                    data = [callback_out[i][op._output_index] for i in range(batch_size)]
                 pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
         else:
             data = callback_out
@@ -159,11 +179,17 @@ Args
 
     The source is polled for data (via a call ``source()`` or ``next(source)``)
     when the pipeline needs input for the next iteration. Depending on the value of ``num_outputs``,
-    the source can supply one or more data batches. If ``num_outputs`` is not set, the ``source``
-    is expected to return one batch. If this value is specified, the data is expected to a be tuple,
-    or list, where each element corresponds to respective return value of the external_source.
-    If the source is a callable that accepts a positional argument, it is assumed to be the current
+    the source can supply one or more data items. The data item can be a whole batch (default) or
+    a single batch entry (when ``batch==False``). If ``num_outputs`` is not set, the ``source``
+    is expected to return one item (a batch or a sample). If this value is specified (even if its
+    value is 1), the data is expected to a be tuple, or list, where each element corresponds to
+    respective return value of the external_source.
+
+    A per-batch source may accept one positional argument. If it does, it is the current iteration
     iteration number and consecutive calls will be ``source(0)``, ``source(1)``, and so on.
+    A per-sample source must accept one argument (sample index in the batch), and optionally
+    the iteration number.
+
     If the source is a generator function, the function is invoked and treated as an iterable.
     However, unlike a generator, the function can be used with ``cycle``. In this case, the function
     will be called again when the generator reaches the end of iteration.
@@ -172,7 +198,7 @@ Args
     only in the provided stream. DALI schedules a copy on this stream, and all work is properly
     queued. If no stream is provided, DALI will use a default, with a best-effort approach at
     correctness. See the ``cuda_stream`` argument documentation for more information.
-    The data batch produced by ``source`` may be anything that's accepted by
+    The data item produced by ``source`` may be anything that's accepted by
     :meth:`nvidia.dali.pipeline.Pipeline.feed_input`
 
 `num_outputs` : int, optional
@@ -251,10 +277,14 @@ Keyword Args
     For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provide a list
     of separate Tensors, there will be an additional copy made internally, consuming both memory
     and bandwidth.
+
+`batch` : optional
+    If set to ``True`` or ``None``, the ``source`` is expected to produce an entire batch at once.
+    If set to ``False``, the ``source`` is called per-sample. Its first parameter is sample index.
 """
 
     def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu",
-                 cuda_stream = None, use_copy_kernel = None, **kwargs):
+                 cuda_stream = None, use_copy_kernel = None, batch = None, **kwargs):
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
         self._device = device
@@ -272,6 +302,7 @@ Keyword Args
 
         self._name = name
         self._num_outputs = num_outputs
+        self._batch = batch
         self._callback = callback
 
         self._spec.AddArg("device", device)
@@ -295,7 +326,7 @@ Keyword Args
         return False
 
     def __call__(self, *, source = None, cycle = None, name = None, layout = None, cuda_stream = None,
-                 use_copy_kernel = None, **kwargs):
+                 use_copy_kernel = None, batch = None, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
 
@@ -313,6 +344,15 @@ Keyword Args
             if self._callback is not None:
                 raise RuntimeError("``source`` already specified in constructor.")
             callback = _get_callback_from_source(source, cycle)
+
+
+        if batch is None:
+            batch = self._batch
+        elif self._batch is not None:
+            raise ValueError("The argument ``batch`` already specified in constructor.")
+
+        if batch is None:
+            batch = True
 
         if self._layout is not None:
             if layout is not None:
@@ -341,7 +381,7 @@ Keyword Args
         if self._num_outputs is not None:
             outputs = []
             kwargs = {}
-            group = _ExternalSourceGroup(callback, True, cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel)
+            group = _ExternalSourceGroup(callback, True, cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch)
             for i in range(self._num_outputs):
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
@@ -367,7 +407,7 @@ Keyword Args
             op_instance._callback = callback
             op_instance._output_index = None
             op_instance._group = _ExternalSourceGroup(callback, False, [op_instance], cuda_stream=cuda_stream,
-                                                      use_copy_kernel=use_copy_kernel)
+                                                      use_copy_kernel=use_copy_kernel, batch=batch)
             op_instance._layout = layout
             op_instance.generate_outputs()
 
@@ -381,7 +421,7 @@ def _is_external_source_with_callback(op_instance):
     return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
 
 def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None,
-                    cuda_stream = None, use_copy_kernel = None, **kwargs):
+                    cuda_stream = None, use_copy_kernel = None, batch = True, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
@@ -399,6 +439,9 @@ provided memory is copied to the internal buffer.
     which is more performant.
     """
 
+    if batch is None:
+        batch = True
+
     if num_outputs is not None:
         if source is None:
             raise ValueError("The parameter ``num_outputs`` is only valid when using ``source`` to "
@@ -407,7 +450,7 @@ provided memory is copied to the internal buffer.
 
     op = ExternalSource(device = device, num_outputs = num_outputs, source = source,
                         cycle = cycle, layout = layout, cuda_stream = cuda_stream,
-                        use_copy_kernel = use_copy_kernel, **kwargs)
+                        use_copy_kernel = use_copy_kernel, batch = batch, **kwargs)
     return op(name = name)
 
 external_source.__doc__ += ExternalSource._args_doc
