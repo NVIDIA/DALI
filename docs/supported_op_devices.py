@@ -39,6 +39,8 @@ def main(out_filename):
         if schema:
             supports_seq = '|v|' if schema.AllowsSequences() or schema.IsSequenceOperator() else ''
             volumetric = '|v|' if schema.SupportsVolumetric() else ''
+            if schema.IsDocHidden():
+                continue
         else:
             supports_seq = ''
             volumetric = ''
