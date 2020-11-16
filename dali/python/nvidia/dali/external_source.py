@@ -187,8 +187,8 @@ Args
 
     A per-batch source may accept one positional argument. If it does, it is the current iteration
     iteration number and consecutive calls will be ``source(0)``, ``source(1)``, and so on.
-    A per-sample source must accept one argument (sample index in the batch), and optionally
-    the iteration number.
+    A per-sample source may accept up to two arguments: the first is the sample index in the batch,
+    the second is the current iteration number.
 
     If the source is a generator function, the function is invoked and treated as an iterable.
     However, unlike a generator, the function can be used with ``cycle``. In this case, the function
