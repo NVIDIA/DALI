@@ -69,7 +69,7 @@ bool cuInitChecked() {
 #if !LINK_DRIVER_ENABLED
   CudaSetSymbolLoader(LoadSymbol);
 #endif
-  CUresult res = cuInit(0);
+  static CUresult res = cuInit(0);
   initialized = (res == CUDA_SUCCESS);
   return initialized;
 }
