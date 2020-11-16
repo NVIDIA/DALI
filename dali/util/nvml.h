@@ -21,6 +21,7 @@
 #include <sys/sysinfo.h>
 #include <mutex>
 #include <vector>
+#include <string>
 #include "dali/core/cuda_utils.h"
 #include "dali/util/nvml_wrap.h"
 #include "dali/core/cuda_error.h"
@@ -81,7 +82,8 @@ class NvmlError : public std::runtime_error {
       case NVML_ERROR_NO_DATA:
         return "Nvml: no data";
       case NVML_ERROR_VGPU_ECC_NOT_SUPPORTED:
-        return "The nvml requested vgpu operation is not available on target device, becasue ECC is enabled";
+        return "The nvml requested vgpu operation is not available on target device, becasue ECC is"
+               "enabled";
       case NVML_ERROR_INSUFFICIENT_RESOURCES:
         return "Nvml: ran out of critical resources, other than memory";
       case NVML_ERROR_UNKNOWN:
@@ -201,9 +203,8 @@ inline void SetCPUAffinity(int core = -1) {
   CPU_ZERO(&requested_set);
   if (core != -1) {
     if (core < 0 || (size_t)core >= num_cpus) {
-      DALI_WARN("Requested setting affinity to core " + to_string(core) +
-                " but only " + to_string(num_cpus) + " cores available. " +
-                "Ignoring...");
+      DALI_WARN(make_string("Requested setting affinity to core ", core,
+                            " but only ", num_cpus, " cores available. Ignoring...");
       GetNVMLAffinityMask(&requested_set, num_cpus);
     } else {
       CPU_SET(core, &requested_set);
