@@ -161,8 +161,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
     squeeze_labels: (DEPRECATED) bool, optional, default = False
                  Whether the iterator should squeeze the labels before
                  copying them to the ndarray.
-                 This argument is deprecated and will be removed from future releases
-                 without further notice.
+                 This argument is deprecated and will be removed from future releases.
     dynamic_shape: bool, optional, default = False
                  Whether the shape of the output of the DALI pipeline can
                  change during execution. If True, the mxnet.ndarray will be resized accordingly
@@ -427,8 +426,7 @@ class DALIClassificationIterator(DALIGenericIterator):
     squeeze_labels: (DEPRECATED) bool, optional, default = False
                  Whether the iterator should squeeze the labels before
                  copying them to the ndarray.
-                 This argument is deprecated and will be removed from future releases
-                 without further notice.
+                 This argument is deprecated and will be removed from future releases.
     dynamic_shape: bool, optional, default = False
                  Whether the shape of the output of the DALI pipeline can
                  change during execution. If True, the mxnet.ndarray will be resized accordingly

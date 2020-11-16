@@ -432,31 +432,40 @@ class Tensor : public Buffer<Backend> {
    * of a Tensor.
    */
   inline void Squeeze() {
-    SmallVector<int64_t, 6> shape(shape_.begin(), shape_.end());
-    shape.erase(std::remove(shape.begin(), shape.end(), 1), shape.end());
-    if (shape.empty()) {
-      shape.push_back(1);
+    SmallVector<int64_t, 6> out_shape;
+    TensorLayout out_layout;
+    TensorLayout in_layout = GetLayout();
+    for (int d = 0; d < shape_.size(); d++) {
+      if (shape_[d] == 1)
+        continue;
+      out_shape.push_back(shape_[d]);
+      if (!in_layout.empty())
+        out_layout += in_layout[d];
     }
-    shape_ = shape;
+    shape_ = out_shape;
+    SetLayout(out_layout);
   }
 
   /**
    * @brief Removes the specified dimension from the shape, if its extent is
    * equal to 1.
-   * @param dim Dimension to be squeezed. Negative indexing is also supported
+   * @param dim Dimension to be squeezed. Negative indexing is also suppo9rted
    */
   inline void Squeeze(int dim) {
-    SmallVector<int64_t, 6> shape(shape_.begin(), shape_.end());
     int ndim = shape_.size();
     DALI_ENFORCE(dim >= -ndim && dim <= (ndim - 1),
                  make_string("axis ", dim, " is out of bound for a tensor with ", shape_.size(),
                              " dimensions."));
-    if (dim < 0)
+    if (dim < 0) {
       dim += shape_.size();
-    if (shape_[dim] == 1) {
-      shape.erase(shape.begin() + dim);
     }
-    shape_ = shape;
+    if (shape_[dim] == 1) {
+      shape_.shape.erase(shape_.shape.begin() + dim);
+      auto layout = GetLayout();
+      if (!layout.empty()) {
+        SetLayout(layout.first(dim) + layout.sub(dim + 1));
+      }
+    }
   }
 
   /**

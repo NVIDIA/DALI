@@ -379,7 +379,7 @@ void ExposeTensor(py::module &m) {
       Remove single-dimensional entries from the shape of the Tensor.
 
       dim : int
-            If >= 0, specifies a single dimension to be squeezed.
+            If specified, it represents the axis of a single dimension to be squeezed.
       )code")
     .def("layout", [](Tensor<CPUBackend> &t) {
       return t.GetLayout().str();
@@ -482,9 +482,8 @@ void ExposeTensor(py::module &m) {
       Remove single-dimensional entries from the shape of the Tensor.
 
       dim : int
-            If >= 0, specifies a single dimension to be squeezed.
+            If specified, it represents the axis of a single dimension to be squeezed.
       )code")
-
     .def("copy_to_external",
         [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream,
            bool non_blocking, bool use_copy_kernel) {
