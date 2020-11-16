@@ -255,7 +255,6 @@ class EnumDocumenter(ClassDocumenter):
     objtype = 'enum'
     # Produce .. py:class:: fields in the RST doc
     directivetype = 'class'
-    # priority = 10
 
     def __init__(self, *args: Any) -> None:
         super().__init__(*args)
@@ -310,8 +309,8 @@ class EnumAttributeDocumenter(AttributeDocumenter):
         with just their value.
         """
         super(AttributeDocumenter, self).add_directive_header(sig)
+        # To customize the values of the enums use:
         # sourcename = self.get_sourcename()
-        # # print(self.object)
         # if isinstance(self.object, Enum):
         #     objrepr = str(self.object)
         # else:
