@@ -81,11 +81,13 @@ class NvmlError : public std::runtime_error {
         return "Nvml insufficient memory";
       case NVML_ERROR_NO_DATA:
         return "Nvml: no data";
+#if (CUDART_VERSION >= 11000)
       case NVML_ERROR_VGPU_ECC_NOT_SUPPORTED:
         return "The nvml requested vgpu operation is not available on target device, becasue ECC is"
                "enabled";
       case NVML_ERROR_INSUFFICIENT_RESOURCES:
         return "Nvml: ran out of critical resources, other than memory";
+#endif
       case NVML_ERROR_UNKNOWN:
         return "A nvml internal driver error occurred";
       default:
@@ -204,7 +206,7 @@ inline void SetCPUAffinity(int core = -1) {
   if (core != -1) {
     if (core < 0 || (size_t)core >= num_cpus) {
       DALI_WARN(make_string("Requested setting affinity to core ", core,
-                            " but only ", num_cpus, " cores available. Ignoring...");
+                            " but only ", num_cpus, " cores available. Ignoring..."));
       GetNVMLAffinityMask(&requested_set, num_cpus);
     } else {
       CPU_SET(core, &requested_set);
@@ -312,4 +314,3 @@ inline bool HasCuda11NvmlFunctions() {
 }  // namespace dali
 
 #endif  // DALI_UTIL_NVML_H_
-

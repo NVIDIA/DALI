@@ -61,10 +61,11 @@ void NvmlSetSymbolLoader(tLoadSymbol loader_func);
 nvmlReturn_t nvmlInitChecked() {
   // set symbol loader for this library
 #if !LINK_DRIVER_ENABLED
-  NvmlSetSymbolLoader(LoadSymbol);
+  static std::once_flag nvml_once;
+  std::call_once(nvml_once, NvmlSetSymbolLoader, LoadSymbol);
 #endif
   symbolsLoaded = true;
-  static nvmlReturn_t ret = nvmlInit();
+  nvmlReturn_t ret = nvmlInit();
   if (ret != NVML_SUCCESS) {
     DALI_WARN("nvmlInitChecked failed: " + nvmlErrorString(ret));
   }
