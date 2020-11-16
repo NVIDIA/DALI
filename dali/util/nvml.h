@@ -17,30 +17,110 @@
 
 #include <nvml.h>
 #include <cuda_runtime_api.h>
-
 #include <pthread.h>
 #include <sys/sysinfo.h>
-
 #include <mutex>
 #include <vector>
-
-#include "dali/core/error_handling.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/util/nvml_wrap.h"
-
-
-#define NVML_CALL(code)                                    \
-  do {                                                     \
-    nvmlReturn_t status = code;                            \
-    if (status != NVML_SUCCESS) {                          \
-      dali::string error = dali::string("NVML error \"") + \
-        nvmlErrorString(status) + "\"";                    \
-      DALI_FAIL(error);                                    \
-    }                                                      \
-  } while (0)
-
+#include "dali/core/cuda_error.h"
+#include "dali/core/format.h"
 
 namespace dali {
+
+class NvmlError : public std::runtime_error {
+ public:
+  explicit NvmlError(nvmlReturn_t result, const char *details = nullptr)
+  : std::runtime_error(Message(result, details))
+  , result_(result) {}
+
+  static const char *ErrorString(nvmlReturn_t result) {
+    switch (result) {
+      case NVML_SUCCESS:
+        return "nvml operation was successful";
+      case NVML_ERROR_UNINITIALIZED:
+        return "nvml was not first initialized with nvmlInit()";
+      case NVML_ERROR_INVALID_ARGUMENT:
+        return "a nvml supplied argument is invalid";
+      case NVML_ERROR_NOT_SUPPORTED:
+        return "The nvml requested operation is not available on target device";
+      case NVML_ERROR_NO_PERMISSION:
+        return "The nvml current user does not have permission for operation";
+      case NVML_ERROR_ALREADY_INITIALIZED:
+        return "Deprecated: Multiple initializations are now allowed through ref counting";
+      case NVML_ERROR_NOT_FOUND:
+        return "A nvml query to find an object was unsuccessful";
+      case NVML_ERROR_INSUFFICIENT_SIZE:
+        return "A nvml input argument is not large enough";
+      case NVML_ERROR_INSUFFICIENT_POWER:
+        return "A nvml device's external power cables are not properly attached";
+      case NVML_ERROR_DRIVER_NOT_LOADED:
+        return "nvml: NVIDIA driver is not loaded";
+      case NVML_ERROR_TIMEOUT:
+        return "nvml user provided timeout passed";
+      case NVML_ERROR_IRQ_ISSUE:
+        return "nvml: NVIDIA Kernel detected an interrupt issue with a GPU";
+      case NVML_ERROR_LIBRARY_NOT_FOUND:
+        return "NVML Shared Library couldn't be found or loaded";
+      case NVML_ERROR_FUNCTION_NOT_FOUND:
+        return "Local version of NVML doesn't implement this function";
+      case NVML_ERROR_CORRUPTED_INFOROM:
+        return "nvml: infoROM is corrupted";
+      case NVML_ERROR_GPU_IS_LOST:
+        return "nvml: the GPU has fallen off the bus or has otherwise become inaccessible";
+      case NVML_ERROR_RESET_REQUIRED:
+        return "nvml: the GPU requires a reset before it can be used again";
+      case NVML_ERROR_OPERATING_SYSTEM:
+        return "nvml: the GPU control device has been blocked by the operating system/cgroups";
+      case NVML_ERROR_LIB_RM_VERSION_MISMATCH:
+        return "nvml: RM detects a driver/library version mismatch";
+      case NVML_ERROR_IN_USE:
+        return "A nvml operation cannot be performed because the GPU is currently in use";
+      case NVML_ERROR_MEMORY:
+        return "Nvml insufficient memory";
+      case NVML_ERROR_NO_DATA:
+        return "Nvml: no data";
+      case NVML_ERROR_VGPU_ECC_NOT_SUPPORTED:
+        return "The nvml requested vgpu operation is not available on target device, becasue ECC is enabled";
+      case NVML_ERROR_INSUFFICIENT_RESOURCES:
+        return "Nvml: ran out of critical resources, other than memory";
+      case NVML_ERROR_UNKNOWN:
+        return "A nvml internal driver error occurred";
+      default:
+        return "< unknown error >";
+    }
+  }
+
+  static std::string Message(nvmlReturn_t result, const char *details) {
+    if (details && *details) {
+      return make_string("nvml error: ", result, " ", ErrorString(result),
+                         "\nDetails:\n", details);
+    } else {
+      return make_string("nvml error: ", result, " ", ErrorString(result));
+    }
+  }
+
+
+  nvmlReturn_t result() const { return result_; }
+
+ private:
+  nvmlReturn_t result_;
+};
+
+class NvmlBadAlloc : public CUDABadAlloc {};
+
+template <>
+inline void cudaResultCheck<nvmlReturn_t>(nvmlReturn_t status) {
+  switch (status) {
+  case NVML_SUCCESS:
+    return;
+  case NVML_ERROR_MEMORY:
+    throw dali::NvmlBadAlloc();
+  default:
+    throw dali::NvmlError(status);
+  }
+}
+
 namespace nvml {
 
 /**
@@ -55,7 +135,7 @@ inline std::mutex& Mutex() {
  * @brief Initializes the NVML library
  */
 inline void Init() {
-  NVML_CALL(nvmlInitChecked());
+  CUDA_CALL(nvmlInitChecked());
 }
 
 /**
@@ -74,16 +154,16 @@ inline void GetNVMLAffinityMask(cpu_set_t * mask, size_t num_cpus) {
   std::vector<unsigned long> nvml_mask_container(cpu_set_size);  // NOLINT(runtime/int)
   auto * nvml_mask = nvml_mask_container.data();
   nvmlDevice_t device;
-  NVML_CALL(nvmlDeviceGetHandleByIndex(device_idx, &device));
+  CUDA_CALL(nvmlDeviceGetHandleByIndex(device_idx, &device));
   #if (CUDART_VERSION >= 11000)
     if (nvmlHasCuda11NvmlFunctions()) {
-      NVML_CALL(nvmlDeviceGetCpuAffinityWithinScope(device, cpu_set_size, nvml_mask,
+      CUDA_CALL(nvmlDeviceGetCpuAffinityWithinScope(device, cpu_set_size, nvml_mask,
                                                         NVML_AFFINITY_SCOPE_SOCKET));
     } else {
-      NVML_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
+      CUDA_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
     }
   #else
-    NVML_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
+    CUDA_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
   #endif
 
   // Convert it to cpu_set_t
@@ -156,7 +236,7 @@ inline void Shutdown() {
   if (!nvmlIsInitialized()) {
     return;
   }
-  NVML_CALL(nvmlShutdown());
+  CUDA_CALL(nvmlShutdown());
 }
 
 #if (CUDART_VERSION >= 11000)
@@ -179,9 +259,9 @@ struct DeviceProperties {
 inline DeviceProperties GetDeviceInfo(int device_idx) {
   DeviceProperties ret;
   nvmlDevice_t device;
-  NVML_CALL(nvmlDeviceGetHandleByIndex_v2(device_idx, &device));
-  NVML_CALL(nvmlDeviceGetBrand(device, &ret.type));
-  NVML_CALL(nvmlDeviceGetCudaComputeCapability(device, &ret.cap_major, &ret.cap_minor));
+  CUDA_CALL(nvmlDeviceGetHandleByIndex_v2(device_idx, &device));
+  CUDA_CALL(nvmlDeviceGetBrand(device, &ret.type));
+  CUDA_CALL(nvmlDeviceGetCudaComputeCapability(device, &ret.cap_major, &ret.cap_minor));
   return ret;
 }
 
@@ -209,7 +289,7 @@ inline bool HasHwDecoder() {
     return false;
   }
   unsigned int device_count;
-  NVML_CALL(nvmlDeviceGetCount_v2(&device_count));
+  CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
   for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
     if (HasHwDecoder(device_idx)) return true;
   }
