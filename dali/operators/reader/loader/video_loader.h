@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,7 +66,8 @@ struct file_meta {
 namespace filesystem {
 
 std::vector<dali::file_meta> get_file_label_pair(const std::string& path,
-    const std::vector<std::string>& filenames, const std::string& file_list);
+    const std::vector<std::string>& filenames, bool use_labels,
+    const std::vector<int>& labels, const std::string& file_list);
 
 }  // namespace filesystem
 
@@ -169,7 +170,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     if (step_ < 0)
       step_ = count_ * stride_;
 
-    file_info_ = filesystem::get_file_label_pair(file_root_, filenames_, file_list_);
+    bool use_labels = spec.TryGetRepeatedArgument(labels_, "labels");
+    file_info_ = filesystem::get_file_label_pair(file_root_, filenames_, use_labels, labels_,
+                                                 file_list_);
     DALI_ENFORCE(!file_info_.empty(), "No files were read.");
 
     auto ret = cuvidInitChecked();
@@ -319,6 +322,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   bool normalized_;
 
   std::vector<std::string> filenames_;
+  std::vector<int> labels_;
 
   int device_id_;
   int codec_id_;

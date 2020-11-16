@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 #include <cmath>
 #include <cstring>
 
-#include "dali/test/dali_test_config.h"
 #include "dali/pipeline/pipeline.h"
+#include "dali/test/dali_test_config.h"
 #include "dali/util/nvml_wrap.h"
 
 namespace dali {
@@ -44,14 +44,12 @@ class VideoReaderTest : public ::testing::Test {
 TEST_F(VideoReaderTest, VariableFrameRate) {
   Pipeline pipe(1, 1, 0);
 
-  pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("sequence_length", 60)
-    .AddArg(
-      "filenames",
-      std::vector<std::string>{testing::dali_extra_path() + "/db/video/vfr_test.mp4"})
-    .AddOutput("frames", "gpu"));
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", 60)
+                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                     "/db/video/vfr_test.mp4"})
+                       .AddOutput("frames", "gpu"));
 
   EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
 }
@@ -61,13 +59,12 @@ TEST_F(VideoReaderTest, FractionalConstantFrameRate) {
   const int sequence_length = 60;
 
   pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("sequence_length", sequence_length)
-    .AddArg(
-      "filenames",
-      std::vector<std::string>{testing::dali_extra_path() + "/db/video/cfr_ntsc_29_97_test.mp4"})
-    .AddOutput("frames", "gpu"));
+      OpSpec("VideoReader")
+          .AddArg("device", "gpu")
+          .AddArg("sequence_length", sequence_length)
+          .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                        "/db/video/cfr_ntsc_29_97_test.mp4"})
+          .AddOutput("frames", "gpu"));
 
   pipe.Build(this->Outputs());
 }
@@ -76,14 +73,12 @@ TEST_F(VideoReaderTest, ConstantFrameRate) {
   Pipeline pipe(1, 1, 0);
   const int sequence_length = 60;
 
-  pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("sequence_length", sequence_length)
-    .AddArg(
-      "filenames",
-      std::vector<std::string>{testing::dali_extra_path() + "/db/video/cfr_test.mp4"})
-    .AddOutput("frames", "gpu"));
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                     "/db/video/cfr_test.mp4"})
+                       .AddOutput("frames", "gpu"));
 
   pipe.Build(this->Outputs());
 
@@ -133,17 +128,14 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   Pipeline pipe(batch_size, 1, 0);
 
   pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("sequence_length", sequence_length)
-    .AddArg("random_shuffle", true)
-    .AddArg("initial_fill", initial_fill)
-    .AddArg(
-      "file_root",
-      std::string{testing::dali_extra_path() + "/db/video_resolution/"})
-    .AddOutput("frames", "gpu")
-    .AddOutput("labels", "gpu"));
-
+      OpSpec("VideoReader")
+          .AddArg("device", "gpu")
+          .AddArg("sequence_length", sequence_length)
+          .AddArg("random_shuffle", true)
+          .AddArg("initial_fill", initial_fill)
+          .AddArg("file_root", std::string{testing::dali_extra_path() + "/db/video_resolution/"})
+          .AddOutput("frames", "gpu")
+          .AddOutput("labels", "gpu"));
 
   DeviceWorkspace ws;
   pipe.Build(this->LabelledOutputs());
@@ -161,25 +153,24 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   labels_cpu.set_type(TypeInfo::Create<int>());
   const int *labels = static_cast<const int *>(labels_cpu.raw_data());
 
-
-  for (int i =0; i < batch_size; ++i) {
+  for (int i = 0; i < batch_size; ++i) {
     auto frames_shape = frames_output.tensor_shape(i);
 
     switch (labels[i]) {
-    case 0:
-      ASSERT_EQ(frames_shape[1], 2160);
-      ASSERT_EQ(frames_shape[2], 3840);
-      break;
-    case 1:
-      ASSERT_EQ(frames_shape[1], 1080);
-      ASSERT_EQ(frames_shape[2], 1920);
-      break;
-    case 2:
-      ASSERT_EQ(frames_shape[1], 240);
-      ASSERT_EQ(frames_shape[2], 334);
-      break;
-    default:
-      FAIL() << "Unexpected label";
+      case 0:
+        ASSERT_EQ(frames_shape[1], 2160);
+        ASSERT_EQ(frames_shape[2], 3840);
+        break;
+      case 1:
+        ASSERT_EQ(frames_shape[1], 1080);
+        ASSERT_EQ(frames_shape[2], 1920);
+        break;
+      case 2:
+        ASSERT_EQ(frames_shape[1], 240);
+        ASSERT_EQ(frames_shape[2], 334);
+        break;
+      default:
+        FAIL() << "Unexpected label";
     }
   }
 }
@@ -191,14 +182,13 @@ TEST_F(VideoReaderTest, PackedBFrames) {
   Pipeline pipe(batch_size, 1, 0);
 
   pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("sequence_length", sequence_length)
-    .AddArg(
-      "filenames",
-      std::vector<std::string>{testing::dali_extra_path() +
-      "/db/video/ucf101_test/packed_bframes_test.avi"})
-    .AddOutput("frames", "gpu"));
+      OpSpec("VideoReader")
+          .AddArg("device", "gpu")
+          .AddArg("sequence_length", sequence_length)
+          .AddArg("filenames",
+                  std::vector<std::string>{testing::dali_extra_path() +
+                                           "/db/video/ucf101_test/packed_bframes_test.avi"})
+          .AddOutput("frames", "gpu"));
 
   pipe.Build(this->Outputs());
 
@@ -217,12 +207,10 @@ TEST_F(VideoReaderTest, PackedBFrames) {
 
 inline bool IsUnsupportedCodec(const char *error_message) {
   const char *unsupported_codec_messages[] = {
-    "Decoder hardware does not support this video codec and/or chroma format",
-    "Unsupported Code"
-  };
+      "Decoder hardware does not support this video codec and/or chroma format",
+      "Unsupported Code"};
   for (const char *part : unsupported_codec_messages) {
-    if (std::strstr(error_message, part))
-      return true;
+    if (std::strstr(error_message, part)) return true;
   }
   return false;
 }
@@ -231,14 +219,12 @@ TEST_F(VideoReaderTest, Vp9Profile0) {
   Pipeline pipe(1, 1, 0);
   const int sequence_length = 60;
 
-  pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("sequence_length", sequence_length)
-    .AddArg(
-      "filenames",
-      std::vector<std::string>{testing::dali_extra_path() + "/db/video/vp9/vp9_0.mp4"})
-    .AddOutput("frames", "gpu"));
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                     "/db/video/vp9/vp9_0.mp4"})
+                       .AddOutput("frames", "gpu"));
 
   DeviceWorkspace ws;
   try {
@@ -265,17 +251,16 @@ TEST_F(VideoReaderTest, Vp9Profile0) {
 TEST_F(VideoReaderTest, Vp9Profile2) {
   Pipeline pipe(1, 1, 0);
   const int sequence_length = 60;
-  const string unsupported_exception_msg = "Decoder hardware does not support this video codec"
-                                           " and/or chroma format";
+  const string unsupported_exception_msg =
+      "Decoder hardware does not support this video codec"
+      " and/or chroma format";
 
-  pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("sequence_length", sequence_length)
-    .AddArg(
-      "filenames",
-      std::vector<std::string>{testing::dali_extra_path() + "/db/video/vp9/vp9_2.mp4"})
-    .AddOutput("frames", "gpu"));
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                     "/db/video/vp9/vp9_2.mp4"})
+                       .AddOutput("frames", "gpu"));
 
   DeviceWorkspace ws;
   try {
@@ -305,18 +290,16 @@ TEST_F(VideoReaderTest, FrameLabels) {
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
-  pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("random_shuffle", false)
-    .AddArg("sequence_length", sequence_length)
-    .AddArg("enable_frame_num", true)
-    .AddArg("image_type", DALI_YCbCr)
-    .AddArg(
-      "file_list", "/tmp/file_list.txt")
-    .AddOutput("frames", "gpu")
-    .AddOutput("labels", "gpu")
-    .AddOutput("frame_num", "gpu"));
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("random_shuffle", false)
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("enable_frame_num", true)
+                       .AddArg("image_type", DALI_YCbCr)
+                       .AddArg("file_list", "/tmp/file_list.txt")
+                       .AddOutput("frames", "gpu")
+                       .AddOutput("labels", "gpu")
+                       .AddOutput("frame_num", "gpu"));
 
   pipe.Build(this->Output_frames_label_frame_num());
 
@@ -345,27 +328,121 @@ TEST_F(VideoReaderTest, FrameLabels) {
   }
 }
 
-TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
+TEST_F(VideoReaderTest, FrameLabelsFilenames) {
   const int sequence_length = 1;
   const int iterations = 256;
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
   pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("random_shuffle", false)
-    .AddArg("sequence_length", sequence_length)
-    .AddArg("enable_frame_num", true)
-    .AddArg("enable_timestamps", true)
-    .AddArg("file_list_frame_num", true)
-    .AddArg("image_type", DALI_YCbCr)
-    .AddArg(
-      "file_list", "/tmp/file_list_frame_num.txt")
-    .AddOutput("frames", "gpu")
-    .AddOutput("labels", "gpu")
-    .AddOutput("frame_num", "gpu")
-    .AddOutput("timestamp", "gpu"));
+      OpSpec("VideoReader")
+          .AddArg("device", "gpu")
+          .AddArg("random_shuffle", false)
+          .AddArg("sequence_length", sequence_length)
+          .AddArg("enable_frame_num", true)
+          .AddArg("image_type", DALI_YCbCr)
+          .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                        "/db/video/frame_num_timestamp/test.mp4"})
+          .AddArg("labels", std::vector<int>{})
+          .AddOutput("frames", "gpu")
+          .AddOutput("labels", "gpu")
+          .AddOutput("frame_num", "gpu"));
+
+  pipe.Build(this->Output_frames_label_frame_num());
+
+  DeviceWorkspace ws;
+  for (int i = 0; i < iterations; ++i) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
+
+    TensorList<CPUBackend> frames_cpu;
+    frames_cpu.Copy(frames_gpu, 0);
+    TensorList<CPUBackend> labels_cpu;
+    labels_cpu.Copy(label_gpu, 0);
+    TensorList<CPUBackend> frame_num_cpu;
+    frame_num_cpu.Copy(frame_num_gpu, 0);
+    cudaStreamSynchronize(0);
+
+    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
+    const int *label = static_cast<const int *>(labels_cpu.raw_data());
+    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
+
+    ASSERT_EQ(frames[0], frame_num[0]);
+    ASSERT_EQ(label[0], 0);
+  }
+}
+
+TEST_F(VideoReaderTest, LabelsFilenames) {
+  const int sequence_length = 1;
+  const int iterations = 256;
+  const int batch_size = 1;
+  Pipeline pipe(batch_size, 1, 0);
+
+  pipe.AddOperator(
+      OpSpec("VideoReader")
+          .AddArg("device", "gpu")
+          .AddArg("random_shuffle", false)
+          .AddArg("sequence_length", sequence_length)
+          .AddArg("enable_frame_num", true)
+          .AddArg("image_type", DALI_YCbCr)
+          .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                        "/db/video/frame_num_timestamp/test.mp4"})
+          .AddArg("labels", std::vector<int>{99})
+          .AddOutput("frames", "gpu")
+          .AddOutput("labels", "gpu")
+          .AddOutput("frame_num", "gpu"));
+
+  pipe.Build(this->Output_frames_label_frame_num());
+
+  DeviceWorkspace ws;
+  for (int i = 0; i < iterations; ++i) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
+
+    TensorList<CPUBackend> frames_cpu;
+    frames_cpu.Copy(frames_gpu, 0);
+    TensorList<CPUBackend> labels_cpu;
+    labels_cpu.Copy(label_gpu, 0);
+    TensorList<CPUBackend> frame_num_cpu;
+    frame_num_cpu.Copy(frame_num_gpu, 0);
+    cudaStreamSynchronize(0);
+
+    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
+    const int *label = static_cast<const int *>(labels_cpu.raw_data());
+    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
+
+    ASSERT_EQ(frames[0], frame_num[0]);
+    ASSERT_EQ(label[0], 99);
+  }
+}
+
+TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
+  const int sequence_length = 1;
+  const int iterations = 256;
+  const int batch_size = 1;
+  Pipeline pipe(batch_size, 1, 0);
+
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("random_shuffle", false)
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("enable_frame_num", true)
+                       .AddArg("enable_timestamps", true)
+                       .AddArg("file_list_frame_num", true)
+                       .AddArg("image_type", DALI_YCbCr)
+                       .AddArg("file_list", "/tmp/file_list_frame_num.txt")
+                       .AddOutput("frames", "gpu")
+                       .AddOutput("labels", "gpu")
+                       .AddOutput("frame_num", "gpu")
+                       .AddOutput("timestamp", "gpu"));
 
   pipe.Build(this->Output_frames_frame_num_timestamp());
 
@@ -394,7 +471,7 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
     const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
     const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
 
-    ASSERT_DOUBLE_EQ(frame_num[0], timestamps[0]*25);
+    ASSERT_DOUBLE_EQ(frame_num[0], timestamps[0] * 25);
     switch (label[0]) {
       case 0:
         ASSERT_TRUE(frame_num[0] >= 0 && frame_num[0] < 50);
@@ -417,20 +494,18 @@ TEST_F(VideoReaderTest, TimestampLabels) {
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
-  pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("random_shuffle", false)
-    .AddArg("sequence_length", sequence_length)
-    .AddArg("enable_timestamps", true)
-    .AddArg("enable_frame_num", true)
-    .AddArg("image_type", DALI_YCbCr)
-    .AddArg(
-      "file_list", "/tmp/file_list_timestamp.txt")
-    .AddOutput("frames", "gpu")
-    .AddOutput("labels", "gpu")
-    .AddOutput("frame_num", "gpu")
-    .AddOutput("timestamp", "gpu"));
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("random_shuffle", false)
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("enable_timestamps", true)
+                       .AddArg("enable_frame_num", true)
+                       .AddArg("image_type", DALI_YCbCr)
+                       .AddArg("file_list", "/tmp/file_list_timestamp.txt")
+                       .AddOutput("frames", "gpu")
+                       .AddOutput("labels", "gpu")
+                       .AddOutput("frame_num", "gpu")
+                       .AddOutput("timestamp", "gpu"));
 
   pipe.Build(this->Output_frames_frame_num_timestamp());
 
@@ -459,7 +534,7 @@ TEST_F(VideoReaderTest, TimestampLabels) {
     const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
     const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
 
-    ASSERT_DOUBLE_EQ(frame_num[0], timestamps[0]*25);
+    ASSERT_DOUBLE_EQ(frame_num[0], timestamps[0] * 25);
   }
 }
 
@@ -469,18 +544,16 @@ TEST_F(VideoReaderTest, StartEndLabels) {
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
-  pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("random_shuffle", false)
-    .AddArg("sequence_length", sequence_length)
-    .AddArg("enable_timestamps", true)
-    .AddArg("image_type", DALI_YCbCr)
-    .AddArg(
-      "file_list", "/tmp/file_list.txt")
-    .AddOutput("frames", "gpu")
-    .AddOutput("labels", "gpu")
-    .AddOutput("timestamp", "gpu"));
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("random_shuffle", false)
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("enable_timestamps", true)
+                       .AddArg("image_type", DALI_YCbCr)
+                       .AddArg("file_list", "/tmp/file_list.txt")
+                       .AddOutput("frames", "gpu")
+                       .AddOutput("labels", "gpu")
+                       .AddOutput("timestamp", "gpu"));
 
   pipe.Build(this->Output_frames_label_timestamp());
 
@@ -505,7 +578,7 @@ TEST_F(VideoReaderTest, StartEndLabels) {
     const int *label = static_cast<const int *>(labels_cpu.raw_data());
     const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
 
-    ASSERT_EQ(*label, std::floor(timestamps[0]/100));
+    ASSERT_EQ(*label, std::floor(timestamps[0] / 100));
   }
 }
 
@@ -516,15 +589,12 @@ TEST_F(VideoReaderTest, MultipleFrameRates) {
   Pipeline pipe(batch_size, 1, 0);
 
   pipe.AddOperator(
-    OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("sequence_length", sequence_length)
-    .AddArg(
-      "file_root",
-      testing::dali_extra_path() +
-      "/db/video/multiple_framerate/")
-    .AddOutput("frames", "gpu")
-    .AddOutput("labels", "gpu"));
+      OpSpec("VideoReader")
+          .AddArg("device", "gpu")
+          .AddArg("sequence_length", sequence_length)
+          .AddArg("file_root", testing::dali_extra_path() + "/db/video/multiple_framerate/")
+          .AddOutput("frames", "gpu")
+          .AddOutput("labels", "gpu"));
 
   pipe.Build(this->LabelledOutputs());
 

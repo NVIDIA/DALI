@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,11 +26,16 @@ namespace detail {
 inline int VideoReaderOutputFn(const OpSpec &spec) {
   std::string file_root = spec.GetArgument<std::string>("file_root");
   std::string file_list = spec.GetArgument<std::string>("file_list");
+  std::vector<std::string> file_names = spec.GetRepeatedArgument<std::string>("filenames");
+  std::vector<int> labels;
+  bool has_labels_arg = spec.TryGetRepeatedArgument(labels, "labels");
   bool enable_frame_num = spec.GetArgument<bool>("enable_frame_num");
   bool enable_timestamps = spec.GetArgument<bool>("enable_timestamps");
   int num_outputs = 1;
-  if (!file_root.empty() || !file_list.empty()) {
-    num_outputs++;
+  if ((!file_names.empty() && has_labels_arg) || file_names.empty()) {
+    ++num_outputs;
+  }
+  if (!file_list.empty() || !file_names.empty()) {
     if (enable_frame_num) num_outputs++;
     if (enable_timestamps) num_outputs++;
   }
@@ -52,6 +57,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
         dtype_(spec.GetArgument<DALIDataType>("dtype")) {
     DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));
 
+    bool has_labels_arg = spec.TryGetRepeatedArgument(labels_, "labels");
+
     prefetched_batch_tensors_.resize(prefetch_queue_depth_);
 
     int arg_count = !filenames_.empty() + !file_root_.empty() + !file_list_.empty();
@@ -65,20 +72,32 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
     DALI_ENFORCE(dtype_ == DALI_FLOAT || dtype_ == DALI_UINT8, "Data type must be FLOAT or UINT8.");
 
-    enable_label_output_ = !file_root_.empty() || !file_list_.empty();
-    DALI_ENFORCE(enable_label_output_ || !enable_frame_num_,
+    can_use_frames_timestamps_ = !file_list_.empty() || (!filenames_.empty() && has_labels_arg);
+
+    DALI_ENFORCE(can_use_frames_timestamps_ || !enable_frame_num_,
                  "frame numbers can be enabled only when "
-                 "`file_list` or `file_root` argument is passed");
-    DALI_ENFORCE(enable_label_output_ || !enable_timestamps_,
+                 "`file_list` or `filenames` argument is passed");
+    DALI_ENFORCE(can_use_frames_timestamps_ || !enable_timestamps_,
                  "timestamps can be enabled only when "
-                 "`file_list` or `file_root` argument is passed");
+                 "`file_list` or `filenames` argument is passed");
+
+    DALI_ENFORCE(!(has_labels_arg && filenames_.empty()),
+                 "The argument ``labels`` is valid only when file paths "
+                 "are provided as ``filenamess`` argument.");
+
+    if (!filenames_.empty() && has_labels_arg) {
+      DALI_ENFORCE(filenames_.size() == labels_.size() || labels_.empty(), make_string("Provided ",
+                  labels_.size(), " labels for ", filenames_.size(), " files."));
+    }
+
+    output_labels_ = has_labels_arg || !file_list_.empty() || !file_root_.empty();
 
     // TODO(spanev): Factor out the constructor body to make VideoReader compatible with lazy_init.
     loader_ = InitLoader<VideoLoader>(spec, filenames_);
 
-    if (enable_label_output_) {
-      label_shape_ = uniform_list_shape(batch_size_, {1});
+    label_shape_ = uniform_list_shape(batch_size_, {1});
 
+    if (can_use_frames_timestamps_) {
       if (enable_frame_num_) frame_num_shape_ = label_shape_;
       if (enable_timestamps_) timestamp_shape_ = uniform_list_shape(batch_size_, {count_});
     }
@@ -107,21 +126,23 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   }
 
   void PrepareAdditionalOutputs(DeviceWorkspace &ws) {
-    if (enable_label_output_) {
-      int output_index = 1;
+    int output_index = 1;
+    if (output_labels_) {
       label_output_ = &ws.Output<GPUBackend>(output_index++);
       label_output_->set_type(TypeTable::GetTypeInfoFromStatic<int>());
       label_output_->Resize(label_shape_);
-      if (enable_frame_num_) {
-        frame_num_output_ = &ws.Output<GPUBackend>(output_index++);
-        frame_num_output_->set_type(TypeTable::GetTypeInfoFromStatic<int>());
-        frame_num_output_->Resize(frame_num_shape_);
-      }
+      if (can_use_frames_timestamps_) {
+        if (enable_frame_num_) {
+          frame_num_output_ = &ws.Output<GPUBackend>(output_index++);
+          frame_num_output_->set_type(TypeTable::GetTypeInfoFromStatic<int>());
+          frame_num_output_->Resize(frame_num_shape_);
+        }
 
-      if (enable_timestamps_) {
-        timestamp_output_ = &ws.Output<GPUBackend>(output_index++);
-        timestamp_output_->set_type(TypeTable::GetTypeInfoFromStatic<double>());
-        timestamp_output_->Resize(timestamp_shape_);
+        if (enable_timestamps_) {
+          timestamp_output_ = &ws.Output<GPUBackend>(output_index++);
+          timestamp_output_->set_type(TypeTable::GetTypeInfoFromStatic<double>());
+          timestamp_output_->Resize(timestamp_shape_);
+        }
       }
     }
   }
@@ -134,20 +155,22 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
   void ProcessAdditionalOutputs(int data_idx, SequenceWrapper &prefetched_video,
                                 cudaStream_t stream) {
-    if (enable_label_output_) {
+    if (output_labels_) {
       auto *label = label_output_->mutable_tensor<int>(data_idx);
       CUDA_CALL(
           cudaMemcpyAsync(label, &prefetched_video.label, sizeof(int), cudaMemcpyDefault, stream));
-      if (enable_frame_num_) {
-        auto *frame_num = frame_num_output_->mutable_tensor<int>(data_idx);
-        CUDA_CALL(cudaMemcpyAsync(frame_num, &prefetched_video.first_frame_idx, sizeof(int),
-                                  cudaMemcpyDefault, stream));
-      }
-      if (enable_timestamps_) {
-        auto *timestamp = timestamp_output_->mutable_tensor<double>(data_idx);
-        timestamp_output_->type().Copy<GPUBackend, CPUBackend>(
-            timestamp, prefetched_video.timestamps.data(), prefetched_video.timestamps.size(),
-            stream);
+      if (can_use_frames_timestamps_) {
+        if (enable_frame_num_) {
+          auto *frame_num = frame_num_output_->mutable_tensor<int>(data_idx);
+          CUDA_CALL(cudaMemcpyAsync(frame_num, &prefetched_video.first_frame_idx, sizeof(int),
+                                    cudaMemcpyDefault, stream));
+        }
+        if (enable_timestamps_) {
+          auto *timestamp = timestamp_output_->mutable_tensor<double>(data_idx);
+          timestamp_output_->type().Copy<GPUBackend, CPUBackend>(
+              timestamp, prefetched_video.timestamps.data(), prefetched_video.timestamps.size(),
+              stream);
+        }
       }
     }
   }
@@ -172,6 +195,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
   static constexpr int sequence_dim = 4;
   std::vector<std::string> filenames_;
+  std::vector<int> labels_;
   std::string file_root_;
   std::string file_list_;
   bool enable_frame_num_;
@@ -190,7 +214,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   vector<TensorList<GPUBackend>> prefetched_batch_tensors_;
 
   DALIDataType dtype_;
-  bool enable_label_output_;
+  bool can_use_frames_timestamps_ = false;
+  bool output_labels_ = false;
 
   USE_READER_OPERATOR_MEMBERS(GPUBackend, SequenceWrapper);
 };

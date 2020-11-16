@@ -78,6 +78,11 @@ This class only supports constant frame rate videos.)code")
 
 This option is mutually exclusive with ``filenames`` and ``file_root``.)code",
       std::vector<std::string>{})
+    .AddOptionalArg<vector<int>>("labels", R"(Labels accompanying contents of files listed in
+``filenames`` argument.
+
+If empty [] is provided, sequential 0-based indices are used as labels. If not used
+no labels will be yield.)", nullptr)
   .AddOptionalArg("file_root",
       R"code(Path to a directory that contains the data files.
 
@@ -92,12 +97,12 @@ sequence and a warning. This option is mutually exclusive with ``filenames``
 and ``file_root``.)code",
       std::string())
   .AddOptionalArg("enable_frame_num",
-      R"code(If the ``file_list`` or ``file_root`` argument is passed, returns
-the frame number output.)code",
+      R"code(If the ``file_list`` or ``filenames`` argument is passed, returns the frame number
+output.)code",
       false)
   .AddOptionalArg("enable_timestamps",
-      R"code(If the ``file_list`` or ``file_root`` arguments are passed, returns
-the timestamps output. )code",
+      R"code(If the ``file_list`` or ``filenames`` argument is passed, returns the timestamps
+output. )code",
       false)
   .AddArg("sequence_length",
       R"code(Frames to load per sequence.)code",
