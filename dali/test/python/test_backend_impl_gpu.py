@@ -188,3 +188,31 @@ def test_cuda_array_interface_tensor_gpu_create_from_numpy():
 def test_cuda_array_interface_tensor_list_gpu_create_from_numpy():
     arr = np.random.rand(3, 5, 6)
     tensor = TensorGPU(arr, "NHWC")
+
+
+def test_tensor_gpu_squeeze():
+    def check_squeeze(shape, dim, in_layout, expected_out_layout):
+        arr = cp.random.rand(*shape)
+        t = TensorGPU(arr, in_layout)
+        is_squeezed = t.squeeze(dim)
+        should_squeeze = (len(expected_out_layout) < len(in_layout))
+        arr_squeeze = arr.squeeze(dim)
+        t_shape = tuple(t.shape())
+        assert t_shape == arr_squeeze.shape, f"{t_shape} != {arr_squeeze.shape}"
+        assert t.layout() == expected_out_layout, f"{t.layout()} != {expected_out_layout}"
+        assert cp.allclose(arr_squeeze, cp.asanyarray(t))
+        assert is_squeezed == should_squeeze, f"{is_squeezed} != {should_squeeze}"
+
+    for dim, shape, in_layout, expected_out_layout in \
+            [(None, (3, 5, 6), "ABC", "ABC"),
+             (None, (3, 1, 6), "ABC", "AC"),
+             (1, (3, 1, 6), "ABC", "AC"),
+             (-2, (3, 1, 6), "ABC", "AC"),
+             (None, (1, 1, 6), "ABC", "C"),
+             (1, (1, 1, 6), "ABC", "AC"),
+             (None, (1, 1, 1), "ABC", ""),
+             (None, (1, 5, 1), "ABC", "B"),
+             (-1, (1, 5, 1), "ABC", "AB"),
+             (0, (1, 5, 1), "ABC", "BC"),
+             (None, (3, 5, 1), "ABC", "AB")]:
+        yield check_squeeze, shape, dim, in_layout, expected_out_layout
