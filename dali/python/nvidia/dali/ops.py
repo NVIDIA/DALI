@@ -18,7 +18,6 @@ import copy
 from itertools import count
 import threading
 import warnings
-import importlib
 from nvidia.dali import backend as _b
 from nvidia.dali.types import \
         _type_name_convert_to_string, _type_convert_value, _default_converter, \

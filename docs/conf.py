@@ -256,12 +256,11 @@ class EnumDocumenter(ClassDocumenter):
     # Produce .. py:class:: fields in the RST doc
     directivetype = 'class'
 
-    def __init__(self, *args: Any) -> None:
+    def __init__(self, *args):
         super().__init__(*args)
 
     @classmethod
-    def can_document_member(cls, member: Any, membername: str, isattr: bool, parent: Any
-                            ) -> bool:
+    def can_document_member(cls, member, membername, isattr, parent):
         """Verify that we handle only the registered DALI enums. Pybind doesn't subclass Enum class,
         so we need an explicit list.
         """
@@ -287,35 +286,28 @@ class EnumDocumenter(ClassDocumenter):
 
     def sort_members(self, documenters, order):
         """Ignore the order. Here we have access only to documenters that carry the name
-        and not the object. We need to sort based on the enum values and we du it in
+        and not the object. We need to sort based on the enum values and we do it in
         self.filter_members()
         """
         return documenters
 
 class EnumAttributeDocumenter(AttributeDocumenter):
-    # Give us higher priority over Sphinx native AttributeDocumenter
+    # Give us higher priority over Sphinx native AttributeDocumenter which is 10, or 11 in case
+    # of more specialized attributes.
     priority = 12
 
     @classmethod
-    def can_document_member(cls, member: Any, membername: str, isattr: bool, parent: Any
-                            ) -> bool:
+    def can_document_member(cls, member, membername, isattr, parent):
         """Run only for the Enums supported by DALI
         """
         return isinstance(parent, EnumDocumenter)
 
-    def add_directive_header(self, sig: str) -> None:
+    def add_directive_header(self, sig):
         """Greatly simplified AttributeDocumenter.add_directive_header()
         as we know we're dealing with only specific enums here, we can append a line of doc
         with just their value.
         """
         super(AttributeDocumenter, self).add_directive_header(sig)
-        # To customize the values of the enums use:
-        # sourcename = self.get_sourcename()
-        # if isinstance(self.object, Enum):
-        #     objrepr = str(self.object)
-        # else:
-        #     objrepr = str(self.object)
-        # self.add_line('   :value: ' + objrepr, sourcename)
 
 
 def setup(app):
