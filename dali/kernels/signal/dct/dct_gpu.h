@@ -38,7 +38,7 @@ class BlockSetupInner {
   struct BlockDesc {
     int64_t sample_idx;
     int64_t frame_start;
-    int64_t frames_num;
+    int64_t frame_count;
   };
 
   void Setup(const TensorListShape<3> &reduced_shape);
@@ -81,9 +81,9 @@ template <typename OutputType = float,  typename InputType = OutputType>
 class DLL_PUBLIC Dct1DGpu {
  public:
   struct SampleDesc {
-    OutputType * output;
-    const InputType * input;
-    const OutputType * cos_table;
+    OutputType *output;
+    const InputType *input;
+    const OutputType *cos_table;
     ivec3 in_stride;
     ivec3 out_stride;
     int input_length;

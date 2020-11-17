@@ -265,11 +265,12 @@ TEST_P(Dct1DGpuPerfTest, PerfTest) {
     UniformRandomFill(input.cpu(), rng, 0., 1.);
     auto in_view_gpu = input.gpu();
     auto out_view_gpu = output.gpu();
-    auto req = kmgr.Setup<Kernel>(0, ctx, in_view_gpu, make_cspan(args_batch_), 1);
+    int axis = inner_ ? 2 : 1;
+    auto req = kmgr.Setup<Kernel>(0, ctx, in_view_gpu, make_cspan(args_batch_), axis);
     cudaEventRecord(start);
     kmgr.Run<Kernel>(0, 0, ctx, out_view_gpu, in_view_gpu, InTensorGPU<float, 1>{});
     cudaEventRecord(end);
-    cudaDeviceSynchronize();
+    CUDA_CALL(cudaDeviceSynchronize());
     float time;
     cudaEventElapsedTime(&time, start, end);
     if (i > 0) {

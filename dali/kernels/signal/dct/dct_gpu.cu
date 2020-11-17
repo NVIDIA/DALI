@@ -71,11 +71,11 @@ template <typename OutputType, typename InputType, bool HasLifter>
 __global__ void ApplyDctInner(const typename Dct1DGpu<OutputType, InputType>::SampleDesc *samples,
                               const BlockSetupInner::BlockDesc *blocks,
                               const float *lifter_coeffs) {
-  extern __shared__ char *shm[];
+  extern __shared__ char shm[];
   auto block = blocks[blockIdx.x];
   auto sample = samples[block.sample_idx];
   int ndct = sample.out_stride[0];
-  int64_t nframes = block.frames_num;
+  int64_t nframes = block.frame_count;
   int input_len = sample.input_length * nframes;
   auto *in_frames = reinterpret_cast<InputType*>(shm);
   auto *cos_table = reinterpret_cast<OutputType*>(in_frames + input_len);
@@ -91,24 +91,21 @@ __global__ void ApplyDctInner(const typename Dct1DGpu<OutputType, InputType>::Sa
     in_frames[idx] = input[idx];
   }
   __syncthreads();
-  int y_end = div_ceil(ndct, blockDim.y) * blockDim.y;
   for (int f = 0; f < nframes; ++f) {
     const auto *in_frame = in_frames + sample.input_length * f;
     auto *out_frame = output + ndct * f;
-    for (int y = threadIdx.y; y < y_end; y += blockDim.y) {
+    for (int y = threadIdx.y; y < ndct; y += blockDim.y) {
       float lifter_coeff = HasLifter ? lifter_coeffs[y] : 1.f;
       const auto *cos_row = &cos_table[y * sample.input_length];
       OutputType acc = 0;
-      if (y < ndct) {
-        for (int x = threadIdx.x; x < sample.input_length; x += blockDim.x) {
-          acc = fma(in_frame[x], cos_row[x], acc);
-        }
+      for (int x = threadIdx.x; x < sample.input_length; x += blockDim.x) {
+        acc = fma(in_frame[x], cos_row[x], acc);
       }
-      #pragma unroll
-      for (int offset = 16; offset > 0; offset /= 2) {
-        acc += __shfl_down_sync(0xffffffff, acc, offset);
-      }
-      if (threadIdx.x == 0 && y < ndct) {
+      acc += __shfl_down_sync(0xffffffff, acc, 16);
+      acc += __shfl_down_sync(0xffffffff, acc, 8);
+      acc += __shfl_down_sync(0xffffffff, acc, 4);
+      acc += __shfl_down_sync(0xffffffff, acc, 2);
+      if (threadIdx.x == 0) {
         out_frame[y] = HasLifter ? acc * lifter_coeff : acc;
       }
     }
@@ -248,7 +245,7 @@ void BlockSetupInner::Setup(const TensorListShape<3> &reduced_shape) {
     for (int64_t f = 0; f < nframes; f += frames_per_block_, ++bid) {
       blocks_[bid].sample_idx = s;
       blocks_[bid].frame_start = f;
-      blocks_[bid].frames_num = std::min(frames_per_block_, nframes - f);
+      blocks_[bid].frame_count = std::min(frames_per_block_, nframes - f);
     }
   }
 }
@@ -264,6 +261,7 @@ void Dct1DGpu<OutputType, InputType>::RunInnerDCT(KernelContext &ctx, int64_t ma
   dim3 grid_dim = block_setup_inner_.GridDim();
   size_t shm_size =
     block_setup_inner_.SharedMemSize<OutputType, InputType>(max_input_length, max_cos_table_size_);
+  std::cout << "shm size, inner: " << shm_size << std::endl;
   if (lifter_coeffs.num_elements() > 0) {
     ApplyDctInner<OutputType, InputType, true>
       <<<grid_dim, block_dim, shm_size, ctx.gpu.stream>>>(sample_descs_gpu, block_descs_gpu,
@@ -286,6 +284,7 @@ void Dct1DGpu<OutputType, InputType>::RunPlanarDCT(KernelContext &ctx, int max_n
   dim3 block_dim = block_setup_.BlockDim();
   size_t shm_size = sizeof(OutputType) * (max_cos_table_size_ + 32 * max_ndct);
   auto block = block_setup_.Blocks()[0];
+  std::cout << "shm size, planar: " << shm_size << std::endl;
   if (lifter_coeffs.num_elements() > 0) {
     ApplyDct<OutputType, InputType, true>
       <<<grid_dim, block_dim, shm_size, ctx.gpu.stream>>>(sample_descs_gpu, block_descs_gpu,
