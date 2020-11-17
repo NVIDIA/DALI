@@ -239,7 +239,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             last_batch_policy)
         self._squeeze_labels = squeeze_labels
         if self._squeeze_labels is not None:
-            print("``squeeze_labels`` is now deprecated. Any manipulation of the tensor shapes should be done explicitly in the DALI pipeline.")
+            print("Warning: ``squeeze_labels`` is now deprecated. Any manipulation of the tensor shapes should be done explicitly in the DALI pipeline.")
         self._dynamic_shape = dynamic_shape
         # Use double-buffering of data batches
         self._data_batches = [[None] for i in range(self._num_gpus)]
@@ -295,8 +295,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 [x.as_tensor() for x in category_outputs[DALIGenericIterator.LABEL_TAG]]
             if self._squeeze_labels:
                 for label in category_tensors[DALIGenericIterator.LABEL_TAG]:
-                    if label.shape()[-1] == 1:
-                        label.squeeze(-1)
+                    label.squeeze(-1)  # Squeeze last dimension if necessary
             category_info[DALIGenericIterator.LABEL_TAG] = \
                 [(x.shape(), np.dtype(x.dtype())) for x in category_tensors[DALIGenericIterator.LABEL_TAG]]
 

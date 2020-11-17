@@ -283,14 +283,20 @@ class TensorLayout {
     return TensorLayout(end() - n, n);
   }
 
-  DALI_HOST_DEV TensorLayout& operator+=(const TensorLayout &oth) {
+  DALI_HOST_DEV TensorLayout& operator+=(const TensorLayout &oth) noexcept {
     *this = *this + oth;
     return *this;
   }
 
-  DALI_HOST_DEV TensorLayout& operator+=(char oth) {
+  DALI_HOST_DEV TensorLayout& operator+=(char oth) noexcept {
     *this = *this + oth;
     return *this;
+  }
+
+  DALI_HOST_DEV
+  void erase(int index) noexcept {
+    assert(index >= 0 && index < ndim());
+    *this = first(index) + sub(index + 1);
   }
 
   static constexpr int max_ndim = 16-1;
@@ -313,14 +319,14 @@ class TensorLayout {
   DALI_HOST_DEV
   friend constexpr TensorLayout operator+(const TensorLayout &a, const TensorLayout &b);
   DALI_HOST_DEV
-  friend constexpr TensorLayout operator+(const TensorLayout &a, const char &b);
+  friend constexpr TensorLayout operator+(const TensorLayout &a, char b);
 };
 
 static_assert(sizeof(TensorLayout) == 16, "Tensor layout size should be exactly 16B");
 
 /** @brief Appends a single element to the layout string */
 DALI_HOST_DEV
-constexpr TensorLayout operator+(const TensorLayout &a, const char &b) {
+constexpr TensorLayout operator+(const TensorLayout &a, char b) {
   assert(a.size() + 1 < TensorLayout::max_ndim);
   TensorLayout result = a;
   int i = result.ndim();

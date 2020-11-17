@@ -366,17 +366,17 @@ void ExposeTensor(py::module &m) {
          Shape of the tensor.
          )code")
     .def("squeeze",
-      [](Tensor<CPUBackend> &t, py::object dim_arg) {
+      [](Tensor<CPUBackend> &t, py::object dim_arg) -> bool {
         if (!dim_arg.is_none()) {
           int dim = dim_arg.cast<int>();
-          t.Squeeze(dim);
-        } else {
-          t.Squeeze();
+          return t.Squeeze(dim);
         }
+        return t.Squeeze();
       },
       "dim"_a = py::none(),
       R"code(
-      Remove single-dimensional entries from the shape of the Tensor.
+      Remove single-dimensional entries from the shape of the Tensor and it returns true
+      if the shape changed or false if it remained unchanged.
 
       dim : int
             If specified, it represents the axis of a single dimension to be squeezed.
@@ -469,17 +469,17 @@ void ExposeTensor(py::module &m) {
       )code",
       py::return_value_policy::take_ownership)
     .def("squeeze",
-      [](Tensor<GPUBackend> &t, py::object dim_arg) {
+      [](Tensor<GPUBackend> &t, py::object dim_arg) -> bool {
         if (!dim_arg.is_none()) {
           int dim = dim_arg.cast<int>();
-          t.Squeeze(dim);
-        } else {
-          t.Squeeze();
+          return t.Squeeze(dim);
         }
+        return t.Squeeze();
       },
       "dim"_a = py::none(),
       R"code(
-      Remove single-dimensional entries from the shape of the Tensor.
+      Remove single-dimensional entries from the shape of the Tensor and it returns true
+      if the shape changed or false if it remained unchanged.
 
       dim : int
             If specified, it represents the axis of a single dimension to be squeezed.

@@ -194,12 +194,14 @@ def test_tensor_gpu_squeeze():
     def check_squeeze(shape, dim, in_layout, expected_out_layout):
         arr = cp.random.rand(*shape)
         t = TensorGPU(arr, in_layout)
-        t.squeeze(dim)
+        is_squeezed = t.squeeze(dim)
+        should_squeeze = (len(expected_out_layout) < len(in_layout))
         arr_squeeze = arr.squeeze(dim)
         t_shape = tuple(t.shape())
         assert t_shape == arr_squeeze.shape, f"{t_shape} != {arr_squeeze.shape}"
         assert t.layout() == expected_out_layout, f"{t.layout()} != {expected_out_layout}"
         assert cp.allclose(arr_squeeze, cp.asanyarray(t))
+        assert is_squeezed == should_squeeze, f"{is_squeezed} != {should_squeeze}"
 
     for dim, shape, in_layout, expected_out_layout in \
             [(None, (3, 5, 6), "ABC", "ABC"),
