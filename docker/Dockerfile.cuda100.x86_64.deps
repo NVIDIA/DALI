@@ -1,7 +1,8 @@
-FROM alpine as cuda
+ARG TOOLKIT_BASE_IMAGE=ubuntu:18.04
+FROM ${TOOLKIT_BASE_IMAGE} as cuda
 
-# CUDA toolkit needs gcc to be callable during installation even if it does nothing
-RUN apk add curl perl && ln -s /bin/ls /bin/gcc
+RUN apt update && apt install -y libxml2 curl perl gcc && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN CUDA_VERSION=10.0 && \
     CUDA_BUILD=10.0.130_410.48 && \

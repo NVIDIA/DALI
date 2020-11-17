@@ -204,13 +204,43 @@ void DeleteAllBuffers(std::thread::id thread_id) {
 }
 
 static int DeviceNew(void **ptr, size_t size) {
-  *ptr = GetBuffer(std::this_thread::get_id(), AllocType::GPU, size);
-  return 0;
+  if (size == 0) {
+    *ptr = nullptr;
+    return cudaSuccess;
+  }
+  // this function should not throw, but return a proper result
+  try {
+    *ptr = GetBuffer(std::this_thread::get_id(), AllocType::GPU, size);
+    return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+  } catch (const std::bad_alloc &) {
+    *ptr = nullptr;
+    return cudaErrorMemoryAllocation;
+  } catch (const CUDAError &e) {
+    return e.is_rt_api() ? e.rt_error() : cudaErrorUnknown;
+  } catch (...) {
+    *ptr = nullptr;
+    return cudaErrorUnknown;
+  }
 }
 
 static int PinnedNew(void **ptr, size_t size, unsigned int flags) {
-  *ptr = GetBuffer(std::this_thread::get_id(), AllocType::Pinned, size);
-  return 0;
+  if (size == 0) {
+    *ptr = nullptr;
+    return cudaSuccess;
+  }
+  // this function should not throw, but return a proper result
+  try {
+    *ptr = GetBuffer(std::this_thread::get_id(), AllocType::Pinned, size);
+    return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+  } catch (const std::bad_alloc &) {
+    *ptr = nullptr;
+    return cudaErrorMemoryAllocation;
+  } catch (const CUDAError &e) {
+    return e.is_rt_api() ? e.rt_error() : cudaErrorUnknown;
+  } catch (...) {
+    *ptr = nullptr;
+    return cudaErrorUnknown;
+  }
 }
 
 nvjpegDevAllocator_t GetDeviceAllocator() {
@@ -227,7 +257,7 @@ nvjpegPinnedAllocator_t GetPinnedAllocator() {
   return allocator;
 }
 
-#ifdef DALI_USE_NVJPEG2K
+#ifdef BUILD_NVJPEG2K_ENABLED
 nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k() {
   nvjpeg2kDeviceAllocator_t allocator;
   allocator.device_malloc = &DeviceNew;
@@ -241,7 +271,7 @@ nvjpeg2kPinnedAllocator_t GetPinnedAllocatorNvJpeg2k() {
   allocator.pinned_free = &ReturnBufferToPool;
   return allocator;
 }
-#endif  // DALI_USE_NVJPEG2K
+#endif  // BUILD_NVJPEG2K_ENABLED
 
 }  // namespace nvjpeg_memory
 

@@ -34,7 +34,7 @@ namespace detail {
 template <typename T>
 constexpr float FullRange() {
   return std::is_integral<T>::value
-    ? std::numeric_limits<T>::max()
+    ? static_cast<float>(std::numeric_limits<T>::max())
     : 1.0f;
 }
 

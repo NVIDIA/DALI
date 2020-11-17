@@ -28,16 +28,51 @@
 #define REDUCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
 
 namespace dali {
+namespace detail {
+
+class AxesHelper {
+ public:
+  explicit inline AxesHelper(const OpSpec &spec) {
+    has_axes_arg_ = spec.TryGetRepeatedArgument(axes_, "axes");
+    has_axis_names_arg_ = spec.TryGetArgument(axis_names_, "axis_names");
+    has_empty_axes_arg_ =
+      (has_axes_arg_ && axes_.empty()) || (has_axis_names_arg_ && axis_names_.empty());
+
+    DALI_ENFORCE(!has_axes_arg_ || !has_axis_names_arg_,
+      "Arguments `axes` and `axis_names` are mutually exclusive");
+  }
+
+  void PrepareAxes(const TensorLayout &layout, int sample_dim) {
+    if (has_axis_names_arg_) {
+      axes_ = GetDimIndices(layout, axis_names_).to_vector();
+      return;
+    }
+
+    if (!has_axes_arg_) {
+      axes_.resize(sample_dim);
+      std::iota(axes_.begin(), axes_.end(), 0);
+    }
+  }
+
+  bool has_axes_arg_;
+  bool has_axis_names_arg_;
+  bool has_empty_axes_arg_;
+  vector<int> axes_;
+  TensorLayout axis_names_;
+};
+
+}  // namespace detail
+
 template <
   template <typename T, typename R> class ReductionType,
   typename Backend,
   template <template <typename X, typename Y> class RType, typename BType> class ImplType>
-class Reduce : public Operator<Backend> {
+class Reduce : public Operator<Backend>, detail::AxesHelper {
  public:
   explicit inline Reduce(const OpSpec &spec) :
-    Operator<Backend>(spec),
-    axes_(spec.GetRepeatedArgument<int>("axes")),
-    keep_dims_(spec.GetArgument<bool>("keep_dims")) {
+      Operator<Backend>(spec),
+      AxesHelper(spec),
+      keep_dims_(spec.GetArgument<bool>("keep_dims")) {
     spec.TryGetArgument<DALIDataType>(output_type_, "dtype");
   }
 
@@ -53,10 +88,7 @@ class Reduce : public Operator<Backend> {
     output_desc[0].type = dali::TypeTable::GetTypeInfo(OutputType(input.type().id()));
     output_desc[0].shape = input.shape();
 
-    if (axes_.size() == 0) {
-      axes_.resize(input.shape().sample_dim());
-      std::iota(axes_.begin(), axes_.end(), 0);
-    }
+    PrepareAxes(input.GetLayout(), input.shape().sample_dim());
 
     TensorListShape<> output_shape;
     kernels::reduce_impl::CalculateReducedShape(
@@ -141,8 +173,6 @@ class Reduce : public Operator<Backend> {
 
  private:
   USE_OPERATOR_MEMBERS();
-
-  vector<int> axes_;
   bool keep_dims_;
   kernels::KernelManager kmgr_;
 };

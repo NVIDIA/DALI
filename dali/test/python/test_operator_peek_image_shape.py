@@ -18,7 +18,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import os
 import numpy as np
-from test_utils import get_dali_extra_path, dali_types_to_np
+from test_utils import get_dali_extra_path, dali_type_to_np
 
 test_data_root = get_dali_extra_path()
 path = 'db/single'
@@ -41,7 +41,7 @@ def run_decode(data_path, out_type):
         for i in range(batch_size):
             # as we are asking for a particular color space it may differ from the source image, so don't compare it
             image = images.at(i)
-            shape_type = dali_types_to_np(out_type)
+            shape_type = dali_type_to_np(out_type)
             for d in range(len(image.shape) - 1):
                 assert image.shape[d] == decoded_shape.at(i)[d], "{} vs {}".format(image.shape[d], decoded_shape.at(i)[d])
                 assert image.shape[d] == raw_shape.at(i)[d], "{} vs {}".format(image.shape[d], raw_shape.at(i)[d])

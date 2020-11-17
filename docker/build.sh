@@ -82,11 +82,11 @@ export DALI_TIMESTAMP=$(date +%Y%m%d)
 
 # Find out which CLI options to use for NVIDIA Container Toolkit needed for TF PLUGIN build
 if [[ "$BUILD_TF_PLUGIN" = "YES" ]]; then
-  if docker run --gpus all nvidia/cuda:${CUDA_VERSION}-base nvidia-smi ; then
+  if docker run --rm --gpus all nvidia/cuda:${CUDA_VERSION}-base nvidia-smi ; then
     export NVDOCKER_COMMAND="docker run --gpus all"
-  elif docker run --runtime nvidia nvidia/cuda:${CUDA_VERSION}-base nvidia-smi ; then
+  elif docker run --rm --runtime nvidia nvidia/cuda:${CUDA_VERSION}-base nvidia-smi ; then
     export NVDOCKER_COMMAND="docker run --runtime nvidia"
-  elif nvidia-docker run nvidia/cuda:${CUDA_VERSION}-base nvidia-smi ; then
+  elif nvidia-docker run --rm nvidia/cuda:${CUDA_VERSION}-base nvidia-smi ; then
     export NVDOCKER_COMMAND="nvidia-docker run"
   else
     echo "Unable to use NVIDIA Container Toolkit."
@@ -151,6 +151,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_LIBSND=${BUILD_LIBSND}              \
                                         BUILD_NVML=${BUILD_NVML}                  \
                                         BUILD_FFTS=${BUILD_FFTS}                  \
+                                        LINK_LIBCUDA=${LINK_LIBCUDA}              \
                                         STRIP_BINARY=${STRIP_BINARY}              \
                                         VERBOSE_LOGS=${VERBOSE_LOGS}              \
                                         WERROR=${WERROR}                          \
@@ -185,6 +186,7 @@ else
                                    --build-arg "BUILD_LIBSND=${BUILD_LIBSND}"              \
                                    --build-arg "BUILD_NVML=${BUILD_NVML}"                  \
                                    --build-arg "BUILD_FFTS=${BUILD_FFTS}"                  \
+                                   --build-arg "LINK_LIBCUDA=${LINK_LIBCUDA}"              \
                                    --build_arg "STRIP_BINARY=${STRIP_BINARY}"              \
                                    --build-arg "VERBOSE_LOGS=${VERBOSE_LOGS}"              \
                                    --build-arg "WERROR=${WERROR}"                          \

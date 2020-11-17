@@ -66,7 +66,7 @@ class TestTensorList {
     if (!gpumem_) {
       auto size = shape_.num_elements() * sizeof(T);
       char *ptr = nullptr;
-      cudaMalloc(reinterpret_cast<void**>(&ptr), size);
+      CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&ptr), size));
       gpumem_ = { ptr, GPUDeleter };
       if (cpumem_)
         cudaMemcpyAsync(ptr, cpumem_.get(), size, cudaMemcpyHostToDevice, stream);

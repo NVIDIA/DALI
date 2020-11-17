@@ -170,7 +170,7 @@ If an integer value is provided, the alignment restrictions are applied to all t
 
 To use alignment only, that is without any default or explicit padding behavior,
 set the minimum ``shape`` to 1 for the specified axis.)code",
-    std::vector<int>())
+    std::vector<int>(), true)
   .AddOptionalArg<int>("shape",
     R"code(The extents of the output shape in the axes specified by the ``axes`` or ``axis_names``.
 
@@ -180,7 +180,7 @@ the aligned size of the largest sample in the batch.
 If the provided extent is smaller than the one of the samples, padding will be applied
 only to match the required alignment. For example, to disable padding in an axis, except
 for the necessary for alignment, you can specify a value of 1.)code",
-    vector<int>());
+    std::vector<int>(), true);
 
 template <>
 bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -192,6 +192,8 @@ bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   int ndim = in_shape.sample_dim();
   int nsamples = in_shape.num_samples();
   auto nthreads = ws.GetThreadPool().size();
+
+  ReadArguments(spec_, ws);
 
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (

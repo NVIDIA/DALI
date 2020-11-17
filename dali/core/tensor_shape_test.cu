@@ -101,3 +101,30 @@ TEST(TensorShapeDev, KernelArg) {
   dali::TensorShape<4> a = { 2, 3, 4, 5 };
   DEVICE_TEST_CASE_BODY(TensorShapeDev, KernelArg, 1, 4, a);
 }
+
+
+TEST(TensorShapeDev, ConstructorFromIntegerCollectionHost) {
+  using dali::TensorShape;
+  using dali::DeviceArray;
+  TensorShape<5> ref{1, 2, 3, 4, 5};
+  DeviceArray<int, 5> vec_i{1, 2, 3, 4, 5};
+
+  EXPECT_EQ(ref, TensorShape<5>(vec_i));
+  EXPECT_EQ(ref, TensorShape<5>(vec_i.begin(), vec_i.end()));
+  TensorShape<5> sh;
+  sh = vec_i;
+  EXPECT_EQ(ref, sh);
+}
+
+DEVICE_TEST(TensorShapeDev, ConstructorFromIntegerCollectionDevice, 1, 1) {
+  using dali::TensorShape;
+  using dali::DeviceArray;
+  TensorShape<5> ref{1, 2, 3, 4, 5};
+  DeviceArray<int, 5> vec_i{1, 2, 3, 4, 5};
+
+  DEV_EXPECT_EQ(ref, TensorShape<5>(vec_i));
+  DEV_EXPECT_EQ(ref, TensorShape<5>(vec_i.begin(), vec_i.end()));
+  TensorShape<5> sh;
+  sh = vec_i;
+  DEV_EXPECT_EQ(ref, sh);
+}

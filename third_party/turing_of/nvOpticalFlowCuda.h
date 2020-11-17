@@ -1,29 +1,32 @@
 /*
-* This copyright notice applies to this header file only:
+* Copyright(c) 2020, NVIDIA CORPORATION.All rights reserved.
 *
-* Copyright (c) 2018 NVIDIA Corporation
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are met :
 *
-* Permission is hereby granted, free of charge, to any person
-* obtaining a copy of this software and associated documentation
-* files (the "Software"), to deal in the Software without
-* restriction, including without limitation the rights to use,
-* copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the software, and to permit persons to whom the
-* software is furnished to do so, subject to the following
-* conditions:
+* 1. Redistributions of source code must retain the above copyright notice, this
+*    list of conditions and the following disclaimer.
 *
-* The above copyright notice and this permission notice shall be
-* included in all copies or substantial portions of the Software.
+* 2. Redistributions in binary form must reproduce the above copyright notice,
+*    this list of conditions and the following disclaimer in the documentation
+*    and / or other materials provided with the distribution.
 *
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-* OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-* NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-* HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-* WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-* OTHER DEALINGS IN THE SOFTWARE.
+* 3. Neither the name of the copyright holder nor the names of its
+*    contributors may be used to endorse or promote products derived from
+*    this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 /**
 * \file NvOpticalFlowCuda.h
 *   NVIDIA GPUs - Turing and above contains a hardware-based optical flow engine
@@ -41,7 +44,7 @@
 
 #if defined(__cplusplus)
 
-extern "C" 
+extern "C"
 {
 #endif /* __cplusplus */
 
@@ -110,7 +113,7 @@ typedef NV_OF_STATUS(NVOFAPI* PFNNVCREATEOPTICALFLOWCUDA) (CUcontext device, NvO
 *   CUstream type object which is used to process ::NV_OF_EXECUTE_PARAMS::inputFrame,
 *   ::NV_OF_EXECUTE_PARAMS::referenceFrame and optional NV_OF_EXECUTE_PARAMS::externalHints.
 * \param [in] outputStream
-*  CUstream type object which is used to process ::NV_OF_EXECUTE_PARAMS::outputBuffer and 
+*  CUstream type object which is used to process ::NV_OF_EXECUTE_PARAMS::outputBuffer and
 *  optional NV_OF_EXECUTE_PARAMS::costBuffer.
 *
 * \return
@@ -156,7 +159,7 @@ typedef NV_OF_STATUS(NVOFAPI* PFNNVOFCREATEGPUBUFFERCUDA) (NvOFHandle hOf, const
 * \param [in] ofGpuBuffer
 *  Object of type NvOFGPUBufferHandle, created by a call to NvOFCreateGPUBufferCuda() with bufferType set to ::NV_OF_CUDA_BUFFER_TYPE_CUARRAY.
 *
-* \return  
+* \return
 * Object of CUarray type.
 * If ofGpubuffer corresponds to a GPU buffer that was not created with buffer type NV_OF_CUDA_BUFFER_TYPE_CUARRAY,
 * this function returns NULL
@@ -169,7 +172,7 @@ typedef CUarray(NVOFAPI* PFNNVOFGPUBUFFERGETCUARRAY) (NvOFGPUBufferHandle ofGpuB
 * \param [in] ofGpuBuffer
 *  Object of type NvOFGPUBufferHandle, created by a call to NvOFCreateGPUBufferCuda() with bufferType set to ::NV_OF_CUDA_BUFFER_TYPE_CUDEVICEPTR.
 *
-* \return 
+* \return
 * Object of the CUdeviceptr type.
 * If ofGpubuffer corresponds to a GPU buffer that was not created with buffer type NV_OF_CUDA_BUFFER_TYPE_CUDEVICEPTR,
 * this function returns 0
