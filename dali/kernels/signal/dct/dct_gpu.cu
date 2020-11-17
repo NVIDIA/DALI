@@ -261,7 +261,6 @@ void Dct1DGpu<OutputType, InputType>::RunInnerDCT(KernelContext &ctx, int64_t ma
   dim3 grid_dim = block_setup_inner_.GridDim();
   size_t shm_size =
     block_setup_inner_.SharedMemSize<OutputType, InputType>(max_input_length, max_cos_table_size_);
-  std::cout << "shm size, inner: " << shm_size << std::endl;
   if (lifter_coeffs.num_elements() > 0) {
     ApplyDctInner<OutputType, InputType, true>
       <<<grid_dim, block_dim, shm_size, ctx.gpu.stream>>>(sample_descs_gpu, block_descs_gpu,
@@ -284,7 +283,6 @@ void Dct1DGpu<OutputType, InputType>::RunPlanarDCT(KernelContext &ctx, int max_n
   dim3 block_dim = block_setup_.BlockDim();
   size_t shm_size = sizeof(OutputType) * (max_cos_table_size_ + 32 * max_ndct);
   auto block = block_setup_.Blocks()[0];
-  std::cout << "shm size, planar: " << shm_size << std::endl;
   if (lifter_coeffs.num_elements() > 0) {
     ApplyDct<OutputType, InputType, true>
       <<<grid_dim, block_dim, shm_size, ctx.gpu.stream>>>(sample_descs_gpu, block_descs_gpu,
