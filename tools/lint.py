@@ -41,12 +41,8 @@ import subprocess
 # Specifies, which files are to be excluded
 # These filters are regexes, not typical unix-like path specification
 negative_filters = [
-    ".*core/dynlink_cuda.cc",
     ".*operators/reader/nvdecoder/nvcuvid.h",
     ".*operators/reader/nvdecoder/cuviddec.h",
-    ".*operators/reader/nvdecoder/dynlink_nvcuvid.cc",
-    ".*operators/reader/nvdecoder/dynlink_nvcuvid.h",
-    ".*dali/core/dynlink_cuda.h",
     ".*python/dummy.cu"
 ]
 

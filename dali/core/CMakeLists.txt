@@ -27,7 +27,7 @@ foreach(incl_dir ${INFERED_COMPILER_INCLUDE})
 endforeach(incl_dir)
 separate_arguments(DEFAULT_COMPILER_INCLUDE UNIX_COMMAND  "${DEFAULT_COMPILER_INCLUDE}")
 
-if (NOT LINK_LIBCUDA)
+if (NOT LINK_DRIVER)
   set(CUDA_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cuda_gen.cc")
   add_custom_command(
       OUTPUT ${CUDA_GENERATED_STUB}

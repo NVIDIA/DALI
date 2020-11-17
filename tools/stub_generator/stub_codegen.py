@@ -52,7 +52,7 @@ def main():
                            reinterpret_cast<FuncPtr>(load_symbol_func("{1}")) :
                            {1}NotFound;
   return func_ptr({3});
-}}\n""" % ('CUDAAPI', 'CUDAAPI')
+}}\n""" % (config['calling_conv'], config['calling_conv'])
 
     prolog = """
 typedef void *tLoadSymbol(const char *name);

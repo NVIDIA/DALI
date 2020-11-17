@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <dlfcn.h>
 #include <stdio.h>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 #include "dali/core/dynlink_cuda.h"
-
-#include <dlfcn.h>
 
 namespace {
 
@@ -48,7 +47,7 @@ void *LoadSymbol(const char *name) {
   return ret;
 }
 
-} // namespace
+}  // namespace
 
 // it is defined in the generated file
 typedef void *tLoadSymbol(const char *name);
@@ -67,7 +66,7 @@ bool cuInitChecked() {
       return true;
 
   // set symbol loader for this library
-#if !LINK_LIBCUDA_ENABLED
+#if !LINK_DRIVER_ENABLED
   CudaSetSymbolLoader(LoadSymbol);
 #endif
   static CUresult res = cuInit(0);

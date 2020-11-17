@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_CORE_DYNLINK_CUDA_H
-#define DALI_CORE_DYNLINK_CUDA_H
+#ifndef DALI_CORE_DYNLINK_CUDA_H_
+#define DALI_CORE_DYNLINK_CUDA_H_
 
 #include <cuda.h>
 
 bool cuInitChecked();
 bool cuIsSymbolAvailable(const char *name);
 
-#endif //DALI_CORE_DYNLINK_CUDA_H
+#endif  // DALI_CORE_DYNLINK_CUDA_H_

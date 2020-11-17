@@ -20,55 +20,22 @@
 
 #ifndef DALI_UTIL_NVML_WRAP_H_
 #define DALI_UTIL_NVML_WRAP_H_
+
+
 #include <nvml.h>
 #include <cuda_runtime_api.h>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 
-namespace dali {
-
-namespace nvml {
-
-DLL_PUBLIC bool wrapIsInitialized(void);
-DLL_PUBLIC DALIError_t wrapSymbols(void);
-
-DLL_PUBLIC DALIError_t wrapNvmlInit(void);
-DLL_PUBLIC DALIError_t wrapNvmlShutdown(void);
-DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByPciBusId(const char* pciBusId,
-                                                         nvmlDevice_t* device);
-DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByIndex(const int device_id,
-                                                      nvmlDevice_t* device);
-DLL_PUBLIC DALIError_t wrapNvmlDeviceGetIndex(nvmlDevice_t device, unsigned* index);
-DLL_PUBLIC DALIError_t wrapNvmlDeviceSetCpuAffinity(nvmlDevice_t device);
-DLL_PUBLIC DALIError_t wrapNvmlSystemGetDriverVersion(char* name, unsigned int length);
-DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCpuAffinity(nvmlDevice_t device,
-                                                    unsigned int cpuSetSize,
-                                                    unsigned long* cpuSet);  // NOLINT(runtime/int)
-DLL_PUBLIC DALIError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device);
-
-#if (CUDART_VERSION >= 11000)
-
-DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCpuAffinityWithinScope(nvmlDevice_t device,
-                                                               unsigned int nodeSetSize,
-                                                               unsigned long *nodeSet,  // NOLINT(*)
-                                                               nvmlAffinityScope_t scope);
-DLL_PUBLIC DALIError_t wrapNvmlDeviceGetBrand(nvmlDevice_t device, nvmlBrandType_t* type);
-DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCount_v2(unsigned int* deviceCount);
-DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByIndex_v2(unsigned int index, nvmlDevice_t* device);
-DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCudaComputeCapability(nvmlDevice_t device,
-                                                              int* major, int* minor);
-
-#endif
+bool nvmlIsInitialized(void);
+nvmlReturn_t nvmlInitChecked(void);
+bool nvmlIsSymbolAvailable(const char *name);
 
 /**
  * Checks, whether CUDA11-proper NVML functions have been successfully loaded
  */
-DLL_PUBLIC bool wrapHasCuda11NvmlFunctions();
-
-}  // namespace nvml
-
-}  // namespace dali
+bool nvmlHasCuda11NvmlFunctions(void);
 
 #endif  // DALI_UTIL_NVML_WRAP_H_
 

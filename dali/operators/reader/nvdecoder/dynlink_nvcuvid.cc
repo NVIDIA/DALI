@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <dlfcn.h>
 #include <stdio.h>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 #include "dali/operators/reader/nvdecoder/dynlink_nvcuvid.h"
-
-#include <dlfcn.h>
 
 namespace {
 
@@ -50,7 +49,7 @@ void *LoadSymbol(const char *name) {
   return ret;
 }
 
-}
+}  // namespace
 
 // it is defined in the generated file
 typedef void *tLoadSymbol(const char *name);
