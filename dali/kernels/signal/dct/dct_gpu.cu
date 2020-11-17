@@ -105,6 +105,7 @@ __global__ void ApplyDctInner(const typename Dct1DGpu<OutputType, InputType>::Sa
       acc += __shfl_down_sync(0xffffffff, acc, 8);
       acc += __shfl_down_sync(0xffffffff, acc, 4);
       acc += __shfl_down_sync(0xffffffff, acc, 2);
+      acc += __shfl_down_sync(0xffffffff, acc, 1);
       if (threadIdx.x == 0) {
         out_frame[y] = HasLifter ? acc * lifter_coeff : acc;
       }
