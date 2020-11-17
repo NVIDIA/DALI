@@ -34,7 +34,18 @@
 
 namespace dali {
 
-struct RangeColors {
+inline void FillAtrbs(nvtxEventAttributes_t &att, const std::string &name, const uint32_t rgb) {
+#if NVTX_ENABLED
+  att.version = NVTX_VERSION;
+  att.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+  att.colorType = NVTX_COLOR_ARGB;
+  att.color = rgb | 0xff000000;
+  att.messageType = NVTX_MESSAGE_TYPE_ASCII;
+  att.message.ascii = name.c_str();
+#endif
+}
+
+struct RangeBase {
   static const uint32_t kRed = 0xFF0000;
   static const uint32_t kGreen = 0x00FF00;
   static const uint32_t kBlue = 0x0000FF;
@@ -50,20 +61,13 @@ struct RangeColors {
 };
 
 // Basic timerange for profiling
-struct TimeRange : RangeColors {
-  TimeRange(std::string name, const uint32_t rgb = kBlue) {  // NOLINT
+struct TimeRange : RangeBase {
+  TimeRange(const std::string name, const uint32_t rgb = kBlue) {  // NOLINT
 #if NVTX_ENABLED
     nvtxEventAttributes_t att = {};
-    att.version = NVTX_VERSION;
-    att.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
-    att.colorType = NVTX_COLOR_ARGB;
-    att.color = rgb | 0xff000000;
-    att.messageType = NVTX_MESSAGE_TYPE_ASCII;
-    att.message.ascii = name.c_str();
-
+    FillAtrbs(att, name, rgb);
     nvtxRangePushEx(&att);
     started = true;
-
 #endif
   }
 
@@ -82,7 +86,7 @@ struct TimeRange : RangeColors {
   bool started = false;
 };
 
-struct DomainTimeRange : RangeColors{
+struct DomainTimeRange : RangeBase {
   explicit DomainTimeRange(const std::string &name, const uint32_t rgb = kBlue);
   ~DomainTimeRange();
 };

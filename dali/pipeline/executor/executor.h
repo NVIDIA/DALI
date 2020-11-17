@@ -513,7 +513,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
     OpNode &op_node = graph_->Node(OpType::CPU, cpu_op_id);
     typename WorkspacePolicy::template ws_t<OpType::CPU> ws =
         WorkspacePolicy::template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
-    DomainTimeRange tr("[DALI][Executor] Run CPU op " + op_node.instance_name, TimeRange::kBlue1);
+    DomainTimeRange tr("[DALI][CPU op] " + op_node.instance_name, RangeBase::kBlue1);
 
     try {
       RunHelper(op_node, ws);
@@ -560,8 +560,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
       try {
         typename WorkspacePolicy::template ws_t<OpType::MIXED> ws =
             WorkspacePolicy::template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
-        DomainTimeRange tr("[DALI][Executor] Run Mixed op " + op_node.instance_name,
-            TimeRange::kOrange);
+        DomainTimeRange tr("[DALI][Mixed op] " + op_node.instance_name,
+            RangeBase::kOrange);
         RunHelper(op_node, ws);
         FillStats(mixed_memory_stats_, ws,  "MIXED_" + op_node.instance_name,
                   mixed_memory_stats_mutex_);
@@ -627,8 +627,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
           CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
         }
 
-        DomainTimeRange tr("[DALI][Executor] Run GPU op " + op_node.instance_name,
-            TimeRange::knvGreen);
+        DomainTimeRange tr("[DALI][GPU op] " + op_node.instance_name,
+            RangeBase::knvGreen);
         RunHelper(op_node, ws);
         FillStats(gpu_memory_stats_, ws, "GPU_" + op_node.instance_name, gpu_memory_stats_mutex_);
         if (ws.has_event()) {

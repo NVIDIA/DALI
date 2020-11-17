@@ -29,12 +29,7 @@ class DomainTimeRangeImpl {
 
   void Start(const std::string name, const uint32_t rgb) {
     nvtxEventAttributes_t att = {};
-    att.version = NVTX_VERSION;
-    att.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
-    att.colorType = NVTX_COLOR_ARGB;
-    att.color = rgb | 0xff000000;
-    att.messageType = NVTX_MESSAGE_TYPE_ASCII;
-    att.message.ascii = name.c_str();
+    FillAtrbs(att, name, rgb);
     nvtxDomainRangePushEx(dali_domain_, &att);
   }
 
