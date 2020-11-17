@@ -34,16 +34,6 @@
 
 namespace dali {
 
-inline void FillAtrbs(nvtxEventAttributes_t &att, const std::string &name, const uint32_t rgb) {
-#if NVTX_ENABLED
-  att.version = NVTX_VERSION;
-  att.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
-  att.colorType = NVTX_COLOR_ARGB;
-  att.color = rgb | 0xff000000;
-  att.messageType = NVTX_MESSAGE_TYPE_ASCII;
-  att.message.ascii = name.c_str();
-#endif
-}
 
 struct RangeBase {
   static const uint32_t kRed = 0xFF0000;
@@ -58,6 +48,17 @@ struct RangeBase {
   static const uint32_t kCyan = 0x2AA198;
   static const uint32_t kGreen1 = 0x859900;
   static const uint32_t knvGreen = 0x76B900;
+
+  inline void FillAtrbs(nvtxEventAttributes_t &att, const std::string &name, const uint32_t rgb) {
+  #if NVTX_ENABLED
+    att.version = NVTX_VERSION;
+    att.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+    att.colorType = NVTX_COLOR_ARGB;
+    att.color = rgb | 0xff000000;
+    att.messageType = NVTX_MESSAGE_TYPE_ASCII;
+    att.message.ascii = name.c_str();
+  #endif
+  }
 };
 
 // Basic timerange for profiling

@@ -17,7 +17,7 @@
 namespace dali {
 
 #if NVTX_ENABLED
-class DomainTimeRangeImpl {
+class DomainTimeRangeImpl : RangeBase {
  public:
   DomainTimeRangeImpl() {
     dali_domain_ = nvtxDomainCreateA("DALI");

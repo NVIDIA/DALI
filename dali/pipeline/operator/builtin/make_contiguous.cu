@@ -36,11 +36,11 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
 
   auto &output = ws.Output<GPUBackend>(0);
   if (coalesced) {
-    DomainTimeRange tr("[DALI][MakeContiguousMixed] coalesced", RangeBase::kBlue);
+    DomainTimeRange tr("[DALI][MakeContiguousMixed] coalesced", DomainTimeRange::kBlue);
     cpu_output_buff.Copy(input, 0);
     output.Copy(cpu_output_buff, ws.stream());
   } else {
-    DomainTimeRange tr("[DALI][MakeContiguousMixed] non coalesced", RangeBase::kGreen);
+    DomainTimeRange tr("[DALI][MakeContiguousMixed] non coalesced", DomainTimeRange::kGreen);
       output.Copy(input, ws.stream());
   }
   coalesced = true;

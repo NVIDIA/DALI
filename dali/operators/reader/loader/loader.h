@@ -121,10 +121,10 @@ class Loader {
     if (!loading_flag_) {
       PrepareMetadata();
     }
-    DomainTimeRange tr("[DALI][Loader] ReadOne", RangeBase::kGreen1);
+    DomainTimeRange tr("[DALI][Loader] ReadOne", DomainTimeRange::kGreen1);
     // perform an initial buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
-      DomainTimeRange tr("[DALI][Loader] Filling initial buffer", RangeBase::kBlue1);
+      DomainTimeRange tr("[DALI][Loader] Filling initial buffer", DomainTimeRange::kBlue1);
       shards_.push_back({0, 0});
 
       // Read an initial number of samples to fill our
@@ -139,7 +139,7 @@ class Loader {
       }
 
       // need some entries in the empty_tensors_ list
-      DomainTimeRange tr2("[DALI][Loader] Filling empty list", RangeBase::kOrange);
+      DomainTimeRange tr2("[DALI][Loader] Filling empty list", DomainTimeRange::kOrange);
       std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
       for (int i = 0; i < initial_empty_size_; ++i) {
         auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());

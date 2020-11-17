@@ -82,7 +82,7 @@ class DataReader : public Operator<Backend> {
   virtual void Prefetch() {
     // We actually prepare the next batch
     DomainTimeRange tr("[DALI][DataReader] Prefetch #" + to_string(curr_batch_producer_),
-                       RangeBase::kRed);
+                       DomainTimeRange::kRed);
     auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
     curr_batch.reserve(Operator<Backend>::batch_size_);
     curr_batch.clear();
@@ -138,7 +138,7 @@ class DataReader : public Operator<Backend> {
 
     // consume batch
     DomainTimeRange tr("[DALI][DataReader] Run #" + to_string(curr_batch_consumer_),
-                       RangeBase::kViolet);
+                       DomainTimeRange::kViolet);
 
     // This is synchronous call for CPU Backend
     Operator<Backend>::Run(ws);
@@ -262,7 +262,7 @@ class DataReader : public Operator<Backend> {
 
   void ConsumerWait() {
     DomainTimeRange tr("[DALI][DataReader] ConsumerWait #" + to_string(curr_batch_consumer_),
-                 RangeBase::kMagenta);
+                 DomainTimeRange::kMagenta);
     std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
     consumer_.wait(prefetch_lock, [this]() { return finished_ || !IsPrefetchQueueEmpty(); });
     if (prefetch_error_) std::rethrow_exception(prefetch_error_);
