@@ -140,26 +140,32 @@ class DataReader : public Operator<Backend> {
     // This is synchronous call for CPU Backend
     Operator<Backend>::Run(ws);
 
-    EnforceUniformOutputRank(ws);
+    EnforceUniformOutput(ws);
 
     // Notify that we have consumed whole batch
     ConsumerAdvanceQueue();
   }
 
-  void EnforceUniformOutputRank(const HostWorkspace &ws) const {
+  void EnforceUniformOutput(const HostWorkspace &ws) const {
     for (int out_idx = 0; out_idx < ws.NumOutput(); out_idx++) {
       auto &out = ws.OutputRef<CPUBackend>(out_idx);
       int n = out.ntensor();
       if (n < 2)
         continue;
-      int rank0 = out[0].shape().size();
+      auto type0 = out[0].type().id();
+      int ndim0 = out[0].shape().size();
       for (int i = 1; i < n; i++) {
-        int rank = out[i].shape().size();
-        DALI_ENFORCE(rank == rank0, make_string("Inconsistent data! "
+        auto type = out[i].type().id();
+        DALI_ENFORCE(type == type0, make_string("Inconsistent data! "
+        "The data produced by the reader has inconsistent type:\n"
+        "type of outputs[", out_idx, "][", i, "] is ", type, " whereas\n"
+        "type of outputs[", out_idx, "][0] is ", type0));
+
+        int ndim = out[i].shape().size();
+        DALI_ENFORCE(ndim == ndim0, make_string("Inconsistent data! "
         "The data produced by the reader has inconsistent dimensionality:\n"
-        "outputs[", out_idx, "][", i, "] has ", rank, " dimensions whereas\n"
-        "outputs[", out_idx, "][0] has ", rank0, " dimensions."));
-      }
+        "outputs[", out_idx, "][", i, "] has ", ndim, " dimensions whereas\n"
+        "outputs[", out_idx, "][0] has ", ndim0, " dimensions."));      }
     }
   }
 
