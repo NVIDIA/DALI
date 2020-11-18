@@ -16,6 +16,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
+import nvidia.dali.fn as fn
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
@@ -178,6 +179,48 @@ def test_batch_files_arg():
                 assert_array_equal(arr_rd, arr_np)
 
 
+def test_dim_mismatch():
+    with tempfile.TemporaryDirectory() as test_data_root:
+        num_samples = 2
+        batch_size = 2
+        names = ["2D.npy", "3D.npy"]
+        paths = [os.path.join(test_data_root, name) for name in names]
+        create_numpy_file(paths[0], [3,4], np.float32, False)
+        create_numpy_file(paths[1], [2,3,4], np.float32, False)
+        pipe = Pipeline(2, 2, None)
+        pipe.set_outputs(fn.numpy_reader(file_root=test_data_root, files=names))
+        pipe.build()
+        err = None
+        try:
+            pipe.run()
+        except RuntimeError as thrown:
+            err = thrown
+        # asserts should not be in except block to avoid printing nested exception on failure
+        assert err, "Exception not thrown"
+        assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
+        assert "2 dimensions" in str(err) and "3 dimensions" in str(err), "Unexpected error message: {}".format(err)
+
+def test_type_mismatch():
+    with tempfile.TemporaryDirectory() as test_data_root:
+        num_samples = 2
+        batch_size = 2
+        names = ["int.npy", "float.npy"]
+        paths = [os.path.join(test_data_root, name) for name in names]
+        create_numpy_file(paths[0], [1,2,5], np.int32, False)
+        create_numpy_file(paths[1], [2,3,4], np.float32, False)
+        pipe = Pipeline(2, 2, None)
+        pipe.set_outputs(fn.numpy_reader(file_root=test_data_root, files=names))
+        pipe.build()
+
+        err = None
+        try:
+            pipe.run()
+        except RuntimeError as thrown:
+            err = thrown
+        # asserts should not be in except block to avoid printing nested exception on failure
+        assert err, "Exception not thrown"
+        assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
+        assert "int32" in str(err) and "float" in str(err), "Unexpected error message: {}".format(err)
 
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array
