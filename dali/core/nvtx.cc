@@ -12,22 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
 #include "dali/core/nvtx.h"
 
 namespace dali {
 
 #if NVTX_ENABLED
+
 class DomainTimeRangeImpl : RangeBase {
  public:
-  DomainTimeRangeImpl() {
-    dali_domain_ = nvtxDomainCreateA("DALI");
+  static DomainTimeRangeImpl &GetInstance() {
+    static DomainTimeRangeImpl impl;
+    return impl;
   }
 
-  ~DomainTimeRangeImpl() {
-    nvtxDomainDestroy(dali_domain_);
-  }
-
-  void Start(const std::string name, const uint32_t rgb) {
+  void Start(const char *name, const uint32_t rgb) {
     nvtxEventAttributes_t att = {};
     FillAtrbs(att, name, rgb);
     nvtxDomainRangePushEx(dali_domain_, &att);
@@ -38,22 +37,25 @@ class DomainTimeRangeImpl : RangeBase {
   }
 
  private:
+  DomainTimeRangeImpl() {
+    dali_domain_ = nvtxDomainCreateA("DALI");
+  }
+
+  ~DomainTimeRangeImpl() {
+    nvtxDomainDestroy(dali_domain_);
+  }
+
   nvtxDomainHandle_t dali_domain_;
 };
-#endif
 
-static DomainTimeRangeImpl range_impl;
-
-DLL_PUBLIC DomainTimeRange::DomainTimeRange(const std::string &name, const uint32_t rgb) {
-#if NVTX_ENABLED
-  range_impl.Start(name, rgb);
-#endif
+DLL_PUBLIC DomainTimeRange::DomainTimeRange(const char *name, const uint32_t rgb) {
+  DomainTimeRangeImpl::GetInstance().Start(name, rgb);
 }
 
 DLL_PUBLIC DomainTimeRange::~DomainTimeRange() {
-#if NVTX_ENABLED
-  range_impl.Stop();
-#endif
+  DomainTimeRangeImpl::GetInstance().Stop();
 }
+
+#endif  // NVTX_ENABLED
 
 }  // namespace dali

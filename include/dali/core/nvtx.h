@@ -49,47 +49,55 @@ struct RangeBase {
   static const uint32_t kGreen1 = 0x859900;
   static const uint32_t knvGreen = 0x76B900;
 
-  inline void FillAtrbs(nvtxEventAttributes_t &att, const std::string &name, const uint32_t rgb) {
   #if NVTX_ENABLED
+  inline void FillAtrbs(nvtxEventAttributes_t &att, const char *name, const uint32_t rgb) {
     att.version = NVTX_VERSION;
     att.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
     att.colorType = NVTX_COLOR_ARGB;
     att.color = rgb | 0xff000000;
     att.messageType = NVTX_MESSAGE_TYPE_ASCII;
-    att.message.ascii = name.c_str();
-  #endif
+    att.message.ascii = name;
   }
+  #endif
 };
 
 // Basic timerange for profiling
 struct TimeRange : RangeBase {
-  TimeRange(const std::string name, const uint32_t rgb = kBlue) {  // NOLINT
-#if NVTX_ENABLED
+  explicit TimeRange(const std::string &name, const uint32_t rgb = kBlue)
+    : TimeRange(name.c_str(), rgb) {}
+  explicit TimeRange(const char *name, const uint32_t rgb = kBlue) {
+  #if NVTX_ENABLED
     nvtxEventAttributes_t att = {};
     FillAtrbs(att, name, rgb);
     nvtxRangePushEx(&att);
     started = true;
-#endif
+  #endif
   }
-
   ~TimeRange() { stop(); }
 
  private:
   void stop() {
-#if NVTX_ENABLED
+  #if NVTX_ENABLED
     if (started) {
       started = false;
       nvtxRangePop();
     }
-#endif
+  #endif
   }
 
   bool started = false;
 };
 
 struct DomainTimeRange : RangeBase {
-  explicit DomainTimeRange(const std::string &name, const uint32_t rgb = kBlue);
+  explicit DomainTimeRange(const std::string &name, const uint32_t rgb = kBlue)
+    : DomainTimeRange(name.c_str(), rgb) {}
+#if NVTX_ENABLED
+  explicit DomainTimeRange(const char *name, const uint32_t rgb = kBlue);
   ~DomainTimeRange();
+#else
+  explicit DomainTimeRange(const char *name, const uint32_t rgb = kBlue) {}
+  ~DomainTimeRange() {}
+#endif
 };
 
 }  // namespace dali
