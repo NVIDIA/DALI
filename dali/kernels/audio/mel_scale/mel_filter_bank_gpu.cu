@@ -291,10 +291,10 @@ void MelFilterBankGpu<T, Dims>::Run(
 }
 
 template <typename T, int Dims>
-DALI_HOST MelFilterBankGpu<T, Dims>::MelFilterBankGpu() = default;
+MelFilterBankGpu<T, Dims>::MelFilterBankGpu() {}
 
 template <typename T, int Dims>
-DALI_HOST MelFilterBankGpu<T, Dims>::~MelFilterBankGpu() = default;
+MelFilterBankGpu<T, Dims>::~MelFilterBankGpu() {}
 
 
 template class MelFilterBankGpu<float, 2>;

@@ -24,10 +24,10 @@ class MaxGPU<Out, In>::Impl : public reduce_impl::MaxImplGPU<Out, In> {
 };
 
 template <typename Out, typename In>
-DALI_HOST MaxGPU<Out, In>::MaxGPU() = default;
+MaxGPU<Out, In>::MaxGPU() {}
 
 template <typename Out, typename In>
-DALI_HOST MaxGPU<Out, In>::~MaxGPU() = default;
+MaxGPU<Out, In>::~MaxGPU() {}
 
 template <typename Out, typename In>
 KernelRequirements MaxGPU<Out, In>::Setup(

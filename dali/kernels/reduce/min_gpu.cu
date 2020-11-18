@@ -24,10 +24,10 @@ class MinGPU<Out, In>::Impl : public reduce_impl::MinImplGPU<Out, In> {
 };
 
 template <typename Out, typename In>
-DALI_HOST MinGPU<Out, In>::MinGPU() = default;
+MinGPU<Out, In>::MinGPU() {}
 
 template <typename Out, typename In>
-DALI_HOST MinGPU<Out, In>::~MinGPU() = default;
+MinGPU<Out, In>::~MinGPU() {}
 
 template <typename Out, typename In>
 KernelRequirements MinGPU<Out, In>::Setup(

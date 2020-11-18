@@ -103,8 +103,8 @@ class DLL_PUBLIC ExtractWindowsGPU {
       const InListGPU<Src, 1> &in,
       const InTensorGPU<float, 1> &window);
 
-  DLL_PUBLIC DALI_HOST ExtractWindowsGPU();
-  DLL_PUBLIC DALI_HOST ~ExtractWindowsGPU();
+  DLL_PUBLIC ExtractWindowsGPU();
+  DLL_PUBLIC ~ExtractWindowsGPU();
 
  private:
   using Impl = ExtractWindowsImplGPU<Dst, Src>;
