@@ -14,6 +14,7 @@
 
 #pylint: disable=no-member
 import sys
+from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
 
 _special_case_mapping = {
@@ -79,6 +80,8 @@ def _wrap_op_fn(op_class, wrapper_name):
     return op_wrapper
 
 def _wrap_op(op_class, submodule):
+    schema = _b.TryGetSchema(op_class.__name__)
+    make_hidden = schema.IsDocHidden() if schema else False
     wrapper_name = _to_snake_case(op_class.__name__)
     fn_module = sys.modules[__name__]
     module = _internal.get_submodule(fn_module, submodule)
@@ -87,6 +90,9 @@ def _wrap_op(op_class, submodule):
         setattr(module, wrapper_name, wrap_func)
         if submodule:
             wrap_func.__module__ = module.__name__
+        if make_hidden:
+            parent_module = _internal.get_submodule(fn_module, submodule[:-1])
+            setattr(parent_module, wrapper_name, wrap_func)
 
 
 from nvidia.dali.external_source import external_source

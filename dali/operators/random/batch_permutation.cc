@@ -27,8 +27,8 @@ indexing samples in the batch.)")
   .NumOutput(1)
   .AddOptionalArg("allow_repetitions",
       R"(If true, the output can contain repetitions and omissions.)", false)
-  .AddOptionalArg("no_fixed_points", R"(If true, the the output permutation cannot contain fixed "
-  "points, that is ``out[i] != i``. This argument is ignored when batch size is 1.)", false);
+  .AddOptionalArg("no_fixed_points", R"(If true, the the output permutation cannot contain fixed
+points, that is ``out[i] != i``. This argument is ignored when batch size is 1.)", false);
 
 void BatchPermutation::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);

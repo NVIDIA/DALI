@@ -17,7 +17,10 @@ import os
 import sys
 import sphinx_rtd_theme
 from sphinx.ext.autodoc.mock import mock
+from sphinx.ext.autodoc import between, ClassDocumenter, AttributeDocumenter
+from sphinx.util import inspect
 from builtins import str
+from enum import Enum
 import re
 import subprocess
 
@@ -238,7 +241,82 @@ extlinks = {'issue': ('https://github.com/NVIDIA/DALI/issues/%s',
                       'issue '),
             'fileref': ('https://github.com/NVIDIA/DALI/tree/' + (git_sha if git_sha != u'0000000' else "master") + '/%s', ''),}
 
+
+from typing import (
+    Any, Callable, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Type, TypeVar, Union
+)
+from typing import get_type_hints
+
+
+_dali_enums = ["DALIDataType", "DALIIterpType", "DALIImageType", "PipelineAPIType"]
+
+class EnumDocumenter(ClassDocumenter):
+    # Register as .. autoenum::
+    objtype = 'enum'
+    # Produce .. py:class:: fields in the RST doc
+    directivetype = 'class'
+
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    @classmethod
+    def can_document_member(cls, member, membername, isattr, parent):
+        """Verify that we handle only the registered DALI enums. Pybind doesn't subclass Enum class,
+        so we need an explicit list.
+        """
+        return membername in _dali_enums and isinstance(parent, ClassDocumenter)
+
+    def filter_members(self, members, want_all):
+        """After self.get_object_members() obtained all members, this function filters only
+        the ones we're interested in.
+        We can do the sorting here based on the values, and pass through in self.sort_members()
+        """
+        filtered = super().filter_members(members, want_all)
+
+        # sort by the actual value of enum - this is a tuple of (name, value, boolean)
+        def get_member_value(member_desc):
+            _, member_value, _ = member_desc
+            if isinstance(member_value, Enum):
+                return member_value.value
+            else:
+                return int(member_value)
+        filtered.sort(key = get_member_value)
+
+        return filtered
+
+    def sort_members(self, documenters, order):
+        """Ignore the order. Here we have access only to documenters that carry the name
+        and not the object. We need to sort based on the enum values and we do it in
+        self.filter_members()
+        """
+        return documenters
+
+class EnumAttributeDocumenter(AttributeDocumenter):
+    # Give us higher priority over Sphinx native AttributeDocumenter which is 10, or 11 in case
+    # of more specialized attributes.
+    priority = 12
+
+    @classmethod
+    def can_document_member(cls, member, membername, isattr, parent):
+        """Run only for the Enums supported by DALI
+        """
+        return isinstance(parent, EnumDocumenter)
+
+    def add_directive_header(self, sig):
+        """Greatly simplified AttributeDocumenter.add_directive_header()
+        as we know we're dealing with only specific enums here, we can append a line of doc
+        with just their value.
+        """
+        super(AttributeDocumenter, self).add_directive_header(sig)
+
+
 def setup(app):
     count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
+    # Register a sphinx.ext.autodoc.between listener to ignore everything
+    # between lines that contain the word <SPHINX_IGNORE>
+    app.connect('autodoc-process-docstring', between('^.*<SPHINX_IGNORE>.*$', exclude=True))
+    app.add_autodocumenter(EnumDocumenter)
+    app.add_autodocumenter(EnumAttributeDocumenter)
+    return app

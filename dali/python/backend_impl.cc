@@ -1123,7 +1123,7 @@ PYBIND11_MODULE(backend_impl, m) {
   types_m.add_object("CPU_ONLY_DEVICE_ID", PyLong_FromLong(CPU_ONLY_DEVICE_ID));
 
   // DALIDataType
-  py::enum_<DALIDataType>(types_m, "DALIDataType", "Data type of image")
+  py::enum_<DALIDataType>(types_m, "DALIDataType", "Data type of image.\n<SPHINX_IGNORE>")
     .value("NO_TYPE",       DALI_NO_TYPE)
     .value("UINT8",         DALI_UINT8)
     .value("UINT16",        DALI_UINT16)
@@ -1155,7 +1155,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .export_values();
 
   // DALIImageType
-  py::enum_<DALIImageType>(types_m, "DALIImageType", "Image type")
+  py::enum_<DALIImageType>(types_m, "DALIImageType", "Image type\n<SPHINX_IGNORE>")
     .value("RGB", DALI_RGB)
     .value("BGR", DALI_BGR)
     .value("GRAY", DALI_GRAY)
@@ -1164,7 +1164,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .export_values();
 
   // DALIInterpType
-  py::enum_<DALIInterpType>(types_m, "DALIInterpType", "Interpolation mode")
+  py::enum_<DALIInterpType>(types_m, "DALIInterpType", "Interpolation mode\n<SPHINX_IGNORE>")
     .value("INTERP_NN", DALI_INTERP_NN)
     .value("INTERP_LINEAR", DALI_INTERP_LINEAR)
     .value("INTERP_CUBIC", DALI_INTERP_CUBIC)
