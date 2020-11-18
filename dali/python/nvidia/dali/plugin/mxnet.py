@@ -214,7 +214,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                  data_layout='NCHW',
                  fill_last_batch=None,
                  auto_reset=False,
-                 squeeze_labels=None,
+                 squeeze_labels=True,
                  dynamic_shape=False,
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL):
@@ -238,8 +238,6 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             auto_reset,
             last_batch_policy)
         self._squeeze_labels = squeeze_labels
-        if self._squeeze_labels is not None:
-            print("Warning: ``squeeze_labels`` is now deprecated. Any manipulation of the tensor shapes should be done explicitly in the DALI pipeline.")
         self._dynamic_shape = dynamic_shape
         # Use double-buffering of data batches
         self._data_batches = [[None] for i in range(self._num_gpus)]
@@ -422,7 +420,7 @@ class DALIClassificationIterator(DALIGenericIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    squeeze_labels: (DEPRECATED) bool, optional, default = False
+    squeeze_labels: (DEPRECATED) bool, optional, default = True
                  Whether the iterator should squeeze the labels before
                  copying them to the ndarray.
                  This argument is deprecated and will be removed from future releases.
@@ -479,7 +477,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                  data_layout='NCHW',
                  fill_last_batch=None,
                  auto_reset=False,
-                 squeeze_labels=None,
+                 squeeze_labels=True,
                  dynamic_shape=False,
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL):

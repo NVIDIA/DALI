@@ -143,7 +143,7 @@ def test_mxnet_iterator_last_batch_no_pad_last_batch():
                                     size=pipes[0].epoch_size("Reader"), last_batch_policy=LastBatchPolicy.FILL)
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x.data[0].squeeze().asnumpy(), lambda x: x.pad, data_size)
+        gather_ids(dali_train_iter, lambda x: x.data[0].squeeze(-1).asnumpy(), lambda x: x.pad, data_size)
 
     assert len(img_ids_list) > data_size
     assert len(img_ids_list_set) == data_size
@@ -211,7 +211,7 @@ def test_mxnet_iterator_last_batch_pad_last_batch():
                                     size=pipes[0].epoch_size("Reader"), last_batch_policy=LastBatchPolicy.FILL)
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x.data[0].squeeze().asnumpy(), lambda x: x.pad, data_size)
+        gather_ids(dali_train_iter, lambda x: x.data[0].squeeze(-1).asnumpy(), lambda x: x.pad, data_size)
 
     assert len(img_ids_list) > data_size
     assert len(img_ids_list_set) == data_size
@@ -219,7 +219,7 @@ def test_mxnet_iterator_last_batch_pad_last_batch():
 
     dali_train_iter.reset()
     next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x.data[0].squeeze().asnumpy(), lambda x: x.pad, data_size)
+        gather_ids(dali_train_iter, lambda x: x.data[0].squeeze(-1).asnumpy(), lambda x: x.pad, data_size)
 
     assert len(next_img_ids_list) > data_size
     assert len(next_img_ids_list_set) == data_size
@@ -238,7 +238,7 @@ def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
                                     last_batch_policy=LastBatchPolicy.PARTIAL)
 
     img_ids_list, img_ids_list_set, mirrored_data, pad, remainder = \
-        gather_ids(dali_train_iter, lambda x: x.data[0].squeeze().asnumpy(), lambda x: x.pad, data_size)
+        gather_ids(dali_train_iter, lambda x: x.data[0].squeeze(-1).asnumpy(), lambda x: x.pad, data_size)
 
     assert pad == remainder
     assert len(img_ids_list) - pad == data_size
@@ -247,7 +247,7 @@ def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
 
     dali_train_iter.reset()
     next_img_ids_list, next_img_ids_list_set, next_mirrored_data, pad, remainder = \
-        gather_ids(dali_train_iter, lambda x: x.data[0].squeeze().asnumpy(), lambda x: x.pad, data_size)
+        gather_ids(dali_train_iter, lambda x: x.data[0].squeeze(-1).asnumpy(), lambda x: x.pad, data_size)
 
     assert pad == remainder
     assert len(next_img_ids_list) - pad == data_size
@@ -341,7 +341,7 @@ def check_mxnet_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
         img_ids_list = [[] for _ in range(pipes_number)]
         for it in iter(dali_train_iter):
             for id in range(pipes_number):
-                tmp = it[id].data[0].squeeze().asnumpy().copy()
+                tmp = it[id].data[0].squeeze(-1).asnumpy().copy()
                 if it[id].pad:
                     tmp = tmp[0:-it[id].pad]
                 img_ids_list[id].append(tmp)
@@ -378,7 +378,7 @@ def test_gluon_iterator_last_batch_no_pad_last_batch():
     dali_train_iter = GluonIterator(pipes, size=pipes[0].epoch_size("Reader"), last_batch_policy=LastBatchPolicy.FILL)
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x[0].squeeze().asnumpy(), lambda x: 0, data_size)
+        gather_ids(dali_train_iter, lambda x: x[0].squeeze(-1).asnumpy(), lambda x: 0, data_size)
 
     assert len(img_ids_list) > data_size
     assert len(img_ids_list_set) == data_size
@@ -397,7 +397,7 @@ def test_gluon_iterator_last_batch_pad_last_batch():
                                     size=pipes[0].epoch_size("Reader"), last_batch_policy=LastBatchPolicy.FILL)
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x[0].squeeze().asnumpy(), lambda x: 0, data_size)
+        gather_ids(dali_train_iter, lambda x: x[0].squeeze(-1).asnumpy(), lambda x: 0, data_size)
 
     assert len(img_ids_list) > data_size
     assert len(img_ids_list_set) == data_size
@@ -405,7 +405,7 @@ def test_gluon_iterator_last_batch_pad_last_batch():
 
     dali_train_iter.reset()
     next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x[0].squeeze().asnumpy(), lambda x: 0, data_size)
+        gather_ids(dali_train_iter, lambda x: x[0].squeeze(-1).asnumpy(), lambda x: 0, data_size)
 
     assert len(next_img_ids_list) > data_size
     assert len(next_img_ids_list_set) == data_size
@@ -424,7 +424,7 @@ def test_gluon_iterator_not_fill_last_batch_pad_last_batch():
                                     last_batch_policy=LastBatchPolicy.PARTIAL)
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x[0].squeeze().asnumpy(), lambda x: 0, data_size)
+        gather_ids(dali_train_iter, lambda x: x[0].squeeze(-1).asnumpy(), lambda x: 0, data_size)
 
     assert len(img_ids_list) == data_size
     assert len(img_ids_list_set) == data_size
@@ -433,7 +433,7 @@ def test_gluon_iterator_not_fill_last_batch_pad_last_batch():
 
     dali_train_iter.reset()
     next_img_ids_list, next_img_ids_list_set, next_mirrored_data, pad, remainder = \
-        gather_ids(dali_train_iter, lambda x: x[0].squeeze().asnumpy(), lambda x: 0, data_size)
+        gather_ids(dali_train_iter, lambda x: x[0].squeeze(-1).asnumpy(), lambda x: 0, data_size)
 
     assert len(next_img_ids_list) == data_size
     assert len(next_img_ids_list_set) == data_size
@@ -492,7 +492,7 @@ def check_gluon_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
         for it in iter(dali_train_iter):
             for id in range(pipes_number):
                 if len(it[id][0]):
-                    tmp = it[id][0].squeeze().asnumpy().copy()
+                    tmp = it[id][0].squeeze(-1).asnumpy().copy()
                 else:
                     tmp = np.empty([0])
                 img_ids_list[id].append(tmp)
@@ -535,7 +535,7 @@ def test_pytorch_iterator_last_batch_no_pad_last_batch():
     dali_train_iter = PyTorchIterator(pipes, output_map=["data"], size=pipes[0].epoch_size("Reader"), last_batch_policy=LastBatchPolicy.FILL)
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x["data"].squeeze().numpy(), lambda x: 0, data_size)
+        gather_ids(dali_train_iter, lambda x: x["data"].squeeze(-1).numpy(), lambda x: 0, data_size)
 
     assert len(img_ids_list) > data_size
     assert len(img_ids_list_set) == data_size
@@ -553,7 +553,7 @@ def test_pytorch_iterator_last_batch_pad_last_batch():
     dali_train_iter = PyTorchIterator(pipes, output_map=["data"], size=pipes[0].epoch_size("Reader"), last_batch_policy=LastBatchPolicy.FILL)
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x["data"].squeeze().numpy(), lambda x: 0, data_size)
+        gather_ids(dali_train_iter, lambda x: x["data"].squeeze(-1).numpy(), lambda x: 0, data_size)
 
     assert len(img_ids_list) > data_size
     assert len(img_ids_list_set) == data_size
@@ -561,7 +561,7 @@ def test_pytorch_iterator_last_batch_pad_last_batch():
 
     dali_train_iter.reset()
     next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x["data"].squeeze().numpy(), lambda x: 0, data_size)
+        gather_ids(dali_train_iter, lambda x: x["data"].squeeze(-1).numpy(), lambda x: 0, data_size)
 
     assert len(next_img_ids_list) > data_size
     assert len(next_img_ids_list_set) == data_size
@@ -580,7 +580,7 @@ def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
     dali_train_iter = PyTorchIterator(pipes, output_map=["data"], size=pipes[0].epoch_size("Reader"), last_batch_policy=LastBatchPolicy.PARTIAL, last_batch_padded=True)
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x["data"].squeeze().numpy(), lambda x: 0, data_size)
+        gather_ids(dali_train_iter, lambda x: x["data"].squeeze(-1).numpy(), lambda x: 0, data_size)
 
     assert len(img_ids_list) == data_size
     assert len(img_ids_list_set) == data_size
@@ -588,7 +588,7 @@ def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
 
     dali_train_iter.reset()
     next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = \
-        gather_ids(dali_train_iter, lambda x: x["data"].squeeze().numpy(), lambda x: 0, data_size)
+        gather_ids(dali_train_iter, lambda x: x["data"].squeeze(-1).numpy(), lambda x: 0, data_size)
 
     # there is no mirroring as data in the output is just cut off,
     # in the mirrored_data there is real data

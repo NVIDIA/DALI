@@ -382,7 +382,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
     for i, data in enumerate(train_loader):
         input = data[0]["data"]
-        target = data[0]["label"].squeeze().cuda().long()
+        target = data[0]["label"].squeeze(-1).cuda().long()
         train_loader_len = int(math.ceil(train_loader._size / args.batch_size))
 
         if args.prof >= 0 and i == args.prof:
@@ -478,7 +478,7 @@ def validate(val_loader, model, criterion):
 
     for i, data in enumerate(val_loader):
         input = data[0]["data"]
-        target = data[0]["label"].squeeze().cuda().long()
+        target = data[0]["label"].squeeze(-1).cuda().long()
         val_loader_len = int(val_loader._size / args.batch_size)
 
         # compute output
