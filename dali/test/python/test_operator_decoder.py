@@ -40,7 +40,7 @@ class DecoderPipeline(Pipeline):
 test_data_root = get_dali_extra_path()
 good_path = 'db/single'
 missnamed_path = 'db/single/missnamed'
-test_good_path = {'jpeg2k'}
+test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k'}
 test_missnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 
 def run_decode(data_path, batch, device, threads, memory_stats=False):
@@ -94,7 +94,7 @@ def check_FastDCT_body(batch_size, img_type, device):
                       batch_size=batch_size, N_iterations=3, eps=3)
 
 def test_FastDCT():
-    for device in {'mixed'}:
+    for device in {'cpu', 'mixed'}:
         for batch_size in {1, 8}:
             for img_type in test_good_path:
               yield check_FastDCT_body, batch_size, img_type, device
