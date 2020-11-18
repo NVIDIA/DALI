@@ -35,10 +35,10 @@ class CocoReaderTest : public ::testing::Test {
   }
 
   std::vector<std::pair<std::string, std::string>>
-  Outputs(bool masks = false, bool pixelwise_masks = false) {
-    if (masks)
+  Outputs(bool polygon_masks = false, bool pixelwise_masks = false) {
+    if (polygon_masks)
       return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"},
-              {"masks_meta", "cpu"}, {"masks_coord", "cpu"}, {"image_ids", "cpu"}};
+              {"polygons", "cpu"}, {"vertices", "cpu"}, {"image_ids", "cpu"}};
     if (pixelwise_masks)
       return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"},
               {"pixelwise_masks", "cpu"}, {"image_ids", "cpu"}};
@@ -46,7 +46,7 @@ class CocoReaderTest : public ::testing::Test {
       return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"}, {"image_ids", "cpu"}};
   }
 
-  OpSpec BasicCocoReaderOpSpec(bool masks = false, bool pixelwise_masks = false) {
+  OpSpec BasicCocoReaderOpSpec(bool polygon_masks = false, bool pixelwise_masks = false) {
     OpSpec spec =  OpSpec("COCOReader")
       .AddArg("device", "cpu")
       .AddArg("file_root", file_root_)
@@ -54,9 +54,9 @@ class CocoReaderTest : public ::testing::Test {
       .AddOutput("images", "cpu")
       .AddOutput("boxes", "cpu")
       .AddOutput("labels", "cpu");
-      if (masks) {
-        spec = spec.AddOutput("masks_meta", "cpu")
-                   .AddOutput("masks_coord", "cpu");
+      if (polygon_masks) {
+        spec = spec.AddOutput("polygons", "cpu")
+                   .AddOutput("vertices", "cpu");
       }
       if (pixelwise_masks) {
         spec = spec.AddOutput("pixelwise_masks", "cpu");
@@ -65,8 +65,8 @@ class CocoReaderTest : public ::testing::Test {
       return spec;
   }
 
-  OpSpec CocoReaderOpSpec(bool masks = false, bool pixelwise_masks = false) {
-    auto spec = BasicCocoReaderOpSpec(masks, pixelwise_masks)
+  OpSpec CocoReaderOpSpec(bool polygon_masks = false, bool pixelwise_masks = false) {
+    auto spec = BasicCocoReaderOpSpec(polygon_masks, pixelwise_masks)
       .AddArg("annotations_file", annotations_filename_);
     return spec;
   }
@@ -111,28 +111,29 @@ class CocoReaderTest : public ::testing::Test {
     CheckInstances(ws, ltrb, ratio, skip_empty, expected_size, masks);
   }
 
-  void RunTest(bool ltrb, bool ratio, bool skip_empty, bool masks = false) {
-    const auto expected_size = skip_empty ? NonEmptyImages(masks) : SmallCocoSize(masks);
+  void RunTest(bool ltrb, bool ratio, bool skip_empty, bool polygon_masks = false) {
+    const auto expected_size =
+        skip_empty ? NonEmptyImages(polygon_masks) : SmallCocoSize(polygon_masks);
     Pipeline pipe(expected_size, 1, 0);
 
     pipe.AddOperator(
-      CocoReaderOpSpec(masks)
+      CocoReaderOpSpec(polygon_masks)
       .AddArg("skip_empty", skip_empty)
       .AddArg("ltrb", ltrb)
       .AddArg("ratio", ratio)
-      .AddArg("masks", masks)
-      .AddArg("dump_meta_files", true)
-      .AddArg("dump_meta_files_path", "/tmp/"),
+      .AddArg("polygon_masks", polygon_masks)
+      .AddArg("save_preprocessed_annotations", true)
+      .AddArg("save_preprocessed_annotations_dir", "/tmp/"),
       "coco_reader");
 
-    RunTestForPipeline(pipe, ltrb, ratio, skip_empty, expected_size, masks);
+    RunTestForPipeline(pipe, ltrb, ratio, skip_empty, expected_size, polygon_masks);
 
-    if (!masks) {
+    if (!polygon_masks) {
       Pipeline meta_pipe(expected_size, 1, 0);
 
       meta_pipe.AddOperator(
         BasicCocoReaderOpSpec()
-        .AddArg("meta_files_path", "/tmp"),
+        .AddArg("save_preprocessed_annotations_dir", "/tmp"),
         "coco_reader");
 
       RunTestForPipeline(meta_pipe, ltrb, ratio, skip_empty, expected_size);
@@ -141,7 +142,7 @@ class CocoReaderTest : public ::testing::Test {
 
   void CheckInstances(
     DeviceWorkspace & ws, bool ltrb, bool ratio,
-    bool skip_empty, int expected_size, bool read_masks) {
+    bool skip_empty, int expected_size, bool polygon_masks) {
     const auto &boxes_output = ws.Output<dali::CPUBackend>(1);
     const auto &labels_output = ws.Output<dali::CPUBackend>(2);
 
@@ -158,16 +159,17 @@ class CocoReaderTest : public ::testing::Test {
       ASSERT_EQ(boxes_shape[idx][1], bbox_size_);
     }
 
-    vector<float> boxes(ObjectCount(read_masks) * bbox_size_);
-    vector<int> labels(ObjectCount(read_masks));
+    auto obj_count = ObjectCount(polygon_masks);
+    vector<float> boxes(obj_count * bbox_size_);
+    vector<int> labels(obj_count);
 
     MemCopy(
       boxes.data(),
       boxes_output.data<float>(),
-      ObjectCount(read_masks) * bbox_size_ * sizeof(float));
+      obj_count * bbox_size_ * sizeof(float));
 
     for (int box_coord = 0, idx = 0;
-         box_coord < ObjectCount(read_masks) * bbox_size_;
+         box_coord < obj_count * bbox_size_;
          box_coord += 4, idx++) {
       float v1 = boxes[box_coord];
       float v2 = boxes[box_coord + 1];
@@ -196,21 +198,21 @@ class CocoReaderTest : public ::testing::Test {
     MemCopy(
       labels.data(),
       labels_output.data<int>(),
-      ObjectCount(read_masks) * sizeof(int));
+      obj_count * sizeof(int));
 
-    for (int obj = 0; obj < ObjectCount(read_masks); ++obj) {
+    for (int obj = 0; obj < obj_count; ++obj) {
       ASSERT_EQ(labels[obj], categories_[obj]);
     }
 
-    if (read_masks) {
+    if (polygon_masks) {
       const auto &polygons_output = ws.Output<dali::CPUBackend>(3);
-      const auto &masks_coords_output = ws.Output<dali::CPUBackend>(4);
+      const auto &vertices_output = ws.Output<dali::CPUBackend>(4);
 
       const auto &polygons_shape = polygons_output.shape();
-      const auto &masks_coords_shape = labels_output.shape();
+      const auto &vertices_shape = vertices_output.shape();
 
       ASSERT_EQ(polygons_shape.size(), expected_size);
-      ASSERT_EQ(masks_coords_shape.size(), expected_size);
+      ASSERT_EQ(vertices_shape.size(), expected_size);
 
       int n_poly = 0;
       for (int idx = 0; idx < expected_size; ++idx) {
@@ -218,25 +220,25 @@ class CocoReaderTest : public ::testing::Test {
       }
       ASSERT_EQ(n_poly, number_of_polygons_);
 
-      vector<int> masks_meta(polygons_gt_.size());
-      vector<float> masks_coords(masks_coords_gt_.size());
+      vector<int> polygons(polygons_gt_.size());
+      vector<float> vertices(vertices_gt_.size());
 
       MemCopy(
-        masks_meta.data(),
+        polygons.data(),
         polygons_output.data<int>(),
         polygons_gt_.size() * sizeof(int));
 
       MemCopy(
-        masks_coords.data(),
-        masks_coords_output.data<float>(),
-        masks_coords_gt_.size() * sizeof(float));
+        vertices.data(),
+        vertices_output.data<float>(),
+        vertices_gt_.size() * sizeof(float));
 
-      for (size_t i = 0; i < masks_meta.size(); ++i) {
-        ASSERT_EQ(masks_meta[i], polygons_gt_[i]);
+      for (size_t i = 0; i < polygons.size(); ++i) {
+        ASSERT_EQ(polygons[i], polygons_gt_[i]);
       }
 
-      for (size_t i = 0; i < masks_coords.size(); ++i) {
-        ASSERT_FLOAT_EQ(masks_coords[i], masks_coords_gt_[i]);
+      for (size_t i = 0; i < vertices.size(); ++i) {
+        ASSERT_FLOAT_EQ(vertices[i], vertices_gt_[i]);
       }
     }
   }
@@ -384,7 +386,7 @@ class CocoReaderTest : public ::testing::Test {
     3, 38, 44,
   };
 
-  std::vector<float> masks_coords_gt_ {
+  std::vector<float> vertices_gt_ {
     // 1
     363.51, 278.77, 348.39, 378.6, 266.49, 288.67, 140.12, 184.81, 164.16, 313.07,
     // 2
@@ -431,7 +433,7 @@ TEST_F(CocoReaderTest, MissingDumpPath) {
   pipe.AddOperator(
     this->BasicCocoReaderOpSpec()
     .AddArg("annotations_file", this->annotations_filename_)
-    .AddArg("dump_meta_files", true));
+    .AddArg("save_preprocessed_annotations", true));
 
   EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
 }
@@ -502,53 +504,71 @@ TEST_F(CocoReaderTest, PixelwiseMasks) {
   this->annotations_filename_ = dali::testing::dali_extra_path() +
                                       "/db/coco_pixelwise/instances.json";
   int expected_size = 6;
-  Pipeline pipe(expected_size, 1, 0);
-  pipe.AddOperator(
+  int kSeed = 12345;
+  Pipeline pipe1(expected_size, 1, 0, kSeed);
+  pipe1.AddOperator(
     CocoReaderOpSpec(false, true)
     .AddArg("masks", false)
     .AddArg("pixelwise_masks", true)
-    .AddArg("dump_meta_files", true)
-    .AddArg("dump_meta_files_path", "/tmp/")
+    .AddArg("save_preprocessed_annotations", true)
+    .AddArg("save_preprocessed_annotations_dir", "/tmp/")
     ,
     "coco_reader");
-  pipe.Build(Outputs(false, true));
+  pipe1.Build(Outputs(false, true));
 
-  DeviceWorkspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
-  pipe.Outputs(&ws);
+  DeviceWorkspace ws1;
+  pipe1.RunCPU();
+  pipe1.RunGPU();
+  pipe1.Outputs(&ws1);
 
-  const auto &masks_output = ws.Output<dali::CPUBackend>(3);
+  Pipeline pipe2(expected_size, 1, 0, kSeed);
+  pipe2.AddOperator(
+    BasicCocoReaderOpSpec(false, true)
+    .AddArg("masks", false)
+    .AddArg("pixelwise_masks", true)
+    .AddArg("preprocessed_annotations", "/tmp/")
+    ,
+    "coco_reader");
+  pipe2.Build(Outputs(false, true));
 
-  const auto &masks_shape = masks_output.shape();
-  TensorListShape<3> pixelwise_masks_shape({
-    {815, 1280, 1}, {853, 1280, 1}, {853, 1280, 1},
-    {853, 1280, 1}, {853, 1280, 1}, {848, 1280, 1}
-  });
-  ASSERT_EQ(masks_shape.size(), expected_size);
-  ASSERT_EQ(masks_shape, pixelwise_masks_shape);
+  DeviceWorkspace ws2;
+  pipe2.RunCPU();
+  pipe2.RunGPU();
+  pipe2.Outputs(&ws2);
 
-  std::vector<std::string> files {
-    "eat-1237431_1280.png", "home-office-336373_1280.png", "home-office-336377_1280.png",
-    "home-office-336378_1280.png", "pizza-2000614_1280.png", "pizza-2068272_1280.png"
-  };
+  for (auto *ws : {&ws1, &ws2}) {
+    const auto &masks_output = ws->Output<dali::CPUBackend>(3);
 
-  for (int i = 0; i < expected_size; ++i) {
-    std::vector<uchar> labels(masks_output.tensor<int>(i),
-      masks_output.tensor<int>(i) + pixelwise_masks_shape[i][0] * pixelwise_masks_shape[i][1]);
+    const auto &masks_shape = masks_output.shape();
+    TensorListShape<3> pixelwise_masks_shape({
+      {815, 1280, 1}, {853, 1280, 1}, {853, 1280, 1},
+      {853, 1280, 1}, {853, 1280, 1}, {848, 1280, 1}
+    });
+    ASSERT_EQ(masks_shape.size(), expected_size);
+    ASSERT_EQ(masks_shape, pixelwise_masks_shape);
 
-    std::string file_root = dali::testing::dali_extra_path() +
-      "/db/coco_pixelwise/pixelwise_masks/";
-    cv::Mat cv_mask =  cv::imread(file_root + files[i], cv::IMREAD_COLOR);
-    cv::cvtColor(cv_mask, cv_mask, cv::COLOR_BGR2RGB);
-    cv::Mat channels[3];
-    split(cv_mask, channels);
-    cv::Mat mask = channels[0] / 255 + 2 * channels[1] / 255 + 3 * channels[2] / 255;
-    cv::Size s = mask.size();
+    std::vector<std::string> files {
+      "eat-1237431_1280.png", "home-office-336373_1280.png", "home-office-336377_1280.png",
+      "home-office-336378_1280.png", "pizza-2000614_1280.png", "pizza-2068272_1280.png"
+    };
 
-    ASSERT_EQ(pixelwise_masks_shape[i][1], s.width);
-    ASSERT_EQ(pixelwise_masks_shape[i][0], s.height);
-    EXPECT_EQ(0, std::memcmp(mask.data, labels.data(), s.width * s.height * sizeof(uchar)));
+    for (int i = 0; i < expected_size; ++i) {
+      std::vector<uchar> labels(masks_output.tensor<int>(i),
+        masks_output.tensor<int>(i) + pixelwise_masks_shape[i][0] * pixelwise_masks_shape[i][1]);
+
+      std::string file_root = dali::testing::dali_extra_path() +
+        "/db/coco_pixelwise/pixelwise_masks/";
+      cv::Mat cv_mask =  cv::imread(file_root + files[i], cv::IMREAD_COLOR);
+      cv::cvtColor(cv_mask, cv_mask, cv::COLOR_BGR2RGB);
+      cv::Mat channels[3];
+      split(cv_mask, channels);
+      cv::Mat mask = channels[0] / 255 + 2 * channels[1] / 255 + 3 * channels[2] / 255;
+      cv::Size s = mask.size();
+
+      ASSERT_EQ(pixelwise_masks_shape[i][1], s.width);
+      ASSERT_EQ(pixelwise_masks_shape[i][0], s.height);
+      EXPECT_EQ(0, std::memcmp(mask.data, labels.data(), s.width * s.height * sizeof(uchar)));
+    }
   }
 }
 
