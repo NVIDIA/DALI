@@ -79,7 +79,7 @@ template <typename Out, typename In, typename Mean>
 VarianceGPU<Out, In, Mean>::VarianceGPU() {}
 
 template <typename Out, typename In, typename Mean>
-VarianceGPU<Out, In, Mean>::~VarianceGPU(){}
+VarianceGPU<Out, In, Mean>::~VarianceGPU() {}
 
 template <typename Out, typename In, typename Mean>
 KernelRequirements VarianceGPU<Out, In, Mean>::Setup(
