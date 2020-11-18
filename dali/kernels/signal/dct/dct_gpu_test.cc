@@ -229,7 +229,7 @@ class Dct1DGpuPerfTest : public ::testing::TestWithParam<bool> {
   std::string layout_;
 };
 
-TEST_P(Dct1DGpuPerfTest, PerfTest) {
+TEST_P(Dct1DGpuPerfTest, DISABLED_PerfTest) {
   using Kernel = Dct1DGpu<float>;
   const int batch_size = 64;
   const int n_tables = 5;
