@@ -23,6 +23,7 @@ DALI_SCHEMA(PythonFunctionBase)
                 R"code(Function object.)code",
                 DALI_PYTHON_OBJECT)
         .AddOptionalArg("num_outputs", R"code(Number of outputs.)code", 1)
+        .AddOptionalArg<std::vector<string>>("output_layouts", "Output layouts", nullptr)
         .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)
