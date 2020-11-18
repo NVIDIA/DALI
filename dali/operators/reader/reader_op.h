@@ -140,9 +140,29 @@ class DataReader : public Operator<Backend> {
     // This is synchronous call for CPU Backend
     Operator<Backend>::Run(ws);
 
+    EnforceUniformOutputRank(ws);
+
     // Notify that we have consumed whole batch
     ConsumerAdvanceQueue();
   }
+
+  void EnforceUniformOutputRank(const HostWorkspace &ws) const {
+    for (int out_idx = 0; out_idx < ws.NumOutput(); out_idx++) {
+      auto &out = ws.OutputRef<CPUBackend>(out_idx);
+      int n = out.ntensor();
+      if (n < 2)
+        continue;
+      int rank0 = out[0].shape().size();
+      for (int i = 1; i < n; i++) {
+        int rank = out[i].shape().size();
+        DALI_ENFORCE(rank == rank0, make_string("Inconsistent data! "
+        "The data produced by the reader has inconsistent dimensionality:\n"
+        "outputs[", out_idx, "][", i, "] has ", rank, " dimensions whereas\n"
+        "outputs[", out_idx, "][0] has ", rank0, " dimensions."));
+      }
+    }
+  }
+
 
   // GPUBackend operators
   void Run(DeviceWorkspace &ws) override {
