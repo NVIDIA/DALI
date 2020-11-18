@@ -16,6 +16,7 @@
 #include <utility>
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/util/batch_rng.h"
 #include "dali/operators/segmentation/utils/searchable_rle_mask.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/core/boundary.h"
@@ -63,8 +64,7 @@ class RandomMaskPixelCPU : public Operator<CPUBackend> {
   template <typename T>
   void RunImplTyped(workspace_t<CPUBackend> &ws);
 
-  int64_t seed_;
-  std::vector<std::mt19937_64> rng_;
+  BatchRNG<std::mt19937> rngs_;
   std::vector<SearchableRLEMask> rle_;
 
   std::vector<int> foreground_;
@@ -78,11 +78,11 @@ class RandomMaskPixelCPU : public Operator<CPUBackend> {
 
 RandomMaskPixelCPU::RandomMaskPixelCPU(const OpSpec &spec)
     : Operator<CPUBackend>(spec),
-      seed_(spec.GetArgument<int64_t>("seed")),
+      rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int64_t>("batch_size")),
       has_value_(spec.ArgumentDefined("value")) {
   if (has_value_) {
     DALI_ENFORCE(!spec.ArgumentDefined("threshold"),
-      "Arguments ``value`` and ``threshold`` can not be provided together");
+                 "Arguments ``value`` and ``threshold`` can not be provided together");
   }
 }
 
@@ -120,18 +120,12 @@ void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   auto pixel_pos_view = view<int64_t>(out_pixel_pos);
   auto& thread_pool = ws.GetThreadPool();
 
-  if (rng_.empty()) {
-    for (int i = 0; i < thread_pool.size(); i++) {
-      rng_.emplace_back(seed_ + i);
-    }
-  }
-  assert(rng_.size() == static_cast<size_t>(thread_pool.size()));
   rle_.resize(thread_pool.size());
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     thread_pool.AddWork(
       [&, sample_idx](int thread_id) {
-        auto &rng = rng_[thread_id];
+        auto &rng = rngs_[sample_idx];
         auto mask = masks_view[sample_idx];
         auto pixel_pos = pixel_pos_view[sample_idx];
         const auto &mask_sh = mask.shape;
