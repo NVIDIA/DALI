@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/core/nvtx.h"
 #include "dali/pipeline/operator/builtin/make_contiguous.h"
 
 namespace dali {
@@ -35,11 +36,11 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
 
   auto &output = ws.Output<GPUBackend>(0);
   if (coalesced) {
-    TimeRange tm("coalesced", TimeRange::kBlue);
+    DomainTimeRange tr("[DALI][MakeContiguousMixed] coalesced", DomainTimeRange::kBlue);
     cpu_output_buff.Copy(input, 0);
     output.Copy(cpu_output_buff, ws.stream());
   } else {
-    TimeRange tm("non coalesced", TimeRange::kGreen);
+    DomainTimeRange tr("[DALI][MakeContiguousMixed] non coalesced", DomainTimeRange::kGreen);
       output.Copy(input, ws.stream());
   }
   coalesced = true;

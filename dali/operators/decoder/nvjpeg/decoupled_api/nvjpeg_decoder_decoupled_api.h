@@ -417,7 +417,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   bool ParseNvjpeg2k(SampleData &data, span<const uint8_t> input) {
 #ifdef BUILD_NVJPEG2K_ENABLED
     const auto &jpeg2k_stream = nvjpeg2k_streams_[data.sample_idx];
-    TimeRange tr("nvjpeg2k parse");
     auto ret = nvjpeg2kStreamParse(nvjpeg2k_handle_, input.data(), input.size(),
                                    0, 0, jpeg2k_stream);
     if (ret == NVJPEG2K_STATUS_SUCCESS) {

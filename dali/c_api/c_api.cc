@@ -399,7 +399,7 @@ device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id) {
 
 void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
                     device_type_t dst_type, cudaStream_t stream, unsigned int flags) {
-  dali::TimeRange tr("daliOutputCopy", dali::TimeRange::kGreen);
+  dali::DomainTimeRange tr("[DALI][C API] daliOutputCopy", dali::DomainTimeRange::kGreen);
 
   bool is_pinned = flags & DALI_ext_pinned;
   bool sync = flags & DALI_ext_force_sync;
@@ -424,7 +424,7 @@ void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
 
 void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int output_idx,
                            device_type_t dst_type, cudaStream_t stream, unsigned int flags) {
-  dali::TimeRange tr("daliOutputCopySamples", dali::TimeRange::kGreen);
+  dali::DomainTimeRange tr("[DALI][C API] daliOutputCopySamples", dali::DomainTimeRange::kGreen);
 
   bool is_pinned = flags & DALI_ext_pinned;
   bool sync = flags & DALI_ext_force_sync;

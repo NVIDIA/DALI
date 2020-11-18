@@ -15,18 +15,6 @@
 #ifndef DALI_CORE_COMMON_H_
 #define DALI_CORE_COMMON_H_
 
-#if NVTX_ENABLED
-  // Just to get CUDART_VERSION value
-  #include <cuda_runtime_api.h>
-  #if (CUDART_VERSION >= 10000)
-    #include "nvtx3/nvToolsExt.h"
-  #elif (CUDART_VERSION < 10000) // NOLINT
-    #include "nvToolsExt.h"
-  #else
-    #error Unknown CUDART_VERSION!
-  #endif
-#endif
-
 #include <array>
 #include <cstdint>
 #include <iostream>
@@ -149,55 +137,6 @@ inline int NumberOfChannels(DALIImageType type) {
 #define CONCAT_1(var1, var2) var1##var2
 #define CONCAT_2(var1, var2) CONCAT_1(var1, var2)
 #define ANONYMIZE_VARIABLE(name) CONCAT_2(name, __LINE__)
-
-// Basic timerange for profiling
-struct TimeRange {
-  static const uint32_t kRed = 0xFF0000;
-  static const uint32_t kGreen = 0x00FF00;
-  static const uint32_t kBlue = 0x0000FF;
-  static const uint32_t kYellow = 0xB58900;
-  static const uint32_t kOrange = 0xCB4B16;
-  static const uint32_t kRed1 = 0xDC322F;
-  static const uint32_t kMagenta = 0xD33682;
-  static const uint32_t kViolet = 0x6C71C4;
-  static const uint32_t kBlue1 = 0x268BD2;
-  static const uint32_t kCyan = 0x2AA198;
-  static const uint32_t kGreen1 = 0x859900;
-  static const uint32_t knvGreen = 0x76B900;
-
-  TimeRange(std::string name, const uint32_t rgb = kBlue) {  // NOLINT
-#if NVTX_ENABLED
-    nvtxEventAttributes_t att = {};
-    att.version = NVTX_VERSION;
-    att.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
-    att.colorType = NVTX_COLOR_ARGB;
-    att.color = rgb | 0xff000000;
-    att.messageType = NVTX_MESSAGE_TYPE_ASCII;
-    att.message.ascii = name.c_str();
-
-    nvtxRangePushEx(&att);
-    started = true;
-
-#endif
-  }
-
-  ~TimeRange() { stop(); }
-
-  void stop() {
-#if NVTX_ENABLED
-    if (started) {
-      started = false;
-      nvtxRangePop();
-    }
-#endif
-  }
-
-#if NVTX_ENABLED
-
- private:
-  bool started = false;
-#endif
-};
 
 using std::to_string;
 

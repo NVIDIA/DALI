@@ -26,6 +26,7 @@
 #include <mutex>
 
 #include "dali/core/common.h"
+#include "dali/core/nvtx.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/executor/queue_policy.h"
@@ -496,7 +497,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
                  "valid device id or change the operators' device.");
   }
 
-  TimeRange tr("[Executor] RunCPU");
+  DomainTimeRange tr("[DALI][Executor] RunCPU");
 
   DeviceGuard g(device_id_);
 
@@ -512,7 +513,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
     OpNode &op_node = graph_->Node(OpType::CPU, cpu_op_id);
     typename WorkspacePolicy::template ws_t<OpType::CPU> ws =
         WorkspacePolicy::template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
-    TimeRange tr("[Executor] Run CPU op " + op_node.instance_name, TimeRange::kBlue1);
+    DomainTimeRange tr("[DALI][CPU op] " + op_node.instance_name, DomainTimeRange::kBlue1);
 
     try {
       RunHelper(op_node, ws);
@@ -530,7 +531,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
-  TimeRange tr("[Executor] RunMixed");
+  DomainTimeRange tr("[DALI][Executor] RunMixed");
   DeviceGuard g(device_id_);
 
   auto mixed_idxs = QueuePolicy::AcquireIdxs(OpType::MIXED);
@@ -559,8 +560,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
       try {
         typename WorkspacePolicy::template ws_t<OpType::MIXED> ws =
             WorkspacePolicy::template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
-        TimeRange tr("[Executor] Run Mixed op " + op_node.instance_name,
-            TimeRange::kOrange);
+        DomainTimeRange tr("[DALI][Mixed op] " + op_node.instance_name,
+            DomainTimeRange::kOrange);
         RunHelper(op_node, ws);
         FillStats(mixed_memory_stats_, ws,  "MIXED_" + op_node.instance_name,
                   mixed_memory_stats_mutex_);
@@ -595,7 +596,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
-  TimeRange tr("[Executor] RunGPU");
+  DomainTimeRange tr("[DALI][Executor] RunGPU");
 
   auto gpu_idxs = QueuePolicy::AcquireIdxs(OpType::GPU);
   if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(gpu_idxs)) {
@@ -626,8 +627,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
           CUDA_CALL(cudaStreamWaitEvent(ws.stream(), event, 0));
         }
 
-        TimeRange tr("[Executor] Run GPU op " + op_node.instance_name,
-            TimeRange::knvGreen);
+        DomainTimeRange tr("[DALI][GPU op] " + op_node.instance_name,
+            DomainTimeRange::knvGreen);
         RunHelper(op_node, ws);
         FillStats(gpu_memory_stats_, ws, "GPU_" + op_node.instance_name, gpu_memory_stats_mutex_);
         if (ws.has_event()) {
@@ -854,7 +855,7 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
     std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, const OpGraph &graph) {
   DeviceGuard g(device_id_);
-  TimeRange tr("[Executor] PresizeData");
+  DomainTimeRange tr("[DALI][Executor] PresizeData");
 
   auto should_reserve = [](auto &storage, Index hint, StorageDevice dev) -> bool {
     if (dev == StorageDevice::CPU) {

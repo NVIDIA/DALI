@@ -24,6 +24,7 @@
 #include <condition_variable>
 #include <utility>
 
+#include "dali/core/nvtx.h"
 #include "dali/core/cuda_event.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/worker_thread.h"
@@ -132,7 +133,7 @@ class ExternalSource : public Operator<Backend> {
   inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0,
                             bool sync = false, bool use_copy_kernel = false) {
     DeviceGuard g(device_id_);
-    TimeRange tr("[ExternalSource] SetDataSource", TimeRange::kViolet);
+    DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
     SetDataSourceHelper(tl, stream, sync, use_copy_kernel);
   }
 
@@ -144,7 +145,7 @@ class ExternalSource : public Operator<Backend> {
                             cudaStream_t stream = 0, bool sync = false,
                             bool use_copy_kernel = false) {
     DeviceGuard g(device_id_);
-    TimeRange tr("[ExternalSource] SetDataSource", TimeRange::kViolet);
+    DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
     for (size_t i = 0; i < tv.size(); ++i) {
       tv[i].ShareData(const_cast<Tensor<SrcBackend>*>(&vect_of_tensors[i]));
@@ -159,7 +160,7 @@ class ExternalSource : public Operator<Backend> {
   inline void SetDataSource(const TensorVector<SrcBackend> &tv, cudaStream_t stream = 0,
                             bool sync = false, bool use_copy_kernel = false) {
     DeviceGuard g(device_id_);
-    TimeRange tr("[ExternalSource] SetDataSource", TimeRange::kViolet);
+    DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
     SetDataSourceHelper(tv, stream, sync, use_copy_kernel);
   }
 

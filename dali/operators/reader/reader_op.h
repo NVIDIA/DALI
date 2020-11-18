@@ -24,6 +24,7 @@
 #include <vector>
 #include <unordered_map>
 
+#include "dali/core/nvtx.h"
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/parser/parser.h"
 #include "dali/pipeline/operator/operator.h"
@@ -80,7 +81,8 @@ class DataReader : public Operator<Backend> {
   // perform the prefetching operation
   virtual void Prefetch() {
     // We actually prepare the next batch
-    TimeRange tr("DataReader::Prefetch #" + to_string(curr_batch_producer_), TimeRange::kRed);
+    DomainTimeRange tr("[DALI][DataReader] Prefetch #" + to_string(curr_batch_producer_),
+                       DomainTimeRange::kRed);
     auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
     curr_batch.reserve(Operator<Backend>::batch_size_);
     curr_batch.clear();
@@ -135,7 +137,8 @@ class DataReader : public Operator<Backend> {
     ConsumerWait();
 
     // consume batch
-    TimeRange tr("DataReader::Run #" + to_string(curr_batch_consumer_), TimeRange::kViolet);
+    DomainTimeRange tr("[DALI][DataReader] Run #" + to_string(curr_batch_consumer_),
+                       DomainTimeRange::kViolet);
 
     // This is synchronous call for CPU Backend
     Operator<Backend>::Run(ws);
@@ -284,8 +287,8 @@ class DataReader : public Operator<Backend> {
   }
 
   void ConsumerWait() {
-    TimeRange tr("DataReader::ConsumerWait #" + to_string(curr_batch_consumer_),
-                 TimeRange::kMagenta);
+    DomainTimeRange tr("[DALI][DataReader] ConsumerWait #" + to_string(curr_batch_consumer_),
+                 DomainTimeRange::kMagenta);
     std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
     consumer_.wait(prefetch_lock, [this]() { return finished_ || !IsPrefetchQueueEmpty(); });
     if (prefetch_error_) std::rethrow_exception(prefetch_error_);

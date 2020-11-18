@@ -26,6 +26,7 @@
 #include <vector>
 #include <deque>
 
+#include "dali/core/nvtx.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/op_spec.h"
@@ -120,10 +121,10 @@ class Loader {
     if (!loading_flag_) {
       PrepareMetadata();
     }
-    TimeRange tr("[Loader] ReadOne", TimeRange::kGreen1);
+    DomainTimeRange tr("[DALI][Loader] ReadOne", DomainTimeRange::kGreen1);
     // perform an initial buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
-      TimeRange tr("[Loader] Filling initial buffer", TimeRange::kBlue1);
+      DomainTimeRange tr("[DALI][Loader] Filling initial buffer", DomainTimeRange::kBlue1);
       shards_.push_back({0, 0});
 
       // Read an initial number of samples to fill our
@@ -138,7 +139,7 @@ class Loader {
       }
 
       // need some entries in the empty_tensors_ list
-      TimeRange tr2("[Loader] Filling empty list", TimeRange::kOrange);
+      DomainTimeRange tr2("[DALI][Loader] Filling empty list", DomainTimeRange::kOrange);
       std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
       for (int i = 0; i < initial_empty_size_; ++i) {
         auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
