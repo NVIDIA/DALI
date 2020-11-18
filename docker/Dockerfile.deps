@@ -42,8 +42,8 @@ RUN CMAKE_VERSION=3.13 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /cmake-${CMAKE_BUILD}
 
-# protobuf v3.13.0
-RUN PROTOBUF_VERSION=3.13.0 && \
+# protobuf
+RUN PROTOBUF_VERSION=3.14.0 && \
     curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
     cd /protobuf-${PROTOBUF_VERSION} && \
     ./autogen.sh && \
@@ -62,7 +62,7 @@ RUN LMDB_VERSION=0.9.24 && \
     rm -rf /lmdb
 
 # libjpeg-turbo
-RUN JPEG_TURBO_VERSION=2.0.5 && \
+RUN JPEG_TURBO_VERSION=2.0.6 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
     cmake -G"Unix Makefiles" -DENABLE_SHARED=TRUE -DCMAKE_INSTALL_PREFIX=/usr/local . 2>&1 >/dev/null && \
@@ -99,7 +99,7 @@ RUN OPENJPEG_VERSION=2.3.1 && \
     rm -rf openjpeg-${OPENJPEG_VERSION}
 
 # OpenCV
-RUN OPENCV_VERSION=4.4.0 && \
+RUN OPENCV_VERSION=4.5.0 && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
     cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
