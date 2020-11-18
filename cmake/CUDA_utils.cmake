@@ -73,12 +73,9 @@ function(CUDA_check_cudacc_flag out_status compiler flags)
     set(preprocess_empty_cu_file "--dryrun" "-E" "-x" "cu" "/dev/null")
   endif()
   set(cudacc_command ${flags} ${preprocess_empty_cu_file})
-  # message(STATUS "RUN ${compiler} ${flags} ${preprocess_empty_cu_file}")
   # Run the compiler and check the exit status
   execute_process(COMMAND ${compiler} ${cudacc_command}
                   RESULT_VARIABLE tmp_out_status
-                  # ECHO_OUTPUT_VARIABLE
-                  # ECHO_ERROR_VARIABLE
                   OUTPUT_QUIET
                   ERROR_QUIET
                   )
