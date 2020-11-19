@@ -233,6 +233,8 @@ void ParseCategories(LookaheadParser &parser, std::map<int, int> &category_ids) 
 void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotations,
                       float min_size_threshold, bool ltrb,
                       bool parse_segmentation, bool parse_rle) {
+  std::string rle_str;
+  std::vector<uint32_t> rle_uints;
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
   while (parser.NextArrayValue()) {
@@ -261,7 +263,8 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
         if (parse_rle && parser.PeekType() == kObjectType) {
           annotation.tag_ = Annotation::RLE;
           parser.EnterObject();
-          std::string rle_str;
+          rle_str.clear();
+          rle_uints.clear();
           int h = -1, w = -1;
           while (const char* another_key = parser.NextObjectKey()) {
             if (0 == std::strcmp(another_key, "size")) {
@@ -273,13 +276,28 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
               w = parser.GetInt();
               parser.NextArrayValue();
             } else if (0 == std::strcmp(another_key, "counts")) {
-              rle_str = parser.GetString();
+              if (parser.PeekType() == kStringType) {
+                rle_str = parser.GetString();
+              } else if (parser.PeekType() == kArrayType) {
+                parser.EnterArray();
+                while (parser.NextArrayValue()) {
+                  rle_uints.push_back(parser.GetInt());
+                }
+              } else {
+                parser.SkipValue();
+              }
+            } else {
+              parser.SkipValue();
             }
           }
-          assert(h > 0);
-          assert(w > 0);
-          assert(rle_str.length() > 0);
-          annotation.rle_ = RLEMask(rle_str.c_str(), h, w);
+          DALI_ENFORCE(h > 0 && w > 0, "Invalid or missing mask sizes");
+          if (!rle_str.empty()) {
+            annotation.rle_ = RLEMask(rle_str.c_str(), h, w);
+          } else if (!rle_uints.empty()) {
+            annotation.rle_ = RLEMask(make_cspan(rle_uints), h, w);
+          } else {
+            DALI_FAIL("Missing or invalid ``counts`` attribute.");
+          }
         } else if (parser.PeekType() == kArrayType) {
           annotation.tag_ = Annotation::POLYGON;
           int coord_offset = 0;

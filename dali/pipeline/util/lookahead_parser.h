@@ -35,6 +35,7 @@ using rapidjson::kParseDefaultFlags;
 using rapidjson::kParseInsituFlag;
 using rapidjson::kArrayType;
 using rapidjson::kObjectType;
+using rapidjson::kStringType;
 
 // taken from https://github.com/Tencent/rapidjson/blob/master/example/lookaheadparser/lookaheadparser.cpp
 
