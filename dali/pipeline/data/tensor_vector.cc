@@ -436,8 +436,8 @@ void TensorVector<Backend>::update_view(int idx) {
 }
 
 
-template class TensorVector<CPUBackend>;
-template class TensorVector<GPUBackend>;
+template class DLL_PUBLIC TensorVector<CPUBackend>;
+template class DLL_PUBLIC TensorVector<GPUBackend>;
 template void TensorVector<CPUBackend>::Copy<CPUBackend>(const TensorVector<CPUBackend>&, cudaStream_t);  // NOLINT
 template void TensorVector<CPUBackend>::Copy<GPUBackend>(const TensorVector<GPUBackend>&, cudaStream_t);  // NOLINT
 template void TensorVector<GPUBackend>::Copy<CPUBackend>(const TensorVector<CPUBackend>&, cudaStream_t);  // NOLINT
