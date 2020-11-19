@@ -266,10 +266,10 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
 
   // Mask was originally described in RLE format
   for (uint ann_id = 0 ; ann_id < masks_info.mask_indices.size(); ann_id++) {
-    const auto &rle = *masks_info.rles[ann_id];
+    const auto &rle = masks_info.rles[ann_id];
     auto mask_idx = masks_info.mask_indices[ann_id];
     int label = labels_span[mask_idx];
-    rleInit(&R[label], rle.h, rle.w, rle.m, rle.cnts);
+    rleInit(&R[label], rle->h, rle->w, rle->m, rle->cnts);
   }
 
   // Merge each label (from multi-polygons annotations)

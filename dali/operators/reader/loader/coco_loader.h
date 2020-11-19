@@ -25,6 +25,7 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/geom/vec.h"
+#include "dali/core/unique_handle.h"
 
 extern "C" {
 #include "third_party/cocoapi/common/maskApi.h"
@@ -63,37 +64,33 @@ inline bool HasSavePreprocessedAnnotationsDir(const OpSpec &spec) {
     (spec.HasArgument("dump_meta_files_path") && spec.GetArgument<bool>("dump_meta_files_path"));
 }
 
-struct RLEMask {
-  RLEMask() = default;
-  RLEMask(const char* str, int h, int w) {
-    rleFrString(&rle_, const_cast<char*>(str), h, w);
-  }
-  RLEMask(span<const unsigned int> counts, int h, int w) {
-    rleInit(&rle_, h, w, counts.size(), const_cast<unsigned int*>(counts.data()));
+struct RLEMask : public UniqueHandle<RLE, RLEMask> {
+  DALI_INHERIT_UNIQUE_HANDLE(RLE, RLEMask)
+
+  RLEMask(siz h, siz w, siz m) {
+    rleInit(&handle_, h, w, m, nullptr);
   }
 
-  ~RLEMask() {
-    if (rle_.cnts)
-      rleFree(&rle_);
+  RLEMask(siz h, siz w, span<const uint> counts) {
+    rleInit(&handle_, h, w, counts.size(), const_cast<uint*>(counts.data()));
   }
 
-  RLEMask(RLEMask &&oth) {
-    std::swap(this->rle_, oth.rle_);
+  RLEMask(siz h, siz w, const char* str) {
+    rleFrString(&handle_, const_cast<char*>(str), h, w);
   }
 
-  RLEMask& operator=(RLEMask &&oth) {
-    std::swap(this->rle_, oth.rle_);
-    return *this;
+  static constexpr RLE null_handle() { return {0, 0, 0, nullptr}; }
+  static constexpr bool is_null_handle(const RLE &handle) {
+    return handle.cnts == nullptr;
   }
 
-  RLE& operator*() { return rle_; }
-  const RLE& operator*() const { return rle_; }
-  RLE* operator->() { return &rle_; }
-  const RLE* operator->() const { return &rle_; }
-  RLE* get() { return &rle_; }
+  static void DestroyHandle(RLE &handle) {
+    if (handle.cnts)
+      rleFree(&handle);
+  }
 
-private:
-  RLE rle_ = {0, 0, 0, nullptr};
+  const RLE* operator->() const { return &handle_; }
+  RLE* operator->() { return &handle_; }
 };
 
 class DLL_PUBLIC CocoLoader : public FileLabelLoader {
@@ -225,7 +222,6 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
   std::vector<int> masks_rles_idx_;
   std::vector<int64_t> masks_offset_;  // per sample offset
   std::vector<int64_t> masks_count_;  // per sample size
-  
 
   bool output_polygon_masks_ = false;
   bool output_pixelwise_masks_ = false;

@@ -140,7 +140,7 @@ void LoadFromFile(std::vector<RLEMask> &output, const std::string path) {
     siz dims[3];
     file.read(reinterpret_cast<char*>(dims), 3 * sizeof(siz));  // read h, w, m
     siz h = dims[0], w = dims[1], m = dims[2];
-    rleInit(rle.get(), h, w, m, nullptr);
+    rle = RLEMask(h, w, m);
     file.read(reinterpret_cast<char*>(rle->cnts), m * sizeof(uint));
   }
 }
@@ -292,9 +292,9 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
           }
           DALI_ENFORCE(h > 0 && w > 0, "Invalid or missing mask sizes");
           if (!rle_str.empty()) {
-            annotation.rle_ = RLEMask(rle_str.c_str(), h, w);
+            annotation.rle_ = RLEMask(h, w, rle_str.c_str());
           } else if (!rle_uints.empty()) {
-            annotation.rle_ = RLEMask(make_cspan(rle_uints), h, w);
+            annotation.rle_ = RLEMask(h, w, make_cspan(rle_uints));
           } else {
             DALI_FAIL("Missing or invalid ``counts`` attribute.");
           }
@@ -394,7 +394,6 @@ void CocoLoader::SavePreprocessedAnnotations(const std::string &path,
     SaveToFile(masks_count_, path + "/masks_count.dat");
     SaveToFile(heights_, path + "/heights.dat");
     SaveToFile(widths_, path + "/widths.dat");
-
   }
 
   if (output_image_ids_) {
