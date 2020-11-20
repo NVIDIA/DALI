@@ -804,6 +804,9 @@ Parameters
             self._first_iter = True
             self._last_iter = False
             self._iter = 0
+            if self._input_callbacks:
+                for group in self._input_callbacks:
+                    group.reset_indices()
 
     def empty(self):
         """If there is any work scheduled in the pipeline but not yet consumed
@@ -963,7 +966,7 @@ Parameters
             return
 
         for group in self._input_callbacks:
-            group.call_and_feed(self, self._batch_size, self._iter)
+            group.call_and_feed(self, self._batch_size)
 
     def _iter_setup(self):
         self._run_input_callbacks()

@@ -354,12 +354,16 @@ def test_external_source_with_iter():
             check_output(pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])
 
 
-def test_external_source_with_sample_and_iter():
+def test_external_source_with_sample_info():
     batch_size = 7
     for attempt in range(10):
         pipe = Pipeline(batch_size, 3, 0)
 
-        pipe.set_outputs(fn.external_source(lambda s, i: make_array([attempt * 100 + i * 10 + s + 1.5], dtype=datapy.float32), batch=False))
+        def src(si):
+            assert(si.idx_in_epoch == batch_size * si.iteration + si.idx_in_batch)
+            return make_array([attempt * 100 + si.iteration * 10 + si.idx_in_batch + 1.5], dtype=datapy.float32)
+
+        pipe.set_outputs(fn.external_source(src, batch=False))
         pipe.build()
 
         for i in range(10):

@@ -1,6 +1,7 @@
 # custom wrappers around ops
 from nvidia.dali import backend as _b
 import inspect
+import nvidia.dali.types
 
 def _get_batch_shape(data):
     if isinstance(data, (list, tuple, _b.TensorListCPU, _b.TensorListGPU)):
@@ -69,36 +70,41 @@ class _ExternalSourceGroup(object):
         self._cuda_stream = cuda_stream
         self.use_copy_kernel = use_copy_kernel
         self.batch = batch
+        self.current_iter = 0
+        self.current_sample = 0
         if callback is not None:
-            if batch:
-                if callback.__code__.co_argcount not in [0, 1]:
-                    raise TypeError("External source callback must be a callable with 0 or 1 argument")
-            else:
-                if callback.__code__.co_argcount not in [0, 1, 2]:
-                    raise TypeError("Per-sample external source callback must be a callable with up to 2 arguments: " +
-                                    "``sample_index``, ``iter_index``")
-            self.accepts_iter_num = (callback.__code__.co_argcount == (1 if batch else 2))
-            self.accepts_sample_index = (not batch and callback.__code__.co_argcount > 0)
-        else:
-            self.accepts_iter_num = False
-            self.accepts_sample_index = False
+            if callback.__code__.co_argcount not in [0, 1]:
+                raise TypeError("External source callback must be a callable with 0 or 1 argument")
+            self.accepts_arg = callback.__code__.co_argcount > 0
 
     def append(self, instance):
         self.instances.append(instance)
 
-    def callback_args(self, sample, iter):
-        args = []
-        if self.accepts_sample_index:
-            args.append(sample)
-        if self.accepts_iter_num:
-            args.append(iter)
-        return args
-
-    def call_and_feed(self, pipeline, batch_size, current_iter):
-        if self.batch:
-            callback_out = self.callback(*self.callback_args(None, current_iter))
+    def callback_args(self, idx_in_batch):
+        if not self.accepts_arg:
+            return ()
+        if idx_in_batch is not None:
+            arg = nvidia.dali.types.SampleInfo(self.current_sample + idx_in_batch, idx_in_batch, self.current_iter)
         else:
-            callback_out = [self.callback(*self.callback_args(i, current_iter)) for i in range(batch_size)]
+            arg = self.current_iter
+        return (arg,)
+
+    def reset_indices(self):
+        self.current_iter = 0
+        self.current_sample = 0
+
+    def call_and_feed(self, pipeline, batch_size):
+        try:
+            if self.batch:
+                callback_out = self.callback(*self.callback_args(None))
+            else:
+                callback_out = [self.callback(*self.callback_args(i)) for i in range(batch_size)]
+            self.current_sample += batch_size
+            self.current_iter += 1
+        except StopIteration:
+            self.current_sample = 0
+            self.current_iter = 0
+            raise
 
         if self.is_multioutput:
             for op in self.instances:
@@ -187,8 +193,7 @@ Args
 
     A per-batch source may accept one positional argument. If it does, it is the current iteration
     iteration number and consecutive calls will be ``source(0)``, ``source(1)``, and so on.
-    A per-sample source may accept up to two arguments: the first is the sample index in the batch,
-    the second is the current iteration number.
+    A per-sample source may accept a :class:`nvidia.dali.SampleInfo` structure.
 
     If the source is a generator function, the function is invoked and treated as an iterable.
     However, unlike a generator, the function can be used with ``cycle``. In this case, the function
@@ -280,7 +285,7 @@ Keyword Args
 
 `batch` : optional
     If set to ``True`` or ``None``, the ``source`` is expected to produce an entire batch at once.
-    If set to ``False``, the ``source`` is called per-sample. Its first parameter is sample index.
+    If set to ``False``, the ``source`` is called per-sample.
 """
 
     def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu",
