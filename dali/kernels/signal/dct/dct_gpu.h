@@ -33,6 +33,40 @@ namespace kernels {
 namespace signal {
 namespace dct {
 
+class BlockSetupInner {
+ public:
+  struct BlockDesc {
+    int64_t sample_idx;
+    int64_t frame_start;
+    int64_t frame_count;
+  };
+
+  void Setup(const TensorListShape<3> &reduced_shape);
+
+  const std::vector<BlockDesc> &Blocks() {
+    return blocks_;
+  }
+
+  dim3 BlockDim() {
+    return dim3(32, 8);
+  }
+
+  dim3 GridDim() {
+    return dim3(blocks_.size());
+  }
+
+  template <typename OutputType, typename InputType>
+  size_t SharedMemSize(int64_t max_input_length, int64_t max_cos_table_size) {
+    return sizeof(InputType) * max_input_length * frames_per_block_
+           + sizeof(OutputType) * max_cos_table_size;
+  }
+
+ private:
+  std::vector<BlockDesc> blocks_{};
+  int64_t max_input_length_ = 0;
+  const int64_t frames_per_block_ = 8;
+};
+
 /**
  * @brief Discrete Cosine Transform 1D GPU kernel.
  *        Performs a DCT transformation over a single dimension in a multi-dimensional input.
@@ -85,12 +119,20 @@ class DLL_PUBLIC Dct1DGpu {
                       InTensorGPU<float, 1> lifter_coeffs);
 
  private:
+  void RunInnerDCT(KernelContext &context, int64_t max_input_length,
+                   InTensorGPU<float, 1> lifter_coeffs);
+
+  void RunPlanarDCT(KernelContext &context, int max_ndct,
+                    InTensorGPU<float, 1> lifter_coeffs);
+
   std::map<std::pair<int, DctArgs>, OutputType*> cos_tables_{};
   std::vector<DctArgs> args_{};
   BlockSetup<3, -1> block_setup_{};
+  BlockSetupInner block_setup_inner_{};
   std::vector<SampleDesc> sample_descs_{};
   int64_t max_cos_table_size_ = 0;
   int axis_ = -1;
+  bool inner_axis_;
   CUDAEvent buffer_events_[2];
 };
 

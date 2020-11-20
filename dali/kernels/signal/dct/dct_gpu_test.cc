@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <tuple>
+#include <string>
 #include "dali/kernels/signal/dct/dct_gpu.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/common/utils.h"
@@ -116,7 +117,6 @@ class Dct1DGpuTest : public ::testing::TestWithParam<
   const int max_ndct = 40;
 };
 
-
 TEST_P(Dct1DGpuTest, DctTest) {
   using Kernel = Dct1DGpu<float>;
   KernelContext ctx;
@@ -190,6 +190,102 @@ INSTANTIATE_TEST_SUITE_P(Dct1DGpuTest, Dct1DGpuTest, testing::Combine(
                     std::make_pair(4, std::vector<int>{0, 3, 1}),
                     std::make_pair(1, std::vector<int>{0, 0}))  // dims, axes
   ));  // NOLINT
+
+
+class Dct1DGpuPerfTest : public ::testing::TestWithParam<bool> {
+ protected:
+  Dct1DGpuPerfTest(): inner_(GetParam()) {}
+
+  void SetUp() override {
+    DctArgs args;
+    args.dct_type = 2;
+    args.normalize = false;
+    args.ndct = ndct_;
+    args_batch_ = std::vector<DctArgs>(batch_size_, args);
+    const int64_t nframes = 20000;
+    for (int s = 0; s < batch_size_; ++s) {
+      if (inner_) {
+        in_shape_.set_tensor_shape(s, {1, nframes, 60 + s % n_tables_});
+        out_shape_.set_tensor_shape(s, {1, nframes, args.ndct});
+      } else {
+        in_shape_.set_tensor_shape(s, {1, 60 + s % n_tables_, nframes});
+        out_shape_.set_tensor_shape(s, {1, args.ndct, nframes});
+      }
+    }
+    if (inner_) {
+      layout_ = "interleaved";
+    } else {
+      layout_ = "planar";
+    }
+  }
+
+  const int batch_size_ = 128;
+  const int n_tables_ = 10;
+  const int ndct_ = 64;
+  TensorListShape<3> in_shape_{batch_size_};
+  TensorListShape<3> out_shape_{batch_size_};
+  std::vector<DctArgs> args_batch_;
+  bool inner_;
+  std::string layout_;
+};
+
+TEST_P(Dct1DGpuPerfTest, DISABLED_PerfTest) {
+  using Kernel = Dct1DGpu<float>;
+  const int batch_size = 64;
+  const int n_tables = 5;
+  const int n_iters = 6;
+  TestTensorList<float, 3> input;
+  TestTensorList<float, 3> output;
+  int64_t out_elems = out_shape_.num_elements();
+  int64_t in_elems = in_shape_.num_elements();
+  int64_t cosine_elems = 0;
+  for (int i = 0; i < n_tables; ++i) {
+    cosine_elems += ndct_ * (60 + i);
+  }
+  int64_t mem_size = sizeof(float) * (out_elems + in_elems + cosine_elems);
+  input.reshape(in_shape_);
+  output.reshape(out_shape_);
+  std::mt19937_64 rng{12345};
+  KernelContext ctx;
+  ctx.gpu.stream = 0;
+  KernelManager kmgr;
+  kmgr.Initialize<Kernel>();
+  kmgr.Resize<Kernel>(1, 1);
+  CUDAEvent start = CUDAEvent::CreateWithFlags(0);
+  CUDAEvent end = CUDAEvent::CreateWithFlags(0);
+  double tops = 0;
+  double mem = 0;
+  std::cout << "DCT GPU Perf test.\nLayout: " << layout_
+            << "\nInput size: " << static_cast<double>(sizeof(float) * in_elems) * 1e-9 << " GB"
+            << std::endl;
+  for (int i = 0; i < n_iters; ++i) {
+    std::cout << "ITER " << i+1 << '/' << n_iters << std::endl;
+    input.reshape(in_shape_);
+    output.reshape(out_shape_);
+    UniformRandomFill(input.cpu(), rng, 0., 1.);
+    auto in_view_gpu = input.gpu();
+    auto out_view_gpu = output.gpu();
+    int axis = inner_ ? 2 : 1;
+    auto req = kmgr.Setup<Kernel>(0, ctx, in_view_gpu, make_cspan(args_batch_), axis);
+    cudaEventRecord(start);
+    kmgr.Run<Kernel>(0, 0, ctx, out_view_gpu, in_view_gpu, InTensorGPU<float, 1>{});
+    cudaEventRecord(end);
+    CUDA_CALL(cudaDeviceSynchronize());
+    float time;
+    cudaEventElapsedTime(&time, start, end);
+    if (i > 0) {
+      tops += in_elems * ndct_ / static_cast<double>(time) * 1e-6 / (n_iters - 1);
+      mem += static_cast<double>(mem_size) / (static_cast<double>(time) * 1e6) / (n_iters - 1);
+    }
+  }
+  std::cout << "---- AVERAGE ----" << std::endl;
+  std::cout << "Compute: " << tops << " GFLOPS" << std::endl;
+  std::cout << "Memory: " << mem  << "GB/s" << std::endl;
+}
+
+INSTANTIATE_TEST_SUITE_P(Dct1DGpuPerfTest, Dct1DGpuPerfTest,
+  testing::Values(false, true)  // interleaved layout
+);  // NOLINT
 
 }  // namespace test
 }  // namespace dct
