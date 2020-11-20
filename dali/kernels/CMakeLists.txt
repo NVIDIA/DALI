@@ -15,7 +15,6 @@
 project(dali_kernels CUDA CXX C)
 
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 add_subdirectory(audio)
 add_subdirectory(common)

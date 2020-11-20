@@ -17,14 +17,14 @@
 
 #include <cuda_fp16.h>  // for __half & related methods
 #include <type_traits>
-#if !defined(__CUDA_ARCH__)
+#ifndef __CUDA_ARCH__
 #include "dali/util/half.hpp"
 #endif
 
 namespace dali {
 
 // For the GPU
-#if defined(__CUDA_ARCH__)
+#ifdef __CUDA_ARCH__
 using float16 = __half;
 #else
 using float16 = half_float::half;
@@ -39,7 +39,7 @@ struct is_half : std::false_type {};
 template <>
 struct is_half<float16> : std::true_type {};
 
-#if !defined(__CUDA_ARCH__)
+#ifndef __CUDA_ARCH__
 template <>
 struct is_half<__half> : std::true_type {};
 #endif
