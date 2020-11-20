@@ -37,57 +37,97 @@ TypeInfo TypeFromNumpyStr(const std::string &format) {
   DALI_FAIL("Unknown Numpy type string");
 }
 
+inline void SkipSpace(const char*& ptr) {
+  while(::isspace(*ptr))
+    ptr++;
+}
+
+template <size_t N>
+void Skip(const char*& ptr, const char (&what)[N]) {
+  DALI_ENFORCE(!strncmp(ptr, what, N-1), make_string("Expected \"", what, "\" but got \"", ptr, "\""));
+  ptr += N - 1;
+}
+
+template <size_t N>
+bool TrySkip(const char*& ptr, const char (&what)[N]) {
+  if (!strncmp(ptr, what, N-1)) {
+    ptr += N - 1;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+
+template <size_t N>
+void SkipFieldName(const char*& ptr, const char (&name)[N]) {
+  SkipSpace(ptr);
+  Skip(ptr, "'");
+  Skip(ptr, name);
+  Skip(ptr, "'");
+  SkipSpace(ptr);
+  Skip(ptr, ":");
+  SkipSpace(ptr);
+}
+
+std::string ParseStringValue(const char*& input, char delim_start = '\'', char delim_end = '\'') {
+  DALI_ENFORCE(*input++ == delim_start, make_string("Expected \'", delim_start, "\'"));
+  std::string out;
+  for (;*input != '\0'; input++) {
+    if (*input == '\\') {
+      switch (*++input) {
+        case '\'':
+          out += '\\';
+          break;
+        case '\t':
+          out += '\t';
+          break;
+        case '\n':
+          out += '\n';
+          break;
+        case '\"':
+          out += '\"';
+          break;
+        default:
+          out += '\\';
+          out += *input;
+          break;
+      }
+    } else if (*input == delim_end) {
+      break;
+    } else {
+      out += *input;
+    }
+  }
+  DALI_ENFORCE(*input++ == delim_end, make_string("Expected \'", delim_end, "\'"));
+  return out;
+}
+
 void ParseHeaderMetadata(NumpyParseTarget& target, std::string header) {
-  header.erase(std::remove_if(header.begin(), header.end(), ::isspace), header.end());
+  const char* hdr = header.c_str();
+  SkipSpace(hdr);
+  Skip(hdr, "{");
+  SkipFieldName(hdr, "descr");
+  auto typestr = ParseStringValue(hdr);
+    // < means LE, | means N/A, = means native. In all those cases, we can read
+  bool little_endian = (typestr[0] == '<' || typestr[0] == '|' || typestr[0] == '=');
+  DALI_ENFORCE(little_endian, "Big Endian files are not supported.");
+  target.type_info = TypeFromNumpyStr(typestr.substr(1));
 
-  const char t1[] = "{'descr':\'";
-  size_t l1 = strlen(t1);
-  DALI_ENFORCE(strncmp(header.c_str(), t1, l1) == 0);
-  size_t pos = l1;
-  auto iter = header.find('\'', pos);
-  DALI_ENFORCE(iter != std::string::npos);
-
-  std::string typestring = header.substr(pos, iter - pos);
-  pos = iter + 1;
-
-  // < means LE, | means N/A, = means native. In all those cases, we can read
-  bool little_endian =
-    (typestring[0] == '<' || typestring[0] == '|' || typestring[0] == '=');
-  DALI_ENFORCE(little_endian,
-    "Big Endian files are not supported.");
-
-  std::string tid = typestring.substr(1);
-  // get type in a safe way
-  target.type_info = TypeFromNumpyStr(tid);
-
-  const char t2[] = "\'fortran_order\':";
-  size_t l2 = strlen(t2);
-
-  iter = header.find(t2, pos);
-  DALI_ENFORCE(iter != std::string::npos);
-  pos = iter + l2;
-
-  iter = header.find(',', pos);
-  auto fortran_order_str = header.substr(pos, iter - pos);
-  pos = iter + 1;
-  if (fortran_order_str == "True") {
+  SkipSpace(hdr);
+  Skip(hdr, ",");
+  SkipFieldName(hdr, "fortran_order");
+  if (TrySkip(hdr, "True")) {
     target.fortran_order = true;
-  } else if (fortran_order_str == "False") {
+  } else if (TrySkip(hdr, "False")) {
     target.fortran_order = false;
   } else {
     DALI_FAIL("Can not parse fortran order");
   }
-
-  const char t3[] = "\'shape\':(";
-  size_t l3 = strlen(t3);
-  iter = header.find(t3, pos);
-  DALI_ENFORCE(iter != std::string::npos);
-  pos =  iter + l3;
-
-  iter = header.find(")", pos);
-  DALI_ENFORCE(iter != std::string::npos);
-
-  auto sh_str = header.substr(pos, iter - pos);
+  SkipSpace(hdr);
+  Skip(hdr, ",");
+  SkipFieldName(hdr, "shape");
+  auto sh_str = ParseStringValue(hdr, '(', ')');
   auto shape_values = string_split(sh_str, ',');
   target.shape.reserve(shape_values.size());
   try {
