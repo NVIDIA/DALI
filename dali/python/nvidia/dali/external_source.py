@@ -193,7 +193,7 @@ Args
 
     A per-batch source may accept one positional argument. If it does, it is the current iteration
     iteration number and consecutive calls will be ``source(0)``, ``source(1)``, and so on.
-    A per-sample source may accept a :class:`nvidia.dali.SampleInfo` structure.
+    A per-sample source may accept a :class:`nvidia.dali.types.SampleInfo` structure.
 
     If the source is a generator function, the function is invoked and treated as an iterable.
     However, unlike a generator, the function can be used with ``cycle``. In this case, the function

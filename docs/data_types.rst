@@ -85,6 +85,12 @@ DALIImageType
    :undoc-members:
    :exclude-members: name
 
+
+SampleInfo
+^^^^^^^^^^
+.. autoclass:: SampleInfo
+   :members:
+
 TensorLayout
 ^^^^^^^^^^^^
 .. autoclass:: TensorLayout
