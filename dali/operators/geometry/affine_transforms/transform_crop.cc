@@ -126,9 +126,9 @@ class TransformCropCPU
     from_end_.Read(spec, ws, repeat);
     to_start_.Read(spec, ws, repeat);
     to_end_.Read(spec, ws, repeat);
-    auto sizes = {from_start_[0].size(), from_end_[0].size(),
-                  to_start_[0].size(), to_end_[0].size()};
-    ndim_ = std::max(sizes);
+    auto sizes = std::array<size_t, 4>{from_start_[0].size(), from_end_[0].size(),
+                                       to_start_[0].size(), to_end_[0].size()};
+    ndim_ = *std::max_element(sizes.begin(), sizes.end());
     DALI_ENFORCE(std::all_of(sizes.begin(), sizes.end(),
         [&](size_t sz){ return static_cast<int>(sz) == ndim_ || sz == 1; }),
       "Arguments ``from_start``, ``from_end``, ``to_start`` and ``to_end`` should"
