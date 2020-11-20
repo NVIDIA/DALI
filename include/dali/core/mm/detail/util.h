@@ -37,10 +37,20 @@ struct sentinel_value<T, 4> : std::integral_constant<T, static_cast<T>(0xABCDABC
 template <typename T>
 struct sentinel_value<T, 8> : std::integral_constant<T, static_cast<T>(0xABCDABCDABCDABCDuL)> {};
 
+template <typename T>
+void write_sentinel(void *mem, ptrdiff_t offset = 0) {
+  mem = static_cast<char*>(mem) + offset;
+  *static_cast<T*>(mem) = sentinel_value<T>::value;
+}
+
+template <typename T>
+bool check_sentinel(const void *mem, ptrdiff_t offset = 0) {
+  mem = static_cast<const char*>(mem) + offset;
+  return *static_cast<const T*>(mem) == sentinel_value<T>::value;
+}
+
 }  // namespace detail
 }  // namespace mm
 }  // namespace dali
 
 #endif  // DALI_CORE_MM_DETAIL_UTIL_H_
-
-

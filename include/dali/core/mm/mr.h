@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_MM_MR_H_
-#define DALI_MM_MR_H_
+#ifndef DALI_CORE_MM_MR_H_
+#define DALI_CORE_MM_MR_H_
 
 #include <cstddef>
 #include <cuda_runtime.h>
@@ -123,4 +123,4 @@ class stream_memory_resource {
 }  // namespace mm
 }  // namespace dali
 
-#endif  // DALI_MM_MR_H_
+#endif  // DALI_CORE_MM_MR_H_

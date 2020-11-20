@@ -14,6 +14,8 @@
 
 #include <gtest/gtest.h>
 #include <dali/core/mm/monotonic_resource.h>
+#include <dali/core/mm/malloc_resource.h>
+#include <dali/core/mm/mm_test_utils.h>
 
 namespace dali {
 namespace mm {
@@ -41,9 +43,10 @@ TEST(MMTest, MonotonicBufferResource) {
 }
 
 TEST(MMTest, MonotonicHostResource) {
-  static char buf[1<<16];
-  monotonic_buffer_resource mr(buf, sizeof(buf));
-
+  test_host_resource upstream;
+  {
+  }
+  upstream.check_leaks();
 }
 
 }  // namespace mm
