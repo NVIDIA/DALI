@@ -21,7 +21,6 @@
 #include "dali/util/file.h"
 #include "dali/operators/reader/loader/utils.h"
 
-
 namespace dali {
 TypeInfo TypeFromNumpyStr(const std::string &format) {
   if (format == "u1") return TypeInfo::Create<uint8_t>();
@@ -36,6 +35,75 @@ TypeInfo TypeFromNumpyStr(const std::string &format) {
   if (format == "f4") return TypeInfo::Create<float>();
   if (format == "f8") return TypeInfo::Create<double>();
   DALI_FAIL("Unknown Numpy type string");
+}
+
+void ParseHeaderMetadata(NumpyParseTarget& target, std::string header) {
+  header.erase(std::remove_if(header.begin(), header.end(), ::isspace), header.end());
+
+  const char t1[] = "{'descr':\'";
+  size_t l1 = strlen(t1);
+  DALI_ENFORCE(strncmp(header.c_str(), t1, l1) == 0);
+  size_t pos = l1;
+  auto iter = header.find('\'', pos);
+  DALI_ENFORCE(iter != std::string::npos);
+
+  std::string typestring = header.substr(pos, iter - pos);
+  pos = iter + 1;
+
+  // < means LE, | means N/A, = means native. In all those cases, we can read
+  bool little_endian =
+    (typestring[0] == '<' || typestring[0] == '|' || typestring[0] == '=');
+  DALI_ENFORCE(little_endian,
+    "Big Endian files are not supported.");
+
+  std::string tid = typestring.substr(1);
+  // get type in a safe way
+  target.type_info = TypeFromNumpyStr(tid);
+
+  const char t2[] = "\'fortran_order\':";
+  size_t l2 = strlen(t2);
+
+  iter = header.find(t2, pos);
+  DALI_ENFORCE(iter != std::string::npos);
+  pos = iter + l2;
+
+  iter = header.find(',', pos);
+  auto fortran_order_str = header.substr(pos, iter - pos);
+  pos = iter + 1;
+  if (fortran_order_str == "True") {
+    target.fortran_order = true;
+  } else if (fortran_order_str == "False") {
+    target.fortran_order = false;
+  } else {
+    DALI_FAIL("Can not parse fortran order");
+  }
+
+  const char t3[] = "\'shape\':(";
+  size_t l3 = strlen(t3);
+  iter = header.find(t3, pos);
+  DALI_ENFORCE(iter != std::string::npos);
+  pos =  iter + l3;
+
+  iter = header.find(")", pos);
+  DALI_ENFORCE(iter != std::string::npos);
+
+  auto sh_str = header.substr(pos, iter - pos);
+  auto shape_values = string_split(sh_str, ',');
+  target.shape.reserve(shape_values.size());
+  try {
+    for (const auto &s : shape_values) {
+      if (s.empty())
+        continue;
+      target.shape.push_back(static_cast<int64_t>(stoi(s)));
+    }
+  } catch (...) {
+    DALI_FAIL(make_string("Failed to parse shape data: ", sh_str));
+  }
+
+  if (target.fortran_order) {
+    // cheapest thing to do is to define the tensor in an reversed way
+    std::reverse(target.shape.begin(), target.shape.end());
+  }
 }
 
 std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream> file,
@@ -58,7 +126,7 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
                "Error extracting header length.");
 
   // read header: the offset is a magic number
-  int64 offset = (6+1+1+2);
+  int64 offset = 6 + 1 + 1 + 2;
   // the header_len can be 4GiB according to the NPYv2 file format
   // specification: https://numpy.org/neps/nep-0001-npy-format.html
   // while this allocation could be sizable, it is performed on the host.
@@ -67,61 +135,12 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
   nread = file->Read(token.data(), header_len);
   DALI_ENFORCE(nread == header_len, "Can not read header.");
   token[header_len] = '\0';
-  header = std::string(reinterpret_cast<char*>(token.data()));
-  DALI_ENFORCE(header.find_first_of("{") != std::string::npos, "Header is corrupted.");
+  header = std::string(reinterpret_cast<const char*>(token.data()));
+  DALI_ENFORCE(header.find("{") != std::string::npos, "Header is corrupted.");
   offset += header_len;
+  file->Seek(offset);  // prepare file for later reads
 
-  // prepare file for later reads
-  file->Seek(offset);
-
-  // extract dictionary info from header
-  std::smatch header_match;
-  DALI_ENFORCE(std::regex_search(header, header_match, header_regex_),
-               "Can not parse header.");
-
-  // now extract header information
-  // type
-  std::string typestring = header_match[1].str();
-
-  // < means LE, | means N/A, = means native. In all those cases, we can read
-  bool little_endian =
-    (typestring[0] == '<' || typestring[0] == '|' || typestring[0] == '=');
-  DALI_ENFORCE(little_endian,
-    "Big Endian files are not supported.");
-
-  std::string tid = typestring.substr(1);
-  // get type in a safe way
-  target.type_info = TypeFromNumpyStr(tid);
-
-  // check for data order
-  if (header_match[2].str() == "False")
-    target.fortran_order = false;
-  else
-    target.fortran_order = true;
-
-  // set sizes
-  std::string shapestring = header_match[3].str();
-  std::regex shape_regex{R"(,+)"};  // split on comma
-  std::sregex_token_iterator it{shapestring.begin(), shapestring.end(), shape_regex, -1};
-  std::vector<std::string> shapevec{it, {}};
-
-  // if shapevec size is 1 and shapevec[0] is the empty string,
-  // the array is actually a scalar/singleton (denoted as ())
-  // and thus the size needs to be set to one:
-  if ( (shapevec.size() == 1) && (shapevec[0] == "") ) shapevec[0] = "1";
-
-  // determine shapes
-  size_t shapesize = shapevec.size();
-  target.shape.resize(shapesize);
-  // cheapest thing to do is to define the tensor in an reversed way
-  if (target.fortran_order) {
-    for (size_t i = 0; i < shapesize; ++i)
-      target.shape[i] = static_cast<int64_t>(stoi(shapevec[shapesize-i-1]));
-  } else {
-    for (size_t i = 0; i < shapesize; ++i)
-      target.shape[i] = static_cast<int64_t>(stoi(shapevec[i]));
-  }
-
+  ParseHeaderMetadata(target, header);
   return file;
 }
 
