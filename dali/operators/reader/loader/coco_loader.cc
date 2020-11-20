@@ -55,6 +55,42 @@ struct Annotation {
 };
 
 template <typename T>
+std::enable_if_t<std::is_pod<T>::value, void>
+Read(std::ifstream& file, T& data, const char* filename) {
+  int64_t bytes = sizeof(T);
+  file.read(reinterpret_cast<char *>(&data), bytes);
+  DALI_ENFORCE(file.gcount() == bytes,
+               make_string("Error reading from path: ", filename, ". Read ", file.gcount(),
+                           " bytes but requested ", bytes, " bytes."));
+}
+
+template <typename T>
+void Read(std::ifstream& file, span<T> data, const char* filename) {
+  if (data.empty())
+    return;
+
+  int64_t bytes = sizeof(T) * data.size();
+  file.read(reinterpret_cast<char *>(data.data()), bytes);
+  DALI_ENFORCE(file.gcount() == bytes,
+               make_string("Error reading from path: ", filename, ". Read ", file.gcount(),
+                           " bytes but requested ", bytes, " bytes."));
+}
+
+template <typename T>
+void Write(std::ofstream& file, T data, const char* filename) {
+  file.write(reinterpret_cast<const char*>(&data), sizeof(T));
+  DALI_ENFORCE(file.good(), make_string("Error reading from path: ", filename));
+}
+
+template <typename T>
+void Write(std::ofstream& file, span<const T> data, const char* filename) {
+  if (data.empty())
+    return;
+  file.write(reinterpret_cast<const char*>(data.data()), sizeof(T) * data.size());
+  DALI_ENFORCE(file.good(), make_string("Error reading from path: ", filename));
+}
+
+template <typename T>
 void SaveToFile(const std::vector<T> &input, const std::string path) {
   if (input.empty())
     return;
@@ -62,8 +98,8 @@ void SaveToFile(const std::vector<T> &input, const std::string path) {
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
 
   unsigned size = input.size();
-  file.write(reinterpret_cast<const char*>(&size), sizeof(unsigned));
-  file.write(reinterpret_cast<const char*>(input.data()), size * sizeof(T));
+  Write(file, size, path.c_str());
+  Write(file, make_cspan(input), path.c_str());
   DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 }
 
@@ -75,12 +111,13 @@ void SaveToFile(const std::vector<RLEMask> &input, const std::string path) {
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
 
   unsigned size = input.size();
-  file.write(reinterpret_cast<const char*>(&size), sizeof(unsigned));
+  Write(file, size, path.c_str());
   for (auto &rle : input) {
-    file.write(reinterpret_cast<const char*>(&rle->h), 3 * sizeof(siz));  // write h, w, m
-    file.write(reinterpret_cast<const char*>(rle->cnts), rle->m * sizeof(uint));
+    assert(rle->h > 0 && rle->w > 0 && rle->m > 0);
+    siz dims[3] = {rle->h, rle->w, rle->m};
+    Write(file, span<const siz>{&dims[0], 3}, path.c_str());
+    Write(file, span<const uint>{rle->cnts, static_cast<ptrdiff_t>(rle->m)}, path.c_str());
   }
-  DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 }
 
 template <typename T>
@@ -91,13 +128,14 @@ void SaveToFile(const std::vector<std::vector<T> > &input, const std::string pat
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
 
   unsigned size = input.size();
-  file.write(reinterpret_cast<const char*>(&size), sizeof(unsigned));
+  Write(file, size, path.c_str());
+
   for (auto& v : input) {
     size = v.size();
-    file.write(reinterpret_cast<const char*>(&size), sizeof(unsigned));
-    file.write(reinterpret_cast<const char*>(v.data()), size * sizeof(T));
+    assert(size > 0);
+    Write(file, size, path.c_str());
+    Write(file, make_cspan(v), path.c_str());
   }
-  DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 }
 
 template <>
@@ -120,9 +158,9 @@ void LoadFromFile(std::vector<T> &output, const std::string path) {
     return;
 
   unsigned size;
-  file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
+  Read(file, size, path.c_str());
   output.resize(size);
-  file.read(reinterpret_cast<char*>(output.data()), size * sizeof(T));
+  Read(file, make_span(output), path.c_str());
 }
 
 template <>
@@ -133,15 +171,15 @@ void LoadFromFile(std::vector<RLEMask> &output, const std::string path) {
     return;
 
   unsigned size;
-  file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
+  Read(file, size, path.c_str());
   output.clear();
   output.resize(size);
   for (auto &rle : output) {
     siz dims[3];
-    file.read(reinterpret_cast<char*>(dims), 3 * sizeof(siz));  // read h, w, m
+    Read(file, span<siz>{&dims[0], 3}, path.c_str());
     siz h = dims[0], w = dims[1], m = dims[2];
     rle = RLEMask(h, w, m);
-    file.read(reinterpret_cast<char*>(rle->cnts), m * sizeof(uint));
+    Read(file, span<uint>{rle->cnts, static_cast<ptrdiff_t>(rle->m)}, path.c_str());
   }
 }
 
@@ -153,12 +191,12 @@ void LoadFromFile(std::vector<std::vector<T> > &output, const std::string path) 
     return;
 
   unsigned size;
-  file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
+  Read(file, size, path.c_str());
   output.resize(size);
   for (size_t i = 0; i < output.size(); ++i) {
-    file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
+    Read(file, size, path.c_str());
     output[i].resize(size);
-    file.read(reinterpret_cast<char*>(output[i].data()), size * sizeof(T));
+    Read(file, make_span(output[i]), path.c_str());
   }
 }
 
