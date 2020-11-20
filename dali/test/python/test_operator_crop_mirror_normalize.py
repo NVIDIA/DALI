@@ -139,14 +139,12 @@ class PythonOpPipeline(Pipeline):
         super(PythonOpPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
-        self.cmn = ops.PythonFunction(function=function)
-        self.set_layout = ops.Reshape(layout=output_layout)
+        self.cmn = ops.PythonFunction(function=function, output_layouts=[output_layout])
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
         images = self.decode(inputs)
         images = self.cmn(images)
-        images = self.set_layout(images)
         return images
 
 # Those are hardcoded coin flip results when using `seed=7865`
@@ -368,13 +366,11 @@ class CMNRandomDataPythonOpPipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.cmn = ops.PythonFunction(function=function)
-        self.set_layout = ops.Reshape(layout=output_layout)
+        self.cmn = ops.PythonFunction(function=function, output_layouts=[output_layout])
 
     def define_graph(self):
         self.data = self.inputs()
         out = self.cmn(self.data)
-        out = self.set_layout(out)
         return out
 
     def iter_setup(self):

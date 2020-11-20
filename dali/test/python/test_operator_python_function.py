@@ -15,6 +15,7 @@
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali.ops import _DataNode
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy
 import random
@@ -53,14 +54,12 @@ class CommonPipeline(Pipeline):
                                              exec_pipelined=False)
         self.input = ops.FileReader(file_root=image_dir)
         self.decode = ops.ImageDecoder(device = 'cpu', output_type=types.RGB)
-        self.resize = ops.PythonFunction(function=resize)
-        self.set_layout = ops.Reshape(layout="HWC")
+        self.resize = ops.PythonFunction(function=resize, output_layouts=['HWC'])
 
     def load(self):
         jpegs, labels = self.input()
         decoded = self.decode(jpegs)
         resized = self.resize(decoded)
-        resized = self.set_layout(resized)
         return resized, labels
 
     def define_graph(self):
@@ -486,8 +485,30 @@ class AsyncPipeline(Pipeline):
     def define_graph(self):
         return self.op()
 
-
 @raises(RuntimeError)
 def test_wrong_pipeline():
     pipe = AsyncPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED)
     pipe.build()
+
+def test_output_layout():
+    pipe = CommonPipeline(1, 1, 0, 999, images_dir)
+    with pipe:
+        images, _ = pipe.load()
+        out = fn.python_function(images, function=lambda x: x.mean(2), output_layouts=['HW'])
+        pipe.set_outputs(out)
+    pipe.build()
+    out, = pipe.run()
+    assert(out.layout() == 'HW')
+
+    pipe2 = CommonPipeline(1, 1, 0, 999, images_dir)
+    with pipe2:
+        images, _ = pipe.load()
+        out1, out2 = fn.python_function(images,
+                                        function=lambda x: (x, x.mean(2)),
+                                        num_outputs=2,
+                                        output_layouts=['HWC', 'HW'])
+        pipe2.set_outputs(out1, out2)
+    pipe2.build()
+    out1, out2 = pipe2.run()
+    assert(out1.layout() == 'HWC')
+    assert(out2.layout() == 'HW')

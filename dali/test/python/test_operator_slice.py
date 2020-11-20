@@ -273,11 +273,10 @@ class SliceSynthDataPipelinePythonOp(Pipeline):
         function = partial(
             slice_func_helper, axes, axis_names, self.layout,
             normalized_anchor, normalized_shape)
-        self.slice = ops.PythonFunction(function=function)
+        self.slice = ops.PythonFunction(function=function, output_layouts=[layout])
         self.output_type = output_type
         if self.output_type is not None:
             self.cast_out = ops.Cast(dtype=output_type)
-        self.set_layout = ops.Reshape(layout=layout)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -287,7 +286,6 @@ class SliceSynthDataPipelinePythonOp(Pipeline):
         out = self.slice(out, self.crop_pos, self.crop_size)
         if self.output_type is not None:
             out = self.cast_out(out)
-        out = self.set_layout(out)
         return out
 
     def iter_setup(self):
@@ -320,8 +318,7 @@ class SlicePythonOp(Pipeline):
         function = partial(
             slice_func_helper, axes, axis_names, self.layout,
             normalized_anchor, normalized_shape)
-        self.slice = ops.PythonFunction(function=function)
-        self.set_layout = ops.Reshape(layout="HWC")
+        self.slice = ops.PythonFunction(function=function, output_layouts=["HWC"])
 
     def define_graph(self):
         imgs, _ = self.input()
@@ -329,7 +326,6 @@ class SlicePythonOp(Pipeline):
         self.crop_pos = self.input_crop_pos()
         self.crop_size = self.input_crop_size()
         out = self.slice(imgs, self.crop_pos, self.crop_size)
-        out = self.set_layout(out)
         return out
 
     def iter_setup(self):

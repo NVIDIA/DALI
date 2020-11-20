@@ -19,6 +19,7 @@
 #include <pybind11/stl.h>
 #include <vector>
 #include <utility>
+#include <string>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/copy_with_stride.h"
 
@@ -171,6 +172,11 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
           reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))) {
     synchronize_stream_ = spec.GetArgument<bool>("synchronize_stream");
     batch_processing = spec.GetArgument<bool>("batch_processing");
+    size_t num_outputs = spec.GetArgument<int>("num_outputs");
+    layouts_specified_ = spec.TryGetRepeatedArgument(output_layouts_, "output_layouts");
+    DALI_ENFORCE(!layouts_specified_ || output_layouts_.size() == num_outputs,
+                 make_string("The length of the ``output_layouts`` (=", output_layouts_.size(),
+                             ") does not match the number of outputs (=", num_outputs, ")."));
   }
 
  protected:
@@ -179,6 +185,7 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
   }
 
   void RunImpl(workspace_t<Backend> &ws) override {
+    SetOutputLayouts(ws);
     std::lock_guard<std::mutex> operator_guard(operator_lock);
     py::gil_scoped_acquire interpreter_guard{};
     py::object output_o = py::none();
@@ -218,12 +225,23 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
     }
   };
 
+  void SetOutputLayouts(workspace_t<Backend> &ws) {
+    if (!layouts_specified_) return;
+    assert(ws.NumOutput() == static_cast<int64_t>(output_layouts_.size()));
+    for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
+      auto &output = ws.template OutputRef<Backend>(idx);
+      output.SetLayout(output_layouts_[idx]);
+    }
+  }
+
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
   py::object python_function;
   bool synchronize_stream_;
   bool batch_processing;
+  std::vector<string> output_layouts_;
+  bool layouts_specified_;
 };
 
 }  // namespace dali

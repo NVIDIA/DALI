@@ -19,12 +19,14 @@
 namespace dali {
 
 DALI_SCHEMA(PythonFunctionBase)
-        .AddArg("function",
-                R"code(Function object.)code",
-                DALI_PYTHON_OBJECT)
-        .AddOptionalArg("num_outputs", R"code(Number of outputs.)code", 1)
-        .AddOptionalArg<std::vector<string>>("output_layouts", "Output layouts", nullptr)
-        .MakeInternal();
+    .AddArg("function",
+            "Function object.",
+            DALI_PYTHON_OBJECT)
+    .AddOptionalArg("num_outputs", R"code(Number of outputs.)code", 1)
+    .AddOptionalArg<std::vector<string>>("output_layouts",
+      "Tensor data layouts for the outputs. Length of the list must match the number of outputs."
+      " When the argument is not specified, output tensors have no layouts assigned.", nullptr)
+    .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)
         .DocStr(R"code(Executes a Python function.
