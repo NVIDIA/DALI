@@ -281,7 +281,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
       bbox_out.Resize({valid_bboxes, 4});
       auto *bbox_out_data = bbox_out.mutable_data<float>();
 
-      label_out.Resize({valid_bboxes, 1});
+      label_out.Resize({valid_bboxes});
       auto *label_out_data = label_out.mutable_data<int>();
 
       // copy valid bboxes to output and transform them
