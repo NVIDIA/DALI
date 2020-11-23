@@ -25,7 +25,6 @@
 #include <utility>
 #include <vector>
 #include <algorithm>
-#include <regex>
 #include <memory>
 
 #include "dali/core/common.h"
@@ -33,8 +32,8 @@
 #include "dali/operators/reader/loader/file_loader.h"
 #include "dali/util/file.h"
 
-
 namespace dali {
+
 TypeInfo TypeFromNumpyStr(const std::string &format);
 
 class NumpyParseTarget{
@@ -52,13 +51,14 @@ class NumpyParseTarget{
   }
 };
 
+DLL_PUBLIC void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header);
+
 class NumpyLoader : public FileLoader {
  public:
   explicit inline NumpyLoader(
     const OpSpec& spec,
     bool shuffle_after_epoch = false)
-    : FileLoader(spec, shuffle_after_epoch),
-    header_regex_(R"###(^\{'descr': \'(.*?)\', 'fortran_order': (.*?), 'shape': \((.*?)\), \})###") {}
+    : FileLoader(spec, shuffle_after_epoch) {}
 
   // we want to make it possible to override this function as well
   void ReadSample(ImageFileWrapper& tensor) override;
@@ -67,9 +67,6 @@ class NumpyLoader : public FileLoader {
   // parser function, only for internal use
   std::unique_ptr<FileStream> ParseHeader(std::unique_ptr<FileStream> file,
                                           NumpyParseTarget& target);
-
-  // regex search string
-  const std::regex header_regex_;
 };
 
 }  // namespace dali

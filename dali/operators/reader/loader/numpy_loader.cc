@@ -14,13 +14,13 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <cstdlib>
 #include <memory>
 
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/numpy_loader.h"
 #include "dali/util/file.h"
 #include "dali/operators/reader/loader/utils.h"
-
 
 namespace dali {
 TypeInfo TypeFromNumpyStr(const std::string &format) {
@@ -36,6 +36,125 @@ TypeInfo TypeFromNumpyStr(const std::string &format) {
   if (format == "f4") return TypeInfo::Create<float>();
   if (format == "f8") return TypeInfo::Create<double>();
   DALI_FAIL("Unknown Numpy type string");
+}
+
+inline void SkipSpaces(const char*& ptr) {
+  while (::isspace(*ptr))
+    ptr++;
+}
+
+template <size_t N>
+void Skip(const char*& ptr, const char (&what)[N]) {
+  DALI_ENFORCE(!strncmp(ptr, what, N - 1),
+               make_string("Expected \"", what, "\" but got \"", ptr, "\""));
+  ptr += N - 1;
+}
+
+template <size_t N>
+bool TrySkip(const char*& ptr, const char (&what)[N]) {
+  if (!strncmp(ptr, what, N-1)) {
+    ptr += N - 1;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+
+template <size_t N>
+void SkipFieldName(const char*& ptr, const char (&name)[N]) {
+  SkipSpaces(ptr);
+  Skip(ptr, "'");
+  Skip(ptr, name);
+  Skip(ptr, "'");
+  SkipSpaces(ptr);
+  Skip(ptr, ":");
+  SkipSpaces(ptr);
+}
+
+template <typename T = int64_t>
+T ParseInteger(const char*& ptr) {
+  char *out_ptr = const_cast<char*>(ptr);  // strtol takes a non-const pointer
+  T value = static_cast<T>(strtol(ptr, &out_ptr, 10));
+  DALI_ENFORCE(out_ptr != ptr, "Parse error: expected a number.");
+  ptr = out_ptr;
+  return value;
+}
+
+std::string ParseStringValue(const char*& input, char delim_start = '\'', char delim_end = '\'') {
+  DALI_ENFORCE(*input++ == delim_start, make_string("Expected \'", delim_start, "\'"));
+  std::string out;
+  for (; *input != '\0'; input++) {
+    if (*input == '\\') {
+      switch (*++input) {
+        case '\\':
+          out += '\\';
+          break;
+        case '\'':
+          out += '\'';
+          break;
+        case '\t':
+          out += '\t';
+          break;
+        case '\n':
+          out += '\n';
+          break;
+        case '\"':
+          out += '\"';
+          break;
+        default:
+          out += '\\';
+          out += *input;
+          break;
+      }
+    } else if (*input == delim_end) {
+      break;
+    } else {
+      out += *input;
+    }
+  }
+  DALI_ENFORCE(*input++ == delim_end, make_string("Expected \'", delim_end, "\'"));
+  return out;
+}
+
+void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header) {
+  target.shape.clear();
+  const char* hdr = header.c_str();
+  SkipSpaces(hdr);
+  Skip(hdr, "{");
+  SkipFieldName(hdr, "descr");
+  auto typestr = ParseStringValue(hdr);
+    // < means LE, | means N/A, = means native. In all those cases, we can read
+  bool little_endian = (typestr[0] == '<' || typestr[0] == '|' || typestr[0] == '=');
+  DALI_ENFORCE(little_endian, "Big Endian files are not supported.");
+  target.type_info = TypeFromNumpyStr(typestr.substr(1));
+
+  SkipSpaces(hdr);
+  Skip(hdr, ",");
+  SkipFieldName(hdr, "fortran_order");
+  if (TrySkip(hdr, "True")) {
+    target.fortran_order = true;
+  } else if (TrySkip(hdr, "False")) {
+    target.fortran_order = false;
+  } else {
+    DALI_FAIL("Failed to parse fortran_order field.");
+  }
+  SkipSpaces(hdr);
+  Skip(hdr, ",");
+  SkipFieldName(hdr, "shape");
+  Skip(hdr, "(");
+  SkipSpaces(hdr);
+  while (*hdr != ')') {
+    // ParseInteger already skips the leading spaces (strtol does).
+    target.shape.push_back(ParseInteger<int64_t>(hdr));
+    SkipSpaces(hdr);
+    DALI_ENFORCE(TrySkip(hdr, ",") || target.shape.size() > 1,
+                 "The first number in a tuple must be followed by a comma.");
+  }
+  if (target.fortran_order) {
+    // cheapest thing to do is to define the tensor in an reversed way
+    std::reverse(target.shape.begin(), target.shape.end());
+  }
 }
 
 std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream> file,
@@ -58,7 +177,7 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
                "Error extracting header length.");
 
   // read header: the offset is a magic number
-  int64 offset = (6+1+1+2);
+  int64 offset = 6 + 1 + 1 + 2;
   // the header_len can be 4GiB according to the NPYv2 file format
   // specification: https://numpy.org/neps/nep-0001-npy-format.html
   // while this allocation could be sizable, it is performed on the host.
@@ -67,61 +186,12 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
   nread = file->Read(token.data(), header_len);
   DALI_ENFORCE(nread == header_len, "Can not read header.");
   token[header_len] = '\0';
-  header = std::string(reinterpret_cast<char*>(token.data()));
-  DALI_ENFORCE(header.find_first_of("{") != std::string::npos, "Header is corrupted.");
+  header = std::string(reinterpret_cast<const char*>(token.data()));
+  DALI_ENFORCE(header.find("{") != std::string::npos, "Header is corrupted.");
   offset += header_len;
+  file->Seek(offset);  // prepare file for later reads
 
-  // prepare file for later reads
-  file->Seek(offset);
-
-  // extract dictionary info from header
-  std::smatch header_match;
-  DALI_ENFORCE(std::regex_search(header, header_match, header_regex_),
-               "Can not parse header.");
-
-  // now extract header information
-  // type
-  std::string typestring = header_match[1].str();
-
-  // < means LE, | means N/A, = means native. In all those cases, we can read
-  bool little_endian =
-    (typestring[0] == '<' || typestring[0] == '|' || typestring[0] == '=');
-  DALI_ENFORCE(little_endian,
-    "Big Endian files are not supported.");
-
-  std::string tid = typestring.substr(1);
-  // get type in a safe way
-  target.type_info = TypeFromNumpyStr(tid);
-
-  // check for data order
-  if (header_match[2].str() == "False")
-    target.fortran_order = false;
-  else
-    target.fortran_order = true;
-
-  // set sizes
-  std::string shapestring = header_match[3].str();
-  std::regex shape_regex{R"(,+)"};  // split on comma
-  std::sregex_token_iterator it{shapestring.begin(), shapestring.end(), shape_regex, -1};
-  std::vector<std::string> shapevec{it, {}};
-
-  // if shapevec size is 1 and shapevec[0] is the empty string,
-  // the array is actually a scalar/singleton (denoted as ())
-  // and thus the size needs to be set to one:
-  if ( (shapevec.size() == 1) && (shapevec[0] == "") ) shapevec[0] = "1";
-
-  // determine shapes
-  size_t shapesize = shapevec.size();
-  target.shape.resize(shapesize);
-  // cheapest thing to do is to define the tensor in an reversed way
-  if (target.fortran_order) {
-    for (size_t i = 0; i < shapesize; ++i)
-      target.shape[i] = static_cast<int64_t>(stoi(shapevec[shapesize-i-1]));
-  } else {
-    for (size_t i = 0; i < shapesize; ++i)
-      target.shape[i] = static_cast<int64_t>(stoi(shapevec[i]));
-  }
-
+  ParseHeaderMetadata(target, header);
   return file;
 }
 
