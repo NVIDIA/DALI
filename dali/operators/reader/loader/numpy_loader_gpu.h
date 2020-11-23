@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@
 #include <vector>
 #include <algorithm>
 #include <map>
-#include <regex>
 #include <memory>
 #include <set>
 #include <mutex>
@@ -47,8 +46,7 @@ class NumpyLoaderGPU : public CUFileLoader {
     bool shuffle_after_epoch = false) :
       CUFileLoader(spec, images, shuffle_after_epoch),
     register_buffers_(spec.GetArgument<bool>("register_buffers")),
-    header_regex_(R"###(^\{'descr': \'(.*?)\', 'fortran_order': (.*?), 'shape': \((.*?)\), \})###"),
-    cache_headers_(spec.GetArgument<bool>("cache_header_information")) {
+    header_cache_(spec.GetArgument<bool>("cache_header_information")) {
     // set device
     DeviceGuard g(device_id_);
   }
@@ -69,8 +67,7 @@ class NumpyLoaderGPU : public CUFileLoader {
 
  protected:
   // parser function, only for internal use
-  std::unique_ptr<CUFileStream>
-    ParseHeader(std::unique_ptr<CUFileStream> file, NumpyParseTarget& target);
+  void ParseHeader(CUFileStream *file, NumpyParseTarget& target);
 
   // register input tensor
   void RegisterTensor(void *buffer, size_t total_size);
@@ -86,13 +83,7 @@ class NumpyLoaderGPU : public CUFileLoader {
   std::mutex reg_mutex_;
   std::map<uint8_t*, size_t> reg_buff_;
 
-  // regex search string
-  const std::regex header_regex_;
-
-  // helper for header caching
-  std::mutex cache_mutex_;
-  bool cache_headers_;
-  std::map<string, NumpyParseTarget> header_cache_;
+  detail::NumpyHeaderCache header_cache_;
 
   // temporary tensor for 2-stage IO
   Tensor<GPUBackend> io_tensor_;

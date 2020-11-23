@@ -54,7 +54,62 @@ class NumpyParseTarget{
   }
 };
 
+namespace detail {
+
 DLL_PUBLIC void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header);
+
+// parser function, only for internal use
+template<typename FileStreamType, typename ReadCPUFun>
+void ParseHeader(FileStreamType *file, NumpyParseTarget& target, ReadCPUFun readCPU) {
+  // check if the file is actually a numpy file
+  std::vector<uint8_t> token(11);
+  int64_t nread = (file->*readCPU)(token.data(), 10);
+  DALI_ENFORCE(nread == 10, "Can not read header.");
+  token[nread] = '\0';
+
+  // check if heqder is too short
+  std::string header = std::string(reinterpret_cast<char*>(token.data()));
+  DALI_ENFORCE(header.find_first_of("NUMPY") != std::string::npos,
+               "File is not a numpy file.");
+
+  // extract header length
+  uint16_t header_len = 0;
+  memcpy(&header_len, &token[8], 2);
+  DALI_ENFORCE((header_len + 10) % 16 == 0,
+               "Error extracting header length.");
+
+  // read header: the offset is a magic number
+  int64 offset = 6 + 1 + 1 + 2;
+  // the header_len can be 4GiB according to the NPYv2 file format
+  // specification: https://numpy.org/neps/nep-0001-npy-format.html
+  // while this allocation could be sizable, it is performed on the host.
+  token.resize(header_len+1);
+  file->Seek(offset);
+  nread = (file->*readCPU)(token.data(), header_len);
+  DALI_ENFORCE(nread == header_len, "Can not read header.");
+  token[header_len] = '\0';
+  header = std::string(reinterpret_cast<const char*>(token.data()));
+  DALI_ENFORCE(header.find("{") != std::string::npos, "Header is corrupted.");
+  offset += header_len;
+  file->Seek(offset);  // prepare file for later reads
+
+  detail::ParseHeaderMetadata(target, header);
+}
+
+class NumpyHeaderCache {
+ public:
+  explicit NumpyHeaderCache(bool cache_headers) : cache_headers_(cache_headers) {}
+  bool GetFromCache(const string &file_name, NumpyParseTarget &target);
+  void UpdateCache(const string &file_name, const NumpyParseTarget &value);
+
+ private:
+  // helper for header caching
+  std::mutex cache_mutex_;
+  bool cache_headers_;
+  std::map<string, NumpyParseTarget> header_cache_;
+};
+
+}  // namespace detail
 
 class NumpyLoader : public FileLoader {
  public:
@@ -62,19 +117,12 @@ class NumpyLoader : public FileLoader {
     const OpSpec& spec,
     bool shuffle_after_epoch = false)
     : FileLoader(spec, shuffle_after_epoch),
-    cache_headers_(spec.GetArgument<bool>("cache_header_information")) {}
+    header_cache_(spec.GetArgument<bool>("cache_header_information")) {}
 
   // we want to make it possible to override this function as well
   void ReadSample(ImageFileWrapper& tensor) override;
-
- protected:
-  // parser function, only for internal use
-  std::unique_ptr<FileStream> ParseHeader(std::unique_ptr<FileStream> file,
-                                          NumpyParseTarget& target);
-  // helper for header caching
-  std::mutex cache_mutex_;
-  bool cache_headers_;
-  std::map<string, NumpyParseTarget> header_cache_;
+ private:
+  detail::NumpyHeaderCache header_cache_;
 };
 
 }  // namespace dali

@@ -117,6 +117,8 @@ std::string ParseStringValue(const char*& input, char delim_start = '\'', char d
   return out;
 }
 
+namespace detail {
+
 void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header) {
   target.shape.clear();
   const char* hdr = header.c_str();
@@ -157,44 +159,28 @@ void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header) {
   }
 }
 
-std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream> file,
-                                                     NumpyParseTarget& target) {
-  // check if the file is actually a numpy file
-  std::vector<uint8_t> token(11);
-  int64_t nread = file->Read(token.data(), 10);
-  DALI_ENFORCE(nread == 10, "Can not read header.");
-  token[nread] = '\0';
-
-  // check if heqder is too short
-  std::string header = std::string(reinterpret_cast<char*>(token.data()));
-  DALI_ENFORCE(header.find_first_of("NUMPY") != std::string::npos,
-               "File is not a numpy file.");
-
-  // extract header length
-  uint16_t header_len = 0;
-  memcpy(&header_len, &token[8], 2);
-  DALI_ENFORCE((header_len + 10) % 16 == 0,
-               "Error extracting header length.");
-
-  // read header: the offset is a magic number
-  int64 offset = 6 + 1 + 1 + 2;
-  // the header_len can be 4GiB according to the NPYv2 file format
-  // specification: https://numpy.org/neps/nep-0001-npy-format.html
-  // while this allocation could be sizable, it is performed on the host.
-  token.resize(header_len+1);
-  file->Seek(offset);
-  nread = file->Read(token.data(), header_len);
-  DALI_ENFORCE(nread == header_len, "Can not read header.");
-  token[header_len] = '\0';
-  header = std::string(reinterpret_cast<const char*>(token.data()));
-  DALI_ENFORCE(header.find("{") != std::string::npos, "Header is corrupted.");
-  offset += header_len;
-  file->Seek(offset);  // prepare file for later reads
-
-  ParseHeaderMetadata(target, header);
-  return file;
+bool NumpyHeaderCache::GetFromCache(const string &file_name, NumpyParseTarget &target) {
+  if (!cache_headers_) {
+    return false;
+  }
+  std::unique_lock<std::mutex> cache_lock(cache_mutex_);
+  auto it = header_cache_.find(file_name);
+  if (it == header_cache_.end()) {
+    return false;
+  } else {
+    target = it->second;
+    return true;
+  }
 }
 
+void NumpyHeaderCache::UpdateCache(const string &file_name, const NumpyParseTarget &value) {
+  if (cache_headers_) {
+    std::unique_lock<std::mutex> cache_lock(cache_mutex_);
+    header_cache_[file_name] = value;
+  }
+}
+
+}  // namespace detail
 
 void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   auto image_file = images_[current_index_++];
@@ -223,20 +209,14 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
 
   // read the header
   NumpyParseTarget target;
-  std::unique_lock<std::mutex> cache_lock(cache_mutex_);
-  auto it = header_cache_.find(image_file);
-  cache_lock.unlock();
-  if (!cache_headers_ || it == header_cache_.end()) {
-    current_image = ParseHeader(std::move(current_image), target);
-    if (cache_headers_) {
-      cache_lock.lock();
-      header_cache_[image_file] = target;
-      cache_lock.unlock();
-    }
-  } else {
-    target = it->second;
+  auto ret = header_cache_.GetFromCache(image_file, target);
+  if (ret) {
     current_image->Seek(target.data_offset);
+  } else {
+    detail::ParseHeader(current_image.get(), target, &FileStream::Read);
+    header_cache_.UpdateCache(image_file, target);
   }
+
   Index image_bytes = target.nbytes();
 
   if (copy_read_data_) {

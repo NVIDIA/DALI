@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,96 +21,6 @@
 #include "dali/operators/reader/loader/numpy_loader_gpu.h"
 
 namespace dali {
-
-std::unique_ptr<CUFileStream> NumpyLoaderGPU::ParseHeader(std::unique_ptr<CUFileStream> file,
-                                                          NumpyParseTarget& target) {
-  // check if the file is actually a numpy file
-  std::vector<uint8_t> token(11);
-  int64_t nread = file->ReadCPU(token.data(), 10);
-  DALI_ENFORCE(nread == 10, "Can not read header.");
-  token[nread] = '\0';
-
-  // check if heqder is too short
-  std::string header = std::string(reinterpret_cast<char*>(token.data()));
-  DALI_ENFORCE(header.find_first_of("NUMPY") != std::string::npos,
-               "File is not a numpy file.");
-
-  // extract header length
-  uint16_t header_len = 0;
-  memcpy(&header_len, &token[8], 2);
-  DALI_ENFORCE((header_len + 10) % 16 == 0,
-               "Error extracting header length.");
-
-  // read header: the offset is a magic number
-  int64 offset = (6+1+1+2);
-  // the header_len can be 4GiB according to the NPYv2 file format
-  // specification: https://numpy.org/neps/nep-0001-npy-format.html
-  // while this allocation could be sizable, it is performed on the host.
-  token.resize(header_len+1);
-  file->Seek(offset);
-  nread = file->ReadCPU(token.data(), header_len);
-  DALI_ENFORCE(nread == header_len, "Can not read header.");
-  token[header_len] = '\0';
-  header = std::string(reinterpret_cast<char*>(token.data()));
-  DALI_ENFORCE(header.find_first_of("{") != std::string::npos, "Header is corrupted.");
-  offset += header_len;
-
-  // store the file offset in the parse target
-  target.data_offset = offset;
-
-  // prepare file for later reads
-  file->Seek(offset);
-
-  // extract dictionary info from header
-  std::smatch header_match;
-  DALI_ENFORCE(std::regex_search(header, header_match, header_regex_),
-               "Can not parse header.");
-
-  // now extract header information
-  // type
-  std::string typestring = header_match[1].str();
-
-  // < means LE, | means N/A, = means native. In all those cases, we can read
-  bool little_endian =
-    (typestring[0] == '<' || typestring[0] == '|' || typestring[0] == '=');
-  DALI_ENFORCE(little_endian,
-    "Big Endian files are not supported.");
-
-  std::string tid = typestring.substr(1);
-  // get type in a safe way
-  target.type_info = TypeFromNumpyStr(tid);
-
-  // check for data order
-  if (header_match[2].str() == "False")
-    target.fortran_order = false;
-  else
-    target.fortran_order = true;
-
-  // set sizes
-  std::string shapestring = header_match[3].str();
-  std::regex shape_regex{R"(,+)"};  // split on comma
-  std::sregex_token_iterator it{shapestring.begin(), shapestring.end(), shape_regex, -1};
-  std::vector<std::string> shapevec{it, {}};
-
-  // if shapevec size is 1 and shapevec[0] is the empty string,
-  // the array is actually a scalar/singleton (denoted as ())
-  // and thus the size needs to be set to one:
-  if ( (shapevec.size() == 1) && (shapevec[0] == "") ) shapevec[0] = "1";
-
-  // determine shapes
-  size_t shapesize = shapevec.size();
-  target.shape.resize(shapesize);
-  // cheapest thing to do is to define the tensor in an reversed way
-  if (target.fortran_order) {
-    for (size_t i = 0; i < shapesize; ++i)
-      target.shape[i] = static_cast<int64_t>(stoi(shapevec[shapesize-i-1]));
-  } else {
-    for (size_t i = 0; i < shapesize; ++i)
-      target.shape[i] = static_cast<int64_t>(stoi(shapevec[i]));
-  }
-
-  return file;
-}
 
 // register tensor
 void NumpyLoaderGPU::RegisterTensor(void *buffer, size_t total_size) {
@@ -180,22 +90,16 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
     // open file
     imfile.file_stream = CUFileStream::Open(file_root_ + "/" + image_file, read_ahead_, false);
 
-    // read the header from file or cache
+    // read the header
     NumpyParseTarget target;
-    std::unique_lock<std::mutex> cache_lock(cache_mutex_);
-    auto it = header_cache_.find(image_file);
-    cache_lock.unlock();
-    if (!cache_headers_ || it == header_cache_.end()) {
-      imfile.file_stream = ParseHeader(std::move(imfile.file_stream), target);
-      if (cache_headers_) {
-        cache_lock.lock();
-        header_cache_[image_file] = target;
-        cache_lock.unlock();
-      }
-    } else {
-      target = it->second;
+    auto ret = header_cache_.GetFromCache(image_file, target);
+    if (ret) {
       imfile.file_stream->Seek(target.data_offset);
+    } else {
+      detail::ParseHeader(imfile.file_stream.get(), target, &CUFileStream::ReadCPU);
+      header_cache_.UpdateCache(image_file, target);
     }
+
     imfile.type_info = target.type_info;
     imfile.shape = target.shape;
     imfile.meta = (target.fortran_order ? "transpose:true" : "transpose:false");

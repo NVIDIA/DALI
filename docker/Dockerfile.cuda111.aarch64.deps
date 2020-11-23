@@ -1,5 +1,5 @@
-ARG BASE_IMAGE=ubuntu:18.04
-FROM ${BASE_IMAGE} as cuda
+ARG TOOLKIT_BASE_IMAGE=ubuntu:18.04
+FROM ${TOOLKIT_BASE_IMAGE} as cuda
 
 RUN apt update && apt install -y libxml2 curl perl gcc && \
     rm -rf /var/lib/apt/lists/*

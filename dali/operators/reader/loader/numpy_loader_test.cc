@@ -22,14 +22,14 @@ namespace dali {
 TEST(NumpyLoaderTest, ParseHeader) {
   {
     NumpyParseTarget target;
-    ParseHeaderMetadata(target, "{'descr':'<i2', 'fortran_order':True, 'shape':(4,7),}");
+    detail::ParseHeaderMetadata(target, "{'descr':'<i2', 'fortran_order':True, 'shape':(4,7),}");
     ASSERT_EQ(target.type_info.id(), DALI_INT16);
     ASSERT_EQ(target.fortran_order, true);
     ASSERT_EQ(target.shape, std::vector<int64_t>({7, 4}));
   }
   {
     NumpyParseTarget target;
-    ParseHeaderMetadata(target,
+    detail::ParseHeaderMetadata(target,
                         "  {  'descr' : '<f4'   ,   'fortran_order'  : False, 'shape' : (4,)}");
     ASSERT_EQ(target.type_info.id(), DALI_FLOAT);
     ASSERT_EQ(target.fortran_order, false);
@@ -37,7 +37,7 @@ TEST(NumpyLoaderTest, ParseHeader) {
   }
   {
     NumpyParseTarget target;
-    ParseHeaderMetadata(target, "{'descr':'<f8','fortran_order':False,'shape':(),}");
+    detail::ParseHeaderMetadata(target, "{'descr':'<f8','fortran_order':False,'shape':(),}");
     ASSERT_EQ(target.type_info.id(), DALI_FLOAT64);
     ASSERT_EQ(target.fortran_order, false);
     ASSERT_TRUE(target.shape.empty());
@@ -55,7 +55,7 @@ TEST(NumpyLoaderTest, ParseHeaderError) {
     "{'descr':'<f4','fortran_order':False,'shape':[4,7],}"
   };
   for (const auto &header : wrong) {
-    EXPECT_THROW(ParseHeaderMetadata(target, header), std::runtime_error);
+    EXPECT_THROW(detail::ParseHeaderMetadata(target, header), std::runtime_error);
   }
 }
 

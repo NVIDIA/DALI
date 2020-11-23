@@ -20,6 +20,7 @@ import nvidia.dali.fn as fn
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
+import platform
 import tempfile
 import nose.tools
 
@@ -28,7 +29,7 @@ if not os.path.isdir(gds_data_root):
     gds_data_root = os.getcwd() + "/"
 
 def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None, path_filter="*.npy",
-                        num_threads=1, device_id=0, num_gpus=1):
+                        num_threads=1, device_id=0, num_gpus=1, cache_header_information=False):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=0)
     data = fn.numpy_reader(device = device,
                            file_list = file_list,
@@ -36,7 +37,8 @@ def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=No
                            file_root = path,
                            file_filter = path_filter,
                            shard_id = 0,
-                           num_shards = 1)
+                           num_shards = 1,
+                           cache_header_information = cache_header_information)
     pipe.set_outputs(data)
     return pipe
 
@@ -58,6 +60,9 @@ def test_types_and_shapes():
     with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         index = 0
         for device in ["cpu", "gpu"]:
+            if platform.processor() != "x86_64" and device == "gpu":
+                # GDS is supported only on x86_64
+                continue
             for fortran_order in [False, True]:
                 for type in all_numpy_types - unsupported_numpy_types:
                     for shape in test_np_shapes:
@@ -75,7 +80,7 @@ def test_unsupported_types():
             nose.tools.assert_raises(RuntimeError, check_array, filename, shape, type,
                                      fortran_order)
 
-def check_batch(test_data_root, batch_size, num_samples, device, arr_np_all, file_list=None, files=None):
+def check_batch(test_data_root, batch_size, num_samples, device, arr_np_all, file_list=None, files=None, cache_header_information=False):
     for num_threads in [1, 2, 4, 8]:
         pipe = NumpyReaderPipeline(path = test_data_root,
                                    file_list = file_list,
@@ -84,7 +89,8 @@ def check_batch(test_data_root, batch_size, num_samples, device, arr_np_all, fil
                                    path_filter = "test_*.npy",
                                    batch_size = batch_size,
                                    num_threads = num_threads,
-                                   device_id = 0)
+                                   device_id = 0,
+                                   cache_header_information = False)
         pipe.build()
 
         for batch in range(0, num_samples, batch_size):
@@ -114,6 +120,9 @@ def test_batch():
         arr_np_all = np.stack(arr_np_list, axis=0)
 
         for device in ["cpu", "gpu"]:
+            if platform.processor() != "x86_64" and device == "gpu":
+                # GDS is supported only on x86_64
+                continue
             yield check_batch, test_data_root, batch_size, num_samples, device, arr_np_all
 
 def test_batch_file_list():
@@ -136,6 +145,9 @@ def test_batch_file_list():
             f.writelines("\n".join(filenames))
 
         for device in ["cpu", "gpu"]:
+            if platform.processor() != "x86_64" and device == "gpu":
+                # GDS is supported only on x86_64
+                continue
             yield check_batch, "", batch_size, num_samples, device , arr_np_all, file_list_path
 
 
@@ -154,7 +166,30 @@ def test_batch_files():
         arr_np_all = np.stack(arr_np_list, axis=0)
 
         for device in ["cpu", "gpu"]:
+            if platform.processor() != "x86_64" and device == "gpu":
+                # GDS is supported only on x86_64
+                continue
             yield check_batch, None, batch_size, num_samples, device , arr_np_all, None, filenames
+
+def test_batch_files_cache_headers():
+    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
+        # create files
+        num_samples = 20
+        batch_size = 4
+        filenames = []
+        arr_np_list = []
+        for index in range(0,num_samples):
+            filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+            filenames.append(filename)
+            create_numpy_file(filename, (5, 2, 8), np.float32, False)
+            arr_np_list.append(np.load(filename))
+        arr_np_all = np.stack(arr_np_list, axis=0)
+
+        for device in ["cpu", "gpu"]:
+            if platform.processor() != "x86_64" and device == "gpu":
+                # GDS is supported only on x86_64
+                continue
+            yield check_batch, None, batch_size, num_samples, device , arr_np_all, None, filenames, True
 
 
 def test_batch_files_arg():
@@ -171,7 +206,6 @@ def test_batch_files_arg():
             create_numpy_file(filename, (5, 2, 8), np.float32, False)
             arr_np_list.append(np.load(filename))
         arr_np_all = np.stack(arr_np_list, axis=0)
-        print(filenames)
 
         # create pipe
         for num_threads in [1, 2, 4, 8]:
@@ -210,7 +244,10 @@ def test_dim_mismatch():
         create_numpy_file(paths[0], [3,4], np.float32, False)
         create_numpy_file(paths[1], [2,3,4], np.float32, False)
         for device in ["cpu", "gpu"]:
-            yield check_dim_mismatch, test_data_root, names
+            if platform.processor() != "x86_64" and device == "gpu":
+                # GDS is supported only on x86_64
+                continue
+            yield check_dim_mismatch, device, test_data_root, names
 
 def check_type_mismatch(device, test_data_root, names):
     pipe = Pipeline(2, 2, 0)
@@ -234,7 +271,10 @@ def test_type_mismatch():
         create_numpy_file(paths[0], [1,2,5], np.int32, False)
         create_numpy_file(paths[1], [2,3,4], np.float32, False)
         for device in ["cpu", "gpu"]:
-            yield check_type_mismatch, test_data_root, names
+            if platform.processor() != "x86_64" and device == "gpu":
+                # GDS is supported only on x86_64
+                continue
+            yield check_type_mismatch, device, test_data_root, names
 
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array
