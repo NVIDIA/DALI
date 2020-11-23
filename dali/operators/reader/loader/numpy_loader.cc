@@ -14,6 +14,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <cstdlib>
 #include <memory>
 
 #include "dali/core/common.h"
@@ -37,14 +38,15 @@ TypeInfo TypeFromNumpyStr(const std::string &format) {
   DALI_FAIL("Unknown Numpy type string");
 }
 
-inline void SkipSpace(const char*& ptr) {
-  while(::isspace(*ptr))
+inline void SkipSpaces(const char*& ptr) {
+  while (::isspace(*ptr))
     ptr++;
 }
 
 template <size_t N>
 void Skip(const char*& ptr, const char (&what)[N]) {
-  DALI_ENFORCE(!strncmp(ptr, what, N-1), make_string("Expected \"", what, "\" but got \"", ptr, "\""));
+  DALI_ENFORCE(!strncmp(ptr, what, N - 1),
+               make_string("Expected \"", what, "\" but got \"", ptr, "\""));
   ptr += N - 1;
 }
 
@@ -61,23 +63,35 @@ bool TrySkip(const char*& ptr, const char (&what)[N]) {
 
 template <size_t N>
 void SkipFieldName(const char*& ptr, const char (&name)[N]) {
-  SkipSpace(ptr);
+  SkipSpaces(ptr);
   Skip(ptr, "'");
   Skip(ptr, name);
   Skip(ptr, "'");
-  SkipSpace(ptr);
+  SkipSpaces(ptr);
   Skip(ptr, ":");
-  SkipSpace(ptr);
+  SkipSpaces(ptr);
+}
+
+template <typename T = int64_t>
+T ParseInteger(const char*& ptr) {
+  char *out_ptr = const_cast<char*>(ptr);  // strtol takes a non-const pointer
+  T value = static_cast<T>(strtol(ptr, &out_ptr, 10));
+  DALI_ENFORCE(out_ptr != ptr, "Parse error: expected a number.");
+  ptr = out_ptr;
+  return value;
 }
 
 std::string ParseStringValue(const char*& input, char delim_start = '\'', char delim_end = '\'') {
   DALI_ENFORCE(*input++ == delim_start, make_string("Expected \'", delim_start, "\'"));
   std::string out;
-  for (;*input != '\0'; input++) {
+  for (; *input != '\0'; input++) {
     if (*input == '\\') {
       switch (*++input) {
-        case '\'':
+        case '\\':
           out += '\\';
+          break;
+        case '\'':
+          out += '\'';
           break;
         case '\t':
           out += '\t';
@@ -103,9 +117,10 @@ std::string ParseStringValue(const char*& input, char delim_start = '\'', char d
   return out;
 }
 
-void ParseHeaderMetadata(NumpyParseTarget& target, std::string header) {
+void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header) {
+  target.shape.clear();
   const char* hdr = header.c_str();
-  SkipSpace(hdr);
+  SkipSpaces(hdr);
   Skip(hdr, "{");
   SkipFieldName(hdr, "descr");
   auto typestr = ParseStringValue(hdr);
@@ -114,7 +129,7 @@ void ParseHeaderMetadata(NumpyParseTarget& target, std::string header) {
   DALI_ENFORCE(little_endian, "Big Endian files are not supported.");
   target.type_info = TypeFromNumpyStr(typestr.substr(1));
 
-  SkipSpace(hdr);
+  SkipSpaces(hdr);
   Skip(hdr, ",");
   SkipFieldName(hdr, "fortran_order");
   if (TrySkip(hdr, "True")) {
@@ -122,24 +137,20 @@ void ParseHeaderMetadata(NumpyParseTarget& target, std::string header) {
   } else if (TrySkip(hdr, "False")) {
     target.fortran_order = false;
   } else {
-    DALI_FAIL("Can not parse fortran order");
+    DALI_FAIL("Failed to parse fortran_order field.");
   }
-  SkipSpace(hdr);
+  SkipSpaces(hdr);
   Skip(hdr, ",");
   SkipFieldName(hdr, "shape");
-  auto sh_str = ParseStringValue(hdr, '(', ')');
-  auto shape_values = string_split(sh_str, ',');
-  target.shape.reserve(shape_values.size());
-  try {
-    for (const auto &s : shape_values) {
-      if (s.empty())
-        continue;
-      target.shape.push_back(static_cast<int64_t>(stoi(s)));
-    }
-  } catch (...) {
-    DALI_FAIL(make_string("Failed to parse shape data: ", sh_str));
+  Skip(hdr, "(");
+  SkipSpaces(hdr);
+  while (*hdr != ')') {
+    // ParseInteger already skips the leading spaces (strtol does).
+    target.shape.push_back(ParseInteger<int64_t>(hdr));
+    SkipSpaces(hdr);
+    DALI_ENFORCE(TrySkip(hdr, ",") || target.shape.size() > 1,
+                 "The first number in a tuple must be followed by a comma.");
   }
-
   if (target.fortran_order) {
     // cheapest thing to do is to define the tensor in an reversed way
     std::reverse(target.shape.begin(), target.shape.end());

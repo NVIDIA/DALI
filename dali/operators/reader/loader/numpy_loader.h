@@ -51,7 +51,7 @@ class NumpyParseTarget{
   }
 };
 
-DLL_PUBLIC void ParseHeaderMetadata(NumpyParseTarget& target, std::string header);
+DLL_PUBLIC void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header);
 
 class NumpyLoader : public FileLoader {
  public:

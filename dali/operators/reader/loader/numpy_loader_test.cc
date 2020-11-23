@@ -30,10 +30,10 @@ TEST(NumpyLoaderTest, ParseHeader) {
   {
     NumpyParseTarget target;
     ParseHeaderMetadata(target,
-                        "  {  'descr' : '<f4'   ,   'fortran_order'  : False, 'shape' : (4,7)}");
+                        "  {  'descr' : '<f4'   ,   'fortran_order'  : False, 'shape' : (4,)}");
     ASSERT_EQ(target.type_info.id(), DALI_FLOAT);
     ASSERT_EQ(target.fortran_order, false);
-    ASSERT_EQ(target.shape, std::vector<int64_t>({4, 7}));
+    ASSERT_EQ(target.shape, std::vector<int64_t>({4}));
   }
   {
     NumpyParseTarget target;
@@ -51,6 +51,7 @@ TEST(NumpyLoaderTest, ParseHeaderError) {
     "{descr:'<f4'}",
     "{'descr':'','fortran_order':False,'shape':(4,7),}",
     "{'descr':'<f4','fortran_order':false,'shape':(4,7),}"
+    "{'descr':'<f4','fortran_order':false,'shape':(a, b, c),}"
     "{'descr':'<f4','fortran_order':False,'shape':[4,7],}"
   };
   for (const auto &header : wrong) {
