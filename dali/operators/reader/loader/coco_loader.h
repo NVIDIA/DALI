@@ -149,9 +149,6 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
 
   PixelwiseMasksInfo pixelwise_masks_info(int image_idx) const {
     assert(output_pixelwise_masks_);
-    if (heights_.empty() || widths_.empty() || masks_rles_.empty() ||
-        masks_rles_idx_.empty() || masks_offset_.empty() || masks_count_.empty())
-      return {};
     return {
       {heights_[image_idx], widths_[image_idx], 1},
       {masks_rles_.data() + masks_offset_[image_idx], masks_count_[image_idx]},
