@@ -106,7 +106,8 @@ class FFTPostprocessTest<FFTPostprocessArgs<Out, In, Convert>> : public ::testin
     auto cpu_in = in.cpu();
     UniformRandomFill(cpu_in, rng, -1, 1);
 
-    ToFreqMajorSpectrum<Out, In, Convert> tr;
+    Convert convert;
+    ToFreqMajorSpectrum<Out, In, Convert> tr(convert);
     KernelContext ctx;
     ScratchpadAllocator sa;
     KernelRequirements req = tr.Setup(ctx, in_shape);
@@ -123,7 +124,6 @@ class FFTPostprocessTest<FFTPostprocessArgs<Out, In, Convert>> : public ::testin
     ref.reshape(out_shape);
     auto cpu_ref = ref.cpu();
 
-    Convert convert;
     for (int i = 0; i < N; i++) {
       TensorView<StorageCPU, In, 2> in_tv = cpu_in[i];
       TensorView<StorageCPU, Out, 2> ref_tv = cpu_ref[i];
