@@ -58,7 +58,7 @@ This operator can be used in the following modes:
 3. Read files listed in ``files`` argument.
 
 .. note::
-  The ``gpu`` backend requires a cuFile/GDS support (418.x driver family or newer). Please check
+  The ``gpu`` backend requires cuFile/GDS support (418.x driver family or newer). Please check
   the relevant GDS package for more details.
 )")
   .NumInput(0)
@@ -92,10 +92,11 @@ This argument is mutually exclusive with ``file_list``.)", nullptr)
   .AddOptionalArg("register_buffers",
       R"code(Applies **only** to the ``gpu`` backend type.
 
-If true, the device IO buffers will be registered with cuFile. It is not recommended if sample
+If true, the device I/O buffers will be registered with cuFile. It is not recommended if the sample
 sizes vary a lot.)code", true)
   .AddOptionalArg("cache_header_information",
-      R"code(If set to yes, the header information for each file is cached, improving access speed.)code",
+      R"code(If set to True, the header information for each file is cached, improving access
+speed.)code",
       false)
 
   .AddParent("LoaderBase");

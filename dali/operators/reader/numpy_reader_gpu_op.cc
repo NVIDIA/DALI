@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,9 +29,9 @@ void NumpyReaderGPU::Prefetch() {
   auto &curr_tensor_list = prefetched_batch_tensors_[curr_batch_producer_];
 
   // get shapes
-  for (auto &sample : curr_batch) {
-    thread_pool_.AddWork([&sample](int tid) {
-        sample->read_meta_f();
+  for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
+    thread_pool_.AddWork([&curr_batch, data_idx](int tid) {
+        curr_batch[data_idx]->read_meta_f();
       });
   }
   thread_pool_.RunAll();
@@ -62,12 +62,11 @@ void NumpyReaderGPU::Prefetch() {
 
   // read the data
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
-    auto &sample = curr_batch[data_idx];
-    thread_pool_.AddWork([&sample, &curr_tensor_list, data_idx](int tid) {
-        sample->read_sample_f(curr_tensor_list.raw_mutable_data(),
-                              curr_tensor_list.tensor_offset(data_idx) *
-                              curr_tensor_list.type().size(),
-                              curr_tensor_list.nbytes());
+    thread_pool_.AddWork([&curr_batch, &curr_tensor_list, data_idx](int tid) {
+        curr_batch[data_idx]->read_sample_f(curr_tensor_list.raw_mutable_data(),
+                                            curr_tensor_list.tensor_offset(data_idx) *
+                                            curr_tensor_list.type().size(),
+                                            curr_tensor_list.nbytes());
       });
   }
   thread_pool_.RunAll();
@@ -76,15 +75,13 @@ void NumpyReaderGPU::Prefetch() {
 void PermuteHelper(const TensorShape<> &plain_shapes, std::vector<int64_t> &perm_shape,
                   std::vector<int> &perm) {
   int n_dims = plain_shapes.size();
-  bool should_fill_perm = false;
   if (perm.empty()) {
     perm.resize(n_dims);
-    should_fill_perm = true;
-  }
-  for (int i = 0; i < n_dims; ++i) {
-    if (should_fill_perm) {
+    for (int i = 0; i < n_dims; ++i) {
       perm[i] = n_dims - i - 1;
     }
+  }
+  for (int i = 0; i < n_dims; ++i) {
     perm_shape[i] = plain_shapes[perm[i]];
   }
 }
@@ -154,9 +151,9 @@ void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
   if (transpose_from.size()) {
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    kmgr_.Setup<Kernel>(0, ctx, TensorListShape<>(transpose_shapes), make_span(perm),
+    kmgr_.Setup<TransposeKernel>(0, ctx, TensorListShape<>(transpose_shapes), make_span(perm),
                         ref_type.size());
-    kmgr_.Run<Kernel>(0, 0, ctx, transpose_to.data(), transpose_from.data());
+    kmgr_.Run<TransposeKernel>(0, 0, ctx, transpose_to.data(), transpose_from.data());
   }
 }
 

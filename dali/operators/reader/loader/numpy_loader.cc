@@ -225,8 +225,8 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   NumpyParseTarget target;
   std::unique_lock<std::mutex> cache_lock(cache_mutex_);
   auto it = header_cache_.find(image_file);
+  cache_lock.unlock();
   if (!cache_headers_ || it == header_cache_.end()) {
-    cache_lock.unlock();
     current_image = ParseHeader(std::move(current_image), target);
     if (cache_headers_) {
       cache_lock.lock();
@@ -236,7 +236,6 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   } else {
     target = it->second;
     current_image->Seek(target.data_offset);
-    cache_lock.unlock();
   }
   Index image_bytes = target.nbytes();
 

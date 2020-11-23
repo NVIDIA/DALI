@@ -190,6 +190,18 @@ def test_batch_files_arg():
                 # compare
                 assert_array_equal(arr_rd, arr_np)
 
+def check_dim_mismatch(device, test_data_root, names):
+    pipe = Pipeline(2, 2, 0)
+    pipe.set_outputs(fn.numpy_reader(device=device, file_root=test_data_root, files=names))
+    pipe.build()
+    err = None
+    try:
+        pipe.run()
+    except RuntimeError as thrown:
+        err = thrown
+    # asserts should not be in except block to avoid printing nested exception on failure
+    assert err, "Exception not thrown"
+    assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
 
 def test_dim_mismatch():
     with tempfile.TemporaryDirectory() as test_data_root:
@@ -198,17 +210,22 @@ def test_dim_mismatch():
         create_numpy_file(paths[0], [3,4], np.float32, False)
         create_numpy_file(paths[1], [2,3,4], np.float32, False)
         for device in ["cpu", "gpu"]:
-            pipe = Pipeline(2, 2, 0)
-            pipe.set_outputs(fn.numpy_reader(device=device, file_root=test_data_root, files=names))
-            pipe.build()
-            err = None
-            try:
-                pipe.run()
-            except RuntimeError as thrown:
-                err = thrown
-            # asserts should not be in except block to avoid printing nested exception on failure
-            assert err, "Exception not thrown"
-            assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
+            yield check_dim_mismatch, test_data_root, names
+
+def check_type_mismatch(device, test_data_root, names):
+    pipe = Pipeline(2, 2, 0)
+    pipe.set_outputs(fn.numpy_reader(device=device, file_root=test_data_root, files=names))
+    pipe.build()
+
+    err = None
+    try:
+        pipe.run()
+    except RuntimeError as thrown:
+        err = thrown
+    # asserts should not be in except block to avoid printing nested exception on failure
+    assert err, "Exception not thrown"
+    assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
+    assert "int32" in str(err) and "float" in str(err), "Unexpected error message: {}".format(err)
 
 def test_type_mismatch():
     with tempfile.TemporaryDirectory() as test_data_root:
@@ -217,19 +234,7 @@ def test_type_mismatch():
         create_numpy_file(paths[0], [1,2,5], np.int32, False)
         create_numpy_file(paths[1], [2,3,4], np.float32, False)
         for device in ["cpu", "gpu"]:
-            pipe = Pipeline(2, 2, 0)
-            pipe.set_outputs(fn.numpy_reader(device=device, file_root=test_data_root, files=names))
-            pipe.build()
-
-            err = None
-            try:
-                pipe.run()
-            except RuntimeError as thrown:
-                err = thrown
-            # asserts should not be in except block to avoid printing nested exception on failure
-            assert err, "Exception not thrown"
-            assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
-            assert "int32" in str(err) and "float" in str(err), "Unexpected error message: {}".format(err)
+            yield check_type_mismatch, test_data_root, names
 
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array

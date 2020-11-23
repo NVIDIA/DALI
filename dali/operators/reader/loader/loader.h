@@ -100,7 +100,8 @@ class Loader {
   }
 
   template <typename T>
-  std::enable_if_t<std::is_same<T, Tensor<CPUBackend>>::value>
+  std::enable_if_t<std::is_same<T, Tensor<GPUBackend>>::value ||
+                   std::is_same<T, Tensor<CPUBackend>>::value>
   PrepareEmptyTensor(T& tensor) {
     tensor.set_pinned(false);
     // Initialize tensors to a set size to limit expensive reallocations
@@ -109,19 +110,11 @@ class Loader {
   }
 
   template <typename T>
-  std::enable_if_t<std::is_same<T, Tensor<GPUBackend>>::value>
-  PrepareEmptyTensor(T& tensor) {
-    // Initialize tensors to a set size to limit expensive reallocations
-    tensor.Resize({tensor_init_bytes_});
-    tensor.template mutable_data<uint8_t>();
-  }
-
-  template <typename T>
-    std::enable_if_t<!(std::is_same<T, Tensor<CPUBackend>>::value
-                       || std::is_same<T, Tensor<GPUBackend>>::value)>
+    std::enable_if_t<!(std::is_same<T, Tensor<CPUBackend>>::value ||
+                       std::is_same<T, Tensor<GPUBackend>>::value)>
   PrepareEmptyTensor(T&) {
-    constexpr bool T_is_Tensor = (std::is_same<T, Tensor<CPUBackend>>::value
-                                  || std::is_same<T, Tensor<GPUBackend>>::value);
+    constexpr bool T_is_Tensor = (std::is_same<T, Tensor<CPUBackend>>::value ||
+                                  std::is_same<T, Tensor<GPUBackend>>::value);
     DALI_ENFORCE(T_is_Tensor,
       "Please overload PrepareEmpty for custom LoadTarget type other than Tensor");
   }

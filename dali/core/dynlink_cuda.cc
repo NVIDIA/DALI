@@ -21,10 +21,10 @@
 
 namespace {
 
-typedef void *CUDADRIVER;
+typedef void* CUDADRIVER;
 
-static char __CudaLibName[] = "libcuda.so";
-static char __CudaLibName1[] = "libcuda.so.1";
+static const char __CudaLibName[] = "libcuda.so";
+static const char __CudaLibName1[] = "libcuda.so.1";
 
 CUDADRIVER loadCudaLibrary() {
   CUDADRIVER ret = nullptr;

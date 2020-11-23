@@ -25,17 +25,15 @@ std::unique_ptr<CUFileStream> CUFileStream::Open(const std::string& uri, bool re
                                                  bool use_mmap) {
   std::string processed_uri;
 
-  if (uri.find("file://") == 0) {
-    processed_uri = uri.substr(std::string("file://").size());
+  const char prefix[] = "file://";
+  if (!strncmp(uri.c_str(), prefix, sizeof(prefix) - 1)) {
+    processed_uri = uri.substr(sizeof(prefix) - 1);
   } else {
     processed_uri = uri;
   }
 
-  if (use_mmap) {
-    DALI_FAIL("MMAP not implemented with cuFile yet.")
-  } else {
-    return std::unique_ptr<CUFileStream>(new StdCUFileStream(processed_uri));
-  }
+  DALI_ENFORCE(!use_mmap, "mmap not implemented with cuFile yet.");
+  return std::make_unique<StdCUFileStream>(processed_uri);
 }
 
 }  // namespace dali

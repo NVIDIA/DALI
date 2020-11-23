@@ -21,10 +21,10 @@
 
 namespace {
 
-typedef void *CUFILE;
+typedef void* CUFILE;
 
-static char __CufileLibName[] = "libcufile.so";
-static char __CufileLibName1[] = "libcufile.so.1";
+static const char __CufileLibName[] = "libcufile.so";
+static const char __CufileLibName1[] = "libcufile.so.1";
 
 CUFILE loadCufileLibrary() {
   CUFILE ret = nullptr;

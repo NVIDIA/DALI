@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,12 +42,11 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
                                          shuffle_after_epoch);
 
     // init thread pool:
-    kmgr_.Resize<Kernel>(1, 1);
+    kmgr_.Resize<TransposeKernel>(1, 1);
   }
 
-  ~NumpyReaderGPU() {
+  ~NumpyReaderGPU() override {
     StopPrefetchThread();
-    thread_pool_.WaitForWork();
     // close all streams in prefetched_batch_queue_, it matters in case of exception
     for (auto &batch : prefetched_batch_queue_) {
       for (auto &sample : batch) {
@@ -87,7 +86,7 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
 
   USE_READER_OPERATOR_MEMBERS(GPUBackend, ImageFileWrapperGPU);
 
-  using Kernel = kernels::TransposeGPU;
+  using TransposeKernel = kernels::TransposeGPU;
   kernels::KernelManager kmgr_;
 };
 

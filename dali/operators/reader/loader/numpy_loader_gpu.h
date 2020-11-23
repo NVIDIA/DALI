@@ -53,7 +53,7 @@ class NumpyLoaderGPU : public CUFileLoader {
     DeviceGuard g(device_id_);
   }
 
-  ~NumpyLoaderGPU() {
+  ~NumpyLoaderGPU() override {
     // set device
     DeviceGuard g(device_id_);
 
@@ -76,10 +76,8 @@ class NumpyLoaderGPU : public CUFileLoader {
   void RegisterTensor(void *buffer, size_t total_size);
 
   // read the full sample
-  std::unique_ptr<CUFileStream> ReadSampleHelper(std::unique_ptr<CUFileStream> file,
-                                                 ImageFileWrapperGPU& imfile,
-                                                 void *buffer, Index offset,
-                                                 size_t total_size);
+  void ReadSampleHelper(CUFileStream *file, ImageFileWrapperGPU& imfile,
+                        void *buffer, Index offset, size_t total_size);
 
   // do we want to register device buffers:
   bool register_buffers_;

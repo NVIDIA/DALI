@@ -25,11 +25,8 @@
 #include <utility>
 #include <vector>
 #include <algorithm>
-<<<<<<< HEAD
-=======
 #include <map>
 #include <regex>
->>>>>>> Add support for GPU based numpy reader
 #include <memory>
 
 #include "dali/core/common.h"

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,10 +72,10 @@ CUFileLoader::CUFileLoader(const OpSpec& spec, vector<std::string> images,
    * DALI instances will do shuffling after each epoch
    */
   if (shuffle_after_epoch_ || stick_to_shard_)
-    DALI_ENFORCE(!shuffle_after_epoch_ || !stick_to_shard_,
+    DALI_ENFORCE(!(shuffle_after_epoch_  && stick_to_shard_),
                  "shuffle_after_epoch and stick_to_shard cannot be both true");
   if (shuffle_after_epoch_ || shuffle_)
-    DALI_ENFORCE(!shuffle_after_epoch_ || !shuffle_,
+    DALI_ENFORCE(!(shuffle_after_epoch_ && shuffle_),
                  "shuffle_after_epoch and random_shuffle cannot be both true");
   /*
    * Imply `stick_to_shard` from  `shuffle_after_epoch
@@ -100,7 +100,7 @@ CUFileLoader::CUFileLoader(const OpSpec& spec, vector<std::string> images,
 
 void CUFileLoader::PrepareEmpty(ImageFileWrapperGPU &image_file) {
   PrepareEmptyTensor(image_file.image);
-  image_file.filename = "";
+  image_file.filename.clear();
 }
 
 void CUFileLoader::ReadSample(ImageFileWrapperGPU& imfile) {
@@ -125,7 +125,7 @@ void CUFileLoader::ReadSample(ImageFileWrapperGPU& imfile) {
     imfile.image.SetMeta(meta);
     imfile.image.set_type(TypeInfo::Create<uint8_t>());
     imfile.image.Resize({0});
-    imfile.filename = "";
+    imfile.filename.clear();
     return;
   }
 

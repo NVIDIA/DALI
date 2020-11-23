@@ -119,16 +119,14 @@ void NumpyLoaderGPU::RegisterTensor(void *buffer, size_t total_size) {
     auto dptr = static_cast<uint8_t*>(buffer);
     std::unique_lock<std::mutex> reg_lock(reg_mutex_);
     auto iter = reg_buff_.find(dptr);
+    reg_lock.unlock();
     if (iter != reg_buff_.end()) {
-      reg_lock.unlock();
       if (iter->second == total_size) {
         // the right buffer is registered already, return
         return;
       } else {
         cuFileBufDeregister(iter->first);
       }
-    } else {
-      reg_lock.unlock();
     }
     // no buffer found or with different size so register again
     cuFileBufRegister(dptr, total_size, 0);
@@ -137,11 +135,8 @@ void NumpyLoaderGPU::RegisterTensor(void *buffer, size_t total_size) {
   }
 }
 
-std::unique_ptr<CUFileStream> NumpyLoaderGPU::ReadSampleHelper(std::unique_ptr<CUFileStream> file,
-                                                               ImageFileWrapperGPU& imfile,
-                                                               void *buffer,
-                                                               Index offset,
-                                                               size_t total_size) {
+void NumpyLoaderGPU::ReadSampleHelper(CUFileStream *file, ImageFileWrapperGPU& imfile,
+                                      void *buffer, Index offset, size_t total_size) {
   // register the buffer (if needed)
   RegisterTensor(buffer, total_size);
 
@@ -149,8 +144,6 @@ std::unique_ptr<CUFileStream> NumpyLoaderGPU::ReadSampleHelper(std::unique_ptr<C
 
   // copy the image
   file->Read(static_cast<uint8_t*>(buffer), image_bytes, offset);
-
-  return file;
 }
 
 // we need to implement that but we should split parsing and reading in this case
@@ -176,7 +169,7 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
     imfile.image.Reset();
     imfile.image.set_type(TypeInfo::Create<uint8_t>());
     imfile.image.Resize({0});
-    imfile.filename = "";
+    imfile.filename.clear();
     return;
   }
 
@@ -191,8 +184,8 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
     NumpyParseTarget target;
     std::unique_lock<std::mutex> cache_lock(cache_mutex_);
     auto it = header_cache_.find(image_file);
+    cache_lock.unlock();
     if (!cache_headers_ || it == header_cache_.end()) {
-      cache_lock.unlock();
       imfile.file_stream = ParseHeader(std::move(imfile.file_stream), target);
       if (cache_headers_) {
         cache_lock.lock();
@@ -202,7 +195,6 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
     } else {
       target = it->second;
       imfile.file_stream->Seek(target.data_offset);
-      cache_lock.unlock();
     }
     imfile.type_info = target.type_info;
     imfile.shape = target.shape;
@@ -212,8 +204,7 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
   imfile.read_sample_f = [this, image_file, &imfile] (void *buffer, Index offset,
                                                       size_t total_size) {
     // read sample
-    imfile.file_stream = ReadSampleHelper(std::move(imfile.file_stream), imfile,
-                                          buffer, offset, total_size);
+    ReadSampleHelper(imfile.file_stream.get(), imfile, buffer, offset, total_size);
     // close the file handle
     imfile.file_stream->Close();
   };
