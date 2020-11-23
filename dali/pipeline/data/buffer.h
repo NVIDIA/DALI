@@ -261,7 +261,6 @@ class DLL_PUBLIC Buffer {
   }
 
   void reset() {
-    backend_ = Backend();
     type_ = TypeInfo::Create<NoType>();
     data_.reset();
     size_ = 0;
@@ -355,8 +354,6 @@ class DLL_PUBLIC Buffer {
   // round to 1kB
   static constexpr size_t kPadding = 1024;
 
-  Backend backend_;
-
   TypeInfo type_ = {};               // Data type of underlying storage
   shared_ptr<void> data_ = nullptr;  // Pointer to underlying storage
   Index size_ = 0;                   // The number of elements in the buffer
@@ -382,7 +379,6 @@ DLL_PUBLIC constexpr double Buffer<Backend>::kMaxGrowthFactor;
 #define USE_BUFFER_MEMBERS()           \
   using Buffer<Backend>::ResizeHelper; \
   using Buffer<Backend>::reset;        \
-  using Buffer<Backend>::backend_;     \
   using Buffer<Backend>::type_;        \
   using Buffer<Backend>::data_;        \
   using Buffer<Backend>::size_;        \
