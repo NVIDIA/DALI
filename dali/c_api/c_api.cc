@@ -136,7 +136,10 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle,
   pipeline->EnableExecutorMemoryStats(enable_memory_stats);
   pipeline->Build();
   auto ws = std::make_unique<dali::DeviceWorkspace>();
-  auto stream = dali::CUDAStream::Create(true);
+  dali::CUDAStream stream;
+  if (pipeline->device_id() >= 0) {
+    stream = dali::CUDAStream::Create(true);
+  }
   pipe_handle->ws = ws.release();
   pipe_handle->copy_stream = stream.release();
   pipe_handle->pipe = pipeline.release();
@@ -147,7 +150,10 @@ void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *seriali
                             int length) {
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length));
   pipeline->Build();
-  auto stream = dali::CUDAStream::Create(true);
+  dali::CUDAStream stream;
+  if (pipeline->device_id() >= 0) {
+    stream = dali::CUDAStream::Create(true);
+  }
   auto ws = std::make_unique<dali::DeviceWorkspace>();
   pipe_handle->ws = ws.release();
   pipe_handle->copy_stream = stream.release();
@@ -474,7 +480,9 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
   DALI_ENFORCE(pipeline != nullptr && ws != nullptr, "Pipeline already deleted");
-  CUDA_CALL(cudaStreamDestroy(pipe_handle->copy_stream));
+  if (pipe_handle->copy_stream) {
+    CUDA_CALL(cudaStreamDestroy(pipe_handle->copy_stream));
+  }
   pipe_handle->copy_stream = nullptr;
   delete ws;
   delete pipeline;

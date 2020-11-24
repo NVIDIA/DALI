@@ -644,4 +644,14 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
   }
 }
 
+TYPED_TEST(CApiTest, CpuOnlyTest) {
+  dali::Pipeline pipe(1, 1, dali::CPU_ONLY_DEVICE_ID);
+  pipe.AddExternalInput("dummy");
+  std::vector<std::pair<std::string, std::string>> outputs = {{"dummy", "cpu"}};
+  pipe.SetOutputNames(outputs);
+  std::string ser = pipe.SerializeToProtobuf();
+  daliPipelineHandle handle;
+  daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+}
+
 }  // namespace dali
