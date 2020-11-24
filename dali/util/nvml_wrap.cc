@@ -67,7 +67,7 @@ nvmlReturn_t nvmlInitChecked() {
   symbolsLoaded = true;
   nvmlReturn_t ret = nvmlInit();
   if (ret != NVML_SUCCESS) {
-    DALI_WARN("nvmlInitChecked failed: " + nvmlErrorString(ret));
+    DALI_WARN("nvmlInitChecked failed: ", nvmlErrorString(ret));
   }
   return ret;
 }
