@@ -184,14 +184,12 @@ void OpticalFlowTuring::SetInitParams(dali::optical_flow::OpticalFlowParams api_
 NV_OF_EXECUTE_INPUT_PARAMS OpticalFlowTuring::GenerateExecuteInParams
         (NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle,
          NvOFGPUBufferHandle hints_handle) {
+  // zeroing required for padding, padding2 and hPrivData
   NV_OF_EXECUTE_INPUT_PARAMS params = {};
   params.inputFrame = in_handle;
   params.referenceFrame = ref_handle;
   params.disableTemporalHints = of_params_.enable_temporal_hints ? NV_OF_FALSE : NV_OF_TRUE;
   params.externalHints = hints_handle;
-  params.padding = 0;
-  params.padding2 = 0;
-  params.hPrivData = NULL;
   return params;
 }
 

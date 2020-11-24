@@ -52,21 +52,15 @@ class OpticalFlow : public Operator<Backend> {
  public:
   explicit OpticalFlow(const OpSpec &spec)
       : Operator<Backend>(spec),
-        quality_factor_(spec.GetArgument<std::remove_const_t<decltype(this->quality_factor_)>>(
-            detail::kPresetArgName)),
-        grid_size_(spec.GetArgument<std::remove_const_t<decltype(this->grid_size_)>>(
-            detail::kOutputFormatArgName)),
-        enable_temporal_hints_(
-            spec.GetArgument<std::remove_const_t<decltype(this->enable_temporal_hints_)>>(
-                detail::kEnableTemporalHintsArgName)),
-        enable_external_hints_(
-            spec.GetArgument<std::remove_const_t<decltype(this->enable_external_hints_)>>(
-                detail::kEnableExternalHintsArgName)),
+        quality_factor_(spec.GetArgument<float>(detail::kPresetArgName)),
+        grid_size_(spec.GetArgument<int>(detail::kOutputFormatArgName)),
+        enable_temporal_hints_(spec.GetArgument<bool>(detail::kEnableTemporalHintsArgName)),
+        enable_external_hints_(spec.GetArgument<bool>(detail::kEnableExternalHintsArgName)),
         of_params_({quality_factor_, ConvertGridSize(grid_size_), enable_temporal_hints_,
                     enable_external_hints_}),
         optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
             new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
-        image_type_(spec.GetArgument<decltype(this->image_type_)>(detail::kImageTypeArgName)),
+        image_type_(spec.GetArgument<DALIImageType>(detail::kImageTypeArgName)),
         device_id_(spec.GetArgument<int>("device_id")) {
     // In case external hints are enabled, we need 2 inputs
     DALI_ENFORCE((enable_external_hints_ && spec.NumInput() == 2) || !enable_external_hints_,
