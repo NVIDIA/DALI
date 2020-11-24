@@ -24,6 +24,8 @@
 namespace dali {
 
 void VideoReader::Prefetch() {
+  DomainTimeRange tr("[DALI][VideoReader] Prefetch #" + to_string(curr_batch_producer_),
+                      DomainTimeRange::kRed);
   DataReader<GPUBackend, SequenceWrapper>::Prefetch();
   auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
   auto &curr_tensor_list = prefetched_batch_tensors_[curr_batch_producer_];

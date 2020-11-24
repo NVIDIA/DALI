@@ -23,7 +23,8 @@ namespace dali {
 
 void NumpyReaderGPU::Prefetch() {
   // We actually prepare the next batch
-  TimeRange tr("NumpyReaderGPU::Prefetch #" + to_string(curr_batch_producer_), TimeRange::kRed);
+  DomainTimeRange tr("[DALI][NumpyReaderGPU] Prefetch #" + to_string(curr_batch_producer_),
+                      DomainTimeRange::kRed);
   DataReader<GPUBackend, ImageFileWrapperGPU>::Prefetch();
   auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
   auto &curr_tensor_list = prefetched_batch_tensors_[curr_batch_producer_];

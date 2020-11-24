@@ -45,11 +45,8 @@ class NumpyLoaderGPU : public CUFileLoader {
     vector<std::string> images = std::vector<std::string>(),
     bool shuffle_after_epoch = false) :
       CUFileLoader(spec, images, shuffle_after_epoch),
-    register_buffers_(spec.GetArgument<bool>("register_buffers")),
-    header_cache_(spec.GetArgument<bool>("cache_header_information")) {
-    // set device
-    DeviceGuard g(device_id_);
-  }
+      register_buffers_(spec.GetArgument<bool>("register_buffers")),
+      header_cache_(spec.GetArgument<bool>("cache_header_information")) {}
 
   ~NumpyLoaderGPU() override {
     // set device
