@@ -28,6 +28,10 @@ gds_data_root = '/scratch/'
 if not os.path.isdir(gds_data_root):
     gds_data_root = os.getcwd() + "/"
 
+# GDS is supported only on x86_64
+def is_gds_supported():
+    return platform.processor() == "x86_64"
+
 def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None, path_filter="*.npy",
                         num_threads=1, device_id=0, num_gpus=1, cache_header_information=False):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=0)
@@ -59,10 +63,7 @@ rng = np.random.RandomState(12345)
 def test_types_and_shapes():
     with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         index = 0
-        for device in ["cpu", "gpu"]:
-            if platform.processor() != "x86_64" and device == "gpu":
-                # GDS is supported only on x86_64
-                continue
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             for fortran_order in [False, True]:
                 for type in all_numpy_types - unsupported_numpy_types:
                     for shape in test_np_shapes:
@@ -119,10 +120,7 @@ def test_batch():
             arr_np_list.append(np.load(filename))
         arr_np_all = np.stack(arr_np_list, axis=0)
 
-        for device in ["cpu", "gpu"]:
-            if platform.processor() != "x86_64" and device == "gpu":
-                # GDS is supported only on x86_64
-                continue
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             yield check_batch, test_data_root, batch_size, num_samples, device, arr_np_all
 
 def test_batch_file_list():
@@ -144,10 +142,7 @@ def test_batch_file_list():
         with open(file_list_path, "w") as f:
             f.writelines("\n".join(filenames))
 
-        for device in ["cpu", "gpu"]:
-            if platform.processor() != "x86_64" and device == "gpu":
-                # GDS is supported only on x86_64
-                continue
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             yield check_batch, "", batch_size, num_samples, device , arr_np_all, file_list_path
 
 
@@ -165,10 +160,7 @@ def test_batch_files():
             arr_np_list.append(np.load(filename))
         arr_np_all = np.stack(arr_np_list, axis=0)
 
-        for device in ["cpu", "gpu"]:
-            if platform.processor() != "x86_64" and device == "gpu":
-                # GDS is supported only on x86_64
-                continue
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             yield check_batch, None, batch_size, num_samples, device , arr_np_all, None, filenames
 
 def test_batch_files_cache_headers():
@@ -185,10 +177,7 @@ def test_batch_files_cache_headers():
             arr_np_list.append(np.load(filename))
         arr_np_all = np.stack(arr_np_list, axis=0)
 
-        for device in ["cpu", "gpu"]:
-            if platform.processor() != "x86_64" and device == "gpu":
-                # GDS is supported only on x86_64
-                continue
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             yield check_batch, None, batch_size, num_samples, device , arr_np_all, None, filenames, True
 
 
@@ -243,10 +232,8 @@ def test_dim_mismatch():
         paths = [os.path.join(test_data_root, name) for name in names]
         create_numpy_file(paths[0], [3,4], np.float32, False)
         create_numpy_file(paths[1], [2,3,4], np.float32, False)
-        for device in ["cpu", "gpu"]:
-            if platform.processor() != "x86_64" and device == "gpu":
-                # GDS is supported only on x86_64
-                continue
+
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             yield check_dim_mismatch, device, test_data_root, names
 
 def check_type_mismatch(device, test_data_root, names):
@@ -270,10 +257,8 @@ def test_type_mismatch():
         paths = [os.path.join(test_data_root, name) for name in names]
         create_numpy_file(paths[0], [1,2,5], np.int32, False)
         create_numpy_file(paths[1], [2,3,4], np.float32, False)
-        for device in ["cpu", "gpu"]:
-            if platform.processor() != "x86_64" and device == "gpu":
-                # GDS is supported only on x86_64
-                continue
+
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             yield check_type_mismatch, device, test_data_root, names
 
 def create_numpy_file(filename, shape, typ, fortran_order):

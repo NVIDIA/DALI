@@ -141,18 +141,18 @@ void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
   }
 
   // use copy kernel for plan samples
-  if (copy_sizes.size()) {
+  if (!copy_sizes.empty()) {
     ref_type.template Copy<GPUBackend, GPUBackend>(copy_to.data(), copy_from.data(),
                                                    copy_sizes.data(), copy_sizes.size(),
                                                    ws.stream(), true);
   }
 
   // transpose remaining samples
-  if (transpose_from.size()) {
+  if (!transpose_from.empty()) {
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
     kmgr_.Setup<TransposeKernel>(0, ctx, TensorListShape<>(transpose_shapes), make_span(perm),
-                        ref_type.size());
+                                 ref_type.size());
     kmgr_.Run<TransposeKernel>(0, 0, ctx, transpose_to.data(), transpose_from.data());
   }
 }

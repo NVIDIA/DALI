@@ -96,12 +96,10 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       * Still when `shuffle_after_epoch` we will set `stick_to_shard` internally in the FileLabelLoader so all
       * DALI instances will do shuffling after each epoch
       */
-      if (shuffle_after_epoch_ || stick_to_shard_)
-        DALI_ENFORCE(!(shuffle_after_epoch_  && stick_to_shard_),
-                    "shuffle_after_epoch and stick_to_shard cannot be both true");
-      if (shuffle_after_epoch_ || shuffle_)
-        DALI_ENFORCE(!(shuffle_after_epoch_ && shuffle_),
-                    "shuffle_after_epoch and random_shuffle cannot be both true");
+      DALI_ENFORCE(!(shuffle_after_epoch_  && stick_to_shard_),
+                   "shuffle_after_epoch and stick_to_shard cannot be both true");
+      DALI_ENFORCE(!(shuffle_after_epoch_ && shuffle_),
+                   "shuffle_after_epoch and random_shuffle cannot be both true");
       /*
        * Imply `stick_to_shard` from  `shuffle_after_epoch`
        */
