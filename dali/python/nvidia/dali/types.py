@@ -54,7 +54,8 @@ _known_types = {
         DALIDataType.DATA_TYPE : ("nvidia.dali.types.DALIDataType", lambda x: DALIDataType(int(x))),
         DALIDataType.INTERP_TYPE : ("nvidia.dali.types.DALIInterpType", lambda x: DALIInterpType(int(x))),
         DALIDataType.TENSOR_LAYOUT : (":ref:`layout str<layout_str_doc>`", lambda x: str(x)),
-        DALIDataType.PYTHON_OBJECT : ("object", lambda x: x)
+        DALIDataType.PYTHON_OBJECT : ("object", lambda x: x),
+        DALIDataType._TENSOR_LAYOUT_VEC : (":ref:`layout str<layout_str_doc>`", _to_list(lambda x: str(x)))
         }
 
 _vector_types = {
@@ -62,6 +63,7 @@ _vector_types = {
         DALIDataType._INT32_VEC : DALIDataType.INT32,
         DALIDataType._STRING_VEC : DALIDataType.STRING,
         DALIDataType._FLOAT_VEC : DALIDataType.FLOAT,
+        DALIDataType._TENSOR_LAYOUT_VEC : DALIDataType.TENSOR_LAYOUT
         }
 
 if _tfrecord_support:

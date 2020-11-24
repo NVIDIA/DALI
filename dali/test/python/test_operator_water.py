@@ -72,8 +72,7 @@ class WaterPythonPipeline(Pipeline):
                                            exec_pipelined=False)
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
-        self.water = ops.PythonFunction(function=function)
-        self.set_layout = ops.Reshape(layout="HWC")
+        self.water = ops.PythonFunction(function=function, output_layouts="HWC")
 
 
     def define_graph(self):
@@ -81,7 +80,6 @@ class WaterPythonPipeline(Pipeline):
 
         images = self.decode(inputs)
         images = self.water(images)
-        images = self.set_layout(images)
         return images
 
 def check_water_cpu_vs_gpu(batch_size):

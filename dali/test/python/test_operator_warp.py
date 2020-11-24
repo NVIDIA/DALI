@@ -129,10 +129,11 @@ class CVPipeline(Pipeline):
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         if self.use_input:
           self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.batch_size, 10))
-          self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, inv_map=inv_map))
+          self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, inv_map=inv_map),
+                                         output_layouts="HWC")
         else:
-          self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, [[0.1, 0.9, 10], [0.8, -0.2, -20]], inv_map))
-        self.set_layout = ops.Reshape(layout="HWC")
+          self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, [[0.1, 0.9, 10], [0.8, -0.2, -20]], inv_map),
+                                         output_layouts="HWC")
         self.iter = 0
 
     def define_graph(self):
@@ -143,7 +144,6 @@ class CVPipeline(Pipeline):
           outputs = self.warp(images, self.transform)
         else:
           outputs = self.warp(images)
-        outputs = self.set_layout(outputs)
         return outputs
 
 def compare(pipe1, pipe2, eps):

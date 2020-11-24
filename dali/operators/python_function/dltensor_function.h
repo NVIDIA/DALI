@@ -19,6 +19,7 @@
 #include <pybind11/stl.h>
 #include <vector>
 #include <utility>
+#include <string>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/copy_with_stride.h"
 
@@ -171,6 +172,15 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
           reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))) {
     synchronize_stream_ = spec.GetArgument<bool>("synchronize_stream");
     batch_processing = spec.GetArgument<bool>("batch_processing");
+    size_t num_outputs = spec.GetArgument<int>("num_outputs");
+    bool listed_layouts = spec.TryGetRepeatedArgument(output_layouts_, "output_layouts");
+    if (!listed_layouts && spec.HasArgument("output_layouts")) {
+      auto layout = spec.GetArgument<TensorLayout>("output_layouts");
+      output_layouts_ = std::vector<TensorLayout>(num_outputs, layout);
+    }
+    DALI_ENFORCE(output_layouts_.size() <= num_outputs,
+                 make_string("The length of the ``output_layouts`` (=", output_layouts_.size(),
+                             ") is greater than the number of outputs (=", num_outputs, ")."));
   }
 
  protected:
@@ -179,6 +189,7 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
   }
 
   void RunImpl(workspace_t<Backend> &ws) override {
+    SetOutputLayouts(ws);
     std::lock_guard<std::mutex> operator_guard(operator_lock);
     py::gil_scoped_acquire interpreter_guard{};
     py::object output_o = py::none();
@@ -218,12 +229,22 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
     }
   };
 
+  void SetOutputLayouts(workspace_t<Backend> &ws) {
+    Index output_idx = 0;
+    for (auto layout : output_layouts_) {
+      auto &output = ws.template OutputRef<Backend>(output_idx);
+      output.SetLayout(layout);
+      ++output_idx;
+    }
+  }
+
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
   py::object python_function;
   bool synchronize_stream_;
   bool batch_processing;
+  std::vector<TensorLayout> output_layouts_;
 };
 
 }  // namespace dali

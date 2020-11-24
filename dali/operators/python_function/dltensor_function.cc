@@ -15,6 +15,7 @@
 #include <pybind11/stl.h>
 #include <memory>
 #include <utility>
+#include <string>
 #include "dali/operators/python_function/dltensor_function.h"
 #include "dali/pipeline/util/copy_with_stride.h"
 
@@ -27,6 +28,12 @@ DALI_SCHEMA(DLTensorPythonFunctionImpl)
     .AddArg("batch_processing", "Batch processing.", DALI_BOOL)
     .NumInput(0, 256)
     .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
+    .AddOptionalArg<std::vector<TensorLayout>>("output_layouts",
+        R"code(Tensor data layouts for the outputs.
+
+This argument can be a list that contains a distinct layout for each output. If the list has
+fewer than num_outputs elements, only the first outputs have the layout set and the rest of the
+outputs have no layout assigned.)code", nullptr)
     .NoPrune()
     .Unserializable()
     .MakeInternal();
