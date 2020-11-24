@@ -52,8 +52,8 @@ void ReadArgInput(std::vector<T> &out, const std::string &arg_name,
   auto arg_in_view = view<const float>(arg_in);
   DALI_ENFORCE(is_uniform(arg_in_view.shape),
     make_string("All samples in argument ``", arg_name, "`` should have the same shape"));
-  DALI_ENFORCE(arg_in_view.shape.sample_dim() == 1,
-    make_string("``", arg_name, "`` must be a 1D tensor"));
+  DALI_ENFORCE(arg_in_view.shape.sample_dim() <= 1,
+    make_string("``", arg_name, "`` must be a scalar or a 1D tensor"));
 
   auto nsamples = arg_in_view.size();
   out.resize(nsamples);
