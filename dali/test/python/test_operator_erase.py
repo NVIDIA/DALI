@@ -122,7 +122,7 @@ class ErasePythonPipeline(Pipeline):
 
         function = partial(erase_func, anchor, shape, axis_names, axes, data_layout, fill_value)
 
-        self.erase = ops.PythonFunction(function=function, output_layouts=[data_layout])
+        self.erase = ops.PythonFunction(function=function, output_layouts=data_layout)
 
     def define_graph(self):
         self.data = self.inputs()

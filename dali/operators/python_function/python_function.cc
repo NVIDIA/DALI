@@ -23,9 +23,12 @@ DALI_SCHEMA(PythonFunctionBase)
             "Function object.",
             DALI_PYTHON_OBJECT)
     .AddOptionalArg("num_outputs", R"code(Number of outputs.)code", 1)
-    .AddOptionalArg<std::vector<string>>("output_layouts",
-      "Tensor data layouts for the outputs. Length of the list must match the number of outputs."
-      " When the argument is not specified, output tensors have no layouts assigned.", nullptr)
+    .AddOptionalArg<std::vector<TensorLayout>>("output_layouts",
+      R"code(Tensor data layouts for the outputs.
+
+This argument can be a list that contains a distinct layout for each output. If the list has
+fewer than num_outputs elements, only the first outputs have the layout set and the rest of the
+outputs have no layout assigned.)code", nullptr)
     .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)

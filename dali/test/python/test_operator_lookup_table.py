@@ -79,7 +79,7 @@ class LookupTablePythonOpPipeline(Pipeline):
                             shape=data_shape,
                             dictionary=dictionary,
                             default_value=default_value)
-        self.lookup = ops.PythonFunction(function=lookup_table_func, output_layouts=[data_layout])
+        self.lookup = ops.PythonFunction(function=lookup_table_func, output_layouts=data_layout)
         self.cast = ops.Cast(dtype=dtype)
 
     def define_graph(self):

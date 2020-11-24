@@ -173,10 +173,14 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
     synchronize_stream_ = spec.GetArgument<bool>("synchronize_stream");
     batch_processing = spec.GetArgument<bool>("batch_processing");
     size_t num_outputs = spec.GetArgument<int>("num_outputs");
-    layouts_specified_ = spec.TryGetRepeatedArgument(output_layouts_, "output_layouts");
-    DALI_ENFORCE(!layouts_specified_ || output_layouts_.size() == num_outputs,
+    bool listed_layouts = spec.TryGetRepeatedArgument(output_layouts_, "output_layouts");
+    if (!listed_layouts && spec.HasArgument("output_layouts")) {
+      auto layout = spec.GetArgument<TensorLayout>("output_layouts");
+      output_layouts_ = std::vector<TensorLayout>(num_outputs, layout);
+    }
+    DALI_ENFORCE(output_layouts_.size() <= num_outputs,
                  make_string("The length of the ``output_layouts`` (=", output_layouts_.size(),
-                             ") does not match the number of outputs (=", num_outputs, ")."));
+                             ") is greater than the number of outputs (=", num_outputs, ")."));
   }
 
  protected:
@@ -226,11 +230,11 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
   };
 
   void SetOutputLayouts(workspace_t<Backend> &ws) {
-    if (!layouts_specified_) return;
-    assert(ws.NumOutput() == static_cast<int64_t>(output_layouts_.size()));
-    for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
-      auto &output = ws.template OutputRef<Backend>(idx);
-      output.SetLayout(output_layouts_[idx]);
+    Index output_idx = 0;
+    for (auto layout : output_layouts_) {
+      auto &output = ws.template OutputRef<Backend>(output_idx);
+      output.SetLayout(layout);
+      ++output_idx;
     }
   }
 
@@ -240,8 +244,7 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
   py::object python_function;
   bool synchronize_stream_;
   bool batch_processing;
-  std::vector<string> output_layouts_;
-  bool layouts_specified_;
+  std::vector<TensorLayout> output_layouts_;
 };
 
 }  // namespace dali

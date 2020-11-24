@@ -125,7 +125,7 @@ class CVPipeline(Pipeline):
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         self.rotate = ops.PythonFunction(function=CVRotate(output_type, input_type, fixed_size),
-                                         output_layouts=["HWC"])
+                                         output_layouts="HWC")
         self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42)
         self.iter = 0
 

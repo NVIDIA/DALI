@@ -72,7 +72,7 @@ class WaterPythonPipeline(Pipeline):
                                            exec_pipelined=False)
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
-        self.water = ops.PythonFunction(function=function, output_layouts=["HWC"])
+        self.water = ops.PythonFunction(function=function, output_layouts="HWC")
 
 
     def define_graph(self):

@@ -89,35 +89,36 @@ inline Copier GetCopier() {
  * the pipeline can output.
  */
 enum DALIDataType : int {
-  DALI_NO_TYPE         = -1,
-  DALI_UINT8           =  0,
-  DALI_UINT16          =  1,
-  DALI_UINT32          =  2,
-  DALI_UINT64          =  3,
-  DALI_INT8            =  4,
-  DALI_INT16           =  5,
-  DALI_INT32           =  6,
-  DALI_INT64           =  7,
-  DALI_FLOAT16         =  8,
-  DALI_FLOAT           =  9,
-  DALI_FLOAT64         = 10,
-  DALI_BOOL            = 11,
-  DALI_STRING          = 12,
-  DALI_BOOL_VEC        = 13,
-  DALI_INT_VEC         = 14,
-  DALI_STRING_VEC      = 15,
-  DALI_FLOAT_VEC       = 16,
+  DALI_NO_TYPE           = -1,
+  DALI_UINT8             =  0,
+  DALI_UINT16            =  1,
+  DALI_UINT32            =  2,
+  DALI_UINT64            =  3,
+  DALI_INT8              =  4,
+  DALI_INT16             =  5,
+  DALI_INT32             =  6,
+  DALI_INT64             =  7,
+  DALI_FLOAT16           =  8,
+  DALI_FLOAT             =  9,
+  DALI_FLOAT64           = 10,
+  DALI_BOOL              = 11,
+  DALI_STRING            = 12,
+  DALI_BOOL_VEC          = 13,
+  DALI_INT_VEC           = 14,
+  DALI_STRING_VEC        = 15,
+  DALI_FLOAT_VEC         = 16,
 #ifdef DALI_BUILD_PROTO3
-  DALI_TF_FEATURE      = 17,
-  DALI_TF_FEATURE_VEC  = 18,
-  DALI_TF_FEATURE_DICT = 19,
+  DALI_TF_FEATURE        = 17,
+  DALI_TF_FEATURE_VEC    = 18,
+  DALI_TF_FEATURE_DICT   = 19,
 #endif  // DALI_BUILD_PROTO3
-  DALI_IMAGE_TYPE      = 20,
-  DALI_DATA_TYPE       = 21,
-  DALI_INTERP_TYPE     = 22,
-  DALI_TENSOR_LAYOUT   = 23,
-  DALI_PYTHON_OBJECT   = 24,
-  DALI_DATATYPE_END    = 1000
+  DALI_IMAGE_TYPE        = 20,
+  DALI_DATA_TYPE         = 21,
+  DALI_INTERP_TYPE       = 22,
+  DALI_TENSOR_LAYOUT     = 23,
+  DALI_PYTHON_OBJECT     = 24,
+  DALI_TENSOR_LAYOUT_VEC = 25,
+  DALI_DATATYPE_END      = 1000
 };
 
 inline std::ostream &operator<<(std::ostream &os, DALIDataType t) {
@@ -201,6 +202,9 @@ inline std::ostream &operator<<(std::ostream &os, DALIDataType t) {
       break;
     case DALI_PYTHON_OBJECT:
       os << "Python object";
+      break;
+    case DALI_TENSOR_LAYOUT_VEC:
+      os << "list of TensorLayout";
       break;
     case DALI_DATATYPE_END:  // fall through
     default:
@@ -551,6 +555,7 @@ DALI_REGISTER_TYPE(std::vector<bool>, DALI_BOOL_VEC);
 DALI_REGISTER_TYPE(std::vector<int>, DALI_INT_VEC);
 DALI_REGISTER_TYPE(std::vector<std::string>, DALI_STRING_VEC);
 DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
+DALI_REGISTER_TYPE(std::vector<TensorLayout>, DALI_TENSOR_LAYOUT_VEC);
 
 /**
  * @brief Easily instantiate templates for all types

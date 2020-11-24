@@ -119,7 +119,7 @@ class CropSequencePythonOpPipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.crop = ops.PythonFunction(function = function, output_layouts=[layout])
+        self.crop = ops.PythonFunction(function = function, output_layouts=layout)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -290,7 +290,7 @@ class Crop3dPythonOpPipeline(Pipeline):
         def crop_func(image):
             return function(image, layout=self.data_layout, shape=self.data_shape)
 
-        self.crop = ops.PythonFunction(function = crop_func, output_layouts[data_layout])
+        self.crop = ops.PythonFunction(function=crop_func, output_layouts=data_layout)
 
     def define_graph(self):
         self.data = self.inputs()

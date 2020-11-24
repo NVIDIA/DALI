@@ -134,7 +134,7 @@ class MultichannelSynthPythonOpPipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.oper = ops.PythonFunction(function=function, output_layouts=[layout])
+        self.oper = ops.PythonFunction(function=function, output_layouts=layout)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -223,7 +223,7 @@ class MultichannelPythonOpPipeline(Pipeline):
                                                            exec_pipelined=False)
         self.reader = ops.FileReader(file_root=multichannel_tiff_root)
         self.decoder = ops.ImageDecoder(device = 'cpu', output_type = types.ANY_DATA)
-        self.oper = ops.PythonFunction(function=function, output_layouts=["HWC"])
+        self.oper = ops.PythonFunction(function=function, output_layouts="HWC")
 
     def define_graph(self):
         encoded_data, _ = self.reader()

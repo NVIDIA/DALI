@@ -54,7 +54,7 @@ class CommonPipeline(Pipeline):
                                              exec_pipelined=False)
         self.input = ops.FileReader(file_root=image_dir)
         self.decode = ops.ImageDecoder(device = 'cpu', output_type=types.RGB)
-        self.resize = ops.PythonFunction(function=resize, output_layouts=['HWC'])
+        self.resize = ops.PythonFunction(function=resize, output_layouts='HWC')
 
     def load(self):
         jpegs, labels = self.input()
@@ -494,21 +494,35 @@ def test_output_layout():
     pipe = CommonPipeline(1, 1, 0, 999, images_dir)
     with pipe:
         images, _ = pipe.load()
-        out = fn.python_function(images, function=lambda x: x.mean(2), output_layouts=['HW'])
-        pipe.set_outputs(out)
-    pipe.build()
-    out, = pipe.run()
-    assert(out.layout() == 'HW')
-
-    pipe2 = CommonPipeline(1, 1, 0, 999, images_dir)
-    with pipe2:
-        images, _ = pipe.load()
         out1, out2 = fn.python_function(images,
                                         function=lambda x: (x, x.mean(2)),
                                         num_outputs=2,
-                                        output_layouts=['HWC', 'HW'])
-        pipe2.set_outputs(out1, out2)
-    pipe2.build()
-    out1, out2 = pipe2.run()
-    assert(out1.layout() == 'HWC')
-    assert(out2.layout() == 'HW')
+                                        output_layouts=['ABC', 'DE'])
+        out3, out4 = fn.python_function(images, 
+                                        function=lambda x: (x, x/2),
+                                        num_outputs=2,
+                                        output_layouts='FGH')
+        out5, out6 = fn.python_function(images,
+                                        function=lambda x: (x, x/2),
+                                        num_outputs=2,
+                                        output_layouts=['IJK'])
+
+        pipe.set_outputs(out1, out2, out3, out4, out5, out6)
+    pipe.build()
+    out1, out2, out3, out4, out5, out6 = pipe.run()
+    assert(out1.layout() == 'ABC')
+    assert(out2.layout() == 'DE')
+    assert(out3.layout() == 'FGH')
+    assert(out4.layout() == 'FGH')
+    assert(out5.layout() == 'IJK')
+    assert(out6.layout() == '')
+
+@raises(RuntimeError)
+def test_invalid_layouts_arg():
+    pipe = Pipeline(1, 1, 0, 999, exec_async=False, exec_pipelined=False)
+    with pipe:
+        out = fn.python_function(function=lambda: np.zeros((1, 1)),
+                                 output_layouts=['HW', 'HWC'])
+        pipe.set_outputs(out)
+    pipe.build()
+    pipe.run()

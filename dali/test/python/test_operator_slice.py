@@ -273,7 +273,7 @@ class SliceSynthDataPipelinePythonOp(Pipeline):
         function = partial(
             slice_func_helper, axes, axis_names, self.layout,
             normalized_anchor, normalized_shape)
-        self.slice = ops.PythonFunction(function=function, output_layouts=[layout])
+        self.slice = ops.PythonFunction(function=function, output_layouts=layout)
         self.output_type = output_type
         if self.output_type is not None:
             self.cast_out = ops.Cast(dtype=output_type)
@@ -318,7 +318,7 @@ class SlicePythonOp(Pipeline):
         function = partial(
             slice_func_helper, axes, axis_names, self.layout,
             normalized_anchor, normalized_shape)
-        self.slice = ops.PythonFunction(function=function, output_layouts=["HWC"])
+        self.slice = ops.PythonFunction(function=function, output_layouts="HWC")
 
     def define_graph(self):
         imgs, _ = self.input()
