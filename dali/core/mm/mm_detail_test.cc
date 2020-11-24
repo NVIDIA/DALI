@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <dali/core/mm/detail/align.h>
-#include <dali/core/mm/mm_test_utils.h>
+#include "dali/core/mm/detail/align.h"
+#include "dali/core/mm/mm_test_utils.h"
 
 namespace dali {
 namespace mm {
@@ -36,7 +36,7 @@ TEST(MMTest, AllignedAlloc) {
       int headroom = (unaligned + upstream_size) - (ptr + size);
       if (headroom < min_headroom)
         min_headroom = headroom;
-      EXPECT_TRUE(is_aligned(ptr, alignment)) << "Not aligned";
+      EXPECT_TRUE(detail::is_aligned(ptr, alignment)) << "Not aligned";
       detail::aligned_dealloc([&](void *mem, size_t size) {
         EXPECT_EQ(mem, unaligned) << "Dealloc got a different pointer than was returned by alloc.";
         EXPECT_EQ(size, upstream_size) << "Dealloc got a different size than was passed to alloc";

@@ -15,8 +15,8 @@
 #ifndef DALI_CORE_MM_MR_H_
 #define DALI_CORE_MM_MR_H_
 
-#include <cstddef>
 #include <cuda_runtime.h>
+#include <cstddef>
 
 namespace dali {
 namespace mm {
@@ -72,15 +72,14 @@ class stream_memory_resource {
  public:
   stream_memory_resource() = default;
 
-  stream_memory_resource(const memory_resource &) = delete;
-  stream_memory_resource &operator=(const memory_resource &) = delete;
+  stream_memory_resource(const stream_memory_resource &) = delete;
+  stream_memory_resource &operator=(const stream_memory_resource &) = delete;
   virtual ~stream_memory_resource() = default;
 
 
   /**
    * @brief Allocates memory for immediate use on stream `stream`.
-   * @param stream      CUDA stream on which the memory can be immediately reused; in general,
-   *                    it does not need to be the same stream as was passed to `allocate`.
+   * @param stream      CUDA stream on which the memory can be immediately used
    * @param bytes       Size, in bytes, of the requested block
    * @param alignment   Alignment, in bytes, of the requested block.
    */

@@ -15,14 +15,13 @@
 #ifndef DALI_CORE_MM_MONOTONIC_RESOURCE_H_
 #define DALI_CORE_MM_MONOTONIC_RESOURCE_H_
 
-#include <dali/core/mm/mr.h>
-#include <dali/core/mm/detail/util.h>
-#include <dali/core/mm/detail/align.h>
-#include <dali/core/small_vector.h>
 #include <cassert>
-#include <deque>
 #include <algorithm>
 #include <utility>
+#include "dali/core/mm/mr.h"
+#include "dali/core/mm/detail/util.h"
+#include "dali/core/mm/detail/align.h"
+#include "dali/core/small_vector.h"
 
 namespace dali {
 namespace mm {
@@ -116,10 +115,10 @@ class monotonic_host_resource : public memory_resource {
   memory_resource *upstream_;
   size_t next_block_size_;
   struct block_info {
-   size_t sentinel;
-   block_info *prev;
-   size_t usable_size;
-   size_t alignment;
+    size_t sentinel;
+    block_info *prev;
+    size_t usable_size;
+    size_t alignment;
   };
   block_info *curr_block_ = nullptr;
 };

@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <dali/core/mm/monotonic_resource.h>
-#include <dali/core/mm/malloc_resource.h>
-#include <dali/core/mm/mm_test_utils.h>
+#include "dali/core/mm/monotonic_resource.h"
+#include "dali/core/mm/malloc_resource.h"
+#include "dali/core/mm/mm_test_utils.h"
 
 namespace dali {
 namespace mm {
@@ -45,9 +45,59 @@ TEST(MMTest, MonotonicBufferResource) {
 TEST(MMTest, MonotonicHostResource) {
   test_host_resource upstream;
   {
+    monotonic_host_resource mr(&upstream);
+    void *m1 = mr.allocate(100);
+    ASSERT_NE(m1, nullptr);
+    memset(m1, 0xff, 100);
+    void *m2 = mr.allocate(256, 32);
+    ASSERT_NE(m2, nullptr);
+    memset(m2, 0xfe, 256);
+    EXPECT_GE(static_cast<char *>(m2), static_cast<char *>(m1) + 100);
+    EXPECT_TRUE(detail::is_aligned(m2, 32));
+    EXPECT_LE(static_cast<char *>(m2), static_cast<char *>(m1) + align_up(100, 32));
+    void *m3 = mr.allocate(1024);
+    ASSERT_NE(m3, nullptr);
+    memset(m3, 0xfd, 1024);
+    void *m4 = mr.allocate(64000);
+    ASSERT_NE(m4, nullptr);
+    memset(m4, 0xfc, 64000);
   }
   upstream.check_leaks();
 }
+
+TEST(MMTest, MonotonicDeviceResource) {
+  test_host_resource upstream;
+  {
+    monotonic_device_resource mr(&upstream);
+    void *m1 = mr.allocate(100);
+    ASSERT_NE(m1, nullptr);
+    memset(m1, 0xff, 100);
+    void *m2 = mr.allocate(256, 32);
+    ASSERT_NE(m2, nullptr);
+    memset(m2, 0xfe, 256);
+    EXPECT_GE(static_cast<char *>(m2), static_cast<char *>(m1) + 100);
+    EXPECT_TRUE(detail::is_aligned(m2, 32));
+    EXPECT_LE(static_cast<char *>(m2), static_cast<char *>(m1) + align_up(100, 32));
+    void *m3 = mr.allocate(1024);
+    ASSERT_NE(m3, nullptr);
+    memset(m3, 0xfd, 1024);
+    void *m4 = mr.allocate(64000);
+    ASSERT_NE(m4, nullptr);
+    memset(m4, 0xfc, 64000);
+  }
+  upstream.check_leaks();
+}
+
+namespace {
+class host_stream_resource : public stream_memory_resource {
+  void *do_allocate(cudaStream_t stream, size_t bytes, size_t alignment) override {
+    return malloc_memory_resource::instance().allocate(bytes, alignment);
+  }
+  void do_deallocate(cudaStream_t stream, void *ptr, size_t bytes, size_t alignment) override {
+    malloc_memory_resource::instance().deallocate(ptr, bytes, alignment);
+  }
+};
+}  // namespace
 
 }  // namespace mm
 }  // namespace dali

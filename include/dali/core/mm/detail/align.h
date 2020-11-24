@@ -17,15 +17,19 @@
 
 #include <cassert>
 #include <utility>
-#include <dali/core/util.h>
+#include "dali/core/util.h"
 
 namespace dali {
 namespace mm {
 namespace detail {
 
 template <typename T, typename A>
-constexpr T *align_ptr(T *ptr, A alignment) {
+constexpr T *align_ptr(T *ptr, A alignment) noexcept {
   return reinterpret_cast<T*>(dali::align_up(reinterpret_cast<uintptr_t>(ptr), alignment));
+}
+
+constexpr bool is_aligned(void *ptr, size_t alignment) noexcept {
+  return (reinterpret_cast<size_t>(ptr) & (alignment-1)) == 0;
 }
 
 template <typename OffsetType, typename AllocFn>
