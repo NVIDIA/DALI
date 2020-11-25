@@ -28,7 +28,7 @@ namespace mm {
  *
  * This object is used for managing a list of perfectly interchangeable memory regions.
  * As such, it does not need to store size of the blocks, since they will, by definition,
- * have equal size and the list doesn need to know what that size is.
+ * have equal size and the list doesn't need to know what that size is.
  *
  * This is a non-intrusive free list and, as such, it needs to allocate the storage for the block
  * descirptors. The block descirptors are not freed until the object is destroyed.
@@ -43,6 +43,18 @@ class uniform_free_list {
     block *next;
     void *mem;
   };
+
+  uniform_free_list() = default;
+  uniform_free_list(const uniform_free_list &) = delete;
+  uniform_free_list(uniform_free_list &&other) {
+    *this = std::move(other);
+  }
+
+  uniform_free_list &operator=(uniform_free_list &&other) {
+    std::swap(head, other.head);
+    std::swap(unused_blocks, other.unused_blocks);
+    return *this;
+  }
 
   ~uniform_free_list() {
     clear();
@@ -96,8 +108,7 @@ class uniform_free_list {
  *        with least margin.
  *
  * This object is used for managing a list of variable-sized memory regions.
- * It returns blocks on a best-fit basis. The remaining remaining parts of the block are
- * placed in the list.
+ * It returns blocks on a best-fit basis. The remaining parts of the block are placed in the list.
  *
  * This list may be of utility when there's a limited range of object sizes to be allocated
  * - ideally, if these are powers of two. It suffers from fragmentation and therefore is not
@@ -105,6 +116,18 @@ class uniform_free_list {
  */
 class best_fit_free_list {
  public:
+  best_fit_free_list() = default;
+  best_fit_free_list(const best_fit_free_list &) = delete;
+  best_fit_free_list(best_fit_free_list &&other) {
+    *this = std::move(other);
+  }
+
+  best_fit_free_list &operator=(best_fit_free_list &&other) {
+    std::swap(head, other.head);
+    std::swap(unused_blocks, other.unused_blocks);
+    return *this;
+  }
+
   virtual ~best_fit_free_list() {
     clear();
   }
@@ -242,6 +265,17 @@ class best_fit_free_list {
  */
 class coalescing_free_list : public best_fit_free_list {
  public:
+  coalescing_free_list() = default;
+  coalescing_free_list(const coalescing_free_list &) = delete;
+  coalescing_free_list(coalescing_free_list &&other) {
+    *this = std::move(other);
+  }
+
+  coalescing_free_list &operator=(coalescing_free_list &&other) {
+    static_cast<best_fit_free_list&>(*this) = std::move(other);
+    return *this;
+  }
+
   void put(void *ptr, size_t bytes) {
     // find blocks that immediatele precede and succeed the freed block
     block *pred = nullptr;

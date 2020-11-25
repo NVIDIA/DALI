@@ -35,6 +35,9 @@ class memory_resource {
    * @brief Allocates memory
    * @param bytes       Size, in bytes, of the requested block
    * @param alignment   Alignment, in bytes, of the requested block.
+   * @return A pointer to a memory region that satisfies bytes and alignment constraints.
+   *         The pointer should, in general, be freed with a call to deallocate.
+   *         Some memory resources don't require deallocation.
    */
   void *allocate(size_t bytes, size_t alignment = alignof(std::max_align_t)) {
     return do_allocate(bytes, alignment);
@@ -82,6 +85,16 @@ class stream_memory_resource {
    * @param stream      CUDA stream on which the memory can be immediately used
    * @param bytes       Size, in bytes, of the requested block
    * @param alignment   Alignment, in bytes, of the requested block.
+   * @return A pointer to a memory region that satisfies bytes and alignment constraints and
+   *         which can be immediately used on a given CUDA stream.
+   *         The pointer should, in general, be freed with a call to deallocate.
+   *         Some memory resources don't require deallocation.
+   *
+   * stream_memory_resource is a special memory resource that is aware of CUDA streams
+   * and can process allocation and deallocation in stream order. The memory can be modified
+   * immediately on given `stream` but it may be still in use on a different stream.
+   * Similarly, memory returned for a stream cannot be used on host until all work scheduled
+   * on the stream at the moment of a call to allocate is complete.
    */
   void *allocate(cudaStream_t stream,
                  size_t bytes, size_t alignment = alignof(std::max_align_t)) {
@@ -96,6 +109,12 @@ class stream_memory_resource {
    * @param mem         Pointer to a block of memory returned by `allocate`
    * @param bytes       Size, in bytes, of the block being deallocated
    * @param alignment   Alignment, in bytes, of the block being deallocated.
+   *
+   * Implementations of stream_memory_resource may place the freed memory in a per-stream
+   * pool and subsequent calls to allocate may return this memory block or its parts while it's
+   * still in use on device.
+   * It is safe use deallocate on memory that is still in use by the
+   * indicated stream.
    */
   void deallocate(cudaStream_t stream,
                   void *ptr, size_t bytes, size_t alignment = alignof(std::max_align_t)) {

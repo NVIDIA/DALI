@@ -22,6 +22,9 @@ namespace dali {
 namespace mm {
 namespace detail {
 
+/**
+ * @brief An integral constant with a bit pattern used for detecting memory corruption.
+ */
 template <typename T, size_t sz = sizeof(T)>
 struct sentinel_value;
 
@@ -37,12 +40,19 @@ struct sentinel_value<T, 4> : std::integral_constant<T, static_cast<T>(0xABCDABC
 template <typename T>
 struct sentinel_value<T, 8> : std::integral_constant<T, static_cast<T>(0xABCDABCDABCDABCDuL)> {};
 
+/**
+ * @brief Stores a sentinel value of type T at a given offset from a base pointer mem.
+ */
 template <typename T>
 void write_sentinel(void *mem, ptrdiff_t offset = 0) {
   mem = static_cast<char*>(mem) + offset;
   *static_cast<T*>(mem) = sentinel_value<T>::value;
 }
 
+/**
+ * @brief Checks whether there's a correct sentinel value of type T at a given offset
+ *        from a base pointer mem.
+ */
 template <typename T>
 bool check_sentinel(const void *mem, ptrdiff_t offset = 0) {
   mem = static_cast<const char*>(mem) + offset;

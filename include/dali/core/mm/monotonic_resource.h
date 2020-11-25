@@ -26,6 +26,12 @@
 namespace dali {
 namespace mm {
 
+/**
+ * @brief Monotonic resource which returns memory from a preallocated buffer.
+ *
+ * Monotonic buffer resources don't require manual deallocation of the returned pointers.
+ * The memory is freed in bulk when the underlying buffer is freed.
+ */
 class monotonic_buffer_resource : public memory_resource {
  public:
   monotonic_buffer_resource() = default;
@@ -55,6 +61,10 @@ class monotonic_buffer_resource : public memory_resource {
 /**
  * @brief Monotonic resource which allocates memory from an upstream resource, storing
  *        the metadata in the same memory blocks as the allocated buffers.
+ *
+ * Monotonic resources don't require manual deallocation of memory.
+ * The lifetime of a monotnic resource is limited and all memory will be deallocated in bulk
+ * when the resource is destroyed.
  */
 class monotonic_host_resource : public memory_resource {
  public:
@@ -128,6 +138,10 @@ class monotonic_host_resource : public memory_resource {
  *
  * Use this resource when the upstream memory cannot be accessed by the main processor for the
  * purpose of storing the memory management structures.
+ *
+ * Monotonic resources don't require manual deallocation of memory.
+ * The lifetime of a monotnic resource is limited and all memory will be deallocated in bulk
+ * when the resource is destroyed.
  */
 class monotonic_device_resource : public memory_resource {
  public:
