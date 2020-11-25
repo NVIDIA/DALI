@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <type_traits>
+#include "dali/core/host_dev.h"
 
 namespace dali {
 namespace mm {
@@ -44,6 +45,7 @@ struct sentinel_value<T, 8> : std::integral_constant<T, static_cast<T>(0xABCDABC
  * @brief Stores a sentinel value of type T at a given offset from a base pointer mem.
  */
 template <typename T>
+DALI_HOST_DEV
 void write_sentinel(void *mem, ptrdiff_t offset = 0) {
   mem = static_cast<char*>(mem) + offset;
   *static_cast<T*>(mem) = sentinel_value<T>::value;
@@ -54,6 +56,7 @@ void write_sentinel(void *mem, ptrdiff_t offset = 0) {
  *        from a base pointer mem.
  */
 template <typename T>
+DALI_HOST_DEV
 bool check_sentinel(const void *mem, ptrdiff_t offset = 0) {
   mem = static_cast<const char*>(mem) + offset;
   return *static_cast<const T*>(mem) == sentinel_value<T>::value;

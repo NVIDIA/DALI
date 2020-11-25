@@ -23,16 +23,30 @@ namespace dali {
 namespace mm {
 namespace detail {
 
-template <typename T, typename A>
-constexpr T *align_ptr(T *ptr, A alignment) noexcept {
-  return reinterpret_cast<T*>(dali::align_up(reinterpret_cast<uintptr_t>(ptr), alignment));
+DALI_HOST_DEV
+constexpr uintptr_t ptr2u(void *p) noexcept {
+  return static_cast<char*>(p) - static_cast<char*>(nullptr);
 }
 
+template <typename T>
+DALI_HOST_DEV
+constexpr T *u2ptr(uintptr_t i) noexcept {
+  return static_cast<T*>(static_cast<void *>(static_cast<char*>(nullptr) + i));
+}
+
+template <typename T, typename A>
+DALI_HOST_DEV
+constexpr T *align_ptr(T *ptr, A alignment) noexcept {
+  return u2ptr<T>(align_up(ptr2u(ptr), alignment));
+}
+
+DALI_HOST_DEV
 constexpr bool is_aligned(void *ptr, size_t alignment) noexcept {
-  return (reinterpret_cast<size_t>(ptr) & (alignment-1)) == 0;
+  return (ptr2u(ptr) & (alignment-1)) == 0;
 }
 
 template <typename OffsetType, typename AllocFn>
+DALI_HOST_DEV
 void *aligned_alloc_impl(AllocFn base_alloc, size_t size, size_t alignment) {
   void *ptr = base_alloc(size + alignment + sizeof(OffsetType) - 1);
   OffsetType *data = static_cast<OffsetType *>(ptr);
@@ -43,6 +57,7 @@ void *aligned_alloc_impl(AllocFn base_alloc, size_t size, size_t alignment) {
 }
 
 template <typename OffsetType, typename DeallocFn>
+DALI_HOST_DEV
 void aligned_dealloc_impl(DeallocFn base_dealloc, void *mem, size_t size, size_t alignment) {
   OffsetType *ptr = static_cast<OffsetType *>(mem);
   ptrdiff_t offset = ptr[-1];
@@ -52,6 +67,7 @@ void aligned_dealloc_impl(DeallocFn base_dealloc, void *mem, size_t size, size_t
 }
 
 template <typename AllocFn>
+DALI_HOST_DEV
 inline void *aligned_alloc(AllocFn base_alloc, size_t size, size_t alignment) {
   if (alignment < 2)
     return base_alloc(size);
@@ -63,6 +79,7 @@ inline void *aligned_alloc(AllocFn base_alloc, size_t size, size_t alignment) {
 }
 
 template <typename DeallocFn>
+DALI_HOST_DEV
 inline void aligned_dealloc(DeallocFn base_dealloc, void *mem, size_t size, size_t alignment) {
   if (alignment < 2)
     base_dealloc(mem, size);
