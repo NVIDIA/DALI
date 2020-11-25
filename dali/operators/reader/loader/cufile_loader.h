@@ -53,6 +53,19 @@ class CUFileLoader : public Loader<GPUBackend, ImageFileWrapperGPU> {
     vector<std::string> images = std::vector<std::string>(),
     bool shuffle_after_epoch = false);
 
+  ~CUFileLoader() {
+    /*
+     * As this class keeps the CUFileDriverHandle open as long as it lives we need to make sure
+     * when it is closed there is no more resources that may use the cuFile. In this case
+     * last_sample_ptr_tmp, sample_buffer_ and empty_tensors_ when destroyied still uses
+     * cuFileDeregister functions, so instead of letting them to be cleared by Loader class when
+     * cuFile is no longer accesible we need to do that here.
+     */
+    last_sample_ptr_tmp.reset();
+    sample_buffer_.clear();
+    empty_tensors_.clear();
+  }
+
   void PrepareEmpty(ImageFileWrapperGPU& tensor) override;
   // we want to make it possible to override this function as well
   void ReadSample(ImageFileWrapperGPU& tensor) override;

@@ -73,7 +73,7 @@ class DataReader : public Operator<Backend> {
     StopPrefetchThread();
     for (auto &batch : prefetched_batch_queue_) {
       // make share_ptr do their job while loader is still alive
-      // and RecycleTensor could be safelly executed
+      // and RecycleTensor could be safely executed
       batch.clear();
     }
   }

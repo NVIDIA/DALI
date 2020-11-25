@@ -26,10 +26,6 @@
 
 namespace dali {
 
-// this is needed for the driver singleton
-static std::mutex open_driver_mutex;
-static std::weak_ptr<cufile::CUFileDriverHandle> driver_handle;
-
 CUFileLoader::CUFileLoader(const OpSpec& spec, vector<std::string> images,
                            bool shuffle_after_epoch)
     : Loader<GPUBackend, ImageFileWrapperGPU >(spec),
@@ -84,6 +80,10 @@ CUFileLoader::CUFileLoader(const OpSpec& spec, vector<std::string> images,
 
   // set the device first
   DeviceGuard g(device_id_);
+
+  // this is needed for the driver singleton
+  static std::mutex open_driver_mutex;
+  static std::weak_ptr<cufile::CUFileDriverHandle> driver_handle;
 
   // load the cufile driver
   std::lock_guard<std::mutex> dlock(open_driver_mutex);

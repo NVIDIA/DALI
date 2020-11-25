@@ -43,7 +43,7 @@ class CUFileDriverHandle{
   }
 
   ~CUFileDriverHandle() {
-    cuFileDriverClose();
+    CUDA_CALL(cuFileDriverClose());
   }
 };
 

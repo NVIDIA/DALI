@@ -46,13 +46,12 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
   }
 
   ~NumpyReaderGPU() override {
-    StopPrefetchThread();
-    // close all streams in prefetched_batch_queue_, it matters in case of exception
-    for (auto &batch : prefetched_batch_queue_) {
-      for (auto &sample : batch) {
-        sample->file_stream.reset();
-      }
-    }
+    /*
+     * Stop the prefetch thread as it uses the thread pool from this class. So before we can
+     * destroy the thread pool make sure no one is using it anymore.
+     */
+
+    DataReader<GPUBackend, ImageFileWrapperGPU>::StopPrefetchThread();
   }
 
   // override prefetching here

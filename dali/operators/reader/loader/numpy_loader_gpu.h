@@ -81,9 +81,6 @@ class NumpyLoaderGPU : public CUFileLoader {
   std::map<uint8_t*, size_t> reg_buff_;
 
   detail::NumpyHeaderCache header_cache_;
-
-  // temporary tensor for 2-stage IO
-  Tensor<GPUBackend> io_tensor_;
 };
 
 }  // namespace dali
