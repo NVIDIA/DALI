@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 #include "dali/core/format.h"
+#include "dali/core/error_handling.h"
 #include "dali/core/geom/mat.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
@@ -50,10 +51,13 @@ void ReadArgInput(std::vector<T> &out, const std::string &arg_name,
                   const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
   const auto& arg_in = ws.ArgumentInput(arg_name);
   auto arg_in_view = view<const float>(arg_in);
-  DALI_ENFORCE(is_uniform(arg_in_view.shape),
-    make_string("All samples in argument ``", arg_name, "`` should have the same shape"));
-  DALI_ENFORCE(arg_in_view.shape.sample_dim() == 1,
-    make_string("``", arg_name, "`` must be a 1D tensor"));
+  DALI_ENFORCE(is_uniform(arg_in_view.shape) && volume(arg_in_view.shape[0]) == 1,
+    make_string("``", arg_name, "`` must be a scalar or a 1D tensor with a single element"));
+  if (arg_in_view.shape.sample_dim() > 0) {
+    DALI_WARN_ONCE("Warning: \"", arg_name, "\""
+                   " expected a scalar but received a 1D tensor with a single "
+                   "element. Please use a scalar instead.");
+  }
 
   auto nsamples = arg_in_view.size();
   out.resize(nsamples);

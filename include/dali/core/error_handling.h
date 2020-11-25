@@ -15,6 +15,8 @@
 #ifndef DALI_CORE_ERROR_HANDLING_H_
 #define DALI_CORE_ERROR_HANDLING_H_
 
+#include "dali/core/format.h"
+
 #ifndef _MSC_VER
   #if defined(__AARCH64_QNX__) || defined(__AARCH64_GNU__) || defined(__aarch64__)
      #define DALI_USE_STACKTRACE 0
@@ -245,9 +247,15 @@ inline dali::string GetStacktrace() {
     std::cerr << DALI_MESSAGE_WITH_STACKTRACE(str) << std::endl; \
   } while (0)
 
-#define DALI_WARN(str)                           \
-  do {                                           \
-    std::cerr << DALI_MESSAGE(str) << std::endl; \
+#define DALI_WARN(...)                                                      \
+  do {                                                                      \
+    std::cerr << DALI_MESSAGE(dali::make_string(__VA_ARGS__)) << std::endl; \
+  } while (0)
+
+#define DALI_WARN_ONCE(...)                                                          \
+  do {                                                                               \
+    static int dummy =                                                               \
+        (std::cerr << DALI_MESSAGE(dali::make_string(__VA_ARGS__)) << std::endl, 0); \
   } while (0)
 
 void DALIReportFatalProblem(const char *file, int line, const char *pComment);
