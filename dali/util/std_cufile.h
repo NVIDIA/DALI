@@ -46,9 +46,9 @@ class StdCUFileStream : public CUFileStream {
   }
 
  private:
-  cufile::CUFileHandle f_;
-  size_t length_;
-  size_t pos_;
+  cufile::CUFileHandle f_ = {};
+  size_t length_ = 0;
+  size_t pos_ = 0;
 };
 
 }  // namespace dali
