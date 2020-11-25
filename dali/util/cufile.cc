@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include <string>
 
 #include "dali/util/cufile.h"
 #include "dali/util/std_cufile.h"
-
 
 namespace dali {
 

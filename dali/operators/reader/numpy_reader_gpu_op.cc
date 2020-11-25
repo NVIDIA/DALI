@@ -101,12 +101,12 @@ void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
   for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
     const auto& imfile = GetSample(sample_idx);
     auto plain_shape = GetSampleShape(sample_idx);
-    if (imfile.meta == "transpose:false") {
-      tmp_shapes.push_back(plain_shape);
-    } else {
+    if (imfile.transpose_fortan_order) {
       PermuteHelper(plain_shape, perm_shape, perm);
       tmp_shapes.push_back(perm_shape);
       transpose_shapes.push_back(plain_shape);
+    } else {
+      tmp_shapes.push_back(plain_shape);
     }
   }
   auto ref_type = GetSampleType(0);
@@ -130,13 +130,13 @@ void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
 
   for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
     const auto& imfile = GetSample(data_idx);
-    if (imfile.meta == "transpose:false") {
+    if (imfile.transpose_fortan_order) {
+      transpose_from.push_back(GetSampleRawData(data_idx));
+      transpose_to.push_back(image_output.raw_mutable_tensor(data_idx));
+    } else {
       copy_from.push_back(GetSampleRawData(data_idx));
       copy_to.push_back(image_output.raw_mutable_tensor(data_idx));
       copy_sizes.push_back(shape.tensor_size(data_idx));
-    } else {
-      transpose_from.push_back(GetSampleRawData(data_idx));
-      transpose_to.push_back(image_output.raw_mutable_tensor(data_idx));
     }
     image_output.SetSourceInfo(data_idx, imfile.image.GetSourceInfo());
   }

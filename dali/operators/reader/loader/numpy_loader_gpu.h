@@ -67,7 +67,7 @@ class NumpyLoaderGPU : public CUFileLoader {
   void ParseHeader(CUFileStream *file, NumpyParseTarget& target);
 
   // register input tensor
-  void RegisterTensor(void *buffer, size_t total_size);
+  void RegisterBuffer(void *buffer, size_t total_size);
 
   // read the full sample
   void ReadSampleHelper(CUFileStream *file, ImageFileWrapperGPU& imfile,

@@ -38,7 +38,7 @@ namespace dali {
 struct ImageFileWrapperGPU {
   Tensor<GPUBackend> image;
   std::string filename;
-  std::string meta;
+  bool transpose_fortan_order;
   TensorShape<> shape;
   TypeInfo type_info;
   std::unique_ptr<CUFileStream> file_stream;
@@ -57,7 +57,7 @@ class CUFileLoader : public Loader<GPUBackend, ImageFileWrapperGPU> {
     /*
      * As this class keeps the CUFileDriverHandle open as long as it lives we need to make sure
      * when it is closed there is no more resources that may use the cuFile. In this case
-     * last_sample_ptr_tmp, sample_buffer_ and empty_tensors_ when destroyied still uses
+     * last_sample_ptr_tmp, sample_buffer_ and empty_tensors_ when destroyed still uses
      * cuFileDeregister functions, so instead of letting them to be cleared by Loader class when
      * cuFile is no longer accesible we need to do that here.
      */

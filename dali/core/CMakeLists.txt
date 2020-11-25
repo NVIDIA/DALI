@@ -64,7 +64,7 @@ if (BUILD_CUFILE)
       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py
               "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cufile.h"
               "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/cufile.json"
-      COMMENT "Running cuda.h stub generator"
+      COMMENT "Running cufile.h stub generator"
       VERBATIM)
 
   set_source_files_properties(${CUFILE_GENERATED_STUB} PROPERTIES GENERATED TRUE)

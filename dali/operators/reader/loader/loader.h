@@ -113,10 +113,7 @@ class Loader {
     std::enable_if_t<!(std::is_same<T, Tensor<CPUBackend>>::value ||
                        std::is_same<T, Tensor<GPUBackend>>::value)>
   PrepareEmptyTensor(T&) {
-    constexpr bool T_is_Tensor = (std::is_same<T, Tensor<CPUBackend>>::value ||
-                                  std::is_same<T, Tensor<GPUBackend>>::value);
-    DALI_ENFORCE(T_is_Tensor,
-      "Please overload PrepareEmpty for custom LoadTarget type other than Tensor");
+    DALI_ERROR("Please overload PrepareEmpty for custom LoadTarget type other than Tensor");
   }
 
   // Get a random read sample

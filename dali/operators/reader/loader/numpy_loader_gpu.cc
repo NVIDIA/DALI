@@ -22,8 +22,8 @@
 
 namespace dali {
 
-// register tensor
-void NumpyLoaderGPU::RegisterTensor(void *buffer, size_t total_size) {
+// register buffer
+void NumpyLoaderGPU::RegisterBuffer(void *buffer, size_t total_size) {
   if (register_buffers_) {
     // get raw pointer
     auto dptr = static_cast<uint8_t*>(buffer);
@@ -48,7 +48,7 @@ void NumpyLoaderGPU::RegisterTensor(void *buffer, size_t total_size) {
 void NumpyLoaderGPU::ReadSampleHelper(CUFileStream *file, ImageFileWrapperGPU& imfile,
                                       void *buffer, Index offset, size_t total_size) {
   // register the buffer (if needed)
-  RegisterTensor(buffer, total_size);
+  RegisterBuffer(buffer, total_size);
 
   Index image_bytes = volume(imfile.shape) * imfile.type_info.size();
 
@@ -102,7 +102,7 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
 
     imfile.type_info = target.type_info;
     imfile.shape = target.shape;
-    imfile.meta = (target.fortran_order ? "transpose:true" : "transpose:false");
+    imfile.transpose_fortan_order = target.fortran_order;
   };
 
   imfile.read_sample_f = [this, image_file, &imfile] (void *buffer, Index offset,

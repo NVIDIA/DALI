@@ -41,7 +41,6 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
     loader_ = InitLoader<NumpyLoaderGPU>(spec, std::vector<string>(),
                                          shuffle_after_epoch);
 
-    // init thread pool:
     kmgr_.Resize<TransposeKernel>(1, 1);
   }
 

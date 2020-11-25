@@ -16,8 +16,8 @@
 #define DALI_UTIL_CUFILE_H_
 
 #include <cstdio>
-#include <string>
 #include <memory>
+#include <string>
 
 #include "dali/core/api_helper.h"
 #include "dali/core/common.h"
@@ -26,21 +26,18 @@ namespace dali {
 
 class DLL_PUBLIC CUFileStream {
  public:
-  static std::unique_ptr<CUFileStream> Open(const std::string& uri, bool read_ahead,
-                                            bool use_mmap);
+  static std::unique_ptr<CUFileStream> Open(const std::string& uri, bool read_ahead, bool use_mmap);
 
   virtual void Close() = 0;
-  virtual size_t Read(uint8_t * buffer, size_t n_bytes, size_t offset = 0) = 0;
-  virtual size_t ReadCPU(uint8_t * buffer, size_t n_bytes) = 0;
-  virtual shared_ptr<void>  Get(size_t n_bytes) = 0;
+  virtual size_t Read(uint8_t* buffer, size_t n_bytes, size_t offset = 0) = 0;
+  virtual size_t ReadCPU(uint8_t* buffer, size_t n_bytes) = 0;
+  virtual shared_ptr<void> Get(size_t n_bytes) = 0;
   virtual void Seek(int64 pos) = 0;
   virtual size_t Size() const = 0;
   virtual ~CUFileStream() {}
 
  protected:
-  explicit CUFileStream(const std::string& path) :
-    path_(path)
-    {}
+  explicit CUFileStream(const std::string& path) : path_(path) {}
 
   std::string path_;
 };
