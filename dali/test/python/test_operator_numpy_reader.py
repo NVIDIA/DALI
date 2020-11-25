@@ -182,7 +182,7 @@ def test_batch_files_cache_headers():
 
 
 def test_batch_files_arg():
-    with tempfile.TemporaryDirectory() as test_data_root:
+    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         # create files
         num_samples = 20
         batch_size = 4
@@ -227,7 +227,7 @@ def check_dim_mismatch(device, test_data_root, names):
     assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
 
 def test_dim_mismatch():
-    with tempfile.TemporaryDirectory() as test_data_root:
+    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         names = ["2D.npy", "3D.npy"]
         paths = [os.path.join(test_data_root, name) for name in names]
         create_numpy_file(paths[0], [3,4], np.float32, False)
@@ -252,7 +252,7 @@ def check_type_mismatch(device, test_data_root, names):
     assert "int32" in str(err) and "float" in str(err), "Unexpected error message: {}".format(err)
 
 def test_type_mismatch():
-    with tempfile.TemporaryDirectory() as test_data_root:
+    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         names = ["int.npy", "float.npy"]
         paths = [os.path.join(test_data_root, name) for name in names]
         create_numpy_file(paths[0], [1,2,5], np.int32, False)
