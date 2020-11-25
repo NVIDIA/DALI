@@ -12,13 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_CORE_MM_MR_H_
-#define DALI_CORE_MM_MR_H_
+#ifndef DALI_CORE_MM_MEMORY_RESOURCE_H_
+#define DALI_CORE_MM_MEMORY_RESOURCE_H_
 
 #include <cuda_runtime.h>
 #include <cstddef>
 
 namespace dali {
+
+/**
+ * @brief Memory Manager
+ *
+ * This namespace contains classes and function for memory managment.
+ * DALI memory manager follows the interface of C++17 polymorphic memory resource for
+ * ordinary host allocators and extends them by the CUDA stream support for
+ * stream-aware allocators.
+ *
+ * Some of the memory resources are composable, accepting an upstream memory resource.
+ * Such composite resources can be used to quickly build an application-specific memory resource,
+ * tailored to specific needs.
+ */
 namespace mm {
 
 /**
@@ -141,4 +154,4 @@ class stream_memory_resource {
 }  // namespace mm
 }  // namespace dali
 
-#endif  // DALI_CORE_MM_MR_H_
+#endif  // DALI_CORE_MM_MEMORY_RESOURCE_H_

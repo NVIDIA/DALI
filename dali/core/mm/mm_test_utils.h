@@ -19,7 +19,7 @@
 #include <cstdlib>
 #include <unordered_map>
 #include <unordered_set>
-#include "dali/core/mm/mr.h"
+#include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/core/mm/detail/util.h"
 

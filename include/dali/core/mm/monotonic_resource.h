@@ -18,7 +18,7 @@
 #include <cassert>
 #include <algorithm>
 #include <utility>
-#include "dali/core/mm/mr.h"
+#include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/detail/util.h"
 #include "dali/core/mm/detail/align.h"
 #include "dali/core/small_vector.h"

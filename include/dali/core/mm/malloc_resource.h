@@ -16,7 +16,7 @@
 #define DALI_CORE_MM_MALLOC_RESOURCE_H_
 
 #include <stdlib.h>
-#include "dali/core/mm/mr.h"
+#include "dali/core/mm/memory_resource.h"
 
 namespace dali {
 namespace mm {
