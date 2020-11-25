@@ -289,16 +289,18 @@ class coalescing_free_list : public best_fit_free_list {
   }
 
   void put(void *ptr, size_t bytes) {
-    // find blocks that immediatele precede and succeed the freed block
+    // find blocks that immediately precede and succeed the freed block
     block *pred = nullptr;
     block **succ = nullptr;
     for (block **pb = &head_; *pb; pb = &(*pb)->next) {
       if ((*pb)->precedes(ptr)) {
+        assert(!pred && "Free list corruption: found two blocks that end at the same address.");
         pred = *pb;
         if (succ)
           break;
       }
       if ((*pb)->succeeds(ptr, bytes))  {
+        assert(!succ && "Free list corruption: found two blocks that start at the same address.");
         succ = pb;
         if (pred)
           break;
