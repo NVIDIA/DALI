@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <ftw.h>
 #include <gtest/gtest.h>
 
 #include <opencv2/core.hpp>
@@ -20,6 +21,20 @@
 
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/pipeline.h"
+
+namespace {
+
+int Remove(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf) {
+    int ret = remove(fpath);
+    assert(!ret);
+    return ret;
+}
+
+void RemoveAll(const char *dir) {
+  nftw(dir, Remove, 64, FTW_DEPTH | FTW_PHYS);
+}
+
+}
 
 namespace dali {
 
@@ -133,13 +148,16 @@ class CocoReaderTest : public ::testing::Test {
 
     OpSpec spec = BasicCocoReaderOpSpec(polygon_masks, false, polygon_masks_legacy);
 
+    std::string tmpl = "/tmp/coco_reader_test_XXXXXX";
+    std::string tmp_dir = mkdtemp(&tmpl[0]);
+
     OpSpec spec1 = spec;
     spec1 = spec1.AddArg("annotations_file", annotations_filename_)
                  .AddArg("skip_empty", skip_empty)
                  .AddArg("ltrb", ltrb)
                  .AddArg("ratio", ratio)
                  .AddArg("save_preprocessed_annotations", true)
-                 .AddArg("save_preprocessed_annotations_dir", "/tmp/");
+                 .AddArg("save_preprocessed_annotations_dir", tmp_dir);
 
     Pipeline pipe1(expected_size, 1, 0);
     pipe1.AddOperator(spec1, "coco_reader");
@@ -147,12 +165,14 @@ class CocoReaderTest : public ::testing::Test {
                        polygon_masks_legacy);
 
     OpSpec spec2 = spec;
-    spec2.AddArg("preprocessed_annotations", "/tmp");
+    spec2.AddArg("preprocessed_annotations", tmp_dir);
 
     Pipeline pipe2(expected_size, 1, 0);
     pipe2.AddOperator(spec2, "coco_reader");
     RunTestForPipeline(pipe2, ltrb, ratio, skip_empty, expected_size, polygon_masks,
                        polygon_masks_legacy);
+
+    RemoveAll(tmp_dir.c_str());
   }
 
   void CheckInstances(DeviceWorkspace &ws, bool ltrb, bool ratio, bool skip_empty,
@@ -531,11 +551,15 @@ TEST_F(CocoReaderTest, PixelwiseMasks) {
                                       "/db/coco_pixelwise/instances.json";
   int expected_size = 6;
   int kSeed = 12345;
+
+  std::string tmpl = "/tmp/coco_reader_test_XXXXXX";
+  std::string tmp_dir = mkdtemp(&tmpl[0]);
+
   Pipeline pipe1(expected_size, 1, 0, kSeed);
   pipe1.AddOperator(
     CocoReaderOpSpec(false, true)
     .AddArg("save_preprocessed_annotations", true)
-    .AddArg("save_preprocessed_annotations_dir", "/tmp/"),
+    .AddArg("save_preprocessed_annotations_dir", tmp_dir),
     "coco_reader");
   pipe1.Build(Outputs(false, true));
 
@@ -547,7 +571,7 @@ TEST_F(CocoReaderTest, PixelwiseMasks) {
   Pipeline pipe2(expected_size, 1, 0, kSeed);
   pipe2.AddOperator(
     BasicCocoReaderOpSpec(false, true)
-    .AddArg("preprocessed_annotations", "/tmp/"),
+    .AddArg("preprocessed_annotations", tmp_dir),
     "coco_reader");
   pipe2.Build(Outputs(false, true));
 
@@ -590,6 +614,8 @@ TEST_F(CocoReaderTest, PixelwiseMasks) {
       EXPECT_EQ(0, std::memcmp(mask.data, labels.data(), s.width * s.height * sizeof(uchar)));
     }
   }
+
+  RemoveAll(tmp_dir.c_str());
 }
 
 TEST_F(CocoReaderTest, BigSizeThreshold) {
