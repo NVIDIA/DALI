@@ -65,8 +65,8 @@ class uniform_free_list {
   }
 
   void swap(uniform_free_list &other) {
-    std::swap(head, other.head);
-    std::swap(unused_blocks, other.unused_blocks);
+    std::swap(head_, other.head_);
+    std::swap(unused_blocks_, other.unused_blocks_);
   }
 
   uniform_free_list &operator=(uniform_free_list &&other) {
@@ -82,17 +82,17 @@ class uniform_free_list {
   }
 
   void clear() {
-    free_list_impl::delete_list(head);
-    free_list_impl::delete_list(unused_blocks);
+    free_list_impl::delete_list(head_);
+    free_list_impl::delete_list(unused_blocks_);
   }
 
   void *get() {
-    if (block *blk = head) {
+    if (block *blk = head_) {
       void *mem = blk->mem;
-      head = blk->next;
-      blk->next = unused_blocks;
+      head_ = blk->next;
+      blk->next = unused_blocks_;
       blk->mem  = nullptr;
-      unused_blocks = blk;
+      unused_blocks_ = blk;
       return mem;
     } else {
       return nullptr;
@@ -100,20 +100,20 @@ class uniform_free_list {
   }
 
   void put(void *ptr) {
-    block *blk = unused_blocks;
+    block *blk = unused_blocks_;
     if (blk) {
-      unused_blocks = blk->next;
-      blk->next = head;
+      unused_blocks_ = blk->next;
+      blk->next = head_;
       blk->mem = ptr;
     } else {
-      blk = new block{head, ptr};
+      blk = new block{head_, ptr};
     }
-    head = blk;
+    head_ = blk;
   }
 
  private:
-  block *head = nullptr;
-  block *unused_blocks = nullptr;
+  block *head_ = nullptr;
+  block *unused_blocks_ = nullptr;
 };
 
 /**
@@ -136,8 +136,8 @@ class best_fit_free_list {
   }
 
   void swap(best_fit_free_list &other) {
-    std::swap(head, other.head);
-    std::swap(unused_blocks, other.unused_blocks);
+    std::swap(head_, other.head_);
+    std::swap(unused_blocks_, other.unused_blocks_);
   }
 
   best_fit_free_list &operator=(best_fit_free_list &&other) {
@@ -153,8 +153,8 @@ class best_fit_free_list {
   }
 
   void clear() {
-    free_list_impl::delete_list(head);
-    free_list_impl::delete_list(unused_blocks);
+    free_list_impl::delete_list(head_);
+    free_list_impl::delete_list(unused_blocks_);
   }
 
   struct block {
@@ -179,7 +179,7 @@ class best_fit_free_list {
   void *get(size_t bytes, size_t alignment) {
     block **pbest = nullptr;
     size_t best_fit = (static_cast<size_t>(-1)) >> 1;  // clear MSB
-    for (block **pptr = &head; *pptr; pptr = &(*pptr)->next) {
+    for (block **pptr = &head_; *pptr; pptr = &(*pptr)->next) {
       size_t fit = (*pptr)->fit(bytes, alignment);
       if (fit < best_fit) {
         best_fit = fit;
@@ -222,18 +222,18 @@ class best_fit_free_list {
     block *blk = get_block();
     blk->start = static_cast<char*>(ptr);
     blk->end = blk->start + bytes;
-    blk->next = head;
-    head = blk;
+    blk->next = head_;
+    head_ = blk;
   }
 
  protected:
   /**
-   * @brief Recycle an unused block descirptor or create a new one.
+   * @brief Recycle an unused block descriptor or create a new one.
    */
   block *get_block() {
-    if (unused_blocks) {
-      block *blk = unused_blocks;
-      unused_blocks = blk->next;
+    if (unused_blocks_) {
+      block *blk = unused_blocks_;
+      unused_blocks_ = blk->next;
       blk->next = nullptr;
       return blk;
     } else {
@@ -242,9 +242,9 @@ class best_fit_free_list {
   }
 
   /**
-   * @brief Remove a block from the list and place it in unused_blocks
+   * @brief Remove a block from the list and place it in unused_blocks_
    *
-   * @param ppblock pointer to a block pointer - this automatically updates head
+   * @param ppblock pointer to a block pointer - this automatically updates head_
    */
   void remove(block **ppblock) {
     block *b = *ppblock;
@@ -252,12 +252,12 @@ class best_fit_free_list {
     *ppblock = next;
     b->start = nullptr;
     b->end = nullptr;
-    b->next = unused_blocks;
-    unused_blocks = b;
+    b->next = unused_blocks_;
+    unused_blocks_ = b;
   }
 
-  block *head = nullptr;
-  block *unused_blocks = nullptr;
+  block *head_ = nullptr;
+  block *unused_blocks_ = nullptr;
 };
 
 
@@ -292,7 +292,7 @@ class coalescing_free_list : public best_fit_free_list {
     // find blocks that immediatele precede and succeed the freed block
     block *pred = nullptr;
     block **succ = nullptr;
-    for (block **pb = &head; *pb; pb = &(*pb)->next) {
+    for (block **pb = &head_; *pb; pb = &(*pb)->next) {
       if ((*pb)->precedes(ptr)) {
         pred = *pb;
         if (succ)

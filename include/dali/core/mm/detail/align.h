@@ -25,12 +25,14 @@ namespace detail {
 
 DALI_HOST_DEV
 constexpr uintptr_t ptr2u(void *p) noexcept {
+  // reinterpret_cast is not a constant expression - use a series of static casts instead
   return static_cast<char*>(p) - static_cast<char*>(nullptr);
 }
 
 template <typename T>
 DALI_HOST_DEV
 constexpr T *u2ptr(uintptr_t i) noexcept {
+  // reinterpret_cast is not a constant expression - use a series of static casts instead
   return static_cast<T*>(static_cast<void *>(static_cast<char*>(nullptr) + i));
 }
 
