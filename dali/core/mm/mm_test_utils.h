@@ -57,8 +57,8 @@ class test_resource_wrapper : public Base {
     auto it = allocated_.find(ptr);
     ASSERT_NE(it, allocated_.end())
       << "The address " << ptr << " was not allocated by this allocator";
-    ASSERT_EQ(it->second.bytes, bytes) << "Difreent size freed than allocated";
-    ASSERT_EQ(it->second.alignment, alignment) << "Difreent alignment freed than allocated";
+    ASSERT_EQ(it->second.bytes, bytes) << "Different size freed than allocated";
+    ASSERT_EQ(it->second.alignment, alignment) << "Diffrent alignment freed than allocated";
     if (security_check) {
       ASSERT_TRUE(detail::check_sentinel<sentinel_t>(ptr, bytes)) << "Memory corruption detected";
     }

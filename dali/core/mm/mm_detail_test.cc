@@ -32,7 +32,7 @@ TEST(MMTest, AllignedAlloc) {
         upstream_size = size;
         return unaligned;
       }, size, alignment));
-      EXPECT_LE(ptr + size, unaligned + upstream_size) << "Too little space reqeuested";
+      EXPECT_LE(ptr + size, unaligned + upstream_size) << "Too little space requested";
       int headroom = (unaligned + upstream_size) - (ptr + size);
       if (headroom < min_headroom)
         min_headroom = headroom;

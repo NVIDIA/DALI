@@ -23,6 +23,20 @@
 namespace dali {
 namespace mm {
 
+namespace free_list_impl {
+
+// Deletes a unidirectional list
+template <typename Block>
+void delete_list(Block *&b) {
+  while (b) {
+    Block *n = b->next;
+    delete b;
+    b = n;
+  }
+}
+
+}  // namespace free_list_impl
+
 /**
  * @brief Maintains a list of free memory blocks of uniform size.
  *
@@ -31,10 +45,10 @@ namespace mm {
  * have equal size and the list doesn't need to know what that size is.
  *
  * This is a non-intrusive free list and, as such, it needs to allocate the storage for the block
- * descirptors. The block descirptors are not freed until the object is destroyed.
+ * descriptors. The block descriptors are not freed until the object is destroyed.
  *
  * If a block is taken from the free list, it's removed from the main list and stored in an
- * auxiliary list of unused block descirptors. These blocks will be reused when something
+ * auxiliary list of unused block descriptors. These blocks will be reused when something
  * is added to the list to avoid interaction with the heap.
  */
 class uniform_free_list {
@@ -68,16 +82,8 @@ class uniform_free_list {
   }
 
   void clear() {
-    while (head) {
-      block *n = head->next;
-      delete head;
-      head = n;
-    }
-    while (unused_blocks) {
-      block *n = unused_blocks->next;
-      delete unused_blocks;
-      unused_blocks = n;
-    }
+    free_list_impl::delete_list(head);
+    free_list_impl::delete_list(unused_blocks);
   }
 
   void *get() {
@@ -147,16 +153,8 @@ class best_fit_free_list {
   }
 
   void clear() {
-    while (head) {
-      block *n = head->next;
-      delete head;
-      head = n;
-    }
-    while (unused_blocks) {
-      block *n = unused_blocks->next;
-      delete unused_blocks;
-      unused_blocks = n;
-    }
+    free_list_impl::delete_list(head);
+    free_list_impl::delete_list(unused_blocks);
   }
 
   struct block {

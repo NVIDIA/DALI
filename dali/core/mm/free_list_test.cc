@@ -19,7 +19,7 @@
 namespace dali {
 namespace mm {
 
-TEST(UniformFreeList, PutGet) {
+TEST(MMUniformFreeList, PutGet) {
   uniform_free_list fl;
   char a[2];
   fl.put(a);
@@ -32,7 +32,7 @@ TEST(UniformFreeList, PutGet) {
   EXPECT_EQ(fl.get(), nullptr);
 }
 
-TEST(UniformFreeList, PutMoveGet) {
+TEST(MMUniformFreeList, PutMoveGet) {
   uniform_free_list l1, l2;
   char a[2];
   l1.put(a);
@@ -44,7 +44,7 @@ TEST(UniformFreeList, PutMoveGet) {
   EXPECT_EQ(l2.get(), nullptr);
 }
 
-TEST(BestFitFreeList, PutGet) {
+TEST(MMBestFitFreeList, PutGet) {
   best_fit_free_list fl;
   char a alignas(16)[1000];
   fl.put(a, 10);
@@ -63,7 +63,7 @@ TEST(BestFitFreeList, PutGet) {
 }
 
 
-TEST(BestFitFreeList, PutGetMoveGet) {
+TEST(MMBestFitFreeList, PutGetMoveGet) {
   best_fit_free_list l1, l2;
   char a alignas(16)[1000];
   l1.put(a, 10);
@@ -78,7 +78,7 @@ TEST(BestFitFreeList, PutGetMoveGet) {
   EXPECT_EQ(l2.get(100, 2), a+10);
 }
 
-TEST(CoalescingFreeList, PutGet) {
+TEST(MMCoalescingFreeList, PutGet) {
   coalescing_free_list fl;
   char a alignas(16)[1000];
   // put some pieces and let the list coalesce
