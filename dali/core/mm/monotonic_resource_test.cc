@@ -88,16 +88,5 @@ TEST(MMTest, MonotonicDeviceResource) {
   upstream.check_leaks();
 }
 
-namespace {
-class host_stream_resource : public stream_memory_resource {
-  void *do_allocate(cudaStream_t stream, size_t bytes, size_t alignment) override {
-    return malloc_memory_resource::instance().allocate(bytes, alignment);
-  }
-  void do_deallocate(cudaStream_t stream, void *ptr, size_t bytes, size_t alignment) override {
-    malloc_memory_resource::instance().deallocate(ptr, bytes, alignment);
-  }
-};
-}  // namespace
-
 }  // namespace mm
 }  // namespace dali

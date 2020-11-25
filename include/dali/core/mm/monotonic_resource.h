@@ -63,7 +63,7 @@ class monotonic_buffer_resource : public memory_resource {
  *        the metadata in the same memory blocks as the allocated buffers.
  *
  * Monotonic resources don't require manual deallocation of memory.
- * The lifetime of a monotnic resource is limited and all memory will be deallocated in bulk
+ * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
 class monotonic_host_resource : public memory_resource {
@@ -140,7 +140,7 @@ class monotonic_host_resource : public memory_resource {
  * purpose of storing the memory management structures.
  *
  * Monotonic resources don't require manual deallocation of memory.
- * The lifetime of a monotnic resource is limited and all memory will be deallocated in bulk
+ * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
 class monotonic_device_resource : public memory_resource {
