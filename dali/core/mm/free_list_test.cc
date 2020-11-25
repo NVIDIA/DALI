@@ -32,6 +32,18 @@ TEST(UniformFreeList, PutGet) {
   EXPECT_EQ(fl.get(), nullptr);
 }
 
+TEST(UniformFreeList, PutMoveGet) {
+  uniform_free_list l1, l2;
+  char a[2];
+  l1.put(a);
+  l1.put(a+1);
+  l2 = std::move(l1);
+  EXPECT_EQ(l1.get(), nullptr) << "Should be empty - it's been moved";
+  EXPECT_EQ(l2.get(), a+1);
+  EXPECT_EQ(l2.get(), a);
+  EXPECT_EQ(l2.get(), nullptr);
+}
+
 TEST(BestFitFreeList, PutGet) {
   best_fit_free_list fl;
   char a alignas(16)[1000];
@@ -48,6 +60,22 @@ TEST(BestFitFreeList, PutGet) {
   EXPECT_EQ(fl.get(100, 2), a+10);
   EXPECT_EQ(fl.get(8, 16), a);
   EXPECT_EQ(fl.get(9, 16), a+112);
+}
+
+
+TEST(BestFitFreeList, PutGetMoveGet) {
+  best_fit_free_list l1, l2;
+  char a alignas(16)[1000];
+  l1.put(a, 10);
+  l1.put(a+10, 100);
+  l1.put(a+110, 15);
+  l1.put(a+125, 35);
+  EXPECT_EQ(l1.get(11, 1), a+110);
+  l2 = std::move(l1);
+  EXPECT_EQ(l1.get(1, 1), nullptr) << "Should be empty - it's been moved";
+  EXPECT_NE(l1.get(11, 1), a+110) << "This entry was removed in the original list, before move.";
+  EXPECT_EQ(l2.get(100, 16), nullptr);
+  EXPECT_EQ(l2.get(100, 2), a+10);
 }
 
 TEST(CoalescingFreeList, PutGet) {

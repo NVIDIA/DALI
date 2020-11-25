@@ -47,12 +47,19 @@ class uniform_free_list {
   uniform_free_list() = default;
   uniform_free_list(const uniform_free_list &) = delete;
   uniform_free_list(uniform_free_list &&other) {
-    *this = std::move(other);
+    swap(other);
+  }
+
+  void swap(uniform_free_list &other) {
+    std::swap(head, other.head);
+    std::swap(unused_blocks, other.unused_blocks);
   }
 
   uniform_free_list &operator=(uniform_free_list &&other) {
-    std::swap(head, other.head);
-    std::swap(unused_blocks, other.unused_blocks);
+    if (this != &other) {
+      clear();
+      swap(other);
+    }
     return *this;
   }
 
@@ -119,12 +126,19 @@ class best_fit_free_list {
   best_fit_free_list() = default;
   best_fit_free_list(const best_fit_free_list &) = delete;
   best_fit_free_list(best_fit_free_list &&other) {
-    *this = std::move(other);
+    swap(other);
+  }
+
+  void swap(best_fit_free_list &other) {
+    std::swap(head, other.head);
+    std::swap(unused_blocks, other.unused_blocks);
   }
 
   best_fit_free_list &operator=(best_fit_free_list &&other) {
-    std::swap(head, other.head);
-    std::swap(unused_blocks, other.unused_blocks);
+    if (this != &other) {
+      clear();
+      swap(other);
+    }
     return *this;
   }
 
@@ -268,7 +282,7 @@ class coalescing_free_list : public best_fit_free_list {
   coalescing_free_list() = default;
   coalescing_free_list(const coalescing_free_list &) = delete;
   coalescing_free_list(coalescing_free_list &&other) {
-    *this = std::move(other);
+    swap(other);
   }
 
   coalescing_free_list &operator=(coalescing_free_list &&other) {
