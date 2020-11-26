@@ -489,3 +489,16 @@ device: string, optional, "cpu" or "gpu"
         return ConstantNode(device, value, dtype, shape, layout, **kwargs)
     else:
         return ScalarConstant(value, dtype)
+
+class SampleInfo:
+    """
+    Describes the indices of a sample requested from :class:`nvidia.dali.ops.ExternalSource`
+
+    :ivar idx_in_epoch: 0-based index of the sample witin epoch
+    :ivar idx_in_batch: 0-based index of the sample within batch
+    :ivar iteration:    number of current batch within epoch
+    """
+    def __init__(self, idx_in_epoch, idx_in_batch, iteration):
+        self.idx_in_epoch = idx_in_epoch
+        self.idx_in_batch = idx_in_batch
+        self.iteration = iteration

@@ -111,11 +111,11 @@ class TestIterator():
     def __next__(self):
         random_seed(12345 * self.i + 4321)
         def generate(dim):
-            shape = random_int(1, 10, [dim]).tolist()
             if self.as_tensor:
+                shape = random_int(1, 10, [dim]).tolist()
                 return random_array([self.batch_size] + shape)
             else:
-                return [random_array(shape) for _ in range(self.batch_size)]
+                return [random_array(random_int(1, 10, [dim]).tolist()) for _ in range(self.batch_size)]
         if self.i < self.n:
             self.i += 1
             if isinstance(self.dims, (list, tuple)):
@@ -125,6 +125,29 @@ class TestIterator():
         else:
             self.i = 0
             raise StopIteration
+    next = __next__
+
+class SampleIterator():
+    def __init__(self, batch_iterator, is_multioutput=False):
+        self.src = batch_iterator
+        self.is_multioutput = is_multioutput
+        self.batch = ([],) if is_multioutput else []
+        self.idx = 0
+
+    def __iter__(self):
+        return SampleIterator(iter(self.src), self.is_multioutput)
+
+    def __next__(self):
+        batch_size = len(self.batch[0]) if self.is_multioutput else len(self.batch)
+        if self.idx >= batch_size:
+            self.idx = 0
+            self.batch = next(self.src)
+        if self.is_multioutput:
+            ret = tuple(b[self.idx] for b in self.batch)
+        else:
+            ret = self.batch[self.idx]
+        self.idx += 1
+        return ret
     next = __next__
 
 def run_and_check(pipe, ref_iterable):
@@ -186,7 +209,7 @@ def test_iter_setup():
             for device in ["cpu", "gpu"]:
                 yield _test_iter_setup, use_fn_api, by_name, device
 
-def _test_external_source_callback(use_fn_api, device):
+def _test_external_source_callback(use_fn_api, batch, as_tensor, device):
     iter_num = 5
     batch_size = 9
     pipe = Pipeline(batch_size, 3, 0)
@@ -194,12 +217,13 @@ def _test_external_source_callback(use_fn_api, device):
     # this should produce a single Tensor / TensorList per batch,
     # not wrapped in additional list
     source = TestIterator(iter_num, batch_size, 4, device == "gpu")
-    iter_in = iter(source)
+
+    iter_in = iter(source) if batch else iter(SampleIterator(iter(source)))
 
     if use_fn_api:
-        input = fn.external_source(lambda: next(iter_in), device = device)
+        input = fn.external_source(lambda: next(iter_in), device = device, batch = batch)
     else:
-        ext_source = ops.ExternalSource(lambda: next(iter_in), device = device)
+        ext_source = ops.ExternalSource(lambda: next(iter_in), device = device, batch = batch)
         input = ext_source()
     pipe.set_outputs(input)
     pipe.build()
@@ -209,22 +233,24 @@ def _test_external_source_callback(use_fn_api, device):
 def test_external_source_callback():
     for use_fn_api in [False, True]:
         for device in ["cpu", "gpu"]:
-            yield _test_external_source_callback, use_fn_api, device
+            for batch in [True, False]:
+                for as_tensor in [False, True]:
+                    yield _test_external_source_callback, use_fn_api, batch, as_tensor, device
 
-def _test_external_source_callback_split(use_fn_api, device):
+def _test_external_source_callback_split(use_fn_api, batch, as_tensor, device):
     iter_num = 5
     batch_size = 9
     pipe = Pipeline(batch_size, 3, 0)
 
     # this should produce a two-element list of Tensor(Lists), the first
     # being 2D, the second being 3D (+ batch dimension)
-    source = TestIterator(iter_num, batch_size, [2, 3], device == "gpu")
-    iter_in = iter(source)
+    source = TestIterator(iter_num, batch_size, [2, 3], as_tensor)
+    iter_in = iter(source) if batch else iter(SampleIterator(iter(source), True))
 
     if use_fn_api:
-        inputs = fn.external_source(lambda: next(iter_in), 2, device = device)
+        inputs = fn.external_source(lambda: next(iter_in), 2, device = device, batch = batch)
     else:
-        ext_source = ops.ExternalSource(lambda: next(iter_in), num_outputs = 2, device = device)
+        ext_source = ops.ExternalSource(lambda: next(iter_in), num_outputs = 2, device = device, batch = batch)
         inputs = ext_source()
     pipe.set_outputs(*inputs)
     pipe.build()
@@ -234,7 +260,9 @@ def _test_external_source_callback_split(use_fn_api, device):
 def test_external_source_callback_split():
     for use_fn_api in [False, True]:
         for device in ["cpu", "gpu"]:
-            yield _test_external_source_callback_split, use_fn_api, device
+            for batch in [True, False]:
+                for as_tensor in [False, True]:
+                    yield _test_external_source_callback_split, use_fn_api, batch, as_tensor, device
 
 
 def _test_external_source_iter(use_fn_api, device):
@@ -259,7 +287,7 @@ def _test_external_source_iter(use_fn_api, device):
 def test_external_source_iter():
     for use_fn_api in [False, True]:
         for device in ["cpu", "gpu"]:
-            yield _test_external_source_callback, use_fn_api, device
+            yield _test_external_source_iter, use_fn_api, device
 
 def _test_external_source_iter_split(use_fn_api, device):
     iter_num = 5
@@ -283,7 +311,7 @@ def _test_external_source_iter_split(use_fn_api, device):
 def test_external_source_iter_split():
     for use_fn_api in [False, True]:
         for device in ["cpu", "gpu"]:
-            yield _test_external_source_callback_split, use_fn_api, device
+            yield _test_external_source_iter_split, use_fn_api, device
 
 def test_external_source_collection():
     pipe = Pipeline(1, 3, 0)
@@ -324,6 +352,24 @@ def test_external_source_with_iter():
 
         for i in range(10):
             check_output(pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])
+
+
+def test_external_source_with_sample_info():
+    batch_size = 7
+    for attempt in range(10):
+        pipe = Pipeline(batch_size, 3, 0)
+
+        def src(si):
+            assert(si.idx_in_epoch == batch_size * si.iteration + si.idx_in_batch)
+            return make_array([attempt * 100 + si.iteration * 10 + si.idx_in_batch + 1.5], dtype=datapy.float32)
+
+        pipe.set_outputs(fn.external_source(src, batch=False))
+        pipe.build()
+
+        for i in range(10):
+            batch = [np.array([attempt * 100 + i * 10 + s + 1.5], dtype=np.float32) for s in range(batch_size)]
+            check_output(pipe.run(), batch)
+
 
 def test_external_source_generator():
     pipe = Pipeline(1, 3, 0)
