@@ -172,7 +172,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     file_info_ = filesystem::get_file_label_pair(file_root_, filenames_, file_list_);
     DALI_ENFORCE(!file_info_.empty(), "No files were read.");
 
-    auto ret = cuvidInitChecked(0);
+    auto ret = cuvidInitChecked();
 
     DALI_ENFORCE(ret,
       "Failed to load libnvcuvid.so, needed by the VideoReader operator. "

@@ -18,6 +18,7 @@ REBUILD_BUILDERS=[default is NO]
 DALI_BUILD_DIR=[default is build-docker-\${CMAKE_BUILD_TYPE}-\${CUDA_VERSION}]
 ARCH=[default is x86_64]
 WHL_PLATFORM_NAME=[default is manylinux2014_x86_64]
+BUILDER_EXTRA_DEPS=[default is scratch]
 
 where:
     -h  show this help text"
@@ -71,6 +72,7 @@ export BASE_NAME=quay.io/pypa/manylinux2014_${ARCH}
 export DEPS_IMAGE=nvidia/dali:cu${CUDA_VER}_${ARCH}.deps
 export CUDA_DEPS_IMAGE=nvidia/dali:cuda${CUDA_VER}_${ARCH}.toolkit
 export BUILDER=nvidia/dali:cu${CUDA_VER}_${ARCH}.build
+export BUILDER_EXTRA_DEPS=${BUILDER_EXTRA_DEPS:-scratch}
 export BUILDER_WHL=nvidia/dali:cu${CUDA_VER}_${ARCH}.build_whl
 export BUILDER_DALI_TF_BASE_MANYLINUX2010=nvidia/dali:cu${CUDA_VER}.build_tf_base_manylinux2010
 export BUILDER_DALI_TF_BASE_WITH_WHEEL=nvidia/dali:cu${CUDA_VER}.build_tf_base_with_whl
@@ -106,7 +108,7 @@ pushd ../
 if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" || "$(docker images -q ${CUDA_DEPS_IMAGE} 2> /dev/null)" == "" ]]; then
     echo "Build deps: " ${DEPS_IMAGE}
     docker build -t ${CUDA_DEPS_IMAGE} -f docker/Dockerfile.cuda${CUDA_VER}.${ARCH}.deps .
-    docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME} --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" -f docker/Dockerfile.deps .
+    docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME} --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" --build-arg "BUILDER_EXTRA_DEPS=${BUILDER_EXTRA_DEPS}" -f docker/Dockerfile.deps .
 fi
 
 # build builder image if needed

@@ -1,0 +1,23 @@
+{
+   "extra_include":[
+      "<cufile.h>"
+   ],
+   "return_type":"CUfileError_t",
+   "calling_conv":"",
+   "not_found_error":"{CU_FILE_CUDA_DRIVER_ERROR, CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND}",
+   "functions": {
+      "cuFileHandleRegister": {},
+      "cuFileHandleDeregister": {
+         "return_type":"void",
+         "not_found_error":""
+      },
+      "cuFileBufRegister": {},
+      "cuFileBufDeregister": {},
+      "cuFileRead": {
+         "return_type":"ssize_t",
+         "not_found_error":"-1"
+      },
+      "cuFileDriverOpen": {},
+      "cuFileDriverClose": {}
+   }
+}

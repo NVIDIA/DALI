@@ -115,6 +115,8 @@ NemoAsrReader::~NemoAsrReader() {
 }
 
 void NemoAsrReader::Prefetch() {
+  DomainTimeRange tr("[DALI][NemoAsrReader] Prefetch #" + to_string(curr_batch_producer_),
+                      DomainTimeRange::kRed);
   DataReader<CPUBackend, AsrSample>::Prefetch();
   auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
   auto &audio_batch = *prefetched_decoded_audio_[curr_batch_producer_];

@@ -22,9 +22,14 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE) # TODO (ONLY SUPPORTED ONES)
 
 list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/file_reader_op.cc")
 list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/numpy_reader_op.cc")
+
+if (BUILD_CUFILE)
+  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/numpy_reader_gpu_op.cc")
+endif()
+
 list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/sequence_reader_op.cc")
 
-if(BUILD_NVDEC)
+if (BUILD_NVDEC)
   list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_op.cc")
   list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_resize_op.cc")
 endif()

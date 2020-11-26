@@ -307,6 +307,7 @@ CMD WERROR=ON           \
     BUILD_NVDEC=OFF     \
     BUILD_NVML=OFF      \
     VERBOSE_LOGS=OFF    \
+    BUILD_CUFILE=OFF    \
     TEST_BUNDLED_LIBS=NO\
     WHL_PLATFORM_NAME=manylinux2014_aarch64            \
     BUNDLE_PATH_PREFIX="/usr/aarch64-linux-gnu"        \

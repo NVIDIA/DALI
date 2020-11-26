@@ -4,6 +4,8 @@
 #########################################################################################
 ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux2014_x86_64
 ARG CUDA_IMAGE
+ARG BUILDER_EXTRA_DEPS=scratch
+FROM ${BUILDER_EXTRA_DEPS} as extra_deps
 FROM ${CUDA_IMAGE} as cuda
 FROM ${FROM_IMAGE_NAME}
 
@@ -191,3 +193,6 @@ RUN LIBSND_VERSION=1.0.28 && cd /tmp                                            
 
 # CUDA
 COPY --from=cuda /usr/local/cuda /usr/local/cuda
+
+# extra deps
+COPY --from=extra_deps / /

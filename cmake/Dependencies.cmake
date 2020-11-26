@@ -81,6 +81,7 @@ if (NVTX_ENABLED)
   endif()
 endif()
 
+# verbose
 if (VERBOSE_LOGS)
   add_definitions(-DDALI_VERBOSE_LOGS)
 endif()

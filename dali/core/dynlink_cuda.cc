@@ -21,10 +21,10 @@
 
 namespace {
 
-typedef void *CUDADRIVER;
+typedef void* CUDADRIVER;
 
-static char __CudaLibName[] = "libcuda.so";
-static char __CudaLibName1[] = "libcuda.so.1";
+static const char __CudaLibName[] = "libcuda.so";
+static const char __CudaLibName1[] = "libcuda.so.1";
 
 CUDADRIVER loadCudaLibrary() {
   CUDADRIVER ret = nullptr;
@@ -54,24 +54,12 @@ typedef void *tLoadSymbol(const char *name);
 void CudaSetSymbolLoader(tLoadSymbol loader_func);
 
 bool cuInitChecked() {
-  static std::mutex m;
-  static bool initialized = false;
-
-  if (initialized)
-    return true;
-
-  std::lock_guard<std::mutex> lock(m);
-
-  if (initialized)
-      return true;
-
-  // set symbol loader for this library
 #if !LINK_DRIVER_ENABLED
-  CudaSetSymbolLoader(LoadSymbol);
+  static std::once_flag cuda_once;
+  std::call_once(cuda_once, CudaSetSymbolLoader, LoadSymbol);
 #endif
   static CUresult res = cuInit(0);
-  initialized = (res == CUDA_SUCCESS);
-  return initialized;
+  return res == CUDA_SUCCESS;
 }
 
 bool cuIsSymbolAvailable(const char *name) {

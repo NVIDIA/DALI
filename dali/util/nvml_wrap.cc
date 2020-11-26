@@ -24,10 +24,10 @@
 
 namespace {
 
-typedef void *NVMLRIVER;
+typedef void* NVMLRIVER;
 
-static char __NvmlLibName[] = "libnvidia-ml.so";
-static char __NvmlLibName1[] = "libnvidia-ml.so.1";
+static const char __NvmlLibName[] = "libnvidia-ml.so";
+static const char __NvmlLibName1[] = "libnvidia-ml.so.1";
 
 NVMLRIVER loadNvmlLibrary() {
   NVMLRIVER ret = nullptr;

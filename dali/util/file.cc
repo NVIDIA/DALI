@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include <string>
 
 #include "dali/util/file.h"
 #include "dali/util/mmaped_file.h"
 #include "dali/util/std_file.h"
-
 
 namespace dali {
 

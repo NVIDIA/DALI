@@ -36,6 +36,16 @@ set(DALI_SRCS ${DALI_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/type_conversion.cu"
   "${CMAKE_CURRENT_SOURCE_DIR}/user_stream.cc")
 
+if (BUILD_CUFILE)
+  set(DALI_INST_HDRS ${DALI_INST_HDRS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/cufile.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/std_cufile.h")
+
+  set(DALI_SRCS ${DALI_SRCS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/cufile.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/std_cufile.cc")
+endif()
+
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator_test.cc")
 
@@ -71,3 +81,5 @@ endif()
 set(DALI_INST_HDRS ${DALI_INST_HDRS} PARENT_SCOPE)
 set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS} PARENT_SCOPE)
+
+list(FILTER DALI_SRCS EXCLUDE REGEX ".*nvml_wrap.cc")

@@ -12,22 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include <errno.h>
 #include <sys/stat.h>
-#include <string>
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <string>
 
-
-#include "dali/util/std_file.h"
 #include "dali/core/error_handling.h"
+#include "dali/util/std_file.h"
 
 namespace dali {
 
-StdFileStream::StdFileStream(const std::string& path):
-  FileStream(path) {
+StdFileStream::StdFileStream(const std::string& path) : FileStream(path) {
   fp_ = std::fopen(path.c_str(), "rb");
   DALI_ENFORCE(fp_ != nullptr, "Could not open file " + path + ": " + std::strerror(errno));
 }
@@ -40,11 +37,11 @@ void StdFileStream::Close() {
 }
 
 void StdFileStream::Seek(int64 pos) {
-    DALI_ENFORCE(!std::fseek(fp_, pos, SEEK_SET),
-      "Seek operation did not succeed: " + std::string(std::strerror(errno)) );
+  DALI_ENFORCE(!std::fseek(fp_, pos, SEEK_SET),
+               "Seek operation did not succeed: " + std::string(std::strerror(errno)));
 }
 
-size_t StdFileStream::Read(uint8_t * buffer, size_t n_bytes) {
+size_t StdFileStream::Read(uint8_t* buffer, size_t n_bytes) {
   size_t n_read = std::fread(buffer, 1, n_bytes, fp_);
   return n_read;
 }

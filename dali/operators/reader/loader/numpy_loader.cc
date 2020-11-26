@@ -117,6 +117,8 @@ std::string ParseStringValue(const char*& input, char delim_start = '\'', char d
   return out;
 }
 
+namespace detail {
+
 void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header) {
   target.shape.clear();
   const char* hdr = header.c_str();
@@ -157,8 +159,7 @@ void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header) {
   }
 }
 
-std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream> file,
-                                                     NumpyParseTarget& target) {
+void ParseHeader(FileStream *file, NumpyParseTarget& target) {
   // check if the file is actually a numpy file
   std::vector<uint8_t> token(11);
   int64_t nread = file->Read(token.data(), 10);
@@ -192,9 +193,30 @@ std::unique_ptr<FileStream> NumpyLoader::ParseHeader(std::unique_ptr<FileStream>
   file->Seek(offset);  // prepare file for later reads
 
   ParseHeaderMetadata(target, header);
-  return file;
 }
 
+bool NumpyHeaderCache::GetFromCache(const string &file_name, NumpyParseTarget &target) {
+  if (!cache_headers_) {
+    return false;
+  }
+  std::unique_lock<std::mutex> cache_lock(cache_mutex_);
+  auto it = header_cache_.find(file_name);
+  if (it == header_cache_.end()) {
+    return false;
+  } else {
+    target = it->second;
+    return true;
+  }
+}
+
+void NumpyHeaderCache::UpdateCache(const string &file_name, const NumpyParseTarget &value) {
+  if (cache_headers_) {
+    std::unique_lock<std::mutex> cache_lock(cache_mutex_);
+    header_cache_[file_name] = value;
+  }
+}
+
+}  // namespace detail
 
 void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   auto image_file = images_[current_index_++];
@@ -223,7 +245,14 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
 
   // read the header
   NumpyParseTarget target;
-  current_image = ParseHeader(std::move(current_image), target);
+  auto ret = header_cache_.GetFromCache(image_file, target);
+  if (ret) {
+    current_image->Seek(target.data_offset);
+  } else {
+    detail::ParseHeader(current_image.get(), target);
+    header_cache_.UpdateCache(image_file, target);
+  }
+
   Index image_bytes = target.nbytes();
 
   if (copy_read_data_) {

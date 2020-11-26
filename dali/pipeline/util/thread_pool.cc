@@ -179,6 +179,7 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
     --active_threads_;
     if (work_queue_.empty() && active_threads_ == 0) {
       work_complete_ = true;
+      lock.unlock();
       completed_.notify_one();
     }
   }

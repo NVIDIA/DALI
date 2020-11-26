@@ -25,6 +25,8 @@
 #include <utility>
 #include <vector>
 #include <algorithm>
+#include <map>
+#include <regex>
 #include <memory>
 
 #include "dali/core/common.h"
@@ -41,32 +43,51 @@ class NumpyParseTarget{
   std::vector<int64_t> shape;
   TypeInfo type_info;
   bool fortran_order;
+  int64_t data_offset;
 
-  size_t size() {
+  size_t size() const {
     return volume(shape);
   }
 
-  size_t nbytes() {
+  size_t nbytes() const {
     return type_info.size() * size();
   }
 };
 
+namespace detail {
+
 DLL_PUBLIC void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header);
 
-class NumpyLoader : public FileLoader {
+// parser function, only for internal use
+void ParseHeader(FileStream *file, NumpyParseTarget& target);
+
+class NumpyHeaderCache {
+ public:
+  explicit NumpyHeaderCache(bool cache_headers) : cache_headers_(cache_headers) {}
+  bool GetFromCache(const string &file_name, NumpyParseTarget &target);
+  void UpdateCache(const string &file_name, const NumpyParseTarget &value);
+
+ private:
+  // helper for header caching
+  std::mutex cache_mutex_;
+  bool cache_headers_;
+  std::map<string, NumpyParseTarget> header_cache_;
+};
+
+}  // namespace detail
+
+class NumpyLoader : public FileLoader<> {
  public:
   explicit inline NumpyLoader(
     const OpSpec& spec,
     bool shuffle_after_epoch = false)
-    : FileLoader(spec, shuffle_after_epoch) {}
+    : FileLoader(spec, shuffle_after_epoch),
+    header_cache_(spec.GetArgument<bool>("cache_header_information")) {}
 
   // we want to make it possible to override this function as well
   void ReadSample(ImageFileWrapper& tensor) override;
-
- protected:
-  // parser function, only for internal use
-  std::unique_ptr<FileStream> ParseHeader(std::unique_ptr<FileStream> file,
-                                          NumpyParseTarget& target);
+ private:
+  detail::NumpyHeaderCache header_cache_;
 };
 
 }  // namespace dali

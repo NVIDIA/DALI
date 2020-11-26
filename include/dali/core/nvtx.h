@@ -75,7 +75,6 @@ struct TimeRange : RangeBase {
   }
   ~TimeRange() { stop(); }
 
- private:
   void stop() {
   #if NVTX_ENABLED
     if (started) {
@@ -85,6 +84,7 @@ struct TimeRange : RangeBase {
   #endif
   }
 
+ private:
   bool started = false;
 };
 
