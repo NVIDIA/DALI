@@ -53,7 +53,7 @@ void NumpyLoaderGPU::ReadSampleHelper(CUFileStream *file, ImageFileWrapperGPU& i
   Index image_bytes = volume(imfile.shape) * imfile.type_info.size();
 
   // copy the image
-  file->Read(static_cast<uint8_t*>(buffer), image_bytes, offset);
+  file->ReadGPU(static_cast<uint8_t*>(buffer), image_bytes, offset);
 }
 
 // we need to implement that but we should split parsing and reading in this case
@@ -96,7 +96,7 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
     if (ret) {
       imfile.file_stream->Seek(target.data_offset);
     } else {
-      detail::ParseHeader(imfile.file_stream.get(), target, &CUFileStream::ReadCPU);
+      detail::ParseHeader(imfile.file_stream.get(), target);
       header_cache_.UpdateCache(image_file, target);
     }
 

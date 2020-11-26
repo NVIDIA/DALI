@@ -12,23 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <glob.h>
 #include <dirent.h>
 #include <errno.h>
+#include <glob.h>
 #include <memory>
 
 #include "dali/core/common.h"
-#include "dali/operators/reader/loader/file_loader.h"
 #include "dali/operators/reader/loader/cufile_loader.h"
-#include "dali/util/cufile_helper.h"
-#include "dali/util/cufile.h"
+#include "dali/operators/reader/loader/file_loader.h"
 #include "dali/operators/reader/loader/utils.h"
+#include "dali/util/cufile.h"
+#include "dali/util/cufile_helper.h"
 
 namespace dali {
 
-CUFileLoader::CUFileLoader(const OpSpec& spec, vector<std::string> images,
-                           bool shuffle_after_epoch)
-    : FileLoader<GPUBackend, ImageFileWrapperGPU, CUFileStream>(spec){
+CUFileLoader::CUFileLoader(const OpSpec& spec, vector<std::string> images, bool shuffle_after_epoch)
+    : FileLoader<GPUBackend, ImageFileWrapperGPU, CUFileStream>(spec) {
   // set the device first
   DeviceGuard g(device_id_);
 
@@ -44,7 +43,7 @@ CUFileLoader::CUFileLoader(const OpSpec& spec, vector<std::string> images,
   }
 }
 
-void CUFileLoader::PrepareEmpty(ImageFileWrapperGPU &image_file) {
+void CUFileLoader::PrepareEmpty(ImageFileWrapperGPU& image_file) {
   PrepareEmptyTensor(image_file.image);
   image_file.filename.clear();
 }

@@ -33,8 +33,8 @@ class StdCUFileStream : public CUFileStream {
   explicit StdCUFileStream(const std::string& path);
   void Close() override;
   shared_ptr<void> Get(size_t n_bytes) override;
-  size_t Read(uint8_t * buffer, size_t n_bytes, size_t offset = 0) override;
-  size_t ReadCPU(uint8_t* cpu_buffer, size_t n_bytes) override;
+  size_t ReadGPU(uint8_t * buffer, size_t n_bytes, size_t offset = 0) override;
+  size_t Read(uint8_t* cpu_buffer, size_t n_bytes) override;
   size_t Pos() const;
   void Seek(int64 pos) override;
   void HandleIOError(int64 ret) const;

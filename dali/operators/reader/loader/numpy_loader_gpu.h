@@ -63,9 +63,6 @@ class NumpyLoaderGPU : public CUFileLoader {
   void ReadSample(ImageFileWrapperGPU& tensor) override;
 
  protected:
-  // parser function, only for internal use
-  void ParseHeader(CUFileStream *file, NumpyParseTarget& target);
-
   // register input tensor
   void RegisterBuffer(void *buffer, size_t total_size);
 

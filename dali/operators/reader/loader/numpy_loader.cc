@@ -159,6 +159,42 @@ void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header) {
   }
 }
 
+void ParseHeader(FileStream *file, NumpyParseTarget& target) {
+  // check if the file is actually a numpy file
+  std::vector<uint8_t> token(11);
+  int64_t nread = file->Read(token.data(), 10);
+  DALI_ENFORCE(nread == 10, "Can not read header.");
+  token[nread] = '\0';
+
+  // check if heqder is too short
+  std::string header = std::string(reinterpret_cast<char*>(token.data()));
+  DALI_ENFORCE(header.find_first_of("NUMPY") != std::string::npos,
+               "File is not a numpy file.");
+
+  // extract header length
+  uint16_t header_len = 0;
+  memcpy(&header_len, &token[8], 2);
+  DALI_ENFORCE((header_len + 10) % 16 == 0,
+               "Error extracting header length.");
+
+  // read header: the offset is a magic number
+  int64 offset = 6 + 1 + 1 + 2;
+  // the header_len can be 4GiB according to the NPYv2 file format
+  // specification: https://numpy.org/neps/nep-0001-npy-format.html
+  // while this allocation could be sizable, it is performed on the host.
+  token.resize(header_len+1);
+  file->Seek(offset);
+  nread = file->Read(token.data(), header_len);
+  DALI_ENFORCE(nread == header_len, "Can not read header.");
+  token[header_len] = '\0';
+  header = std::string(reinterpret_cast<const char*>(token.data()));
+  DALI_ENFORCE(header.find("{") != std::string::npos, "Header is corrupted.");
+  offset += header_len;
+  file->Seek(offset);  // prepare file for later reads
+
+  ParseHeaderMetadata(target, header);
+}
+
 bool NumpyHeaderCache::GetFromCache(const string &file_name, NumpyParseTarget &target) {
   if (!cache_headers_) {
     return false;
@@ -213,7 +249,7 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   if (ret) {
     current_image->Seek(target.data_offset);
   } else {
-    detail::ParseHeader(current_image.get(), target, &FileStream::Read);
+    detail::ParseHeader(current_image.get(), target);
     header_cache_.UpdateCache(image_file, target);
   }
 

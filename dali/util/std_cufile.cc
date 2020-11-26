@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include <errno.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/resource.h>
 #if !defined(__AARCH64_QNX__) && !defined(__AARCH64_GNU__) && !defined(__aarch64__)
 #include <linux/sysctl.h>
 #include <sys/syscall.h>
@@ -24,20 +23,19 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <string>
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <map>
 #include <mutex>
-#include <algorithm>
+#include <string>
 #include <tuple>
 
 #include "dali/core/dynlink_cufile.h"
 #include "dali/util/std_cufile.h"
 
-
 // import cufile and return handle
-static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char *path) {
+static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char* path) {
   // make sure handle is closed
   fh.Close();
 
@@ -46,7 +44,7 @@ static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char *pa
   // we need to be careful: if a symbolic link was provided,
   // we cannot use O_DIRECT. So better extract the realpath
   std::unique_ptr<char, decltype(&free)> rpath(realpath(path, NULL), &free);
-  if ( rpath == nullptr ) {
+  if (rpath == nullptr) {
     DALI_FAIL("Could not resolve real path of: " + path);
   }
 
@@ -70,17 +68,15 @@ static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char *pa
   descr.handle.fd = fh.fdd;
   descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
   CUfileError_t status = cuFileHandleRegister(&(fh.cufh), &descr);
-  if ( status.err != CU_FILE_SUCCESS ) {
-    DALI_FAIL("CUFile import failed: " + path + ". "
-              + std::string(cufileop_status_error(status.err)) + ".");
+  if (status.err != CU_FILE_SUCCESS) {
+    DALI_FAIL("CUFile import failed: " + path + ". " +
+              std::string(cufileop_status_error(status.err)) + ".");
   }
 }
 
-
 namespace dali {
 
-StdCUFileStream::StdCUFileStream(const std::string& path) :
-  CUFileStream(path) {
+StdCUFileStream::StdCUFileStream(const std::string& path) : CUFileStream(path) {
   // make sure lib is loaded
   cufileInit();
 
@@ -114,17 +110,16 @@ void StdCUFileStream::HandleIOError(int64 ret) const {
     std::string errmsg(256, '\0');
     int e = errno;
     strerror_r(e, &errmsg[0], errmsg.size());
-    DALI_FAIL(make_string("CUFile read failed for file ", path_,
-          " with error (", e, "): ", errmsg));
+    DALI_FAIL(
+        make_string("CUFile read failed for file ", path_, " with error (", e, "): ", errmsg));
   } else {
-    DALI_FAIL(make_string("CUFile read failed for file ", path_,
-          " with error (", -ret, "): ",
-          cufileop_status_error(static_cast<CUfileOpError>(-ret))));
+    DALI_FAIL(make_string("CUFile read failed for file ", path_, " with error (", -ret,
+                          "): ", cufileop_status_error(static_cast<CUfileOpError>(-ret))));
   }
 }
 
-size_t StdCUFileStream::Read(uint8_t *gpu_buffer, size_t n_bytes, size_t offset) {
-    // compute size
+size_t StdCUFileStream::ReadGPU(uint8_t* gpu_buffer, size_t n_bytes, size_t offset) {
+  // compute size
   n_bytes = std::min(n_bytes, length_ - pos_);
 
   // read data: backup n_bytes here and create a read-offset
@@ -132,8 +127,8 @@ size_t StdCUFileStream::Read(uint8_t *gpu_buffer, size_t n_bytes, size_t offset)
   off_t read_off = 0;
   off_t buffer_off = offset;
   while (n_read > 0) {
-    int64_t read = cuFileRead(f_.cufh, static_cast<void*>(gpu_buffer),
-                              n_read, static_cast<off_t>(pos_) + read_off, buffer_off);
+    int64_t read = cuFileRead(f_.cufh, static_cast<void*>(gpu_buffer), n_read,
+                              static_cast<off_t>(pos_) + read_off, buffer_off);
 
     if (read >= 0) {
       // worked well, continue
@@ -150,8 +145,7 @@ size_t StdCUFileStream::Read(uint8_t *gpu_buffer, size_t n_bytes, size_t offset)
   return n_bytes;
 }
 
-
-size_t StdCUFileStream::ReadCPU(uint8_t* cpu_buffer, size_t n_bytes) {
+size_t StdCUFileStream::Read(uint8_t* cpu_buffer, size_t n_bytes) {
   // compute size
   n_bytes = std::min(n_bytes, length_ - pos_);
 
@@ -159,8 +153,7 @@ size_t StdCUFileStream::ReadCPU(uint8_t* cpu_buffer, size_t n_bytes) {
   size_t n_read = n_bytes;
   off_t read_off = 0;
   while (n_read) {
-    int64 read = pread(f_.fd, static_cast<void*>(cpu_buffer + read_off),
-                       n_read, pos_ + read_off);
+    int64 read = pread(f_.fd, static_cast<void*>(cpu_buffer + read_off), n_read, pos_ + read_off);
 
     if (read >= 0) {
       n_read -= read;

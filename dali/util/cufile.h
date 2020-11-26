@@ -21,10 +21,11 @@
 
 #include "dali/core/api_helper.h"
 #include "dali/core/common.h"
+#include "dali/util/file.h"
 
 namespace dali {
 
-class DLL_PUBLIC CUFileStream {
+class DLL_PUBLIC CUFileStream : public FileStream {
  public:
   // for compatibility with FileStream API
   class MappingReserver {
@@ -39,19 +40,15 @@ class DLL_PUBLIC CUFileStream {
   };
 
   static std::unique_ptr<CUFileStream> Open(const std::string& uri, bool read_ahead, bool use_mmap);
-
-  virtual void Close() = 0;
-  virtual size_t Read(uint8_t* buffer, size_t n_bytes, size_t offset = 0) = 0;
-  virtual size_t ReadCPU(uint8_t* buffer, size_t n_bytes) = 0;
-  virtual shared_ptr<void> Get(size_t n_bytes) = 0;
-  virtual void Seek(int64 pos) = 0;
-  virtual size_t Size() const = 0;
-  virtual ~CUFileStream() {}
+  /*
+   * It accepts the base address of the buffer to read to and the offset in it
+   * The API is the effect how cufile works - it need to get the base address of the registered
+   * buffer and the offset where it should put the data.
+   */
+  virtual size_t ReadGPU(uint8_t* buffer, size_t n_bytes, size_t offset = 0) = 0;
 
  protected:
-  explicit CUFileStream(const std::string& path) : path_(path) {}
-
-  std::string path_;
+  explicit CUFileStream(const std::string& path) : FileStream(path) {}
 };
 
 }  // namespace dali
