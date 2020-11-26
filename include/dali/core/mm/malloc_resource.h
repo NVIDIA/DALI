@@ -27,7 +27,7 @@ namespace mm {
  */
 class malloc_memory_resource : public memory_resource {
   void *do_allocate(size_t bytes, size_t alignment) override {
-    return aligned_alloc(alignment, bytes + sizeof(int));
+    return memalign(alignment, bytes + sizeof(int));
   }
 
   void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
