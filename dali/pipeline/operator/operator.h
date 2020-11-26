@@ -336,7 +336,10 @@ class Operator<CPUBackend> : public OperatorBase {
   virtual void SetupSharedSampleParams(SampleWorkspace &ws) {}
 
   /**
-   * @brief Shared param setup
+   * @brief Shared param setup. Legacy implementation for per-sample approach
+   *
+   * Usage of this API is deprecated. For CPU Ops `void SetupSharedSampleParams(HostWorkspace &ws)`
+   * should be used instead.
    */
   virtual void SetupSharedSampleParams(HostWorkspace &ws) {}
 };

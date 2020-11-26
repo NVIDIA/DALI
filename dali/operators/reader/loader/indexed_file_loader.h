@@ -121,10 +121,10 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
   void PrepareMetadataImpl() override {
     if (!dont_use_mmap_) {
-      mmap_reserver = FileStream::FileStreamMappinReserver(
+      mmap_reserver_ = FileStream::MappingReserver(
                                   static_cast<unsigned int>(initial_buffer_fill_));
     }
-    copy_read_data_ = dont_use_mmap_ || !mmap_reserver.CanShareMappedData();
+    copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
 
     DALI_ENFORCE(!uris_.empty(), "No files specified.");
     ReadIndexFile(index_uris_);
@@ -158,7 +158,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   size_t current_index_;
   size_t current_file_index_;
   std::unique_ptr<FileStream> current_file_;
-  FileStream::FileStreamMappinReserver mmap_reserver;
+  FileStream::MappingReserver mmap_reserver_;
   static constexpr int INVALID_INDEX = -1;
   bool should_seek_ = false;
   int64 next_seek_pos_;

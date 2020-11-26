@@ -111,7 +111,7 @@ class NumpyHeaderCache {
 
 }  // namespace detail
 
-class NumpyLoader : public FileLoader {
+class NumpyLoader : public FileLoader<> {
  public:
   explicit inline NumpyLoader(
     const OpSpec& spec,

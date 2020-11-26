@@ -17,7 +17,6 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 
 set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/filesystem.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/file_loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/file_label_loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/coco_loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/loader.cc"

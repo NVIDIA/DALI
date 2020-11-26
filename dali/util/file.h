@@ -26,33 +26,33 @@ namespace dali {
 
 class DLL_PUBLIC FileStream {
  public:
-  class FileStreamMappinReserver {
+  class MappingReserver {
    public:
-    explicit FileStreamMappinReserver(unsigned int num):
+    explicit MappingReserver(unsigned int num):
         reserved(0)  {
       if (FileStream::ReserveFileMappings(num)) {
         reserved = num;
       }
     }
 
-    FileStreamMappinReserver()
-        : FileStreamMappinReserver(0) {}
+    MappingReserver()
+        : MappingReserver(0) {}
 
-    FileStreamMappinReserver(const FileStreamMappinReserver &) = delete;
-    FileStreamMappinReserver &operator=(const FileStreamMappinReserver &) = delete;
+    MappingReserver(const MappingReserver &) = delete;
+    MappingReserver &operator=(const MappingReserver &) = delete;
 
-    FileStreamMappinReserver(FileStreamMappinReserver &&other)
-        : FileStreamMappinReserver(other.reserved) {
+    MappingReserver(MappingReserver &&other)
+        : MappingReserver(other.reserved) {
       other.reserved = 0;
     }
 
-    FileStreamMappinReserver &operator=(FileStreamMappinReserver &&other) {
+    MappingReserver &operator=(MappingReserver &&other) {
       reserved = other.reserved;
       other.reserved = 0;
       return *this;
     }
 
-    FileStreamMappinReserver &operator=(FileStreamMappinReserver &other) {
+    MappingReserver &operator=(MappingReserver &other) {
       reserved = other.reserved;
       other.reserved = 0;
       return *this;
@@ -62,7 +62,7 @@ class DLL_PUBLIC FileStream {
       return reserved != 0;
     }
 
-    ~FileStreamMappinReserver() {
+    ~MappingReserver() {
       if (reserved) {
         FileStream::FreeFileMappings(reserved);
       }

@@ -109,10 +109,10 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
     DALI_ENFORCE(step_ > 0, "Step must be positive");
     DALI_ENFORCE(stride_ > 0, "Stride must be positive");
     if (!dont_use_mmap_) {
-      mmap_reserver = FileStream::FileStreamMappinReserver(
+      mmap_reserver_ = FileStream::MappingReserver(
                                   static_cast<unsigned int>(initial_buffer_fill_));
     }
-    copy_read_data_ = dont_use_mmap_ || !mmap_reserver.CanShareMappedData();
+    copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
     if (shuffle_) {
       // TODO(spanev) decide of a policy for multi-gpu here
       // seeded with hardcoded value to get
@@ -142,7 +142,7 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
   std::vector<std::vector<std::string>> sequences_;
   Index total_size_;
   Index current_sequence_;
-  FileStream::FileStreamMappinReserver mmap_reserver;
+  FileStream::MappingReserver mmap_reserver_;
 
   void LoadFrame(const std::vector<std::string> &s, Index frame, Tensor<CPUBackend> *target);
 };

@@ -52,10 +52,10 @@ static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char *pa
 
   // do conventional open
   if ((fh.fdd = open(rpath.get(), O_RDONLY | O_DIRECT)) < 0) {
-    DALI_FAIL("CUFile opening failed: " + path);
+    DALI_FAIL("CUFile open failed: " + path);
   }
   if ((fh.fd = open(rpath.get(), O_RDONLY)) < 0) {
-    DALI_FAIL("CUFile opening failed: " + path);
+    DALI_FAIL("CUFile open failed: " + path);
   }
   if (fstat(fh.fd, &s) < 0) {
     DALI_FAIL("CUFile stats failed: " + path);
@@ -71,7 +71,7 @@ static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char *pa
   descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
   CUfileError_t status = cuFileHandleRegister(&(fh.cufh), &descr);
   if ( status.err != CU_FILE_SUCCESS ) {
-    DALI_FAIL("CUFile importing failed: " + path + ". "
+    DALI_FAIL("CUFile import failed: " + path + ". "
               + std::string(cufileop_status_error(status.err)) + ".");
   }
 }
@@ -107,12 +107,6 @@ size_t StdCUFileStream::Pos() const {
 void StdCUFileStream::Seek(int64 pos) {
   DALI_ENFORCE(pos >= 0 && pos <= (int64)length_, "Invalid seek");
   pos_ = pos;
-}
-
-void StdCUFileStream::Forward(int64 off) {
-  int64 new_pos = pos_ + off;
-  DALI_ENFORCE(new_pos <= (int64)length_, "Invalid forward");
-  pos_ = new_pos;
 }
 
 void StdCUFileStream::HandleIOError(int64 ret) const {
@@ -182,7 +176,7 @@ size_t StdCUFileStream::ReadCPU(uint8_t* cpu_buffer, size_t n_bytes) {
 
 // disable this function
 shared_ptr<void> StdCUFileStream::Get(size_t n_bytes) {
-  // this unction should return a pointer inside mmaped file
+  // this function should return a pointer inside mmaped file
   // it doesn't make sense in case of StdCUFileStream
   return {};
 }

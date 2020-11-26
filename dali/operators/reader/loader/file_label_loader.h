@@ -107,10 +107,10 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
         stick_to_shard_ = true;
       }
     if (!dont_use_mmap_) {
-      mmap_reserver = FileStream::FileStreamMappinReserver(
+      mmap_reserver_ = FileStream::MappingReserver(
                                   static_cast<unsigned int>(initial_buffer_fill_));
     }
-    copy_read_data_ = dont_use_mmap_ || !mmap_reserver.CanShareMappedData();
+    copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
   }
 
   void PrepareEmpty(ImageLabelWrapper &tensor) override;
@@ -205,7 +205,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
   bool shuffle_after_epoch_;
   Index current_index_;
   int current_epoch_;
-  FileStream::FileStreamMappinReserver mmap_reserver;
+  FileStream::MappingReserver mmap_reserver_;
 };
 
 }  // namespace dali

@@ -26,6 +26,18 @@ namespace dali {
 
 class DLL_PUBLIC CUFileStream {
  public:
+  // for compatibility with FileStream API
+  class MappingReserver {
+   public:
+    explicit MappingReserver(unsigned int num) {}
+
+    MappingReserver() {}
+
+    bool CanShareMappedData() {
+      return false;
+    }
+  };
+
   static std::unique_ptr<CUFileStream> Open(const std::string& uri, bool read_ahead, bool use_mmap);
 
   virtual void Close() = 0;
