@@ -59,7 +59,6 @@ class uniform_free_list {
   };
 
   uniform_free_list() = default;
-  uniform_free_list(const uniform_free_list &) = delete;
   uniform_free_list(uniform_free_list &&other) {
     swap(other);
   }
@@ -130,7 +129,6 @@ class uniform_free_list {
 class best_fit_free_list {
  public:
   best_fit_free_list() = default;
-  best_fit_free_list(const best_fit_free_list &) = delete;
   best_fit_free_list(best_fit_free_list &&other) {
     swap(other);
   }
@@ -278,7 +276,6 @@ class best_fit_free_list {
 class coalescing_free_list : public best_fit_free_list {
  public:
   coalescing_free_list() = default;
-  coalescing_free_list(const coalescing_free_list &) = delete;
   coalescing_free_list(coalescing_free_list &&other) {
     swap(other);
   }

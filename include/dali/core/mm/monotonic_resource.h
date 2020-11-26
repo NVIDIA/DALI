@@ -38,6 +38,22 @@ class monotonic_buffer_resource : public memory_resource {
   monotonic_buffer_resource(void *memory, size_t bytes)
   : curr_(static_cast<char*>(memory)), limit_(static_cast<char*>(memory) + bytes) {}
 
+  monotonic_buffer_resource(monotonic_buffer_resource &&other) {
+    swap(other);
+  }
+
+  monotonic_buffer_resource &operator=(monotonic_buffer_resource &&other) {
+    curr_ = nullptr;
+    limit_ = nullptr;
+    swap(other);
+    return *this;
+  }
+
+  void swap(monotonic_buffer_resource &other) {
+    std::swap(curr_, other.curr_);
+    std::swap(limit_, other.limit_);
+  }
+
   size_t avail(size_t alignment) const {
     return limit_ - detail::align_ptr(curr_, alignment);
   }
@@ -72,10 +88,33 @@ class monotonic_host_resource : public memory_resource {
                                    size_t next_block_size = 1024)
   : upstream_(upstream), next_block_size_(next_block_size) {}
 
+  monotonic_host_resource() = default;
+
+  monotonic_host_resource(monotonic_host_resource &&other) {
+    swap(other);
+  }
+
+  monotonic_host_resource &operator=(monotonic_host_resource &&other) {
+    free_all();
+    swap(other);
+    return *this;
+  }
+
+  void swap(monotonic_host_resource &other) {
+    std::swap(curr_, other.curr_);
+    std::swap(limit_, other.limit_);
+    std::swap(upstream_, other.upstream_);
+    std::swap(next_block_size_, other.next_block_size_);
+    std::swap(curr_block_, other.curr_block_);
+  }
+
   ~monotonic_host_resource() {
     free_all();
   }
 
+  /**
+   * @brief Releases all memory blocks that were taken from upstream
+   */
   void free_all() {
     while (curr_block_) {
       assert(curr_block_->sentinel == sentinel_value && "Memory corruption detected");
@@ -149,10 +188,34 @@ class monotonic_device_resource : public memory_resource {
                                     size_t next_block_size = 1024)
   : upstream_(upstream), next_block_size_(next_block_size) {}
 
+  monotonic_device_resource() = default;
+
+  monotonic_device_resource(monotonic_device_resource &&other) {
+    swap(other);
+  }
+
+  monotonic_device_resource &operator=(monotonic_device_resource &&other) {
+    free_all();
+    swap(other);
+    return *this;
+  }
+
+  void swap(monotonic_device_resource &other) {
+    std::swap(curr_, other.curr_);
+    std::swap(limit_, other.limit_);
+    std::swap(upstream_, other.upstream_);
+    std::swap(next_block_size_, other.next_block_size_);
+    std::swap(blocks_, other.blocks_);
+  }
+
+
   ~monotonic_device_resource() {
     free_all();
   }
 
+  /**
+   * @brief Releases all memory blocks that were taken from upstream
+   */
   void free_all() {
     for (int i = blocks_.size() - 1; i >= 0; i--) {
       auto &blk = blocks_[i];
@@ -160,6 +223,7 @@ class monotonic_device_resource : public memory_resource {
     }
     blocks_.clear();
   }
+
 
  private:
   void *do_allocate(size_t bytes, size_t alignment) override {

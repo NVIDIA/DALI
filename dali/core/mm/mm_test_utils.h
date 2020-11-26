@@ -25,6 +25,7 @@
 
 namespace dali {
 namespace mm {
+namespace test {
 
 template <bool owning, bool security_check,
           typename Base, typename Upstream, typename... ExtraParams>
@@ -139,6 +140,7 @@ template <typename Upstream>
 using test_stream_resource = test_resource_wrapper<
     false, true, stream_memory_resource, Upstream, cudaStream_t>;
 
+}  // namespace test
 }  // namespace mm
 }  // namespace dali
 

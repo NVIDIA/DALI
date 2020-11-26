@@ -18,6 +18,7 @@
 
 namespace dali {
 namespace mm {
+namespace test {
 
 TEST(MMTest, AllignedAlloc) {
   static char buf alignas(4096)[(1<<16)];
@@ -46,5 +47,6 @@ TEST(MMTest, AllignedAlloc) {
   }
 }
 
+}  // namespace test
 }  // namespace mm
 }  // namespace dali

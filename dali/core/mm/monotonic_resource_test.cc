@@ -19,6 +19,7 @@
 
 namespace dali {
 namespace mm {
+namespace test {
 
 TEST(MMTest, MonotonicBufferResource) {
   static char buf alignas(1024)[1024];
@@ -61,6 +62,8 @@ TEST(MMTest, MonotonicHostResource) {
     void *m4 = mr.allocate(64000);
     ASSERT_NE(m4, nullptr);
     memset(m4, 0xfc, 64000);
+    upstream.simulate_out_of_memory(true);
+    EXPECT_THROW(mr.allocate(64000), std::bad_alloc);
   }
   upstream.check_leaks();
 }
@@ -88,5 +91,6 @@ TEST(MMTest, MonotonicDeviceResource) {
   upstream.check_leaks();
 }
 
+}  // namespace test
 }  // namespace mm
 }  // namespace dali

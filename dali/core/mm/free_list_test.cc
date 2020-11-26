@@ -18,6 +18,7 @@
 
 namespace dali {
 namespace mm {
+namespace test {
 
 TEST(MMUniformFreeList, PutGet) {
   uniform_free_list fl;
@@ -113,5 +114,6 @@ TEST(MMCoalescingFreeList, PutGet) {
   EXPECT_EQ(fl.get(160, 16), a);
 }
 
+}  // namespace test
 }  // namespace mm
 }  // namespace dali
