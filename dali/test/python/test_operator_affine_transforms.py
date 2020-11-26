@@ -25,7 +25,7 @@ from nose.tools import raises
 
 from scipy.spatial.transform import Rotation as scipy_rotate
 
-def check_results_sample(T1, mat_ref, T0=None, reverse=False, rtol=1e-7):
+def check_results_sample(T1, mat_ref, T0=None, reverse=False, atol=1e-6):
     ndim = mat_ref.shape[0] - 1
     ref_T1 = None
     if T0 is not None:
@@ -38,11 +38,11 @@ def check_results_sample(T1, mat_ref, T0=None, reverse=False, rtol=1e-7):
         ref_T1 = mat_T1[:ndim, :]
     else:
         ref_T1 = mat_ref[:ndim, :]
-    assert np.allclose(T1, ref_T1, rtol=rtol)
+    assert np.allclose(T1, ref_T1, atol=1e-6)
 
-def check_results(T1, batch_size, mat_ref, T0=None, reverse=False, rtol=1e-7):
+def check_results(T1, batch_size, mat_ref, T0=None, reverse=False, atol=1e-6):
     for idx in range(batch_size):
-        check_results_sample(T1.at(idx), mat_ref, T0.at(idx) if T0 is not None else None, reverse, rtol)
+        check_results_sample(T1.at(idx), mat_ref, T0.at(idx) if T0 is not None else None, reverse, atol)
 
 def translate_affine_mat(offset):
     ndim = len(offset)
@@ -187,7 +187,7 @@ def check_transform_rotation_op(angle=None, axis=None, center=None, has_input = 
         T0 = out_T0.at(idx) if has_input else None
         angle = out_angle.at(idx) if random_angle else angle
         ref_mat = rotate_affine_mat(angle=angle, axis=axis, center=center)
-        check_results_sample(outs[0].at(idx), ref_mat, T0, reverse_order, rtol=1e-5)
+        check_results_sample(outs[0].at(idx), ref_mat, T0, reverse_order, atol=1e-6)
 
 def test_transform_rotation_op(batch_size=3, num_threads=4, device_id=0):
     for angle, axis, center in [(None, None, None),
@@ -257,7 +257,7 @@ def check_transform_shear_op(shear=None, angles=None, center=None, has_input = F
     outs = pipe.run()
     ref_mat = shear_affine_mat(shear=shear, angles=angles, center=center)
     T0 = outs[1] if has_input else None
-    check_results(outs[0], batch_size, ref_mat, T0, reverse_order, rtol=1e-5)
+    check_results(outs[0], batch_size, ref_mat, T0, reverse_order, atol=1e-6)
 
 def test_transform_shear_op(batch_size=3, num_threads=4, device_id=0):
     for shear, angles, center in [((1., 2.), None, None),
@@ -332,7 +332,7 @@ def check_transform_crop_op(from_start = None, from_end = None, to_start = None,
     ref_mat = crop_affine_mat(from_start, from_end, to_start, to_end, absolute=absolute)
     T0 = outs[1] if has_input else None
     T1 = outs[0]
-    check_results(T1, batch_size, ref_mat, T0, reverse_order, rtol=1e-5)
+    check_results(T1, batch_size, ref_mat, T0, reverse_order, atol=1e-6)
     if not has_input:
         from_start, from_end, to_start, to_end = expand_dims(from_start, from_end, to_start, to_end)
         if absolute:
