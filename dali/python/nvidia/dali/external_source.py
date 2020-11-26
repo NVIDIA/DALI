@@ -102,8 +102,7 @@ class _ExternalSourceGroup(object):
             self.current_sample += batch_size
             self.current_iter += 1
         except StopIteration:
-            self.current_sample = 0
-            self.current_iter = 0
+            self.reset_indices()
             raise
 
         if self.is_multioutput:
@@ -191,20 +190,33 @@ Args
     value is 1), the data is expected to a be tuple, or list, where each element corresponds to
     respective return value of the external_source.
 
-    A per-batch source may accept one positional argument. If it does, it is the current iteration
-    iteration number and consecutive calls will be ``source(0)``, ``source(1)``, and so on.
-    A per-sample source may accept a :class:`nvidia.dali.types.SampleInfo` structure.
+    The data samples must be in one of the compatible array types:
+        * NumPy ndarray (CPU)
+        * MXNet ndarray (CPU)
+        * PyTorch tensor (CPU or GPU)
+        * CuPy array (GPU)
+        * objects implementing ``__cuda_array_interface__``
+        * DALI `Tensor` object
+    Batch sources must produce entire batches of data. This can be achieved either by adding a new
+    outermost dimension to an array or by returning a list of arrays (in which case they can be of
+    different size, but must have the same rank and element type). A batch source can also
+    produce a DALI `TensorList` object, which can be an output of another DALI pipeline.
+
+    A per-batch source may accept one positional argument. If it does, it is the index of current
+    iteration within epoch and consecutive calls will be ``source(0)``, ``source(1)``, and so on.
+
+    A per-sample source may accept one positional argument of type
+    :class:`nvidia.dali.types.SampleInfo`, which contains index of the sample in current epoch and
+    in the batch, as well as current iteration number.
 
     If the source is a generator function, the function is invoked and treated as an iterable.
     However, unlike a generator, the function can be used with ``cycle``. In this case, the function
     will be called again when the generator reaches the end of iteration.
 
-    For the GPU input, it is a user's responsibility to modify the provided GPU memory content
+    For GPU inputs, it is a user's responsibility to modify the provided GPU memory content
     only in the provided stream. DALI schedules a copy on this stream, and all work is properly
     queued. If no stream is provided, DALI will use a default, with a best-effort approach at
     correctness. See the ``cuda_stream`` argument documentation for more information.
-    The data item produced by ``source`` may be anything that's accepted by
-    :meth:`nvidia.dali.pipeline.Pipeline.feed_input`
 
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists that are produced by the source function.
@@ -215,7 +227,7 @@ Args
 Keyword Args
 ------------
 
-`cycle`: bool
+`cycle`: bool, optional
     If set to True, the source will be wrapped.
 
     If set to False, StopIteration is raised when the end of data is reached.
@@ -230,8 +242,7 @@ Keyword Args
     Used when feeding the data in ``iter_setup`` and can be omitted if
     the data is provided by ``source``.
 
-
-`layout` : :ref:`layout str<layout_str_doc>` or list/tuple thereof
+`layout` : :ref:`layout str<layout_str_doc>` or list/tuple thereof, optional
     If provided, sets the layout of the data.
 
     When ``num_outputs > 1``, the layout can be a list that contains a distinct layout for each
@@ -255,17 +266,17 @@ Keyword Args
     buffer is complete, since there's no way to synchronize with this stream to prevent
     overwriting the array with new data in another stream.
 
-`use_copy_kernel` : optional, `bool`
+`use_copy_kernel` : bool, optional
     If set to True, DALI will use a CUDA kernel to feed the data instead of cudaMemcpyAsync (default).
 
     .. note::
         This is applicable only when copying data to and from GPU memory.
 
-`blocking` : optional
+`blocking` : bool, optional
     Determines whether the external source should wait until data is available or just fail
     when the data is not available.
 
-`no_copy` : optional
+`no_copy` : boo, optional
     Determines whether DALI should copy the buffer when feed_input is called.
 
     If set to True, DALI passes the user memory directly to the pipeline, instead of copying it.
@@ -283,7 +294,7 @@ Keyword Args
     of separate Tensors, there will be an additional copy made internally, consuming both memory
     and bandwidth.
 
-`batch` : optional
+`batch` : bool, optional
     If set to ``True`` or ``None``, the ``source`` is expected to produce an entire batch at once.
     If set to ``False``, the ``source`` is called per-sample.
 """
