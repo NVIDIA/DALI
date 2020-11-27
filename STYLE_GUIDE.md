@@ -9,7 +9,7 @@ The code should always pass the current `make lint` check.
 ## Changes compared to Google C++ Style Guide
 
 Google C++ Style Guide is the default *style* guide. In places where it limits use of common
-C++ idioms or language features it is discouarged.
+C++ idioms or language features it is discouraged.
 
 ### C++ Version
 
