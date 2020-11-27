@@ -84,13 +84,13 @@ struct needs_clamp<From, __half> {
 };
 
 template <typename T, typename U>
-using skip_template =
+using skip_clamp_template =
     std::conditional_t<is_half<T>::value || is_half<U>::value, std::true_type, std::false_type>;
 
 #else
 
 template <typename T, typename U>
-using skip_template = std::false_type;
+using skip_clamp_template = std::false_type;
 
 #endif
 
@@ -147,7 +147,7 @@ clamp(U value, ret_type<T>) {
 
 template <typename T, typename U>
 DALI_HOST_DEV constexpr std::enable_if_t<
-    !needs_clamp<U, T>::value && !skip_template<T, U>::value,
+    !needs_clamp<U, T>::value && !skip_clamp_template<T, U>::value,
     T>
 clamp(U value, ret_type<T>) { return value; }
 
