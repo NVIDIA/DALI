@@ -92,7 +92,7 @@ cmake_dependent_option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" O
 cmake_dependent_option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 if(NOT (${ARCH} MATCHES "aarch64"))
-  cmake_dependent_option(BUILD_CUFILE "Build with cufile (GPU Direct Storage) support" ON
+  cmake_dependent_option(BUILD_CUFILE "Build with cufile (GPU Direct Storage) support" OFF
                          "NOT BUILD_DALI_NODEPS" OFF)
 endif()
 
