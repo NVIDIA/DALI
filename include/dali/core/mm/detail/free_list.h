@@ -263,9 +263,9 @@ class best_fit_free_list {
  * @brief Maintains a list of free memory blocks of variable size, returning free blocks
  *        with least margin.
  *
- * This free list tries to connect a free block to its immediate predecessor and successor.
- * This causes the list to represent true fragmentation - all contiguous free blocks are stored
- * as such.
+ * This free list is always sorted and tries to connect each newly freed block to its immediate
+ * predecessor and successor. This causes the list to represent true fragmentation - all contiguous
+ * free blocks are stored as such.
  *
  * There is an extra cost of going through the list upon placing a memory region in the list,
  * but this should be offset by the list being typically shorter than a non-coalescing one.
@@ -286,36 +286,41 @@ class coalescing_free_list : public best_fit_free_list {
   }
 
   void put(void *ptr, size_t bytes) {
+    if (bytes == 0)
+      return;
     // find blocks that immediately precede and succeed the freed block
-    block *pred = nullptr;
-    block **succ = nullptr;
-    for (block **pb = &head_; *pb; pb = &(*pb)->next) {
-      if ((*pb)->precedes(ptr)) {
-        assert(!pred && "Free list corruption: found two blocks that end at the same address.");
-        pred = *pb;
-        if (succ)
-          break;
-      }
-      if ((*pb)->succeeds(ptr, bytes))  {
-        assert(!succ && "Free list corruption: found two blocks that start at the same address.");
-        succ = pb;
-        if (pred)
-          break;
-      }
+    block **pwhere = &head_;
+    block *prev = nullptr;
+
+    for (; *pwhere; prev = *pwhere, pwhere = &(*pwhere)->next) {
+      assert((*pwhere)->start != ptr && "Free list corruption: address already in the list");
+      if ((*pwhere)->start > static_cast<const char *>(ptr))
+        break;
     }
     // found both - glue them and remove one of the blocks
-    if (pred && succ) {
-      pred->end = (*succ)->end;
-      remove(succ);
-    } else if (pred) {
-      // found preceding block - move its end pointer
-      pred->end += bytes;
-    } else if (succ) {
+    block *next = *pwhere;
+    assert((!next || next->start >= static_cast<char*>(ptr) + bytes) &&
+          "Free list corruption: current block overlaps with next one.");
+    assert((!prev || prev->end <= static_cast<char*>(ptr)) &&
+          "Free list corruption: current block overlaps with previous one.");
+
+    if (prev && prev->precedes(ptr)) {
+      if (next && next->succeeds(ptr, bytes)) {
+        prev->end = next->end;
+        remove(&prev->next);
+      } else {
+        // found preceding block - move its end pointer
+        prev->end += bytes;
+      }
+    } else if (next && next->succeeds(ptr, bytes)) {
       // found following block - move its start pointer
-      (*succ)->start -= bytes;
+      next->start -= bytes;
     } else {
-      // not found - add a new free block, we'll hopefully coalesce it later
-      best_fit_free_list::put(ptr, bytes);
+      block *blk = get_block();
+      blk->start = static_cast<char *>(ptr);
+      blk->end = blk->start + bytes;
+      blk->next = next;
+      *pwhere = blk;
     }
   }
 };
