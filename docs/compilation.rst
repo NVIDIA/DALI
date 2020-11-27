@@ -148,6 +148,8 @@ Prerequisites
 .. _tf link: https://www.tensorflow.org
 .. |clang link| replace:: **clang**
 .. _clang link: https://apt.llvm.org/
+.. |gds link| replace:: **GPU Direct Storage**
+.. gds link: https://developer.nvidia.com/gpudirect-storage
 
 
 
@@ -185,6 +187,9 @@ Prerequisites
    | |opencv link|_ or later                | Supported version: 4.3.0                                                                    |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | (Optional) |lmdb link|_ or later       |                                                                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | (Optional) |gds link|                  | Only libcufile is required for the build process, and the installed header needs to land    |
+   |                                        | in `/usr/local/cuda/include` directory.                                                     |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | One or more of the following Deep Learning frameworks:                                                                               |
    |      * |mxnet link|_ ``mxnet-cu90`` or later                                                                                         |

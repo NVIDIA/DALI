@@ -153,7 +153,8 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_LIBSND=${BUILD_LIBSND}              \
                                         BUILD_NVML=${BUILD_NVML}                  \
                                         BUILD_FFTS=${BUILD_FFTS}                  \
-                                        LINK_LIBCUDA=${LINK_LIBCUDA}              \
+                                        BUILD_CUFILE=${BUILD_CUFILE}              \
+                                        LINK_DRIVER=${LINK_DRIVER}                \
                                         STRIP_BINARY=${STRIP_BINARY}              \
                                         VERBOSE_LOGS=${VERBOSE_LOGS}              \
                                         WERROR=${WERROR}                          \
@@ -188,7 +189,8 @@ else
                                    --build-arg "BUILD_LIBSND=${BUILD_LIBSND}"              \
                                    --build-arg "BUILD_NVML=${BUILD_NVML}"                  \
                                    --build-arg "BUILD_FFTS=${BUILD_FFTS}"                  \
-                                   --build-arg "LINK_LIBCUDA=${LINK_LIBCUDA}"              \
+                                   --build-arg "BUILD_CUFILE=${BUILD_CUFILE}"              \
+                                   --build-arg "LINK_DRIVER=${LINK_DRIVER}"                \
                                    --build_arg "STRIP_BINARY=${STRIP_BINARY}"              \
                                    --build-arg "VERBOSE_LOGS=${VERBOSE_LOGS}"              \
                                    --build-arg "WERROR=${WERROR}"                          \
