@@ -59,7 +59,7 @@ void PrintMemStats();
 nvjpegDevAllocator_t GetDeviceAllocator();
 nvjpegPinnedAllocator_t GetPinnedAllocator();
 
-#ifdef NVJPEG2K_ENABLED
+#if NVJPEG2K_ENABLED
 nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k();
 nvjpeg2kPinnedAllocator_t GetPinnedAllocatorNvJpeg2k();
 #endif  // NVJPEG2K_ENABLED

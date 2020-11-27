@@ -257,7 +257,7 @@ nvjpegPinnedAllocator_t GetPinnedAllocator() {
   return allocator;
 }
 
-#ifdef NVJPEG2K_ENABLED
+#if NVJPEG2K_ENABLED
 nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k() {
   nvjpeg2kDeviceAllocator_t allocator;
   allocator.device_malloc = &DeviceNew;
