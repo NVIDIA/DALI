@@ -60,7 +60,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     // Steal all data and set input to default state
     data_ = other.data_;
     shape_ = std::move(other.shape_);
-    backend_ = other.backend_;
     size_ = other.size_;
     offsets_ = std::move(other.offsets_);
     type_ = other.type_;
@@ -74,7 +73,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
     other.data_ = nullptr;
     other.shape_ = {};
-    other.backend_ = Backend();
     other.size_ = 0;
     other.offsets_ = {};
     other.type_ = TypeInfo::Create<NoType>();
@@ -343,7 +341,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
       // Steal all data and set input to default state
       data_ = other.data_;
       shape_ = std::move(other.shape_);
-      backend_ = other.backend_;
       size_ = other.size_;
       offsets_ = std::move(other.offsets_);
       type_ = other.type_;
@@ -357,7 +354,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
       other.data_ = nullptr;
       other.shape_ = {};
-      other.backend_ = Backend();
       other.size_ = 0;
       other.offsets_ = {};
       other.type_ = TypeInfo::Create<NoType>();

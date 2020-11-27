@@ -64,7 +64,6 @@ class Tensor : public Buffer<Backend> {
     DALI_ENFORCE(0 <= x && x < dim(0), "'x' should be valid index to first dimension: [0, dim(0))");
     Tensor<Backend> view;
     view.shape_ = shape_.last(shape_.size() - 1);
-    view.backend_ = backend_;
     view.type_ = type_;
     view.size_ = size_ / shape_[0];
     view.num_bytes_ = view.type_.size() * view.size_;
@@ -497,7 +496,6 @@ class Tensor : public Buffer<Backend> {
   Tensor<Backend>(Tensor<Backend> &&t) noexcept {
     // Steal all data and set input to default state
     shape_ = std::move(t.shape_);
-    backend_ = t.backend_;
     type_ = t.type_;
     data_ = t.data_;
     size_ = t.size_;
@@ -507,7 +505,6 @@ class Tensor : public Buffer<Backend> {
     meta_ = std::move(t.meta_);
 
     t.shape_ = TensorShape<>();
-    t.backend_ = Backend();
     t.type_ = TypeInfo::Create<NoType>();
     t.data_.reset();
     t.size_ = 0;
@@ -519,7 +516,6 @@ class Tensor : public Buffer<Backend> {
   Tensor<Backend>& operator=(Tensor<Backend> &&t) noexcept {
     if (&t != this) {
       shape_ = std::move(t.shape_);
-      backend_ = t.backend_;
       type_ = t.type_;
       data_ = t.data_;
       size_ = t.size_;
@@ -530,7 +526,6 @@ class Tensor : public Buffer<Backend> {
       pinned_ = t.pinned_;
 
       t.shape_ = TensorShape<>();
-      t.backend_ = Backend();
       t.type_ = TypeInfo::Create<NoType>();
       t.data_.reset();
       t.size_ = 0;
