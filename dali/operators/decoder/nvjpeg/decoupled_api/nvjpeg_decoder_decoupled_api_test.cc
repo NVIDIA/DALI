@@ -286,13 +286,13 @@ TEST_F(Nvjpeg2kTest, UtilizationTest) {
   auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
   auto nsamples_nvjpeg2k = node->op->GetDiagnostic<int64_t>("nsamples_nvjpeg2k");
   auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
   EXPECT_EQ(nsamples_nvjpeg2k, 21);
   EXPECT_EQ(nsamples_host, 0);
 #else
   EXPECT_EQ(nsamples_nvjpeg2k, 0);
   EXPECT_EQ(nsamples_host, 21);
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
 }
 
 

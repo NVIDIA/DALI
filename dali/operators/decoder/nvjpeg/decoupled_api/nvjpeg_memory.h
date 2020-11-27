@@ -59,10 +59,10 @@ void PrintMemStats();
 nvjpegDevAllocator_t GetDeviceAllocator();
 nvjpegPinnedAllocator_t GetPinnedAllocator();
 
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
 nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k();
 nvjpeg2kPinnedAllocator_t GetPinnedAllocatorNvJpeg2k();
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
 
 }  // namespace nvjpeg_memory
 

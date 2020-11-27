@@ -52,12 +52,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     output_shape_(batch_size_, kOutputDim),
     pinned_buffers_(num_threads_*2),
     jpeg_streams_(num_threads_*2),
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
     nvjpeg2k_intermediate_buffer_(),
     nvjpeg2k_dev_alloc_(nvjpeg_memory::GetDeviceAllocatorNvJpeg2k()),
     nvjpeg2k_pin_alloc_(nvjpeg_memory::GetPinnedAllocatorNvJpeg2k()),
     nvjpeg2k_streams_(batch_size_),
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
     device_buffers_(num_threads_),
     streams_(num_threads_),
     decode_events_(num_threads_),
@@ -156,7 +156,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     CUDA_CALL(cudaEventCreate(&hw_decode_event_));
     CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
 
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
     auto nvjpeg2k_thread_id = nvjpeg2k_thread_.GetThreadIds()[0];
     if (device_memory_padding_jpeg2k > 0) {
       // Adding smaller buffers that are allocated by nvjpeg2k on startup.
@@ -189,7 +189,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     for (auto &stream : nvjpeg2k_streams_) {
       stream = NvJPEG2KStream::Create();
     }
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
 
     RegisterTestCounters();
   }
@@ -232,13 +232,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         nvjpeg_memory::DeleteAllBuffers(thread_id);
       }
 
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
       CUDA_CALL(cudaEventDestroy(nvjpeg2k_decode_event_));
       CUDA_CALL(cudaStreamDestroy(nvjpeg2k_cu_stream_));
       for (auto thread_id : nvjpeg2k_thread_.GetThreadIds()) {
         nvjpeg_memory::DeleteAllBuffers(thread_id);
       }
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
 
       nvjpeg_memory::PrintMemStats();
     } catch (const std::exception &e) {
@@ -268,9 +268,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     Host,
     NvjpegCuda,
     NvjpegHw,
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
     Nvjpeg2k,
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
     Cache,
   };
 
@@ -415,7 +415,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   bool ParseNvjpeg2k(SampleData &data, span<const uint8_t> input) {
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
     const auto &jpeg2k_stream = nvjpeg2k_streams_[data.sample_idx];
     auto ret = nvjpeg2kStreamParse(nvjpeg2k_handle_, input.data(), input.size(),
                                    0, 0, jpeg2k_stream);
@@ -440,7 +440,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       samples_jpeg2k_.push_back(&data);
       return true;
     }
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
     return false;
   }
 
@@ -455,17 +455,17 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       samples_host_.reserve(batch_size_);
       samples_hw_batched_.reserve(batch_size_);
       samples_single_.reserve(batch_size_);
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
       samples_jpeg2k_.reserve(batch_size_);
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
     }
     samples_cache_.clear();
     samples_host_.clear();
     samples_hw_batched_.clear();
     samples_single_.clear();
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
     samples_jpeg2k_.clear();
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
 
     for (int i = 0; i < batch_size_; i++) {
       const auto &in = ws.Input<CPUBackend>(0, i);
@@ -594,7 +594,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
   }
 
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
   void DecodeJpeg2k(uint8_t* output_data, const SampleData *sample,
                     span<const uint8_t> input_data) {
     CUDA_CALL(cudaEventSynchronize(nvjpeg2k_decode_event_));
@@ -633,10 +633,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       NVJPEG2K_CALL_EX(ret, sample->file_name);
     }
   }
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
 
   void ProcessImagesJpeg2k(MixedWorkspace &ws) {
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
     nvjpeg2k_thread_.AddWork([this, &ws](int) {
       auto &output = ws.OutputRef<GPUBackend>(0);
       auto &input = ws.InputRef<CPUBackend>(0);
@@ -650,7 +650,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         CacheStore(sample->file_name, output_data, shape, nvjpeg2k_cu_stream_);
       }
     });
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
   }
 
   void ProcessImagesHost(MixedWorkspace &ws) {
@@ -742,10 +742,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
     CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
     CUDA_CALL(cudaStreamWaitEvent(ws.stream(), hw_decode_event_, 0));
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
     CUDA_CALL(cudaEventRecord(nvjpeg2k_decode_event_, nvjpeg2k_cu_stream_));
     CUDA_CALL(cudaStreamWaitEvent(ws.stream(), nvjpeg2k_decode_event_, 0));
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
   }
 
   inline int GetNextBufferIndex(int thread_id) {
@@ -831,7 +831,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   std::vector<nvjpegJpegStream_t> jpeg_streams_;
   nvjpegJpegStream_t hw_decoder_jpeg_stream_;
 
-#ifdef BUILD_NVJPEG2K_ENABLED
+#ifdef NVJPEG2K_ENABLED
   // nvjpeg2k
   NvJPEG2KHandle nvjpeg2k_handle_{};
   NvJPEG2KDecodeState nvjpeg2k_decoder_{};
@@ -843,7 +843,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // nvjpeg2k - per sample
   std::vector<NvJPEG2KStream> nvjpeg2k_streams_;
-#endif  // BUILD_NVJPEG2K_ENABLED
+#endif  // NVJPEG2K_ENABLED
 
   // GPU
   // Per thread
