@@ -287,8 +287,8 @@ TEST_F(Nvjpeg2kTest, UtilizationTest) {
   auto nsamples_nvjpeg2k = node->op->GetDiagnostic<int64_t>("nsamples_nvjpeg2k");
   auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
 #ifdef BUILD_NVJPEG2K_ENABLED
-  EXPECT_EQ(nsamples_nvjpeg2k, 14);
-  EXPECT_EQ(nsamples_host, 7);
+  EXPECT_EQ(nsamples_nvjpeg2k, 21);
+  EXPECT_EQ(nsamples_host, 0);
 #else
   EXPECT_EQ(nsamples_nvjpeg2k, 0);
   EXPECT_EQ(nsamples_host, 21);
