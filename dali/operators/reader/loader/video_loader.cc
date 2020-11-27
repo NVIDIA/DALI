@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -103,6 +103,8 @@ inline void assemble_video_list(const std::string& path, const std::string& curr
 std::vector<dali::file_meta> filesystem::get_file_label_pair(
     const std::string& file_root,
     const std::vector<std::string>& filenames,
+    bool use_labels,
+    const std::vector<int>& labels,
     const std::string& file_list) {
   // open the root
   std::vector<dali::file_meta> file_info;
@@ -176,8 +178,20 @@ std::vector<dali::file_meta> filesystem::get_file_label_pair(
     s.close();
   } else {
     file_info.reserve(filenames.size());
-    for (const auto & f : filenames) {
-      file_info.push_back(file_meta{f, 0, 0, 0});
+    if (use_labels) {
+      if (!labels.empty()) {
+        for (size_t i = 0; i < filenames.size(); ++i) {
+          file_info.push_back(file_meta{filenames[i], labels[i], 0, 0});
+        }
+      } else {
+        for (size_t i = 0; i < filenames.size(); ++i) {
+          file_info.push_back(file_meta{filenames[i], static_cast<int>(i), 0, 0});
+        }
+      }
+    } else {
+      for (size_t i = 0; i < filenames.size(); ++i) {
+        file_info.push_back(file_meta{filenames[i], 0, 0, 0});
+      }
     }
   }
 
