@@ -428,8 +428,8 @@ void CocoLoader::SavePreprocessedAnnotations(const std::string &path,
   if (output_pixelwise_masks_) {
     SaveToFile(masks_rles_, path + "/masks_rles.dat");
     SaveToFile(masks_rles_idx_, path + "/masks_rles_idx.dat");
-    SaveToFile(masks_offset_, path + "/masks_offset.dat");
-    SaveToFile(masks_count_, path + "/masks_count.dat");
+    SaveToFile(mask_offsets_, path + "/masks_offset.dat");
+    SaveToFile(mask_counts_, path + "/mask_count.dat");
     SaveToFile(heights_, path + "/heights.dat");
     SaveToFile(widths_, path + "/widths.dat");
   }
@@ -463,8 +463,8 @@ void CocoLoader::ParsePreprocessedAnnotations() {
   if (output_pixelwise_masks_) {
     LoadFromFile(masks_rles_, path + "/masks_rles.dat");
     LoadFromFile(masks_rles_idx_, path + "/masks_rles_idx.dat");
-    LoadFromFile(masks_offset_, path + "/masks_offset.dat");
-    LoadFromFile(masks_count_, path + "/masks_count.dat");
+    LoadFromFile(mask_offsets_, path + "/masks_offset.dat");
+    LoadFromFile(mask_counts_, path + "/mask_count.dat");
     LoadFromFile(heights_, path + "/heights.dat");
     LoadFromFile(widths_, path + "/widths.dat");
   }
@@ -504,12 +504,12 @@ void CocoLoader::ParseJsonAnnotations() {
 
   for (auto &image_info : image_infos) {
     int objects_in_sample = 0;
-    int64_t polygons_sample_offset = polygon_data_.size();
-    int64_t polygons_sample_count = 0;
-    int64_t vertices_sample_offset = vertices_data_.size();
-    int64_t vertices_sample_count = 0;
-    int64_t masks_offset = masks_rles_.size();
-    int64_t masks_count = 0;
+    int64_t sample_polygons_offset = polygon_data_.size();
+    int64_t sample_polygons_count = 0;
+    int64_t sample_vertices_offset = vertices_data_.size();
+    int64_t sample_vertices_count = 0;
+    int64_t mask_offset = masks_rles_.size();
+    int64_t mask_count = 0;
     while (annotations[annotation_id].image_id_ == image_info.original_id_) {
       auto &annotation = annotations[annotation_id];
       labels_.push_back(category_ids[annotation.category_id_]);
@@ -529,19 +529,19 @@ void CocoLoader::ParseJsonAnnotations() {
           case detail::Annotation::POLYGON: {
             auto &segm_meta = annotation.poly_.segm_meta_;
             assert(segm_meta.size() % 2 == 0);
-            polygons_sample_count += segm_meta.size() / 2;
+            sample_polygons_count += segm_meta.size() / 2;
 
             auto &coords = annotation.poly_.segm_coords_;
             assert(coords.size() % 2 == 0);
-            vertices_sample_count += coords.size() / 2;
+            sample_vertices_count += coords.size() / 2;
 
             for (size_t i = 0; i < segm_meta.size(); i += 2) {
               assert(segm_meta[i] % 2 == 0);
               assert(segm_meta[i + 1] % 2 == 0);
               int vertex_start_idx =
-                  vertices_data_.size() - vertices_sample_offset + segm_meta[i] / 2;
+                  vertices_data_.size() - sample_vertices_offset + segm_meta[i] / 2;
               int vertex_end_idx =
-                  vertices_data_.size() - vertices_sample_offset + segm_meta[i + 1] / 2;
+                  vertices_data_.size() - sample_vertices_offset + segm_meta[i + 1] / 2;
               polygon_data_.push_back({objects_in_sample, vertex_start_idx, vertex_end_idx});
             }
             if (ratio) {
@@ -558,8 +558,8 @@ void CocoLoader::ParseJsonAnnotations() {
           }
           case detail::Annotation::RLE: {
             masks_rles_idx_.push_back(objects_in_sample);
-            masks_rles_.emplace_back(std::move(annotation.rle_));
-            masks_count++;
+            masks_rles_.push_back(std::move(annotation.rle_));
+            mask_count++;
             break;
           }
           default: {
@@ -579,13 +579,13 @@ void CocoLoader::ParseJsonAnnotations() {
         original_ids_.push_back(image_info.original_id_);
       }
       if (parse_segmentation) {
-        polygon_offset_.push_back(polygons_sample_offset);
-        polygon_count_.push_back(polygons_sample_count);
-        vertices_offset_.push_back(vertices_sample_offset);
-        vertices_count_.push_back(vertices_sample_count);
+        polygon_offset_.push_back(sample_polygons_offset);
+        polygon_count_.push_back(sample_polygons_count);
+        vertices_offset_.push_back(sample_vertices_offset);
+        vertices_count_.push_back(sample_vertices_count);
         if (output_pixelwise_masks_) {
-          masks_offset_.push_back(masks_offset);
-          masks_count_.push_back(masks_count);
+          mask_offsets_.push_back(mask_offset);
+          mask_counts_.push_back(mask_count);
           heights_.push_back(image_info.height_);
           widths_.push_back(image_info.width_);
         }

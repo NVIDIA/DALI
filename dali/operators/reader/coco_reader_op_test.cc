@@ -34,7 +34,7 @@ void RemoveAll(const char *dir) {
   nftw(dir, Remove, 64, FTW_DEPTH | FTW_PHYS);
 }
 
-}
+}  // namespace
 
 namespace dali {
 

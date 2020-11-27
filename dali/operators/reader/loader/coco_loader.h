@@ -79,7 +79,6 @@ struct RLEMask : public UniqueHandle<RLE, RLEMask> {
     rleFrString(&handle_, const_cast<char*>(str), h, w);
   }
 
-  static constexpr RLE null_handle() { return {0, 0, 0, nullptr}; }
   static constexpr bool is_null_handle(const RLE &handle) {
     return handle.cnts == nullptr;
   }
@@ -151,8 +150,8 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
     assert(output_pixelwise_masks_);
     return {
       {heights_[image_idx], widths_[image_idx], 1},
-      {masks_rles_.data() + masks_offset_[image_idx], masks_count_[image_idx]},
-      {masks_rles_idx_.data() + masks_offset_[image_idx], masks_count_[image_idx]}
+      {masks_rles_.data() + mask_offsets_[image_idx], mask_counts_[image_idx]},
+      {masks_rles_idx_.data() + mask_offsets_[image_idx], mask_counts_[image_idx]}
     };
   }
 
@@ -207,18 +206,18 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
 
   // polygons: (mask_idx, offset, size)
   std::vector<ivec3> polygon_data_;
-  std::vector<int64_t> polygon_offset_;  // per sample offset
-  std::vector<int64_t> polygon_count_;  // per sample size
+  std::vector<int64_t> polygon_offset_;  // per-sample offset of polygons
+  std::vector<int64_t> polygon_count_;   // number of polygon per sample
   // vertices: (all polygons concatenated)
   std::vector<vec2> vertices_data_;
-  std::vector<int64_t> vertices_offset_;  // per sample offset
-  std::vector<int64_t> vertices_count_;  // per sample size
+  std::vector<int64_t> vertices_offset_;  // per-sample offset of vertices
+  std::vector<int64_t> vertices_count_;   // number of vertices per sample
 
   // masks_rles: (run-length encodings)
   std::vector<RLEMask> masks_rles_;
   std::vector<int> masks_rles_idx_;
-  std::vector<int64_t> masks_offset_;  // per sample offset
-  std::vector<int64_t> masks_count_;  // per sample size
+  std::vector<int64_t> mask_offsets_;  // per-sample offsets of masks
+  std::vector<int64_t> mask_counts_;   // number of masks per sample
 
   bool output_polygon_masks_ = false;
   bool output_pixelwise_masks_ = false;
