@@ -178,16 +178,21 @@ std::vector<dali::file_meta> filesystem::get_file_label_pair(
     s.close();
   } else {
     file_info.reserve(filenames.size());
-    for (size_t i = 0; i < filenames.size(); ++i) {
-      int label = 0;
-      if (use_labels) {
-        if (labels.size()) {
-          label = labels[i];
-        } else {
-          label = i;
+    if (use_labels) {
+      if (!labels.empty()) {
+        for (size_t i = 0; i < filenames.size(); ++i) {
+          file_info.push_back(file_meta{filenames[i], labels[i], 0, 0});
         }
       }
-      file_info.push_back(file_meta{filenames[i], label, 0, 0});
+      else {
+        for (size_t i = 0; i < filenames.size(); ++i) {
+          file_info.push_back(file_meta{filenames[i], static_cast<int>(i), 0, 0});
+        }
+      }
+    } else {
+      for (size_t i = 0; i < filenames.size(); ++i) {
+        file_info.push_back(file_meta{filenames[i], 0, 0, 0});
+      }
     }
   }
 

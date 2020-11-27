@@ -78,11 +78,11 @@ This class only supports constant frame rate videos.)code")
 
 This option is mutually exclusive with ``filenames`` and ``file_root``.)code",
       std::vector<std::string>{})
-    .AddOptionalArg<vector<int>>("labels", R"(Labels accompanying contents of files listed in
+    .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
 ``filenames`` argument.
 
-If empty [] is provided, sequential 0-based indices are used as labels. If not used
-no labels will be yield.)", nullptr)
+If an empty list is provided, sequential 0-based indices are used as labels. If not provided,
+no labels will be yielded.)", nullptr)
   .AddOptionalArg("file_root",
       R"code(Path to a directory that contains the data files.
 

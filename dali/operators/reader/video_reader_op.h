@@ -32,7 +32,7 @@ inline int VideoReaderOutputFn(const OpSpec &spec) {
   bool enable_frame_num = spec.GetArgument<bool>("enable_frame_num");
   bool enable_timestamps = spec.GetArgument<bool>("enable_timestamps");
   int num_outputs = 1;
-  if ((!file_names.empty() && has_labels_arg) || file_names.empty()) {
+  if ((!file_names.empty() && has_labels_arg) || !file_root.empty() || !file_list.empty()) {
     ++num_outputs;
   }
   if (!file_list.empty() || !file_names.empty()) {
@@ -83,7 +83,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
     DALI_ENFORCE(!(has_labels_arg && filenames_.empty()),
                  "The argument ``labels`` is valid only when file paths "
-                 "are provided as ``filenamess`` argument.");
+                 "are provided with ``filenames`` argument.");
 
     if (!filenames_.empty() && has_labels_arg) {
       DALI_ENFORCE(filenames_.size() == labels_.size() || labels_.empty(), make_string("Provided ",
