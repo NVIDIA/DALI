@@ -183,8 +183,7 @@ std::vector<dali::file_meta> filesystem::get_file_label_pair(
         for (size_t i = 0; i < filenames.size(); ++i) {
           file_info.push_back(file_meta{filenames[i], labels[i], 0, 0});
         }
-      }
-      else {
+      } else {
         for (size_t i = 0; i < filenames.size(); ++i) {
           file_info.push_back(file_meta{filenames[i], static_cast<int>(i), 0, 0});
         }
