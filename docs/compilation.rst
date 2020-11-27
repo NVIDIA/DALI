@@ -149,7 +149,7 @@ Prerequisites
 .. |clang link| replace:: **clang**
 .. _clang link: https://apt.llvm.org/
 .. |gds link| replace:: **GPU Direct Storage**
-.. gds link: https://developer.nvidia.com/gpudirect-storage
+.. _gds link: https://developer.nvidia.com/gpudirect-storage
 
 
 
@@ -188,7 +188,7 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | (Optional) |lmdb link|_ or later       |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | (Optional) |gds link|                  | Only libcufile is required for the build process, and the installed header needs to land    |
+   | (Optional) |gds link|_                 | Only libcufile is required for the build process, and the installed header needs to land    |
    |                                        | in `/usr/local/cuda/include` directory.                                                     |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | One or more of the following Deep Learning frameworks:                                                                               |
