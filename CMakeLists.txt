@@ -242,7 +242,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch-bool -Wno-sign-compare -Wno-missing-braces -Wno-absolute-value")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-format -Wno-inconsistent-missing-override -Wno-implicit-int-float-conversion")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-mismatched-tags -Wno-reorder-ctor -Wno-unused-command-line-argument")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-defaulted-function-deleted -Wno-switch -Wno-cuda-compat")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-defaulted-function-deleted -Wno-switch -Wno-cuda-compat -Wno-unused-private-field")
   endif()
 
   # CUDA does not support current Clang as host compiler, we need use gcc
