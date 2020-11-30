@@ -35,11 +35,6 @@ struct Polygons {
   std::vector<float> segm_coords_;
 };
 
-struct RunLengthEncoding {
-  int h_, w_;
-  std::string rle_;
-};
-
 struct Annotation {
   enum {POLYGON, RLE} tag_;
   int image_id_;
@@ -47,7 +42,7 @@ struct Annotation {
   std::array<float, 4> box_;
   // union
   Polygons poly_;
-  RunLengthEncoding rle_;
+  RLEMask rle_;
 
   void ToLtrb() {
     box_[2] += box_[0];
@@ -60,32 +55,93 @@ struct Annotation {
 };
 
 template <typename T>
-void SaveToFile(std::vector<T> &input, const std::string path) {
-  std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
-  DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
-
-  unsigned size = input.size();
-  file.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
-  file.write(reinterpret_cast<char*>(input.data()), size * sizeof(T));
-  DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
+std::enable_if_t<std::is_pod<T>::value, void>
+Read(std::ifstream& file, T& data, const char* filename) {
+  int64_t bytes = sizeof(T);
+  file.read(reinterpret_cast<char *>(&data), bytes);
+  DALI_ENFORCE(file.gcount() == bytes,
+               make_string("Error reading from path: ", filename, ". Read ", file.gcount(),
+                           " bytes but requested ", bytes, " bytes."));
 }
 
 template <typename T>
-void SaveToFile(std::vector<std::vector<T> > &input, const std::string path) {
+void Read(std::ifstream& file, span<T> data, const char* filename) {
+  if (data.empty())
+    return;
+
+  int64_t bytes = sizeof(T) * data.size();
+  file.read(reinterpret_cast<char *>(data.data()), bytes);
+  DALI_ENFORCE(file.gcount() == bytes,
+               make_string("Error reading from path: ", filename, ". Read ", file.gcount(),
+                           " bytes but requested ", bytes, " bytes."));
+}
+
+template <typename T>
+void Write(std::ofstream& file, T data, const char* filename) {
+  file.write(reinterpret_cast<const char*>(&data), sizeof(T));
+  DALI_ENFORCE(file.good(), make_string("Error reading from path: ", filename));
+}
+
+template <typename T>
+void Write(std::ofstream& file, span<const T> data, const char* filename) {
+  if (data.empty())
+    return;
+  file.write(reinterpret_cast<const char*>(data.data()), sizeof(T) * data.size());
+  DALI_ENFORCE(file.good(), make_string("Error reading from path: ", filename));
+}
+
+template <typename T>
+void SaveToFile(const std::vector<T> &input, const std::string path) {
+  if (input.empty())
+    return;
   std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
 
   unsigned size = input.size();
-  file.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
-  for (auto& v : input) {
-    size = v.size();
-    file.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
-    file.write(reinterpret_cast<char*>(v.data()), size * sizeof(T));
-  }
+  Write(file, size, path.c_str());
+  Write(file, make_cspan(input), path.c_str());
   DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 }
 
-void SaveFilenamesToFile(const ImageIdPairs &image_id_pairs, const std::string path) {
+template <>
+void SaveToFile(const std::vector<RLEMask> &input, const std::string path) {
+  if (input.empty())
+    return;
+  std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
+  DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
+
+  unsigned size = input.size();
+  Write(file, size, path.c_str());
+  for (auto &rle : input) {
+    assert(rle->h > 0 && rle->w > 0 && rle->m > 0);
+    siz dims[3] = {rle->h, rle->w, rle->m};
+    Write(file, span<const siz>{&dims[0], 3}, path.c_str());
+    Write(file, span<const uint>{rle->cnts, static_cast<ptrdiff_t>(rle->m)}, path.c_str());
+  }
+}
+
+template <typename T>
+void SaveToFile(const std::vector<std::vector<T> > &input, const std::string path) {
+  if (input.empty())
+    return;
+  std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
+  DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
+
+  unsigned size = input.size();
+  Write(file, size, path.c_str());
+
+  for (auto& v : input) {
+    size = v.size();
+    assert(size > 0);
+    Write(file, size, path.c_str());
+    Write(file, make_cspan(v), path.c_str());
+  }
+}
+
+template <>
+void SaveToFile(const ImageIdPairs &image_id_pairs, const std::string path) {
+  if (image_id_pairs.empty())
+    return;
   std::ofstream file(path);
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
   for (const auto &p : image_id_pairs) {
@@ -97,35 +153,59 @@ void SaveFilenamesToFile(const ImageIdPairs &image_id_pairs, const std::string p
 template <typename T>
 void LoadFromFile(std::vector<T> &output, const std::string path) {
   std::ifstream file(path);
-  DALI_ENFORCE(file.good(),
-               make_string("CocoReader failed to read preprocessed annotation data from ", path));
+  output.clear();
+  if (!file.good())
+    return;
 
   unsigned size;
-  file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
+  Read(file, size, path.c_str());
   output.resize(size);
-  file.read(reinterpret_cast<char*>(output.data()), size * sizeof(T));
+  Read(file, make_span(output), path.c_str());
+}
+
+template <>
+void LoadFromFile(std::vector<RLEMask> &output, const std::string path) {
+  std::ifstream file(path);
+  output.clear();
+  if (!file.good())
+    return;
+
+  unsigned size;
+  Read(file, size, path.c_str());
+  output.clear();
+  output.resize(size);
+  for (auto &rle : output) {
+    siz dims[3];
+    Read(file, span<siz>{&dims[0], 3}, path.c_str());
+    siz h = dims[0], w = dims[1], m = dims[2];
+    rle = RLEMask(h, w, m);
+    Read(file, span<uint>{rle->cnts, static_cast<ptrdiff_t>(rle->m)}, path.c_str());
+  }
 }
 
 template <typename T>
 void LoadFromFile(std::vector<std::vector<T> > &output, const std::string path) {
   std::ifstream file(path);
-  DALI_ENFORCE(file.good(),
-               make_string("CocoReader failed to read preprocessed annotation data from ", path));
+  output.clear();
+  if (!file.good())
+    return;
 
   unsigned size;
-  file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
+  Read(file, size, path.c_str());
   output.resize(size);
   for (size_t i = 0; i < output.size(); ++i) {
-    file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
+    Read(file, size, path.c_str());
     output[i].resize(size);
-    file.read(reinterpret_cast<char*>(output[i].data()), size * sizeof(T));
+    Read(file, make_span(output[i]), path.c_str());
   }
 }
 
-void LoadFilenamesFromFile(ImageIdPairs &image_id_pairs, const std::string path) {
+template <>
+void LoadFromFile(ImageIdPairs &image_id_pairs, const std::string path) {
   std::ifstream file(path);
-  DALI_ENFORCE(file.good(),
-               make_string("CocoReader failed to read preprocessed annotation data from ", path));
+  image_id_pairs.clear();
+  if (!file.good())
+    return;
 
   int id = 0;
   std::string filename;
@@ -191,6 +271,8 @@ void ParseCategories(LookaheadParser &parser, std::map<int, int> &category_ids) 
 void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotations,
                       float min_size_threshold, bool ltrb,
                       bool parse_segmentation, bool parse_rle) {
+  std::string rle_str;
+  std::vector<uint32_t> rle_uints;
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
   while (parser.NextArrayValue()) {
@@ -219,18 +301,40 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
         if (parse_rle && parser.PeekType() == kObjectType) {
           annotation.tag_ = Annotation::RLE;
           parser.EnterObject();
+          rle_str.clear();
+          rle_uints.clear();
+          int h = -1, w = -1;
           while (const char* another_key = parser.NextObjectKey()) {
             if (0 == std::strcmp(another_key, "size")) {
               RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
               parser.EnterArray();
               parser.NextArrayValue();
-              annotation.rle_.h_ = parser.GetInt();
+              h = parser.GetInt();
               parser.NextArrayValue();
-              annotation.rle_.w_ = parser.GetInt();
+              w = parser.GetInt();
               parser.NextArrayValue();
             } else if (0 == std::strcmp(another_key, "counts")) {
-              annotation.rle_.rle_ = parser.GetString();
+              if (parser.PeekType() == kStringType) {
+                rle_str = parser.GetString();
+              } else if (parser.PeekType() == kArrayType) {
+                parser.EnterArray();
+                while (parser.NextArrayValue()) {
+                  rle_uints.push_back(parser.GetInt());
+                }
+              } else {
+                parser.SkipValue();
+              }
+            } else {
+              parser.SkipValue();
             }
+          }
+          DALI_ENFORCE(h > 0 && w > 0, "Invalid or missing mask sizes");
+          if (!rle_str.empty()) {
+            annotation.rle_ = RLEMask(h, w, rle_str.c_str());
+          } else if (!rle_uints.empty()) {
+            annotation.rle_ = RLEMask(h, w, make_cspan(rle_uints));
+          } else {
+            DALI_FAIL("Missing or invalid ``counts`` attribute.");
           }
         } else if (parser.PeekType() == kArrayType) {
           annotation.tag_ = Annotation::POLYGON;
@@ -306,14 +410,13 @@ void ParseJsonFile(const OpSpec &spec, std::vector<detail::ImageInfo> &image_inf
 void CocoLoader::SavePreprocessedAnnotations(const std::string &path,
                                              const ImageIdPairs &image_id_pairs) {
   using detail::SaveToFile;
-  using detail::SaveFilenamesToFile;
   SaveToFile(offsets_, path + "/offsets.dat");
   SaveToFile(boxes_, path + "/boxes.dat");
   SaveToFile(labels_, path + "/labels.dat");
   SaveToFile(counts_, path + "/counts.dat");
-  SaveFilenamesToFile(image_id_pairs, path + "/filenames.dat");
+  SaveToFile(image_id_pairs, path + "/filenames.dat");
 
-  if (output_polygon_masks_) {
+  if (output_polygon_masks_ || output_pixelwise_masks_) {
     SaveToFile(polygon_data_, path + "/polygon_data.dat");
     SaveToFile(polygon_offset_, path + "/polygon_offset.dat");
     SaveToFile(polygon_count_, path + "/polygons_count.dat");
@@ -323,7 +426,12 @@ void CocoLoader::SavePreprocessedAnnotations(const std::string &path,
   }
 
   if (output_pixelwise_masks_) {
-    DALI_WARN("Warning: Saving preprocessed piwelwise masks is not supported");
+    SaveToFile(masks_rles_, path + "/masks_rles.dat");
+    SaveToFile(masks_rles_idx_, path + "/masks_rles_idx.dat");
+    SaveToFile(mask_offsets_, path + "/masks_offset.dat");
+    SaveToFile(mask_counts_, path + "/mask_count.dat");
+    SaveToFile(heights_, path + "/heights.dat");
+    SaveToFile(widths_, path + "/widths.dat");
   }
 
   if (output_image_ids_) {
@@ -336,15 +444,14 @@ void CocoLoader::ParsePreprocessedAnnotations() {
   const auto path = spec_.HasArgument("meta_files_path")
       ? spec_.GetArgument<string>("meta_files_path")
       : spec_.GetArgument<string>("preprocessed_annotations");
-  using detail::LoadFilenamesFromFile;
   using detail::LoadFromFile;
   LoadFromFile(offsets_, path + "/offsets.dat");
   LoadFromFile(boxes_, path + "/boxes.dat");
   LoadFromFile(labels_, path + "/labels.dat");
   LoadFromFile(counts_, path + "/counts.dat");
-  LoadFilenamesFromFile(image_label_pairs_, path + "/filenames.dat");
+  LoadFromFile(image_label_pairs_, path + "/filenames.dat");
 
-  if (output_polygon_masks_) {
+  if (output_polygon_masks_ || output_pixelwise_masks_) {
     LoadFromFile(polygon_data_, path + "/polygon_data.dat");
     LoadFromFile(polygon_offset_, path + "/polygon_offset.dat");
     LoadFromFile(polygon_count_, path + "/polygons_count.dat");
@@ -354,7 +461,12 @@ void CocoLoader::ParsePreprocessedAnnotations() {
   }
 
   if (output_pixelwise_masks_) {
-    DALI_WARN("Loading from preprocessed piwelwise masks is not supported");
+    LoadFromFile(masks_rles_, path + "/masks_rles.dat");
+    LoadFromFile(masks_rles_idx_, path + "/masks_rles_idx.dat");
+    LoadFromFile(mask_offsets_, path + "/masks_offset.dat");
+    LoadFromFile(mask_counts_, path + "/mask_count.dat");
+    LoadFromFile(heights_, path + "/heights.dat");
+    LoadFromFile(widths_, path + "/widths.dat");
   }
 
   if (output_image_ids_) {
@@ -392,14 +504,14 @@ void CocoLoader::ParseJsonAnnotations() {
 
   for (auto &image_info : image_infos) {
     int objects_in_sample = 0;
-    std::vector<int> sample_rles_idx;
-    std::vector<std::string> sample_rles;
-    int64_t polygons_sample_offset = polygon_data_.size();
-    int64_t polygons_sample_count = 0;
-    int64_t vertices_sample_offset = vertices_data_.size();
-    int64_t vertices_sample_count = 0;
+    int64_t sample_polygons_offset = polygon_data_.size();
+    int64_t sample_polygons_count = 0;
+    int64_t sample_vertices_offset = vertices_data_.size();
+    int64_t sample_vertices_count = 0;
+    int64_t mask_offset = masks_rles_.size();
+    int64_t mask_count = 0;
     while (annotations[annotation_id].image_id_ == image_info.original_id_) {
-      const auto &annotation = annotations[annotation_id];
+      auto &annotation = annotations[annotation_id];
       labels_.push_back(category_ids[annotation.category_id_]);
       if (ratio) {
         boxes_.push_back(annotation.box_[0] / image_info.width_);
@@ -417,19 +529,19 @@ void CocoLoader::ParseJsonAnnotations() {
           case detail::Annotation::POLYGON: {
             auto &segm_meta = annotation.poly_.segm_meta_;
             assert(segm_meta.size() % 2 == 0);
-            polygons_sample_count += segm_meta.size() / 2;
+            sample_polygons_count += segm_meta.size() / 2;
 
             auto &coords = annotation.poly_.segm_coords_;
             assert(coords.size() % 2 == 0);
-            vertices_sample_count += coords.size() / 2;
+            sample_vertices_count += coords.size() / 2;
 
             for (size_t i = 0; i < segm_meta.size(); i += 2) {
               assert(segm_meta[i] % 2 == 0);
               assert(segm_meta[i + 1] % 2 == 0);
               int vertex_start_idx =
-                  vertices_data_.size() - vertices_sample_offset + segm_meta[i] / 2;
+                  vertices_data_.size() - sample_vertices_offset + segm_meta[i] / 2;
               int vertex_end_idx =
-                  vertices_data_.size() - vertices_sample_offset + segm_meta[i + 1] / 2;
+                  vertices_data_.size() - sample_vertices_offset + segm_meta[i + 1] / 2;
               polygon_data_.push_back({objects_in_sample, vertex_start_idx, vertex_end_idx});
             }
             if (ratio) {
@@ -445,8 +557,9 @@ void CocoLoader::ParseJsonAnnotations() {
             break;
           }
           case detail::Annotation::RLE: {
-            sample_rles_idx.push_back(objects_in_sample);
-            sample_rles.push_back(std::move(annotation.rle_.rle_));
+            masks_rles_idx_.push_back(objects_in_sample);
+            masks_rles_.push_back(std::move(annotation.rle_));
+            mask_count++;
             break;
           }
           default: {
@@ -466,17 +579,18 @@ void CocoLoader::ParseJsonAnnotations() {
         original_ids_.push_back(image_info.original_id_);
       }
       if (parse_segmentation) {
-        polygon_offset_.push_back(polygons_sample_offset);
-        polygon_count_.push_back(polygons_sample_count);
-        vertices_offset_.push_back(vertices_sample_offset);
-        vertices_count_.push_back(vertices_sample_count);
-        masks_rles_.emplace_back(std::move(sample_rles));
-        masks_rles_idx_.emplace_back(std::move(sample_rles_idx));
+        polygon_offset_.push_back(sample_polygons_offset);
+        polygon_count_.push_back(sample_polygons_count);
+        vertices_offset_.push_back(sample_vertices_offset);
+        vertices_count_.push_back(sample_vertices_count);
+        if (output_pixelwise_masks_) {
+          mask_offsets_.push_back(mask_offset);
+          mask_counts_.push_back(mask_count);
+          heights_.push_back(image_info.height_);
+          widths_.push_back(image_info.width_);
+        }
       }
-      if (output_pixelwise_masks_) {
-        heights_.push_back(image_info.height_);
-        widths_.push_back(image_info.width_);
-      }
+
       image_label_pairs_.emplace_back(std::move(image_info.filename_), new_image_id);
       new_image_id++;
     }

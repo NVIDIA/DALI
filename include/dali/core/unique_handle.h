@@ -62,7 +62,7 @@ class UniqueHandle {
   UniqueHandle &operator=(const UniqueHandle &) = delete;
 
   inline UniqueHandle(UniqueHandle &&other) : handle_(other.handle_) {
-    other.handle_ = nullptr;
+    other.handle_ = Actual::null_handle();
   }
 
   inline UniqueHandle &operator=(UniqueHandle &&other) {
@@ -82,7 +82,7 @@ class UniqueHandle {
    * * The null value to replace the handle with, is taken from `Actual::null_value()`.
    */
   inline void reset() {
-    if (handle_ != Actual::null_handle()) {
+    if (!Actual::is_null_handle(handle_)) {
       Actual::DestroyHandle(handle_);
       handle_ = Actual::null_handle();
     }
@@ -115,10 +115,13 @@ class UniqueHandle {
 
   /// @brief Indicates whether the handle is non-null.
   constexpr explicit operator bool() const noexcept {
-    return handle_ != Actual::null_handle();
+    return !Actual::is_null_handle(handle_);
   }
 
   static constexpr handle_type null_handle() noexcept { return {}; }
+  static constexpr bool is_null_handle(const handle_type& handle) noexcept {
+    return handle == Actual::null_handle();
+  }
 
  protected:
   inline ~UniqueHandle() { reset(); }

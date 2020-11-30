@@ -264,11 +264,12 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   RLE* R;
   rlesInit(&R, *labels.rbegin() + 1);
 
-  // Create a run-length encoding for each compressed string representation
+  // Mask was originally described in RLE format
   for (uint ann_id = 0 ; ann_id < masks_info.mask_indices.size(); ann_id++) {
+    const auto &rle = masks_info.rles[ann_id];
     auto mask_idx = masks_info.mask_indices[ann_id];
     int label = labels_span[mask_idx];
-    rleFrString(&R[label], const_cast<char*>(masks_info.rles[ann_id].c_str()), h, w);
+    rleInit(&R[label], rle->h, rle->w, rle->m, rle->cnts);
   }
 
   // Merge each label (from multi-polygons annotations)

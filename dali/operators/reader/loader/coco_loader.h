@@ -25,6 +25,11 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/geom/vec.h"
+#include "dali/core/unique_handle.h"
+
+extern "C" {
+#include "third_party/cocoapi/common/maskApi.h"
+}
 
 namespace dali {
 
@@ -59,6 +64,34 @@ inline bool HasSavePreprocessedAnnotationsDir(const OpSpec &spec) {
     (spec.HasArgument("dump_meta_files_path") && spec.GetArgument<bool>("dump_meta_files_path"));
 }
 
+struct RLEMask : public UniqueHandle<RLE, RLEMask> {
+  DALI_INHERIT_UNIQUE_HANDLE(RLE, RLEMask)
+
+  RLEMask(siz h, siz w, siz m) {
+    rleInit(&handle_, h, w, m, nullptr);
+  }
+
+  RLEMask(siz h, siz w, span<const uint> counts) {
+    rleInit(&handle_, h, w, counts.size(), const_cast<uint*>(counts.data()));
+  }
+
+  RLEMask(siz h, siz w, const char* str) {
+    rleFrString(&handle_, const_cast<char*>(str), h, w);
+  }
+
+  static constexpr bool is_null_handle(const RLE &handle) {
+    return handle.cnts == nullptr;
+  }
+
+  static void DestroyHandle(RLE &handle) {
+    if (handle.cnts)
+      rleFree(&handle);
+  }
+
+  const RLE* operator->() const { return &handle_; }
+  RLE* operator->() { return &handle_; }
+};
+
 class DLL_PUBLIC CocoLoader : public FileLabelLoader {
  public:
   explicit inline CocoLoader(const OpSpec &spec)
@@ -90,7 +123,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
 
   struct PixelwiseMasksInfo {
     TensorShape<3> shape;
-    span<const std::string> rles;
+    span<const RLEMask> rles;
     span<const int> mask_indices;
   };
 
@@ -117,18 +150,22 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
     assert(output_pixelwise_masks_);
     return {
       {heights_[image_idx], widths_[image_idx], 1},
-      make_cspan(masks_rles_[image_idx]),
-      make_cspan(masks_rles_idx_[image_idx])
+      {masks_rles_.data() + mask_offsets_[image_idx], mask_counts_[image_idx]},
+      {masks_rles_idx_.data() + mask_offsets_[image_idx], mask_counts_[image_idx]}
     };
   }
 
   span<const ivec3> polygons(int image_idx) const {
     assert(output_polygon_masks_ || output_pixelwise_masks_);
+    if (polygon_data_.empty() || polygon_offset_.empty() || polygon_count_.empty())
+      return {};
     return {polygon_data_.data() + polygon_offset_[image_idx], polygon_count_[image_idx]};
   }
 
   span<const vec2> vertices(int image_idx) const {
     assert(output_polygon_masks_ || output_pixelwise_masks_);
+    if (vertices_data_.empty() || vertices_offset_.empty() || vertices_count_.empty())
+      return {};
     return {vertices_data_.data() + vertices_offset_[image_idx], vertices_count_[image_idx]};
   }
 
@@ -169,16 +206,18 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
 
   // polygons: (mask_idx, offset, size)
   std::vector<ivec3> polygon_data_;
-  std::vector<int64_t> polygon_offset_;  // per sample offset
-  std::vector<int64_t> polygon_count_;  // per sample size
+  std::vector<int64_t> polygon_offset_;  // per-sample offset of polygons
+  std::vector<int64_t> polygon_count_;   // number of polygon per sample
   // vertices: (all polygons concatenated)
   std::vector<vec2> vertices_data_;
-  std::vector<int64_t> vertices_offset_;  // per sample offset
-  std::vector<int64_t> vertices_count_;  // per sample size
+  std::vector<int64_t> vertices_offset_;  // per-sample offset of vertices
+  std::vector<int64_t> vertices_count_;   // number of vertices per sample
 
   // masks_rles: (run-length encodings)
-  std::vector<std::vector<std::string>> masks_rles_;
-  std::vector<std::vector<int>> masks_rles_idx_;
+  std::vector<RLEMask> masks_rles_;
+  std::vector<int> masks_rles_idx_;
+  std::vector<int64_t> mask_offsets_;  // per-sample offsets of masks
+  std::vector<int64_t> mask_counts_;   // number of masks per sample
 
   bool output_polygon_masks_ = false;
   bool output_pixelwise_masks_ = false;
