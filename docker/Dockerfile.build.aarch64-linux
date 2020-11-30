@@ -33,7 +33,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get install -y python3.9 python3.9-dev && \
     rm -rf /var/lib/apt/lists/* && \
     curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py && \
-    pip install clang libclang && \
+    # decouple libclang and clang installation so libclang changes are not overriden by clang
+    pip install clang && pip install libclang && \
     rm -rf /root/.cache/pip/ && \
     cd /tmp && git clone https://github.com/NixOS/patchelf && cd patchelf && \
     ./bootstrap.sh && ./configure --prefix=/usr/ && make -j install && cd / && rm -rf /tmp/patchelf && \
