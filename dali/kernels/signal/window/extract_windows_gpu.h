@@ -17,6 +17,7 @@
 
 #include <memory>
 #include "dali/core/convert.h"
+#include "dali/core/host_dev.h"
 #include "dali/kernels/signal/window/extract_windows_args.h"
 #include "dali/kernels/kernel.h"
 

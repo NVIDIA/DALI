@@ -14,6 +14,7 @@
 
 #include "dali/core/fast_div.h"  // NOLINT
 #include <gtest/gtest.h>
+#include <cmath>
 #include <random>
 #include <iostream>
 #include "dali/test/device_test.h"
@@ -275,9 +276,9 @@ TYPED_TEST(FastDivPerf, Perf) {
 
   const int divs_per_thread = 18;
 
-  T d1 = max(dist(rng), T(1));
-  T d2 = max(dist(rng), T(1));
-  T d3 = max(dist(rng), T(1));
+  T d1 = std::max(dist(rng), T(1));
+  T d2 = std::max(dist(rng), T(1));
+  T d3 = std::max(dist(rng), T(1));
 
   FastDivMod<T><<<1000, 1024>>>(m, d1, d2, d3);
   cudaEventRecord(start, 0);

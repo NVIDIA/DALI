@@ -17,6 +17,7 @@
 
 #include <memory>
 #include "dali/core/common.h"
+#include "dali/core/host_dev.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_args.h"
 #include "dali/kernels/audio/mel_scale/mel_scale.h"

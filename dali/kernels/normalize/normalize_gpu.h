@@ -22,6 +22,7 @@
  */
 
 #include <memory>
+#include "dali/core/host_dev.h"
 #include "dali/kernels/kernel.h"
 
 namespace dali {

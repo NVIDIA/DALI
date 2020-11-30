@@ -41,6 +41,7 @@ if (BUILD_BENCHMARK)
     list(APPEND DALI_BENCHMARK_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/caffe2_alexnet_bench.cc")
   endif()
 
+  adjust_source_file_language_property("${DALI_BENCHMARK_SRCS}")
   add_executable(dali_benchmark "${DALI_BENCHMARK_SRCS}")
 
   target_link_libraries(dali_benchmark PRIVATE dali dali_operators benchmark ${DALI_LIBS})

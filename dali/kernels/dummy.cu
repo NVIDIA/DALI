@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_TYPE_CONVERSION_H_
-#define DALI_UTIL_TYPE_CONVERSION_H_
-
-#include "dali/core/common.h"
-
-namespace dali {
-
-// Type conversions for data on GPU. All conversions
-// run in the default stream
-template <typename IN, typename OUT>
-DLL_PUBLIC void Convert(const IN *data, int n, OUT *out);
-
-}  // namespace dali
-
-#endif  // DALI_UTIL_TYPE_CONVERSION_H_
+// Empty file for Clang-only compilation that is still using NVCC and thus
+// forcing CMake to link using NVCC, to alow for device linking (required for separable
+// compilation). Older CMakes use Clang for linking even when the CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS
+// is ON.

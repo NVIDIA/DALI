@@ -26,7 +26,6 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/util/type_conversion.h"
 
 // This file contains useful image utilities for reading and writing images.
 // These functions are for testing and debugging, they should not be used

@@ -115,7 +115,7 @@ struct TensorJoinGPUTest : public ::testing::Test {
     dim3 block(32 * 8);
     CUDA_CALL(cudaEventRecord(start, stream));
 
-    JoinTensorsKernel<<<grid, block, 0, stream>>>(
+    tensor_join::JoinTensorsKernel<<<grid, block, 0, stream>>>(
         gpu_output_descs.data(), gpu_input_descs.data(), njoin);
 
     CUDA_CALL(cudaEventRecord(end, stream));
