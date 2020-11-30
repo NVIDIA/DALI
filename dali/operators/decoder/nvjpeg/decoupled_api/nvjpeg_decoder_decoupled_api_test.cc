@@ -287,9 +287,11 @@ TEST_F(Nvjpeg2kTest, UtilizationTest) {
   auto nsamples_nvjpeg2k = node->op->GetDiagnostic<int64_t>("nsamples_nvjpeg2k");
   auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
 #if NVJPEG2K_ENABLED
+  std::cout << "Using nvJPEG2k" << std::endl;
   EXPECT_EQ(nsamples_nvjpeg2k, 21);
   EXPECT_EQ(nsamples_host, 0);
 #else
+  std::cout << "Using CPU fallback" << std::endl;
   EXPECT_EQ(nsamples_nvjpeg2k, 0);
   EXPECT_EQ(nsamples_host, 21);
 #endif  // NVJPEG2K_ENABLED
