@@ -18,6 +18,7 @@
 #include <mutex>
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/detail/free_list.h"
+#include "dali/core/small_vector.h"
 
 namespace dali {
 namespace mm {
@@ -47,7 +48,7 @@ constexpr pool_options default_host_pool_opts() noexcept {
 }
 
 constexpr pool_options default_device_pool_opts() noexcept {
-  return { (1<<32), (1<<20), 2.0f, false };
+  return { (static_cast<size_t>(1)<<32), (1<<20), 2.0f, false };
 }
 
 template <class FreeList, class LockType>
@@ -100,7 +101,7 @@ class pool_resource_base : public memory_resource {
     free_list_.put(ptr, bytes);
   }
 
-  memory_resource *upstream_
+  memory_resource *upstream_;
   FreeList free_list_;
   LockType lock_;
   pool_options options_;
@@ -109,6 +110,7 @@ class pool_resource_base : public memory_resource {
     void *ptr;
     size_t bytes, alignment;
   };
+
   SmallVector<UpstreamBlock, 16> blocks_;
   using lock_guard = std::lock_guard<LockType>;
   using unique_lock = std::unique_lock<LockType>;
