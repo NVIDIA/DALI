@@ -163,16 +163,16 @@ class TransformShearCPU
   }
 
  private:
-  int InferNumDims(const Argument<std::vector<float>> &arg) {
+  int InferNumDims(const ArgHelper<std::vector<float>> &arg) {
     DALI_ENFORCE(arg[0].size() == 2 || arg[0].size() == 6,
       make_string("Unexpected number of elements in ``", arg.name(), "`` argument. "
                   "Expected 2 or 6 arguments. Got: ", arg[0].size()));
     return arg[0].size() == 6 ? 3 : 2;
   }
 
-  Argument<std::vector<float>> shear_;
-  Argument<std::vector<float>> angles_;
-  Argument<std::vector<float>> center_;
+  ArgHelper<std::vector<float>> shear_;
+  ArgHelper<std::vector<float>> angles_;
+  ArgHelper<std::vector<float>> center_;
 };
 
 DALI_REGISTER_OPERATOR(transforms__Shear, TransformShearCPU, CPU);

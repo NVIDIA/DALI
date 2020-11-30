@@ -132,9 +132,9 @@ class TransformRotationCPU
   }
 
  private:
-  Argument<float> angle_;
-  Argument<std::vector<float>> axis_;
-  Argument<std::vector<float>> center_;
+  ArgHelper<float> angle_;
+  ArgHelper<std::vector<float>> axis_;
+  ArgHelper<std::vector<float>> center_;
 };
 
 DALI_REGISTER_OPERATOR(transforms__Rotation, TransformRotationCPU, CPU);

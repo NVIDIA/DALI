@@ -92,7 +92,7 @@ class TransformTranslationCPU
   }
 
  private:
-  Argument<std::vector<float>> offset_;
+  ArgHelper<std::vector<float>> offset_;
 };
 
 DALI_REGISTER_OPERATOR(transforms__Translation, TransformTranslationCPU, CPU);

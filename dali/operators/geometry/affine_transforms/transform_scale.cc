@@ -97,8 +97,8 @@ class TransformScaleCPU
   }
 
  private:
-  Argument<std::vector<float>> scale_;
-  Argument<std::vector<float>> center_;
+  ArgHelper<std::vector<float>> scale_;
+  ArgHelper<std::vector<float>> center_;
 };
 
 DALI_REGISTER_OPERATOR(transforms__Scale, TransformScaleCPU, CPU);

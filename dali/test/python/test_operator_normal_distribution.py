@@ -29,7 +29,10 @@ class NormalDistributionPipelineWithInput(NormalDistributionPipeline):
         super(NormalDistributionPipelineWithInput, self).__init__(len(premade_batch))
         self.premade_batch = premade_batch
         self.ext_src = ops.ExternalSource()
-        self.norm = ops.NormalDistribution(device=device, dtype=dtype)
+        if device == 'cpu':
+            self.norm = ops.NewNormalDistribution(device=device, dtype=dtype)
+        else:
+            self.norm = ops.NormalDistribution(device=device, dtype=dtype)
 
     def define_graph(self):
         self.data = self.ext_src()
@@ -42,7 +45,10 @@ class NormalDistributionPipelineWithInput(NormalDistributionPipeline):
 class NormalDistributionPipelineWithArgument(NormalDistributionPipeline):
     def __init__(self, shape, dtype, device='cpu'):
         super(NormalDistributionPipelineWithArgument, self).__init__(1)
-        self.norm = ops.NormalDistribution(device=device, shape=shape, dtype=dtype)
+        if device == 'cpu':
+            self.norm = ops.NewNormalDistribution(device=device, shape=shape, dtype=dtype)
+        else:
+            self.norm = ops.NormalDistribution(device=device, shape=shape, dtype=dtype)
 
     def define_graph(self):
         return self.norm()
@@ -51,7 +57,10 @@ class NormalDistributionPipelineWithArgument(NormalDistributionPipeline):
 class NormalDistributionPipelineDefault(NormalDistributionPipeline):
     def __init__(self, batch_size, dtype, device='cpu'):
         super(NormalDistributionPipelineDefault, self).__init__(batch_size)
-        self.norm = ops.NormalDistribution(device=device, dtype=dtype)
+        if device == 'cpu':
+            self.norm = ops.NewNormalDistribution(device=device, dtype=dtype)
+        else:
+            self.norm = ops.NormalDistribution(device=device, dtype=dtype)
 
     def define_graph(self):
         return self.norm()

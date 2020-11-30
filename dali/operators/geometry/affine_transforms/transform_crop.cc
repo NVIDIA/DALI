@@ -157,10 +157,10 @@ class TransformCropCPU
       sample.resize(ndim_, sample[0]);
   }
 
-  Argument<std::vector<float>> from_start_;
-  Argument<std::vector<float>> from_end_;
-  Argument<std::vector<float>> to_start_;
-  Argument<std::vector<float>> to_end_;
+  ArgHelper<std::vector<float>> from_start_;
+  ArgHelper<std::vector<float>> from_end_;
+  ArgHelper<std::vector<float>> to_start_;
+  ArgHelper<std::vector<float>> to_end_;
   bool absolute_ = false;
 };
 
