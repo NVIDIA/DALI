@@ -14,6 +14,8 @@
 
 project(dali_core CUDA CXX C)
 
+add_subdirectory(mm)
+
 # Get all the source files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_CORE_SRCS)
