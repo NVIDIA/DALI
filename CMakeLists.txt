@@ -84,7 +84,13 @@ if(${CUDA_VERSION} VERSION_GREATER_EQUAL "11.0")
   if(NOT (${ARCH} MATCHES "aarch64"))
     cmake_dependent_option(BUILD_NVJPEG2K "Build with nvJPEG2K support" ON
                            "NOT BUILD_DALI_NODEPS" OFF)
+  else()
+    # make sure that even is set by -DBUILD_NVJPEG2K it will be unset as not suppported
+    unset(BUILD_NVJPEG2K CACHE)
   endif()
+else()
+  # make sure that even is set by -DBUILD_NVJPEG2K it will be unset as not suppported
+  unset(BUILD_NVJPEG2K CACHE)
 endif()
 
 cmake_dependent_option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON
@@ -94,6 +100,9 @@ cmake_dependent_option(BUILD_NVML "Build with NVIDIA Management Library (NVML) s
 if(NOT (${ARCH} MATCHES "aarch64"))
   cmake_dependent_option(BUILD_CUFILE "Build with cufile (GPU Direct Storage) support" OFF
                          "NOT BUILD_DALI_NODEPS" OFF)
+else()
+  # make sure that even is set by -DBUILD_CUFILE it will be unset as not suppported
+  unset(BUILD_CUFILE CACHE)
 endif()
 
 if (BUILD_DALI_NODEPS)
