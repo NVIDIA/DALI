@@ -67,6 +67,8 @@ inline bool HasSavePreprocessedAnnotationsDir(const OpSpec &spec) {
 struct RLEMask : public UniqueHandle<RLE, RLEMask> {
   DALI_INHERIT_UNIQUE_HANDLE(RLE, RLEMask)
 
+  constexpr inline RLEMask() : UniqueHandle() {}
+
   RLEMask(siz h, siz w, siz m) {
     rleInit(&handle_, h, w, m, nullptr);
   }
