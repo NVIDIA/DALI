@@ -99,7 +99,7 @@ class Scratchpad {
   if_array_like<Collection, T*>
   ToGPU(cudaStream_t stream, const Collection &c) {
     T *ptr = Allocate<T>(AllocType::GPU, size(c));
-    cudaMemcpyAsync(ptr, &c[0], size(c) * sizeof(T), cudaMemcpyHostToDevice, stream);
+    CUDA_CALL(cudaMemcpyAsync(ptr, &c[0], size(c) * sizeof(T), cudaMemcpyHostToDevice, stream));
     return ptr;
   }
 
