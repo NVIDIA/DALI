@@ -323,6 +323,68 @@ class coalescing_free_list : public best_fit_free_list {
       *pwhere = blk;
     }
   }
+
+  void merge(coalescing_free_list &&with) {
+    if (!with.head_)
+      return;
+    if (!head_) {
+      swap(with);
+      return;
+    }
+
+    block **a = &head_;
+    block **b = &with.head_;
+    block *new_head = nullptr;
+
+    auto next_block = [&]() {
+      return (*a)->start < (*b)->start ? a : b;
+    };
+
+    block **src = next_block();
+    new_head = *src;
+    *src = (*src)->next;
+    new_head->next = nullptr;
+    block *tail = new_head;
+    while (*a && *b) {
+      src = next_block();
+      block *curr = *src;
+      *src = curr->next;  // advance the source
+      curr->next = nullptr;
+
+      if (curr->start == tail->end) {
+        // coalesce
+        tail->end = curr->end;
+        // Current block is no longer needed - place it in unused blocks in source list.
+        // This avoids growing the destination's unused blocks list indefinitely.
+        curr->next = with.unused_blocks_;
+        curr->start = curr->end = nullptr;
+        with.unused_blocks_ = curr;
+      } else {
+        // attach current element to the resuiting list
+        tail->next = curr;
+        // move tail
+        tail = curr;
+      }
+    }
+    // append whatever's left
+    for (block **p : { a, b }) {
+      if (*p) {
+        if ((*p)->start == tail->end) {
+          // coalesce
+          tail->end = (*p)->end;
+          with.remove(p);
+        }
+        // the rest of the list cannot be coalesced because all of it is in one list
+        // and would have been coalesced anyway.
+        tail->next = *p;
+        *p = nullptr;
+      }
+    }
+    // the source lists should be empty by now
+    assert(head_ == nullptr);
+    assert(with.head_ == nullptr);
+    head_ = new_head;
+  }
 };
 
 }  // namespace mm

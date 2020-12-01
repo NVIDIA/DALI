@@ -73,7 +73,7 @@ class pool_resource_base : public memory_resource {
    }
 
  protected:
-  void *do_allocate(size_t bytes, size_t alignment) {
+  void *do_allocate(size_t bytes, size_t alignment) override {
     {
       lock_guard guard(lock_);
       void *ptr = free_list_.get(bytes, alignment);
@@ -81,30 +81,54 @@ class pool_resource_base : public memory_resource {
         return ptr;
     }
     alignment = std::max(alignment, options_.upstream_alignment);
-    size_t blk_size = next_block_size(bytes);
-    void *new_block = upstream_->allocate(blk_size, alignment);
+    size_t blk_size = bytes;
+    void *new_block = get_upstream_block(blk_size, bytes, alignment);
     lock_guard guard(lock_);
     {
-      blocks_.push_back({ mem, bytes, alignment });
+      blocks_.push_back({ new_block, bytes, alignment });
       if (blk_size == bytes) {
+        // we've allocated a block exactly of the required size - there's little
+        // chance that it will be merged with anything in the pool, so we'll return it as-is
         return new_block;
       } else {
-        free_list_.put(new_block, blk_size);
-        void *mem = free_list_.get(bytes, alignment);
-        return mem;
+        // we've allocated an oversized block - put the remainder in the free list
+        lock_guard guard(lock_);
+        free_list_.put(static_cast<char *>(new_block) + bytes, blk_size - bytes);
+        return new_block;
       }
     }
   }
 
-  void *do_deallocate(void *ptr, size_t bytes, size_t alignment) {
+  void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
     lock_guard guard(lock_);
     free_list_.put(ptr, bytes);
+  }
+
+  void *get_upstream_block(size_t &blk_size, size_t min_bytes, size_t alignment) {
+    blk_size = next_block_size(min_bytes);
+    for (;;) {
+      try {
+        return upstream_->allocate(blk_size, alignment);
+      } catch (const std::bad_alloc &) {
+        if (blk_size == min_bytes || !options_.try_smaller_on_failure)
+          throw;
+        blk_size = std::max(min_bytes, blk_size >> 1);
+      }
+    }
+  }
+
+  size_t next_block_size(size_t upcoming_allocation_size) {
+    size_t actual_block_size = std::max(upcoming_allocation_size, next_block_size_);
+    next_block_size_ = std::min<size_t>(actual_block_size * options_.growth_factor,
+                                        options_.max_block_size);
+    return actual_block_size;
   }
 
   memory_resource *upstream_;
   FreeList free_list_;
   LockType lock_;
   pool_options options_;
+  size_t next_block_size_;
 
   struct UpstreamBlock {
     void *ptr;

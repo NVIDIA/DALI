@@ -114,6 +114,41 @@ TEST(MMCoalescingFreeList, PutGet) {
   EXPECT_EQ(fl.get(160, 16), a);
 }
 
+class test_coalescing_free_list : public coalescing_free_list {
+ public:
+  block *head() const { return head_; }
+};
+
+TEST(MMCoalescingFreeList, Merge) {
+  std::mt19937_64 rng(12345);
+  std::uniform_int_distribution<int> len_dist(1, 64);
+  std::uniform_int_distribution<int> gap_dist(0, 32);
+  std::bernoulli_distribution has_gap(0.25);
+  std::uniform_int_distribution<int> which_list(0, 1);
+  for (int iter = 0; iter < 10; iter++) {
+    test_coalescing_free_list lists[2], ref;
+    static char a alignas(16)[100000];
+    int pos = 0;
+    for (int i = 0; i < 1000; i++) {
+      if (has_gap(rng))
+        pos += gap_dist(rng);
+      int l = len_dist(rng);
+      lists[which_list(rng)].put(a + pos, l);
+      ref.put(a + pos, l);
+      pos += l;
+    }
+    lists[0].merge(std::move(lists[1]));
+    for (auto *blk = lists[0].head(), *ref_blk = ref.head();
+        blk || ref_blk;
+        blk = blk->next, ref_blk = ref_blk->next) {
+      ASSERT_TRUE(blk) << "Output list too short";
+      ASSERT_TRUE(ref_blk) << "Output list too long";
+      ASSERT_EQ(blk->start, ref_blk->start) << "Blocks differ: start address mismath";
+      ASSERT_EQ(blk->end, ref_blk->end) << "Blocks differ: end address mismath";
+    }
+  }
+}
+
 }  // namespace test
 }  // namespace mm
 }  // namespace dali
