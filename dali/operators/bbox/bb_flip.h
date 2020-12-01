@@ -20,6 +20,7 @@
 
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/arg_helper.h"
 
 namespace dali {
 
@@ -36,6 +37,9 @@ class BbFlip<CPUBackend> : public Operator<CPUBackend> {
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    int nsamples = ws.InputRef<CPUBackend>(0).shape().num_samples();
+    horz_.Acquire(spec_, ws, nsamples);
+    vert_.Acquire(spec_, ws, nsamples);
     return false;
   }
 
@@ -73,21 +77,8 @@ class BbFlip<CPUBackend> : public Operator<CPUBackend> {
    */
   const bool ltrb_;
 
-  /**
-   * If true, flip is performed along vertical (x) axis
-   */
-  Tensor<CPUBackend> flip_type_vertical_;
-
-  /**
-   * If true, flip is performed along horizontal (y) axis
-   */
-  Tensor<CPUBackend> flip_type_horizontal_;
-
-  /**
-   * XXX: This is workaround for architectural mishap, that there are 2 access
-   * points for operator arguments: Workspace and OpSpec
-   */
-  bool vflip_is_tensor_, hflip_is_tensor_;
+  ArgValue<int> horz_;
+  ArgValue<int> vert_;
 };
 
 }  // namespace dali

@@ -26,7 +26,7 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/operator_impl_utils.h"
+#include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 #define TRANSFORM_INPUT_TYPES (float)
@@ -38,6 +38,25 @@ using dims = std::integer_sequence<int, values...>;
 
 template <typename T, int mat_dim>
 using affine_mat_t = mat<mat_dim, mat_dim, T>;
+
+namespace detail {
+
+template <int N>
+vec<N> as_vec(const TensorView<StorageCPU, const float, DynamicDimensions> &view) {
+  if (view.num_elements() == 1) {
+    return vec<N>(view.data[0]);
+  }
+  assert(N == view.num_elements());
+  return *reinterpret_cast<const vec<N>*>(view.data);
+}
+
+template <int N, int M>
+mat<N, M> as_mat(const TensorView<StorageCPU, const float, DynamicDimensions> &view) {
+  assert(N * M == view.num_elements());
+  return *reinterpret_cast<const mat<N, M>*>(view.data);
+}
+
+}  // namespace detail
 
 /**
  * @brief Base CRTP class for affine transform generators.

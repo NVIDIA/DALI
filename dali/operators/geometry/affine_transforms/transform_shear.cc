@@ -99,11 +99,20 @@ class TransformShearCPU
     assert(matrices.size() == static_cast<int>(shear_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      vec2 &shear_factors = *reinterpret_cast<vec2*>(shear_[i].data());
-      mat = shear(shear_factors);
+      if (shear_.IsDefined()) {
+        vec2 shear_factors = detail::as_vec<2>(shear_[i]);
+        mat = shear(shear_factors);
+      } else {
+        assert(angles_.IsDefined());
+        auto angles = detail::as_vec<2>(angles_[i]);
+        vec2 shear_factors;
+        shear_factors[0] = std::tan(deg2rad(angles[0]));
+        shear_factors[1] = std::tan(deg2rad(angles[1]));
+        mat = shear(shear_factors);
+      }
 
       if (center_.IsDefined()) {
-        const vec2 &center = *reinterpret_cast<const vec2*>(center_[i].data());
+        vec2 center = detail::as_vec<2>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
@@ -118,42 +127,44 @@ class TransformShearCPU
     assert(matrices.size() == static_cast<int>(shear_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      const mat3x2 &shear_factors = *reinterpret_cast<const mat3x2*>(shear_[i].data());
-      mat = shear(shear_factors);
+      if (shear_.IsDefined()) {
+        const mat3x2 &shear_factors = detail::as_mat<3, 2>(shear_[i]);
+        mat = shear(shear_factors);
+      } else {
+        assert(angles_.IsDefined());
+        vec<6> shear_factors;
+        for (int j = 0; j < 6; j++)
+          shear_factors[j] = std::tan(deg2rad(angles_[i].data[j]));
+        mat = shear(*reinterpret_cast<mat3x2*>(&shear_factors));
+      }
       if (center_.IsDefined()) {
-        const vec3 &center = *reinterpret_cast<const vec3*>(center_[i].data());
+        const vec3 &center = detail::as_vec<3>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    int repeat = IsConstantTransform() ? 0 : nsamples_;
     if (shear_.IsDefined()) {
-      shear_.Read(spec, ws, repeat);
+      shear_.Acquire(spec, ws, nsamples_);
       ndim_ = InferNumDims(shear_);
     } else {
       assert(angles_.IsDefined());
-      angles_.Read(spec, ws, repeat);
+      angles_.Acquire(spec, ws, nsamples_);
       ndim_ = InferNumDims(angles_);
-      shear_.resize(angles_.size());
       for (size_t i = 0; i < angles_.size(); i++) {
-        auto &shear = shear_[i];
-        auto &angles = angles_[i];
-        int nangles = angles.size();
-        shear.resize(nangles);
-        for (int j = 0; j < nangles; j++) {
-          DALI_ENFORCE(angles[j] >= -90.0f && angles[j] <= 90.0f,
-            make_string("Angle is expected to be in the range [-90, 90]. Got: ", angles[j]));
-          shear[j] = std::tan(deg2rad(angles[j]));
+        const auto& angles = angles_[i];
+        for (int j = 0; j < angles.num_elements(); j++) {
+          DALI_ENFORCE(angles.data[j] >= -90.0f && angles.data[j] <= 90.0f,
+            make_string("Angle is expected to be in the range [-90, 90]. Got: ", angles.data[j]));
         }
       }
     }
     if (center_.IsDefined()) {
-      center_.Read(spec, ws, repeat);
-      DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].size()),
+      center_.Acquire(spec, ws, nsamples_);
+      DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].num_elements()),
         make_string("Unexpected number of dimensions for ``center`` argument. Got: ",
-                    center_[0].size(), " but ``scale`` argument suggested ", ndim_,
+                    center_[0].num_elements(), " but ``scale`` argument suggested ", ndim_,
                     " dimensions."));
     }
   }
@@ -163,16 +174,16 @@ class TransformShearCPU
   }
 
  private:
-  int InferNumDims(const ArgHelper<std::vector<float>> &arg) {
-    DALI_ENFORCE(arg[0].size() == 2 || arg[0].size() == 6,
+  int InferNumDims(const ArgValue<float, 1> &arg) {
+    DALI_ENFORCE(arg[0].num_elements() == 2 || arg[0].num_elements() == 6,
       make_string("Unexpected number of elements in ``", arg.name(), "`` argument. "
-                  "Expected 2 or 6 arguments. Got: ", arg[0].size()));
-    return arg[0].size() == 6 ? 3 : 2;
+                  "Expected 2 or 6 arguments. Got: ", arg[0].num_elements()));
+    return arg[0].num_elements() == 6 ? 3 : 2;
   }
 
-  ArgHelper<std::vector<float>> shear_;
-  ArgHelper<std::vector<float>> angles_;
-  ArgHelper<std::vector<float>> center_;
+  ArgValue<float, 1> shear_;
+  ArgValue<float, 1> angles_;
+  ArgValue<float, 1> center_;
 };
 
 DALI_REGISTER_OPERATOR(transforms__Shear, TransformShearCPU, CPU);

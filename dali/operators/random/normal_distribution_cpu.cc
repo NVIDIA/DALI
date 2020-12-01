@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/random/rng_base_cpu.h"
-#include "dali/pipeline/util/operator_impl_utils.h"
+#include "dali/pipeline/operator/arg_helper.h"
 
 #define DALI_NORMDIST_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, \
                              int64_t, float16, float, double)
@@ -45,12 +45,12 @@ class NormalDistributionCPU : public RNGBaseCPU<NormalDistributionCPU> {
   ~NormalDistributionCPU() override = default;
 
   void SetupImplImpl(const OpSpec &spec, const workspace_t<CPUBackend> &ws, int nsamples) {
-    mean_.Read(spec, ws, nsamples);
-    stddev_.Read(spec, ws, nsamples);
+    mean_.Acquire(spec, ws, nsamples);
+    stddev_.Acquire(spec, ws, nsamples);
     dist_.clear();
     dist_.reserve(nsamples);
     for (int s = 0; s < nsamples; s++) {
-      dist_.emplace_back(mean_[s], stddev_[s]);
+      dist_.emplace_back(mean_[s].data[0], stddev_[s].data[0]);
     }
   }
 
@@ -72,8 +72,8 @@ class NormalDistributionCPU : public RNGBaseCPU<NormalDistributionCPU> {
   }
 
  private:
-  ArgHelper<float> mean_;
-  ArgHelper<float> stddev_;
+  ArgValue<float> mean_;
+  ArgValue<float> stddev_;
   std::vector<std::normal_distribution<float>> dist_;
 };
 
