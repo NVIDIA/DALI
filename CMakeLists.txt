@@ -78,18 +78,9 @@ set(BUILD_FFMPEG ${BUILD_NVDEC})
 
 cmake_dependent_option(BUILD_NVJPEG "Build with nvJPEG support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
-# if BUILD_NVJPEG2K is empty remove it and let is be default
-if ("${BUILD_NVJPEG2K}" STREQUAL "")
-  unset(BUILD_NVJPEG2K CACHE)
-endif()
-# nvjpeg2k is not available prior CUDA 11.0
-if(${CUDA_VERSION} VERSION_GREATER_EQUAL "11.0" AND NOT ${ARCH} MATCHES "aarch64" )
-  cmake_dependent_option(BUILD_NVJPEG2K "Build with nvJPEG2K support" ON
-                          "NOT BUILD_DALI_NODEPS" OFF)
-else()
-  # make sure that even is set by -DBUILD_NVJPEG2K it will be unset as not suppported
-  unset(BUILD_NVJPEG2K CACHE)
-endif()
+
+cmake_dependent_option(BUILD_NVJPEG2K "Build with nvJPEG2K support" ON
+                        "NOT BUILD_DALI_NODEPS" OFF)
 
 cmake_dependent_option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
@@ -155,21 +146,6 @@ else()
   set(LIBTYPE SHARED)
 endif()
 
-propagate_option(BUILD_NVTX)
-propagate_option(BUILD_PYTHON)
-propagate_option(BUILD_LMDB)
-propagate_option(BUILD_JPEG_TURBO)
-propagate_option(BUILD_LIBTIFF)
-propagate_option(BUILD_LIBSND)
-propagate_option(BUILD_FFTS)
-propagate_option(BUILD_NVJPEG)
-propagate_option(BUILD_NVJPEG2K)
-propagate_option(BUILD_NVOF)
-propagate_option(BUILD_NVDEC)
-propagate_option(BUILD_NVML)
-propagate_option(BUILD_CUFILE)
-propagate_option(LINK_DRIVER)
-
 get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
 
 get_dali_extra_version(${PROJECT_SOURCE_DIR}/DALI_EXTRA_VERSION DALI_EXTRA_VERSION)
@@ -197,6 +173,21 @@ elseif(${ARCH} MATCHES "aarch64-qnx")
 else()
   include(cmake/Dependencies.cmake)
 endif()
+
+propagate_option(BUILD_NVTX)
+propagate_option(BUILD_PYTHON)
+propagate_option(BUILD_LMDB)
+propagate_option(BUILD_JPEG_TURBO)
+propagate_option(BUILD_LIBTIFF)
+propagate_option(BUILD_LIBSND)
+propagate_option(BUILD_FFTS)
+propagate_option(BUILD_NVJPEG)
+propagate_option(BUILD_NVJPEG2K)
+propagate_option(BUILD_NVOF)
+propagate_option(BUILD_NVDEC)
+propagate_option(BUILD_NVML)
+propagate_option(BUILD_CUFILE)
+propagate_option(LINK_DRIVER)
 
 # add more flags after they are populated by find_package from Dependencies.cmake
 

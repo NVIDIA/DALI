@@ -44,8 +44,14 @@ endif()
 
 if (BUILD_NVJPEG2K)
   CUDA_find_library(NVJPEG2K_LIBRARY nvjpeg2k_static)
-  list(APPEND DALI_LIBS ${NVJPEG2K_LIBRARY})
-  list(APPEND DALI_EXCLUDES libnvjpeg2k_static.a)
+  if (${NVJPEG2K_LIBRARY} STREQUAL "NVJPEG2K_LIBRARY-NOTFOUND")
+    message(WARNING "nvJPEG2k not found - disabled")
+    set(BUILD_NVJPEG2K OFF CACHE BOOL INTERNAL)
+    set(BUILD_NVJPEG2K OFF)
+  else()
+    list(APPEND DALI_LIBS ${NVJPEG2K_LIBRARY})
+    list(APPEND DALI_EXCLUDES libnvjpeg2k_static.a)
+  endif()
 endif (BUILD_NVJPEG2K)
 
 # NVIDIA NPP library
