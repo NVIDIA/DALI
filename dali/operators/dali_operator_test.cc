@@ -17,6 +17,7 @@
 #include "dali/pipeline/init.h"
 #include "dali/pipeline/data/allocator.h"
 #include "dali/pipeline/operator/op_spec.h"
+#include "dali/test/dali_cuda_finalize_test.h"
 #include "dali/test/dali_test_config.h"
 
 // add this alignment to work around a patchelf bug/feature which
@@ -34,6 +35,11 @@ int main(int argc, char **argv) {
                  dali::OpSpec("PinnedCPUAllocator"),
                  dali::OpSpec("GPUAllocator"));
   ::testing::InitGoogleTest(&argc, argv);
+
+  // Gets hold of the event listener list.
+  ::testing::TestEventListeners& listeners = testing::UnitTest::GetInstance()->listeners();
+  // Adds a listener to the end.  googletest takes the ownership.
+  listeners.Append(new dali::CudaFinalizeEventListener);
 
   return RUN_ALL_TESTS();
 }
