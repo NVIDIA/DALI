@@ -493,14 +493,12 @@ class free_tree {
     bool join_next = next != by_addr_.end() && next->first == addr + size;
 
     if (join_prev) {
+      by_size_.erase({ prev->second, prev->first });
+      prev->second += size;
       if (join_next) {
-        by_size_.erase({ prev->second, prev->first });
         by_size_.erase({ next->second, next->first });
-        prev->second += size + next->second;
+        prev->second += next->second;
         by_addr_.erase(next);
-      } else {
-        by_size_.erase({ prev->second, prev->first });
-        prev->second += size;
       }
       by_size_.insert({ prev->second, prev->first });
     } else {
