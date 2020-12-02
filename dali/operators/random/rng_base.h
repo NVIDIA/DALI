@@ -82,15 +82,37 @@ class RNGBase : public Operator<Backend> {
     auto out_view = view<T>(output);
     const auto &out_shape = out_view.shape;
     auto &tp = ws.GetThreadPool();
+    constexpr int64_t kThreshold = 0; 1 << 18;
+    constexpr int64_t kChunkSize = 1 << 16;
+    constexpr size_t kNumChunkSeeds = 4;
+
     for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
       auto sample_sz = out_shape.tensor_size(sample_id);
-      tp.AddWork(
-          [&, sample_id, sample_sz](int thread_id) {
-            span<T> out_span{out_view[sample_id].data, sample_sz};
+      span<T> out_span{out_view[sample_id].data, sample_sz};
+      if (sample_sz < kThreshold) {
+        tp.AddWork(
+          [=](int thread_id) {
             This().template Generate<T>(out_span, sample_id, rng_[sample_id]);
           }, sample_sz);
+      } else {
+        int chunks = out_span.size() / kChunkSize;
+        std::array<uint32_t, kNumChunkSeeds> seed;
+        for (int c = 0; c < chunks; c++) {
+          auto start = out_span.begin() + c * kChunkSize;
+          auto sz = std::min(kChunkSize, out_span.end() - start);
+          auto chunk = make_span(start, sz);
+          for (auto &s : seed)
+            s = rng_[sample_id]();
+          tp.AddWork(
+            [=](int thread_id) {
+              std::seed_seq seq(seed.begin(), seed.end());
+              std::mt19937_64 chunk_rng(seq);
+              This().template Generate<T>(chunk, sample_id, chunk_rng);
+            }, chunk.size());
+        }
+      }
+      tp.RunAll();
     }
-    tp.RunAll();
   }
 
   using Operator<Backend>::spec_;

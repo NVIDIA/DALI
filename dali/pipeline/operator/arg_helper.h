@@ -90,7 +90,7 @@ class ArgValue {
           make_string("Expected uniform shape for argument \"", arg_name_,
                       "\" but got shape ", view_.shape));
       }
-    } else if (has_arg_const_) {
+    } else {
       TensorShape<ndim> shape{};
       if (ndim == 0) {
         data_ = {spec.GetArgument<T>(arg_name_)};
