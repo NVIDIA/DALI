@@ -22,9 +22,6 @@
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/core/static_switch.h"
 
-#define DALI_NORMDIST_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, \
-                             int64_t, float16, float, double)
-
 namespace dali {
 
 DALI_SCHEMA(RNGAttr)
@@ -34,14 +31,14 @@ DALI_SCHEMA(RNGAttr)
     .AddOptionalArg<DALIDataType>("dtype",
       R"code(Data type.)code", nullptr);
 
-template<typename Impl>
-class RNGBaseCPU : public Operator<CPUBackend> {
+template<typename Backend, typename Impl>
+class RNGBase : public Operator<Backend> {
  public:
-  ~RNGBaseCPU() override = default;
+  ~RNGBase() override = default;
 
  protected:
-  explicit RNGBaseCPU(const OpSpec &spec)
-      : Operator<CPUBackend>(spec),
+  explicit RNGBase(const OpSpec &spec)
+      : Operator<Backend>(spec),
         rng_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<DALIDataType>("batch_size")) {
   }
 
@@ -53,7 +50,7 @@ class RNGBaseCPU : public Operator<CPUBackend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<CPUBackend> &ws) override {
+                 const workspace_t<Backend> &ws) override {
     if (!spec_.TryGetArgument(dtype_, "dtype"))
       dtype_ = This().DefaultDataType();
 
@@ -63,14 +60,15 @@ class RNGBaseCPU : public Operator<CPUBackend> {
       "Providing argument \"shape\" is incompatible with providing a shape-like input");
 
     if (has_shape_like) {
-      shape_ = ws.template InputRef<CPUBackend>(0).shape();
+      shape_ = ws.template InputRef<Backend>(0).shape();
     } else if (has_shape) {
       GetShapeArgument(shape_, spec_, "shape", ws);
     } else {
-      shape_ = uniform_list_shape(spec_.GetArgument<DALIDataType>("batch_size"), {1});
+      shape_ = uniform_list_shape(spec_.template GetArgument<DALIDataType>("batch_size"), {1});
     }
+    batch_size_ = shape_.size();
 
-    This().SetupImplImpl(spec_, ws, shape_.size());
+    This().AcquireArgs(spec_, ws, batch_size_);
 
     output_desc.resize(1);
     output_desc[0].shape = shape_;
@@ -95,7 +93,8 @@ class RNGBaseCPU : public Operator<CPUBackend> {
     tp.RunAll();
   }
 
-  using Operator<CPUBackend>::spec_;
+  using Operator<Backend>::spec_;
+  using Operator<Backend>::batch_size_;
   DALIDataType dtype_;
   BatchRNG<std::mt19937_64> rng_;
   TensorListShape<> shape_;

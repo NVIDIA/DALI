@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/random/rng_base_cpu.h"
+#include "dali/operators/random/rng_base.h"
 #include "dali/pipeline/operator/arg_helper.h"
 
 #define DALI_NORMDIST_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, \
@@ -36,15 +36,16 @@ generated.
                     1.f, true)
     .AddParent("RNGAttr");
 
-
-class NormalDistributionCPU : public RNGBaseCPU<NormalDistributionCPU> {
+class NormalDistributionCPU : public RNGBase<CPUBackend, NormalDistributionCPU> {
  public:
   explicit NormalDistributionCPU(const OpSpec &spec)
-      : RNGBaseCPU<NormalDistributionCPU>(spec), mean_("mean", spec), stddev_("stddev", spec) {}
+      : RNGBase<CPUBackend, NormalDistributionCPU>(spec),
+        mean_("mean", spec),
+        stddev_("stddev", spec) {}
 
   ~NormalDistributionCPU() override = default;
 
-  void SetupImplImpl(const OpSpec &spec, const workspace_t<CPUBackend> &ws, int nsamples) {
+  void AcquireArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws, int nsamples) {
     mean_.Acquire(spec, ws, nsamples);
     stddev_.Acquire(spec, ws, nsamples);
     dist_.clear();

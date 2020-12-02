@@ -152,7 +152,7 @@ class TransformShearCPU
       assert(angles_.IsDefined());
       angles_.Acquire(spec, ws, nsamples_);
       ndim_ = InferNumDims(angles_);
-      for (size_t i = 0; i < angles_.size(); i++) {
+      for (int i = 0; i < angles_.size(); i++) {
         const auto& angles = angles_[i];
         for (int j = 0; j < angles.num_elements(); j++) {
           DALI_ENFORCE(angles.data[j] >= -90.0f && angles.data[j] <= 90.0f,
@@ -174,15 +174,15 @@ class TransformShearCPU
   }
 
  private:
-  int InferNumDims(const ArgValue<float, 1> &arg) {
+  int InferNumDims(const ArgValue<float, DynamicDimensions> &arg) {
     DALI_ENFORCE(arg[0].num_elements() == 2 || arg[0].num_elements() == 6,
       make_string("Unexpected number of elements in ``", arg.name(), "`` argument. "
                   "Expected 2 or 6 arguments. Got: ", arg[0].num_elements()));
     return arg[0].num_elements() == 6 ? 3 : 2;
   }
 
-  ArgValue<float, 1> shear_;
-  ArgValue<float, 1> angles_;
+  ArgValue<float, DynamicDimensions> shear_;   // can either be a vec2 (ndim=2) or mat3x2 (ndim=3)
+  ArgValue<float, DynamicDimensions> angles_;  // same as shear_
   ArgValue<float, 1> center_;
 };
 
