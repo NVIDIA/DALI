@@ -89,8 +89,8 @@ class pool_resource_base : public memory_resource {
     size_t blk_size = bytes;
     void *new_block = get_upstream_block(blk_size, bytes, alignment);
     assert(new_block);
-    lock_guard guard(lock_);
-    {
+    try {
+      lock_guard guard(lock_);
       blocks_.push_back({ new_block, blk_size, alignment });
       if (blk_size == bytes) {
         // we've allocated a block exactly of the required size - there's little
@@ -102,6 +102,9 @@ class pool_resource_base : public memory_resource {
         free_list_.put(static_cast<char *>(new_block) + bytes, blk_size - bytes);
         return new_block;
       }
+    } catch (...) {
+      upstream_->deallocate(new_block, blk_size, alignment);
+      throw;
     }
   }
 

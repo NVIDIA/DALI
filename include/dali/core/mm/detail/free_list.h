@@ -386,7 +386,7 @@ class coalescing_free_list : public best_fit_free_list {
         curr->start = curr->end = nullptr;
         with.unused_blocks_ = curr;
       } else {
-        // attach current element to the resuiting list
+        // attach current element to the resulting list
         tail->next = curr;
         // move tail
         tail = curr;
@@ -417,7 +417,7 @@ class coalescing_free_list : public best_fit_free_list {
  * @brief Maintains a list of free memory blocks of variable size, returning free blocks
  *        with least margin.
  *
- * This free list yields exactly the same results as coalescing_free_list, but the operations
+ * The free_tree yields exactly the same results as coalescing_free_list, but the operations
  * are completed in log(n) time.
  *
  * When there are few elements, the additional constant overhead may favor the use of

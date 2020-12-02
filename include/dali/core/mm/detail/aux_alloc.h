@@ -57,7 +57,7 @@ struct fixed_size_allocator {
 
   /**
    * @brief Gets an object from the free list, if avaliable, or allocates a new list entry and
-   *        returns the poitner to the storage.
+   *        returns the pointer to the storage.
    *
    * @tparam T  type of the object to allocate. It must not exceed the size and alignment
    *            requirements of the storage.
