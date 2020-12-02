@@ -102,6 +102,7 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   float driverVersion = 0;
   char version[80];
 
+#if NVML_ENABLED
   if (nvmlInitChecked() != NVML_SUCCESS) {
     FAIL() << "nvmlInitChecked() failed";
   }
@@ -109,6 +110,7 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   if (nvmlSystemGetDriverVersion(version, sizeof version) != NVML_SUCCESS) {
     FAIL() << "nvmlSystemGetDriverVersion failed!";
   }
+#endif
 
   driverVersion = std::stof(version);
 
