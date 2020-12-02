@@ -17,6 +17,8 @@
 
 #include <cuda_runtime.h>
 #include <gtest/gtest.h>
+#include <cstring>
+
 #include "dali/core/cuda_utils.h"
 
 namespace dali {
@@ -33,12 +35,14 @@ namespace dali {
  */
 class CudaFinalizeEventListener : public ::testing::EmptyTestEventListener {
   void OnTestEnd(const ::testing::TestInfo& test_info) override {
-    auto sync_result = cudaDeviceSynchronize();
-    EXPECT_EQ(sync_result, cudaSuccess) << "CUDA error: \"" << cudaGetErrorName(sync_result)
-                                        << "\" - " << cudaGetErrorString(sync_result);
-    auto err = cudaGetLastError();
-    EXPECT_EQ(err, cudaSuccess) << "CUDA error: \"" << cudaGetErrorName(err) << "\" - "
-                                << cudaGetErrorString(err);
+    if (std::strstr(test_info.test_suite_name(), "CpuOnlyTest") == nullptr) {
+      auto sync_result = cudaDeviceSynchronize();
+      EXPECT_EQ(sync_result, cudaSuccess) << "CUDA error: \"" << cudaGetErrorName(sync_result)
+                                          << "\" - " << cudaGetErrorString(sync_result);
+      auto err = cudaGetLastError();
+      EXPECT_EQ(err, cudaSuccess) << "CUDA error: \"" << cudaGetErrorName(err) << "\" - "
+                                  << cudaGetErrorString(err);
+    }
   }
 };
 
