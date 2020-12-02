@@ -178,6 +178,19 @@ class best_fit_free_list {
     }
   };
 
+  /**
+   * @brief Obtains a best-fit block from the list of free blocks.
+   *
+   * The function allocates smallest possible block. If the alignment requirements
+   * are not met, the block pointer is aligned and the size is checked taking into account
+   * any necessary padding.
+   *
+   * If there's padding at the beginning (due to alignment) or at the end (due to the block being
+   * larger), new free blocks are created from the padding regions and stored in the list.
+   *
+   * @return Aligned pointer to a smallest suitable memory block that can fit the required number
+   *         of bytes with specified alignment or nullptr, if not available.
+   */
   void *get(size_t bytes, size_t alignment) {
     block **pbest = nullptr;
     size_t best_fit = (static_cast<size_t>(-1)) >> 1;  // clear MSB
@@ -220,6 +233,12 @@ class best_fit_free_list {
     return aligned;
   }
 
+  /**
+   * @brief Places the free block in the list.
+   *
+   * The block is not merged with adjacent blocks. The fragmentation of the list is permanent.
+   * For long term usage, when fragmentation is an issue, use coalescing_free_list or free_tree.
+   */
   void put(void *ptr, size_t bytes) {
     block *blk = get_block();
     blk->start = static_cast<char*>(ptr);
@@ -289,6 +308,9 @@ class coalescing_free_list : public best_fit_free_list {
     return *this;
   }
 
+  /**
+   * @brief Places the memory block in the tree, joining it with adjacent blocks, if possible.
+   */
   void put(void *ptr, size_t bytes) {
     if (bytes == 0)
       return;
@@ -391,6 +413,22 @@ class coalescing_free_list : public best_fit_free_list {
   }
 };
 
+/**
+ * @brief Maintains a list of free memory blocks of variable size, returning free blocks
+ *        with least margin.
+ *
+ * This free list yields exactly the same results as coalescing_free_list, but the operations
+ * are completed in log(n) time.
+ *
+ * When there are few elements, the additional constant overhead may favor the use of
+ * coalescing_free_list, but for long lifetimes and large number of free blocks free_tree
+ * yields superior performance.
+ *
+ * Merging of the free_trees is accomplished in k*(log(n)+log(k)) time where n is the number
+ * of elements already in the list and k is the number of inserted elements.
+ *
+ * The tree nodes are allocated from a pooling allocator.
+ */
 class free_tree {
  public:
   void clear() {
@@ -398,6 +436,19 @@ class free_tree {
     by_size_.clear();
   }
 
+  /**
+   * @brief Obtains a best-fit block from the tree of free blocks.
+   *
+   * The function allocates smallest possible block. If the alignment requirements
+   * are not met, the block pointer is aligned and the size is checked taking into account
+   * any necessary padding.
+   *
+   * If there's padding at the beginning (due to alignment) or at the end (due to the block being
+   * larger), new free blocks are created from the padding regions and stored in the tree.
+   *
+   * @return Aligned pointer to a smallest suitable memory block that can fit the required number
+   *         of bytes with specified alignment or nullptr, if not available.
+   */
   void *get(size_t size, size_t alignment) {
     for (auto it = by_size_.lower_bound({ size, nullptr }); it != by_size_.end(); ++it) {
       size_t block_size = it->first;
@@ -426,6 +477,9 @@ class free_tree {
     return nullptr;
   }
 
+  /**
+   * @brief Places the memory block in the tree, joining it with adjacent blocks, if possible.
+   */
   void put(void *ptr, size_t size) {
     char *addr = static_cast<char *>(ptr);
     if (by_addr_.empty()) {
