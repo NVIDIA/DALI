@@ -13,6 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <random>
+#include <vector>
 #include "dali/core/mm/mm_test_utils.h"
 #include "dali/core/mm/pool_resource.h"
 
@@ -20,7 +23,90 @@ namespace dali {
 namespace mm {
 namespace test {
 
-//TEST(MMPoolResource,
+TEST(MMPoolResource, Coalescing) {
+  test_host_resource upstream;
+  auto opt = default_host_pool_opts();
+  pool_resource_base<coalescing_free_list, detail::dummy_lock> pool(&upstream, opt);
+  std::mt19937_64 rng(12345);
+  std::bernoulli_distribution is_free(0.4);
+  std::uniform_int_distribution<int> align_dist(0, 8);  // alignment anywhere from 1B to 256B
+  std::poisson_distribution<int> size_dist(128);
+  struct allocation {
+    void *ptr;
+    size_t size, alignment;
+    size_t fill;
+  };
+  std::vector<allocation> allocs;
+
+  for (int i = 0; i < 10000; i++) {
+    if (is_free(rng) && !allocs.empty()) {
+      auto idx = rng() % allocs.size();
+      allocation a = allocs[idx];
+      CheckFill(a.ptr, a.size, a.fill);
+      pool.deallocate(a.ptr, a.size, a.alignment);
+      std::swap(allocs[idx], allocs.back());
+      allocs.pop_back();
+    } else {
+      allocation a;
+      a.size = std::max(1, std::min(size_dist(rng), 1<<24));
+      a.alignment = 1 << align_dist(rng);
+      a.fill = rng();
+      a.ptr = pool.allocate(a.size, a.alignment);
+      ASSERT_TRUE(detail::is_aligned(a.ptr, a.alignment));
+      Fill(a.ptr, a.size, a.fill);
+      allocs.push_back(a);
+    }
+  }
+
+  for (auto &a : allocs) {
+    CheckFill(a.ptr, a.size, a.fill);
+    pool.deallocate(a.ptr, a.size, a.alignment);
+  }
+  allocs.clear();
+}
+
+TEST(MMPoolResource, Tree) {
+  test_host_resource upstream;
+  auto opt = default_host_pool_opts();
+  pool_resource_base<free_tree, detail::dummy_lock> pool(&upstream, opt);
+  std::mt19937_64 rng(12345);
+  std::bernoulli_distribution is_free(0.4);
+  std::uniform_int_distribution<int> align_dist(0, 8);  // alignment anywhere from 1B to 256B
+  std::poisson_distribution<int> size_dist(128);
+  struct allocation {
+    void *ptr;
+    size_t size, alignment;
+    size_t fill;
+  };
+  std::vector<allocation> allocs;
+
+  for (int i = 0; i < 100000; i++) {
+    if (is_free(rng) && !allocs.empty()) {
+      auto idx = rng() % allocs.size();
+      allocation a = allocs[idx];
+      CheckFill(a.ptr, a.size, a.fill);
+      pool.deallocate(a.ptr, a.size, a.alignment);
+      std::swap(allocs[idx], allocs.back());
+      allocs.pop_back();
+    } else {
+      allocation a;
+      a.size = std::max(1, std::min(size_dist(rng), 1<<24));
+      a.alignment = 1 << align_dist(rng);
+      a.fill = rng();
+      a.ptr = pool.allocate(a.size, a.alignment);
+      ASSERT_TRUE(detail::is_aligned(a.ptr, a.alignment));
+      Fill(a.ptr, a.size, a.fill);
+      allocs.push_back(a);
+    }
+  }
+
+  for (auto &a : allocs) {
+    CheckFill(a.ptr, a.size, a.fill);
+    pool.deallocate(a.ptr, a.size, a.alignment);
+  }
+  allocs.clear();
+}
+
 
 }  // namespace test
 }  // namespace mm

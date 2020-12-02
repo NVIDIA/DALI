@@ -32,7 +32,7 @@ struct pool_options {
    */
   size_t max_block_size = static_cast<size_t>(-1);  // no limit
   /// Minimum size of blocks requested from upstream
-  size_t min_block_size = (1<<12);
+  size_t min_block_size = (1 << 12);
   /// The factor by which the allocation size grows until it reaches max_block_size
   float growth_factor = 2;
   /**
@@ -44,36 +44,41 @@ struct pool_options {
 };
 
 constexpr pool_options default_host_pool_opts() noexcept {
-  return { (1<<28), (1<<12), 2.0f, true };
+  return { (1 << 28), (1 << 12), 2.0f, true };
 }
 
 constexpr pool_options default_device_pool_opts() noexcept {
-  return { (static_cast<size_t>(1)<<32), (1<<20), 2.0f, false };
+  return { (static_cast<size_t>(1) << 32), (1 << 20), 2.0f, false };
 }
 
 template <class FreeList, class LockType>
 class pool_resource_base : public memory_resource {
  public:
   explicit pool_resource_base(memory_resource *upstream = nullptr, const pool_options opt = {})
-   : upstream_(upstream), options_(opt) {}
+  : upstream_(upstream), options_(opt) {
+     next_block_size_ = opt.min_block_size;
+  }
 
-   pool_resource_base(const pool_resource_base &) = delete;
-   pool_resource_base(pool_resource_base &&) = delete;
+  pool_resource_base(const pool_resource_base &) = delete;
+  pool_resource_base(pool_resource_base &&) = delete;
 
-   ~pool_resource_base() {
-     free_all();
-   }
+  ~pool_resource_base() {
+    free_all();
+  }
 
-   void free_all() {
-     for (auto &block : blocks_) {
-       upstream_->deallocate(block.ptr, block.bytes, block.alignment);
-     }
-     blocks_.clear();
-     free_list_.clear();
-   }
+  void free_all() {
+    for (auto &block : blocks_) {
+      upstream_->deallocate(block.ptr, block.bytes, block.alignment);
+    }
+    blocks_.clear();
+    free_list_.clear();
+  }
 
  protected:
   void *do_allocate(size_t bytes, size_t alignment) override {
+    if (!bytes)
+      return nullptr;
+
     {
       lock_guard guard(lock_);
       void *ptr = free_list_.get(bytes, alignment);
@@ -83,9 +88,10 @@ class pool_resource_base : public memory_resource {
     alignment = std::max(alignment, options_.upstream_alignment);
     size_t blk_size = bytes;
     void *new_block = get_upstream_block(blk_size, bytes, alignment);
+    assert(new_block);
     lock_guard guard(lock_);
     {
-      blocks_.push_back({ new_block, bytes, alignment });
+      blocks_.push_back({ new_block, blk_size, alignment });
       if (blk_size == bytes) {
         // we've allocated a block exactly of the required size - there's little
         // chance that it will be merged with anything in the pool, so we'll return it as-is
@@ -128,7 +134,7 @@ class pool_resource_base : public memory_resource {
   FreeList free_list_;
   LockType lock_;
   pool_options options_;
-  size_t next_block_size_;
+  size_t next_block_size_ = 0;
 
   struct UpstreamBlock {
     void *ptr;

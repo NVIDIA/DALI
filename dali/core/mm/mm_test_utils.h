@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 #include <cstdlib>
+#include <cstring>
 #include <unordered_map>
 #include <unordered_set>
 #include "dali/core/mm/memory_resource.h"
@@ -139,6 +140,26 @@ struct test_host_resource
 template <typename Upstream>
 using test_stream_resource = test_resource_wrapper<
     false, true, stream_memory_resource, Upstream, cudaStream_t>;
+
+template <typename T>
+void Fill(void *ptr, size_t bytes, T fill_pattern) {
+  memcpy(ptr, &fill_pattern, std::min(bytes, sizeof(T)));
+  size_t sz = sizeof(T);
+  while (sz < bytes) {
+    size_t next_sz = std::min(2 * sz, bytes);
+    memcpy(static_cast<char*>(ptr) + sz, ptr, next_sz - sz);
+    sz = next_sz;
+  }
+}
+
+template <typename T>
+void CheckFill(const void *ptr, size_t bytes, T fill_pattern) {
+  size_t offset = 0;
+  for (; offset + sizeof(T) <= bytes; offset += sizeof(T)) {
+    ASSERT_EQ(std::memcmp(static_cast<const char*>(ptr) + offset, &fill_pattern, sizeof(T)), 0);
+  }
+  ASSERT_EQ(std::memcmp(static_cast<const char*>(ptr) + offset, &fill_pattern, bytes - offset), 0);
+}
 
 }  // namespace test
 }  // namespace mm

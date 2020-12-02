@@ -17,8 +17,12 @@
 
 #include <cassert>
 #include <utility>
+#include <map>
+#include <set>
+#include <functional>
 #include "dali/core/util.h"
 #include "dali/core/mm/detail/align.h"
+#include "dali/core/mm/detail/aux_alloc.h"
 
 namespace dali {
 namespace mm {
@@ -385,6 +389,91 @@ class coalescing_free_list : public best_fit_free_list {
     assert(with.head_ == nullptr);
     head_ = new_head;
   }
+};
+
+class free_tree {
+ public:
+  void clear() {
+    by_addr_.clear();
+    by_size_.clear();
+  }
+
+  void *get(size_t size, size_t alignment) {
+    for (auto it = by_size_.lower_bound({ size, nullptr }); it != by_size_.end(); ++it) {
+      size_t block_size = it->first;
+      char *base = it->second;
+      char *aligned = detail::align_ptr(base, alignment);
+      size_t front_padding = aligned - base;
+      assert(static_cast<ptrdiff_t>(front_padding) >= 0);
+      // NOTE: block_size - front_padding >= size  can overflow and fail - meh, unsigned size_t
+      if (block_size >= size + front_padding) {
+        by_size_.erase(it);
+        size_t back_padding = block_size - size - front_padding;
+        assert(static_cast<ptrdiff_t>(back_padding) >= 0);
+        if (front_padding) {
+          by_addr_[base] = front_padding;
+          by_size_.insert({front_padding, base});
+        } else {
+          by_addr_.erase(base);
+        }
+        if (back_padding) {
+          by_addr_.insert({ aligned + size, back_padding });
+          by_size_.insert({ back_padding, aligned + size });
+        }
+        return aligned;
+      }
+    }
+    return nullptr;
+  }
+
+  void put(void *ptr, size_t size) {
+    char *addr = static_cast<char *>(ptr);
+    if (by_addr_.empty()) {
+      by_addr_.insert({ addr, size });
+      by_size_.insert({ size, addr });
+      return;
+    }
+    auto next = by_addr_.lower_bound(addr);
+    auto prev = next != by_addr_.begin() ? std::prev(next) : next;
+    bool join_prev = prev != next && prev->first + prev->second == addr;
+    bool join_next = next != by_addr_.end() && next->first == addr + size;
+
+    if (join_prev) {
+      if (join_next) {
+        by_size_.erase({ prev->second, prev->first });
+        by_size_.erase({ next->second, next->first });
+        prev->second += size + next->second;
+        by_addr_.erase(next);
+      } else {
+        by_size_.erase({ prev->second, prev->first });
+        prev->second += size;
+      }
+      by_size_.insert({ prev->second, prev->first });
+    } else {
+      if (join_next) {
+        by_size_.erase({ next->second, next->first });
+        size += next->second;
+        by_addr_.erase(next);
+      }
+      by_addr_.insert({ addr, size });
+      by_size_.insert({ size, addr });
+    }
+  }
+
+  void merge(free_tree &&with) {
+    with.by_size_.clear();
+    // Erase the source list one by one - this reduces requirements on total auxiliary memory
+    // for the maps.
+    for (auto it = with.by_addr_.begin(); it != with.by_addr_.end(); it = with.by_addr_.erase(it)) {
+      put(it->first, it->second);
+    }
+  }
+
+ protected:
+  using by_addr_alloc = detail::object_pool_allocator<std::pair<char *const, size_t>, true>;
+  using by_size_alloc = detail::object_pool_allocator<std::pair<size_t, char *>, true>;
+  std::map<char *, size_t, std::less<char*>, by_addr_alloc> by_addr_;
+  std::set<std::pair<size_t, char *>, std::less<std::pair<size_t, char *>>, by_size_alloc> by_size_;
 };
 
 }  // namespace mm
