@@ -104,7 +104,7 @@ struct power_dB {
     return mul * log2f(hostdev_max(c.x * c.x + c.y * c.y, cutoff));
   }
 
-  DALI_HOST_DEV DALI_FORCEINLINE
+  DALI_HOST DALI_FORCEINLINE
   auto operator()(complexf c) const {
     return (*this)(float2{c.real(), c.imag()});
   }
