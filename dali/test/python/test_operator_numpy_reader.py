@@ -28,9 +28,25 @@ gds_data_root = '/scratch/'
 if not os.path.isdir(gds_data_root):
     gds_data_root = os.getcwd() + "/"
 
-# GDS is supported only on x86_64
-def is_gds_supported():
-    return platform.processor() == "x86_64"
+# GDS beta is supported only on x86_64 and compute cap 6.0 >=0
+is_gds_supported_var = None
+def is_gds_supported(device_id=0):
+    global is_gds_supported_var
+    if is_gds_supported_var is not None:
+        return is_gds_supported_var
+
+    compute_cap = 0
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+        compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+        compute_cap = compute_cap[0] + compute_cap[1] / 10.
+    except ModuleNotFoundError:
+        pass
+
+    is_gds_supported_var = platform.processor() == "x86_64" and compute_cap >= 6.0
+    return is_gds_supported_var
 
 def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None, path_filter="*.npy",
                         num_threads=1, device_id=0, num_gpus=1, cache_header_information=False):
