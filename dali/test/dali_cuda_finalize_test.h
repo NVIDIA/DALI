@@ -34,6 +34,8 @@ namespace dali {
  */
 class CudaFinalizeEventListener : public ::testing::EmptyTestEventListener {
   void OnTestEnd(const ::testing::TestInfo& test_info) override {
+    // Check if the driver wrapper is initialized preventing CPU-only tests from
+    // using CUDA calls.
     if (cuInitChecked()) {
       auto sync_result = cudaDeviceSynchronize();
       EXPECT_EQ(sync_result, cudaSuccess) << "CUDA error: \"" << cudaGetErrorName(sync_result)
