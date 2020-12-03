@@ -30,7 +30,7 @@ class NormalDistributionPipelineWithInput(NormalDistributionPipeline):
         self.premade_batch = premade_batch
         self.ext_src = ops.ExternalSource()
         if device == 'cpu':
-            self.norm = ops.NewNormalDistribution(device=device, dtype=dtype)
+            self.norm = ops.random.NormalDistribution(device=device, dtype=dtype)
         else:
             self.norm = ops.NormalDistribution(device=device, dtype=dtype)
 
@@ -46,7 +46,7 @@ class NormalDistributionPipelineWithArgument(NormalDistributionPipeline):
     def __init__(self, shape, dtype, device='cpu'):
         super(NormalDistributionPipelineWithArgument, self).__init__(1)
         if device == 'cpu':
-            self.norm = ops.NewNormalDistribution(device=device, shape=shape, dtype=dtype)
+            self.norm = ops.random.NormalDistribution(device=device, shape=shape, dtype=dtype)
         else:
             self.norm = ops.NormalDistribution(device=device, shape=shape, dtype=dtype)
 
@@ -58,7 +58,7 @@ class NormalDistributionPipelineDefault(NormalDistributionPipeline):
     def __init__(self, batch_size, dtype, device='cpu'):
         super(NormalDistributionPipelineDefault, self).__init__(batch_size)
         if device == 'cpu':
-            self.norm = ops.NewNormalDistribution(device=device, dtype=dtype)
+            self.norm = ops.random.NormalDistribution(device=device, dtype=dtype)
         else:
             self.norm = ops.NormalDistribution(device=device, dtype=dtype)
 

@@ -121,10 +121,10 @@ class TransformCropCPU
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    from_start_.Acquire(spec, ws, nsamples_);
-    from_end_.Acquire(spec, ws, nsamples_);
-    to_start_.Acquire(spec, ws, nsamples_);
-    to_end_.Acquire(spec, ws, nsamples_);
+    from_start_.Acquire(spec, ws, nsamples_, true);
+    from_end_.Acquire(spec, ws, nsamples_, true);
+    to_start_.Acquire(spec, ws, nsamples_, true);
+    to_end_.Acquire(spec, ws, nsamples_, true);
     auto sizes = std::array<ptrdiff_t, 4>{
         from_start_[0].num_elements(), from_end_[0].num_elements(),
         to_start_[0].num_elements(), to_end_[0].num_elements()};

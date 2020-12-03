@@ -20,7 +20,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(NewNormalDistribution)
+DALI_SCHEMA(random__NormalDistribution)
     .DocStr(R"code(Generates random numbers following a normal distribution.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
@@ -29,11 +29,12 @@ generated.
 )code")
     .NumInput(0, 1)
     .NumOutput(1)
-    .AddOptionalArg("mean", R"code(Mean of the distribution.)code",
-                    0.f, true)
-    .AddOptionalArg("stddev",
-                    R"code(Standard deviation of the distribution.)code",
-                    1.f, true)
+    .AddOptionalArg<float>("mean",
+      R"code(Mean of the distribution.)code",
+      0.f, true)
+    .AddOptionalArg<float>("stddev",
+      R"code(Standard deviation of the distribution.)code",
+      1.f, true)
     .AddParent("RNGAttr");
 
 class NormalDistributionCPU : public RNGBase<CPUBackend, NormalDistributionCPU> {
@@ -46,8 +47,8 @@ class NormalDistributionCPU : public RNGBase<CPUBackend, NormalDistributionCPU> 
   ~NormalDistributionCPU() override = default;
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws, int nsamples) {
-    mean_.Acquire(spec, ws, nsamples);
-    stddev_.Acquire(spec, ws, nsamples);
+    mean_.Acquire(spec, ws, nsamples, true);
+    stddev_.Acquire(spec, ws, nsamples, true);
     dist_.clear();
     dist_.reserve(nsamples);
     for (int s = 0; s < nsamples; s++) {
@@ -78,6 +79,6 @@ class NormalDistributionCPU : public RNGBase<CPUBackend, NormalDistributionCPU> 
   std::vector<std::normal_distribution<float>> dist_;
 };
 
-DALI_REGISTER_OPERATOR(NewNormalDistribution, NormalDistributionCPU, CPU);
+DALI_REGISTER_OPERATOR(random__NormalDistribution, NormalDistributionCPU, CPU);
 
 }  // namespace dali

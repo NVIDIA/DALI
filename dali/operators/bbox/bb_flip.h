@@ -38,8 +38,8 @@ class BbFlip<CPUBackend> : public Operator<CPUBackend> {
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     int nsamples = ws.InputRef<CPUBackend>(0).shape().num_samples();
-    horz_.Acquire(spec_, ws, nsamples);
-    vert_.Acquire(spec_, ws, nsamples);
+    horz_.Acquire(spec_, ws, nsamples, true);
+    vert_.Acquire(spec_, ws, nsamples, true);
     return false;
   }
 

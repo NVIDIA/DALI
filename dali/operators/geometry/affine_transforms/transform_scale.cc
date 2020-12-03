@@ -79,11 +79,11 @@ class TransformScaleCPU
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
     assert(scale_.IsDefined());
-    scale_.Acquire(spec, ws, nsamples_);
+    scale_.Acquire(spec, ws, nsamples_, true);
     ndim_ = scale_[0].num_elements();
 
     if (center_.IsDefined()) {
-      center_.Acquire(spec, ws, nsamples_);
+      center_.Acquire(spec, ws, nsamples_, true);
       DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].num_elements()),
         make_string("Unexpected number of dimensions for ``center`` argument. Got: ",
                     center_[0].num_elements(), " but ``scale`` argument suggested ", ndim_,

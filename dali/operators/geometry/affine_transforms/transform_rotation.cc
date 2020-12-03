@@ -108,17 +108,17 @@ class TransformRotationCPU
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    angle_.Acquire(spec, ws, nsamples_);
+    angle_.Acquire(spec, ws, nsamples_, true);
     ndim_ = axis_.IsDefined() ? 3 : 2;
     if (axis_.IsDefined()) {
-      axis_.Acquire(spec, ws, nsamples_);
+      axis_.Acquire(spec, ws, nsamples_, true);
       DALI_ENFORCE(ndim_ == static_cast<int>(axis_[0].num_elements()),
         make_string("Unexpected number of dimensions for ``axis`` argument. Got: ",
                     axis_[0].num_elements(), " but expected ", ndim_,
                     " dimensions."));
     }
     if (center_.IsDefined()) {
-      center_.Acquire(spec, ws, nsamples_);
+      center_.Acquire(spec, ws, nsamples_, true);
       DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].num_elements()),
         make_string("Unexpected number of dimensions for ``center`` argument. Got: ",
                     center_[0].num_elements(), " but ``axis`` argument suggested ", ndim_,

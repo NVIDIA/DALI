@@ -145,13 +145,18 @@ class TransformShearCPU
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+    auto shape_from_size =
+      [this](int64_t size) {
+        ndim_ = sqrt(size);
+        DALI_ENFORCE(size == ndim_ * (ndim_ + 1),
+            make_string("Cannot form an affine transform matrix with ", size, " elements"));
+        return TensorShape<2>{ndim_, ndim_ + 1};
+      };
     if (shear_.IsDefined()) {
-      shear_.Acquire(spec, ws, nsamples_);
-      ndim_ = InferNumDims(shear_);
+      shear_.Acquire(spec, ws, nsamples_, true, shape_from_size);
     } else {
       assert(angles_.IsDefined());
-      angles_.Acquire(spec, ws, nsamples_);
-      ndim_ = InferNumDims(angles_);
+      angles_.Acquire(spec, ws, nsamples_, true, shape_from_size);
       for (int i = 0; i < angles_.size(); i++) {
         const auto& angles = angles_[i];
         for (int j = 0; j < angles.num_elements(); j++) {

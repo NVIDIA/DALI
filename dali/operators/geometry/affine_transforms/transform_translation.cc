@@ -83,7 +83,7 @@ class TransformTranslationCPU
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
     assert(offset_.IsDefined());
-    offset_.Acquire(spec, ws, nsamples_);
+    offset_.Acquire(spec, ws, nsamples_, true);
     ndim_ = offset_[0].num_elements();
   }
 

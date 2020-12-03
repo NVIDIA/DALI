@@ -33,8 +33,8 @@ class BbFlip<GPUBackend> : public Operator<GPUBackend> {
     auto &input = ws.Input<GPUBackend>(0);
     auto shape = input.shape();
     auto nsamples = shape.size();
-    horz_.Acquire(spec_, ws, nsamples);
-    vert_.Acquire(spec_, ws, nsamples);
+    horz_.Acquire(spec_, ws, nsamples, true);
+    vert_.Acquire(spec_, ws, nsamples, true);
     return false;
   }
 

@@ -28,6 +28,58 @@
 
 namespace dali {
 
+namespace detail {
+
+template <int N>
+vec<N> as_vec(TensorView<StorageCPU, const float, 1> view) {
+  if (view.num_elements() == 1) {
+    return vec<N>(view.data[0]);
+  }
+  assert(N == view.num_elements());
+  return *reinterpret_cast<const vec<N>*>(view.data);
+}
+
+template <int N>
+vec<N> as_vec(TensorView<StorageCPU, const float, DynamicDimensions> view) {
+  return as_vec<N>(view.to_static<1>());
+}
+
+template <int N, int M>
+mat<N, M> as_mat(TensorView<StorageCPU, const float, 2> view) {
+  assert(N * M == view.num_elements());
+  return *reinterpret_cast<const mat<N, M>*>(view.data);
+}
+
+template <int N, int M>
+mat<N, M> as_mat(TensorView<StorageCPU, const float, DynamicDimensions> view) {
+  return as_mat<N, M>(view.to_static<2>());
+}
+
+template <int ndim>
+struct ArgShapeFromSize {
+  TensorShape<ndim> operator()(int64_t size) const {
+    throw std::logic_error("Cannot infer an ", ndim, "D shape from a flat size.");
+  }
+};
+
+template <>
+struct ArgShapeFromSize<0> {
+  TensorShape<0> operator()(int64_t size) const {
+    DALI_ENFORCE(size == 1, make_string("Expected a scalar argument, got ", size, " values"));
+    return {};
+  }
+};
+
+template <>
+struct ArgShapeFromSize<1> {
+  TensorShape<1> operator()(int64_t size) const {
+    return { size };
+  }
+};
+
+}  // namespace detail
+
+
 template <typename T, int ndim = 0>
 class ArgValue {
  public:
@@ -65,7 +117,7 @@ class ArgValue {
       if (ndim == 0) {
         data_ = {spec.GetArgument<T>(arg_name_)};
       } else {
-        assert (ndim <= 1);
+        assert(ndim <= 1);
         data_ = spec.GetRepeatedArgument<T>(arg_name_);
         int64_t len = data_.size();
         int64_t expected_len = volume(expected_shape);
@@ -73,16 +125,18 @@ class ArgValue {
           data_.resize(expected_len, data_[0]);
         } else {
           DALI_ENFORCE(len == volume(expected_shape),
-            make_string("Argument \"", arg_name_, "\" expected shape ", expected_shape,
-                        " but got ", len, " values, which can't be interpreted as the expected shape."));
+                       make_string("Argument \"", arg_name_, "\" expected shape ", expected_shape,
+                                   " but got ", len,
+                                   " values, which can't be interpreted as the expected shape."));
         }
       }
       view_ = constant_view(nsamples, data_.data(), shape);
     }
   }
 
+  template <typename ShapeFromSizeFn = detail::ArgShapeFromSize<ndim>>
   void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
-               bool enforce_uniform = false) {
+               bool enforce_uniform = false, ShapeFromSizeFn &&shape_from_size = {}) {
     if (has_arg_input_) {
       view_ = view<const T, ndim>(ws.ArgumentInput(arg_name_));
       if (enforce_uniform) {
@@ -91,19 +145,13 @@ class ArgValue {
                       "\" but got shape ", view_.shape));
       }
     } else {
-      TensorShape<ndim> shape{};
       if (ndim == 0) {
         data_ = {spec.GetArgument<T>(arg_name_)};
-      } else if (ndim == 1) {
-        data_ = spec.GetRepeatedArgument<T>(arg_name_);
-        int64_t len = data_.size();
-        shape = std::array<int64_t, 1>{len};
       } else {
-        // ndim > 1 but we don't have information about the expected shape.
-        // An overload with ``expected_shape`` should have been used.
-        assert(false);
+        data_ = spec.GetRepeatedArgument<T>(arg_name_);
       }
-      view_ = constant_view(nsamples, data_.data(), shape);
+      auto sh = shape_from_size(static_cast<int64_t>(data_.size()));
+      view_ = constant_view(nsamples, data_.data(), std::move(sh));
     }
   }
 
@@ -137,35 +185,6 @@ class ArgValue {
   bool has_arg_const_ = false;
   bool has_arg_input_ = false;
 };
-
-namespace detail {
-
-template <int N>
-vec<N> as_vec(TensorView<StorageCPU, const float, 1> view) {
-  if (view.num_elements() == 1) {
-    return vec<N>(view.data[0]);
-  }
-  assert(N == view.num_elements());
-  return *reinterpret_cast<const vec<N>*>(view.data);
-}
-
-template <int N>
-vec<N> as_vec(TensorView<StorageCPU, const float, DynamicDimensions> view) {
-  return as_vec<N>(view.to_static<1>());
-}
-
-template <int N, int M>
-mat<N, M> as_mat(TensorView<StorageCPU, const float, 2> view) {
-  assert(N * M == view.num_elements());
-  return *reinterpret_cast<const mat<N, M>*>(view.data);
-}
-
-template <int N, int M>
-mat<N, M> as_mat(TensorView<StorageCPU, const float, DynamicDimensions> view) {
-  return as_mat<N, M>(view.to_static<2>());
-}
-
-}  // namespace detail
 
 }  // namespace dali
 
