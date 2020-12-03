@@ -18,52 +18,53 @@
 
 #include <math.h>
 #include "dali/core/device_guard.h"
+#include "dali/kernels/alloc.h"
 #include "dali/pipeline/data/backend.h"
 #include <curand_kernel.h>  // NOLINT
 
 namespace dali {
 
-namespace detail {
+struct curand_states {
+  curand_states(unsigned long long seed, size_t len);
+  ~curand_states();
 
-template <typename T>
-struct CurandNormal {};
-
-template <>
-struct CurandNormal<float> {
-  __device__ static DALI_FORCEINLINE float normal(curandState *state) {
-    return curand_normal(state);
-  }
-};
-
-template <>
-struct CurandNormal<double> {
-  __device__ static DALI_FORCEINLINE double normal(curandState *state) {
-    return curand_normal_double(state);
-  }
-};
-
-}  // namespace detail
-
-class RandomizerGPU {
- public:
-  explicit RandomizerGPU(int seed, size_t len);
-
-  __device__ inline int rand(int idx) {
-    return curand(&states_[idx]);
+  DALI_HOST_DEV inline curandState* states() {
+    return states_;
   }
 
-  template <typename T>
-  __device__ inline T normal(int idx) {
-    return detail::CurandNormal<T>::normal(&states_[idx]);
+  DALI_HOST_DEV inline curandState& operator[](size_t idx) {
+    assert(idx < len_);
+    return states_[idx];
   }
-
-  void Cleanup();
 
  private:
-    curandState* states_;
-    size_t len_;
-    int device_;
-    static constexpr int block_size_ = 256;
+  size_t len_;
+  int device_;
+  kernels::memory::KernelUniquePtr<curandState> states_mem_;
+  curandState* states_;  // std::unique_ptr::get can't be called from __device__ functions
+};
+
+template <typename T>
+struct curand_normal_dist {};
+
+template <>
+struct curand_normal_dist<float> {
+  __device__ inline float yield(curandState *state) {
+    return curand_normal(state);
+  }
+  __device__ inline float yield(curandState *state, float mean, float stddev) {
+    return mean + yield(state) * stddev;
+  }
+};
+
+template <>
+struct curand_normal_dist<double> {
+  __device__ inline double yield(curandState *state) {
+    return curand_normal_double(state);
+  }
+  __device__ inline double yield(curandState *state, double mean, double stddev) {
+    return mean + yield(state) * stddev;
+  }
 };
 
 }  // namespace dali

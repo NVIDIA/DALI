@@ -21,26 +21,25 @@ namespace dali {
 
 namespace detail {
 
-template <typename Out, typename RandType>
+template <typename Out, typename Dist>
 __global__ void NormalDistKernel(NormalDistributionGpu::BlockDesc *block_descs,
-                                 RandomizerGPU randomizer) {
+                                 curandState* states, Dist dist = {}) {
   auto desc = block_descs[blockIdx.x];
   auto out = static_cast<Out*>(desc.sample);
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   for (int x = desc.start + threadIdx.x; x < desc.end; x += blockDim.x) {
-    auto norm = randomizer.normal<RandType>(tid);
-    out[x] = ConvertSat<Out>(norm * desc.std + desc.mean);
+    out[x] = ConvertSat<Out>(dist.yield(states + tid, desc.std, desc.mean));
   }
 }
 
-template <typename Out, typename RandType>
+template <typename Out, typename Dist>
 __global__ void NormalDistSingleValue(NormalDistributionGpu::BlockDesc *descs,
-                                      int size, RandomizerGPU randomizer) {
+                                      int size, curandState* states, Dist dist = {}) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= size) return;
   auto desc = descs[tid];
-  auto norm = randomizer.normal<RandType>(tid);
-  *(static_cast<Out*>(desc.sample)) = ConvertSat<Out>(norm * desc.std + desc.mean);
+  *(static_cast<Out*>(desc.sample)) = ConvertSat<Out>(
+    dist.yield(states + tid, desc.std, desc.mean));
 }
 
 std::pair<std::vector<int>, int> DistributeBlocksPerSample(
@@ -78,10 +77,6 @@ NormalDistributionGpu::NormalDistributionGpu(const OpSpec &spec)
                "Batch size must be smaller than " + std::to_string(max_blocks_));
   block_descs_gpu_ = mem::alloc_unique<BlockDesc>(kernels::AllocType::GPU, max_blocks_);
   block_descs_cpu_ = mem::alloc_unique<BlockDesc>(kernels::AllocType::Pinned, max_blocks_);
-}
-
-NormalDistributionGpu::~NormalDistributionGpu() {
-  randomizer_.Cleanup();
 }
 
 int NormalDistributionGpu::SetupBlockDescs(TensorList<GPUBackend> &output, cudaStream_t stream) {
@@ -139,21 +134,21 @@ void NormalDistributionGpu::LaunchKernel(int blocks_num, int64_t elements, cudaS
   if (single_value_in_output_) {
     TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
       if (sizeof(DType) > 4) {
-        detail::NormalDistSingleValue<DType, double>
-            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), elements, randomizer_);
+        detail::NormalDistSingleValue<DType, curand_normal_dist<double>>
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), elements, randomizer_.states());
       } else {
-        detail::NormalDistSingleValue<DType, float>
-            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), elements, randomizer_);
+        detail::NormalDistSingleValue<DType, curand_normal_dist<float>>
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), elements, randomizer_.states());
       }
     ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)));  // NOLINT
   } else {
     TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
       if (sizeof(DType) > 4) {
-        detail::NormalDistKernel<DType, double>
-            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), randomizer_);
+        detail::NormalDistKernel<DType, curand_normal_dist<double>>
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), randomizer_.states());
       } else {
-        detail::NormalDistKernel<DType, float>
-            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), randomizer_);
+        detail::NormalDistKernel<DType, curand_normal_dist<float>>
+            <<<blocks_num, block_size_, 0, stream>>>(block_descs_gpu_.get(), randomizer_.states());
       }
     ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)));  // NOLINT
   }

@@ -68,7 +68,7 @@ void DisplacementKernel(const T *in, T* out,
                         const int N, const Index * shapes, const bool has_mask,
                         const int * mask, const void * raw_params, const Index pitch,
                         const T fill_value,
-                        Displacement displace) {
+                        Displacement &displace) {
   // block per image
   for (int n = blockIdx.x; n < N; n += gridDim.x) {
     const int H = shapes[n * pitch + 0];
@@ -105,7 +105,7 @@ void DisplacementKernel_aligned32bit(const T *in, T* out,
                         const void * raw_params,
                         const Index pitch,
                         const T fill_value,
-                        Displacement displace) {
+                        Displacement &displace) {
   constexpr int nPixelsPerThread = sizeof(uint32_t)/sizeof(T);
   __shared__ T scratch[nThreads * C * nPixelsPerThread];
   // block per image

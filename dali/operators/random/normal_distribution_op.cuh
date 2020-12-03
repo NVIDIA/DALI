@@ -40,7 +40,7 @@ class NormalDistributionGpu : public NormalDistribution<GPUBackend> {
 
   explicit NormalDistributionGpu(const OpSpec &spec);
 
-  ~NormalDistributionGpu() override;
+  ~NormalDistributionGpu() override = default;
 
  protected:
   void RunImpl(workspace_t<GPUBackend> &ws) override;
@@ -58,9 +58,9 @@ class NormalDistributionGpu : public NormalDistribution<GPUBackend> {
 
   static constexpr int block_size_ = 256;
   static constexpr int max_blocks_ = 1024;
-  RandomizerGPU randomizer_;
   mem::KernelUniquePtr<BlockDesc> block_descs_gpu_;
   mem::KernelUniquePtr<BlockDesc> block_descs_cpu_;
+  curand_states randomizer_;
 };
 
 }  // namespace dali
