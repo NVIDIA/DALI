@@ -45,7 +45,7 @@ This readers produces the following outputs::
   or in ``[l, t, r, b]`` format if requested (see ``ltrb`` argument).
 * **labels**
   Each bounding box is associated with an integer label representing a category identifier::
-        
+
     [label_0, label_1, ..., label_M]
 
 * **polygons** and **vertices** (Optional, present if ``polygon_masks`` is set to True)
@@ -70,8 +70,7 @@ This readers produces the following outputs::
 * **pixelwise_masks** (Optional, present if argument ``pixelwise_masks`` is set to True)
   Contains image-like data, same shape and layout as ``images``, representing a pixelwise segmentation mask.
 * **image_ids** (Optional, present if argument ``image_ids`` is set to True)
-  One element per sample, representing an image identifier.
-)code")
+  One element per sample, representing an image identifier.)code")
   .AddOptionalArg("preprocessed_annotations",
     "Path to the directory with meta files that contain preprocessed COCO annotations.",
     std::string())
@@ -103,10 +102,10 @@ If set to False, the bboxes are returned as [x, y, width, height].)code",
   R"code(Enable polygon masks.
 
 .. warning::
-    Use ``polygon_masks`` instead. Note that the polygon format has changed ``mask_id, start_coord, end_coord`` to ``mask_id, start_vertex, end_vertex`` where
-start_coord and end_coord are total number of coordinates, effectly ``start_coord = 2 * start_vertex`` and ``end_coord = 2 * end_vertex``.
-Example: A polygon with vertices ``[[x0, y0], [x1, y1], [x2, y2]]`` would be represented as ``[mask_id, 0, 6]`` when using the deprecated
-argument``masks``, but ``[mask_id, 0, 3]`` when using the new argument ``polygon_masks``.)code", false)
+  Use ``polygon_masks`` instead. Note that the polygon format has changed ``mask_id, start_coord, end_coord`` to ``mask_id, start_vertex, end_vertex`` where
+  start_coord and end_coord are total number of coordinates, effectly ``start_coord = 2 * start_vertex`` and ``end_coord = 2 * end_vertex``.
+  Example: A polygon with vertices ``[[x0, y0], [x1, y1], [x2, y2]]`` would be represented as ``[mask_id, 0, 6]`` when using the deprecated
+  argument``masks``, but ``[mask_id, 0, 3]`` when using the new argument ``polygon_masks``.)code", false)
   .DeprecateArg("masks", false)  // deprecated since 0.28dev
   .AddOptionalArg("pixelwise_masks",
       R"code(If true, segmentation masks are read and returned as pixel-wise masks. This argument is
@@ -116,7 +115,7 @@ mutually exclusive with ``polygon_masks``.)code",
       R"code(If true, reader will skip samples with no object instances in them)code",
       false)
   .AddOptionalArg("size_threshold",
-      R"code(If the width or the height, in number of pixels, of a bounding box that represents an 
+      R"code(If the width or the height, in number of pixels, of a bounding box that represents an
 instance of an object is lower than this value, the object will be ignored.)code",
       0.1f,
       false)

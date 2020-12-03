@@ -32,6 +32,7 @@ This library is open sourced and it is available in the `NVIDIA GitHub repositor
 
    installation
    compilation
+   Platform support matrix <support_matrix>
    examples/getting started.ipynb
    examples/index
    framework_plugins
