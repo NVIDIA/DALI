@@ -93,7 +93,7 @@ DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const workspace_t<Backen
     }
     DALI_ENFORCE(
         result_layout == next_layout,
-        make_string("Layouts of subexpressions ", i - 1, " and ", i, " for atihmetic operation",
+        make_string("Layouts of subexpressions ", i - 1, " and ", i, " for arithmetic operation",
                     func.GetFuncName(), " do not match. Expected ", result_layout, " got ",
                     next_layout, "."));
   }
@@ -314,9 +314,10 @@ class ArithmeticGenericOp : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
     for (int i = 1; i < ws.NumInput(); i++) {
-      assert(ws.GetRequestedBatchSize(i) == ws.GetRequestedBatchSize(0));
+      DALI_ENFORCE(ws.GetInputBatchSize(i) == ws.GetInputBatchSize(0),
+                   "Every input shall have the same batch size");
     }
-    auto curr_batch_size = ws.GetRequestedBatchSize(0);
+    auto curr_batch_size = ws.GetInputBatchSize(0);
 
     if (!types_layout_inferred_) {
       result_type_id_ = PropagateTypes<Backend>(*expr_, ws);
