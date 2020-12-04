@@ -18,6 +18,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
 import scipy.stats as st
+import random
 
 test_types = [types.INT8, types.INT16, types.INT32, types.INT16, types.FLOAT, types.FLOAT64, types.FLOAT16]
 
@@ -49,7 +50,8 @@ def check_normal_distribution(device, dtype, shape=None, use_shape_like_input=Fa
             m = np.mean(data)
             s = np.std(data)
             l = len(data)
-            if l >= 100 and dtype == types.FLOAT:  # Checking sanity of the data
+            # Checking sanity of the data
+            if l >= 100 and dtype in [types.FLOAT, types.FLOAT64, types.FLOAT16]:
                 # Empirical rule: 
                 # ~68% of the observations within one standard deviation
                 # ~95% of the observations within one standard deviation
@@ -72,7 +74,7 @@ def test_normal_distribution_single_value():
     for device in ("cpu", "gpu"):
         for dtype in test_types:
             for shape in [(100,), (10, 20, 30), (1, 2, 3, 4, 5, 6)]:
-                for use_shape_like_in in (False, True):
-                    for mean, stddev in [(0.0, 1.0)]:
-                        yield check_normal_distribution, device, dtype, shape, use_shape_like_in, mean, stddev
+                use_shape_like_in = random.choice([True, False])
+                for mean, stddev in [(0.0, 1.0), (111.0, 57.0)]:
+                    yield check_normal_distribution, device, dtype, shape, use_shape_like_in, mean, stddev
 
