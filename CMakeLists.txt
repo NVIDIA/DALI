@@ -235,8 +235,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   if (DALI_CLANG_ONLY)
     # std::abs have no effect on unsigned value in a templated call
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-absolute-value")
-    #
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-format")
     # convert.h when the bigger values are not representable
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-implicit-int-float-conversion")
     # Some aggregate constructors with inner object suggest double braces
@@ -245,7 +243,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch")
     # TYPE_SWITCH over bool exists in the wild
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch-bool")
-    # Build compatiblity with omp switches
+    # CUDA flags are passed to .cc files and are ignored
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-command-line-argument")
   endif()
 
