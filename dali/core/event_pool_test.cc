@@ -50,6 +50,7 @@ TEST(EventPoolTest, PutGet) {
         ASSERT_EQ(cudaSuccess, cudaSetDevice(device_id));
         ASSERT_EQ(cudaSuccess, cudaEventRecord(event, streams[device_id]));
         ASSERT_EQ(cudaSuccess, cudaEventSynchronize(event));
+        pool.Put(std::move(event));
       }
     });
   }
