@@ -493,7 +493,7 @@ void ExposeTensor(py::module &m) {
                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
           CopyToExternal(ptr, kernels::AllocType::GPU, t, stream, use_copy_kernel);
           if (!non_blocking) {
-            cudaStreamSynchronize(stream);
+            CUDA_CALL(cudaStreamSynchronize(stream));
           }
         },
       "ptr"_a,
@@ -871,7 +871,7 @@ void ExposeTensorList(py::module &m) {
                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
           CopyToExternal(ptr, AllocType::GPU, t, stream, use_copy_kernel);
           if (!non_blocking) {
-            cudaStreamSynchronize(stream);
+            CUDA_CALL(cudaStreamSynchronize(stream));
           }
         },
       "ptr"_a,
