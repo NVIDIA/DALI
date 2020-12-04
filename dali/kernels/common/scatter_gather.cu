@@ -14,6 +14,8 @@
 
 #include <algorithm>
 #include <cassert>
+
+#include "dali/core/cuda_error.h"
 #include "dali/kernels/common/scatter_gather.h"
 
 namespace dali {

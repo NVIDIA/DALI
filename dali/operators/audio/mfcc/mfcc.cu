@@ -69,7 +69,7 @@ bool MFCC<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     output_desc = detail::SetupKernel<T>(kmgr_, ctx_, input, make_cspan(args_), axis_);
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
   int64_t max_ndct = 0;
-  for (int i = 0; i < input.ntensor(); ++i) {
+  for (int i = 0; i < output_desc[0].shape.num_samples(); ++i) {
     int64_t ndct = output_desc[0].shape[i][axis_];
     if (ndct > max_ndct)
       max_ndct = ndct;
