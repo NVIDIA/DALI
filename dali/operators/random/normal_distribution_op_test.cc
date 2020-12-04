@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <random>
 #include <algorithm>
-#include "dali/operators/random/normal_distribution_op.cuh"
+#include "dali/operators/random/rng_base_gpu.h"
 
 namespace dali {
 
@@ -24,7 +24,7 @@ class TestBlockDistribution : public ::testing::Test{
   std::vector<int> distribute(const std::vector<int> &sizes) {
     TensorListShape<1> shape(sizes.size());
     for (int s = 0; s < shape.size(); ++s) shape.set_tensor_shape(s, {sizes[s]});
-    return detail::DistributeBlocksPerSample(shape, block_size_, max_blocks_).first;
+    return DistributeBlocksPerSample(shape, block_size_, max_blocks_).first;
   }
 
   const int block_size_ = 256;
@@ -61,8 +61,7 @@ TEST(DistributeBlocks, RandomTests) {
     for (int s = 0; s < shape.size(); ++s) shape.set_tensor_shape(s, {size_dist(rnd)});
     std::vector<int> blocks;
     int sum;
-    std::tie(blocks, sum) =
-      detail::DistributeBlocksPerSample(shape, block_size, max_blocks);
+    std::tie(blocks, sum) = DistributeBlocksPerSample(shape, block_size, max_blocks);
     EXPECT_EQ(std::accumulate(blocks.begin(), blocks.end(), 0), sum);
     EXPECT_EQ(sum, max_blocks);
   }

@@ -23,45 +23,6 @@
 
 namespace dali {
 
-namespace detail {
-DLL_PUBLIC std::pair<std::vector<int>, int> DistributeBlocksPerSample(
-  const TensorListShape<> &shape, int block_size, int max_blocks);
-}
-
-namespace mem = kernels::memory;
-
-class NormalDistributionGpu : public NormalDistribution<GPUBackend> {
- public:
-  struct BlockDesc {
-    void *sample;
-    int64_t start, end;
-    float mean, std;
-  };
-
-  explicit NormalDistributionGpu(const OpSpec &spec);
-
-  ~NormalDistributionGpu() override = default;
-
- protected:
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
-
-  DISABLE_COPY_MOVE_ASSIGN(NormalDistributionGpu);
-
- private:
-  int SetupSingleValueDescs(TensorList<GPUBackend> &output, cudaStream_t stream);
-
-  int SetupBlockDescs(TensorList<GPUBackend> &output, cudaStream_t stream);
-
-  int SetupDescs(TensorList<GPUBackend> &output, cudaStream_t stream);
-
-  void LaunchKernel(int blocks_num, int64_t elements, cudaStream_t stream);
-
-  static constexpr int block_size_ = 256;
-  static constexpr int max_blocks_ = 1024;
-  mem::KernelUniquePtr<BlockDesc> block_descs_gpu_;
-  mem::KernelUniquePtr<BlockDesc> block_descs_cpu_;
-  curand_states randomizer_;
-};
 
 }  // namespace dali
 

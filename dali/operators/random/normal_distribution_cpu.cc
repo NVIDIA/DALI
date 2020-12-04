@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/random/rng_base.h"
+#include "dali/operators/random/rng_base_cpu.h"
+#include "dali/operators/random/normal_distribution.h"
 #include "dali/pipeline/operator/arg_helper.h"
-
-#define DALI_NORMDIST_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, \
-                             int64_t, float16, float, double)
 
 namespace dali {
 
@@ -37,48 +35,64 @@ generated.
       1.f, true)
     .AddParent("RNGAttr");
 
-class NormalDistributionCPU : public RNGBase<CPUBackend, NormalDistributionCPU> {
+class NormalDistributionCPU : public NormalDistribution<CPUBackend, NormalDistributionCPU> {
  public:
-  explicit NormalDistributionCPU(const OpSpec &spec)
-      : RNGBase<CPUBackend, NormalDistributionCPU>(spec),
-        mean_("mean", spec),
-        stddev_("stddev", spec) {}
+  template <typename T>
+  struct Dist {
+    using FloatType = 
+      typename std::conditional<
+          ((std::is_integral<T>::value && sizeof(T) > 3) || sizeof(T) > 4),
+          double, float>::type;
+    using type = std::normal_distribution<FloatType>;
+  };
 
+  explicit NormalDistributionCPU(const OpSpec &spec)
+      : NormalDistribution<CPUBackend, NormalDistributionCPU>(spec) {
+    dist_data_.resize(batch_size_ * kDistMaxSize);
+  }
   ~NormalDistributionCPU() override = default;
 
-  void AcquireArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws, int nsamples) {
-    mean_.Acquire(spec, ws, nsamples, true);
-    stddev_.Acquire(spec, ws, nsamples, true);
-    dist_.clear();
-    dist_.reserve(nsamples);
+  template <typename Dist>
+  Dist* SetupDists(int nsamples) {
+    assert(sizeof(Dist) * nsamples <= dist_data_.size());
+    auto dists = reinterpret_cast<Dist*>(dist_data_.data());
     for (int s = 0; s < nsamples; s++) {
-      dist_.emplace_back(mean_[s].data[0], stddev_[s].data[0]);
+      dists[s] = Dist(mean_[s].data[0], stddev_[s].data[0]);
     }
-  }
-
-  template <typename T>
-  void Generate(span<T> out, int sample_idx, std::mt19937_64& rng) {
-    auto &dist = dist_[sample_idx];
-    for (auto &value : out)
-      value = ConvertSat<T>(dist(rng));
-  }
-
-  void RunImpl(workspace_t<CPUBackend> &ws) override {
-    TYPE_SWITCH(dtype_, type2id, T, DALI_NORMDIST_TYPES, (
-      RunImplTyped<T>(ws);
-    ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
-  }
-
-  DALIDataType DefaultDataType() const {
-    return DALI_FLOAT;
+    return dists;
   }
 
  private:
-  ArgValue<float> mean_;
-  ArgValue<float> stddev_;
-  std::vector<std::normal_distribution<float>> dist_;
+  using Operator<CPUBackend>::batch_size_;
+  using NormalDistribution<CPUBackend, NormalDistributionCPU>::mean_;
+  using NormalDistribution<CPUBackend, NormalDistributionCPU>::stddev_;
+  std::vector<uint8_t> dist_data_;
+  static constexpr size_t kDistMaxSize = sizeof(std::normal_distribution<double>);
 };
 
+
 DALI_REGISTER_OPERATOR(random__NormalDistribution, NormalDistributionCPU, CPU);
+
+// Deprecated alias
+DALI_SCHEMA(NormalDistribution)
+    .DocStr(R"code(Generates random numbers following a normal distribution.
+
+The shape of the generated data can be either specified explicitly with a ``shape`` argument,
+or chosen to match the shape of the input, if provided. If none are present, a single number is
+generated.
+)code")
+    .NumInput(0, 1)
+    .NumOutput(1)
+    .AddOptionalArg<float>("mean",
+      R"code(Mean of the distribution.)code",
+      0.f, true)
+    .AddOptionalArg<float>("stddev",
+      R"code(Standard deviation of the distribution.)code",
+      1.f, true)
+    .AddParent("RNGAttr")
+    .Deprecate("random.NormalDistribution");  // Deprecated in 0.30
+
+
+DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCPU, CPU);  
 
 }  // namespace dali

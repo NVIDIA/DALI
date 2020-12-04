@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_RANDOM_NORMAL_DISTRIBUTION_OP_H_
-#define DALI_OPERATORS_RANDOM_NORMAL_DISTRIBUTION_OP_H_
-
-#include <random>
-#include <vector>
-#include "dali/core/convert.h"
-#include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/batch_rng.h"
-#include "dali/core/static_switch.h"
+#include "dali/operators/random/rng_base.h"
+#include "dali/pipeline/operator/op_schema.h"
 
 namespace dali {
 
-}  // namespace dali
+DALI_SCHEMA(RNGAttr)
+    .DocStr(R"code()code")
+    .AddOptionalArg<std::vector<int>>("shape",
+      R"code(Shape of the data.)code", nullptr, true)
+    .AddOptionalArg<DALIDataType>("dtype",
+      R"code(Data type.)code", nullptr);
 
-#endif  // DALI_OPERATORS_RANDOM_NORMAL_DISTRIBUTION_OP_H_
+}  // namespace dali

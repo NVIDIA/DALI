@@ -21,17 +21,14 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/core/static_switch.h"
+#include "dali/operators/util/randomizer.cuh"
 
 namespace dali {
 
-DALI_SCHEMA(RNGAttr)
-    .DocStr(R"code()code")
-    .AddOptionalArg<std::vector<int>>("shape",
-      R"code(Shape of the data.)code", nullptr, true)
-    .AddOptionalArg<DALIDataType>("dtype",
-      R"code(Data type.)code", nullptr);
+template <typename Backend>
+struct RNGBaseFields;
 
-template<typename Backend, typename Impl>
+template <typename Backend, typename Impl>
 class RNGBase : public Operator<Backend> {
  public:
   ~RNGBase() override = default;
@@ -39,7 +36,8 @@ class RNGBase : public Operator<Backend> {
  protected:
   explicit RNGBase(const OpSpec &spec)
       : Operator<Backend>(spec),
-        rng_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<DALIDataType>("batch_size")) {
+        rng_(spec.GetArgument<int64_t>("seed"), batch_size_),
+        backend_specific_(spec.GetArgument<int64_t>("seed"), batch_size_) {
   }
 
   Impl &This() noexcept { return static_cast<Impl&>(*this); }
@@ -60,13 +58,20 @@ class RNGBase : public Operator<Backend> {
       "Providing argument \"shape\" is incompatible with providing a shape-like input");
 
     if (has_shape_like) {
-      shape_ = ws.template InputRef<Backend>(0).shape();
+      if (ws.template InputIsType<Backend>(0)) {
+        shape_ = ws.template InputRef<Backend>(0).shape();
+      } else if (std::is_same<GPUBackend, Backend>::value && ws.template InputIsType<CPUBackend>(0)) {
+        shape_ = ws.template InputRef<CPUBackend>(0).shape();
+      } else {
+        DALI_FAIL("Shape-like input can be either CPUBackend or GPUBackend for case of GPU operators.");
+      }
     } else if (has_shape) {
       GetShapeArgument(shape_, spec_, "shape", ws);
     } else {
       shape_ = uniform_list_shape(spec_.template GetArgument<DALIDataType>("batch_size"), {1});
     }
     batch_size_ = shape_.size();
+    single_value_ = shape_.num_elements() == batch_size_;
 
     This().AcquireArgs(spec_, ws, batch_size_);
 
@@ -77,51 +82,21 @@ class RNGBase : public Operator<Backend> {
   }
 
   template <typename T>
-  void RunImplTyped(workspace_t<CPUBackend> &ws) {
-    auto &output = ws.OutputRef<CPUBackend>(0);
-    auto out_view = view<T>(output);
-    const auto &out_shape = out_view.shape;
-    auto &tp = ws.GetThreadPool();
-    constexpr int64_t kThreshold = 1 << 18;
-    constexpr int64_t kChunkSize = 1 << 16;
-    constexpr size_t kNumChunkSeeds = 16;
+  void RunImplTyped(workspace_t<GPUBackend> &ws);
 
-    for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
-      auto sample_sz = out_shape.tensor_size(sample_id);
-      span<T> out_span{out_view[sample_id].data, sample_sz};
-      if (sample_sz < kThreshold) {
-        tp.AddWork(
-          [=](int thread_id) {
-            This().template Generate<T>(out_span, sample_id, rng_[sample_id]);
-          }, sample_sz);
-      } else {
-        int chunks = div_ceil(out_span.size(), kChunkSize);
-        std::array<uint32_t, kNumChunkSeeds> seed;
-        for (int c = 0; c < chunks; c++) {
-          auto start = out_span.begin() + out_span.size() * c / chunks;
-          auto end = out_span.begin() + out_span.size() * (c + 1) / chunks;
-          auto chunk = make_span(start, end - start);
-          for (auto &s : seed)
-            s = rng_[sample_id]();
-          tp.AddWork(
-            [=](int thread_id) {
-              std::seed_seq seq(seed.begin(), seed.end());
-              std::mt19937_64 chunk_rng(seq);
-              This().template Generate<T>(chunk, sample_id, chunk_rng);
-            }, chunk.size());
-        }
-      }
-      tp.RunAll();
-    }
-  }
+  template <typename T>
+  void RunImplTyped(workspace_t<CPUBackend> &ws);
 
   using Operator<Backend>::spec_;
   using Operator<Backend>::batch_size_;
+
   DALIDataType dtype_;
   BatchRNG<std::mt19937_64> rng_;
   TensorListShape<> shape_;
-};
+  bool single_value_ = false;
 
+  RNGBaseFields<Backend> backend_specific_;
+};
 
 }  // namespace dali
 

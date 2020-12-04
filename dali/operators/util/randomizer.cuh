@@ -49,21 +49,19 @@ struct curand_normal_dist {};
 
 template <>
 struct curand_normal_dist<float> {
+  float mean = 0.0f, stddev = 1.0f;
+
   __device__ inline float yield(curandState *state) {
-    return curand_normal(state);
-  }
-  __device__ inline float yield(curandState *state, float mean, float stddev) {
-    return mean + yield(state) * stddev;
+    return mean + curand_normal(state) * stddev;
   }
 };
 
 template <>
 struct curand_normal_dist<double> {
+  double mean = 0.0f, stddev = 1.0f;
+
   __device__ inline double yield(curandState *state) {
-    return curand_normal_double(state);
-  }
-  __device__ inline double yield(curandState *state, double mean, double stddev) {
-    return mean + yield(state) * stddev;
+    return mean + curand_normal_double(state) * stddev;
   }
 };
 
