@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_CORE_EVENT_POOL_H_
-#define DALI_CORE_EVENT_POOL_H_
+#ifndef DALI_CORE_CUDA_EVENT_POOL_H_
+#define DALI_CORE_CUDA_EVENT_POOL_H_
 
 #include <vector>
 #include <utility>
@@ -100,4 +100,4 @@ class DLL_PUBLIC CUDAEventPool {
 
 }  // namespace dali
 
-#endif  // DALI_CORE_EVENT_POOL_H_
+#endif  // DALI_CORE_CUDA_EVENT_POOL_H_

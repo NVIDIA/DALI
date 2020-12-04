@@ -17,9 +17,9 @@
 #include <random>
 #include <thread>
 #include <vector>
-#include "dali/core/cuda_stream.h"
-#include "dali/core/event_pool.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_event_pool.h"
+#include "dali/core/cuda_stream.h"
 
 namespace dali {
 namespace test {

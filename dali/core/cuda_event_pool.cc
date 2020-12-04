@@ -15,7 +15,7 @@
 #include <cassert>
 #include <mutex>
 #include <utility>
-#include "dali/core/event_pool.h"
+#include "dali/core/cuda_event_pool.h"
 #include "dali/core/cuda_error.h"
 
 namespace dali {
