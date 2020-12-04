@@ -116,7 +116,7 @@ int NormalDistributionGpu::SetupSingleValueDescs(TensorList<GPUBackend> &output,
   assert(output.GetElementsNumber() == output.ntensor());
   auto elems = output.ntensor();
   BlockDesc *blocks = block_descs_cpu_.get();
-  for (int i = 0; i < elems; ++i) {
+  for (size_t i = 0; i < elems; ++i) {
     blocks[i].sample = output.raw_mutable_tensor(i);
     blocks[i].mean = mean_[i];
     blocks[i].std = stddev_[i];

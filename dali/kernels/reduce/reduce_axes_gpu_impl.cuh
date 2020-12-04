@@ -563,7 +563,7 @@ __device__ void ReduceMiddleLargeInnerMedium(const ReduceSampleDesc<Out, In> &sa
     shared_tmp[w][lane] = r.template neutral<Acc>();
 
   for (int out_block = blockIdx.x; out_block < total_out_blocks; out_block += gridDim.x) {
-    if (out_block != blockIdx.x)
+    if (out_block != static_cast<int>(blockIdx.x))
       __syncthreads();
 
     // Caution: fast approximate division ahead!

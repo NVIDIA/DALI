@@ -218,7 +218,7 @@ class TransposeGPU::Impl {
   template <typename T>
   void RunGeneric(KernelContext &ctx, T *const *out, const T *const *in) {
     if (!generic_descs_.empty()) {
-      int64_t max_size = 0;
+      uint64_t max_size = 0;
       int block_size = 256;
       for (size_t i = 0; i < generic_descs_.size(); i++) {
         generic_descs_[i].out = out[idx_generic_[i]];
