@@ -114,7 +114,7 @@ def check_batch(
         batch2 = batch2.as_cpu()
 
     def _verify_batch_size(batch):
-        if isinstance(batch, dali.backend.TensorListCPU):
+        if isinstance(batch, dali.backend.TensorListCPU) or isinstance(batch, list):
             tested_batch_size = len(batch)
         else:
             tested_batch_size = batch.shape[0]
