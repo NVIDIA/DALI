@@ -33,7 +33,8 @@ As an input, the operator accepts image, bounding boxes and labels. At the outpu
 cropped and valid bounding boxes and valid labels are returned.)code")
   .NumInput(3)   // [img, bbox, label]
   .NumOutput(3)  // [img, bbox, label]
-  .AddOptionalArg("num_attempts", R"code(Number of attempts.)code", 1);
+  .AddOptionalArg("num_attempts", R"code(Number of attempts.)code", 1)
+  .Deprecate("RandomBBoxCrop");
 
 /*
  * # This function is from https://github.com/kuangliu/pytorch-ssd.

@@ -121,6 +121,7 @@ class TransformBaseOp : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
     has_input_ = ws.NumInput() > 0;
+    auto curr_batch_size = has_input_ ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
     if (has_input_) {
       auto &input = ws.template InputRef<Backend>(0);
       const auto &shape = input.shape();
@@ -136,7 +137,7 @@ class TransformBaseOp : public Operator<Backend> {
           "(ndim, ndim+1) representing an affine transform. Got: ", shape));
       nsamples_ = shape.num_samples();
     } else {
-      nsamples_ = spec_.template GetArgument<int>("batch_size");
+      nsamples_ = curr_batch_size;
     }
 
     This().ProcessArgs(spec_, ws);
@@ -280,6 +281,7 @@ class TransformBaseOp : public Operator<Backend> {
   }
 
  protected:
+  USE_OPERATOR_MEMBERS();
   DALIDataType dtype_ = DALI_FLOAT;
   int ndim_ = -1;  // will be inferred from the arguments or the input
   int nsamples_ = -1;
@@ -287,8 +289,6 @@ class TransformBaseOp : public Operator<Backend> {
   bool reverse_order_ = false;
 
   Tensor<CPUBackend> matrix_data_;
-
-  using Operator<Backend>::spec_;
 };
 
 

@@ -150,9 +150,10 @@ class NonsilenceOperator : public Operator<Backend> {
 
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws) {
-    this->GetPerSampleArgument(cutoff_db_, "cutoff_db", ws);
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+    this->GetPerSampleArgument(cutoff_db_, "cutoff_db", ws, curr_batch_size);
     if (spec.HasArgument("reference_power")) {
-      this->GetPerSampleArgument(reference_power_, "reference_power", ws);
+      this->GetPerSampleArgument(reference_power_, "reference_power", ws, curr_batch_size);
       for (const auto &val : reference_power_) {
         DALI_ENFORCE(val > 0, make_string("`reference_power` has to be positive. Got: ", val));
       }
@@ -209,9 +210,10 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
     const auto &input = ws.template InputRef<CPUBackend>(0);
     auto &output_begin = ws.OutputRef<CPUBackend>(0);
     auto &output_length = ws.OutputRef<CPUBackend>(1);
+    auto curr_batch_size = ws.GetInputBatchSize(0);
     auto &tp = ws.GetThreadPool();
     auto in_shape = input.shape();
-    for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
+    for (int sample_id = 0; sample_id < curr_batch_size; sample_id++) {
       tp.AddWork(
               [&, sample_id](int thread_id) {
                   detail::Args<InputType> args;

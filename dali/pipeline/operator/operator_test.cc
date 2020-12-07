@@ -22,7 +22,7 @@ namespace testing {
 OpSpec MakeOpSpec(const std::string& operator_name) {
   return OpSpec(operator_name)
     .AddArg("num_threads", 1)
-    .AddArg("batch_size", 32)
+    .AddArg("max_batch_size", 32)
     .AddArg("device", "cpu");
 }
 
@@ -57,7 +57,7 @@ class OperatorDiagnosticsTest : public ::testing::Test {
  protected:
   void SetUp() final {
     assign_value();
-    auto op_spec = OpSpec("CoinFlip").AddArg("num_threads", 1).AddArg("batch_size", 1);
+    auto op_spec = OpSpec("CoinFlip").AddArg("num_threads", 1).AddArg("max_batch_size", 1);
     operator_ = std::make_unique<OperatorBase>(op_spec);
   }
 

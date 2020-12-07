@@ -103,7 +103,7 @@ TEST(ResizeAttr, ResizeSeparate) {
       TensorShape<3>{ 768, 1024, 3 },
       TensorShape<3>{ 320, 240, 1 }
     }};
-    spec.AddArg("batch_size", shape.num_samples());
+    spec.AddArg("max_batch_size", shape.num_samples());
 
     ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "HWC");
@@ -118,7 +118,7 @@ TEST(ResizeAttr, ResizeSeparate) {
       TensorShape<3>{ 768, 1024, 3 },
       TensorShape<3>{ 320, 240, 1 }
     }};
-    spec.AddArg("batch_size", shape.num_samples());
+    spec.AddArg("max_batch_size", shape.num_samples());
 
     ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "HWC");
@@ -133,7 +133,7 @@ TEST(ResizeAttr, ResizeSeparate) {
       TensorShape<4>{ 3, 512, 768, 1024 },
       TensorShape<4>{ 1, 400, 320, 240 }
     }};
-    spec.AddArg("batch_size", shape.num_samples());
+    spec.AddArg("max_batch_size", shape.num_samples());
 
     ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "CDHW");
@@ -160,7 +160,7 @@ TEST(ResizeAttr, Resize3DSeparateArgs) {
     OpSpec spec("Resize");
     spec.AddArg("resize_x", 120.0f);
     spec.AddArg("resize_y", 130.0f);
-    spec.AddArg("batch_size", shape.num_samples());
+    spec.AddArg("max_batch_size", shape.num_samples());
     spec.AddArgumentInput("resize_z", "resize_z");
 
     ResizeAttr attr;
@@ -188,7 +188,7 @@ TEST(ResizeAttr, Resize3DSubpixelScale) {
   // Configure ResizeAttr with missing Y coordinate
   OpSpec spec("Resize");
   spec.AddArg("resize_x", 120.0f);
-  spec.AddArg("batch_size", shape.num_samples());
+  spec.AddArg("max_batch_size", shape.num_samples());
   spec.AddArgumentInput("resize_z", "resize_z");
 
   ResizeAttr attr;
@@ -246,7 +246,7 @@ TEST(ResizeAttr, Resize3DStretch) {
   // the mode is now "stretch", so the missing dimension (H) should be left unscaled.
   OpSpec spec("Resize");
   spec.AddArg("resize_x", 120.0f);
-  spec.AddArg("batch_size", shape.num_samples());
+  spec.AddArg("max_batch_size", shape.num_samples());
   spec.AddArg("mode", "stretch");
   spec.AddArgumentInput("resize_z", "resize_z");
 
@@ -278,7 +278,7 @@ TEST(ResizeAttr, Resize3DSizeArg) {
   }};
   OpSpec spec("Resize");
   spec.AddArgumentInput("size", "size");
-  spec.AddArg("batch_size", shape.num_samples());
+  spec.AddArg("max_batch_size", shape.num_samples());
   spec.AddArg("subpixel_scale", false);
 
   {
@@ -343,7 +343,7 @@ TEST(ResizeAttr, Resize3DNotLarger) {
       TensorShape<3>{ 1536, 768, 1024 },
       TensorShape<3>{ 32, 320, 240 }
     }};
-    spec.AddArg("batch_size", shape.num_samples());
+    spec.AddArg("max_batch_size", shape.num_samples());
 
     {
       ResizeAttr attr;
@@ -376,7 +376,7 @@ TEST(ResizeAttr, Resize3DNotSmaller) {
       TensorShape<3>{ 1536, 768, 1024 },
       TensorShape<3>{ 32, 320, 240 }
     }};
-    spec.AddArg("batch_size", shape.num_samples());
+    spec.AddArg("max_batch_size", shape.num_samples());
 
     {
       ResizeAttr attr;
@@ -431,7 +431,7 @@ TEST(ResizeAttr, ResizeShorter) {
       TensorShape<4>{ 20, 400, 800, 3 },
       TensorShape<4>{ 30, 500, 250, 3 }
     }};
-    spec.AddArg("batch_size", shape.num_samples());
+    spec.AddArg("max_batch_size", shape.num_samples());
 
     {
       ResizeAttr attr;
@@ -462,7 +462,7 @@ TEST(ResizeAttr, ResizeLonger) {
       TensorShape<4>{ 20, 3, 400, 800 },
       TensorShape<4>{ 30, 3, 500, 250 }
     }};
-    spec.AddArg("batch_size", shape.num_samples());
+    spec.AddArg("max_batch_size", shape.num_samples());
 
     {
       ResizeAttr attr;
@@ -497,7 +497,7 @@ TEST(ResizeAttr, RoI) {
       TensorShape<3>{ 3, 400, 800 },
       TensorShape<3>{ 3, 100, 250 }
     }};
-    spec.AddArg("batch_size", shape.num_samples());
+    spec.AddArg("max_batch_size", shape.num_samples());
 
     ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "CHW");
@@ -532,7 +532,7 @@ TEST(ResizeAttr, RoI) {
       TensorShape<3>{ 3, 400, 800 },
       TensorShape<3>{ 3, 100, 250 }
     }};
-    spec.AddArg("batch_size", shape.num_samples());
+    spec.AddArg("max_batch_size", shape.num_samples());
 
     ResizeAttr attr;
     attr.PrepareResizeParams(spec, ws, shape, "CHW");

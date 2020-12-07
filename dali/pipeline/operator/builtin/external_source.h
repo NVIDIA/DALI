@@ -377,13 +377,14 @@ class ExternalSource : public Operator<Backend> {
     bool is_gpu_src = std::is_same<SrcBackend, GPUBackend>::value;
     bool is_gpu_dst = std::is_same<Backend, GPUBackend>::value;
     if (is_gpu_src && !is_gpu_dst) {
-      DALI_WARN("Warning: Loading GPU-originated data into CPU "
-                "ExternalSource operator is discouraged and might be inefficient.");
+      DALI_WARN(
+          "Warning: Loading GPU-originated data into CPU ExternalSource operator is discouraged "
+          "and might be inefficient.");
     }
-    DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(batch.ntensor()),
-                 make_string("Data list provided to ExternalSource needs to have batch_size = ",
-                             OperatorBase::batch_size_, " length, found ", batch.ntensor(),
-                             " samples."));
+    DALI_ENFORCE(
+        OperatorBase::max_batch_size_ >= static_cast<int>(batch.ntensor()),
+        make_string("Data list provided to ExternalSource needs to have batch_size <= ",
+                    OperatorBase::max_batch_size_, ", found ", batch.ntensor(), " samples."));
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.

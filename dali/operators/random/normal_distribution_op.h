@@ -70,8 +70,10 @@ class NormalDistribution : public Operator<Backend> {
   }
 
   void AcquireArguments(const workspace_t<Backend> &ws) {
-    this->GetPerSampleArgument(mean_, detail::kMean, ws);
-    this->GetPerSampleArgument(stddev_, detail::kStddev, ws);
+    auto curr_batch_size =
+        ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
+    this->GetPerSampleArgument(mean_, detail::kMean, ws, curr_batch_size);
+    this->GetPerSampleArgument(stddev_, detail::kStddev, ws, curr_batch_size);
   }
 
 
@@ -91,8 +93,7 @@ class NormalDistribution : public Operator<Backend> {
     }
   }
 
-  using Operator<Backend>::spec_;
-  using Operator<Backend>::batch_size_;
+  USE_OPERATOR_MEMBERS();
   std::vector<float> mean_, stddev_;
   std::vector<int> shape_;
   const int64_t seed_;
@@ -115,12 +116,12 @@ class NormalDistribution : public Operator<Backend> {
 
 
   TensorListShape<> ShapesFromArgument(const workspace_t<Backend> &ws) {
-    return uniform_list_shape(batch_size_, shape_);
+    return uniform_list_shape(max_batch_size_, shape_);
   }
 
 
   TensorListShape<> ShapeForDefaultConfig(const workspace_t<Backend> &ws) {
-    return TensorListShape<0>(batch_size_);
+    return TensorListShape<0>(max_batch_size_);
   }
 
 
@@ -133,7 +134,7 @@ class NormalDistribution : public Operator<Backend> {
 class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
  public:
   explicit NormalDistributionCpu(const OpSpec &spec) : NormalDistribution(spec), rng_(seed_),
-                                                       batch_rng_(seed_, batch_size_) {}
+                                                       batch_rng_(seed_, max_batch_size_) {}
 
   ~NormalDistributionCpu() override = default;
 

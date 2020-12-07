@@ -80,17 +80,20 @@ class Constant : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    if (output_shape_.empty()) {
-      int batch_size = this->spec_.template GetArgument<int>("batch_size");
-      output_shape_ = uniform_list_shape(batch_size, shape_arg_);
+    auto curr_batch_size = ws.GetRequestedBatchSize(0);
+    DALI_ENFORCE(curr_batch_size == max_batch_size_,
+                 "This operator does not doesn't support batch smaller than maximum");
+    if (output_shape_.empty() || output_shape_.num_elements() != curr_batch_size) {
+      output_shape_ = uniform_list_shape(curr_batch_size, shape_arg_);
     }
-    output_desc[0] = { output_shape_, TypeTable::GetTypeInfo(output_type_) };
+    output_desc[0] = {output_shape_, TypeTable::GetTypeInfo(output_type_)};
     return false;
   }
 
   void RunImpl(Workspace &ws) override;
 
  private:
+  USE_OPERATOR_MEMBERS();
   std::vector<int> shape_arg_;
   std::vector<int> idata_;
   std::vector<float> fdata_;

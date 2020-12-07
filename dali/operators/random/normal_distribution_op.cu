@@ -74,7 +74,7 @@ std::pair<std::vector<int>, int> DistributeBlocksPerSample(
 
 NormalDistributionGpu::NormalDistributionGpu(const OpSpec &spec)
       : NormalDistribution(spec), randomizer_(seed_, block_size_ * max_blocks_) {
-  DALI_ENFORCE(batch_size_ <= max_blocks_,
+  DALI_ENFORCE(max_batch_size_ <= max_blocks_,
                "Batch size must be smaller than " + std::to_string(max_blocks_));
   block_descs_gpu_ = mem::alloc_unique<BlockDesc>(kernels::AllocType::GPU, max_blocks_);
   block_descs_cpu_ = mem::alloc_unique<BlockDesc>(kernels::AllocType::Pinned, max_blocks_);

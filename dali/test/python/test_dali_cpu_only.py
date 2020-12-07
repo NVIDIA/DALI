@@ -488,7 +488,7 @@ def test_ssd_random_crop_cpu():
     def get_boxes():
         out = [(np.random.randint(0, 255, size = test_box_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
         return out
-    test_lables_shape = [200, 1]
+    test_lables_shape = [200]
     def get_lables():
         out = [np.random.randint(0, 255, size = test_lables_shape, dtype = np.int32) for _ in range(batch_size)]
         return out

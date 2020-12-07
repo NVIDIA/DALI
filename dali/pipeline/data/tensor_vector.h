@@ -123,6 +123,15 @@ class DLL_PUBLIC TensorVector {
 
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape, const TypeInfo &new_type);
 
+  /**
+   * Change the number of tensors in the TensorVector, without the need of
+   * specifying the shape of every such tensor. When setting the new size,
+   * this function will retain the shapes that already exist. New tensors
+   * are given a shape of 0-volume and appropriate dimension.
+   * @param new_size
+   */
+  void SetSize(int new_size);
+
   void set_type(const TypeInfo &new_type);
 
   const TypeInfo &type() const;
