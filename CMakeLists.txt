@@ -245,6 +245,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch-bool")
     # CUDA flags are passed to .cc files and are ignored
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-command-line-argument")
+    # Ignore warnings coming from cutlass
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --system-header-prefix=cutlass/")
   endif()
 
   # CUDA does not support current Clang as host compiler, we need use gcc
