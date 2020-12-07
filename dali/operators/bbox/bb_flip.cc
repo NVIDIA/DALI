@@ -45,27 +45,17 @@ system, that is 0.0-1.0)code")
 
 BbFlip<CPUBackend>::BbFlip(const dali::OpSpec &spec)
     : Operator<CPUBackend>(spec),
-      ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
-  vflip_is_tensor_ = spec.HasTensorArgument(kVerticalArgName);
-  hflip_is_tensor_ = spec.HasTensorArgument(kHorizontalArgName);
-}
+      ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)),
+      horz_("horizontal", spec),
+      vert_("vertical", spec) {}
 
 void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
-
-  DALI_ENFORCE(
-      input.type().id() == DALI_FLOAT,
-      make_string("Bounding box in wrong format. Expected `float`; actual: ", input.type().name()));
-
   const auto input_data = input.data<float>();
+  DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
 
-  const auto vertical = vflip_is_tensor_
-                            ? spec_.GetArgument<int>(kVerticalArgName, &ws, ws.data_idx())
-                            : spec_.GetArgument<int>(kVerticalArgName);
-
-  const auto horizontal = hflip_is_tensor_
-                              ? spec_.GetArgument<int>(kHorizontalArgName, &ws, ws.data_idx())
-                              : spec_.GetArgument<int>(kHorizontalArgName);
+  bool vertical = vert_[ws.data_idx()].data[0];
+  bool horizontal = horz_[ws.data_idx()].data[0];
 
   auto &output = ws.Output<CPUBackend>(0);
   // XXX: Setting type of output (i.e. Buffer -> buffer.h)

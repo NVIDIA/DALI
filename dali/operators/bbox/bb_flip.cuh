@@ -24,16 +24,27 @@ namespace dali {
 template <>
 class BbFlip<GPUBackend> : public Operator<GPUBackend> {
  public:
-  explicit BbFlip(const OpSpec &spec) : Operator<GPUBackend>(spec) {}
+  explicit BbFlip(const OpSpec &spec)
+      : Operator<GPUBackend>(spec),
+        horz_("horizontal", spec),
+        vert_("vertical", spec) {}
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+    auto &input = ws.Input<GPUBackend>(0);
+    auto shape = input.shape();
+    auto nsamples = shape.size();
+    horz_.Acquire(spec_, ws, nsamples, true);
+    vert_.Acquire(spec_, ws, nsamples, true);
     return false;
   }
 
   void RunImpl(Workspace<GPUBackend> &ws) override;
+
  private:
-  ArgValue<int> horz_{"horizontal"};
-  ArgValue<int> vert_{"vertical"};
+  ArgValue<int> horz_;
+  Tensor<GPUBackend> horz_gpu_;
+  ArgValue<int> vert_;
+  Tensor<GPUBackend> vert_gpu_;
 
   // contains a map from box index to sample index - used
   // for accessing per-sample horz/vert arguments.

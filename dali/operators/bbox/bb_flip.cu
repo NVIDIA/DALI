@@ -73,6 +73,8 @@ __global__ void BbFlipKernel(float *output, const float *input, size_t num_boxes
 
 void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   auto &input = ws.Input<GPUBackend>(0);
+  auto shape = input.shape();
+  auto nsamples = shape.size();
   auto&output = ws.Output<GPUBackend>(0);
 
   DALI_ENFORCE(IsType<float>(input.type()), "Expected input data as float;"
@@ -81,8 +83,6 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
                "Input data size must be a multiple of 4 if it contains bounding boxes;"
                " got " + std::to_string(input.size()));
 
-  horz_.Update(spec_, ws);
-  vert_.Update(spec_, ws);
   bool ltrb = spec_.GetArgument<bool>("ltrb");
 
   auto stream = ws.stream();
@@ -93,13 +93,15 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   const int *per_sample_horz = nullptr;
   const int *per_sample_vert = nullptr;
 
-  if (horz_.IsInput() || vert_.IsInput()) {
+  bool global_horz = false;
+  bool global_vert = false;
+
+  if (horz_.IsArgInput() || vert_.IsArgInput()) {
     std::vector<int> indices;
     indices.reserve(num_boxes);
 
     // populate the index map
-    auto shape = input.shape();
-    for (int sample = 0; sample < shape.size(); sample++) {
+    for (int sample = 0; sample < nsamples; sample++) {
       auto dim = shape[sample].size();
 
       DALI_ENFORCE(dim < 2 || shape[sample][dim-1] == 4,
@@ -114,14 +116,27 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     }
     idx2sample_.Copy(indices, stream);
 
-    if (horz_.IsInput())
-      per_sample_horz = horz_.AsGPU(stream).data<int>();
+    std::vector<int> tmp(nsamples);
+    if (horz_.IsArgInput()) {
+      for (int sample = 0; sample < nsamples; sample++)
+        tmp[sample] = horz_[sample].data[0];
+      horz_gpu_.Copy(tmp, stream);
+      tmp.clear();
+      per_sample_horz = horz_gpu_.data<int>();
+    }
 
-    if (vert_.IsInput())
-      per_sample_vert = vert_.AsGPU(stream).data<int>();
-
+    if (vert_.IsArgInput()) {
+      for (int sample = 0; sample < nsamples; sample++)
+        tmp[sample] = vert_[sample].data[0];
+      vert_gpu_.Copy(tmp, stream);
+      tmp.clear();
+      per_sample_vert = vert_gpu_.data<int>();
+    }
     sample_idx = idx2sample_.data<int>();
   }
+
+  global_horz = horz_.IsConstant() && horz_[0].data[0];
+  global_vert = vert_.IsConstant() && vert_[0].data[0];
 
   output.ResizeLike(input);
 
@@ -135,14 +150,12 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   if (ltrb) {
     BbFlipKernel<true><<<grid, block, 0, stream>>>(
       output.mutable_data<float>(), input.data<float>(), num_boxes,
-      !per_sample_horz && horz_[0], per_sample_horz,
-      !per_sample_vert && vert_[0], per_sample_vert,
+      global_horz, per_sample_horz, global_vert, per_sample_vert,
       sample_idx);
   } else {
     BbFlipKernel<false><<<grid, block, 0, stream>>>(
       output.mutable_data<float>(), input.data<float>(), num_boxes,
-      !per_sample_horz && horz_[0], per_sample_horz,
-      !per_sample_vert && vert_[0], per_sample_vert,
+      global_horz, per_sample_horz, global_vert, per_sample_vert,
       sample_idx);
   }
 }

@@ -15,13 +15,17 @@
 #ifndef DALI_PIPELINE_UTIL_OPERATOR_IMPL_UTILS_H_
 #define DALI_PIPELINE_UTIL_OPERATOR_IMPL_UTILS_H_
 
+#include <string>
 #include <vector>
 #include "dali/core/common.h"
+#include "dali/core/tensor_view.h"
 #include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/workspace/workspace.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
+#include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
 

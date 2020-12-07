@@ -62,14 +62,14 @@ class TransformScaleCPU
     assert(matrices.size() == static_cast<int>(scale_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      auto scale = scale_[i];
+      auto scale = scale_[i].data;
       mat = affine_mat_t<T, mat_dim>::identity();
       for (int d = 0; d < ndim; d++) {
         mat(d, d) = scale[d];
       }
 
       if (center_.IsDefined()) {
-        auto center = center_[i];
+        auto center = center_[i].data;
         for (int d = 0; d < ndim; d++) {
           mat(d, ndim) = center[d] * (T(1) - scale[d]);
         }
@@ -78,16 +78,15 @@ class TransformScaleCPU
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    int repeat = IsConstantTransform() ? 0 : nsamples_;
     assert(scale_.IsDefined());
-    scale_.Read(spec, ws, repeat);
-    ndim_ = scale_[0].size();
+    scale_.Acquire(spec, ws, nsamples_, true);
+    ndim_ = scale_[0].num_elements();
 
     if (center_.IsDefined()) {
-      center_.Read(spec, ws, repeat);
-      DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].size()),
+      center_.Acquire(spec, ws, nsamples_, true);
+      DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].num_elements()),
         make_string("Unexpected number of dimensions for ``center`` argument. Got: ",
-                    center_[0].size(), " but ``scale`` argument suggested ", ndim_,
+                    center_[0].num_elements(), " but ``scale`` argument suggested ", ndim_,
                     " dimensions."));
     }
   }
@@ -97,8 +96,8 @@ class TransformScaleCPU
   }
 
  private:
-  Argument<std::vector<float>> scale_;
-  Argument<std::vector<float>> center_;
+  ArgValue<float, 1> scale_;
+  ArgValue<float, 1> center_;
 };
 
 DALI_REGISTER_OPERATOR(transforms__Scale, TransformScaleCPU, CPU);

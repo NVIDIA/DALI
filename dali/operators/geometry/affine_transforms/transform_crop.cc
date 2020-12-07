@@ -97,10 +97,10 @@ class TransformCropCPU
     assert(matrices.size() == static_cast<int>(to_end_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      vec<ndim> from_start = *reinterpret_cast<vec<ndim>*>(from_start_[i].data());
-      vec<ndim> from_end = *reinterpret_cast<vec<ndim>*>(from_end_[i].data());
-      vec<ndim> to_start = *reinterpret_cast<vec<ndim>*>(to_start_[i].data());
-      vec<ndim> to_end = *reinterpret_cast<vec<ndim>*>(to_end_[i].data());
+      vec<ndim> from_start = detail::as_vec<ndim>(from_start_[i]);
+      vec<ndim> from_end = detail::as_vec<ndim>(from_end_[i]);
+      vec<ndim> to_start = detail::as_vec<ndim>(to_start_[i]);
+      vec<ndim> to_end = detail::as_vec<ndim>(to_end_[i]);
       mat = affine_mat_t<T, mat_dim>::identity();
 
       if (absolute_) {
@@ -121,26 +121,19 @@ class TransformCropCPU
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    int repeat = IsConstantTransform() ? 0 : nsamples_;
-    from_start_.Read(spec, ws, repeat);
-    from_end_.Read(spec, ws, repeat);
-    to_start_.Read(spec, ws, repeat);
-    to_end_.Read(spec, ws, repeat);
-    auto sizes = std::array<size_t, 4>{from_start_[0].size(), from_end_[0].size(),
-                                       to_start_[0].size(), to_end_[0].size()};
+    from_start_.Acquire(spec, ws, nsamples_, true);
+    from_end_.Acquire(spec, ws, nsamples_, true);
+    to_start_.Acquire(spec, ws, nsamples_, true);
+    to_end_.Acquire(spec, ws, nsamples_, true);
+    auto sizes = std::array<ptrdiff_t, 4>{
+        from_start_[0].num_elements(), from_end_[0].num_elements(),
+        to_start_[0].num_elements(), to_end_[0].num_elements()};
     ndim_ = *std::max_element(sizes.begin(), sizes.end());
     DALI_ENFORCE(std::all_of(sizes.begin(), sizes.end(),
         [&](size_t sz){ return static_cast<int>(sz) == ndim_ || sz == 1; }),
       "Arguments ``from_start``, ``from_end``, ``to_start`` and ``to_end`` should"
       " have the same number of dimensions or be a single element which will be broadcast"
       " to all dimensions");
-    int nargs = from_start_.size();
-    for (int i = 0; i < nargs; i++) {
-      ExpandDims(from_start_[i]);
-      ExpandDims(from_end_[i]);
-      ExpandDims(to_start_[i]);
-      ExpandDims(to_end_[i]);
-    }
     absolute_ = spec.GetArgument<bool>("absolute");
   }
 
@@ -150,17 +143,10 @@ class TransformCropCPU
   }
 
  private:
-  void ExpandDims(std::vector<float>& sample) {
-    int sz = sample.size();
-    assert(sz == 1 || sz == ndim_);
-    if (sz == 1)
-      sample.resize(ndim_, sample[0]);
-  }
-
-  Argument<std::vector<float>> from_start_;
-  Argument<std::vector<float>> from_end_;
-  Argument<std::vector<float>> to_start_;
-  Argument<std::vector<float>> to_end_;
+  ArgValue<float, 1> from_start_;
+  ArgValue<float, 1> from_end_;
+  ArgValue<float, 1> to_start_;
+  ArgValue<float, 1> to_end_;
   bool absolute_ = false;
 };
 
