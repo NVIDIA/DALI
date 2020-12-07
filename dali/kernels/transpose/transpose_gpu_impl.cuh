@@ -148,10 +148,10 @@ __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
     in_ofs  += desc.in_strides[ndim-2]  * in_y  + desc.in_strides[ndim-1]  * in_x;
     out_ofs += desc.out_strides[ndim-2] * out_y + desc.out_strides[ndim-1] * out_x;
 
-    unsigned int tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-1] - pos[ndim-1]);
-    unsigned int tile_h = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-2] - pos[ndim-2]);
+    unsigned tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-1] - pos[ndim-1]);
+    unsigned tile_h = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-2] - pos[ndim-2]);
     if (threadIdx.x < tile_w) {
-      for (unsigned int ty = threadIdx.y, dy = 0; ty < tile_h; ty += blockDim.y, dy += blockDim.y) {
+      for (unsigned ty = threadIdx.y, dy = 0; ty < tile_h; ty += blockDim.y, dy += blockDim.y) {
         #pragma unroll 4
         for (int lane = 0; lane < lanes; lane++) {
           tmp[lane][ty][threadIdx.x] = __ldg(&in[in_ofs + desc.in_strides[ndim-2]*dy + lane]);
@@ -161,7 +161,7 @@ __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
     __syncthreads();
 
     if (threadIdx.x < tile_h) {
-      for (unsigned int ty = threadIdx.y, dy = 0; ty < tile_w; ty += blockDim.y, dy += blockDim.y) {
+      for (unsigned ty = threadIdx.y, dy = 0; ty < tile_w; ty += blockDim.y, dy += blockDim.y) {
         #pragma unroll 4
         for (int lane = 0; lane < lanes; lane++)
           out[out_ofs + desc.out_strides[ndim-1]*dy + lane] = tmp[lane][threadIdx.x][ty];
