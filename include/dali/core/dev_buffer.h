@@ -148,7 +148,7 @@ struct DeviceBuffer {
 
   static std::unique_ptr<T, std::function<void(T*)>> allocate(size_t count) {
     T *ptr = nullptr;
-    cudaMalloc(reinterpret_cast<void**>(&ptr), count * sizeof(T));
+    CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&ptr), count * sizeof(T)));
     if (!ptr)
       throw std::bad_alloc();
     return { ptr, [](T* ptr) { cudaFree(ptr); } };

@@ -61,7 +61,7 @@ class StreamPool {
       cudaStream_t new_stream;
       // Note: Why is device tracked? Is StreamPool intended to be used across devices?
       int dev;
-      cudaGetDevice(&dev);
+      CUDA_CALL(cudaGetDevice(&dev));
       int flags = non_blocking_ ? cudaStreamNonBlocking : cudaStreamDefault;
       CUDA_CALL(cudaStreamCreateWithPriority(&new_stream, flags, default_cuda_stream_priority_));
       streams_.push_back(new_stream);
