@@ -27,7 +27,7 @@ If another transform matrix is passed as an input, the operator applies rotation
 The number of dimensions is assumed to be 3 if a rotation axis is provided or 2 otherwise.
 
 .. note::
-    The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
+    The output of this operator can be fed directly to ``CoordTransform`` and ``WarpAffine`` operators.
 )code")
   .AddArg(
     "angle",

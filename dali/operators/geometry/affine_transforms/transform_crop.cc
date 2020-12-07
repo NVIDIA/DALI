@@ -26,7 +26,7 @@ be mapped to ``to_start`` and ``from_end`` will be mapped to ``to_end``.
 If another transform matrix is passed as an input, the operator applies the transformation to the matrix provided.
 
 .. note::
-    The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
+    The output of this operator can be fed directly to ``CoordTransform`` and ``WarpAffine`` operators.
 )code")
   .AddOptionalArg(
     "from_start",
