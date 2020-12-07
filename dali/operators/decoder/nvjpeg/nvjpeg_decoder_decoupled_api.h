@@ -73,23 +73,15 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                      spec.GetArgument<bool>("affine")) {
 #if NVJPEG_VER_MAJOR >= 11
     // if hw_decoder_load is not present in the schema (crop/sliceDecoder) then it is not supported
+    bool try_init_hw_decoder = false;
     if (spec_.GetSchema().HasArgument("hw_decoder_load")) {
       hw_decoder_load_ = spec.GetArgument<float>("hw_decoder_load");
+      try_init_hw_decoder = true;
     } else {
       hw_decoder_load_ = 0;
     }
-    hw_decoder_bs_ = static_cast<int>(std::round(hw_decoder_load_ * max_batch_size_));
 
-    constexpr int kNumHwDecoders = 5;
-    int tail = hw_decoder_bs_ % kNumHwDecoders;
-    if (tail > 0) {
-      hw_decoder_bs_ = hw_decoder_bs_ + kNumHwDecoders - tail;
-    }
-    if (hw_decoder_bs_ > max_batch_size_) {
-      hw_decoder_bs_ = max_batch_size_;
-    }
-
-    if (hw_decoder_bs_ > 0 &&
+    if (try_init_hw_decoder &&
         nvjpegCreate(NVJPEG_BACKEND_HARDWARE, NULL, &handle_) == NVJPEG_STATUS_SUCCESS) {
       LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
       NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
@@ -101,7 +93,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         NVJPEG_CALL(nvjpegDecodeBatchedPreAllocate(
           handle_,
           state_hw_batched_,
-          hw_decoder_bs_,
+          CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
           spec.GetArgument<int>("preallocate_width_hint"),
           spec.GetArgument<int>("preallocate_height_hint"),
           NVJPEG_CSS_444,
@@ -206,6 +198,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
 #endif  // NVJPEG2K_ENABLED
 
+    ReserveSampleContainers();
+
     RegisterTestCounters();
   }
 
@@ -264,6 +258,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+    hw_decoder_bs_ = CalcHwDecoderBatchSize(hw_decoder_load_, curr_batch_size);
     return false;
   }
 
@@ -460,20 +456,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ParseImagesInfo(MixedWorkspace &ws) {
-    // Parsing and preparing metadata
-    if (sample_data_.empty()) {
-      sample_data_.reserve(max_batch_size_);
-      for (int i = 0; i < max_batch_size_; i++) {
-        sample_data_.emplace_back(i, handle_, output_image_type_);
-      }
-      samples_cache_.reserve(max_batch_size_);
-      samples_host_.reserve(max_batch_size_);
-      samples_hw_batched_.reserve(max_batch_size_);
-      samples_single_.reserve(max_batch_size_);
-#if NVJPEG2K_ENABLED
-      samples_jpeg2k_.reserve(max_batch_size_);
-#endif  // NVJPEG2K_ENABLED
-    }
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+    output_shape_.resize(curr_batch_size);
     samples_cache_.clear();
     samples_host_.clear();
     samples_hw_batched_.clear();
@@ -482,9 +466,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     samples_jpeg2k_.clear();
 #endif  // NVJPEG2K_ENABLED
 
-    for (int i = 0; i < max_batch_size_; i++) {
+    for (int i = 0; i < curr_batch_size; i++) {
       const auto &in = ws.Input<CPUBackend>(0, i);
-      const auto* input_data = in.data<uint8_t>();
+      const auto *input_data = in.data<uint8_t>();
       const auto in_size = in.size();
 
       SampleData &data = sample_data_[i];
@@ -726,14 +710,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ProcessImages(MixedWorkspace &ws) {
-    auto& output = ws.Output<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
     TypeInfo type = TypeTable::GetTypeInfoFromStatic<uint8_t>();
     output.set_type(type);
+    assert(output_shape_.num_samples() ==
+           ws.GetInputBatchSize(0));  // If fails: Incorrect number of samples in shape
     output.Resize(output_shape_);
     output.SetLayout("HWC");
 
-    UpdateTestCounters(samples_hw_batched_.size(), samples_single_.size(),
-                       samples_host_.size(), samples_jpeg2k_.size());
+    UpdateTestCounters(samples_hw_batched_.size(), samples_single_.size(), samples_host_.size(),
+                       samples_jpeg2k_.size());
 
     // Reset the task priority. Subsequent tasks will use decreasing numbers to ensure the
     // expected order of execution.
@@ -897,7 +883,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     nsamples_nvjpeg2k_ += nsamples_nvjpeg2k;
   }
 
-
   /**
    * Registers counters, used only for unit-test reasons.
    */
@@ -907,6 +892,36 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     RegisterDiagnostic("nsamples_host", &nsamples_host_);
     RegisterDiagnostic("nsamples_nvjpeg2k", &nsamples_nvjpeg2k_);
     RegisterDiagnostic("using_hw_decoder", &using_hw_decoder_);
+  }
+
+  int CalcHwDecoderBatchSize(float hw_decoder_load, int curr_batch_size) {
+    if (hw_decoder_load == 0.f) return 0;
+    auto hw_batch_size = static_cast<int>(std::round(hw_decoder_load * curr_batch_size));
+
+    constexpr int kNumHwDecoders = 5;
+    int tail = hw_batch_size % kNumHwDecoders;
+    if (tail > 0) {
+      hw_batch_size = hw_batch_size + kNumHwDecoders - tail;
+    }
+    if (hw_batch_size > curr_batch_size) {
+      hw_batch_size = curr_batch_size;
+    }
+
+    return hw_batch_size;
+  }
+
+  void ReserveSampleContainers() {
+    sample_data_.reserve(max_batch_size_);
+    for (int i = 0; i < max_batch_size_; i++) {
+      sample_data_.emplace_back(i, handle_, output_image_type_);
+    }
+    samples_cache_.reserve(max_batch_size_);
+    samples_host_.reserve(max_batch_size_);
+    samples_hw_batched_.reserve(max_batch_size_);
+    samples_single_.reserve(max_batch_size_);
+#if NVJPEG2K_ENABLED
+    samples_jpeg2k_.reserve(max_batch_size_);
+#endif  // NVJPEG2K_ENABLED
   }
 
   // HW/CUDA Utilization test counters

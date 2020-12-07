@@ -21,6 +21,7 @@
 #include <memory>
 #include <random>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -428,7 +429,7 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC int num_outputs() const;
 
   /**
-   * @brief Returns a string describing the type device type backing the output specified by given id.
+   * @brief Returns a string describing the device type backing the output specified by given id.
    */
   DLL_PUBLIC const std::string &output_device(int id) const;
 

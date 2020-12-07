@@ -218,9 +218,12 @@ class DLL_PUBLIC OperatorBase {
     dali::GetPerSampleArgument(output, argument_name, spec_, ws, batch_size);
   }
 
-  // TODO(mszolucha): remove to allow i2i variable batch size, when all ops are ready
+  // TODO(mszolucha): remove these two to allow i2i variable batch size, when all ops are ready
   template <typename Backend>
-  DLL_PUBLIC void EnforceConstantBatchSize(const workspace_t<Backend> &ws) const;
+  DLL_PUBLIC void EnforceUniformInputBatchSize(const workspace_t<Backend> &ws) const;
+
+  template <typename Backend>
+  DLL_PUBLIC void EnforceUniformOutputBatchSize(const workspace_t<Backend> &ws) const;
 
   const OpSpec spec_;
   int num_threads_;
@@ -284,7 +287,7 @@ class Operator<CPUBackend> : public OperatorBase {
   using OperatorBase::Run;
 
   bool Setup(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
-    EnforceConstantBatchSize<CPUBackend>(ws);
+    EnforceUniformInputBatchSize<CPUBackend>(ws);
     return SetupImpl(output_desc, ws);
   }
 
@@ -293,6 +296,7 @@ class Operator<CPUBackend> : public OperatorBase {
     SetupSharedSampleParams(ws);
     RunImpl(ws);
     ws.GetThreadPool().WaitForWork();
+    EnforceUniformOutputBatchSize<CPUBackend>(ws);
   }
 
   /**
@@ -364,7 +368,7 @@ class Operator<GPUBackend> : public OperatorBase {
   using OperatorBase::Run;
 
   bool Setup(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
-    EnforceConstantBatchSize<GPUBackend>(ws);
+    EnforceUniformInputBatchSize<GPUBackend>(ws);
     return SetupImpl(output_desc, ws);
   }
 
@@ -372,6 +376,7 @@ class Operator<GPUBackend> : public OperatorBase {
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
     RunImpl(ws);
+    EnforceUniformOutputBatchSize<GPUBackend>(ws);
   }
 
   /**
@@ -406,7 +411,7 @@ class Operator<MixedBackend> : public OperatorBase {
   using OperatorBase::Run;
 
   bool Setup(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
-    EnforceConstantBatchSize<MixedBackend>(ws);
+    EnforceUniformInputBatchSize<MixedBackend>(ws);
     return SetupImpl(output_desc, ws);
   }
 

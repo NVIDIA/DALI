@@ -1434,6 +1434,27 @@ auto permute_dims(const TensorListShape<in_ndim> &in, const Permutation &axis_or
   return out;
 }
 
+/**
+ * Returns new shape, where samples are subset of samples in given TensorListShape.
+ *
+ * @param begin Start index, included in the output
+ * @param end End index, excluded from the output
+ */
+template <int ndims>
+TensorListShape<ndims> subshape(const TensorListShape<ndims> &in, int begin, int end,
+                                int step = 1) {
+  assert(step >= 1);
+  assert(end > begin);
+  assert(begin >= 0);
+  auto div_ceil = [](int x, int y) { return 1 + ((x - 1) / y); };
+  int nsamples = div_ceil(end - begin, step);
+  TensorListShape<ndims> ret(nsamples, in.sample_dim());
+  for (int i = begin, j = 0; j < nsamples; i += step, j++) {
+    ret.set_tensor_shape(j, in.tensor_shape(i));
+  }
+  return ret;
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_TENSOR_SHAPE_H_
