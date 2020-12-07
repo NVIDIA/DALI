@@ -21,6 +21,18 @@ def _arithm_op(*args, **kwargs):
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)
     return nvidia.dali.ops._arithm_op(*args, **kwargs)
 
+def exp(value):
+    """Fills the output with exponential of value.
+    :rtype: TensorList of exp(value). If value is an integer, the result will be float, otherwise the type is preserved.
+    """
+    return _arithm_op("exp", value)
+
+def log(value):
+    """Fills the output with logarithm (base-10) of value.
+    :rtype: TensorList of log(value). If value is an integer, the result will be float, otherwise the type is preserved.
+    """
+    return _arithm_op("log", value)
+
 def min(left, right):
     """Fills the output with minima of corresponding values in ``left`` and ``right``.
 

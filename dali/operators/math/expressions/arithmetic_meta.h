@@ -44,6 +44,8 @@ enum class ArithmeticOp : int {
   // Unary arithmetic ops
   plus,
   minus,
+  exp,
+  log,
   // Binary arithmetic ops
   add,
   sub,
@@ -71,6 +73,8 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
   switch (op) {
     case ArithmeticOp::plus:
     case ArithmeticOp::minus:
+    case ArithmeticOp::exp:
+    case ArithmeticOp::log:
       return 1;
     case ArithmeticOp::add:
     case ArithmeticOp::sub:
@@ -101,6 +105,8 @@ DALI_HOST_DEV constexpr bool IsArithmetic(ArithmeticOp op) {
   switch (op) {
     case ArithmeticOp::plus:
     case ArithmeticOp::minus:
+    case ArithmeticOp::exp:
+    case ArithmeticOp::log:
     case ArithmeticOp::add:
     case ArithmeticOp::sub:
     case ArithmeticOp::mul:
@@ -347,6 +353,44 @@ struct arithm_meta;
 
 REGISTER_UNARY_IMPL(ArithmeticOp::plus, +);
 REGISTER_UNARY_IMPL(ArithmeticOp::minus, -);
+
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::exp, Backend> {
+template <typename T>
+    using result_t = std::conditional_t<!is_fp_or_half<T>::value, float, T>;
+
+    template <typename T>
+    DALI_HOST_DEV static constexpr result_t<T> impl(T v) {
+      auto v_ = static_cast<result_t<T>>(v);
+      return exp(v);
+    }
+
+    static inline std::string to_string() {
+      return "exp";
+    }
+
+    static constexpr int num_inputs = 1;
+    static constexpr int num_outputs = 1;
+};
+
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::log, Backend> {
+template <typename T>
+    using result_t = std::conditional_t<!is_fp_or_half<T>::value, float, T>;
+
+    template <typename T>
+    DALI_HOST_DEV static constexpr result_t<T> impl(T v) {
+      auto v_ = static_cast<result_t<T>>(v);
+      return log(v);
+    }
+
+    static inline std::string to_string() {
+      return "log";
+    }
+
+    static constexpr int num_inputs = 1;
+    static constexpr int num_outputs = 1;
+};
 
 #define REGISTER_BINARY_IMPL_BACKEND(OP, EXPRESSION, BACKEND)                       \
   template <>                                                                       \
@@ -737,6 +781,8 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
   static std::map<std::string, ArithmeticOp> token_to_op = {
       {"plus",   ArithmeticOp::plus},
       {"minus",  ArithmeticOp::minus},
+      {"exp",    ArithmeticOp::exp},
+      {"log",    ArithmeticOp::log},
       {"add",    ArithmeticOp::add},
       {"sub",    ArithmeticOp::sub},
       {"mul",    ArithmeticOp::mul},
