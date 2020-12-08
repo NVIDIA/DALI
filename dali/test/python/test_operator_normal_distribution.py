@@ -78,3 +78,4 @@ def test_normal_distribution_single_value():
                 for mean, stddev in [(0.0, 1.0), (111.0, 57.0)]:
                     yield check_normal_distribution, device, dtype, shape, use_shape_like_in, mean, stddev
 
+check_normal_distribution('cpu', types.FLOAT, (20, 20), False)

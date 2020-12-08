@@ -84,10 +84,10 @@ class Pad : public Operator<Backend> {
     }
 
     if (spec.ArgumentDefined("shape")) {
-      GetShapeArgument(shape_, spec, "shape", ws, -1, curr_batch_size);
+      GetShapeArgument(shape_, spec, "shape", ws, curr_batch_size);
     }
     if (spec.ArgumentDefined("align")) {
-      GetShapeArgument(align_, spec, "align", ws, -1, curr_batch_size);
+      GetShapeArgument(align_, spec, "align", ws, curr_batch_size);
     }
 
     if (shape_.empty())

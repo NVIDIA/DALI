@@ -25,7 +25,7 @@ class NormalDistributionGPU : public NormalDistribution<GPUBackend, NormalDistri
  public:
   template <typename T>
   struct Dist {
-    using FloatType = 
+    using FloatType =
       typename std::conditional<
           ((std::is_integral<T>::value && sizeof(T) > 3) || sizeof(T) > 4),
           double, float>::type;
@@ -35,18 +35,18 @@ class NormalDistributionGPU : public NormalDistribution<GPUBackend, NormalDistri
 
   explicit NormalDistributionGPU(const OpSpec &spec)
       : NormalDistribution<GPUBackend, NormalDistributionGPU>(spec) {
-    assert(batch_size_ < backend_specific_.max_blocks_);
+    assert(max_batch_size_ < backend_specific_.max_blocks_);
     dists_gpu_ = kernels::memory::alloc_unique<uint8_t>(
-        kernels::AllocType::GPU, kDistMaxSize * batch_size_);
+        kernels::AllocType::GPU, kDistMaxSize * max_batch_size_);
     dists_cpu_ = kernels::memory::alloc_unique<uint8_t>(
-        kernels::AllocType::Pinned, kDistMaxSize * batch_size_);
+        kernels::AllocType::Pinned, kDistMaxSize * max_batch_size_);
   }
 
   ~NormalDistributionGPU() override = default;
 
   template <typename Dist>
   Dist* SetupDists(int nsamples, cudaStream_t stream) {
-    assert(sizeof(Dist) * nsamples <= kDistMaxSize * batch_size_);
+    assert(sizeof(Dist) * nsamples <= kDistMaxSize * max_batch_size_);
     auto *dists_cpu = reinterpret_cast<Dist*>(dists_cpu_.get());
     auto *dists_gpu = reinterpret_cast<Dist*>(dists_gpu_.get());
     for (int s = 0; s < nsamples; s++) {

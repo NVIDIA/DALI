@@ -19,7 +19,7 @@ namespace dali {
 namespace detail {
 
 __global__
-void init_states(const size_t N, unsigned long long int seed, curandState *states) {
+void init_states(const size_t N, uint64_t seed, curandState *states) {
   for (size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
        idx < N;
        idx += blockDim.x * gridDim.x) {
@@ -29,7 +29,7 @@ void init_states(const size_t N, unsigned long long int seed, curandState *state
 
 }  // namespace detail
 
-curand_states::curand_states(unsigned long long seed, size_t len) : len_(len) {
+curand_states::curand_states(uint64_t seed, size_t len) : len_(len) {
   cudaGetDevice(&device_);
   states_mem_ = kernels::memory::alloc_unique<curandState>(kernels::AllocType::GPU, len);
   states_ = states_mem_.get();

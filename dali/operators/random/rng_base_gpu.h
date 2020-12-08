@@ -32,10 +32,9 @@ struct BlockDesc {
   size_t size;
 };
 
-namespace {
-
+template <int ndim>
 std::pair<std::vector<int>, int> DistributeBlocksPerSample(
-    const TensorListShape<> &shape, int block_size, int max_blocks) {
+    const TensorListShape<ndim> &shape, int block_size, int max_blocks) {
   std::vector<int> sizes(shape.size());
   int sum = 0;
   for (int i = 0; i < shape.size(); ++i) {
@@ -98,8 +97,6 @@ int64_t SetupBlockDescsSingleValue(BlockDesc* blocks, int64_t max_nblocks,
   }
   return nsamples;
 }
-
-}  // namespace
 
 }  // namespace dali
 

@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_OPERATORS_RANDOM_NORMAL_DISTRIBUTION_H_
+#define DALI_OPERATORS_RANDOM_NORMAL_DISTRIBUTION_H_
+
 #include "dali/operators/random/rng_base.h"
 #include "dali/pipeline/operator/arg_helper.h"
 
@@ -54,3 +57,5 @@ class NormalDistribution : public RNGBase<Backend, Impl> {
 
 
 }  // namespace dali
+
+#endif  // DALI_OPERATORS_RANDOM_NORMAL_DISTRIBUTION_H_

@@ -31,8 +31,10 @@ struct RNGBaseFields<GPUBackend> {
   RNGBaseFields<GPUBackend>(int64_t seed, int max_batch_size)
       : max_blocks_(std::max(max_batch_size, 1024)),
         randomizer_(seed, block_size_ * max_blocks_) {
-    block_descs_gpu_ = kernels::memory::alloc_unique<BlockDesc>(kernels::AllocType::GPU, max_blocks_);
-    block_descs_cpu_ = kernels::memory::alloc_unique<BlockDesc>(kernels::AllocType::Pinned, max_blocks_);
+    block_descs_gpu_ =
+        kernels::memory::alloc_unique<BlockDesc>(kernels::AllocType::GPU, max_blocks_);
+    block_descs_cpu_ =
+        kernels::memory::alloc_unique<BlockDesc>(kernels::AllocType::Pinned, max_blocks_);
   }
   static constexpr int block_size_ = 256;
   const int max_blocks_;
@@ -96,7 +98,7 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   using Dist = typename Impl::template Dist<T>::type;
   Dist* dists = This().template SetupDists<Dist>(nsamples, ws.stream());
 
-  constexpr bool use_default = !Impl::template Dist<T>::has_state; 
+  constexpr bool use_default = !Impl::template Dist<T>::has_state;
   if (single_value_) {
     RNGKernelSingleValue<T, Dist, use_default>
       <<<nblocks, block_sz, 0, ws.stream()>>>(blocks_gpu, rngs, dists, nsamples);

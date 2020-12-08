@@ -39,7 +39,7 @@ class NormalDistributionCPU : public NormalDistribution<CPUBackend, NormalDistri
  public:
   template <typename T>
   struct Dist {
-    using FloatType = 
+    using FloatType =
       typename std::conditional<
           ((std::is_integral<T>::value && sizeof(T) > 3) || sizeof(T) > 4),
           double, float>::type;
@@ -48,7 +48,7 @@ class NormalDistributionCPU : public NormalDistribution<CPUBackend, NormalDistri
 
   explicit NormalDistributionCPU(const OpSpec &spec)
       : NormalDistribution<CPUBackend, NormalDistributionCPU>(spec) {
-    dist_data_.resize(batch_size_ * kDistMaxSize);
+    dist_data_.resize(max_batch_size_ * kDistMaxSize);
   }
   ~NormalDistributionCPU() override = default;
 
@@ -63,7 +63,7 @@ class NormalDistributionCPU : public NormalDistribution<CPUBackend, NormalDistri
   }
 
  private:
-  using Operator<CPUBackend>::batch_size_;
+  using Operator<CPUBackend>::max_batch_size_;
   using NormalDistribution<CPUBackend, NormalDistributionCPU>::mean_;
   using NormalDistribution<CPUBackend, NormalDistributionCPU>::stddev_;
   std::vector<uint8_t> dist_data_;
@@ -93,6 +93,6 @@ generated.
     .Deprecate("random.NormalDistribution");  // Deprecated in 0.30
 
 
-DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCPU, CPU);  
+DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCPU, CPU);
 
 }  // namespace dali

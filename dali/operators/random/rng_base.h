@@ -36,8 +36,8 @@ class RNGBase : public Operator<Backend> {
  protected:
   explicit RNGBase(const OpSpec &spec)
       : Operator<Backend>(spec),
-        rng_(spec.GetArgument<int64_t>("seed"), batch_size_),
-        backend_specific_(spec.GetArgument<int64_t>("seed"), batch_size_) {
+        rng_(spec.GetArgument<int64_t>("seed"), max_batch_size_),
+        backend_specific_(spec.GetArgument<int64_t>("seed"), max_batch_size_) {
   }
 
   Impl &This() noexcept { return static_cast<Impl&>(*this); }
@@ -60,20 +60,22 @@ class RNGBase : public Operator<Backend> {
     if (has_shape_like) {
       if (ws.template InputIsType<Backend>(0)) {
         shape_ = ws.template InputRef<Backend>(0).shape();
-      } else if (std::is_same<GPUBackend, Backend>::value && ws.template InputIsType<CPUBackend>(0)) {
+      } else if (std::is_same<GPUBackend, Backend>::value &&
+                 ws.template InputIsType<CPUBackend>(0)) {
         shape_ = ws.template InputRef<CPUBackend>(0).shape();
       } else {
-        DALI_FAIL("Shape-like input can be either CPUBackend or GPUBackend for case of GPU operators.");
+        DALI_FAIL(
+            "Shape-like input can be either CPUBackend or GPUBackend for case of GPU operators.");
       }
     } else if (has_shape) {
-      GetShapeArgument(shape_, spec_, "shape", ws);
+      GetShapeArgument(shape_, spec_, "shape", ws, max_batch_size_);
     } else {
-      shape_ = uniform_list_shape(spec_.template GetArgument<DALIDataType>("batch_size"), {1});
+      shape_ = uniform_list_shape(spec_.template GetArgument<DALIDataType>("max_batch_size"), {1});
     }
-    batch_size_ = shape_.size();
-    single_value_ = shape_.num_elements() == batch_size_;
+    max_batch_size_ = shape_.size();
+    single_value_ = shape_.num_elements() == max_batch_size_;
 
-    This().AcquireArgs(spec_, ws, batch_size_);
+    This().AcquireArgs(spec_, ws, max_batch_size_);
 
     output_desc.resize(1);
     output_desc[0].shape = shape_;
@@ -88,7 +90,7 @@ class RNGBase : public Operator<Backend> {
   void RunImplTyped(workspace_t<CPUBackend> &ws);
 
   using Operator<Backend>::spec_;
-  using Operator<Backend>::batch_size_;
+  using Operator<Backend>::max_batch_size_;
 
   DALIDataType dtype_;
   BatchRNG<std::mt19937_64> rng_;

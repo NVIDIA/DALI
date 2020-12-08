@@ -77,7 +77,6 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<CPUBackend> &ws) {
     }
     tp.RunAll();
   }
-
 }
 
 }  // namespace dali
