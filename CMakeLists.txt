@@ -233,10 +233,20 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 
   # TODO(klecki): Plethora of warnings that should be adressed as a followup
   if (DALI_CLANG_ONLY)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch-bool -Wno-sign-compare -Wno-missing-braces -Wno-absolute-value")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-format -Wno-inconsistent-missing-override -Wno-implicit-int-float-conversion")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-mismatched-tags -Wno-reorder-ctor -Wno-unused-command-line-argument")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-defaulted-function-deleted -Wno-switch -Wno-cuda-compat -Wno-unused-private-field")
+    # std::abs have no effect on unsigned value in a templated call
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-absolute-value")
+    # convert.h when the bigger values are not representable
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-implicit-int-float-conversion")
+    # Some aggregate constructors with inner object suggest double braces
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-braces")
+    # Reductions do not cover all enum values
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch")
+    # TYPE_SWITCH over bool exists in the wild
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch-bool")
+    # CUDA flags are passed to .cc files and are ignored
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-command-line-argument")
+    # Ignore warnings coming from cutlass
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --system-header-prefix=cutlass/")
   endif()
 
   # CUDA does not support current Clang as host compiler, we need use gcc

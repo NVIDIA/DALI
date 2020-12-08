@@ -94,7 +94,7 @@ __device__ float4 MatchOffsets(
 }
 
 __device__ void WriteMatchesToOutput(
-  int anchors_count, float criteria, int *labels_out, const int *labels_in,
+  unsigned int anchors_count, float criteria, int *labels_out, const int *labels_in,
   float4 *boxes_out, const float4 *boxes_in,
   volatile int *best_box_idx, volatile float *best_box_iou, bool offset,
   const float* means, const float* stds, float scale, const float4 *anchors_as_cwh) {
