@@ -28,8 +28,6 @@
 
 namespace dali {
 
-namespace detail {
-
 template <int N>
 vec<N> as_vec(TensorView<StorageCPU, const float, 1> view) {
   if (view.num_elements() == 1) {
@@ -58,7 +56,8 @@ mat<N, M> as_mat(TensorView<StorageCPU, const float, DynamicDimensions> view) {
 template <int ndim>
 struct ArgShapeFromSize {
   TensorShape<ndim> operator()(int64_t size) const {
-    throw std::logic_error("Cannot infer an ", ndim, "D shape from a flat size.");
+    throw std::logic_error(make_string("Cannot infer an ", ndim, "D shape from a flat size."));
+    return {};
   }
 };
 
@@ -76,8 +75,6 @@ struct ArgShapeFromSize<1> {
     return { size };
   }
 };
-
-}  // namespace detail
 
 
 template <typename T, int ndim = 0>
@@ -113,15 +110,13 @@ class ArgValue {
         make_string("Expected uniform shape for argument \"", arg_name_,
                     "\" but got shape ", view_.shape));
     } else if (has_arg_const_) {
-      TensorShape<ndim> shape{};
       if (ndim == 0) {
         data_ = {spec.GetArgument<T>(arg_name_)};
       } else {
-        assert(ndim <= 1);
         data_ = spec.GetRepeatedArgument<T>(arg_name_);
         int64_t len = data_.size();
         int64_t expected_len = volume(expected_shape);
-        if (len == 1 && expected_shape > 1) {
+        if (len == 1 && expected_len > 1) {
           data_.resize(expected_len, data_[0]);
         } else {
           DALI_ENFORCE(len == volume(expected_shape),
@@ -130,11 +125,11 @@ class ArgValue {
                                    " values, which can't be interpreted as the expected shape."));
         }
       }
-      view_ = constant_view(nsamples, data_.data(), shape);
+      view_ = constant_view(nsamples, data_.data(), expected_shape);
     }
   }
 
-  template <typename ShapeFromSizeFn = detail::ArgShapeFromSize<ndim>>
+  template <typename ShapeFromSizeFn = ArgShapeFromSize<ndim>>
   void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
                bool enforce_uniform = false, ShapeFromSizeFn &&shape_from_size = {}) {
     if (has_arg_input_) {

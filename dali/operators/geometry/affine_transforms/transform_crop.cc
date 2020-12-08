@@ -97,10 +97,10 @@ class TransformCropCPU
     assert(matrices.size() == static_cast<int>(to_end_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      vec<ndim> from_start = detail::as_vec<ndim>(from_start_[i]);
-      vec<ndim> from_end = detail::as_vec<ndim>(from_end_[i]);
-      vec<ndim> to_start = detail::as_vec<ndim>(to_start_[i]);
-      vec<ndim> to_end = detail::as_vec<ndim>(to_end_[i]);
+      vec<ndim> from_start = as_vec<ndim>(from_start_[i]);
+      vec<ndim> from_end = as_vec<ndim>(from_end_[i]);
+      vec<ndim> to_start = as_vec<ndim>(to_start_[i]);
+      vec<ndim> to_end = as_vec<ndim>(to_end_[i]);
       mat = affine_mat_t<T, mat_dim>::identity();
 
       if (absolute_) {

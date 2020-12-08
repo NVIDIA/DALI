@@ -73,7 +73,7 @@ class TransformTranslationCPU
     assert(matrices.size() == static_cast<int>(offset_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      auto offset = detail::as_vec<ndim>(offset_[i]);
+      auto offset = as_vec<ndim>(offset_[i]);
       mat = affine_mat_t<T, mat_dim>::identity();
       for (int d = 0; d < ndim; d++) {
         mat(d, ndim) = offset[d];

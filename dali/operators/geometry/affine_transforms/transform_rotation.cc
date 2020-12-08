@@ -80,7 +80,7 @@ class TransformRotationCPU
       mat = rotation2D(deg2rad(angle));
 
       if (center_.IsDefined()) {
-        const vec2 &center = detail::as_vec<2>(center_[i]);
+        const vec2 &center = as_vec<2>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
@@ -97,11 +97,11 @@ class TransformRotationCPU
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       auto angle = angle_[i].data[0];
-      const vec3 &axis = detail::as_vec<3>(axis_[i]);
+      const vec3 &axis = as_vec<3>(axis_[i]);
       mat = rotation3D(axis, deg2rad(angle));
 
       if (center_.IsDefined()) {
-        const vec3 &center = detail::as_vec<3>(center_[i]);
+        const vec3 &center = as_vec<3>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }

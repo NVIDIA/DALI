@@ -100,11 +100,11 @@ class TransformShearCPU
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       if (shear_.IsDefined()) {
-        vec2 shear_factors = detail::as_vec<2>(shear_[i]);
+        vec2 shear_factors = as_vec<2>(shear_[i]);
         mat = shear(shear_factors);
       } else {
         assert(angles_.IsDefined());
-        auto angles = detail::as_vec<2>(angles_[i]);
+        auto angles = as_vec<2>(angles_[i]);
         vec2 shear_factors;
         shear_factors[0] = std::tan(deg2rad(angles[0]));
         shear_factors[1] = std::tan(deg2rad(angles[1]));
@@ -112,7 +112,7 @@ class TransformShearCPU
       }
 
       if (center_.IsDefined()) {
-        vec2 center = detail::as_vec<2>(center_[i]);
+        vec2 center = as_vec<2>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
@@ -128,7 +128,7 @@ class TransformShearCPU
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       if (shear_.IsDefined()) {
-        const mat3x2 &shear_factors = detail::as_mat<3, 2>(shear_[i]);
+        const mat3x2 &shear_factors = as_mat<3, 2>(shear_[i]);
         mat = shear(shear_factors);
       } else {
         assert(angles_.IsDefined());
@@ -138,7 +138,7 @@ class TransformShearCPU
         mat = shear(*reinterpret_cast<mat3x2*>(&shear_factors));
       }
       if (center_.IsDefined()) {
-        const vec3 &center = detail::as_vec<3>(center_[i]);
+        const vec3 &center = as_vec<3>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
