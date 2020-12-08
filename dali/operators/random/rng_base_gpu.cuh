@@ -74,7 +74,7 @@ __global__ void RNGKernelSingleValue(BlockDesc *descs, curandState* states, Dist
 }  // namespace
 
 template <typename Backend, typename Impl>
-template <typename T>
+template <typename T, typename Dist>
 void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   static_assert(std::is_same<Backend, GPUBackend>::value);
   auto out_view = view<T>(ws.template OutputRef<GPUBackend>(0));
@@ -95,7 +95,6 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   cudaMemcpyAsync(blocks_gpu, blocks_cpu,
                   sizeof(BlockDesc) * nblocks, cudaMemcpyHostToDevice, ws.stream());
 
-  using Dist = typename Impl::template Dist<T>::type;
   Dist* dists = This().template SetupDists<Dist>(nsamples, ws.stream());
 
   constexpr bool use_default = !Impl::template Dist<T>::has_state;

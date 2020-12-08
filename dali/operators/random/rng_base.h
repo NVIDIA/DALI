@@ -83,10 +83,10 @@ class RNGBase : public Operator<Backend> {
     return true;
   }
 
-  template <typename T>
+  template <typename T, typename Dist>
   void RunImplTyped(workspace_t<GPUBackend> &ws);
 
-  template <typename T>
+  template <typename T, typename Dist>
   void RunImplTyped(workspace_t<CPUBackend> &ws);
 
   using Operator<Backend>::spec_;

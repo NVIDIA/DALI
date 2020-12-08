@@ -31,7 +31,7 @@ struct RNGBaseFields<CPUBackend> {
 };
 
 template <typename Backend, typename Impl>
-template <typename T>
+template <typename T, typename Dist>
 void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<CPUBackend> &ws) {
   // Should never be called for Backend != CPUBackend
   static_assert(std::is_same<Backend, CPUBackend>::value);
@@ -44,7 +44,6 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<CPUBackend> &ws) {
   constexpr size_t kNumChunkSeeds = 16;
   int nsamples = output.shape().size();
 
-  using Dist = typename Impl::template Dist<T>::type;
   Dist* dists = This().template SetupDists<Dist>(nsamples);
   for (int sample_id = 0; sample_id < nsamples; ++sample_id) {
     auto sample_sz = out_shape.tensor_size(sample_id);

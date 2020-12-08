@@ -44,7 +44,8 @@ class NormalDistribution : public RNGBase<Backend, Impl> {
 
   void RunImpl(workspace_t<Backend> &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, DALI_NORMDIST_TYPES, (
-      this->template RunImplTyped<T>(ws);
+      using Dist = typename Impl::template Dist<T>::type;
+      this->template RunImplTyped<T, Dist>(ws);
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
   }
 
