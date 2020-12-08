@@ -11,6 +11,7 @@ Image Processing
    hsv_example.ipynb
    interp_types.ipynb
    resize.ipynb
+   geometric_transforms.ipynb
    warp.ipynb
    3d_transforms.ipynb
 
