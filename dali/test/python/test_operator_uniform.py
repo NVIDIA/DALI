@@ -89,4 +89,3 @@ def test_uniform_discrete():
         assert val in test_set, \
             "Value returned from the op is outside of requested discrete set"
 
-
