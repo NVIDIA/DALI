@@ -41,7 +41,7 @@ BENCHMARK_DEFINE_F(OperatorBench, WarpAffineCPU)(benchmark::State& st) {
   this->RunCPU<uint8_t>(
     st,
     OpSpec("WarpAffine")
-      .AddArg("batch_size", batch_size)
+      .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", 4)
       .AddArg("device", "cpu")
       .AddArg("matrix", mtx)
@@ -78,7 +78,7 @@ BENCHMARK_DEFINE_F(OperatorBench, WarpAffineGPU)(benchmark::State& st) {
   this->RunGPU<uint8_t>(
     st,
     OpSpec("WarpAffine")
-      .AddArg("batch_size", batch_size)
+      .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", 1)
       .AddArg("device", "gpu")
       .AddArg("matrix", mtx)

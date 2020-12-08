@@ -23,7 +23,7 @@ DALI_SCHEMA(transforms__Translation)
 If another transform matrix is passed as an input, the operator applies translation to the matrix provided.
 
 .. note::
-    The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
+    The output of this operator can be fed directly to ``CoordTransform`` and ``WarpAffine`` operators.
 )code")
   .AddArg(
     "offset",
@@ -73,7 +73,7 @@ class TransformTranslationCPU
     assert(matrices.size() == static_cast<int>(offset_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      auto offset = detail::as_vec<ndim>(offset_[i]);
+      auto offset = as_vec<ndim>(offset_[i]);
       mat = affine_mat_t<T, mat_dim>::identity();
       for (int d = 0; d < ndim; d++) {
         mat(d, ndim) = offset[d];

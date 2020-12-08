@@ -44,7 +44,7 @@ class VideoReaderResize : public VideoReader,
     input_shape_ = prefetched_batch_tensors_[curr_batch_consumer_].shape();
 
     resize_attr_.PrepareResizeParams(spec_, ws, input_shape_, "FHWC");
-    resampling_attr_.PrepareFilterParams(spec_, ws, batch_size_);
+    resampling_attr_.PrepareFilterParams(spec_, ws, max_batch_size_);
     resample_params_.resize(resize_attr_.params_.size());
     resampling_attr_.GetResamplingParams(make_span(resample_params_),
                                          make_cspan(resize_attr_.params_));

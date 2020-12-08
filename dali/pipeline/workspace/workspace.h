@@ -145,12 +145,54 @@ class WorkspaceBase : public ArgumentWorkspace {
   /**
    * @brief Returns the number of inputs.
    */
-  inline int NumInput() const { return input_index_map_.size(); }
+  inline int NumInput() const {
+    return input_index_map_.size();
+  }
 
   /**
    * @brief Returns the number of outputs.
    */
-  inline int NumOutput() const { return output_index_map_.size(); }
+  inline int NumOutput() const {
+    return output_index_map_.size();
+  }
+
+  /**
+   * Returns shape of input at given index
+   * @return TensorShape<> for SampleWorkspace, TensorListShape<> for other Workspaces
+   */
+  template <typename Backend>
+  auto GetInputShape(int input_idx) const {
+    const auto& input = *InputHandle(input_idx, Backend{});
+    return input.shape();
+  }
+
+  /**
+   * Returns batch size for given input
+   */
+  int GetInputBatchSize(int input_idx) const {
+    DALI_ENFORCE(NumInput() > 0, "No inputs found");
+    DALI_ENFORCE(input_idx >= 0 && input_idx < NumInput(),
+                 make_string("Invalid input index: ", input_idx, "; while NumInput: ", NumInput()));
+    if (InputIsType<GPUBackend>(input_idx)) {
+      return GetInputShape<GPUBackend>(input_idx).num_samples();
+    }
+    return GetInputShape<CPUBackend>(input_idx).num_samples();
+  }
+
+  /**
+   * Returns batch size that the Operator is expected to produce on a given output
+   */
+  int GetRequestedBatchSize(int output_idx) const {
+    return batch_sizes_[output_idx];
+  }
+
+  /**
+   * Set requested batch size for all outputs
+   */
+  void set_batch_size(int batch_size) {
+    batch_sizes_.clear();
+    batch_sizes_.resize(NumOutput(), batch_size);
+  }
 
   /**
    * Returns true if the input at the given index
@@ -430,19 +472,24 @@ class WorkspaceBase : public ArgumentWorkspace {
 
   inline const OutputType<GPUBackend>& GPUOutput(int idx) const {
     auto tensor_meta = FetchAtIndex(output_index_map_, idx);
-    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Output with given "
-        "index (" + std::to_string(idx) +
-        ") does not have the calling backend type (GPUBackend)");
+    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU,
+                 make_string("Output with given index (", idx,
+                             ") does not have the calling backend type (GPUBackend)"));
     return gpu_outputs_[tensor_meta.index];
   }
 
   inline const OutputType<CPUBackend>& CPUOutput(int idx) const {
     auto tensor_meta = FetchAtIndex(output_index_map_, idx);
-    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Output with given "
-        "index (" + std::to_string(idx) +
-        ") does not have the calling backend type (CPUBackend)");
+    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU,
+                 make_string("Output with given index (", idx,
+                             ") does not have the calling backend type (CPUBackend)"));
     return cpu_outputs_[tensor_meta.index];
   }
+
+  /**
+   * Batch sizes for given input indices
+   */
+  SmallVector<int, 4> batch_sizes_;
 
   vector<InputType<CPUBackend>> cpu_inputs_;
   vector<OutputType<CPUBackend>> cpu_outputs_;

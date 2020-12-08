@@ -72,16 +72,17 @@ class SequenceRearrange : public Operator<Backend> {
     output_desc.resize(1);
     output_desc[0].type = input.type();
     output_desc[0].shape = TensorListShape<>(in_shape.num_samples(), in_shape.sample_dim());
+    auto curr_batch_size = ws.GetInputBatchSize(0);
     if (single_order_) {
       TensorView<StorageCPU, const int, 1> new_order(new_order_.data(),
                                                      TensorShape<1>(new_order_.size()));
-      for (int i = 0; i < batch_size_; i++) {
+      for (int i = 0; i < curr_batch_size; i++) {
         ValidateSeqRearrange(in_shape[i], new_order, i);
         output_desc[0].shape.set_tensor_shape(i, GetSeqRearrangedShape(in_shape[i], new_order));
       }
     } else {
       const auto& new_orders = ws.ArgumentInput("new_order");
-      for (int i = 0; i < batch_size_; i++) {
+      for (int i = 0; i < curr_batch_size; i++) {
         auto new_order = view<const int, 1>(new_orders[i]);
         ValidateSeqRearrange(in_shape[i], new_order, i);
         output_desc[0].shape.set_tensor_shape(i, GetSeqRearrangedShape(in_shape[i], new_order));

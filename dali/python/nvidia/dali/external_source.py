@@ -21,7 +21,8 @@ def _check_data_batch(data, batch_size, layout):
     shape, uniform = _get_batch_shape(data)
     if len(shape) != batch_size:
         raise RuntimeError("The external source callback returned an unexpected batch "
-        "size: {} instead of {}".format(len(shape), batch_size))
+                           "size. Expected batch_size == {}, actual: {}".format(batch_size,
+                                                                                len(shape)))
 
     if len(shape) > 0:
         dim = len(shape[0])

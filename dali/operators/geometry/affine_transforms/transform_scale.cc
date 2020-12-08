@@ -23,7 +23,7 @@ DALI_SCHEMA(transforms__Scale)
 If another transform matrix is passed as an input, the operator applies scaling to the matrix provided.
 
 .. note::
-    The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
+    The output of this operator can be fed directly to ``CoordTransform`` and ``WarpAffine`` operators.
 )code")
   .AddArg(
     "scale",

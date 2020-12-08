@@ -30,9 +30,10 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
   if (output.is_pinned() && !tensor_vector_elm.front()->is_pinned()) {
     auto &thread_pool = ws.GetThreadPool();
     const auto &shapes = tensor_vector_elm.front()->shape();
+    auto curr_batch_size = shapes.num_samples();
     output.Resize(shapes, tensor_vector_elm.front()->type());
 
-    for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+    for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
       thread_pool.AddWork([&ws, sample_id, &tensor_vector_elm] (int tid) {
         Tensor<CPUBackend> &output_tensor = ws.Output<CPUBackend>(0, sample_id);
         // HostWorkspace doesn't have any stream

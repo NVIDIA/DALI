@@ -86,7 +86,7 @@ class MFCC : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
   void GetArguments(const workspace_t<Backend> &ws) {
-    nsamples_ = ws.template InputRef<Backend>(0).shape().size();
+    auto nsamples = ws.template InputRef<Backend>(0).shape().size();
     DctArgs arg;
     arg.ndct = spec_.template GetArgument<int>("n_mfcc");
     DALI_ENFORCE(arg.ndct > 0, "number of MFCCs should be > 0");
@@ -105,10 +105,9 @@ class MFCC : public Operator<Backend> {
 
     lifter_ = spec_.template GetArgument<float>("lifter");
     args_.clear();
-    args_.resize(nsamples_, arg);
+    args_.resize(nsamples, arg);
   }
 
-  int64_t nsamples_;
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
   std::vector<DctArgs> args_;

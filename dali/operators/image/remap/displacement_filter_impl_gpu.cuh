@@ -253,10 +253,11 @@ class DisplacementFilter<GPUBackend, Displacement,
 
   template <typename U = Displacement>
   std::enable_if_t<HasParam<U>::value> PrepareDisplacement(DeviceWorkspace *ws) {
-    params_.Resize({batch_size_});
+    auto curr_batch_size = ws->GetInputBatchSize(0);
+    params_.Resize({curr_batch_size});
     params_.mutable_data<typename U::Param>();
 
-    for (int i = 0; i < batch_size_; ++i) {
+    for (int i = 0; i < curr_batch_size; ++i) {
       typename U::Param &p = params_.mutable_data<typename U::Param>()[i];
       displace_.Prepare(&p, spec_, ws, i);
     }

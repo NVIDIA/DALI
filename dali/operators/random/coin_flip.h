@@ -43,7 +43,7 @@ class CoinFlip : public Operator<CPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
-    output_desc[0].shape = TensorListShape<0>(batch_size_);
+    output_desc[0].shape = TensorListShape<0>(max_batch_size_);
     output_desc[0].type = TypeTable::GetTypeInfo(DALI_INT32);
     return true;
   }

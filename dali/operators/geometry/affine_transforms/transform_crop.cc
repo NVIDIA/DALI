@@ -26,7 +26,7 @@ be mapped to ``to_start`` and ``from_end`` will be mapped to ``to_end``.
 If another transform matrix is passed as an input, the operator applies the transformation to the matrix provided.
 
 .. note::
-    The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
+    The output of this operator can be fed directly to ``CoordTransform`` and ``WarpAffine`` operators.
 )code")
   .AddOptionalArg(
     "from_start",
@@ -97,10 +97,10 @@ class TransformCropCPU
     assert(matrices.size() == static_cast<int>(to_end_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      vec<ndim> from_start = detail::as_vec<ndim>(from_start_[i]);
-      vec<ndim> from_end = detail::as_vec<ndim>(from_end_[i]);
-      vec<ndim> to_start = detail::as_vec<ndim>(to_start_[i]);
-      vec<ndim> to_end = detail::as_vec<ndim>(to_end_[i]);
+      vec<ndim> from_start = as_vec<ndim>(from_start_[i]);
+      vec<ndim> from_end = as_vec<ndim>(from_end_[i]);
+      vec<ndim> to_start = as_vec<ndim>(to_start_[i]);
+      vec<ndim> to_end = as_vec<ndim>(to_end_[i]);
       mat = affine_mat_t<T, mat_dim>::identity();
 
       if (absolute_) {

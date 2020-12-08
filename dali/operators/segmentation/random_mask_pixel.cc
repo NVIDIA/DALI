@@ -78,7 +78,7 @@ class RandomMaskPixelCPU : public Operator<CPUBackend> {
 
 RandomMaskPixelCPU::RandomMaskPixelCPU(const OpSpec &spec)
     : Operator<CPUBackend>(spec),
-      rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int64_t>("batch_size")),
+      rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int64_t>("max_batch_size")),
       has_value_(spec.ArgumentDefined("value")) {
   if (has_value_) {
     DALI_ENFORCE(!spec.ArgumentDefined("threshold"),

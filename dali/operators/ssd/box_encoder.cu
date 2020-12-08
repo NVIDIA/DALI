@@ -205,9 +205,9 @@ std::pair<int *, float *> BoxEncoder<GPUBackend>::ClearBuffers(const cudaStream_
   auto best_box_iou_data = best_box_iou_.mutable_data<float>();
 
   CUDA_CALL(cudaMemsetAsync(
-    best_box_idx_data, 0, batch_size_ * anchors_count_ * sizeof(int), stream));
+    best_box_idx_data, 0, curr_batch_size_ * anchors_count_ * sizeof(int), stream));
   CUDA_CALL(cudaMemsetAsync(
-    best_box_iou_data, 0, batch_size_ * anchors_count_ * sizeof(float), stream));
+    best_box_iou_data, 0, curr_batch_size_ * anchors_count_ * sizeof(float), stream));
 
   return {best_box_idx_data, best_box_iou_data};
 }
@@ -217,9 +217,9 @@ void BoxEncoder<GPUBackend>::WriteAnchorsToOutput(
   CUDA_CALL(cudaMemsetAsync(
     labels_out_data,
     0,
-    batch_size_ * anchors_count_ * sizeof(int), stream));
+    curr_batch_size_ * anchors_count_ * sizeof(int), stream));
 
-  for (int sample = 0; sample < batch_size_; ++sample)
+  for (int sample = 0; sample < curr_batch_size_; ++sample)
     MemCopy(
       boxes_out_data + sample * anchors_count_,
       anchors_as_center_wh_.data<float>(),
@@ -232,10 +232,10 @@ void BoxEncoder<GPUBackend>::ClearOutput(
   CUDA_CALL(cudaMemsetAsync(
     labels_out_data,
     0,
-    batch_size_ * anchors_count_ * sizeof(int),
+    curr_batch_size_ * anchors_count_ * sizeof(int),
     stream));
 
-  for (int sample = 0; sample < batch_size_; ++sample)
+  for (int sample = 0; sample < curr_batch_size_; ++sample)
     CUDA_CALL(cudaMemsetAsync(
       boxes_out_data + sample * anchors_count_,
       0,
@@ -265,7 +265,7 @@ int *BoxEncoder<GPUBackend>::CalculateBoxesOffsets(
     offsets.push_back(boxes_input.shape().tensor_shape_span(i)[0] + offsets.back());
 
   auto offsets_data = boxes_offsets_.mutable_data<int>();
-  MemCopy(offsets_data, offsets.data(), (batch_size_ + 1) * sizeof(int), stream);
+  MemCopy(offsets_data, offsets.data(), (curr_batch_size_ + 1) * sizeof(int), stream);
 
   return offsets_data;
 }
@@ -273,6 +273,8 @@ int *BoxEncoder<GPUBackend>::CalculateBoxesOffsets(
 void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   const auto &boxes_input = ws.Input<GPUBackend>(kBoxesInId);
   const auto &labels_input = ws.Input<GPUBackend>(kLabelsInId);
+  assert(ws.GetInputBatchSize(kBoxesInId) == ws.GetInputBatchSize(kLabelsInId));
+  auto curr_batch_size = ws.GetInputBatchSize(kBoxesInId);
 
   const auto anchors_data = reinterpret_cast<const float4 *>(anchors_.data<float>());
   const auto anchors_as_cwh_data =
@@ -303,7 +305,7 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   else
     ClearOutput(boxes_out_data, labels_out_data, ws.stream());
 
-  Encode<BlockSize><<<batch_size_, BlockSize, 0, ws.stream()>>>(
+  Encode<BlockSize><<<curr_batch_size, BlockSize, 0, ws.stream()>>>(
     boxes_data,
     labels_data,
     boxes_offsets_data,

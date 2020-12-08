@@ -72,6 +72,18 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
   template <typename Backend>
   DLL_PUBLIC Tensor<Backend>& Output(int idx);
 
+  int GetInputBatchSize(int) const {
+    DALI_FAIL(
+        "Impossible function: "
+        "Sample workspace is not aware, that there exists such thing as a batch");
+  }
+
+  int GetRequestedBatchSize(int) const {
+    DALI_FAIL(
+        "Impossible function: "
+        "Sample workspace is not aware, that there exists such thing as a batch");
+  }
+
   /**
    * @brief Returns the index of the sample that this workspace stores
    * in the input/output batch.

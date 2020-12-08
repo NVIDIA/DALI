@@ -48,12 +48,6 @@ class DLL_PUBLIC MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutp
 
 
   /**
-   * @brief Returns the number of Tensors in the input set of
-   * tensors at the given index.
-   */
-  DLL_PUBLIC int NumInputAtIdx(int idx) const;
-
-  /**
    * @brief Returns the input Tensor at index `data_idx` in the input
    * set of Tensors at index `idx`.
    *

@@ -488,7 +488,7 @@ inline T OpSpec::GetArgumentImpl(
   if (this->HasTensorArgument(name)) {
     DALI_ENFORCE(ws != nullptr, "Tensor value is unexpected for argument \"" + name + "\".");
     const auto &value = ws->ArgumentInput(name);
-    CheckScalarArgumentShape(value.shape(), GetArgument<int>("batch_size"), name, true);
+    CheckScalarArgumentShape(value.shape(), GetArgument<int>("max_batch_size"), name, true);
     DALI_ENFORCE(IsType<T>(value.type()),
         "Unexpected type of argument \"" + name + "\". Expected " +
         TypeTable::GetTypeName<T>() + " and got " + value.type().name());
@@ -517,7 +517,7 @@ inline bool OpSpec::TryGetArgumentImpl(
     if (ws == nullptr)
       return false;
     const auto& value = ws->ArgumentInput(name);
-    if (!CheckScalarArgumentShape(value.shape(), GetArgument<int>("batch_size"), name, false)) {
+    if (!CheckScalarArgumentShape(value.shape(), GetArgument<int>("max_batch_size"), name, false)) {
       return false;
     }
     if (!IsType<T>(value.type()))

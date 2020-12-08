@@ -151,6 +151,12 @@ namespace {
 template <typename T, typename U>
 ::testing::AssertionResult Compare(const char *rhs_expr, const char *lhs_expr, const T &rhs,
                                    const U &lhs) {
+  static_assert(std::is_same<T, TensorList<CPUBackend>>::value ||
+                    std::is_same<T, TensorVector<CPUBackend>>::value,
+                "T must be either TensorList<CPUBackend> or TensorVector<CPUBackend>");
+  static_assert(std::is_same<U, TensorList<CPUBackend>>::value ||
+                    std::is_same<U, TensorVector<CPUBackend>>::value,
+                "U must be either TensorList<CPUBackend> or TensorVector<CPUBackend>");
   std::string testing_values = make_string(rhs_expr, ", ", lhs_expr);
   if (rhs.ntensor() != lhs.ntensor()) {
     ::testing::AssertionFailure() << make_string("[Testing: ", testing_values,

@@ -95,11 +95,11 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     // TODO(spanev): Factor out the constructor body to make VideoReader compatible with lazy_init.
     loader_ = InitLoader<VideoLoader>(spec, filenames_);
 
-    label_shape_ = uniform_list_shape(batch_size_, {1});
+    label_shape_ = uniform_list_shape(max_batch_size_, {1});
 
     if (can_use_frames_timestamps_) {
       if (enable_frame_num_) frame_num_shape_ = label_shape_;
-      if (enable_timestamps_) timestamp_shape_ = uniform_list_shape(batch_size_, {count_});
+      if (enable_timestamps_) timestamp_shape_ = uniform_list_shape(max_batch_size_, {count_});
     }
   }
 

@@ -57,7 +57,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   inline void set_batch_size(int size) { batch_size_ = size; }
 
   inline OpSpec& PrepareSpec(OpSpec &spec) const {
-    spec.AddArg("batch_size", batch_size_)
+    spec.AddArg("max_batch_size", batch_size_)
       .AddArg("num_threads", num_threads_);
     return spec;
   }
@@ -461,7 +461,7 @@ TEST(ExternalSourceTestNoInput, Throw) {
       .AddArg("device", "cpu")
       .AddArg("device_id", 0)
       .AddOutput("data_out", "cpu")
-      .AddArg("batch_size", batch_size)
+      .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", num_threads), "");
 
   vector<string> outputs = {"data_out_cpu"};

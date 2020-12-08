@@ -285,7 +285,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestWrap) {
       .AddArg("shard_id", 0)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", false)
-      .AddArg("batch_size", 2)
+      .AddArg("max_batch_size", 2)
       .AddArg("device_id", 0));
   tl.PrepareMetadata();
 
@@ -326,7 +326,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard) {
       .AddArg("shard_id", 0)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", true)
-      .AddArg("batch_size", 2)
+      .AddArg("max_batch_size", 2)
       .AddArg("device_id", 0));
   tl.PrepareMetadata();
 
@@ -367,7 +367,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard2) {
       .AddArg("shard_id", 1)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", true)
-      .AddArg("batch_size", 2)
+      .AddArg("max_batch_size", 2)
       .AddArg("device_id", 0));
   tl.PrepareMetadata();
 
@@ -403,7 +403,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestNoPad) {
       .AddArg("shard_id", 1)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", true)
-      .AddArg("batch_size", 2)
+      .AddArg("max_batch_size", 2)
       .AddArg("device_id", 0)
       .AddArg("pad_last_batch", false));
   tl_even.PrepareMetadata();
@@ -414,7 +414,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestNoPad) {
       .AddArg("shard_id", 1)
       .AddArg("num_shards", 3)
       .AddArg("stick_to_shard", true)
-      .AddArg("batch_size", 2)
+      .AddArg("max_batch_size", 2)
       .AddArg("device_id", 0)
       .AddArg("pad_last_batch", false));
   tl_odd.PrepareMetadata();
@@ -435,7 +435,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestPad) {
       .AddArg("shard_id", 1)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", true)
-      .AddArg("batch_size", 2)
+      .AddArg("max_batch_size", 2)
       .AddArg("device_id", 0)
       .AddArg("pad_last_batch", true));
   tl_even.PrepareMetadata();
@@ -446,7 +446,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestPad) {
       .AddArg("shard_id", 1)
       .AddArg("num_shards", 3)
       .AddArg("stick_to_shard", true)
-      .AddArg("batch_size", 2)
+      .AddArg("max_batch_size", 2)
       .AddArg("device_id", 0)
       .AddArg("pad_last_batch", true));
   tl_odd.PrepareMetadata();

@@ -48,21 +48,6 @@ class BbFlip<CPUBackend> : public Operator<CPUBackend> {
 
  private:
   /**
-   * Checks, if argument provided by user is a scalar and,
-   * in such case, extends this scalar to entire tensor
-   * @tparam TensorDataType Underlying data type in tensor
-   */
-  template <typename TensorDataType>
-  void ExtendScalarToTensor(std::string argument_name, const OpSpec &spec,
-                            Tensor<CPUBackend> *tensor) {
-    tensor->Resize({batch_size_});
-    for (int i = 0; i < batch_size_; i++) {
-      tensor->mutable_data<TensorDataType>()[i] =
-          spec.GetArgument<TensorDataType>(argument_name);
-    }
-  }
-
-  /**
    * Bounding box can be represented in two ways:
    * 1. Upper-left corner, width, height (`wh_type`)
    *    (x1, y1,  w,  h)

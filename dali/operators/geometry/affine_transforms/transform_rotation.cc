@@ -27,7 +27,7 @@ If another transform matrix is passed as an input, the operator applies rotation
 The number of dimensions is assumed to be 3 if a rotation axis is provided or 2 otherwise.
 
 .. note::
-    The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
+    The output of this operator can be fed directly to ``CoordTransform`` and ``WarpAffine`` operators.
 )code")
   .AddArg(
     "angle",
@@ -80,7 +80,7 @@ class TransformRotationCPU
       mat = rotation2D(deg2rad(angle));
 
       if (center_.IsDefined()) {
-        const vec2 &center = detail::as_vec<2>(center_[i]);
+        const vec2 &center = as_vec<2>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
@@ -97,11 +97,11 @@ class TransformRotationCPU
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       auto angle = angle_[i].data[0];
-      const vec3 &axis = detail::as_vec<3>(axis_[i]);
+      const vec3 &axis = as_vec<3>(axis_[i]);
       mat = rotation3D(axis, deg2rad(angle));
 
       if (center_.IsDefined()) {
-        const vec3 &center = detail::as_vec<3>(center_[i]);
+        const vec3 &center = as_vec<3>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }

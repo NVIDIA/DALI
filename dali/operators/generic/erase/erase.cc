@@ -163,15 +163,13 @@ class EraseImplCpu : public OpImplBase<CPUBackend> {
  public:
   using EraseKernel = kernels::EraseCpu<T, Dims>;
 
-  explicit EraseImplCpu(const OpSpec& spec)
-      : spec_(spec), batch_size_(spec.GetArgument<int>("batch_size")) {}
+  explicit EraseImplCpu(const OpSpec &spec) : spec_(spec) {}
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:
   OpSpec spec_;
-  int batch_size_ = 0;
   std::vector<int> axes_;
   std::vector<kernels::EraseArgs<T, Dims>> args_;
   kernels::KernelManager kmgr_;
