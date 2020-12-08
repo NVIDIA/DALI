@@ -78,19 +78,18 @@ class NormalDistribution : public Operator<Backend> {
 
 
   TensorListShape<> GetOutputShape(const workspace_t<Backend> &ws) {
-    DALI_ENFORCE(!(spec_.NumRegularInput() == 1 && IsShapeArgumentProvided(spec_)),
+    DALI_ENFORCE(!(this->spec_.NumRegularInput() == 1 && IsShapeArgumentProvided(spec_)),
                  make_string("Incorrect operator invocation. "
                              "The operator cannot be called with both Input and `shape` argument"));
-    if (spec_.NumRegularInput() == 1) {
+    if (this->spec_.NumRegularInput() == 1) {
       single_value_in_output_ = false;
       return ShapesFromInputTensorList(ws);
     } else if (IsShapeArgumentProvided(spec_)) {
       single_value_in_output_ = false;
       return ShapesFromArgument(ws);
-    } else {
-      single_value_in_output_ = true;
-      return ShapeForDefaultConfig(ws);
     }
+    single_value_in_output_ = true;
+    return ShapeForDefaultConfig(ws);
   }
 
   USE_OPERATOR_MEMBERS();
@@ -126,7 +125,7 @@ class NormalDistribution : public Operator<Backend> {
 
 
   bool IsShapeArgumentProvided(const OpSpec &spec) {
-    return spec_.HasArgument(detail::kShape);
+    return this->spec_.HasArgument(detail::kShape);
   }
 };
 
