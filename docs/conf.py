@@ -99,6 +99,7 @@ extensions = [
     'sphinx.ext.extlinks',
     'IPython.sphinxext.ipython_console_highlighting',
     'nbsphinx',
+    'sphinx.ext.intersphinx',
 ]
 
 # Add any paths that contain templates here, relative to this directory.

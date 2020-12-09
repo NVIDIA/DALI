@@ -43,27 +43,29 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
 
 DALI_SCHEMA(ArithmeticGenericOp)
     .DocStr(R"code(Arithmetic operator capable of executing expression tree of element-wise
- arithmetic operations.)code")
+arithmetic operations.)code")
     .AddArg("expression_desc", R"code(Polish notation describing the expression extendend with
- parentheses, see https://en.wikipedia.org/wiki/Polish_notation.
+parentheses, see https://en.wikipedia.org/wiki/Polish_notation.
 Functions and operations are indicated by names, followed by parentheses.
 Inputs (subexpressions) are placed in the parentheses and are separated by spaces,
 &<uint> indicates tensor input, $<uint>:<type_string> indicates constant.
 
-More formally using BNF grammar:
-<expr>    ::= <call> | <scalar> | <input>
-<subexpr> ::= <expr> | <expr> " " <subexpr>
-<call>    ::= <name> "(" <subexpr> ")"
-<name>    ::= identifier starting with alphabetic character
-<input>   ::= "&" <uint>
-<scalar>  ::= "$" <uint> ":" <type>
-<uint>    ::= unsigned integer
-<type>    ::= uint8 | uint16 | uint32 | uint64 | int8 | int16 | int32 | int64
-            | float16 | float32 | float64
+More formally using BNF grammar::
 
-Examples:
-add(&0 mul(&1 $0:int8))
-add(&0 rand()))code",
+  <expr>    ::= <call> | <scalar> | <input>
+  <subexpr> ::= <expr> | <expr> " " <subexpr>
+  <call>    ::= <name> "(" <subexpr> ")"
+  <name>    ::= identifier starting with alphabetic character
+  <input>   ::= "&" <uint>
+  <scalar>  ::= "$" <uint> ":" <type>
+  <uint>    ::= unsigned integer
+  <type>    ::= uint8 | uint16 | uint32 | uint64 | int8 | int16 | int32 | int64
+                      | float16 | float32 | float64
+
+Examples::
+
+  add(&0 mul(&1 $0:int8))
+  add(&0 rand()))code",
             DALIDataType::DALI_STRING, false)
     .AddOptionalArg("integer_constants", "", std::vector<int32_t>{}, true)
     .NumInput(1, 64)  // Some arbitrary number that needs to be validated in operator

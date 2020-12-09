@@ -198,6 +198,7 @@ Args
         * CuPy array (GPU)
         * objects implementing ``__cuda_array_interface__``
         * DALI `Tensor` object
+
     Batch sources must produce entire batches of data. This can be achieved either by adding a new
     outermost dimension to an array or by returning a list of arrays (in which case they can be of
     different size, but must have the same rank and element type). A batch source can also
