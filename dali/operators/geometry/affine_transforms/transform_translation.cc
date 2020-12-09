@@ -70,7 +70,7 @@ class TransformTranslationCPU
   template <typename T, int mat_dim>
   void DefineTransforms(span<affine_mat_t<T, mat_dim>> matrices) {
     constexpr int ndim = mat_dim - 1;
-    assert(matrices.size() == static_cast<int>(offset_.size()));
+    assert(matrices.size() <= static_cast<int>(offset_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       auto offset = as_vec<ndim>(offset_[i]);

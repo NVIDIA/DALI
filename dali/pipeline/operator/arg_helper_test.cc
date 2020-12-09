@@ -90,7 +90,13 @@ TEST(ArgValueTests, Constant_0D) {
   ASSERT_TRUE(arg.IsConstant());
   ASSERT_EQ(TensorShape<0>{}, arg[0].shape);
   ASSERT_EQ(0.123f, *arg[0].data);
+
+  // Passing a vector to a scalar ArgValue
+  auto spec2 = OpSpec("opname").AddArg("argname", vector<float>{0.1f, 0.2f});
+  ArgValue<float, 0> arg2("argname", spec2);
+  EXPECT_THROW(arg2.Acquire(spec2, ws, nsamples, true), std::runtime_error);
 }
+
 
 TEST(ArgValueTests, Constant_1D) {
   int nsamples = 5;
