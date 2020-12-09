@@ -65,6 +65,63 @@ struct curand_normal_dist<double> {
   }
 };
 
+template <typename T>
+struct curand_uniform_dist {};
+
+template <>
+struct curand_uniform_dist<float> {
+  DALI_HOST_DEV curand_uniform_dist(float start, float end)
+    : range_start_(start), range_size_(end-start) {}
+
+  DALI_HOST_DEV curand_uniform_dist()
+    : range_start_(-1.0f), range_size_(2.0f) {}
+
+  __device__ inline float yield(curandState *state) {
+    return range_start_ + curand_uniform(state) * range_size_;
+  }
+ private:
+  float range_start_, range_size_;
+};
+
+template <>
+struct curand_uniform_dist<double> {
+  DALI_HOST_DEV curand_uniform_dist(float start, float end)
+    : range_start_(start), range_size_(end-start) {}
+
+  DALI_HOST_DEV curand_uniform_dist()
+    : range_start_(-1.0f), range_size_(2.0f) {}
+
+  __device__ inline double yield(curandState *state) {
+    return range_start_ + curand_uniform_double(state) * range_size_;
+  }
+
+ private:
+  double range_start_, range_size_;
+};
+
+struct curand_uniform_int_range_dist {
+  DALI_HOST_DEV curand_uniform_int_range_dist(int start, int end)
+    : range_start_(start), range_size_(end-start) {}
+  
+  __device__ inline int yield(curandState *state) {
+    return range_start_ + (curand(state) % range_size_);
+  }
+
+ private:
+  int range_start_;
+  unsigned int range_size_;
+};
+
+template <typename T>
+struct curand_uniform_int_values_dist {
+  const T *values = nullptr;  // device mem pointer
+  int64_t nvalues = 0;
+
+  __device__ inline double yield(curandState *state) {
+    return values[curand(state) % nvalues];
+  }
+};
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_UTIL_RANDOMIZER_CUH_
