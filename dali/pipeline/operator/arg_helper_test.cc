@@ -127,7 +127,6 @@ TEST(ArgValueTests, Constant_2D) {
   auto shape_from_size =
     [](int64_t size) {
       int64_t mat_ndim = sqrt(size);
-
       assert(mat_ndim > 0);
       DALI_ENFORCE(size == mat_ndim * (mat_ndim + 1),
           make_string("Cannot form an affine transform matrix with ", size, " elements"));
