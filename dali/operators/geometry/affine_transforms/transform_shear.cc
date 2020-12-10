@@ -96,7 +96,8 @@ class TransformShearCPU
   template <typename T>
   void DefineTransforms(span<affine_mat_t<T, 3>> matrices) {
     constexpr int ndim = 2;
-    assert(matrices.size() == static_cast<int>(shear_.size()));
+    assert((shear_.IsDefined() && matrices.size() <= static_cast<int>(shear_.size())) ||
+           (angles_.IsDefined() && matrices.size() <= static_cast<int>(angles_.size())));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       if (shear_.IsDefined()) {
@@ -124,7 +125,8 @@ class TransformShearCPU
   template <typename T>
   void DefineTransforms(span<affine_mat_t<T, 4>> matrices) {
     constexpr int ndim = 3;
-    assert(matrices.size() == static_cast<int>(shear_.size()));
+    assert((shear_.IsDefined() && matrices.size() <= static_cast<int>(shear_.size())) ||
+           (angles_.IsDefined() && matrices.size() <= static_cast<int>(angles_.size())));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       if (shear_.IsDefined()) {
@@ -147,10 +149,13 @@ class TransformShearCPU
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
     auto shape_from_size =
       [this](int64_t size) {
-        ndim_ = sqrt(size);
-        DALI_ENFORCE(size == ndim_ * (ndim_ + 1),
+        ndim_ = sqrt(size) + 1;
+        DALI_ENFORCE(size == (ndim_ - 1) * ndim_,
             make_string("Cannot form an affine transform matrix with ", size, " elements"));
-        return TensorShape<2>{ndim_, ndim_ + 1};
+        if (ndim_ == 2) {
+          return TensorShape<>{ndim_};
+        }
+        return TensorShape<>{ndim_ - 1, ndim_};
       };
     if (shear_.IsDefined()) {
       shear_.Acquire(spec, ws, nsamples_, true, shape_from_size);
@@ -166,11 +171,7 @@ class TransformShearCPU
       }
     }
     if (center_.IsDefined()) {
-      center_.Acquire(spec, ws, nsamples_);
-      DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].num_elements()),
-        make_string("Unexpected number of dimensions for ``center`` argument. Got: ",
-                    center_[0].num_elements(), " but ``scale`` argument suggested ", ndim_,
-                    " dimensions."));
+      center_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
     }
   }
 
@@ -179,13 +180,6 @@ class TransformShearCPU
   }
 
  private:
-  int InferNumDims(const ArgValue<float, DynamicDimensions> &arg) {
-    DALI_ENFORCE(arg[0].num_elements() == 2 || arg[0].num_elements() == 6,
-      make_string("Unexpected number of elements in ``", arg.name(), "`` argument. "
-                  "Expected 2 or 6 arguments. Got: ", arg[0].num_elements()));
-    return arg[0].num_elements() == 6 ? 3 : 2;
-  }
-
   ArgValue<float, DynamicDimensions> shear_;   // can either be a vec2 (ndim=2) or mat3x2 (ndim=3)
   ArgValue<float, DynamicDimensions> angles_;  // same as shear_
   ArgValue<float, 1> center_;
