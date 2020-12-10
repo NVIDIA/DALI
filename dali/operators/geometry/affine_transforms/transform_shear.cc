@@ -96,14 +96,24 @@ class TransformShearCPU
   template <typename T>
   void DefineTransforms(span<affine_mat_t<T, 3>> matrices) {
     constexpr int ndim = 2;
-    assert(matrices.size() == static_cast<int>(shear_.size()));
+    assert((shear_.IsDefined() && matrices.size() <= static_cast<int>(shear_.size())) ||
+           (angles_.IsDefined() && matrices.size() <= static_cast<int>(angles_.size())));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      vec2 &shear_factors = *reinterpret_cast<vec2*>(shear_[i].data());
-      mat = shear(shear_factors);
+      if (shear_.IsDefined()) {
+        vec2 shear_factors = as_vec<2>(shear_[i]);
+        mat = shear(shear_factors);
+      } else {
+        assert(angles_.IsDefined());
+        auto angles = as_vec<2>(angles_[i]);
+        vec2 shear_factors;
+        shear_factors[0] = std::tan(deg2rad(angles[0]));
+        shear_factors[1] = std::tan(deg2rad(angles[1]));
+        mat = shear(shear_factors);
+      }
 
       if (center_.IsDefined()) {
-        const vec2 &center = *reinterpret_cast<const vec2*>(center_[i].data());
+        vec2 center = as_vec<2>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
@@ -115,46 +125,53 @@ class TransformShearCPU
   template <typename T>
   void DefineTransforms(span<affine_mat_t<T, 4>> matrices) {
     constexpr int ndim = 3;
-    assert(matrices.size() == static_cast<int>(shear_.size()));
+    assert((shear_.IsDefined() && matrices.size() <= static_cast<int>(shear_.size())) ||
+           (angles_.IsDefined() && matrices.size() <= static_cast<int>(angles_.size())));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      const mat3x2 &shear_factors = *reinterpret_cast<const mat3x2*>(shear_[i].data());
-      mat = shear(shear_factors);
+      if (shear_.IsDefined()) {
+        const mat3x2 &shear_factors = as_mat<3, 2>(shear_[i]);
+        mat = shear(shear_factors);
+      } else {
+        assert(angles_.IsDefined());
+        vec<6> shear_factors;
+        for (int j = 0; j < 6; j++)
+          shear_factors[j] = std::tan(deg2rad(angles_[i].data[j]));
+        mat = shear(*reinterpret_cast<mat3x2*>(&shear_factors));
+      }
       if (center_.IsDefined()) {
-        const vec3 &center = *reinterpret_cast<const vec3*>(center_[i].data());
+        const vec3 &center = as_vec<3>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    int repeat = IsConstantTransform() ? 0 : nsamples_;
+    auto shape_from_size =
+      [this](int64_t size) {
+        ndim_ = sqrt(size) + 1;
+        DALI_ENFORCE(size == ndim_ * (ndim_ - 1),
+            make_string("Cannot form a shear transform matrix with ", size, " elements"));
+        if (ndim_ == 2) {
+          return TensorShape<>{ndim_};
+        }
+        return TensorShape<>{ndim_, ndim_ - 1};
+      };
     if (shear_.IsDefined()) {
-      shear_.Read(spec, ws, repeat);
-      ndim_ = InferNumDims(shear_);
+      shear_.Acquire(spec, ws, nsamples_, true, shape_from_size);
     } else {
       assert(angles_.IsDefined());
-      angles_.Read(spec, ws, repeat);
-      ndim_ = InferNumDims(angles_);
-      shear_.resize(angles_.size());
-      for (size_t i = 0; i < angles_.size(); i++) {
-        auto &shear = shear_[i];
-        auto &angles = angles_[i];
-        int nangles = angles.size();
-        shear.resize(nangles);
-        for (int j = 0; j < nangles; j++) {
-          DALI_ENFORCE(angles[j] >= -90.0f && angles[j] <= 90.0f,
-            make_string("Angle is expected to be in the range [-90, 90]. Got: ", angles[j]));
-          shear[j] = std::tan(deg2rad(angles[j]));
+      angles_.Acquire(spec, ws, nsamples_, true, shape_from_size);
+      for (int i = 0; i < angles_.size(); i++) {
+        const auto& angles = angles_[i];
+        for (int j = 0; j < angles.num_elements(); j++) {
+          DALI_ENFORCE(angles.data[j] >= -90.0f && angles.data[j] <= 90.0f,
+            make_string("Angle is expected to be in the range [-90, 90]. Got: ", angles.data[j]));
         }
       }
     }
     if (center_.IsDefined()) {
-      center_.Read(spec, ws, repeat);
-      DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].size()),
-        make_string("Unexpected number of dimensions for ``center`` argument. Got: ",
-                    center_[0].size(), " but ``scale`` argument suggested ", ndim_,
-                    " dimensions."));
+      center_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
     }
   }
 
@@ -163,16 +180,9 @@ class TransformShearCPU
   }
 
  private:
-  int InferNumDims(const Argument<std::vector<float>> &arg) {
-    DALI_ENFORCE(arg[0].size() == 2 || arg[0].size() == 6,
-      make_string("Unexpected number of elements in ``", arg.name(), "`` argument. "
-                  "Expected 2 or 6 arguments. Got: ", arg[0].size()));
-    return arg[0].size() == 6 ? 3 : 2;
-  }
-
-  Argument<std::vector<float>> shear_;
-  Argument<std::vector<float>> angles_;
-  Argument<std::vector<float>> center_;
+  ArgValue<float, DynamicDimensions> shear_;   // can either be a vec2 (ndim=2) or mat3x2 (ndim=3)
+  ArgValue<float, DynamicDimensions> angles_;  // same as shear_
+  ArgValue<float, 1> center_;
 };
 
 DALI_REGISTER_OPERATOR(transforms__Shear, TransformShearCPU, CPU);

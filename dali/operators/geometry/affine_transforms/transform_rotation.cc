@@ -73,14 +73,14 @@ class TransformRotationCPU
   template <typename T>
   void DefineTransforms(span<affine_mat_t<T, 3>> matrices) {
     constexpr int ndim = 2;
-    assert(matrices.size() == static_cast<int>(angle_.size()));
+    assert(matrices.size() <= static_cast<int>(angle_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      auto angle = angle_[i];
+      auto angle = angle_[i].data[0];
       mat = rotation2D(deg2rad(angle));
 
       if (center_.IsDefined()) {
-        const vec2 &center = *reinterpret_cast<const vec2*>(center_[i].data());
+        const vec2 &center = as_vec<2>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
@@ -92,38 +92,29 @@ class TransformRotationCPU
   template <typename T>
   void DefineTransforms(span<affine_mat_t<T, 4>> matrices) {
     constexpr int ndim = 3;
-    assert(matrices.size() == static_cast<int>(angle_.size()));
-    assert(matrices.size() == static_cast<int>(axis_.size()));
+    assert(matrices.size() <= static_cast<int>(angle_.size()));
+    assert(matrices.size() <= static_cast<int>(axis_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      auto angle = angle_[i];
-      const vec3 &axis = *reinterpret_cast<const vec3*>(axis_[i].data());
+      auto angle = angle_[i].data[0];
+      const vec3 &axis = as_vec<3>(axis_[i]);
       mat = rotation3D(axis, deg2rad(angle));
 
       if (center_.IsDefined()) {
-        const vec3 &center = *reinterpret_cast<const vec3*>(center_[i].data());
+        const vec3 &center = as_vec<3>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
     }
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    int repeat = IsConstantTransform() ? 1 : nsamples_;
-    angle_.Read(spec, ws, repeat);
+    angle_.Acquire(spec, ws, nsamples_, TensorShape<0>{});
     ndim_ = axis_.IsDefined() ? 3 : 2;
     if (axis_.IsDefined()) {
-      axis_.Read(spec, ws, repeat);
-      DALI_ENFORCE(ndim_ == static_cast<int>(axis_[0].size()),
-        make_string("Unexpected number of dimensions for ``axis`` argument. Got: ",
-                    axis_[0].size(), " but expected ", ndim_,
-                    " dimensions."));
+      axis_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
     }
     if (center_.IsDefined()) {
-      center_.Read(spec, ws, repeat);
-      DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].size()),
-        make_string("Unexpected number of dimensions for ``center`` argument. Got: ",
-                    center_[0].size(), " but ``axis`` argument suggested ", ndim_,
-                    " dimensions."));
+      center_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
     }
   }
 
@@ -132,9 +123,9 @@ class TransformRotationCPU
   }
 
  private:
-  Argument<float> angle_;
-  Argument<std::vector<float>> axis_;
-  Argument<std::vector<float>> center_;
+  ArgValue<float> angle_;
+  ArgValue<float, 1> axis_;
+  ArgValue<float, 1> center_;
 };
 
 DALI_REGISTER_OPERATOR(transforms__Rotation, TransformRotationCPU, CPU);
