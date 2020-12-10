@@ -69,7 +69,6 @@ add(&0 rand()))code",
     .NumInput(1, 64)  // Some arbitrary number that needs to be validated in operator
     .AddOptionalArg("real_constants", "", std::vector<float>{}, true)
     .NumOutput(1)
-    .MakeInternal()
     .MakeDocHidden();
 
 DALI_REGISTER_OPERATOR(ArithmeticGenericOp, ArithmeticGenericOp<CPUBackend>, CPU);

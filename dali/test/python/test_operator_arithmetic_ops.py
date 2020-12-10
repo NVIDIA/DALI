@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, DataNode
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.math as math
@@ -542,8 +542,7 @@ def test_arithmetic_division():
                 yield check_arithm_div, kinds, types_in, shape_small
 
 
-@raises(RuntimeError)
-def check_raises(kinds, types, op, shape, _):
+def check_raises(kinds, types, op, shape):
     if isinstance(op, tuple):
         dali_op = op[0]
     else:
@@ -554,6 +553,15 @@ def check_raises(kinds, types, op, shape, _):
     pipe.build()
     pipe_out = pipe.run()
 
+@raises(RuntimeError)
+def check_raises_re(kinds, types, op, shape, _):
+    check_raises(kinds, types, op, shape)
+
+@raises(TypeError)
+def check_raises_te(kinds, types, op, shape, _):
+    check_raises(kinds, types, op, shape)
+
+
 # Arithmetic operations between booleans that are not allowed
 bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x / y), "/"), ((lambda x, y: x / y), "//")]
@@ -561,14 +569,23 @@ bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
 def test_bool_disallowed():
     for kinds in bin_input_kinds:
         for (op, op_desc) in bool_disallowed:
-            yield check_raises, kinds, (np.bool_, np.bool_), op, shape_small, op_desc
+            yield check_raises_re, kinds, (np.bool_, np.bool_), op, shape_small, op_desc
     for kinds in selected_ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
-            yield check_raises, kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc
+            yield check_raises_re, kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc
 
 def test_bitwise_disallowed():
     for kinds in bin_input_kinds:
         for (op, op_desc) in bitwise_operations:
             for types_in in itertools.product(selected_input_types, selected_input_types):
                 if types_in[0] in float_types or types_in[1] in float_types:
-                    yield check_raises, kinds, types_in, op, shape_small, op_desc
+                    yield check_raises_re, kinds, types_in, op, shape_small, op_desc
+
+def test_prohibit_min_max():
+    for kinds in bin_input_kinds:
+        for op, op_desc in [(min, "min"), (max, "max")]:
+                    yield check_raises_te, kinds,  (np.int32, np.int32), op, shape_small, op_desc
+
+@raises(TypeError)
+def test_bool_raises():
+    bool(DataNode("dummy"))
