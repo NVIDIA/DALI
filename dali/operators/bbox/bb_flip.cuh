@@ -21,35 +21,31 @@
 
 namespace dali {
 
-template <>
-class BbFlip<GPUBackend> : public Operator<GPUBackend> {
+class BbFlipGPU : public BbFlip<GPUBackend> {
  public:
-  explicit BbFlip(const OpSpec &spec)
-      : Operator<GPUBackend>(spec),
-        horz_("horizontal", spec),
-        vert_("vertical", spec) {}
-
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
-    auto &input = ws.Input<GPUBackend>(0);
-    auto shape = input.shape();
-    auto nsamples = shape.size();
-    horz_.Acquire(spec_, ws, nsamples, true);
-    vert_.Acquire(spec_, ws, nsamples, true);
-    return false;
+  explicit BbFlipGPU(const OpSpec &spec)
+    : BbFlip<GPUBackend>(spec) {
+    vert_gpu_.set_type(TypeTable::GetTypeInfo(DALI_INT32));
+    horz_gpu_.set_type(TypeTable::GetTypeInfo(DALI_INT32));
   }
 
-  void RunImpl(Workspace<GPUBackend> &ws) override;
+ protected:
+  void RunImpl(workspace_t<GPUBackend> &ws) override;
+  using BbFlip<GPUBackend>::RunImpl;
 
  private:
-  ArgValue<int> horz_;
+  using BbFlip<GPUBackend>::horz_;
+  using BbFlip<GPUBackend>::vert_;
+  using BbFlip<GPUBackend>::ltrb_;
+
   Tensor<GPUBackend> horz_gpu_;
-  ArgValue<int> vert_;
   Tensor<GPUBackend> vert_gpu_;
 
   // contains a map from box index to sample index - used
   // for accessing per-sample horz/vert arguments.
   Tensor<GPUBackend> idx2sample_;
 };
+
 
 }  // namespace dali
 

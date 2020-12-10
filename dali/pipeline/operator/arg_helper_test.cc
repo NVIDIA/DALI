@@ -109,7 +109,7 @@ TEST(ArgValueTests, Constant_1D) {
   ASSERT_TRUE(arg.IsConstant());
   for (int i = 0; i < kNumSamples; i++) {
     ASSERT_EQ(expected_shape, arg[i].shape);
-    for (int j = 0; j < 6; j++) {
+    for (int j = 0; j < expected_shape.num_elements(); j++) {
       ASSERT_EQ(data[j], arg[i].data[j]);
     }
   }
@@ -147,7 +147,7 @@ TEST(ArgValueTests, Constant_2D) {
     ASSERT_TRUE(arg.IsConstant());
     for (int i = 0; i < kNumSamples; i++) {
       ASSERT_EQ(expected_shape, arg[i].shape);
-      for (int j = 0; j < 6; j++) {
+      for (int j = 0; j < expected_shape.num_elements(); j++) {
         ASSERT_EQ(data[j], arg[i].data[j]);
       }
     }
