@@ -130,7 +130,10 @@ DEVICE_TEST(FastDiv, DISABLED_U64_GPU_Slow, dim3(1<<10, 1<<10), (1<<10)) {
     auto ref = value / divisor;
     auto result = value / fast;
     if (result != ref) {
-      printf("%lld / %lld   got %lld expected %lld\n", value, divisor, result, ref);
+      #pragma clang diagnostic push
+      #pragma clang diagnostic ignored "-Wformat"
+      printf("%llu / %llu   got %llu expected %llu\n", value, divisor, result, ref);
+      #pragma clang diagnostic pop
       DEV_ASSERT_EQ(result, ref);
     }
   }
@@ -175,7 +178,10 @@ DEVICE_TEST(FastDiv, U64_GPU, dim3(1<<10, 11), (1<<10)) {
     auto ref = value / divisor;
     auto result = value / fast;
     if (result != ref) {
-      printf("%lld / %lld   got %lld expected %lld\n", value, divisor, result, ref);
+      #pragma clang diagnostic push
+      #pragma clang diagnostic ignored "-Wformat"
+      printf("%llu / %llu   got %llu expected %llu\n", value, divisor, result, ref);
+      #pragma clang diagnostic pop
       DEV_ASSERT_EQ(result, ref);
     }
   }

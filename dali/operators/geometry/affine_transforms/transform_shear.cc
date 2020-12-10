@@ -150,12 +150,12 @@ class TransformShearCPU
     auto shape_from_size =
       [this](int64_t size) {
         ndim_ = sqrt(size) + 1;
-        DALI_ENFORCE(size == (ndim_ - 1) * ndim_,
-            make_string("Cannot form an affine transform matrix with ", size, " elements"));
+        DALI_ENFORCE(size == ndim_ * (ndim_ - 1),
+            make_string("Cannot form a shear transform matrix with ", size, " elements"));
         if (ndim_ == 2) {
           return TensorShape<>{ndim_};
         }
-        return TensorShape<>{ndim_ - 1, ndim_};
+        return TensorShape<>{ndim_, ndim_ - 1};
       };
     if (shear_.IsDefined()) {
       shear_.Acquire(spec, ws, nsamples_, true, shape_from_size);

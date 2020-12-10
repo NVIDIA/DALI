@@ -109,7 +109,7 @@ TEST(ArgValueTests, Constant_1D) {
   ASSERT_TRUE(arg.IsConstant());
   for (int i = 0; i < kNumSamples; i++) {
     ASSERT_EQ(expected_shape, arg[i].shape);
-    for (int j = 0; j < 6; j++) {
+    for (int j = 0; j < expected_shape.num_elements(); j++) {
       ASSERT_EQ(data[j], arg[i].data[j]);
     }
   }
@@ -127,7 +127,6 @@ TEST(ArgValueTests, Constant_2D) {
   auto shape_from_size =
     [](int64_t size) {
       int64_t mat_ndim = sqrt(size);
-
       assert(mat_ndim > 0);
       DALI_ENFORCE(size == mat_ndim * (mat_ndim + 1),
           make_string("Cannot form an affine transform matrix with ", size, " elements"));
@@ -147,7 +146,7 @@ TEST(ArgValueTests, Constant_2D) {
     ASSERT_TRUE(arg.IsConstant());
     for (int i = 0; i < kNumSamples; i++) {
       ASSERT_EQ(expected_shape, arg[i].shape);
-      for (int j = 0; j < 6; j++) {
+      for (int j = 0; j < expected_shape.num_elements(); j++) {
         ASSERT_EQ(data[j], arg[i].data[j]);
       }
     }

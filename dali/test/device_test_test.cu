@@ -31,7 +31,7 @@ DEVICE_TEST(DeviceTest, DeviceSideSuccess, dim3(5), dim3(32)) {
 }
 
 DEFINE_TEST_KERNEL(DeviceTest, DeviceSideFailure) {
-  DEV_EXPECT_EQ(threadIdx.x, 0);
+  DEV_EXPECT_EQ(threadIdx.x, 0u);
   DEV_EXPECT_LT(4, 4);
   DEV_EXPECT_LT(5, 4);
 

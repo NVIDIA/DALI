@@ -64,7 +64,7 @@ class SliceFlipNormalizePermutePadGpu {
 
     processed_args_.clear();
     processed_args_.reserve(args.size());
-    for (int i = 0; i < num_samples; i++) {
+    for (size_t i = 0; i < num_samples; i++) {
       auto in_shape = in.tensor_shape(i);
       processed_args_.emplace_back(detail::ProcessArgs(args[i], in_shape));
       auto &sample_args = processed_args_.back();
@@ -76,11 +76,11 @@ class SliceFlipNormalizePermutePadGpu {
         channel_dim_ = sample_args.channel_dim;
       } else {
         // Checking all the samples are consistent
-        if (norm_args_size_ != sample_args.mean.size() ||
-            norm_args_size_ != sample_args.inv_stddev.size())
+        if (norm_args_size_ != static_cast<int>(sample_args.mean.size()) ||
+            norm_args_size_ != static_cast<int>(sample_args.inv_stddev.size()))
           throw std::invalid_argument(
             "Normalization arguments should have the same size for all the samples");
-        if (nfill_values_ != sample_args.fill_values.size())
+        if (nfill_values_ != static_cast<int>(sample_args.fill_values.size()))
           throw std::invalid_argument("Fill values should have the same size for all the samples");
         if (channel_dim_ != sample_args.channel_dim)
           throw std::invalid_argument("channel dim should be the same for all the samples");
@@ -203,7 +203,8 @@ class SliceFlipNormalizePermutePadGpu {
       // 4. The last two dimensions are either both flipped or not flipped
       int last_dim = Dims - 1;
       while (last_dim > 0 &&
-             sample_desc.out_strides[last_dim] == sample_desc.in_strides[last_dim] &&
+             sample_desc.out_strides[last_dim] ==
+                 static_cast<uint64_t>(sample_desc.in_strides[last_dim]) &&
              sample_desc.anchor[last_dim] == 0 &&
              sample_desc.out_shape[last_dim] == sample_desc.in_shape[last_dim] &&
              sample_desc.channel_dim != last_dim &&
