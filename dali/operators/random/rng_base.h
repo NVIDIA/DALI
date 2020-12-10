@@ -37,7 +37,7 @@ class RNGBase : public Operator<Backend> {
   explicit RNGBase(const OpSpec &spec)
       : Operator<Backend>(spec),
         rng_(spec.GetArgument<int64_t>("seed"), max_batch_size_),
-        backend_specific_(spec.GetArgument<int64_t>("seed"), max_batch_size_) {
+        backend_data_(spec.GetArgument<int64_t>("seed"), max_batch_size_) {
   }
 
   Impl &This() noexcept { return static_cast<Impl&>(*this); }
@@ -70,12 +70,10 @@ class RNGBase : public Operator<Backend> {
     } else if (has_shape) {
       GetShapeArgument(shape_, spec_, "shape", ws, max_batch_size_);
     } else {
-      shape_ = uniform_list_shape(spec_.template GetArgument<DALIDataType>("max_batch_size"), {1});
+      shape_ = uniform_list_shape(max_batch_size_, TensorShape<0>{});
     }
-    max_batch_size_ = shape_.size();
-    single_value_ = shape_.num_elements() == max_batch_size_;
-
-    This().AcquireArgs(spec_, ws, max_batch_size_);
+    single_value_ = shape_.num_elements() == shape_.size();
+    This().AcquireArgs(spec_, ws, shape_.size());
 
     output_desc.resize(1);
     output_desc[0].shape = shape_;
@@ -92,12 +90,12 @@ class RNGBase : public Operator<Backend> {
   using Operator<Backend>::spec_;
   using Operator<Backend>::max_batch_size_;
 
-  DALIDataType dtype_;
+  DALIDataType dtype_ = DALI_NO_TYPE;
   BatchRNG<std::mt19937_64> rng_;
   TensorListShape<> shape_;
   bool single_value_ = false;
 
-  RNGBaseFields<Backend> backend_specific_;
+  RNGBaseFields<Backend> backend_data_;
 };
 
 }  // namespace dali

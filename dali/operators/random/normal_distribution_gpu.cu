@@ -27,7 +27,7 @@ class NormalDistributionGPU : public NormalDistribution<GPUBackend, NormalDistri
   struct Dist {
     using FloatType =
       typename std::conditional<
-          ((std::is_integral<T>::value && sizeof(T) > 3) || sizeof(T) > 4),
+          ((std::is_integral<T>::value && sizeof(T) >= 4) || sizeof(T) > 4),
           double, float>::type;
     using type = curand_normal_dist<FloatType>;
     static constexpr bool has_state = true;
@@ -35,7 +35,7 @@ class NormalDistributionGPU : public NormalDistribution<GPUBackend, NormalDistri
 
   explicit NormalDistributionGPU(const OpSpec &spec)
       : NormalDistribution<GPUBackend, NormalDistributionGPU>(spec) {
-    assert(max_batch_size_ < backend_specific_.max_blocks_);
+    assert(max_batch_size_ < backend_data_.max_blocks_);
     dists_gpu_ = kernels::memory::alloc_unique<uint8_t>(
         kernels::AllocType::GPU, kDistMaxSize * max_batch_size_);
     dists_cpu_ = kernels::memory::alloc_unique<uint8_t>(

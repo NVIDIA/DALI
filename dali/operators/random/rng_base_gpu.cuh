@@ -79,11 +79,11 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   static_assert(std::is_same<Backend, GPUBackend>::value);
   auto out_view = view<T>(ws.template OutputRef<GPUBackend>(0));
   int nsamples = out_view.shape.size();
-  auto blocks_cpu = backend_specific_.block_descs_cpu_.get();
-  auto blocks_gpu = backend_specific_.block_descs_gpu_.get();
-  auto rngs = backend_specific_.randomizer_.states();
-  int64_t block_sz = backend_specific_.block_size_;
-  int64_t max_nblocks = backend_specific_.max_blocks_;
+  auto blocks_cpu = backend_data_.block_descs_cpu_.get();
+  auto blocks_gpu = backend_data_.block_descs_gpu_.get();
+  auto rngs = backend_data_.randomizer_.states();
+  int64_t block_sz = backend_data_.block_size_;
+  int64_t max_nblocks = backend_data_.max_blocks_;
   int64_t nblocks = -1;
   if (single_value_) {
     nblocks = SetupBlockDescsSingleValue(

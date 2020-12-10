@@ -22,8 +22,8 @@ DALI_SCHEMA(random__NormalDistribution)
     .DocStr(R"code(Generates random numbers following a normal distribution.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the input, if provided. If none are present, a single number is
-generated.
+or chosen to match the shape of the input, if provided. If none are present, a single value per
+sample is generated.
 )code")
     .NumInput(0, 1)
     .NumOutput(1)
@@ -41,7 +41,7 @@ class NormalDistributionCPU : public NormalDistribution<CPUBackend, NormalDistri
   struct Dist {
     using FloatType =
       typename std::conditional<
-          ((std::is_integral<T>::value && sizeof(T) > 3) || sizeof(T) > 4),
+          ((std::is_integral<T>::value && sizeof(T) >= 4) || sizeof(T) > 4),
           double, float>::type;
     using type = std::normal_distribution<FloatType>;
   };
@@ -78,8 +78,8 @@ DALI_SCHEMA(NormalDistribution)
     .DocStr(R"code(Generates random numbers following a normal distribution.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the input, if provided. If none are present, a single number is
-generated.
+or chosen to match the shape of the input, if provided. If none are present, a single value per
+sample is generated.
 )code")
     .NumInput(0, 1)
     .NumOutput(1)
@@ -89,7 +89,7 @@ generated.
     .AddOptionalArg<float>("stddev",
       R"code(Standard deviation of the distribution.)code",
       1.f, true)
-    .AddParent("RNGAttr")
+    .AddParent("random__NormalDistribution")
     .Deprecate("random.NormalDistribution");  // Deprecated in 0.30
 
 
