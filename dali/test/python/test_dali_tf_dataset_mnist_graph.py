@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dali.test.python.test_dali_tf_dataset_mnist import *
+from test_dali_tf_dataset_mnist import *
 from nose.tools import raises
 
 tf.compat.v1.disable_eager_execution()
