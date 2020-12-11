@@ -28,11 +28,11 @@ def check_normal_distribution(device, dtype, shape=None, use_shape_like_input=Fa
     with pipe:
         if shape is not None:
             if use_shape_like_input:
-                out = fn.random.normal_distribution(np.ones(shape), device=device, mean=mean, stddev=stddev, dtype=dtype)
+                out = fn.random.normal(np.ones(shape), device=device, mean=mean, stddev=stddev, dtype=dtype)
             else:
-                out = fn.random.normal_distribution(device=device, shape=shape, mean=mean, stddev=stddev, dtype=dtype)
+                out = fn.random.normal(device=device, shape=shape, mean=mean, stddev=stddev, dtype=dtype)
         else:
-            out = fn.random.normal_distribution(device=device, mean=mean, stddev=stddev, dtype=dtype)
+            out = fn.random.normal(device=device, mean=mean, stddev=stddev, dtype=dtype)
         pipe.set_outputs(out)
     pipe.build()
     for i in range(niter):

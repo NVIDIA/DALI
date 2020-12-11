@@ -188,7 +188,7 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
 
         self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
 
-        self.normal_distribution = ops.NormalDistribution(device="cpu")
+        self.normal_distribution = ops.random.Normal(device="cpu")
 
         self.preemph = ops.PreemphasisFilter(preemph_coeff=preemph_coeff)
 

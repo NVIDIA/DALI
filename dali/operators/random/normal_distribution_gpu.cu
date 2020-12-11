@@ -15,6 +15,7 @@
 #include <vector>
 #include <utility>
 #include "dali/core/convert.h"
+#include "dali/core/dev_buffer.h"
 #include "dali/kernels/alloc.h"
 #include "dali/operators/random/rng_base_gpu.cuh"
 #include "dali/operators/random/normal_distribution.h"
@@ -36,35 +37,33 @@ class NormalDistributionGPU : public NormalDistribution<GPUBackend, NormalDistri
   explicit NormalDistributionGPU(const OpSpec &spec)
       : NormalDistribution<GPUBackend, NormalDistributionGPU>(spec) {
     assert(max_batch_size_ < backend_data_.max_blocks_);
-    dists_gpu_ = kernels::memory::alloc_unique<uint8_t>(
-        kernels::AllocType::GPU, kDistMaxSize * max_batch_size_);
-    dists_cpu_ = kernels::memory::alloc_unique<uint8_t>(
-        kernels::AllocType::Pinned, kDistMaxSize * max_batch_size_);
+    dists_cpu_.reserve(kDistMaxSize * max_batch_size_);
+    dists_gpu_.resize(kDistMaxSize * max_batch_size_);
+    dists_gpu_.clear();
   }
 
   ~NormalDistributionGPU() override = default;
 
   template <typename Dist>
   Dist* SetupDists(int nsamples, cudaStream_t stream) {
-    assert(sizeof(Dist) * nsamples <= kDistMaxSize * max_batch_size_);
-    auto *dists_cpu = reinterpret_cast<Dist*>(dists_cpu_.get());
-    auto *dists_gpu = reinterpret_cast<Dist*>(dists_gpu_.get());
+    dists_cpu_.resize(sizeof(Dist) * nsamples);  // memory reserved in constructor
+    auto *dists_cpu = reinterpret_cast<Dist*>(dists_cpu_.data());
     for (int s = 0; s < nsamples; s++) {
       dists_cpu[s] = {mean_[s].data[0], stddev_[s].data[0]};
     }
-    cudaMemcpyAsync(dists_gpu, dists_cpu,
-      sizeof(Dist) * nsamples, cudaMemcpyHostToDevice, stream);
+    dists_gpu_.from_host(dists_cpu_, stream);
+    auto *dists_gpu = reinterpret_cast<Dist*>(dists_gpu_.data());
     return dists_gpu;
   }
 
  private:
-  kernels::memory::KernelUniquePtr<uint8_t> dists_cpu_;
-  kernels::memory::KernelUniquePtr<uint8_t> dists_gpu_;
+  std::vector<uint8_t> dists_cpu_;
+  DeviceBuffer<uint8_t> dists_gpu_;
   static constexpr size_t kDistMaxSize = sizeof(curand_normal_dist<double>);
 };
 
 
-DALI_REGISTER_OPERATOR(random__NormalDistribution, NormalDistributionGPU, GPU);
+DALI_REGISTER_OPERATOR(random__Normal, NormalDistributionGPU, GPU);
 DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionGPU, GPU);
 
 }  // namespace dali

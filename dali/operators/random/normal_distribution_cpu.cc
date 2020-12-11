@@ -18,7 +18,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(random__NormalDistribution)
+DALI_SCHEMA(random__Normal)
     .DocStr(R"code(Generates random numbers following a normal distribution.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
@@ -48,13 +48,13 @@ class NormalDistributionCPU : public NormalDistribution<CPUBackend, NormalDistri
 
   explicit NormalDistributionCPU(const OpSpec &spec)
       : NormalDistribution<CPUBackend, NormalDistributionCPU>(spec) {
-    dist_data_.resize(max_batch_size_ * kDistMaxSize);
+    dist_data_.reserve(max_batch_size_ * kDistMaxSize);
   }
   ~NormalDistributionCPU() override = default;
 
   template <typename Dist>
   Dist* SetupDists(int nsamples) {
-    assert(sizeof(Dist) * nsamples <= dist_data_.size());
+    dist_data_.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
     auto dists = reinterpret_cast<Dist*>(dist_data_.data());
     for (int s = 0; s < nsamples; s++) {
       dists[s] = Dist(mean_[s].data[0], stddev_[s].data[0]);
@@ -71,7 +71,7 @@ class NormalDistributionCPU : public NormalDistribution<CPUBackend, NormalDistri
 };
 
 
-DALI_REGISTER_OPERATOR(random__NormalDistribution, NormalDistributionCPU, CPU);
+DALI_REGISTER_OPERATOR(random__Normal, NormalDistributionCPU, CPU);
 
 // Deprecated alias
 DALI_SCHEMA(NormalDistribution)
@@ -83,8 +83,8 @@ sample is generated.
 )code")
     .NumInput(0, 1)
     .NumOutput(1)
-    .AddParent("random__NormalDistribution")
-    .Deprecate("random.NormalDistribution");  // Deprecated in 0.30
+    .AddParent("random__Normal")
+    .Deprecate("random.Normal");  // Deprecated in 0.30
 
 
 DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCPU, CPU);

@@ -47,6 +47,13 @@ class RNGBase : public Operator<Backend> {
     return true;
   }
 
+  int GetBatchSize(const workspace_t<Backend> &ws) const {
+    if (spec_.NumRegularInput() == 1)
+      return ws.template InputRef<Backend>(0).shape().size();
+    else
+      return ws.GetRequestedBatchSize(0);
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const workspace_t<Backend> &ws) override {
     if (!spec_.TryGetArgument(dtype_, "dtype"))
@@ -54,6 +61,7 @@ class RNGBase : public Operator<Backend> {
 
     bool has_shape = spec_.ArgumentDefined("shape");
     bool has_shape_like = spec_.NumRegularInput() == 1;
+    int nsamples = GetBatchSize(ws);
     DALI_ENFORCE(!(has_shape && has_shape_like),
       "Providing argument \"shape\" is incompatible with providing a shape-like input");
 
@@ -68,11 +76,11 @@ class RNGBase : public Operator<Backend> {
             "Shape-like input can be either CPUBackend or GPUBackend for case of GPU operators.");
       }
     } else if (has_shape) {
-      GetShapeArgument(shape_, spec_, "shape", ws, max_batch_size_);
+      GetShapeArgument(shape_, spec_, "shape", ws, nsamples);
     } else {
-      shape_ = uniform_list_shape(max_batch_size_, TensorShape<0>{});
+      shape_ = uniform_list_shape(nsamples, TensorShape<0>{});
     }
-    single_value_ = shape_.num_elements() == shape_.size();
+    single_value_ = is_uniform(shape_) && shape_.num_elements() == shape_.size();
     This().AcquireArgs(spec_, ws, shape_.size());
 
     output_desc.resize(1);
