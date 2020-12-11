@@ -2,6 +2,7 @@ import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
+import nvidia.dali.math as math
 from test_utils import check_batch, dali_type
 import random
 from segmentation_test_utils import make_batch_select_masks
@@ -29,7 +30,7 @@ def check_random_mask_pixel(ndim=2, batch_size=3,
         # Demo purposes: Taking a random pixel and produce a valid anchor to feed slice
         crop_shape = in_shape - 2  # We want to force the center adjustment, therefore the large crop shape
         anchor = fg_pixel1 - crop_shape // 2
-        anchor = min(max(0, anchor), in_shape - crop_shape)
+        anchor = math.min(math.max(0, anchor), in_shape - crop_shape)
         out_mask = fn.slice(in_mask, anchor, crop_shape, axes=tuple(range(ndim)))
 
     pipe.set_outputs(in_mask, fg_pixel1, fg_pixel2, fg_pixel3, rnd_pixel, coin_flip, fg_biased,
