@@ -106,6 +106,24 @@ inline void store_i32(uint16_t *u16, i128x2 iv) {
   _mm_storeu_si128(reinterpret_cast<__m128i*>(u16), out);
 }
 
+/**
+ * @brief Unsafe pack int32x4x2 to uint16x8 and store
+ *
+ * The result is undefined when values are outside uint16 range
+ */
+inline void store_i32_unsafe(uint16_t *u16, i128x2 iv) {
+  __m128i lo = iv.v[0];
+  __m128i hi = iv.v[1];
+  __m128i even = _mm_castps_si128(
+      _mm_shuffle_ps(_mm_castsi128_ps(lo), _mm_castsi128_ps(hi), _MM_SHUFFLE(2, 0, 2, 0)));
+  __m128i odd = _mm_castps_si128(
+      _mm_shuffle_ps(_mm_castsi128_ps(lo), _mm_castsi128_ps(hi), _MM_SHUFFLE(3, 1, 3, 1)));
+
+  __m128i out = _mm_or_si128(even, _mm_bslli_si128(odd, 2));  // byte shift
+
+  _mm_storeu_si128(reinterpret_cast<__m128i*>(u16), out);
+}
+
 inline void store_i32(int32_t *i32, i128x1 iv) {
   _mm_storeu_si128(reinterpret_cast<__m128i*>(i32), iv.v[0]);
 }
@@ -221,6 +239,18 @@ store_f(Out *out, float4x<sizeof(float)/sizeof(Out)> f) {
   for (int i = 0; i < nvec; i++)
     iv.v[i] = clamp_round(f.v[i], lo, hi);
   store_i32(out, iv);
+}
+
+/**
+ * @brief Convert 2 vectors of float and convert to uint16
+ */
+inline void store_f(uint16_t *out, float4x2 f) {
+  constexpr float lo = 0;
+  constexpr float hi = 0xffff;
+  i128x<2> iv;
+  iv.v[0] = clamp_round(f.v[0], lo, hi);
+  iv.v[1] = clamp_round(f.v[1], lo, hi);
+  store_i32_unsafe(out, iv);
 }
 
 /**
