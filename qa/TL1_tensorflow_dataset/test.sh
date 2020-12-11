@@ -32,10 +32,15 @@ test_body() {
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600
-        jupyter nbconvert tensorflow-dataset-multigpu.ipynb \
-                  --to notebook --inplace --execute \
-                  --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                  --ExecutePreprocessor.timeout=600
+
+        is_compatible_distributed=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; print(dali_tf.dataset_distributed_compatible_tensorflow())')
+        if [ $is_compatible_distributed = 'True' ]; then
+            jupyter nbconvert tensorflow-dataset-multigpu.ipynb \
+                    --to notebook --inplace --execute \
+                    --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
+                    --ExecutePreprocessor.timeout=600
+        fi
+        
         popd
     fi
 }

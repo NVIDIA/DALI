@@ -29,8 +29,8 @@ import math
 
 
 def skip_for_incompatible_tf():
-    if LooseVersion(tf.__version__) < LooseVersion('2.5'):
-        raise SkipTest('This feature is enabled for TF 2.5 and higher')
+    if not dali_tf.dataset_distributed_compatible_tensorflow():
+        raise SkipTest('This feature is enabled for TF 2.5.0 and higher')
 
 
 def num_available_gpus():
