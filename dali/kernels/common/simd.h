@@ -233,8 +233,8 @@ template <typename Out>
 inline std::enable_if_t<std::is_integral<Out>::value>
 store_f(Out *out, float4x<sizeof(float)/sizeof(Out)> f) {
   constexpr int nvec = sizeof(float)/sizeof(Out);
-  constexpr float lo = std::numeric_limits<Out>::min();
-  constexpr float hi = std::numeric_limits<Out>::max();
+  constexpr float lo = static_cast<float>(std::numeric_limits<Out>::min());
+  constexpr float hi = static_cast<float>(std::numeric_limits<Out>::max());
   i128x<nvec> iv;
   for (int i = 0; i < nvec; i++)
     iv.v[i] = clamp_round(f.v[i], lo, hi);
