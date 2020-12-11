@@ -26,7 +26,7 @@ namespace dali {
 
 struct curand_states {
   curand_states(uint64_t seed, size_t len);
-  ~curand_states();
+  ~curand_states() = default;
 
   DALI_HOST_DEV inline curandState* states() {
     return states_;

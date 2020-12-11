@@ -38,11 +38,4 @@ curand_states::curand_states(uint64_t seed, size_t len) : len_(len) {
   detail::init_states<<<grid, kBlockSize>>>(len_, seed, states_);
 }
 
-curand_states::~curand_states() {
-  // TODO(janton) do we need this?
-  DeviceGuard g(device_);
-  states_mem_.reset();
-  states_ = nullptr;
-}
-
 }  // namespace dali
