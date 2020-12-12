@@ -109,6 +109,7 @@ TEST(SSE2Test, ConvertStore) {
   TestConvertStore<int16_t>(make_vec_f<2>(-32768, 32767));
   TestConvertStore<uint16_t>(make_vec_f<2>(0, 65535));
   TestConvertStore<int32_t>(make_vec_f<1>(-1000000, 1000000));
+  TestConvertStore<int32_t>(make_vec_f<1>(-2.5e+9, 2.5e+9));
 
   TestConvertStore<int8_t>(make_vec_i32<4>(-128, 127));
   TestConvertStore<uint8_t>(make_vec_i32<4>(0, 255));

@@ -227,17 +227,30 @@ inline float4x1 load_f(const float *f) {
 }
 
 /**
+ * @brief Converts floating point values to 32-bit signed integers, with proper clamping
+ *
+ * @remarks NaNs and infinities are stored as -2^31 or 2^31-1, depending on input sign
+ */
+inline __m128i saturate_f_i32(__m128 f) {
+  // this converts f to int32. Out of range values (and NaN) are stored as -2^31
+  __m128i raw = _mm_cvtps_epi32(f);
+  // xor to check where sign disagrees
+  __m128i mask = _mm_xor_si128(_mm_castps_si128(f), raw);
+  __m128i adjust = _mm_srli_epi32(mask, 31);  // move the disagreeing sign bit to LSB and subtract
+  // this converts 0x80000000 to 0x7fffffff, which is what we want
+  return _mm_sub_epi32(raw, adjust);
+}
+
+/**
  * @brief Convert multiple vectors of float and convert them to Out.
  */
 template <typename Out>
 inline std::enable_if_t<std::is_integral<Out>::value>
 store_f(Out *out, float4x<sizeof(float)/sizeof(Out)> f) {
   constexpr int nvec = sizeof(float)/sizeof(Out);
-  constexpr float lo = static_cast<float>(std::numeric_limits<Out>::min());
-  constexpr float hi = static_cast<float>(std::numeric_limits<Out>::max());
   i128x<nvec> iv;
   for (int i = 0; i < nvec; i++)
-    iv.v[i] = clamp_round(f.v[i], lo, hi);
+    iv.v[i] = saturate_f_i32(f.v[i]);
   store_i32(out, iv);
 }
 
