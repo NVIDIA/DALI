@@ -29,7 +29,7 @@ def check_random_mask_pixel(ndim=2, batch_size=3,
 
         # Demo purposes: Taking a random pixel and produce a valid anchor to feed slice
         crop_shape = in_shape - 2  # We want to force the center adjustment, therefore the large crop shape
-        anchor = fg_pixel1 - crop_shape // 2
+        anchor = fn.cast(fg_pixel1, dtype=types.INT32) - crop_shape // 2
         anchor = math.min(math.max(0, anchor), in_shape - crop_shape)
         out_mask = fn.slice(in_mask, anchor, crop_shape, axes=tuple(range(ndim)))
 
