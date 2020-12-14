@@ -17,6 +17,7 @@ import nvidia.dali.fn as fn
 from test_utils import get_dali_extra_path
 import os
 from nose.tools import raises
+import tempfile
 
 test_data_root = get_dali_extra_path()
 file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
@@ -33,61 +34,34 @@ files = [
     'car-604019_1280.jpg']
 
 
-def get_pipeline():
-    pipeline = Pipeline(batch_size=2, num_threads=4, device_id=0)
-    
-    with pipeline:
-        inputs, _, _, ids = fn.coco_reader(
-            file_root=file_root,
-            annotations_file=train_annotations,
-            image_ids=True,
-            files=files,
-            save_preprocessed_annotations=True,
-            save_preprocessed_annotations_dir='/tmp')
-        pipeline.set_outputs(ids)
-
-    return pipeline
-
-
 def test_operator_coco_reader():
-    pipeline = get_pipeline()
-    pipeline.build()
+    with tempfile.TemporaryDirectory() as annotations_dir:
+        pipeline = Pipeline(batch_size=2, num_threads=4, device_id=0)
+        with pipeline:
+            inputs, _, _, ids = fn.coco_reader(
+                file_root=file_root,
+                annotations_file=train_annotations,
+                image_ids=True,
+                files=files,
+                save_preprocessed_annotations=True,
+                save_preprocessed_annotations_dir=annotations_dir)
+            pipeline.set_outputs(ids)
+        pipeline.build()
 
-    out = pipeline.run()
-    assert (out[0].as_array().ravel() == [0, 5]).all()
+        expected_ids = [[0, 5], [6, 17], [21, 39], [41, 59], [0, 5], [6, 17], [21, 39], [41, 59]]
+        for i in range(len(expected_ids)):
+            out = pipeline.run()
+            assert (out[0].as_array().ravel() == expected_ids[i]).all()
 
-    out = pipeline.run()
-    assert (out[0].as_array().ravel() == [6, 17]).all()
-
-    out = pipeline.run()
-    assert (out[0].as_array().ravel() == [21, 39]).all()
-
-    out = pipeline.run()
-    assert (out[0].as_array().ravel() == [41, 59]).all()
-
-    out = pipeline.run()
-    assert (out[0].as_array().ravel() == [0, 5]).all()
-
-    out = pipeline.run()
-    assert (out[0].as_array().ravel() == [6, 17]).all()
-
-    out = pipeline.run()
-    assert (out[0].as_array().ravel() == [21, 39]).all()
-
-    out = pipeline.run()
-    assert (out[0].as_array().ravel() == [41, 59]).all()
-
-
-    with open('/tmp/filenames.dat') as f:
-        lines = f.read().splitlines()
-
-    assert lines.sort() == files.sort()
+        filenames_file = os.path.join(annotations_dir, 'filenames.dat')
+        with open(filenames_file) as f:
+            lines = f.read().splitlines()
+        assert lines.sort() == files.sort()
 
 
 @raises(RuntimeError)
 def test_invalid_args():
     pipeline = Pipeline(batch_size=2, num_threads=4, device_id=0)
-    
     with pipeline:
         inputs, _, _, ids = fn.coco_reader(
             file_root=file_root,
@@ -96,6 +70,5 @@ def test_invalid_args():
             files=files,
             preprocessed_annotations_dir='/tmp')
         pipeline.set_outputs(ids)
-
     pipeline.build()
 

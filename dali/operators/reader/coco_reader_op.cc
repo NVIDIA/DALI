@@ -126,8 +126,9 @@ instance of an object is lower than this value, the object will be ignored.)code
       R"code(If set to True, the image IDs will be produced in an extra output.)code",
       false)
     .AddOptionalArg<vector<string>>("files", R"(A list of file paths to read the data from.
-  If ``file_root`` is provided, the paths are treated as being relative to it.
-  This argument is mutually exclusive with ``preprocessed_annotations``.)", nullptr)
+
+If ``file_root`` is provided, the paths are treated as being relative to it.
+This argument is mutually exclusive with ``preprocessed_annotations``.)", nullptr)
   .DeprecateArgInFavorOf("save_img_ids", "image_ids")  // deprecated since 0.28dev
   .AddOptionalArg("save_preprocessed_annotations",
       R"code(If set to True, the operator saves a set of files containing binary representations of the
