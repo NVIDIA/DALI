@@ -93,6 +93,21 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         nvjpegCreate(NVJPEG_BACKEND_HARDWARE, NULL, &handle_) == NVJPEG_STATUS_SUCCESS) {
       LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
       NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
+#if defined(NVJPEG_PREALLOCATE_API)
+      // TODO(awolant): How to expose chroma subsampling to the user?
+      if (spec.GetArgument<int>("preallocate_width_hint") > 0 &&
+          spec.GetArgument<int>("preallocate_height_hint") > 0) {
+        LOG_LINE << "Using NVJPEG_PREALLOCATE_API" << std::endl;
+        NVJPEG_CALL(nvjpegDecodeBatchedPreAllocate(
+          handle_,
+          state_hw_batched_,
+          hw_decoder_bs_,
+          spec.GetArgument<int>("preallocate_width_hint"),
+          spec.GetArgument<int>("preallocate_height_hint"),
+          NVJPEG_CSS_444,
+          NVJPEG_OUTPUT_RGB));
+      }
+#endif
       using_hw_decoder_ = true;
       in_data_.reserve(max_batch_size_);
       in_lengths_.reserve(max_batch_size_);

@@ -40,6 +40,10 @@ if (BUILD_NVJPEG)
   if (${NVJPEG_DECOUPLED_API})
     add_definitions(-DNVJPEG_DECOUPLED_API)
   endif()
+
+  if (${NVJPEG_PREALLOCATE_API})
+    add_definitions(-DNVJPEG_PREALLOCATE_API)
+  endif()
 endif()
 
 if (BUILD_NVJPEG2K)
