@@ -23,16 +23,19 @@ test_data_root = get_dali_extra_path()
 file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
 train_annotations = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 
-files = [
-    'car-race-438467_1280.jpg', 
-    'clock-1274699_1280.jpg', 
-    'kite-1159538_1280.jpg', 
-    'cow-234835_1280.jpg', 
-    'home-office-336378_1280.jpg', 
-    'suit-2619784_1280.jpg', 
-    'business-suit-690048_1280.jpg', 
-    'car-604019_1280.jpg']
+test_data = {
+    'car-race-438467_1280.jpg' : 0,
+    'clock-1274699_1280.jpg' : 5,
+    'kite-1159538_1280.jpg' : 6,
+    'cow-234835_1280.jpg' : 17,
+    'home-office-336378_1280.jpg' : 21,
+    'suit-2619784_1280.jpg' : 39,
+    'business-suit-690048_1280.jpg' : 41,
+    'car-604019_1280.jpg' : 59
+}
 
+files = list(test_data.keys())
+expected_ids = list(test_data.values())
 
 def test_operator_coco_reader():
     with tempfile.TemporaryDirectory() as annotations_dir:
@@ -48,10 +51,12 @@ def test_operator_coco_reader():
             pipeline.set_outputs(ids)
         pipeline.build()
 
-        expected_ids = [[0, 5], [6, 17], [21, 39], [41, 59], [0, 5], [6, 17], [21, 39], [41, 59]]
-        for i in range(len(expected_ids)):
+        i = 0
+        while i < len(files):
             out = pipeline.run()
-            assert (out[0].as_array().ravel() == expected_ids[i]).all()
+            assert out[0].at(0) == expected_ids[i]
+            assert out[0].at(1) == expected_ids[i + 1]
+            i = i + 2
 
         filenames_file = os.path.join(annotations_dir, 'filenames.dat')
         with open(filenames_file) as f:
