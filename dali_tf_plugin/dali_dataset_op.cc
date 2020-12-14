@@ -42,6 +42,7 @@
 #include "tensorflow/core/framework/tensor.h"
 
 #include "dali/core/common.h"
+#include "dali/core/format.h"
 #include "dali/c_api.h"
 #include "dali_shape_helper.h"
 
@@ -260,19 +261,20 @@ class DALIDatasetOp : public DatasetOpKernel {
           auto dali_device_type = daliGetOutputDevice(&pipeline_handle_, i);
 
           if (dali_device_type != dataset()->device_type_) {
-            std::stringstream msg;
-            msg << "TF device and DALI device mismatch. TF device: ";
-            msg << (dataset()->device_type_ == device_type_t::CPU ? "CPU" : "GPU");
-            msg << ", DALI device: ";
-            msg << (dali_device_type == device_type_t::CPU ? "CPU" : "GPU");
-            msg << " for output " << i;
+            auto msg = dali::make_string(
+              "TF device and DALI device mismatch. TF device: ",
+              (dataset()->device_type_ == device_type_t::CPU ? "CPU" : "GPU"),
+              ", DALI device: ",
+              (dali_device_type == device_type_t::CPU ? "CPU" : "GPU"),
+              " for output ",
+              i);
             
             if (dataset()->fail_on_device_mismatch_) {
               return Status(
                 tensorflow::error::Code::INTERNAL,
-                msg.str());
+                msg);
             }
-            LOG(WARNING) << "DALI LOG: CheckOutputDevice: " << msg.str();
+            LOG(WARNING) << "DALI LOG: CheckOutputDevice: " << msg;
           }
         }
         return Status::OK();
