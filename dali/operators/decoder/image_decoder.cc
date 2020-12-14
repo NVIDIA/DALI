@@ -147,7 +147,9 @@ The output of the decoder is in *HWC* layout.
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
 Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
   .AddOptionalArg("hw_decoder_load",
-      R"code(Applies **only** to the ``mixed`` backend type.
+      R"code(The percentage of the image data to be processed by the HW JPEG decoder.
+
+Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
 
 Determines the percentage of the workload that will be offloaded to the hardware decoder,
 if available. The optimal workload depends on the number of threads that are provided to
@@ -155,16 +157,18 @@ the DALI pipeline and should be found empirically. More details can be found at
 https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100)code",
       0.65f)
   .AddOptionalArg("preallocate_width_hint",
-      R"code(Applies **only** to the ``mixed`` backend type.
+      R"code(Image width hint.
 
-Hint about the expected maximum width of the processed images. It helps to allocate ahead of time
-a memory pool for the HW JPEG decoder in NVIDIA Ampere GPU architecture.)code",
+Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
+
+The hint is used to preallocate memory for the HW JPEG decoder.)code",
       0)
   .AddOptionalArg("preallocate_height_hint",
-      R"code(Applies **only** to the ``mixed`` backend type.
+      R"code(Image width hint.
 
-Hint about the expected maximum height of the processed images. It helps to allocate ahead of time
-a memory pool for the HW JPEG decoder in NVIDIA Ampere GPU architecture.)code",
+Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
+
+The hint is used to preallocate memory for the HW JPEG decoder.)code",
       0)
   .NumInput(1)
   .NumOutput(1)
