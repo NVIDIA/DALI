@@ -36,8 +36,7 @@ namespace dali {
 template <int ndim>
 struct ArgShapeFromSize {
   TensorShape<ndim> operator()(int64_t size) const {
-    throw std::logic_error(make_string("Cannot infer an ", ndim, "D shape from a flat size."));
-    return {};
+    throw std::logic_error(make_string("Cannot infer a ", ndim, "D shape from a flat size."));
   }
 };
 
