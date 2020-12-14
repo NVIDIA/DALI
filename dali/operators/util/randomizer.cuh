@@ -51,7 +51,7 @@ template <>
 struct curand_normal_dist<float> {
   float mean = 0.0f, stddev = 1.0f;
 
-  __device__ inline float yield(curandState *state) {
+  __device__ inline float operator()(curandState *state) const {
     return mean + curand_normal(state) * stddev;
   }
 };
@@ -60,7 +60,7 @@ template <>
 struct curand_normal_dist<double> {
   double mean = 0.0f, stddev = 1.0f;
 
-  __device__ inline double yield(curandState *state) {
+  __device__ inline double operator()(curandState *state) const {
     return mean + curand_normal_double(state) * stddev;
   }
 };

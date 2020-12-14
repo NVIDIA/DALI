@@ -46,29 +46,31 @@ struct RNGBaseFields<GPUBackend> {
 namespace {
 
 template <typename Out, typename Dist, bool DefaultDist = false>
-__global__ void RNGKernel(BlockDesc *block_descs, curandState* states, Dist* dists) {
+__global__ void RNGKernel(BlockDesc* __restrict__ block_descs,
+                          curandState* __restrict__ states,
+                          const Dist* __restrict__ dists) {
   auto desc = block_descs[blockIdx.x];
   auto start = static_cast<Out*>(desc.start);
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   auto block_end = start + desc.size;
-  Dist default_dist;
-  Dist& dist = DefaultDist ? default_dist : dists[desc.sample_idx];
+  Dist dist = DefaultDist ? Dist() : dists[desc.sample_idx];
   for (auto out = start + threadIdx.x; out < block_end; out += blockDim.x) {
-    *out = ConvertSat<Out>(dist.yield(states + tid));
+    *out = ConvertSat<Out>(dist(states + tid));
   }
 }
 
 template <typename Out, typename Dist, bool DefaultDist = false>
-__global__ void RNGKernelSingleValue(BlockDesc *descs, curandState* states, Dist* dists,
+__global__ void RNGKernelSingleValue(BlockDesc* __restrict__ descs,
+                                     curandState* __restrict__ states,
+                                     const Dist* __restrict__ dists,
                                      int nsamples) {
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= nsamples)
     return;
   auto desc = descs[tid];
   auto out = static_cast<Out*>(desc.start);
-  Dist default_dist;
-  Dist& dist = DefaultDist ? default_dist : dists[desc.sample_idx];
-  *out = ConvertSat<Out>(dist.yield(states + tid));
+  Dist dist = DefaultDist ? Dist() : dists[desc.sample_idx];
+  *out = ConvertSat<Out>(dist(states + tid));
 }
 
 }  // namespace
@@ -96,15 +98,16 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
                   sizeof(BlockDesc) * nblocks, cudaMemcpyHostToDevice, ws.stream());
 
   Dist* dists = This().template SetupDists<Dist>(nsamples, ws.stream());
+  VALUE_SWITCH(dists == nullptr ? 1 : 0, DefaultDist, (false, true), (
+    if (single_value_) {
+      RNGKernelSingleValue<T, Dist, DefaultDist>
+        <<<nblocks, block_sz, 0, ws.stream()>>>(blocks_gpu, rngs, dists, nsamples);
+    } else {
+      RNGKernel<T, Dist, DefaultDist>
+        <<<nblocks, block_sz, 0, ws.stream()>>>(blocks_gpu, rngs, dists);
+    }
+  ), ());  // NOLINT
 
-  constexpr bool use_default = !Impl::template Dist<T>::has_state;
-  if (single_value_) {
-    RNGKernelSingleValue<T, Dist, use_default>
-      <<<nblocks, block_sz, 0, ws.stream()>>>(blocks_gpu, rngs, dists, nsamples);
-  } else {
-    RNGKernel<T, Dist, use_default>
-      <<<nblocks, block_sz, 0, ws.stream()>>>(blocks_gpu, rngs, dists);
-  }
 }
 
 }  // namespace dali
