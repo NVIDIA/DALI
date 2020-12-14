@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <map>
+#include <unordered_set>
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -482,6 +483,35 @@ void CocoLoader::ParseJsonAnnotations() {
   bool parse_segmentation = output_polygon_masks_ || output_pixelwise_masks_;
   detail::ParseJsonFile(spec_, image_infos, annotations, category_ids,
                         parse_segmentation, output_pixelwise_masks_);
+  // Files args was provided. Filter out image_infos and annotations.
+  // Clear image_label_pairs_ to make ID match later.
+  if (has_files_arg_) {
+    std::unordered_set<std::string> file_names;
+
+    for (auto &image_label_pair : image_label_pairs_) {
+      file_names.insert(image_label_pair.first);
+    }
+
+    std::vector<detail::ImageInfo> new_image_infos;
+    std::unordered_set<int> ids_to_keep;
+    std::vector<detail::Annotation> new_annotations;
+
+    for (auto &image_info : image_infos) {
+      if (file_names.count(image_info.filename_) == 1) {
+        new_image_infos.push_back(image_info);
+        ids_to_keep.insert(image_info.original_id_);
+      }
+    }
+
+    for (auto &annotation : annotations) {
+      if (ids_to_keep.count(annotation.image_id_) == 1) {
+        new_annotations.emplace_back(std::move(annotation));
+      }
+    }
+    annotations = std::move(new_annotations);
+    image_infos = new_image_infos;
+    image_label_pairs_.clear();
+  }
 
   bool skip_empty = spec_.GetArgument<bool>("skip_empty");
   bool ratio = spec_.GetArgument<bool>("ratio");

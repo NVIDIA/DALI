@@ -121,6 +121,10 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
       DALI_FAIL("``save_preprocessed_annotations`` and ``save_preprocessed_annotations_dir`` "
                 "should be provided together");
     }
+
+    if (has_files_arg_ && HasPreprocessedAnnotations(spec)) {
+      DALI_FAIL("``files`` and ``preprocessed_annotations`` are mutually exclusive")
+    }
   }
 
   struct PixelwiseMasksInfo {
