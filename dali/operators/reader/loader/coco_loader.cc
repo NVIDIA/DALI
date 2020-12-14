@@ -509,7 +509,7 @@ void CocoLoader::ParseJsonAnnotations() {
       }
     }
     annotations = std::move(new_annotations);
-    image_infos = new_image_infos;
+    image_infos = std::move(new_image_infos);
     image_label_pairs_.clear();
   }
 
