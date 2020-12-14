@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <type_traits>
 #include "dali/core/static_switch.h"
 #include "dali/core/convert.h"
+#include "dali/kernels/common/simd.h"
 #include "dali/kernels/imgproc/surface.h"
 #include "dali/core/geom/vec.h"
 
@@ -36,7 +37,8 @@ void InitializeResamplingFilter(int32_t *out_indices, float *out_coeffs, int out
  * @brief Calculates a single pixel for horizontal resampling
  * @param out        - output row
  * @param in         - input row
- * @param x          - output  column index
+ * @param x          - output column index
+ * @param w          - input width
  * @param in_columns - precomputed leftmost indices of kernel footprints in input
  *                     for each output column
  * @param coeffs     - per-column resampling kernels - each kernel starts at index
@@ -82,6 +84,148 @@ void ResampleCol(Out *out, const In *in, int x, int w, const int32_t *in_columns
       out[channels * x + c] = ConvertSat<Out>(tmp[c]);
   }
 }
+
+template <typename Out, typename In>
+struct SIMD_vert_resample_impl {
+#ifdef __SSE2__
+  static constexpr int kVecSize = 16;
+  static constexpr int load_lanes = kVecSize / sizeof(In);
+  static constexpr int store_lanes = kVecSize / sizeof(Out);
+  static constexpr int kNumLanes = load_lanes > store_lanes ? load_lanes : store_lanes;
+  static constexpr int kNumVecs = kNumLanes * sizeof(float) / kVecSize;
+
+  using vec_pack = simd::multivec<kNumVecs>;
+#endif
+
+  static void run(Out *out, const In **rows, const float *kernel, int support,
+                   int begin_col, int end_col) {
+    int i = begin_col;
+#ifdef __SSE2__
+    for (; i + kNumLanes <= end_col; i += kNumLanes) {
+      vec_pack vtmp = vec_pack::zero();
+
+      for (int k = 0; k < support; k++) {
+        vec_pack vin = vec_pack::load(rows[k] + i);
+        __m128 coeff = _mm_set1_ps(kernel[k]);
+        for (int v = 0; v < kNumVecs; v++)
+          vtmp.v[v] = _mm_add_ps(vtmp.v[v], _mm_mul_ps(coeff, vin.v[v]));
+      }
+      store(out + i, vtmp);
+    }
+#endif
+    for (; i < end_col; i++) {
+      float tmp = 0;
+      for (int k = 0; k < support; k++)
+        tmp += rows[k][i] * kernel[k];
+      out[i] = ConvertSat<Out>(tmp);
+    }
+  }
+};
+
+
+template <typename Out, typename In>
+struct SIMD_horz_resample_impl {
+#ifdef __SSE2__
+  static constexpr int kVecSize = 16;
+  static constexpr int kNumLanes = kVecSize / sizeof(Out);
+  static constexpr int kNumVecs = kNumLanes * sizeof(float) / kVecSize;
+
+  using vec_pack = simd::multivec<kNumVecs>;
+#endif
+
+  template <int static_channels, bool clamp_left, bool clamp_right>
+  inline int run(Out *out, const In *in, int ox0, int ox1, int w,
+                 const int32_t *in_columns,
+                 const float *coeffs, int support,
+                 int dynamic_channels) {
+    const int channels = static_channels < 0 ? dynamic_channels : static_channels;
+
+    int x = ox0;
+#ifdef __SSE2__
+    float tmpin[kNumLanes];
+    for (; x + kNumLanes <= ox1; x += kNumLanes) {
+      Out tmp_out[kNumLanes];
+
+      if (static_channels < 0) {
+        // we don't know how many channels we have at compile time - inner loop over filter
+        for (int c = 0; c < channels; c++) {
+          vec_pack vout;
+          vout = vec_pack::zero();
+
+          for (int k = 0; k < support; k++) {
+            float tmp_coeffs[kNumLanes];
+            for (int l = 0; l < kNumLanes; l++)
+              tmp_coeffs[l] = coeffs[(x + l) * support + k];  // interleave per-column coefficients
+            vec_pack vcoeffs = vec_pack::load(tmp_coeffs);
+
+            for (int l = 0; l < kNumLanes; l++) {
+              int srcx = in_columns[x + l] + k;
+              if (clamp_left) if (srcx < 0) srcx = 0;
+              if (clamp_right) if (srcx > w-1) srcx = w-1;
+              tmpin[l] = in[srcx * channels + c];
+            }
+            vec_pack vin = vec_pack::load(tmpin);
+
+            for (int v = 0; v < kNumVecs; v++)
+              vout.v[v] = _mm_add_ps(vout.v[v], _mm_mul_ps(vcoeffs.v[v], vin.v[v]));
+          }
+          store(tmp_out, vout);
+          for (int l = 0; l < kNumLanes; l++)
+            out[channels * (x + l) + c] = tmp_out[l];  // interleave
+        }
+      } else {
+        // we know how many channels we have at compile time - inner loop over channels
+        static constexpr int kNCh = static_channels > 0 ? static_channels : 1;
+        vec_pack vout[kNCh];
+        Out tmp_out[kNCh][kNumLanes];
+        float tmp_in[kNCh][kNumLanes];
+
+        for (int c = 0; c < channels; c++)
+          vout[c] = vec_pack::zero();
+
+        for (int k = 0; k < support; k++) {
+          float tmp_coeffs[kNumLanes];
+          for (int l = 0; l < kNumLanes; l++)
+            tmp_coeffs[l] = coeffs[(x + l) * support + k];  // interleave per-column coefficients
+          vec_pack vcoeffs = vec_pack::load(tmp_coeffs);
+
+
+          for (int l = 0; l < kNumLanes; l++) {
+            int srcx = in_columns[x + l] + k;
+            if (clamp_left) if (srcx < 0) srcx = 0;
+            if (clamp_right) if (srcx > w-1) srcx = w-1;
+            for (int c = 0; c < channels; c++) {
+              tmp_in[c][l] = in[srcx * channels + c];
+            }
+          }
+
+          for (int c = 0; c < channels; c++) {
+            vec_pack vin = vec_pack::load(tmp_in[c]);
+            for (int v = 0; v < kNumVecs; v++)
+              vout[c].v[v] = _mm_add_ps(vout[c].v[v], _mm_mul_ps(vcoeffs.v[v], vin.v[v]));
+          }
+        }
+
+        for (int c = 0; c < channels; c++)
+          store(tmp_out[c], vout[c]);
+
+        for (int l = 0; l < kNumLanes; l++)
+          for (int c = 0; c < channels; c++)
+            out[channels * (x + l) + c] = tmp_out[c][l];  // interleave channels
+      }
+    }
+#endif
+
+    for (; x < ox1; x++) {
+      ResampleCol<static_channels, clamp_left, clamp_right, Out, In>(
+          out, in, x, w, in_columns, coeffs, support, dynamic_channels);
+    }
+
+    return x;
+  }
+};
+
+
 
 /**
  * @brief Calcualtes the indices of first and last _output_ columns that does not need
@@ -144,37 +288,30 @@ void ResamplHorzRow(Out *out_row, int out_width, const In *in_row, int in_width,
                     const int *in_columns, const float *coeffs, int support,
                     int first_regular_col, int last_regular_col, bool flipped) {
   int x = 0;
+  // if last_regular_col < first_regular_col, then we can only use one-sided clamp
+  // up to last_regular_col-1
+  int max_one_sided_clamp = std::min(first_regular_col, last_regular_col+1);
+
+  SIMD_horz_resample_impl<Out, In> impl;
   if (flipped) {
-    for (; x < first_regular_col && x <= last_regular_col; x++) {
-      ResampleCol<static_channels, false, true>(
-        out_row, in_row, x, in_width, in_columns, coeffs, support, channels);
-    }
+    x = impl.template run<static_channels, false, true>(
+        out_row, in_row, x, max_one_sided_clamp, in_width, in_columns, coeffs, support, channels);
   } else {
-    for (; x < first_regular_col && x <= last_regular_col; x++) {
-      ResampleCol<static_channels, true, false>(
-        out_row, in_row, x, in_width, in_columns, coeffs, support, channels);
-    }
+    x = impl.template run<static_channels, true, false>(
+        out_row, in_row, x, max_one_sided_clamp, in_width, in_columns, coeffs, support, channels);
   }
 
-  for (; x < first_regular_col; x++) {
-    ResampleCol<static_channels, true, true>(
-      out_row, in_row, x, in_width, in_columns, coeffs, support, channels);
-  }
-  for (; x <= last_regular_col; x++) {
-    ResampleCol<static_channels, false, false>(
-      out_row, in_row, x, in_width, in_columns, coeffs, support, channels);
-  }
+  x = impl.template run<static_channels, true, true>(
+        out_row, in_row, x, first_regular_col, in_width, in_columns, coeffs, support, channels);
+  x = impl.template run<static_channels, false, false>(
+        out_row, in_row, x, last_regular_col+1, in_width, in_columns, coeffs, support, channels);
 
   if (flipped) {
-    for (; x < out_width; x++) {
-      ResampleCol<static_channels, true, false>(
-        out_row, in_row, x, in_width, in_columns, coeffs, support, channels);
-    }
+    impl.template run<static_channels, true, false>(
+        out_row, in_row, x, out_width, in_width, in_columns, coeffs, support, channels);
   } else {
-    for (; x < out_width; x++) {
-      ResampleCol<static_channels, false, true>(
-        out_row, in_row, x, in_width, in_columns, coeffs, support, channels);
-    }
+    impl.template run<static_channels, false, true>(
+        out_row, in_row, x, out_width, in_width, in_columns, coeffs, support, channels);
   }
 }
 
@@ -221,12 +358,12 @@ void ResampleHorz_Channels(
   }
 }
 
+
 template <typename Out, typename In>
 void ResampleVert(
     Surface2D<Out> out, Surface2D<In> in, const int32_t *in_rows,
     const float *row_coeffs, int support) {
-  constexpr int tile = 64;
-  float tmp[tile];  // NOLINT
+  constexpr int tile = 256;
 
   int flat_w = out.size.x * out.channels;
 
@@ -246,19 +383,8 @@ void ResampleVert(
     for (int x0 = 0; x0 < flat_w; x0 += tile) {
       int tile_w = x0 + tile <= flat_w ? tile : flat_w - x0;
       assert(tile_w <= tile);
-      for (int j = 0; j < tile_w; j++)
-        tmp[j] = 0;
-
-      for (int k = 0; k < support; k++) {
-        float flt = row_coeffs[y * support + k];
-        const In *in_row = in_row_ptrs[k];
-        for (int j = 0; j < tile_w; j++) {
-          tmp[j] += flt * in_row[x0 + j];
-        }
-      }
-
-      for (int j = 0; j < tile_w; j++)
-        out_row[x0 + j] = ConvertSat<Out>(tmp[j]);
+      SIMD_vert_resample_impl<Out, In> res;
+      res.run(out_row, in_row_ptrs, &row_coeffs[y * support], support, x0, x0 + tile_w);
     }
   }
 }
