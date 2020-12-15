@@ -36,7 +36,7 @@ class NormalDistributionGPU : public NormalDistribution<GPUBackend, NormalDistri
 
   explicit NormalDistributionGPU(const OpSpec &spec)
       : NormalDistribution<GPUBackend, NormalDistributionGPU>(spec) {
-    assert(max_batch_size_ < backend_data_.max_blocks_);
+    assert(max_batch_size_ <= backend_data_.max_blocks_);
     dists_cpu_.reserve(kDistMaxSize * max_batch_size_);
     dists_gpu_.reserve(kDistMaxSize * max_batch_size_);
   }

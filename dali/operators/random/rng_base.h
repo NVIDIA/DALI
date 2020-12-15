@@ -80,7 +80,6 @@ class RNGBase : public Operator<Backend> {
     } else {
       shape_ = uniform_list_shape(nsamples, TensorShape<0>{});
     }
-    single_value_ = is_uniform(shape_) && shape_.num_elements() == shape_.size();
     This().AcquireArgs(spec_, ws, shape_.size());
 
     output_desc.resize(1);
@@ -101,7 +100,6 @@ class RNGBase : public Operator<Backend> {
   DALIDataType dtype_ = DALI_NO_TYPE;
   BatchRNG<std::mt19937_64> rng_;
   TensorListShape<> shape_;
-  bool single_value_ = false;
 
   RNGBaseFields<Backend> backend_data_;
 };

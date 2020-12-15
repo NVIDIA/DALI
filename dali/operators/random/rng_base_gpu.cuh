@@ -28,15 +28,18 @@ namespace dali {
 
 template <>
 struct RNGBaseFields<GPUBackend> {
-  RNGBaseFields<GPUBackend>(int64_t seed, int max_batch_size)
-      : max_blocks_(std::max(max_batch_size, 1024)),
+  RNGBaseFields<GPUBackend>(int64_t seed, int max_batch_size, int64_t static_sample_size = -1)
+      : block_size_(static_sample_size < 0 ? 256 : min(static_sample_size, 256l)),
+        max_blocks_(static_sample_size < 0
+                        ? 1024
+                        : min(max_batch_size * div_ceil(static_sample_size, block_size_), 1024l)),
         randomizer_(seed, block_size_ * max_blocks_) {
     block_descs_gpu_ =
         kernels::memory::alloc_unique<BlockDesc>(kernels::AllocType::GPU, max_blocks_);
     block_descs_cpu_ =
         kernels::memory::alloc_unique<BlockDesc>(kernels::AllocType::Pinned, max_blocks_);
   }
-  static constexpr int block_size_ = 256;
+  const int block_size_;
   const int max_blocks_;
   curand_states randomizer_;
   kernels::memory::KernelUniquePtr<BlockDesc> block_descs_gpu_;
@@ -48,29 +51,22 @@ namespace {
 template <typename Out, typename Dist, bool DefaultDist = false>
 __global__ void RNGKernel(BlockDesc* __restrict__ block_descs,
                           curandState* __restrict__ states,
-                          const Dist* __restrict__ dists) {
-  auto desc = block_descs[blockIdx.x];
-  auto start = static_cast<Out*>(desc.start);
-  auto tid = blockIdx.x * blockDim.x + threadIdx.x;
-  auto block_end = start + desc.size;
-  Dist dist = DefaultDist ? Dist() : dists[desc.sample_idx];
-  for (auto out = start + threadIdx.x; out < block_end; out += blockDim.x) {
-    *out = ConvertSat<Out>(dist(states + tid));
+                          const Dist* __restrict__ dists, int nblocks) {
+  int block_size = blockDim.x * blockDim.y;
+  int local_tid = blockDim.x * threadIdx.y + threadIdx.x;
+  int64_t global_tid = blockIdx.y * block_size + local_tid;
+  auto rng = states + global_tid;
+  int blk_stride = blockDim.y * gridDim.y;
+  int blk = blockIdx.y * blockDim.y + threadIdx.y;
+  for (; blk < nblocks; blk += blk_stride) {
+    auto desc = block_descs[blk];
+    auto start = static_cast<Out*>(desc.start);
+    auto block_end = start + desc.size;
+    Dist dist = DefaultDist ? Dist() : dists[desc.sample_idx];
+    for (auto out = start + threadIdx.x; out < block_end; out += blockDim.x) {
+      *out = ConvertSat<Out>(dist(rng));
+    }
   }
-}
-
-template <typename Out, typename Dist, bool DefaultDist = false>
-__global__ void RNGKernelSingleValue(BlockDesc* __restrict__ descs,
-                                     curandState* __restrict__ states,
-                                     const Dist* __restrict__ dists,
-                                     int nsamples) {
-  auto tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (tid >= nsamples)
-    return;
-  auto desc = descs[tid];
-  auto out = static_cast<Out*>(desc.start);
-  Dist dist = DefaultDist ? Dist() : dists[desc.sample_idx];
-  *out = ConvertSat<Out>(dist(states + tid));
 }
 
 }  // namespace
@@ -84,30 +80,44 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   auto blocks_cpu = backend_data_.block_descs_cpu_.get();
   auto blocks_gpu = backend_data_.block_descs_gpu_.get();
   auto rngs = backend_data_.randomizer_.states();
-  int64_t block_sz = backend_data_.block_size_;
-  int64_t max_nblocks = backend_data_.max_blocks_;
-  int64_t nblocks = -1;
-  if (single_value_) {
-    nblocks = SetupBlockDescsSingleValue(
-      blocks_cpu, max_nblocks, out_view, ws.stream());
-  } else {
-    nblocks = SetupBlockDescs(
-      blocks_cpu, block_sz, max_nblocks, out_view, ws.stream());
+  int block_sz = backend_data_.block_size_;
+  int max_nblocks = backend_data_.max_blocks_;
+  int blockdesc_count = -1;
+  blockdesc_count = SetupBlockDescs(
+    blocks_cpu, block_sz, max_nblocks, out_view, ws.stream());
+
+  int64_t blockdesc_max_sz = -1;
+  for (int b = 0; b < blockdesc_count; b++) {
+    int64_t block_sz = blocks_cpu[b].size;
+    if (block_sz > blockdesc_max_sz)
+      blockdesc_max_sz = block_sz;
   }
+
   cudaMemcpyAsync(blocks_gpu, blocks_cpu,
-                  sizeof(BlockDesc) * nblocks, cudaMemcpyHostToDevice, ws.stream());
-
+                  sizeof(BlockDesc) * blockdesc_count, cudaMemcpyHostToDevice, ws.stream());
   Dist* dists = This().template SetupDists<Dist>(nsamples, ws.stream());
-  VALUE_SWITCH(dists == nullptr ? 1 : 0, DefaultDist, (false, true), (
-    if (single_value_) {
-      RNGKernelSingleValue<T, Dist, DefaultDist>
-        <<<nblocks, block_sz, 0, ws.stream()>>>(blocks_gpu, rngs, dists, nsamples);
-    } else {
-      RNGKernel<T, Dist, DefaultDist>
-        <<<nblocks, block_sz, 0, ws.stream()>>>(blocks_gpu, rngs, dists);
-    }
-  ), ());  // NOLINT
 
+  dim3 blockDim;
+  dim3 gridDim;
+  const int kLargeVolumeThreshold = 4 * block_sz;
+  if (blockdesc_max_sz < kLargeVolumeThreshold) {  // small volumes
+    // A CUDA block processes several logical blocks
+    blockDim.x = std::min<int>(block_sz, blockdesc_max_sz);
+    blockDim.y = std::min<int>(blockdesc_count, block_sz / blockDim.x);
+    gridDim.x = 1;
+    gridDim.y = div_ceil(blockdesc_count, blockDim.y);
+  } else {  // large volumes
+    // A CUDA block processes a single logical block
+    blockDim.x = std::min<int>(blockdesc_max_sz, block_sz);
+    blockDim.y = 1;
+    gridDim.x = 1;
+    gridDim.y = blockdesc_count;
+  }
+
+  VALUE_SWITCH(dists == nullptr ? 1 : 0, DefaultDist, (false, true), (
+    RNGKernel<T, Dist, DefaultDist>
+      <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, dists, blockdesc_count);
+  ), ());  // NOLINT
 }
 
 }  // namespace dali

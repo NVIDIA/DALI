@@ -38,18 +38,19 @@ def check_normal_distribution(device, dtype, shape=None, use_shape_like_input=Fa
     for i in range(niter):
         outputs = pipe.run()
         out = outputs[0] if device == 'cpu' else outputs[0].as_cpu()
-        for s in range(batch_size):
-            sample = out.at(s)
+        for sample_idx in range(batch_size):
+            sample = out.at(sample_idx)
             if shape is not None:
                 assert sample.shape == shape, f"{sample.shape} != {shape}"
             else:
-                assert sample.shape == (1,), f"{sample.shape} != (1, )"
+                assert sample.shape == (), f"{sample.shape} != ()"
 
             data = sample.flatten()
 
             m = np.mean(data)
             s = np.std(data)
             l = len(data)
+
             # Checking sanity of the data
             if l >= 100 and dtype in [types.FLOAT, types.FLOAT64, types.FLOAT16]:
                 # Empirical rule: 
@@ -66,14 +67,14 @@ def check_normal_distribution(device, dtype, shape=None, use_shape_like_input=Fa
                 assert p2 > 0.8,  f"{p2}"   # leave some room
                 assert p1 > 0.5,  f"{p1}"   # leave some room
 
-            # It's not 100% mathematically correct, but makes do in case of this test
-            _, pvalues_anderson, _ = st.anderson(data, dist='norm')
-            assert pvalues_anderson[2] > 0.5
+                # It's not 100% mathematically correct, but makes do in case of this test
+                _, pvalues_anderson, _ = st.anderson(data, dist='norm')
+                assert pvalues_anderson[2] > 0.5
 
-def test_normal_distribution_single_value():
+def test_normal_distribution():
     for device in ("cpu", "gpu"):
         for dtype in test_types:
-            for shape in [(100,), (10, 20, 30), (1, 2, 3, 4, 5, 6)]:
-                use_shape_like_in = random.choice([True, False])
+            for shape in [None, (100,), (10, 20, 30), (1, 2, 3, 4, 5, 6)]:
+                use_shape_like_in = False if shape is None else random.choice([True, False])
                 for mean, stddev in [(0.0, 1.0), (111.0, 57.0)]:
                     yield check_normal_distribution, device, dtype, shape, use_shape_like_in, mean, stddev
