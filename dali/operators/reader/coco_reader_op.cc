@@ -125,10 +125,14 @@ instance of an object is lower than this value, the object will be ignored.)code
   .AddOptionalArg("image_ids",
       R"code(If set to True, the image IDs will be produced in an extra output.)code",
       false)
-    .AddOptionalArg<vector<string>>("files", R"(A list of file paths to read the data from.
+  .AddOptionalArg<vector<string>>("files", R"code(A list of image paths.
 
-If ``file_root`` is provided, the paths are treated as being relative to it.
-This argument is mutually exclusive with ``preprocessed_annotations``.)", nullptr)
+If specified, it acts as a filter for the file paths present in the annotation file.
+If left unspecified or set to None, all images listed in the annotation file are read.
+
+The paths to be kept should match those in the annotations file.
+
+Note: This argument is mutually exclusive with ``preprocessed_annotations``.)code", nullptr)
   .DeprecateArgInFavorOf("save_img_ids", "image_ids")  // deprecated since 0.28dev
   .AddOptionalArg("save_preprocessed_annotations",
       R"code(If set to True, the operator saves a set of files containing binary representations of the
