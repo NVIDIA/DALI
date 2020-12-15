@@ -99,25 +99,18 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
 
   dim3 blockDim;
   dim3 gridDim;
-  const int kLargeVolumeThreshold = 4 * block_sz;
-  if (blockdesc_max_sz < kLargeVolumeThreshold) {  // small volumes
-    // A CUDA block processes several logical blocks
-    blockDim.x = std::min<int>(block_sz, blockdesc_max_sz);
-    blockDim.y = std::min<int>(blockdesc_count, block_sz / blockDim.x);
-    gridDim.x = 1;
-    gridDim.y = div_ceil(blockdesc_count, blockDim.y);
-  } else {  // large volumes
-    // A CUDA block processes a single logical block
-    blockDim.x = std::min<int>(blockdesc_max_sz, block_sz);
-    blockDim.y = 1;
-    gridDim.x = 1;
-    gridDim.y = blockdesc_count;
-  }
+  blockDim.x = std::min<int>(block_sz, blockdesc_max_sz);
+  blockDim.y = std::min<int>(blockdesc_count, std::max<int>(1, block_sz / blockDim.x));
+  gridDim.x = 1;
+  gridDim.y = div_ceil(blockdesc_count, blockDim.y);
 
-  VALUE_SWITCH(dists == nullptr ? 1 : 0, DefaultDist, (false, true), (
-    RNGKernel<T, Dist, DefaultDist>
+  if (dists == nullptr) {
+    RNGKernel<T, Dist, true>
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, dists, blockdesc_count);
-  ), ());  // NOLINT
+  } else {
+    RNGKernel<T, Dist, false>
+      <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, dists, blockdesc_count);
+  }
 }
 
 }  // namespace dali
