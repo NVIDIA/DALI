@@ -83,21 +83,6 @@ int64_t SetupBlockDescs(BlockDesc* blocks, int64_t block_sz, int64_t max_nblocks
   return blocks_num;
 }
 
-template <typename T>
-int64_t SetupBlockDescsSingleValue(BlockDesc* blocks, int64_t max_nblocks,
-                                   TensorListView<StorageGPU, T> &output, cudaStream_t stream) {
-  int nsamples = output.shape.size();
-  assert(nsamples <= max_nblocks);
-  auto sh = output.shape;
-  for (int s = 0; s < nsamples; s++) {
-    assert(volume(sh[s]) == 1);
-    blocks[s].sample_idx = s;
-    blocks[s].start = output[s].data;
-    blocks[s].size = 1;
-  }
-  return nsamples;
-}
-
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_RANDOM_RNG_BASE_GPU_H_

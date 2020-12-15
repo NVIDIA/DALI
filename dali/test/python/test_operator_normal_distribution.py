@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.backend_impl import TensorListGPU
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
@@ -22,26 +23,73 @@ import random
 
 test_types = [types.INT8, types.INT16, types.INT32, types.INT16, types.FLOAT, types.FLOAT64, types.FLOAT16]
 
-def check_normal_distribution(device, dtype, shape=None, use_shape_like_input=False, mean=0.0, stddev=1.0,
+def random_shape(max_shape):
+  return np.array(
+      [1 if s == 1 else np.random.randint(1, s) for s in max_shape],
+      dtype=np.int32
+    )
+
+
+def check_normal_distribution(device, dtype, shape=None, use_shape_like_input=False, variable_shape=False,
+                              mean=0.0, stddev=1.0, variable_dist_params=False,
                               niter=3, batch_size=3, device_id=0, num_threads=3):
     pipe = Pipeline(batch_size=batch_size, device_id=device_id, num_threads=num_threads, seed=123456)
     with pipe:
-        if shape is not None:
+        shape_like_in = None
+        shape_arg = None
+        if variable_shape:
+            assert shape is not None
             if use_shape_like_input:
-                out = fn.random.normal(np.ones(shape), device=device, mean=mean, stddev=stddev, dtype=dtype)
+                shape_like_in = fn.external_source(lambda: np.zeros(random_shape(shape)),
+                                                   device=device, batch=False)
+                shape_out = fn.shapes(shape_like_in)
             else:
-                out = fn.random.normal(device=device, shape=shape, mean=mean, stddev=stddev, dtype=dtype)
+                shape_arg = fn.external_source(lambda: random_shape(shape), batch=False)
+                shape_out = shape_arg
         else:
-            out = fn.random.normal(device=device, mean=mean, stddev=stddev, dtype=dtype)
-        pipe.set_outputs(out)
+            if use_shape_like_input:
+                shape_like_in = np.zeros(shape)
+            else:
+                shape_arg = shape
+            # Can't make an empty list constant
+            shape_out = types.Constant(
+                shape if shape is not None and shape != () else (1,),
+                dtype=types.INT32
+            )
+
+        mean_arg = None
+        stddev_arg = None
+        if variable_dist_params:
+            mean_arg = fn.external_source(
+                lambda: np.array(np.random.uniform(low=-100.0, high=100.0), dtype=np.float32),
+                device='cpu', batch=False
+            )
+            stddev_arg = fn.external_source(
+                lambda: np.array(np.random.uniform(low=1.0, high=100.0), dtype=np.float32),
+                device='cpu', batch=False
+            )
+        else:
+            mean_arg = mean
+            stddev_arg = stddev
+        inputs = [shape_like_in] if shape_like_in is not None else []
+        out = fn.random.normal(
+            *inputs, device=device, shape=shape_arg, mean=mean_arg, stddev=stddev_arg, dtype=dtype
+        )
+        pipe.set_outputs(out, shape_out, mean_arg, stddev_arg)
     pipe.build()
     for i in range(niter):
         outputs = pipe.run()
-        out = outputs[0] if device == 'cpu' else outputs[0].as_cpu()
+        out, shapes, means, stddevs = tuple(
+            outputs[i].as_cpu() if isinstance(outputs[i], TensorListGPU)
+                else outputs[i] for i in range(len(outputs))
+        )
         for sample_idx in range(batch_size):
-            sample = out.at(sample_idx)
+            sample = np.array(out[sample_idx])
+            sample_shape = np.array(shapes[sample_idx])
+            mean = np.array(means[sample_idx])
+            stddev = np.array(stddevs[sample_idx])
             if shape is not None:
-                assert sample.shape == shape, f"{sample.shape} != {shape}"
+                assert (sample.shape == sample_shape).all(), f"{sample.shape} != {sample_shape}"
             else:
                 assert sample.shape == (), f"{sample.shape} != ()"
 
@@ -74,7 +122,14 @@ def check_normal_distribution(device, dtype, shape=None, use_shape_like_input=Fa
 def test_normal_distribution():
     for device in ("cpu", "gpu"):
         for dtype in test_types:
-            for shape in [None, (100,), (10, 20, 30), (1, 2, 3, 4, 5, 6)]:
-                use_shape_like_in = False if shape is None else random.choice([True, False])
-                for mean, stddev in [(0.0, 1.0), (111.0, 57.0)]:
-                    yield check_normal_distribution, device, dtype, shape, use_shape_like_in, mean, stddev
+            for mean, stddev, variable_dist_params in \
+                        [(0.0, 1.0, False), (111.0, 57.0, False), (0.0, 0.0, True)]:
+                for shape in [None, (), (1,)]:
+                    yield check_normal_distribution, device, dtype, shape, False, False, \
+                        mean, stddev, False
+
+                for shape in [(100,), (10, 20, 30), (1, 2, 3, 4, 5, 6)]:
+                    use_shape_like_in = False if shape is None else random.choice([True, False])
+                    variable_shape = random.choice([True, False])
+                    yield check_normal_distribution, device, dtype, shape, use_shape_like_in, \
+                        variable_shape, mean, stddev, variable_dist_params
