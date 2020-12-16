@@ -34,16 +34,18 @@ DALIDataType BinaryTypePromotion(DALIDataType left, DALIDataType right) {
 }
 
 DALIDataType TypePromotion(ArithmeticOp op, span<DALIDataType> types) {
+  if (IsIntToFloatResult(op)) {
+    bool all_integral = true;
+    for (auto t : types)
+      all_integral = all_integral && IsIntegral(t);
+    if (all_integral)
+      return DALIDataType::DALI_FLOAT;
+  }
   if (types.size() == 1) {
     return types[0];
   }
   if (IsComparison(op)) {
     return DALIDataType::DALI_BOOL;
-  }
-  if (op == ArithmeticOp::fdiv) {
-    if (!IsFloatingPoint(types[0]) && !IsFloatingPoint(types[1])) {
-      return DALIDataType::DALI_FLOAT;
-    }
   }
   DALIDataType result = BinaryTypePromotion(types[0], types[1]);
   for (int i = 2; i < types.size(); i++) {

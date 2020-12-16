@@ -44,6 +44,8 @@ enum class ArithmeticOp : int {
   // Unary arithmetic ops
   plus,
   minus,
+  exp,
+  log,
   // Binary arithmetic ops
   add,
   sub,
@@ -71,6 +73,8 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
   switch (op) {
     case ArithmeticOp::plus:
     case ArithmeticOp::minus:
+    case ArithmeticOp::exp:
+    case ArithmeticOp::log:
       return 1;
     case ArithmeticOp::add:
     case ArithmeticOp::sub:
@@ -97,10 +101,27 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
   }
 }
 
+/**
+ * @brief Check if op returns floating point numbers for all inputs (promiting integers to floats)
+ */
+DALI_HOST_DEV constexpr bool IsIntToFloatResult(ArithmeticOp op) {
+  switch (op) {
+    case ArithmeticOp::exp:
+    case ArithmeticOp::log:
+    case ArithmeticOp::fdiv:
+      return true;
+    default:
+      return false;
+  }
+}
+
+
 DALI_HOST_DEV constexpr bool IsArithmetic(ArithmeticOp op) {
   switch (op) {
     case ArithmeticOp::plus:
     case ArithmeticOp::minus:
+    case ArithmeticOp::exp:
+    case ArithmeticOp::log:
     case ArithmeticOp::add:
     case ArithmeticOp::sub:
     case ArithmeticOp::mul:
@@ -347,6 +368,64 @@ struct arithm_meta;
 
 REGISTER_UNARY_IMPL(ArithmeticOp::plus, +);
 REGISTER_UNARY_IMPL(ArithmeticOp::minus, -);
+
+DALI_NO_EXEC_CHECK
+template <typename T>
+DALI_HOST_DEV inline T math_exp(T x) {
+#ifdef __CUDA_ARCH__
+  return exp(x);
+#else
+  return std::exp(x);
+#endif
+}
+
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::exp, Backend> {
+template <typename T>
+    using result_t = std::conditional_t<!is_fp_or_half<T>::value, float, T>;
+
+    template <typename T>
+    DALI_HOST_DEV static constexpr result_t<T> impl(T v) {
+      auto v_ = static_cast<result_t<T>>(v);
+      return math_exp(v_);
+    }
+
+    static inline std::string to_string() {
+      return "exp";
+    }
+
+    static constexpr int num_inputs = 1;
+    static constexpr int num_outputs = 1;
+};
+
+DALI_NO_EXEC_CHECK
+template <typename T>
+DALI_HOST_DEV inline T math_log(T x) {
+#ifdef __CUDA_ARCH__
+  return log(x);
+#else
+  return std::log(x);
+#endif
+}
+
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::log, Backend> {
+template <typename T>
+    using result_t = std::conditional_t<!is_fp_or_half<T>::value, float, T>;
+
+    template <typename T>
+    DALI_HOST_DEV static constexpr result_t<T> impl(T v) {
+      auto v_ = static_cast<result_t<T>>(v);
+      return math_log(v_);
+    }
+
+    static inline std::string to_string() {
+      return "log";
+    }
+
+    static constexpr int num_inputs = 1;
+    static constexpr int num_outputs = 1;
+};
 
 #define REGISTER_BINARY_IMPL_BACKEND(OP, EXPRESSION, BACKEND)                       \
   template <>                                                                       \
@@ -713,11 +792,12 @@ struct arithm_meta<ArithmeticOp::mod, GPUBackend> {
 inline std::string to_string(ArithmeticOp op) {
   std::string result;
   VALUE_SWITCH(op, op_static,
-               (ArithmeticOp::plus, ArithmeticOp::minus, ArithmeticOp::add, ArithmeticOp::sub,
-                ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::mod, ArithmeticOp::min,
-                ArithmeticOp::max, ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt,
-                ArithmeticOp::leq, ArithmeticOp::gt, ArithmeticOp::geq, ArithmeticOp::bit_and,
-                ArithmeticOp::bit_or, ArithmeticOp::bit_xor, ArithmeticOp::clamp),
+               (ArithmeticOp::plus, ArithmeticOp::minus, ArithmeticOp::exp, ArithmeticOp::log,
+                ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div,
+                ArithmeticOp::mod, ArithmeticOp::min, ArithmeticOp::max, ArithmeticOp::eq,
+                ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq, ArithmeticOp::gt,
+                ArithmeticOp::geq, ArithmeticOp::bit_and, ArithmeticOp::bit_or,
+                ArithmeticOp::bit_xor, ArithmeticOp::clamp),
                (result = arithm_meta<op_static, CPUBackend>::to_string();),
                (result = "InvalidOp";));  // NOLINT(whitespace/parens)
   return result;
@@ -737,6 +817,8 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
   static std::map<std::string, ArithmeticOp> token_to_op = {
       {"plus",   ArithmeticOp::plus},
       {"minus",  ArithmeticOp::minus},
+      {"exp",    ArithmeticOp::exp},
+      {"log",    ArithmeticOp::log},
       {"add",    ArithmeticOp::add},
       {"sub",    ArithmeticOp::sub},
       {"mul",    ArithmeticOp::mul},
@@ -754,7 +836,7 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
       {"bitand", ArithmeticOp::bit_and},
       {"bitor",  ArithmeticOp::bit_or},
       {"bitxor", ArithmeticOp::bit_xor},
-      {"clamp", ArithmeticOp::clamp},
+      {"clamp",  ArithmeticOp::clamp},
   };
   auto it = token_to_op.find(op_name);
   DALI_ENFORCE(it != token_to_op.end(), "No implementation for op \"" + op_name + "\".");
