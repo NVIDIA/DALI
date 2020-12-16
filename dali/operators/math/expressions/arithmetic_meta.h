@@ -354,6 +354,16 @@ struct arithm_meta;
 REGISTER_UNARY_IMPL(ArithmeticOp::plus, +);
 REGISTER_UNARY_IMPL(ArithmeticOp::minus, -);
 
+DALI_NO_EXEC_CHECK
+template <typename T>
+DALI_HOST_DEV inline T math_exp(T x) {
+#ifdef __CUDA_ARCH__
+  return exp(x);
+#else
+  return std::exp(x);
+#endif
+}
+
 template <typename Backend>
 struct arithm_meta<ArithmeticOp::exp, Backend> {
 template <typename T>
@@ -362,7 +372,7 @@ template <typename T>
     template <typename T>
     DALI_HOST_DEV static constexpr result_t<T> impl(T v) {
       auto v_ = static_cast<result_t<T>>(v);
-      return exp(v);
+      return math_exp(v);
     }
 
     static inline std::string to_string() {
@@ -373,6 +383,16 @@ template <typename T>
     static constexpr int num_outputs = 1;
 };
 
+DALI_NO_EXEC_CHECK
+template <typename T>
+DALI_HOST_DEV inline T math_log(T x) {
+#ifdef __CUDA_ARCH__
+  return log(x);
+#else
+  return std::log(x);
+#endif
+}
+
 template <typename Backend>
 struct arithm_meta<ArithmeticOp::log, Backend> {
 template <typename T>
@@ -381,7 +401,7 @@ template <typename T>
     template <typename T>
     DALI_HOST_DEV static constexpr result_t<T> impl(T v) {
       auto v_ = static_cast<result_t<T>>(v);
-      return log(v);
+      return math_log(v);
     }
 
     static inline std::string to_string() {
