@@ -23,8 +23,8 @@ import numpy as np
 from paddle import fluid
 
 from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import nvidia.dali.fn as fn
 from nvidia.dali.plugin.paddle import DALIGenericIterator, LastBatchPolicy
 
 from ssd import SSD
@@ -32,85 +32,73 @@ from utils import load_weights
 
 PRETRAIN_WEIGHTS = 'https://paddle-imagenet-models-name.bj.bcebos.com/VGG16_caffe_pretrained.tar'
 
-
-class HybridTrainPipe(Pipeline):
-    def __init__(self,
-                 file_root,
+def get_coco_pipeline(file_root,
                  annotations_file,
                  batch_size=1,
                  device_id=0,
                  num_threads=4,
                  local_rank=0,
                  world_size=1):
-        super(HybridTrainPipe, self).__init__(batch_size,
-                                              num_threads,
-                                              device_id,
-                                              seed=42 + device_id)
-        self.reader = ops.COCOReader(
-            file_root=file_root,
-            annotations_file=annotations_file,
-            skip_empty=True,
-            shard_id=local_rank,
-            num_shards=world_size,
-            ratio=True,
-            ltrb=True,
-            shuffle_after_epoch=True,
-            pad_last_batch=True)
+    pipeline = Pipeline(batch_size, num_threads,
+                        local_rank, seed=42 + device_id)
 
-        self.crop = ops.RandomBBoxCrop(
-            device="cpu",
-            aspect_ratio=[0.5, 2.0],
-            thresholds=[0, 0.1, 0.3, 0.5, 0.7, 0.9],
-            scaling=[0.3, 1.0],
-            bbox_layout="xyXY",
-            allow_no_crop=True,
-            num_attempts=50)
-        self.bbflip = ops.BbFlip(device="cpu", ltrb=True)
+    with pipeline:
+        images, bboxes, labels = fn.coco_reader(file_root=file_root,
+                                                annotations_file=annotations_file,
+                                                skip_empty=True,
+                                                shard_id=local_rank,
+                                                num_shards=world_size,
+                                                ratio=True,
+                                                ltrb=True,
+                                                random_shuffle=False,
+                                                shuffle_after_epoch=True,
+                                                name="Reader")
 
-        self.roi_decode = ops.ImageDecoderSlice(device="mixed")
-        self.resize = ops.Resize(
-            device="gpu",
-            resize_x=300,
-            resize_y=300,
-            min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
-        self.hsv = ops.Hsv(device="gpu", dtype=types.FLOAT)  # use float to avoid clipping and
+        crop_begin, crop_size, bboxes, labels = fn.random_bbox_crop(bboxes, labels,
+                                                                    device="cpu",
+                                                                    aspect_ratio=[
+                                                                        0.5, 2.0],
+                                                                    thresholds=[
+                                                                        0, 0.1, 0.3, 0.5, 0.7, 0.9],
+                                                                    scaling=[
+                                                                        0.3, 1.0],
+                                                                    bbox_layout="xyXY",
+                                                                    allow_no_crop=True,
+                                                                    num_attempts=1)
+        images = fn.image_decoder_slice(
+            images, crop_begin, crop_size, device="cpu", output_type=types.RGB)
+        flip_coin = fn.coin_flip(probability=0.5)
+        images = images.gpu()
+        images = fn.resize(images,
+                            resize_x=300,
+                            resize_y=300,
+                            min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
+
+        saturation = fn.uniform(range=[0.5, 1.5])
+        contrast = fn.uniform(range=[0.5, 1.5])
+        brightness = fn.uniform(range=[0.875, 1.125])
+        hue = fn.uniform(range=[-0.5, 0.5])
+
+        images = fn.hsv(images, dtype=types.FLOAT, hue=hue, saturation=saturation)  # use float to avoid clipping and
                                                              # quantizing the intermediate result
-        self.bc = ops.BrightnessContrast(device="gpu",
-                        contrast_center=128,  # input is in float, but in 0..255 range
-                        dtype=types.UINT8)
+        images=fn.brightness_contrast(images,
+                        contrast_center = 128,  # input is in float, but in 0..255 range
+                        dtype = types.UINT8,
+                        brightness = brightness,
+                        contrast = contrast)
 
-        self.cmnp = ops.CropMirrorNormalize(
-            device="gpu",
-            mean=[104., 117., 123.],
-            std=[1., 1., 1.],
-            dtype=types.FLOAT,
-            output_layout=types.NCHW,
-            pad_output=False)
+        bboxes=fn.bb_flip(bboxes,
+                            ltrb=True, horizontal=flip_coin)
+        images=fn.crop_mirror_normalize(images,
+                                        mean=[104., 117., 123.],
+                                        std=[1., 1., 1.],
+                                        mirror=flip_coin,
+                                        dtype=types.FLOAT,
+                                        output_layout="CHW",
+                                        pad_output=False)
 
-        self.rng1 = ops.Uniform(range=[0.5, 1.5])
-        self.rng2 = ops.Uniform(range=[0.875, 1.125])
-        self.rng3 = ops.Uniform(range=[-0.5, 0.5])
-        self.coin = ops.CoinFlip(probability=0.5)
-        self.build()
-
-    def define_graph(self):
-        saturation = self.rng1()
-        contrast = self.rng1()
-        brightness = self.rng2()
-        hue = self.rng3()
-        flip = self.coin()
-
-        images, bboxes, labels = self.reader(name="Reader")
-
-        crop_begin, crop_size, bboxes, labels = self.crop(bboxes, labels)
-        bboxes = self.bbflip(bboxes, horizontal=flip)
-
-        images = self.roi_decode(images, crop_begin, crop_size)
-        images = self.resize(images)
-        images = self.hsv(images.gpu(), hue=hue, saturation=saturation)
-        images = self.bc(images, brightness=brightness, contrast=contrast)
-        images = self.cmnp(images, mirror=flip)
-        return images, bboxes, labels
+        pipeline.set_outputs(images, bboxes, labels)
+    return pipeline
 
 
 class AverageMeter(object):
@@ -153,7 +141,7 @@ def main():
     world_size = len(places)
 
     pipelines = [
-        HybridTrainPipe(
+        get_coco_pipeline(
             file_root, annotations_file, FLAGS.batch_size, p.gpu_device_id(),
             FLAGS.num_threads, local_rank=idx, world_size=world_size)
         for idx, p in enumerate(places)]

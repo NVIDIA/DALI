@@ -24,97 +24,62 @@ import numpy as np
 from paddle import fluid
 
 from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import nvidia.dali.fn as fn
 from nvidia.dali.plugin.paddle import DALIClassificationIterator, LastBatchPolicy
 
 
-class HybridTrainPipe(Pipeline):
-    def __init__(self):
-        super(HybridTrainPipe, self).__init__(FLAGS.batch_size,
-                                              FLAGS.num_threads,
-                                              FLAGS.device_id,
-                                              seed=42 + FLAGS.device_id)
-        data_dir = os.path.join(FLAGS.data, 'train')
-        crop = 224
-        self.input = ops.FileReader(file_root=data_dir,
-                                    shard_id=FLAGS.local_rank,
-                                    num_shards=FLAGS.world_size,
-                                    random_shuffle=True,
-                                    pad_last_batch=True)
-        # set internal nvJPEG buffers size to handle full-sized ImageNet images
-        # without additional reallocations
-        device_memory_padding = 211025920
-        host_memory_padding = 140544512
-        self.decode = ops.ImageDecoderRandomCrop(
-            device='mixed',
-            output_type=types.RGB,
-            device_memory_padding=device_memory_padding,
-            host_memory_padding=host_memory_padding,
-            random_aspect_ratio=[0.8, 1.25],
-            random_area=[0.1, 1.0],
-            num_attempts=100)
-        self.res = ops.Resize(device='gpu',
-                              resize_x=crop,
-                              resize_y=crop,
-                              interp_type=types.INTERP_TRIANGULAR)
-        self.cmnp = ops.CropMirrorNormalize(
-            device="gpu",
-            dtype=types.FLOAT,
-            output_layout=types.NCHW,
-            crop=(crop, crop),
-            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-            std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
-        self.coin = ops.CoinFlip(probability=0.5)
-        self.to_int64 = ops.Cast(dtype=types.INT64, device="gpu")
+def get_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, size,
+                       shard_id, num_shards, dali_cpu=False, is_training=True):
+    pipeline = Pipeline(batch_size, num_threads, device_id, seed=12 + device_id)
+    with pipeline:
+        images, labels = fn.file_reader(file_root=data_dir,
+                                        shard_id=shard_id,
+                                        num_shards=num_shards,
+                                        random_shuffle=is_training,
+                                        pad_last_batch=True,
+                                        name="Reader")
+        dali_device = 'cpu' if dali_cpu else 'gpu'
+        decoder_device = 'cpu' if dali_cpu else 'mixed'
+        device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
+        host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
+        if is_training:
+            images = fn.image_decoder_random_crop(images,
+                                                  device=decoder_device, output_type=types.RGB,
+                                                  device_memory_padding=device_memory_padding,
+                                                  host_memory_padding=host_memory_padding,
+                                                  random_aspect_ratio=[0.8, 1.25],
+                                                  random_area=[0.1, 1.0],
+                                                  num_attempts=100)
+            images = fn.resize(images,
+                               device=dali_device,
+                               resize_x=crop,
+                               resize_y=crop,
+                               interp_type=types.INTERP_TRIANGULAR)
+            mirror = fn.coin_flip(probability=0.5)
+        else:
+            images = fn.image_decoder(images,
+                                      device=decoder_device,
+                                      output_type=types.RGB)
+            # Make sure that every image > 224 for CropMirrorNormalize
+            images = fn.resize(images,
+                               device=dali_device,
+                               resize_shorter=size,
+                               interp_type=types.INTERP_TRIANGULAR)
+            mirror = False
 
-    def define_graph(self):
-        rng = self.coin()
-        jpegs, labels = self.input(name="Reader")
-        images = self.decode(jpegs)
-        images = self.res(images)
-        output = self.cmnp(images.gpu(), mirror=rng)
-        return [output, self.to_int64(labels.gpu())]
-
-    def __len__(self):
-        return self.epoch_size("Reader")
-
-
-class HybridValPipe(Pipeline):
-    def __init__(self):
-        super(HybridValPipe, self).__init__(FLAGS.batch_size,
-                                            FLAGS.num_threads,
-                                            FLAGS.device_id,
-                                            seed=42 + FLAGS.device_id)
-        data_dir = os.path.join(FLAGS.data, 'val')
-        self.input = ops.FileReader(file_root=data_dir,
-                                    shard_id=0,  # XXX eval only on rank 0
-                                    num_shards=1,
-                                    random_shuffle=False,
-                                    pad_last_batch=True)
-        self.decode = ops.ImageDecoder(device="mixed", output_type=types.RGB)
-        self.res = ops.Resize(device="gpu",
-                              resize_shorter=256,
-                              interp_type=types.INTERP_TRIANGULAR)
-        self.cmnp = ops.CropMirrorNormalize(
-            device="gpu",
-            dtype=types.FLOAT,
-            output_layout=types.NCHW,
-            crop=(224, 224),
-            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-            std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
-        self.to_int64 = ops.Cast(dtype=types.INT64, device="gpu")
-
-    def define_graph(self):
-        jpegs, labels = self.input(name="Reader")
-        images = self.decode(jpegs)
-        images = self.res(images)
-        output = self.cmnp(images)
-        return [output, self.to_int64(labels.gpu())]
-
-    def __len__(self):
-        return self.epoch_size("Reader")
-
+        images = fn.crop_mirror_normalize(images.gpu(),
+                                          device="gpu",
+                                          dtype=types.FLOAT,
+                                          output_layout="CHW",
+                                          crop=(crop, crop),
+                                          mean=[0.485 * 255,0.456 * 255,0.406 * 255],
+                                          std=[0.229 * 255,0.224 * 255,0.225 * 255],
+                                          mirror=mirror)
+        labels = labels.gpu()
+        labels = fn.cast(labels, dtype=types.INT64)
+        pipeline.set_outputs(images, labels)
+    return pipeline
 
 class AverageMeter(object):
     def __init__(self):
@@ -202,13 +167,31 @@ def main():
     FLAGS.device_id = int(env['FLAGS_selected_gpus'])
     FLAGS.whole_batch_size = FLAGS.world_size * FLAGS.batch_size
 
-    pipe = HybridTrainPipe()
+    pipe = get_dali_pipeline(batch_size=FLAGS.batch_size,
+                             num_threads=FLAGS.num_threads,
+                             device_id=FLAGS.device_id,
+                             data_dir=os.path.join(FLAGS.data, 'train'),
+                             crop=224,
+                             size=256,
+                             dali_cpu=False,
+                             shard_id=FLAGS.local_rank,
+                             num_shards=FLAGS.world_size,
+                             is_training=True)
     pipe.build()
-    sample_per_shard = len(pipe) // FLAGS.world_size
+    sample_per_shard = pipe.epoch_size("Reader") // FLAGS.world_size
     train_loader = DALIClassificationIterator(pipe, reader_name="Reader")
 
     if FLAGS.local_rank == 0:
-        pipe = HybridValPipe()
+        pipe = get_dali_pipeline(batch_size=FLAGS.batch_size,
+                                num_threads=FLAGS.num_threads,
+                                device_id=FLAGS.device_id,
+                                data_dir=os.path.join(FLAGS.data, 'val'),
+                                crop=224,
+                                size=256,
+                                dali_cpu=False,
+                                shard_id=0,
+                                num_shards=1,
+                                is_training=False)
         pipe.build()
         val_loader = DALIClassificationIterator(pipe, reader_name="Reader")
 
