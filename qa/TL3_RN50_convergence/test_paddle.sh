@@ -14,7 +14,7 @@ pip install $(python /opt/dali/qa/setup_packages.py -i 0 -u paddle --cuda ${USE_
 
 cd /opt/dali/docs/examples/use_cases/paddle/resnet50
 
-GPUS=$(nvidia-smi -L | sed "s/GPU \([0-9]\):.*/\1/g")
+GPUS=$(nvidia-smi -L | sed "s/GPU \([0-9]*\):.*/\1/g")
 
 if [ ! -d "val" ]; then
    ln -sf /data/imagenet/val-jpeg/ val
