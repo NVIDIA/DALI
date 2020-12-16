@@ -50,7 +50,6 @@ class NormalDistributionCPU : public NormalDistribution<CPUBackend, NormalDistri
       : NormalDistribution<CPUBackend, NormalDistributionCPU>(spec) {
     dist_data_.reserve(max_batch_size_ * kDistMaxSize);
   }
-  ~NormalDistributionCPU() override = default;
 
   template <typename Dist>
   Dist* SetupDists(int nsamples) {

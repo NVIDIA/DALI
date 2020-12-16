@@ -31,8 +31,6 @@ class NormalDistribution : public RNGBase<Backend, Impl> {
         mean_("mean", spec),
         stddev_("stddev", spec) {}
 
-  ~NormalDistribution() override = default;
-
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
     mean_.Acquire(spec, ws, nsamples, true);
     stddev_.Acquire(spec, ws, nsamples, true);

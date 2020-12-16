@@ -30,9 +30,6 @@ struct RNGBaseFields;
 
 template <typename Backend, typename Impl>
 class RNGBase : public Operator<Backend> {
- public:
-  ~RNGBase() override = default;
-
  protected:
   explicit RNGBase(const OpSpec &spec)
       : Operator<Backend>(spec),

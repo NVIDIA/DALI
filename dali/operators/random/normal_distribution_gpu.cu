@@ -41,8 +41,6 @@ class NormalDistributionGPU : public NormalDistribution<GPUBackend, NormalDistri
     dists_gpu_.reserve(kDistMaxSize * max_batch_size_);
   }
 
-  ~NormalDistributionGPU() override = default;
-
   template <typename Dist>
   Dist* SetupDists(int nsamples, cudaStream_t stream) {
     dists_cpu_.resize(sizeof(Dist) * nsamples);  // memory reserved in constructor
