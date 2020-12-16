@@ -339,10 +339,10 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
     Params(Layout const &layout, int window_size, int window_anchor, int channels)
-        : params_(layout),
-          window_size_(window_size),
+        : window_size_(window_size),
           window_anchor_(window_anchor),
-          channels_(channels) {}
+          channels_(channels),
+          params_(layout) {}
 
     CUTLASS_HOST_DEVICE
     Params() {}

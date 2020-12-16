@@ -47,7 +47,7 @@ void NormalDistributionCpu::AssignSingleValueToOutput(workspace_t<CPUBackend> &w
   auto &output = ws.OutputRef<CPUBackend>(0);
   distribution_t distribution(mean_[0], stddev_[0]);
   TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
-          for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+          for (int sample_id = 0; sample_id < max_batch_size_; ++sample_id) {
             auto ptr = output[sample_id].mutable_data<DType>();
             *ptr = ConvertSat<DType>(distribution(rng_));
           }
@@ -60,7 +60,7 @@ void NormalDistributionCpu::AssignTensorToOutput(workspace_t<CPUBackend> &ws) {
   auto out_shape = output.shape();
   auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(dtype_, type2id, DType, DALI_NORMDIST_TYPES, (
-            for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+            for (int sample_id = 0; sample_id < max_batch_size_; ++sample_id) {
               auto out_size = out_shape.tensor_size(sample_id);
               tp.AddWork(
                   [&, sample_id, out_size](int thread_id) {

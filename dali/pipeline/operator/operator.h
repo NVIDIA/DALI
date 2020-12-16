@@ -91,10 +91,10 @@ class DLL_PUBLIC OperatorBase {
   DLL_PUBLIC inline explicit OperatorBase(const OpSpec &spec)
       : spec_(spec),
         num_threads_(spec.GetArgument<int>("num_threads")),
-        batch_size_(spec.GetArgument<int>("batch_size")),
+        max_batch_size_(spec.GetArgument<int>("max_batch_size")),
         default_cuda_stream_priority_(spec.GetArgument<int>("default_cuda_stream_priority")) {
     DALI_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
-    DALI_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
+    DALI_ENFORCE(max_batch_size_ > 0, "Invalid value for argument max_batch_size.");
   }
 
   DLL_PUBLIC virtual inline ~OperatorBase() {}
@@ -209,19 +209,22 @@ class DLL_PUBLIC OperatorBase {
    * @param output        Container for the data. This function will reallocate it.
    * @param argument_name name of the Argument
    * @param ws            workspace object, from which ArgumentInputs are taken
-   * @param batch_size    number of samples in the batch - if <0, it's taken from an argument
-   *                      "batch_size" in OpSpec for this operator.
+   * @param batch_size    number of samples in the batch
    */
   template<typename T>
   void GetPerSampleArgument(std::vector<T> &output, const std::string &argument_name,
-                            const ArgumentWorkspace &ws, int batch_size = -1) {
+                            const ArgumentWorkspace &ws, int batch_size) {
+    DALI_ENFORCE(batch_size > 0, "Default batch size (-1) is not supported anymore");
     dali::GetPerSampleArgument(output, argument_name, spec_, ws, batch_size);
   }
 
+  // TODO(mszolucha): remove to allow i2i variable batch size, when all ops are ready
+  template <typename Backend>
+  DLL_PUBLIC void EnforceConstantBatchSize(const workspace_t<Backend> &ws) const;
 
   const OpSpec spec_;
   int num_threads_;
-  int batch_size_;
+  int max_batch_size_;
   int default_cuda_stream_priority_;
 
   std::unordered_map<std::string, any> diagnostics_;
@@ -230,7 +233,7 @@ class DLL_PUBLIC OperatorBase {
 #define USE_OPERATOR_MEMBERS()                       \
   using OperatorBase::spec_;                         \
   using OperatorBase::num_threads_;                  \
-  using OperatorBase::batch_size_;                   \
+  using OperatorBase::max_batch_size_;               \
   using OperatorBase::default_cuda_stream_priority_
 
 /**
@@ -281,6 +284,7 @@ class Operator<CPUBackend> : public OperatorBase {
   using OperatorBase::Run;
 
   bool Setup(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    EnforceConstantBatchSize<CPUBackend>(ws);
     return SetupImpl(output_desc, ws);
   }
 
@@ -315,8 +319,13 @@ class Operator<CPUBackend> : public OperatorBase {
     // This is implemented, as a default, using the RunImpl that accepts SampleWorkspace,
     // allowing for fallback to old per-sample implementations.
 
+    auto curr_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : max_batch_size_;
+    for (int i = 0; i < ws.NumOutput(); i++) {
+      auto &output = ws.OutputRef<CPUBackend>(i);
+      output.SetSize(curr_batch_size);
+    }
     auto &thread_pool = ws.GetThreadPool();
-    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+    for (int data_idx = 0; data_idx < curr_batch_size; ++data_idx) {
       thread_pool.AddWork([this, &ws, data_idx](int tid) {
         SampleWorkspace sample;
         ws.GetSample(&sample, data_idx, tid);
@@ -355,6 +364,7 @@ class Operator<GPUBackend> : public OperatorBase {
   using OperatorBase::Run;
 
   bool Setup(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+    EnforceConstantBatchSize<GPUBackend>(ws);
     return SetupImpl(output_desc, ws);
   }
 
@@ -396,6 +406,7 @@ class Operator<MixedBackend> : public OperatorBase {
   using OperatorBase::Run;
 
   bool Setup(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+    EnforceConstantBatchSize<MixedBackend>(ws);
     return SetupImpl(output_desc, ws);
   }
 

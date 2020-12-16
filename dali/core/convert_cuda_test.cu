@@ -47,7 +47,7 @@ DEVICE_TEST(ConvertSatCUDA_Dev, fp2int64, 1, 1) {
   DEV_EXPECT_EQ(ConvertSat<int64_t>(2e+20f), 0x7fffffffffffffffll);
   DEV_EXPECT_EQ(ConvertSat<int64_t>(-2e+20f), ~0x7fffffffffffffffll);
   DEV_EXPECT_EQ(ConvertSat<uint64_t>(2e+20f), 0xffffffffffffffffull);
-  DEV_EXPECT_EQ(ConvertSat<uint64_t>(-1.0f), 0);
+  DEV_EXPECT_EQ(ConvertSat<uint64_t>(-1.0f), 0u);
 }
 
 DEVICE_TEST(ConvertNormCUDA_Dev, float2int, 1, 1) {
@@ -85,7 +85,7 @@ DEVICE_TEST(ConvertSatNorm_Dev, float2int, 1, 1) {
 
   DEV_EXPECT_GE(ConvertSatNorm<int64_t>(2.0f),  0x7fffff8000000000);
   DEV_EXPECT_LE(ConvertSatNorm<int64_t>(-2.0f), -0x7fffff8000000000);
-  DEV_EXPECT_EQ(ConvertSatNorm<uint64_t>(-2.0f), 0);
+  DEV_EXPECT_EQ(ConvertSatNorm<uint64_t>(-2.0f), 0u);
 }
 
 TEST(ConvertNorm_CUDA_Host, int2float) {

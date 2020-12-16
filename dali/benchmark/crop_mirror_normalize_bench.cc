@@ -56,7 +56,7 @@ BENCHMARK_DEFINE_F(OperatorBench, CropMirrorNormalizeCPU)(benchmark::State& st) 
   this->RunCPU<uint8_t>(
     st,
     OpSpec("CropMirrorNormalize")
-      .AddArg("batch_size", batch_size)
+      .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", 1)
       .AddArg("device", "cpu")
       .AddArg("output_type", DALI_RGB)
@@ -115,7 +115,7 @@ BENCHMARK_DEFINE_F(OperatorBench, CropMirrorNormalizeGPU)(benchmark::State& st) 
   this->RunGPU<uint8_t>(
     st,
     OpSpec("CropMirrorNormalize")
-      .AddArg("batch_size", batch_size)
+      .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", 1)
       .AddArg("device", "gpu")
       .AddArg("output_type", DALI_RGB)

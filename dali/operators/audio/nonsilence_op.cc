@@ -67,10 +67,11 @@ bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   TypeInfo output_type;
   output_type.SetType<int>(TypeTable::GetTypeID<int>());
   TensorShape<> scalar_shape = {};
+  auto curr_batch_size = ws.GetInputBatchSize(0);
 
   output_desc.resize(detail::kNumOutputs);
   for (int i = 0; i < detail::kNumOutputs; i++) {
-    output_desc[i].shape = uniform_list_shape(batch_size_, scalar_shape);
+    output_desc[i].shape = uniform_list_shape(curr_batch_size, scalar_shape);
     output_desc[i].type = output_type;
   }
   return true;

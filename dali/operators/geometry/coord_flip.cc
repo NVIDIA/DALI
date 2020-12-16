@@ -64,8 +64,9 @@ void CoordFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();
+  auto curr_batch_size = ws.GetInputBatchSize(0);
 
-  for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
+  for (int sample_id = 0; sample_id < curr_batch_size; sample_id++) {
     std::array<bool, 3> flip_dim = {false, false, false};
     flip_dim[x_dim_] = spec_.GetArgument<int>("flip_x", &ws, sample_id);
     flip_dim[y_dim_] = spec_.GetArgument<int>("flip_y", &ws, sample_id);

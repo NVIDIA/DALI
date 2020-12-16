@@ -71,7 +71,7 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC explicit inline OpSchema(const std::string &name): name_(name) {
     // Fill internal arguments
     AddInternalArg("num_threads", "Number of CPU threads in a thread pool", -1);
-    AddInternalArg("batch_size", "Batch size", -1);
+    AddInternalArg("max_batch_size", "Max batch size", -1);
     AddInternalArg("device", "Device on which the Op is run", std::string("cpu"));
     AddInternalArg("inplace", "Whether Op can be run in place", false);
     AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);

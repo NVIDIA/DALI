@@ -43,7 +43,7 @@ void CollectShape(std::vector<TensorShape<>> &v,
                   const OpSpec& spec,
                   const workspace_t<CPUBackend>& ws,
                   int ndim) {
-  int batch_size = spec.GetArgument<int>("batch_size");
+  int batch_size = spec.GetArgument<int>("max_batch_size");
   v.clear();
   v.reserve(batch_size);
 
@@ -362,7 +362,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         shape_layout_(spec.GetArgument<TensorLayout>("shape_layout")),
         all_boxes_above_threshold_(spec.GetArgument<bool>("all_boxes_above_threshold")),
         output_bbox_indices_(spec.GetArgument<bool>("output_bbox_indices")),
-        rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int>("batch_size")) {
+        rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int>("max_batch_size")) {
     auto scaling_arg = spec.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
                  make_string("`scaling` must be a range `[min, max]`. Got ",

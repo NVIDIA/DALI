@@ -74,7 +74,7 @@ std::pair<std::vector<int>, int> DistributeBlocksPerSample(
 
 NormalDistributionGpu::NormalDistributionGpu(const OpSpec &spec)
       : NormalDistribution(spec), randomizer_(seed_, block_size_ * max_blocks_) {
-  DALI_ENFORCE(batch_size_ <= max_blocks_,
+  DALI_ENFORCE(max_batch_size_ <= max_blocks_,
                "Batch size must be smaller than " + std::to_string(max_blocks_));
   block_descs_gpu_ = mem::alloc_unique<BlockDesc>(kernels::AllocType::GPU, max_blocks_);
   block_descs_cpu_ = mem::alloc_unique<BlockDesc>(kernels::AllocType::Pinned, max_blocks_);
@@ -116,7 +116,7 @@ int NormalDistributionGpu::SetupSingleValueDescs(TensorList<GPUBackend> &output,
   assert(output.GetElementsNumber() == output.ntensor());
   auto elems = output.ntensor();
   BlockDesc *blocks = block_descs_cpu_.get();
-  for (int i = 0; i < elems; ++i) {
+  for (size_t i = 0; i < elems; ++i) {
     blocks[i].sample = output.raw_mutable_tensor(i);
     blocks[i].mean = mean_[i];
     blocks[i].std = stddev_[i];

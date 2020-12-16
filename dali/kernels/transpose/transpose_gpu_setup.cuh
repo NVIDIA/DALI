@@ -69,9 +69,9 @@ void InitTiledTranspose(TiledTransposeDesc<T> &desc,
 
   // Make sure that when transposing the last dimension, the last two can be transposed in tiles
   // and loaded and stored in contiguous transactions.
-  if (desc.out_strides[ndim-2] != lanes) {
+  if (desc.out_strides[ndim-2] != static_cast<uint64_t>(lanes)) {
     for (int i = 0; i < ndim-2; i++) {
-      if (desc.out_strides[i] == lanes) {
+      if (desc.out_strides[i] == static_cast<uint64_t>(lanes)) {
         std::rotate(desc.out_strides + i, desc.out_strides + i+1, desc.out_strides + ndim-1);
         std::rotate(desc.in_strides  + i, desc.in_strides  + i+1, desc.in_strides  + ndim-1);
         std::rotate(desc.shape       + i, desc.shape       + i+1, desc.shape       + ndim-1);

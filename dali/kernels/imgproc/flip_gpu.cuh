@@ -37,8 +37,8 @@ __global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input,
   size_t xc = blockIdx.x * blockDim.x + threadIdx.x;
   size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   size_t fz = blockIdx.z * blockDim.z + threadIdx.z;
-  const Index seq_length = shape[0], depth = shape[1], height = shape[2],
-                           width = shape[3], channels = shape[4];
+  const size_t seq_length = shape[0], depth = shape[1], height = shape[2],
+                            width = shape[3], channels = shape[4];
   if (xc >= width * channels || y >= height || fz >= depth * seq_length) {
     return;
   }

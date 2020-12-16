@@ -36,7 +36,7 @@ BENCHMARK_DEFINE_F(OperatorBench, ColorTwistGPU)(benchmark::State& st) {
   this->RunGPU<uint8_t>(
     st,
     OpSpec("ColorTwist")
-      .AddArg("batch_size", batch_size)
+      .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", 1)
       .AddArg("device", "gpu")
       .AddArg("output_type", DALI_RGB)
@@ -56,7 +56,7 @@ BENCHMARK_DEFINE_F(OperatorBench, OldColorTwistGPU)(benchmark::State& st) {
   this->RunGPU<uint8_t>(
     st,
     OpSpec("OldColorTwist")
-      .AddArg("batch_size", batch_size)
+      .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", 1)
       .AddArg("device", "gpu")
       .AddArg("output_type", DALI_RGB)

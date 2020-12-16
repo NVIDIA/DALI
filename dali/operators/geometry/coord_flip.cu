@@ -68,10 +68,11 @@ class CoordFlipGPU : public CoordFlip<GPUBackend> {
 void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
+  auto curr_batch_size = ws.GetInputBatchSize(0);
 
   sample_descs_.clear();
-  sample_descs_.reserve(batch_size_);
-  for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
+  sample_descs_.reserve(max_batch_size_);
+  for (int sample_id = 0; sample_id < curr_batch_size; sample_id++) {
     SampleDesc<float> sample_desc;
     sample_desc.in = input.tensor<float>(sample_id);
     sample_desc.out = output.mutable_tensor<float>(sample_id);
@@ -105,7 +106,7 @@ void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   }
 
   scratchpad_.set_type(TypeInfo::Create<uint8_t>());
-  int64_t sz = batch_size_ * sizeof(SampleDesc<float>);
+  int64_t sz = curr_batch_size * sizeof(SampleDesc<float>);
   scratchpad_.Resize({sz});
   auto sample_descs_gpu_ = reinterpret_cast<SampleDesc<float>*>(
       scratchpad_.mutable_data<uint8_t>());
@@ -114,8 +115,8 @@ void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
     cudaMemcpyAsync(sample_descs_gpu_, sample_descs_.data(), sz, cudaMemcpyHostToDevice, stream));
 
   int block = 1024;
-  auto blocks_per_sample = std::max(32, 1024 / batch_size_);
-  dim3 grid(blocks_per_sample, batch_size_);
+  auto blocks_per_sample = std::max(32, 1024 / curr_batch_size);
+  dim3 grid(blocks_per_sample, curr_batch_size);
   CoordFlipKernel<<<grid, block, 0, stream>>>(sample_descs_gpu_, ndim_);
 }
 

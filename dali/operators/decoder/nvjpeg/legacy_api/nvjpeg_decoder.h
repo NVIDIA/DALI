@@ -150,11 +150,11 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     CachedDecoderImpl(spec),
     max_streams_(spec.GetArgument<int>("num_threads")),
     output_type_(spec.GetArgument<DALIImageType>("output_type")),
-    output_shape_(batch_size_, kOutputDim),
-    output_info_(batch_size_),
+    output_shape_(max_batch_size_, kOutputDim),
+    output_info_(max_batch_size_),
     use_batched_decode_(spec.GetArgument<bool>("use_batched_decode")),
-    batched_image_idx_(batch_size_),
-    batched_output_(batch_size_),
+    batched_image_idx_(max_batch_size_),
+    batched_output_(max_batch_size_),
     device_id_(spec.GetArgument<int>("device_id")),
     thread_pool_(max_streams_, device_id_, true /* pin threads */) {
       // Setup the allocator struct to use our internal allocator
@@ -215,8 +215,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     // Get dimensions
     int idx_in_batch = 0;
-    std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
-    for (int i = 0; i < batch_size_; ++i) {
+    std::vector<std::pair<size_t, size_t>> image_order(max_batch_size_);
+    for (int i = 0; i < max_batch_size_; ++i) {
       auto& in = ws.Input<CPUBackend>(0, i);
       auto in_size = in.size();
       const auto *data = in.data<uint8_t>();
@@ -284,7 +284,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                                 max_streams_,
                                                 GetFormat(output_type_)), "");
 
-      for (int i = 0; i < batch_size_; ++i) {
+      for (int i = 0; i < max_batch_size_; ++i) {
         auto& in = ws.Input<CPUBackend>(0, i);
         auto file_name = in.GetSourceInfo();
         auto in_size = in.size();
@@ -335,7 +335,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                 std::greater<std::pair<size_t, size_t>>());
 
       // Loop over images again and decode
-      for (int i = 0; i < batch_size_; ++i) {
+      for (int i = 0; i < max_batch_size_; ++i) {
         size_t j = image_order[i].second;
 
         auto &in = ws.Input<CPUBackend>(0, j);

@@ -107,8 +107,9 @@ void BatchedPaste(
 
 template<>
 void Paste<GPUBackend>::RunHelper(DeviceWorkspace &ws) {
-  BatchedPaste<<<batch_size_, PASTE_BLOCKSIZE, 0, ws.stream()>>>(
-      batch_size_,
+  auto curr_batch_size = ws.GetInputBatchSize(0);
+  BatchedPaste<<<curr_batch_size, PASTE_BLOCKSIZE, 0, ws.stream()>>>(
+      curr_batch_size,
       C_,
       fill_value_.template data<uint8>(),
       input_ptrs_gpu_.template data<const uint8*>(),
@@ -125,10 +126,11 @@ template<>
 void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
+  auto curr_batch_size = ws.GetInputBatchSize(0);
 
-  std::vector<TensorShape<>> output_shape(batch_size_);
+  std::vector<TensorShape<>> output_shape(curr_batch_size);
 
-  for (int i = 0; i < batch_size_; ++i) {
+  for (int i = 0; i < curr_batch_size; ++i) {
     auto input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3,
         "Expects 3-dimensional image input.");
@@ -175,7 +177,7 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace &ws) {
   output.Resize(output_shape);
   output.SetLayout("HWC");
 
-  for (int i = 0; i < batch_size_; ++i) {
+  for (int i = 0; i < curr_batch_size; ++i) {
       input_ptrs_.template mutable_data<const uint8*>()[i] =
             input.template tensor<uint8>(i);
       output_ptrs_.template mutable_data<uint8*>()[i] =

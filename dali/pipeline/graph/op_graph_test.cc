@@ -23,7 +23,7 @@ namespace dali {
 class OpGraphTest : public DALITest {
  public:
   inline OpSpec& PrepareSpec(OpSpec &spec) {
-    spec.AddArg("batch_size", 1)
+    spec.AddArg("max_batch_size", 1)
       .AddArg("num_threads", 1)
       .AddArg("cuda_stream", 0)
       .AddArg("pixels_per_image_hint", 0);

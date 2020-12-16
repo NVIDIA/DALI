@@ -97,57 +97,48 @@ class ColorTwistBase : public Operator<Backend> {
 
  protected:
   explicit ColorTwistBase(const OpSpec &spec)
-          : Operator<Backend>(spec)
-          , output_type_arg_(spec.GetArgument<DALIDataType>(color::kOutputType))
-          , output_type_(DALI_NO_TYPE) {
-    if (std::is_same<Backend, GPUBackend>::value) {
-      kernel_manager_.Resize(1, 1);
-    } else {
-      kernel_manager_.Resize(num_threads_, batch_size_);
-    }
-  }
-
+      : Operator<Backend>(spec),
+        output_type_arg_(spec.GetArgument<DALIDataType>(color::kOutputType)),
+        output_type_(DALI_NO_TYPE) {}
 
   bool CanInferOutputs() const override {
     return true;
   }
 
   void AcquireArguments(const workspace_t<Backend> &ws) {
+    auto curr_batch_size = ws.GetInputBatchSize(0);
     if (this->spec_.ArgumentDefined(color::kHue)) {
-      this->GetPerSampleArgument(hue_, color::kHue, ws);
+      this->GetPerSampleArgument(hue_, color::kHue, ws, curr_batch_size);
     } else {
-      hue_ = std::vector<float>(batch_size_, 0);
+      hue_ = std::vector<float>(curr_batch_size, 0);
     }
 
     if (this->spec_.ArgumentDefined(color::kSaturation)) {
-      this->GetPerSampleArgument(saturation_, color::kSaturation, ws);
+      this->GetPerSampleArgument(saturation_, color::kSaturation, ws, curr_batch_size);
     } else {
-      saturation_ = std::vector<float>(batch_size_, 1);
+      saturation_ = std::vector<float>(curr_batch_size, 1);
     }
 
     if (this->spec_.ArgumentDefined(color::kValue)) {
-      this->GetPerSampleArgument(value_, color::kValue, ws);
+      this->GetPerSampleArgument(value_, color::kValue, ws, curr_batch_size);
     } else {
-      value_ = std::vector<float>(batch_size_, 1);
+      value_ = std::vector<float>(curr_batch_size, 1);
     }
 
     if (this->spec_.ArgumentDefined(color::kBrightness)) {
-      this->GetPerSampleArgument(brightness_, color::kBrightness, ws);
+      this->GetPerSampleArgument(brightness_, color::kBrightness, ws, curr_batch_size);
     } else {
-      brightness_ = std::vector<float>(batch_size_, 1);
+      brightness_ = std::vector<float>(curr_batch_size, 1);
     }
 
     if (this->spec_.ArgumentDefined(color::kContrast)) {
-      this->GetPerSampleArgument(contrast_, color::kContrast, ws);
+      this->GetPerSampleArgument(contrast_, color::kContrast, ws, curr_batch_size);
     } else {
-      contrast_ = std::vector<float>(batch_size_, 1);
+      contrast_ = std::vector<float>(curr_batch_size, 1);
     }
 
     auto in_type = ws.template InputRef<Backend>(0).type().id();
-    output_type_ =
-        output_type_arg_ != DALI_NO_TYPE
-        ? output_type_arg_
-        : in_type;
+    output_type_ = output_type_arg_ != DALI_NO_TYPE ? output_type_arg_ : in_type;
 
     if (in_type == DALI_FLOAT16 || in_type == DALI_FLOAT || in_type == DALI_FLOAT64) {
       half_range_ = 0.5f;
@@ -156,6 +147,13 @@ class ColorTwistBase : public Operator<Backend> {
     }
   }
 
+  void KMgrResize(int num_threads, int batch_size) {
+    if (std::is_same<Backend, GPUBackend>::value) {
+      kernel_manager_.Resize(1, 1);
+    } else {
+      kernel_manager_.Resize(num_threads, batch_size);
+    }
+  }
 
   /**
    * @brief Creates transformation matrices based on given args

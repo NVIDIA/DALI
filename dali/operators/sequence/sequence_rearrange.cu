@@ -26,8 +26,9 @@ void SequenceRearrange<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
   TypeInfo type = input.type();
+  auto curr_batch_size = ws.GetInputBatchSize(0);
 
-  for (int sample_idx = 0; sample_idx < batch_size_; ++sample_idx) {
+  for (int sample_idx = 0; sample_idx < curr_batch_size; ++sample_idx) {
     auto *out_sample = reinterpret_cast<char *>(output.raw_mutable_tensor(sample_idx));
     const auto *in_sample = reinterpret_cast<const char *>(input.raw_tensor(sample_idx));
     const auto &in_shape = input.shape()[sample_idx];

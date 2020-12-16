@@ -193,6 +193,7 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
     std::lock_guard<std::mutex> operator_guard(operator_lock);
     py::gil_scoped_acquire interpreter_guard{};
     py::object output_o = py::none();
+    auto curr_batch_size = GetCurrBatchSize(ws);
     try {
       detail::StreamSynchronizer<Backend> sync(ws, synchronize_stream_);
       if (batch_processing) {
@@ -207,7 +208,7 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
             if (!output.is_none()) out_batch.append(output);
           }
         } else {
-          for (int s = 0; s < batch_size_; ++s) {
+          for (int s = 0; s < curr_batch_size; ++s) {
             py::object output = python_function();
             if (!output.is_none()) out_batch.append(output);
           }
@@ -219,9 +220,9 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
     }
     if (!output_o.is_none()) {
       if (batch_processing) {
-        detail::PrepareOutputs<Backend>(ws, output_o, batch_size_);
+        detail::PrepareOutputs<Backend>(ws, output_o, curr_batch_size);
       } else {
-        detail::PrepareOutputsPerSample<Backend>(ws, output_o, batch_size_);
+        detail::PrepareOutputsPerSample<Backend>(ws, output_o, curr_batch_size);
       }
     } else {
       DALI_ENFORCE(ws.NumOutput() == 0, "Python function returned 0 outputs and "
@@ -245,6 +246,30 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
   bool synchronize_stream_;
   bool batch_processing;
   std::vector<TensorLayout> output_layouts_;
+
+ private:
+  int GetCurrBatchSize(workspace_t<Backend> &ws) {
+    if (ws.NumInput() > 0) {
+      auto curr_batch_size = ws.GetInputBatchSize(0);
+      for (int i = 1; i < ws.NumInput(); i++) {
+        DALI_ENFORCE(ws.GetInputBatchSize(i) == curr_batch_size,
+                     make_string("Every input shall have the same batch size. Found inconsistent "
+                                 "batch sizes (val@idx): ",
+                                 ws.GetInputBatchSize(i), "@", i, " vs ", curr_batch_size, "@0."));
+      }
+      return curr_batch_size;
+    } else {
+      auto curr_batch_size = ws.GetRequestedBatchSize(0);
+      for (int i = 1; i < ws.NumOutput(); i++) {
+        DALI_ENFORCE(
+            ws.GetRequestedBatchSize(i) == curr_batch_size,
+            make_string("This operator assumes, that requested batch size is the same for every "
+                        "output. Found inconsistent batch sizes (val@idx): ",
+                        ws.GetRequestedBatchSize(i), "@", i, " vs ", curr_batch_size, "@0."));
+      }
+      return curr_batch_size;
+    }
+  }
 };
 
 }  // namespace dali

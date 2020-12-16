@@ -23,7 +23,7 @@ BENCHMARK_DEFINE_F(OperatorBench, NormalDistributionGPU)(benchmark::State& st) {
   const bool single_value = st.range(2);
 
   auto spec = OpSpec("NormalDistribution")
-      .AddArg("batch_size", batch_size)
+      .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", 1)
       .AddArg("device", "gpu")
       .AddArg("dtype", DALI_FLOAT)
@@ -51,7 +51,7 @@ BENCHMARK_DEFINE_F(OperatorBench, NormalDistributionGPU_NonUniform)(benchmark::S
   }
 
   auto spec = OpSpec("NormalDistribution")
-      .AddArg("batch_size", batch_size)
+      .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", 1)
       .AddArg("device", "gpu")
       .AddArg("dtype", DALI_FLOAT)

@@ -70,29 +70,29 @@ class NormalDistribution : public Operator<Backend> {
   }
 
   void AcquireArguments(const workspace_t<Backend> &ws) {
-    this->GetPerSampleArgument(mean_, detail::kMean, ws);
-    this->GetPerSampleArgument(stddev_, detail::kStddev, ws);
+    auto curr_batch_size =
+        ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
+    this->GetPerSampleArgument(mean_, detail::kMean, ws, curr_batch_size);
+    this->GetPerSampleArgument(stddev_, detail::kStddev, ws, curr_batch_size);
   }
 
 
   TensorListShape<> GetOutputShape(const workspace_t<Backend> &ws) {
-    DALI_ENFORCE(!(spec_.NumRegularInput() == 1 && IsShapeArgumentProvided(spec_)),
+    DALI_ENFORCE(!(this->spec_.NumRegularInput() == 1 && IsShapeArgumentProvided(spec_)),
                  make_string("Incorrect operator invocation. "
                              "The operator cannot be called with both Input and `shape` argument"));
-    if (spec_.NumRegularInput() == 1) {
+    if (this->spec_.NumRegularInput() == 1) {
       single_value_in_output_ = false;
       return ShapesFromInputTensorList(ws);
     } else if (IsShapeArgumentProvided(spec_)) {
       single_value_in_output_ = false;
       return ShapesFromArgument(ws);
-    } else {
-      single_value_in_output_ = true;
-      return ShapeForDefaultConfig(ws);
     }
+    single_value_in_output_ = true;
+    return ShapeForDefaultConfig(ws);
   }
 
-  using Operator<Backend>::spec_;
-  using Operator<Backend>::batch_size_;
+  USE_OPERATOR_MEMBERS();
   std::vector<float> mean_, stddev_;
   std::vector<int> shape_;
   const int64_t seed_;
@@ -115,17 +115,17 @@ class NormalDistribution : public Operator<Backend> {
 
 
   TensorListShape<> ShapesFromArgument(const workspace_t<Backend> &ws) {
-    return uniform_list_shape(batch_size_, shape_);
+    return uniform_list_shape(max_batch_size_, shape_);
   }
 
 
   TensorListShape<> ShapeForDefaultConfig(const workspace_t<Backend> &ws) {
-    return TensorListShape<0>(batch_size_);
+    return TensorListShape<0>(max_batch_size_);
   }
 
 
   bool IsShapeArgumentProvided(const OpSpec &spec) {
-    return spec_.HasArgument(detail::kShape);
+    return this->spec_.HasArgument(detail::kShape);
   }
 };
 
@@ -133,7 +133,7 @@ class NormalDistribution : public Operator<Backend> {
 class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
  public:
   explicit NormalDistributionCpu(const OpSpec &spec) : NormalDistribution(spec), rng_(seed_),
-                                                       batch_rng_(seed_, batch_size_) {}
+                                                       batch_rng_(seed_, max_batch_size_) {}
 
   ~NormalDistributionCpu() override = default;
 

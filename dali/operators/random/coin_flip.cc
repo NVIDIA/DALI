@@ -19,7 +19,7 @@ namespace dali {
 
 void CoinFlip::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
-  for (int i = 0; i < batch_size_; ++i) {
+  for (int i = 0; i < max_batch_size_; ++i) {
     output[i].mutable_data<int>()[0] = dis_(rng_) ? 1 : 0;
   }
 }

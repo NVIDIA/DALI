@@ -43,24 +43,6 @@ void HostWorkspace::GetSample(SampleWorkspace* ws, int data_idx, int thread_idx)
   }
 }
 
-int HostWorkspace::NumInputAtIdx(int idx) const {
-  DALI_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
-  auto tensor_meta = input_index_map_[idx];
-  if (tensor_meta.storage_device == StorageDevice::CPU) {
-    return cpu_inputs_[tensor_meta.index]->size();
-  }
-  return gpu_inputs_[tensor_meta.index]->size();
-}
-
-int HostWorkspace::NumOutputAtIdx(int idx) const {
-  DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
-  auto tensor_meta = output_index_map_[idx];
-  if (tensor_meta.storage_device == StorageDevice::CPU) {
-    return cpu_inputs_[tensor_meta.index]->size();
-  }
-  return gpu_outputs_[tensor_meta.index]->size();
-}
-
 template <>
 const Tensor<CPUBackend>& HostWorkspace::Input(int idx, int data_idx) const {
   return InputRef<CPUBackend>(idx)[data_idx];

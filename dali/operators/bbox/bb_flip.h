@@ -20,42 +20,37 @@
 
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/arg_helper.h"
 
 namespace dali {
 
 template <typename Backend>
-class BbFlip;
-
-template <>
-class BbFlip<CPUBackend> : public Operator<CPUBackend> {
+class BbFlip : public Operator<Backend> {
  public:
-  explicit BbFlip(const OpSpec &spec);
+  explicit BbFlip(const OpSpec &spec) :
+      Operator<Backend>(spec),
+      ltrb_(spec.GetArgument<bool>("ltrb")),
+      horz_("horizontal", spec),
+      vert_("vertical", spec) {}
 
   ~BbFlip() override = default;
   DISABLE_COPY_MOVE_ASSIGN(BbFlip);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
-    return false;
+  bool CanInferOutputs() const override {
+    return true;
   }
 
-  void RunImpl(SampleWorkspace &ws) override;
-  using Operator<CPUBackend>::RunImpl;
-
- private:
-  /**
-   * Checks, if argument provided by user is a scalar and,
-   * in such case, extends this scalar to entire tensor
-   * @tparam TensorDataType Underlying data type in tensor
-   */
-  template <typename TensorDataType>
-  void ExtendScalarToTensor(std::string argument_name, const OpSpec &spec,
-                            Tensor<CPUBackend> *tensor) {
-    tensor->Resize({batch_size_});
-    for (int i = 0; i < batch_size_; i++) {
-      tensor->mutable_data<TensorDataType>()[i] =
-          spec.GetArgument<TensorDataType>(argument_name);
-    }
+  bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template InputRef<Backend>(0);
+    DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
+    auto nsamples = input.shape().size();
+    horz_.Acquire(spec_, ws, nsamples, TensorShape<0>{});
+    vert_.Acquire(spec_, ws, nsamples, TensorShape<0>{});
+    output_descs.resize(1);  // only one output
+    output_descs[0].type = input.type();
+    output_descs[0].shape = input.shape();
+    return true;
   }
 
   /**
@@ -73,22 +68,26 @@ class BbFlip<CPUBackend> : public Operator<CPUBackend> {
    */
   const bool ltrb_;
 
-  /**
-   * If true, flip is performed along vertical (x) axis
-   */
-  Tensor<CPUBackend> flip_type_vertical_;
+  ArgValue<int> horz_;
+  ArgValue<int> vert_;
 
-  /**
-   * If true, flip is performed along horizontal (y) axis
-   */
-  Tensor<CPUBackend> flip_type_horizontal_;
-
-  /**
-   * XXX: This is workaround for architectural mishap, that there are 2 access
-   * points for operator arguments: Workspace and OpSpec
-   */
-  bool vflip_is_tensor_, hflip_is_tensor_;
+  using Operator<Backend>::spec_;
 };
+
+class BbFlipCPU : public BbFlip<CPUBackend> {
+ public:
+  explicit BbFlipCPU(const OpSpec &spec) : BbFlip<CPUBackend>(spec) {}
+
+ protected:
+  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  using BbFlip<CPUBackend>::RunImpl;
+
+ private:
+  using BbFlip<CPUBackend>::horz_;
+  using BbFlip<CPUBackend>::vert_;
+  using BbFlip<CPUBackend>::ltrb_;
+};
+
 
 }  // namespace dali
 

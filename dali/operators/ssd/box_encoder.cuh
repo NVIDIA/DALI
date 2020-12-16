@@ -30,6 +30,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
 
   explicit BoxEncoder(const OpSpec &spec)
       : Operator<GPUBackend>(spec),
+        curr_batch_size_(-1),
         criteria_(spec.GetArgument<float>("criteria")),
         offset_(spec.GetArgument<bool>("offset")),
         scale_(spec.GetArgument<float>("scale")) {
@@ -39,11 +40,6 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
                  "Expected criteria <= 1, actual value = " + std::to_string(criteria_));
 
     PrepareAnchors(spec.GetArgument<vector<float>>("anchors"));
-
-    boxes_offsets_.Resize({batch_size_ + 1});
-
-    best_box_idx_.Resize({batch_size_ * anchors_count_});
-    best_box_iou_.Resize({batch_size_ * anchors_count_});
 
     auto means = spec.GetArgument<vector<float>>("means");
     DALI_ENFORCE(means.size() == BoundingBox::size,
@@ -69,6 +65,11 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+    curr_batch_size_ = ws.GetInputBatchSize(0);
+    boxes_offsets_.Resize({curr_batch_size_ + 1});
+
+    best_box_idx_.Resize({curr_batch_size_ * anchors_count_});
+    best_box_iou_.Resize({curr_batch_size_ * anchors_count_});
     return false;
   }
 
@@ -77,6 +78,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
  private:
   static constexpr int kBoxesOutputDim = 2;
   static constexpr int kLabelsOutputDim = 1;
+  int curr_batch_size_;
   const float criteria_;
   int64_t anchors_count_;
   Tensor<GPUBackend> anchors_;

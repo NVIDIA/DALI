@@ -341,9 +341,9 @@ class Conv {
           ref_Window(ref_Window_),
           ref_C(ref_C_),
           ref_D(ref_D_),
+          epilogue(epilogue_),
           planes(planes_),
-          plane_stride(plane_stride_),
-          epilogue(epilogue_) {}
+          plane_stride(plane_stride_) {}
   };
 
   struct Arguments {

@@ -32,7 +32,7 @@ points, that is ``out[i] != i``. This argument is ignored when batch size is 1.)
 
 void BatchPermutation::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
-  int N = GetBatchSize(ws);
+  int N = ws.GetRequestedBatchSize(0);
   if (N < 1)
     return;
   auto out_view = view<int, 0>(output);

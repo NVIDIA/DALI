@@ -34,7 +34,7 @@ class SSDRandomCrop : public Operator<Backend> {
   explicit inline SSDRandomCrop(const OpSpec &spec) :
     Operator<Backend>(spec),
     num_attempts_(spec.GetArgument<int>("num_attempts")),
-    rngs_(spec.GetArgument<int64_t>("seed"), batch_size_),
+    rngs_(spec.GetArgument<int64_t>("seed"), max_batch_size_),
     int_dis_(0, 6),        // sample option
     float_dis_(0.3, 1.) {  // w, h generation
     // setup all possible sample types

@@ -47,9 +47,10 @@ void Flip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   output.SetLayout(input.GetLayout());
   output.set_type(input.type());
   output.ResizeLike(input);
-  auto horizontal = GetHorizontal(ws);
-  auto vertical = GetVertical(ws);
-  auto depthwise = GetDepthwise(ws);
+  auto curr_batch_size = ws.GetInputBatchSize(0);
+  auto horizontal = GetHorizontal(ws, curr_batch_size);
+  auto vertical = GetVertical(ws, curr_batch_size);
+  auto depthwise = GetDepthwise(ws, curr_batch_size);
   RunKernel(output, input, depthwise, horizontal, vertical, ws.stream());
 }
 

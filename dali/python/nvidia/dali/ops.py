@@ -901,14 +901,6 @@ _wrap_op(PythonFunction)
 _wrap_op(DLTensorPythonFunction)
 _wrap_op(TFRecordReader)
 
-def _load_arithm_ops():
-    arithm_op_names = ["ArithmeticGenericOp"]
-    for op_name in arithm_op_names:
-      if not hasattr(sys.modules[__name__], op_name):
-          setattr(sys.modules[__name__], op_name,
-                  python_op_factory(op_name, None, op_device = "cpu"))
-
-_load_arithm_ops()
 
 def _choose_device(inputs):
     for input in inputs:
