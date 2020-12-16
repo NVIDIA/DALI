@@ -42,7 +42,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryUnOp(const ExprFunc &expr) {
   std::unique_ptr<ExprImplBase> result;
   auto input_type = expr[0].GetTypeId();
   TYPE_SWITCH(input_type, type2id, Input_t, ARITHMETIC_ALLOWED_TYPES, (
-    using Out_t = Input_t;
+    using Out_t = typename arithm_meta<op, Backend>::template result_t<Input_t>;
     if (expr[0].GetNodeType() == NodeType::Tensor) {
       result.reset(new ImplTensor<op, Out_t, Input_t>());
     } else {

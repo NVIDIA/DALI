@@ -101,6 +101,21 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
   }
 }
 
+/**
+ * @brief Check if op returns floating point numbers for all inputs (promiting integers to floats)
+ */
+DALI_HOST_DEV constexpr bool IsIntToFloatResult(ArithmeticOp op) {
+  switch (op) {
+    case ArithmeticOp::exp:
+    case ArithmeticOp::log:
+    case ArithmeticOp::fdiv:
+      return true;
+    default:
+      return false;
+  }
+}
+
+
 DALI_HOST_DEV constexpr bool IsArithmetic(ArithmeticOp op) {
   switch (op) {
     case ArithmeticOp::plus:
@@ -372,7 +387,7 @@ template <typename T>
     template <typename T>
     DALI_HOST_DEV static constexpr result_t<T> impl(T v) {
       auto v_ = static_cast<result_t<T>>(v);
-      return math_exp(v);
+      return math_exp(v_);
     }
 
     static inline std::string to_string() {
@@ -401,7 +416,7 @@ template <typename T>
     template <typename T>
     DALI_HOST_DEV static constexpr result_t<T> impl(T v) {
       auto v_ = static_cast<result_t<T>>(v);
-      return math_log(v);
+      return math_log(v_);
     }
 
     static inline std::string to_string() {
@@ -777,11 +792,12 @@ struct arithm_meta<ArithmeticOp::mod, GPUBackend> {
 inline std::string to_string(ArithmeticOp op) {
   std::string result;
   VALUE_SWITCH(op, op_static,
-               (ArithmeticOp::plus, ArithmeticOp::minus, ArithmeticOp::add, ArithmeticOp::sub,
-                ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::mod, ArithmeticOp::min,
-                ArithmeticOp::max, ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt,
-                ArithmeticOp::leq, ArithmeticOp::gt, ArithmeticOp::geq, ArithmeticOp::bit_and,
-                ArithmeticOp::bit_or, ArithmeticOp::bit_xor, ArithmeticOp::clamp),
+               (ArithmeticOp::plus, ArithmeticOp::minus, ArithmeticOp::exp, ArithmeticOp::log,
+                ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div,
+                ArithmeticOp::mod, ArithmeticOp::min, ArithmeticOp::max, ArithmeticOp::eq,
+                ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq, ArithmeticOp::gt,
+                ArithmeticOp::geq, ArithmeticOp::bit_and, ArithmeticOp::bit_or,
+                ArithmeticOp::bit_xor, ArithmeticOp::clamp),
                (result = arithm_meta<op_static, CPUBackend>::to_string();),
                (result = "InvalidOp";));  // NOLINT(whitespace/parens)
   return result;
@@ -820,7 +836,7 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
       {"bitand", ArithmeticOp::bit_and},
       {"bitor",  ArithmeticOp::bit_or},
       {"bitxor", ArithmeticOp::bit_xor},
-      {"clamp", ArithmeticOp::clamp},
+      {"clamp",  ArithmeticOp::clamp},
   };
   auto it = token_to_op.find(op_name);
   DALI_ENFORCE(it != token_to_op.end(), "No implementation for op \"" + op_name + "\".");
