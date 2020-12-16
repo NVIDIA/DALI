@@ -55,8 +55,8 @@ def test_operator_coco_reader():
         i = 0
         while i < len(images):
             out = pipeline.run()
-            assert out[0].at(0) == expected_ids[i], f"{out[0].at(0)} != {expected_ids[i]}"
-            assert out[0].at(1) == expected_ids[i + 1], f"{out[0].at(1)} != {expected_ids[i + 1]}"
+            assert out[0].at(0) == expected_ids[i]
+            assert out[0].at(1) == expected_ids[i + 1]
             i = i + 2
 
         filenames_file = os.path.join(annotations_dir, 'filenames.dat')
