@@ -28,12 +28,13 @@ def test_uniform_default():
     pipe.build()
     oo = pipe.run()
     possibly_uniform_distribution = oo[0].as_array()[0]
-    _, pv = st.kstest(rvs=possibly_uniform_distribution, cdf='uniform')
-    assert pv < 1e-8, "`possibly_uniform_distribution` is not an uniform distribution"
+    # normalize to 0-1 range
+    possibly_uniform_distribution_kstest = (possibly_uniform_distribution + 1) / 2
+    _, pv = st.kstest(rvs=possibly_uniform_distribution_kstest, cdf='uniform')
+    assert pv > 0.05, "`possibly_uniform_distribution` is not an uniform distribution"
     assert (-1 <= possibly_uniform_distribution).all() and \
             (possibly_uniform_distribution < 1).all(), \
                 "Value returned from the op is outside of requested range"
-
 
 def test_uniform_continuous():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
@@ -47,8 +48,10 @@ def test_uniform_continuous():
     pipe.build()
     oo = pipe.run()
     possibly_uniform_distribution = oo[0].as_array()[0]
-    _, pv = st.kstest(rvs=possibly_uniform_distribution, cdf='uniform')
-    assert pv < 1e-8, "`possibly_uniform_distribution` is not an uniform distribution"
+    # normalize to 0-1 range
+    possibly_uniform_distribution_kstest = (possibly_uniform_distribution - test_range[0]) / (test_range[1] - test_range[0])
+    _, pv = st.kstest(rvs=possibly_uniform_distribution_kstest, cdf='uniform')
+    assert pv > 0.05, "`possibly_uniform_distribution` is not an uniform distribution"
     assert (test_range[0] <= possibly_uniform_distribution).all() and \
             (test_range[0] < test_range[1]).all(), \
                 "Value returned from the op is outside of requested range"
@@ -66,10 +69,7 @@ def test_uniform_continuous_next_after():
     pipe.build()
     oo = pipe.run()
     possibly_uniform_distribution = oo[0].as_array()[0]
-    _, pv = st.kstest(rvs=possibly_uniform_distribution, cdf='uniform')
-    assert pv < 1e-8, "`possibly_uniform_distribution` is not an uniform distribution"
-    assert (test_range[0] <= possibly_uniform_distribution).all() and \
-            (test_range[0] < test_range[1]).all(), \
+    assert (test_range[0] == possibly_uniform_distribution).all(), \
                 "Value returned from the op is outside of requested range"
 
 def test_uniform_discrete():
@@ -83,10 +83,12 @@ def test_uniform_discrete():
     pipe.build()
     oo = pipe.run()
     possibly_uniform_distribution = oo[0].as_array()[0]
-    _, pv = st.kstest(rvs=possibly_uniform_distribution, cdf='uniform')
-    assert pv < 1e-8, "`possibly_uniform_distribution` is not an uniform distribution"
+    test_set_max = np.max(test_set)
+    bins = np.concatenate([test_set, np.array([np.nextafter(test_set_max, test_set_max+1)])])
+    bins.sort()
+    possibly_uniform_distribution_chisquare = np.histogram(possibly_uniform_distribution, bins=bins)[0]
+    _, pv = st.chisquare(possibly_uniform_distribution_chisquare)
+    assert pv > 0.05, "`possibly_uniform_distribution` is not an uniform distribution"
     for val in possibly_uniform_distribution:
         assert val in test_set, \
             "Value returned from the op is outside of requested discrete set"
-
-
