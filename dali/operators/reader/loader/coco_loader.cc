@@ -352,6 +352,8 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
             }
             segm_meta.push_back(coord_offset);
           }
+        } else {
+          parser.SkipValue();
         }
       } else {
         parser.SkipValue();

@@ -18,6 +18,7 @@ from test_utils import get_dali_extra_path
 import os
 from nose.tools import raises
 import tempfile
+import numpy as np
 
 test_data_root = get_dali_extra_path()
 file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
@@ -63,6 +64,59 @@ def test_operator_coco_reader():
             lines = f.read().splitlines()
         assert lines.sort() == files.sort()
 
+def test_operator_coco_reader_same_images():
+    file_root = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'images')
+    train_annotations = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'instances.json')
+
+    coco_dir = os.path.join(test_data_root, 'db', 'coco')
+    coco_dir_imgs = os.path.join(coco_dir, 'images')
+    coco_pixelwise_dir = os.path.join(test_data_root, 'db', 'coco_pixelwise')
+    coco_pixelwise_dir_imgs = os.path.join(coco_pixelwise_dir, 'images')
+
+    for file_root, annotations_file in [ \
+        (coco_dir_imgs, os.path.join(coco_dir, 'instances.json')),
+        (coco_pixelwise_dir_imgs, os.path.join(coco_pixelwise_dir, 'instances.json')),
+        (coco_pixelwise_dir_imgs, os.path.join(coco_pixelwise_dir, 'instances_rle_counts.json'))]:
+        pipe = Pipeline(batch_size=1, num_threads=4, device_id=0)
+        with pipe:
+            inputs1, boxes1, labels1, *other = fn.coco_reader(
+                file_root=file_root,
+                annotations_file=train_annotations,
+                name="reader1",
+                seed=1234
+            )
+            inputs2, boxes2, labels2, *other = fn.coco_reader(
+                file_root=file_root,
+                annotations_file=train_annotations,
+                polygon_masks=True,
+                name="reader2"
+            )
+            inputs3, boxes3, labels3, *other = fn.coco_reader(
+                file_root=file_root,
+                annotations_file=train_annotations,
+                pixelwise_masks=True,
+                name="reader3"
+            )
+            pipe.set_outputs(
+                inputs1, boxes1, labels1,
+                inputs2, boxes2, labels2,
+                inputs3, boxes3, labels3
+            )
+        pipe.build()
+
+        epoch_sz = pipe.epoch_size("reader1")
+        assert epoch_sz == pipe.epoch_size("reader2")
+        assert epoch_sz == pipe.epoch_size("reader3")
+
+        for i in range(epoch_sz):
+            inputs1, boxes1, labels1, inputs2, boxes2, labels2, inputs3, boxes3, labels3 = \
+                pipe.run()
+            np.testing.assert_array_equal(inputs1.at(0), inputs2.at(0))
+            np.testing.assert_array_equal(inputs1.at(0), inputs3.at(0))
+            np.testing.assert_array_equal(labels1.at(0), labels2.at(0))
+            np.testing.assert_array_equal(labels1.at(0), labels3.at(0))
+            np.testing.assert_array_equal(boxes1.at(0), boxes2.at(0))
+            np.testing.assert_array_equal(boxes1.at(0), boxes3.at(0))
 
 @raises(RuntimeError)
 def test_invalid_args():
