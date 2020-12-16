@@ -85,6 +85,9 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   int blockdesc_count = -1;
   blockdesc_count = SetupBlockDescs(
     blocks_cpu, block_sz, max_nblocks, out_view, ws.stream());
+  if (blockdesc_count == 0) {
+    return;
+  }
 
   int64_t blockdesc_max_sz = -1;
   for (int b = 0; b < blockdesc_count; b++) {

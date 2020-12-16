@@ -71,6 +71,8 @@ int64_t SetupBlockDescs(BlockDesc* blocks, int64_t block_sz, int64_t max_nblocks
   for (int s = 0; s < shape.size(); s++) {
     T *sample_data = static_cast<T*>(output[s].data);
     auto sample_size = volume(shape[s]);
+    if (sample_size == 0)
+      continue;
     auto work_per_block = div_ceil(sample_size, blocks_per_sample[s]);
     int64_t offset = 0;
     for (int b = 0; b < blocks_per_sample[s]; ++b, ++block) {
