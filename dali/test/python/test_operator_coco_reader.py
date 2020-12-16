@@ -35,7 +35,7 @@ test_data = {
     'car-604019_1280.jpg' : 59
 }
 
-files = list(test_data.keys())
+images = list(test_data.keys())
 expected_ids = list(test_data.values())
 
 def test_operator_coco_reader():
@@ -46,23 +46,23 @@ def test_operator_coco_reader():
                 file_root=file_root,
                 annotations_file=train_annotations,
                 image_ids=True,
-                files=files,
+                images=images,
                 save_preprocessed_annotations=True,
                 save_preprocessed_annotations_dir=annotations_dir)
             pipeline.set_outputs(ids)
         pipeline.build()
 
         i = 0
-        while i < len(files):
+        while i < len(images):
             out = pipeline.run()
-            assert out[0].at(0) == expected_ids[i]
-            assert out[0].at(1) == expected_ids[i + 1]
+            assert out[0].at(0) == expected_ids[i], f"{out[0].at(0)} != {expected_ids[i]}"
+            assert out[0].at(1) == expected_ids[i + 1], f"{out[0].at(1)} != {expected_ids[i + 1]}"
             i = i + 2
 
         filenames_file = os.path.join(annotations_dir, 'filenames.dat')
         with open(filenames_file) as f:
             lines = f.read().splitlines()
-        assert lines.sort() == files.sort()
+        assert lines.sort() == images.sort()
 
 def test_operator_coco_reader_same_images():
     file_root = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'images')
@@ -126,7 +126,7 @@ def test_invalid_args():
             file_root=file_root,
             annotations_file=train_annotations,
             image_ids=True,
-            files=files,
+            images=images,
             preprocessed_annotations_dir='/tmp')
         pipeline.set_outputs(ids)
     pipeline.build()
