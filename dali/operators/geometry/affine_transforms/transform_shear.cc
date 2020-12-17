@@ -39,7 +39,7 @@ A shear factor value can be interpreted as the offset to be applied in the first
 direction of the second axis.
 
 .. note::
-    This argument is mutually exclusive with ``angles``. 
+    This argument is mutually exclusive with ``angles``.
     If provided, the number of dimensions of the transform is inferred from this argument.
 )code",
     nullptr, true)
@@ -59,7 +59,7 @@ A shear angle is translated to a shear factor as follows::
 
 .. note::
     The valid range of values is between -90 and 90 degrees.
-    This argument is mutually exclusive with ``shear``. 
+    This argument is mutually exclusive with ``shear``.
     If provided, the number of dimensions of the transform is inferred from this argument.
 )code",
     nullptr, true)
@@ -148,20 +148,35 @@ class TransformShearCPU
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
     auto shape_from_size =
-      [this](int64_t size) {
-        ndim_ = sqrt(size) + 1;
-        DALI_ENFORCE(size == ndim_ * (ndim_ - 1),
-            make_string("Cannot form a shear transform matrix with ", size, " elements"));
-        if (ndim_ == 2) {
-          return TensorShape<>{ndim_};
+      [](int64_t size) {
+        int ndim = sqrt(size) + 1;
+        DALI_ENFORCE(size == ndim * (ndim - 1),
+            make_string("Shear matrix must have D*(D-1) elements where D is the number "
+                        "of dimensions. Got ", size, " elements."));
+        if (ndim == 2) {
+          return TensorShape<>{ndim};
         }
-        return TensorShape<>{ndim_, ndim_ - 1};
+        return TensorShape<>{ndim, ndim - 1};
       };
+    auto analyze_shape = [](const TensorShape<> &shape)->int {
+      if (shape.size() == 1) {
+        DALI_ENFORCE(shape[0] == 2, make_string("Shear coefficient must be a D x (D-1) "
+            "matrix or a 2-element vector. Got: ", shape));
+        return 2;
+      } else {
+        DALI_ENFORCE(shape.size() == 2 && shape[1] == shape[0] - 1,
+            make_string("Shear coefficient must be a D x (D-1) "
+                "matrix or a 2-element vector. Got: ", shape));
+        return shape[0];
+      }
+    };
     if (shear_.IsDefined()) {
       shear_.Acquire(spec, ws, nsamples_, true, shape_from_size);
+      ndim_ = analyze_shape(shear_.get().tensor_shape(0));
     } else {
       assert(angles_.IsDefined());
       angles_.Acquire(spec, ws, nsamples_, true, shape_from_size);
+      ndim_ = analyze_shape(angles_.get().tensor_shape(0));
       for (int i = 0; i < angles_.size(); i++) {
         const auto& angles = angles_[i];
         for (int j = 0; j < angles.num_elements(); j++) {
