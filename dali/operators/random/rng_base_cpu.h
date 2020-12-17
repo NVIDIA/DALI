@@ -28,6 +28,12 @@ namespace dali {
 template <>
 struct RNGBaseFields<CPUBackend> {
   RNGBaseFields(int64_t seed, int nsamples) {}
+
+  std::vector<uint8_t> dists_cpu_;
+
+  void ReserveDistsData(size_t nbytes) {
+    dists_cpu_.reserve(nbytes);
+  }
 };
 
 template <typename Backend, typename Impl>
@@ -44,14 +50,19 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<CPUBackend> &ws) {
   constexpr size_t kNumChunkSeeds = 16;
   int nsamples = output.shape().size();
 
-  Dist* dists = This().template SetupDists<Dist>(nsamples);
+  auto &dists_cpu = backend_data_.dists_cpu_;
+  dists_cpu.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
+
+  Dist* dists = reinterpret_cast<Dist*>(dists_cpu.data());
+  bool use_default_dist = !This().template SetupDists<Dist>(dists, nsamples);
+
   for (int sample_id = 0; sample_id < nsamples; ++sample_id) {
     auto sample_sz = out_shape.tensor_size(sample_id);
     span<T> out_span{out_view[sample_id].data, sample_sz};
     if (sample_sz < kThreshold) {
       tp.AddWork(
         [=](int thread_id) {
-          auto &dist = dists[sample_id];
+          auto dist = use_default_dist ? Dist() : dists[sample_id];
           for (auto &x : out_span)
             x = ConvertSat<T>(dist(rng_[sample_id]));
         }, sample_sz);
@@ -68,7 +79,7 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<CPUBackend> &ws) {
           [=](int thread_id) {
             std::seed_seq seq(seed.begin(), seed.end());
             std::mt19937_64 chunk_rng(seq);
-            auto &dist = dists[sample_id];
+            auto dist = use_default_dist ? Dist() : dists[sample_id];
             for (auto &x : chunk)
               x = ConvertSat<T>(dist(chunk_rng));
           }, chunk.size());

@@ -26,26 +26,6 @@
 
 namespace dali {
 
-template <>
-struct RNGBaseFields<GPUBackend> {
-  RNGBaseFields<GPUBackend>(int64_t seed, int max_batch_size, int64_t static_sample_size = -1)
-      : block_size_(static_sample_size < 0 ? 256 : min(static_sample_size, 256l)),
-        max_blocks_(static_sample_size < 0
-                        ? 1024
-                        : min(max_batch_size * div_ceil(static_sample_size, block_size_), 1024l)),
-        randomizer_(seed, block_size_ * max_blocks_) {
-    block_descs_gpu_ =
-        kernels::memory::alloc_unique<BlockDesc>(kernels::AllocType::GPU, max_blocks_);
-    block_descs_cpu_ =
-        kernels::memory::alloc_unique<BlockDesc>(kernels::AllocType::Pinned, max_blocks_);
-  }
-  const int block_size_;
-  const int max_blocks_;
-  curand_states randomizer_;
-  kernels::memory::KernelUniquePtr<BlockDesc> block_descs_gpu_;
-  kernels::memory::KernelUniquePtr<BlockDesc> block_descs_cpu_;
-};
-
 namespace {
 
 template <typename Out, typename Dist, bool DefaultDist = false>
@@ -98,7 +78,17 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
 
   cudaMemcpyAsync(blocks_gpu, blocks_cpu,
                   sizeof(BlockDesc) * blockdesc_count, cudaMemcpyHostToDevice, ws.stream());
-  Dist* dists = This().template SetupDists<Dist>(nsamples, ws.stream());
+
+  auto &dists_cpu = backend_data_.dists_cpu_;
+  auto &dists_gpu = backend_data_.dists_gpu_;
+  dists_cpu.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
+
+  Dist* dists = reinterpret_cast<Dist*>(dists_cpu.data());
+  bool use_default_dist = !This().template SetupDists<Dist>(dists, nsamples);
+  if (!use_default_dist) {
+    dists_gpu.from_host(dists_cpu, ws.stream());
+    dists = reinterpret_cast<Dist*>(dists_gpu.data());
+  }
 
   dim3 blockDim;
   dim3 gridDim;
@@ -107,9 +97,9 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   gridDim.x = 1;
   gridDim.y = div_ceil(blockdesc_count, blockDim.y);
 
-  if (dists == nullptr) {
+  if (use_default_dist) {
     RNGKernel<T, Dist, true>
-      <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, dists, blockdesc_count);
+      <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, nullptr, blockdesc_count);
   } else {
     RNGKernel<T, Dist, false>
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, dists, blockdesc_count);

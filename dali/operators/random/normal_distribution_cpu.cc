@@ -35,42 +35,7 @@ sample is generated.
       1.f, true)
     .AddParent("RNGAttr");
 
-class NormalDistributionCPU : public NormalDistribution<CPUBackend, NormalDistributionCPU> {
- public:
-  template <typename T>
-  struct Dist {
-    using FloatType =
-      typename std::conditional<
-          ((std::is_integral<T>::value && sizeof(T) >= 4) || sizeof(T) > 4),
-          double, float>::type;
-    using type = std::normal_distribution<FloatType>;
-  };
-
-  explicit NormalDistributionCPU(const OpSpec &spec)
-      : NormalDistribution<CPUBackend, NormalDistributionCPU>(spec) {
-    dist_data_.reserve(max_batch_size_ * kDistMaxSize);
-  }
-
-  template <typename Dist>
-  Dist* SetupDists(int nsamples) {
-    dist_data_.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
-    auto dists = reinterpret_cast<Dist*>(dist_data_.data());
-    for (int s = 0; s < nsamples; s++) {
-      dists[s] = Dist(mean_[s].data[0], stddev_[s].data[0]);
-    }
-    return dists;
-  }
-
- private:
-  using Operator<CPUBackend>::max_batch_size_;
-  using NormalDistribution<CPUBackend, NormalDistributionCPU>::mean_;
-  using NormalDistribution<CPUBackend, NormalDistributionCPU>::stddev_;
-  std::vector<uint8_t> dist_data_;
-  static constexpr size_t kDistMaxSize = sizeof(std::normal_distribution<double>);
-};
-
-
-DALI_REGISTER_OPERATOR(random__Normal, NormalDistributionCPU, CPU);
+DALI_REGISTER_OPERATOR(random__Normal, NormalDistribution<CPUBackend>, CPU);
 
 // Deprecated alias
 DALI_SCHEMA(NormalDistribution)
@@ -86,6 +51,6 @@ sample is generated.
     .Deprecate("random.Normal");  // Deprecated in 0.30
 
 
-DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCPU, CPU);
+DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistribution<CPUBackend>, CPU);
 
 }  // namespace dali

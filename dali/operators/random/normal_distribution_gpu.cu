@@ -22,45 +22,7 @@
 
 namespace dali {
 
-class NormalDistributionGPU : public NormalDistribution<GPUBackend, NormalDistributionGPU> {
- public:
-  template <typename T>
-  struct Dist {
-    using FloatType =
-      typename std::conditional<
-          ((std::is_integral<T>::value && sizeof(T) >= 4) || sizeof(T) > 4),
-          double, float>::type;
-    using type = curand_normal_dist<FloatType>;
-    static constexpr bool has_state = true;
-  };
-
-  explicit NormalDistributionGPU(const OpSpec &spec)
-      : NormalDistribution<GPUBackend, NormalDistributionGPU>(spec) {
-    assert(max_batch_size_ <= backend_data_.max_blocks_);
-    dists_cpu_.reserve(kDistMaxSize * max_batch_size_);
-    dists_gpu_.reserve(kDistMaxSize * max_batch_size_);
-  }
-
-  template <typename Dist>
-  Dist* SetupDists(int nsamples, cudaStream_t stream) {
-    dists_cpu_.resize(sizeof(Dist) * nsamples);  // memory reserved in constructor
-    auto *dists_cpu = reinterpret_cast<Dist*>(dists_cpu_.data());
-    for (int s = 0; s < nsamples; s++) {
-      dists_cpu[s] = {mean_[s].data[0], stddev_[s].data[0]};
-    }
-    dists_gpu_.from_host(dists_cpu_, stream);
-    auto *dists_gpu = reinterpret_cast<Dist*>(dists_gpu_.data());
-    return dists_gpu;
-  }
-
- private:
-  std::vector<uint8_t> dists_cpu_;
-  DeviceBuffer<uint8_t> dists_gpu_;
-  static constexpr size_t kDistMaxSize = sizeof(curand_normal_dist<double>);
-};
-
-
-DALI_REGISTER_OPERATOR(random__Normal, NormalDistributionGPU, GPU);
-DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionGPU, GPU);
+DALI_REGISTER_OPERATOR(random__Normal, NormalDistribution<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistribution<GPUBackend>, GPU);
 
 }  // namespace dali

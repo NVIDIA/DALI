@@ -17,19 +17,37 @@
 
 #include "dali/operators/random/rng_base.h"
 #include "dali/pipeline/operator/arg_helper.h"
+#include "dali/operators/random/rng_base_gpu.h"
+#include "dali/operators/random/rng_base_cpu.h"
 
 #define DALI_NORMDIST_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, \
                              int64_t, float16, float, double)
 
 namespace dali {
 
-template <typename Backend, typename Impl>
-class NormalDistribution : public RNGBase<Backend, Impl> {
+template <typename Backend>
+class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>> {
  public:
+  template <typename T>
+  struct Dist {
+    using FloatType =
+      typename std::conditional<
+          ((std::is_integral<T>::value && sizeof(T) >= 4) || sizeof(T) > 4),
+          double, float>::type;
+    using type =
+      typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
+          curand_normal_dist<FloatType>,
+          std::normal_distribution<FloatType>>;
+  };
+
   explicit NormalDistribution(const OpSpec &spec)
-      : RNGBase<Backend, Impl>(spec),
+      : RNGBase<Backend, NormalDistribution<Backend>>(spec),
         mean_("mean", spec),
-        stddev_("stddev", spec) {}
+        stddev_("stddev", spec) {
+    if (mean_.IsDefined() || stddev_.IsDefined()) {
+      backend_data_.ReserveDistsData(sizeof(typename Dist<double>::type) * max_batch_size_);
+    }
+  }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
     mean_.Acquire(spec, ws, nsamples, true);
@@ -40,20 +58,33 @@ class NormalDistribution : public RNGBase<Backend, Impl> {
     return DALI_FLOAT;
   }
 
+  template <typename Dist>
+  bool SetupDists(Dist* dists_data, int nsamples) {
+    if (!mean_.IsDefined() && !stddev_.IsDefined()) {
+      return false;
+    }
+    for (int s = 0; s < nsamples; s++) {
+      dists_data[s] = Dist{mean_[s].data[0], stddev_[s].data[0]};
+    }
+    return true;
+  }
+
+  using RNGBase<Backend, NormalDistribution<Backend>>::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, DALI_NORMDIST_TYPES, (
-      using Dist = typename Impl::template Dist<T>::type;
+      using Dist = typename Dist<T>::type;
       this->template RunImplTyped<T, Dist>(ws);
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
   }
 
  protected:
-  using RNGBase<Backend, Impl>::dtype_;
+  using Operator<Backend>::max_batch_size_;
+  using RNGBase<Backend, NormalDistribution<Backend>>::dtype_;
+  using RNGBase<Backend, NormalDistribution<Backend>>::backend_data_;
 
   ArgValue<float> mean_;
   ArgValue<float> stddev_;
 };
-
 
 }  // namespace dali
 
