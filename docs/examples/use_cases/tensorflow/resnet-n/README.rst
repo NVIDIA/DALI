@@ -4,7 +4,7 @@ ResNet-N with TensorFlow and DALI
 This demo implements residual networks model and use DALI for the data
 augmentation pipeline from `the original paper`_.
 
-It implements the ResNet50 v1.5 CNN model and demonstrate efficient
+It implements the ResNet50 v1.5 CNN model and demonstrates efficient
 single-node training on multi-GPU systems. They can be used for benchmarking, or
 as a starting point for implementing and training your own network.
 

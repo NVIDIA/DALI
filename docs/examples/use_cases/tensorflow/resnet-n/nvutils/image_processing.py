@@ -165,10 +165,9 @@ def get_dali_pipeline(
         inputs = fn.tfrecord_reader(
                         path=tfrec_filenames,
                         index_path=tfrec_idx_filenames,
-                        random_shuffle=True,
+                        random_shuffle=training,
                         shard_id=shard_id,
                         num_shards=num_gpus,
-                        initial_fill=10000,
                         features={
                             'image/encoded': tfrec.FixedLenFeature((), tfrec.string, ""),
                             'image/class/label': tfrec.FixedLenFeature([1], tfrec.int64,  -1),
@@ -205,7 +204,7 @@ def get_dali_pipeline(
             crop=(height, width),
             mean=[123.68, 116.78, 103.94],
             std=[58.4, 57.12, 57.3],
-            output_layout=types.NHWC,
+            output_layout="HWC",
             mirror = fn.coin_flip())
         labels = inputs["image/class/label"].gpu()
 
