@@ -31,7 +31,7 @@ def test_uniform_default():
     # normalize to 0-1 range
     possibly_uniform_distribution_kstest = (possibly_uniform_distribution + 1) / 2
     _, pv = st.kstest(rvs=possibly_uniform_distribution_kstest, cdf='uniform')
-    assert pv > 0.05, "`possibly_uniform_distribution` is not an uniform distribution"
+    assert pv > 0.05, "`possibly_uniform_distribution` is not a uniform distribution"
     assert (-1 <= possibly_uniform_distribution).all() and \
             (possibly_uniform_distribution < 1).all(), \
                 "Value returned from the op is outside of requested range"
@@ -51,7 +51,7 @@ def test_uniform_continuous():
     # normalize to 0-1 range
     possibly_uniform_distribution_kstest = (possibly_uniform_distribution - test_range[0]) / (test_range[1] - test_range[0])
     _, pv = st.kstest(rvs=possibly_uniform_distribution_kstest, cdf='uniform')
-    assert pv > 0.05, "`possibly_uniform_distribution` is not an uniform distribution"
+    assert pv > 0.05, "`possibly_uniform_distribution` is not a uniform distribution"
     assert (test_range[0] <= possibly_uniform_distribution).all() and \
             (test_range[0] < test_range[1]).all(), \
                 "Value returned from the op is outside of requested range"
@@ -88,7 +88,7 @@ def test_uniform_discrete():
     bins.sort()
     possibly_uniform_distribution_chisquare = np.histogram(possibly_uniform_distribution, bins=bins)[0]
     _, pv = st.chisquare(possibly_uniform_distribution_chisquare)
-    assert pv > 0.05, "`possibly_uniform_distribution` is not an uniform distribution"
+    assert pv > 0.05, "`possibly_uniform_distribution` is not a uniform distribution"
     for val in possibly_uniform_distribution:
         assert val in test_set, \
             "Value returned from the op is outside of requested discrete set"
