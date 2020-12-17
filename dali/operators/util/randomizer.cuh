@@ -17,6 +17,7 @@
 #define DALI_OPERATORS_UTIL_RANDOMIZER_CUH_
 
 #include <math.h>
+#include <memory>
 #include "dali/core/device_guard.h"
 #include "dali/kernels/alloc.h"
 #include "dali/pipeline/data/backend.h"
@@ -26,7 +27,6 @@ namespace dali {
 
 struct curand_states {
   curand_states(uint64_t seed, size_t len);
-  ~curand_states() = default;
 
   DALI_HOST_DEV inline curandState* states() {
     return states_;
@@ -40,8 +40,8 @@ struct curand_states {
  private:
   size_t len_;
   int device_;
-  kernels::memory::KernelUniquePtr<curandState> states_mem_;
-  curandState* states_;  // std::unique_ptr::get can't be called from __device__ functions
+  std::shared_ptr<curandState> states_mem_;
+  curandState* states_;  // std::shared_ptr::get can't be called from __device__ functions
 };
 
 template <typename T>
