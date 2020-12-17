@@ -134,8 +134,8 @@ void GetGeneralizedArg(span<T> result, const std::string name, int sample_idx, c
 template <typename ArgumentType, typename ExtentType>
 std::pair<int, int> GetShapeLikeArgument(std::vector<ExtentType> &out_shape, const OpSpec &spec,
                                          const std::string &argument_name,
-                                         const ArgumentWorkspace &ws, int ndim = -1,
-                                         int batch_size = -1) {
+                                         const ArgumentWorkspace &ws, int batch_size,
+                                         int ndim = -1) {
   DALI_ENFORCE(batch_size >= 0,
                make_string("Invalid batch size. Expected nonnegative, actual: ", batch_size));
 
@@ -197,9 +197,9 @@ std::pair<int, int> GetShapeLikeArgument(std::vector<ExtentType> &out_shape, con
 template <typename ArgumentType = int, int out_ndim>
 std::pair<int, int> GetShapeArgument(TensorListShape<out_ndim> &out_tls, const OpSpec &spec,
                                      const std::string &argument_name, const ArgumentWorkspace &ws,
-                                     int ndim = out_ndim, int batch_size = -1) {
+                                     int batch_size, int ndim = out_ndim) {
   auto ret =
-      GetShapeLikeArgument<ArgumentType>(out_tls.shapes, spec, argument_name, ws, ndim, batch_size);
+      GetShapeLikeArgument<ArgumentType>(out_tls.shapes, spec, argument_name, ws, batch_size, ndim);
   out_tls.resize(ret.first, ret.second);
   return ret;
 }

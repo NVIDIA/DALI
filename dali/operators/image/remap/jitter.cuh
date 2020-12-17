@@ -34,15 +34,15 @@ class JitterAugment<GPUBackend> {
  public:
   explicit JitterAugment(const OpSpec& spec) :
         nDegree_(spec.GetArgument<int>("nDegree")),
-        rnd_(spec.GetArgument<int64_t>("seed"), rnd_size_) {}
+        rnd_(spec.GetArgument<int64_t>("seed"), rnd_size_) {
+  }
 
   __device__ ivec2 operator()(int y, int x, int c, int H, int W, int C) {
     const uint16_t nHalf = nDegree_/2;
 
     const int idx = threadIdx.x + blockIdx.x * blockDim.x;
-
-    int newX = rnd_.rand(idx % rnd_size_) % nDegree_ - nHalf + x;
-    int newY = rnd_.rand(idx % rnd_size_) % nDegree_ - nHalf + y;
+    int newX = curand(&rnd_[idx % rnd_size_]) % nDegree_ - nHalf + x;
+    int newY = curand(&rnd_[idx % rnd_size_]) % nDegree_ - nHalf + y;
     return { cuda_min(cuda_max(0, newX), W), cuda_min(cuda_max(0, newY), H) };
   }
 
@@ -50,7 +50,7 @@ class JitterAugment<GPUBackend> {
 
  private:
   int nDegree_;
-  RandomizerGPU rnd_;
+  curand_states rnd_;
   static constexpr unsigned rnd_size_ = 1024 * 256;
 };
 
