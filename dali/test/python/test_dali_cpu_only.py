@@ -255,7 +255,7 @@ def test_resize_crop_mirror_cpu():
     check_single_input(fn.resize_crop_mirror, crop = [5, 5], resize_shorter = 10)
 
 def test_normal_distribution_cpu():
-    check_no_input(fn.normal_distribution, shape = [5, 5])
+    check_no_input(fn.random.normal, shape = [5, 5])
 
 def test_one_hot_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)

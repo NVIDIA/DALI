@@ -31,18 +31,11 @@ void init_states(const size_t N, uint64_t seed, curandState *states) {
 
 curand_states::curand_states(uint64_t seed, size_t len) : len_(len) {
   cudaGetDevice(&device_);
-  states_mem_ = kernels::memory::alloc_unique<curandState>(kernels::AllocType::GPU, len);
+  states_mem_ = kernels::memory::alloc_shared<curandState>(kernels::AllocType::GPU, len);
   states_ = states_mem_.get();
   static constexpr int kBlockSize = 256;
   int grid = div_ceil(len_, kBlockSize);
   detail::init_states<<<grid, kBlockSize>>>(len_, seed, states_);
-}
-
-curand_states::~curand_states() {
-  // TODO(janton) do we need this?
-  DeviceGuard g(device_);
-  states_mem_.reset();
-  states_ = nullptr;
 }
 
 }  // namespace dali

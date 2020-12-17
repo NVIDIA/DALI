@@ -18,10 +18,12 @@
 namespace dali {
 
 DALI_SCHEMA(RNGAttr)
-    .DocStr(R"code()code")
+    .DocStr(R"code(Random Number Generator attributes.
+
+It should be added as parent to all RNG operators.)code")
     .AddOptionalArg<std::vector<int>>("shape",
-      R"code(Shape of the data.)code", nullptr, true)
+      R"code(Shape of the output data.)code", nullptr, true)
     .AddOptionalArg<DALIDataType>("dtype",
-      R"code(Data type.)code", nullptr);
+      R"code(Output data type.)code", nullptr);
 
 }  // namespace dali

@@ -18,12 +18,12 @@
 
 namespace dali {
 
-DALI_SCHEMA(random__NormalDistribution)
+DALI_SCHEMA(random__Normal)
     .DocStr(R"code(Generates random numbers following a normal distribution.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the input, if provided. If none are present, a single number is
-generated.
+or chosen to match the shape of the input, if provided. If none are present, a single value per
+sample is generated.
 )code")
     .NumInput(0, 1)
     .NumOutput(1)
@@ -35,64 +35,22 @@ generated.
       1.f, true)
     .AddParent("RNGAttr");
 
-class NormalDistributionCPU : public NormalDistribution<CPUBackend, NormalDistributionCPU> {
- public:
-  template <typename T>
-  struct Dist {
-    using FloatType =
-      typename std::conditional<
-          ((std::is_integral<T>::value && sizeof(T) > 3) || sizeof(T) > 4),
-          double, float>::type;
-    using type = std::normal_distribution<FloatType>;
-  };
-
-  explicit NormalDistributionCPU(const OpSpec &spec)
-      : NormalDistribution<CPUBackend, NormalDistributionCPU>(spec) {
-    dist_data_.resize(max_batch_size_ * kDistMaxSize);
-  }
-  ~NormalDistributionCPU() override = default;
-
-  template <typename Dist>
-  Dist* SetupDists(int nsamples) {
-    assert(sizeof(Dist) * nsamples <= dist_data_.size());
-    auto dists = reinterpret_cast<Dist*>(dist_data_.data());
-    for (int s = 0; s < nsamples; s++) {
-      dists[s] = Dist(mean_[s].data[0], stddev_[s].data[0]);
-    }
-    return dists;
-  }
-
- private:
-  using Operator<CPUBackend>::max_batch_size_;
-  using NormalDistribution<CPUBackend, NormalDistributionCPU>::mean_;
-  using NormalDistribution<CPUBackend, NormalDistributionCPU>::stddev_;
-  std::vector<uint8_t> dist_data_;
-  static constexpr size_t kDistMaxSize = sizeof(std::normal_distribution<double>);
-};
-
-
-DALI_REGISTER_OPERATOR(random__NormalDistribution, NormalDistributionCPU, CPU);
+DALI_REGISTER_OPERATOR(random__Normal, NormalDistribution<CPUBackend>, CPU);
 
 // Deprecated alias
 DALI_SCHEMA(NormalDistribution)
     .DocStr(R"code(Generates random numbers following a normal distribution.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the input, if provided. If none are present, a single number is
-generated.
+or chosen to match the shape of the input, if provided. If none are present, a single value per
+sample is generated.
 )code")
     .NumInput(0, 1)
     .NumOutput(1)
-    .AddOptionalArg<float>("mean",
-      R"code(Mean of the distribution.)code",
-      0.f, true)
-    .AddOptionalArg<float>("stddev",
-      R"code(Standard deviation of the distribution.)code",
-      1.f, true)
-    .AddParent("RNGAttr")
-    .Deprecate("random.NormalDistribution");  // Deprecated in 0.30
+    .AddParent("random__Normal")
+    .Deprecate("random.Normal");  // Deprecated in 0.30
 
 
-DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCPU, CPU);
+DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistribution<CPUBackend>, CPU);
 
 }  // namespace dali

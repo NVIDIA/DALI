@@ -1,7 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-# Fixing numpy to 1.17.0 version to avoid the error about not being able to implicitly convert from float64 to integer
-pip_packages="numpy==1.17.0 pillow torch torchvision mlperf_compliance matplotlib Cython"
+pip_packages="numpy pillow torch torchvision mlperf_compliance matplotlib Cython"
 target_dir=./docs/examples/use_cases/pytorch/single_stage_detector/
 
 test_body() {

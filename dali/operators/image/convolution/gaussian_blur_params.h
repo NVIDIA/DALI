@@ -147,7 +147,7 @@ void RepackAsTL(std::array<TensorListShape<1>, axes> &out,
                 const std::vector<GaussianBlurParams<axes>> &params) {
   for (int axis = 0; axis < axes; axis++) {
     out[axis].resize(params.size());
-    for (int i = 0; i < params.size(); i++) {
+    for (size_t i = 0; i < params.size(); i++) {
       out[axis].set_tensor_shape(i, {params[i].window_sizes[axis]});
     }
   }

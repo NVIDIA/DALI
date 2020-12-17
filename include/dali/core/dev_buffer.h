@@ -117,6 +117,12 @@ struct DeviceBuffer {
     copyH2D(data_.get(), src.data(), size(), stream);
   }
 
+  void reserve(size_t new_cap, cudaStream_t stream = 0) {
+    if (new_cap > capacity_) {
+      reallocate(new_cap, stream);
+    }
+  }
+
   void resize(size_t new_size, cudaStream_t stream = 0) {
     if (new_size > capacity_) {
       size_t new_cap = 2 * capacity_;

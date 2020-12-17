@@ -21,6 +21,7 @@
 #include <vector>
 #include "dali/core/geom/mat.h"
 #include "dali/core/geom/vec.h"
+#include "dali/core/geom/geom_utils.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/argument.h"
@@ -28,36 +29,14 @@
 
 namespace dali {
 
-template <int N>
-vec<N> as_vec(TensorView<StorageCPU, const float, 1> view) {
-  if (view.num_elements() == 1) {
-    return vec<N>(view.data[0]);
-  }
-  assert(N == view.num_elements());
-  return *reinterpret_cast<const vec<N>*>(view.data);
-}
-
-template <int N>
-vec<N> as_vec(TensorView<StorageCPU, const float, DynamicDimensions> view) {
-  return as_vec<N>(view.to_static<1>());
-}
-
-template <int N, int M>
-mat<N, M> as_mat(TensorView<StorageCPU, const float, 2> view) {
-  assert(N * M == view.num_elements());
-  return *reinterpret_cast<const mat<N, M>*>(view.data);
-}
-
-template <int N, int M>
-mat<N, M> as_mat(TensorView<StorageCPU, const float, DynamicDimensions> view) {
-  return as_mat<N, M>(view.to_static<2>());
-}
-
+/**
+ * @brief Infers the data shape from a flat size
+ * @{
+ */
 template <int ndim>
 struct ArgShapeFromSize {
   TensorShape<ndim> operator()(int64_t size) const {
-    throw std::logic_error(make_string("Cannot infer an ", ndim, "D shape from a flat size."));
-    return {};
+    throw std::logic_error(make_string("Cannot infer a ", ndim, "D shape from a flat size."));
   }
 };
 
@@ -76,6 +55,22 @@ struct ArgShapeFromSize<1> {
   }
 };
 
+/**
+ * @}
+ */
+
+/**
+ * @brief Helper to access operator argument data, regardless of whether the data was provided
+ * as a build-time constant or a tensor input.
+ * 
+ * There are two ways to acquire arguments:
+ * - Explicitly providing the expected shape of the data
+ * - Inferring the shape of the data from a flat size, either by a default or with a custom callable object.
+ * 
+ * @tparam T    Underlying data type.
+ * @tparam ndim Number of dimensions of the argument. By default, scalar.
+ *              Higher dimensions are expected for arguments that are passed as vector<T>.
+ */
 template <typename T, int ndim = 0>
 class ArgValue {
  public:
@@ -89,18 +84,31 @@ class ArgValue {
     assert(!(has_arg_const_ && has_arg_input_));
   }
 
+  /**
+   * @brief true if the argument was provided explicitly
+   */
   bool IsDefined() const {
     return has_arg_const_ || has_arg_input_;
   }
 
+  /**
+   * @brief true if the argument is a build-time constant
+   */
   bool IsConstant() const {
     return has_arg_const_;
   }
 
+  /**
+   * @brief true if the argument is a tensor input
+   */
   bool IsArgInput() const {
     return has_arg_input_;
   }
 
+  /**
+   * @brief Acquires argument data, enforcing that the shape of the data matches the
+   *        expected shape or it is a scalar, which can also be broadcasted to the expected shape
+   */
   void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
                const TensorShape<ndim> &expected_shape) {
     if (has_arg_input_) {
@@ -128,6 +136,11 @@ class ArgValue {
     }
   }
 
+  /**
+   * @brief Acquires argument data, inferring the data shape in case of non-tensor arguments.
+   *        The shape of scalar and 1D arguments is inferred by default. For 2 or more dimensions,
+   *        a custom callable ``shape_from_size`` is expected.
+   */
   template <typename ShapeFromSizeFn = ArgShapeFromSize<ndim>>
   void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
                bool enforce_uniform = false, ShapeFromSizeFn &&shape_from_size = {}) {
@@ -149,24 +162,41 @@ class ArgValue {
     }
   }
 
+  /**
+   * @brief Argument name
+   */
   const std::string &name() const {
     return arg_name_;
   }
 
+  /**
+   * @brief Get a tensor list view to the argument data
+   */
   const TLV& get() const {
     return view_;
   }
 
+  /**
+   * @brief Get a tensor view to the argument data for a given sample index
+   */
   TV operator[](size_t idx) const {
     assert(idx < static_cast<size_t>(size()));
     return view_[idx];
   }
 
+  /**
+   * @brief Number of samples
+   */
   int size() const {
     return view_.size();
   }
 
  private:
+  /**
+   * @brief Creates a TensorListView out of a constant arguments by assigning the same
+   *        data pointer to all the samples. This way, the user code can be shared regardless
+   *        of whether the source of the data was a build time constant or an argument input.
+   */
   TLV constant_view(int nsamples, const T* sample, const TensorShape<ndim>& shape) {
     std::vector<const T*> ptrs(nsamples, sample);
     return TLV(std::move(ptrs), uniform_list_shape(nsamples, shape));

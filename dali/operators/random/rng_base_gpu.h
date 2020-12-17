@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 #include "dali/core/convert.h"
+#include "dali/core/dev_buffer.h"
 #include "dali/kernels/alloc.h"
 #include "dali/operators/random/rng_base.h"
 #include "dali/pipeline/operator/operator.h"
@@ -30,6 +31,36 @@ struct BlockDesc {
   int sample_idx;
   void* start;
   size_t size;
+};
+
+template <>
+struct RNGBaseFields<GPUBackend> {
+  RNGBaseFields<GPUBackend>(int64_t seed, int max_batch_size, int64_t static_sample_size = -1)
+      : block_size_(static_sample_size < 0 ? 256 : std::min<int64_t>(static_sample_size, 256)),
+        max_blocks_(static_sample_size < 0
+                        ? 1024
+                        : std::min<int64_t>(
+                              max_batch_size * div_ceil(static_sample_size, block_size_), 1024)),
+        randomizer_(seed, block_size_ * max_blocks_) {
+    block_descs_gpu_ =
+        kernels::memory::alloc_unique<BlockDesc>(kernels::AllocType::GPU, max_blocks_);
+    block_descs_cpu_ =
+        kernels::memory::alloc_unique<BlockDesc>(kernels::AllocType::Pinned, max_blocks_);
+  }
+
+  void ReserveDistsData(size_t nbytes) {
+    dists_cpu_.reserve(nbytes);
+    dists_gpu_.reserve(nbytes);
+  }
+
+  const int block_size_;
+  const int max_blocks_;
+  curand_states randomizer_;
+  kernels::memory::KernelUniquePtr<BlockDesc> block_descs_gpu_;
+  kernels::memory::KernelUniquePtr<BlockDesc> block_descs_cpu_;
+
+  std::vector<uint8_t> dists_cpu_;
+  DeviceBuffer<uint8_t> dists_gpu_;
 };
 
 template <int ndim>
@@ -71,6 +102,8 @@ int64_t SetupBlockDescs(BlockDesc* blocks, int64_t block_sz, int64_t max_nblocks
   for (int s = 0; s < shape.size(); s++) {
     T *sample_data = static_cast<T*>(output[s].data);
     auto sample_size = volume(shape[s]);
+    if (sample_size == 0)
+      continue;
     auto work_per_block = div_ceil(sample_size, blocks_per_sample[s]);
     int64_t offset = 0;
     for (int b = 0; b < blocks_per_sample[s]; ++b, ++block) {
@@ -83,20 +116,6 @@ int64_t SetupBlockDescs(BlockDesc* blocks, int64_t block_sz, int64_t max_nblocks
   return blocks_num;
 }
 
-template <typename T>
-int64_t SetupBlockDescsSingleValue(BlockDesc* blocks, int64_t max_nblocks,
-                                   TensorListView<StorageGPU, T> &output, cudaStream_t stream) {
-  int nsamples = output.shape.size();
-  assert(nsamples <= max_nblocks);
-  auto sh = output.shape;
-  for (int s = 0; s < nsamples; s++) {
-    assert(volume(sh[s]) == 1);
-    blocks[s].sample_idx = s;
-    blocks[s].start = output[s].data;
-    blocks[s].size = 1;
-  }
-  return nsamples;
-}
 
 }  // namespace dali
 

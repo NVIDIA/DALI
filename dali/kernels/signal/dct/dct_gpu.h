@@ -63,7 +63,6 @@ class BlockSetupInner {
 
  private:
   std::vector<BlockDesc> blocks_{};
-  int64_t max_input_length_ = 0;
   const int64_t frames_per_block_ = 8;
 };
 

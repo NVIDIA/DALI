@@ -34,7 +34,7 @@
 namespace dali {
 
 #define ALLOWED_UN_OPS \
-  (ArithmeticOp::plus, ArithmeticOp::minus)
+  (ArithmeticOp::plus, ArithmeticOp::minus, ArithmeticOp::exp, ArithmeticOp::log)
 
 #define ALLOWED_BIN_OPS                                                                            \
   (ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::fdiv, \

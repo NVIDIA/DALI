@@ -27,10 +27,9 @@ test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
 class WaterPipeline(Pipeline):
-    def __init__(self, device, batch_size, phase_y, phase_x, freq_x, freq_y, ampl_x, ampl_y, num_threads=1, device_id=0, num_gpus=1):
-        super(WaterPipeline, self).__init__(batch_size,
-                                           num_threads,
-                                           device_id)
+    def __init__(self, device, batch_size, phase_y, phase_x, freq_x, freq_y, ampl_x, ampl_y,
+                 num_threads=3, device_id=0, num_gpus=1):
+        super(WaterPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
@@ -64,7 +63,7 @@ def python_water(img, phase_y, phase_x, freq_x, freq_y, ampl_x, ampl_y):
     return cv2.remap(img, img_x, img_y, cv2.INTER_LINEAR)
 
 class WaterPythonPipeline(Pipeline):
-    def __init__(self,  batch_size,function,  num_threads=1, device_id=0, num_gpus=1 ):
+    def __init__(self,  batch_size, function, num_threads=1, device_id=0, num_gpus=1):
         super(WaterPythonPipeline, self).__init__(batch_size,
                                            num_threads,
                                            device_id,
@@ -82,50 +81,39 @@ class WaterPythonPipeline(Pipeline):
         images = self.water(images)
         return images
 
-def check_water_cpu_vs_gpu(batch_size):
+def check_water_cpu_vs_gpu(batch_size, niter):
     phase_y=0.5
     phase_x=0.2
     freq_x=0.06
     freq_y=0.08
     ampl_x=2.0
     ampl_y=3.0
-
-    pipe = WaterPipeline('cpu', batch_size, ampl_x=ampl_x, ampl_y=ampl_y,
-                                    phase_x=phase_x, phase_y=phase_y, freq_x=freq_x, freq_y=freq_y)
-    pipe.build()
-    data_set_size = pipe.epoch_size("Reader")
-    N_iterations = int(math.ceil(data_set_size/float(batch_size)))
     compare_pipelines(WaterPipeline('cpu', batch_size, ampl_x=ampl_x, ampl_y=ampl_y,
                                     phase_x=phase_x, phase_y=phase_y, freq_x=freq_x, freq_y=freq_y),
                       WaterPipeline('gpu', batch_size, ampl_x=ampl_x, ampl_y=ampl_y,
                                     phase_x=phase_x, phase_y=phase_y, freq_x=freq_x, freq_y=freq_y),
-                      batch_size=batch_size, N_iterations=N_iterations, eps=1)
+                      batch_size=batch_size, N_iterations=niter, eps=1)
 
 def test_water_cpu_vs_gpu():
-   for batch_size in {1, 32, 100}:
-       yield check_water_cpu_vs_gpu, batch_size
+    niter = 3
+    for batch_size in [1, 3]:
+        yield check_water_cpu_vs_gpu, batch_size, niter
 
-def check_water_vs_cv(device, batch_size):
+def check_water_vs_cv(device, batch_size, niter):
     phase_y=0.5
     phase_x=0.2
     freq_x=0.06
     freq_y=0.08
     ampl_x=2.0
     ampl_y=3.0
-
-    pipe = WaterPipeline('cpu', batch_size, ampl_x=ampl_x, ampl_y=ampl_y,
-                                    phase_x=phase_x, phase_y=phase_y, freq_x=freq_x, freq_y=freq_y)
-    pipe.build()
-    data_set_size = pipe.epoch_size("Reader")
-    N_iterations = int(math.ceil(data_set_size/float(batch_size)))
-
     python_func = lambda img: python_water(img, phase_y, phase_x, freq_x, freq_y, ampl_x, ampl_y)
     compare_pipelines(WaterPipeline(device, batch_size, ampl_x=ampl_x, ampl_y=ampl_y,
                                     phase_x=phase_x, phase_y=phase_y, freq_x=freq_x, freq_y=freq_y),
                       WaterPythonPipeline(batch_size, python_func),
-                                          batch_size=batch_size, N_iterations=N_iterations,eps=8)
+                                          batch_size=batch_size, N_iterations=niter, eps=8)
 
 def test_water_vs_cv():
+    niter = 3
     for device in ['cpu', 'gpu']:
-        for batch_size in [1, 32, 100]:
-            yield check_water_vs_cv, device,batch_size
+        for batch_size in [1, 3]:
+            yield check_water_vs_cv, device, batch_size, niter

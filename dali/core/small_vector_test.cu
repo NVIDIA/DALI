@@ -18,8 +18,8 @@
 
 DEVICE_TEST(SmallVectorDev, Test, dim3(1), dim3(1)) {
   dali::SmallVector<int, 3> v;
-  DEV_EXPECT_EQ(v.capacity(), 3);
-  DEV_EXPECT_EQ(v.size(), 0);
+  DEV_EXPECT_EQ(v.capacity(), 3u);
+  DEV_EXPECT_EQ(v.size(), 0u);
   v.push_back(1);
   v.push_back(3);
   v.push_back(5);
@@ -39,7 +39,7 @@ DEVICE_TEST(SmallVectorDev, Test, dim3(1), dim3(1)) {
   DEV_EXPECT_EQ(v[6], 7);
   DEV_EXPECT_EQ(v[7], 8);
   v.erase(v.begin()+2, v.end()-2);
-  DEV_ASSERT_EQ(v.size(), 4);
+  DEV_ASSERT_EQ(v.size(), 4u);
   DEV_EXPECT_EQ(v[0], 1);
   DEV_EXPECT_EQ(v[1], 2);
   DEV_EXPECT_EQ(v[2], 7);
@@ -69,16 +69,16 @@ DEVICE_TEST(SmallVectorDev, MovePoD, 1, 1) {
 DEVICE_TEST(SmallVectorDev, Resize, 1, 1) {
   dali::SmallVector<int32_t, 4> v;
   v.resize(3, 5);
-  DEV_ASSERT_EQ(v.size(), 3);
+  DEV_ASSERT_EQ(v.size(), 3u);
   DEV_EXPECT_EQ(v[0], 5);
   DEV_EXPECT_EQ(v[1], 5);
   DEV_EXPECT_EQ(v[2], 5);
   v.resize(16, 42);
-  DEV_ASSERT_EQ(v.size(), 16);
+  DEV_ASSERT_EQ(v.size(), 16u);
   for (int i = 3; i < 16; i++)
     DEV_EXPECT_EQ(v[i], 42);
   v.resize(6);
-  DEV_EXPECT_EQ(v.size(), 6);
+  DEV_EXPECT_EQ(v.size(), 6u);
 }
 
 // NOTE: this test should compile without warnings

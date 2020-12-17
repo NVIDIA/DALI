@@ -305,7 +305,7 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
             resized = resize_dali(images, channel_first, dtype, interp, mode, None, w, h, d, roi_start, roi_end, minibatch_size=minibatch_size, max_size=max_size(dim))
 
         outputs = [images, resized]
-        if roi_start and roi_end:
+        if roi_start is not None and roi_end is not None:
             outputs += [roi_start, roi_end]
 
         for x in (d, h, w, size):

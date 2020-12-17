@@ -59,7 +59,7 @@ class TransformScaleCPU
   template <typename T, int mat_dim>
   void DefineTransforms(span<affine_mat_t<T, mat_dim>> matrices) {
     constexpr int ndim = mat_dim - 1;
-    assert(matrices.size() == static_cast<int>(scale_.size()));
+    assert(matrices.size() <= static_cast<int>(scale_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       auto scale = scale_[i].data;
@@ -83,11 +83,7 @@ class TransformScaleCPU
     ndim_ = scale_[0].num_elements();
 
     if (center_.IsDefined()) {
-      center_.Acquire(spec, ws, nsamples_, true);
-      DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].num_elements()),
-        make_string("Unexpected number of dimensions for ``center`` argument. Got: ",
-                    center_[0].num_elements(), " but ``scale`` argument suggested ", ndim_,
-                    " dimensions."));
+      center_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
     }
   }
 

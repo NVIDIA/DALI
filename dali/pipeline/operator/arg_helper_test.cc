@@ -90,7 +90,13 @@ TEST(ArgValueTests, Constant_0D) {
   ASSERT_TRUE(arg.IsConstant());
   ASSERT_EQ(TensorShape<0>{}, arg[0].shape);
   ASSERT_EQ(0.123f, *arg[0].data);
+
+  // Passing a vector to a scalar ArgValue
+  auto spec2 = OpSpec("opname").AddArg("argname", vector<float>{0.1f, 0.2f});
+  ArgValue<float, 0> arg2("argname", spec2);
+  EXPECT_THROW(arg2.Acquire(spec2, ws, nsamples, true), std::runtime_error);
 }
+
 
 TEST(ArgValueTests, Constant_1D) {
   int nsamples = 5;
@@ -103,7 +109,7 @@ TEST(ArgValueTests, Constant_1D) {
   ASSERT_TRUE(arg.IsConstant());
   for (int i = 0; i < kNumSamples; i++) {
     ASSERT_EQ(expected_shape, arg[i].shape);
-    for (int j = 0; j < 6; j++) {
+    for (int j = 0; j < expected_shape.num_elements(); j++) {
       ASSERT_EQ(data[j], arg[i].data[j]);
     }
   }
@@ -119,9 +125,8 @@ TEST(ArgValueTests, Constant_2D) {
   workspace_t<CPUBackend> ws;
 
   auto shape_from_size =
-    [this](int64_t size) {
+    [](int64_t size) {
       int64_t mat_ndim = sqrt(size);
-
       assert(mat_ndim > 0);
       DALI_ENFORCE(size == mat_ndim * (mat_ndim + 1),
           make_string("Cannot form an affine transform matrix with ", size, " elements"));
@@ -141,7 +146,7 @@ TEST(ArgValueTests, Constant_2D) {
     ASSERT_TRUE(arg.IsConstant());
     for (int i = 0; i < kNumSamples; i++) {
       ASSERT_EQ(expected_shape, arg[i].shape);
-      for (int j = 0; j < 6; j++) {
+      for (int j = 0; j < expected_shape.num_elements(); j++) {
         ASSERT_EQ(data[j], arg[i].data[j]);
       }
     }

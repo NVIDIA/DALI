@@ -91,10 +91,10 @@ class TransformCropCPU
   template <typename T, int mat_dim>
   void DefineTransforms(span<affine_mat_t<T, mat_dim>> matrices) {
     constexpr int ndim = mat_dim - 1;
-    assert(matrices.size() == static_cast<int>(from_start_.size()));
-    assert(matrices.size() == static_cast<int>(from_end_.size()));
-    assert(matrices.size() == static_cast<int>(to_start_.size()));
-    assert(matrices.size() == static_cast<int>(to_end_.size()));
+    assert(matrices.size() <= static_cast<int>(from_start_.size()));
+    assert(matrices.size() <= static_cast<int>(from_end_.size()));
+    assert(matrices.size() <= static_cast<int>(to_start_.size()));
+    assert(matrices.size() <= static_cast<int>(to_end_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       vec<ndim> from_start = as_vec<ndim>(from_start_[i]);
