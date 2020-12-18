@@ -15,17 +15,17 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 
 
-def get_video_reader_pipeline(batch_size, sequence_length, num_threads, device_id, files, crop_size):
+def create_video_reader_pipeline(batch_size, sequence_length, num_threads, device_id, files, crop_size):
     pipeline = Pipeline(batch_size, num_threads, device_id, seed=12)
     with pipeline:
         images = fn.video_reader(device="gpu", filenames=files, sequence_length=sequence_length,
                                  normalized=False, random_shuffle=True, image_type=types.RGB,
                                  dtype=types.UINT8, initial_fill=16, pad_last_batch=True, name="Reader")
-        images = ops.crop(images, device="gpu", crop=crop_size, dtype=types.FLOAT,
+        images = ops.crop(images, crop=crop_size, dtype=types.FLOAT,
                           crop_pos_x=fn.uniform(range=(0.0, 1.0)),
                           crop_pos_y=fn.uniform(range=(0.0, 1.0)))
 
-        images = fn.tanspose(imagesdevice="gpu", perm=[3, 0, 1, 2])
+        images = fn.tanspose(images, perm=[3, 0, 1, 2])
 
         pipeline.set_outputs(images)
     return pipeline
@@ -35,13 +35,13 @@ class DALILoader():
     def __init__(self, batch_size, file_root, sequence_length, crop_size):
         container_files = os.listdir(file_root)
         container_files = [file_root + '/' + f for f in container_files]
-        self.pipeline = get_video_reader_pipeline(batch_size=batch_size,
-                                                  sequence_length=sequence_length,
-                                                  num_threads=2,
-                                                  device_id=0,
-                                                  files=container_files,
-                                                  crop_size=crop_size)
-        self.pipeline.build()
+        self.pipeline = create_video_reader_pipeline(batch_size=batch_size,
+                                                     sequence_length=sequence_length,
+                                                     num_threads=2,
+                                                     device_id=0,
+                                                     files=container_files,
+                                                     crop_size=crop_size)
+        pipeline.build()
         self.epoch_size = self.pipeline.epoch_size("Reader")
         self.dali_iterator = pytorch.DALIGenericIterator(self.pipeline,
                                                          ["data"],

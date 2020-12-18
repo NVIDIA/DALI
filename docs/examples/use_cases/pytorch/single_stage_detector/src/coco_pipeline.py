@@ -19,7 +19,7 @@ import nvidia.dali.types as types
 import nvidia.dali.fn as fn
 
 
-def get_coco_pipeline(default_boxes, args, seed):
+def create_coco_pipeline(default_boxes, args, seed):
     pipeline = Pipeline(args.batch_size, args.num_workers,
                         args.local_rank, seed=seed)
     try:

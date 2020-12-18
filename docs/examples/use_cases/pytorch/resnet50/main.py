@@ -90,7 +90,7 @@ def to_python_float(t):
     else:
         return t[0]
 
-def get_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, size,
+def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, size,
                        shard_id, num_shards, dali_cpu=False, is_training=True):
     pipeline = Pipeline(batch_size, num_threads, device_id, seed=12 + device_id)
     with pipeline:
@@ -122,15 +122,14 @@ def get_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, size,
             images = fn.image_decoder(images,
                                       device=decoder_device,
                                       output_type=types.RGB)
-            # Make sure that every image > 224 for CropMirrorNormalize
             images = fn.resize(images,
                                device=dali_device,
-                               resize_shorter=size,
+                               size=size,
+                               mode="not_smaller",
                                interp_type=types.INTERP_TRIANGULAR)
             mirror = False
 
         images = fn.crop_mirror_normalize(images.gpu(),
-                                          device="gpu",
                                           dtype=types.FLOAT,
                                           output_layout="CHW",
                                           crop=(crop, crop),
@@ -286,29 +285,29 @@ def main():
         crop_size = 224
         val_size = 256
 
-    pipe = get_dali_pipeline(batch_size=args.batch_size,
-                             num_threads=args.workers,
-                             device_id=args.local_rank,
-                             data_dir=traindir,
-                             crop=crop_size,
-                             size=val_size,
-                             dali_cpu=args.dali_cpu,
-                             shard_id=args.local_rank,
-                             num_shards=args.world_size,
-                             is_training=True)
+    pipe = create_dali_pipeline(batch_size=args.batch_size,
+                                num_threads=args.workers,
+                                device_id=args.local_rank,
+                                data_dir=traindir,
+                                crop=crop_size,
+                                size=val_size,
+                                dali_cpu=args.dali_cpu,
+                                shard_id=args.local_rank,
+                                num_shards=args.world_size,
+                                is_training=True)
     pipe.build()
     train_loader = DALIClassificationIterator(pipe, reader_name="Reader", last_batch_policy=LastBatchPolicy.PARTIAL)
 
-    pipe = get_dali_pipeline(batch_size=args.batch_size,
-                             num_threads=args.workers,
-                             device_id=args.local_rank,
-                             data_dir=valdir,
-                             crop=crop_size,
-                             size=val_size,
-                             dali_cpu=args.dali_cpu,
-                             shard_id=args.local_rank,
-                             num_shards=args.world_size,
-                             is_training=False)
+    pipe = create_dali_pipeline(batch_size=args.batch_size,
+                                num_threads=args.workers,
+                                device_id=args.local_rank,
+                                data_dir=valdir,
+                                crop=crop_size,
+                                size=val_size,
+                                dali_cpu=args.dali_cpu,
+                                shard_id=args.local_rank,
+                                num_shards=args.world_size,
+                                is_training=False)
     pipe.build()
     val_loader = DALIClassificationIterator(pipe, reader_name="Reader", last_batch_policy=LastBatchPolicy.PARTIAL)
 
