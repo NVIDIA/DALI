@@ -9,8 +9,7 @@ function CLEAN_AND_EXIT {
 }
 
 export USE_CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
-# rarfile>= 3.2 breaks python 3.5 compatibility
-pip install $(python /opt/dali/qa/setup_packages.py -i 0 -u paddle --cuda ${USE_CUDA_VERSION}) "rarfile<=3.1"
+pip install $(python /opt/dali/qa/setup_packages.py -i 0 -u paddlepaddle-gpu --cuda ${USE_CUDA_VERSION})
 
 cd /opt/dali/docs/examples/use_cases/paddle/resnet50
 
