@@ -29,8 +29,8 @@ import nvidia.dali.fn as fn
 from nvidia.dali.plugin.paddle import DALIClassificationIterator, LastBatchPolicy
 
 
-def get_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, size,
-                       shard_id, num_shards, dali_cpu=False, is_training=True):
+def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, size,
+                         shard_id, num_shards, dali_cpu=False, is_training=True):
     pipeline = Pipeline(batch_size, num_threads, device_id, seed=12 + device_id)
     with pipeline:
         images, labels = fn.file_reader(file_root=data_dir,
@@ -61,15 +61,14 @@ def get_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, size,
             images = fn.image_decoder(images,
                                       device=decoder_device,
                                       output_type=types.RGB)
-            # Make sure that every image > 224 for CropMirrorNormalize
             images = fn.resize(images,
                                device=dali_device,
-                               resize_shorter=size,
+                               size=size,
+                               mode="not_smaller",
                                interp_type=types.INTERP_TRIANGULAR)
             mirror = False
 
         images = fn.crop_mirror_normalize(images.gpu(),
-                                          device="gpu",
                                           dtype=types.FLOAT,
                                           output_layout="CHW",
                                           crop=(crop, crop),
@@ -167,7 +166,7 @@ def main():
     FLAGS.device_id = int(env['FLAGS_selected_gpus'])
     FLAGS.whole_batch_size = FLAGS.world_size * FLAGS.batch_size
 
-    pipe = get_dali_pipeline(batch_size=FLAGS.batch_size,
+    pipe = create_dali_pipeline(batch_size=FLAGS.batch_size,
                              num_threads=FLAGS.num_threads,
                              device_id=FLAGS.device_id,
                              data_dir=os.path.join(FLAGS.data, 'train'),
@@ -182,7 +181,7 @@ def main():
     train_loader = DALIClassificationIterator(pipe, reader_name="Reader")
 
     if FLAGS.local_rank == 0:
-        pipe = get_dali_pipeline(batch_size=FLAGS.batch_size,
+        pipe = create_dali_pipeline(batch_size=FLAGS.batch_size,
                                 num_threads=FLAGS.num_threads,
                                 device_id=FLAGS.device_id,
                                 data_dir=os.path.join(FLAGS.data, 'val'),

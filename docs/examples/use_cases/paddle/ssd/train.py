@@ -32,13 +32,13 @@ from utils import load_weights
 
 PRETRAIN_WEIGHTS = 'https://paddle-imagenet-models-name.bj.bcebos.com/VGG16_caffe_pretrained.tar'
 
-def get_coco_pipeline(file_root,
-                 annotations_file,
-                 batch_size=1,
-                 device_id=0,
-                 num_threads=4,
-                 local_rank=0,
-                 world_size=1):
+def create_coco_pipeline(file_root,
+                         annotations_file,
+                         batch_size=1,
+                         device_id=0,
+                         num_threads=4,
+                         local_rank=0,
+                         world_size=1):
     pipeline = Pipeline(batch_size, num_threads,
                         local_rank, seed=42 + device_id)
 
@@ -56,12 +56,9 @@ def get_coco_pipeline(file_root,
 
         crop_begin, crop_size, bboxes, labels = fn.random_bbox_crop(bboxes, labels,
                                                                     device="cpu",
-                                                                    aspect_ratio=[
-                                                                        0.5, 2.0],
-                                                                    thresholds=[
-                                                                        0, 0.1, 0.3, 0.5, 0.7, 0.9],
-                                                                    scaling=[
-                                                                        0.3, 1.0],
+                                                                    aspect_ratio=[0.5, 2.0],
+                                                                    thresholds=[0, 0.1, 0.3, 0.5, 0.7, 0.9],
+                                                                    scaling=[0.3, 1.0],
                                                                     bbox_layout="xyXY",
                                                                     allow_no_crop=True,
                                                                     num_attempts=1)
@@ -70,25 +67,21 @@ def get_coco_pipeline(file_root,
         flip_coin = fn.coin_flip(probability=0.5)
         images = images.gpu()
         images = fn.resize(images,
-                            resize_x=300,
-                            resize_y=300,
-                            min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
+                           resize_x=300,
+                           resize_y=300,
+                           min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
 
-        saturation = fn.uniform(range=[0.5, 1.5])
-        contrast = fn.uniform(range=[0.5, 1.5])
-        brightness = fn.uniform(range=[0.875, 1.125])
-        hue = fn.uniform(range=[-0.5, 0.5])
+        # use float to avoid clipping and quantizing the intermediate result
+        images = fn.hsv(images, dtype=types.FLOAT, hue=fn.uniform(range=[-0.5, 0.5]),
+                        saturation=fn.uniform(range=[0.5, 1.5]))
 
-        images = fn.hsv(images, dtype=types.FLOAT, hue=hue, saturation=saturation)  # use float to avoid clipping and
-                                                             # quantizing the intermediate result
         images=fn.brightness_contrast(images,
-                        contrast_center = 128,  # input is in float, but in 0..255 range
-                        dtype = types.UINT8,
-                        brightness = brightness,
-                        contrast = contrast)
+                                      contrast_center = 128,  # input is in float, but in 0..255 range
+                                      dtype = types.UINT8,
+                                      brightness = fn.uniform(range=[0.875, 1.125]),
+                                      contrast = fn.uniform(range=[0.5, 1.5]))
 
-        bboxes=fn.bb_flip(bboxes,
-                            ltrb=True, horizontal=flip_coin)
+        bboxes=fn.bb_flip(bboxes, ltrb=True, horizontal=flip_coin)
         images=fn.crop_mirror_normalize(images,
                                         mean=[104., 117., 123.],
                                         std=[1., 1., 1.],
@@ -141,7 +134,7 @@ def main():
     world_size = len(places)
 
     pipelines = [
-        get_coco_pipeline(
+        create_coco_pipeline(
             file_root, annotations_file, FLAGS.batch_size, p.gpu_device_id(),
             FLAGS.num_threads, local_rank=idx, world_size=world_size)
         for idx, p in enumerate(places)]

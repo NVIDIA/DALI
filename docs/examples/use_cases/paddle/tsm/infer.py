@@ -30,20 +30,19 @@ from utils import load_weights
 PRETRAIN_WEIGHTS = 'https://paddlemodels.bj.bcebos.com/video_classification/TSM_final.pdparams'
 
 
-def get_video_pipe(video_files, sequence_length=8, target_size=224,stride=30):
+def create_video_pipe(video_files, sequence_length=8, target_size=224,stride=30):
     pipeline = Pipeline(1, 4, 0, seed=42)
     with pipeline:
-        images = fn.video_reader(
-            device="gpu", filenames=video_files,
-            sequence_length=sequence_length, stride=stride,
-            shard_id=0, num_shards=1, random_shuffle=False, pad_last_batch=True, name="Reader")
-        images = fn.crop_mirror_normalize(
-            images,
-            dtype=types.FLOAT,
-            output_layout="FCHW",
-            crop=(target_size, target_size),
-            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-            std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+        images = fn.video_reader(device="gpu", filenames=video_files,
+                                 sequence_length=sequence_length, stride=stride,
+                                 shard_id=0, num_shards=1, random_shuffle=False,
+                                 pad_last_batch=True, name="Reader")
+        images = fn.crop_mirror_normalize(images,
+                                          dtype=types.FLOAT,
+                                          output_layout="FCHW",
+                                          crop=(target_size, target_size),
+                                          mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+                                          std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
 
         pipeline.set_outputs(images)
     return pipeline
@@ -64,7 +63,7 @@ def main():
     target_size = 224
 
     video_files = [FLAGS.data + '/' + f for f in os.listdir(FLAGS.data)]
-    pipeline = get_video_pipe(video_files, seg_num, target_size, FLAGS.stride)
+    pipeline = create_video_pipe(video_files, seg_num, target_size, FLAGS.stride)
 
     video_loader = DALIGenericIterator(
         pipeline, ['image'], reader_name="Reader", dynamic_shape=True)
