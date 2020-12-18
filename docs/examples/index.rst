@@ -8,6 +8,8 @@ Tutorials
    custom_operations/index
    audio_processing/index
    image_processing/index
+   math/index
    sequence_processing/index
    use_cases/index
    advanced/index
+
