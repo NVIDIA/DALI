@@ -52,10 +52,10 @@ def translate_affine_mat(offset):
 
 def check_transform_translation_op(offset, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
     ndim = len(offset)
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
         if has_input:
-            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
+            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
             T1 = fn.transforms.translation(T0, device='cpu', offset=offset, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
@@ -96,10 +96,10 @@ def check_transform_scale_op(scale, center=None, has_input = False, reverse_orde
     ndim = len(scale)
     assert center is None or len(center) == ndim
 
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
         if has_input:
-            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
+            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
             T1 = fn.transforms.scale(T0, device='cpu', scale=scale, center=center, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
@@ -161,7 +161,7 @@ def check_transform_rotation_op(angle=None, axis=None, center=None, has_input = 
             angle = fn.uniform(range=(-90, 90))
 
         if has_input:
-            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
+            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
             T1 = fn.transforms.rotation(T0, device='cpu', angle=angle, axis=axis, center=center, reverse_order=reverse_order)
             outputs = [T1, T0]
         else:
@@ -250,10 +250,10 @@ def check_transform_shear_op(shear=None, angles=None, center=None, has_input = F
         ndim = 3 if len(angles) == 6 else 2
     assert center is None or len(center) == ndim
 
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
         if has_input:
-            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
+            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
             T1 = fn.transforms.shear(T0, device='cpu', shear=shear, angles=angles, center=center, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
@@ -267,15 +267,15 @@ def check_transform_shear_op(shear=None, angles=None, center=None, has_input = F
 
 
 def check_transform_shear_op_runtime_args(ndim, use_angles, use_center, has_input=False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
-        inputs = [fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)] if has_input else []
+        inputs = [fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))] if has_input else []
         params = []
         angles_arg = None
         shear_arg = None
         center_arg = None
         if use_angles:
-            angles_arg = fn.uniform(range=(-89,89), shape=[ndim, ndim-1])
+            angles_arg = fn.uniform(range=(-80,80), shape=[ndim, ndim-1])
             params.append(angles_arg)
         else:
             shear_arg = fn.uniform(range=(-2,2), shape=[ndim, ndim-1])
@@ -366,10 +366,10 @@ def check_transform_crop_op(from_start = None, from_end = None, to_start = None,
                             absolute = False, has_input = False, reverse_order=False,
                             batch_size=1, num_threads=4, device_id=0):
     ndim = get_ndim(from_start, from_end, to_start, to_end)
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
         if has_input:
-            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)
+            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
             T1 = fn.transforms.crop(T0, device='cpu',
                                    from_start=from_start, from_end=from_end,
                                    to_start=to_start, to_end=to_end,
