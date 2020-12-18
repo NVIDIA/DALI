@@ -84,7 +84,7 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   dists_cpu.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
 
   Dist* dists = reinterpret_cast<Dist*>(dists_cpu.data());
-  bool use_default_dist = !This().template SetupDists<Dist>(dists, nsamples);
+  bool use_default_dist = !This().template SetupDists<T>(dists, nsamples);
   if (!use_default_dist) {
     dists_gpu.from_host(dists_cpu, ws.stream());
     dists = reinterpret_cast<Dist*>(dists_gpu.data());

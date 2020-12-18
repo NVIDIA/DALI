@@ -18,13 +18,7 @@
 
 namespace dali {
 
-namespace {
-
-constexpr float kDefRange[] = {-1.0f, 1.0f};
-
-}  // namespace
-
-DALI_SCHEMA(random__UniformDistribution)
+DALI_SCHEMA(random__Uniform)
     .DocStr(R"code(Generates random numbers following a uniform distribution.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
@@ -45,69 +39,7 @@ This argument is mutually exclusive with ``range``.)code",
       nullptr, true)
     .AddParent("RNGAttr");
 
-class UniformDistributionCPU : public UniformDistribution<CPUBackend, UniformDistributionCPU> {
- public:
-  template <typename T>
-  struct Dist {
-    using FloatType =
-      typename std::conditional<
-          ((std::is_integral<T>::value && sizeof(T) > 3) || sizeof(T) > 4),
-          double, float>::type;
-    using type = std::uniform_real_distribution<FloatType>;
-  };
-
-  struct DistDiscrete {
-    explicit DistDiscrete(span<const float> values) 
-        : dist_(0, values.size() - 1), values_(values) {}
-
-    template <typename Generator>
-    float operator()(Generator& g) {
-      return values_[dist_(g)];
-    }
-
-    std::uniform_int_distribution<int> dist_;
-    span<const float> values_;
-  };
-
-  explicit UniformDistributionCPU(const OpSpec &spec)
-      : UniformDistribution<CPUBackend, UniformDistributionCPU>(spec) {
-    dist_data_.resize(max_batch_size_ * kDistMaxSize);
-  }
-  ~UniformDistributionCPU() override = default;
-
-  template <typename Dist>
-  Dist* SetupDists(int nsamples) {
-    assert(sizeof(Dist) * nsamples <= dist_data_.size());
-    auto dists = reinterpret_cast<Dist*>(dist_data_.data());
-    for (int s = 0; s < nsamples; s++) {
-      dists[s] = Dist(range_[s].data[0], range_[s].data[1]);
-    }
-    return dists;
-  }
-
- private:
-  using Operator<CPUBackend>::max_batch_size_;
-  using UniformDistribution<CPUBackend, UniformDistributionCPU>::range_;
-  using UniformDistribution<CPUBackend, UniformDistributionCPU>::values_;
-  std::vector<uint8_t> dist_data_;
-  static constexpr size_t kSzC = sizeof(std::uniform_real_distribution<double>);  // max continuous dist size
-  static constexpr size_t kSzD = sizeof(DistDiscrete);  // max discrete dist size
-  static constexpr size_t kDistMaxSize = std::max(kSzC, kSzD);
-};
-
-template <>
-UniformDistributionCPU::DistDiscrete*
-UniformDistributionCPU::SetupDists<UniformDistributionCPU::DistDiscrete>(int nsamples) {
-  using Dist = typename UniformDistributionCPU::DistDiscrete;
-  assert(sizeof(Dist) * nsamples <= dist_data_.size());
-  auto dists = reinterpret_cast<Dist*>(dist_data_.data());
-  for (int s = 0; s < nsamples; s++) {
-    dists[s] = Dist(span<const float>(values_[s].data, volume(values_[s].shape)));
-  }
-  return dists;
-}
-
-DALI_REGISTER_OPERATOR(random__UniformDistribution, UniformDistributionCPU, CPU);
+DALI_REGISTER_OPERATOR(random__Uniform, UniformDistribution<CPUBackend>, CPU);
 
 // Deprecated alias
 DALI_SCHEMA(Uniform)
@@ -130,9 +62,9 @@ This argument is mutually exclusive with ``values``.)code",
 This argument is mutually exclusive with ``range``.)code",
       nullptr, true)
     .AddParent("RNGAttr")
-    .Deprecate("random.UniformDistribution");  // Deprecated in 0.30
+    .Deprecate("random.Uniform");  // Deprecated in 0.30
 
 
-DALI_REGISTER_OPERATOR(Uniform, UniformDistributionCPU, CPU);
+DALI_REGISTER_OPERATOR(Uniform, UniformDistribution<CPUBackend>, CPU);
 
 }  // namespace dali
