@@ -101,11 +101,15 @@ class TransformShearCPU
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
       if (shear_.IsDefined()) {
-        vec2 shear_factors = as_vec<2>(shear_[i]);
+        bool is_vec = shear_.get().sample_dim() == 1;
+        vec2 shear_factors = is_vec ? as_vec<2>(shear_[i])
+                                    : as_mat<2, 1>(shear_[i]).col(0);
         mat = shear(shear_factors);
       } else {
         assert(angles_.IsDefined());
-        auto angles = as_vec<2>(angles_[i]);
+        bool is_vec = angles_.get().sample_dim() == 1;
+        vec2 angles = is_vec ? as_vec<2>(angles_[i])
+                             : as_mat<2, 1>(angles_[i]).col(0);
         vec2 shear_factors;
         shear_factors[0] = std::tan(deg2rad(angles[0]));
         shear_factors[1] = std::tan(deg2rad(angles[1]));

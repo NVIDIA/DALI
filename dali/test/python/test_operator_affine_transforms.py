@@ -204,20 +204,26 @@ def test_transform_rotation_op(batch_size=3, num_threads=4, device_id=0):
 
 def shear_affine_mat(shear = None, angles = None, center = None):
     assert shear is not None or angles is not None
+
+    if isinstance(shear, (list, tuple)):
+        shear = np.float32(shear)
+    if isinstance(angles, (list, tuple)):
+        angles = np.float32(angles)
+
     if shear is None:
-        shear = [np.tan(a * np.pi / 180.0) for a in angles]
-    assert len(shear) == 2 or len(shear) == 6
-    ndim = 3 if len(shear) == 6 else 2
+        shear = np.tan(angles * np.pi / 180.0)
+    assert shear.size == 2 or shear.size == 6
+    ndim = 3 if shear.size == 6 else 2
     assert center is None or len(center) == ndim
 
     if ndim == 2:
-        sxy, syx = shear
+        sxy, syx = np.float32(shear).flatten()
         s_mat = np.array(
             [[  1. , sxy,  0.],
              [  syx,  1.,  0.],
              [  0. ,  0., 1.]])
     else:  # ndim == 3
-        sxy, sxz, syx, syz, szx, szy = shear
+        sxy, sxz, syx, syz, szx, szy = np.float32(shear).flatten()
         s_mat = np.array(
             [[  1  , sxy, sxz, 0 ],
              [  syx,   1, syz, 0 ],
@@ -259,6 +265,47 @@ def check_transform_shear_op(shear=None, angles=None, center=None, has_input = F
     T0 = outs[1] if has_input else None
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order, atol=1e-6)
 
+
+def check_transform_shear_op_runtime_args(ndim, use_angles, use_center, has_input=False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    with pipe:
+        inputs = [fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234)] if has_input else []
+        params = []
+        angles_arg = None
+        shear_arg = None
+        center_arg = None
+        if use_angles:
+            angles_arg = fn.uniform(range=(-89,89), shape=[ndim, ndim-1])
+            params.append(angles_arg)
+        else:
+            shear_arg = fn.uniform(range=(-2,2), shape=[ndim, ndim-1])
+            params.append(shear_arg)
+        if use_center:
+            center_arg = fn.uniform(range=(-10,10), shape=[ndim])
+            params.append(center_arg)
+
+        T1 = fn.transforms.shear(*inputs, device='cpu', shear=shear_arg, angles=angles_arg, center=center_arg, reverse_order=reverse_order)
+        pipe.set_outputs(T1, *inputs, *params)
+    pipe.build()
+    for _ in range(3):
+        outs = pipe.run()
+        T0 = outs[1] if has_input else None
+        shear_param = outs[2 if has_input else 1]
+        center_param = outs[3 if has_input else 2] if use_center else None
+        for idx in range(batch_size):
+            angles = None
+            shear = None
+            center = None
+            if use_angles:
+                angles = shear_param.at(idx)
+            else:
+                shear = shear_param.at(idx)
+            if use_center:
+                center = center_param.at(idx)
+            ref_mat = shear_affine_mat(shear=shear, angles=angles, center=center)
+            inp = T0.at(idx) if T0 is not None else None
+            check_results_sample(outs[0].at(idx), ref_mat, inp, reverse_order, atol=1e-6)
+
 def test_transform_shear_op(batch_size=3, num_threads=4, device_id=0):
     for shear, angles, center in [((1., 2.), None, None),
                                   ((1., 2.), None, (0.4, 0.5)),
@@ -272,6 +319,15 @@ def test_transform_shear_op(batch_size=3, num_threads=4, device_id=0):
             for reverse_order in [False, True] if has_input else [False]:
                 yield check_transform_shear_op, shear, angles, center, has_input, reverse_order, \
                                                 batch_size, num_threads, device_id
+
+def test_transform_shear_op_runtime_args(batch_size=3, num_threads=4, device_id=0):
+    for ndim in [2, 3]:
+        for use_angles in [False, True]:
+            for use_center in [False, True]:
+                for has_input in [False, True]:
+                    for reverse_order in [False, True] if has_input else [False]:
+                        yield check_transform_shear_op_runtime_args, ndim, use_angles, use_center, has_input, reverse_order, 4, 4
+
 
 def get_ndim(from_start, from_end, to_start, to_end):
     sizes = [len(a) for a in [from_start, from_end, to_start, to_end] if a is not None]
