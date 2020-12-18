@@ -194,12 +194,14 @@ def get_dali_pipeline(
                 inputs["image/encoded"],
                 device=decode_device,
                 output_type=types.RGB)
-            # Make sure that every image > 224 for CropMirrorNormalize
-            images = fn.resize(images, device=resize_device, resize_shorter=256)
+            images = fn.resize(images,
+                               device=resize_device,
+                               size=size,
+                               mode="not_smaller",
+                               resize_shorter=256)
 
         images = fn.crop_mirror_normalize(
             images,
-            device="gpu",
             dtype=types.FLOAT,
             crop=(height, width),
             mean=[123.68, 116.78, 103.94],
