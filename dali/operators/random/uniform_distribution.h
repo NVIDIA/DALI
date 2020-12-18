@@ -50,7 +50,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
   struct DistContinuous {
     using FloatType =
       typename std::conditional<
-          ((std::is_integral<T>::value && sizeof(T) > 3) || sizeof(T) > 4),
+          ((std::is_integral<T>::value && sizeof(T) >= 4) || sizeof(T) > 4),
           double, float>::type;
 
     using type =

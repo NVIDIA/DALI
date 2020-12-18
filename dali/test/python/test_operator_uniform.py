@@ -22,7 +22,7 @@ import scipy.stats as st
 import math
 
 
-def check_uniform_default(device='cpu', batch_size=8, shape=[1e5], val_range=None):
+def check_uniform_default(device='cpu', batch_size=32, shape=[1e5], val_range=None):
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
         pipe.set_outputs(dali.fn.random.uniform(device=device, range=val_range, shape=shape))
@@ -39,57 +39,43 @@ def check_uniform_default(device='cpu', batch_size=8, shape=[1e5], val_range=Non
             "Value returned from the op is outside of requested range"
 
         h, b = np.histogram(data, bins=10)
-        print("sample ", i)
-        print("histogram ", h)
-        print("min/max ", np.min(data), np.max(data))
+        mean_h = np.mean(h)
+        for hval in h:
+            np.testing.assert_allclose(mean_h, hval, rtol=0.05)  # +/- 5%
 
         # normalize to 0-1 range
         data_kstest = (data - val_range[0]) / (val_range[1] - val_range[0])
         _, pv = st.kstest(rvs=data_kstest, cdf='uniform')
-        print("pv: ", pv)
-        # assert pv > 0.05, f"data is not a uniform distribution (pv = {pv})"
-
-check_uniform_default('gpu', val_range=(200.0, 300.0))
-
-def test_uniform_default():
-    for device in ['cpu', 'gpu']:
-        yield check_uniform_default, device
+        assert pv > 0.05, f"data is not a uniform distribution (pv = {pv})"
 
 def test_uniform_continuous():
-    pipe = dali.pipeline.Pipeline(1, 1, 0)
-    lo = -100
-    hi = 100
-    test_range = (hi - lo) * np.random.random_sample(2) + lo  # 2 elems from [-100, 100] range
-    test_range.sort()
-    test_range = test_range.astype('float32')
-    with pipe:
-        pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[1e6]))
-    pipe.build()
-    oo = pipe.run()
-    possibly_uniform_distribution = oo[0].as_array()[0]
-    # normalize to 0-1 range
-    possibly_uniform_distribution_kstest = (possibly_uniform_distribution - test_range[0]) / (test_range[1] - test_range[0])
-    _, pv = st.kstest(rvs=possibly_uniform_distribution_kstest, cdf='uniform')
-    assert pv > 0.05, "`possibly_uniform_distribution` is not a uniform distribution"
-    assert (test_range[0] <= possibly_uniform_distribution).all() and \
-            (test_range[0] < test_range[1]).all(), \
-                "Value returned from the op is outside of requested range"
+    batch_size = 8
+    shape = [100000]
+    for device in ['cpu', 'gpu']:
+        for val_range in [None, (200.0, 400.0)]:
+            yield check_uniform_default, device, batch_size, shape, val_range
 
-def test_uniform_continuous_next_after():
-    pipe = dali.pipeline.Pipeline(1, 1, 0)
-    lo = -100
-    hi = 100
-    test_range = (hi - lo) * np.random.random_sample(2) + lo  # 2 elems from [-100, 100] range
-    test_range.sort()
-    test_range = test_range.astype('float32')
+def check_uniform_discrete(device='cpu', batch_size=32, shape=[1e5], values=None):
+    pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
-        test_range[1] = np.nextafter(test_range[0], test_range[1])
-        pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[1e6]))
+        pipe.set_outputs(dali.fn.random.uniform(device=device, values=values, shape=shape))
     pipe.build()
-    oo = pipe.run()
-    possibly_uniform_distribution = oo[0].as_array()[0]
-    assert (test_range[0] == possibly_uniform_distribution).all(), \
-                "Value returned from the op is outside of requested range"
+    outputs = pipe.run()
+    data_out = outputs[0].as_cpu() \
+        if isinstance(outputs[0], TensorListGPU) else outputs[0]
+    values_set = set(values)
+    maxval = np.max(values)
+    bins = np.concatenate([values, np.array([np.nextafter(maxval, maxval+1)])])
+    bins.sort()
+    for i in range(batch_size):
+        data = np.array(data_out[i])
+        for x in data:
+            assert x in values_set
+        h, _ = np.histogram(data, bins=bins)
+        _, pv = st.chisquare(h)
+        assert pv > 0.05, f"data is not a uniform distribution. pv = {pv}"
+
+check_uniform_discrete('cpu', 32, shape=[10000], values=(0, 1, 2, 3, 4, 5, 6, 7))
 
 def test_uniform_discrete():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
@@ -105,8 +91,8 @@ def test_uniform_discrete():
     test_set_max = np.max(test_set)
     bins = np.concatenate([test_set, np.array([np.nextafter(test_set_max, test_set_max+1)])])
     bins.sort()
-    possibly_uniform_distribution_chisquare = np.histogram(possibly_uniform_distribution, bins=bins)[0]
-    _, pv = st.chisquare(possibly_uniform_distribution_chisquare)
+    h, _ = np.histogram(possibly_uniform_distribution, bins=bins)[0]
+    _, pv = st.chisquare(h)
     assert pv > 0.05, "`possibly_uniform_distribution` is not a uniform distribution"
     for val in possibly_uniform_distribution:
         assert val in test_set, \

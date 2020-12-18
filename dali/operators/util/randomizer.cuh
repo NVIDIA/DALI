@@ -39,7 +39,6 @@ struct curand_states {
 
  private:
   size_t len_;
-  int device_;
   std::shared_ptr<curandState> states_mem_;
   curandState* states_;  // std::shared_ptr::get can't be called from __device__ functions
 };
