@@ -82,7 +82,7 @@ bench_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
 unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
 math_function_operations = [((lambda x: math.exp(x)), (lambda x: np.exp(x)), "exp"),
-                            ((lambda x: math.log(1. + x)), (lambda x: np.log(1. + x)), "log")]
+                            ((lambda x: math.log(x)), (lambda x: np.log(x)), "log")]
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x * y), "*"),
@@ -185,12 +185,16 @@ def bool_generator(shape, no_zeros):
     return result
 
 def float_generator(shape, type, _, limited_range):
-    if isinstance(shape, int):
-        return type(np.random.rand(shape))
-    elif len(shape) == 2:
-        return type(np.random.rand(*shape))
+    if limited_range is not None:
+        low, high = limited_range
     else:
-        return type([np.random.rand()])
+        low, high = 0., 1.
+    if isinstance(shape, int):
+        return type(low + np.random.rand(shape) * (high - low))
+    elif len(shape) == 2:
+        return type(low + np.random.rand(*shape) * (high - low))
+    else:
+        return type([low + np.random.rand() * (high - low)])
 
 # Generates inputs of required shapes and types
 # The number of inputs is based on the length of tuple `types`, if types is a single element
@@ -340,8 +344,9 @@ def test_unary_arithmetic_ops():
                     yield check_unary_op, kinds, types_in, op, shape_small, op_desc
 
 def check_math_function_op(kind, type, op, np_op, shape, op_desc):
+    is_integer = type not in [np.float16, np.float32, np.float64]
     if op_desc == "log":
-        limited_range = (-1, 20)
+        limited_range = (1 if is_integer else 0.5, 20)
     else:
         limited_range = (-10, 10)
     iterator = iter(ExternalInputIterator(batch_size, shape, type, kind, limited_range=limited_range))
@@ -349,7 +354,7 @@ def check_math_function_op(kind, type, op, np_op, shape, op_desc):
             device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
-    out_type = np.float32 if (type not in [np.float16, np.float32, np.float64]) else type
+    out_type = np.float32 if is_integer else type
     for sample in range(batch_size):
         in_np, out = extract_un_data(pipe_out, sample, kind, out_type)
         np.testing.assert_allclose(out, np_op(in_np.astype(out_type)),
