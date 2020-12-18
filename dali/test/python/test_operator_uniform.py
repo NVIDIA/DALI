@@ -53,7 +53,7 @@ def test_uniform_continuous():
     _, pv = st.kstest(rvs=possibly_uniform_distribution_kstest, cdf='uniform')
     assert pv > 0.05, "`possibly_uniform_distribution` is not a uniform distribution"
     assert (test_range[0] <= possibly_uniform_distribution).all() and \
-            (test_range[0] < test_range[1]).all(), \
+            (possibly_uniform_distribution < test_range[1]).all(), \
                 "Value returned from the op is outside of requested range"
 
 def test_uniform_continuous_next_after():
