@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/util/randomizer.cuh"
+#include "dali/core/cuda_stream.h"
 
 namespace dali {
 
@@ -30,12 +31,13 @@ void init_states(const size_t N, uint64_t seed, curandState *states) {
 }  // namespace detail
 
 curand_states::curand_states(uint64_t seed, size_t len) : len_(len) {
-  cudaGetDevice(&device_);
+  CUDAStream tmp_stream = CUDAStream::Create(true);
   states_mem_ = kernels::memory::alloc_shared<curandState>(kernels::AllocType::GPU, len);
   states_ = states_mem_.get();
   static constexpr int kBlockSize = 256;
   int grid = div_ceil(len_, kBlockSize);
-  detail::init_states<<<grid, kBlockSize>>>(len_, seed, states_);
+  detail::init_states<<<grid, kBlockSize, 0, tmp_stream>>>(len_, seed, states_);
+  cudaStreamSynchronize(tmp_stream);
 }
 
 }  // namespace dali
