@@ -54,64 +54,7 @@ class MultiPasteOp : public Operator<Backend> {
     return true;
   }
 
-  /*bool HasInputArgument(const workspace_t<Backend> &ws, std::string &arg_name) {
-      try {
-        const auto arg = ws.ArgumentInput(arg_name);
-        return true;
-      } catch (dali::DALIException e) {
-        return false;
-      }
-  }
-
-  std::vector<TensorVector<Backend>&> ArgumentInputVector(const workspace_t<Backend> &ws,
-                                                           std::string &arg_v_name) {
-    std::vector<TensorVector<Backend>&> out;
-    int i = 0;
-    while (HasInputArgument(ws, arg_v_name + "_" + std::to_string(i))) {
-      const auto arg = ws.ArgumentInput(arg_v_name + "_" + std::to_string(i));
-      out.push_back(arg);
-    }
-    return out;
-  }*/
-
   void AcquireArguments(const workspace_t<Backend> &ws) {
-    /*images_ = ws.ArgumentInputVector(ws, "anchors");
-    const auto& anchors_ = ArgumentInputVector(ws, "anchors");
-    const auto& shapes_ = ArgumentInputVector(ws, "shapes");
-
-    if (ws.HasArgument("output_width")) {
-      output_width_ = ws.ArgumentInput("output_width");
-      DALI_ENFORCE(output_width_.type().id() == DALI_INT32);
-    }
-
-    if (ws.HasArgument("output_height")) {
-      output_height_ = ws.ArgumentInput("output_height");
-      DALI_ENFORCE(output_height_.type().id() == DALI_INT32);
-    }
-
-
-    DALI_ENFORCE(images_.size() == 4, "Mosaic now requires strictly 4 sets of permuted images");
-    DALI_ENFORCE(anchors_.size() == 4, "Mosaic now requires strictly 4 sets of bboxes");
-    DALI_ENFORCE(shapes_.size() == 4, "Mosaic now requires strictly 4 sets of bboxes");
-
-    auto sample_count = images_.shape().num_samples();
-    for (int i = 0; i < 4; i++) {
-      DALI_ENFORCE(shapes_[i].type().id() == DALI_INT32,
-                   "Mosaic requires absolute coord in int type in bboxes");
-      DALI_ENFORCE(anchors_[i].type().id() == DALI_INT32,
-                   "Mosaic requires absolute coord in int type in bboxes");
-
-      crops_[i].clear();
-
-      for (int j = 0; j < sample_count; j++) {
-        CropWindow window;
-        for (int axis = 0; i < 2; i++) {
-          // TODO(timemaster): decipher how to fill in the crop window
-        }
-        crops_[j].push_back(window);
-      }
-    }*/
-
     this->GetPerSampleArgument(output_width_, "output_width", ws);
     this->GetPerSampleArgument(output_height_, "output_height", ws);
 

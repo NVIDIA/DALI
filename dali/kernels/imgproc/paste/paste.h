@@ -61,7 +61,9 @@ class PasteCpu {
    */
   void Run(KernelContext &context, const OutTensorCPU<OutputType> &out, const Image &pasteFrom,
            const Coords &in_anchors, const Coords &in_shapes, const Coords &out_anchors) {
-    // copyRoi(out, pasteFrom, cropLU, 0, 0);
+    copyRoi(out, pasteFrom, in_anchors.data[X_AXIS], in_anchors.data[Y_AXIS],
+            in_shapes.data[X_AXIS], in_shapes.data[Y_AXIS],
+            out_anchors.data[X_AXIS], out_anchors.data[Y_AXIS]);
   }
 
   void copyRoi(const OutTensorCPU<OutputType> &out, const Image &in, int inXAnchor, int inYAnchor,
@@ -80,8 +82,7 @@ class PasteCpu {
     auto row_value_count = inXShape * num_channels;
 
     for (int y = inYAnchor; y < inYAnchor + inYShape; y++) {
-      memcpy(in_ptr, out_ptr, row_value_count * sizeof(in_ptr[0]));
-      // for (int xc = 0; xc < row_value_count; xc++) ptr[xc] = in_row[xc];
+      memcpy(out_ptr, in_ptr, row_value_count * sizeof(in_ptr[0]));
       in_ptr += in_row_stride;
       out_ptr += out_row_stride;
     }
