@@ -12,12 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(color_manipulation)
-add_subdirectory(convolution)
-add_subdirectory(pointwise)
-add_subdirectory(resample)
-add_subdirectory(paste)
-
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_KERNEL_SRCS PARENT_SCOPE)
