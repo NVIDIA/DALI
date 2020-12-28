@@ -16,43 +16,62 @@
 #define DALI_OPERATORS_RANDOM_COIN_FLIP_H_
 
 #include <random>
-#include <vector>
+#include "dali/operators/random/rng_base.h"
+#include "dali/pipeline/operator/arg_helper.h"
+#include "dali/operators/random/rng_base_gpu.h"
+#include "dali/operators/random/rng_base_cpu.h"
 
-#include "dali/pipeline/operator/operator.h"
+#define DALI_COINFLIP_TYPES (bool, uint8_t, int32_t)
 
 namespace dali {
 
-class CoinFlip : public Operator<CPUBackend> {
+template <typename Backend>
+class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>> {
  public:
-  inline explicit CoinFlip(const OpSpec &spec) :
-    Operator<CPUBackend>(spec),
-    dis_(spec.GetArgument<float>("probability")),
-    rng_(spec.GetArgument<int64_t>("seed")) {}
+  template <typename T>
+  struct Dist {
+    using type =
+      typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
+          curand_bernoulli_dist,
+          std::bernoulli_distribution>;
+  };
 
-  inline ~CoinFlip() override = default;
+  explicit CoinFlip(const OpSpec &spec)
+      : RNGBase<Backend, CoinFlip<Backend>>(spec),
+        probability_("probability", spec) {
+    backend_data_.ReserveDistsData(sizeof(typename Dist<double>::type) * max_batch_size_);
+  }
 
-  DISABLE_COPY_MOVE_ASSIGN(CoinFlip);
+  void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
+    probability_.Acquire(spec, ws, nsamples, true);
+  }
 
-  USE_OPERATOR_MEMBERS();
-  using Operator<CPUBackend>::RunImpl;
+  DALIDataType DefaultDataType() const {
+    return DALI_INT32;
+  }
+
+  template <typename T>
+  bool SetupDists(typename Dist<T>::type* dists_data, int nsamples) {
+    for (int s = 0; s < nsamples; s++) {
+      dists_data[s] = typename Dist<T>::type{probability_[s].data[0]};
+    }
+    return true;
+  }
+
+  using RNGBase<Backend, CoinFlip<Backend>>::RunImpl;
+  void RunImpl(workspace_t<Backend> &ws) override {
+    TYPE_SWITCH(dtype_, type2id, T, DALI_COINFLIP_TYPES, (
+      using Dist = typename Dist<T>::type;
+      this->template RunImplTyped<T, Dist>(ws);
+    ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
+  }
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
+  using Operator<Backend>::max_batch_size_;
+  using RNGBase<Backend, CoinFlip<Backend>>::dtype_;
+  using RNGBase<Backend, CoinFlip<Backend>>::backend_data_;
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
-    output_desc.resize(1);
-    output_desc[0].shape = TensorListShape<0>(max_batch_size_);
-    output_desc[0].type = TypeTable::GetTypeInfo(DALI_INT32);
-    return true;
-  }
-
-  void RunImpl(HostWorkspace &ws) override;
-
- private:
-  std::bernoulli_distribution dis_;
-  std::mt19937 rng_;
+  ArgValue<float> probability_;
 };
 
 }  // namespace dali

@@ -128,6 +128,19 @@ struct curand_uniform_int_values_dist {
   int64_t nvalues_ = 0;
 };
 
+struct curand_bernoulli_dist {
+ public:
+  explicit DALI_HOST_DEV curand_bernoulli_dist(float probability = 0.5f)
+    : probability_(probability) {}
+
+  __device__ inline bool operator()(curandState *state) const {
+    return curand_uniform(state) <= probability_ ? true : false;
+  }
+
+ private:
+  float probability_ = 0.5f;
+};
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_UTIL_RANDOMIZER_CUH_
