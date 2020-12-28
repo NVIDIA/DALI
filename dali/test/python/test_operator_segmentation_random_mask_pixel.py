@@ -15,10 +15,10 @@ def check_random_mask_pixel(ndim=2, batch_size=3,
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
         # Input mask
-        in_shape_dims = [fn.cast(fn.uniform(range=(min_extent, max_extent + 1), shape=(1,), device='cpu'),
+        in_shape_dims = [fn.cast(fn.random.uniform(range=(min_extent, max_extent + 1), shape=(1,), device='cpu'),
                                  dtype=types.INT32) for d in range(ndim)]
         in_shape = fn.cat(*in_shape_dims, axis=0)
-        in_mask = fn.cast(fn.uniform(range=(0, 2), device='cpu', shape=in_shape), dtype=types.INT32)
+        in_mask = fn.cast(fn.random.uniform(range=(0, 2), device='cpu', shape=in_shape), dtype=types.INT32)
 
         fg_pixel1 = fn.segmentation.random_mask_pixel(in_mask, foreground=1)  # > 0
         fg_pixel2 = fn.segmentation.random_mask_pixel(in_mask, foreground=1, threshold=0.99)  # > 0.99

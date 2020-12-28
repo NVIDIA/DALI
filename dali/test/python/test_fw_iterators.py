@@ -978,7 +978,7 @@ def check_iterator_wrapper_first_iteration(BaseIterator, *args, **kwargs):
 
     pipe = Pipeline(batch_size = 16, num_threads = 1, device_id = 0)
     with pipe:
-        data = fn.uniform(range=(-1, 1), shape=(2, 2, 2), seed=1234)
+        data = fn.random.uniform(range=(-1, 1), shape=(2, 2, 2), seed=1234)
     pipe.set_outputs(data)
 
     iterator_wrapper = IteratorWrapper([pipe], *args, **kwargs)

@@ -23,7 +23,7 @@ Example::
     with pipe:
         files, labels = dali.fn.file_reader(file_root = "./my_file_root")
         images = dali.fn.image_decoder(files, device = "mixed")
-        images = dali.fn.rotate(images, angle = dali.fn.uniform(range=(-45,45)))
+        images = dali.fn.rotate(images, angle = dali.fn.random.uniform(range=(-45,45)))
         images = dali.fn.resize(images, resize_x = 300, resize_y = 300)
         pipe.set_outputs(images, labels)
 
@@ -47,7 +47,7 @@ using object API to pre-configure a file reader and a resize operator::
     with pipe:
         files, labels = reader()
         images = dali.fn.image_decoder(files, device = "mixed")
-        images = dali.fn.rotate(images, angle = dali.fn.uniform(range=(-45,45)))
+        images = dali.fn.rotate(images, angle = dali.fn.random.uniform(range=(-45,45)))
         images = resize(images)
         pipe.set_outputs(images, labels)
 

@@ -269,15 +269,15 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
                                types.Constant(dim, dtype=types.FLOAT, device="cpu"),
                                axes=[0],
                                normalized_shape=False)
-            roi_start = fn.uniform(range=(0,0.4), shape=[dim]) * in_size
-            roi_end = fn.uniform(range=(0.6,1.0), shape=[dim]) * in_size
+            roi_start = fn.random.uniform(range=(0,0.4), shape=[dim]) * in_size
+            roi_end = fn.random.uniform(range=(0.6,1.0), shape=[dim]) * in_size
 
         size_range = (10, 200) if dim == 3 else (10, 1000)
 
         if use_size_arg:
             if use_size_input:
-                mask = fn.cast(fn.uniform(range=(0.8, 1.9), shape=[dim]), dtype=types.INT32)
-                size = fn.uniform(range=size_range, shape=[dim]) * mask
+                mask = fn.cast(fn.random.uniform(range=(0.8, 1.9), shape=[dim]), dtype=types.INT32)
+                size = fn.random.uniform(range=size_range, shape=[dim]) * mask
             else:
                 size = [300, 400] if dim == 2 else [80, 100, 120]
 
@@ -285,20 +285,20 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
         else:
             if w_input:
                 has_w = fn.coin_flip(probability=0.8)
-                w = fn.uniform(range=size_range) * has_w
+                w = fn.random.uniform(range=size_range) * has_w
             else:
                 w = 320  # some fixed value
 
             if h_input:
                 has_h = fn.coin_flip(probability=0.8)
-                h = fn.uniform(range=size_range) * has_h
+                h = fn.random.uniform(range=size_range) * has_h
             else:
                 h = 240  # some other fixed value
 
             if dim >= 3:
                 if d_input:
                     has_d = fn.coin_flip(probability=0.8)
-                    d = fn.uniform(range=size_range) * has_d
+                    d = fn.random.uniform(range=size_range) * has_d
                 else:
                     d = 31  # some other fixed value
 

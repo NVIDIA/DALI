@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_RANDOM_UNIFORM_DISTRIBUTION_H_
 #define DALI_OPERATORS_RANDOM_UNIFORM_DISTRIBUTION_H_
 
+#include <vector>
 #include "dali/operators/random/rng_base.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/core/dev_buffer.h"

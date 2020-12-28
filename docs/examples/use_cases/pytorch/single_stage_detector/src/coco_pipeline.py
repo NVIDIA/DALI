@@ -83,9 +83,9 @@ class COCOPipeline(Pipeline):
             pad_output=False)
 
         # Random variables
-        self.rng1 = ops.Uniform(range=[0.5, 1.5])
-        self.rng2 = ops.Uniform(range=[0.875, 1.125])
-        self.rng3 = ops.Uniform(range=[-0.5, 0.5])
+        self.rng1 = ops.random.Uniform(range=[0.5, 1.5])
+        self.rng2 = ops.random.Uniform(range=[0.875, 1.125])
+        self.rng3 = ops.random.Uniform(range=[-0.5, 0.5])
 
         self.flip = ops.Flip(device="cpu")
         self.bbflip = ops.BbFlip(device="cpu", ltrb=True)

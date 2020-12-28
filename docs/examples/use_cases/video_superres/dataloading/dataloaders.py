@@ -21,7 +21,7 @@ class VideoReaderPipeline(Pipeline):
                                      normalized=False, random_shuffle=True, image_type=types.RGB,
                                      dtype=types.UINT8, initial_fill=16, pad_last_batch=True)
         self.crop = ops.Crop(device="gpu", crop=crop_size, dtype=types.FLOAT)
-        self.uniform = ops.Uniform(range=(0.0, 1.0))
+        self.uniform = ops.random.Uniform(range=(0.0, 1.0))
         self.transpose = ops.Transpose(device="gpu", perm=[3, 0, 1, 2])
 
     def define_graph(self):
