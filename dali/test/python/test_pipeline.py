@@ -400,7 +400,7 @@ def test_seed():
                                                 crop = (224, 224),
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
-            self.coin = ops.CoinFlip()
+            self.coin = ops.random.CoinFlip()
             self.uniform = ops.random.Uniform(range = (0.0,1.0))
             self.iter = 0
 
@@ -439,7 +439,7 @@ def test_as_array():
                                                 crop = (224, 224),
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
-            self.coin = ops.CoinFlip()
+            self.coin = ops.random.CoinFlip()
             self.uniform = ops.random.Uniform(range = (0.0,1.0))
             self.iter = 0
 
@@ -479,7 +479,7 @@ def test_seed_serialize():
                                                 crop = (224, 224),
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
-            self.coin = ops.CoinFlip()
+            self.coin = ops.random.CoinFlip()
             self.uniform = ops.random.Uniform(range = (0.0,1.0))
             self.iter = 0
 
@@ -717,7 +717,7 @@ def test_equal_ImageDecoderRandomCrop_ImageDecoder():
                                                 crop = (224, 224),
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
-            self.coin = ops.CoinFlip(seed = seed)
+            self.coin = ops.random.CoinFlip(seed = seed)
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
@@ -738,7 +738,7 @@ def test_equal_ImageDecoderRandomCrop_ImageDecoder():
                                                 crop = (224, 224),
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
-            self.coin = ops.CoinFlip(seed = seed)
+            self.coin = ops.random.CoinFlip(seed = seed)
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
@@ -1532,7 +1532,7 @@ def test_executor_meta():
                                                 crop = (224, 224),
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
-            self.coin = ops.CoinFlip(seed = seed)
+            self.coin = ops.random.CoinFlip(seed = seed)
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()

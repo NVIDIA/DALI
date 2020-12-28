@@ -53,7 +53,7 @@ class CropMirrorNormalizePipeline(Pipeline):
                                            scale = scale,
                                            shift = shift,
                                            pad_output = pad_output)
-        self.coin = ops.CoinFlip(probability=mirror_probability, seed=7865)
+        self.coin = ops.random.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -340,7 +340,7 @@ class CMNRandomDataPipeline(Pipeline):
                                            mean=mean, std=std, pad_output=pad_output,
                                            scale=scale, shift=shift,
                                            out_of_bounds_policy=out_of_bounds_policy, fill_values=fill_values)
-        self.coin = ops.CoinFlip(probability=mirror_probability, seed=7865)
+        self.coin = ops.random.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
         self.data = self.inputs()

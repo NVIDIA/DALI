@@ -94,7 +94,7 @@ def test_mxnet_iterator_model_fit():
                                                 crop=(224, 224),
                                                 mean=[0.485 * 255,0.456 * 255,0.406 * 255],
                                                 std=[0.229 * 255,0.224 * 255,0.225 * 255])
-            self.coin = ops.CoinFlip(probability=0.5)
+            self.coin = ops.random.CoinFlip(probability=0.5)
 
         def define_graph(self):
             rng = self.coin()

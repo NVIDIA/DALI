@@ -90,7 +90,7 @@ class HybridTrainPipe(Pipeline):
         self.rng1 = ops.random.Uniform(range=[0.5, 1.5])
         self.rng2 = ops.random.Uniform(range=[0.875, 1.125])
         self.rng3 = ops.random.Uniform(range=[-0.5, 0.5])
-        self.coin = ops.CoinFlip(probability=0.5)
+        self.coin = ops.random.CoinFlip(probability=0.5)
         self.build()
 
     def define_graph(self):

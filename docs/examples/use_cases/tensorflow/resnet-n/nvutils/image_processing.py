@@ -101,7 +101,7 @@ class HybridPipe(dali.pipeline.Pipeline):
             crop=(height, width),
             mean=[123.68, 116.78, 103.94],
             output_layout="HWC")
-        self.mirror = dali.ops.CoinFlip()
+        self.mirror = dali.ops.random.CoinFlip()
         self.iter = 0
 
     def define_graph(self):

@@ -89,7 +89,7 @@ class COCOPipeline(Pipeline):
 
         self.flip = ops.Flip(device="cpu")
         self.bbflip = ops.BbFlip(device="cpu", ltrb=True)
-        self.flip_coin = ops.CoinFlip(probability=0.5)
+        self.flip_coin = ops.random.CoinFlip(probability=0.5)
 
         self.box_encoder = ops.BoxEncoder(
             device="cpu",
