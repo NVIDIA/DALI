@@ -54,7 +54,7 @@ __global__ void RNGKernel(BlockDesc* __restrict__ block_descs,
 template <typename Backend, typename Impl>
 template <typename T, typename Dist>
 void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
-  static_assert(std::is_same<Backend, GPUBackend>::value);
+  static_assert(std::is_same<Backend, GPUBackend>::value, "Unexpected backend");
   auto out_view = view<T>(ws.template OutputRef<GPUBackend>(0));
   int nsamples = out_view.shape.size();
   auto blocks_cpu = backend_data_.block_descs_cpu_.get();

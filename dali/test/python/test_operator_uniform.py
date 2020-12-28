@@ -75,25 +75,9 @@ def check_uniform_discrete(device='cpu', batch_size=32, shape=[1e5], values=None
         _, pv = st.chisquare(h)
         assert pv > 0.05, f"data is not a uniform distribution. pv = {pv}"
 
-check_uniform_discrete('cpu', 32, shape=[10000], values=(0, 1, 2, 3, 4, 5, 6, 7))
-
 def test_uniform_discrete():
-    pipe = dali.pipeline.Pipeline(1, 1, 0)
-    lo = -100
-    hi = 100
-    test_set = (hi - lo) * np.random.random_sample(10) + lo  # 10 elems from [-100, 100] range
-    test_set = test_set.astype('float32')
-    with pipe:
-        pipe.set_outputs(dali.fn.uniform(values=test_set.tolist(), shape=[1e6]))
-    pipe.build()
-    oo = pipe.run()
-    possibly_uniform_distribution = oo[0].as_array()[0]
-    test_set_max = np.max(test_set)
-    bins = np.concatenate([test_set, np.array([np.nextafter(test_set_max, test_set_max+1)])])
-    bins.sort()
-    h, _ = np.histogram(possibly_uniform_distribution, bins=bins)[0]
-    _, pv = st.chisquare(h)
-    assert pv > 0.05, "`possibly_uniform_distribution` is not a uniform distribution"
-    for val in possibly_uniform_distribution:
-        assert val in test_set, \
-            "Value returned from the op is outside of requested discrete set"
+    batch_size = 8
+    shape = [100000]
+    for device in ['cpu', 'gpu']:
+        for values in [(0, 1, 2, 3, 4, 5), (200, 400, 5000, 1)]:
+            yield check_uniform_discrete, device, batch_size, shape, values
