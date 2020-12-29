@@ -78,6 +78,8 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void ReleaseOutputs() = 0;
   DLL_PUBLIC virtual void SetCompletionCallback(ExecutorCallback cb) = 0;
   DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
+  DLL_PUBLIC virtual void SetMixedOpStream(cudaStream_t) = 0;
+  DLL_PUBLIC virtual void SetGpuOpStream(cudaStream_t) = 0;
   DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
 
  protected:
@@ -110,12 +112,27 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
         thread_pool_(num_thread, device_id, set_affinity),
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
-        mixed_op_stream_(0),
-        gpu_op_stream_(0),
+        mixed_op_stream_(0), gpu_op_stream_(0),  // no custom stream
         enable_memory_stats_(false) {
     DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0.");
 
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
+  }
+
+  /**
+   * @brief Sets a custom CUDA stream for mixed stage operators
+   * @remarks Providing value 0 means "no custom stream" and DALI will create one.
+   */
+  DLL_PUBLIC void SetMixedOpStream(cudaStream_t s) override {
+    mixed_op_stream_ = s;
+  }
+
+  /**
+   * @brief Sets a custom CUDA stream for GPU stage operators
+   * @remarks Providing value 0 means "no custom stream" and DALI will create one.
+   */
+  DLL_PUBLIC void SetGpuOpStream(cudaStream_t s) override {
+    gpu_op_stream_ = s;
   }
 
   DLL_PUBLIC void EnableMemoryStats(bool enable_memory_stats = false) override {
@@ -461,8 +478,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   // Setup stream and events that will be used for execution
   if (device_id_ != CPU_ONLY_DEVICE_ID) {
     DeviceGuard g(device_id_);
-    mixed_op_stream_ = stream_pool_.GetStream();
-    gpu_op_stream_ = stream_pool_.GetStream();
+    if (!mixed_op_stream_)
+      mixed_op_stream_ = stream_pool_.GetStream();
+    if (!gpu_op_stream_)
+      gpu_op_stream_ = stream_pool_.GetStream();
     mixed_op_events_ =
         CreateEventsForMixedOps(event_pool_, *graph_, stage_queue_depths_[OpType::MIXED]);
 

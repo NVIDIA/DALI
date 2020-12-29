@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/c_api.h"
 #include <gtest/gtest.h>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include "dali/c_api.h"
+#include "dali/core/cuda_stream.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/pipeline.h"
@@ -652,6 +652,38 @@ TYPED_TEST(CApiTest, CpuOnlyTest) {
   std::string ser = pipe.SerializeToProtobuf();
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+}
+
+TYPED_TEST(CApiTest, CustomStreams) {
+  auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
+  auto serialized = pipe_ptr->SerializeToProtobuf();
+
+  pipe_ptr->Build();
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    pipe_ptr->RunCPU();
+    pipe_ptr->RunGPU();
+  }
+
+  daliPipelineHandle handle;
+  dali::CUDAStream stream_mixed = dali::CUDAStream::Create(true);
+  dali::CUDAStream stream_gpu = dali::CUDAStream::Create(true);
+  dali::CUDAStream stream_copy = dali::CUDAStream::Create(true);
+  daliCreatePipelineCustomStreams(&handle, serialized.c_str(), serialized.size(), batch_size,
+                                  num_thread, device_id, false, prefetch_queue_depth,
+                                  prefetch_queue_depth, prefetch_queue_depth, false, stream_mixed,
+                                  stream_gpu, stream_copy);
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
+
+  dali::DeviceWorkspace ws;
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
+  }
+
+  daliRun(&handle);
+  pipe_ptr->RunCPU();
+  pipe_ptr->RunGPU();
+
+  ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
 }
 
 }  // namespace dali

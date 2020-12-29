@@ -305,6 +305,29 @@ class DLL_PUBLIC Pipeline {
   }
 
   /**
+   * @brief Set a custom CUDA stream for mixed stage operators.
+   * @remarks 0 means no custom stream.
+   */
+  DLL_PUBLIC void SetMixedOpStream(cudaStream_t s) {
+    mixed_op_stream_ = s;
+    if (executor_) {
+      executor_->SetMixedOpStream(mixed_op_stream_);
+    }
+  }
+
+  /**
+   * @brief Set a custom CUDA stream for GPU stage operators.
+   * @remarks 0 means no custom stream.
+   */
+  DLL_PUBLIC void SetGpuOpStream(cudaStream_t s) {
+    gpu_op_stream_ = s;
+    if (executor_) {
+      executor_->SetGpuOpStream(gpu_op_stream_);
+    }
+  }
+
+
+  /**
    * @brief Obtains the executor statistics
    */
   DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() {
@@ -510,6 +533,8 @@ class DLL_PUBLIC Pipeline {
   int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_;
   bool enable_memory_stats_ = false;
+  cudaStream_t mixed_op_stream_ = 0;  // no custom stream by default
+  cudaStream_t gpu_op_stream_ = 0;  // no custom stream by default
 
   std::vector<int64_t> seed_;
   int original_seed_;

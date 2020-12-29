@@ -117,6 +117,25 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
                                    int enable_memory_stats);
 
 /**
+ * @brief Create DALI pipeline, specifying custom CUDA streams.
+ * @see daliCreatePipeline
+ */
+DLL_PUBLIC void daliCreatePipelineCustomStreams(daliPipelineHandle *pipe_handle,
+                                                const char *serialized_pipeline,
+                                                int length,
+                                                int batch_size,
+                                                int num_threads,
+                                                int device_id,
+                                                int separated_execution,
+                                                int prefetch_queue_depth,
+                                                int cpu_prefetch_queue_depth,
+                                                int gpu_prefetch_queue_depth,
+                                                int enable_memory_stats,
+                                                cudaStream_t mixed_op_stream,
+                                                cudaStream_t gpu_op_stream,
+                                                cudaStream_t copy_stream);
+
+/**
  * Convenient overload. Use it, if the Pipeline should inherit its parameters
  * from serialized pipeline.
  */

@@ -443,6 +443,8 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
                   num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_, max_num_stream_,
                   default_cuda_stream_priority_, prefetch_queue_depth_);
   executor_->EnableMemoryStats(enable_memory_stats_);
+  executor_->SetMixedOpStream(mixed_op_stream_);
+  executor_->SetGpuOpStream(gpu_op_stream_);
   executor_->Init();
 
   // Creating the graph
