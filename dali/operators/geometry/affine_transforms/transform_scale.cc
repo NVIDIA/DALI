@@ -37,6 +37,14 @@ The number of dimensions of the transform is inferred from this argument.)code",
 
 If provided, the number of elements should match the one of ``scale`` argument.)code",
     nullptr, true)
+  .AddOptionalArg<int>(
+    "ndim",
+    R"code(Number of dimensions.
+
+It should be provided when the number of dimensions can't be inferred. For example,
+when `scale` is a scalar value and there's no input transform.
+)code",
+    nullptr, false)
   .NumInput(0, 1)
   .NumOutput(1)
   .AddParent("TransformAttr");
@@ -54,6 +62,8 @@ class TransformScaleCPU
       scale_("scale", spec),
       center_("center", spec) {
     assert(scale_.IsDefined());
+    if (spec.HasArgument("ndim"))
+      ndim_arg_ = spec.GetArgument<int>("ndim");
   }
 
   template <typename T, int mat_dim>
@@ -62,7 +72,7 @@ class TransformScaleCPU
     assert(matrices.size() <= static_cast<int>(scale_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      auto scale = scale_[i].data;
+      auto scale = as_vec<ndim>(scale_[i]);
       mat = affine_mat_t<T, mat_dim>::identity();
       for (int d = 0; d < ndim; d++) {
         mat(d, d) = scale[d];
@@ -80,7 +90,20 @@ class TransformScaleCPU
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
     assert(scale_.IsDefined());
     scale_.Acquire(spec, ws, nsamples_, true);
-    ndim_ = scale_[0].num_elements();
+    int scale_ndim = scale_[0].num_elements();
+
+    if (scale_ndim > 1) {
+      ndim_ = scale_ndim;
+    } else if (has_input_) {
+      ndim_ = input_transform_ndim(ws);
+    } else if (ndim_arg_ > 0) {
+      ndim_ = ndim_arg_;
+    } else {
+      ndim_ = 1;
+    }
+    DALI_ENFORCE(scale_ndim == ndim_ || scale_ndim == 1,
+      make_string("Number of dimensions ", ndim_, " is not compatible with the "
+      "number of elements in `scale` argument ", scale_ndim));
 
     if (center_.IsDefined()) {
       center_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
@@ -94,6 +117,7 @@ class TransformScaleCPU
  private:
   ArgValue<float, 1> scale_;
   ArgValue<float, 1> center_;
+  int ndim_arg_ = -1;
 };
 
 DALI_REGISTER_OPERATOR(transforms__Scale, TransformScaleCPU, CPU);
