@@ -44,6 +44,7 @@ class MultiPasteOp : public Operator<Backend> {
       , output_type_(DALI_NO_TYPE)
       , input_type_(DALI_NO_TYPE) {
     if (std::is_same<Backend, GPUBackend>::value) {
+      // TODO(TheTimemaster): Should it be removed, while no GPU impl is ready?
       kernel_manager_.Resize(1, 1);
     } else {
       kernel_manager_.Resize(num_threads_, batch_size_);
@@ -78,11 +79,6 @@ class MultiPasteCpu : public MultiPasteOp<CPUBackend> {
  public:
   explicit MultiPasteCpu(const OpSpec &spec) : MultiPasteOp(spec) {}
 
-  /*
-   * So that compiler wouldn't complain, that
-   * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
-   * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"
-   */
   using Operator<CPUBackend>::RunImpl;
 
   ~MultiPasteCpu() override = default;

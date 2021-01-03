@@ -34,18 +34,15 @@ namespace kernels {
 template<typename OutputType, typename InputType>
 class PasteCpu {
  public:
-  using Roi = Box<2, int>;
   using Image = InTensorCPU<InputType, 3>;
-  using Coords = InTensorCPU<const int, 1>;
+  using OutImage = OutTensorCPU<OutputType>;
+  // TODO(TheTimemaster): Change MultiPaste to support InTensorCPU<const int, 1> as Coords;
+  using Coords = const int*;
 
   KernelRequirements
   Setup(KernelContext &context, const OutTensorCPU<OutputType> &pasteFrom, const Coords &in_anchors,
         const Coords &in_shapes, const Coords &out_anchors) {
-    // KernelRequirements req;
-    // TensorListShape<> out_shape({ShapeFromRoi(adjusted_roi, in.shape[ndims - 1])});
-    // TensorListShape<> out_shape({h, w, inLU.shape[2]});
-    // req.output_shapes = {std::move(out_shape)};
-    // return req;
+    // Kernel is not aware of the size of the output. This should be handled in the operator.
     return nullptr;
   }
 
@@ -53,36 +50,41 @@ class PasteCpu {
   /**
    * Assumes HWC memory layout
    *
-   * @param out Assumes, that memory is already allocated
-   * @param addend Additive addend delta. 0 denotes no change
-   * @param multiplier Multiplicative multiplier delta. 1 denotes no change
-   * @param roi When default or invalid roi is provided,
-   *            kernel operates on entire image ("no-roi" case)
+   * @param out         Assumes, that memory is already allocated
+   * @param pasteFrom   Input image data.
+   * @param in_anchors  Pointer to two integers denoting where the selected part starts.
+   * @param in_shapes   Pointer to two integers denoting what size is the selected part.
+   * @param out_anchors Pointer to two integers denoting where to paste selected part.
    */
-  void Run(KernelContext &context, const OutTensorCPU<OutputType> &out, const Image &pasteFrom,
+  void Run(KernelContext &context, const OutImage &out, const Image &pasteFrom,
            const Coords &in_anchors, const Coords &in_shapes, const Coords &out_anchors) {
-    copyRoi(out, pasteFrom, in_anchors.data[X_AXIS], in_anchors.data[Y_AXIS],
-            in_shapes.data[X_AXIS], in_shapes.data[Y_AXIS],
-            out_anchors.data[X_AXIS], out_anchors.data[Y_AXIS]);
+    copyRoi(out, pasteFrom, in_anchors[X_AXIS], in_anchors[Y_AXIS],
+            in_shapes[X_AXIS], in_shapes[Y_AXIS],
+            out_anchors[X_AXIS], out_anchors[Y_AXIS]);
   }
 
   void copyRoi(const OutTensorCPU<OutputType> &out, const Image &in, int inXAnchor, int inYAnchor,
                int inXShape, int inYShape, int outXAnchor, int outYAnchor) {
     auto num_channels = out.shape[C_AXIS];
-    auto in_image_width = out.shape[X_AXIS];
-    auto out_image_width = in.shape[X_AXIS];
+    auto in_image_width = in.shape[X_AXIS];
+    auto out_image_width = out.shape[X_AXIS];
 
     ptrdiff_t in_row_stride = in_image_width * num_channels;
     ptrdiff_t out_row_stride = out_image_width * num_channels;
 
     auto *out_ptr = out.data + outXAnchor * num_channels + outYAnchor * out_row_stride;
-    auto *in_ptr = in.data + (inXAnchor + inXShape) * num_channels
-                   + (inYAnchor + inYShape) * in_row_stride;
+    auto *in_ptr = in.data + inXAnchor * num_channels + inYAnchor * in_row_stride;
 
     auto row_value_count = inXShape * num_channels;
 
-    for (int y = inYAnchor; y < inYAnchor + inYShape; y++) {
-      memcpy(out_ptr, in_ptr, row_value_count * sizeof(in_ptr[0]));
+    for (int y = 0; y < inYShape; y++) {
+      if (std::is_same<InputType, OutputType>::value) {
+        memcpy(out_ptr, in_ptr, row_value_count * sizeof(in_ptr[0]));
+      } else {
+        for (int i = 0; i < row_value_count; i++) {
+          out_ptr[i] = ConvertSat<OutputType>(in_ptr[i]);
+        }
+      }
       in_ptr += in_row_stride;
       out_ptr += out_row_stride;
     }
