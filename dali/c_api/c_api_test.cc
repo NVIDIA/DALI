@@ -667,11 +667,10 @@ TYPED_TEST(CApiTest, CustomStreams) {
   daliPipelineHandle handle;
   dali::CUDAStream stream_mixed = dali::CUDAStream::Create(true);
   dali::CUDAStream stream_gpu = dali::CUDAStream::Create(true);
-  dali::CUDAStream stream_copy = dali::CUDAStream::Create(true);
   daliCreatePipelineCustomStreams(&handle, serialized.c_str(), serialized.size(), batch_size,
                                   num_thread, device_id, false, prefetch_queue_depth,
                                   prefetch_queue_depth, prefetch_queue_depth, false, stream_mixed,
-                                  stream_gpu, stream_copy);
+                                  stream_gpu);
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   dali::DeviceWorkspace ws;
@@ -684,6 +683,8 @@ TYPED_TEST(CApiTest, CustomStreams) {
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
+
+  daliDeletePipeline(&handle);
 }
 
 }  // namespace dali

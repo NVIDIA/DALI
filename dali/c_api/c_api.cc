@@ -104,8 +104,7 @@ void daliCreatePipelineImpl(daliPipelineHandle *pipe_handle, const char *seriali
                             int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                             int enable_memory_stats,
                             cudaStream_t mixed_op_stream = 0,  // 0 means no custom stream
-                            cudaStream_t gpu_op_stream = 0,    // 0 means no custom stream
-                            cudaStream_t copy_stream = 0) {    // 0 means no custom stream
+                            cudaStream_t gpu_op_stream = 0) {    // 0 means no custom stream
   bool se = separated_execution != 0;
   auto pipeline =
       std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length), batch_size,
@@ -120,12 +119,12 @@ void daliCreatePipelineImpl(daliPipelineHandle *pipe_handle, const char *seriali
   pipeline->Build();
   auto ws = std::make_unique<dali::DeviceWorkspace>();
   dali::CUDAStream stream;
-  if (pipeline->device_id() >= 0 && !copy_stream) {
+  if (pipeline->device_id() >= 0) {
     stream = dali::CUDAStream::Create(true);
   }
   pipe_handle->ws = ws.release();
   pipe_handle->pipe = pipeline.release();
-  pipe_handle->copy_stream = copy_stream ? copy_stream : stream.release();
+  pipe_handle->copy_stream = stream.release();
 }
 
 }  // namespace
@@ -170,12 +169,11 @@ void daliCreatePipelineCustomStreams(daliPipelineHandle *pipe_handle,
                                      int gpu_prefetch_queue_depth,
                                      int enable_memory_stats,
                                      cudaStream_t mixed_op_stream,
-                                     cudaStream_t gpu_op_stream,
-                                     cudaStream_t copy_stream) {
+                                     cudaStream_t gpu_op_stream) {
     daliCreatePipelineImpl(pipe_handle, serialized_pipeline, length, batch_size, num_threads,
                            device_id, separated_execution, prefetch_queue_depth,
                            cpu_prefetch_queue_depth, gpu_prefetch_queue_depth, enable_memory_stats,
-                           mixed_op_stream, gpu_op_stream, copy_stream);
+                           mixed_op_stream, gpu_op_stream);
 }
 
 

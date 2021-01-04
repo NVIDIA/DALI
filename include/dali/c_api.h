@@ -132,8 +132,7 @@ DLL_PUBLIC void daliCreatePipelineCustomStreams(daliPipelineHandle *pipe_handle,
                                                 int gpu_prefetch_queue_depth,
                                                 int enable_memory_stats,
                                                 cudaStream_t mixed_op_stream,
-                                                cudaStream_t gpu_op_stream,
-                                                cudaStream_t copy_stream);
+                                                cudaStream_t gpu_op_stream);
 
 /**
  * Convenient overload. Use it, if the Pipeline should inherit its parameters
