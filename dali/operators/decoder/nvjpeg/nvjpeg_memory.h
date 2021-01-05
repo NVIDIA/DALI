@@ -17,7 +17,7 @@
 
 #include <nvjpeg.h>
 #include <thread>
-#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg2k_helper.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg2k_helper.h"
 #include "dali/kernels/alloc_type.h"
 
 namespace dali {

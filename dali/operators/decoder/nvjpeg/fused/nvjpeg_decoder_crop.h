@@ -12,39 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_SLICE_H_
-#define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_SLICE_H_
+#ifndef DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CROP_H_
+#define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CROP_H_
 
 #include <vector>
-#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_decoder_decoupled_api.h"
-#include "dali/operators/generic/slice/slice_attr.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_decoder_decoupled_api.h"
+#include "dali/operators/image/crop/crop_attr.h"
 
 namespace dali {
 
-class nvJPEGDecoderSlice : public nvJPEGDecoder {
+class nvJPEGDecoderCrop : public nvJPEGDecoder, protected CropAttr {
  public:
-  explicit nvJPEGDecoderSlice(const OpSpec& spec)
+  explicit nvJPEGDecoderCrop(const OpSpec& spec)
     : nvJPEGDecoder(spec)
-    , slice_attr_(spec)
-  {}
+    , CropAttr(spec) {
+  }
 
-  DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderSlice);
+  DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderCrop);
 
  protected:
-  using OperatorBase::Run;
-  void Run(MixedWorkspace &ws) override {
-    slice_attr_.ProcessArguments<MixedBackend>(ws);
-    nvJPEGDecoder::Run(ws);
-  }
-
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return slice_attr_.GetCropWindowGenerator(data_idx);
+    return CropAttr::GetCropWindowGenerator(data_idx);
   }
 
- private:
-  SliceAttr slice_attr_;
+  void SetupSharedSampleParams(MixedWorkspace &ws) override {
+    CropAttr::ProcessArguments(ws);
+  }
 };
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_SLICE_H_
+#endif  // DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CROP_H_

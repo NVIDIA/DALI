@@ -12,13 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <vector>
-#include <memory>
-#include "dali/operators/decoder/nvjpeg/decoupled_api/fused/nvjpeg_decoder_random_crop.h"
-#include "dali/util/random_crop_generator.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_allocator.h"
+
+#include <unordered_map>
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, nvJPEGDecoderRandomCrop, Mixed);
+namespace memory {
+
+using CPA = ChunkPinnedAllocator;
+std::vector<CPA::Chunk> CPA::chunks_;
+size_t CPA::element_size_hint_;
+std::unordered_map<void*, CPA::ChunkIdxBlockIdx> CPA::allocated_buffers_;
+size_t CPA::counter_ = 0;
+std::mutex CPA::mutex_;
+
+}  // namespace memory
 
 }  // namespace dali

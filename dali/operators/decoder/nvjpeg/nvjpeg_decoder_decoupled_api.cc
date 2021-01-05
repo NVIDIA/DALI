@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <vector>
-#include "dali/operators/decoder/nvjpeg/decoupled_api/fused/nvjpeg_decoder_slice.h"
+#include <limits>
+#include <string>
+#include "dali/operators/decoder/nvjpeg/nvjpeg_decoder_decoupled_api.h"
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(ImageDecoderSlice, nvJPEGDecoderSlice, Mixed);
+DALI_REGISTER_OPERATOR(ImageDecoder, nvJPEGDecoder, Mixed);
 
 }  // namespace dali

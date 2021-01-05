@@ -24,9 +24,9 @@
 #include <numeric>
 #include <atomic>
 #include "dali/pipeline/operator/operator.h"
-#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
-#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_memory.h"
-#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg2k_helper.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_memory.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg2k_helper.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/kernels/alloc.h"
 #include "dali/util/image.h"
@@ -35,7 +35,7 @@
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dev_buffer.h"
-#include "dali/operators/decoder/nvjpeg/decoupled_api/permute_layout.h"
+#include "dali/operators/decoder/nvjpeg/permute_layout.h"
 
 namespace dali {
 

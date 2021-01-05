@@ -12,29 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_RANDOM_CROP_H_
-#define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_RANDOM_CROP_H_
+#ifndef DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_CROP_H_
+#define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_CROP_H_
 
-#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_decoder_cpu.h"
-#include "dali/operators/image/crop/random_crop_attr.h"
+#include <vector>
+#include "dali/operators/decoder/nvjpeg/nvjpeg_decoder_cpu.h"
+#include "dali/operators/image/crop/crop_attr.h"
 
 namespace dali {
 
-class nvJPEGDecoderCPUStageRandomCrop : public nvJPEGDecoderCPUStage, public RandomCropAttr {
+class nvJPEGDecoderCPUStageCrop : public nvJPEGDecoderCPUStage, protected CropAttr {
  public:
-  explicit nvJPEGDecoderCPUStageRandomCrop(const OpSpec& spec)
+  explicit nvJPEGDecoderCPUStageCrop(const OpSpec& spec)
     : nvJPEGDecoderCPUStage(spec)
-    , RandomCropAttr(spec)
-  {}
+    , CropAttr(spec) {
+  }
 
-  DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderCPUStageRandomCrop);
+  DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderCPUStageCrop);
 
  protected:
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return RandomCropAttr::GetCropWindowGenerator(data_idx);
+    return CropAttr::GetCropWindowGenerator(data_idx);
+  }
+
+  void SetupSharedSampleParams(SampleWorkspace &ws) override {
+    CropAttr::ProcessArguments(ws);
   }
 };
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_RANDOM_CROP_H_
+#endif  // DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_CROP_H_

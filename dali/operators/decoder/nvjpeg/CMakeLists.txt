@@ -12,11 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if (NVJPEG_DECOUPLED_API)
-    add_subdirectory(decoupled_api)
-else()
-    add_subdirectory(legacy_api)
-endif()
+add_subdirectory(fused)
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)

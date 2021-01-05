@@ -13,10 +13,10 @@
 // limitations under the License.
 
 #include <vector>
-#include "dali/operators/decoder/nvjpeg/decoupled_api/fused/nvjpeg_decoder_crop.h"
+#include "dali/operators/decoder/nvjpeg/fused/nvjpeg_decoder_slice.h"
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(ImageDecoderCrop, nvJPEGDecoderCrop, Mixed);
+DALI_REGISTER_OPERATOR(ImageDecoderSlice, nvJPEGDecoderSlice, Mixed);
 
 }  // namespace dali
