@@ -278,7 +278,7 @@ Keyword Args
     Determines whether the external source should wait until data is available or just fail
     when the data is not available.
 
-`no_copy` : boo, optional
+`no_copy` : bool, optional
     Determines whether DALI should copy the buffer when feed_input is called.
 
     If set to True, DALI passes the user memory directly to the pipeline, instead of copying it.
