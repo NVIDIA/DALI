@@ -22,12 +22,20 @@
 namespace dali {
 
 DALI_SCHEMA(GridMask)
-    .DocStr("doc")
+    .DocStr(R"(Zeroes out pixels of an image in a grid-like fashion. The grid
+consists of squares repeating in x and y directions, with the same spacing in
+both directions. Can be rotated around the origin.)")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("tile", "doc", 100, true)
-    .AddOptionalArg("ratio", "doc", 0.5f, true)
-    .AddOptionalArg("angle", "doc", 0.0f, true);
+    .AddOptionalArg("tile", R"(The length of a single tile, which is equal to
+width of black squares plus the spacing between them.)",
+                    100, true)
+    .AddOptionalArg("ratio",
+                    "The ratio between black square width and tile width.",
+                    0.5f, true)
+    .AddOptionalArg("angle",
+                    "Angle, in radians, by which the grid is rotated.",
+                    0.0f, true);
 
 bool GridMaskCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                             const workspace_t<CPUBackend> &ws) {
