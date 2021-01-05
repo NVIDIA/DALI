@@ -41,8 +41,8 @@ class GridMaskCpu {
     float dy = sin(angle) / tile;
 
     for (int y = 0; y < in.shape[0]; y++) {
-      float fx = y * -sin(angle) / tile;
-      float fy = y * cos(angle) / tile;
+      float fx = y * -dy;
+      float fy = y * dx;
       for (int x = 0; x < in.shape[1]; x++) {
         auto m = (fx - floor(fx) >= ratio) || (fy - floor(fy) >= ratio);
         for (int c = 0; c < in.shape[2]; c++)
