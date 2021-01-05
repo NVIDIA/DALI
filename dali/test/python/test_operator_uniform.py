@@ -27,14 +27,13 @@ def test_uniform_default():
         pipe.set_outputs(dali.fn.uniform(shape=[1e6]))
     pipe.build()
     oo = pipe.run()
-    possibly_uniform_distribution = oo[0].as_array()[0]
+    data = oo[0].as_array()[0]
     # normalize to 0-1 range
-    possibly_uniform_distribution_kstest = (possibly_uniform_distribution + 1) / 2
-    _, pv = st.kstest(rvs=possibly_uniform_distribution_kstest, cdf='uniform')
-    assert pv > 0.05, "`possibly_uniform_distribution` is not a uniform distribution"
-    assert (-1 <= possibly_uniform_distribution).all() and \
-            (possibly_uniform_distribution < 1).all(), \
-                "Value returned from the op is outside of requested range"
+    data_kstest = (data + 1) / 2
+    _, pv = st.kstest(rvs=data_kstest, cdf='uniform')
+    assert pv > 0.03, "`data` is not a uniform distribution"
+    assert (-1 <= data).all() and (data < 1).all(), \
+        "Value returned from the op is outside of requested range"
 
 def test_uniform_continuous():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
@@ -47,14 +46,13 @@ def test_uniform_continuous():
         pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[1e6]))
     pipe.build()
     oo = pipe.run()
-    possibly_uniform_distribution = oo[0].as_array()[0]
+    data = oo[0].as_array()[0]
     # normalize to 0-1 range
-    possibly_uniform_distribution_kstest = (possibly_uniform_distribution - test_range[0]) / (test_range[1] - test_range[0])
-    _, pv = st.kstest(rvs=possibly_uniform_distribution_kstest, cdf='uniform')
-    assert pv > 0.05, "`possibly_uniform_distribution` is not a uniform distribution"
-    assert (test_range[0] <= possibly_uniform_distribution).all() and \
-            (possibly_uniform_distribution < test_range[1]).all(), \
-                "Value returned from the op is outside of requested range"
+    data_kstest = (data - test_range[0]) / (test_range[1] - test_range[0])
+    _, pv = st.kstest(rvs=data_kstest, cdf='uniform')
+    assert pv > 0.03, "`data` is not a uniform distribution"
+    assert (test_range[0] <= data).all() and (data < test_range[1]).all(), \
+        "Value returned from the op is outside of requested range"
 
 def test_uniform_continuous_next_after():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
@@ -68,9 +66,9 @@ def test_uniform_continuous_next_after():
         pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[1e6]))
     pipe.build()
     oo = pipe.run()
-    possibly_uniform_distribution = oo[0].as_array()[0]
-    assert (test_range[0] == possibly_uniform_distribution).all(), \
-                "Value returned from the op is outside of requested range"
+    data = oo[0].as_array()[0]
+    assert (test_range[0] == data).all(), \
+        "Value returned from the op is outside of requested range"
 
 def test_uniform_discrete():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
@@ -82,13 +80,13 @@ def test_uniform_discrete():
         pipe.set_outputs(dali.fn.uniform(values=test_set.tolist(), shape=[1e6]))
     pipe.build()
     oo = pipe.run()
-    possibly_uniform_distribution = oo[0].as_array()[0]
+    data = oo[0].as_array()[0]
     test_set_max = np.max(test_set)
     bins = np.concatenate([test_set, np.array([np.nextafter(test_set_max, test_set_max+1)])])
     bins.sort()
-    possibly_uniform_distribution_chisquare = np.histogram(possibly_uniform_distribution, bins=bins)[0]
-    _, pv = st.chisquare(possibly_uniform_distribution_chisquare)
-    assert pv > 0.05, "`possibly_uniform_distribution` is not a uniform distribution"
-    for val in possibly_uniform_distribution:
+    data_chisquare = np.histogram(data, bins=bins)[0]
+    _, pv = st.chisquare(data_chisquare)
+    assert pv > 0.03, "`data` is not a uniform distribution"
+    for val in data:
         assert val in test_set, \
             "Value returned from the op is outside of requested discrete set"
