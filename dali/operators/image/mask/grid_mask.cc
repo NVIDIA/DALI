@@ -55,15 +55,17 @@ void GridMaskCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   TYPE_SWITCH(input.type().id(), type2id, Type, TYPES, (
       {
           using Kernel = kernels::GridMaskCpu<Type>;
+          auto in_view = view<const Type>(input);
+          auto out_view = view<Type>(output);
           for (int sid = 0; sid < input.shape().num_samples(); sid++) {
             int tile = spec_.GetArgument<int>("tile", &ws, sid);
             float ratio = spec_.GetArgument<float>("ratio", &ws, sid);
             float angle = spec_.GetArgument<float>("angle", &ws, sid);
+            auto in_sample = in_view[sid];
+            auto out_sample = out_view[sid];
             tp.AddWork([&, sid](int tid) {
               kernels::KernelContext ctx;
-              auto tvin = view<const Type>(input[sid]);
-              auto tvout = view<Type>(output[sid]);
-              kernel_manager_.Run<Kernel>(tid, sid, ctx, tvout, tvin,
+              kernel_manager_.Run<Kernel>(tid, sid, ctx, out_sample, in_sample,
                 tile, ratio, angle);
             }, out_shape.tensor_size(sid));
           }
