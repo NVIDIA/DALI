@@ -61,11 +61,9 @@ def create_coco_pipeline(file_root,
                                                                     scaling=[0.3, 1.0],
                                                                     bbox_layout="xyXY",
                                                                     allow_no_crop=True,
-                                                                    num_attempts=1)
-        images = fn.image_decoder_slice(
-            images, crop_begin, crop_size, device="cpu", output_type=types.RGB)
+                                                                    num_attempts=50)
+        images = fn.image_decoder_slice(images, crop_begin, crop_size, device="mixed", output_type=types.RGB)
         flip_coin = fn.coin_flip(probability=0.5)
-        images = images.gpu()
         images = fn.resize(images,
                            resize_x=300,
                            resize_y=300,
@@ -75,20 +73,20 @@ def create_coco_pipeline(file_root,
         images = fn.hsv(images, dtype=types.FLOAT, hue=fn.uniform(range=[-0.5, 0.5]),
                         saturation=fn.uniform(range=[0.5, 1.5]))
 
-        images=fn.brightness_contrast(images,
-                                      contrast_center = 128,  # input is in float, but in 0..255 range
-                                      dtype = types.UINT8,
-                                      brightness = fn.uniform(range=[0.875, 1.125]),
-                                      contrast = fn.uniform(range=[0.5, 1.5]))
+        images = fn.brightness_contrast(images,
+                                        contrast_center = 128,  # input is in float, but in 0..255 range
+                                        dtype = types.UINT8,
+                                        brightness = fn.uniform(range=[0.875, 1.125]),
+                                        contrast = fn.uniform(range=[0.5, 1.5]))
 
-        bboxes=fn.bb_flip(bboxes, ltrb=True, horizontal=flip_coin)
-        images=fn.crop_mirror_normalize(images,
-                                        mean=[104., 117., 123.],
-                                        std=[1., 1., 1.],
-                                        mirror=flip_coin,
-                                        dtype=types.FLOAT,
-                                        output_layout="CHW",
-                                        pad_output=False)
+        bboxes = fn.bb_flip(bboxes, ltrb=True, horizontal=flip_coin)
+        images = fn.crop_mirror_normalize(images,
+                                          mean=[104., 117., 123.],
+                                          std=[1., 1., 1.],
+                                          mirror=flip_coin,
+                                          dtype=types.FLOAT,
+                                          output_layout="CHW",
+                                          pad_output=False)
 
         pipeline.set_outputs(images, bboxes, labels)
     return pipeline

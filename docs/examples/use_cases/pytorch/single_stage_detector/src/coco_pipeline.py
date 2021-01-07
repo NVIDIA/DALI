@@ -42,23 +42,18 @@ def create_coco_pipeline(default_boxes, args, seed):
 
         crop_begin, crop_size, bboxes, labels = fn.random_bbox_crop(bboxes, labels,
                                                                     device="cpu",
-                                                                    aspect_ratio=[
-                                                                        0.5, 2.0],
-                                                                    thresholds=[
-                                                                        0, 0.1, 0.3, 0.5, 0.7, 0.9],
-                                                                    scaling=[
-                                                                        0.3, 1.0],
+                                                                    aspect_ratio=[0.5, 2.0],
+                                                                    thresholds=[0, 0.1, 0.3, 0.5, 0.7, 0.9],
+                                                                    scaling=[0.3, 1.0],
                                                                     bbox_layout="xyXY",
                                                                     allow_no_crop=True,
-                                                                    num_attempts=1)
-        images = fn.image_decoder_slice(
-            images, crop_begin, crop_size, device="cpu", output_type=types.RGB)
+                                                                    num_attempts=50)
+        images = fn.image_decoder_slice(images, crop_begin, crop_size, device="mixed", output_type=types.RGB)
         flip_coin = fn.coin_flip(probability=0.5)
-        images = images.gpu()
         images = fn.resize(images,
-                            resize_x=300,
-                            resize_y=300,
-                            min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
+                           resize_x=300,
+                           resize_y=300,
+                           min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
 
         saturation = fn.uniform(range=[0.5, 1.5])
         contrast = fn.uniform(range=[0.5, 1.5])
@@ -67,30 +62,27 @@ def create_coco_pipeline(default_boxes, args, seed):
 
         images = fn.hsv(images, dtype=types.FLOAT, hue=hue, saturation=saturation)  # use float to avoid clipping and
                                                              # quantizing the intermediate result
-        images=fn.brightness_contrast(images,
-                        contrast_center = 128,  # input is in float, but in 0..255 range
-                        dtype = types.UINT8,
-                        brightness = brightness,
-                        contrast = contrast)
+        images = fn.brightness_contrast(images,
+                                        contrast_center = 128,  # input is in float, but in 0..255 range
+                                        dtype = types.UINT8,
+                                        brightness = brightness,
+                                        contrast = contrast)
 
-        dtype=types.FLOAT16 if args.fp16 else types.FLOAT
+        dtype = types.FLOAT16 if args.fp16 else types.FLOAT
 
-        bboxes=fn.bb_flip(bboxes,
-                            ltrb=True, horizontal=flip_coin)
-        images=fn.crop_mirror_normalize(images,
-                                        crop=(300, 300),
-                                        mean=[0.485 * 255, 0.456 * \
-                                            255, 0.406 * 255],
-                                        std=[0.229 * 255, 0.224 * \
-                                            255, 0.225 * 255],
-                                        mirror=flip_coin,
-                                        dtype=dtype,
-                                        output_layout="CHW",
-                                        pad_output=False)
+        bboxes = fn.bb_flip(bboxes, ltrb=True, horizontal=flip_coin)
+        images = fn.crop_mirror_normalize(images,
+                                          crop=(300, 300),
+                                          mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+                                          std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+                                          mirror=flip_coin,
+                                          dtype=dtype,
+                                          output_layout="CHW",
+                                          pad_output=False)
 
-        bboxes, labels=fn.box_encoder(bboxes, labels,
-            criteria=0.5,
-            anchors=default_boxes.as_ltrb_list())
+        bboxes, labels = fn.box_encoder(bboxes, labels,
+                                        criteria=0.5,
+                                        anchors=default_boxes.as_ltrb_list())
 
         labels=labels.gpu()
         bboxes=bboxes.gpu()

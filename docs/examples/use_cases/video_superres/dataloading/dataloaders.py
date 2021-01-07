@@ -25,7 +25,7 @@ def create_video_reader_pipeline(batch_size, sequence_length, num_threads, devic
                           crop_pos_x=fn.uniform(range=(0.0, 1.0)),
                           crop_pos_y=fn.uniform(range=(0.0, 1.0)))
 
-        images = fn.tanspose(images, perm=[3, 0, 1, 2])
+        images = fn.transpose(images, perm=[3, 0, 1, 2])
 
         pipeline.set_outputs(images)
     return pipeline

@@ -167,30 +167,30 @@ def main():
     FLAGS.whole_batch_size = FLAGS.world_size * FLAGS.batch_size
 
     pipe = create_dali_pipeline(batch_size=FLAGS.batch_size,
-                             num_threads=FLAGS.num_threads,
-                             device_id=FLAGS.device_id,
-                             data_dir=os.path.join(FLAGS.data, 'train'),
-                             crop=224,
-                             size=256,
-                             dali_cpu=False,
-                             shard_id=FLAGS.local_rank,
-                             num_shards=FLAGS.world_size,
-                             is_training=True)
+                                num_threads=FLAGS.num_threads,
+                                device_id=FLAGS.device_id,
+                                data_dir=os.path.join(FLAGS.data, 'train'),
+                                crop=224,
+                                size=256,
+                                dali_cpu=False,
+                                shard_id=FLAGS.local_rank,
+                                num_shards=FLAGS.world_size,
+                                is_training=True)
     pipe.build()
     sample_per_shard = pipe.epoch_size("Reader") // FLAGS.world_size
     train_loader = DALIClassificationIterator(pipe, reader_name="Reader")
 
     if FLAGS.local_rank == 0:
         pipe = create_dali_pipeline(batch_size=FLAGS.batch_size,
-                                num_threads=FLAGS.num_threads,
-                                device_id=FLAGS.device_id,
-                                data_dir=os.path.join(FLAGS.data, 'val'),
-                                crop=224,
-                                size=256,
-                                dali_cpu=False,
-                                shard_id=0,
-                                num_shards=1,
-                                is_training=False)
+                                    num_threads=FLAGS.num_threads,
+                                    device_id=FLAGS.device_id,
+                                    data_dir=os.path.join(FLAGS.data, 'val'),
+                                    crop=224,
+                                    size=256,
+                                    dali_cpu=False,
+                                    shard_id=0,
+                                    num_shards=1,
+                                    is_training=False)
         pipe.build()
         val_loader = DALIClassificationIterator(pipe, reader_name="Reader")
 

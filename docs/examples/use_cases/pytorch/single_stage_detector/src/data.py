@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 from src.utils import dboxes300_coco, COCODetection, SSDTransformer
 from src.coco import COCO
-from src.coco_pipeline import get_coco_pipeline
+from src.coco_pipeline import create_coco_pipeline
 from nvidia.dali.plugin.pytorch import DALIGenericIterator, LastBatchPolicy
 
 
@@ -61,7 +61,7 @@ def get_train_pytorch_loader(args, num_workers, default_boxes):
 
 
 def get_train_dali_loader(args, default_boxes, local_seed):
-    train_pipe = get_coco_pipeline(
+    train_pipe = create_coco_pipeline(
         default_boxes,
         args,
         seed=local_seed)
