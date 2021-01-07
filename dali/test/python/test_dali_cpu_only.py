@@ -255,7 +255,7 @@ def test_resize_crop_mirror_cpu():
     check_single_input(fn.resize_crop_mirror, crop = [5, 5], resize_shorter = 10)
 
 def test_normal_distribution_cpu():
-    check_no_input(fn.normal_distribution, shape = [5, 5])
+    check_no_input(fn.random.normal, shape = [5, 5])
 
 def test_one_hot_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
@@ -488,7 +488,7 @@ def test_ssd_random_crop_cpu():
     def get_boxes():
         out = [(np.random.randint(0, 255, size = test_box_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
         return out
-    test_lables_shape = [200, 1]
+    test_lables_shape = [200]
     def get_lables():
         out = [np.random.randint(0, 255, size = test_lables_shape, dtype = np.int32) for _ in range(batch_size)]
         return out

@@ -146,7 +146,7 @@ ToContiguousGPUMem(Scratchpad &scratchpad, cudaStream_t stream, const Collection
   detail::copy_to_buffer(tmp, &offsets[0], c...);
   void *out_ptr = scratchpad.Alloc(AllocType::GPU, total_size, alignment);
 
-  cudaMemcpyAsync(out_ptr, tmp, total_size, cudaMemcpyHostToDevice, stream);
+  CUDA_CALL(cudaMemcpyAsync(out_ptr, tmp, total_size, cudaMemcpyHostToDevice, stream));
   return detail::GetCollectionPtrs(out_ptr, &offsets[0], c...);
 }
 

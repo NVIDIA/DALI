@@ -33,27 +33,29 @@ class Paste : public Operator<Backend> {
   // 6 values: in_H, in_W, out_H, out_W, paste_y, paste_x
   static const int NUM_INDICES = 6;
 
-  explicit inline Paste(const OpSpec &spec) :
-    Operator<Backend>(spec),
-    C_(spec.GetArgument<int>("n_channels")) {
+  explicit Paste(const OpSpec &spec)
+      : Operator<Backend>(spec), C_(spec.GetArgument<int>("n_channels")) {
     // Kind of arbitrary, we need to set some limit here
     // because we use static shared memory for storing
     // fill value array
-    DALI_ENFORCE(C_ <= 1024,
-      "n_channels of more than 1024 is not supported");
+    DALI_ENFORCE(C_ <= 1024, "n_channels of more than 1024 is not supported");
     std::vector<uint8> rgb;
     GetSingleOrRepeatedArg(spec, rgb, "fill_value", C_);
     fill_value_.Copy(rgb, 0);
 
-    input_ptrs_.Resize({batch_size_});
-    output_ptrs_.Resize({batch_size_});
-    in_out_dims_paste_yx_.Resize({batch_size_ * NUM_INDICES});
+    input_ptrs_.reserve(max_batch_size_ * sizeof(uint8_t *));
+    output_ptrs_.reserve(max_batch_size_ * sizeof(uint8_t *));
+    in_out_dims_paste_yx_.reserve(max_batch_size_ * sizeof(uint8_t *) * NUM_INDICES);
   }
 
   virtual inline ~Paste() = default;
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+    input_ptrs_.Resize({curr_batch_size});
+    output_ptrs_.Resize({curr_batch_size});
+    in_out_dims_paste_yx_.Resize({curr_batch_size * NUM_INDICES});
     return false;
   }
 

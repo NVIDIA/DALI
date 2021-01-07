@@ -48,14 +48,14 @@ class RandomCropAttr {
 
     int64_t seed = spec.GetArgument<int64_t>("seed");
     std::seed_seq seq{seed};
-    int batch_size = spec.GetArgument<int>("batch_size");
-    DALI_ENFORCE(batch_size > 0, "batch_size should be greater than 0");
-    std::vector<int> seeds(batch_size);
+    int max_batch_size = spec.GetArgument<int>("max_batch_size");
+    DALI_ENFORCE(max_batch_size > 0, "max_batch_size should be greater than 0");
+    std::vector<int> seeds(max_batch_size);
     seq.generate(seeds.begin(), seeds.end());
 
-    crop_window_generators_.resize(batch_size);
+    crop_window_generators_.resize(max_batch_size);
 
-    for (int i = 0; i < batch_size; i++) {
+    for (int i = 0; i < max_batch_size; i++) {
       std::shared_ptr<RandomCropGenerator> random_crop_generator(
         new RandomCropGenerator(
           {aspect_ratio[0], aspect_ratio[1]}, {area[0], area[1]}, seeds[i], num_attempts));

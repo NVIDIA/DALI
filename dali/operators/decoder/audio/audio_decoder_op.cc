@@ -50,9 +50,9 @@ DALI_REGISTER_OPERATOR(AudioDecoder, AudioDecoderCpu, CPU);
 
 bool
 AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) {
-  GetPerSampleArgument<float>(target_sample_rates_, "sample_rate", ws);
   auto &input = ws.template InputRef<Backend>(0);
   const auto batch_size = input.shape().num_samples();
+  GetPerSampleArgument<float>(target_sample_rates_, "sample_rate", ws, batch_size);
 
   for (int i = 0; i < batch_size; i++) {
     DALI_ENFORCE(input.shape()[i].size() == 1, "Raw input must be 1D encoded byte data");

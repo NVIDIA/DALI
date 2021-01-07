@@ -57,8 +57,9 @@ class PreemphasisFilter : public Operator<Backend> {
   }
 
  protected:
-  void AcquireArguments(const ArgumentWorkspace &ws) {
-    this->GetPerSampleArgument(preemph_coeff_, detail::kCoeff, ws);
+  void AcquireArguments(const workspace_t<Backend> &ws) {
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+    this->GetPerSampleArgument(preemph_coeff_, detail::kCoeff, ws, curr_batch_size);
   }
 
   USE_OPERATOR_MEMBERS();

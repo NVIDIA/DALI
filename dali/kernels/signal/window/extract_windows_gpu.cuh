@@ -412,8 +412,8 @@ struct ExtractVerticalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
   void Run(KernelContext &ctx,
            const OutListGPU<Dst, 2> &out,
            const InListGPU<Src, 1> &in,
-           const InTensorGPU<float, 1> &window) {
-    size_t b = 0;
+           const InTensorGPU<float, 1> &window) override {
+    int b = 0;
     int nblocks = grid_dim.x;
 
     int N = in.num_samples();

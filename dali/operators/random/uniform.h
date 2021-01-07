@@ -57,11 +57,12 @@ class Uniform : public Operator<CPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
+    auto curr_batch_size = ws.GetRequestedBatchSize(0);
     output_desc[0].type = TypeTable::GetTypeInfo(DALI_FLOAT);
     if (spec_.ArgumentDefined("shape")) {
-      GetShapeArgument(output_desc[0].shape, spec_, "shape", ws, -1, batch_size_);
+      GetShapeArgument(output_desc[0].shape, spec_, "shape", ws, curr_batch_size);
     } else {
-      output_desc[0].shape = uniform_list_shape(batch_size_, TensorShape<0>());
+      output_desc[0].shape = uniform_list_shape(curr_batch_size, TensorShape<0>());
     }
     return true;
   }

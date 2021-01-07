@@ -284,7 +284,7 @@ class ExternalSource : public Operator<Backend> {
 
       std::list<uptr_cuda_event_type> copy_to_storage_event;
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
-      cudaEventRecord(*copy_to_storage_event.front(), stream);
+      CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), stream));
       copy_to_storage_events_.PushBack(copy_to_storage_event);
 
       if (zero_copy_noncontiguous_gpu_input_) {
@@ -327,7 +327,7 @@ class ExternalSource : public Operator<Backend> {
     tv_elm.front()->Copy(batch, stream);
     // if copying from GPU to CPU always synchronize
     if (std::is_same<SrcBackend, GPUBackend>::value) {
-      cudaStreamSynchronize(stream);
+      CUDA_CALL(cudaStreamSynchronize(stream));
     }
 
     {
@@ -353,11 +353,11 @@ class ExternalSource : public Operator<Backend> {
     // - GPU -> GPU
     // - pinned CPU -> GPU
     if (std::is_same<SrcBackend, GPUBackend>::value || batch.is_pinned()) {
-      cudaEventRecord(*copy_to_storage_event.front(), stream);
+      CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), stream));
     }
     // if copying from non pinned CPU it happens on the stream 0
     if (std::is_same<SrcBackend, CPUBackend>::value && !batch.is_pinned()) {
-      cudaEventRecord(*copy_to_storage_event.front(), 0);
+      CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), 0));
     }
     if (sync) {
       CUDA_CALL(cudaEventSynchronize(*copy_to_storage_event.front()));
@@ -377,13 +377,14 @@ class ExternalSource : public Operator<Backend> {
     bool is_gpu_src = std::is_same<SrcBackend, GPUBackend>::value;
     bool is_gpu_dst = std::is_same<Backend, GPUBackend>::value;
     if (is_gpu_src && !is_gpu_dst) {
-      DALI_WARN("Warning: Loading GPU-originated data into CPU "
-                "ExternalSource operator is discouraged and might be inefficient.");
+      DALI_WARN(
+          "Warning: Loading GPU-originated data into CPU ExternalSource operator is discouraged "
+          "and might be inefficient.");
     }
-    DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(batch.ntensor()),
-                 make_string("Data list provided to ExternalSource needs to have batch_size = ",
-                             OperatorBase::batch_size_, " length, found ", batch.ntensor(),
-                             " samples."));
+    DALI_ENFORCE(
+        OperatorBase::max_batch_size_ >= static_cast<int>(batch.ntensor()),
+        make_string("Data list provided to ExternalSource needs to have batch_size <= ",
+                    OperatorBase::max_batch_size_, ", found ", batch.ntensor(), " samples."));
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.

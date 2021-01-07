@@ -28,7 +28,7 @@ TEST(PipelineCommon, GetShapeLikeArgumentScalar) {
   spec.AddArg("size", 1.5f);
   vector<float> shape;
   int nsamples, D;
-  std::tie(nsamples, D) = GetShapeLikeArgument<float>(shape, spec, "size", ws, 3, 5);
+  std::tie(nsamples, D) = GetShapeLikeArgument<float>(shape, spec, "size", ws, 5, 3);
   EXPECT_EQ(D, 3);
   ASSERT_EQ(shape.size(), 15);
   for (size_t i = 0; i < 15; i++) {
@@ -40,25 +40,25 @@ TEST(PipelineCommon, GetShapeLikeArgumentScalar) {
 TEST(PipelineCommon, GetShapeLikeArgumentVector) {
   OpSpec spec("PipelineCommonTest");
   ArgumentWorkspace ws;
-  vector<float> src_shape = { -0.75f, 1, 2.75f, 3.25f };
+  vector<float> src_shape = {-0.75f, 1, 2.75f, 3.25f};
   spec.SetArg("size", src_shape);
-  spec.SetArg("batch_size", 3);
+  int max_batch_size = 3;
+  spec.SetArg("max_batch_size", max_batch_size);
 
   vector<float> shape;
   int nsamples, D;
-  std::tie(nsamples, D) = GetShapeLikeArgument<float>(shape, spec, "size", ws);
+  std::tie(nsamples, D) = GetShapeLikeArgument<float>(shape, spec, "size", ws, max_batch_size);
   EXPECT_EQ(D, 4);
   ASSERT_EQ(shape.size(), 12);
   for (int i = 0; i < 3; i++) {
-    for (int d = 0; d < 4; d++)
-      EXPECT_EQ(shape[i * 4 + d], src_shape[d]);
+    for (int d = 0; d < 4; d++) EXPECT_EQ(shape[i * 4 + d], src_shape[d]);
   }
 
   vector<int> ref_ishape = { -1, 1, 3, 3 };
   vector<int> ishape;
   spec.SetArg("size", src_shape);
   spec.SetArg("batch_size", 3);
-  std::tie(nsamples, D) = GetShapeLikeArgument<float>(ishape, spec, "size", ws);
+  std::tie(nsamples, D) = GetShapeLikeArgument<float>(ishape, spec, "size", ws, max_batch_size);
   EXPECT_EQ(D, 4);
   ASSERT_EQ(shape.size(), 12);
   for (int i = 0; i < 3; i++) {
@@ -81,13 +81,13 @@ TEST(PipelineCommon, GetShapeLikeArgumentInput) {
   for (int i = 0; i < D*N; i++)
     shape_data[i] = i * 1.1f;
 
-  spec.SetArg("batch_size", N);
+  spec.SetArg("max_batch_size", N);
   spec.AddArgumentInput("size", "size");
   ws.AddArgumentInput("size", input);
 
   vector<float> shape;
   int nsamples, out_d;
-  std::tie(nsamples, out_d) = GetShapeLikeArgument<float>(shape, spec, "size", ws, -1, -1);
+  std::tie(nsamples, out_d) = GetShapeLikeArgument<float>(shape, spec, "size", ws, N);
   EXPECT_EQ(out_d, D) << "Dimensionality should match the size of the tensors in the list.";
   ASSERT_EQ(shape.size(), N * D) << "Total size of the shape should be batch x ndim";
   for (int i = 0; i < N; i++) {
@@ -108,7 +108,7 @@ TEST(PipelineCommon, GetShapeLikeArgumentInput) {
   ws.AddArgumentInput("size", input);
 
   vector<int> ishape;
-  std::tie(nsamples, out_d) = GetShapeLikeArgument<float>(ishape, spec, "size", ws, D, -1);
+  std::tie(nsamples, out_d) = GetShapeLikeArgument<float>(ishape, spec, "size", ws, N, D);
   EXPECT_EQ(out_d, D) << "A list of scalars can be broadcast to any number of dimensions.";
   ASSERT_EQ(shape.size(), N * D) << "Total size of the shape should be batch x ndim";
   for (int i = 0; i < N; i++) {
@@ -118,7 +118,7 @@ TEST(PipelineCommon, GetShapeLikeArgumentInput) {
 
   shape.clear();
   // if the extent is not know, a list of scalars indicates 1D shapes
-  std::tie(nsamples, out_d) = GetShapeLikeArgument<float>(shape, spec, "size", ws, -1, -1);
+  std::tie(nsamples, out_d) = GetShapeLikeArgument<float>(shape, spec, "size", ws, N);
   EXPECT_EQ(out_d, 1) << "A list of scalars should be interpreted as a 1D shape";
   D = 1;
   ASSERT_EQ(shape.size(), N * D) << "Total size of the shape should be batch x ndim";

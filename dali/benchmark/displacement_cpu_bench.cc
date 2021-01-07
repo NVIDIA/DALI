@@ -66,7 +66,7 @@ void DisplacementBench(benchmark::State& st) {//NOLINT
   // but they are not used in this benchmark
   const int dummy_batch_size = 128;
   const int dummy_num_thread = 1;
-  op.AddArg("batch_size", dummy_batch_size).AddArg("num_threads", dummy_num_thread);
+  op.AddArg("max_batch_size", dummy_batch_size).AddArg("num_threads", dummy_num_thread);
 
   // Create Operator and pass its arguments via OpSpec
   // We get partially-specified OpSpec, added remaining arguments,

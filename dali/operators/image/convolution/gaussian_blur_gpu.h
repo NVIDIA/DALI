@@ -45,7 +45,7 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
   static constexpr int ndim = Kernel::ndim;
 
   explicit GaussianBlurOpGpu(const OpSpec& spec, const DimDesc& dim_desc)
-      : spec_(spec), batch_size_(spec.GetArgument<int>("batch_size")), dim_desc_(dim_desc) {}
+      : spec_(spec), dim_desc_(dim_desc) {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<GPUBackend>& ws) override {
     ctx_.gpu.stream = ws.stream();
@@ -108,7 +108,6 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
 
  private:
   OpSpec spec_;
-  int batch_size_ = 0;
   DimDesc dim_desc_;
 
   kernels::KernelManager kmgr_;

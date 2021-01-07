@@ -49,7 +49,7 @@ TYPED_TEST(DataLoadStoreTest, LMDBTest) {
   shared_ptr<dali::LMDBLoader> reader(
       new LMDBLoader(
           OpSpec("CaffeReader")
-          .AddArg("batch_size", 32)
+          .AddArg("max_batch_size", 32)
           .AddArg("path", testing::dali_extra_path() + "/db/c2lmdb/")
           .AddArg("device_id", 0)));
 
@@ -70,7 +70,7 @@ TYPED_TEST(DataLoadStoreTest, FileLabelLoaderMmmap) {
         new FileLabelLoader(
             OpSpec("FileReader")
             .AddArg("file_root", loader_test_image_folder)
-            .AddArg("batch_size", 32)
+            .AddArg("max_batch_size", 32)
             .AddArg("device_id", 0)
             .AddArg("dont_use_mmap", dont_use_mmap)));
 
@@ -89,7 +89,7 @@ TYPED_TEST(DataLoadStoreTest, RecordIOLoaderMmmap) {
             OpSpec("MXNetReader")
             .AddArg("path", path)
             .AddArg("index_path", index_path)
-            .AddArg("batch_size", 32)
+            .AddArg("max_batch_size", 32)
             .AddArg("device_id", 0)
             .AddArg("dont_use_mmap", dont_use_mmap)));
 
@@ -108,7 +108,7 @@ TYPED_TEST(DataLoadStoreTest, TFRecordLoaderMmmap) {
             OpSpec("TFRecordReader")
             .AddArg("path", path)
             .AddArg("index_path", index_path)
-            .AddArg("batch_size", 32)
+            .AddArg("max_batch_size", 32)
             .AddArg("device_id", 0)
             .AddArg("dont_use_mmap", dont_use_mmap)));
 
@@ -125,7 +125,7 @@ TYPED_TEST(DataLoadStoreTest, CocoLoaderMmmap) {
     auto coco_spec = OpSpec("COCOReader")
                       .AddArg("file_root", file_root)
                       .AddArg("annotations_file", annotations_file)
-                      .AddArg("batch_size", 32)
+                      .AddArg("max_batch_size", 32)
                       .AddArg("device_id", 0)
                       .AddArg("dont_use_mmap", dont_use_mmap);
     shared_ptr<dali::CocoLoader> reader(new CocoLoader(coco_spec));
@@ -140,7 +140,7 @@ TYPED_TEST(DataLoadStoreTest, LoaderTest) {
       new FileLabelLoader(
           OpSpec("FileReader")
           .AddArg("file_root", loader_test_image_folder)
-          .AddArg("batch_size", 32)
+          .AddArg("max_batch_size", 32)
           .AddArg("device_id", 0)));
 
   reader->PrepareMetadata();
@@ -157,7 +157,7 @@ TYPED_TEST(DataLoadStoreTest, LoaderTestFail) {
   shared_ptr<dali::FileLabelLoader> reader(
       new FileLabelLoader(OpSpec("FileReader")
                          .AddArg("file_root", loader_test_image_folder + "/does_not_exist")
-                         .AddArg("batch_size", 32)
+                         .AddArg("max_batch_size", 32)
                          .AddArg("device_id", 0)));
   ASSERT_THROW(reader->PrepareMetadata(), std::runtime_error);
 }
@@ -167,7 +167,7 @@ TYPED_TEST(DataLoadStoreTest, CachedLMDBTest) {
   shared_ptr<dali::LMDBLoader> reader(
       new LMDBLoader(
           OpSpec("CaffeReader")
-          .AddArg("batch_size", 32)
+          .AddArg("max_batch_size", 32)
           .AddArg("enable_cache", true)
           .AddArg("path", string(path))));
 

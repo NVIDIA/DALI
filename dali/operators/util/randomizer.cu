@@ -13,30 +13,31 @@
 // limitations under the License.
 
 #include "dali/operators/util/randomizer.cuh"
-
+#include "dali/core/cuda_stream.h"
 
 namespace dali {
 
+namespace detail {
+
 __global__
-void initializeStates(const int N, unsigned int seed, curandState *states) {
-  for (int idx = threadIdx.x + blockIdx.x * blockDim.x;
+void init_states(const size_t N, uint64_t seed, curandState *states) {
+  for (size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
        idx < N;
        idx += blockDim.x * gridDim.x) {
     curand_init(seed, idx, 0, &states[idx]);
   }
 }
 
-RandomizerGPU::RandomizerGPU(int seed, size_t len) {
-  len_ = len;
-  cudaGetDevice(&device_);
-  states_ = static_cast<curandState*>(GPUBackend::New(sizeof(curandState) * len, true));
-  initializeStates<<<div_ceil(len, block_size_), block_size_>>>
-                  (len_, seed, reinterpret_cast<curandState*>(states_));
-}
+}  // namespace detail
 
-void RandomizerGPU::Cleanup() {
-  DeviceGuard g(device_);
-  GPUBackend::Delete(states_, sizeof(curandState) * len_, true);
+curand_states::curand_states(uint64_t seed, size_t len) : len_(len) {
+  CUDAStream tmp_stream = CUDAStream::Create(true);
+  states_mem_ = kernels::memory::alloc_shared<curandState>(kernels::AllocType::GPU, len);
+  states_ = states_mem_.get();
+  static constexpr int kBlockSize = 256;
+  int grid = div_ceil(len_, kBlockSize);
+  detail::init_states<<<grid, kBlockSize, 0, tmp_stream>>>(len_, seed, states_);
+  cudaStreamSynchronize(tmp_stream);
 }
 
 }  // namespace dali

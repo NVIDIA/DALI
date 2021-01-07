@@ -113,7 +113,7 @@ TEST(NemoAsrLoaderTest, ParseNonAsciiTransript) {
 TEST(NemoAsrLoaderTest, WrongManifestPath) {
   auto spec = OpSpec("NemoAsrReader")
                   .AddArg("manifest_filepaths", std::vector<std::string>{"./wrong/file.txt"})
-                  .AddArg("batch_size", 32)
+                  .AddArg("max_batch_size", 32)
                   .AddArg("device_id", -1);
   NemoAsrLoader loader(spec);
   ASSERT_THROW(loader.PrepareMetadata(), std::runtime_error);
@@ -135,7 +135,7 @@ TEST(NemoAsrLoaderTest, ParseManifestContent) {
 
   auto spec = OpSpec("NemoAsrReader")
                   .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
-                  .AddArg("batch_size", 32)
+                  .AddArg("max_batch_size", 32)
                   .AddArg("device_id", -1);
 
   {
@@ -207,7 +207,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
                     .AddArg("downmix", false)
                     .AddArg("dtype", DALI_INT16)
                     .AddArg("num_threads", 4)
-                    .AddArg("batch_size", 32)
+                    .AddArg("max_batch_size", 32)
                     .AddArg("device_id", -1);
 
     NemoAsrLoader loader(spec);
@@ -234,7 +234,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
                     .AddArg("downmix", true)
                     .AddArg("dtype", DALI_FLOAT)
                     .AddArg("num_threads", 4)
-                    .AddArg("batch_size", 32)
+                    .AddArg("max_batch_size", 32)
                     .AddArg("device_id", -1);
 
     NemoAsrLoader loader(spec);
@@ -263,7 +263,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
                       .AddArg("sample_rate", sr_out)
                       .AddArg("dtype", DALI_FLOAT)
                       .AddArg("num_threads", 4)
-                      .AddArg("batch_size", 32)
+                      .AddArg("max_batch_size", 32)
                       .AddArg("device_id", -1);
       NemoAsrLoader loader(spec);
       loader.PrepareMetadata();
@@ -295,7 +295,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
                     .AddArg("sample_rate", static_cast<float>(sr_out))
                     .AddArg("dtype", DALI_INT16)
                     .AddArg("num_threads", 4)
-                    .AddArg("batch_size", 32)
+                    .AddArg("max_batch_size", 32)
                     .AddArg("device_id", -1);
       NemoAsrLoader loader(spec);
       loader.PrepareMetadata();
@@ -354,7 +354,7 @@ TEST(NemoAsrLoaderTest, ReadSample_OffsetAndDuration) {
           .AddArg("downmix", false)
           .AddArg("dtype", DALI_INT16)
           .AddArg("num_threads", 4)
-          .AddArg("batch_size", 32)
+          .AddArg("max_batch_size", 32)
           .AddArg("device_id", -1);
 
     NemoAsrLoader loader(spec);

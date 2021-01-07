@@ -31,9 +31,6 @@ void RandomResizedCrop<GPUBackend>::BackendInit() {
 template<>
 void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
-  DALI_ENFORCE(IsType<uint8>(input.type()),
-      "Expected input data as uint8.");
-
   auto &output = ws.Output<GPUBackend>(0);
   RunResize(ws, output, input);
   output.SetLayout(input.GetLayout());

@@ -45,7 +45,7 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
   inline void set_batch_size(int size) { batch_size_ = size; }
 
   inline OpSpec& PrepareSpec(OpSpec &spec) const {
-    spec.AddArg("batch_size", batch_size_)
+    spec.AddArg("max_batch_size", batch_size_)
       .AddArg("num_threads", num_threads_);
     return spec;
   }
@@ -374,14 +374,14 @@ TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
     HostWorkspace &hws = host_workspaces[0];
     ASSERT_EQ(hws.NumInput(), 0);
     ASSERT_EQ(hws.NumOutput(), 1);
-    ASSERT_EQ(hws.NumOutputAtIdx(0), this->batch_size_);
+    ASSERT_EQ(hws.GetRequestedBatchSize(0), this->batch_size_);
     ASSERT_TRUE(hws.OutputIsType<CPUBackend>(0));
 
     auto mixed_workspaces = this->MixedData(exe.get(), i);
     ASSERT_EQ(mixed_workspaces.size(), 1);
     MixedWorkspace &mws = mixed_workspaces[0];
     ASSERT_EQ(mws.NumInput(), 1);
-    ASSERT_EQ(mws.NumInputAtIdx(0), this->batch_size_);
+    ASSERT_EQ(mws.GetInputBatchSize(0), this->batch_size_);
     ASSERT_TRUE(mws.InputIsType<CPUBackend>(0));
     ASSERT_EQ(mws.NumOutput(), 1);
     ASSERT_TRUE(mws.OutputIsType<GPUBackend>(0));

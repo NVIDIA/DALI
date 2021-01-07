@@ -113,7 +113,7 @@ Parameters
                  *,
                  enable_memory_stats=False):
         self._sinks = []
-        self._batch_size = batch_size
+        self._max_batch_size = batch_size
         self._num_threads = num_threads
         if device_id is None:
             device_id = types.CPU_ONLY_DEVICE_ID
@@ -155,7 +155,7 @@ Parameters
     @property
     def batch_size(self):
         """Batch size."""
-        return self._batch_size
+        return self._max_batch_size
 
     @property
     def num_threads(self):
@@ -357,7 +357,7 @@ Parameters
 
     # Graph is constructed by backtracking from the output edges and the edges marked as sinks
     def _prepare_graph(self, define_graph = None):
-        self._pipe = b.Pipeline(self._batch_size,
+        self._pipe = b.Pipeline(self._max_batch_size,
                                 self._num_threads,
                                 self._device_id,
                                 self._seed,
@@ -562,7 +562,7 @@ Parameters
         # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
         if isinstance(data, (Tensors.TensorListCPU, Tensors.TensorListGPU)):
             if layout is not None:
-                _check_data_batch(data, self._batch_size, layout)
+                _check_data_batch(data, self._max_batch_size, layout)
                 data = type(data)(data, layout)
 
             self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
@@ -572,7 +572,7 @@ Parameters
             for datum in data:
                 info = CheckDLPackCapsule(datum)
                 if not info[0] and not checked:
-                    _check_data_batch(data, self._batch_size, layout)
+                    _check_data_batch(data, self._max_batch_size, layout)
                     checked = True
                 if isinstance(datum, (Tensors.TensorCPU, Tensors.TensorGPU)):
                     inp = type(datum)(datum, layout=layout) if layout is not None else datum
@@ -590,7 +590,7 @@ Parameters
         else:
             info = CheckDLPackCapsule(data)
             if not info[0]:
-                _check_data_batch(data, self._batch_size, layout)
+                _check_data_batch(data, self._max_batch_size, layout)
             if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
                 if infer_stream:
                     cuda_stream = _get_default_stream_for_array(data)
@@ -906,7 +906,7 @@ Parameters
                               Serialized pipeline.
         """
         self._pipe = b.Pipeline(serialized_pipeline,
-                                self._batch_size,
+                                self._max_batch_size,
                                 self._num_threads,
                                 self._device_id,
                                 self._exec_pipelined,
@@ -966,7 +966,7 @@ Parameters
             return
 
         for group in self._input_callbacks:
-            group.call_and_feed(self, self._batch_size)
+            group.call_and_feed(self, self._max_batch_size)
 
     def _iter_setup(self):
         self._run_input_callbacks()

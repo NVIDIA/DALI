@@ -23,7 +23,7 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
   size_t batch_size = input.ntensor();
   TypeInfo type = input.type();
 
-  for (int i = 0; i < input.ntensor(); ++i) {
+  for (size_t i = 0; i < input.ntensor(); ++i) {
     auto &sample = ws.Input<CPUBackend>(0, i);
     size_t sample_bytes = sample.nbytes();
     if (coalesced && sample_bytes > COALESCE_THRESHOLD)

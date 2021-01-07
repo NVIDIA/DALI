@@ -57,17 +57,12 @@ class BrightnessContrastOp : public Operator<Backend> {
 
  protected:
   explicit BrightnessContrastOp(const OpSpec &spec)
-        : Operator<Backend>(spec)
-        , output_type_arg_(spec.GetArgument<DALIDataType>("dtype"))
-        , output_type_(DALI_NO_TYPE)
-        , input_type_(DALI_NO_TYPE) {
+      : Operator<Backend>(spec),
+        output_type_arg_(spec.GetArgument<DALIDataType>("dtype")),
+        output_type_(DALI_NO_TYPE),
+        input_type_(DALI_NO_TYPE) {
     if (spec.HasArgument("contrast_center"))
       contrast_center_ = spec.GetArgument<float>("contrast_center");
-    if (std::is_same<Backend, GPUBackend>::value) {
-      kernel_manager_.Resize(1, 1);
-    } else {
-      kernel_manager_.Resize(num_threads_, batch_size_);
-    }
   }
 
   bool CanInferOutputs() const override {
@@ -95,15 +90,21 @@ class BrightnessContrastOp : public Operator<Backend> {
   }
 
   void AcquireArguments(const workspace_t<Backend> &ws) {
-    this->GetPerSampleArgument(brightness_, "brightness", ws);
-    this->GetPerSampleArgument(brightness_shift_, "brightness_shift", ws);
-    this->GetPerSampleArgument(contrast_, "contrast", ws);
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+    this->GetPerSampleArgument(brightness_, "brightness", ws, curr_batch_size);
+    this->GetPerSampleArgument(brightness_shift_, "brightness_shift", ws, curr_batch_size);
+    this->GetPerSampleArgument(contrast_, "contrast", ws, curr_batch_size);
 
     input_type_ = ws.template InputRef<Backend>(0).type().id();
-    output_type_ =
-        output_type_arg_ != DALI_NO_TYPE
-        ? output_type_arg_
-        : input_type_;
+    output_type_ = output_type_arg_ != DALI_NO_TYPE ? output_type_arg_ : input_type_;
+  }
+
+  void KMgrResize(int num_threads, int batch_size) {
+    if (std::is_same<Backend, GPUBackend>::value) {
+      kernel_manager_.Resize(1, 1);
+    } else {
+      kernel_manager_.Resize(num_threads, batch_size);
+    }
   }
 
   USE_OPERATOR_MEMBERS();

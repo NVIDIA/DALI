@@ -247,6 +247,44 @@ TEST_F(HwDecoderUtilizationTest, UtilizationTest) {
   EXPECT_EQ(nsamples_host, 0)
                 << "Image decoding malfuntion: all images should've been decoded by CUDA or HW";
 }
+
+class HwDecoderMemoryPoolTest : public ::testing::Test {
+ public:
+  void SetUp() final {
+    dali::string list_root(testing::dali_extra_path() + "/db/single/jpeg");
+
+    pipeline_.AddOperator(
+            OpSpec("FileReader")
+                    .AddArg("device", "cpu")
+                    .AddArg("file_root", list_root)
+                    .AddOutput("compressed_images", "cpu")
+                    .AddOutput("labels", "cpu"));
+    auto decoder_spec =
+            OpSpec("ImageDecoder")
+                    .AddArg("device", "mixed")
+                    .AddArg("output_type", DALI_RGB)
+                    .AddArg("hw_decoder_load", .7f)
+                    .AddArg("preallocate_width_hint", 400)
+                    .AddArg("preallocate_height_hint", 600)
+                    .AddInput("compressed_images", "cpu")
+                    .AddOutput("images", "gpu");
+    pipeline_.AddOperator(decoder_spec, decoder_name_);
+
+    pipeline_.Build(outputs_);
+  }
+
+
+  int batch_size_ = 47;
+  Pipeline pipeline_{batch_size_, 1, 0, -1, false, 2, false};
+  vector<std::pair<string, string>> outputs_ = {{"images", "gpu"}};
+  std::string decoder_name_ = "Lorem Ipsum";
+};
+
+
+TEST_F(HwDecoderMemoryPoolTest, MemoryPoolTest) {
+  this->pipeline_.RunCPU();
+  this->pipeline_.RunGPU();
+}
 #endif
 
 class Nvjpeg2kTest : public ::testing::Test {

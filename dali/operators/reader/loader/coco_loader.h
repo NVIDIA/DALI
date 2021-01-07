@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <unordered_set>
 #include <utility>
 
 #include "dali/operators/reader/loader/file_label_loader.h"
@@ -102,12 +103,20 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
     DALI_ENFORCE(has_preprocessed_annotations_ || spec.HasArgument("annotations_file"),
         "Either ``annotations_file`` or ``preprocessed_annotations`` must be provided");
     if (has_preprocessed_annotations_) {
-      for (const char* arg_name : {"annotations_file", "skip_empty", "ratio", "ltrb",
+      for (const char* arg_name : {"annotations_file", "skip_empty", "ratio", "ltrb", "images",
                                    "size_threshold", "dump_meta_files", "dump_meta_files_path"}) {
         if (spec.HasArgument(arg_name))
           DALI_FAIL(make_string("When reading data from preprocessed annotation files, \"",
                                 arg_name, "\" is not supported."));
       }
+    }
+
+    std::vector<std::string> images_vec;
+    if (spec.TryGetRepeatedArgument(images_vec, "images")) {
+      for (auto &image_path : images_vec) {
+        images_.insert(std::move(image_path));
+      }
+      images_vec.clear();
     }
 
     output_polygon_masks_ = OutPolygonMasksEnabled(spec);
@@ -225,6 +234,8 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
   bool output_pixelwise_masks_ = false;
   bool output_image_ids_ = false;
   bool has_preprocessed_annotations_ = false;
+
+  std::unordered_set<std::string> images_;
 };
 
 }  // namespace dali

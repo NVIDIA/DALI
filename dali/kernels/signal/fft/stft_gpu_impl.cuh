@@ -37,7 +37,7 @@ namespace fft {
 class StftImplGPU {
  public:
   StftImplGPU() = default;
-  StftImplGPU(StftImplGPU &&) = default;
+  StftImplGPU(StftImplGPU &&) = delete;
   StftImplGPU(const StftImplGPU &) = delete;
 
 

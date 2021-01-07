@@ -62,6 +62,7 @@ class Pad : public Operator<Backend> {
  private:
   void ReadArguments(const OpSpec &spec, const workspace_t<Backend> &ws) {
     const auto &input = ws.template InputRef<Backend>(0);
+    auto curr_batch_size = ws.GetInputBatchSize(0);
     auto in_shape = input.shape();
     auto in_layout = input.GetLayout();
     int ndim = in_shape.sample_dim();
@@ -82,10 +83,12 @@ class Pad : public Operator<Backend> {
       std::iota(axes_.begin(), axes_.end(), 0);
     }
 
-    if (spec.ArgumentDefined("shape"))
-      GetShapeArgument(shape_, spec, "shape", ws);
-    if (spec.ArgumentDefined("align"))
-      GetShapeArgument(align_, spec, "align", ws);
+    if (spec.ArgumentDefined("shape")) {
+      GetShapeArgument(shape_, spec, "shape", ws, curr_batch_size);
+    }
+    if (spec.ArgumentDefined("align")) {
+      GetShapeArgument(align_, spec, "align", ws, curr_batch_size);
+    }
 
     if (shape_.empty())
       shape_ = uniform_list_shape(nsamples, TensorShape<>(std::vector<int64_t>(axes_.size(), -1)));

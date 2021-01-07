@@ -23,6 +23,7 @@
 #include <queue>
 #include <vector>
 
+#include "dali/core/cuda_error.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 
 namespace dali {
@@ -284,7 +285,7 @@ struct SeparateQueuePolicy {
     if (stage == OpType::MIXED) {
       auto &command = cpu_release_commands_[idxs[OpType::CPU]];
       command = detail::ReleaseCommand{this, OpType::CPU, idxs[OpType::CPU]};
-      cudaStreamAddCallback(stage_stream, &detail::release_callback, &command, 0);
+      CUDA_CALL(cudaStreamAddCallback(stage_stream, &detail::release_callback, &command, 0));
     }
     {
       std::lock_guard<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);

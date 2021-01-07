@@ -19,8 +19,9 @@ namespace dali {
 
 void Uniform::AssignRange(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
+  auto curr_batch_size = ws.GetRequestedBatchSize(0);
   auto dist = std::uniform_real_distribution<float>(range_[0], range_[1]);
-  for (int i = 0; i < batch_size_; ++i) {
+  for (int i = 0; i < curr_batch_size; ++i) {
     auto *sample_data = output[i].mutable_data<float>();
     auto sample_len = output[i].size();
     for (int k = 0; k < sample_len; ++k) {
@@ -34,8 +35,9 @@ void Uniform::AssignRange(HostWorkspace &ws) {
 
 void Uniform::AssignSet(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
+  auto curr_batch_size = ws.GetRequestedBatchSize(0);
   auto dist = std::uniform_int_distribution<int>(0, set_.size() - 1);
-  for (int i = 0; i < batch_size_; ++i) {
+  for (int i = 0; i < curr_batch_size; ++i) {
     auto *sample_data = output[i].mutable_data<float>();
     auto sample_len = output[i].size();
     for (int k = 0; k < sample_len; ++k) {

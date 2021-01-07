@@ -26,13 +26,9 @@ class BatchPermutation : public Operator<CPUBackend> {
   explicit BatchPermutation(const OpSpec &spec)
   : Operator<CPUBackend>(spec), rng_(spec.GetArgument<int64_t>("seed")) {}
 
-  int GetBatchSize(const HostWorkspace &) {
-    return spec_.GetArgument<int>("batch_size");
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
-    output_desc[0].shape = TensorListShape<0>(GetBatchSize(ws));
+    output_desc[0].shape = TensorListShape<0>(ws.GetRequestedBatchSize(0));
     output_desc[0].type = TypeTable::GetTypeInfo(DALI_INT32);
     return true;
   }

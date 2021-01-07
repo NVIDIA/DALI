@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, DataNode
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.math as math
@@ -80,6 +80,9 @@ bench_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
                              ("cpu", "cpu", "const"), ("gpu", "gpu", "const")]
 
 unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
+
+math_function_operations = [((lambda x: math.exp(x)), (lambda x: np.exp(x)), "exp"),
+                            ((lambda x: math.log(x)), (lambda x: np.log(x)), "log")]
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x * y), "*"),
@@ -160,9 +163,15 @@ def div_promote(left_type, right_type):
     return float_bin_promote(left_dtype, right_dtype).type
 
 
-def int_generator(shape, type, no_zeros):
+def int_generator(shape, type, no_zeros, limited_range):
     iinfo = np.iinfo(type)
-    result = np.random.randint(iinfo.min / 2, iinfo.max / 2, shape, type)
+    if limited_range is not None:
+        low, high = limited_range
+        low = max(iinfo.min, low)
+        high = min(iinfo.max, high)
+    else:
+        low, high = iinfo.min / 2, iinfo.max / 2
+    result = np.random.randint(low, high, shape, type)
     zero_mask = result == 0
     if no_zeros:
         return result + zero_mask
@@ -175,13 +184,17 @@ def bool_generator(shape, no_zeros):
         return result | zero_mask
     return result
 
-def float_generator(shape, type, _):
-    if isinstance(shape, int):
-        return type(np.random.rand(shape))
-    elif len(shape) == 2:
-        return type(np.random.rand(*shape))
+def float_generator(shape, type, _, limited_range):
+    if limited_range is not None:
+        low, high = limited_range
     else:
-        return type([np.random.rand()])
+        low, high = 0., 1.
+    if isinstance(shape, int):
+        return type(low + np.random.rand(shape) * (high - low))
+    elif len(shape) == 2:
+        return type(low + np.random.rand(*shape) * (high - low))
+    else:
+        return type([low + np.random.rand() * (high - low)])
 
 # Generates inputs of required shapes and types
 # The number of inputs is based on the length of tuple `types`, if types is a single element
@@ -190,7 +203,7 @@ def float_generator(shape, type, _):
 # the "shape" of `kinds` arguments should match the `types` argument - single elements or tuples of
 # the same arity.
 class ExternalInputIterator(object):
-    def __init__(self, batch_size, shape, types, kinds, disallow_zeros = None):
+    def __init__(self, batch_size, shape, types, kinds, disallow_zeros=None, limited_range=None):
         try:
             self.length = len(types)
         except TypeError:
@@ -204,7 +217,7 @@ class ExternalInputIterator(object):
         self.gens = []
         self.shapes = []
         for i in range(self.length):
-            self.gens += [self.get_generator(self.types[i], disallow_zeros[i])]
+            self.gens += [self.get_generator(self.types[i], disallow_zeros[i], limited_range)]
             if "scalar" not in kinds[i]:
                 self.shapes += [shape]
             elif "scalar_legacy" in kinds[i]:
@@ -228,13 +241,13 @@ class ExternalInputIterator(object):
             out = out + (batch,)
         return out
 
-    def get_generator(self, type, no_zeros):
+    def get_generator(self, type, no_zeros, limited_range):
         if type == np.bool_:
             return lambda shape: bool_generator(shape, no_zeros)
         elif type in [np.float16, np.float32, np.float64]:
-            return lambda shape : float_generator(shape, type, no_zeros)
+            return lambda shape : float_generator(shape, type, no_zeros, limited_range)
         else:
-            return lambda shape : int_generator(shape, type, no_zeros)
+            return lambda shape : int_generator(shape, type, no_zeros, limited_range)
 
     next = __next__
 
@@ -330,6 +343,29 @@ def test_unary_arithmetic_ops():
                 if types_in != np.bool_:
                     yield check_unary_op, kinds, types_in, op, shape_small, op_desc
 
+def check_math_function_op(kind, type, op, np_op, shape, op_desc):
+    is_integer = type not in [np.float16, np.float32, np.float64]
+    if op_desc == "log":
+        limited_range = (1 if is_integer else 0.5, 20)
+    else:
+        limited_range = (-10, 10)
+    iterator = iter(ExternalInputIterator(batch_size, shape, type, kind, limited_range=limited_range))
+    pipe = ExprOpPipeline(kind, type, iterator, op, batch_size = batch_size, num_threads = 2,
+            device_id = 0)
+    pipe.build()
+    pipe_out = pipe.run()
+    out_type = np.float32 if is_integer else type
+    for sample in range(batch_size):
+        in_np, out = extract_un_data(pipe_out, sample, kind, out_type)
+        np.testing.assert_allclose(out, np_op(in_np.astype(out_type)),
+                rtol=1e-06 if type != np.float16 else 0.005)
+
+def test_math_function_ops():
+    for kinds in unary_input_kinds:
+        for (op, np_op, op_desc) in math_function_operations:
+            for types_in in input_types:
+                if types_in != np.bool_:
+                    yield check_math_function_op, kinds, types_in, op, np_op, shape_small, op_desc
 
 # Regular arithmetic ops that can be validated as straight numpy
 def check_arithm_op(kinds, types, op, shape, _):
@@ -542,8 +578,7 @@ def test_arithmetic_division():
                 yield check_arithm_div, kinds, types_in, shape_small
 
 
-@raises(RuntimeError)
-def check_raises(kinds, types, op, shape, _):
+def check_raises(kinds, types, op, shape):
     if isinstance(op, tuple):
         dali_op = op[0]
     else:
@@ -554,6 +589,15 @@ def check_raises(kinds, types, op, shape, _):
     pipe.build()
     pipe_out = pipe.run()
 
+@raises(RuntimeError)
+def check_raises_re(kinds, types, op, shape, _):
+    check_raises(kinds, types, op, shape)
+
+@raises(TypeError)
+def check_raises_te(kinds, types, op, shape, _):
+    check_raises(kinds, types, op, shape)
+
+
 # Arithmetic operations between booleans that are not allowed
 bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x / y), "/"), ((lambda x, y: x / y), "//")]
@@ -561,14 +605,23 @@ bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
 def test_bool_disallowed():
     for kinds in bin_input_kinds:
         for (op, op_desc) in bool_disallowed:
-            yield check_raises, kinds, (np.bool_, np.bool_), op, shape_small, op_desc
+            yield check_raises_re, kinds, (np.bool_, np.bool_), op, shape_small, op_desc
     for kinds in selected_ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
-            yield check_raises, kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc
+            yield check_raises_re, kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc
 
 def test_bitwise_disallowed():
     for kinds in bin_input_kinds:
         for (op, op_desc) in bitwise_operations:
             for types_in in itertools.product(selected_input_types, selected_input_types):
                 if types_in[0] in float_types or types_in[1] in float_types:
-                    yield check_raises, kinds, types_in, op, shape_small, op_desc
+                    yield check_raises_re, kinds, types_in, op, shape_small, op_desc
+
+def test_prohibit_min_max():
+    for kinds in bin_input_kinds:
+        for op, op_desc in [(min, "min"), (max, "max")]:
+                    yield check_raises_te, kinds,  (np.int32, np.int32), op, shape_small, op_desc
+
+@raises(TypeError)
+def test_bool_raises():
+    bool(DataNode("dummy"))
