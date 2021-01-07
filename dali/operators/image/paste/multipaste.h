@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,12 +42,13 @@ class MultiPasteOp : public Operator<Backend> {
       : Operator<Backend>(spec)
       , output_type_arg_(spec.GetArgument<DALIDataType>("dtype"))
       , output_type_(DALI_NO_TYPE)
-      , input_type_(DALI_NO_TYPE) {
+      , input_type_(DALI_NO_TYPE)
+      , no_intersections_(spec.GetArgument<bool>("no_intersections"))
+      , input_out_ids_(spec.GetArgument<bool>("input_out_ids"))  {
     if (std::is_same<Backend, GPUBackend>::value) {
-      // TODO(TheTimemaster): Should it be removed, while no GPU impl is ready?
       kernel_manager_.Resize(1, 1);
     } else {
-      kernel_manager_.Resize(num_threads_, batch_size_);
+      kernel_manager_.Resize(num_threads_, max_batch_size_);
     }
   }
 
@@ -56,8 +57,9 @@ class MultiPasteOp : public Operator<Backend> {
   }
 
   void AcquireArguments(const workspace_t<Backend> &ws) {
-    this->GetPerSampleArgument(output_width_, "output_width", ws);
-    this->GetPerSampleArgument(output_height_, "output_height", ws);
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+    this->GetPerSampleArgument(output_width_, "output_width", ws, curr_batch_size);
+    this->GetPerSampleArgument(output_height_, "output_height", ws, curr_batch_size);
 
     input_type_ = ws.template InputRef<Backend>(0).type().id();
     output_type_ =
@@ -72,6 +74,9 @@ class MultiPasteOp : public Operator<Backend> {
   std::vector<int> output_width_, output_height_;
 
   kernels::KernelManager kernel_manager_;
+
+  bool no_intersections_;
+  bool input_out_ids_;
 };
 
 

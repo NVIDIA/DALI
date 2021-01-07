@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,8 +36,7 @@ class PasteCpu {
  public:
   using Image = InTensorCPU<InputType, 3>;
   using OutImage = OutTensorCPU<OutputType>;
-  // TODO(TheTimemaster): Change MultiPaste to support InTensorCPU<const int, 1> as Coords;
-  using Coords = const int*;
+  using Coords = InTensorCPU<const int, 1>;
 
   KernelRequirements
   Setup(KernelContext &context, const OutTensorCPU<OutputType> &pasteFrom, const Coords &in_anchors,
@@ -52,15 +51,15 @@ class PasteCpu {
    *
    * @param out         Assumes, that memory is already allocated
    * @param pasteFrom   Input image data.
-   * @param in_anchors  Pointer to two integers denoting where the selected part starts.
-   * @param in_shapes   Pointer to two integers denoting what size is the selected part.
-   * @param out_anchors Pointer to two integers denoting where to paste selected part.
+   * @param in_anchors  1D int view denoting where the selected part starts.
+   * @param in_shapes   1D int view denoting what size is the selected part.
+   * @param out_anchors 1D int view denoting where to paste selected part.
    */
   void Run(KernelContext &context, const OutImage &out, const Image &pasteFrom,
            const Coords &in_anchors, const Coords &in_shapes, const Coords &out_anchors) {
-    copyRoi(out, pasteFrom, in_anchors[X_AXIS], in_anchors[Y_AXIS],
-            in_shapes[X_AXIS], in_shapes[Y_AXIS],
-            out_anchors[X_AXIS], out_anchors[Y_AXIS]);
+    copyRoi(out, pasteFrom, in_anchors.data[X_AXIS], in_anchors.data[Y_AXIS],
+            in_shapes.data[X_AXIS], in_shapes.data[Y_AXIS],
+            out_anchors.data[X_AXIS], out_anchors.data[Y_AXIS]);
   }
 
   void copyRoi(const OutTensorCPU<OutputType> &out, const Image &in, int inXAnchor, int inYAnchor,
