@@ -21,7 +21,7 @@ def create_video_reader_pipeline(batch_size, sequence_length, num_threads, devic
         images = fn.video_reader(device="gpu", filenames=files, sequence_length=sequence_length,
                                  normalized=False, random_shuffle=True, image_type=types.RGB,
                                  dtype=types.UINT8, initial_fill=16, pad_last_batch=True, name="Reader")
-        images = ops.crop(images, crop=crop_size, dtype=types.FLOAT,
+        images = fn.crop(images, crop=crop_size, dtype=types.FLOAT,
                           crop_pos_x=fn.uniform(range=(0.0, 1.0)),
                           crop_pos_y=fn.uniform(range=(0.0, 1.0)))
 
@@ -41,7 +41,7 @@ class DALILoader():
                                                      device_id=0,
                                                      files=container_files,
                                                      crop_size=crop_size)
-        pipeline.build()
+        self.pipeline.build()
         self.epoch_size = self.pipeline.epoch_size("Reader")
         self.dali_iterator = pytorch.DALIGenericIterator(self.pipeline,
                                                          ["data"],
