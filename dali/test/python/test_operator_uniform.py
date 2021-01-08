@@ -19,21 +19,22 @@ import numpy as np
 import scipy.stats as st
 import math
 
-
-
 def test_uniform_default():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
     with pipe:
         pipe.set_outputs(dali.fn.uniform(shape=[1e6]))
     pipe.build()
-    oo = pipe.run()
-    data = oo[0].as_array()[0]
-    # normalize to 0-1 range
-    data_kstest = (data + 1) / 2
-    _, pv = st.kstest(rvs=data_kstest, cdf='uniform')
-    assert pv > 0.03, "`data` is not a uniform distribution"
-    assert (-1 <= data).all() and (data < 1).all(), \
-        "Value returned from the op is outside of requested range"
+    pvs = []
+    for k in range(10):
+        oo = pipe.run()
+        data = oo[0].as_array()[0]
+        # normalize to 0-1 range
+        data_kstest = (data + 1) / 2
+        _, pv = st.kstest(rvs=data_kstest, cdf='uniform')
+        pvs = pvs + [pv]
+        assert (-1 <= data).all() and (data < 1).all(), \
+            "Value returned from the op is outside of requested range"
+    assert np.mean(pvs) > 0.05, f"`data` is not a uniform distribution: pv={np.mean(pvs)}"
 
 def test_uniform_continuous():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
@@ -45,14 +46,17 @@ def test_uniform_continuous():
     with pipe:
         pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[1e6]))
     pipe.build()
-    oo = pipe.run()
-    data = oo[0].as_array()[0]
-    # normalize to 0-1 range
-    data_kstest = (data - test_range[0]) / (test_range[1] - test_range[0])
-    _, pv = st.kstest(rvs=data_kstest, cdf='uniform')
-    assert pv > 0.03, "`data` is not a uniform distribution"
-    assert (test_range[0] <= data).all() and (data < test_range[1]).all(), \
-        "Value returned from the op is outside of requested range"
+    pvs = []
+    for k in range(10):
+        oo = pipe.run()
+        data = oo[0].as_array()[0]
+        # normalize to 0-1 range
+        data_kstest = (data - test_range[0]) / (test_range[1] - test_range[0])
+        _, pv = st.kstest(rvs=data_kstest, cdf='uniform')
+        pvs = pvs + [pv]
+        assert (test_range[0] <= data).all() and (data < test_range[1]).all(), \
+            "Value returned from the op is outside of requested range"
+    assert np.mean(pvs) > 0.05, f"`data` is not a uniform distribution: pv={np.mean(pvs)}"
 
 def test_uniform_continuous_next_after():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
@@ -79,14 +83,17 @@ def test_uniform_discrete():
     with pipe:
         pipe.set_outputs(dali.fn.uniform(values=test_set.tolist(), shape=[1e6]))
     pipe.build()
-    oo = pipe.run()
-    data = oo[0].as_array()[0]
-    test_set_max = np.max(test_set)
-    bins = np.concatenate([test_set, np.array([np.nextafter(test_set_max, test_set_max+1)])])
-    bins.sort()
-    data_chisquare = np.histogram(data, bins=bins)[0]
-    _, pv = st.chisquare(data_chisquare)
-    assert pv > 0.03, "`data` is not a uniform distribution"
-    for val in data:
-        assert val in test_set, \
-            "Value returned from the op is outside of requested discrete set"
+    pvs = []
+    for k in range(10):
+        oo = pipe.run()
+        data = oo[0].as_array()[0]
+        test_set_max = np.max(test_set)
+        bins = np.concatenate([test_set, np.array([np.nextafter(test_set_max, test_set_max+1)])])
+        bins.sort()
+        data_chisquare = np.histogram(data, bins=bins)[0]
+        _, pv = st.chisquare(data_chisquare)
+        pvs = pvs + [pv]
+        for val in data:
+            assert val in test_set, \
+                "Value returned from the op is outside of requested discrete set"
+    assert np.mean(pvs) > 0.05, f"`data` is not a uniform distribution: pv={np.mean(pvs)}"
