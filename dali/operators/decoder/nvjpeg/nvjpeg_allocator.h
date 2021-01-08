@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_ALLOCATOR_H_
-#define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_ALLOCATOR_H_
+#ifndef DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_ALLOCATOR_H_
+#define DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_ALLOCATOR_H_
 
 
 #include <cuda_runtime_api.h>
@@ -131,4 +131,4 @@ class ChunkPinnedAllocator {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_ALLOCATOR_H_
+#endif  // DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_ALLOCATOR_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_SLICE_H_
-#define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_SLICE_H_
+#ifndef DALI_OPERATORS_DECODER_NVJPEG_FUSED_NVJPEG_DECODER_CPU_SLICE_H_
+#define DALI_OPERATORS_DECODER_NVJPEG_FUSED_NVJPEG_DECODER_CPU_SLICE_H_
 
 #include <vector>
 #include "dali/operators/decoder/nvjpeg/nvjpeg_decoder_cpu.h"
@@ -47,4 +47,4 @@ class nvJPEGDecoderCPUStageSlice : public nvJPEGDecoderCPUStage {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_SLICE_H_
+#endif  // DALI_OPERATORS_DECODER_NVJPEG_FUSED_NVJPEG_DECODER_CPU_SLICE_H_

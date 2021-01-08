@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_RANDOM_CROP_H_
-#define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_RANDOM_CROP_H_
+#ifndef DALI_OPERATORS_DECODER_NVJPEG_FUSED_NVJPEG_DECODER_CPU_RANDOM_CROP_H_
+#define DALI_OPERATORS_DECODER_NVJPEG_FUSED_NVJPEG_DECODER_CPU_RANDOM_CROP_H_
 
 #include "dali/operators/decoder/nvjpeg/nvjpeg_decoder_cpu.h"
 #include "dali/operators/image/crop/random_crop_attr.h"
@@ -37,4 +37,4 @@ class nvJPEGDecoderCPUStageRandomCrop : public nvJPEGDecoderCPUStage, public Ran
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_RANDOM_CROP_H_
+#endif  // DALI_OPERATORS_DECODER_NVJPEG_FUSED_NVJPEG_DECODER_CPU_RANDOM_CROP_H_

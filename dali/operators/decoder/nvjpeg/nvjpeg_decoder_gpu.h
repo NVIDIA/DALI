@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_DECODER_GPU_H_
-#define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_DECODER_GPU_H_
+#ifndef DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_DECODER_GPU_H_
+#define DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_DECODER_GPU_H_
 
 #include <functional>
 #include <utility>
@@ -175,4 +175,4 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_DECODER_GPU_H_
+#endif  // DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_DECODER_GPU_H_
