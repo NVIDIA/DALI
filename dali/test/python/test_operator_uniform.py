@@ -22,10 +22,10 @@ import math
 def test_uniform_default():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
     with pipe:
-        pipe.set_outputs(dali.fn.uniform(shape=[1e6]))
+        pipe.set_outputs(dali.fn.uniform(shape=[100]))
     pipe.build()
     pvs = []
-    for k in range(10):
+    for __ in range(10):
         oo = pipe.run()
         data = oo[0].as_array()[0]
         # normalize to 0-1 range
@@ -44,10 +44,10 @@ def test_uniform_continuous():
     test_range.sort()
     test_range = test_range.astype('float32')
     with pipe:
-        pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[1e6]))
+        pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[100]))
     pipe.build()
     pvs = []
-    for k in range(10):
+    for __ in range(10):
         oo = pipe.run()
         data = oo[0].as_array()[0]
         # normalize to 0-1 range
@@ -67,7 +67,7 @@ def test_uniform_continuous_next_after():
     test_range = test_range.astype('float32')
     with pipe:
         test_range[1] = np.nextafter(test_range[0], test_range[1])
-        pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[1e6]))
+        pipe.set_outputs(dali.fn.uniform(range=test_range.tolist(), shape=[1e5]))
     pipe.build()
     oo = pipe.run()
     data = oo[0].as_array()[0]
@@ -81,10 +81,10 @@ def test_uniform_discrete():
     test_set = (hi - lo) * np.random.random_sample(10) + lo  # 10 elems from [-100, 100] range
     test_set = test_set.astype('float32')
     with pipe:
-        pipe.set_outputs(dali.fn.uniform(values=test_set.tolist(), shape=[1e6]))
+        pipe.set_outputs(dali.fn.uniform(values=test_set.tolist(), shape=[100]))
     pipe.build()
     pvs = []
-    for k in range(10):
+    for __ in range(10):
         oo = pipe.run()
         data = oo[0].as_array()[0]
         test_set_max = np.max(test_set)
