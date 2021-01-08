@@ -38,32 +38,47 @@ test_data = {
 images = list(test_data.keys())
 expected_ids = list(test_data.values())
 
-def test_operator_coco_reader():
-    with tempfile.TemporaryDirectory() as annotations_dir:
-        pipeline = Pipeline(batch_size=2, num_threads=4, device_id=0)
-        with pipeline:
-            inputs, _, _, ids = fn.coco_reader(
-                file_root=file_root,
-                annotations_file=train_annotations,
-                image_ids=True,
-                images=images,
-                save_preprocessed_annotations=True,
-                save_preprocessed_annotations_dir=annotations_dir)
-            pipeline.set_outputs(ids)
-        pipeline.build()
+def test_operator_coco_reader_custom_order():
+    custom_orders = [
+        None,  # natural order
+        [0, 2, 4, 6, 1, 3, 5, 7],  # altered order
+        [0, 1, 2, 3, 2, 1, 4, 1, 5, 2, 6, 7],  # with repetitions
+        ]
 
-        i = 0
-        while i < len(images):
-            out = pipeline.run()
-            assert out[0].at(0) == expected_ids[i]
-            assert out[0].at(1) == expected_ids[i + 1]
-            i = i + 2
+    def check_operator_coco_reader_custom_order(order=None):
+        if not order:
+            order = range(len(test_data))
+        keys = list(test_data.keys())
+        values = list(test_data.values())
+        images = [keys[i] for i in order]
+        expected_ids = [values[i] for i in order]
+        with tempfile.TemporaryDirectory() as annotations_dir:
+            pipeline = Pipeline(batch_size=2, num_threads=4, device_id=0)
+            with pipeline:
+                inputs, _, _, ids = fn.coco_reader(
+                    file_root=file_root,
+                    annotations_file=train_annotations,
+                    image_ids=True,
+                    images=images,
+                    save_preprocessed_annotations=True,
+                    save_preprocessed_annotations_dir=annotations_dir)
+                pipeline.set_outputs(ids)
+            pipeline.build()
 
-        filenames_file = os.path.join(annotations_dir, 'filenames.dat')
-        with open(filenames_file) as f:
-            lines = f.read().splitlines()
-        assert lines.sort() == images.sort()
+            i = 0
+            while i < len(images):
+                out = pipeline.run()
+                assert out[0].at(0) == expected_ids[i]
+                assert out[0].at(1) == expected_ids[i + 1]
+                i = i + 2
 
+            filenames_file = os.path.join(annotations_dir, 'filenames.dat')
+            with open(filenames_file) as f:
+                lines = f.read().splitlines()
+            assert lines.sort() == images.sort()
+
+    for order in custom_orders:
+        yield check_operator_coco_reader_custom_order, order
 
 def test_operator_coco_reader_same_images():
     file_root = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'images')
