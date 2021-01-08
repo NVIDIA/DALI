@@ -25,14 +25,14 @@ file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
 train_annotations = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 
 test_data = {
-    'car-race-438467_1280.jpg' : 0,
-    'clock-1274699_1280.jpg' : 5,
-    'kite-1159538_1280.jpg' : 6,
-    'cow-234835_1280.jpg' : 17,
-    'home-office-336378_1280.jpg' : 21,
-    'suit-2619784_1280.jpg' : 39,
-    'business-suit-690048_1280.jpg' : 41,
-    'car-604019_1280.jpg' : 59
+    'car-race-438467_1280.jpg' : 17,
+    'clock-1274699_1280.jpg' : 6,
+    'kite-1159538_1280.jpg' : 21,
+    'cow-234835_1280.jpg' : 59,
+    'home-office-336378_1280.jpg' : 39,
+    'suit-2619784_1280.jpg' : 0,
+    'business-suit-690048_1280.jpg' : 5,
+    'car-604019_1280.jpg' : 41
 }
 
 images = list(test_data.keys())
@@ -63,6 +63,7 @@ def test_operator_coco_reader():
         with open(filenames_file) as f:
             lines = f.read().splitlines()
         assert lines.sort() == images.sort()
+
 
 def test_operator_coco_reader_same_images():
     file_root = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'images')

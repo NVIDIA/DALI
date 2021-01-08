@@ -127,8 +127,11 @@ instance of an object is lower than this value, the object will be ignored.)code
       false)
   .AddOptionalArg<vector<string>>("images", R"code(A list of image paths.
 
-If specified, it acts as a filter for the file paths present in the annotation file.
-If left unspecified or set to None, all images listed in the annotation file are read.
+If specified, it acts as a filter for the file paths present in the annotation file, which will be
+read in the same order as they appear in the list.
+
+If left unspecified or set to None, all images listed in the annotation file are read, the order
+being determined by the image ids.
 
 The paths to be kept should match those in the annotations file.
 

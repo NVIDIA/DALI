@@ -14,6 +14,7 @@
 
 #include <map>
 #include <unordered_set>
+#include <unordered_map>
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -486,36 +487,60 @@ void CocoLoader::ParseJsonAnnotations() {
   detail::ParseJsonFile(spec_, image_infos, annotations, category_ids,
                         parse_segmentation, output_pixelwise_masks_);
 
-  if (!images_.empty()) {  // Filter for image files was provided.
-    std::unordered_set<int> ids_to_keep;
+  if (!images_.empty()) {
+    std::unordered_map<std::string, detail::ImageInfo*> image_info_map;
+    std::unordered_map<int, size_t> custom_order;
+
+    for (const auto &filename : images_) {
+      image_info_map[filename] = nullptr;
+    }
+    for (auto &info : image_infos) {
+      auto it = image_info_map.find(info.filename_);
+      if (it != image_info_map.end()) {
+        it->second = &info;
+      }
+    }
+
+    size_t idx = 0;
+    for (const auto &filename : images_) {
+      auto *info = image_info_map[filename];
+      custom_order[info->original_id_] = idx++;
+    }
+
     image_infos.erase(
-      std::remove_if(image_infos.begin(), image_infos.end(),
+      std::remove_if(
+        image_infos.begin(), image_infos.end(),
         [&](const detail::ImageInfo &info) {
-          if (images_.find(info.filename_) == images_.end()) {
-            return true;
-          } else {
-            ids_to_keep.insert(info.original_id_);
-            return false;
-          }
-        }), image_infos.end());
+          return custom_order.find(info.original_id_) ==
+                custom_order.end();
+        }),
+      image_infos.end());
 
     annotations.erase(
-      std::remove_if(annotations.begin(), annotations.end(),
+      std::remove_if(
+        annotations.begin(), annotations.end(),
         [&](const detail::Annotation &annotation) {
-          return ids_to_keep.find(annotation.image_id_) == ids_to_keep.end();
-        }), annotations.end());
+          return custom_order.find(annotation.image_id_) == custom_order.end();
+        }),
+      annotations.end());
+
+    std::sort(image_infos.begin(), image_infos.end(), [&](auto &left, auto &right) {
+      return custom_order[left.original_id_] < custom_order[right.original_id_];
+    });
+    std::stable_sort(annotations.begin(), annotations.end(), [&](auto &left, auto &right) {
+      return custom_order[left.image_id_] < custom_order[right.image_id_];
+    });
+  } else {
+    std::sort(image_infos.begin(), image_infos.end(), [&](auto &left, auto &right) {
+      return left.original_id_ < right.original_id_;
+    });
+    std::stable_sort(annotations.begin(), annotations.end(), [&](auto &left, auto &right) {
+      return left.image_id_ < right.image_id_;
+    });
   }
 
   bool skip_empty = spec_.GetArgument<bool>("skip_empty");
   bool ratio = spec_.GetArgument<bool>("ratio");
-
-  std::sort(image_infos.begin(), image_infos.end(), [](auto &left, auto &right) {
-    return left.original_id_ < right.original_id_;
-  });
-
-  std::stable_sort(annotations.begin(), annotations.end(), [](auto &left, auto &right) {
-    return left.image_id_ < right.image_id_;
-  });
 
   detail::Annotation sentinel;
   sentinel.image_id_ = -1;

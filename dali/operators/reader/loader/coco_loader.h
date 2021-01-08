@@ -111,14 +111,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
       }
     }
 
-    std::vector<std::string> images_vec;
-    if (spec.TryGetRepeatedArgument(images_vec, "images")) {
-      for (auto &image_path : images_vec) {
-        images_.insert(std::move(image_path));
-      }
-      images_vec.clear();
-    }
-
+    spec.TryGetRepeatedArgument(images_, "images");
     output_polygon_masks_ = OutPolygonMasksEnabled(spec);
     output_pixelwise_masks_ = OutPixelwiseMasksEnabled(spec);
     output_image_ids_ = OutImageIdsEnabled(spec);
@@ -235,7 +228,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
   bool output_image_ids_ = false;
   bool has_preprocessed_annotations_ = false;
 
-  std::unordered_set<std::string> images_;
+  std::vector<std::string> images_;
 };
 
 }  // namespace dali
