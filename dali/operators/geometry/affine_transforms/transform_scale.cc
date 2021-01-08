@@ -101,9 +101,6 @@ class TransformScaleCPU
     } else {
       ndim_ = 1;
     }
-    DALI_ENFORCE(scale_ndim == ndim_ || scale_ndim == 1,
-      make_string("Number of dimensions ", ndim_, " is not compatible with the "
-      "number of elements in `scale` argument ", scale_ndim));
 
     if (center_.IsDefined()) {
       center_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
