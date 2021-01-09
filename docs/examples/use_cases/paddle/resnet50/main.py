@@ -205,14 +205,12 @@ def main():
     pipe = HybridTrainPipe()
     pipe.build()
     sample_per_shard = len(pipe) // FLAGS.world_size
-    train_loader = DALIClassificationIterator(pipe, reader_name="Reader",
-                                              last_batch_policy=LastBatchPolicy.PARTIAL)
+    train_loader = DALIClassificationIterator(pipe, reader_name="Reader")
 
     if FLAGS.local_rank == 0:
         pipe = HybridValPipe()
         pipe.build()
-        val_loader = DALIClassificationIterator(pipe, reader_name="Reader",
-                                                last_batch_policy=LastBatchPolicy.PARTIAL)
+        val_loader = DALIClassificationIterator(pipe, reader_name="Reader")
 
     place = fluid.CUDAPlace(FLAGS.device_id)
     exe = fluid.Executor(place)

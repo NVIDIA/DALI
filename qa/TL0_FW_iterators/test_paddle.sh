@@ -1,7 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-# rarfile>= 3.2 breaks python 3.5 compatibility
-pip_packages="nose numpy opencv-python paddle rarfile<=3.1"
+pip_packages="nose numpy opencv-python paddlepaddle-gpu"
 target_dir=./dali/test/python
 
 one_config_only=true
