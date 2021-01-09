@@ -43,6 +43,7 @@ bool GridMaskCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &input = ws.template InputRef<CPUBackend>(0);
   const auto &output = ws.template OutputRef<CPUBackend>(0);
   output_desc.resize(1);
+  GetArguments(ws);
   output_desc[0] = {input.shape(), input.type()};
   kernel_manager_.Resize(num_threads_, max_batch_size_);
   TYPE_SWITCH(input.type().id(), type2id, Type, TYPES, (
@@ -67,20 +68,17 @@ void GridMaskCpu::RunImpl(workspace_t<CPUBackend> &ws) {
           auto in_view = view<const Type>(input);
           auto out_view = view<Type>(output);
           for (int sid = 0; sid < input.shape().num_samples(); sid++) {
-            int tile = spec_.GetArgument<int>("tile", &ws, sid);
-            float ratio = spec_.GetArgument<float>("ratio", &ws, sid);
-            float angle = spec_.GetArgument<float>("angle", &ws, sid);
             auto in_sample = in_view[sid];
             auto out_sample = out_view[sid];
             tp.AddWork([&, sid](int tid) {
               kernels::KernelContext ctx;
-              kernel_manager_.Run<Kernel>(tid, sid, ctx, out_sample, in_sample,
-                tile, ratio, angle);
+              kernel_manager_.Run<Kernel>(tid, sid, ctx, out_view[sid], in_view[sid],
+                tile_[sid], ratio_[sid], angle_[sid]);
             }, out_shape.tensor_size(sid));
           }
+          tp.RunAll();
       }
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id()))) // NOLINT
-  tp.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(GridMask, GridMaskCpu, CPU);

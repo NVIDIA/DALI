@@ -29,6 +29,15 @@ class GridMask : public Operator<Backend> {
 
  protected:
   bool CanInferOutputs() const override { return true; }
+  void GetArguments(const workspace_t<Backend> &ws) {
+    int batch_size = ws.GetInputBatchSize(0);
+    this->GetPerSampleArgument(tile_, "tile", ws, batch_size);
+    this->GetPerSampleArgument(ratio_, "ratio", ws, batch_size);
+    this->GetPerSampleArgument(angle_, "angle", ws, batch_size);
+  }
+  std::vector<int> tile_;
+  std::vector<float> ratio_;
+  std::vector<float> angle_;
   kernels::KernelManager kernel_manager_;
 };
 
