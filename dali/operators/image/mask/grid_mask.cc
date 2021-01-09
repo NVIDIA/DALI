@@ -22,7 +22,8 @@
 namespace dali {
 
 DALI_SCHEMA(GridMask)
-    .DocStr(R"(Zeroes out pixels of an image in a grid-like fashion. The grid
+    .DocStr(R"(Performs the gridmask augumentation (https://arxiv.org/abs/2001.04086).
+Zeroes out pixels of an image in a grid-like fashion. The grid
 consists of squares repeating in x and y directions, with the same spacing in
 both directions. Can be rotated around the origin.)")
     .NumInput(1)
