@@ -1,8 +1,7 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy tensorflow-gpu"
+pip_packages="paddlepaddle-gpu"
 target_dir=./dali/test/python
-
 one_config_only=true
 
 do_once() {
@@ -10,11 +9,9 @@ do_once() {
 }
 
 test_body() {
-    for fw in "tf"; do
+    for fw in "paddle"; do
         python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
-            --workers 3 --prefetch 2 -i 100 --epochs 2
-        python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
-            --workers 3 --prefetch 2 -i 2 --epochs 2 --fp16
+            --workers 3 --prefetch 2 --epochs 3
     done
 }
 

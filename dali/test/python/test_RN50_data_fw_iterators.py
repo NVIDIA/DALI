@@ -165,7 +165,7 @@ def test_fw_iter(IteratorClass, args):
                         .format(iterator_name, j + 1, iters, data_time.avg, data_time.max_val, args.gpus * args.batch_size / data_time.avg))
                 end = time.time()
         else:
-            dali_train_iter = IteratorClass(pipes, pipes[0].epoch_size("Reader"))
+            dali_train_iter = IteratorClass(pipes, reader_name="Reader")
             j = 0
             for it in iter(dali_train_iter):
                 data_time.update(time.time() - end)
