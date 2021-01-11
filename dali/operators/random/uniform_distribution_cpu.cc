@@ -22,7 +22,7 @@ DALI_SCHEMA(random__Uniform)
     .DocStr(R"code(Generates random numbers following a uniform distribution.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the input, if provided. If none are present, a single number is
+or chosen to match the shape of the input, if provided. If none are present, a scalar is
 generated.
 )code")
     .NumInput(0, 1)
@@ -46,7 +46,7 @@ DALI_SCHEMA(Uniform)
     .DocStr(R"code(Generates random numbers following a uniform distribution.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the input, if provided. If none are present, a single number is
+or chosen to match the shape of the input, if provided. If none are present, a scalar is
 generated.
 )code")
     .NumInput(0, 1)

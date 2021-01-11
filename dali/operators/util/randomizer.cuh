@@ -64,51 +64,35 @@ struct curand_normal_dist<double> {
   }
 };
 
-
 template <typename T>
-struct curand_uniform_dist;
+struct curand_uniform_dist {
+  static_assert(std::is_same<T, float>::value || std::is_same<T, double>::value,
+    "Unexpected data type");
 
-template <>
-struct curand_uniform_dist<float> {
-  DALI_HOST_DEV curand_uniform_dist(float start, float end)
+  DALI_HOST_DEV curand_uniform_dist()
+      : range_start_(0.0), range_size_(1.0) {}
+
+  DALI_HOST_DEV curand_uniform_dist(T start, T end)
       : range_start_(start), range_end_(end), range_size_(end-start) {
     assert(end > start);
   }
 
-  DALI_HOST_DEV curand_uniform_dist()
-      : range_start_(0.0f), range_size_(1.0f) {}
-
-  __device__ inline float operator()(curandState *state) const {
-    float val;
-    do {
-      val = range_start_ + curand_uniform(state) * range_size_;
-    } while (val >= range_end_);
-    return val;
-  }
- private:
-  float range_start_, range_end_, range_size_;
-};
-
-template <>
-struct curand_uniform_dist<double> {
-  DALI_HOST_DEV curand_uniform_dist(float start, float end)
-      : range_start_(start), range_size_(end-start) {
-    assert(end > start);
-  }
-
-  DALI_HOST_DEV curand_uniform_dist()
-      : range_start_(0.0f), range_size_(1.0f) {}
-
-  __device__ inline double operator()(curandState *state) const {
-    double val;
-    do {
-      val = range_start_ + curand_uniform_double(state) * range_size_;
-    } while (val >= range_end_);
+  __device__ inline T operator()(curandState *state) const {
+    T val;
+    if (std::is_same<T, double>::value) {
+      do {
+        val = range_start_ + curand_uniform_double(state) * range_size_;
+      } while (val >= range_end_);
+    } else {
+      do {
+        val = range_start_ + curand_uniform(state) * range_size_;
+      } while (val >= range_end_);
+    }
     return val;
   }
 
  private:
-  double range_start_, range_end_, range_size_;
+  T range_start_, range_end_, range_size_;
 };
 
 struct curand_uniform_int_range_dist {
