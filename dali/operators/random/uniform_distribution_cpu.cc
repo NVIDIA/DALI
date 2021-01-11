@@ -28,7 +28,7 @@ generated.
     .NumInput(0, 1)
     .NumOutput(1)
     .AddOptionalArg("range",
-      R"code(Range [min, max) of a continuous uniform distribution.
+      R"code(Range ``[min, max)`` of a continuous uniform distribution.
 
 This argument is mutually exclusive with ``values``.)code",
       std::vector<float>{-1.0f, 1.0f}, true)
@@ -52,7 +52,7 @@ generated.
     .NumInput(0, 1)
     .NumOutput(1)
     .AddOptionalArg("range",
-      R"code(Range [min, max) of a continuous uniform distribution.
+      R"code(Range ``[min, max)`` of a continuous uniform distribution.
 
 This argument is mutually exclusive with ``values``.)code",
       std::vector<float>{-1.0f, 1.0f}, true)

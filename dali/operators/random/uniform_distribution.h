@@ -31,7 +31,11 @@ namespace dali {
 template <typename T>
 class uniform_int_values_dist {
  public:
-  uniform_int_values_dist() : values_(nullptr), nvalues_(0) {}
+  uniform_int_values_dist() : values_(nullptr), nvalues_(0) {
+    // Should not be used. It is just here to make the base
+    // RNG operator code easier.
+    assert(false);
+  }
   uniform_int_values_dist(const T *values, int64_t nvalues)
     : values_(values), nvalues_(nvalues), dist_(0, nvalues-1) {}
 

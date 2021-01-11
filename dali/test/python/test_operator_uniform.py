@@ -49,7 +49,7 @@ def check_uniform_default(device='cpu', batch_size=32, shape=[1e5], val_range=No
         assert pv > 0.05, f"data is not a uniform distribution (pv = {pv})"
 
 def test_uniform_continuous():
-    batch_size = 8
+    batch_size = 4
     shape = [100000]
     for device in ['cpu', 'gpu']:
         for val_range in [None, (200.0, 400.0)]:
@@ -76,7 +76,7 @@ def check_uniform_discrete(device='cpu', batch_size=32, shape=[1e5], values=None
         assert pv > 0.05, f"data is not a uniform distribution. pv = {pv}"
 
 def test_uniform_discrete():
-    batch_size = 8
+    batch_size = 4
     shape = [100000]
     for device in ['cpu', 'gpu']:
         for values in [(0, 1, 2, 3, 4, 5), (200, 400, 5000, 1)]:
