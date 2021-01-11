@@ -31,7 +31,8 @@ template <int spatial_ndim, typename OutputType, typename InputType>
 struct SampleDesc {
   OutputType *__restrict__ output;
   const InputType *__restrict__ input;
-  ivec<spatial_ndim> out_size, out_strides, in_size, in_strides;
+  ivec<spatial_ndim> out_size, in_size;
+  i64vec<spatial_ndim> out_strides, in_strides;
   int channels;
   DALIInterpType interp;
 };
