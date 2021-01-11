@@ -65,30 +65,34 @@ inline bool HasSavePreprocessedAnnotationsDir(const OpSpec &spec) {
     (spec.HasArgument("dump_meta_files_path") && spec.GetArgument<bool>("dump_meta_files_path"));
 }
 
-struct RLEMask {
-  RLEMask() = default;
+struct RLEMask : public UniqueHandle<RLE, RLEMask> {
+  DALI_INHERIT_UNIQUE_HANDLE(RLE, RLEMask)
+
+  constexpr inline RLEMask() : UniqueHandle() {}
+
   RLEMask(siz h, siz w, siz m) {
-    rleInit(&rle_, h, w, m, nullptr);
+    rleInit(&handle_, h, w, m, nullptr);
   }
 
   RLEMask(siz h, siz w, span<const uint> counts) {
-    rleInit(&rle_, h, w, counts.size(), const_cast<uint*>(counts.data()));
+    rleInit(&handle_, h, w, counts.size(), const_cast<uint*>(counts.data()));
   }
 
   RLEMask(siz h, siz w, const char* str) {
-    rleFrString(&rle_, const_cast<char*>(str), h, w);
+    rleFrString(&handle_, const_cast<char*>(str), h, w);
   }
 
-  ~RLEMask() {
-    if (rle_.cnts)
-      rleFree(&rle_);
+  static constexpr bool is_null_handle(const RLE &handle) {
+    return handle.cnts == nullptr;
   }
 
-  const RLE* operator->() const { return &rle_; }
-  RLE* operator->() { return &rle_; }
+  static void DestroyHandle(RLE &handle) {
+    if (handle.cnts)
+      rleFree(&handle);
+  }
 
- private:
-  RLE rle_;
+  const RLE* operator->() const { return &handle_; }
+  RLE* operator->() { return &handle_; }
 };
 
 using RLEMaskPtr = std::shared_ptr<RLEMask>;

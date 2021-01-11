@@ -526,7 +526,10 @@ void CocoLoader::ParseJsonAnnotations() {
   int total_count = 0;
 
   for (auto &img_filename : images_) {
-    const auto &image_info = *img_infos_map[img_filename];
+    auto img_info_ptr = img_infos_map[img_filename];
+    if (!img_info_ptr)
+      continue;
+    const auto &image_info = *img_info_ptr;
     auto image_id = image_info.original_id_;
     int objects_in_sample = 0;
     int64_t sample_polygons_offset = polygon_data_.size();
@@ -620,6 +623,9 @@ void CocoLoader::ParseJsonAnnotations() {
       new_image_id++;
     }
   }
+
+  // we don't need the list anymore and it can contain a lot of strings
+  images_.clear();
 
   if (spec_.GetArgument<bool>("save_preprocessed_annotations")) {
     SavePreprocessedAnnotations(
