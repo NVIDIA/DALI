@@ -251,8 +251,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * if the size of the allocation is zero, the TensorList is reset to
    * a default state and is NOT marked as sharing data.
    *
-   * After wrapping the allocation, the TensorLists size is set to 0,
-   * and its type is reset to NoType.
+   * After wrapping the allocation, the shape and type is set if were provided non-empty.
    * After calling this function any following call to `set_type` and `Resize`
    * must match the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
@@ -282,6 +281,10 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     // If the input pointer stores a non-zero size allocation, mark
     // that we are sharing our underlying data
     shares_data_ = num_bytes_ > 0 ? true : false;
+    // Set the proper shape and type in one step. No-op for empty values.
+    if (!shape.empty() && type.id() != DALIDataType::DALI_NO_TYPE) {
+      Resize(shape, type);
+    }
   }
 
   /**
@@ -290,7 +293,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * a default state and is NOT marked as sharing data.
    *
    * After wrapping the allocation, the TensorLists size is set to 0,
-   * and its type is reset to NoType.
+   * if NoType is provided, otherwise its resized accordingly.
    * After calling this function any following call to `set_type` and `Resize`
    * must match the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
@@ -312,7 +315,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * a default state and is NOT marked as sharing data.
    *
    * After wrapping the allocation, the TensorLists size is set to 0,
-   * and its type is reset to NoType.
+   * and its type is reset to NoType (if not provided otherwise).
    * After calling this function any following call to `set_type` and `Resize`
    * must match the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
