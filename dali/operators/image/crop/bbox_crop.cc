@@ -525,22 +525,25 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
     tp.RunAll();
 
-    auto &anchor_out = ws.template OutputRef<CPUBackend>(0);
-    anchor_out.Resize(uniform_list_shape(num_samples, {ndim}));
-    auto anchor_out_view = view<float>(anchor_out);
+    DALIDataType output_dtype = has_crop_shape_ ? DALI_INT32 : DALI_FLOAT;
+    TYPE_SWITCH(output_dtype, type2id, type, (int, float), (
+      auto &anchor_out = ws.template OutputRef<CPUBackend>(0);
+      anchor_out.Resize(uniform_list_shape(num_samples, {ndim}));
+      auto anchor_out_view = view<type>(anchor_out);
 
-    auto &shape_out = ws.template OutputRef<CPUBackend>(1);
-    shape_out.Resize(uniform_list_shape(num_samples, {ndim}));
-    auto shape_out_view = view<float>(shape_out);
+      auto &shape_out = ws.template OutputRef<CPUBackend>(1);
+      shape_out.Resize(uniform_list_shape(num_samples, {ndim}));
+      auto shape_out_view = view<type>(shape_out);
 
-    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      const auto &prospective_crop = sample_data_[sample_idx].prospective_crop;
-      auto extent = prospective_crop.crop.extent();
-      for (int d = 0; d < ndim; d++) {
-        anchor_out_view.tensor_data(sample_idx)[d] = prospective_crop.crop.lo[d];
-        shape_out_view.tensor_data(sample_idx)[d] = extent[d];
-      }
-    }
+      for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+        const auto &prospective_crop = sample_data_[sample_idx].prospective_crop;
+        auto extent = prospective_crop.crop.extent();
+        for (int d = 0; d < ndim; d++) {
+          anchor_out_view.tensor_data(sample_idx)[d]
+            = static_cast<type>(prospective_crop.crop.lo[d]);
+          shape_out_view.tensor_data(sample_idx)[d] = static_cast<type>(extent[d]);
+        }
+      }), {});
 
     TensorListShape<> bbox_out_shape;
     bbox_out_shape.resize(num_samples, 2);
@@ -717,8 +720,12 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
           }
 
           for (int d = 0; d < ndim; d++) {
-            std::uniform_int_distribution<> anchor_dist(0, input_shape[d] - crop_shape[d]);
-            anchor[d] = static_cast<float>(anchor_dist(rng));
+            if (input_shape[d] > crop_shape[d]) {
+              std::uniform_int_distribution<> anchor_dist(0, input_shape[d] - crop_shape[d]);
+              anchor[d] = static_cast<float>(anchor_dist(rng));
+            } else {
+              anchor[d] = 0.0f;
+            }
             out_crop.lo[d] = anchor[d];
             rel_crop.lo[d] = anchor[d] / input_shape[d];
           }
