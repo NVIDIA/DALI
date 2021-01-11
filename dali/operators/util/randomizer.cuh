@@ -71,7 +71,7 @@ struct curand_uniform_dist;
 template <>
 struct curand_uniform_dist<float> {
   DALI_HOST_DEV curand_uniform_dist(float start, float end)
-      : range_start_(start), range_size_(end-start) {
+      : range_start_(start), range_end_(end), range_size_(end-start) {
     assert(end > start);
   }
 
@@ -79,10 +79,14 @@ struct curand_uniform_dist<float> {
       : range_start_(0.0f), range_size_(1.0f) {}
 
   __device__ inline float operator()(curandState *state) const {
-    return range_start_ + curand_uniform(state) * range_size_;
+    float val;
+    do {
+      val = range_start_ + curand_uniform(state) * range_size_;
+    } while (val >= range_end_);
+    return val;
   }
  private:
-  float range_start_, range_size_;
+  float range_start_, range_end_, range_size_;
 };
 
 template <>
@@ -96,17 +100,21 @@ struct curand_uniform_dist<double> {
       : range_start_(0.0f), range_size_(1.0f) {}
 
   __device__ inline double operator()(curandState *state) const {
-    return range_start_ + curand_uniform_double(state) * range_size_;
+    double val;
+    do {
+      val = range_start_ + curand_uniform_double(state) * range_size_;
+    } while (val >= range_end_);
+    return val;
   }
 
  private:
-  double range_start_, range_size_;
+  double range_start_, range_end_, range_size_;
 };
 
 struct curand_uniform_int_range_dist {
   DALI_HOST_DEV curand_uniform_int_range_dist(int start, int end)
       : range_start_(start), range_size_(end-start) {
-    assert (end > start);
+    assert(end > start);
   }
 
   __device__ inline int operator()(curandState *state) const {

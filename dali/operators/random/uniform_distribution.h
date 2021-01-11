@@ -26,6 +26,33 @@
 namespace dali {
 
 /**
+ * @brief Wraps std::uniform_real_distribution<T>> and works around the issue
+ *        with end of the range (GCC and LLVM bug)
+ */
+template <typename T>
+class uniform_real_dist {
+ public:
+  explicit uniform_real_dist(T range_start = -1, T range_end = 1)
+      : range_end_(range_end)
+      , dist_(range_start, range_end) {
+    assert(range_end > range_start);
+  }
+
+  template <typename Generator>
+  inline T operator()(Generator& g) {
+    T val = range_end_;
+    while (val >= range_end_)
+      val = dist_(g);
+    return val;
+  }
+
+ private:
+  T range_end_ = 1;
+  std::uniform_real_distribution<T> dist_;
+};
+
+
+/**
  * @brief Draws values from a discrete uniform distribution
  */
 template <typename T>
@@ -51,6 +78,7 @@ class uniform_int_values_dist {
   std::uniform_int_distribution<int> dist_;
 };
 
+
 template <typename Backend>
 class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>> {
  public:
@@ -64,7 +92,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
     using type =
       typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
           curand_uniform_dist<FloatType>,
-          std::uniform_real_distribution<FloatType>>;
+          uniform_real_dist<FloatType>>;
   };
 
   template <typename T>
