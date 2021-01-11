@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_DECODER_CPU_H_
-#define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_DECODER_CPU_H_
+#ifndef DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_DECODER_CPU_H_
+#define DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_DECODER_CPU_H_
 
 #include <cuda_runtime_api.h>
 
@@ -24,8 +24,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
-#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_allocator.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_allocator.h"
 
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/operator/operator.h"
@@ -277,4 +277,4 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_DECODER_CPU_H_
+#endif  // DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_DECODER_CPU_H_

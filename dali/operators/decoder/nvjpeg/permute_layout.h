@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_PERMUTE_LAYOUT_H_
-#define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_PERMUTE_LAYOUT_H_
+#ifndef DALI_OPERATORS_DECODER_NVJPEG_PERMUTE_LAYOUT_H_
+#define DALI_OPERATORS_DECODER_NVJPEG_PERMUTE_LAYOUT_H_
 
 #include <cuda_runtime.h>
 #include <stdint.h>
@@ -30,4 +30,4 @@ void PermuteToInterleaved(uint8_t *output, const uint8_t *input,
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_PERMUTE_LAYOUT_H_
+#endif  // DALI_OPERATORS_DECODER_NVJPEG_PERMUTE_LAYOUT_H_

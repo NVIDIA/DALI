@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/decoder/nvjpeg/decoupled_api/fused/nvjpeg_decoder_cpu_slice.h"
+#include "dali/operators/decoder/nvjpeg/fused/nvjpeg_decoder_cpu_slice.h"
 #include <vector>
 
 namespace dali {

@@ -12,19 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_decoder_gpu.h"
-#include "dali/pipeline/operator/op_schema.h"
+#include "dali/operators/decoder/nvjpeg/fused/nvjpeg_decoder_cpu_crop.h"
+#include <vector>
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(nvJPEGDecoderGPUStage, nvJPEGDecoderGPUStage, Mixed);
+DALI_REGISTER_OPERATOR(nvJPEGDecoderCPUStageCrop, nvJPEGDecoderCPUStageCrop, CPU);
 
-DALI_SCHEMA(nvJPEGDecoderGPUStage)
-  .DocStr(R"code(This operator is the GPU stage of nvJPEGDecoderNew, it is not supposed to be called separately.
-It is automatically inserted during the pipeline creation.)code")
-  .NumInput(3)
-  .NumOutput(1)
+DALI_SCHEMA(nvJPEGDecoderCPUStageCrop)
+  .DocStr(
+R"code(This operator is the CPU stage of nvJPEGDecoder with fused Slicing, it is not supposed to be called separately.
+It is automatically inserted during the pipeline creation.
+Partially decode JPEG images using the nvJPEG library and a cropping window.
+Output of the decoder is on the GPU and uses `HWC` ordering.)code")
+  .NumInput(1)
+  .NumOutput(3)
   .MakeInternal()
-  .AddParent("nvJPEGDecoderCPUStage");
+  .AddParent("nvJPEGDecoderCPUStage")
+  .AddParent("CropAttr");
 
 }  // namespace dali

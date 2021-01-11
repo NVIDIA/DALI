@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_memory.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_memory.h"
 #include <nvjpeg.h>
 #include <shared_mutex>
 #include <atomic>

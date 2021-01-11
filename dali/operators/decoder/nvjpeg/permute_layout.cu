@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/decoder/nvjpeg/decoupled_api/permute_layout.h"
+#include "dali/operators/decoder/nvjpeg/permute_layout.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/util.h"
 #include "dali/core/format.h"
