@@ -80,6 +80,10 @@ def parse_cmdline(init_vals):
                  help="""Use DALI for input pipeline, available values are
                  [CPU|GPU] which tell which version of the pipeline run.
                  Default is GPU""")
+  p.add_argument('--dali_threads', type=int,
+                 default=4,
+                 required=False,
+                 help="""Number of threads used by DALI.""")
   p.add_argument('--use_xla', action='store_true',
                  help="""Whether to enable xla execution.""")
   p.add_argument('--predict', action='store_true',
@@ -105,6 +109,7 @@ def parse_cmdline(init_vals):
   vals['display_every'] = FLAGS.display_every
   vals['precision'] = FLAGS.precision
   vals['dali_mode'] = FLAGS.dali_mode
+  vals['dali_threads'] = FLAGS.dali_threads
   vals['use_xla'] = FLAGS.use_xla or vals['use_xla']
   vals['predict'] = FLAGS.predict or vals['predict']
 

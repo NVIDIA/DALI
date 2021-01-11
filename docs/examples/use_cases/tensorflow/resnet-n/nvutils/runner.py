@@ -192,7 +192,7 @@ def train(model_func, params):
     training_hooks.append(tensorboard_callback)
 
   if data_dir is not None:
-    num_preproc_threads = 4 if dali_mode else 10
+    num_preproc_threads = params['dali_threads'] if dali_mode else 10
     train_input = image_processing.image_set(train_files, batch_size,
         image_height, image_width, training=True, distort_color=distort_color,
         deterministic=False, num_threads=num_preproc_threads,

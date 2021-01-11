@@ -187,19 +187,13 @@ def get_dali_pipeline(
                 random_aspect_ratio=[0.75, 1.25],
                 random_area=[0.05, 1.0],
                 num_attempts=100)
-            images = fn.resize(images, device=resize_device, resize_x=width,
-                                        resize_y=height)
         else:
             images = fn.image_decoder(
                 inputs["image/encoded"],
                 device=decode_device,
                 output_type=types.RGB)
-            images = fn.resize(images,
-                               device=resize_device,
-                               size=size,
-                               mode="not_smaller",
-                               resize_shorter=256)
 
+        images = fn.resize(images, device=resize_device, resize_x=width, resize_y=height)
         images = fn.crop_mirror_normalize(
             images,
             dtype=types.FLOAT,
