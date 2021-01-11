@@ -31,6 +31,7 @@ def check_uniform_default(device='cpu', batch_size=32, shape=[1e5], val_range=No
     val_range = (-1.0, 1.0) if val_range is None else val_range
     data_out = outputs[0].as_cpu() \
         if isinstance(outputs[0], TensorListGPU) else outputs[0]
+    pvs = []
     for i in range(batch_size):
         data = np.array(data_out[i])
         # Check that the data is within the default range
@@ -46,7 +47,8 @@ def check_uniform_default(device='cpu', batch_size=32, shape=[1e5], val_range=No
         # normalize to 0-1 range
         data_kstest = (data - val_range[0]) / (val_range[1] - val_range[0])
         _, pv = st.kstest(rvs=data_kstest, cdf='uniform')
-        assert pv > 0.05, f"data is not a uniform distribution (pv = {pv})"
+        pvs = pvs + [pv]
+    assert np.mean(pvs) > 0.05, f"data is not a uniform distribution. pv = {np.mean(pvs)}"
 
 def test_uniform_continuous():
     batch_size = 4
@@ -67,13 +69,15 @@ def check_uniform_discrete(device='cpu', batch_size=32, shape=[1e5], values=None
     maxval = np.max(values)
     bins = np.concatenate([values, np.array([np.nextafter(maxval, maxval+1)])])
     bins.sort()
+    pvs = []
     for i in range(batch_size):
         data = np.array(data_out[i])
         for x in data:
             assert x in values_set
         h, _ = np.histogram(data, bins=bins)
         _, pv = st.chisquare(h)
-        assert pv > 0.05, f"data is not a uniform distribution. pv = {pv}"
+    
+    assert np.mean(pvs) > 0.05, f"data is not a uniform distribution. pv = {np.mean(pvs)}"
 
 def test_uniform_discrete():
     batch_size = 4
