@@ -26,37 +26,29 @@ using TheKernel = kernels::PasteCpu<Out, In>;
 
 
 DALI_SCHEMA(MultiPaste)
-.DocStr(R"code(Performs multiple (K * batch_size) pastes from image batch to an output
+.DocStr(R"code(Performs multiple pastes from image batch to each of outputs
 
 This operator can also change the type of data.)code")
-
 .NumInput(1)
 .InputDox(0, "images", "3D TensorList", R"code(Batch of input images.
 
 Assumes HWC layout.)code")
-.AddArg("in_ids", R"code(1D TensorList of shape [K] and type int.
+.AddArg("in_ids", R"code(1D TensorList of type int.
 
 Indexes from what inputs to paste data in each iteration.)code", DALI_INT32, true)
-.AddArg("in_anchors", R"code(2D TensorList of shape [K, 2] and type int
+.AddArg("in_anchors", R"code(2D TensorList of type int
 
 Absolute values of LU corner of the selection for each iteration.)code", DALI_INT32, true)
-.AddArg("shapes", R"code(2D TensorList of shape [K, 2] and type int
+.AddArg("shapes", R"code(2D TensorList of type int
 
 Absolute values of size of the selection for each iteration.)code", DALI_INT32, true)
-.AddArg("out_anchors", R"code(2D TensorList of shape [K, 2] and type int
+.AddArg("out_anchors", R"code(2D TensorList of type int
 
 Absolute values of LU corner of the paste for each iteration.)code", DALI_INT32, true)
-// TODO(thetimemaster): setting nullptr as default value produces compile error
-.AddOptionalArg<int>("out_ids", R"code(1D TensorList of shape [K] and type int
-
-Indexes to what outputs to paste data in each iteration.
-If ommitted, i-th tensor pastes to i-th output. )code", nullptr, true)
 .AddArg("output_size",
 R"code(Output size.)code", DALI_INT_VEC, true)
 .AddOptionalArg("dtype",
 R"code(Output data type. If not set, the input type is used.)code", DALI_NO_TYPE)
-.AddOptionalArg("input_out_ids",
-R"code(If true, the operator takes the last, out_ids input.)code", false)
 .AddOptionalArg("no_intersections",
 R"code(If true, the operator assumes paste regions do not intersect.
 This allows for better multithreading, but might produce weird artefacts if
@@ -83,11 +75,6 @@ bool MultiPasteCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                  "in_shapes must be same length as in_idx");
     DALI_ENFORCE(out_anchors_[i].shape[0] == n_paste,
                  "out_anchors must be same length as in_idx");
-
-    if (input_out_ids_) {
-      DALI_ENFORCE(out_idx_[i].shape[0] == n_paste,
-                   "out_idx must be same length as in_idx");
-    }
   }
 
   TYPE_SWITCH(images.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
@@ -122,7 +109,7 @@ void MultiPasteCpu::RunImpl(workspace_t<CPUBackend> &ws) {
 
   auto& tp = ws.GetThreadPool();
 
-  auto batch_size = in_idx_.size();
+  auto batch_size = output.shape().num_samples();
 
   TYPE_SWITCH(images.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
@@ -134,7 +121,7 @@ void MultiPasteCpu::RunImpl(workspace_t<CPUBackend> &ws) {
 
                 for (int iter = 0; iter < paste_count; iter++) {
                   int from_sample = in_idx_[i].data[iter];
-                  int to_sample = input_out_ids_ ? out_idx_[i].data[iter] : i;
+                  int to_sample = i;
 
                   tp.AddWork(
                       [&, i, iter, from_sample, to_sample](int thread_id) {
@@ -152,15 +139,15 @@ void MultiPasteCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                       out_shape.tensor_size(to_sample));
                 }
               }
-            } else if (!input_out_ids_) {
+            } else {
               for (int i = 0; i < batch_size; i++) {
                 auto paste_count = in_idx_[i].shape[0];
 
                 tp.AddWork(
-                    [&, i](int thread_id) {
+                    [&, i, paste_count](int thread_id) {
                       for (int iter = 0; iter < paste_count; iter++) {
                         int from_sample = in_idx_[i].data[iter];
-                        int to_sample = input_out_ids_ ? out_idx_[i].data[iter] : i;
+                        int to_sample = i;
 
                         kernels::KernelContext ctx;
                         auto tvin = view<const InputType, 3>(images[from_sample]);
@@ -171,33 +158,11 @@ void MultiPasteCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                         auto out_anchor_view = subtensor(out_anchors_[i], iter);
 
                         kernel_manager_.Run<Kernel>(thread_id, to_sample, ctx, tvout, tvin,
-                                                 in_anchor_view, in_shape_view, out_anchor_view);
-                     }
-                    }, paste_count);
-              }
-            } else {
-              tp.AddWork(
-                  [&](int thread_id) {
-                    for (int i = 0; i < batch_size; i++) {
-                      auto paste_count = in_idx_[i].shape[0];
-
-                      for (int iter = 0; iter < paste_count; iter++) {
-                        int from_sample = in_idx_[i].data[iter];
-                        int to_sample = input_out_ids_ ? out_idx_[i].data[iter] : i;
-
-                        kernels::KernelContext ctx;
-                        auto tvin = view<const InputType, 3>(images[from_sample]);
-                        auto tvout = view<OutputType, 3>(output[to_sample]);
-
-                        auto in_anchor_view = subtensor(in_anchors_[i], iter);
-                        auto in_shape_view = subtensor(in_shapes_[i], iter);
-                        auto out_anchor_view = subtensor(out_anchors_[i], iter);
-
-                        kernel_manager_.Run<Kernel>(thread_id, to_sample, ctx, tvout, tvin,
-                                                  in_anchor_view, in_shape_view, out_anchor_view);
+                                                    in_anchor_view, in_shape_view, out_anchor_view);
                       }
-                    }
-                  }, 1);
+                    },
+                    paste_count);
+              }
             }
           }
       ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT

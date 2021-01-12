@@ -1,0 +1,196 @@
+# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import sys
+
+from nvidia.dali.pipeline import Pipeline
+import nvidia.dali.fn as fn
+import nvidia.dali.types as types
+import numpy as np
+import math
+import os
+import cv2
+#from test_utils import get_dali_extra_path
+
+DEBUG_LVL = 0
+SHOW_IMAGES = False
+
+def get_dali_extra_path():
+    try:
+        dali_extra_path = os.environ['DALI_EXTRA_PATH']
+    except KeyError:
+        print("WARNING: DALI_EXTRA_PATH not initialized.", file=sys.stderr)
+        dali_extra_path = "."
+    return dali_extra_path
+
+data_root = get_dali_extra_path()
+img_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
+
+
+def intersects(anchors1, shapes1, anchors2, shapes2):
+    for i in range(len(anchors1)):
+        if anchors1[i] + shapes1[i] <= anchors2[i] or anchors2[i] + shapes2[i] <= anchors1[i]:
+            return False
+    return True
+
+
+def prepare_cuts(
+        iters=4,
+        batch_size=16,
+        input_size=None,
+        output_size=None,
+        even_paste_count=False,
+        no_intersections=False
+):
+    in_idx_l = [np.zeros(shape=(0,), dtype=np.int32) for _ in range(batch_size)]
+    in_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
+    shapes_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
+    out_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
+    assert len(input_size) == len(output_size)
+    dim = len(input_size)
+    for i in range(batch_size):
+        for j in range(iters):
+            while True:
+                in_idx = np.int32(np.random.randint(batch_size))
+                out_idx = np.int32(i if even_paste_count else np.random.randint(batch_size))
+                shape = [np.int32(
+                    np.random.randint(
+                        min(input_size[i], output_size[i]) // (iters if no_intersections else 1)
+                    )
+                ) for i in range(dim)]
+                in_anchor = [np.int32(np.random.randint(input_size[i] - shape[i])) for i in range(dim)]
+                out_anchor = [np.int32(np.random.randint(output_size[i] - shape[i])) for i in range(dim)]
+                if no_intersections:
+                    is_ok = True
+                    for k in range(len(in_idx_l[out_idx])):
+                        if intersects(out_anchors_l[out_idx][k], shapes_l[out_idx][k], out_anchor, shape):
+                            is_ok = False
+                            break
+                    if not is_ok:
+                        continue
+                    break
+                break
+            if DEBUG_LVL > 0:
+                print(in_idx, out_idx, in_anchor, shape, out_anchor)
+            in_idx_l[out_idx] = np.append(in_idx_l[out_idx], [in_idx], axis=0)
+            in_anchors_l[out_idx] = np.append(in_anchors_l[out_idx], [in_anchor], axis=0)
+            shapes_l[out_idx] = np.append(shapes_l[out_idx], [shape], axis=0)
+            out_anchors_l[out_idx] = np.append(out_anchors_l[out_idx], [out_anchor], axis=0)
+    return in_idx_l, in_anchors_l, shapes_l, out_anchors_l
+
+
+def numpyize(source_list):
+    print(source_list)
+    return lambda: source_list
+
+
+def get_pipeline(
+        batch_size=4,
+        in_size=None,
+        out_size=None,
+        even_paste_count=False,
+        k=4,
+        d_type=types.DALIDataType.UINT8,
+        no_intersections=True,
+):
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=types.CPU_ONLY_DEVICE_ID)
+    with pipe:
+        input, _ = fn.file_reader(file_root=img_dir)
+        decoded = fn.image_decoder(input, device='cpu', output_type=types.RGB)
+        resized = fn.resize(decoded, resize_x=in_size[1], resize_y=in_size[0])
+        in_idx_l, in_anchors_l, shapes_l, out_anchors_l = prepare_cuts(
+            k, batch_size, in_size, out_size, even_paste_count, no_intersections)
+        in_idx = fn.external_source(numpyize(in_idx_l))
+        in_anchors = fn.external_source(numpyize(in_anchors_l))
+        shapes = fn.external_source(numpyize(shapes_l))
+        out_anchors = fn.external_source(numpyize(out_anchors_l))
+        kwargs = {
+            "in_ids": in_idx,
+            "in_anchors": in_anchors,
+            "out_anchors": out_anchors,
+            "shapes": shapes,
+            "output_size": out_size,
+            "dtype": d_type,
+            "no_intersections": no_intersections
+        }
+
+        pasted = fn.multi_paste(resized, **kwargs)
+        pipe.set_outputs(pasted, resized)
+    return pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l
+
+
+def manual_verify(batch_size, inp, output, in_idx_l, in_anchors_l, shapes_l, out_anchors_l):
+    for i in range(batch_size):
+        out = output.at(i)
+        Y = len(out)
+        X = len(out[0])
+        C = len(out[0][0])
+        for y in range(Y):
+            for x in range(X):
+                col = [None for _ in range(C)]
+                for p in range(len(out_anchors_l[i])):
+                    if out_anchors_l[i][p][0] <= y and y < out_anchors_l[i][p][0] + shapes_l[i][p][0]:
+                        if out_anchors_l[i][p][1] <= x and x < out_anchors_l[i][p][1] + shapes_l[i][p][1]:
+                            col = inp.at(in_idx_l[i][p]) \
+                                [in_anchors_l[i][p][0] + (y - out_anchors_l[i][p][0])] \
+                                [in_anchors_l[i][p][1] + (x - out_anchors_l[i][p][1])]
+                for c in range(C):
+
+                    if col[c] is not None:
+                        if col[c] != out[y][x][c]:
+                            print(i, x, y, col, out[y][x])
+                        assert col[c] == out[y][x][c]
+
+
+def show_images(batch_size, image_batch):
+    import matplotlib.gridspec as gridspec
+    import matplotlib.pyplot as plt
+    columns = 4
+    rows = (batch_size + 1) // (columns)
+    fig = plt.figure(figsize=(32, (32 // columns) * rows))
+    gs = gridspec.GridSpec(rows, columns)
+    for j in range(rows * columns):
+        plt.subplot(gs[j])
+        plt.axis("off")
+        plt.imshow(image_batch.at(j))
+    plt.show()
+
+
+def run_vs_python(bs, pastes, in_size, out_size, even_paste_count, no_intersections):
+    pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l = get_pipeline(
+        batch_size=bs,
+        in_size=in_size,
+        out_size=out_size,
+        even_paste_count=even_paste_count,
+        k=pastes,
+        d_type=types.DALIDataType.UINT8,
+        no_intersections=no_intersections
+    )
+    pipe.build()
+    print('build')
+    result, input = pipe.run()
+    if SHOW_IMAGES:
+        show_images(bs, result)
+    manual_verify(bs, input, result, in_idx_l, in_anchors_l, shapes_l, out_anchors_l)
+
+
+def test_simple():
+    tests = [
+        [4, 2, (128, 256), (128, 128), False, False],
+        [4, 2, (256, 128), (128, 128), False, True],
+        [4, 2, (128, 128), (256, 128), True, False],
+        [4, 2, (128, 128), (128, 256), True, True]
+    ]
+    for t in tests:
+        print(f"Running with params: {t}")
+        run_vs_python(*t)

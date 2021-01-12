@@ -47,13 +47,10 @@ class MultiPasteOp : public Operator<Backend> {
       , input_type_(DALI_NO_TYPE)
       , output_size_("output_size", spec)
       , in_idx_("in_ids", spec)
-      , out_idx_("out_ids", spec)
       , in_anchors_("in_anchors", spec)
       , in_shapes_("shapes", spec)
       , out_anchors_("out_anchors", spec)
-      , no_intersections_(spec.GetArgument<bool>("no_intersections"))
-      , input_out_ids_(spec.GetArgument<bool>("input_out_ids")) {
-    input_out_ids_ = spec.HasTensorArgument("out_ids");
+      , no_intersections_(spec.GetArgument<bool>("no_intersections")) {
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
     } else {
@@ -68,13 +65,10 @@ class MultiPasteOp : public Operator<Backend> {
   void AcquireArguments(const OpSpec &spec, const workspace_t<Backend> &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     output_size_.Acquire(spec, ws, curr_batch_size, true);
-    in_idx_.Acquire(spec, ws, curr_batch_size, true);
-    out_anchors_.Acquire(spec, ws, curr_batch_size, true);
-    in_anchors_.Acquire(spec, ws, curr_batch_size, true);
-    in_shapes_.Acquire(spec, ws, curr_batch_size, true);
-    if (input_out_ids_) {
-      out_idx_.Acquire(spec, ws, curr_batch_size, true);
-    }
+    in_idx_.Acquire(spec, ws, curr_batch_size, false);
+    out_anchors_.Acquire(spec, ws, curr_batch_size, false);
+    in_anchors_.Acquire(spec, ws, curr_batch_size, false);
+    in_shapes_.Acquire(spec, ws, curr_batch_size, false);
     input_type_ = ws.template InputRef<Backend>(0).type().id();
     output_type_ =
         output_type_arg_ != DALI_NO_TYPE
@@ -88,7 +82,6 @@ class MultiPasteOp : public Operator<Backend> {
   ArgValue<int, 1> output_size_;
 
   ArgValue<int, 1> in_idx_;
-  ArgValue<int, 1> out_idx_;
   ArgValue<int, 2> in_anchors_;
   ArgValue<int, 2> in_shapes_;
   ArgValue<int, 2> out_anchors_;
@@ -96,7 +89,6 @@ class MultiPasteOp : public Operator<Backend> {
   kernels::KernelManager kernel_manager_;
 
   bool no_intersections_;
-  bool input_out_ids_;
 };
 
 
