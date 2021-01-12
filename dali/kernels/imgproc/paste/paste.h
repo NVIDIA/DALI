@@ -24,9 +24,9 @@
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/imgproc/roi.h"
 
-#define X_AXIS 0
-#define Y_AXIS 1
-#define C_AXIS 2
+const int Y_AXIS = 0;
+const int X_AXIS = 1;
+const int C_AXIS = 2;
 
 namespace dali {
 namespace kernels {
@@ -35,7 +35,7 @@ template<typename OutputType, typename InputType>
 class PasteCpu {
  public:
   using Image = InTensorCPU<InputType, 3>;
-  using OutImage = OutTensorCPU<OutputType>;
+  using OutImage = OutTensorCPU<OutputType, 3>;
   using Coords = InTensorCPU<const int, 1>;
 
   KernelRequirements
@@ -57,13 +57,13 @@ class PasteCpu {
    */
   void Run(KernelContext &context, const OutImage &out, const Image &pasteFrom,
            const Coords &in_anchors, const Coords &in_shapes, const Coords &out_anchors) {
-    copyRoi(out, pasteFrom, in_anchors.data[X_AXIS], in_anchors.data[Y_AXIS],
-            in_shapes.data[X_AXIS], in_shapes.data[Y_AXIS],
-            out_anchors.data[X_AXIS], out_anchors.data[Y_AXIS]);
+    CopyRoi(out, out_anchors.data[X_AXIS], out_anchors.data[Y_AXIS],
+            pasteFrom, in_anchors.data[X_AXIS], in_anchors.data[Y_AXIS],
+            in_shapes.data[X_AXIS], in_shapes.data[Y_AXIS]);
   }
 
-  void copyRoi(const OutTensorCPU<OutputType> &out, const Image &in, int inXAnchor, int inYAnchor,
-               int inXShape, int inYShape, int outXAnchor, int outYAnchor) {
+  void CopyRoi(const OutImage &out, int outXAnchor, int outYAnchor, const Image &in,
+               int inXAnchor, int inYAnchor, int inXShape, int inYShape) {
     auto num_channels = out.shape[C_AXIS];
     auto in_image_width = in.shape[X_AXIS];
     auto out_image_width = out.shape[X_AXIS];
