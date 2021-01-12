@@ -34,16 +34,19 @@ class GridMaskCpu {
   }
 
   void Run(KernelContext &context, const OutTensorCPU<Type> &out,
-           const InTensorCPU<Type> &in, int tile, float ratio, float angle) {
+           const InTensorCPU<Type> &in, int tile, float ratio, float angle,
+           float sx, float sy) {
     auto in_ptr = in.data;
     auto out_ptr = out.data;
     float ca = cos(angle) / tile;
     float sa = sin(angle) / tile;
+    sx /= tile;
+    sy /= tile;
 
     for (int y = 0; y < in.shape[0]; y++) {
       for (int x = 0; x < in.shape[1]; x++) {
-      	float fx = y * -sa + x * ca;
-      	float fy = y * ca + x * sa;
+      	float fx = -sx + y * -sa + x * ca;
+      	float fy = -sy + y * ca + x * sa;
         auto m = (fx - floor(fx) >= ratio) || (fy - floor(fy) >= ratio);
         for (int c = 0; c < in.shape[2]; c++)
           *out_ptr++ = *in_ptr++ * m;

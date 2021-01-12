@@ -36,6 +36,12 @@ width of black squares plus the spacing between them.)",
                     0.5f, true)
     .AddOptionalArg("angle",
                     "Angle, in radians, by which the grid is rotated.",
+                    0.0f, true)
+    .AddOptionalArg("shift_x",
+                    "The x component of the translation vector, applied after rotation.",
+                    0.0f, true)
+    .AddOptionalArg("shift_y",
+                    "The y component of the translation vector, applied after rotation.",
                     0.0f, true);
 
 bool GridMaskCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -68,12 +74,10 @@ void GridMaskCpu::RunImpl(workspace_t<CPUBackend> &ws) {
           auto in_view = view<const Type>(input);
           auto out_view = view<Type>(output);
           for (int sid = 0; sid < input.shape().num_samples(); sid++) {
-            auto in_sample = in_view[sid];
-            auto out_sample = out_view[sid];
             tp.AddWork([&, sid](int tid) {
               kernels::KernelContext ctx;
               kernel_manager_.Run<Kernel>(tid, sid, ctx, out_view[sid], in_view[sid],
-                tile_[sid], ratio_[sid], angle_[sid]);
+                tile_[sid], ratio_[sid], angle_[sid], shift_x_[sid], shift_y_[sid]);
             }, out_shape.tensor_size(sid));
           }
           tp.RunAll();

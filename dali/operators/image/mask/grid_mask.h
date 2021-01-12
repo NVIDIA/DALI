@@ -34,12 +34,16 @@ class GridMask : public Operator<Backend> {
     this->GetPerSampleArgument(tile_, "tile", ws, batch_size);
     this->GetPerSampleArgument(ratio_, "ratio", ws, batch_size);
     this->GetPerSampleArgument(angle_, "angle", ws, batch_size);
+    this->GetPerSampleArgument(shift_x_, "shift_x", ws, batch_size);
+    this->GetPerSampleArgument(shift_y_, "shift_y", ws, batch_size);
     for (auto t : tile_)
       DALI_ENFORCE(t > 0, "Tile argument must be positive");
   }
   std::vector<int> tile_;
   std::vector<float> ratio_;
   std::vector<float> angle_;
+  std::vector<float> shift_x_;
+  std::vector<float> shift_y_;
   kernels::KernelManager kernel_manager_;
 };
 
