@@ -26,11 +26,6 @@ DALI_SCHEMA(ImageDecoderAttr)
   .AddOptionalArg("output_type",
       R"code(The color space of the output image.)code",
       DALI_RGB)
-// TODO(janton): Remove this when we remove the old nvJPEGDecoder implementation (DALI-971)
-#if !defined(NVJPEG_DECOUPLED_API)
-  .AddOptionalArg("use_batched_decode",
-      R"code(**`mixed` backend only** Use nvJPEG's batched decoding API.)code", false)
-#endif
   .AddOptionalArg("hybrid_huffman_threshold",
       R"code(Applies **only** to the ``mixed`` backend type.
 

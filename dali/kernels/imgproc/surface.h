@@ -34,7 +34,7 @@ struct Surface {
   DALI_HOST_DEV
   constexpr Surface(T *data,
                     int width, int height, int channels,
-                    int pixel_stride, int row_stride, int channel_stride)
+                    int64_t pixel_stride, int64_t row_stride, int64_t channel_stride)
   : data(data), size(width, height), channels(channels),
     strides(pixel_stride, row_stride), channel_stride(channel_stride) {
   }
@@ -43,7 +43,8 @@ struct Surface {
   DALI_HOST_DEV
   constexpr Surface(T *data,
                     int width, int height, int depth, int channels,
-                    int pixel_stride, int row_stride, int slice_stride, int channel_stride)
+                    int64_t pixel_stride, int64_t row_stride, int64_t slice_stride,
+                    int64_t channel_stride)
   : data(data), size(width, height, depth), channels(channels),
     strides(pixel_stride, row_stride, slice_stride), channel_stride(channel_stride) {
   }
@@ -51,17 +52,17 @@ struct Surface {
   DALI_HOST_DEV
   constexpr Surface(T *data,
                     ivec<spatial_ndim> size, int channels,
-                    ivec<spatial_ndim> strides, int channel_stride)
+                    i64vec<spatial_ndim> strides, int64_t channel_stride)
   : data(data), size(size), channels(channels), strides(strides), channel_stride(channel_stride) {
   }
 
   T *data;
   ivec<spatial_ndim> size;
   int channels;
-  ivec<spatial_ndim> strides;
-  int channel_stride;
+  i64vec<spatial_ndim> strides;
+  int64_t channel_stride;
 
-  DALI_HOST_DEV constexpr ivec<spatial_ndim + 1> strides_ch() const {
+  DALI_HOST_DEV constexpr i64vec<spatial_ndim + 1> strides_ch() const {
     return cat(strides, channel_stride);
   }
 
@@ -142,9 +143,9 @@ DALI_HOST_DEV
 constexpr Surface<(channel_dim < 0 ? n : n-1), T> as_surface(const TensorView<Storage, T, n> &t) {
   const int spatial_ndim = (channel_dim < 0 ? n : n-1);
   ivec<spatial_ndim> size = shape2vec(skip_dim<channel_dim>(t.shape));
-  ivec<spatial_ndim> strides = {};
-  int stride = 1;
-  int channel_stride = 0;
+  i64vec<spatial_ndim> strides = {};
+  int64_t stride = 1;
+  int64_t channel_stride = 0;
   int channels = 1;
   for (int d = n - 1, i = 0; d >=0; d--) {
     if (d == channel_dim) {

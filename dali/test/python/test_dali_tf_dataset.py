@@ -47,7 +47,7 @@ class TestPipeline(Pipeline):
             shard_id = shard_id,
             num_shards = num_shards,
             ratio=False,
-            save_img_ids=True)
+            image_ids=True)
         self.decode = ops.ImageDecoder(
             device = 'mixed' if device == 'gpu' else 'cpu',
             output_type = types.RGB)

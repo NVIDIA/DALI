@@ -1,6 +1,5 @@
 #!/bin/bash -e
-# used pip packages# rarfile>= 3.2 breaks python 3.5 compatibility
-pip_packages="paddle rarfile<=3.1"
+pip_packages="paddlepaddle-gpu"
 target_dir=./dali/test/python
 one_config_only=true
 

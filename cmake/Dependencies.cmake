@@ -37,10 +37,6 @@ if (BUILD_NVJPEG)
     add_definitions(-DNVJPEG_LIBRARY_0_2_0)
   endif()
 
-  if (${NVJPEG_DECOUPLED_API})
-    add_definitions(-DNVJPEG_DECOUPLED_API)
-  endif()
-
   if (${NVJPEG_PREALLOCATE_API})
     add_definitions(-DNVJPEG_PREALLOCATE_API)
   endif()
