@@ -18,6 +18,10 @@
 #include <cuda_runtime.h>
 #include <cstddef>
 
+#include <rmm/mr/memory_resource.hpp>
+#include <rmm/mr/host/host_memory_resource.hpp>
+#include <rmm/mr/device/device_memory_resource.hpp>
+
 namespace dali {
 
 /**
@@ -34,122 +38,13 @@ namespace dali {
  */
 namespace mm {
 
-/**
- * @brief This is an interface for generic memory resources.
- */
-class memory_resource {
- public:
-  memory_resource() = default;
-  memory_resource(const memory_resource &) = delete;
-  memory_resource &operator=(const memory_resource &) = delete;
-  virtual ~memory_resource() = default;
-
-  /**
-   * @brief Allocates memory
-   * @param bytes       Size, in bytes, of the requested block
-   * @param alignment   Alignment, in bytes, of the requested block.
-   * @return A pointer to a memory region that satisfies bytes and alignment constraints.
-   *         The pointer should, in general, be freed with a call to deallocate.
-   *         Some memory resources don't require deallocation.
-   */
-  void *allocate(size_t bytes, size_t alignment = alignof(std::max_align_t)) {
-    return do_allocate(bytes, alignment);
-  }
-
-  /**
-   * @brief Deallocates memory returned by a prior call to `allocate`
-   * @param mem         Pointer to a block of memory returned by `allocate`
-   * @param bytes       Size, in bytes, of the block being deallocated
-   * @param alignment   Alignment, in bytes, of the block being deallocated.
-   */
-  void deallocate(void *ptr, size_t bytes, size_t alignment = alignof(std::max_align_t)) {
-    do_deallocate(ptr, bytes, alignment);
-  }
-
-  /**
-   * @brief Checks for equality of the memory resources.
-   *
-   * Memory resources are considered equal if one can free memory allocated by the other.
-   */
-  bool operator==(const memory_resource &other) const noexcept {
-    return do_is_equal(other);
-  }
-
- private:
-  virtual void *do_allocate(size_t bytes, size_t alignment) = 0;
-  virtual void do_deallocate(void *ptr, size_t bytes, size_t alignment) = 0;
-  virtual bool do_is_equal(const memory_resource &other) const noexcept { return this == &other; }
-};
-
-/**
- * @brief This is an interface for memory resources that associate allocations with CUDA streams.
- */
-class stream_memory_resource {
- public:
-  stream_memory_resource() = default;
-
-  stream_memory_resource(const stream_memory_resource &) = delete;
-  stream_memory_resource &operator=(const stream_memory_resource &) = delete;
-  virtual ~stream_memory_resource() = default;
-
-
-  /**
-   * @brief Allocates memory for immediate use on stream `stream`.
-   * @param stream      CUDA stream on which the memory can be immediately used
-   * @param bytes       Size, in bytes, of the requested block
-   * @param alignment   Alignment, in bytes, of the requested block.
-   * @return A pointer to a memory region that satisfies bytes and alignment constraints and
-   *         which can be immediately used on a given CUDA stream.
-   *         The pointer should, in general, be freed with a call to deallocate.
-   *         Some memory resources don't require deallocation.
-   *
-   * stream_memory_resource is a special memory resource that is aware of CUDA streams
-   * and can process allocation and deallocation in stream order. The memory can be modified
-   * immediately on given `stream` but it may be still in use on a different stream.
-   * Similarly, memory returned for a stream cannot be used on host until all work scheduled
-   * on the stream at the moment of a call to allocate is complete.
-   */
-  void *allocate(cudaStream_t stream,
-                 size_t bytes, size_t alignment = alignof(std::max_align_t)) {
-    return do_allocate(stream, bytes, alignment);
-  }
-
-  /**
-   * @brief Deallocates memory returned by a prior call to `allocate` for immediate use
-   *        on stream `stream`.
-   * @param stream      CUDA stream on which the memory can be immediately reused; in general,
-   *                    it does not need to be the same stream as was passed to `allocate`.
-   * @param mem         Pointer to a block of memory returned by `allocate`
-   * @param bytes       Size, in bytes, of the block being deallocated
-   * @param alignment   Alignment, in bytes, of the block being deallocated.
-   *
-   * Implementations of stream_memory_resource may place the freed memory in a per-stream
-   * pool and subsequent calls to allocate may return this memory block or its parts while it's
-   * still in use on device.
-   * It is safe use deallocate on memory that is still in use by the
-   * indicated stream.
-   */
-  void deallocate(cudaStream_t stream,
-                  void *ptr, size_t bytes, size_t alignment = alignof(std::max_align_t)) {
-    do_deallocate(stream, ptr, bytes, alignment);
-  }
-
-  /**
-   * @brief Checks for equality of the memory resources.
-   *
-   * Memory resources are considered equal if one can free memory allocated by the other.
-   */
-  bool operator==(const stream_memory_resource &other) const noexcept {
-    return do_is_equal(other);
-  }
-
- private:
-  virtual void *do_allocate(cudaStream_t stream, size_t bytes, size_t alignment) = 0;
-  virtual void do_deallocate(cudaStream_t stream, void *ptr, size_t bytes, size_t alignment) = 0;
-  virtual bool do_is_equal(const stream_memory_resource &other) const noexcept {
-      return this == &other;
-  }
-};
+using rmm::mr::memory_resource;
+using rmm::mr::stream_aware_memory_resource;
+using rmm::mr::host_memory_resource;
+using rmm::mr::device_memory_resource;
+using rmm::mr::memory_kind;
+using rmm::mr::allocation_order;
+using stream_view = rmm::cuda_stream_view;
 
 }  // namespace mm
 }  // namespace dali

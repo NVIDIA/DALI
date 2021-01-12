@@ -51,10 +51,11 @@ constexpr pool_options default_device_pool_opts() noexcept {
   return { (static_cast<size_t>(1) << 32), (1 << 20), 2.0f, false };
 }
 
-template <class FreeList, class LockType>
-class pool_resource_base : public memory_resource {
+template <memory_kind kind, allocation_order order, class FreeList, class LockType>
+class pool_resource_base : public memory_resource<kind, order> {
  public:
-  explicit pool_resource_base(memory_resource *upstream = nullptr, const pool_options opt = {})
+  explicit pool_resource_base(memory_resource<kind, order> *upstream = nullptr,
+                              const pool_options opt = {})
   : upstream_(upstream), options_(opt) {
      next_block_size_ = opt.min_block_size;
   }
@@ -133,7 +134,7 @@ class pool_resource_base : public memory_resource {
     return actual_block_size;
   }
 
-  memory_resource *upstream_;
+  memory_resource<kind, order> *upstream_;
   FreeList free_list_;
   LockType lock_;
   pool_options options_;

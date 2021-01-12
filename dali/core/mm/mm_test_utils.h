@@ -20,6 +20,7 @@
 #include <cstring>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/core/mm/detail/util.h"
@@ -29,18 +30,24 @@ namespace mm {
 namespace test {
 
 template <bool owning, bool security_check,
-          typename Base, typename Upstream, typename... ExtraParams>
-class test_resource_wrapper : public Base {
+          typename Base, typename Upstream>
+class test_resource_wrapper;
+
+template <bool owning, bool security_check, typename Upstream>
+class test_resource_wrapper_impl {
+ protected:
   using sentinel_t = uint32_t;
-  void *do_allocate(ExtraParams... extra, size_t bytes, size_t alignment) override {
+
+  template <typename UpstreamAlloc, typename... Extra>
+  void *do_allocate_impl(UpstreamAlloc &&ua, size_t bytes, size_t alignment, Extra&&... extra) {
     if (simulate_oom_)
       throw std::bad_alloc();
     void *ret;
     if (security_check) {
-      ret = upstream_->allocate(extra..., bytes + sizeof(sentinel_t), alignment);
-      detail::write_sentinel<sentinel_t>(ret, bytes);
+      ret = ua(bytes + sizeof(sentinel_t), alignment);
+      detail::write_sentinel<sentinel_t>(ret, bytes, std::forward<Extra>(extra)...);
     } else {
-      ret = upstream_->allocate(extra..., bytes, alignment);
+      ret = upstream_->allocate(bytes, alignment, std::forward<Extra>(extra)...);
     }
     freed_.erase(ret);  // in case of address reuse
     if (ret) {  // nullptr can be returned on success if 0 bytes were requested
@@ -54,7 +61,9 @@ class test_resource_wrapper : public Base {
     return ret;
   }
 
-  void do_deallocate(ExtraParams... extra, void *ptr, size_t bytes, size_t alignment) override {
+  template <typename UpstreamDealloc, typename... Extra>
+  void do_deallocate_impl(UpstreamDealloc &&ud, void *ptr, size_t bytes, size_t alignment,
+                          Extra&&... extra) {
     ASSERT_EQ(freed_.count(ptr), 0u) << "Double free of " << ptr;
     auto it = allocated_.find(ptr);
     ASSERT_NE(it, allocated_.end())
@@ -68,7 +77,7 @@ class test_resource_wrapper : public Base {
     allocated_.erase(ptr);
     if (security_check)
       bytes += sizeof(sentinel_t);
-    upstream_->deallocate(extra..., ptr, bytes, alignment);
+    ud(ptr, bytes, alignment, std::forward<Extra>(extra)...);
   }
 
   struct alloc_params {
@@ -79,23 +88,16 @@ class test_resource_wrapper : public Base {
   Upstream *upstream_ = nullptr;
   bool simulate_oom_ = false;
 
-  bool do_is_equal(const Base &other) const noexcept override {
-    if (auto *oth = dynamic_cast<const test_resource_wrapper*>(&other))
-      return *upstream_ == *oth->upstream_;
-    else
-      return false;
-  }
+  test_resource_wrapper_impl() = default;
+  explicit test_resource_wrapper_impl(Upstream *upstream) : upstream_(upstream) {}
+  test_resource_wrapper_impl(const test_resource_wrapper_impl &) = delete;
+  test_resource_wrapper_impl(test_resource_wrapper_impl &&) = delete;
 
- public:
-  test_resource_wrapper() = default;
-  explicit test_resource_wrapper(Upstream *upstream) : upstream_(upstream) {}
-  test_resource_wrapper(const test_resource_wrapper &) = delete;
-  test_resource_wrapper(test_resource_wrapper &&) = delete;
-
-  ~test_resource_wrapper() {
+  ~test_resource_wrapper_impl() {
     reset();
   }
 
+ public:
   void simulate_out_of_memory(bool enable) {
     simulate_oom_ = enable;
   }
@@ -132,14 +134,92 @@ class test_resource_wrapper : public Base {
   }
 };
 
+template <memory_kind kind, allocation_order order, bool owning, bool security_check,
+          typename Upstream>
+class test_resource_wrapper<owning, security_check, memory_resource<kind, order>, Upstream>
+: public memory_resource<kind, order>
+, public test_resource_wrapper_impl<owning, security_check, Upstream> {
+  static_assert(!security_check || kind != memory_kind::device,
+                "Cannot place a security cookie in device memory");
+
+  using test_resource_wrapper_impl<owning, security_check, Upstream>::test_resource_wrapper_impl;
+  bool do_is_equal(const memory_resource<kind, order> &other) const noexcept override {
+    if (auto *oth = dynamic_cast<const test_resource_wrapper*>(&other))
+      return this->upstream_->is_equal(*oth->upstream_);
+    else
+      return false;
+  }
+
+  void *do_allocate(size_t bytes, size_t alignment) override {
+    return this->do_allocate_impl([&](size_t b, size_t a) {
+      return this->upstream_->allocate(b, a);
+    }, bytes, alignment);
+  }
+
+  void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
+    return this->do_deallocate_impl([&](void *p, size_t b, size_t a) {
+      return this->upstream_->deallocate(p, b, a);
+    }, ptr, bytes, alignment);
+  }
+};
+
+
+template <memory_kind kind, bool owning, bool security_check,
+          typename Upstream>
+class test_resource_wrapper<owning, security_check, stream_aware_memory_resource<kind>, Upstream>
+: public stream_aware_memory_resource<kind>
+, public test_resource_wrapper_impl<owning, security_check, Upstream> {
+  static_assert(!security_check || kind != memory_kind::device,
+                "Cannot place a security cookie in device memory");
+
+  using test_resource_wrapper_impl<owning, security_check, Upstream>::test_resource_wrapper_impl;
+  bool do_is_equal(const stream_aware_memory_resource<kind> &other) const noexcept override {
+    if (auto *oth = dynamic_cast<const test_resource_wrapper*>(&other))
+      return this->upstream_->is_equal(*oth->upstream_);
+    else
+      return false;
+  }
+
+  void *do_allocate(size_t bytes, size_t alignment) override {
+    return this->do_allocate_impl([&](size_t b, size_t a) {
+      return this->upstream_->allocate(b, a);
+    }, bytes, alignment);
+  }
+
+  void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
+    return this->do_deallocate_impl([&](void *p, size_t b, size_t a) {
+      return this->upstream_->deallocate(p, b, a);
+    }, ptr, bytes, alignment);
+  }
+
+  void *do_allocate_async(size_t bytes, size_t alignment, stream_view sv) override {
+    return this->do_allocate_impl([&](size_t b, size_t a, stream_view sv) {
+      return this->upstream_->allocate_async(b, a, sv);
+    }, bytes, alignment, sv);
+  }
+
+  void do_deallocate_async(void *ptr, size_t bytes, size_t alignment, stream_view sv) override {
+    return this->do_deallocate_impl([&](void *p, size_t b, size_t a, stream_view sv) {
+      return this->upstream_->deallocate_async(p, b, a, sv);
+    }, ptr, bytes, alignment, sv);
+  }
+};
+
 struct test_host_resource
-: public test_resource_wrapper<false, true, memory_resource, memory_resource> {
+: public test_resource_wrapper<false, true, host_memory_resource, host_memory_resource> {
   test_host_resource() : test_resource_wrapper(&malloc_memory_resource::instance()) {}
 };
 
-template <typename Upstream>
+
+struct test_device_resource
+: public test_resource_wrapper<false, false,
+  memory_resource<memory_kind::device>, memory_resource<memory_kind::device>> {
+  test_device_resource() : test_resource_wrapper(&cuda_malloc_memory_resource::instance()) {}
+};
+
+template <memory_kind kind, typename Upstream>
 using test_stream_resource = test_resource_wrapper<
-    false, true, stream_memory_resource, Upstream, cudaStream_t>;
+    false, true, stream_aware_memory_resource<kind>, Upstream>;
 
 template <typename T>
 void Fill(void *ptr, size_t bytes, T fill_pattern) {

@@ -32,7 +32,8 @@ namespace mm {
  * Monotonic buffer resources don't require manual deallocation of the returned pointers.
  * The memory is freed in bulk when the underlying buffer is freed.
  */
-class monotonic_buffer_resource : public memory_resource {
+template <memory_kind kind, allocation_order order = allocation_order::host>
+class monotonic_buffer_resource : public memory_resource<kind, order> {
  public:
   monotonic_buffer_resource() = default;
   monotonic_buffer_resource(void *memory, size_t bytes)
@@ -74,6 +75,16 @@ class monotonic_buffer_resource : public memory_resource {
   char *curr_ = nullptr, *limit_ = nullptr;
 };
 
+namespace detail {
+constexpr bool is_host_memory(memory_kind kind) {
+  return kind == memory_kind::host || kind == memory_kind::pinned;
+}
+}  // namespace detail
+
+template <memory_kind kind, allocation_order order = allocation_order::host,
+          bool host_impl = detail::is_host_memory(kind)>
+class monotonic_memory_resource;
+
 /**
  * @brief Monotonic resource which allocates memory from an upstream resource, storing
  *        the metadata in the same memory blocks as the allocated buffers.
@@ -82,25 +93,26 @@ class monotonic_buffer_resource : public memory_resource {
  * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
-class monotonic_host_resource : public memory_resource {
+template <memory_kind kind, allocation_order order>
+class monotonic_memory_resource<kind, order, true> : public memory_resource<kind, order> {
  public:
-  explicit monotonic_host_resource(memory_resource *upstream,
-                                   size_t next_block_size = 1024)
+  explicit monotonic_memory_resource(memory_resource<kind, order> *upstream,
+                                     size_t next_block_size = 1024)
   : upstream_(upstream), next_block_size_(next_block_size) {}
 
-  monotonic_host_resource() = default;
+  monotonic_memory_resource() = default;
 
-  monotonic_host_resource(monotonic_host_resource &&other) {
+  monotonic_memory_resource(monotonic_memory_resource &&other) {
     swap(other);
   }
 
-  monotonic_host_resource &operator=(monotonic_host_resource &&other) {
+  monotonic_memory_resource &operator=(monotonic_memory_resource &&other) {
     free_all();
     swap(other);
     return *this;
   }
 
-  void swap(monotonic_host_resource &other) {
+  void swap(monotonic_memory_resource &other) {
     std::swap(curr_, other.curr_);
     std::swap(limit_, other.limit_);
     std::swap(upstream_, other.upstream_);
@@ -108,7 +120,7 @@ class monotonic_host_resource : public memory_resource {
     std::swap(curr_block_, other.curr_block_);
   }
 
-  ~monotonic_host_resource() {
+  ~monotonic_memory_resource() {
     free_all();
   }
 
@@ -161,7 +173,7 @@ class monotonic_host_resource : public memory_resource {
 
   char *curr_ = nullptr, *limit_ = nullptr;
 
-  memory_resource *upstream_;
+  memory_resource<kind, order> *upstream_;
   size_t next_block_size_;
   struct block_info {
     size_t sentinel;
@@ -182,25 +194,26 @@ class monotonic_host_resource : public memory_resource {
  * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
-class monotonic_device_resource : public memory_resource {
+template <memory_kind kind, allocation_order order>
+class monotonic_memory_resource<kind, order, false> : public memory_resource<kind, order> {
  public:
-  explicit monotonic_device_resource(memory_resource *upstream,
-                                    size_t next_block_size = 1024)
+  explicit monotonic_memory_resource(memory_resource<kind, order> *upstream,
+                                     size_t next_block_size = 1024)
   : upstream_(upstream), next_block_size_(next_block_size) {}
 
-  monotonic_device_resource() = default;
+  monotonic_memory_resource() = default;
 
-  monotonic_device_resource(monotonic_device_resource &&other) {
+  monotonic_memory_resource(monotonic_memory_resource &&other) {
     swap(other);
   }
 
-  monotonic_device_resource &operator=(monotonic_device_resource &&other) {
+  monotonic_memory_resource &operator=(monotonic_memory_resource &&other) {
     free_all();
     swap(other);
     return *this;
   }
 
-  void swap(monotonic_device_resource &other) {
+  void swap(monotonic_memory_resource &other) {
     std::swap(curr_, other.curr_);
     std::swap(limit_, other.limit_);
     std::swap(upstream_, other.upstream_);
@@ -208,8 +221,7 @@ class monotonic_device_resource : public memory_resource {
     std::swap(blocks_, other.blocks_);
   }
 
-
-  ~monotonic_device_resource() {
+  ~monotonic_memory_resource() {
     free_all();
   }
 
@@ -250,7 +262,7 @@ class monotonic_device_resource : public memory_resource {
 
   char *curr_ = nullptr, *limit_ = nullptr;
 
-  memory_resource *upstream_;
+  memory_resource<kind, order> *upstream_;
   size_t next_block_size_;
   struct upstream_block {
     void *base;
@@ -260,6 +272,10 @@ class monotonic_device_resource : public memory_resource {
   SmallVector<upstream_block, 8> blocks_;
 };
 
+using monotonic_host_resource = monotonic_memory_resource<memory_kind::host>;
+
+template <allocation_order order = allocation_order::host>
+using monotonic_device_resource = monotonic_memory_resource<memory_kind::device, order>;
 
 }  // namespace mm
 }  // namespace dali

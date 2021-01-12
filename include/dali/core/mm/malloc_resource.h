@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include "dali/core/mm/memory_resource.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 namespace mm {
@@ -25,7 +26,7 @@ namespace mm {
 /**
  * @brief A memory resource that manages host memory with std::aligned_alloc and std::free
  */
-class malloc_memory_resource : public memory_resource {
+class malloc_memory_resource : public host_memory_resource {
   void *do_allocate(size_t bytes, size_t alignment) override {
     return memalign(alignment, bytes + sizeof(int));
   }
@@ -44,6 +45,38 @@ class malloc_memory_resource : public memory_resource {
     return inst;
   }
 };
+
+/**
+ * @brief A memory resource that directly calls cudaMalloc and cudaFree.
+ */
+class cuda_malloc_memory_resource : public memory_resource<memory_kind::device> {
+  void *do_allocate(size_t bytes, size_t alignment) override {
+    if (bytes == 0)
+      return nullptr;
+    void *mem = nullptr;
+    if (alignment > 256)
+      throw dali::CUDABadAlloc();
+    CUDA_CALL(cudaMalloc(&mem, bytes + sizeof(int)));
+    return mem;
+  }
+
+  void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
+    if (ptr) {
+      CUDA_DTOR_CALL(cudaFree(ptr));
+    }
+  }
+
+  bool do_is_equal(const memory_resource &other) const noexcept override {
+    return dynamic_cast<const cuda_malloc_memory_resource*>(&other) != nullptr;
+  }
+
+ public:
+  static cuda_malloc_memory_resource &instance() {
+    static cuda_malloc_memory_resource inst;
+    return inst;
+  }
+};
+
 
 }  // namespace mm
 }  // namespace dali

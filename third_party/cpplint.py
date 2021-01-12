@@ -4476,7 +4476,11 @@ def _ClassifyInclude(fileinfo, include, is_system):
   """
   # This is a list of all standard c++ header files, except
   # those already checked for above.
-  is_cpp_h = include in _CPP_HEADERS
+  is_cpp_h = include in _CPP_HEADERS \
+            or include.endswith(".hpp") \
+            or include.endswith(".hxx") \
+            or include.endswith(".H") \
+            or include.endswith(".hh")
 
   if is_system:
     if is_cpp_h:
