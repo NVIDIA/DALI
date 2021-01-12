@@ -144,6 +144,10 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
       }
     } else {
       range_.Acquire(spec, ws, nsamples, TensorShape<1>{2});
+      for (int s = 0; s < nsamples; s++) {
+        float start = range_[s].data[0], end = range_[s].data[1];
+        DALI_ENFORCE(end > start, make_string("Invalid range [", start, ", ", end, ")."));
+      }
     }
   }
 
