@@ -37,18 +37,16 @@ class GridMaskCpu {
            const InTensorCPU<Type> &in, int tile, float ratio, float angle) {
     auto in_ptr = in.data;
     auto out_ptr = out.data;
-    float dx = cos(angle) / tile;
-    float dy = sin(angle) / tile;
+    float ca = cos(angle) / tile;
+    float sa = sin(angle) / tile;
 
     for (int y = 0; y < in.shape[0]; y++) {
-      float fx = y * -dy;
-      float fy = y * dx;
       for (int x = 0; x < in.shape[1]; x++) {
+      	float fx = y * -sa + x * ca;
+      	float fy = y * ca + x * sa;
         auto m = (fx - floor(fx) >= ratio) || (fy - floor(fy) >= ratio);
         for (int c = 0; c < in.shape[2]; c++)
           *out_ptr++ = *in_ptr++ * m;
-        fx += dx;
-        fy += dy;
       }
     }
   }
