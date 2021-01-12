@@ -95,6 +95,8 @@ struct RLEMask : public UniqueHandle<RLE, RLEMask> {
   RLE* operator->() { return &handle_; }
 };
 
+using RLEMaskPtr = std::shared_ptr<RLEMask>;
+
 class DLL_PUBLIC CocoLoader : public FileLabelLoader {
  public:
   explicit inline CocoLoader(const OpSpec &spec)
@@ -111,14 +113,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
       }
     }
 
-    std::vector<std::string> images_vec;
-    if (spec.TryGetRepeatedArgument(images_vec, "images")) {
-      for (auto &image_path : images_vec) {
-        images_.insert(std::move(image_path));
-      }
-      images_vec.clear();
-    }
-
+    spec.TryGetRepeatedArgument(images_, "images");
     output_polygon_masks_ = OutPolygonMasksEnabled(spec);
     output_pixelwise_masks_ = OutPixelwiseMasksEnabled(spec);
     output_image_ids_ = OutImageIdsEnabled(spec);
@@ -134,7 +129,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
 
   struct PixelwiseMasksInfo {
     TensorShape<3> shape;
-    span<const RLEMask> rles;
+    span<const RLEMaskPtr> rles;
     span<const int> mask_indices;
   };
 
@@ -225,7 +220,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
   std::vector<int64_t> vertices_count_;   // number of vertices per sample
 
   // masks_rles: (run-length encodings)
-  std::vector<RLEMask> masks_rles_;
+  std::vector<RLEMaskPtr> masks_rles_;
   std::vector<int> masks_rles_idx_;
   std::vector<int64_t> mask_offsets_;  // per-sample offsets of masks
   std::vector<int64_t> mask_counts_;   // number of masks per sample
@@ -235,7 +230,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
   bool output_image_ids_ = false;
   bool has_preprocessed_annotations_ = false;
 
-  std::unordered_set<std::string> images_;
+  std::vector<std::string> images_;
 };
 
 }  // namespace dali
