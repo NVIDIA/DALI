@@ -232,7 +232,7 @@ def _test_extremely_large_data(device):
       out[in_size-1, in_size-1, c] = c
     return [out]
 
-  pipe = Pipeline(1, 3, 0)
+  pipe = Pipeline(1, 3, 0, prefetch_queue_depth=1)
   input = fn.external_source(source=get_data, device=device)
 
   rotated = fn.warp_affine(input, matrix=[-1, 0, in_size, 0, -1, in_size],
@@ -260,5 +260,5 @@ def _test_extremely_large_data(device):
     assert out[0,0,c] == c
 
 def test_extremely_large_data():
-  for device in ["cpu", "gpu"]:  # cpu is too slow and the failure was not detected anyway
+  for device in ["cpu", "gpu"]:
     yield _test_extremely_large_data, device
