@@ -26,4 +26,7 @@ void Dummy<::dali::CPUBackend>::RunImpl(::dali::HostWorkspace &ws) {
 
 DALI_REGISTER_OPERATOR(CustomDummy, ::other_ns::Dummy<::dali::CPUBackend>, ::dali::CPU);
 
-DALI_SCHEMA(CustomDummy).DocStr("Make a copy of the input tensor").NumInput(1).NumOutput(1);
+DALI_SCHEMA(CustomDummy)
+    .DocStr("Make a copy of the input tensor")
+    .NumInput(1)
+    .NumOutput(1);
