@@ -339,6 +339,7 @@ def check_mxnet_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
     for _ in range(iters):
         out_set = []
         img_ids_list = [[] for _ in range(pipes_number)]
+        orig_length = length = len(dali_train_iter)
         for it in iter(dali_train_iter):
             for id in range(pipes_number):
                 tmp = it[id].data[0].squeeze(-1).asnumpy().copy()
@@ -346,6 +347,9 @@ def check_mxnet_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
                     tmp = tmp[0:-it[id].pad]
                 img_ids_list[id].append(tmp)
             sample_counter += batch_size
+            length -= 1
+
+        assert length == 0, "Iterator has reported wrong size {}, while {} iteration of data has been provide".format(orig_length, orig_length - length)
         if not auto_reset:
             dali_train_iter.reset()
         for id in range(pipes_number):
@@ -494,6 +498,7 @@ def check_gluon_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
     for _ in range(iters):
         out_set = []
         img_ids_list = [[] for _ in range(pipes_number)]
+        orig_length = length = len(dali_train_iter)
         for it in iter(dali_train_iter):
             for id in range(pipes_number):
                 if len(it[id][0]):
@@ -502,6 +507,9 @@ def check_gluon_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
                     tmp = np.empty([0])
                 img_ids_list[id].append(tmp)
             sample_counter += batch_size
+            length -= 1
+
+        assert length == 0, "Iterator has reported wrong size {}, while {} iteration of data has been provide".format(orig_length, orig_length - length)
         if not auto_reset:
             dali_train_iter.reset()
         for id in range(pipes_number):
@@ -728,11 +736,15 @@ def check_pytorch_iterator_pass_reader_name(shards_num, pipes_number, batch_size
     for _ in range(iters):
         out_set = []
         img_ids_list = [[] for _ in range(pipes_number)]
+        orig_length = length = len(dali_train_iter)
         for it in iter(dali_train_iter):
             for id in range(pipes_number):
                 tmp = it[id]["data"].squeeze(dim=1).numpy().copy()
                 img_ids_list[id].append(tmp)
             sample_counter += batch_size
+            length -= 1
+
+        assert length == 0, "Iterator has reported wrong size {}, while {} iteration of data has been provide".format(orig_length, orig_length - length)
         if not auto_reset:
             dali_train_iter.reset()
         for id in range(pipes_number):
@@ -858,11 +870,15 @@ def check_paddle_iterator_pass_reader_name(shards_num, pipes_number, batch_size,
     for _ in range(iters):
         out_set = []
         img_ids_list = [[] for _ in range(pipes_number)]
+        orig_length = length = len(dali_train_iter)
         for it in iter(dali_train_iter):
             for id in range(pipes_number):
                 tmp = np.array(it[id]["data"]).squeeze(axis=1).copy()
                 img_ids_list[id].append(tmp)
             sample_counter += batch_size
+            length -= 1
+
+        assert length == 0, "Iterator has reported wrong size {}, while {} iteration of data has been provide".format(orig_length, orig_length - length)
         if not auto_reset:
             dali_train_iter.reset()
         for id in range(pipes_number):
