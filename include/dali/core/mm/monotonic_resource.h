@@ -75,12 +75,6 @@ class monotonic_buffer_resource : public memory_resource<kind, order> {
   char *curr_ = nullptr, *limit_ = nullptr;
 };
 
-namespace detail {
-constexpr bool is_host_memory(memory_kind kind) {
-  return kind == memory_kind::host || kind == memory_kind::pinned;
-}
-}  // namespace detail
-
 template <memory_kind kind, allocation_order order = allocation_order::host,
           bool host_impl = detail::is_host_memory(kind)>
 class monotonic_memory_resource;

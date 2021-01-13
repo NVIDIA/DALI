@@ -21,6 +21,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <rmm/mr/device/pool_memory_resource.hpp>
+#include <rmm/mr/device/cuda_memory_resource.hpp>
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/core/mm/detail/util.h"
@@ -44,10 +46,10 @@ class test_resource_wrapper_impl {
       throw std::bad_alloc();
     void *ret;
     if (security_check) {
-      ret = ua(bytes + sizeof(sentinel_t), alignment);
-      detail::write_sentinel<sentinel_t>(ret, bytes, std::forward<Extra>(extra)...);
+      ret = ua(bytes + sizeof(sentinel_t), alignment, std::forward<Extra>(extra)...);
+      detail::write_sentinel<sentinel_t>(ret, bytes);
     } else {
-      ret = upstream_->allocate(bytes, alignment, std::forward<Extra>(extra)...);
+      ret = ua(bytes, alignment, std::forward<Extra>(extra)...);
     }
     freed_.erase(ret);  // in case of address reuse
     if (ret) {  // nullptr can be returned on success if 0 bytes were requested
@@ -173,7 +175,7 @@ class test_resource_wrapper<owning, security_check, stream_aware_memory_resource
                 "Cannot place a security cookie in device memory");
 
   using test_resource_wrapper_impl<owning, security_check, Upstream>::test_resource_wrapper_impl;
-  bool do_is_equal(const stream_aware_memory_resource<kind> &other) const noexcept override {
+  bool do_is_equal(const memory_resource<kind> &other) const noexcept override {
     if (auto *oth = dynamic_cast<const test_resource_wrapper*>(&other))
       return this->upstream_->is_equal(*oth->upstream_);
     else
@@ -210,16 +212,27 @@ struct test_host_resource
   test_host_resource() : test_resource_wrapper(&malloc_memory_resource::instance()) {}
 };
 
-
 struct test_device_resource
 : public test_resource_wrapper<false, false,
   memory_resource<memory_kind::device>, memory_resource<memory_kind::device>> {
   test_device_resource() : test_resource_wrapper(&cuda_malloc_memory_resource::instance()) {}
 };
 
-template <memory_kind kind, typename Upstream>
+template <memory_kind kind, bool owning, typename Upstream = stream_aware_memory_resource<kind>>
 using test_stream_resource = test_resource_wrapper<
-    false, true, stream_aware_memory_resource<kind>, Upstream>;
+    owning, detail::is_host_memory(kind), stream_aware_memory_resource<kind>, Upstream>;
+
+
+class test_dev_pool_resource : public test_stream_resource<memory_kind::device, true> {
+ public:
+  test_dev_pool_resource() {
+    reset(new rmm::mr::pool_memory_resource<rmm::mr::cuda_memory_resource>(&cuda_mr_));
+  }
+
+ private:
+  rmm::mr::cuda_memory_resource cuda_mr_;
+};
+
 
 template <typename T>
 void Fill(void *ptr, size_t bytes, T fill_pattern) {

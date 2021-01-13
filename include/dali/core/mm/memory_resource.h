@@ -46,6 +46,13 @@ using rmm::mr::memory_kind;
 using rmm::mr::allocation_order;
 using stream_view = rmm::cuda_stream_view;
 
+
+namespace detail {
+constexpr bool is_host_memory(memory_kind kind) {
+  return kind == memory_kind::host || kind == memory_kind::pinned;
+}
+}  // namespace detail
+
 }  // namespace mm
 }  // namespace dali
 
