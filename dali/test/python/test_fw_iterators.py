@@ -349,7 +349,7 @@ def check_mxnet_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
             sample_counter += batch_size
             length -= 1
 
-        assert length == 0, "Iterator has reported wrong size {}, while {} iteration of data has been provide".format(orig_length, orig_length - length)
+        assert length == 0, "The iterator has reported the length of {} but provided {} iterations.".format(orig_length, orig_length - length)
         if not auto_reset:
             dali_train_iter.reset()
         for id in range(pipes_number):
@@ -509,7 +509,7 @@ def check_gluon_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
             sample_counter += batch_size
             length -= 1
 
-        assert length == 0, "Iterator has reported wrong size {}, while {} iteration of data has been provide".format(orig_length, orig_length - length)
+        assert length == 0, "The iterator has reported the length of {} but provided {} iterations.".format(orig_length, orig_length - length)
         if not auto_reset:
             dali_train_iter.reset()
         for id in range(pipes_number):
@@ -744,7 +744,7 @@ def check_pytorch_iterator_pass_reader_name(shards_num, pipes_number, batch_size
             sample_counter += batch_size
             length -= 1
 
-        assert length == 0, "Iterator has reported wrong size {}, while {} iteration of data has been provide".format(orig_length, orig_length - length)
+        assert length == 0, "The iterator has reported the length of {} but provided {} iterations.".format(orig_length, orig_length - length)
         if not auto_reset:
             dali_train_iter.reset()
         for id in range(pipes_number):
@@ -878,7 +878,7 @@ def check_paddle_iterator_pass_reader_name(shards_num, pipes_number, batch_size,
             sample_counter += batch_size
             length -= 1
 
-        assert length == 0, "Iterator has reported wrong size {}, while {} iteration of data has been provide".format(orig_length, orig_length - length)
+        assert length == 0, "The iterator has reported the length of {} but provided {} iterations.".format(orig_length, orig_length - length)
         if not auto_reset:
             dali_train_iter.reset()
         for id in range(pipes_number):
