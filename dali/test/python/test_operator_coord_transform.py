@@ -5,9 +5,9 @@ from test_utils import check_batch, dali_type
 
 def make_param(kind, shape):
     if kind == "input":
-        return fn.uniform(range=(0, 1), shape=shape)
+        return fn.random.uniform(range=(0, 1), shape=shape)
     elif kind == "scalar input":
-        return fn.reshape(fn.uniform(range=(0, 1)), shape=[])
+        return fn.reshape(fn.random.uniform(range=(0, 1)), shape=[])
     elif kind == "vector":
         return np.random.rand(*shape).astype(np.float32)
     elif kind == "scalar":

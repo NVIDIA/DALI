@@ -208,10 +208,10 @@ class DetectionPipeline(Pipeline):
             anchors=default_boxes)
 
         # Random variables
-        self.saturation_rng = ops.Uniform(range=[0.8, 1.2])
-        self.contrast_rng = ops.Uniform(range=[0.5, 1.5])
-        self.brighness_rng = ops.Uniform(range=[0.875, 1.125])
-        self.hue_rng = ops.Uniform(range=[-45, 45])
+        self.saturation_rng = ops.random.Uniform(range=[0.8, 1.2])
+        self.contrast_rng = ops.random.Uniform(range=[0.5, 1.5])
+        self.brighness_rng = ops.random.Uniform(range=[0.875, 1.125])
+        self.hue_rng = ops.random.Uniform(range=[-45, 45])
 
     def define_graph(self):
         # Random variables

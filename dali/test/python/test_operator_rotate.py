@@ -104,7 +104,7 @@ class RotatePipeline(Pipeline):
         else:
           self.cast = None
 
-        self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42);
+        self.uniform = ops.random.Uniform(range = (-180.0, 180.0), seed = 42);
         self.rotate = ops.Rotate(device = device, size=fixed_size, fill_value = 42, dtype = output_type)
 
     def define_graph(self):
@@ -126,7 +126,7 @@ class CVPipeline(Pipeline):
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         self.rotate = ops.PythonFunction(function=CVRotate(output_type, input_type, fixed_size),
                                          output_layouts="HWC")
-        self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42)
+        self.uniform = ops.random.Uniform(range = (-180.0, 180.0), seed = 42)
         self.iter = 0
 
     def define_graph(self):

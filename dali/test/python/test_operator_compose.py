@@ -11,7 +11,7 @@ def test_unified_arg_placement():
 
     pipe = Pipeline(batch_size, 1, None)
     with pipe:
-        u = ops.Uniform()(range=(1, 2), shape=3)
+        u = ops.random.Uniform()(range=(1, 2), shape=3)
         tr = ops.transforms.Translation(offset=u, device="cpu")
         pipe.set_outputs(tr(), u)
     pipe.build()
@@ -30,7 +30,7 @@ def test_compose():
     batch_size = 3
     pipe = Pipeline(batch_size, 1, None)
 
-    u = ops.Uniform()(range=(1, 2), shape=3)
+    u = ops.random.Uniform()(range=(1, 2), shape=3)
     c1 = ops.Compose([
         ops.transforms.Translation(offset=u),
         ops.transforms.Scale(scale=[1, 1,-1])
@@ -64,7 +64,7 @@ def test_compose_change_device():
     batch_size = 3
     pipe = Pipeline(batch_size, 1, 0)
 
-    size = fn.uniform(shape=2, range=(300,500))
+    size = fn.random.uniform(shape=2, range=(300,500))
     c = ops.Compose([
         ops.ImageDecoder(device="cpu"),
         ops.Resize(size=size, device="gpu")

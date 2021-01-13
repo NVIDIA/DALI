@@ -55,7 +55,7 @@ def check_transform_translation_op(offset, has_input = False, reverse_order=Fals
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
         if has_input:
-            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
             T1 = fn.transforms.translation(T0, device='cpu', offset=offset, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
@@ -99,7 +99,7 @@ def check_transform_scale_op(scale, center=None, has_input = False, reverse_orde
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
         if has_input:
-            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
             T1 = fn.transforms.scale(T0, device='cpu', scale=scale, center=center, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
@@ -158,10 +158,10 @@ def check_transform_rotation_op(angle=None, axis=None, center=None, has_input = 
     with pipe:
         outputs = []
         if random_angle:
-            angle = fn.uniform(range=(-90, 90))
+            angle = fn.random.uniform(range=(-90, 90))
 
         if has_input:
-            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
             T1 = fn.transforms.rotation(T0, device='cpu', angle=angle, axis=axis, center=center, reverse_order=reverse_order)
             outputs = [T1, T0]
         else:
@@ -253,7 +253,7 @@ def check_transform_shear_op(shear=None, angles=None, center=None, has_input = F
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
         if has_input:
-            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
             T1 = fn.transforms.shear(T0, device='cpu', shear=shear, angles=angles, center=center, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
@@ -269,19 +269,19 @@ def check_transform_shear_op(shear=None, angles=None, center=None, has_input = F
 def check_transform_shear_op_runtime_args(ndim, use_angles, use_center, has_input=False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
-        inputs = [fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))] if has_input else []
+        inputs = [fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))] if has_input else []
         params = []
         angles_arg = None
         shear_arg = None
         center_arg = None
         if use_angles:
-            angles_arg = fn.uniform(range=(-80,80), shape=[ndim, ndim-1])
+            angles_arg = fn.random.uniform(range=(-80,80), shape=[ndim, ndim-1])
             params.append(angles_arg)
         else:
-            shear_arg = fn.uniform(range=(-2,2), shape=[ndim, ndim-1])
+            shear_arg = fn.random.uniform(range=(-2,2), shape=[ndim, ndim-1])
             params.append(shear_arg)
         if use_center:
-            center_arg = fn.uniform(range=(-10,10), shape=[ndim])
+            center_arg = fn.random.uniform(range=(-10,10), shape=[ndim])
             params.append(center_arg)
 
         T1 = fn.transforms.shear(*inputs, device='cpu', shear=shear_arg, angles=angles_arg, center=center_arg, reverse_order=reverse_order)
@@ -369,7 +369,7 @@ def check_transform_crop_op(from_start = None, from_end = None, to_start = None,
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
         if has_input:
-            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
             T1 = fn.transforms.crop(T0, device='cpu',
                                    from_start=from_start, from_end=from_end,
                                    to_start=to_start, to_end=to_end,
@@ -424,7 +424,7 @@ def check_combine_transforms(num_transforms = 2, ndim = 2, reverse_order = False
                              batch_size=1, num_threads=4, device_id=0):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
     with pipe:
-        transforms = [fn.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234) for _ in range(num_transforms)]
+        transforms = [fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234) for _ in range(num_transforms)]
         T = fn.transforms.combine(*transforms)
     pipe.set_outputs(T, *transforms)
     pipe.build()

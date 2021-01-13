@@ -93,7 +93,7 @@ std::pair<std::vector<int>, int> DistributeBlocksPerSample(
 
 template <typename T>
 int64_t SetupBlockDescs(BlockDesc* blocks, int64_t block_sz, int64_t max_nblocks,
-                        TensorListView<StorageGPU, T> &output, cudaStream_t stream) {
+                        TensorListView<StorageGPU, T> &output) {
   std::vector<int> blocks_per_sample;
   int64_t blocks_num;
   auto &shape = output.shape;

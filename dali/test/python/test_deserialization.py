@@ -22,7 +22,7 @@ from nose.tools import *
 class TestPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, shape):
         super().__init__(batch_size, num_threads, device_id=0, seed=42)
-        self.cf = ops.Uniform(device="cpu", shape=shape, seed=42)
+        self.cf = ops.random.Uniform(device="cpu", shape=shape, seed=42)
 
     def define_graph(self):
         cf = self.cf()

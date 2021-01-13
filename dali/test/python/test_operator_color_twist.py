@@ -12,10 +12,10 @@ class ColorTwistPipeline(Pipeline):
     def __init__(self, batch_size, seed, data_iterator, kind="new", num_threads=1, device_id=0):
         super(ColorTwistPipeline, self).__init__(batch_size, num_threads, device_id, seed=seed)
         self.input = ops.ExternalSource(source=data_iterator)
-        self.hue = ops.Uniform(range=[-20., 20.], seed=seed)
-        self.sat = ops.Uniform(range=[0., 1.], seed=seed)
-        self.bri = ops.Uniform(range=[0., 2.], seed=seed)
-        self.con = ops.Uniform(range=[0., 2.], seed=seed)
+        self.hue = ops.random.Uniform(range=[-20., 20.], seed=seed)
+        self.sat = ops.random.Uniform(range=[0., 1.], seed=seed)
+        self.bri = ops.random.Uniform(range=[0., 2.], seed=seed)
+        self.con = ops.random.Uniform(range=[0., 2.], seed=seed)
         self.kind = kind
         if kind == "new":
             self.color_twist = ops.ColorTwist(device="gpu")

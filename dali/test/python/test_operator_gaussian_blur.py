@@ -238,7 +238,7 @@ def check_per_sample_gaussian_blur(
     data = RandomlyShapedDataIterator(batch_size, max_shape=shape)
     with pipe:
         if sigma_dim is not None:
-            sigma = fn.uniform(range=[0.5, 3], shape=[sigma_dim])
+            sigma = fn.random.uniform(range=[0.5, 3], shape=[sigma_dim])
             sigma_arg = sigma
         else:
             # placeholder, so we can return something
@@ -246,7 +246,7 @@ def check_per_sample_gaussian_blur(
             sigma_arg = None
 
         if window_size_dim is not None:
-            window_radius = fn.uniform(range=[5, 10], shape=[window_size_dim])
+            window_radius = fn.random.uniform(range=[5, 10], shape=[window_size_dim])
             window_size = fn.cast(window_radius, dtype=types.INT32) * 2 + 1
             window_arg = window_size
         else:

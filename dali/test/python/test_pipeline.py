@@ -401,7 +401,7 @@ def test_seed():
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.coin = ops.CoinFlip()
-            self.uniform = ops.Uniform(range = (0.0,1.0))
+            self.uniform = ops.random.Uniform(range = (0.0,1.0))
             self.iter = 0
 
         def define_graph(self):
@@ -440,7 +440,7 @@ def test_as_array():
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.coin = ops.CoinFlip()
-            self.uniform = ops.Uniform(range = (0.0,1.0))
+            self.uniform = ops.random.Uniform(range = (0.0,1.0))
             self.iter = 0
 
         def define_graph(self):
@@ -480,7 +480,7 @@ def test_seed_serialize():
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.coin = ops.CoinFlip()
-            self.uniform = ops.Uniform(range = (0.0,1.0))
+            self.uniform = ops.random.Uniform(range = (0.0,1.0))
             self.iter = 0
 
         def define_graph(self):
@@ -616,7 +616,7 @@ def test_type_conversion():
                                                      crop = (224, 224),
                                                      mean = 128,
                                                      std = 1)
-            self.uniform = ops.Uniform(range = (0,1))
+            self.uniform = ops.random.Uniform(range = (0,1))
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
@@ -659,8 +659,8 @@ def test_equal_ImageDecoderCrop_ImageDecoder():
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             # Fixing HW load to 0 to be able to compare with ImageDecoderCrop (which uses CUDA decoder only)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB, hw_decoder_load = 0.0)
-            self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
-            self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
+            self.pos_rng_x = ops.random.Uniform(range = (0.0, 1.0), seed=1234)
+            self.pos_rng_y = ops.random.Uniform(range = (0.0, 1.0), seed=5678)
             self.crop = ops.Crop(device="gpu", crop =(224,224))
 
         def define_graph(self):
@@ -678,8 +678,8 @@ def test_equal_ImageDecoderCrop_ImageDecoder():
                                              num_threads,
                                              device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-            self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
-            self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
+            self.pos_rng_x = ops.random.Uniform(range = (0.0, 1.0), seed=1234)
+            self.pos_rng_y = ops.random.Uniform(range = (0.0, 1.0), seed=5678)
             self.decode = ops.ImageDecoderCrop(device = 'mixed', output_type = types.RGB, crop = (224, 224))
 
         def define_graph(self):
@@ -789,8 +789,8 @@ class LazyPipeline(Pipeline):
                                            device_id)
         self.input = ops.CaffeReader(path = db_folder, shard_id = device_id, num_shards = num_gpus, lazy_init = lazy_type)
         self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
-        self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
-        self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
+        self.pos_rng_x = ops.random.Uniform(range = (0.0, 1.0), seed=1234)
+        self.pos_rng_y = ops.random.Uniform(range = (0.0, 1.0), seed=5678)
         self.crop = ops.Crop(device="gpu", crop =(224,224))
 
     def define_graph(self):

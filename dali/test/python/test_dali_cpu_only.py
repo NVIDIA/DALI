@@ -170,7 +170,7 @@ def test_coin_flip_device():
     check_no_input(fn.coin_flip)
 
 def test_uniform_device():
-    check_no_input(fn.uniform)
+    check_no_input(fn.random.uniform)
 
 def test_reshape_cpu():
     new_shape = test_data_shape.copy()
@@ -451,9 +451,9 @@ def test_bbox_paste_cpu():
         out = [(np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
         return out
     data = fn.external_source(source = get_data)
-    paste_posx = fn.uniform(range=(0, 1))
-    paste_posy = fn.uniform(range=(0, 1))
-    paste_ratio = fn.uniform(range=(1, 2))
+    paste_posx = fn.random.uniform(range=(0, 1))
+    paste_posy = fn.random.uniform(range=(0, 1))
+    paste_ratio = fn.random.uniform(range=(1, 2))
     processed = fn.bbox_paste(data, paste_x=paste_posx, paste_y=paste_posy, ratio=paste_ratio)
     pipe.set_outputs(processed)
     pipe.build()

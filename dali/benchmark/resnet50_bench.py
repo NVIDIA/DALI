@@ -49,8 +49,8 @@ class C2Pipe(Pipeline):
                                           dtype = types.FLOAT16,
                                           mean = [128., 128., 128.],
                                           std = [1., 1., 1.])
-        self.uniform = ops.Uniform(range = (0., 1.))
-        self.resize_uniform = ops.Uniform(range = (256., 480.))
+        self.uniform = ops.random.Uniform(range = (0., 1.))
+        self.resize_uniform = ops.random.Uniform(range = (256., 480.))
         self.mirror = ops.CoinFlip(probability = 0.5)
 
     def define_graph(self):
@@ -83,8 +83,8 @@ class HybridPipe(Pipeline):
                                             crop = (224, 224),
                                             mean = [128., 128., 128.],
                                             std = [1., 1., 1.])
-        self.uniform = ops.Uniform(range = (0., 1.))
-        self.resize_uniform = ops.Uniform(range = (256., 480.))
+        self.uniform = ops.random.Uniform(range = (0., 1.))
+        self.resize_uniform = ops.random.Uniform(range = (256., 480.))
         self.mirror = ops.CoinFlip(probability = 0.5)
 
     def define_graph(self):
