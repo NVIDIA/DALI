@@ -168,6 +168,7 @@ def get_dali_pipeline(
                         random_shuffle=training,
                         shard_id=shard_id,
                         num_shards=num_gpus,
+                        initial_fill=10000,
                         features={
                             'image/encoded': tfrec.FixedLenFeature((), tfrec.string, ""),
                             'image/class/label': tfrec.FixedLenFeature([1], tfrec.int64,  -1),
@@ -187,15 +188,18 @@ def get_dali_pipeline(
                 random_aspect_ratio=[0.75, 1.25],
                 random_area=[0.05, 1.0],
                 num_attempts=100)
+            images = fn.resize(images, device=resize_device, resize_x=width, resize_y=height)
         else:
             images = fn.image_decoder(
                 inputs["image/encoded"],
                 device=decode_device,
                 output_type=types.RGB)
+            # Make sure that every image > 224 for CropMirrorNormalize
+            images = fn.resize(images, device=resize_device, resize_shorter=256)
 
-        images = fn.resize(images, device=resize_device, resize_x=width, resize_y=height)
         images = fn.crop_mirror_normalize(
             images,
+            device="gpu",
             dtype=types.FLOAT,
             crop=(height, width),
             mean=[123.68, 116.78, 103.94],

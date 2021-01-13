@@ -29,7 +29,7 @@ mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
     python -u resnet.py \
     --data_dir=$DATA_SET_DIR --data_idx_dir=idx-files/ \
     --precision=fp16 --num_iter=90 --iter_unit=epoch --display_every=50 \
-    --batch=128 --use_xla --log_dir=$OUT \
+    --batch=192 --use_xla --log_dir=$OUT \
     --dali_mode="GPU" 2>&1 | tee $LOG
 
 RET=${PIPESTATUS[0]}
@@ -42,7 +42,7 @@ fi
 
 MIN_TOP1=0.75
 MIN_TOP5=0.92
-MIN_PERF=8500
+MIN_PERF=8000
 
 TOP1=$(grep "loss:" $LOG | awk '{print $18}' | tail -1)
 TOP5=$(grep "loss:" $LOG | awk '{print $21}' | tail -1)
