@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,13 +22,13 @@ DALI_SCHEMA(random__Uniform)
     .DocStr(R"code(Generates random numbers following a uniform distribution.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the input, if provided. If none are present, a single number is
+or chosen to match the shape of the input, if provided. If none are present, a scalar is
 generated.
 )code")
     .NumInput(0, 1)
     .NumOutput(1)
     .AddOptionalArg("range",
-      R"code(Range [min, max) of a continuous uniform distribution.
+      R"code(Range ``[min, max)`` of a continuous uniform distribution.
 
 This argument is mutually exclusive with ``values``.)code",
       std::vector<float>{-1.0f, 1.0f}, true)
@@ -46,13 +46,13 @@ DALI_SCHEMA(Uniform)
     .DocStr(R"code(Generates random numbers following a uniform distribution.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the input, if provided. If none are present, a single number is
+or chosen to match the shape of the input, if provided. If none are present, a scalar is
 generated.
 )code")
     .NumInput(0, 1)
     .NumOutput(1)
     .AddOptionalArg("range",
-      R"code(Range [min, max) of a continuous uniform distribution.
+      R"code(Range ``[min, max)`` of a continuous uniform distribution.
 
 This argument is mutually exclusive with ``values``.)code",
       std::vector<float>{-1.0f, 1.0f}, true)

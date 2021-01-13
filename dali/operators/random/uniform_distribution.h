@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,10 +25,44 @@
 
 namespace dali {
 
+/**
+ * @brief Wraps std::uniform_real_distribution<T>> and works around the issue
+ *        with end of the range (GCC and LLVM bug)
+ */
+template <typename T>
+class uniform_real_dist {
+ public:
+  explicit uniform_real_dist(T range_start = -1, T range_end = 1)
+      : range_end_(range_end)
+      , dist_(range_start, range_end) {
+    assert(range_end > range_start);
+  }
+
+  template <typename Generator>
+  inline T operator()(Generator& g) {
+    T val = range_end_;
+    while (val >= range_end_)
+      val = dist_(g);
+    return val;
+  }
+
+ private:
+  T range_end_ = 1;
+  std::uniform_real_distribution<T> dist_;
+};
+
+
+/**
+ * @brief Draws values from a discrete uniform distribution
+ */
 template <typename T>
 class uniform_int_values_dist {
  public:
-  uniform_int_values_dist() : values_(nullptr), nvalues_(0) {}
+  uniform_int_values_dist() : values_(nullptr), nvalues_(0) {
+    // Should not be used. It is just here to make the base
+    // RNG operator code easier.
+    assert(false);
+  }
   uniform_int_values_dist(const T *values, int64_t nvalues)
     : values_(values), nvalues_(nvalues), dist_(0, nvalues-1) {}
 
@@ -57,7 +91,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
     using type =
       typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
           curand_uniform_dist<FloatType>,
-          std::uniform_real_distribution<FloatType>>;
+          uniform_real_dist<FloatType>>;
   };
 
   template <typename T>
@@ -109,6 +143,10 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
       }
     } else {
       range_.Acquire(spec, ws, nsamples, TensorShape<1>{2});
+      for (int s = 0; s < nsamples; s++) {
+        float start = range_[s].data[0], end = range_[s].data[1];
+        DALI_ENFORCE(end > start, make_string("Invalid range [", start, ", ", end, ")."));
+      }
     }
   }
 

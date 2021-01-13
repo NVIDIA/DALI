@@ -31,6 +31,7 @@ def check_uniform_default(device='cpu', batch_size=32, shape=[1e5], val_range=No
     val_range = (-1.0, 1.0) if val_range is None else val_range
     data_out = outputs[0].as_cpu() \
         if isinstance(outputs[0], TensorListGPU) else outputs[0]
+    pvs = []
     for i in range(batch_size):
         data = np.array(data_out[i])
         # Check that the data is within the default range
@@ -46,14 +47,38 @@ def check_uniform_default(device='cpu', batch_size=32, shape=[1e5], val_range=No
         # normalize to 0-1 range
         data_kstest = (data - val_range[0]) / (val_range[1] - val_range[0])
         _, pv = st.kstest(rvs=data_kstest, cdf='uniform')
-        assert pv > 0.05, f"data is not a uniform distribution (pv = {pv})"
+        pvs = pvs + [pv]
+    assert np.mean(pvs) > 0.05, f"data is not a uniform distribution. pv = {np.mean(pvs)}"
 
 def test_uniform_continuous():
-    batch_size = 8
+    batch_size = 4
     shape = [100000]
     for device in ['cpu', 'gpu']:
         for val_range in [None, (200.0, 400.0)]:
             yield check_uniform_default, device, batch_size, shape, val_range
+
+def check_uniform_continuous_next_after(device='cpu', batch_size=32, shape=[1e5]):
+    batch_size = 4
+    shape = [100000]
+    val_range = [np.float32(10.0), np.nextafter(np.float32(10.0), np.float32(11.0))]
+
+    pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
+    with pipe:
+        pipe.set_outputs(dali.fn.random.uniform(device=device, range=val_range, shape=shape))
+    pipe.build()
+    outputs = pipe.run()
+    data_out = outputs[0].as_cpu() \
+        if isinstance(outputs[0], TensorListGPU) else outputs[0]
+    for i in range(batch_size):
+        data = np.array(data_out[i])
+        assert (val_range[0] == data).all(), \
+            f"{data} is outside of requested range"
+
+def test_uniform_continuous_next_after():
+    batch_size = 4
+    shape = [100000]
+    for device in ['cpu', 'gpu']:
+        yield check_uniform_continuous_next_after, device, batch_size, shape
 
 def check_uniform_discrete(device='cpu', batch_size=32, shape=[1e5], values=None):
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
@@ -67,16 +92,18 @@ def check_uniform_discrete(device='cpu', batch_size=32, shape=[1e5], values=None
     maxval = np.max(values)
     bins = np.concatenate([values, np.array([np.nextafter(maxval, maxval+1)])])
     bins.sort()
+    pvs = []
     for i in range(batch_size):
         data = np.array(data_out[i])
         for x in data:
             assert x in values_set
         h, _ = np.histogram(data, bins=bins)
         _, pv = st.chisquare(h)
-        assert pv > 0.05, f"data is not a uniform distribution. pv = {pv}"
+        pvs = pvs + [pv]
+    assert np.mean(pvs) > 0.05, f"data is not a uniform distribution. pv = {np.mean(pvs)}"
 
 def test_uniform_discrete():
-    batch_size = 8
+    batch_size = 4
     shape = [100000]
     for device in ['cpu', 'gpu']:
         for values in [(0, 1, 2, 3, 4, 5), (200, 400, 5000, 1)]:

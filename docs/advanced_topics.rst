@@ -221,10 +221,11 @@ Here are the iterator options:
     divisible by the batch size.
   | Only partially filled with the data or dropped entirely if it. The possible options are:
 
-  - FILL - Fills the last batch with the data wrapping up the data set. The precise
-            behavior depends on the reader which may duplicate the last sample to fill the batch
-  - DROP - If the last batch cannot be fully filled by the data from given epoch it is dropped
-  - PARTIAL - Returns the part of the last batch filled with the data relevant to given epoch
+  - | FILL - Fills the last batch with the data wrapping up the data set.
+    | The precise behavior depends on the reader which may duplicate the last sample to fill
+      the batch.
+  - DROP - If the last batch cannot be fully filled by the data from given epoch it is dropped.
+  - PARTIAL - Returns the part of the last batch filled with the data relevant to given epoch.
 
 Here is the formula to calculate the shard size for a shard ID:
 

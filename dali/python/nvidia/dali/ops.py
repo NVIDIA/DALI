@@ -610,8 +610,8 @@ def _process_op_name(op_schema_name, make_hidden=False):
         submodule = (*submodule, 'hidden')
     return op_full_name, submodule, op_name
 
-def _wrap_op(op_class, submodule = []):
-    return _functional._wrap_op(op_class, submodule)
+def _wrap_op(op_class, submodule = [], parent_module=None):
+    return _functional._wrap_op(op_class, submodule, parent_module)
 
 def _load_ops():
     global _cpu_ops

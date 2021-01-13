@@ -9,12 +9,11 @@ function CLEAN_AND_EXIT {
 }
 
 export USE_CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
-# rarfile>= 3.2 breaks python 3.5 compatibility
-pip install $(python /opt/dali/qa/setup_packages.py -i 0 -u paddle --cuda ${USE_CUDA_VERSION}) "rarfile<=3.1"
+pip install $(python /opt/dali/qa/setup_packages.py -i 0 -u paddlepaddle-gpu --cuda ${USE_CUDA_VERSION})
 
 cd /opt/dali/docs/examples/use_cases/paddle/resnet50
 
-GPUS=$(nvidia-smi -L | sed "s/GPU \([0-9]\):.*/\1/g")
+GPUS=$(nvidia-smi -L | sed "s/GPU \([0-9]*\):.*/\1/g")
 
 if [ ! -d "val" ]; then
    ln -sf /data/imagenet/val-jpeg/ val
@@ -29,7 +28,7 @@ SECONDS=0
 EPOCHS=25  # limiting to 25 epochs to save time
 export FLAGS_fraction_of_gpu_memory_to_use=.80
 python -m paddle.distributed.launch --selected_gpus $(echo $GPUS | tr ' ' ',') \
-    main.py -b 128 -j 4 --lr=0.4 --epochs ${EPOCHS} ./ 2>&1 | tee $LOG
+    main.py -b 96 -j 4 --lr=0.3 --epochs ${EPOCHS} ./ 2>&1 | tee $LOG
 
 RET=${PIPESTATUS[0]}
 echo "Training ran in $SECONDS seconds"

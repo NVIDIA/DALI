@@ -33,7 +33,7 @@ class Dummy : public ::dali::Operator<Backend> {
     return true;
   }
 
-  void RunImpl(::dali::Workspace<Backend> &ws) override;
+  void RunImpl(::dali::workspace_t<Backend> &ws) override;
 };
 
 }  // namespace other_ns

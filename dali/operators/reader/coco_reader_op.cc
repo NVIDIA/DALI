@@ -127,10 +127,14 @@ instance of an object is lower than this value, the object will be ignored.)code
       false)
   .AddOptionalArg<vector<string>>("images", R"code(A list of image paths.
 
-If specified, it acts as a filter for the file paths present in the annotation file.
-If left unspecified or set to None, all images listed in the annotation file are read.
+If provided, it specifies the images that will be read.
+The images will be read in the same order as they appear in the list, and in case of
+duplicates, multiple copies of the relevant samples will be produced.
 
-The paths to be kept should match those in the annotations file.
+If left unspecified or set to None, all images listed in the annotation file are read exactly once,
+ordered by their image id.
+
+The paths to be kept should match exactly those in the annotations file.
 
 Note: This argument is mutually exclusive with ``preprocessed_annotations``.)code", nullptr)
   .DeprecateArgInFavorOf("save_img_ids", "image_ids")  // deprecated since 0.28dev
@@ -276,7 +280,7 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
     const auto &rle = masks_info.rles[ann_id];
     auto mask_idx = masks_info.mask_indices[ann_id];
     int label = labels_span[mask_idx];
-    rleInit(&R[label], rle->h, rle->w, rle->m, rle->cnts);
+    rleInit(&R[label], (*rle)->h, (*rle)->w, (*rle)->m, (*rle)->cnts);
   }
 
   // Merge each label (from multi-polygons annotations)

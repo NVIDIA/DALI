@@ -237,9 +237,7 @@ class _DaliBaseIterator(object):
         Checks iterator stop condition, gets DALI outputs and perform reset in case of StopIteration
         """
         if self._size > 0 and self._counter >= self._size:
-            if self._auto_reset:
-                self.reset()
-            raise StopIteration
+            self._end_iteration()
 
         outputs = []
         try:
@@ -252,6 +250,11 @@ class _DaliBaseIterator(object):
                 self.reset()
             raise e
         return outputs
+
+    def _end_iteration(self):
+        if self._auto_reset:
+            self.reset()
+        raise StopIteration
 
     def _schedule_runs(self, release_outputs=True):
         """
@@ -272,12 +275,12 @@ class _DaliBaseIterator(object):
             self._counter += self.batch_size
             if self._last_batch_policy == LastBatchPolicy.DROP:
                 if np.any(self._counter_per_gpu + self._counter > self._shard_sizes_per_gpu):
-                    raise StopIteration
+                    self._end_iteration()
         else:
             self._counter += self._num_gpus * self.batch_size
             if self._last_batch_policy == LastBatchPolicy.DROP:
                 if self._counter > self._size:
-                    raise StopIteration
+                    self._end_iteration()
 
     def reset(self):
         """
