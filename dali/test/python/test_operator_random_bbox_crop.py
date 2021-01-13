@@ -186,6 +186,8 @@ def check_crop_dims_variable_size(anchor, shape, scaling, aspect_ratio):
     ndim = len(shape)
     k = 0
     nranges = len(aspect_ratio) / 2
+    assert(anchor.dtype == np.float32)
+    assert(shape.dtype == np.float32)
 
     max_extent = 0.0
     for d in range(ndim):
@@ -208,10 +210,12 @@ def check_crop_dims_variable_size(anchor, shape, scaling, aspect_ratio):
 
 def check_crop_dims_fixed_size(anchor, shape, expected_crop_shape, input_shape):
     ndim = len(shape)
+    assert(anchor.dtype == np.int32)
+    assert(shape.dtype == np.int32)
     for d in range(ndim):
         assert(anchor[d] >= 0.0 and anchor[d] <= input_shape[d])
         assert shape[d] == expected_crop_shape[d], "{} != {}".format(shape, expected_crop_shape)
-        assert(anchor[d] + shape[d] > 0.0 and anchor[d] + shape[d] <= input_shape[d])
+        assert(anchor[d] + shape[d] > 0.0)
 
 def check_random_bbox_crop_variable_shape(batch_size, ndim, scaling, aspect_ratio, use_labels, output_bbox_indices):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
@@ -281,8 +285,8 @@ def test_random_bbox_crop_fixed_shape():
     }
 
     crop_shapes = {
-        2: [[100, 50], [400, 300]],
-        3: [[100, 50, 32], [400, 300, 64]]
+        2: [[100, 50], [400, 300], [600, 400]],
+        3: [[100, 50, 32], [400, 300, 64], [600, 400, 48]]
     }
     for batch_size in [3]:
         for ndim in [2, 3]:
