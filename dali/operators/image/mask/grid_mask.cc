@@ -22,14 +22,15 @@
 namespace dali {
 
 DALI_SCHEMA(GridMask)
-    .DocStr(R"(Performs the gridmask augumentation (https://arxiv.org/abs/2001.04086).
+    .DocStr(R"code(Performs the gridmask augumentation (https://arxiv.org/abs/2001.04086).
+
 Zeroes out pixels of an image in a grid-like fashion. The grid
 consists of squares repeating in x and y directions, with the same spacing in
-both directions. Can be rotated around the origin.)")
+both directions. Can be rotated around the origin.)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("tile", R"(The length of a single tile, which is equal to
-width of black squares plus the spacing between them.)",
+    .AddOptionalArg("tile", R"code(The length of a single tile, which is equal to
+width of black squares plus the spacing between them.)code",
                     100, true)
     .AddOptionalArg("ratio",
                     "The ratio between black square width and tile width.",
