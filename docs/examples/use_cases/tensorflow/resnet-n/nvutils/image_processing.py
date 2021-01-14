@@ -198,8 +198,7 @@ def get_dali_pipeline(
             images = fn.resize(images, device=resize_device, resize_shorter=256)
 
         images = fn.crop_mirror_normalize(
-            images,
-            device="gpu",
+            images.gpu(),
             dtype=types.FLOAT,
             crop=(height, width),
             mean=[123.68, 116.78, 103.94],
