@@ -78,6 +78,7 @@ void WarpGPU_Affine_Transpose(bool force_variable) {
 
   if (force_variable) {
     auto &setup = WarpPrivateTest::GetSetup(warp);
+    setup.SetBlockDim(dim3(32, 8, 1));
     auto out_shapes = setup.GetOutputShape(in_list.shape, out_shapes_hw);
     req = setup.Setup(out_shapes, true);
     req.scratch_sizes[static_cast<int>(AllocType::GPU)] += sizeof(warp::SampleDesc<2, int, int>);
