@@ -44,9 +44,11 @@ class GridMaskCpu {
     sy /= tile;
 
     for (int y = 0; y < in.shape[0]; y++) {
+      float fxy = -sx + y * -sa;
+      float fyy = -sy + y * ca;
       for (int x = 0; x < in.shape[1]; x++) {
-        float fx = -sx + y * -sa + x * ca;
-        float fy = -sy + y * ca + x * sa;
+        float fx = fxy + x * ca;
+        float fy = fyy + x * sa;
         auto m = (fx - floor(fx) >= ratio) || (fy - floor(fy) >= ratio);
         for (int c = 0; c < in.shape[2]; c++)
           *out_ptr++ = *in_ptr++ * m;
