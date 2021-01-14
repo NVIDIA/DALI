@@ -199,7 +199,10 @@ class _DaliBaseIterator(object):
 
             self._shards_id = np.array([meta["shard_id"] for meta in readers_meta], dtype=np.int)
 
-            if self._last_batch_padded:
+            if self._last_batch_policy == LastBatchPolicy.DROP:
+                # when DROP policy is used round down the shard size
+                self._size = self._size_no_pad // self._shards_num
+            elif self._last_batch_padded:
                 # if padding is enabled all shards are equal
                 self._size = readers_meta[0]["epoch_size_padded"] // self._shards_num
             else:
@@ -361,6 +364,12 @@ class _DaliBaseIterator(object):
 
     def __len__(self):
         if self._reader_name:
-            return math.ceil(self.size / self.batch_size)
+            if self._last_batch_policy != LastBatchPolicy.DROP:
+                return math.ceil(self.size / self.batch_size)
+            else:
+                return self.size // self.batch_size
         else:
-            return math.ceil(self.size / (self._num_gpus * self.batch_size))
+            if self._last_batch_policy != LastBatchPolicy.DROP:
+                return math.ceil(self.size / (self._num_gpus * self.batch_size))
+            else:
+                return self.size // (self._num_gpus * self.batch_size)
