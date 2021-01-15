@@ -227,7 +227,7 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
   auto typed_shape = ConvertShape(shape, batch);
   auto *ptr = PyLong_AsVoidPtr(cu_a_interface["data"].cast<py::tuple>()[0].ptr());
 
-  // Keep the copy of input object ref in the deleter, so it's refcount is increased
+  // Keep a copy of the input object ref in the deleter, so its refcount is increased
   // while this shared_ptr is alive (and the data should be kept alive)
   // We set the type and shape even before the set_device_id as we only wrap the allocation
   batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {}), bytes, typed_shape, type);
@@ -344,7 +344,7 @@ void ExposeTensor(py::module &m) {
           auto t = std::make_unique<Tensor<CPUBackend>>();
           t->set_pinned(is_pinned);
           TypeInfo type = TypeFromFormatStr(info.format);
-          // Keep the copy of input buffer ref in the deleter, so it's refcount is increased
+          // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
           // while this shared_ptr is alive (and the data should be kept alive)
           t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) {}), bytes, i_shape, type);
           t->SetLayout(layout);
@@ -616,7 +616,7 @@ void ExposeTensorList(py::module &m) {
         auto t = std::make_shared<TensorList<CPUBackend>>();
         t->set_pinned(false);
         TypeInfo type = TypeFromFormatStr(info.format);
-        // Keep the copy of input buffer ref in the deleter, so it's refcount is increased
+        // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
         // while this shared_ptr is alive (and the data should be kept alive)
         t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *){}), bytes, i_shape, type);
         t->SetLayout(layout);

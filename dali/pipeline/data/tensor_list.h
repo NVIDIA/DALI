@@ -251,7 +251,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * if the size of the allocation is zero, the TensorList is reset to
    * a default state and is NOT marked as sharing data.
    *
-   * After wrapping the allocation, the shape and type is set if were provided non-empty.
+   * The size of the tensor list is calculated based on shape and type or reset to 0
+   * if the shape is empty or the type is DALI_NO_TYPE.
    * After calling this function any following call to `set_type` and `Resize`
    * must match the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
@@ -270,7 +271,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     data_ = ptr;
     num_bytes_ = bytes;
     type_ = type;
-    shape_ = shape;
+    shape_ = {};
     offsets_.clear();
     size_ = 0;
     device_ = CPU_ONLY_DEVICE_ID;
@@ -292,8 +293,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * if the size of the allocation is zero, the TensorList is reset to
    * a default state and is NOT marked as sharing data.
    *
-   * After wrapping the allocation, the TensorLists size is set to 0,
-   * if NoType is provided, otherwise its resized accordingly.
+   * The size of the tensor list is calculated based on shape and type or reset to 0
+   * if the shape is empty or the type is DALI_NO_TYPE.
    * After calling this function any following call to `set_type` and `Resize`
    * must match the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
