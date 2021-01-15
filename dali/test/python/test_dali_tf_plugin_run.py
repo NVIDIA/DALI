@@ -46,8 +46,8 @@ class CommonPipeline(Pipeline):
                                            crop = (227, 227),
                                            mean = [128., 128., 128.],
                                            std = [1., 1., 1.])
-        self.uniform = ops.Uniform(range = (0.0, 1.0))
-        self.resize_rng = ops.Uniform(range = (256, 480))
+        self.uniform = ops.random.Uniform(range = (0.0, 1.0))
+        self.resize_rng = ops.random.Uniform(range = (256, 480))
 
     def base_define_graph(self, inputs, labels):
         images = self.decode(inputs)

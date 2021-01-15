@@ -64,7 +64,7 @@ class WarpGPU {
                            span<const DALIInterpType> interp,
                            BorderType border = {}) {
     assert(in.size() == output_sizes.size());
-    setup.SetBlockDim(dim3(32, 16, 1));
+    setup.SetBlockDim(dim3(32, 8, 1));
     auto out_shapes = setup.GetOutputShape(in.shape, output_sizes);
     return setup.Setup(out_shapes);
   }

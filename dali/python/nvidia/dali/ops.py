@@ -610,8 +610,8 @@ def _process_op_name(op_schema_name, make_hidden=False):
         submodule = (*submodule, 'hidden')
     return op_full_name, submodule, op_name
 
-def _wrap_op(op_class, submodule = []):
-    return _functional._wrap_op(op_class, submodule)
+def _wrap_op(op_class, submodule = [], parent_module=None):
+    return _functional._wrap_op(op_class, submodule, parent_module)
 
 def _load_ops():
     global _cpu_ops
@@ -1123,7 +1123,7 @@ The  ``decode_and_resize`` object can be called as if it was an operator::
 
     decode_and_resize = ops.Compose([
         ops.ImageDecoder(device="cpu"),
-        ops.Resize(size=fn.uniform(range=400,500)), device="gpu")
+        ops.Resize(size=fn.random.uniform(range=400,500)), device="gpu")
     ])
 
     files, labels = fn.caffe_reader(path=caffe_db_folder, seed=1)

@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <list>
 #include <map>
-#include <unordered_set>
+#include <unordered_map>
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -43,7 +44,7 @@ struct Annotation {
   std::array<float, 4> box_;
   // union
   Polygons poly_;
-  RLEMask rle_;
+  RLEMaskPtr rle_;
 
   void ToLtrb() {
     box_[2] += box_[0];
@@ -105,7 +106,7 @@ void SaveToFile(const std::vector<T> &input, const std::string path) {
 }
 
 template <>
-void SaveToFile(const std::vector<RLEMask> &input, const std::string path) {
+void SaveToFile(const std::vector<RLEMaskPtr> &input, const std::string path) {
   if (input.empty())
     return;
   std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
@@ -114,10 +115,10 @@ void SaveToFile(const std::vector<RLEMask> &input, const std::string path) {
   unsigned size = input.size();
   Write(file, size, path.c_str());
   for (auto &rle : input) {
-    assert(rle->h > 0 && rle->w > 0 && rle->m > 0);
-    siz dims[3] = {rle->h, rle->w, rle->m};
+    assert((*rle)->h > 0 && (*rle)->w > 0 && (*rle)->m > 0);
+    siz dims[3] = {(*rle)->h, (*rle)->w, (*rle)->m};
     Write(file, span<const siz>{&dims[0], 3}, path.c_str());
-    Write(file, span<const uint>{rle->cnts, static_cast<ptrdiff_t>(rle->m)}, path.c_str());
+    Write(file, span<const uint>{(*rle)->cnts, static_cast<ptrdiff_t>((*rle)->m)}, path.c_str());
   }
 }
 
@@ -165,7 +166,7 @@ void LoadFromFile(std::vector<T> &output, const std::string path) {
 }
 
 template <>
-void LoadFromFile(std::vector<RLEMask> &output, const std::string path) {
+void LoadFromFile(std::vector<RLEMaskPtr> &output, const std::string path) {
   std::ifstream file(path);
   output.clear();
   if (!file.good())
@@ -179,8 +180,8 @@ void LoadFromFile(std::vector<RLEMask> &output, const std::string path) {
     siz dims[3];
     Read(file, span<siz>{&dims[0], 3}, path.c_str());
     siz h = dims[0], w = dims[1], m = dims[2];
-    rle = RLEMask(h, w, m);
-    Read(file, span<uint>{rle->cnts, static_cast<ptrdiff_t>(rle->m)}, path.c_str());
+    rle = std::make_shared<RLEMask>(h, w, m);
+    Read(file, span<uint>{(*rle)->cnts, static_cast<ptrdiff_t>((*rle)->m)}, path.c_str());
   }
 }
 
@@ -331,9 +332,9 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
           }
           DALI_ENFORCE(h > 0 && w > 0, "Invalid or missing mask sizes");
           if (!rle_str.empty()) {
-            annotation.rle_ = RLEMask(h, w, rle_str.c_str());
+            annotation.rle_ = std::make_shared<RLEMask>(h, w, rle_str.c_str());
           } else if (!rle_uints.empty()) {
-            annotation.rle_ = RLEMask(h, w, make_cspan(rle_uints));
+            annotation.rle_ = std::make_shared<RLEMask>(h, w, make_cspan(rle_uints));
           } else {
             DALI_FAIL("Missing or invalid ``counts`` attribute.");
           }
@@ -486,46 +487,50 @@ void CocoLoader::ParseJsonAnnotations() {
   detail::ParseJsonFile(spec_, image_infos, annotations, category_ids,
                         parse_segmentation, output_pixelwise_masks_);
 
-  if (!images_.empty()) {  // Filter for image files was provided.
-    std::unordered_set<int> ids_to_keep;
-    image_infos.erase(
-      std::remove_if(image_infos.begin(), image_infos.end(),
-        [&](const detail::ImageInfo &info) {
-          if (images_.find(info.filename_) == images_.end()) {
-            return true;
-          } else {
-            ids_to_keep.insert(info.original_id_);
-            return false;
-          }
-        }), image_infos.end());
+  if (images_.empty()) {
+    std::sort(image_infos.begin(), image_infos.end(), [&](auto &left, auto &right) {
+      return left.original_id_ < right.original_id_;
+    });
+    for (auto &info : image_infos) {
+      images_.push_back(info.filename_);
+    }
+  }
 
-    annotations.erase(
-      std::remove_if(annotations.begin(), annotations.end(),
-        [&](const detail::Annotation &annotation) {
-          return ids_to_keep.find(annotation.image_id_) == ids_to_keep.end();
-        }), annotations.end());
+  std::unordered_map<std::string, const detail::ImageInfo*> img_infos_map;
+  std::unordered_map<int, std::list<const detail::Annotation*>> img_annotations_map;
+  img_infos_map.reserve(images_.size());
+  img_annotations_map.reserve(images_.size());
+  for (const auto &filename : images_) {
+    img_infos_map[filename] = nullptr;
+  }
+  for (auto &info : image_infos) {
+    auto it = img_infos_map.find(info.filename_);
+    if (it != img_infos_map.end()) {
+      it->second = &info;
+      img_annotations_map[info.original_id_] = {};
+    }
+  }
+
+  for (const auto &annotation : annotations) {
+    auto it = img_annotations_map.find(annotation.image_id_);
+    if (it != img_annotations_map.end()) {
+      it->second.push_back(&annotation);
+    }
   }
 
   bool skip_empty = spec_.GetArgument<bool>("skip_empty");
   bool ratio = spec_.GetArgument<bool>("ratio");
 
-  std::sort(image_infos.begin(), image_infos.end(), [](auto &left, auto &right) {
-    return left.original_id_ < right.original_id_;
-  });
-
-  std::stable_sort(annotations.begin(), annotations.end(), [](auto &left, auto &right) {
-    return left.image_id_ < right.image_id_;
-  });
-
-  detail::Annotation sentinel;
-  sentinel.image_id_ = -1;
-  annotations.emplace_back(std::move(sentinel));
-
   int new_image_id = 0;
   int annotation_id = 0;
   int total_count = 0;
 
-  for (auto &image_info : image_infos) {
+  for (auto &img_filename : images_) {
+    auto img_info_ptr = img_infos_map[img_filename];
+    if (!img_info_ptr)
+      continue;
+    const auto &image_info = *img_info_ptr;
+    auto image_id = image_info.original_id_;
     int objects_in_sample = 0;
     int64_t sample_polygons_offset = polygon_data_.size();
     int64_t sample_polygons_count = 0;
@@ -533,8 +538,8 @@ void CocoLoader::ParseJsonAnnotations() {
     int64_t sample_vertices_count = 0;
     int64_t mask_offset = masks_rles_.size();
     int64_t mask_count = 0;
-    while (annotations[annotation_id].image_id_ == image_info.original_id_) {
-      auto &annotation = annotations[annotation_id];
+    for (const auto* annotation_ptr : img_annotations_map[image_id]) {
+      const auto &annotation = *annotation_ptr;
       labels_.push_back(category_ids[annotation.category_id_]);
       if (ratio) {
         boxes_.push_back(annotation.box_[0] / image_info.width_);
@@ -581,7 +586,7 @@ void CocoLoader::ParseJsonAnnotations() {
           }
           case detail::Annotation::RLE: {
             masks_rles_idx_.push_back(objects_in_sample);
-            masks_rles_.push_back(std::move(annotation.rle_));
+            masks_rles_.push_back(annotation.rle_);
             mask_count++;
             break;
           }
@@ -618,6 +623,9 @@ void CocoLoader::ParseJsonAnnotations() {
       new_image_id++;
     }
   }
+
+  // we don't need the list anymore and it can contain a lot of strings
+  images_.clear();
 
   if (spec_.GetArgument<bool>("save_preprocessed_annotations")) {
     SavePreprocessedAnnotations(

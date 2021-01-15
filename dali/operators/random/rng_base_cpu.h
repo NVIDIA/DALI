@@ -52,9 +52,8 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<CPUBackend> &ws) {
 
   auto &dists_cpu = backend_data_.dists_cpu_;
   dists_cpu.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
-
   Dist* dists = reinterpret_cast<Dist*>(dists_cpu.data());
-  bool use_default_dist = !This().template SetupDists<Dist>(dists, nsamples);
+  bool use_default_dist = !This().template SetupDists<T>(dists, nsamples);
 
   for (int sample_id = 0; sample_id < nsamples; ++sample_id) {
     auto sample_sz = out_shape.tensor_size(sample_id);
@@ -85,8 +84,8 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<CPUBackend> &ws) {
           }, chunk.size());
       }
     }
-    tp.RunAll();
   }
+  tp.RunAll();
 }
 
 }  // namespace dali

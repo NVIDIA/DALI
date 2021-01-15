@@ -24,7 +24,7 @@ void init_states(const size_t N, uint64_t seed, curandState *states) {
   for (size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
        idx < N;
        idx += blockDim.x * gridDim.x) {
-    curand_init(seed, idx, 0, &states[idx]);
+    curand_init(seed, idx, 0, states + idx);
   }
 }
 

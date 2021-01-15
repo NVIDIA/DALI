@@ -593,10 +593,9 @@ bool GetImageInfo(const void* srcdata, int datasize, int* width, int* height,
   SetSrc(&cinfo, srcdata, datasize, false);
 
   DALI_ENFORCE(jpeg_read_header(&cinfo, TRUE) == JPEG_HEADER_OK);
-  DALI_ENFORCE(jpeg_start_decompress(&cinfo));  // required to transfer image size to cinfo
-  if (width) *width = cinfo.output_width;
-  if (height) *height = cinfo.output_height;
-  if (components) *components = cinfo.output_components;
+  if (width) *width = cinfo.image_width;
+  if (height) *height = cinfo.image_height;
+  if (components) *components = cinfo.num_components;
 
   jpeg_destroy_decompress(&cinfo);
 

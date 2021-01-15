@@ -58,13 +58,13 @@ class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>> 
     return DALI_FLOAT;
   }
 
-  template <typename Dist>
-  bool SetupDists(Dist* dists_data, int nsamples) {
+  template <typename T>
+  bool SetupDists(typename Dist<T>::type* dists_data, int nsamples) {
     if (!mean_.IsDefined() && !stddev_.IsDefined()) {
       return false;
     }
     for (int s = 0; s < nsamples; s++) {
-      dists_data[s] = Dist{mean_[s].data[0], stddev_[s].data[0]};
+      dists_data[s] = typename Dist<T>::type{mean_[s].data[0], stddev_[s].data[0]};
     }
     return true;
   }
