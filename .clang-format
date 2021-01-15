@@ -21,36 +21,16 @@ AllowShortCaseLabelsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
-AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: true
 AlwaysBreakTemplateDeclarations: Yes
 # false to split arguments one for line
 BinPackArguments: true
 BinPackParameters: true
-BraceWrapping:
-  AfterCaseLabel:  false
-  AfterClass:      false
-  AfterControlStatement: Never
-  AfterEnum:       false
-  AfterFunction:   false
-  AfterNamespace:  false
-  AfterObjCDeclaration: false
-  AfterStruct:     false
-  AfterUnion:      false
-  AfterExternBlock: false
-  BeforeCatch:     false
-  BeforeElse:      false
-  BeforeLambdaBody: false
-  BeforeWhile:     false
-  IndentBraces:    false
-  SplitEmptyFunction: true
-  SplitEmptyRecord: true
-  SplitEmptyNamespace: true
 BreakBeforeBinaryOperators: None
 BreakBeforeBraces: Attach
 BreakInheritanceList: BeforeColon
-BreakBeforeTernaryOperators: true
+BreakBeforeTernaryOperators: false
 BreakConstructorInitializersBeforeComma: false
 BreakBeforeInheritanceComma: false
 # AfterColon looks better, but BeforeColon is set by GSG
@@ -88,7 +68,7 @@ IndentCaseLabels: true
 IndentCaseBlocks: false
 IndentGotoLabels: true
 IndentPPDirectives: None
-IndentExternBlock: AfterExternBlock
+IndentExternBlock: NoIndent
 IndentWidth:     2
 IndentWrappedFunctionNames: false
 InsertTrailingCommas: None
