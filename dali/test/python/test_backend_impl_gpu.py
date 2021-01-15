@@ -241,9 +241,18 @@ def test_tensor_list_cpu_from_numpy():
         return tensors.TensorListCPU(a, "")
     out = [create_tmp(i) for i in range(4)]
     for i, tl in enumerate(out):
-        for j in range(4):
-            np.testing.assert_array_equal(np.array(tl[j]), np.full(tl[j].shape(), i))
         np.testing.assert_array_equal(tl.as_array(), np.full((4, 4), i))
+
+def test_tensor_from_tensor_list_cpu():
+    def create_tl(idx):
+        a = np.full((3, 4), idx)
+        return tensors.TensorListCPU(a, "")
+    out = []
+    for i in range(5):
+        ts = [t for t in create_tl(i)]
+        out += ts
+    for i, t in enumerate(out):
+        np.testing.assert_array_equal(np.array(t), np.full((4,), i // 3))
 
 def test_tensor_gpu_from_cupy():
     def create_tmp(idx):
@@ -265,3 +274,14 @@ def test_tensor_list_gpu_from_cupy():
             np.testing.assert_array_equal(np.array(tl[j].as_cpu()), np.full(tl[j].shape(), i))
         np.testing.assert_array_equal(tl.as_cpu().as_array(), np.full((4, 4), i))
 
+def test_tensor_from_tensor_list_gpu():
+    def create_tl(idx):
+        a = np.full((3, 4), idx)
+        a_gpu = cp.array(a, dtype=a.dtype)
+        return tensors.TensorListGPU(a_gpu, "")
+    out = []
+    for i in range(5):
+        ts = [t for t in create_tl(i)]
+        out += ts
+    for i, t in enumerate(out):
+        np.testing.assert_array_equal(np.array(t.as_cpu()), np.full((4,), i // 3))
