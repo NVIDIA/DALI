@@ -15,6 +15,7 @@
 from nvidia.dali.backend_impl import *
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
+import nvidia.dali.tensors as tensors
 import numpy as np
 from nose.tools import assert_raises, raises
 import cupy as cp
@@ -216,3 +217,71 @@ def test_tensor_gpu_squeeze():
              (0, (1, 5, 1), "ABC", "BC"),
              (None, (3, 5, 1), "ABC", "AB")]:
         yield check_squeeze, shape, dim, in_layout, expected_out_layout
+
+
+# Those tests verify that the Tensor[List]Cpu/Gpu created in Python in a similar fashion
+# to how ExternalSource for samples operates keep the data alive.
+
+# The Tensor[List] take the pointer to data and store the reference to buffer/object that owns
+# the data to keep the refcount positive while the Tensor[List] lives.
+# Without this behaviour there was observable bug with creating several temporary
+# buffers in the loop and DALI not tracking references to them
+
+def test_tensor_cpu_from_numpy():
+    def create_tmp(idx):
+        a = np.full((4, 4), idx)
+        return tensors.TensorCPU(a, "")
+    out = [create_tmp(i) for i in range(4)]
+    for i, t in enumerate(out):
+        np.testing.assert_array_equal(np.array(t), np.full((4, 4), i))
+
+def test_tensor_list_cpu_from_numpy():
+    def create_tmp(idx):
+        a = np.full((4, 4), idx)
+        return tensors.TensorListCPU(a, "")
+    out = [create_tmp(i) for i in range(4)]
+    for i, tl in enumerate(out):
+        np.testing.assert_array_equal(tl.as_array(), np.full((4, 4), i))
+
+def test_tensor_from_tensor_list_cpu():
+    def create_tl(idx):
+        a = np.full((3, 4), idx)
+        return tensors.TensorListCPU(a, "")
+    out = []
+    for i in range(5):
+        ts = [t for t in create_tl(i)]
+        out += ts
+    for i, t in enumerate(out):
+        np.testing.assert_array_equal(np.array(t), np.full((4,), i // 3))
+
+def test_tensor_gpu_from_cupy():
+    def create_tmp(idx):
+        a = np.full((4, 4), idx)
+        a_gpu = cp.array(a, dtype=a.dtype)
+        return tensors.TensorGPU(a_gpu, "")
+    out = [create_tmp(i) for i in range(4)]
+    for i, t in enumerate(out):
+        np.testing.assert_array_equal(np.array(t.as_cpu()), np.full((4, 4), i))
+
+def test_tensor_list_gpu_from_cupy():
+    def create_tmp(idx):
+        a = np.full((4, 4), idx)
+        a_gpu = cp.array(a, dtype=a.dtype)
+        return tensors.TensorListGPU(a_gpu, "")
+    out = [create_tmp(i) for i in range(4)]
+    for i, tl in enumerate(out):
+        for j in range(4):
+            np.testing.assert_array_equal(np.array(tl[j].as_cpu()), np.full(tl[j].shape(), i))
+        np.testing.assert_array_equal(tl.as_cpu().as_array(), np.full((4, 4), i))
+
+def test_tensor_from_tensor_list_gpu():
+    def create_tl(idx):
+        a = np.full((3, 4), idx)
+        a_gpu = cp.array(a, dtype=a.dtype)
+        return tensors.TensorListGPU(a_gpu, "")
+    out = []
+    for i in range(5):
+        ts = [t for t in create_tl(i)]
+        out += ts
+    for i, t in enumerate(out):
+        np.testing.assert_array_equal(np.array(t.as_cpu()), np.full((4,), i // 3))
