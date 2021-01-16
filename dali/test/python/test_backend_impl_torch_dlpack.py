@@ -15,6 +15,7 @@
 from nvidia.dali.backend_impl import *
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
+import nvidia.dali.tensors as tensors
 import numpy as np
 from nose.tools import assert_raises, raises
 import torch
@@ -77,6 +78,45 @@ def test_dlpack_tensor_list_cpu_direct_creation():
     tensor_list = TensorListCPU(to_dlpack(arr), "NHWC")
     dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
     assert(torch.all(arr.eq(dali_torch_tensor)))
+
+# Check if dlpack tensors behave correctly when created from temporary objects
+
+def test_tensor_cpu_from_dlpack():
+    def create_tmp(idx):
+        a = np.full((4, 4), idx)
+        dlt = to_dlpack(torch.from_numpy(a))
+        return tensors.TensorCPU(dlt, "")
+    out = [create_tmp(i) for i in range(4)]
+    for i, t in enumerate(out):
+        np.testing.assert_array_equal(np.array(t), np.full((4, 4), i))
+
+def test_tensor_list_cpu_from_dlpack():
+    def create_tmp(idx):
+        a = np.full((4, 4), idx)
+        dlt = to_dlpack(torch.from_numpy(a))
+        return tensors.TensorListCPU(dlt, "")
+    out = [create_tmp(i) for i in range(4)]
+    for i, tl in enumerate(out):
+        np.testing.assert_array_equal(tl.as_array(), np.full((4, 4), i))
+
+def test_tensor_gpu_from_dlpack():
+    def create_tmp(idx):
+        a = np.full((4, 4), idx)
+        dlt = to_dlpack(torch.from_numpy(a).cuda())
+        return tensors.TensorGPU(dlt, "")
+    out = [create_tmp(i) for i in range(4)]
+    for i, t in enumerate(out):
+        np.testing.assert_array_equal(np.array(t.as_cpu()), np.full((4, 4), i))
+
+def test_tensor_list_gpu_from_dlpack():
+    def create_tmp(idx):
+        a = np.full((4, 4), idx)
+        dlt = to_dlpack(torch.from_numpy(a).cuda())
+        return tensors.TensorListGPU(dlt, "")
+    out = [create_tmp(i) for i in range(4)]
+    for i, tl in enumerate(out):
+        np.testing.assert_array_equal(tl.as_cpu().as_array(), np.full((4, 4), i))
+
 
 def check_dlpack_types_cpu(t):
     arr = torch.tensor([[-0.39, 1.5], [-1.5, 0.33]], device="cpu", dtype=t)
