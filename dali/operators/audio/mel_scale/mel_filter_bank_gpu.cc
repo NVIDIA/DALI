@@ -24,6 +24,7 @@ bool MelFilterBank<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                           const workspace_t<GPUBackend> &ws) {
   output_desc.resize(kNumOutputs);
   const auto &input = ws.InputRef<GPUBackend>(0);
+  args_.axis = input.GetLayout().find('f');
   ctx_.gpu.stream = ws.stream();
   const auto &in_shape = input.shape();
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (

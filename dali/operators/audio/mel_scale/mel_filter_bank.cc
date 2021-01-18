@@ -23,8 +23,10 @@ DALI_SCHEMA(MelFilterBank)
     .DocStr(R"code(Converts a spectrogram to a mel spectrogram by applying a bank of
 triangular filters.
 
-Expects an input with at least 2 dimensions where the last two dimensions correspond to
-the fft bin index and the window index, respectively.
+Expects an input with at least 2 dimensions.
+
+Please note that the CPU implementation supports only the layout with the last two
+dimensions corresponding to the fft bin index and the window index, respectively.
 )code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
@@ -73,7 +75,7 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto in_shape = input.shape();
   int nsamples = input.size();
   auto nthreads = ws.GetThreadPool().size();
-
+  args_.axis = input.GetLayout().find('f');
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, MEL_FBANK_SUPPORTED_NDIMS, (
       using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T, Dims>;
