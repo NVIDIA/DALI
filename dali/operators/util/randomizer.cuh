@@ -136,7 +136,7 @@ struct curand_bernoulli_dist {
     : probability_(probability) {}
 
   __device__ inline bool operator()(curandState *state) const {
-    return curand_uniform(state) <= probability_ ? true : false;
+    return curand_uniform(state) <= probability_;
   }
 
  private:

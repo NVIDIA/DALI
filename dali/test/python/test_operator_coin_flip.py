@@ -34,13 +34,14 @@ def check_coin_flip(device='cpu', batch_size=32, shape=[1e5], p=None):
     for i in range(batch_size):
         data = np.array(data_out[i])
         assert np.logical_or(data == 0, data == 1).all()
-        total = len(data)
-        positive = np.count_nonzero(data)
-        np.testing.assert_allclose(p, positive/total, atol=0.005)  # +/- 0.5%
+        if data.shape != tuple():
+            total = len(data)
+            positive = np.count_nonzero(data)
+            np.testing.assert_allclose(p, positive/total, atol=0.005)  # +/- 0.5%
 
 def test_coin_flip():
     batch_size = 8
-    shape = [100000]
     for device in ['cpu', 'gpu']:
-        for probability in [None, 0.7, 0.5, 0.0, 1.0]:
-            yield check_coin_flip, device, batch_size, shape, probability
+        for shape in [[100000], None]:
+            for probability in [None, 0.7, 0.5, 0.0, 1.0]:
+                yield check_coin_flip, device, batch_size, shape, probability
