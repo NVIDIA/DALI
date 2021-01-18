@@ -30,31 +30,31 @@ class NvofError : public std::runtime_error {
   static const char *ErrorString(NV_OF_STATUS result) {
     switch (result) {
       case NV_OF_SUCCESS:
-        return "Nvidia Optical flow operation was successful";
+        return "NVIDIA Optical flow operation was successful";
       case NV_OF_ERR_OF_NOT_AVAILABLE:
-        return "Nvidia HW Optical flow functionality is not supported";
+        return "NVIDIA HW Optical flow functionality is not supported";
       case NV_OF_ERR_UNSUPPORTED_DEVICE:
-        return "The device passed by the client to Nvidia HW Optical flow is not supported";
+        return "The device passed by the client to NVIDIA HW Optical flow is not supported";
       case NV_OF_ERR_DEVICE_DOES_NOT_EXIST:
-        return "The device passed to the Nvidia HW Optical flow API call is no longer available "
+        return "The device passed to the NVIDIA HW Optical flow API call is no longer available "
                 "and needs to be reinitialized";
       case NV_OF_ERR_INVALID_PTR:
-        return "One or more of the pointers passed to the Nvidia HW Optical flow API "
+        return "One or more of the pointers passed to the NVIDIA HW Optical flow "
                "API call is invalid";
       case NV_OF_ERR_INVALID_PARAM:
-        return "One or more of the parameter passed to the Nvidia Optical flow API call is invalid";
+        return "One or more of the parameters passed to the NVIDIA Optical flow API call "
+               "are invalid";
       case NV_OF_ERR_INVALID_CALL:
         return "Nvidia Optical flow API call was made in wrong sequence/order";
       case NV_OF_ERR_INVALID_VERSION:
-        return "An invalid struct version was used by the Nvidia Optical flow client";
+        return "An invalid struct version was used by the NVIDIA Optical flow client";
       case NV_OF_ERR_OUT_OF_MEMORY:
-        return "Nvidia Optical flow API call failed because it was unable to allocate  "
+        return "NVIDIA Optical flow API call failed because it was unable to allocate  "
                "enough memory to perform the requested operation";
       case NV_OF_ERR_NOT_INITIALIZED:
-        return "Nvidia Optical flow session has not been initialized with or initialization "
-               "has failed";
+        return "Nvidia Optical flow session has not been initialized or initialization has failed";
       case NV_OF_ERR_UNSUPPORTED_FEATURE:
-        return "Unsupported parameter was passed by the client to Nvidia Optical flow";
+        return "Unsupported parameter was passed by the client to NVIDIA Optical flow";
       case NV_OF_ERR_GENERIC:
         // fallthrough
       default:
@@ -64,10 +64,10 @@ class NvofError : public std::runtime_error {
 
   static std::string Message(NV_OF_STATUS result, const char *details) {
     if (details && *details) {
-      return make_string("Nvidia Optical flow error: ", result, " ", ErrorString(result),
+      return make_string("NVIDIA Optical flow error: ", result, " ", ErrorString(result),
                          "\nDetails:\n", details);
     } else {
-      return make_string("Nvidia Optical flow error: ", result, " ", ErrorString(result));
+      return make_string("NVIDIA Optical flow error: ", result, " ", ErrorString(result));
     }
   }
 
