@@ -163,7 +163,7 @@ def run_graph_single_device(device='cpu', device_id=0):
         iterator = tf_v1.data.make_initializable_iterator(daliset)
         images, labels = iterator.get_next()
 
-        images = tf_v1.reshape(images, [BATCH_SIZE, IMAGE_SIZE*IMAGE_SIZE])
+        # images = tf_v1.reshape(images, [BATCH_SIZE, IMAGE_SIZE*IMAGE_SIZE])
         labels = tf_v1.reshape(
             tf_v1.one_hot(labels, NUM_CLASSES),
             [BATCH_SIZE, NUM_CLASSES])

@@ -46,7 +46,7 @@ def test_different_num_shapes_dtypes():
 
 
 @raises(RuntimeError)
-def test_python_operator_error():
+def test_python_operator_not_allowed_in_tf_dataset_error():
     pipeline = Pipeline(1, 1, 0, 0)
     with pipeline:
         output = fn.python_function(function=lambda: np.zeros((3, 3, 3)))

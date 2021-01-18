@@ -52,7 +52,7 @@ def get_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0, num_s
     test_data_root = os.environ['DALI_EXTRA_PATH']
     file_root = os.path.join(test_data_root, 'db', 'coco_dummy', 'images')
     annotations_file = os.path.join(
-    test_data_root, 'db', 'coco_dummy', 'instances.json')
+        test_data_root, 'db', 'coco_dummy', 'instances.json')
 
     pipe = Pipeline(batch_size, num_threads, device_id)
     with pipe:
