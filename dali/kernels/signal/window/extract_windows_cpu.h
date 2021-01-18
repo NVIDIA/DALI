@@ -31,6 +31,13 @@ namespace signal {
 /**
  * @brief Extracts windows from 1D signal applying a custom window function
  *
+ * @tparam OutputType Output data type
+ * @tparam InputType Input data type
+ * @tparam Dims Number of dimensions
+ * @tparam vertical If true, the window index dimension comes right after the temporal dimension,
+ *         resulting in "vertical" windows in the output layout.
+ *         Otherwise, the new window index dimension is placed just before the time dimension,
+ *         producing "horizontal windows" in the output layout.
  * @param args.window_length Window size in number of samples
  *
  * @param args.window_step Length of the step between windows. If not provided, win_length
@@ -55,7 +62,7 @@ namespace signal {
  *        This option is only relevant when `window_center` is greater than 0
  *
  */
-template <typename OutputType = float, typename InputType = float, int Dims = 1>
+template <typename OutputType = float, typename InputType = float, int Dims = 1, bool vertical = true>
 class DLL_PUBLIC ExtractWindowsCpu {
  public:
   static constexpr int InputDims = Dims;
