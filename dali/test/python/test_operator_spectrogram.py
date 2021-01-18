@@ -100,7 +100,7 @@ class SpectrogramPythonPipeline(Pipeline):
         self.inputs = ops.ExternalSource()
 
         function = partial(spectrogram_func, nfft, window_length, window_step, window)
-        self.spectrogram = ops.PythonFunction(function=function)
+        self.spectrogram = ops.PythonFunction(function=function, output_layouts=["ft"])
 
     def define_graph(self):
         self.data = self.inputs()
@@ -174,7 +174,7 @@ audio_files = os.path.join(dali_extra, "db", "audio")
 
 class AudioSpectrogramPipeline(Pipeline):
     def __init__(self, device, batch_size, nfft, window_length, window_step,
-                 num_threads=1, device_id=0):
+                 num_threads=1, device_id=0, layout="ft"):
         super(AudioSpectrogramPipeline, self).__init__(batch_size, num_threads, device_id)
         self.input = ops.FileReader(device="cpu", file_root=audio_files)
         self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
@@ -182,7 +182,8 @@ class AudioSpectrogramPipeline(Pipeline):
                                    nfft=nfft,
                                    window_length=window_length,
                                    window_step=window_step,
-                                   power=2)
+                                   power=2,
+                                   layout=layout)
 
     def define_graph(self):
         read, _ = self.input()
@@ -195,7 +196,8 @@ class AudioSpectrogramPipeline(Pipeline):
 
 class AudioSpectrogramPythonPipeline(Pipeline):
     def __init__(self, batch_size, nfft, window_length, window_step,
-                 num_threads=1, device_id=0, spectrogram_func=spectrogram_func_librosa):
+                 num_threads=1, device_id=0, spectrogram_func=spectrogram_func_librosa,
+                 layout="ft"):
         super(AudioSpectrogramPythonPipeline, self).__init__(
             batch_size, num_threads, device_id,
             seed=12345, exec_async=False, exec_pipelined=False)
@@ -204,26 +206,31 @@ class AudioSpectrogramPythonPipeline(Pipeline):
         self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
 
         function = partial(spectrogram_func, nfft, window_length, window_step, None)
-        self.spectrogram = ops.PythonFunction(function=function)
+        self.spectrogram = ops.PythonFunction(function=function, output_layouts=["ft"])
+        self.layout = layout
 
     def define_graph(self):
         read, _ = self.input()
         audio, rate = self.decode(read)
         out = self.spectrogram(audio)
+        if self.layout == "tf":
+            out = dali.fn.transpose(out, perm=[1,0], transpose_layout=True)
+
         return out
 
 
-def check_operator_decoder_and_spectrogram_vs_python(device, batch_size, nfft, window_length, window_step):
+def check_operator_decoder_and_spectrogram_vs_python(device, batch_size, nfft, window_length, window_step, layout):
     compare_pipelines(
         AudioSpectrogramPipeline(device=device, batch_size=batch_size,
-                                 nfft=nfft, window_length=window_length, window_step=window_step),
+                                 nfft=nfft, window_length=window_length, window_step=window_step, layout=layout),
         AudioSpectrogramPythonPipeline(batch_size, nfft=nfft,
-                                       window_length=window_length, window_step=window_step),
+                                       window_length=window_length, window_step=window_step, layout=layout),
         batch_size=batch_size, N_iterations=5, eps=1e-04)
 
 
 def test_operator_decoder_and_spectrogram():
     for device in ["cpu", "gpu"]:
+        layouts = ["tf", "ft"] if device == "gpu" else ["ft"]
         for batch_size in [3]:
             for nfft, window_length, window_step, shape in [(256, 256, 128, (1, 4096)),
                                                             (256, 256, 128, (4096,)),
@@ -232,6 +239,7 @@ def test_operator_decoder_and_spectrogram():
                                                             (16, 16, 8, (1, 1000)),
                                                             (10, 10, 5, (1, 1000)),
                                                             ]:
-                yield check_operator_decoder_and_spectrogram_vs_python, device, batch_size, \
-                        nfft, window_length, window_step
+                for layout in layouts:
+                    yield check_operator_decoder_and_spectrogram_vs_python, device, batch_size, \
+                            nfft, window_length, window_step, layout
 
