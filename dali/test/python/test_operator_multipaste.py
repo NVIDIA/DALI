@@ -56,9 +56,9 @@ def prepare_cuts(
         out_anchor_top_left=False,
 ):
     in_idx_l = [np.zeros(shape=(0,), dtype=np.int32) for _ in range(batch_size)]
-    in_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
-    shapes_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
-    out_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
+    in_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int64) for _ in range(batch_size)]
+    shapes_l = [np.zeros(shape=(0, 2), dtype=np.int64) for _ in range(batch_size)]
+    out_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int64) for _ in range(batch_size)]
     assert len(input_size) == len(output_size)
     dim = len(input_size)
     for i in range(batch_size):
@@ -69,13 +69,13 @@ def prepare_cuts(
                 shape = [np.int64(
                     np.random.randint(
                         min(input_size[i], output_size[i]) // (iters if no_intersections else 1)
-                    )
+                    ) + 1
                 ) for i in range(dim)] if not full_input else input_size
 
-                in_anchor = [np.int64(np.random.randint(input_size[i] - shape[i])) for i in range(dim)] \
+                in_anchor = [np.int64(np.random.randint(input_size[i] - shape[i] + 1)) for i in range(dim)] \
                     if not in_anchor_top_left else [0] * dim
 
-                out_anchor = [np.int64(np.random.randint(output_size[i] - shape[i])) for i in range(dim)] \
+                out_anchor = [np.int64(np.random.randint(output_size[i] - shape[i] + 1)) for i in range(dim)] \
                     if not out_anchor_top_left else [0] * dim
 
                 if no_intersections:
@@ -91,7 +91,7 @@ def prepare_cuts(
 
             if DEBUG_LVL >= 1:
                 print(f"""in_idx: {in_idx}, out_idx: {out_idx}, in_anchor: {
-                    in_anchor}, in_shape: {shape}, out_anchor: {out_anchor}""")
+                in_anchor}, in_shape: {shape}, out_anchor: {out_anchor}""")
 
             in_idx_l[out_idx] = np.append(in_idx_l[out_idx], [in_idx], axis=0)
             in_anchors_l[out_idx] = np.append(in_anchors_l[out_idx], [in_anchor], axis=0)
@@ -133,7 +133,7 @@ def get_pipeline(
         kwargs = {
             "in_ids": in_idx,
             "output_size": out_size,
-            "dtype": d_type,
+            "dtype": d_type
         }
 
         if not full_input:
@@ -150,27 +150,20 @@ def get_pipeline(
     return pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l
 
 
-def manual_verify(batch_size, inp, output, in_idx_l, in_anchors_l, shapes_l, out_anchors_l):
+def manual_verify(batch_size, inp, output, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, out_size_l):
     for i in range(batch_size):
         out = output.at(i)
-        Y = len(out)
-        X = len(out[0])
-        C = len(out[0][0])
-        for y in range(Y):
-            for x in range(X):
-                col = [None for _ in range(C)]
-                for p in range(len(out_anchors_l[i])):
-                    if out_anchors_l[i][p][0] <= y and y < out_anchors_l[i][p][0] + shapes_l[i][p][0]:
-                        if out_anchors_l[i][p][1] <= x and x < out_anchors_l[i][p][1] + shapes_l[i][p][1]:
-                            col = inp.at(in_idx_l[i][p]) \
-                                [in_anchors_l[i][p][0] + (y - out_anchors_l[i][p][0])] \
-                                [in_anchors_l[i][p][1] + (x - out_anchors_l[i][p][1])]
-                for c in range(C):
-
-                    if col[c] is not None:
-                        if col[c] != out[y][x][c]:
-                            print(i, x, y, col, out[y][x])
-                        assert col[c] == out[y][x][c]
+        out_size = out_size_l[i]
+        assert out.shape == out_size
+        ref = np.zeros(out.shape)
+        for j, idx in enumerate(in_idx_l[i]):
+            roi_start = in_anchors_l[i][j]
+            roi_end = roi_start + shapes_l[i][j]
+            out_start = out_anchors_l[i][j]
+            out_end = out_start + shapes_l[i][j]
+            ref[out_start[0]:out_end[0], out_start[1]:out_end[1]] = inp.at(idx)[roi_start[0]:roi_end[0],
+                                                                    roi_start[1]:roi_end[1]]
+        assert np.array_equal(out, ref)
 
 
 def show_images(batch_size, image_batch):
@@ -206,7 +199,7 @@ def run_vs_python(bs, pastes, in_size, out_size, even_paste_count, no_intersecti
     result, input = pipe.run()
     if SHOW_IMAGES:
         show_images(bs, result)
-    manual_verify(bs, input, result, in_idx_l, in_anchors_l, shapes_l, out_anchors_l)
+    manual_verify(bs, input, result, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, [out_size + (3,)] * bs)
 
 
 def test_simple():
@@ -214,7 +207,11 @@ def test_simple():
         [4, 2, (128, 256), (128, 128), False, False, False, False, False],
         [4, 2, (256, 128), (128, 128), False, True, False, False, False],
         [4, 2, (128, 128), (256, 128), True, False, False, False, False],
-        [4, 2, (128, 128), (128, 256), True, True, False, False, False]
+        [4, 2, (128, 128), (128, 256), True, True, False, False, False],
+
+        [4, 2, (64, 64), (128, 128), False, False, True, False, False],
+        [4, 2, (64, 64), (128, 128), False, False, False, True, False],
+        [4, 2, (64, 64), (128, 128), False, False, False, False, True]
     ]
     for t in tests:
         print(f"Running with params: {t}")
