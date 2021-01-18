@@ -40,6 +40,8 @@ class MultiPasteOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(MultiPasteOp);
 
  protected:
+  using Coords = TensorView<typename compute_to_storage<Backend>::type, const int64_t, 1>;
+
   explicit MultiPasteOp(const OpSpec &spec)
       : Operator<Backend>(spec)
       , output_type_arg_(spec.GetArgument<DALIDataType>("dtype"))
@@ -49,8 +51,9 @@ class MultiPasteOp : public Operator<Backend> {
       , in_idx_("in_ids", spec)
       , in_anchors_("in_anchors", spec)
       , in_shapes_("shapes", spec)
-      , out_anchors_("out_anchors", spec)
-      , no_intersections_(spec.GetArgument<bool>("no_intersections")) {
+      , out_anchors_("out_anchors", spec) {
+    zero_anchors_ = Coords(zeros_, {2});
+
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
     } else {
@@ -62,18 +65,93 @@ class MultiPasteOp : public Operator<Backend> {
     return true;
   }
 
+  template<int ndim = 2>
+  bool Intersects(const Coords& anchors1, const Coords& shapes1,
+                  const Coords& anchors2, const Coords& shapes2) const {
+    for (int i = 0; i < ndim; i++) {
+      if (anchors1.data[i] + shapes1.data[i] <= anchors2.data[i]
+          || anchors2.data[i] + shapes2.data[i] <= anchors1.data[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   void AcquireArguments(const OpSpec &spec, const workspace_t<Backend> &ws) {
-    auto curr_batch_size = ws.GetInputBatchSize(0);
+    const auto &images = ws.template InputRef<Backend>(0);
+
+    auto curr_batch_size = ws.GetRequestedBatchSize(0);
     output_size_.Acquire(spec, ws, curr_batch_size, true);
     in_idx_.Acquire(spec, ws, curr_batch_size, false);
-    out_anchors_.Acquire(spec, ws, curr_batch_size, false);
-    in_anchors_.Acquire(spec, ws, curr_batch_size, false);
-    in_shapes_.Acquire(spec, ws, curr_batch_size, false);
+    if (out_anchors_.IsDefined()) {
+      out_anchors_.Acquire(spec, ws, curr_batch_size, false);
+    }
+    if (in_anchors_.IsDefined()) {
+      in_anchors_.Acquire(spec, ws, curr_batch_size, false);
+    }
+    if (in_shapes_.IsDefined()) {
+      in_shapes_.Acquire(spec, ws, curr_batch_size, false);
+    }
     input_type_ = ws.template InputRef<Backend>(0).type().id();
     output_type_ =
         output_type_arg_ != DALI_NO_TYPE
         ? output_type_arg_
         : input_type_;
+
+    for (int i = 0; i < curr_batch_size; i++) {
+      const int64_t n_paste = in_idx_[i].shape[0];
+
+      if (in_anchors_.IsDefined()) {
+        DALI_ENFORCE(in_anchors_[i].shape[0] == n_paste,
+                     "in_anchors must be same length as in_idx");
+      }
+      if (in_shapes_.IsDefined()) {
+        DALI_ENFORCE(in_shapes_[i].shape[0] == n_paste, "in_shapes must be same length as in_idx");
+      }
+      if (out_anchors_.IsDefined()) {
+        DALI_ENFORCE(out_anchors_[i].shape[0] == n_paste,
+                     "out_anchors must be same length as in_idx");
+      }
+
+      bool found_intersection = false;
+
+      for (int j = 0; j < n_paste; j++) {
+        auto out_anchor = GetInAnchors(i, j);
+        auto j_idx = in_idx_[i].data[j];
+        const auto &shape = GetShape(i, j, Coords(images.shape()[j_idx].data(),
+                                                  dali::TensorShape<>(2)));
+        for (int k = 0; k < j; k++) {
+          auto k_idx = in_idx_[i].data[k];
+          if (Intersects(out_anchor, shape, GetInAnchors(i, k),
+                   GetShape(i, k, Coords(images.shape()[k_idx].data(), dali::TensorShape<>(2))))) {
+            found_intersection = true;
+            break;
+          }
+        }
+        if (found_intersection) {
+          break;
+        }
+      }
+      no_intersections_.push_back(!found_intersection);
+    }
+  }
+
+  inline Coords GetInAnchors(int sample_num, int paste_num) const {
+    return in_anchors_.IsDefined()
+           ? subtensor(in_anchors_[sample_num], paste_num)
+           : zero_anchors_;
+  }
+
+  inline Coords GetShape(int sample_num, int paste_num, Coords default_shape) const {
+    return in_shapes_.IsDefined()
+           ? subtensor(in_shapes_[sample_num], paste_num)
+           : default_shape;
+  }
+
+  inline Coords GetOutAnchors(int sample_num, int paste_num) const {
+    return out_anchors_.IsDefined()
+           ? subtensor(out_anchors_[sample_num], paste_num)
+           : zero_anchors_;
   }
 
   USE_OPERATOR_MEMBERS();
@@ -82,13 +160,16 @@ class MultiPasteOp : public Operator<Backend> {
   ArgValue<int, 1> output_size_;
 
   ArgValue<int, 1> in_idx_;
-  ArgValue<int, 2> in_anchors_;
-  ArgValue<int, 2> in_shapes_;
-  ArgValue<int, 2> out_anchors_;
+  ArgValue<int64_t, 2> in_anchors_;
+  ArgValue<int64_t, 2> in_shapes_;
+  ArgValue<int64_t, 2> out_anchors_;
 
   kernels::KernelManager kernel_manager_;
 
-  bool no_intersections_;
+  const int64_t zeros_[2] = {0, 0};
+  Coords zero_anchors_;
+
+  vector<bool> no_intersections_;
 };
 
 

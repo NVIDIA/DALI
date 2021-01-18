@@ -50,7 +50,10 @@ def prepare_cuts(
         input_size=None,
         output_size=None,
         even_paste_count=False,
-        no_intersections=False
+        no_intersections=False,
+        full_input=False,
+        in_anchor_top_left=False,
+        out_anchor_top_left=False,
 ):
     in_idx_l = [np.zeros(shape=(0,), dtype=np.int32) for _ in range(batch_size)]
     in_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
@@ -63,13 +66,18 @@ def prepare_cuts(
             while True:
                 in_idx = np.int32(np.random.randint(batch_size))
                 out_idx = np.int32(i if even_paste_count else np.random.randint(batch_size))
-                shape = [np.int32(
+                shape = [np.int64(
                     np.random.randint(
                         min(input_size[i], output_size[i]) // (iters if no_intersections else 1)
                     )
-                ) for i in range(dim)]
-                in_anchor = [np.int32(np.random.randint(input_size[i] - shape[i])) for i in range(dim)]
-                out_anchor = [np.int32(np.random.randint(output_size[i] - shape[i])) for i in range(dim)]
+                ) for i in range(dim)] if not full_input else input_size
+
+                in_anchor = [np.int64(np.random.randint(input_size[i] - shape[i])) for i in range(dim)] \
+                    if not in_anchor_top_left else [0] * dim
+
+                out_anchor = [np.int64(np.random.randint(output_size[i] - shape[i])) for i in range(dim)] \
+                    if not out_anchor_top_left else [0] * dim
+
                 if no_intersections:
                     is_ok = True
                     for k in range(len(in_idx_l[out_idx])):
@@ -80,8 +88,11 @@ def prepare_cuts(
                         continue
                     break
                 break
-            if DEBUG_LVL > 0:
-                print(in_idx, out_idx, in_anchor, shape, out_anchor)
+
+            if DEBUG_LVL >= 1:
+                print(f"""in_idx: {in_idx}, out_idx: {out_idx}, in_anchor: {
+                    in_anchor}, in_shape: {shape}, out_anchor: {out_anchor}""")
+
             in_idx_l[out_idx] = np.append(in_idx_l[out_idx], [in_idx], axis=0)
             in_anchors_l[out_idx] = np.append(in_anchors_l[out_idx], [in_anchor], axis=0)
             shapes_l[out_idx] = np.append(shapes_l[out_idx], [shape], axis=0)
@@ -90,7 +101,8 @@ def prepare_cuts(
 
 
 def numpyize(source_list):
-    print(source_list)
+    if DEBUG_LVL >= 5:
+        print("Making this a data source: \n", source_list)
     return lambda: source_list
 
 
@@ -102,6 +114,9 @@ def get_pipeline(
         k=4,
         d_type=types.DALIDataType.UINT8,
         no_intersections=True,
+        full_input=False,
+        in_anchor_top_left=False,
+        out_anchor_top_left=False
 ):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=types.CPU_ONLY_DEVICE_ID)
     with pipe:
@@ -109,20 +124,26 @@ def get_pipeline(
         decoded = fn.image_decoder(input, device='cpu', output_type=types.RGB)
         resized = fn.resize(decoded, resize_x=in_size[1], resize_y=in_size[0])
         in_idx_l, in_anchors_l, shapes_l, out_anchors_l = prepare_cuts(
-            k, batch_size, in_size, out_size, even_paste_count, no_intersections)
+            k, batch_size, in_size, out_size, even_paste_count,
+            no_intersections, full_input, in_anchor_top_left, out_anchor_top_left)
         in_idx = fn.external_source(numpyize(in_idx_l))
         in_anchors = fn.external_source(numpyize(in_anchors_l))
         shapes = fn.external_source(numpyize(shapes_l))
         out_anchors = fn.external_source(numpyize(out_anchors_l))
         kwargs = {
             "in_ids": in_idx,
-            "in_anchors": in_anchors,
-            "out_anchors": out_anchors,
-            "shapes": shapes,
             "output_size": out_size,
             "dtype": d_type,
-            "no_intersections": no_intersections
         }
+
+        if not full_input:
+            kwargs["shapes"] = shapes
+
+        if not in_anchor_top_left:
+            kwargs["in_anchors"] = in_anchors
+
+        if not out_anchor_top_left:
+            kwargs["out_anchors"] = out_anchors
 
         pasted = fn.multi_paste(resized, **kwargs)
         pipe.set_outputs(pasted, resized)
@@ -166,7 +187,8 @@ def show_images(batch_size, image_batch):
     plt.show()
 
 
-def run_vs_python(bs, pastes, in_size, out_size, even_paste_count, no_intersections):
+def run_vs_python(bs, pastes, in_size, out_size, even_paste_count, no_intersections, full_input, in_anchor_top_left,
+                  out_anchor_top_left):
     pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l = get_pipeline(
         batch_size=bs,
         in_size=in_size,
@@ -174,7 +196,10 @@ def run_vs_python(bs, pastes, in_size, out_size, even_paste_count, no_intersecti
         even_paste_count=even_paste_count,
         k=pastes,
         d_type=types.DALIDataType.UINT8,
-        no_intersections=no_intersections
+        no_intersections=no_intersections,
+        full_input=full_input,
+        in_anchor_top_left=in_anchor_top_left,
+        out_anchor_top_left=out_anchor_top_left
     )
     pipe.build()
     print('build')
@@ -186,10 +211,10 @@ def run_vs_python(bs, pastes, in_size, out_size, even_paste_count, no_intersecti
 
 def test_simple():
     tests = [
-        [4, 2, (128, 256), (128, 128), False, False],
-        [4, 2, (256, 128), (128, 128), False, True],
-        [4, 2, (128, 128), (256, 128), True, False],
-        [4, 2, (128, 128), (128, 256), True, True]
+        [4, 2, (128, 256), (128, 128), False, False, False, False, False],
+        [4, 2, (256, 128), (128, 128), False, True, False, False, False],
+        [4, 2, (128, 128), (256, 128), True, False, False, False, False],
+        [4, 2, (128, 128), (128, 256), True, True, False, False, False]
     ]
     for t in tests:
         print(f"Running with params: {t}")

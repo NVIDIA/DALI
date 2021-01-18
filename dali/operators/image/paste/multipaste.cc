@@ -36,23 +36,22 @@ Assumes HWC layout.)code")
 .AddArg("in_ids", R"code(1D TensorList of type int.
 
 Indexes from what inputs to paste data in each iteration.)code", DALI_INT32, true)
-.AddArg("in_anchors", R"code(2D TensorList of type int
+.AddOptionalArg<int64_t>("in_anchors", R"code(2D TensorList of type int64
 
-Absolute values of LU corner of the selection for each iteration.)code", DALI_INT32, true)
-.AddArg("shapes", R"code(2D TensorList of type int
+Absolute values of LU corner of the selection for each iteration.
+Zeros are used if this is omitted.)code", nullptr, true)
+.AddOptionalArg<int64_t>("shapes", R"code(2D TensorList of type int64
 
-Absolute values of size of the selection for each iteration.)code", DALI_INT32, true)
-.AddArg("out_anchors", R"code(2D TensorList of type int
+Absolute values of size of the selection for each iteration.
+Input size is used if this is omitted.)code", nullptr, true)
+.AddOptionalArg<int64_t>("out_anchors", R"code(2D TensorList of type int64
 
-Absolute values of LU corner of the paste for each iteration.)code", DALI_INT32, true)
+Absolute values of LU corner of the paste for each iteration.
+Zeros are used if omitted.)code", nullptr, true)
 .AddArg("output_size",
 R"code(Output size.)code", DALI_INT_VEC, true)
 .AddOptionalArg("dtype",
 R"code(Output data type. If not set, the input type is used.)code", DALI_NO_TYPE)
-.AddOptionalArg("no_intersections",
-R"code(If true, the operator assumes paste regions do not intersect.
-This allows for better multithreading, but might produce weird artefacts if
-the assumption is false.)code", false)
 .NumOutput(1);
 
 DALI_REGISTER_OPERATOR(MultiPaste, MultiPasteCpu, CPU)
@@ -64,18 +63,6 @@ bool MultiPasteCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &images = ws.template InputRef<CPUBackend>(0);
   const auto &output = ws.template OutputRef<CPUBackend>(0);
   output_desc.resize(1);
-  const int n_samples = in_anchors_.size();
-
-  for (int i = 0; i < n_samples; i++) {
-    const int n_paste = in_anchors_[i].shape[0];
-
-    DALI_ENFORCE(in_anchors_[i].shape[0] == n_paste,
-                 "in_anchors must be same length as in_idx");
-    DALI_ENFORCE(in_shapes_[i].shape[0] == n_paste,
-                 "in_shapes must be same length as in_idx");
-    DALI_ENFORCE(out_anchors_[i].shape[0] == n_paste,
-                 "out_anchors must be same length as in_idx");
-  }
 
   TYPE_SWITCH(images.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
@@ -83,7 +70,7 @@ bool MultiPasteCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
             using Kernel = TheKernel<OutputType, InputType>;
             kernel_manager_.Initialize<Kernel>();
             TensorListShape<> sh = images.shape();
-            TensorListShape<> shapes(sh.num_samples(), 3);
+            TensorListShape<> shapes(sh.num_samples(), sh.sample_dim());
             for (int i = 0; i < sh.num_samples(); i++) {
               const TensorShape<> &out_sh =
                 dali::TensorShape<>(output_size_[i].data[0], output_size_[i].data[1], sh[i][2]);
@@ -98,6 +85,8 @@ bool MultiPasteCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   ), DALI_FAIL(make_string("Unsupported input type: ", images.type().id())))  // NOLINT
   return true;
 }
+
+
 
 
 void MultiPasteCpu::RunImpl(workspace_t<CPUBackend> &ws) {
@@ -115,10 +104,13 @@ void MultiPasteCpu::RunImpl(workspace_t<CPUBackend> &ws) {
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {
             using Kernel = TheKernel<OutputType, InputType>;
-            if (no_intersections_) {
-              for (int i = 0; i < batch_size; i++) {
-                auto paste_count = in_idx_[i].shape[0];
+            for (int i = 0; i < batch_size; i++) {
+              auto paste_count = in_idx_[i].shape[0];
 
+              auto to_zero = view<OutputType, 3>(output[i]);
+              memset(to_zero.data, 0, to_zero.shape[0] * to_zero.shape[1] * to_zero.shape[2]);
+
+              if (no_intersections_[i]) {
                 for (int iter = 0; iter < paste_count; iter++) {
                   int from_sample = in_idx_[i].data[iter];
                   int to_sample = i;
@@ -129,20 +121,17 @@ void MultiPasteCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                         auto tvin = view<const InputType, 3>(images[from_sample]);
                         auto tvout = view<OutputType, 3>(output[to_sample]);
 
-                        auto in_anchor_view = subtensor(in_anchors_[i], iter);
-                        auto in_shape_view = subtensor(in_shapes_[i], iter);
-                        auto out_anchor_view = subtensor(out_anchors_[i], iter);
+                        auto in_anchor_view = GetInAnchors(i, iter);
+                        auto in_shape_view = GetShape(i, iter, Coords(
+                                    images.shape()[from_sample].data(), dali::TensorShape<>(2)));
+                        auto out_anchor_view = GetOutAnchors(i, iter);
 
                         kernel_manager_.Run<Kernel>(thread_id, to_sample, ctx, tvout, tvin,
-                                                  in_anchor_view, in_shape_view, out_anchor_view);
+                                        in_anchor_view, in_shape_view, out_anchor_view);
                       },
                       out_shape.tensor_size(to_sample));
                 }
-              }
-            } else {
-              for (int i = 0; i < batch_size; i++) {
-                auto paste_count = in_idx_[i].shape[0];
-
+              } else {
                 tp.AddWork(
                     [&, i, paste_count](int thread_id) {
                       for (int iter = 0; iter < paste_count; iter++) {
@@ -153,12 +142,13 @@ void MultiPasteCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                         auto tvin = view<const InputType, 3>(images[from_sample]);
                         auto tvout = view<OutputType, 3>(output[to_sample]);
 
-                        auto in_anchor_view = subtensor(in_anchors_[i], iter);
-                        auto in_shape_view = subtensor(in_shapes_[i], iter);
-                        auto out_anchor_view = subtensor(out_anchors_[i], iter);
+                        auto in_anchor_view = GetInAnchors(i, iter);
+                        auto in_shape_view = GetShape(i, iter, Coords(
+                            images.shape()[from_sample].data(), dali::TensorShape<>(2)));
+                        auto out_anchor_view = GetOutAnchors(i, iter);
 
                         kernel_manager_.Run<Kernel>(thread_id, to_sample, ctx, tvout, tvin,
-                                                    in_anchor_view, in_shape_view, out_anchor_view);
+                                        in_anchor_view, in_shape_view, out_anchor_view);
                       }
                     },
                     paste_count);

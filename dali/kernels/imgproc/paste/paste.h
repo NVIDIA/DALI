@@ -36,7 +36,7 @@ class PasteCpu {
  public:
   using Image = InTensorCPU<InputType, 3>;
   using OutImage = OutTensorCPU<OutputType, 3>;
-  using Coords = InTensorCPU<const int, 1>;
+  using Coords = InTensorCPU<const int64_t, 1>;
 
   KernelRequirements
   Setup(KernelContext &context, const OutTensorCPU<OutputType> &pasteFrom, const Coords &in_anchors,
@@ -62,8 +62,8 @@ class PasteCpu {
             in_shapes.data[X_AXIS], in_shapes.data[Y_AXIS]);
   }
 
-  void CopyRoi(const OutImage &out, int outXAnchor, int outYAnchor, const Image &in,
-               int inXAnchor, int inYAnchor, int inXShape, int inYShape) {
+  void CopyRoi(const OutImage &out, int64_t outXAnchor, int64_t outYAnchor, const Image &in,
+               int64_t inXAnchor, int64_t inYAnchor, int64_t inXShape, int64_t inYShape) {
     auto num_channels = out.shape[C_AXIS];
     auto in_image_width = in.shape[X_AXIS];
     auto out_image_width = out.shape[X_AXIS];
@@ -76,11 +76,11 @@ class PasteCpu {
 
     auto row_value_count = inXShape * num_channels;
 
-    for (int y = 0; y < inYShape; y++) {
+    for (int64_t y = 0; y < inYShape; y++) {
       if (std::is_same<InputType, OutputType>::value) {
         memcpy(out_ptr, in_ptr, row_value_count * sizeof(in_ptr[0]));
       } else {
-        for (int i = 0; i < row_value_count; i++) {
+        for (int64_t i = 0; i < row_value_count; i++) {
           out_ptr[i] = ConvertSat<OutputType>(in_ptr[i]);
         }
       }
