@@ -60,7 +60,7 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
           "Failed to create Optical Flow context: Verify that your device supports Optical Flow.");
     }
   }
-  TURING_OF_API_CALL(turing_of_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
+  CUDA_CALL(turing_of_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
   VerifySupport(turing_of_.nvOFInit(of_handle_, &init_params_));
 
   inbuf_.reset(
@@ -142,7 +142,7 @@ void OpticalFlowTuring::CalcOpticalFlow(
                                            ? hintsbuf_->GetHandle()
                                            : nullptr);
   auto out_params = GenerateExecuteOutParams(outbuf_->GetHandle());
-  TURING_OF_API_CALL(turing_of_.nvOFExecute(of_handle_, &in_params, &out_params));
+  CUDA_CALL(turing_of_.nvOFExecute(of_handle_, &in_params, &out_params));
 
 
   kernel::DecodeFlowComponents(reinterpret_cast<int16_t *>(outbuf_->GetPtr()), output_image.data,
@@ -221,7 +221,7 @@ OpticalFlowTuring::DLLDRIVER OpticalFlowTuring::LoadTuringOpticalFlow
   init = (decltype(init)) dlsym(lib_handle, kInitSymbol.c_str());
   DALI_ENFORCE(init, "Failed to find symbol " + kInitSymbol + ": " + std::string(dlerror()));
 
-  TURING_OF_API_CALL((*init)(NV_OF_API_VERSION, &turing_of_));
+  CUDA_CALL((*init)(NV_OF_API_VERSION, &turing_of_));
   return lib_handle;
 }
 
