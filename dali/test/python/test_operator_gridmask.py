@@ -46,65 +46,55 @@ def get_random_pipeline(batch_size):
   return pipe
 
 def get_mask(w, h, tile, ratio, angle, d):
-  black = int(round(tile * ratio))
-  diag = math.sqrt(w**2 + h**2) + 1
-  nrep = int(math.ceil(diag / tile))
+  mask = np.zeros((h, w))
+  ca = math.cos(angle)
+  sa = math.sin(angle)
+  b = tile * ratio
 
-  mask = np.ones((tile, tile))
-  mask[:black, :black] = 0
-  mask = np.tile(mask, (2 * nrep, 2 * nrep))
-
-  p = tile * nrep
-  c = math.cos(angle)
-  s = math.sin(angle)
-  R = np.array([
-    [ c, s, -p * c - p * s + p],
-    [-s, c, -p * c + p * s + p]])
-  mask = cv2.warpAffine(mask, R, (2 * p, 2 * p))
-
-  # shrink or expand the rotated squares
-  ker = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-  if d == 1:
-    mask = cv2.erode(mask, ker)
-  elif d == -1:
-    mask = cv2.dilate(mask, ker)
-
-  return mask[p:p+h, p:p+w]
-
+  for i in range(w):
+    for j in range(h):
+      (x, y) = (i * ca - j * sa, i * sa + j * ca)
+      mask[j, i] = ((x+d) % tile > b+2*d) or ((y+d) % tile > b+2*d)
+  return mask
 
 def check(result, input, tile, ratio, angle):
   result = np.uint8(result)
   input = np.uint8(input)
   w = result.shape[1]
   h = result.shape[0]
-
+  eps = 0.1
+  
   # inside of squares should be black
-  mask = np.uint8(1 - get_mask(w, h, tile, ratio, angle, -1))
+  mask = np.uint8(1 - get_mask(w, h, tile, ratio, angle, -eps))
   result2 = cv2.bitwise_and(result, result, mask=mask)
   assert not np.any(result2)
 
   # outside of squares should be same as input
-  mask = np.uint8(get_mask(w, h, tile, ratio, angle, 1))
+  mask = np.uint8(get_mask(w, h, tile, ratio, angle, eps))
   result2 = cv2.bitwise_and(result, result, mask=mask)
   input2 = cv2.bitwise_and(input, input, mask=mask)
   assert np.all(result2 == input2)
 
 def test_cpu_vs_cv():
-  batch_size = 4
-  for tile in [40, 100, 200]:
-    for ratio in [0.2, 0.5, 0.8]:
-      for angle in [0.0, 0.34, -0.62]:
-        pipe = get_pipeline(batch_size, tile, ratio, angle)
-        pipe.build()
-        results, inputs = pipe.run()
-        for i in range(batch_size):
-          yield check, results[i], inputs[i], tile, ratio, angle
+  batch_size = 2
+  for (tile, ratio, angle) in [(40, 0.5, 0),
+                               (100, 0.1, math.pi / 2),
+                               (200, 0.7, math.pi / 3),
+                               (150, 1/3, math.pi / 4),
+                               (50, 0.532, 1),
+                               (51, 0.38158387, 2.6810782),
+                               (123, 0.456, 0.789)]:
+    pipe = get_pipeline(batch_size, tile, ratio, angle)
+    pipe.build()
+    results, inputs = pipe.run()
+    for i in range(batch_size):
+      yield check, results[i], inputs[i], tile, ratio, angle
 
 def test_cpu_vs_cv_random():
-  batch_size = 4
+  batch_size = 2
   pipe = get_random_pipeline(batch_size)
   pipe.build()
-  for _ in range(16):
+  for _ in range(8):
     results, inputs, tiles, ratios, angles = pipe.run()
     for i in range(batch_size):
       tile = np.int32(tiles[i])[0]
