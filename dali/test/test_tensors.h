@@ -54,7 +54,7 @@ class TestTensorList {
       char *ptr = new char[size];
       cpumem_ = { ptr, CPUDeleter };
       if (gpumem_)
-        cudaMemcpyAsync(ptr, gpumem_.get(), size, cudaMemcpyDeviceToHost, stream);
+        CUDA_CALL(cudaMemcpyAsync(ptr, gpumem_.get(), size, cudaMemcpyDeviceToHost, stream));
     }
     auto out_shape = convert_dim<out_dim>(shape_);
     return { reinterpret_cast<T*>(cpumem_.get()), std::move(out_shape) };
@@ -69,7 +69,7 @@ class TestTensorList {
       CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&ptr), size));
       gpumem_ = { ptr, GPUDeleter };
       if (cpumem_)
-        cudaMemcpyAsync(ptr, cpumem_.get(), size, cudaMemcpyHostToDevice, stream);
+        CUDA_CALL(cudaMemcpyAsync(ptr, cpumem_.get(), size, cudaMemcpyHostToDevice, stream));
     }
     auto out_shape = convert_dim<out_dim>(shape_);
     return { reinterpret_cast<T*>(gpumem_.get()), std::move(out_shape) };
@@ -98,10 +98,10 @@ class TestTensorList {
     delete [] mem;
   }
   static void PinnedDeleter(char *mem) {
-    cudaFreeHost(mem);
+    CUDA_CALL(cudaFreeHost(mem));
   }
   static void GPUDeleter(char *mem) {
-    cudaFree(mem);
+    CUDA_CALL(cudaFree(mem));
   }
 
   std::unique_ptr<char, Deleter> cpumem_{nullptr, CPUDeleter}, gpumem_{nullptr, GPUDeleter};

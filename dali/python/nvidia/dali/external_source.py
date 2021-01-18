@@ -21,7 +21,8 @@ def _check_data_batch(data, batch_size, layout):
     shape, uniform = _get_batch_shape(data)
     if len(shape) != batch_size:
         raise RuntimeError("The external source callback returned an unexpected batch "
-        "size: {} instead of {}".format(len(shape), batch_size))
+                           "size. Expected batch_size == {}, actual: {}".format(batch_size,
+                                                                                len(shape)))
 
     if len(shape) > 0:
         dim = len(shape[0])
@@ -197,6 +198,7 @@ Args
         * CuPy array (GPU)
         * objects implementing ``__cuda_array_interface__``
         * DALI `Tensor` object
+
     Batch sources must produce entire batches of data. This can be achieved either by adding a new
     outermost dimension to an array or by returning a list of arrays (in which case they can be of
     different size, but must have the same rank and element type). A batch source can also

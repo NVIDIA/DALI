@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <unordered_set>
 #include <utility>
 
 #include "dali/operators/reader/loader/file_label_loader.h"
@@ -67,6 +68,8 @@ inline bool HasSavePreprocessedAnnotationsDir(const OpSpec &spec) {
 struct RLEMask : public UniqueHandle<RLE, RLEMask> {
   DALI_INHERIT_UNIQUE_HANDLE(RLE, RLEMask)
 
+  constexpr inline RLEMask() : UniqueHandle() {}
+
   RLEMask(siz h, siz w, siz m) {
     rleInit(&handle_, h, w, m, nullptr);
   }
@@ -92,6 +95,8 @@ struct RLEMask : public UniqueHandle<RLE, RLEMask> {
   RLE* operator->() { return &handle_; }
 };
 
+using RLEMaskPtr = std::shared_ptr<RLEMask>;
+
 class DLL_PUBLIC CocoLoader : public FileLabelLoader {
  public:
   explicit inline CocoLoader(const OpSpec &spec)
@@ -100,7 +105,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
     DALI_ENFORCE(has_preprocessed_annotations_ || spec.HasArgument("annotations_file"),
         "Either ``annotations_file`` or ``preprocessed_annotations`` must be provided");
     if (has_preprocessed_annotations_) {
-      for (const char* arg_name : {"annotations_file", "skip_empty", "ratio", "ltrb",
+      for (const char* arg_name : {"annotations_file", "skip_empty", "ratio", "ltrb", "images",
                                    "size_threshold", "dump_meta_files", "dump_meta_files_path"}) {
         if (spec.HasArgument(arg_name))
           DALI_FAIL(make_string("When reading data from preprocessed annotation files, \"",
@@ -108,6 +113,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
       }
     }
 
+    spec.TryGetRepeatedArgument(images_, "images");
     output_polygon_masks_ = OutPolygonMasksEnabled(spec);
     output_pixelwise_masks_ = OutPixelwiseMasksEnabled(spec);
     output_image_ids_ = OutImageIdsEnabled(spec);
@@ -123,7 +129,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
 
   struct PixelwiseMasksInfo {
     TensorShape<3> shape;
-    span<const RLEMask> rles;
+    span<const RLEMaskPtr> rles;
     span<const int> mask_indices;
   };
 
@@ -214,7 +220,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
   std::vector<int64_t> vertices_count_;   // number of vertices per sample
 
   // masks_rles: (run-length encodings)
-  std::vector<RLEMask> masks_rles_;
+  std::vector<RLEMaskPtr> masks_rles_;
   std::vector<int> masks_rles_idx_;
   std::vector<int64_t> mask_offsets_;  // per-sample offsets of masks
   std::vector<int64_t> mask_counts_;   // number of masks per sample
@@ -223,6 +229,8 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
   bool output_pixelwise_masks_ = false;
   bool output_image_ids_ = false;
   bool has_preprocessed_annotations_ = false;
+
+  std::vector<std::string> images_;
 };
 
 }  // namespace dali

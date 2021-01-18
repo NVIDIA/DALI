@@ -79,8 +79,9 @@ TEST(MMBestFitFreeList, PutGetMoveGet) {
   EXPECT_EQ(l2.get(100, 2), a+10);
 }
 
-TEST(MMCoalescingFreeList, PutGet) {
-  coalescing_free_list fl;
+template <typename FreeList>
+void TestCoalescingPutGet() {
+  FreeList fl;
   char a alignas(16)[1000];
   // put some pieces and let the list coalesce
   fl.put(a, 10);
@@ -112,6 +113,77 @@ TEST(MMCoalescingFreeList, PutGet) {
   fl.put(a, 9);
   // and check coalescing
   EXPECT_EQ(fl.get(160, 16), a);
+}
+
+template <typename FreeList>
+void TestMerge() {
+  std::mt19937_64 rng(12345);
+  std::uniform_int_distribution<int> len_dist(1, 64);
+  std::uniform_int_distribution<int> gap_dist(0, 32);
+  std::bernoulli_distribution has_gap(0.25);
+  std::uniform_int_distribution<int> which_list(0, 1);
+  for (int iter = 0; iter < 10; iter++) {
+    FreeList lists[2], ref;
+    static char a alignas(16)[100000];
+    int pos = 0;
+    for (int i = 0; i < 1000; i++) {
+      if (has_gap(rng))
+        pos += gap_dist(rng);
+      int l = len_dist(rng);
+      lists[which_list(rng)].put(a + pos, l);
+      ref.put(a + pos, l);
+      pos += l;
+    }
+    lists[0].merge(std::move(lists[1]));
+    lists[0].CheckEqual(ref);
+  }
+}
+
+
+TEST(MMCoalescingFreeList, PutGet) {
+  TestCoalescingPutGet<coalescing_free_list>();
+}
+
+TEST(MMFreeTree, PutGet) {
+  TestCoalescingPutGet<free_tree>();
+}
+
+
+class test_coalescing_free_list : public coalescing_free_list {
+ public:
+  void CheckEqual(const test_coalescing_free_list &ref) {
+    for (auto *blk = head_, *ref_blk = ref.head_;
+        blk || ref_blk;
+        blk = blk->next, ref_blk = ref_blk->next) {
+      ASSERT_TRUE(blk) << "Output list too short";
+      ASSERT_TRUE(ref_blk) << "Output list too long";
+      ASSERT_EQ(blk->start, ref_blk->start) << "Blocks differ: start address mismath";
+      ASSERT_EQ(blk->end, ref_blk->end) << "Blocks differ: end address mismath";
+    }
+  }
+};
+
+class test_free_tree : public free_tree {
+ public:
+  void CheckEqual(const test_free_tree &ref) {
+    for (auto it1 = by_addr_.cbegin(), it2 = ref.by_addr_.cbegin();
+         it1 != by_addr_.cend() || it2 != ref.by_addr_.cend();
+         ++it1, ++it2) {
+      ASSERT_NE(it1, by_addr_.cend()) << "Too few free blocks.";
+      ASSERT_NE(it2, ref.by_addr_.cend()) << "Too many free blocks.";
+      ASSERT_EQ(it1->first, it2->first) << "Blocks differ: start address mismatch";
+      ASSERT_EQ(it1->second, it2->second) << "Blocks differ: size mismatch";
+    }
+    EXPECT_EQ(by_size_, ref.by_size_) << "By-size map differs";
+  }
+};
+
+TEST(MMCoalescingFreeList, Merge) {
+  TestMerge<test_coalescing_free_list>();
+}
+
+TEST(MMFreeTree, Merge) {
+  TestMerge<test_free_tree>();
 }
 
 }  // namespace test

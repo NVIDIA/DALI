@@ -199,3 +199,19 @@ add_library(cocoapi STATIC ${SOURCE_FILES})
 set_target_properties(cocoapi PROPERTIES POSITION_INDEPENDENT_CODE ON)
 list(APPEND DALI_LIBS cocoapi)
 list(APPEND DALI_EXCLUDES libcocoapi.a)
+
+##################################################################
+# RAPIDS Memory Manager
+##################################################################
+include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/rmm/include)
+
+##################################################################
+# spdlog and fmt
+##################################################################
+include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/spdlog/include)
+include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/fmt/include)
+
+##################################################################
+# thrust
+##################################################################
+include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/thrust/)

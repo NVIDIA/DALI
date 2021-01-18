@@ -58,6 +58,7 @@ TensorVector<Backend>::TensorVector(TensorVector<Backend> &&other) noexcept {
   }
 
   other.views_count_ = 0;
+  other.curr_tensors_size_ = 0;
   other.tensors_.clear();
 }
 
@@ -95,7 +96,7 @@ TensorListShape<> TensorVector<Backend>::shape() const {
   if (state_ == State::contiguous) {
     return tl_->shape();
   }
-  if (tensors_.empty()) {
+  if (curr_tensors_size_ == 0) {
     return {};
   }
   TensorListShape<> result(curr_tensors_size_, tensors_[0]->ndim());
@@ -118,6 +119,32 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, const Typ
   for (size_t i = 0; i < curr_tensors_size_; i++) {
     tensors_[i]->Resize(new_shape[i], new_type);
   }
+}
+
+
+template <typename Backend>
+void TensorVector<Backend>::SetSize(int new_size) {
+  DALI_ENFORCE(new_size >= 0, make_string("Incorrect size: ", new_size));
+  if (new_size == 0) {
+    Reset();
+    return;
+  }
+  auto sh = shape();
+  TensorListShape<> new_sh(new_size, sh.sample_dim());
+  TensorShape<> zero_sh(sh[sh.num_samples() - 1]);  // 0-volume shape with given dimensionality
+  for (int i = 0; i < zero_sh.size(); i++) {
+    zero_sh[i] = 0;
+  }
+
+  int i = 0;
+  for (; i < std::min(sh.num_samples(), new_size); i++) {
+    new_sh.set_tensor_shape(i, sh[i]);
+  }
+  for (; i < new_size; i++) {
+    new_sh.set_tensor_shape(i, zero_sh);
+  }
+  assert(!new_sh.empty());
+  Resize(new_sh);
 }
 
 
@@ -233,8 +260,8 @@ void TensorVector<Backend>::reserve(size_t bytes_per_sample, int batch_size) {
   assert(batch_size > 0);
   state_ = State::noncontiguous;
   resize_tensors(batch_size);
-  for (auto t : tensors_) {
-    t->reserve(bytes_per_sample);
+  for (size_t i = 0; i < curr_tensors_size_; i++) {
+    tensors_[i]->reserve(bytes_per_sample);
   }
 }
 
@@ -365,6 +392,7 @@ TensorVector<Backend> &TensorVector<Backend>::operator=(TensorVector<Backend> &&
     }
 
     other.views_count_ = 0;
+    other.curr_tensors_size_ = 0;
     other.tensors_.clear();
   }
   return *this;
@@ -401,8 +429,10 @@ void TensorVector<Backend>::resize_tensors(int new_size) {
     auto old_size = curr_tensors_size_;
     tensors_.resize(new_size);
     for (int i = old_size; i < new_size; i++) {
-      tensors_[i] = std::make_shared<Tensor<Backend>>();
-      tensors_[i]->set_pinned(is_pinned());
+      if (!tensors_[i]) {
+        tensors_[i] = std::make_shared<Tensor<Backend>>();
+        tensors_[i]->set_pinned(is_pinned());
+      }
     }
   } else if (static_cast<size_t>(new_size) < curr_tensors_size_) {
     for (size_t i = new_size; i < curr_tensors_size_; i++) {

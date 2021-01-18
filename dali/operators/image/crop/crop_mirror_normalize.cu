@@ -24,6 +24,7 @@ namespace dali {
 template <>
 bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                                 const DeviceWorkspace &ws) {
+  auto curr_batch_size = ws.GetInputBatchSize(0);
   output_desc.resize(1);
   SetupCommonImpl(ws);
   const auto &input = ws.InputRef<GPUBackend>(0);
@@ -35,7 +36,7 @@ bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
         output_desc[0].type = TypeInfo::Create<OutputType>();
-        output_desc[0].shape.resize(batch_size_, Dims);
+        output_desc[0].shape.resize(curr_batch_size, Dims);
         kmgr_.Resize<Kernel>(1, 1);
 
         kernels::KernelContext ctx;

@@ -42,7 +42,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryUnOp(const ExprFunc &expr) {
   std::unique_ptr<ExprImplBase> result;
   auto input_type = expr[0].GetTypeId();
   TYPE_SWITCH(input_type, type2id, Input_t, ARITHMETIC_ALLOWED_TYPES, (
-    using Out_t = Input_t;
+    using Out_t = typename arithm_meta<op, Backend>::template result_t<Input_t>;
     if (expr[0].GetNodeType() == NodeType::Tensor) {
       result.reset(new ImplTensor<op, Out_t, Input_t>());
     } else {
@@ -215,7 +215,21 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::plus, CPUBacke
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::minus, CPUBackend>,
                                         const ExprFunc &expr);
 
+/**
+ * @brief Factory function returning proper variant of implementation for `exp`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::exp, CPUBackend>,
+                                        const ExprFunc &expr);
 
+/**
+  * @brief Factory function returning proper variant of implementation for `log`
+  *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+  *        specified in `expr`.
+  */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::log, CPUBackend>,
+                                        const ExprFunc &expr);
 
 /**
  * @brief Factory function returning proper variant of implementation for `add`
@@ -382,7 +396,21 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::plus, GPUBacke
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::minus, GPUBackend>,
                                         const ExprFunc &expr);
 
+/**
+ * @brief Factory function returning proper variant of implementation for `exp`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::exp, GPUBackend>,
+                                        const ExprFunc &expr);
 
+/**
+  * @brief Factory function returning proper variant of implementation for `log`
+  *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+  *        specified in `expr`.
+  */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::log, GPUBackend>,
+                                        const ExprFunc &expr);
 
 /**
  * @brief Factory function returning proper variant of implementation for `add`

@@ -416,3 +416,7 @@ class TorchPythonFunction(ops.PythonFunctionBase):
                                                                     *ins),
                                                   num_outputs=num_outputs, device=device,
                                                   batch_processing=batch_processing, **kwargs)
+
+
+
+ops._wrap_op(TorchPythonFunction, "fn", __name__)

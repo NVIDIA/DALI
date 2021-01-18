@@ -37,7 +37,7 @@ class PreemphasisPipeline(Pipeline):
         self.device = device
         self.iterator = iterator
         self.per_sample_coeff = per_sample_coeff
-        self.uniform = ops.Uniform(range=(0.5, 0.97), seed=1234)
+        self.uniform = ops.random.Uniform(range=(0.5, 0.97), seed=1234)
         if self.per_sample_coeff:
             self.preemph = ops.PreemphasisFilter(device=device)
         else:
@@ -59,7 +59,7 @@ class PreemphasisPythonPipeline(Pipeline):
         self.device = "cpu"
         self.iterator = iterator
         self.per_sample_coeff = per_sample_coeff
-        self.uniform = ops.Uniform(range=(0.5, 0.97), seed=1234)
+        self.uniform = ops.random.Uniform(range=(0.5, 0.97), seed=1234)
         if self.per_sample_coeff:
             function = preemph_func
         else:

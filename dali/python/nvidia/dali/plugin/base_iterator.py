@@ -199,7 +199,10 @@ class _DaliBaseIterator(object):
 
             self._shards_id = np.array([meta["shard_id"] for meta in readers_meta], dtype=np.int)
 
-            if self._last_batch_padded:
+            if self._last_batch_policy == LastBatchPolicy.DROP:
+                # when DROP policy is used round down the shard size
+                self._size = self._size_no_pad // self._shards_num
+            elif self._last_batch_padded:
                 # if padding is enabled all shards are equal
                 self._size = readers_meta[0]["epoch_size_padded"] // self._shards_num
             else:
@@ -237,9 +240,7 @@ class _DaliBaseIterator(object):
         Checks iterator stop condition, gets DALI outputs and perform reset in case of StopIteration
         """
         if self._size > 0 and self._counter >= self._size:
-            if self._auto_reset:
-                self.reset()
-            raise StopIteration
+            self._end_iteration()
 
         outputs = []
         try:
@@ -252,6 +253,11 @@ class _DaliBaseIterator(object):
                 self.reset()
             raise e
         return outputs
+
+    def _end_iteration(self):
+        if self._auto_reset:
+            self.reset()
+        raise StopIteration
 
     def _schedule_runs(self, release_outputs=True):
         """
@@ -272,12 +278,12 @@ class _DaliBaseIterator(object):
             self._counter += self.batch_size
             if self._last_batch_policy == LastBatchPolicy.DROP:
                 if np.any(self._counter_per_gpu + self._counter > self._shard_sizes_per_gpu):
-                    raise StopIteration
+                    self._end_iteration()
         else:
             self._counter += self._num_gpus * self.batch_size
             if self._last_batch_policy == LastBatchPolicy.DROP:
                 if self._counter > self._size:
-                    raise StopIteration
+                    self._end_iteration()
 
     def reset(self):
         """
@@ -358,6 +364,12 @@ class _DaliBaseIterator(object):
 
     def __len__(self):
         if self._reader_name:
-            return math.ceil(self.size / self.batch_size)
+            if self._last_batch_policy != LastBatchPolicy.DROP:
+                return math.ceil(self.size / self.batch_size)
+            else:
+                return self.size // self.batch_size
         else:
-            return math.ceil(self.size / (self._num_gpus * self.batch_size))
+            if self._last_batch_policy != LastBatchPolicy.DROP:
+                return math.ceil(self.size / (self._num_gpus * self.batch_size))
+            else:
+                return self.size // (self._num_gpus * self.batch_size)

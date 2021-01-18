@@ -213,7 +213,7 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
   params_.resize(N);
 
   if (has_size_) {
-    GetShapeLikeArgument<float>(size_arg_, spec, "size", ws, spatial_ndim_, N);
+    GetShapeLikeArgument<float>(size_arg_, spec, "size", ws, N, spatial_ndim_);
   }
 
   max_size_.resize(spatial_ndim_,
@@ -223,8 +223,8 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
   }
 
   if (has_roi_) {
-    GetShapeLikeArgument<float>(roi_start_, spec, "roi_start", ws, spatial_ndim_, N);
-    GetShapeLikeArgument<float>(roi_end_, spec, "roi_end", ws, spatial_ndim_, N);
+    GetShapeLikeArgument<float>(roi_start_, spec, "roi_start", ws, N, spatial_ndim_);
+    GetShapeLikeArgument<float>(roi_end_, spec, "roi_end", ws, N, spatial_ndim_);
   }
 
   SmallVector<float, 3> requested_size, in_lo, in_hi;

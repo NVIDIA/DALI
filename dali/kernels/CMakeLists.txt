@@ -34,6 +34,8 @@ collect_sources(DALI_KERNEL_SRCS)
 collect_test_sources(DALI_KERNEL_TEST_SRCS)
 
 # cuFFT library
+adjust_source_file_language_property("${DALI_KERNEL_SRCS}")
+set_source_files_properties("dummy.cu" PROPERTIES LANGUAGE CUDA)
 add_library(dali_kernels ${LIBTYPE} ${DALI_KERNEL_SRCS})
 target_link_libraries(dali_kernels PUBLIC dali_core)
 target_link_libraries(dali_kernels PRIVATE ${CUDA_cufft_static_LIBRARY})
@@ -48,6 +50,7 @@ target_link_libraries(dali_kernels PRIVATE  -Wl,--version-script=${CMAKE_BINARY_
 
 if (BUILD_TEST)
   # TODO(janton): create a test_utils_lib with dali_test_config.cc and other common utilities
+  adjust_source_file_language_property("${DALI_KERNEL_TEST_SRCS}")
   add_executable(dali_kernel_test
     ${DALI_KERNEL_TEST_SRCS}
     ${DALI_ROOT}/dali/test/dali_test_config.cc)

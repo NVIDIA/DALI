@@ -163,12 +163,12 @@ def check_pad_per_sample_shapes_and_alignment(device='cpu', batch_size=3, ndim=2
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0, seed=1234)
     axes = (0, 1)
     with pipe:
-        in_shape = fn.cast(fn.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
-        in_data = fn.uniform(range=(0., 1.), shape=in_shape)
+        in_shape = fn.cast(fn.random.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
+        in_data = fn.random.uniform(range=(0., 1.), shape=in_shape)
         if device == 'gpu':
             in_data = in_data.gpu()
-        req_shape = fn.cast(fn.uniform(range=(21, 30), shape=(ndim,)), dtype=types.INT32)
-        req_align = fn.cast(fn.uniform(range=(3, 5), shape=(ndim,)), dtype=types.INT32)
+        req_shape = fn.cast(fn.random.uniform(range=(21, 30), shape=(ndim,)), dtype=types.INT32)
+        req_align = fn.cast(fn.random.uniform(range=(3, 5), shape=(ndim,)), dtype=types.INT32)
         out_pad_shape = fn.pad(in_data, axes=axes, align=None, shape=req_shape)
         out_pad_align = fn.pad(in_data, axes=axes, align=req_align, shape=None)
         out_pad_both = fn.pad(in_data, axes=axes, align=req_align, shape=req_shape)
@@ -201,8 +201,8 @@ def check_pad_to_square(device='cpu', batch_size=3, ndim=2, num_iter=3):
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0, seed=1234)
     axes = (0, 1)
     with pipe:
-        in_shape = fn.cast(fn.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
-        in_data = fn.reshape(fn.uniform(range=(0., 1.), shape=in_shape), layout="HW")
+        in_shape = fn.cast(fn.random.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
+        in_data = fn.reshape(fn.random.uniform(range=(0., 1.), shape=in_shape), layout="HW")
         shape = fn.shapes(in_data, dtype=types.INT32)
         h = fn.slice(shape, 0, 1, axes = [0])
         w = fn.slice(shape, 1, 1, axes = [0])

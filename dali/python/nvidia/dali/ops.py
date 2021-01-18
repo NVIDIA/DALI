@@ -610,8 +610,8 @@ def _process_op_name(op_schema_name, make_hidden=False):
         submodule = (*submodule, 'hidden')
     return op_full_name, submodule, op_name
 
-def _wrap_op(op_class, submodule = []):
-    return _functional._wrap_op(op_class, submodule)
+def _wrap_op(op_class, submodule = [], parent_module=None):
+    return _functional._wrap_op(op_class, submodule, parent_module)
 
 def _load_ops():
     global _cpu_ops
@@ -901,14 +901,6 @@ _wrap_op(PythonFunction)
 _wrap_op(DLTensorPythonFunction)
 _wrap_op(TFRecordReader)
 
-def _load_arithm_ops():
-    arithm_op_names = ["ArithmeticGenericOp"]
-    for op_name in arithm_op_names:
-      if not hasattr(sys.modules[__name__], op_name):
-          setattr(sys.modules[__name__], op_name,
-                  python_op_factory(op_name, None, op_device = "cpu"))
-
-_load_arithm_ops()
 
 def _choose_device(inputs):
     for input in inputs:
@@ -1131,7 +1123,7 @@ The  ``decode_and_resize`` object can be called as if it was an operator::
 
     decode_and_resize = ops.Compose([
         ops.ImageDecoder(device="cpu"),
-        ops.Resize(size=fn.uniform(range=400,500)), device="gpu")
+        ops.Resize(size=fn.random.uniform(range=400,500)), device="gpu")
     ])
 
     files, labels = fn.caffe_reader(path=caffe_db_folder, seed=1)

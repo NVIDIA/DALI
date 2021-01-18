@@ -34,9 +34,8 @@ namespace dali {
 class CropAttr {
  public:
   static constexpr int kNoCrop = -1;
-  explicit inline CropAttr(const OpSpec &spec)
-    : spec__(spec)
-    , batch_size__(spec__.GetArgument<int>("batch_size")) {
+  explicit inline CropAttr(const OpSpec& spec) : spec__(spec) {
+    auto max_batch_size = spec__.GetArgument<int>("max_batch_size");
     int crop_h = kNoCrop, crop_w = kNoCrop, crop_d = kNoCrop;
     bool has_crop_arg = spec__.HasArgument("crop");
     bool has_crop_w_arg = spec__.ArgumentDefined("crop_w");
@@ -45,7 +44,7 @@ class CropAttr {
     is_whole_image_ = !has_crop_arg && !has_crop_w_arg && !has_crop_h_arg && !has_crop_d_arg;
 
     DALI_ENFORCE(has_crop_w_arg == has_crop_h_arg,
-      "`crop_w` and `crop_h` arguments must be provided together");
+                 "`crop_w` and `crop_h` arguments must be provided together");
 
     if (has_crop_d_arg) {
       DALI_ENFORCE(has_crop_w_arg,
@@ -71,15 +70,15 @@ class CropAttr {
     }
     has_crop_d_ = has_crop_d_arg || crop_arg_ndims == 3;
 
-    crop_height_.resize(batch_size__, crop_h);
-    crop_width_.resize(batch_size__, crop_w);
+    crop_height_.resize(max_batch_size, crop_h);
+    crop_width_.resize(max_batch_size, crop_w);
     if (has_crop_d_)
-      crop_depth_.resize(batch_size__, crop_d);
-    crop_x_norm_.resize(batch_size__, 0.0f);
-    crop_y_norm_.resize(batch_size__, 0.0f);
+      crop_depth_.resize(max_batch_size, crop_d);
+    crop_x_norm_.resize(max_batch_size, 0.0f);
+    crop_y_norm_.resize(max_batch_size, 0.0f);
     if (has_crop_d_)
-      crop_z_norm_.resize(batch_size__, 0.0f);
-    crop_window_generators_.resize(batch_size__, {});
+      crop_z_norm_.resize(max_batch_size, 0.0f);
+    crop_window_generators_.resize(max_batch_size, {});
   }
 
   void ProcessArguments(const ArgumentWorkspace *ws, std::size_t data_idx) {
@@ -167,7 +166,8 @@ class CropAttr {
   }
 
   void ProcessArguments(const ArgumentWorkspace &ws) {
-    for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
+    auto max_batch_size = static_cast<size_t>(spec__.GetArgument<int>("max_batch_size"));
+    for (std::size_t data_idx = 0; data_idx < max_batch_size; data_idx++) {
       ProcessArguments(&ws, data_idx);
     }
   }
@@ -197,7 +197,6 @@ class CropAttr {
 
  private:
   OpSpec spec__;
-  std::size_t batch_size__;
 };
 
 }  // namespace dali

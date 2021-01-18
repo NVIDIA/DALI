@@ -108,7 +108,7 @@ class ReshapeWithArgInput(Pipeline):
         jpegs, labels = self.input(name = "Reader")
         images_cpu = self.decode(jpegs)
 
-        rng = ops.Uniform(range=[100,128])
+        rng = ops.random.Uniform(range=[100,128])
         cast = ops.Cast(dtype=types.INT32)
         widths = cast(rng()) * 2.0
         heights = cast(rng()) * 2.0

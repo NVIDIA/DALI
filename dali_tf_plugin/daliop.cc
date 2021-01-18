@@ -101,7 +101,7 @@ class DaliOp : public tf::OpKernel {
 
     int num_threads;
     int device_id;
-    int batch_size;
+    int max_batch_size;
     bool exec_separated;
     int cpu_prefetch_queue_depth;
 
@@ -113,7 +113,7 @@ class DaliOp : public tf::OpKernel {
     // In exec_separated==false case, gpu_prefetch_queue_depth is the global prefetch_queue_depth_
     OP_REQUIRES_OK(context, context->GetAttr("gpu_prefetch_queue_depth", &prefetch_queue_depth_));
     OP_REQUIRES_OK(context, context->GetAttr("sparse", &sparse_));
-    OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size));
+    OP_REQUIRES_OK(context, context->GetAttr("batch_size", &max_batch_size));
     OP_REQUIRES_OK(context, context->GetAttr("cpu_prefetch_queue_depth",
                                              &cpu_prefetch_queue_depth));
     OP_REQUIRES_OK(context, context->GetAttr("enable_memory_stats", &enable_memory_stats_));
@@ -129,14 +129,14 @@ class DaliOp : public tf::OpKernel {
     this->device_id_ = device_id;
     LOG_LINE << "Initializing...\n";
 
-    if (batch_size < 0) {
-      batch_size = shapes_[0].dim_size(0);
+    if (max_batch_size < 0) {
+      max_batch_size = shapes_[0].dim_size(0);
     }
 
     TF_DALI_CALL(daliCreatePipeline(&pipe_handle_,
                    serialized_pipeline.c_str(),
                    serialized_pipeline.length(),
-                   batch_size,
+                   max_batch_size,
                    num_threads,
                    device_id,
                    exec_separated,

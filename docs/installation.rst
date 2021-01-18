@@ -40,7 +40,8 @@ Prerequisites
 Installation
 ^^^^^^^^^^^^
 
-Execute the following command to install the latest DALI for specified CUDA version:
+Execute the following command to install the latest DALI for specified CUDA version (please check
+:doc:`support matrix <support_matrix>` to see if your platform is supported):
 
 .. note::
 

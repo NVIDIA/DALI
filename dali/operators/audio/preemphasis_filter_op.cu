@@ -51,7 +51,7 @@ class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
  public:
   explicit PreemphasisFilterGPU(const OpSpec &spec) : PreemphasisFilter<GPUBackend>(spec) {
     // void is OK here, pointer sizes are the same size
-    int64_t sz = batch_size_ * sizeof(detail::SampleDescriptor<void, void>);
+    int64_t sz = max_batch_size_ * sizeof(detail::SampleDescriptor<void, void>);
     scratch_mem_.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
     scratch_mem_.Resize({sz});
   }
@@ -69,9 +69,10 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
   using SampleDesc = detail::SampleDescriptor<OutputType, InputType>;
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
+  auto curr_batch_size = ws.GetInputBatchSize(0);
 
-  std::vector<SampleDesc> samples_cpu(batch_size_);
-  for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
+  std::vector<SampleDesc> samples_cpu(curr_batch_size);
+  for (int sample_idx = 0; sample_idx < curr_batch_size; sample_idx++) {
     auto &sample = samples_cpu[sample_idx];
     sample.in = input.tensor<InputType>(sample_idx);
     sample.out = output.mutable_tensor<OutputType>(sample_idx);
@@ -79,7 +80,7 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
     sample.coeff = preemph_coeff_[sample_idx];
   }
 
-  int64_t sz = batch_size_ * sizeof(SampleDesc);
+  int64_t sz = curr_batch_size * sizeof(SampleDesc);
   scratch_mem_.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
   scratch_mem_.Resize({sz});
   auto sample_descs_gpu = reinterpret_cast<SampleDesc*>(scratch_mem_.mutable_data<uint8_t>());
@@ -88,8 +89,8 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
     cudaMemcpyAsync(sample_descs_gpu, samples_cpu.data(), sz, cudaMemcpyHostToDevice, stream));
 
   int block = 256;
-  auto blocks_per_sample = std::max(32, 1024 / batch_size_);
-  dim3 grid(blocks_per_sample, batch_size_);
+  auto blocks_per_sample = std::max(32, 1024 / curr_batch_size);
+  dim3 grid(blocks_per_sample, curr_batch_size);
   detail::PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu);
 }
 

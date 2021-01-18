@@ -23,6 +23,7 @@
 
 #include <memory>
 #include "dali/kernels/kernel.h"
+#include "dali/core/host_dev.h"
 #include "dali/core/tensor_view.h"
 
 

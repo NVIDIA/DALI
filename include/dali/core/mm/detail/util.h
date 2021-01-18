@@ -62,6 +62,12 @@ bool check_sentinel(const void *mem, ptrdiff_t offset = 0) {
   return *static_cast<const T*>(mem) == sentinel_value<T>::value;
 }
 
+struct dummy_lock {
+  constexpr void lock() const noexcept {}
+  constexpr void unlock() const noexcept {}
+  constexpr bool try_lock() const noexcept { return true; }
+};
+
 }  // namespace detail
 }  // namespace mm
 }  // namespace dali

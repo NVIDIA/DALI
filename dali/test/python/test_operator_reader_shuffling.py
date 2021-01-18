@@ -25,7 +25,7 @@ class COCOReaderPipeline(Pipeline):
         super(COCOReaderPipeline, self).__init__(batch_size, num_threads, 0, prefetch_queue_depth=1)
         self.input = ops.COCOReader(file_root = data_paths[0], annotations_file=data_paths[1],
                                     shard_id = shard_id, num_shards = num_gpus, random_shuffle=random_shuffle,
-                                    save_img_ids=True, stick_to_shard=stick_to_shard,shuffle_after_epoch=shuffle_after_epoch,
+                                    image_ids=True, stick_to_shard=stick_to_shard,shuffle_after_epoch=shuffle_after_epoch,
                                     pad_last_batch=pad_last_batch, initial_fill=initial_fill)
 
     def define_graph(self):

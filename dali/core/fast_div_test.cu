@@ -14,6 +14,7 @@
 
 #include "dali/core/fast_div.h"  // NOLINT
 #include <gtest/gtest.h>
+#include <cmath>
 #include <random>
 #include <iostream>
 #include "dali/test/device_test.h"
@@ -129,7 +130,10 @@ DEVICE_TEST(FastDiv, DISABLED_U64_GPU_Slow, dim3(1<<10, 1<<10), (1<<10)) {
     auto ref = value / divisor;
     auto result = value / fast;
     if (result != ref) {
-      printf("%lld / %lld   got %lld expected %lld\n", value, divisor, result, ref);
+      #pragma clang diagnostic push
+      #pragma clang diagnostic ignored "-Wformat"
+      printf("%llu / %llu   got %llu expected %llu\n", value, divisor, result, ref);
+      #pragma clang diagnostic pop
       DEV_ASSERT_EQ(result, ref);
     }
   }
@@ -174,7 +178,10 @@ DEVICE_TEST(FastDiv, U64_GPU, dim3(1<<10, 11), (1<<10)) {
     auto ref = value / divisor;
     auto result = value / fast;
     if (result != ref) {
-      printf("%lld / %lld   got %lld expected %lld\n", value, divisor, result, ref);
+      #pragma clang diagnostic push
+      #pragma clang diagnostic ignored "-Wformat"
+      printf("%llu / %llu   got %llu expected %llu\n", value, divisor, result, ref);
+      #pragma clang diagnostic pop
       DEV_ASSERT_EQ(result, ref);
     }
   }
@@ -275,9 +282,9 @@ TYPED_TEST(FastDivPerf, Perf) {
 
   const int divs_per_thread = 18;
 
-  T d1 = max(dist(rng), T(1));
-  T d2 = max(dist(rng), T(1));
-  T d3 = max(dist(rng), T(1));
+  T d1 = std::max(dist(rng), T(1));
+  T d2 = std::max(dist(rng), T(1));
+  T d3 = std::max(dist(rng), T(1));
 
   FastDivMod<T><<<1000, 1024>>>(m, d1, d2, d3);
   cudaEventRecord(start, 0);

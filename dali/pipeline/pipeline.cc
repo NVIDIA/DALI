@@ -78,12 +78,12 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     DALI_ENFORCE(res, "Error parsing serialized pipeline.");
 
     // If not given, take parameters from the serialized pipeline
-    this->batch_size_ = batch_size == -1 ? def.batch_size() : batch_size;
+    this->max_batch_size_ = batch_size == -1 ? def.batch_size() : batch_size;
     this->device_id_ = device_id == -1 ? def.device_id() : device_id;
     this->num_threads_ = num_threads == -1 ? static_cast<int>(def.num_threads()) : num_threads;
     seed = seed == -1 ? def.seed() : seed;
 
-    Init(this->batch_size_, this->num_threads_,
+    Init(this->max_batch_size_, this->num_threads_,
          this->device_id_, seed,
          pipelined_execution,
          separated_execution_,
@@ -113,13 +113,13 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     }
   }
 
-void Pipeline::Init(int batch_size, int num_threads, int device_id, int64_t seed,
+void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t seed,
                     bool pipelined_execution, bool separated_execution, bool async_execution,
                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                     int default_cuda_stream_priority, QueueSizes prefetch_queue_depth) {
     // guard cudaDeviceGetStreamPriorityRange call
     DeviceGuard g(device_id);
-    this->batch_size_ = batch_size;
+    this->max_batch_size_ = max_batch_size;
     this->num_threads_ = num_threads;
     this->device_id_ = device_id;
     using Clock = std::chrono::high_resolution_clock;
@@ -132,7 +132,7 @@ void Pipeline::Init(int batch_size, int num_threads, int device_id, int64_t seed
     this->max_num_stream_ = max_num_stream;
     this->default_cuda_stream_priority_ = default_cuda_stream_priority;
     this->prefetch_queue_depth_ = prefetch_queue_depth;
-    DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
+    DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0");
 
     int lowest_cuda_stream_priority = 0, highest_cuda_stream_priority = 0;
     // do it only for the GPU pipeline
@@ -438,9 +438,10 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
 
-  executor_ = GetExecutor(pipelined_execution_, separated_execution_, async_execution_, batch_size_,
-                          num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
-                          max_num_stream_, default_cuda_stream_priority_, prefetch_queue_depth_);
+  executor_ =
+      GetExecutor(pipelined_execution_, separated_execution_, async_execution_, max_batch_size_,
+                  num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_, max_num_stream_,
+                  default_cuda_stream_priority_, prefetch_queue_depth_);
   executor_->EnableMemoryStats(enable_memory_stats_);
   executor_->Init();
 
@@ -635,7 +636,7 @@ void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
   if (logical_id_to_seed_.find(logical_id) == logical_id_to_seed_.end()) {
     logical_id_to_seed_[logical_id] = seed_[current_seed_];
   }
-  spec->AddArg("batch_size", batch_size_)
+  spec->AddArg("max_batch_size", max_batch_size_)
     .AddArg("num_threads", num_threads_)
     .AddArg("device_id", device_id_)
     .AddArgIfNotExisting("seed", logical_id_to_seed_[logical_id]);
@@ -677,7 +678,7 @@ void SerializeToProtobuf(dali_proto::OpDef *op, const string &inst_name, const O
   for (auto& a : spec.Arguments()) {
     // filter out args that need to be dealt with on
     // loading a serialized pipeline
-    if (a.first == "batch_size" ||
+    if (a.first == "max_batch_size" ||
         a.first == "num_threads" ||
         a.first == "bytes_per_sample_hint") {
       continue;
@@ -693,7 +694,7 @@ void SerializeToProtobuf(dali_proto::OpDef *op, const string &inst_name, const O
 string Pipeline::SerializeToProtobuf() const {
   dali_proto::PipelineDef pipe;
   pipe.set_num_threads(this->num_threads());
-  pipe.set_batch_size(this->batch_size());
+  pipe.set_batch_size(this->max_batch_size());
   pipe.set_device_id(this->device_id());
   pipe.set_seed(this->original_seed_);
 

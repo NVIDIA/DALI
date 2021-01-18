@@ -19,11 +19,7 @@
 
 namespace dali {
 
-const std::string kCoordinatesTypeArgName = "ltrb";   // NOLINT
-const std::string kHorizontalArgName = "horizontal";  // NOLINT
-const std::string kVerticalArgName = "vertical";      // NOLINT
-
-DALI_REGISTER_OPERATOR(BbFlip, BbFlip<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(BbFlip, BbFlipCPU, CPU);
 
 DALI_SCHEMA(BbFlip)
     .DocStr(R"code(Flips bounding boxes horizontaly or verticaly (mirror).
@@ -33,64 +29,52 @@ The bounding box coordinates for the  input are in the [x, y, width, height] - `
 system, that is 0.0-1.0)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg(kCoordinatesTypeArgName,
+    .AddOptionalArg("ltrb",
                     R"code(True for ``ltrb`` or False for ``xywh``.)code",
                     false, false)
-    .AddOptionalArg(kHorizontalArgName,
+    .AddOptionalArg("horizontal",
                     R"code(Flip horizontal dimension.)code",
                     1, true)
-    .AddOptionalArg(kVerticalArgName,
+    .AddOptionalArg("vertical",
                     R"code(Flip vertical dimension.)code",
                     0, true);
 
-BbFlip<CPUBackend>::BbFlip(const dali::OpSpec &spec)
-    : Operator<CPUBackend>(spec),
-      ltrb_(spec.GetArgument<bool>(kCoordinatesTypeArgName)) {
-  vflip_is_tensor_ = spec.HasTensorArgument(kVerticalArgName);
-  hflip_is_tensor_ = spec.HasTensorArgument(kHorizontalArgName);
-}
-
-void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
-  const auto &input = ws.Input<CPUBackend>(0);
-  const auto input_data = input.data<float>();
-
-  DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
-
-  const auto vertical =
-      vflip_is_tensor_
-          ? spec_.GetArgument<int>(kVerticalArgName, &ws, ws.data_idx())
-          : spec_.GetArgument<int>(kVerticalArgName);
-
-  const auto horizontal =
-      hflip_is_tensor_
-          ? spec_.GetArgument<int>(kHorizontalArgName, &ws, ws.data_idx())
-          : spec_.GetArgument<int>(kHorizontalArgName);
-
-  auto &output = ws.Output<CPUBackend>(0);
-  // XXX: Setting type of output (i.e. Buffer -> buffer.h)
-  //      explicitly is required for further processing
-  //      It can also be achieved with mutable_data<>()
-  //      function.
-  output.set_type(TypeInfo::Create<float>());
-  output.ResizeLike(input);
-  auto output_data = output.mutable_data<float>();
-
-  std::vector<Box<2, float>> bboxes;
+void BbFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
+  const auto &input = ws.InputRef<CPUBackend>(0);
+  auto &output = ws.OutputRef<CPUBackend>(0);
+  auto in_view = view<const float>(input);
+  auto out_view = view<float>(output);
+  auto nsamples = in_view.shape.size();
+  auto &tp = ws.GetThreadPool();
   constexpr int box_size = Box<2, float>::size;
-  assert(input.size() % box_size == 0);
-  int nboxes = input.size() / box_size;
-  bboxes.resize(nboxes);
   TensorLayout layout = ltrb_ ? "xyXY" : "xyWH";
-  ReadBoxes(make_span(bboxes), make_cspan(input_data, input.size()), layout, {});
 
-  for (auto &bbox : bboxes) {
-    if (horizontal)
-      HorizontalFlip(bbox);
-    if (vertical)
-      VerticalFlip(bbox);
+  for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+    tp.AddWork(
+      [&, sample_idx](int thread_id) {
+        bool vertical = vert_[sample_idx].data[0];
+        bool horizontal = horz_[sample_idx].data[0];
+        std::vector<Box<2, float>> bboxes;
+        const auto &in_sample = in_view[sample_idx];
+        const auto &out_sample = out_view[sample_idx];
+        assert(in_sample.shape.num_elements() % box_size == 0);
+        int nboxes = in_sample.shape.num_elements() / box_size;
+        bboxes.resize(nboxes);
+        ReadBoxes(make_span(bboxes),
+                  make_cspan(in_sample.data, in_sample.shape.num_elements()),
+                  layout, {});
+        for (auto &bbox : bboxes) {
+          if (horizontal)
+            HorizontalFlip(bbox);
+          if (vertical)
+            VerticalFlip(bbox);
+        }
+        WriteBoxes(make_span(out_sample.data, out_sample.shape.num_elements()),
+                   make_cspan(bboxes),
+                   layout);
+      }, in_view.shape.tensor_size(sample_idx));
   }
-
-  WriteBoxes(make_span(output_data, output.size()), make_cspan(bboxes), layout);
+  tp.RunAll();
 }
 
 }  // namespace dali

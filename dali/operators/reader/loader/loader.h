@@ -57,7 +57,7 @@ class Loader {
     : shuffle_(options.GetArgument<bool>("random_shuffle")),
       initial_buffer_fill_(shuffle_ ? options.GetArgument<int>("initial_fill") : 1),
       initial_empty_size_(2 * options.GetArgument<int>("prefetch_queue_depth")
-                          * options.GetArgument<int>("batch_size")),
+                          * options.GetArgument<int>("max_batch_size")),
       tensor_init_bytes_(options.GetArgument<int>("tensor_init_bytes")),
       seed_(options.GetArgument<Index>("seed")),
       shard_id_(options.GetArgument<int>("shard_id")),

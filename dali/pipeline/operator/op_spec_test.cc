@@ -59,7 +59,7 @@ TEST(OpSpecTest, GetArgumentTensorSet) {
     }
     ws0.AddArgumentInput(arg_name, tv);
     auto spec0 = OpSpec("DummyOpForSpecTest")
-        .AddArg("batch_size", 2)
+        .AddArg("max_batch_size", 2)
         .AddArgumentInput(arg_name, "<not_used>");
     ASSERT_EQ(spec0.GetArgument<int32_t>(arg_name, &ws0, 0), 42);
     ASSERT_EQ(spec0.GetArgument<int32_t>(arg_name, &ws0, 1), 43);
@@ -74,7 +74,7 @@ TEST(OpSpecTest, GetArgumentTensorSet) {
 
     ArgumentWorkspace ws1;
     auto spec1 = OpSpec("DummyOpForSpecTest")
-        .AddArg("batch_size", 2);
+        .AddArg("max_batch_size", 2);
     // If we have a default optional argument, we will just return its value
     if (arg_name != "default_tensor"s) {
       ASSERT_THROW(spec1.GetArgument<int>(arg_name, &ws1, 0), std::runtime_error);
@@ -100,7 +100,7 @@ TEST(OpSpecTest, GetArgumentValue) {
                                "required_tensor"s, "default_tensor"s, "no_default_tensor"s}) {
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
-        .AddArg("batch_size", 2)
+        .AddArg("max_batch_size", 2)
         .AddArg(arg_name, 42);
     ASSERT_EQ(spec0.GetArgument<int>(arg_name, &ws), 42);
     int result = 0;
@@ -116,7 +116,7 @@ TEST(OpSpecTest, GetArgumentValue) {
                                "required_tensor"s, "no_default_tensor"s}) {
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
-        .AddArg("batch_size", 2);
+        .AddArg("max_batch_size", 2);
     ASSERT_THROW(spec0.GetArgument<int>(arg_name, &ws), std::runtime_error);
     int result = 0;
     ASSERT_FALSE(spec0.TryGetArgument(result, arg_name, &ws));
@@ -129,7 +129,7 @@ TEST(OpSpecTest, GetArgumentValue) {
   for (const auto &arg_name : {"default"s, "default_tensor"s}) {
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
-        .AddArg("batch_size", 2);
+        .AddArg("max_batch_size", 2);
     ASSERT_EQ(spec0.GetArgument<int>(arg_name, &ws), 11);
 
     int result = 0;
@@ -148,7 +148,7 @@ TEST(OpSpecTest, GetArgumentVec) {
     auto value = std::vector<int32_t>{42, 43};
 
     auto spec0 = OpSpec("DummyOpForSpecTest")
-        .AddArg("batch_size", 2)
+        .AddArg("max_batch_size", 2)
         .AddArg(arg_name, value);
 
     ASSERT_EQ(spec0.GetRepeatedArgument<int32_t>(arg_name), value);
@@ -160,7 +160,7 @@ TEST(OpSpecTest, GetArgumentVec) {
   for (const auto &arg_name : {"required_vec"s, "no_default_vec"s}) {
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
-        .AddArg("batch_size", 2);
+        .AddArg("max_batch_size", 2);
 
     ASSERT_THROW(spec0.GetRepeatedArgument<int32_t>(arg_name), std::runtime_error);
     std::vector<int32_t> result;
@@ -175,7 +175,7 @@ TEST(OpSpecTest, GetArgumentVec) {
     auto arg_name = "default_vec"s;
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
-        .AddArg("batch_size", 2);
+        .AddArg("max_batch_size", 2);
     auto default_val = std::vector<int32_t>{0, 1};
     ASSERT_EQ(spec0.GetRepeatedArgument<int32_t>(arg_name), default_val);
   }
@@ -184,7 +184,7 @@ TEST(OpSpecTest, GetArgumentVec) {
 
 TEST(OpSpecTest, GetArgumentNonExisting) {
   auto spec0 = OpSpec("DummyOpForSpecTest")
-      .AddArg("batch_size", 2);
+      .AddArg("max_batch_size", 2);
   ASSERT_THROW(spec0.GetArgument<int>("<no_such_argument>"), DALIException);
   int result = 0;
   ASSERT_FALSE(spec0.TryGetArgument<int>(result, "<no_such_argument>"));
@@ -197,7 +197,7 @@ TEST(OpSpecTest, GetArgumentNonExisting) {
 
 TEST(OpSpecTest, DeprecatedArgs) {
   auto spec0 = OpSpec("DummyOpForSpecTest")
-      .AddArg("batch_size", 2)
+      .AddArg("max_batch_size", 2)
       .AddArg("deprecated_arg", 1);
   ASSERT_THROW(spec0.GetArgument<int>("deprecated_arg"), DALIException);
   ASSERT_EQ(spec0.GetArgument<int>("replacing_arg"), 1);
@@ -208,17 +208,17 @@ TEST(OpSpecTest, DeprecatedArgs) {
   ASSERT_EQ(result, 1);
 
   ASSERT_THROW(OpSpec("DummyOpForSpecTest")
-      .AddArg("batch_size", 2)
+      .AddArg("max_batch_size", 2)
       .AddArg("deprecated_arg", 1)
       .AddArg("replacing_arg", 2), DALIException);
 
   ASSERT_THROW(OpSpec("DummyOpForSpecTest")
-      .AddArg("batch_size", 2)
+      .AddArg("max_batch_size", 2)
       .AddArg("replacing_arg", 1)
       .AddArg("deprecated_arg", 2), DALIException);
 
   auto spec1 = OpSpec("DummyOpForSpecTest")
-      .AddArg("batch_size", 2)
+      .AddArg("max_batch_size", 2)
       .AddArg("deprecated_ignored_arg", 42);
   // It is marked as to be ingored, but there's no reason we should not be
   // able to query for the argument if it was provided.
@@ -235,10 +235,13 @@ class TestArgumentInput_Producer : public Operator<CPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(3);
-    output_desc[0] = {TensorListShape<0>(batch_size_), TypeTable::GetTypeInfo(DALI_INT32)};
+    output_desc[0] = {TensorListShape<0>(ws.GetRequestedBatchSize(0)),
+                      TypeTable::GetTypeInfo(DALI_INT32)};
     // Non-matching shapes
-    output_desc[1] = {uniform_list_shape(batch_size_, {1}), TypeTable::GetTypeInfo(DALI_FLOAT)};
-    output_desc[2] = {uniform_list_shape(batch_size_, {1, 2}), TypeTable::GetTypeInfo(DALI_INT32)};
+    output_desc[1] = {uniform_list_shape(ws.GetRequestedBatchSize(1), {1}),
+                      TypeTable::GetTypeInfo(DALI_FLOAT)};
+    output_desc[2] = {uniform_list_shape(ws.GetRequestedBatchSize(2), {1, 2}),
+                      TypeTable::GetTypeInfo(DALI_INT32)};
     return true;
   }
 
@@ -280,12 +283,15 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
-    output_desc[0] = {uniform_list_shape(batch_size_, {1}), TypeInfo::Create<int>()};
+    output_desc[0] = {uniform_list_shape(ws.GetRequestedBatchSize(0), {1}),
+                      TypeInfo::Create<int>()};
     return true;
   }
 
   void RunImpl(HostWorkspace &ws) override {
-    for (int i = 0; i < batch_size_; i++) {
+    auto curr_batch_size =
+        ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
+    for (int i = 0; i < curr_batch_size; i++) {
       EXPECT_EQ(spec_.GetArgument<int>("arg0", &ws, i), i);
     }
     // Non-matching shapes (differnet than 1 scalar value per sample) should not work with
@@ -294,7 +300,7 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
 
     // They can be accessed as proper ArgumentInputs
     auto &ref_1 = ws.ArgumentInput("arg1");
-    ASSERT_EQ(ref_1.shape().num_samples(), batch_size_);
+    ASSERT_EQ(ref_1.shape().num_samples(), curr_batch_size);
     ASSERT_TRUE(is_uniform(ref_1.shape()));
     ASSERT_EQ(ref_1.shape()[0], TensorShape<>(1));
     for (int i = 0; i < ref_1.shape().num_samples(); i++) {
@@ -302,7 +308,7 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
     }
 
     auto &ref_2 = ws.ArgumentInput("arg2");
-    ASSERT_EQ(ref_2.shape().num_samples(), batch_size_);
+    ASSERT_EQ(ref_2.shape().num_samples(), curr_batch_size);
     ASSERT_TRUE(is_uniform(ref_2.shape()));
     ASSERT_EQ(ref_2.shape()[0], TensorShape<>(1, 2));
     for (int i = 0; i < ref_2.shape().num_samples(); i++) {

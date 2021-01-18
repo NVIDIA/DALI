@@ -17,53 +17,117 @@
 #define DALI_OPERATORS_UTIL_RANDOMIZER_CUH_
 
 #include <math.h>
+#include <memory>
 #include "dali/core/device_guard.h"
+#include "dali/kernels/alloc.h"
 #include "dali/pipeline/data/backend.h"
 #include <curand_kernel.h>  // NOLINT
 
 namespace dali {
 
-namespace detail {
+struct curand_states {
+  curand_states(uint64_t seed, size_t len);
 
-template <typename T>
-struct CurandNormal {};
-
-template <>
-struct CurandNormal<float> {
-  __device__ static DALI_FORCEINLINE float normal(curandState *state) {
-    return curand_normal(state);
-  }
-};
-
-template <>
-struct CurandNormal<double> {
-  __device__ static DALI_FORCEINLINE double normal(curandState *state) {
-    return curand_normal_double(state);
-  }
-};
-
-}  // namespace detail
-
-class RandomizerGPU {
- public:
-  explicit RandomizerGPU(int seed, size_t len);
-
-  __device__ inline int rand(int idx) {
-    return curand(&states_[idx]);
+  DALI_HOST_DEV inline curandState* states() {
+    return states_;
   }
 
-  template <typename T>
-  __device__ inline T normal(int idx) {
-    return detail::CurandNormal<T>::normal(&states_[idx]);
+  DALI_HOST_DEV inline curandState& operator[](size_t idx) {
+    assert(idx < len_);
+    return states_[idx];
   }
-
-  void Cleanup();
 
  private:
-    curandState* states_;
-    size_t len_;
-    int device_;
-    static constexpr int block_size_ = 256;
+  size_t len_;
+  std::shared_ptr<curandState> states_mem_;
+  curandState* states_;  // std::shared_ptr::get can't be called from __device__ functions
+};
+
+template <typename T>
+struct curand_normal_dist;
+
+template <>
+struct curand_normal_dist<float> {
+  float mean = 0.0f, stddev = 1.0f;
+
+  __device__ inline float operator()(curandState *state) const {
+    return mean + curand_normal(state) * stddev;
+  }
+};
+
+template <>
+struct curand_normal_dist<double> {
+  double mean = 0.0f, stddev = 1.0f;
+
+  __device__ inline double operator()(curandState *state) const {
+    return mean + curand_normal_double(state) * stddev;
+  }
+};
+
+template <typename T>
+struct curand_uniform_dist {
+  static_assert(std::is_same<T, float>::value || std::is_same<T, double>::value,
+    "Unexpected data type");
+
+  DALI_HOST_DEV curand_uniform_dist()
+      : range_start_(0.0), range_size_(1.0) {}
+
+  DALI_HOST_DEV curand_uniform_dist(T start, T end)
+      : range_start_(start), range_end_(end), range_size_(end-start) {
+    assert(end > start);
+  }
+
+  __device__ inline T operator()(curandState *state) const {
+    T val;
+    if (std::is_same<T, double>::value) {
+      do {
+        val = range_start_ + curand_uniform_double(state) * range_size_;
+      } while (val >= range_end_);
+    } else {
+      do {
+        val = range_start_ + curand_uniform(state) * range_size_;
+      } while (val >= range_end_);
+    }
+    return val;
+  }
+
+ private:
+  T range_start_, range_end_, range_size_;
+};
+
+struct curand_uniform_int_range_dist {
+  DALI_HOST_DEV curand_uniform_int_range_dist(int start, int end)
+      : range_start_(start), range_size_(end-start) {
+    assert(end > start);
+  }
+
+  __device__ inline int operator()(curandState *state) const {
+    return range_start_ + (curand(state) % range_size_);
+  }
+
+ private:
+  int range_start_;
+  unsigned int range_size_;
+};
+
+template <typename T>
+struct curand_uniform_int_values_dist {
+ public:
+  DALI_HOST_DEV curand_uniform_int_values_dist() : values_(nullptr), nvalues_(0) {
+    // Should not be used. It is just here to make the base
+    // RNG operator code easier.
+    assert(false);
+  }
+  DALI_HOST_DEV curand_uniform_int_values_dist(const T *values, int64_t nvalues)
+    : values_(values), nvalues_(nvalues) {}
+
+  __device__ inline double operator()(curandState *state) const {
+    return values_[curand(state) % nvalues_];
+  }
+
+ private:
+  const T *values_ = nullptr;  // device mem pointer
+  int64_t nvalues_ = 0;
 };
 
 }  // namespace dali

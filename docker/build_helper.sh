@@ -35,7 +35,7 @@ export BUILD_OPENCV=${BUILD_OPENCV:-ON}
 export BUILD_PROTOBUF=${BUILD_PROTOBUF:-ON}
 export BUILD_NVJPEG=${BUILD_NVJPEG:-ON}
 # use a default value as it differs for CUDA 10 and CUDA 11.x
-export BUILD_NVJPEG2K=${BUILD_NVJPEG2K}
+export BUILD_NVJPEG2K=${BUILD_NVJPEG2K:-ON}
 export BUILD_LIBTIFF=${BUILD_LIBTIFF:-ON}
 export BUILD_NVOF=${BUILD_NVOF:-ON}
 export BUILD_NVDEC=${BUILD_NVDEC:-ON}
@@ -81,7 +81,7 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DBUILD_LIBSND=${BUILD_LIBSND}               \
       -DBUILD_NVML=${BUILD_NVML}                   \
       -DBUILD_FFTS=${BUILD_FFTS}                   \
-      -DBUILD_CUFILE=${BUILD_CUFILE}                \
+      -DBUILD_CUFILE=${BUILD_CUFILE}               \
       -DLINK_LIBCUDA=${LINK_LIBCUDA}               \
       -DVERBOSE_LOGS=${VERBOSE_LOGS}               \
       -DWERROR=${WERROR}                           \

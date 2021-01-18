@@ -1,0 +1,13 @@
+ARG TOOLKIT_BASE_IMAGE=ubuntu:18.04
+FROM ${TOOLKIT_BASE_IMAGE} as cuda
+
+RUN apt update && apt install -y libxml2 curl perl gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.2.0/local_installers/cuda_11.2.0_460.27.04_linux_sbsa.run && \
+    chmod +x cuda_*.run && \
+    ./cuda_*.run --silent --no-opengl-libs --toolkit && \
+    rm -f cuda_*.run;
+
+FROM scratch
+COPY --from=cuda /usr/local/cuda /usr/local/cuda

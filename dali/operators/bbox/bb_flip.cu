@@ -70,20 +70,17 @@ __global__ void BbFlipKernel(float *output, const float *input, size_t num_boxes
   }
 }
 
-
-void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
-  auto &input = ws.Input<GPUBackend>(0);
-  auto&output = ws.Output<GPUBackend>(0);
+void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
+  auto &input = ws.InputRef<GPUBackend>(0);
+  auto shape = input.shape();
+  auto nsamples = shape.size();
+  auto &output = ws.OutputRef<GPUBackend>(0);
 
   DALI_ENFORCE(IsType<float>(input.type()), "Expected input data as float;"
                " got " + input.type().name());
   DALI_ENFORCE(input.size() % 4 == 0,
                "Input data size must be a multiple of 4 if it contains bounding boxes;"
                " got " + std::to_string(input.size()));
-
-  horz_.Update(spec_, ws);
-  vert_.Update(spec_, ws);
-  bool ltrb = spec_.GetArgument<bool>("ltrb");
 
   auto stream = ws.stream();
 
@@ -93,13 +90,12 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   const int *per_sample_horz = nullptr;
   const int *per_sample_vert = nullptr;
 
-  if (horz_.IsInput() || vert_.IsInput()) {
+  if (horz_.IsArgInput() || vert_.IsArgInput()) {
     std::vector<int> indices;
     indices.reserve(num_boxes);
 
     // populate the index map
-    auto shape = input.shape();
-    for (int sample = 0; sample < shape.size(); sample++) {
+    for (int sample = 0; sample < nsamples; sample++) {
       auto dim = shape[sample].size();
 
       DALI_ENFORCE(dim < 2 || shape[sample][dim-1] == 4,
@@ -114,16 +110,32 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     }
     idx2sample_.Copy(indices, stream);
 
-    if (horz_.IsInput())
-      per_sample_horz = horz_.AsGPU(stream).data<int>();
+    if (horz_.IsArgInput()) {
+      auto &horz_view = horz_.get();
+      assert(horz_view.is_contiguous());
+      assert(horz_view.shape.num_elements() == nsamples);
+      horz_gpu_.Resize({nsamples});
+      cudaMemcpyAsync(horz_gpu_.mutable_data<int>(), horz_view.data[0],
+                      nsamples * sizeof(int),
+                      cudaMemcpyHostToDevice, stream);
+      per_sample_horz = horz_gpu_.data<int>();
+    }
 
-    if (vert_.IsInput())
-      per_sample_vert = vert_.AsGPU(stream).data<int>();
-
+    if (vert_.IsArgInput()) {
+      auto &vert_view = horz_.get();
+      assert(vert_view.is_contiguous());
+      assert(vert_view.shape.num_elements() == nsamples);
+      vert_gpu_.Resize({nsamples});
+      cudaMemcpyAsync(vert_gpu_.mutable_data<int>(), vert_view.data[0],
+                      nsamples * sizeof(int),
+                      cudaMemcpyHostToDevice, stream);
+      per_sample_vert = vert_gpu_.data<int>();
+    }
     sample_idx = idx2sample_.data<int>();
   }
 
-  output.ResizeLike(input);
+  bool global_horz = !per_sample_horz && horz_[0].data[0];
+  bool global_vert = !per_sample_vert && vert_[0].data[0];
 
   if (num_boxes == 0) {
     return;
@@ -132,21 +144,19 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   const unsigned block = num_boxes < 1024 ? num_boxes : 1024;
   const unsigned grid = (num_boxes + block - 1) / block;
 
-  if (ltrb) {
+  if (ltrb_) {
     BbFlipKernel<true><<<grid, block, 0, stream>>>(
       output.mutable_data<float>(), input.data<float>(), num_boxes,
-      !per_sample_horz && horz_[0], per_sample_horz,
-      !per_sample_vert && vert_[0], per_sample_vert,
+      global_horz, per_sample_horz, global_vert, per_sample_vert,
       sample_idx);
   } else {
     BbFlipKernel<false><<<grid, block, 0, stream>>>(
       output.mutable_data<float>(), input.data<float>(), num_boxes,
-      !per_sample_horz && horz_[0], per_sample_horz,
-      !per_sample_vert && vert_[0], per_sample_vert,
+      global_horz, per_sample_horz, global_vert, per_sample_vert,
       sample_idx);
   }
 }
 
-DALI_REGISTER_OPERATOR(BbFlip, BbFlip<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(BbFlip, BbFlipGPU, GPU);
 
 }  // namespace dali

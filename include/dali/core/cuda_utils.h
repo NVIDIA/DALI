@@ -84,7 +84,7 @@ int MaxThreadsPerBlock(KernelFunction *f) {
   static constexpr int kMaxDevices = 1024;
   static int max_block_size[kMaxDevices] = {};
   int device = 0;
-  cudaGetDevice(&device);
+  CUDA_CALL(cudaGetDevice(&device));
   assert(device >= 0 && device < kMaxDevices);
   if (!max_block_size[device]) {
     cudaFuncAttributes attr = {};

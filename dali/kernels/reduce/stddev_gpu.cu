@@ -24,10 +24,10 @@ class StdDevGPU<Out, In, Mean>::Impl : public reduce_impl::StdDevImplGPU<Out, In
 };
 
 template <typename Out, typename In, typename Mean>
-StdDevGPU<Out, In, Mean>::StdDevGPU() = default;
+StdDevGPU<Out, In, Mean>::StdDevGPU() {}
 
 template <typename Out, typename In, typename Mean>
-StdDevGPU<Out, In, Mean>::~StdDevGPU() = default;
+StdDevGPU<Out, In, Mean>::~StdDevGPU() {}
 
 template <typename Out, typename In, typename Mean>
 KernelRequirements StdDevGPU<Out, In, Mean>::Setup(
@@ -76,10 +76,10 @@ class VarianceGPU<Out, In, Mean>::Impl : public reduce_impl::VarianceImplGPU<Out
 };
 
 template <typename Out, typename In, typename Mean>
-VarianceGPU<Out, In, Mean>::VarianceGPU() = default;
+VarianceGPU<Out, In, Mean>::VarianceGPU() {}
 
 template <typename Out, typename In, typename Mean>
-VarianceGPU<Out, In, Mean>::~VarianceGPU() = default;
+VarianceGPU<Out, In, Mean>::~VarianceGPU() {}
 
 template <typename Out, typename In, typename Mean>
 KernelRequirements VarianceGPU<Out, In, Mean>::Setup(
@@ -128,10 +128,10 @@ class InvStdDevGPU<Out, In, Mean>::Impl : public reduce_impl::InvStdDevImplGPU<O
 };
 
 template <typename Out, typename In, typename Mean>
-InvStdDevGPU<Out, In, Mean>::InvStdDevGPU() = default;
+InvStdDevGPU<Out, In, Mean>::InvStdDevGPU() {}
 
 template <typename Out, typename In, typename Mean>
-InvStdDevGPU<Out, In, Mean>::~InvStdDevGPU() = default;
+InvStdDevGPU<Out, In, Mean>::~InvStdDevGPU() {}
 
 template <typename Out, typename In, typename Mean>
 KernelRequirements InvStdDevGPU<Out, In, Mean>::Setup(

@@ -14,6 +14,8 @@
 
 #include <gtest/gtest.h>
 
+#include "dali/test/dali_cuda_finalize_test.h"
+
 // add this alignment to work around a patchelf bug/feature which
 // changes TLS alignment and break DALI interoperability with CUDA RT
 alignas(0x1000) thread_local volatile bool __dali_core_test_force_tls_align;
@@ -25,5 +27,11 @@ void __dali_core_test_force_tls_align_fun(void) {
 int main(int argc, char **argv) {
   __dali_core_test_force_tls_align_fun();
   ::testing::InitGoogleTest(&argc, argv);
+
+  // Gets hold of the event listener list.
+  ::testing::TestEventListeners& listeners = testing::UnitTest::GetInstance()->listeners();
+  // Adds a listener to the end.  googletest takes the ownership.
+  listeners.Append(new dali::CudaFinalizeEventListener);
+
   return RUN_ALL_TESTS();
 }

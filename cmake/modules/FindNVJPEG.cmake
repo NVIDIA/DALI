@@ -48,8 +48,9 @@ if(NVJPEG_FOUND)
 
   list(APPEND CMAKE_REQUIRED_LIBRARIES "${NVJPEG_LIBRARY}" cudart_static culibos dl m pthread rt)
   check_cxx_symbol_exists("nvjpegCreateEx" "nvjpeg.h" NVJPEG_LIBRARY_0_2_0)
-
   check_cxx_symbol_exists("nvjpegBufferPinnedCreate" "nvjpeg.h" NVJPEG_DECOUPLED_API)
+  check_cxx_symbol_exists("nvjpegDecodeBatchedPreAllocate" "nvjpeg.h" NVJPEG_PREALLOCATE_API)
+
   set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_OLD})
   set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_OLD})
 
@@ -58,7 +59,7 @@ if(NVJPEG_FOUND)
   if (NVJPEG_DECOUPLED_API)
     message("nvJPEG is using new API")
   else()
-    message(WARNING " nvJPEG is using the deprecated API")
+    message(FATAL_ERROR "nvjpegBufferPinnedCreate is required but not present in the available version of nvJPEG")
   endif()
 else()
   message("nvJPEG NOT found")

@@ -5,7 +5,7 @@ a build environment
 
 To change build configuration please export appropriate env variables (for exact meaning please check the README):
 PYVER=[default 3.6, required only by Run image]
-CUDA_VERSION=[default 11.1, accepts also 10.0 and 11.0]
+CUDA_VERSION=[default 11.2, accepts also 10.0, 11.0 and 11.1]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
 CREATE_RUNNER=[default NO]
@@ -40,14 +40,14 @@ shift $((OPTIND - 1))
 export ARCH=${ARCH:-x86_64}
 export PYVER=${PYVER:-3.6}
 export PYV=${PYVER/./}
-export CUDA_VERSION=${CUDA_VERSION:-11.1}
+export CUDA_VERSION=${CUDA_VERSION:-11.2}
 export CUDA_VER=${CUDA_VERSION//./}
 
 if [ "${CUDA_VERSION%%\.*}" ]
 then
-  if [ $CUDA_VER != "100" ] && [ $CUDA_VER != "110" ] && [ $CUDA_VER != "111" ]
+  if [ $CUDA_VER != "100" ] && [ $CUDA_VER != "110" ] && [ $CUDA_VER != "111" ] && [ $CUDA_VER != "112" ]
   then
-      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 10.0, 11.0 and 11.1 are supported"
+      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 10.0, 11.0, 11.1 and 11.2 are supported"
       exit 1
   fi
 else
@@ -163,6 +163,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         GIT_SHA=${GIT_SHA}                        \
                                         DALI_TIMESTAMP=${DALI_TIMESTAMP}          \
                                         NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR} \
+                                        EXTRA_CMAKE_OPTIONS=\"${EXTRA_CMAKE_OPTIONS}\" \
                                         /opt/dali/docker/build_helper.sh &&       \
                                         rm -rf /opt/dali/${DALI_BUILD_DIR}/nvidia* && \
                                         cp /wheelhouse/* ./"
@@ -199,6 +200,7 @@ else
                                    --build-arg "GIT_SHA=${GIT_SHA}"                        \
                                    --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}"          \
                                    --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" \
+                                   --build-arg "EXTRA_CMAKE_OPTIONS=${EXTRA_CMAKE_OPTIONS}" \
                                    --cache-from "${BUILDER}"                               \
                                    -f docker/Dockerfile .
 fi

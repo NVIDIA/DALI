@@ -117,6 +117,12 @@ struct DeviceBuffer {
     copyH2D(data_.get(), src.data(), size(), stream);
   }
 
+  void reserve(size_t new_cap, cudaStream_t stream = 0) {
+    if (new_cap > capacity_) {
+      reallocate(new_cap, stream);
+    }
+  }
+
   void resize(size_t new_size, cudaStream_t stream = 0) {
     if (new_size > capacity_) {
       size_t new_cap = 2 * capacity_;
@@ -148,7 +154,7 @@ struct DeviceBuffer {
 
   static std::unique_ptr<T, std::function<void(T*)>> allocate(size_t count) {
     T *ptr = nullptr;
-    cudaMalloc(reinterpret_cast<void**>(&ptr), count * sizeof(T));
+    CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&ptr), count * sizeof(T)));
     if (!ptr)
       throw std::bad_alloc();
     return { ptr, [](T* ptr) { cudaFree(ptr); } };

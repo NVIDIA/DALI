@@ -55,18 +55,6 @@ class DLL_PUBLIC HostWorkspace : public WorkspaceBase<HostInputType, HostOutputT
   DLL_PUBLIC void GetSample(SampleWorkspace *ws, int data_idx, int thread_idx);
 
   /**
-   * @brief Returns the number of Tensors in the input set of
-   * tensors at the given index.
-   */
-  DLL_PUBLIC int NumInputAtIdx(int idx) const;
-
-  /**
-   * @brief Returns the number of Tensors in the output set of
-   * tensors at the given index.
-   */
-  DLL_PUBLIC int NumOutputAtIdx(int idx) const;
-
-  /**
    * @brief Returns the Tensor at index `data_idx` in the input
    * Tensors at index `idx`.
    *

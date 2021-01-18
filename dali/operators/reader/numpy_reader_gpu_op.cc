@@ -88,7 +88,7 @@ void PermuteHelper(const TensorShape<> &plain_shapes, std::vector<int64_t> &perm
 }
 
 void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
-  TensorListShape<> shape(batch_size_);
+  TensorListShape<> shape(max_batch_size_);
   // use vector for temporarily storing shapes
   std::vector<TensorShape<>> tmp_shapes;
   std::vector<TensorShape<>> transpose_shapes;
@@ -98,7 +98,7 @@ void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
   perm.reserve(GetSampleShape(0).size());
   perm_shape.resize(GetSampleShape(0).size());
 
-  for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
+  for (int sample_idx = 0; sample_idx < max_batch_size_; sample_idx++) {
     const auto& imfile = GetSample(sample_idx);
     auto plain_shape = GetSampleShape(sample_idx);
     if (imfile.transpose_fortan_order) {
@@ -116,19 +116,19 @@ void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
   auto &image_output = ws.Output<GPUBackend>(0);
 
   SmallVector<int64_t, 256> copy_sizes;
-  copy_sizes.reserve(batch_size_);
+  copy_sizes.reserve(max_batch_size_);
   SmallVector<const void *, 256> copy_from;
-  copy_from.reserve(batch_size_);
+  copy_from.reserve(max_batch_size_);
   SmallVector<void *, 256> copy_to;
-  copy_to.reserve(batch_size_);
+  copy_to.reserve(max_batch_size_);
 
   SmallVector<const void *, 256> transpose_from;
-  transpose_from.reserve(batch_size_);
+  transpose_from.reserve(max_batch_size_);
   SmallVector<void *, 256> transpose_to;
-  transpose_to.reserve(batch_size_);
+  transpose_to.reserve(max_batch_size_);
 
 
-  for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+  for (int data_idx = 0; data_idx < max_batch_size_; ++data_idx) {
     const auto& imfile = GetSample(data_idx);
     if (imfile.transpose_fortan_order) {
       transpose_from.push_back(GetSampleRawData(data_idx));

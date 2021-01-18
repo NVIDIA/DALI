@@ -14,6 +14,7 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
@@ -219,3 +220,45 @@ def test_gpu_vs_cpu():
         gpu_pipeline.build();
 
         compare(cpu_pipeline, gpu_pipeline, 1)
+
+def _test_extremely_large_data(device):
+  in_size = 30000
+  out_size = 10
+  channels = 3
+
+  def get_data():
+    out = np.full([in_size, in_size, channels], 42, dtype=np.uint8)
+    for c in range(channels):
+      out[in_size-1, in_size-1, c] = c
+    return [out]
+
+  pipe = Pipeline(1, 3, 0, prefetch_queue_depth=1)
+  input = fn.external_source(source=get_data, device=device)
+
+  rotated = fn.warp_affine(input, matrix=[-1, 0, in_size, 0, -1, in_size],
+                           fill_value=255.0, size=[out_size,out_size], interp_type=types.INTERP_NN)
+  pipe.set_outputs(rotated)
+  pipe.build()
+
+  out = None
+  try:
+    out, = pipe.run()
+  except RuntimeError as e:
+    if "bad_alloc" in str(e):
+      print("Skipping test due to out-of-memory error:", e)
+      return
+    raise
+  except MemoryError as e:
+    print("Skipping test due to out-of-memory error:", e)
+    return
+  if device == "cpu":
+    out = out.at(0)
+  else:
+    out = out.as_cpu().at(0)
+  assert out.shape == (out_size, out_size, channels)
+  for c in range(channels):
+    assert out[0,0,c] == c
+
+def test_extremely_large_data():
+  for device in ["cpu", "gpu"]:
+    yield _test_extremely_large_data, device

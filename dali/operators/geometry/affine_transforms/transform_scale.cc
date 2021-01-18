@@ -23,7 +23,7 @@ DALI_SCHEMA(transforms__Scale)
 If another transform matrix is passed as an input, the operator applies scaling to the matrix provided.
 
 .. note::
-    The output of this operator can be fed directly to the ``MT`` argument of ``CoordTransform`` operator.
+    The output of this operator can be fed directly to ``CoordTransform`` and ``WarpAffine`` operators.
 )code")
   .AddArg(
     "scale",
@@ -37,6 +37,14 @@ The number of dimensions of the transform is inferred from this argument.)code",
 
 If provided, the number of elements should match the one of ``scale`` argument.)code",
     nullptr, true)
+  .AddOptionalArg<int>(
+    "ndim",
+    R"code(Number of dimensions.
+
+It should be provided when the number of dimensions can't be inferred. For example,
+when `scale` is a scalar value and there's no input transform.
+)code",
+    nullptr, false)
   .NumInput(0, 1)
   .NumOutput(1)
   .AddParent("TransformAttr");
@@ -54,22 +62,24 @@ class TransformScaleCPU
       scale_("scale", spec),
       center_("center", spec) {
     assert(scale_.IsDefined());
+    if (spec.HasArgument("ndim"))
+      ndim_arg_ = spec.GetArgument<int>("ndim");
   }
 
   template <typename T, int mat_dim>
   void DefineTransforms(span<affine_mat_t<T, mat_dim>> matrices) {
     constexpr int ndim = mat_dim - 1;
-    assert(matrices.size() == static_cast<int>(scale_.size()));
+    assert(matrices.size() <= static_cast<int>(scale_.size()));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      auto scale = scale_[i];
+      auto scale = as_vec<ndim>(scale_[i]);
       mat = affine_mat_t<T, mat_dim>::identity();
       for (int d = 0; d < ndim; d++) {
         mat(d, d) = scale[d];
       }
 
       if (center_.IsDefined()) {
-        auto center = center_[i];
+        auto center = center_[i].data;
         for (int d = 0; d < ndim; d++) {
           mat(d, ndim) = center[d] * (T(1) - scale[d]);
         }
@@ -78,17 +88,22 @@ class TransformScaleCPU
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    int repeat = IsConstantTransform() ? 0 : nsamples_;
     assert(scale_.IsDefined());
-    scale_.Read(spec, ws, repeat);
-    ndim_ = scale_[0].size();
+    scale_.Acquire(spec, ws, nsamples_, true);
+    int scale_ndim = scale_[0].num_elements();
+
+    if (scale_ndim > 1) {
+      ndim_ = scale_ndim;
+    } else if (has_input_) {
+      ndim_ = input_transform_ndim(ws);
+    } else if (ndim_arg_ > 0) {
+      ndim_ = ndim_arg_;
+    } else {
+      ndim_ = 1;
+    }
 
     if (center_.IsDefined()) {
-      center_.Read(spec, ws, repeat);
-      DALI_ENFORCE(ndim_ == static_cast<int>(center_[0].size()),
-        make_string("Unexpected number of dimensions for ``center`` argument. Got: ",
-                    center_[0].size(), " but ``scale`` argument suggested ", ndim_,
-                    " dimensions."));
+      center_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
     }
   }
 
@@ -97,8 +112,9 @@ class TransformScaleCPU
   }
 
  private:
-  Argument<std::vector<float>> scale_;
-  Argument<std::vector<float>> center_;
+  ArgValue<float, 1> scale_;
+  ArgValue<float, 1> center_;
+  int ndim_arg_ = -1;
 };
 
 DALI_REGISTER_OPERATOR(transforms__Scale, TransformScaleCPU, CPU);

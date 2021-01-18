@@ -367,14 +367,15 @@ all_packages = [PlainPackage("opencv-python", ["4.4.0.42"]),
                               PckgVer("1.15.4",  python_max_ver="3.7"),
                               "2.2.1",
                               "2.3.1",
-                              PckgVer("1.15.4+nv20.10", python_min_ver="3.6", python_max_ver="3.6", alias="nvidia-tensorflow")]
+                              PckgVer("1.15.4+nv20.11", python_min_ver="3.6", python_max_ver="3.6", alias="nvidia-tensorflow")]
                         }),
                 CudaHttpPackage("torch",
                         { "100" : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.4.0+cu{cuda_v}-{platform}.whl"] }),
                 CudaHttpPackage("torchvision",
                         { "100" : ["https://download.pytorch.org/whl/cu{cuda_v}/torchvision-0.5.0+cu{cuda_v}-{platform}.whl"] }),
-                CudaHttpPackage("paddle",
-                        { "100" : ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda10-cudnn7-openblas/paddlepaddle_gpu-latest-{platform}.whl"] })
+                CudaPackage("paddlepaddle-gpu",
+                        { "100" : ["1.8.5.post107"],
+                          "110" : ["1.8.5.post107"]})
                ]
 
 all_packages_keys = [pckg.key for pckg in all_packages]

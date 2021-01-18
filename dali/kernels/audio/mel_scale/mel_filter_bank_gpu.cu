@@ -222,7 +222,7 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
   void FillBlockDescsInnerFft(const T* const* in_list, T **out_list) {
     int block_id = 0;
     int sample = 0;
-    while (block_id < block_descs_.size()) {
+    while (block_id < static_cast<int>(block_descs_.size())) {
       auto sample_size = block_descs_[block_id].out_frame_size;
       auto nblocks = div_ceil(sample_size, kBlockDim1);
       for (int i = 0; i < nblocks; ++i, ++block_id) {
@@ -291,10 +291,10 @@ void MelFilterBankGpu<T, Dims>::Run(
 }
 
 template <typename T, int Dims>
-MelFilterBankGpu<T, Dims>::MelFilterBankGpu() = default;
+MelFilterBankGpu<T, Dims>::MelFilterBankGpu() {}
 
 template <typename T, int Dims>
-MelFilterBankGpu<T, Dims>::~MelFilterBankGpu() = default;
+MelFilterBankGpu<T, Dims>::~MelFilterBankGpu() {}
 
 
 template class MelFilterBankGpu<float, 2>;
