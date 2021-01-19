@@ -81,11 +81,7 @@ is padded with zeros.
   When ``center_windows`` is set to False, this option is ignored.
 )",
     true)
-  .AddOptionalArg("layout", R"(Output layout: "ft" (frequency-major) or "tf" (time-major).
-
-.. note::
-  Time-major layout is available only in the implementation for GPU backend.
-)",
+  .AddOptionalArg("layout", R"(Output layout: "ft" (frequency-major) or "tf" (time-major).)",
     TensorLayout("ft"));
 
 template <bool time_major>

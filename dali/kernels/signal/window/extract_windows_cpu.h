@@ -62,7 +62,8 @@ namespace signal {
  *        This option is only relevant when `window_center` is greater than 0
  *
  */
-template <typename OutputType = float, typename InputType = float, int Dims = 1, bool vertical = true>
+template <typename OutputType = float, typename InputType = float, int Dims = 1,
+          bool vertical = true>
 class DLL_PUBLIC ExtractWindowsCpu {
  public:
   static constexpr int InputDims = Dims;
