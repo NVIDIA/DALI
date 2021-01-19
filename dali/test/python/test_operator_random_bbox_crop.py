@@ -186,8 +186,6 @@ def check_crop_dims_variable_size(anchor, shape, scaling, aspect_ratio):
     ndim = len(shape)
     k = 0
     nranges = len(aspect_ratio) / 2
-    assert(anchor.dtype == np.float32)
-    assert(shape.dtype == np.float32)
 
     max_extent = 0.0
     for d in range(ndim):
@@ -210,8 +208,6 @@ def check_crop_dims_variable_size(anchor, shape, scaling, aspect_ratio):
 
 def check_crop_dims_fixed_size(anchor, shape, expected_crop_shape, input_shape):
     ndim = len(shape)
-    assert(anchor.dtype == np.int32)
-    assert(shape.dtype == np.int32)
     for d in range(ndim):
         assert(anchor[d] >= 0.0 and anchor[d] <= input_shape[d])
         assert shape[d] == expected_crop_shape[d], "{} != {}".format(shape, expected_crop_shape)
