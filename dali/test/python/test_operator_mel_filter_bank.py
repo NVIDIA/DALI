@@ -127,7 +127,6 @@ def check_operator_mel_filter_bank_vs_python(device, batch_size, max_shape,
 
 def test_operator_mel_filter_bank_vs_python():
     for device in ['cpu', 'gpu']:
-        gpu = device == 'gpu'
         for batch_size in [1, 3]:
             for normalize in [True, False]:
                 for mel_formula in ['htk', 'slaney']:
@@ -135,9 +134,9 @@ def test_operator_mel_filter_bank_vs_python():
                         [(4, 16000.0, 0.0, 8000.0, (17, 1), 'ft'),
                         (128, 16000.0, 0.0, 8000.0, (513, 100), 'ft'),
                         (128, 48000.0, 0.0, 24000.0, (513, 100), 'ft'),
-                        (128, 16000.0, 0.0, 8000.0, (10, 513, 100), 'Ctf' if gpu else 'Cft'),
-                        (128, 48000.0, 4000.0, 24000.0, (513, 100), 'tf' if gpu else 'ft'),
-                        (128, 44100.0, 0.0, 22050.0, (513, 100), 'tf' if gpu else 'ft'),
-                        (128, 44100.0, 1000.0, 22050.0, (513, 100), 'tf' if gpu else 'ft')]:
+                        (128, 16000.0, 0.0, 8000.0, (10, 513, 100), 'Ctf'),
+                        (128, 48000.0, 4000.0, 24000.0, (513, 100), 'tf'),
+                        (128, 44100.0, 0.0, 22050.0, (513, 100), 'tf'),
+                        (128, 44100.0, 1000.0, 22050.0, (513, 100), 'tf')]:
                         yield check_operator_mel_filter_bank_vs_python, device, batch_size, shape, \
                             nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula, layout

@@ -42,8 +42,7 @@ class DLL_PUBLIC MelFilterBankCpu {
 
   DLL_PUBLIC void Run(KernelContext &context,
                       const OutTensorCPU<T, Dims> &out,
-                      const InTensorCPU<T, Dims> &in,
-                      const MelFilterBankArgs &args);
+                      const InTensorCPU<T, Dims> &in);
 
  private:
   class Impl;

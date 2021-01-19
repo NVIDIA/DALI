@@ -110,9 +110,9 @@ template <typename T, int Dims>
 class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
  public:
   template <typename MelScale>
-  Impl(MelScale mel_scale, const MelFilterBankArgs &args)
-      : MelFilterImplBase<T, Dims>(mel_scale, args)
-      , interval_ends_(args.nfilter+2) {
+  Impl(MelScale mel_scale, const MelFilterBankArgs &args) :
+      MelFilterImplBase<T, Dims>(mel_scale, args),
+      interval_ends_(args.nfilter + 2) {
     double mel = mel_low_ + mel_delta_;
     interval_ends_[0] = fftbin_start_;
     interval_ends_[args.nfilter + 1] = fftbin_end_ + 1;

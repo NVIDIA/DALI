@@ -136,7 +136,7 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   std::vector<T> out(out_size, 0.0f);
   auto out_view = OutTensorCPU<T, Dims>(out.data(), out_shape.to_static<Dims>());
 
-  kernel.Run(ctx, out_view, in_view_, args);
+  kernel.Run(ctx, out_view, in_view_);
 
   LOG_LINE << "in:\n";
   print_data(in_view_);

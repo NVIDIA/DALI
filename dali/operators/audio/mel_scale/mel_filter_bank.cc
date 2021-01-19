@@ -24,9 +24,8 @@ DALI_SCHEMA(MelFilterBank)
 triangular filters.
 
 Expects an input with at least 2 dimensions.
-
-Please note that the CPU implementation supports only the layout with the last two
-dimensions corresponding to the fft bin index and the window index, respectively.
+The frequency ('f') dimension must be present in the layout and should be one of the last two 
+dimensions in the layout.
 )code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
@@ -108,7 +107,7 @@ void MelFilterBank<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
           [this, &input, &output, i](int thread_id) {
             auto in_view = view<const T, Dims>(input[i]);
             auto out_view = view<T, Dims>(output[i]);
-            kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx_, out_view, in_view, args_);
+            kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx_, out_view, in_view);
           }, in_shape.tensor_size(i));
       }
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
