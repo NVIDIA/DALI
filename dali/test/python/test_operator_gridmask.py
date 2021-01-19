@@ -46,16 +46,16 @@ def get_random_pipeline(batch_size):
   return pipe
 
 def get_mask(w, h, tile, ratio, angle, d):
-  mask = np.zeros((h, w))
   ca = math.cos(angle)
   sa = math.sin(angle)
   b = tile * ratio
 
-  for i in range(w):
-    for j in range(h):
-      (x, y) = (i * ca - j * sa, i * sa + j * ca)
-      mask[j, i] = ((x+d) % tile > b+2*d) or ((y+d) % tile > b+2*d)
-  return mask
+  i = np.tile(np.arange(w), (h, 1))
+  j = np.transpose(np.tile(np.arange(h), (w, 1)))
+  x = i * ca - j * sa
+  y = i * sa + j * ca
+  m = np.logical_or(((x+d) % tile > b+2*d), ((y+d) % tile > b+2*d))
+  return m
 
 def check(result, input, tile, ratio, angle):
   result = np.uint8(result)
@@ -76,7 +76,7 @@ def check(result, input, tile, ratio, angle):
   assert np.all(result2 == input2)
 
 def test_cpu_vs_cv():
-  batch_size = 2
+  batch_size = 4
   for (tile, ratio, angle) in [(40, 0.5, 0),
                                (100, 0.1, math.pi / 2),
                                (200, 0.7, math.pi / 3),
@@ -91,10 +91,10 @@ def test_cpu_vs_cv():
       yield check, results[i], inputs[i], tile, ratio, angle
 
 def test_cpu_vs_cv_random():
-  batch_size = 2
+  batch_size = 4
   pipe = get_random_pipeline(batch_size)
   pipe.build()
-  for _ in range(8):
+  for _ in range(16):
     results, inputs, tiles, ratios, angles = pipe.run()
     for i in range(batch_size):
       tile = np.int32(tiles[i])[0]
