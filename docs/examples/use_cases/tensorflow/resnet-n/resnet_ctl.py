@@ -46,7 +46,7 @@ default_args = {
 args = nvutils.parse_cmdline(default_args)
 
 if args['predict']:
-  nvutils.predict(args)
+  nvutils.predict_ctl(args)
 else:
-  nvutils.train(resnet50, args)
+  nvutils.train_ctl(resnet50, args)
 

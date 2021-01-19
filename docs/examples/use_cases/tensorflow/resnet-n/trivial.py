@@ -15,7 +15,7 @@
 # ==============================================================================
 
 import nvutils
-from resnet_model import resnet50
+from resnet_model import trivial
 
 nvutils.init()
 
@@ -48,5 +48,6 @@ args = nvutils.parse_cmdline(default_args)
 if args['predict']:
   nvutils.predict(args)
 else:
-  nvutils.train(resnet50, args)
+  nvutils.train(trivial, args)
+
 
