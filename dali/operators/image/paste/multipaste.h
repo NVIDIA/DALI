@@ -40,7 +40,7 @@ class MultiPasteOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(MultiPasteOp);
 
  protected:
-  using Coords = TensorView<typename compute_to_storage<Backend>::type, const int64_t, 1>;
+  using Coords = TensorView<typename compute_to_storage<Backend>::type, const int, 1>;
 
   explicit MultiPasteOp(const OpSpec &spec)
       : Operator<Backend>(spec)
@@ -99,6 +99,11 @@ class MultiPasteOp : public Operator<Backend> {
         : input_type_;
 
     for (int i = 0; i < curr_batch_size; i++) {
+      raw_input_size_mem_.push_back(static_cast<int>(images.shape()[i].data()[0]));
+      raw_input_size_mem_.push_back(static_cast<int>(images.shape()[i].data()[1]));
+    }
+
+    for (int i = 0; i < curr_batch_size; i++) {
       const int64_t n_paste = in_idx_[i].shape[0];
 
       if (in_anchors_.IsDefined()) {
@@ -118,12 +123,12 @@ class MultiPasteOp : public Operator<Backend> {
       for (int j = 0; j < n_paste; j++) {
         auto out_anchor = GetInAnchors(i, j);
         auto j_idx = in_idx_[i].data[j];
-        const auto &shape = GetShape(i, j, Coords(images.shape()[j_idx].data(),
+        const auto &shape = GetShape(i, j, Coords(raw_input_size_mem_.data() + 2 * j_idx,
                                                   dali::TensorShape<>(2)));
         for (int k = 0; k < j; k++) {
           auto k_idx = in_idx_[i].data[k];
-          if (Intersects(out_anchor, shape, GetInAnchors(i, k),
-                   GetShape(i, k, Coords(images.shape()[k_idx].data(), dali::TensorShape<>(2))))) {
+          if (Intersects(out_anchor, shape, GetInAnchors(i, k), GetShape(
+                  i, k, Coords(raw_input_size_mem_.data() + 2 * k_idx, dali::TensorShape<>(2))))) {
             found_intersection = true;
             break;
           }
@@ -160,16 +165,17 @@ class MultiPasteOp : public Operator<Backend> {
   ArgValue<int, 1> output_size_;
 
   ArgValue<int, 1> in_idx_;
-  ArgValue<int64_t, 2> in_anchors_;
-  ArgValue<int64_t, 2> in_shapes_;
-  ArgValue<int64_t, 2> out_anchors_;
+  ArgValue<int, 2> in_anchors_;
+  ArgValue<int, 2> in_shapes_;
+  ArgValue<int, 2> out_anchors_;
 
   kernels::KernelManager kernel_manager_;
 
-  const int64_t zeros_[2] = {0, 0};
+  const int zeros_[2] = {0, 0};
   Coords zero_anchors_;
 
   vector<bool> no_intersections_;
+  vector<int> raw_input_size_mem_;
 };
 
 

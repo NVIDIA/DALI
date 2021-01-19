@@ -36,15 +36,15 @@ Assumes HWC layout.)code")
 .AddArg("in_ids", R"code(1D TensorList of type int.
 
 Indexes from what inputs to paste data in each iteration.)code", DALI_INT32, true)
-.AddOptionalArg<int64_t>("in_anchors", R"code(2D TensorList of type int64
+.AddOptionalArg<int>("in_anchors", R"code(2D TensorList of type int64
 
 Absolute values of LU corner of the selection for each iteration.
 Zeros are used if this is omitted.)code", nullptr, true)
-.AddOptionalArg<int64_t>("shapes", R"code(2D TensorList of type int64
+.AddOptionalArg<int>("shapes", R"code(2D TensorList of type int64
 
 Absolute values of size of the selection for each iteration.
 Input size is used if this is omitted.)code", nullptr, true)
-.AddOptionalArg<int64_t>("out_anchors", R"code(2D TensorList of type int64
+.AddOptionalArg<int>("out_anchors", R"code(2D TensorList of type int64
 
 Absolute values of LU corner of the paste for each iteration.
 Zeros are used if omitted.)code", nullptr, true)
@@ -123,7 +123,7 @@ void MultiPasteCpu::RunImpl(workspace_t<CPUBackend> &ws) {
 
                         auto in_anchor_view = GetInAnchors(i, iter);
                         auto in_shape_view = GetShape(i, iter, Coords(
-                                    images.shape()[from_sample].data(), dali::TensorShape<>(2)));
+                            raw_input_size_mem_.data() + 2 * from_sample, dali::TensorShape<>(2)));
                         auto out_anchor_view = GetOutAnchors(i, iter);
 
                         kernel_manager_.Run<Kernel>(thread_id, to_sample, ctx, tvout, tvin,
@@ -144,7 +144,7 @@ void MultiPasteCpu::RunImpl(workspace_t<CPUBackend> &ws) {
 
                         auto in_anchor_view = GetInAnchors(i, iter);
                         auto in_shape_view = GetShape(i, iter, Coords(
-                            images.shape()[from_sample].data(), dali::TensorShape<>(2)));
+                            raw_input_size_mem_.data() + 2 * from_sample, dali::TensorShape<>(2)));
                         auto out_anchor_view = GetOutAnchors(i, iter);
 
                         kernel_manager_.Run<Kernel>(thread_id, to_sample, ctx, tvout, tvin,

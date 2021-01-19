@@ -56,9 +56,9 @@ def prepare_cuts(
         out_anchor_top_left=False,
 ):
     in_idx_l = [np.zeros(shape=(0,), dtype=np.int32) for _ in range(batch_size)]
-    in_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int64) for _ in range(batch_size)]
-    shapes_l = [np.zeros(shape=(0, 2), dtype=np.int64) for _ in range(batch_size)]
-    out_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int64) for _ in range(batch_size)]
+    in_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
+    shapes_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
+    out_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
     assert len(input_size) == len(output_size)
     dim = len(input_size)
     for i in range(batch_size):
@@ -66,16 +66,16 @@ def prepare_cuts(
             while True:
                 in_idx = np.int32(np.random.randint(batch_size))
                 out_idx = np.int32(i if even_paste_count else np.random.randint(batch_size))
-                shape = [np.int64(
+                shape = [np.int32(
                     np.random.randint(
                         min(input_size[i], output_size[i]) // (iters if no_intersections else 1)
                     ) + 1
                 ) for i in range(dim)] if not full_input else input_size
 
-                in_anchor = [np.int64(np.random.randint(input_size[i] - shape[i] + 1)) for i in range(dim)] \
+                in_anchor = [np.int32(np.random.randint(input_size[i] - shape[i] + 1)) for i in range(dim)] \
                     if not in_anchor_top_left else [0] * dim
 
-                out_anchor = [np.int64(np.random.randint(output_size[i] - shape[i] + 1)) for i in range(dim)] \
+                out_anchor = [np.int32(np.random.randint(output_size[i] - shape[i] + 1)) for i in range(dim)] \
                     if not out_anchor_top_left else [0] * dim
 
                 if no_intersections:
