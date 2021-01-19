@@ -183,8 +183,6 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
   }
 
   batch->SetLayout(layout);
-
-  batch->Resize(typed_shape);
 }
 
 template <typename TensorType>
@@ -227,15 +225,18 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
   }
 
   auto typed_shape = ConvertShape(shape, batch);
-  batch->ShareData(PyLong_AsVoidPtr(cu_a_interface["data"].cast<py::tuple>()[0].ptr()), bytes,
-                   typed_shape, type);
+  auto *ptr = PyLong_AsVoidPtr(cu_a_interface["data"].cast<py::tuple>()[0].ptr());
+
+  // Keep a copy of the input object ref in the deleter, so its refcount is increased
+  // while this shared_ptr is alive (and the data should be kept alive)
+  // We set the type and shape even before the set_device_id as we only wrap the allocation
+  batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {}), bytes, typed_shape, type);
   batch->SetLayout(layout);
   // it is for __cuda_array_interface__ so device_id < 0 is not a valid value
   if (device_id < 0) {
     CUDA_CALL(cudaGetDevice(&device_id));
   }
   batch->set_device_id(device_id);
-  batch->Resize(typed_shape);
 }
 
 void ExposeTensorLayout(py::module &m) {
@@ -343,9 +344,10 @@ void ExposeTensor(py::module &m) {
           auto t = std::make_unique<Tensor<CPUBackend>>();
           t->set_pinned(is_pinned);
           TypeInfo type = TypeFromFormatStr(info.format);
-          t->ShareData(info.ptr, bytes, type);
+          // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
+          // while this shared_ptr is alive (and the data should be kept alive)
+          t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) {}), bytes, i_shape, type);
           t->SetLayout(layout);
-          t->Resize(i_shape);
           return t.release();
         }),
       "b"_a,
@@ -614,9 +616,10 @@ void ExposeTensorList(py::module &m) {
         auto t = std::make_shared<TensorList<CPUBackend>>();
         t->set_pinned(false);
         TypeInfo type = TypeFromFormatStr(info.format);
-        t->ShareData(info.ptr, bytes, type);
+        // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
+        // while this shared_ptr is alive (and the data should be kept alive)
+        t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *){}), bytes, i_shape, type);
         t->SetLayout(layout);
-        t->Resize(i_shape);
         return t;
       }),
       "b"_a,

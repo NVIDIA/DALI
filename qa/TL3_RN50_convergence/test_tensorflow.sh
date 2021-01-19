@@ -20,16 +20,17 @@ function CLEAN_AND_EXIT {
 
 LOG=dali.log
 OUT=${LOG%.log}.dir
+mkdir -p $OUT
 
 SECONDS=0
 export TF_XLA_FLAGS="--tf_xla_enable_lazy_compilation=false"
 
 mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
-    python -u resnet.py --layers=50 \
+    python -u resnet.py \
     --data_dir=$DATA_SET_DIR --data_idx_dir=idx-files/ \
     --precision=fp16 --num_iter=90 --iter_unit=epoch --display_every=50 \
-    --batch=256 --use_xla --log_dir=$OUT \
-    2>&1 | tee $LOG
+    --batch=192 --use_xla --log_dir=$OUT \
+    --dali_mode="GPU" 2>&1 | tee $LOG
 
 RET=${PIPESTATUS[0]}
 echo "Training ran in $SECONDS seconds"
@@ -38,16 +39,15 @@ if [[ $RET -ne 0 ]]; then
     CLEAN_AND_EXIT 2
 fi
 
-MIN_TOP1=75.0
-MIN_TOP5=92.0
-MIN_PERF=9500
 
-TOP1=$(grep "^Top-1" $LOG | awk '{print $3}')
-TOP5=$(grep "^Top-5" $LOG | awk '{print $3}')
+MIN_TOP1=0.75
+MIN_TOP5=0.92
+MIN_PERF=8000
 
-cat $LOG | grep -o "[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*" > tmp2.log
-PERF=`awk 'BEGIN { sum = 0; n = 0 } { sum += $3; n += 1 } END { print sum / n }' tmp2.log`
-rm -f tmp2.log
+TOP1=$(grep "loss:" $LOG | awk '{print $18}' | tail -1)
+TOP5=$(grep "loss:" $LOG | awk '{print $21}' | tail -1)
+
+PERF=$(cat "$LOG" | grep "^global_step:" | awk " { sum += \$4; count+=1 } END {print sum/count}")
 
 if [[ -z "$TOP1" || -z "$TOP5" ]]; then
     echo "Incomplete output."

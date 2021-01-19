@@ -74,13 +74,16 @@ def test_transform_translation_op(batch_size=3, num_threads=4, device_id=0):
                 yield check_transform_translation_op, offset, has_input, reverse_order, \
                                                       batch_size, num_threads, device_id
 
-def scale_affine_mat(scale, center = None):
-    ndim = len(scale)
+def scale_affine_mat(scale, center = None, ndim = None):
+    if ndim is None:
+        ndim = len(scale)
+    else:
+        assert ndim == len(scale) or 1 == len(scale)
     assert center is None or len(center) == ndim
 
     s_mat = np.identity(ndim + 1)
     for d in range(ndim):
-        s_mat[d, d] = scale[d]
+        s_mat[d, d] = scale[0] if len(scale) == 1 else scale[d]
 
     if center is not None:
         neg_offset = [-x for x in center]
@@ -92,33 +95,35 @@ def scale_affine_mat(scale, center = None):
 
     return affine_mat
 
-def check_transform_scale_op(scale, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
-    ndim = len(scale)
+def check_transform_scale_op(scale, center=None, has_input = False, reverse_order=False, ndim=None, batch_size=1, num_threads=4, device_id=0):
+    if ndim is None:
+        ndim = len(scale)
     assert center is None or len(center) == ndim
 
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
         if has_input:
-            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
-            T1 = fn.transforms.scale(T0, device='cpu', scale=scale, center=center, reverse_order=reverse_order)
+            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T1 = fn.transforms.scale(T0, device='cpu', scale=scale, center=center, ndim=ndim, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
-            T1 = fn.transforms.scale(device='cpu', scale=scale, center=center)
+            T1 = fn.transforms.scale(device='cpu', scale=scale, center=center, ndim=ndim)
             pipe.set_outputs(T1)
     pipe.build()
     outs = pipe.run()
-    ref_mat = scale_affine_mat(scale=scale, center=center)
+    ref_mat = scale_affine_mat(scale=scale, center=center, ndim=ndim)
     T0 = outs[1] if has_input else None
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order)
 
 def test_transform_scale_op(batch_size=3, num_threads=4, device_id=0):
-    for scale, center in [((0.0, 1.0), None),
-                          ((2.0, 1.0, 3.0), None),
-                          ((2.0, 1.0), (1.0, 0.5))]:
+    for scale, center, ndim in [((0.0, 1.0), None, None),
+                                ((2.0, 1.0, 3.0), None, None),
+                                ((2.0, 1.0), (1.0, 0.5), None),
+                                ((2.0, ), (1.0, 0.5), 2)]:
         for has_input in [False, True]:
             for reverse_order in [False, True] if has_input else [False]:
                 yield check_transform_scale_op, scale, center, has_input, reverse_order, \
-                                                batch_size, num_threads, device_id
+                                                ndim, batch_size, num_threads, device_id,
 
 def rotate_affine_mat(angle, axis = None, center = None):
     assert axis is None or len(axis) == 3

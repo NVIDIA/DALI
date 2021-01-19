@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
-#include <dali/test/dali_test_config.h>
+#include "dali/test/dali_test_config.h"
 #include "dali/kernels/alloc.h"
 #include "dali/test/mat2tensor.h"
 #include "dali/util/image.h"

@@ -17,17 +17,13 @@ import nvidia.dali.plugin.tf as dali_tf
 import os
 import numpy as np
 from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 from test_utils_tensorflow import *
 from shutil import rmtree as remove_directory
 from nose.tools import with_setup
-
-try:
-    import tensorflow.compat.v1 as tf
-    tf.disable_eager_execution()
-except:
-    pass
+import tensorflow as tf
+import tensorflow.compat.v1 as tf_v1
 
 
 TARGET = 0.8
@@ -42,38 +38,29 @@ ITERATIONS = 100
 data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/MNIST/training/')
 
 
-def setup():
-    skip_for_incompatible_tf()
-
-
-class MnistPipeline(Pipeline):
-    def __init__(self, num_threads, path, device, device_id=0, shard_id=0, num_shards=1, seed=0):
-        super(MnistPipeline, self).__init__(
-            BATCH_SIZE, num_threads, device_id, seed)
-        self.device = device
-        self.reader = ops.Caffe2Reader(path=path, random_shuffle=True, shard_id=shard_id, num_shards=num_shards)
-        self.decode = ops.ImageDecoder(
-            device='mixed' if device == 'gpu' else 'cpu',
-            output_type=types.GRAY)
-        self.cmn = ops.CropMirrorNormalize(
-            device=device,
-            output_dtype=types.FLOAT,
+def mnist_pipeline(
+        num_threads, path, device, device_id=0, shard_id=0, num_shards=1, seed=0):
+    pipeline = Pipeline(BATCH_SIZE, num_threads, device_id, seed)
+    with pipeline:
+        jpegs, labels = fn.caffe2_reader(
+            path=path, random_shuffle=True, shard_id=shard_id, num_shards=num_shards)
+        images = fn.image_decoder(jpegs, device='mixed' if device == 'gpu' else 'cpu', output_type=types.GRAY)
+        if device == 'gpu':
+            labels = labels.gpu()
+        images = fn.crop_mirror_normalize(
+            images, 
+            dtype=types.FLOAT,
             mean=[0.],
             std=[255.],
             output_layout="CHW")
 
-    def define_graph(self):
-        inputs, labels = self.reader(name="Reader")
-        images = self.decode(inputs)
-        if self.device == 'gpu':
-            labels = labels.gpu()
-        images = self.cmn(images)
+        pipeline.set_outputs(images, labels)
 
-        return (images, labels)
+    return pipeline
 
 
-def _get_mnist_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1, fail_on_device_mismatch=True):
-    mnist_pipeline = MnistPipeline(
+def get_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1, fail_on_device_mismatch=True):
+    pipeline = mnist_pipeline(
         4, data_path, device, device_id, shard_id, num_shards)
     shapes = (
         (BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE),
@@ -83,7 +70,7 @@ def _get_mnist_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1, fail
         tf.int32)
 
     daliset = dali_tf.DALIDataset(
-        pipeline=mnist_pipeline,
+        pipeline=pipeline,
         batch_size=BATCH_SIZE,
         output_shapes=shapes,
         output_dtypes=dtypes,
@@ -93,28 +80,64 @@ def _get_mnist_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1, fail
     return daliset
 
 
-def _get_train_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1, fail_on_device_mismatch=True):
-    return _get_mnist_dataset(
-        device,
-        device_id,
-        shard_id,
-        num_shards,
-        fail_on_device_mismatch)
+def get_dataset_multi_gpu(strategy):
+    def dataset_fn(input_context):
+        with tf.device("/gpu:{}".format(input_context.input_pipeline_id)):
+            device_id = input_context.input_pipeline_id
+            return get_dataset('gpu', device_id, device_id, num_available_gpus())
+
+    input_options = tf.distribute.InputOptions(
+        experimental_place_dataset_on_device = True,
+        experimental_prefetch_to_device = False,
+        experimental_replication_mode = tf.distribute.InputReplicationMode.PER_REPLICA)
+
+    train_dataset = strategy.distribute_datasets_from_function(dataset_fn, input_options)
+    return train_dataset
+    
+
+def keras_model():
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.Input(shape=(IMAGE_SIZE, IMAGE_SIZE), name='images'),
+        tf.keras.layers.Flatten(input_shape=(IMAGE_SIZE, IMAGE_SIZE)),
+        tf.keras.layers.Dense(HIDDEN_SIZE, activation='relu'),
+        tf.keras.layers.Dropout(DROPOUT),
+        tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
+    ])
+    model.compile(
+        optimizer='adam',
+        loss='sparse_categorical_crossentropy',
+        metrics=['accuracy'])
+
+    return model
 
 
-def _graph_model(images, reuse, is_training):
-    with tf.variable_scope('mnist_net', reuse=reuse):
-        images = tf.layers.flatten(images)
-        images = tf.layers.dense(images, HIDDEN_SIZE, activation=tf.nn.relu)
-        images = tf.layers.dropout(images, rate=DROPOUT, training=is_training)
-        images = tf.layers.dense(images, NUM_CLASSES, activation=tf.nn.softmax)
+def run_keras_single_device(device='cpu', device_id=0):
+    with tf.device('/{0}:{1}'.format(device, device_id)):
+        model = keras_model()
+        train_dataset = get_dataset(device, device_id)
 
+    model.fit(
+        train_dataset,
+        epochs=EPOCHS,
+        steps_per_epoch=ITERATIONS)
+
+    assert model.evaluate(
+        train_dataset,
+        steps=ITERATIONS)[1] > TARGET
+
+
+def graph_model(images, reuse, is_training):
+    with tf_v1.variable_scope('mnist_net', reuse=reuse):
+        images = tf_v1.layers.flatten(images)
+        images = tf_v1.layers.dense(images, HIDDEN_SIZE, activation=tf_v1.nn.relu)
+        images = tf_v1.layers.dropout(images, rate=DROPOUT, training=is_training)
+        images = tf_v1.layers.dense(images, NUM_CLASSES, activation=tf_v1.nn.softmax)
     return images
 
 
-def _train_graph(iterator_initializers, train_op, accuracy):
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
+def train_graph(iterator_initializers, train_op, accuracy):
+    with tf_v1.Session() as sess:
+        sess.run(tf_v1.global_variables_initializer())
         sess.run(iterator_initializers)
 
         for i in range(EPOCHS * ITERATIONS):
@@ -133,109 +156,45 @@ def _train_graph(iterator_initializers, train_op, accuracy):
         assert final_accuracy > TARGET
 
 
-def _test_graph_single_device(device='cpu', device_id=0):
+def run_graph_single_device(device='cpu', device_id=0):
     with tf.device('/{0}:{1}'.format(device, device_id)):
-        daliset = _get_train_dataset(device, device_id)
+        daliset = get_dataset(device, device_id)
 
-        iterator = tf.data.make_initializable_iterator(daliset)
+        iterator = tf_v1.data.make_initializable_iterator(daliset)
         images, labels = iterator.get_next()
 
-        images = tf.reshape(images, [BATCH_SIZE, IMAGE_SIZE*IMAGE_SIZE])
-        labels = tf.reshape(
-            tf.one_hot(labels, NUM_CLASSES),
+        # images = tf_v1.reshape(images, [BATCH_SIZE, IMAGE_SIZE*IMAGE_SIZE])
+        labels = tf_v1.reshape(
+            tf_v1.one_hot(labels, NUM_CLASSES),
             [BATCH_SIZE, NUM_CLASSES])
 
-        logits_train = _graph_model(images, reuse=False, is_training=True)
-        logits_test = _graph_model(images, reuse=True, is_training=False)
+        logits_train = graph_model(images, reuse=False, is_training=True)
+        logits_test = graph_model(images, reuse=True, is_training=False)
 
-        loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+        loss_op = tf_v1.reduce_mean(tf_v1.nn.softmax_cross_entropy_with_logits(
             logits=logits_train, labels=labels))
-        train_step = tf.train.AdamOptimizer().minimize(loss_op)
+        train_step = tf_v1.train.AdamOptimizer().minimize(loss_op)
 
-        correct_pred = tf.equal(
-            tf.argmax(logits_test, 1), tf.argmax(labels, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+        correct_pred = tf_v1.equal(
+            tf_v1.argmax(logits_test, 1), tf_v1.argmax(labels, 1))
+        accuracy = tf_v1.reduce_mean(tf_v1.cast(correct_pred, tf_v1.float32))
 
-    _train_graph([iterator.initializer], train_step, accuracy)
-
-
-@with_setup(tf.reset_default_graph)
-def test_graph_single_gpu():
-    _test_graph_single_device('gpu', 0)
-
-
-@with_setup(tf.reset_default_graph)
-def test_graph_single_other_gpu():
-    _test_graph_single_device('gpu', 1)
-
-
-@with_setup(tf.reset_default_graph)
-def test_graph_single_cpu():
-    _test_graph_single_device('cpu', 0)
-
-
-def _keras_model():
-    model = tf.keras.models.Sequential([
-        tf.keras.layers.Input(shape=(IMAGE_SIZE, IMAGE_SIZE), name='images'),
-        tf.keras.layers.Flatten(input_shape=(IMAGE_SIZE, IMAGE_SIZE)),
-        tf.keras.layers.Dense(HIDDEN_SIZE, activation='relu'),
-        tf.keras.layers.Dropout(DROPOUT),
-        tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
-    ])
-    model.compile(
-        optimizer=tf.train.AdamOptimizer(),
-        loss='sparse_categorical_crossentropy',
-        metrics=['accuracy'])
-
-    return model
-
-
-def _test_keras_single_device(device='cpu', device_id=0):
-    with tf.device('/{0}:{1}'.format(device, device_id)):
-        model = _keras_model()
-
-        train_dataset = _get_train_dataset(device, device_id)
-
-        model.fit(
-            train_dataset,
-            epochs=EPOCHS,
-            steps_per_epoch=ITERATIONS)
-
-        assert model.evaluate(
-            train_dataset,
-            steps=ITERATIONS)[1] > TARGET
-
-
-def test_keras_single_gpu():
-    _test_keras_single_device('gpu', 0)
-
-
-def test_keras_single_other_gpu():
-    _test_keras_single_device('gpu', 1)
-
-
-def test_keras_single_cpu():
-    _test_keras_single_device('cpu', 0)
+    train_graph([iterator.initializer], train_step, accuracy)
 
 
 def clear_checkpoints():
     remove_directory('/tmp/tensorflow-checkpoints', ignore_errors=True)
 
 
-def _test_estimators_single_device(model, device='cpu', device_id=0, fail_on_device_mismatch=True):
-    def train_fn():
+def _test_estimators_single_device(model, device='cpu', device_id=0):
+    def dataset_fn():
         with tf.device('/{0}:{1}'.format(device, device_id)):
-            return _get_train_dataset(device, device_id, fail_on_device_mismatch=fail_on_device_mismatch).map(
-                lambda features, labels: ({'images': features}, labels))
+            return get_dataset(device, device_id)
 
-    model.train(input_fn=train_fn, steps=EPOCHS * ITERATIONS)
-
-    def test_fn():
-        return _get_train_dataset(device, device_id, fail_on_device_mismatch=fail_on_device_mismatch).map(
-            lambda features, labels: ({'images': features}, labels))
+    model.train(input_fn=dataset_fn, steps=EPOCHS * ITERATIONS)
 
     evaluation = model.evaluate(
-        input_fn=test_fn,
+        input_fn=dataset_fn,
         steps=ITERATIONS)
     final_accuracy = evaluation['acc'] if 'acc' in evaluation else evaluation['accuracy']
     print('Final accuracy: ', final_accuracy)
@@ -249,223 +208,13 @@ def _run_config(device='cpu', device_id=0):
         device_fn=lambda op: '/{0}:{1}'.format(device, device_id))
 
 
-def _test_estimators_classifier_single_device(device='cpu', device_id=0):
-    feature_columns = [tf.feature_column.numeric_column(
-        "images", shape=[IMAGE_SIZE, IMAGE_SIZE])]
-
-    model = tf.estimator.DNNClassifier(
-        feature_columns=feature_columns,
-        hidden_units=[HIDDEN_SIZE],
-        n_classes=NUM_CLASSES,
-        dropout=DROPOUT,
-        config=_run_config(device, device_id),
-        optimizer=tf.train.AdamOptimizer)
-
-    _test_estimators_single_device(
-        model, device, device_id, (device != 'gpu'))
-
-
-@with_setup(clear_checkpoints, clear_checkpoints)
-def test_estimators_single_gpu():
-    _test_estimators_classifier_single_device('gpu', 0)
-
-
-@with_setup(clear_checkpoints, clear_checkpoints)
-def test_estimators_single_other_gpu():
-    _test_estimators_classifier_single_device('gpu', 1)
-
-
-@with_setup(clear_checkpoints, clear_checkpoints)
-def test_estimators_single_cpu():
-    _test_estimators_classifier_single_device('cpu', 0)
-
-
-def _test_estimators_wrapping_keras_single_device(device='cpu', device_id=0):
+def run_estimators_single_device(device='cpu', device_id=0):
     with tf.device('/{0}:{1}'.format(device, device_id)):
-        keras_model = _keras_model()
+        model = keras_model()
     model = tf.keras.estimator.model_to_estimator(
-        keras_model=keras_model,
+        keras_model=model,
         config=_run_config(device, device_id))
     _test_estimators_single_device(
         model,
         device,
-        device_id,
-        fail_on_device_mismatch=(device != 'gpu'))
-
-
-@with_setup(clear_checkpoints, clear_checkpoints)
-def test_estimators_wrapping_keras_single_gpu():
-    _test_estimators_wrapping_keras_single_device('gpu', 0)
-
-
-@with_setup(clear_checkpoints, clear_checkpoints)
-def test_estimators_wrapping_keras_single_other_gpu():
-    _test_estimators_wrapping_keras_single_device('gpu', 1)
-
-
-@with_setup(clear_checkpoints, clear_checkpoints)
-def test_estimators_wrapping_keras_single_cpu():
-    _test_estimators_wrapping_keras_single_device('cpu', 0)
-
-
-# This function is copied form: https://github.com/tensorflow/models/blob/master/tutorials/image/cifar10/cifar10_multi_gpu_train.py#L102
-def _average_gradients(tower_grads):
-    average_grads = []
-    for grad_and_vars in zip(*tower_grads):
-        # Note that each grad_and_vars looks like the following:
-        #   ((grad0_gpu0, var0_gpu0), ... , (grad0_gpuN, var0_gpuN))
-        grads = []
-        for g, _ in grad_and_vars:
-            # Add 0 dimension to the gradients to represent the tower.
-            expanded_g = tf.expand_dims(g, 0)
-
-            # Append on a 'tower' dimension which we will average over below.
-            grads.append(expanded_g)
-
-        # Average over the 'tower' dimension.
-        grad = tf.concat(grads, 0)
-        grad = tf.reduce_mean(grad, 0)
-
-        # Keep in mind that the Variables are redundant because they are shared
-        # across towers. So .. we will just return the first tower's pointer to
-        # the Variable.
-        v = grad_and_vars[0][1]
-        grad_and_var = (grad, v)
-        average_grads.append(grad_and_var)
-    return average_grads
-
-
-@with_setup(tf.reset_default_graph)
-def test_graph_multi_gpu():
-    iterator_initializers = []
-
-    with tf.device('/cpu:0'):
-        tower_grads = []
-
-        for i in range(num_available_gpus()):
-            with tf.device('/gpu:{}'.format(i)):
-                daliset = _get_train_dataset(
-                    'gpu', i, i, num_available_gpus())
-
-                iterator = tf.data.make_initializable_iterator(daliset)
-                iterator_initializers.append(iterator.initializer)
-                images, labels = iterator.get_next()
-
-                images = tf.reshape(
-                    images, [BATCH_SIZE, IMAGE_SIZE*IMAGE_SIZE])
-                labels = tf.reshape(
-                    tf.one_hot(labels, NUM_CLASSES),
-                    [BATCH_SIZE, NUM_CLASSES])
-
-                logits_train = _graph_model(
-                    images, reuse=(i != 0), is_training=True)
-                logits_test = _graph_model(
-                    images, reuse=True, is_training=False)
-
-                loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
-                    logits=logits_train, labels=labels))
-                optimizer = tf.train.AdamOptimizer()
-                grads = optimizer.compute_gradients(loss_op)
-
-                if i == 0:
-                    correct_pred = tf.equal(
-                        tf.argmax(logits_test, 1), tf.argmax(labels, 1))
-                    accuracy = tf.reduce_mean(
-                        tf.cast(correct_pred, tf.float32))
-
-                tower_grads.append(grads)
-
-        tower_grads = _average_gradients(tower_grads)
-        train_step = optimizer.apply_gradients(tower_grads)
-
-    _train_graph(iterator_initializers, train_step, accuracy)
-
-
-# Note: This picks up single Dataset instance on the CPU and distributes the data automatically.
-# TODO(awolant): Goal is to figure out how to have GPU instance per replica on one machine.
-def test_keras_multi_gpu():
-    train_dataset = _get_train_dataset('cpu', 0).unbatch().batch(BATCH_SIZE * num_available_gpus())
-    mirrored_strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
-
-    with mirrored_strategy.scope():
-        model = _keras_model()
-
-    model.fit(
-        train_dataset,
-        epochs=EPOCHS,
-        steps_per_epoch=ITERATIONS)
-
-    assert model.evaluate(
-        train_dataset,
-        steps=ITERATIONS)[1] > TARGET
-
-
-def _test_estimators_multi_gpu(model):
-    def train_fn(input_context):
-        return _get_train_dataset('cpu', 0).map(
-            lambda features, labels: ({'images': features}, labels))
-
-    model.train(input_fn=train_fn, steps=EPOCHS * ITERATIONS)
-
-    evaluation = model.evaluate(
-        input_fn=train_fn,
-        steps=ITERATIONS)
-    final_accuracy = evaluation['acc'] if 'acc' in evaluation else evaluation['accuracy']
-    print('Final accuracy: ', final_accuracy)
-
-    assert final_accuracy > TARGET
-
-
-def _multi_gpu_classifier():
-    mirrored_strategy = tf.distribute.MirroredStrategy(
-        devices=available_gpus())
-
-    config = tf.estimator.RunConfig(
-        model_dir='/tmp/tensorflow-checkpoints',
-        train_distribute=mirrored_strategy,
-        eval_distribute=mirrored_strategy)
-
-    feature_columns = [tf.feature_column.numeric_column(
-        "images", shape=[IMAGE_SIZE, IMAGE_SIZE])]
-
-    model = tf.estimator.DNNClassifier(
-        feature_columns=feature_columns,
-        hidden_units=[HIDDEN_SIZE],
-        n_classes=NUM_CLASSES,
-        dropout=DROPOUT,
-        optimizer=tf.train.AdamOptimizer,
-        config=config)
-    return model
-
-
-def _multi_gpu_keras_classifier():
-    mirrored_strategy = tf.distribute.MirroredStrategy(
-        devices=available_gpus())
-
-    config = tf.estimator.RunConfig(
-        model_dir='/tmp/tensorflow-checkpoints',
-        train_distribute=mirrored_strategy,
-        eval_distribute=mirrored_strategy)
-
-    with mirrored_strategy.scope():
-        keras_model = _keras_model()
-    model = tf.keras.estimator.model_to_estimator(
-        keras_model=keras_model,
-        config=config)
-    return model
-
-
-# Note: This picks up single Dataset instance on the CPU and distributes the data automatically.
-# TODO(awolant): Goal is to figure out how to have GPU instance per replica on one machine.
-@with_setup(clear_checkpoints, clear_checkpoints)
-def test_estimators_multi_gpu():
-    model = _multi_gpu_classifier()
-    _test_estimators_multi_gpu(model)
-
-
-# Note: This picks up single Dataset instance on the CPU and distributes the data automatically.
-# TODO(awolant): Goal is to figure out how to have GPU instance per replica on one machine.
-@with_setup(clear_checkpoints, clear_checkpoints)
-def test_estimators_wrapping_keras_multi_gpu():
-    model = _multi_gpu_keras_classifier()
-    _test_estimators_multi_gpu(model)
+        device_id)

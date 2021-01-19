@@ -46,7 +46,13 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
     DALI_ENFORCE(power >= 1 && power <= 2,
       make_string("`power` must be 1 (magnitude) or 2 (power), got: ", power));
 
+    layout = spec.GetArgument<TensorLayout>("layout");
+    DALI_ENFORCE(layout == "tf" || layout == "ft",
+      make_string("Unsupported layout requested: ", layout,
+                  ".\nSupported layouts are: \"tf\" and \"ft\"."));
+
     args.spectrum_type = static_cast<FftSpectrumType>(power);
+    args.time_major_layout = layout == "tf";
 
     cpu_window = spec.GetRepeatedArgument<float>("window_fn");
     if (cpu_window.empty()) {
@@ -130,6 +136,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
   void RunImpl(DeviceWorkspace &ws) override {
     const auto &in = ws.InputRef<GPUBackend>(0);
     auto &out = ws.OutputRef<GPUBackend>(0);
+    out.SetLayout(layout);
     auto kernel_output_shape = kmgr.GetRequirements(0).output_shapes[0].to_static<2>();
     const auto in_view_1D = reshape(view<const float>(in), in_shape_1D);
     auto out_view_2D = view<float, 2>(out);
@@ -155,6 +162,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
   kernels::memory::KernelUniquePtr<float> gpu_window_ptr;
   TensorView<StorageGPU, float, 1> gpu_window;
   TensorListShape<1> in_shape_1D;
+  TensorLayout layout;
 };
 
 }  // namespace

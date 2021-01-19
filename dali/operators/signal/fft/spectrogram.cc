@@ -27,59 +27,65 @@
 namespace dali {
 
 DALI_SCHEMA(Spectrogram)
-  .DocStr(R"code(Produces a spectrogram from a 1D signal (for example, audio).
+  .DocStr(R"(Produces a spectrogram from a 1D signal (for example, audio).
 
 Input data is expected to be one channel (shape being ``(nsamples,)``, ``(nsamples, 1)``, or
-``(1, nsamples)``) of type float32.)code")
+``(1, nsamples)``) of type float32.)")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg<int>("nfft",
-    R"code(Size of the FFT.
+    R"(Size of the FFT.
 
 The number of bins that are created in the output is ``nfft // 2 + 1``.
 
 .. note::
-  The output only represents the positive part of the spectrum.)code",
+  The output only represents the positive part of the spectrum.)",
   nullptr)
   .AddOptionalArg("window_length",
-    R"code(Window size in number of samples.)code",
+    R"(Window size in number of samples.)",
     512)
   .AddOptionalArg("window_step",
-    R"code(Step betweeen the STFT windows in number of samples.)code",
+    R"(Step betweeen the STFT windows in number of samples.)",
     256)
   .AddOptionalArg("window_fn",
-    R"code(Samples of the window function that will be multiplied to each extracted window when
+    R"(Samples of the window function that will be multiplied to each extracted window when
 calculating the STFT.
 
 If a value is provided, it should be a list of floating point numbers of size ``window_length``.
-If a value is not provided, a Hann window will be used.)code",
+If a value is not provided, a Hann window will be used.)",
     std::vector<float>{})
   .AddOptionalArg("power",
-    R"code(Exponent of the magnitude of the spectrum.
+    R"(Exponent of the magnitude of the spectrum.
 
 Supported values:
 
 - ``1`` - amplitude,
 - ``2`` - power (faster to compute).
-)code",
+)",
     2)
   .AddOptionalArg("center_windows",
-    R"code(Indicates whether extracted windows should be padded so that the window function is
+    R"(Indicates whether extracted windows should be padded so that the window function is
 centered at multiples of ``window_step``.
 
 If set to False, the signal will not be padded, that is, only windows within the input range
-will be extracted.)code",
+will be extracted.)",
     true)
   .AddOptionalArg("reflect_padding",
-    R"code(Indicates the padding policy when sampling outside the bounds of the signal.
+    R"(Indicates the padding policy when sampling outside the bounds of the signal.
 
 If set to True, the signal is mirrored with respect to the boundary, otherwise the signal
 is padded with zeros.
 
 .. note::
   When ``center_windows`` is set to False, this option is ignored.
-)code",
-    true);
+)",
+    true)
+  .AddOptionalArg("layout", R"(Output layout: "ft" (frequency-major) or "tf" (time-major).
+
+.. note::
+  Time-major layout is available only in the implementation for GPU backend.
+)",
+    TensorLayout("ft"));
 
 struct SpectrogramImplCpu : OpImplBase<CPUBackend> {
   using OutputType = float;
@@ -103,6 +109,7 @@ struct SpectrogramImplCpu : OpImplBase<CPUBackend> {
   std::vector<float> window_fn_;
   int window_center_ = -1;
   int nfft_ = -1;
+  TensorLayout layout_;
 
   using Padding = kernels::signal::Padding;
   Padding padding_;
@@ -148,6 +155,10 @@ SpectrogramImplCpu::SpectrogramImplCpu(const OpSpec &spec)
   DALI_ENFORCE(window_length_ > 0, make_string("Invalid window length: ", window_length_));
   DALI_ENFORCE(window_step_ > 0, make_string("Invalid window step: ", window_step_));
   nfft_ = spec.HasArgument("nfft") ? spec.GetArgument<int>("nfft") : window_length_;
+
+  layout_ = spec.GetArgument<TensorLayout>("layout");
+  DALI_ENFORCE(layout_ != "tf", "Time-major spectrogram for CPU backend is not implemented.");
+  DALI_ENFORCE(layout_ == "ft", make_string("Unsupported layout requested: ", layout_));
 
   if (window_fn_.empty()) {
     window_fn_.resize(window_length_);
@@ -248,6 +259,7 @@ void SpectrogramImplCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
   auto view_window_fn = make_tensor_cpu<1>(window_fn_.data(), window_length_);
+  output.SetLayout(layout_);
 
   for (int i = 0; i < nsamples; i++) {
     thread_pool.AddWork(
