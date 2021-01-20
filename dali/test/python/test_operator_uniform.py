@@ -69,12 +69,8 @@ def check_uniform_continuous_next_after(device='cpu', batch_size=32, shape=[1e5]
     outputs = pipe.run()
     data_out = outputs[0].as_cpu() \
         if isinstance(outputs[0], TensorListGPU) else outputs[0]
-    shapes_out = outputs[1].as_cpu() \
-        if isinstance(outputs[1], TensorListGPU) else outputs[1]
     for i in range(batch_size):
         data = np.array(data_out[i])
-        sample_shape = np.array(shapes[i])
-        assert (data.shape == sample_shape).all(), f"{sample.shape} != {sample_shape}"
         assert (val_range[0] == data).all(), \
             f"{data} is outside of requested range"
 
