@@ -1155,6 +1155,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("INTERP_TYPE",   DALI_INTERP_TYPE)
     .value("TENSOR_LAYOUT", DALI_TENSOR_LAYOUT)
     .value("PYTHON_OBJECT", DALI_PYTHON_OBJECT)
+    .value("INTERLEAVE_TYPE", DALI_INTERLEAVE_TYPE)
     .value("_TENSOR_LAYOUT_VEC", DALI_TENSOR_LAYOUT_VEC)
     .export_values();
 
@@ -1175,6 +1176,17 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("INTERP_LANCZOS3", DALI_INTERP_LANCZOS3)
     .value("INTERP_TRIANGULAR", DALI_INTERP_TRIANGULAR)
     .value("INTERP_GAUSSIAN", DALI_INTERP_GAUSSIAN)
+    .export_values();
+
+  // DALIInterleaveType
+  py::enum_<DALIInterleaveType>(types_m, "DALIInterleaveType",
+                                "Interleave mode when shuffling\n<SPHINX_IGNORE>")
+    .value("SHORTEN_CONTINUOUS", DALI_SHORTEN_CONTINUOUS)
+    .value("REPEAT_CONTINUOUS", DALI_REPEAT_CONTINUOUS)
+    .value("CLAMP_CONTINUOUS", DALI_CLAMP_CONTINUOUS)
+    .value("SHORTEN", DALI_SHORTEN)
+    .value("REPEAT", DALI_REPEAT)
+    .value("CLAMP", DALI_CLAMP)
     .export_values();
 
   // Operator node

@@ -110,6 +110,18 @@ enum DALIImageType {
   DALI_ANY_DATA     = 4
 };
 
+/**
+ * @brief Supported interleaving formats
+ */
+enum DALIInterleaveType {
+  DALI_SHORTEN_CONTINUOUS = 0,
+  DALI_REPEAT_CONTINUOUS  = 1,
+  DALI_CLAMP_CONTINUOUS   = 2,
+  DALI_SHORTEN            = 3,
+  DALI_REPEAT             = 4,
+  DALI_CLAMP              = 5,
+};
+
 
 inline bool IsColor(DALIImageType type) {
   return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
@@ -171,6 +183,23 @@ inline std::string to_string(const DALIImageType& im_type) {
       return "GRAY";
     case DALI_YCbCr:
       return "YCbCr";
+    default:
+      return "<unknown>";
+  }
+}
+
+inline std::string to_string(const DALIInterleaveType& in_type) {
+  switch (in_type) {
+    case DALI_REPEAT_CONTINUOUS:
+      return "REPEAT_CONTINUOUS";
+    case DALI_CLAMP_CONTINUOUS:
+      return "CLAMP_CONTINUOUS";
+    case DALI_SHORTEN:
+      return "SHORTEN";
+    case DALI_REPEAT:
+      return "REPEAT";
+    case DALI_CLAMP:
+      return "CLAMP";
     default:
       return "<unknown>";
   }

@@ -23,6 +23,20 @@ DALI_SCHEMA(LoaderBase)
 
 A prefetch buffer with a size equal to ``initial_fill`` is used to read data sequentially,
 and then samples are selected randomly to form a batch.)code", false)
+  .AddOptionalArg("interleavement",
+      R"code(Determines how to shuffle the data.
+
+Sets the how many sequences should be interleaved. 
+A prefetch buffer with a size equal to ``initial_fill`` is used to read data sequentially,
+and then samples are selected randomly to form a batch.)code", 0)
+  .AddOptionalArg("interleave_type",
+      R"code(Determines how to interleave the data.
+
+Sets the interleavement mode. It requires that the interleavement is not zero in order
+to interleave the data. The supported modes are continuous interleavement, reduction to
+the shortest sequence, repeating the sequence until all others have been read, repeating
+the last element until all others have been read or appending zeros until all others have
+been read.)code", DALI_SHORTEN)
   .AddOptionalArg("initial_fill",
       R"code(Size of the buffer that is used for shuffling.
 

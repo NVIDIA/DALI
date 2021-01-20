@@ -174,6 +174,18 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     file_info_ = filesystem::get_file_label_pair(file_root_, filenames_, use_labels, labels_,
                                                  file_list_);
     DALI_ENFORCE(!file_info_.empty(), "No files were read.");
+    DALI_ENFORCE(interleavement_ >= 0, "The interleavement size bigger or equal than zero.");
+    if (interleavement_ != 0) {
+      const size_t interleavement = static_cast<size_t>(interleavement_);
+      DALI_ENFORCE(file_info_.size() >= interleavement,
+                   "The interleavement size must be smaller or equal"
+                   "to the file size.");
+      DALI_ENFORCE(file_info_.size() % interleavement == 0,
+                   "The video file count must be dividable through the "
+                   "interleavement size.");
+      DALI_ENFORCE(interleave_type_ >= DALI_SHORTEN_CONTINUOUS && interleave_type_ <= DALI_CLAMP,
+                   "The interleave type was not correctly specified.");
+    }
 
     auto ret = cuvidInitChecked();
 
@@ -286,12 +298,99 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                                                ALIGN16(max_width_),
                                                additional_decode_surfaces_);
 
-    if (shuffle_) {
-      // TODO(spanev) decide of a policy for multi-gpu here and SequenceLoader
-      // seeded with hardcoded value to get
-      // the same sequence on every shard
-      std::mt19937 g(kDaliDataloaderSeed);
-      std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), g);
+    if (interleavement_ == 0) {
+      if (shuffle_) {
+        // TODO(spanev) decide of a policy for multi-gpu here and SequenceLoader
+        // seeded with hardcoded value to get
+        // the same sequence on every shard
+        std::mt19937 g(kDaliDataloaderSeed);
+        std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), g);
+      }
+    } else {
+      if (shuffle_) {
+        std::mt19937 g(kDaliDataloaderSeed);
+        std::vector<size_t> indices(file_info_.size(), 0);
+        std::iota(std::begin(indices), std::end(indices), 0);
+        std::shuffle(std::begin(indices), std::end(indices), g);
+        std::sort(std::begin(frame_starts_), std::end(frame_starts_),
+          [&indices](const auto& first, const auto& second) {
+            const bool same = indices[first.filename_idx] == indices[second.filename_idx];
+            return same ? first.frame_idx < second.frame_idx :
+                          indices[first.filename_idx] < indices[second.filename_idx];
+        });
+      }
+
+      auto iterators = FindOffsetIterators();
+      switch (interleave_type_) {
+        case DALI_SHORTEN_CONTINUOUS:
+          InterleaveContinuous(iterators,
+            [](auto& iterators, const auto& initial_iterators, const size_t index) {},
+            [](const std::vector<bool>& done) {
+              return std::accumulate(std::begin(done), std::end(done), false,
+                [](const bool a, const bool b) {
+                  return a || b;
+                });
+            });
+        break;
+        case DALI_REPEAT_CONTINUOUS:
+          InterleaveContinuous(iterators,
+            [](auto& iterators, const auto& initial_iterators, const size_t index) {
+              iterators[index] = initial_iterators[index];
+            },
+            [](const std::vector<bool>& done) {
+              return std::accumulate(std::begin(done), std::end(done), true,
+                [](const bool a, const bool b) {
+                  return a && b;
+                });
+            });
+        break;
+        case DALI_CLAMP_CONTINUOUS:
+          InterleaveContinuous(iterators,
+            [](auto& iterators, const auto& initial_iterators, const size_t index) {
+              iterators[index] = initial_iterators[index + 1] - 1;
+            },
+            [](const std::vector<bool>& done) {
+              return std::accumulate(std::begin(done), std::end(done), true,
+                [](const bool a, const bool b) {
+                  return a && b;
+                });
+            });
+        break;
+        case DALI_SHORTEN:
+          Interleave(iterators,
+            [](auto& iterators, const auto& initial_iterators, const size_t index) {},
+            [](const std::vector<bool>& done) {
+              return std::accumulate(std::begin(done), std::end(done), false,
+                [](const bool a, const bool b) {
+                  return a || b;
+                });
+            });
+        break;
+        case DALI_CLAMP:
+          Interleave(iterators,
+            [](auto& iterators, const auto& initial_iterators, const size_t index) {
+              iterators[index] = initial_iterators[index + 1] - 1;
+            },
+            [](const std::vector<bool>& done) {
+              return std::accumulate(std::begin(done), std::end(done), true,
+                [](const bool a, const bool b) {
+                  return a && b;
+                });
+            });
+        break;
+        case DALI_REPEAT:
+          Interleave(iterators,
+            [](auto& iterators, const auto& initial_iterators, const size_t index) {
+              iterators[index] = initial_iterators[index];
+            },
+            [](const std::vector<bool>& done) {
+              return std::accumulate(std::begin(done), std::end(done), true,
+                [](const bool a, const bool b) {
+                  return a && b;
+                });
+            });
+        break;
+      }
     }
 
     Reset(true);
@@ -300,6 +399,97 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   }
 
  private:
+  std::vector<std::vector<dali::sequence_meta>::iterator> FindOffsetIterators() {
+    std::vector<std::vector<dali::sequence_meta>::iterator> iterators;
+    size_t last_filename_idx = -1;
+
+    auto it = std::begin(frame_starts_);
+    while (it != std::end(frame_starts_)) {
+      if (last_filename_idx != it->filename_idx) {
+        last_filename_idx = it->filename_idx;
+        iterators.push_back(it);
+      }
+      ++it;
+    }
+    iterators.push_back(std::end(frame_starts_));
+
+    return iterators;
+  }
+
+  template <typename ItResetter, typename IsDone>
+  void Interleave(std::vector<std::vector<dali::sequence_meta>::iterator>& iterators,
+                  ItResetter resetter, IsDone is_done) {
+    std::vector<bool> reached_end(interleavement_, false);
+    std::vector<dali::sequence_meta> new_frame_starts;
+    new_frame_starts.reserve(frame_starts_.size());
+
+    auto initial_iterators = iterators;
+    while (iterators.size() > 1) {
+      for (int i = 0; i < interleavement_; ++i) {
+        new_frame_starts.push_back(*iterators[i]);
+        if (iterators[i] + 1 != initial_iterators[i + 1]) {
+          iterators[i]++;
+        } else {
+          resetter(iterators, initial_iterators, i);
+          reached_end[i] = true;
+        }
+      }
+
+      if (is_done(reached_end)) {
+        std::fill(std::begin(reached_end), std::end(reached_end), false);
+        iterators.erase(std::begin(iterators),
+                        std::begin(iterators) + interleavement_);
+        initial_iterators.erase(std::begin(initial_iterators),
+                                std::begin(initial_iterators) + interleavement_);
+      }
+    }
+
+    frame_starts_.swap(new_frame_starts);
+  }
+
+  template <typename ItResetter, typename IsDone>
+  void InterleaveContinuous(std::vector<std::vector<dali::sequence_meta>::iterator>& iterators,
+                            ItResetter resetter, IsDone is_done) {
+    std::vector<bool> reached_end(interleavement_, false);
+    std::vector<dali::sequence_meta> new_frame_starts;
+    new_frame_starts.reserve(frame_starts_.size());
+
+    std::vector<size_t> work_indices(interleavement_);
+    std::iota(std::begin(work_indices), std::end(work_indices), 0);
+
+    auto initial_iterators = iterators;
+    const size_t interleavement = static_cast<size_t>(interleavement_);
+    while (true) {
+      const size_t size = std::min(interleavement, work_indices.size());
+      for (size_t i = 0; i < size; ++i) {
+        const size_t index = work_indices[i];
+        new_frame_starts.push_back(*iterators[index]);
+        iterators[index]++;
+
+        if (iterators[index] == initial_iterators[index + 1]) {
+          work_indices[i] = index + interleavement;
+
+          // We reached the end of one sequence at the end of all files
+          // so we can not resonable interleave anymore, as we otherwise
+          // would shift the sequences to another index in the batch.
+          // Therefore, we continue interleaving the last sequence
+          // to avoid missing frames.
+          if (work_indices[i] >= iterators.size() - 1) {
+            resetter(iterators, initial_iterators, index);
+            work_indices[i] = index;
+            reached_end[i] = true;
+          }
+        }
+      }
+
+      if (is_done(reached_end)) {
+        break;
+      }
+    }
+
+    frame_starts_.swap(new_frame_starts);
+  }
+
   void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
       current_frame_idx_ = start_index(shard_id_, num_shards_, Size());
@@ -313,6 +503,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   int count_;
   int step_;
   int stride_;
+  int batch_size_;
   int max_height_;
   int max_width_;
   int additional_decode_surfaces_;

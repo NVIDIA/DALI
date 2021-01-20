@@ -55,6 +55,7 @@ _known_types = {
         DALIDataType.INTERP_TYPE : ("nvidia.dali.types.DALIInterpType", lambda x: DALIInterpType(int(x))),
         DALIDataType.TENSOR_LAYOUT : (":ref:`layout str<layout_str_doc>`", lambda x: str(x)),
         DALIDataType.PYTHON_OBJECT : ("object", lambda x: x),
+        DALIDataType.INTERLEAVE_TYPE : ("nvidia.dali.types.DALIInterleaveType", lambda x: DALIInterleaveType(int(x))),
         DALIDataType._TENSOR_LAYOUT_VEC : (":ref:`layout str<layout_str_doc>`", _to_list(lambda x: str(x)))
         }
 
@@ -129,7 +130,8 @@ _float_types = [DALIDataType.FLOAT16, DALIDataType.FLOAT, DALIDataType.FLOAT64]
 _int_like_types = _bool_types + _int_types
 _all_types = _bool_types + _int_types + _float_types
 
-_enum_types = [DALIDataType.IMAGE_TYPE, DALIDataType.DATA_TYPE, DALIDataType.INTERP_TYPE]
+_enum_types = [DALIDataType.IMAGE_TYPE, DALIDataType.DATA_TYPE, DALIDataType.INTERP_TYPE,
+               DALIDataType.INTERLEAVE_TYPE]
 
 
 class ScalarConstant(object):

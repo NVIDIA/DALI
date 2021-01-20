@@ -55,9 +55,11 @@ class Loader {
   using LoadTargetSharedPtr = std::shared_ptr<LoadTarget>;
   explicit Loader(const OpSpec& options)
     : shuffle_(options.GetArgument<bool>("random_shuffle")),
+      interleavement_(options.GetArgument<int>("interleavement")),
+      interleave_type_(options.GetArgument<DALIInterleaveType>("interleave_type")),
       initial_buffer_fill_(shuffle_ ? options.GetArgument<int>("initial_fill") : 1),
       initial_empty_size_(2 * options.GetArgument<int>("prefetch_queue_depth")
-                          * options.GetArgument<int>("max_batch_size")),
+                            * options.GetArgument<int>("max_batch_size")),
       tensor_init_bytes_(options.GetArgument<int>("tensor_init_bytes")),
       seed_(options.GetArgument<Index>("seed")),
       shard_id_(options.GetArgument<int>("shard_id")),
@@ -316,6 +318,8 @@ class Loader {
   // number of samples to initialize buffer with
   // ~1 minibatch seems reasonable
   bool shuffle_;
+  const int interleavement_;
+  DALIInterleaveType interleave_type_;
   const int initial_buffer_fill_;
   const int initial_empty_size_;
   const int tensor_init_bytes_;
