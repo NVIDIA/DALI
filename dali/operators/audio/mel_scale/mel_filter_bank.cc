@@ -23,9 +23,8 @@ DALI_SCHEMA(MelFilterBank)
     .DocStr(R"code(Converts a spectrogram to a mel spectrogram by applying a bank of
 triangular filters.
 
-Expects an input with at least 2 dimensions.
-The frequency ('f') dimension must be present in the layout and should be one of the last two 
-dimensions in the layout.
+The frequency ('f') dimension is selected from the input layout.
+In case of no layout, "f", "ft", or "*ft" is assumed, depending on the number of dimensions.
 )code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
@@ -74,7 +73,11 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto in_shape = input.shape();
   int nsamples = input.size();
   auto nthreads = ws.GetThreadPool().size();
-  args_.axis = input.GetLayout().find('f');
+  auto layout = input.GetLayout();
+  auto ndim = in_shape.sample_dim();
+  args_.axis = layout.empty() ? std::max(0, ndim - 2) : layout.find('f');
+  DALI_ENFORCE(args_.axis >= 0 && args_.axis < ndim,
+    make_string("'f' axis not present in the layout. Got: ", layout));
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
     using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T>;
     kmgr_.Initialize<MelFilterBankKernel>();
