@@ -28,17 +28,17 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-template <typename OutputType, typename InputType, int Dims>
-constexpr int ExtractWindowsCpu<OutputType, InputType, Dims>::InputDims;
+template <typename OutputType, typename InputType, int Dims, bool vertical>
+constexpr int ExtractWindowsCpu<OutputType, InputType, Dims, vertical>::InputDims;
 
-template <typename OutputType, typename InputType, int Dims>
-constexpr int ExtractWindowsCpu<OutputType, InputType, Dims>::OutputDims;
+template <typename OutputType, typename InputType, int Dims, bool vertical>
+constexpr int ExtractWindowsCpu<OutputType, InputType, Dims, vertical>::OutputDims;
 
-template <typename OutputType, typename InputType, int Dims>
-ExtractWindowsCpu<OutputType, InputType, Dims>::~ExtractWindowsCpu() = default;
+template <typename OutputType, typename InputType, int Dims, bool vertical>
+ExtractWindowsCpu<OutputType, InputType, Dims, vertical>::~ExtractWindowsCpu() = default;
 
-template <typename OutputType, typename InputType, int Dims>
-KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
+template <typename OutputType, typename InputType, int Dims, bool vertical>
+KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims, vertical>::Setup(
     KernelContext &context,
     const InTensorCPU<InputType, InputDims> &in,
     const InTensorCPU<float, 1> &window_fn,
@@ -65,37 +65,36 @@ KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
   axis_ = args.axis >= 0 ? args.axis : InputDims - 1;
   DALI_ENFORCE(axis_ >= 0 && axis_ < InputDims,
     make_string("Input temporal axis (", axis_, ") is out of range [0, ", InputDims, ")"));
-  DALI_ENFORCE(axis_ == InputDims - 1,
-    "Current implementation expects time dimension to be the inner-most dimension");
 
   const auto n = in.shape[axis_];
 
-  nwindows_ =  num_windows(n, window_length_, window_step_, padding_ != Padding::None);
+  nwindows_ = num_windows(n, window_length_, window_step_, padding_ != Padding::None);
   assert(nwindows_ > 0);
 
   TensorShape<DynamicDimensions> out_shape;
   out_shape.resize(OutputDims);
 
-  for (int d = 0, out_idx = 0, in_idx = 0; out_idx < OutputDims; d++) {
-    if (d == axis_) {
-      assert(out_idx + 1 < OutputDims);
-      assert(in_idx < InputDims);
-      out_shape[out_idx++] = window_length_;
-      out_shape[out_idx++] = nwindows_;
-      in_idx++;
+  for (int out_idx = 0, in_idx = 0; in_idx < InputDims; in_idx++) {
+    if (in_idx == axis_) {
+      if (vertical) {
+        out_shape[out_idx++] = window_length_;
+        out_shape[out_idx++] = nwindows_;
+      } else {
+        out_shape[out_idx++] = nwindows_;
+        out_shape[out_idx++] = window_length_;
+      }
     } else {
-      assert(out_idx < OutputDims);
-      assert(in_idx < InputDims);
-      out_shape[out_idx++] = in.shape[in_idx++];
+      out_shape[out_idx++] = in.shape[in_idx];
     }
   }
+
   std::vector<TensorShape<DynamicDimensions>> tmp = {out_shape};  // workaround for clang-6 bug
   req.output_shapes = {TensorListShape<DynamicDimensions>(tmp)};
   return req;
 }
 
-template <typename OutputType, typename InputType, int Dims>
-void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
+template <typename OutputType, typename InputType, int Dims, bool vertical>
+void ExtractWindowsCpu<OutputType, InputType, Dims, vertical>::Run(
     KernelContext &context,
     const OutTensorCPU<OutputType, OutputDims> &out,
     const InTensorCPU<InputType, InputDims> &in,
@@ -117,12 +116,12 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
     [this, &window_fn](
       OutputType *out_data, const InputType *in_data,
       int64_t out_size, int64_t out_stride, int64_t in_size, int64_t in_stride) {
-        for (int64_t window_idx = 0; window_idx < nwindows_; window_idx++) {
-          int64_t window_start = window_idx * window_step_ - window_center_offset_;
+        for (int64_t w = 0; w < nwindows_; w++) {
+          int64_t window_start = w * window_step_ - window_center_offset_;
           // Window needs special treatment (falls outside of the signal)
           if (window_start < 0 || window_start + window_length_ > in_size) {
             for (int t = 0; t < window_length_; t++) {
-              int64_t out_idx = t * nwindows_ + window_idx;
+              int64_t out_idx = vertical ? t * nwindows_ + w : w * window_length_ + t;
               int64_t in_idx = window_start + t;
               if (padding_ == Padding::Reflect) {
                 // find the mirrored position if the index is out of bounds
@@ -137,7 +136,7 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
             }
           } else {  // no special treatment for this window (just copy)
             for (int t = 0; t < window_length_; t++) {
-              int64_t out_idx = t * nwindows_ + window_idx;
+              int64_t out_idx = vertical ? t * nwindows_ + w : w * window_length_ + t;
               int64_t in_idx = window_start + t;
               out_data[out_idx * out_stride] = window_fn.data[t] * in_data[in_idx * in_stride];
             }
@@ -146,8 +145,10 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
     });
 }
 
-template class ExtractWindowsCpu<float, float, 1>;  // 1-channel
-template class ExtractWindowsCpu<float, float, 2>;  // n-channel
+template class ExtractWindowsCpu<float, float, 1, false>;  // 1-channel
+template class ExtractWindowsCpu<float, float, 1, true>;   // 1-channel
+template class ExtractWindowsCpu<float, float, 2, false>;  // n-channel
+template class ExtractWindowsCpu<float, float, 2, true>;   // n-channel
 
 }  // namespace signal
 }  // namespace kernels

@@ -45,6 +45,9 @@ class ExtractWindowsCpuTest : public::testing::TestWithParam<
 
   ~ExtractWindowsCpuTest() override = default;
 
+  template <typename OutputType, typename InputType, int Dims, bool vertical>
+  void RunTest();
+
  protected:
   void SetUp() final {
     SequentialFill(in_view_, 0);
@@ -84,14 +87,11 @@ void print_data(const OutTensorCPU<T, 3>& data_view) {
   LOG_LINE << "\n";
 }
 
-TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
-  using OutputType = float;
-  using InputType = float;
-  constexpr int Dims = 2;
+template <typename OutputType, typename InputType, int Dims, bool vertical>
+void ExtractWindowsCpuTest::RunTest() {
   constexpr int InputDims = Dims;
   constexpr int OutputDims = Dims + 1;
-
-  ExtractWindowsCpu<OutputType, InputType, Dims> kernel;
+  ExtractWindowsCpu<OutputType, InputType, Dims, vertical> kernel;
   check_kernel<decltype(kernel)>();
 
   KernelContext ctx;
@@ -114,8 +114,9 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
   auto nwindows = padding_ == Padding::None
     ? (n - window_length_) / window_step_ + 1
     : n / window_step_ + 1;
-  auto expected_out_shape = TensorShape<DynamicDimensions>{
-    in_view_.shape[0], window_length_, nwindows};
+  auto expected_out_shape = vertical ?
+    TensorShape<DynamicDimensions>{in_view_.shape[0], window_length_, nwindows} :
+    TensorShape<DynamicDimensions>{in_view_.shape[0], nwindows, window_length_};
   ASSERT_EQ(expected_out_shape, out_shape);
   auto expected_out_size = volume(expected_out_shape);
   auto out_size = volume(out_shape);
@@ -143,7 +144,7 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
     auto *in_slice = in_view_.data + i * in_strides[0];
     for (int w = 0; w < nwindows; w++) {
       for (int t = 0; t < window_length_; t++) {
-        auto out_k = w + t * nwindows;
+        auto out_k = vertical ? w + t * nwindows : w * window_length_ + t;
         auto in_k = w * window_step_ + t - window_center_offset;
         if (padding_ == Padding::Reflect) {
           while (in_k < 0 || in_k >= n) {
@@ -175,6 +176,14 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
     ASSERT_EQ(expected_out[idx], out_view.data[idx]) <<
       "Output data doesn't match reference (idx=" << idx << ")";
   }
+}
+
+TEST_P(ExtractWindowsCpuTest, Vertical) {
+  RunTest<float, float, 2, true>();
+}
+
+TEST_P(ExtractWindowsCpuTest, Horizontal) {
+  RunTest<float, float, 2, false>();
 }
 
 INSTANTIATE_TEST_SUITE_P(ExtractWindowsCpuTest, ExtractWindowsCpuTest, testing::Combine(
