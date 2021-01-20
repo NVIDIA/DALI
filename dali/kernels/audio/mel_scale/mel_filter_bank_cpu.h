@@ -27,22 +27,21 @@ namespace dali {
 namespace kernels {
 namespace audio {
 
-template <typename T = float, int Dims = 2>
+template <typename T = float>
 class DLL_PUBLIC MelFilterBankCpu {
  public:
   static_assert(std::is_floating_point<T>::value, "Only floating point types are supported");
-  static_assert(Dims >= 2, "At least 2 dimensions are expected");
 
   DLL_PUBLIC MelFilterBankCpu();
   DLL_PUBLIC ~MelFilterBankCpu();
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
-                                      const InTensorCPU<T, Dims> &in,
+                                      const InTensorCPU<T> &in,
                                       const MelFilterBankArgs &args);
 
   DLL_PUBLIC void Run(KernelContext &context,
-                      const OutTensorCPU<T, Dims> &out,
-                      const InTensorCPU<T, Dims> &in);
+                      const OutTensorCPU<T> &out,
+                      const InTensorCPU<T> &in);
 
  private:
   class Impl;

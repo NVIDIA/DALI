@@ -28,15 +28,13 @@ bool MelFilterBank<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   ctx_.gpu.stream = ws.stream();
   const auto &in_shape = input.shape();
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
-    VALUE_SWITCH(in_shape.sample_dim(), Dims, MEL_FBANK_SUPPORTED_NDIMS, (
-      using MelFilterBankKernel = kernels::audio::MelFilterBankGpu<T, Dims>;
-      kmgr_.Initialize<MelFilterBankKernel>();
-      kmgr_.Resize<MelFilterBankKernel>(1, 1);
-      output_desc[0].type = TypeTable::GetTypeInfo(TypeTable::GetTypeID<T>());
-      auto in_view = view<const T, Dims>(input);
-      auto &req = kmgr_.Setup<MelFilterBankKernel>(0, ctx_, in_view, args_);
-      output_desc[0].shape = req.output_shapes[0];
-    ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.sample_dim())));  // NOLINT
+    using MelFilterBankKernel = kernels::audio::MelFilterBankGpu<T>;
+    kmgr_.Initialize<MelFilterBankKernel>();
+    kmgr_.Resize<MelFilterBankKernel>(1, 1);
+    output_desc[0].type = TypeTable::GetTypeInfo(TypeTable::GetTypeID<T>());
+    auto in_view = view<const T>(input);
+    auto &req = kmgr_.Setup<MelFilterBankKernel>(0, ctx_, in_view, args_);
+    output_desc[0].shape = req.output_shapes[0];
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
   return true;
 }
@@ -47,12 +45,10 @@ void MelFilterBank<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   auto &output = ws.OutputRef<GPUBackend>(0);
   const auto &in_shape = input.shape();
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
-      VALUE_SWITCH(in_shape.sample_dim(), Dims, MEL_FBANK_SUPPORTED_NDIMS, (
-      using MelFilterBankKernel = kernels::audio::MelFilterBankGpu<T, Dims>;
-      auto in_view = view<const T, Dims>(input);
-      auto out_view = view<T, Dims>(output);
-      kmgr_.Run<MelFilterBankKernel>(0, 0, ctx_, out_view, in_view);
-  ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
+    using MelFilterBankKernel = kernels::audio::MelFilterBankGpu<T>;
+    auto in_view = view<const T>(input);
+    auto out_view = view<T>(output);
+    kmgr_.Run<MelFilterBankKernel>(0, 0, ctx_, out_view, in_view);
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 }
 

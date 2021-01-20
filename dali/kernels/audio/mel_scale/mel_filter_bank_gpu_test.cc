@@ -29,7 +29,7 @@ namespace test {
 
 
 using TestBase = ::testing::TestWithParam<
-    std::tuple<std::vector<TensorShape<4>>,  // data shape
+    std::tuple<std::vector<TensorShape<>>,   // data shape
                int,                          // nfilter
                float,                        // sample_rate
                float,                        // fmin
@@ -56,22 +56,22 @@ class MelScaleGpuTest : public TestBase {
     std::mt19937 rng;
     UniformRandomFill(in_.cpu(), rng, 0.0, 1.0);
   }
-  TensorListShape<4> data_shape_;
+  TensorListShape<> data_shape_;
   int nfilter_ = 4;
   float sample_rate_ = 16000, freq_low_ = 0, freq_high_ = 8000;
-  TestTensorList<float, 4> in_;
+  TestTensorList<float> in_;
   int64_t axis_;
 };
 
 TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
   using T = float;
   HtkMelScale<float> mel_scale;
-  constexpr int Dims = 4;
+  constexpr int ndim = 4;
   auto shape = data_shape_;
   auto batch_size = data_shape_.num_samples();
   int nfft = (shape[0][axis_] - 1) * 2;
   std::vector<int> nwin(batch_size, 1);
-  if (axis_ < Dims - 1) {
+  if (axis_ < ndim - 1) {
     for (int i = 0; i < batch_size; ++i) {
         auto sh = shape[i];
         nwin[i] = volume(sh.begin() + axis_ + 1, sh.end());
@@ -85,11 +85,9 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
     }
   }
 
-  TensorListShape<4> out_shape(batch_size);
+  TensorListShape<> out_shape = data_shape_;
   for (int i = 0; i < batch_size; ++i) {
-    auto s = data_shape_[i];
-    s[axis_] = nfilter_;
-    out_shape.set_tensor_shape(i, s);
+    out_shape.tensor_shape_span(i)[axis_] = nfilter_;
   }
   std::vector<T> out_sizes;
   for (int i = 0; i < batch_size; ++i) {
@@ -146,13 +144,13 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
   args.mel_formula = MelScaleFormula::HTK;
   args.normalize = false;
 
-  using Kernel = kernels::audio::MelFilterBankGpu<T, Dims>;
+  using Kernel = kernels::audio::MelFilterBankGpu<T>;
   kmgr.Initialize<Kernel>();
   kmgr.Resize<Kernel>(1, 1);
   auto in_view = in_.gpu();
   auto req = kmgr.Setup<Kernel>(0, ctx, in_view, args);
   ASSERT_EQ(out_shape, req.output_shapes[0]);
-  TestTensorList<float, Dims> out;
+  TestTensorList<float> out;
   out.reshape(out_shape);
 
   auto out_view = out.gpu();
@@ -168,9 +166,9 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
 }
 
 INSTANTIATE_TEST_SUITE_P(MelScaleGpuTestpuTest, MelScaleGpuTest, testing::Combine(
-    testing::Values(std::vector<TensorShape<4>>{TensorShape<4>{10, 4, 6, 12}},
-                    std::vector<TensorShape<4>>{TensorShape<4>{4, 5, 6, 5},
-                                                TensorShape<4>{4, 8, 6, 5}}),  // shape
+    testing::Values(std::vector<TensorShape<>>{TensorShape<>{10, 4, 6, 12}},
+                    std::vector<TensorShape<>>{TensorShape<>{4, 5, 6, 5},
+                                               TensorShape<>{4, 8, 6, 5}}),  // shape
     testing::Values(4, 8),  // nfilter
     testing::Values(16000.0f),  // sample rate
     testing::Values(0.0f, 1000.0f),  // fmin

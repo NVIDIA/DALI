@@ -72,7 +72,7 @@ struct SlaneyMelScale {
   }
 };
 
-template <typename T, int Dims>
+template <typename T>
 class MelFilterImplBase {
  public:
   template <typename MelScale>
@@ -143,17 +143,17 @@ class MelFilterImplBase {
   double hz_step_, mel_delta_;
 };
 
-#define USE_MEL_FILTER_IMPL_MEMBERS(T, Dims) \
-  using MelFilterImplBase<T, Dims>::args_; \
-  using MelFilterImplBase<T, Dims>::fftbin_start_; \
-  using MelFilterImplBase<T, Dims>::fftbin_end_; \
-  using MelFilterImplBase<T, Dims>::mel_low_; \
-  using MelFilterImplBase<T, Dims>::mel_high_; \
-  using MelFilterImplBase<T, Dims>::fftbin_size_; \
-  using MelFilterImplBase<T, Dims>::weights_down_; \
-  using MelFilterImplBase<T, Dims>::norm_factors_; \
-  using MelFilterImplBase<T, Dims>::mel_delta_; \
-  using MelFilterImplBase<T, Dims>::hz_step_
+#define USE_MEL_FILTER_IMPL_MEMBERS(T) \
+  using MelFilterImplBase<T>::args_; \
+  using MelFilterImplBase<T>::fftbin_start_; \
+  using MelFilterImplBase<T>::fftbin_end_; \
+  using MelFilterImplBase<T>::mel_low_; \
+  using MelFilterImplBase<T>::mel_high_; \
+  using MelFilterImplBase<T>::fftbin_size_; \
+  using MelFilterImplBase<T>::weights_down_; \
+  using MelFilterImplBase<T>::norm_factors_; \
+  using MelFilterImplBase<T>::mel_delta_; \
+  using MelFilterImplBase<T>::hz_step_
 
 }  // namespace audio
 }  // namespace kernels

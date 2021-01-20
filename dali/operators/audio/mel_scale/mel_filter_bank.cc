@@ -76,18 +76,16 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto nthreads = ws.GetThreadPool().size();
   args_.axis = input.GetLayout().find('f');
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
-    VALUE_SWITCH(in_shape.sample_dim(), Dims, MEL_FBANK_SUPPORTED_NDIMS, (
-      using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T, Dims>;
-      kmgr_.Initialize<MelFilterBankKernel>();
-      kmgr_.Resize<MelFilterBankKernel>(nthreads, nsamples);
-      output_desc[0].type = TypeTable::GetTypeInfo(TypeTable::GetTypeID<T>());
-      output_desc[0].shape.resize(nsamples, Dims);
-      for (int i = 0; i < nsamples; i++) {
-        const auto in_view = view<const T, Dims>(input[i]);
-        auto &req = kmgr_.Setup<MelFilterBankKernel>(i, ctx_, in_view, args_);
-        output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
-      }
-    ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.sample_dim())));  // NOLINT
+    using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T>;
+    kmgr_.Initialize<MelFilterBankKernel>();
+    kmgr_.Resize<MelFilterBankKernel>(nthreads, nsamples);
+    output_desc[0].type = TypeTable::GetTypeInfo(TypeTable::GetTypeID<T>());
+    const auto in_view = view<const T>(input);
+    output_desc[0].shape.resize(nsamples, in_view.sample_dim());
+    for (int i = 0; i < nsamples; i++) {
+      auto &req = kmgr_.Setup<MelFilterBankKernel>(i, ctx_, in_view[i], args_);
+      output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
+    }
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
   return true;
 }
@@ -100,17 +98,15 @@ void MelFilterBank<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   auto& thread_pool = ws.GetThreadPool();
 
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
-    VALUE_SWITCH(in_shape.sample_dim(), Dims, MEL_FBANK_SUPPORTED_NDIMS, (
-      using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T, Dims>;
-      for (int i = 0; i < input.shape().num_samples(); i++) {
-        thread_pool.AddWork(
-          [this, &input, &output, i](int thread_id) {
-            auto in_view = view<const T, Dims>(input[i]);
-            auto out_view = view<T, Dims>(output[i]);
-            kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx_, out_view, in_view);
-          }, in_shape.tensor_size(i));
-      }
-    ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
+    using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T>;
+    for (int i = 0; i < input.shape().num_samples(); i++) {
+      thread_pool.AddWork(
+        [this, &input, &output, i](int thread_id) {
+          auto in_view = view<const T>(input[i]);
+          auto out_view = view<T>(output[i]);
+          kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx_, out_view, in_view);
+        }, in_shape.tensor_size(i));
+    }
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 
   thread_pool.RunAll();

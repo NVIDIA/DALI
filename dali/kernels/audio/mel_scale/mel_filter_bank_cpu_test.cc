@@ -57,12 +57,13 @@ class MelScaleCpuTest : public::testing::TestWithParam<
   int nfilter_ = 4;
   float sample_rate_ = 16000, freq_low_ = 0, freq_high_ = 8000;
   std::vector<float> data_;
-  OutTensorCPU<float, 2> in_view_;
+  OutTensorCPU<float> in_view_;
 };
 
 template <typename T>
-void print_data(const OutTensorCPU<T, 2>& data_view) {
+void print_data(const OutTensorCPU<T>& data_view) {
   auto sh = data_view.shape;
+  assert(data_view.dim() == 2);
   for (int i0 = 0; i0 < sh[0]; i0++) {
     for (int i1 = 0; i1 < sh[1]; i1++) {
       int k = i0 * sh[1] + i1;
@@ -76,7 +77,6 @@ void print_data(const OutTensorCPU<T, 2>& data_view) {
 TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   using T = float;
   HtkMelScale<float> mel_scale;
-  constexpr int Dims = 2;
 
   auto shape = in_view_.shape;
 
@@ -107,7 +107,7 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
 
   auto fbanks = ReferenceFilterBanks(nfilter_, nfft, sample_rate_, freq_low_, freq_high_);
   std::vector<T> expected_out(out_size, 0.0f);
-  auto expected_out_view = OutTensorCPU<T, Dims>(expected_out.data(), out_shape.to_static<Dims>());
+  OutTensorCPU<T> expected_out_view(expected_out.data(), out_shape);
   for (int j = 0; j < nfilter_; j++) {
     for (int t = 0; t < nwin; t++) {
       auto &out_val = expected_out_view.data[j*nwin+t];
@@ -119,7 +119,7 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
 
   KernelContext ctx;
   kernels::audio::MelFilterBankArgs args;
-  args.axis = Dims - 2;
+  args.axis = in_view_.dim() - 2;
   args.nfft = nfft;
   args.nfilter = nfilter_;
   args.sample_rate = sample_rate_;
@@ -129,13 +129,12 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   args.normalize = false;
 
 
-  kernels::audio::MelFilterBankCpu<T, Dims> kernel;
+  kernels::audio::MelFilterBankCpu<T> kernel;
   auto req = kernel.Setup(ctx, in_view_, args);
 
   ASSERT_EQ(out_shape, req.output_shapes[0][0]);
   std::vector<T> out(out_size, 0.0f);
-  auto out_view = OutTensorCPU<T, Dims>(out.data(), out_shape.to_static<Dims>());
-
+  OutTensorCPU<T> out_view(out.data(), out_shape);
   kernel.Run(ctx, out_view, in_view_);
 
   LOG_LINE << "in:\n";

@@ -25,7 +25,6 @@
 #include "dali/pipeline/operator/operator.h"
 
 #define MEL_FBANK_SUPPORTED_TYPES (float)
-#define MEL_FBANK_SUPPORTED_NDIMS (2, 3, 4)
 
 namespace dali {
 
