@@ -230,16 +230,15 @@ def check_operator_decoder_and_spectrogram_vs_python(device, batch_size, nfft, w
 
 def test_operator_decoder_and_spectrogram():
     for device in ["cpu", "gpu"]:
-        layouts = ["tf", "ft"] if device == "gpu" else ["ft"]
-        for batch_size in [3]:
-            for nfft, window_length, window_step, shape in [(256, 256, 128, (1, 4096)),
-                                                            (256, 256, 128, (4096,)),
-                                                            (256, 256, 128, (4096, 1)),
-                                                            (256, 256, 128, (1, 1, 4096, 1)),
-                                                            (16, 16, 8, (1, 1000)),
-                                                            (10, 10, 5, (1, 1000)),
-                                                            ]:
-                for layout in layouts:
+        for layout in ["tf", "ft"]:
+            for batch_size in [3]:
+                for nfft, window_length, window_step, shape in [(256, 256, 128, (1, 4096)),
+                                                                (256, 256, 128, (4096,)),
+                                                                (256, 256, 128, (4096, 1)),
+                                                                (256, 256, 128, (1, 1, 4096, 1)),
+                                                                (16, 16, 8, (1, 1000)),
+                                                                (10, 10, 5, (1, 1000)),
+                                                                ]:
                     yield check_operator_decoder_and_spectrogram_vs_python, device, batch_size, \
                             nfft, window_length, window_step, layout
 

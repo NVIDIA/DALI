@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <memory>
+#include <string>
 #include <vector>
 #include "dali/operators/signal/fft/spectrogram.h"
 #include "dali/kernels/kernel_manager.h"
@@ -80,22 +81,21 @@ is padded with zeros.
   When ``center_windows`` is set to False, this option is ignored.
 )",
     true)
-  .AddOptionalArg("layout", R"(Output layout: "ft" (frequency-major) or "tf" (time-major).
-
-.. note::
-  Time-major layout is available only in the implementation for GPU backend.
-)",
+  .AddOptionalArg("layout", R"(Output layout: "ft" (frequency-major) or "tf" (time-major).)",
     TensorLayout("ft"));
 
+template <bool time_major>
 struct SpectrogramImplCpu : OpImplBase<CPUBackend> {
   using OutputType = float;
   using InputType = float;
 
   static constexpr int InputDims = 1;
+  static constexpr bool vertical_win = !time_major;
   using WindowKernel =
-    kernels::signal::ExtractWindowsCpu<InputType, InputType, InputDims>;
+    kernels::signal::ExtractWindowsCpu<InputType, InputType, InputDims, vertical_win>;
 
   static constexpr int WindowsDims = 2;
+  static constexpr int transform_dim = time_major ? 1 : 0;
   using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, WindowsDims>;
 
   explicit SpectrogramImplCpu(const OpSpec & spec);
@@ -126,7 +126,7 @@ struct SpectrogramImplCpu : OpImplBase<CPUBackend> {
 
 namespace {
   void FillFftArgs(kernels::signal::fft::FftArgs& args,
-                   int power, int window_length, int nfft, int ndims) {
+                   int power, int window_length, int nfft, int transform_axis) {
     args.nfft = nfft;
     DALI_ENFORCE(window_length <= nfft, make_string(
       "Window length (", window_length, ") can't be bigger than the FFT size (", nfft, ")"));
@@ -141,13 +141,14 @@ namespace {
         DALI_FAIL(make_string("`power` can be only 1 (energy) or 2 (power), received ", power));
     }
 
-    // layout (.., freq, time)
-    args.transform_axis = ndims - 2;
+    // Time major (.., freq, time) or Freq major (.., time, freq)
+    args.transform_axis = transform_axis;
   }
 
 }  // namespace
 
-SpectrogramImplCpu::SpectrogramImplCpu(const OpSpec &spec)
+template <bool time_major>
+SpectrogramImplCpu<time_major>::SpectrogramImplCpu(const OpSpec &spec)
     : window_length_(spec.GetArgument<int>("window_length"))
     , window_step_(spec.GetArgument<int>("window_step"))
     , power_(spec.GetArgument<int>("power"))
@@ -157,8 +158,7 @@ SpectrogramImplCpu::SpectrogramImplCpu(const OpSpec &spec)
   nfft_ = spec.HasArgument("nfft") ? spec.GetArgument<int>("nfft") : window_length_;
 
   layout_ = spec.GetArgument<TensorLayout>("layout");
-  DALI_ENFORCE(layout_ != "tf", "Time-major spectrogram for CPU backend is not implemented.");
-  DALI_ENFORCE(layout_ == "ft", make_string("Unsupported layout requested: ", layout_));
+  assert((time_major && layout_ == "tf") || (!time_major && layout_ == "ft"));
 
   if (window_fn_.empty()) {
     window_fn_.resize(window_length_);
@@ -176,9 +176,9 @@ SpectrogramImplCpu::SpectrogramImplCpu(const OpSpec &spec)
   }
 }
 
-
-bool SpectrogramImplCpu::SetupImpl(std::vector<OutputDesc> &out_desc,
-                                   const workspace_t<CPUBackend> &ws) {
+template <bool time_major>
+bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc,
+                                               const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   kernels::KernelContext ctx;
@@ -217,7 +217,7 @@ bool SpectrogramImplCpu::SetupImpl(std::vector<OutputDesc> &out_desc,
 
   kmgr_fft_.Initialize<FftKernel>();
   kmgr_fft_.Resize<FftKernel>(nthreads, nsamples);
-  FillFftArgs(fft_args_, power_, window_length_, nfft_, WindowsDims);
+  FillFftArgs(fft_args_, power_, window_length_, nfft_, transform_dim);
 
   window_out_desc_.resize(1);
   window_out_desc_[0].type = TypeInfo::Create<InputType>();
@@ -252,7 +252,8 @@ bool SpectrogramImplCpu::SetupImpl(std::vector<OutputDesc> &out_desc,
   return true;
 }
 
-void SpectrogramImplCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+template <bool time_major>
+void SpectrogramImplCpu<time_major>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto out_shape = output.shape();
@@ -292,8 +293,16 @@ void SpectrogramImplCpu::RunImpl(workspace_t<CPUBackend> &ws) {
 
 template <>
 Spectrogram<CPUBackend>::Spectrogram(const OpSpec &spec)
-    : Operator<CPUBackend>(spec)
-    , impl_(std::make_unique<SpectrogramImplCpu>(spec)) {}
+    : Operator<CPUBackend>(spec) {
+  auto layout = spec.GetArgument<std::string>("layout");
+  DALI_ENFORCE(layout == "tf" || layout == "ft",
+               make_string("Unexpected layout: ", layout));
+  bool time_major = layout == "tf";
+  if (time_major)
+    impl_ = std::make_unique<SpectrogramImplCpu<true>>(spec);
+  else
+    impl_ = std::make_unique<SpectrogramImplCpu<false>>(spec);
+}
 
 DALI_REGISTER_OPERATOR(Spectrogram, Spectrogram<CPUBackend>, CPU);
 
