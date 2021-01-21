@@ -122,7 +122,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     }
   }
 
-  void Setup(ScratchpadEstimator &se, TensorListShape<> in_shape) {
+  void Setup(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
     se.add<int>(AllocType::GPU, interval_ends_.size());
     se.add<T>(AllocType::GPU, weights_down_.size());
     if (args_.normalize)

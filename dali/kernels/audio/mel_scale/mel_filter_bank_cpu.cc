@@ -16,6 +16,7 @@
 #include <cmath>
 #include <complex>
 #include <algorithm>
+#include <utility>
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"

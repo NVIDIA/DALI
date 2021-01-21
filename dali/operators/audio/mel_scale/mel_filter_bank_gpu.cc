@@ -29,7 +29,7 @@ bool MelFilterBank<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto ndim = in_shape.sample_dim();
   args_.axis = layout.empty() ? std::max(0, ndim - 2) : layout.find('f');
   DALI_ENFORCE(args_.axis >= 0 && args_.axis < ndim,
-    make_string("'f' axis not present in the layout. Got: ", layout));
+    make_string("'f' axis not present in the layout. Got: `", layout, "`"));
   ctx_.gpu.stream = ws.stream();
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
     using MelFilterBankKernel = kernels::audio::MelFilterBankGpu<T>;
