@@ -24,6 +24,7 @@
 #include "dali/core/tensor_view.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/arg_helper.h"
 #include "dali/util/crop_window.h"
 #include "dali/core/static_switch.h"
 
@@ -34,8 +35,15 @@ namespace dali {
 class SliceAttr {
  public:
   explicit inline SliceAttr(const OpSpec &spec)
-      : normalized_anchor_(spec.GetArgument<bool>("normalized_anchor")),
+      : spec_(spec),
+        normalized_anchor_(spec.GetArgument<bool>("normalized_anchor")),
         normalized_shape_(spec.GetArgument<bool>("normalized_shape")),
+        start_("start", spec),
+        rel_start_("rel_start", spec),
+        end_("end", spec),
+        rel_end_("rel_end", spec),
+        shape_("shape", spec),
+        rel_shape_("rel_shape", spec),
         crop_window_generators_(spec.GetArgument<int>("max_batch_size")) {
     const bool has_axes_arg = spec.HasArgument("axes");
     const bool has_axis_names_arg = spec.HasArgument("axis_names");
@@ -52,43 +60,49 @@ class SliceAttr {
 
   template <typename Backend>
   void ProcessArguments(const workspace_t<Backend> &ws) {
-    DALI_ENFORCE(ws.NumInput() == 3,
-      "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
-    // slice args are CPU inputs
     auto curr_batch_size = ws.GetInputBatchSize(0);
-    const auto &crop_anchor = ws.template InputRef<CPUBackend>(1);
-    const auto &crop_shape = ws.template InputRef<CPUBackend>(2);
-    DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
-                 make_string("Anchor and shape should have the same type. Got: ",
-                             crop_anchor.type().id(), " and ", crop_shape.type().id()));
-    auto args_dtype = crop_anchor.type().id();
-    TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
-      auto anchor_view = view<const ArgsType>(crop_anchor);
-      auto shape_view = view<const ArgsType>(crop_shape);
-      for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
-        VerifyArgsShape(anchor_view.tensor_shape(data_idx), shape_view.tensor_shape(data_idx));
-        ProcessArgumentsHelper(data_idx,
-                               anchor_view.tensor_data(data_idx),
-                               shape_view.tensor_data(data_idx));
-      }
-    ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT
-  }
+    bool has_start = start_.IsDefined() || rel_start_.IsDefined();
+    bool has_end = end_.IsDefined() || rel_end_.IsDefined();
+    bool has_shape = shape_.IsDefined() || rel_shape_.IsDefined();
+    if (start_.IsDefined())
+      start_.Acquire(spec_, ws, curr_batch_size, true);
+    else if (rel_start_.IsDefined())
+      rel_start_.IsDefined();
 
-  void ProcessArguments(const SampleWorkspace &ws) {
-    DALI_ENFORCE(ws.NumInput() == 3,
-      "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
-    const auto &crop_anchor = ws.Input<CPUBackend>(1);
-    const auto &crop_shape = ws.Input<CPUBackend>(2);
-    DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
+    if (end_.IsDefined())
+      end_.Acquire(spec_, ws, curr_batch_size, true);
+    else if (rel_end_.IsDefined())
+      rel_end_.Acquire(spec_, ws, curr_batch_size, true);
+    else if (shape_.IsDefined())
+      shape_.Acquire(spec_, ws, curr_batch_size, true);
+    else if (rel_shape_.IsDefined())
+      rel_shape_.Acquire(spec_, ws, curr_batch_size, true);
+
+    if ((has_start && (has_end || has_shape))) {
+      DALI_FAIL("Not yet supported");
+    } else if (ws.NumInput() == 3) {
+      const auto &crop_anchor = ws.template InputRef<CPUBackend>(1);
+      const auto &crop_shape = ws.template InputRef<CPUBackend>(2);
+      DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
                   make_string("Anchor and shape should have the same type. Got: ",
                               crop_anchor.type().id(), " and ", crop_shape.type().id()));
-    auto args_dtype = crop_anchor.type().id();
-    VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
-    TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
-      ProcessArgumentsHelper(ws.data_idx(),
-                             crop_anchor.data<ArgsType>(),
-                             crop_shape.data<ArgsType>());
-    ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT
+      auto args_dtype = crop_anchor.type().id();
+      TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
+        auto anchor_view = view<const ArgsType>(crop_anchor);
+        auto shape_view = view<const ArgsType>(crop_shape);
+        for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
+          VerifyArgsShape(anchor_view.tensor_shape(data_idx), shape_view.tensor_shape(data_idx));
+          float *slice_end = nullptr;  // not used
+          ProcessArgumentsHelper(data_idx,
+                                 anchor_view.tensor_data(data_idx),
+                                 shape_view.tensor_data(data_idx),
+                                 slice_end);
+        }
+      ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT
+    } else {
+      DALI_FAIL("Expected named slice arguments (e.g. start/end, start/shape) "
+                "or positional inputs start, shape");
+    }
   }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
@@ -97,21 +111,17 @@ class SliceAttr {
   }
 
  private:
-  template <typename T>
+  template <typename AnchorT, typename ShapeT, typename EndT>
   void ProcessArgumentsHelper(int data_idx,
-                              const T *slice_anchor_data,
-                              const T *slice_shape_data) {
-    bool normalized_anchor = normalized_anchor_;
-    bool normalized_shape  = normalized_shape_;
-    // If integer anchor and shape were provided, assume absolute coordinates silently
-    if (!std::is_floating_point<T>::value) {
-      normalized_anchor = false;
-      normalized_shape = false;
-    }
-    assert(std::is_floating_point<T>::value || (!normalized_anchor && !normalized_shape));
-
+                              const AnchorT *slice_anchor_data,
+                              const ShapeT *slice_shape_data,
+                              const EndT *slice_end_data) {
+    bool normalized_anchor = std::is_floating_point<AnchorT>::value && normalized_anchor_;
+    bool normalized_shape  = std::is_floating_point<ShapeT>::value && normalized_shape_;
+    bool normalized_end = std::is_floating_point<EndT>::value;
     crop_window_generators_[data_idx] =
-      [this, slice_anchor_data, slice_shape_data, normalized_anchor, normalized_shape]
+      [this, slice_anchor_data, slice_shape_data, slice_end_data,
+       normalized_anchor, normalized_shape, normalized_end]
       (const TensorShape<> &shape, const TensorLayout& shape_layout) {
         CropWindow slice;
         slice.anchor = std::vector<int64_t>(shape.size(), 0);
@@ -125,26 +135,34 @@ class SliceAttr {
         for (size_t i = 0; i < axes.size(); i++) {
           auto dim = axes[i];
           double anchor_val = slice_anchor_data[i];
-          double shape_val = slice_shape_data[i];
-          int64_t slice_end;
-          // special case - minimize the floating point error by multiplying only once after sum
-          if (normalized_anchor && normalized_shape) {
-            slice_end = std::llround((anchor_val + shape_val) * shape[dim]);
-            anchor_val *= shape[dim];
-            shape_val *= shape[dim];
-          } else {
+          double shape_val = slice_shape_data ? slice_shape_data[i] : 0;
+          double end_val = slice_end_data ? slice_end_data[i] : 0;
+          if (slice_end_data != nullptr) {
+            if (normalized_end) {
+              end_val *= shape[dim];
+            }
             if (normalized_anchor) {
               anchor_val *= shape[dim];
             }
-            if (normalized_shape) {
+          } else {
+            // special case - minimize the floating point error by multiplying only once after sum
+            if (normalized_anchor && normalized_shape) {
+              end_val = std::llround((anchor_val + shape_val) * shape[dim]);
+              anchor_val *= shape[dim];
               shape_val *= shape[dim];
+            } else {
+              if (normalized_anchor) {
+                anchor_val *= shape[dim];
+              }
+              if (normalized_shape) {
+                shape_val *= shape[dim];
+              }
+              end_val = std::llround(anchor_val + shape_val);
             }
-            slice_end = std::llround(anchor_val + shape_val);
           }
           slice.anchor[dim] = std::llround(anchor_val);
-          slice.shape[dim] = slice_end - slice.anchor[dim];
+          slice.shape[dim] = end_val - slice.anchor[dim];
         }
-
         return slice;
       };
   }
@@ -161,10 +179,24 @@ class SliceAttr {
   }
 
  private:
+  const OpSpec &spec_;
   bool normalized_anchor_, normalized_shape_;
-  std::vector<CropWindowGenerator> crop_window_generators_;
   std::vector<int> axes_;
   TensorLayout axis_names_;
+
+  ArgValue<int, 1> start_;
+  ArgValue<float, 1> rel_start_;
+
+  ArgValue<int, 1> end_;
+  ArgValue<float, 1> rel_end_;
+
+  ArgValue<int, 1> shape_;
+  ArgValue<float, 1> rel_shape_;
+
+  std::vector<CropWindowGenerator> crop_window_generators_;
+
+  TensorListShape<> start_coords_;
+  TensorListShape<> end_coords_;
 };
 
 }  // namespace dali
