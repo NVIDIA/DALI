@@ -284,20 +284,20 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
             resized = resize_dali(images, channel_first, dtype, interp, mode, size, None, None, None, roi_start, roi_end, minibatch_size=minibatch_size, max_size=max_size(dim))
         else:
             if w_input:
-                has_w = fn.coin_flip(probability=0.8)
+                has_w = fn.random.coin_flip(probability=0.8)
                 w = fn.random.uniform(range=size_range) * has_w
             else:
                 w = 320  # some fixed value
 
             if h_input:
-                has_h = fn.coin_flip(probability=0.8)
+                has_h = fn.random.coin_flip(probability=0.8)
                 h = fn.random.uniform(range=size_range) * has_h
             else:
                 h = 240  # some other fixed value
 
             if dim >= 3:
                 if d_input:
-                    has_d = fn.coin_flip(probability=0.8)
+                    has_d = fn.random.coin_flip(probability=0.8)
                     d = fn.random.uniform(range=size_range) * has_d
                 else:
                     d = 31  # some other fixed value

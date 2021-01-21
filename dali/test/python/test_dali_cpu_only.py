@@ -167,7 +167,7 @@ def test_image_decoder_random_crop_device():
         pipe.run()
 
 def test_coin_flip_device():
-    check_no_input(fn.coin_flip)
+    check_no_input(fn.random.coin_flip)
 
 def test_uniform_device():
     check_no_input(fn.random.uniform)

@@ -53,7 +53,7 @@ class CropMirrorNormalizePipeline(Pipeline):
                                            scale = scale,
                                            shift = shift,
                                            pad_output = pad_output)
-        self.coin = ops.CoinFlip(probability=mirror_probability, seed=7865)
+        self.coin = ops.random.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -134,32 +134,25 @@ def test_cmn_no_crop_args_vs_decoder_only():
             yield check_cmn_no_crop_args_vs_decoder_only, device, batch_size
 
 class PythonOpPipeline(Pipeline):
-    def __init__(self, batch_size, function, output_layout, num_threads=1, device_id=0, num_gpus=1):
+    def __init__(self, batch_size, function, output_layout, mirror_probability, num_threads=1, device_id=0, num_gpus=1):
 
         super(PythonOpPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         self.cmn = ops.PythonFunction(function=function, output_layouts=output_layout)
+        self.coin = ops.random.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
         images = self.decode(inputs)
-        images = self.cmn(images)
+        images = self.cmn(images, self.coin())
         return images
-
-# Those are hardcoded coin flip results when using `seed=7865`
-cmn_coin_flip_samples = {
-  0.0 : [False],
-  1.0 : [True],
-  0.5 : [False, False, True, True, False, True, True]
-}
-cmn_idx = 0
 
 def crop_mirror_normalize_func(crop_z, crop_y, crop_x,
                                crop_d, crop_h, crop_w,
-                               mirror_probability, should_pad, mean, std,
+                               should_pad, mean, std,
                                scale, shift,
-                               input_layout, output_layout, dtype, image):
+                               input_layout, output_layout, dtype, image, should_flip):
     scale = scale or 1
     shift = shift or 0
 
@@ -229,10 +222,6 @@ def crop_mirror_normalize_func(crop_z, crop_y, crop_x,
     inv_std = [np.float32(1.0) / np.float32(std[c]) for c in range(C)]
     mean = np.float32(mean)
 
-    # Flip
-    global cmn_coin_flip_samples, cmn_idx
-    should_flip = cmn_coin_flip_samples[mirror_probability][cmn_idx]
-    cmn_idx = (cmn_idx + 1) % len(cmn_coin_flip_samples[mirror_probability])
 
     assert input_layout.count('W') > 0
     horizontal_dim = input_layout.find('W')
@@ -271,16 +260,12 @@ def crop_mirror_normalize_func(crop_z, crop_y, crop_x,
 
 def check_cmn_vs_numpy(device, batch_size, dtype, output_layout,
                        mirror_probability, mean, std, scale, shift, should_pad):
-    assert mirror_probability in cmn_coin_flip_samples
-    global cmn_idx
-    cmn_idx = 0
-
     crop_z, crop_y, crop_x = (0.1, 0.2, 0.3)
     crop_d, crop_h, crop_w = (10, 224, 224)
     function = partial(crop_mirror_normalize_func,
                        crop_z, crop_y, crop_x,
                        crop_d, crop_h, crop_w,
-                       mirror_probability, should_pad,
+                       should_pad,
                        mean, std, scale, shift,
                        "HWC", output_layout, dali_type_to_np(dtype))
 
@@ -289,7 +274,7 @@ def check_cmn_vs_numpy(device, batch_size, dtype, output_layout,
     compare_pipelines(CropMirrorNormalizePipeline(device, batch_size, dtype=dtype,
                                                   output_layout=output_layout, mirror_probability=mirror_probability,
                                                   mean=mean, std=std, scale=scale, shift=shift, pad_output=should_pad),
-                      PythonOpPipeline(batch_size, function, output_layout),
+                      PythonOpPipeline(batch_size, function, output_layout, mirror_probability),
                       batch_size=batch_size, N_iterations=iterations, eps=eps, max_allowed_error=max_err)
 
 
@@ -340,7 +325,7 @@ class CMNRandomDataPipeline(Pipeline):
                                            mean=mean, std=std, pad_output=pad_output,
                                            scale=scale, shift=shift,
                                            out_of_bounds_policy=out_of_bounds_policy, fill_values=fill_values)
-        self.coin = ops.CoinFlip(probability=mirror_probability, seed=7865)
+        self.coin = ops.random.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -357,7 +342,7 @@ class CMNRandomDataPipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.layout)
 
 class CMNRandomDataPythonOpPipeline(Pipeline):
-    def __init__(self, function, batch_size, layout, output_layout, iterator, num_threads=1, device_id=0):
+    def __init__(self, function, batch_size, layout, output_layout, mirror_probability, iterator, num_threads=1, device_id=0):
         super(CMNRandomDataPythonOpPipeline, self).__init__(batch_size,
                                                             num_threads,
                                                             device_id,
@@ -367,10 +352,11 @@ class CMNRandomDataPythonOpPipeline(Pipeline):
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
         self.cmn = ops.PythonFunction(function=function, output_layouts=output_layout)
+        self.coin = ops.random.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
         self.data = self.inputs()
-        out = self.cmn(self.data)
+        out = self.cmn(self.data, self.coin())
         return out
 
     def iter_setup(self):
@@ -385,14 +371,10 @@ def check_cmn_random_data_vs_numpy(device, batch_size, dtype, input_layout, inpu
     eii1 = RandomDataIterator(batch_size, shape=input_shape)
     eii2 = RandomDataIterator(batch_size, shape=input_shape)
 
-    assert mirror_probability in cmn_coin_flip_samples
-    global cmn_idx
-    cmn_idx = 0
-
     function = partial(crop_mirror_normalize_func,
                        crop_z, crop_y, crop_x,
                        crop_d, crop_h, crop_w,
-                       mirror_probability, should_pad,
+                       should_pad,
                        mean, std, scale, shift, input_layout, output_layout,
                        dali_type_to_np(dtype))
 
@@ -402,7 +384,8 @@ def check_cmn_random_data_vs_numpy(device, batch_size, dtype, input_layout, inpu
                             mean=mean, std=std, scale=scale, shift=shift,
                             pad_output=should_pad)
 
-    ref_pipe = CMNRandomDataPythonOpPipeline(function, batch_size, input_layout, output_layout, iter(eii2))
+    ref_pipe = CMNRandomDataPythonOpPipeline(function, batch_size, input_layout, output_layout,
+                                             mirror_probability, iter(eii2))
 
     eps, max_err = (1e-5, 1e-5) if dtype == types.FLOAT else (0.3, 0.6)
     compare_pipelines(cmn_pipe, ref_pipe, batch_size, 2, eps=eps, max_allowed_error=max_err)

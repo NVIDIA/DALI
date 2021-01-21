@@ -78,7 +78,6 @@ class uniform_int_values_dist {
   std::uniform_int_distribution<int> dist_;
 };
 
-
 template <typename Backend>
 class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>> {
  public:

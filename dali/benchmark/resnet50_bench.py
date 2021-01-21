@@ -51,7 +51,7 @@ class C2Pipe(Pipeline):
                                           std = [1., 1., 1.])
         self.uniform = ops.random.Uniform(range = (0., 1.))
         self.resize_uniform = ops.random.Uniform(range = (256., 480.))
-        self.mirror = ops.CoinFlip(probability = 0.5)
+        self.mirror = ops.random.CoinFlip(probability = 0.5)
 
     def define_graph(self):
         self.jpegs = self.input()
@@ -85,7 +85,7 @@ class HybridPipe(Pipeline):
                                             std = [1., 1., 1.])
         self.uniform = ops.random.Uniform(range = (0., 1.))
         self.resize_uniform = ops.random.Uniform(range = (256., 480.))
-        self.mirror = ops.CoinFlip(probability = 0.5)
+        self.mirror = ops.random.CoinFlip(probability = 0.5)
 
     def define_graph(self):
         self.jpegs = self.input()

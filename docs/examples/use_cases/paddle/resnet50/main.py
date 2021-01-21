@@ -56,7 +56,7 @@ def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, siz
                                resize_x=crop,
                                resize_y=crop,
                                interp_type=types.INTERP_TRIANGULAR)
-            mirror = fn.coin_flip(probability=0.5)
+            mirror = fn.random.coin_flip(probability=0.5)
         else:
             images = fn.image_decoder(images,
                                       device=decoder_device,

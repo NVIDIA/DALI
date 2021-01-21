@@ -204,7 +204,7 @@ def get_dali_pipeline(
             mean=[123.68, 116.78, 103.94],
             std=[58.4, 57.12, 57.3],
             output_layout="HWC",
-            mirror = fn.coin_flip())
+            mirror = fn.random.coin_flip())
         labels = inputs["image/class/label"].gpu()
 
         labels -= 1 # Change to 0-based (don't use background class)

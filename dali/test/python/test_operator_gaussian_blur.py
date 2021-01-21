@@ -242,7 +242,7 @@ def check_per_sample_gaussian_blur(
             sigma_arg = sigma
         else:
             # placeholder, so we can return something
-            sigma = fn.coin_flip(probability=0)
+            sigma = fn.random.coin_flip(probability=0)
             sigma_arg = None
 
         if window_size_dim is not None:
@@ -250,7 +250,7 @@ def check_per_sample_gaussian_blur(
             window_size = fn.cast(window_radius, dtype=types.INT32) * 2 + 1
             window_arg = window_size
         else:
-            window_size = fn.coin_flip(probability=0)
+            window_size = fn.random.coin_flip(probability=0)
             window_arg = None
 
         input = fn.external_source(data, layout=layout)
