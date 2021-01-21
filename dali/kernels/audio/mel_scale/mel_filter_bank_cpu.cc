@@ -16,6 +16,7 @@
 #include <cmath>
 #include <complex>
 #include <algorithm>
+#include <utility>
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -39,43 +40,51 @@ namespace audio {
 // For every FFT bin we compute the weight for each filter and travel through the row, computing
 // the contributions on every window of the spectrogram (horizontal axis)
 //
-template <typename T, int Dims>
-class MelFilterBankCpu<T, Dims>::Impl: public MelFilterImplBase<T, Dims> {
+template <typename T>
+class MelFilterBankCpu<T>::Impl: public MelFilterImplBase<T> {
  public:
   template <typename MelScale>
   Impl(MelScale mel_scale, const MelFilterBankArgs &args)
-  : MelFilterImplBase<T, Dims>(mel_scale, args) {
+      : MelFilterImplBase<T>(mel_scale, args) {
+    auto nfilter = args.nfilter;
+
     intervals_.resize(fftbin_size_, -1);
-    double mel = mel_low_ + mel_delta_;
-
-    int64_t fftbin = fftbin_start_;
+    int fftbin = fftbin_start_;
     double f = fftbin * hz_step_;
-
-    int last_interval = args_.nfilter;
-    for (int64_t interval = 0; interval <= last_interval; interval++, mel += mel_delta_) {
-      if (interval == last_interval) {
-        mel = mel_high_;
-      }
-      double freq = mel_scale.mel_to_hz(mel);
+    double mel = mel_low_ + mel_delta_;
+    for (int interval = 0; interval < nfilter + 1; interval++, mel += mel_delta_) {
+      double freq = mel_scale.mel_to_hz(interval == nfilter ? mel_high_ : mel);
       for (; fftbin <= fftbin_end_ && f < freq; fftbin++, f = fftbin * hz_step_) {
         intervals_[fftbin] = interval;
       }
     }
+
+    mel = mel_low_ + mel_delta_;
+    interval_ends_.resize(nfilter + 2);
+    interval_ends_[0] = fftbin_start_;
+    interval_ends_[nfilter + 1] = fftbin_end_ + 1;
+    for (int interval = 1; interval < nfilter + 1; interval++, mel += mel_delta_) {
+      double freq = mel_scale.mel_to_hz(mel);
+      interval_ends_[interval] = std::ceil(freq / hz_step_);
+    }
   }
 
-  void Compute(T* out, const T* in, int64_t nwindows,
-               int64_t out_stride = -1, int64_t in_stride = -1) {
-    if (out_stride <= 0)
-      out_stride = nwindows;
 
-    if (in_stride <= 0)
-      in_stride = nwindows;
+  /**
+   * @brief Applies mel filter bank to a 2D spectrogram, optimized for 
+   *        frequency-major layout ("ft"). 
+   */
+  void ComputeFreqMajor(T* out, const T* in, int64_t nwindows,
+                        int64_t out_size, int64_t out_stride,
+                        int64_t in_size, int64_t in_stride) {
+    for (int64_t m = 0; m < out_size; m++) {
+      T* out_row = out + m * out_stride;
+      for (int64_t t = 0; t < nwindows; t++)
+        out_row[t] = T(0);
+    }
 
-    int nfilter = args_.nfilter;
-
-    std::memset(out, 0, sizeof(T) * nfilter * nwindows);
-    for (int64_t fftbin = fftbin_start_; fftbin <= fftbin_end_; fftbin++) {
-      auto *in_row_start = in + fftbin * in_stride;
+    const T *in_row = in + fftbin_start_ * in_stride;
+    for (int64_t fftbin = fftbin_start_; fftbin <= fftbin_end_; fftbin++, in_row += in_stride) {
       auto filter_up = intervals_[fftbin];
       auto weight_up = T(1) - weights_down_[fftbin];
       auto filter_down = filter_up - 1;
@@ -84,44 +93,66 @@ class MelFilterBankCpu<T, Dims>::Impl: public MelFilterImplBase<T, Dims> {
       if (filter_down >= 0) {
         if (args_.normalize)
           weight_down *= norm_factors_[filter_down];
-        auto *out_row_start = out + filter_down * out_stride;
+        auto *out_row = out + filter_down * out_stride;
         for (int t = 0; t < nwindows; t++) {
-          out_row_start[t] += weight_down * in_row_start[t];
+          out_row[t] += weight_down * in_row[t];
         }
       }
 
-      if (filter_up >= 0 && filter_up < nfilter) {
+      if (filter_up >= 0 && filter_up < out_size) {
         if (args_.normalize)
           weight_up *= norm_factors_[filter_up];
-        auto *out_row_start = out + filter_up * out_stride;
+        auto *out_row = out + filter_up * out_stride;
         for (int t = 0; t < nwindows; t++) {
-          out_row_start[t] += weight_up * in_row_start[t];
+          out_row[t] += weight_up * in_row[t];
         }
       }
     }
   }
 
+  /**
+   * @brief Applies a mel filter bank to a one-dimensional spectrum input or
+   *        individual frames in a time-major layout spectrogram input ("tf").
+   */
+  void ComputeTimeMajor(T* out, const T* in, int64_t nfilter, int64_t fftbin_size) {
+    for (int m = 0; m < nfilter; m++) {
+      T val = 0;
+      int fftbin = interval_ends_[m];
+      int f1 = interval_ends_[m + 1];
+      int f2 = interval_ends_[m + 2];
+      for (; fftbin < f1; ++fftbin) {
+        auto weight_up = T(1) - weights_down_[fftbin];
+        val += in[fftbin] * weight_up;
+      }
+      for (; fftbin < f2; ++fftbin) {
+        val += in[fftbin] * weights_down_[fftbin];
+      }
+      if (args_.normalize)
+        val *= norm_factors_[m];
+      *out++ = val;
+    }
+  }
+
  private:
   std::vector<int> intervals_;
-  USE_MEL_FILTER_IMPL_MEMBERS(T, Dims);
+  std::vector<int> interval_ends_;
+  USE_MEL_FILTER_IMPL_MEMBERS(T);
 };
 
-template <typename T, int Dims>
-MelFilterBankCpu<T, Dims>::MelFilterBankCpu() = default;
+template <typename T>
+MelFilterBankCpu<T>::MelFilterBankCpu() = default;
 
-template <typename T, int Dims>
-MelFilterBankCpu<T, Dims>::~MelFilterBankCpu() = default;
+template <typename T>
+MelFilterBankCpu<T>::~MelFilterBankCpu() = default;
 
-template <typename T, int Dims>
-KernelRequirements MelFilterBankCpu<T, Dims>::Setup(
-    KernelContext &context,
-    const InTensorCPU<T, Dims> &in,
-    const MelFilterBankArgs &original_args) {
-  auto args = original_args;
-  args.axis = args.axis >= 0 ? args.axis : Dims - 2;
-  DALI_ENFORCE(args.axis == Dims - 2,
-    "Input is expected to be a spectrogram with the last two dimensions being FFT bin index and "
-    "window index respectively");
+template <typename T>
+KernelRequirements MelFilterBankCpu<T>::Setup(KernelContext &context,
+                                              const InTensorCPU<T> &in,
+                                              const MelFilterBankArgs &orig_args) {
+  auto args = orig_args;
+  int ndim = in.dim();
+  args.axis = args.axis >= 0 ? args.axis : ndim - 2;
+  assert(args.axis >= 0 && args.axis <= ndim - 1);
   auto out_shape = in.shape;
   out_shape[args.axis] = args.nfilter;
 
@@ -146,39 +177,67 @@ KernelRequirements MelFilterBankCpu<T, Dims>::Setup(
   return req;
 }
 
-template <typename T, int Dims>
-void MelFilterBankCpu<T, Dims>::Run(
-    KernelContext &context,
-    const OutTensorCPU<T, Dims> &out,
-    const InTensorCPU<T, Dims> &in,
-    const MelFilterBankArgs &original_args) {
-  (void) original_args;
+template <typename T>
+void MelFilterBankCpu<T>::Run(KernelContext &context,
+                              const OutTensorCPU<T> &out,
+                              const InTensorCPU<T> &in) {
   DALI_ENFORCE(impl_ != nullptr);
   const auto &args = impl_->Args();
-  auto in_shape = in.shape;
-  auto nwin = in_shape[Dims - 1];
-  auto in_strides = GetStrides(in_shape);
-  auto out_shape = out.shape;
-  auto out_strides = GetStrides(out_shape);
-  auto for_axis_ndim = out.dim() - 1;  // squeeze last dim
-  ForAxis(
-    out.data, in.data, out_shape.data(), out_strides.data(), in_shape.data(), in_strides.data(),
-    args.axis, for_axis_ndim,
-    [this, nwin](
-        T *out_data, const T *in_data,
-        int64_t out_size, int64_t out_stride, int64_t in_size, int64_t in_stride) {
-      impl_->Compute(out_data, in_data, nwin);
-    });
+
+  TensorShape<DynamicDimensions> in_shape = in.shape;
+  TensorShape<DynamicDimensions> out_shape = out.shape;
+  auto axis = args.axis;
+  if (axis > 1) {
+    in_shape = collapse_dims(in_shape, {std::make_pair(0, axis)});
+    out_shape = collapse_dims(out_shape, {std::make_pair(0, axis)});
+    axis = 1;
+  }
+  if (axis < in_shape.size() - 2) {
+    in_shape = collapse_dims(in_shape, {std::make_pair(axis + 1, in_shape.size() - axis - 1)});
+    out_shape = collapse_dims(out_shape, {std::make_pair(axis + 1, out_shape.size() - axis - 1)});
+  }
+
+  bool is_freq_last = axis == in_shape.size() - 1 || in_shape[in_shape.size() - 1] == 1;
+
+  assert(in_shape.size() <= 3);
+  int64_t fftbin_size = in_shape[axis];
+  int64_t nfilter = out_shape[axis];
+
+  if (is_freq_last) {
+    int64_t nwindows = axis == 0 ? 1 : in_shape[0];
+    for (int t = 0; t < nwindows; t++) {
+      const T *in_row = in.data + t * fftbin_size;
+      T *out_row = out.data + t * nfilter;
+      impl_->ComputeTimeMajor(out_row, in_row, nfilter, fftbin_size);
+    }
+  } else {
+    int64_t nwindows = 1;
+    // Grouping last two dimensions as "ft"
+    auto f_in_size = in_shape[axis];
+    auto f_in_stride = GetStrides(in_shape)[axis];
+    auto f_out_size = out_shape[axis];
+    auto f_out_stride = GetStrides(out_shape)[axis];
+    if (axis < in_shape.size() - 1) {
+      nwindows = in_shape[in_shape.size() - 1];
+      in_shape = collapse_dim(in_shape, axis);
+      out_shape = collapse_dim(out_shape, axis);
+    }
+    auto in_strides = GetStrides(in_shape);
+    auto out_strides = GetStrides(out_shape);
+
+    ForAxis(out.data, in.data, out_shape.data(), out_strides.data(), in_shape.data(),
+            in_strides.data(), axis, in_shape.size(),
+            [this, nwindows, f_out_size, f_out_stride, f_in_size, f_in_stride]
+            (T *out_data, const T *in_data, int64_t out_size, int64_t out_stride,
+             int64_t in_size, int64_t in_stride) {
+              impl_->ComputeFreqMajor(out_data, in_data, nwindows,
+                                      f_out_size, f_out_stride, f_in_size, f_in_stride);
+            });
+  }
 }
 
-template class MelFilterBankCpu<float, 2>;
-template class MelFilterBankCpu<double, 2>;
-
-template class MelFilterBankCpu<float, 3>;
-template class MelFilterBankCpu<double, 3>;
-
-template class MelFilterBankCpu<float, 4>;
-template class MelFilterBankCpu<double, 4>;
+template class MelFilterBankCpu<float>;
+template class MelFilterBankCpu<double>;
 
 }  // namespace audio
 }  // namespace kernels
