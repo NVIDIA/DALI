@@ -35,6 +35,7 @@ extern "C" {
 
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/loader.h"
+#include "dali/operators/reader/loader/interleave_mode.h"
 #include "dali/operators/reader/nvdecoder/nvdecoder.h"
 #include "dali/operators/reader/nvdecoder/sequencewrapper.h"
 
@@ -152,9 +153,11 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       count_(spec.GetArgument<int>("sequence_length")),
       step_(spec.GetArgument<int>("step")),
       stride_(spec.GetArgument<int>("stride")),
+      interleave_size_(spec.GetArgument<int>("interleave_size")),
       max_height_(0),
       max_width_(0),
       additional_decode_surfaces_(spec.GetArgument<int>("additional_decode_surfaces")),
+      interleave_mode_(ParseInterleaveMode(spec.GetArgument<std::string>("interleave_mode"))),
       image_type_(spec.GetArgument<DALIImageType>("image_type")),
       dtype_(spec.GetArgument<DALIDataType>("dtype")),
       normalized_(spec.GetArgument<bool>("normalized")),
@@ -174,17 +177,16 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     file_info_ = filesystem::get_file_label_pair(file_root_, filenames_, use_labels, labels_,
                                                  file_list_);
     DALI_ENFORCE(!file_info_.empty(), "No files were read.");
-    DALI_ENFORCE(interleavement_ >= 0, "The interleavement size bigger or equal than zero.");
-    if (interleavement_ != 0) {
-      const size_t interleavement = static_cast<size_t>(interleavement_);
-      DALI_ENFORCE(file_info_.size() >= interleavement,
-                   "The interleavement size must be smaller or equal"
-                   "to the file size.");
-      DALI_ENFORCE(file_info_.size() % interleavement == 0,
-                   "The video file count must be dividable through the "
-                   "interleavement size.");
-      DALI_ENFORCE(interleave_type_ >= DALI_SHORTEN_CONTINUOUS && interleave_type_ <= DALI_CLAMP,
-                   "The interleave type was not correctly specified.");
+    DALI_ENFORCE(interleave_size_ >= 0, "The interleave size should be >= 0");
+    if (interleave_size_ != 0) {
+      const size_t interleave_size = static_cast<size_t>(interleave_size_);
+      DALI_ENFORCE(file_info_.size() >= interleave_size,
+                   "The interleave size should be less than or equal to the file size.");
+      DALI_ENFORCE(file_info_.size() % interleave_size == 0,
+                   "The number of video files should be divisible by the interleave size.");
+      DALI_ENFORCE(interleave_mode_ >= InterleaveMode::ShortenContinuous &&
+                   interleave_mode_ <= InterleaveMode::Clamp,
+                   "The interleave mode was not correctly specified.");
     }
 
     auto ret = cuvidInitChecked();
@@ -298,7 +300,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                                                ALIGN16(max_width_),
                                                additional_decode_surfaces_);
 
-    if (interleavement_ == 0) {
+    if (interleave_size_ == 0) {
       if (shuffle_) {
         // TODO(spanev) decide of a policy for multi-gpu here and SequenceLoader
         // seeded with hardcoded value to get
@@ -321,8 +323,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       }
 
       auto iterators = FindOffsetIterators();
-      switch (interleave_type_) {
-        case DALI_SHORTEN_CONTINUOUS:
+      switch (interleave_mode_) {
+        case InterleaveMode::ShortenContinuous:
           InterleaveContinuous(iterators,
             [](auto& iterators, const auto& initial_iterators, const size_t index) {},
             [](const std::vector<bool>& done) {
@@ -332,7 +334,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                 });
             });
         break;
-        case DALI_REPEAT_CONTINUOUS:
+        case InterleaveMode::RepeatContinuous:
           InterleaveContinuous(iterators,
             [](auto& iterators, const auto& initial_iterators, const size_t index) {
               iterators[index] = initial_iterators[index];
@@ -344,7 +346,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                 });
             });
         break;
-        case DALI_CLAMP_CONTINUOUS:
+        case InterleaveMode::ClampContinuous:
           InterleaveContinuous(iterators,
             [](auto& iterators, const auto& initial_iterators, const size_t index) {
               iterators[index] = initial_iterators[index + 1] - 1;
@@ -356,7 +358,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                 });
             });
         break;
-        case DALI_SHORTEN:
+        case InterleaveMode::Shorten:
           Interleave(iterators,
             [](auto& iterators, const auto& initial_iterators, const size_t index) {},
             [](const std::vector<bool>& done) {
@@ -366,10 +368,10 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                 });
             });
         break;
-        case DALI_CLAMP:
+        case InterleaveMode::Repeat:
           Interleave(iterators,
             [](auto& iterators, const auto& initial_iterators, const size_t index) {
-              iterators[index] = initial_iterators[index + 1] - 1;
+              iterators[index] = initial_iterators[index];
             },
             [](const std::vector<bool>& done) {
               return std::accumulate(std::begin(done), std::end(done), true,
@@ -378,10 +380,10 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                 });
             });
         break;
-        case DALI_REPEAT:
+        case InterleaveMode::Clamp:
           Interleave(iterators,
             [](auto& iterators, const auto& initial_iterators, const size_t index) {
-              iterators[index] = initial_iterators[index];
+              iterators[index] = initial_iterators[index + 1] - 1;
             },
             [](const std::vector<bool>& done) {
               return std::accumulate(std::begin(done), std::end(done), true,
@@ -419,13 +421,13 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   template <typename ItResetter, typename IsDone>
   void Interleave(std::vector<std::vector<dali::sequence_meta>::iterator>& iterators,
                   ItResetter resetter, IsDone is_done) {
-    std::vector<bool> reached_end(interleavement_, false);
+    std::vector<bool> reached_end(interleave_size_, false);
     std::vector<dali::sequence_meta> new_frame_starts;
     new_frame_starts.reserve(frame_starts_.size());
 
     auto initial_iterators = iterators;
     while (iterators.size() > 1) {
-      for (int i = 0; i < interleavement_; ++i) {
+      for (int i = 0; i < interleave_size_; ++i) {
         new_frame_starts.push_back(*iterators[i]);
         if (iterators[i] + 1 != initial_iterators[i + 1]) {
           iterators[i]++;
@@ -438,9 +440,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       if (is_done(reached_end)) {
         std::fill(std::begin(reached_end), std::end(reached_end), false);
         iterators.erase(std::begin(iterators),
-                        std::begin(iterators) + interleavement_);
+                        std::begin(iterators) + interleave_size_);
         initial_iterators.erase(std::begin(initial_iterators),
-                                std::begin(initial_iterators) + interleavement_);
+                                std::begin(initial_iterators) + interleave_size_);
       }
     }
 
@@ -450,15 +452,15 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   template <typename ItResetter, typename IsDone>
   void InterleaveContinuous(std::vector<std::vector<dali::sequence_meta>::iterator>& iterators,
                             ItResetter resetter, IsDone is_done) {
-    std::vector<bool> reached_end(interleavement_, false);
+    std::vector<bool> reached_end(interleave_size_, false);
     std::vector<dali::sequence_meta> new_frame_starts;
     new_frame_starts.reserve(frame_starts_.size());
 
-    std::vector<size_t> work_indices(interleavement_);
+    std::vector<size_t> work_indices(interleave_size_);
     std::iota(std::begin(work_indices), std::end(work_indices), 0);
 
     auto initial_iterators = iterators;
-    const size_t interleavement = static_cast<size_t>(interleavement_);
+    const size_t interleavement = static_cast<size_t>(interleave_size_);
     while (true) {
       const size_t size = std::min(interleavement, work_indices.size());
       for (size_t i = 0; i < size; ++i) {
@@ -471,8 +473,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
           // We reached the end of one sequence at the end of all files
           // so we can not resonable interleave anymore, as we otherwise
-          // would shift the sequences to another index in the batch.
-          // Therefore, we continue interleaving the last sequence
+          // would shift the sequences into another index in the batch.
+          // Therefore, we continue interleaving the last videos
           // to avoid missing frames.
           if (work_indices[i] >= iterators.size() - 1) {
             resetter(iterators, initial_iterators, index);
@@ -503,11 +505,12 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   int count_;
   int step_;
   int stride_;
-  int batch_size_;
+  int interleave_size_;
   int max_height_;
   int max_width_;
   int additional_decode_surfaces_;
   static constexpr int channels_ = 3;
+  InterleaveMode interleave_mode_;
   DALIImageType image_type_;
   DALIDataType dtype_;
   bool normalized_;
