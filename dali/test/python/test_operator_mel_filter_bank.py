@@ -54,7 +54,9 @@ class MelFilterBankPipeline(Pipeline):
 
 def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula, input_data):
     in_shape = input_data.shape
-    nfft = 2 * (input_data.shape[-2] - 1)
+    axis = -2 if len(in_shape) > 1 else 0
+    fftbin_size = in_shape[axis]
+    nfft = 2 * (fftbin_size - 1)
     librosa_norm = 'slaney' if normalize else None
     librosa_htk = (mel_formula == 'htk')
     mel_transform = librosa.filters.mel(
@@ -63,14 +65,14 @@ def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_for
         norm=librosa_norm, dtype=np.float32, htk=librosa_htk)
 
     out_shape = list(in_shape)
-    out_shape[-2] = nfilter
+    out_shape[axis] = nfilter
     out_shape = tuple(out_shape)
     out = np.zeros(out_shape, dtype=np.float32)
 
     if len(in_shape) == 3:
         for i in range(in_shape[0]):
             out[i, :, :] = np.dot(mel_transform, input_data[i, :, :])
-    elif len(in_shape) == 2:
+    elif len(in_shape) <= 2:
         out = np.dot(mel_transform, input_data)
     return out
 
@@ -88,7 +90,8 @@ class MelFilterBankPythonPipeline(Pipeline):
         self.mel_fbank = ops.PythonFunction(function=function)
         self.layout=layout
         self.freq_major = layout.find('f') != len(layout) - 1
-        if not self.freq_major:
+        self.need_transpose = not self.freq_major and len(layout) > 1
+        if self.need_transpose:
             perm = [i for i in range(len(layout))]
             f = layout.find('f')
             perm[f] = len(layout) - 2
@@ -100,7 +103,7 @@ class MelFilterBankPythonPipeline(Pipeline):
 
     def define_graph(self):
         self.data = self.inputs()
-        mel_fbank = self.mel_fbank if self.freq_major else self._transposed(self.mel_fbank)
+        mel_fbank = self._transposed(self.mel_fbank) if self.need_transpose else self.mel_fbank
         out = mel_fbank(self.data)
         return out
 
@@ -131,12 +134,13 @@ def test_operator_mel_filter_bank_vs_python():
             for normalize in [True, False]:
                 for mel_formula in ['htk', 'slaney']:
                     for nfilter, sample_rate, freq_low, freq_high, shape, layout in \
-                        [(4, 16000.0, 0.0, 8000.0, (17, 1), 'ft'),
-                        (128, 16000.0, 0.0, 8000.0, (513, 100), 'ft'),
-                        (128, 48000.0, 0.0, 24000.0, (513, 100), 'ft'),
-                        (128, 16000.0, 0.0, 8000.0, (10, 513, 100), 'Ctf'),
-                        (128, 48000.0, 4000.0, 24000.0, (513, 100), 'tf'),
-                        (128, 44100.0, 0.0, 22050.0, (513, 100), 'tf'),
-                        (128, 44100.0, 1000.0, 22050.0, (513, 100), 'tf')]:
+                        [(4, 16000.0, 0.0, 8000.0, (17,), 'f'),
+                         (4, 16000.0, 0.0, 8000.0, (17, 1), 'ft'),
+                         (128, 16000.0, 0.0, 8000.0, (513, 100), 'ft'),
+                         (128, 48000.0, 0.0, 24000.0, (513, 100), 'ft'),
+                         (128, 16000.0, 0.0, 8000.0, (10, 513, 100), 'Ctf'),
+                         (128, 48000.0, 4000.0, 24000.0, (513, 100), 'tf'),
+                         (128, 44100.0, 0.0, 22050.0, (513, 100), 'tf'),
+                         (128, 44100.0, 1000.0, 22050.0, (513, 100), 'tf')]:
                         yield check_operator_mel_filter_bank_vs_python, device, batch_size, shape, \
                             nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula, layout

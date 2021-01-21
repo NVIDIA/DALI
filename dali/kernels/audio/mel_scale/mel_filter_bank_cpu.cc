@@ -186,15 +186,16 @@ void MelFilterBankCpu<T>::Run(KernelContext &context,
   TensorShape<DynamicDimensions> in_shape = in.shape;
   TensorShape<DynamicDimensions> out_shape = out.shape;
   auto axis = args.axis;
-  while (axis > 1) {
-    in_shape = collapse_dim(in_shape, 0);
-    out_shape = collapse_dim(out_shape, 0);
-    axis--;
+  if (axis > 1) {
+    in_shape = collapse_dims(in_shape, {std::make_pair(0, axis)});
+    out_shape = collapse_dims(out_shape, {std::make_pair(0, axis)});
+    axis = 1;
   }
-  while (axis < in_shape.size() - 2) {
-    in_shape = collapse_dim(in_shape, in_shape.size() - 2);
-    out_shape = collapse_dim(out_shape, out_shape.size() - 2);
+  if (axis < in_shape.size() - 2) {
+    in_shape = collapse_dims(in_shape, {std::make_pair(axis + 1, in_shape.size() - axis - 1)});
+    out_shape = collapse_dims(out_shape, {std::make_pair(axis + 1, out_shape.size() - axis - 1)});
   }
+
   bool is_freq_last = axis == in_shape.size() - 1 || in_shape[in_shape.size() - 1] == 1;
 
   assert(in_shape.size() <= 3);
