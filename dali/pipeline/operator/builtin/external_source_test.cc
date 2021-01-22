@@ -448,7 +448,7 @@ TYPED_TEST(ExternalSourceTest, ConsumeOneThenFeedsGPU) {
   }
 }
 
-TEST(ExternalSourceTestNoInput, Throw) {
+TEST(ExternalSourceTestNoInput, ThrowCpu) {
   OpGraph graph;
   int batch_size = 1;
   int num_threads = 1;
@@ -467,11 +467,69 @@ TEST(ExternalSourceTestNoInput, Throw) {
   vector<string> outputs = {"data_out_cpu"};
 
   exe->Build(&graph, outputs);
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
-  DeviceWorkspace ws;
-  ASSERT_THROW(exe->Outputs(&ws), std::runtime_error);
+  ASSERT_THROW(exe->RunCPU(), std::exception);
+}
+
+namespace {
+template <typename T>
+struct TestType {
+  using element_type = T;
+  T val;
+  bool operator==(const T &other) const {
+    return other == val;
+  }
+};
+}  // namespace
+
+
+TEST(CachingListTest, ProphetTest) {
+  detail::CachingList<std::unique_ptr<TestType<int>>> cl;
+
+  auto push = [&](int val) {
+    auto elem = cl.GetEmpty();
+    elem.emplace_back(std::make_unique<TestType<int>>());
+    elem.front()->val = val;
+    cl.PushBack(elem);
+  };
+
+  ASSERT_THROW(cl.PeekProphet(), std::out_of_range);
+  push(6);
+  EXPECT_EQ(*cl.PeekProphet(), 6);
+  push(9);
+  EXPECT_EQ(*cl.PeekProphet(), 6);
+  cl.AdvanceProphet();
+  EXPECT_EQ(*cl.PeekProphet(), 9);
+  push(13);
+  EXPECT_EQ(*cl.PeekProphet(), 9);
+  cl.AdvanceProphet();
+  EXPECT_EQ(*cl.PeekProphet(), 13);
+  push(42);
+  EXPECT_EQ(*cl.PeekProphet(), 13);
+  push(69);
+  EXPECT_EQ(*cl.PeekProphet(), 13);
+  cl.AdvanceProphet();
+  EXPECT_EQ(*cl.PeekProphet(), 42);
+  cl.AdvanceProphet();
+  EXPECT_EQ(*cl.PeekProphet(), 69);
+  cl.AdvanceProphet();
+  ASSERT_THROW(cl.PeekProphet(), std::out_of_range);
+  push(666);
+  EXPECT_EQ(*cl.PeekProphet(), 666);
+  push(1337);
+  EXPECT_EQ(*cl.PeekProphet(), 666);
+  cl.AdvanceProphet();
+  EXPECT_EQ(*cl.PeekProphet(), 1337);
+  cl.AdvanceProphet();
+  ASSERT_THROW(cl.PeekProphet(), std::out_of_range);
+  push(1234);
+  EXPECT_EQ(*cl.PeekProphet(), 1234);
+  push(4321);
+  EXPECT_EQ(*cl.PeekProphet(), 1234);
+  cl.AdvanceProphet();
+  EXPECT_EQ(*cl.PeekProphet(), 4321);
+  cl.AdvanceProphet();
+  ASSERT_THROW(cl.PeekProphet(), std::out_of_range);
+  ASSERT_THROW(cl.AdvanceProphet(), std::out_of_range);
 }
 
 }  // namespace dali

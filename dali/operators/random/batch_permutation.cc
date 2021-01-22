@@ -41,7 +41,6 @@ void BatchPermutation::RunImpl(HostWorkspace &ws) {
   bool no_fixed = spec_.GetArgument<bool>("no_fixed_points") && N > 1;
 
   tmp_out_.resize(N);
-
   if (rep) {
     if (no_fixed)
       random_sequence_no_fixed_points(tmp_out_, 0, N, rng_);
