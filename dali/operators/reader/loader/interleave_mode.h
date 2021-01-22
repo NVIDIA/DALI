@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,9 +26,9 @@ enum class InterleaveMode {
   ShortenContinuous = 0,
   RepeatContinuous  = 1,
   ClampContinuous   = 2,
-  Shorten            = 3,
-  Repeat             = 4,
-  Clamp              = 5
+  Shorten           = 3,
+  Repeat            = 4,
+  Clamp             = 5
 };
 
 inline InterleaveMode ParseInterleaveMode(const char *mode) {
