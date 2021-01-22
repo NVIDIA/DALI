@@ -222,20 +222,32 @@ Please note that GPU acceleration for JPEG 2000 decoding is only available for C
 
 
 DALI_SCHEMA(ImageDecoderSlice)
-  .DocStr(R"code(Decodes images and extracts regions of interest based on externally provided
-anchors and shapes.
+  .DocStr(R"code(Decodes images and extracts regions of interest.
 
-Inputs must be supplied as tensors in the following order:
+The slice can be specified by proving the start and end coordinates, or start coordinates 
+and shape of the slice. Both coordinates and shapes can be provided in absolute or relative terms.
 
-* ``data`` that contains the input data.
-* ``anchor`` that contains normalized or absolute coordinates, depending on the
-  ``normalized_anchor`` value, for the starting point of the slice (x0, x1, x2, and so on),
-* ``shape`` that contains normalized or absolute coordinates, depending on the
-  ``normalized_shape`` value, for the dimensions of the slice (s0, s1, s2, and so on).
+The slice arguments can be specified by the following named arguments:
 
-The anchor and shape coordinates must be within the interval [0.0, 1.0] for normalized
-coordinates or within the image shape for the absolute coordinates. The ``anchor`` and ``shape``
-inputs will provide as many dimensions as were specified with arguments ``axis_names`` or ``axes``.
+#. ``start``: Slice start coordinates (absolute)
+#. ``rel_start``: Slice start coordinates (relative)
+#. ``end``: Slice end coordinates (absolute)
+#. ``rel_end``: Slice end coordinates (relative)
+#. ``shape``: Slice shape (absolute)
+#. ``rel_shape``: Slice shape (relative)
+
+The slice can be configured by providing start and end coordinates or start and shape.
+Relative and absolute arguments can be used for different arguments (e.g. ``rel_start``
+and ``shape``) but should not be specified for the same argument (e.g. ``start`` and ``rel_start``
+should not be provided together).
+
+Alternatively, two extra positional inputs can be provided, specifying ``anchor`` and ``shape``.
+When using positional inputs, two extra boolean arguments ``normalized_anchor``/``normalized_shape``
+can be used to specify the nature of the arguments provided. Using positional inputs for anchor
+and shape is incompatible with the named arguments specified above.
+
+The slice arguments should provide as many dimensions as specified by the ``axis_names`` or ``axes``
+arguments.
 
 By default, the :meth:`nvidia.dali.ops.ImageDecoderSlice` operator uses normalized coordinates
 and "WH" order for the slice arguments.
