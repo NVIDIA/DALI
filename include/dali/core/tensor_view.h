@@ -760,20 +760,18 @@ auto collapse_dim(const TensorView<StorageBackend, DataType, ndim> &tv, int dim_
  * @param out_slice  output list
  * @param begin      index of the first sample to include in the subrange
  * @param end        index one past the last sample to include in the subrange
+ * @param step       stride between consecutive source samples
  */
 template <typename StorageBackend, typename DataType, int out_ndim, int ndim>
 void sample_range(TensorListView<StorageBackend, DataType, out_ndim> &out_slice,
-    const TensorListView<StorageBackend, DataType, ndim> &input, int begin, int end) {
+    const TensorListView<StorageBackend, DataType, ndim> &input, int begin, int end, int step = 1) {
   detail::check_compatible_ndim<out_ndim, ndim>();
   assert(begin >=0 && begin <= input.num_samples());
   assert(end >= begin && end <= input.num_samples());
-  out_slice.resize(end - begin, input.sample_dim());
-  const int dim = input.sample_dim();
-  for (int i = begin, j = 0; i < end; i++, j++) {
+  sample_range(out_slice.shape, input.shape, begin, end, step);
+  out_slice.data.resize(out_slice.shape.num_samples());
+  for (int i = begin, j = 0; i < end; i += step, j++)
     out_slice.data[j] = input.data[i];
-    for (int d = 0; d < dim; d++)
-      out_slice.tensor_shape_span(j)[d] = input.tensor_shape_span(i)[d];
-  }
 }
 
 
@@ -782,14 +780,15 @@ void sample_range(TensorListView<StorageBackend, DataType, out_ndim> &out_slice,
  * @param input      input list
  * @param begin      index of the first sample to include in the subrange
  * @param end        index one past the last sample to include in the subrange
+ * @param step       stride between consecutive source samples
  * @return `TensorListView<out_ndim>` consisting of samples at indices `begin` to `end` - 1
  */
 template <int out_ndim = InferDimensions, typename StorageBackend, typename DataType, int ndim,
   int output_ndim = (out_ndim == InferDimensions ? ndim : out_ndim)>
 TensorListView<StorageBackend, DataType, output_ndim> sample_range(
-    const TensorListView<StorageBackend, DataType, ndim> &input, int begin, int end) {
+    const TensorListView<StorageBackend, DataType, ndim> &input, int begin, int end, int step = 1) {
   TensorListView<StorageBackend, DataType, output_ndim> out_slice;
-  sample_range(out_slice, input, begin, end);
+  sample_range(out_slice, input, begin, end, step);
   return out_slice;
 }
 

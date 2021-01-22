@@ -1294,7 +1294,7 @@ TEST(AppendTest, AppendSingleTLS) {
 }
 
 
-TEST(TensorListShapeTest, SubshapeTest) {
+TEST(TensorListShapeTest, SampleRangeTest) {
   TensorListShape<> tls = {{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}, {5, 6}, {6, 7}, {7, 8}, {8, 9}};
   TensorListShape<> ref091 = {{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5},
                               {5, 6}, {6, 7}, {7, 8}, {8, 9}};
@@ -1304,12 +1304,12 @@ TEST(TensorListShapeTest, SubshapeTest) {
   TensorListShape<> ref092 = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {8, 9}};
   TensorListShape<> ref192 = {{1, 2}, {3, 4}, {5, 6}, {7, 8}};
 
-  EXPECT_EQ(subshape(tls, 0, 9, 1), ref091);
-  EXPECT_EQ(subshape(tls, 0, 8, 1), ref081);
-  EXPECT_EQ(subshape(tls, 0, 5, 2), ref052);
-  EXPECT_EQ(subshape(tls, 1, 8, 3), ref183);
-  EXPECT_EQ(subshape(tls, 0, 9, 2), ref092);
-  EXPECT_EQ(subshape(tls, 1, 9, 2), ref192);
+  EXPECT_EQ(sample_range(tls, 0, 9, 1), ref091);
+  EXPECT_EQ(sample_range(tls, 0, 8, 1), ref081);
+  EXPECT_EQ(sample_range(tls, 0, 5, 2), ref052);
+  EXPECT_EQ(sample_range(tls, 1, 8, 3), ref183);
+  EXPECT_EQ(sample_range(tls, 0, 9, 2), ref092);
+  EXPECT_EQ(sample_range(tls, 1, 9, 2), ref192);
 }
 
 }  // namespace kernels

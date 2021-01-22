@@ -362,6 +362,15 @@ TEST(TensorListViewTest, SampleRange) {
     EXPECT_EQ(slice.tensor_data(j), whole.tensor_data(start + j));
     EXPECT_EQ(slice.tensor_shape(j), whole.tensor_shape(start + j));
   }
+
+  int stride = 2;
+  auto strided_slice = sample_range(whole, start, start + length, stride);
+  int out_length = 8;  // 15 samples, stride 2
+  ASSERT_EQ(strided_slice.num_samples(), out_length);
+  for (int j = 0; j < out_length; j++) {
+    EXPECT_EQ(strided_slice.tensor_data(j), whole.tensor_data(start + j * stride));
+    EXPECT_EQ(strided_slice.tensor_shape(j), whole.tensor_shape(start + j * stride));
+  }
 }
 
 TEST(TensorListViewTest, IsContiguous) {
