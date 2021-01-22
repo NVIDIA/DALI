@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -990,3 +990,17 @@ Parameters
         For example, one can use this function to feed the input
         data from NumPy arrays."""
         pass
+
+
+def pipeline(*pipeline_args, **pipeline_kwargs):
+    """
+    TODO
+    """
+    def pipeline_arguments_decorator(fn):
+        def create_pipeline(*fn_args, **fn_kwargs):
+            pipe = Pipeline(*pipeline_args, **pipeline_kwargs)
+            with pipe:
+                pipe.set_outputs(*fn(*fn_args, **fn_kwargs))
+            return pipe
+        return create_pipeline
+    return pipeline_arguments_decorator
