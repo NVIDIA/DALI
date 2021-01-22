@@ -269,9 +269,9 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
                                              {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
   int max_batch_size = reference_input_shape.num_samples();
   std::vector<TensorListShape<>> trimmed_input_shapes = {
-      subshape(reference_input_shape, 0, max_batch_size / 2),
-      subshape(reference_input_shape, 0, max_batch_size / 4),
-      subshape(reference_input_shape, 0, max_batch_size),
+      sample_range(reference_input_shape, 0, max_batch_size / 2),
+      sample_range(reference_input_shape, 0, max_batch_size / 4),
+      sample_range(reference_input_shape, 0, max_batch_size),
   };
 
   auto pipe_ptr = GetTestPipeline<TypeParam>(false, this->output_device_);
