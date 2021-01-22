@@ -90,6 +90,11 @@ class SliceAttr {
       rel_shape_.Acquire(spec_, ws, curr_batch_size, args_shape);
 
     if (has_end_ || has_shape_) {  // ``start`` can be omitted
+      DALI_ENFORCE(!spec_.HasArgument("normalized_anchor")
+                && !spec_.HasArgument("normalized_shape"),
+        "``normalized_anchor``/``normalized_shape`` is only relevant when using positional "
+        "slice arguments");
+
       DALI_ENFORCE(ws.NumInput() == 1,
         "Named arguments start/end/shape are not compatible with positional"
         " anchor and shape inputs");
