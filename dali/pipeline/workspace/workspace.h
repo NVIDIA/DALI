@@ -179,23 +179,34 @@ class WorkspaceBase : public ArgumentWorkspace {
    * Returns shape of input at given index
    * @return TensorShape<> for SampleWorkspace, TensorListShape<> for other Workspaces
    */
-  template <typename Backend>
   auto GetInputShape(int input_idx) const {
-    const auto& input = *InputHandle(input_idx, Backend{});
-    return input.shape();
+    if (InputIsType<GPUBackend>(input_idx)) {
+      const auto& input = *InputHandle(input_idx, GPUBackend{});
+      return input.shape();
+    } else {
+      const auto& input = *InputHandle(input_idx, CPUBackend{});
+      return input.shape();
+    }
   }
 
   /**
-   * Returns batch size for given input
+   * Returns batch size for a given input
    */
   int GetInputBatchSize(int input_idx) const {
     DALI_ENFORCE(NumInput() > 0, "No inputs found");
     DALI_ENFORCE(input_idx >= 0 && input_idx < NumInput(),
                  make_string("Invalid input index: ", input_idx, "; while NumInput: ", NumInput()));
-    if (InputIsType<GPUBackend>(input_idx)) {
-      return GetInputShape<GPUBackend>(input_idx).num_samples();
-    }
-    return GetInputShape<CPUBackend>(input_idx).num_samples();
+    return GetInputShape(input_idx).num_samples();
+  }
+
+  /**
+   * Returns number of dimensions for a given input
+   */
+  int GetInputDim(int input_idx) const {
+    DALI_ENFORCE(NumInput() > 0, "No inputs found");
+    DALI_ENFORCE(input_idx >= 0 && input_idx < NumInput(),
+                 make_string("Invalid input index: ", input_idx, "; while NumInput: ", NumInput()));
+    return GetInputShape(input_idx).sample_dim();
   }
 
   /**

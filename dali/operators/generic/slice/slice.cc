@@ -32,7 +32,7 @@ coordinates, or in the image shape for absolute coordinates. The ``anchor`` and 
 must provide as many dimensions as are specified with the ``axis_names`` or ``axes`` arguments.
 By default, the :meth:`nvidia.dali.ops.Slice` operator uses normalized coordinates and ``WH``
 order for the slice arguments.)code")
-    .NumInput(3)
+    .NumInput(1, 3)
     .InputDevice(1, 3, InputDevice::CPU)
     .NumOutput(1)
     .InputDox(0, "data", "TensorList", R"code(Batch that contains the input data.)code")

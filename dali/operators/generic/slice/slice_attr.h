@@ -56,30 +56,46 @@ class SliceAttr {
       axes_ = spec.GetRepeatedArgument<int>("axes");
       axis_names_ = TensorLayout{};
     }
+    has_start_ = start_.IsDefined() || rel_start_.IsDefined();
+    has_end_ = end_.IsDefined() || rel_end_.IsDefined();
+    has_shape_ = shape_.IsDefined() || rel_shape_.IsDefined();
+
+    DALI_ENFORCE(!(has_end_ && has_shape_),
+        "``end``/``rel_end`` can't be provided together with ``shape``/``rel_shape``.");
   }
 
   template <typename Backend>
   void ProcessArguments(const workspace_t<Backend> &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
-    bool has_start = start_.IsDefined() || rel_start_.IsDefined();
-    bool has_end = end_.IsDefined() || rel_end_.IsDefined();
-    bool has_shape = shape_.IsDefined() || rel_shape_.IsDefined();
+    int ndim = ws.GetInputDim(0);
+
+    auto args_shape = TensorShape<1>(ndim);
+    if (!axes_.empty() || !axis_names_.empty()) {
+      args_shape[0] = std::max(static_cast<int>(axes_.size()),
+                               static_cast<int>(axis_names_.size()));
+    }
+
     if (start_.IsDefined())
-      start_.Acquire(spec_, ws, curr_batch_size, true);
+      start_.Acquire(spec_, ws, curr_batch_size, args_shape);
     else if (rel_start_.IsDefined())
-      rel_start_.IsDefined();
+      rel_start_.Acquire(spec_, ws, curr_batch_size, args_shape);
 
     if (end_.IsDefined())
-      end_.Acquire(spec_, ws, curr_batch_size, true);
+      end_.Acquire(spec_, ws, curr_batch_size, args_shape);
     else if (rel_end_.IsDefined())
-      rel_end_.Acquire(spec_, ws, curr_batch_size, true);
+      rel_end_.Acquire(spec_, ws, curr_batch_size, args_shape);
     else if (shape_.IsDefined())
-      shape_.Acquire(spec_, ws, curr_batch_size, true);
+      shape_.Acquire(spec_, ws, curr_batch_size, args_shape);
     else if (rel_shape_.IsDefined())
-      rel_shape_.Acquire(spec_, ws, curr_batch_size, true);
+      rel_shape_.Acquire(spec_, ws, curr_batch_size, args_shape);
 
-    if ((has_start && (has_end || has_shape))) {
-      DALI_FAIL("Not yet supported");
+    if (has_end_ || has_shape_) {  // ``start`` can be omitted
+      DALI_ENFORCE(ws.NumInput() == 1,
+        "Named arguments start/end/shape are not compatible with positional"
+        " anchor and shape inputs");
+      for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
+        ProcessNamedArgs(data_idx);
+      }
     } else if (ws.NumInput() == 3) {
       const auto &crop_anchor = ws.template InputRef<CPUBackend>(1);
       const auto &crop_shape = ws.template InputRef<CPUBackend>(2);
@@ -93,10 +109,10 @@ class SliceAttr {
         for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
           VerifyArgsShape(anchor_view.tensor_shape(data_idx), shape_view.tensor_shape(data_idx));
           float *slice_end = nullptr;  // not used
-          ProcessArgumentsHelper(data_idx,
-                                 anchor_view.tensor_data(data_idx),
-                                 shape_view.tensor_data(data_idx),
-                                 slice_end);
+          ProcessPositionalInputArgs(data_idx,
+                                     anchor_view.tensor_data(data_idx),
+                                     shape_view.tensor_data(data_idx),
+                                     slice_end);
         }
       ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT
     } else {
@@ -111,11 +127,59 @@ class SliceAttr {
   }
 
  private:
+  void ProcessNamedArgs(int data_idx) {
+    crop_window_generators_[data_idx] =
+      [this, data_idx](const TensorShape<> &shape, const TensorLayout& shape_layout) {
+        CropWindow slice;
+        slice.anchor = std::vector<int64_t>(shape.size(), 0);
+        slice.shape = shape;
+
+        auto axes = axes_;
+        if (!axis_names_.empty()) {
+          axes = GetDimIndices(shape_layout, axis_names_).to_vector();
+        }
+
+        for (size_t i = 0; i < axes.size(); i++) {
+          auto dim = axes[i];
+
+          double anchor_val = 0;
+          if (start_.IsDefined()) {
+            anchor_val = start_[data_idx].data[i];
+          } else if (rel_start_.IsDefined()) {
+            anchor_val = rel_start_[data_idx].data[i] * shape[dim];
+          }
+
+          double end_val = -1.0;
+          if (end_.IsDefined()) {
+            end_val = end_[data_idx].data[i];
+          } else if (rel_end_.IsDefined()) {
+            end_val = rel_end_[data_idx].data[i] * shape[dim];
+          } else if (shape_.IsDefined()) {
+            double shape_val = shape_[data_idx].data[i];
+            end_val = std::llround(anchor_val + shape_val);
+          } else if (rel_start_.IsDefined() && rel_shape_.IsDefined()) {
+            // special case - minimize the floating point error by multiplying only once after sum
+            double rel_start_val = rel_start_[data_idx].data[i];
+            double rel_shape_val = rel_shape_[data_idx].data[i];
+            end_val = std::llround((rel_start_val + rel_shape_val) * shape[dim]);
+          } else if (rel_shape_.IsDefined()) {
+            double shape_val = rel_shape_[data_idx].data[i] * shape[dim];
+            end_val = std::llround(anchor_val + shape_val);
+          } else {
+            assert(false);  // should not happen
+          }
+          slice.anchor[dim] = std::llround(anchor_val);
+          slice.shape[dim] = end_val - slice.anchor[dim];
+        }
+        return slice;
+      };
+  }
+
   template <typename AnchorT, typename ShapeT, typename EndT>
-  void ProcessArgumentsHelper(int data_idx,
-                              const AnchorT *slice_anchor_data,
-                              const ShapeT *slice_shape_data,
-                              const EndT *slice_end_data) {
+  void ProcessPositionalInputArgs(int data_idx,
+                                  const AnchorT *slice_anchor_data,
+                                  const ShapeT *slice_shape_data,
+                                  const EndT *slice_end_data) {
     bool normalized_anchor = std::is_floating_point<AnchorT>::value && normalized_anchor_;
     bool normalized_shape  = std::is_floating_point<ShapeT>::value && normalized_shape_;
     bool normalized_end = std::is_floating_point<EndT>::value;
@@ -197,6 +261,8 @@ class SliceAttr {
 
   TensorListShape<> start_coords_;
   TensorListShape<> end_coords_;
+
+  bool has_start_, has_end_, has_shape_;
 };
 
 }  // namespace dali
