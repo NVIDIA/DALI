@@ -766,7 +766,7 @@ template <typename StorageBackend, typename DataType, int out_ndim, int ndim>
 void sample_range(TensorListView<StorageBackend, DataType, out_ndim> &out_slice,
     const TensorListView<StorageBackend, DataType, ndim> &input, int begin, int end, int step = 1) {
   detail::check_compatible_ndim<out_ndim, ndim>();
-  assert(begin >=0 && begin <= input.num_samples());
+  assert(begin >= 0 && begin <= input.num_samples());
   assert(end >= begin && end <= input.num_samples());
   sample_range(out_slice.shape, input.shape, begin, end, step);
   out_slice.data.resize(out_slice.shape.num_samples());

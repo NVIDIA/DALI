@@ -1445,7 +1445,7 @@ template <int out_ndim, int ndim>
 void sample_range(TensorListShape<out_ndim> &out, const TensorListShape<ndim> &in,
                   int begin, int end, int step = 1) {
   detail::check_compatible_ndim<out_ndim, ndim>();
-  assert(begin >=0 && begin <= in.num_samples());
+  assert(begin >= 0 && begin <= in.num_samples());
   assert(end >= begin && end <= in.num_samples());
 
   int nsamples = div_ceil(end - begin, step);

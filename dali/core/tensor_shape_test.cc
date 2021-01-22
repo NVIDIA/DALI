@@ -1303,6 +1303,7 @@ TEST(TensorListShapeTest, SampleRangeTest) {
   TensorListShape<> ref183 = {{1, 2}, {4, 5}, {7, 8}};
   TensorListShape<> ref092 = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {8, 9}};
   TensorListShape<> ref192 = {{1, 2}, {3, 4}, {5, 6}, {7, 8}};
+  TensorListShape<> ref1917 = {{1, 2}};
 
   EXPECT_EQ(sample_range(tls, 0, 9, 1), ref091);
   EXPECT_EQ(sample_range(tls, 0, 8, 1), ref081);
@@ -1310,6 +1311,9 @@ TEST(TensorListShapeTest, SampleRangeTest) {
   EXPECT_EQ(sample_range(tls, 1, 8, 3), ref183);
   EXPECT_EQ(sample_range(tls, 0, 9, 2), ref092);
   EXPECT_EQ(sample_range(tls, 1, 9, 2), ref192);
+  EXPECT_EQ(sample_range(tls, 1, 9, 17), ref1917);
+  EXPECT_EQ(sample_range(tls, 9, 9, 17), TensorListShape<>(0, 2));
+  EXPECT_EQ(sample_range(TensorListShape<>(), 0, 0), TensorListShape<>());
 }
 
 }  // namespace kernels
