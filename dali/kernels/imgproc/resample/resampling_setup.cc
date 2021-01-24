@@ -208,6 +208,11 @@ void SeparableResamplingSetup<2>::ComputeBlockLayout(SampleDesc &sample) const {
  */
 template <>
 void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) const {
+  if (volume(sample.out_shape()) == 0) {
+    for (int pass = 0; pass < 3; pass++)
+      sample.logical_block_shape[pass] = 0;
+    return;
+  }
   for (int pass = 0; pass < 3; pass++) {
     int axis = sample.order[pass];
 
@@ -352,7 +357,10 @@ void BatchResamplingSetup<spatial_ndim>::SetupBatch(
     auto ts_out = output_shape.tensor_shape_span(i);
     static_assert(channel_dim == spatial_ndim, "Shape calculation requires channel-last layout");
     auto sample_shape = shape_cat(vec2shape(desc.out_shape()), desc.channels);
+
     output_shape.set_tensor_shape(i, sample_shape);
+    if (volume(desc.out_shape()) == 0)
+      continue;  // this sample does not generate any blocks
 
     for (int pass = 0; pass < spatial_ndim; pass++) {
       ivec<spatial_ndim> blocks;
@@ -405,9 +413,11 @@ void BatchResamplingSetup<spatial_ndim>::InitializeSampleLookup(
   for (int pass = 0; pass < spatial_ndim; pass++) {
     for (int i = 0; i < N; i++) {
       auto &desc = sample_descs[i];
-      int sample_block_count = AddBlocks(sample_lookup.data + block, i,
-                                         desc.logical_block_shape[pass], desc.shapes[pass+1]);
-      block += sample_block_count;
+      if (volume(desc.out_shape()) > 0) {
+        int sample_block_count = AddBlocks(sample_lookup.data + block, i,
+                                          desc.logical_block_shape[pass], desc.shapes[pass+1]);
+        block += sample_block_count;
+      }
     }
   }
   assert(block == blocks_in_all_passes);

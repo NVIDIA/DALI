@@ -118,7 +118,8 @@ class DLL_PUBLIC ResizeAttr {
                              SmallVector<float, 3> requested_size,
                              SmallVector<float, 3> in_lo,
                              SmallVector<float, 3> in_hi,
-                             bool adjust_roi);
+                             bool adjust_roi,
+                             bool empty_input);
 };
 
 }  // namespace dali
