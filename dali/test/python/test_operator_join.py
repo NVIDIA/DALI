@@ -171,7 +171,7 @@ def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
         pipe.set_outputs(out_cpu, out_gpu, *inputs);
     pipe.build()
 
-    for iter in range(num_iter):
+    for _ in range(num_iter):
         o_cpu, o_gpu, *inputs = pipe.run()
         ref = ref_stack(inputs, ref_axis)
         check_batch(o_cpu, ref, batch_size, eps=0, expected_layout=ref_layout)
@@ -192,4 +192,3 @@ def test_stack():
                 axis_names = [None] if layout is None and ndim > 0 else [None, 'C']
                 for axis_name in axis_names:
                     yield _run_test_stack, num_inputs, layout, ndim, axis, axis_name
-

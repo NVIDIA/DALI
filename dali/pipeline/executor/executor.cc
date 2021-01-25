@@ -57,7 +57,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   DeviceGuard g(device_id_);
 
   auto cpu_idxs = QueuePolicy::AcquireIdxs(OpType::CPU);
-  if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(cpu_idxs)) {
+  if (exec_error_ || QueuePolicy::IsStopSignaled() ||
+      !QueuePolicy::template AreValid<OpType::CPU>(cpu_idxs)) {
     QueuePolicy::ReleaseIdxs(OpType::CPU, cpu_idxs);
     return;
   }
@@ -97,7 +98,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   DeviceGuard g(device_id_);
 
   auto mixed_idxs = QueuePolicy::AcquireIdxs(OpType::MIXED);
-  if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(mixed_idxs)) {
+  if (exec_error_ || QueuePolicy::IsStopSignaled() ||
+     !QueuePolicy::template AreValid<OpType::MIXED>(mixed_idxs)) {
     QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs);
     return;
   }
@@ -167,7 +169,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   DomainTimeRange tr("[DALI][Executor] RunGPU");
 
   auto gpu_idxs = QueuePolicy::AcquireIdxs(OpType::GPU);
-  if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(gpu_idxs)) {
+  if (exec_error_ || QueuePolicy::IsStopSignaled() ||
+      !QueuePolicy::template AreValid<OpType::GPU>(gpu_idxs)) {
     QueuePolicy::ReleaseIdxs(OpType::GPU, gpu_idxs);
     return;
   }
