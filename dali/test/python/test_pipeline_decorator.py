@@ -27,15 +27,6 @@ num_threads = 4
 device_id = 0
 
 
-@nottest
-@pipeline(batch_size, num_threads, device_id)
-def pipeline_under_test(flip_vertical, flip_horizontal):
-    data, _ = fn.file_reader(file_root=images_dir)
-    img = fn.image_decoder(data, device="mixed")
-    flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
-    return flipped, img
-
-
 def reference_pipeline(flip_vertical, flip_horizontal):
     pipeline = Pipeline(batch_size, num_threads, device_id)
     with pipeline:
@@ -47,10 +38,46 @@ def reference_pipeline(flip_vertical, flip_horizontal):
 
 
 @nottest
+@pipeline_args(batch_size, num_threads, device_id)
+def pipeline_under_test1(flip_vertical, flip_horizontal):
+    data, _ = fn.file_reader(file_root=images_dir)
+    img = fn.image_decoder(data, device="mixed")
+    flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
+    return flipped, img
+
+
+# @nottest
+# @pipeline_class(batch_size, num_threads, device_id)
+# def pipeline_under_test2(flip_vertical, flip_horizontal):
+#     data, _ = fn.file_reader(file_root=images_dir)
+#     img = fn.image_decoder(data, device="mixed")
+#     flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
+#     return flipped, img
+
+@nottest
+@pipeline_combined
+def pipeline_under_test3(flip_vertical, flip_horizontal):
+    data, _ = fn.file_reader(file_root=images_dir)
+    img = fn.image_decoder(data, device="mixed")
+    flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
+    return flipped, img
+
+
+
+@nottest
 def test_pipeline_decorator_helper(flip_vertical, flip_horizontal):
-    put = pipeline_under_test(flip_vertical, flip_horizontal)
+    put_args = pipeline_under_test1(flip_vertical, flip_horizontal)
+
+    # pipeline_under_test2.set_params(batch_size=batch_size, max_streams=-1)
+    # pipeline_under_test2.batch_size=batch_size
+    # put_class=pipeline_under_test2(flip_vertical, flip_horizontal)
+
+    put_combined=pipeline_under_test3(flip_vertical, flip_horizontal, batch_size=batch_size)
+
     ref = reference_pipeline(flip_vertical, flip_horizontal)
-    compare_pipelines(put, ref, batch_size=batch_size, N_iterations=7)
+    compare_pipelines(put_args, ref, batch_size=batch_size, N_iterations=7)
+    # compare_pipelines(put_class, ref, batch_size=batch_size, N_iterations=7)
+    compare_pipelines(put_combined, ref, batch_size=batch_size, N_iterations=7)
 
 
 def test_pipeline_decorator():

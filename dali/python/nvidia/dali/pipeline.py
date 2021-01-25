@@ -992,7 +992,10 @@ Parameters
         pass
 
 
-def pipeline(*pipeline_args, **pipeline_kwargs):
+import inspect
+
+
+def pipeline_args(*pipeline_args, **pipeline_kwargs):
     """
     TODO
     """
@@ -1004,3 +1007,23 @@ def pipeline(*pipeline_args, **pipeline_kwargs):
             return pipe
         return create_pipeline
     return pipeline_arguments_decorator
+
+
+def _discriminate_args(**kwargs):
+    fca = inspect.getfullargspec(Pipeline.__init__)  # full_ctor_args
+    ctor_args = dict(filter(lambda x:x[0] in fca.args, kwargs.items()))  # TODO: add remaining args filter
+    fn_args = dict(filter(lambda x:x[0] not in fca.args, kwargs.items()))
+    return ctor_args, fn_args
+
+
+def pipeline_combined(fn):
+    """
+    TODO
+    """
+    def create_pipeline(*args, **kwargs):
+        ctor_args, fn_args = _discriminate_args(**kwargs)
+        pipe = Pipeline(**ctor_args)
+        with pipe:
+            pipe.set_outputs(fn(*args, **fn_args))
+        return pipe
+    return create_pipeline
