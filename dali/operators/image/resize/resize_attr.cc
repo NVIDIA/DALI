@@ -265,8 +265,9 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
         requested_size[d] = size_vecs[d][i];
       }
 
+      bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
       CalculateInputRoI(in_lo, in_hi, input_shape, i);
-      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
+      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input);
     }
   } else if (has_resize_shorter_ || has_resize_longer_) {
     const char *arg_name = has_resize_shorter_ ? "resize_shorter" : "resize_longer";
@@ -277,8 +278,9 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
         requested_size[d] = res_x_[i];
       }
 
+      bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
       CalculateInputRoI(in_lo, in_hi, input_shape, i);
-      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
+      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input);
     }
   } else if (has_size_) {
     for (int i = 0; i < N; i++) {
@@ -287,8 +289,9 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
         requested_size[d] = size_arg_[i * spatial_ndim_ + d];
       }
 
+      bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
       CalculateInputRoI(in_lo, in_hi, input_shape, i);
-      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_);
+      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input);
     }
   }
 }
@@ -301,7 +304,7 @@ void ResizeAttr::AdjustOutputSize(float *out_size, const float *in_size) {
 
   int sizes_provided = 0;
   for (int d = 0; d < spatial_ndim_; d++) {
-    mask[d] = (out_size[d] != 0);
+    mask[d] = (out_size[d] != 0 && in_size[d] != 0);
     scale[d] = in_size[d] ? out_size[d] / in_size[d] : 1;
     sizes_provided += mask[d];
   }
@@ -316,7 +319,6 @@ void ResizeAttr::AdjustOutputSize(float *out_size, const float *in_size) {
         // and use it for the missing dimensions;
         double avg_scale = 1;
         for (int d = 0; d < spatial_ndim_; d++) {
-          scale[d] = out_size[d] / in_size[d];
           if (mask[d])
             avg_scale *= std::abs(scale[d]);  // abs because of possible flipping
         }
@@ -400,15 +402,11 @@ void ResizeAttr::CalculateSampleParams(ResizeParams &params,
                                        SmallVector<float, 3> requested_size,
                                        SmallVector<float, 3> in_lo,
                                        SmallVector<float, 3> in_hi,
-                                       bool adjust_roi) {
+                                       bool adjust_roi,
+                                       bool empty_input) {
   assert(static_cast<int>(requested_size.size()) == spatial_ndim_);
   assert(static_cast<int>(in_lo.size()) == spatial_ndim_);
   assert(static_cast<int>(in_hi.size()) == spatial_ndim_);
-
-  for (int d = 0; d < spatial_ndim_; d++) {
-    DALI_ENFORCE(in_lo[d] != in_hi[d] || requested_size[d] == 0,
-                "Cannot produce non-empty output from empty input");
-  }
 
   SmallVector<float, 3> in_size;
   in_size.resize(spatial_ndim_);
@@ -424,14 +422,25 @@ void ResizeAttr::CalculateSampleParams(ResizeParams &params,
 
   AdjustOutputSize(requested_size.data(), in_size.data());
 
+  for (int d = 0; d < spatial_ndim_; d++) {
+    DALI_ENFORCE(in_lo[d] != in_hi[d] || requested_size[d] == 0,
+                "Cannot produce non-empty output from empty input");
+  }
+
   params.resize(spatial_ndim_);
   params.src_lo = in_lo;
   params.src_hi = in_hi;
 
+  // If the input sample is empty, we simply can't produce _any_ non-empty output.
+  // If ROI is degenerate but there's some input, we can sample it at the degenerate location.
+  // To prevent empty outputs when we have some means of producing non-empty output, we bump
+  // up the size of the output to at least 1 in each axis.
+  int min_size = empty_input ? 0 : 1;
+
   for (int d = 0; d < spatial_ndim_; d++) {
     float out_sz = requested_size[d];
     bool flip = out_sz < 0;
-    params.dst_size[d] = std::max(1, round_int(std::fabs(out_sz)));
+    params.dst_size[d] = std::max(min_size, round_int(std::fabs(out_sz)));
     if (flip)
       std::swap(params.src_lo[d], params.src_hi[d]);
 
@@ -440,10 +449,17 @@ void ResizeAttr::CalculateSampleParams(ResizeParams &params,
       double real_size = params.dst_size[d];
       double adjustment = real_size / std::fabs(out_sz);
 
+      // This means that our output is 0.1 pixels - we might get inaccurate results
+      // with 1x1 real output and small ROI, but it means that the user should use a proper ROI
+      // and real output size instead.
+      adjustment = clamp(adjustment, -10.0, 10.0);
+
       // keep center of the ROI - adjust the edges
       double center = (params.src_lo[d] + params.src_hi[d]) * 0.5;
-      params.src_lo[d] = center + (params.src_lo[d] - center) * adjustment;
-      params.src_hi[d] = center + (params.src_hi[d] - center) * adjustment;
+
+      // clamp to more-or-less sane interval to avoid arithmetic problems downstream
+      params.src_lo[d] = clamp(center + (params.src_lo[d] - center) * adjustment, -1e+9, 1e+9);
+      params.src_hi[d] = clamp(center + (params.src_hi[d] - center) * adjustment, -1e+9, 1e+9);
     }
   }
 }

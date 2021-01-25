@@ -143,9 +143,11 @@ struct SeparableResampleCPU  {
       shape_cat(vec2shape(setup.desc.out_shape()), setup.desc.channels);
 
     ScratchpadEstimator se;
-    se.add<float>(AllocType::Host, setup.memory.tmp_size);
-    se.add<float>(AllocType::Host, setup.memory.coeffs_size);
-    se.add<int32_t>(AllocType::Host, setup.memory.indices_size);
+    if (out_shape.num_elements() > 0) {
+      se.add<float>(AllocType::Host, setup.memory.tmp_size);
+      se.add<float>(AllocType::Host, setup.memory.coeffs_size);
+      se.add<int32_t>(AllocType::Host, setup.memory.indices_size);
+    }
 
     TensorListShape<> out_tls({ out_shape });
 
@@ -160,6 +162,9 @@ struct SeparableResampleCPU  {
            const Output &output,
            const Input &input,
            const ResamplingParamsND<spatial_ndim> &params) {
+    if (output.shape.num_elements() == 0)
+      return;
+
     auto &desc = setup.desc;
 
     desc.set_base_pointers(input.data, nullptr, output.data);
