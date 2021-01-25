@@ -115,9 +115,9 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
     if (values_.IsDefined()) {
-      values_.Acquire(spec, ws, nsamples, false);
       // read only once for build time arguments
       if (!values_.IsConstant() || per_sample_values_.empty()) {
+        values_.Acquire(spec, ws, values_.IsConstant() ? max_batch_size_ : nsamples, false);
         per_sample_values_.resize(nsamples);
         per_sample_nvalues_.resize(nsamples);
         if (std::is_same<Backend, GPUBackend>::value) {
