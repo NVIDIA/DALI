@@ -118,11 +118,11 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
       // read only once for build time arguments
       if (!values_.IsConstant() || per_sample_values_.empty()) {
         values_.Acquire(spec, ws, values_.IsConstant() ? max_batch_size_ : nsamples, false);
-        per_sample_values_.resize(nsamples);
-        per_sample_nvalues_.resize(nsamples);
+        per_sample_values_.resize(values_.size());
+        per_sample_nvalues_.resize(values_.size());
         if (std::is_same<Backend, GPUBackend>::value) {
           values_cpu_.clear();
-          for (int s = 0; s < nsamples; s++) {
+          for (int s = 0; s < values_.size(); s++) {
             values_cpu_.insert(values_cpu_.end(),
                                values_[s].data,
                                values_[s].data + values_[s].shape[0]);
@@ -130,12 +130,12 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
           }
           values_gpu_.from_host(values_cpu_, ws.stream());
           int64_t offset = 0;
-          for (int s = 0; s < nsamples; s++) {
+          for (int s = 0; s < values_.size(); s++) {
             per_sample_values_[s] = values_gpu_.data() + offset;
             offset += per_sample_nvalues_[s];
           }
         } else {
-          for (int s = 0; s < nsamples; s++) {
+          for (int s = 0; s < values_.size(); s++) {
             per_sample_values_[s] = values_[s].data;
             per_sample_nvalues_[s] = values_[s].shape[0];
           }

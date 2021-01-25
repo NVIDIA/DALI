@@ -119,9 +119,15 @@ class ArgValue {
     } else {
       if (ndim == 0) {
         data_.resize(1);
-        spec.TryGetArgument<T>(data_[0], arg_name_);
+        if (!spec.TryGetArgument<T>(data_[0], arg_name_)) {
+          // something went bad - call GetArgument and let it throw
+          (void) spec.GetArgument<T>(arg_name_);
+        }
       } else {
-        spec.TryGetRepeatedArgument<T>(data_, arg_name_);
+        if (!spec.TryGetRepeatedArgument<T>(data_, arg_name_)) {
+          // something went bad - call GetRepeatedArgument and let it throw
+          (void) spec.GetRepeatedArgument<T>(arg_name_);
+        }
         int64_t len = data_.size();
         int64_t expected_len = volume(expected_shape);
         if (len == 1 && expected_len > 1) {
@@ -155,9 +161,15 @@ class ArgValue {
     } else {
       if (ndim == 0) {
         data_.resize(1);
-        spec.TryGetArgument<T>(data_[0], arg_name_);
+        if (!spec.TryGetArgument<T>(data_[0], arg_name_)) {
+          // something went bad - call GetArgument and let it throw
+          (void) spec.GetArgument<T>(arg_name_);
+        }
       } else {
-        spec.TryGetRepeatedArgument<T>(data_, arg_name_);
+        if (!spec.TryGetRepeatedArgument<T>(data_, arg_name_)) {
+          // something went bad - call GetRepeatedArgument and let it throw
+          (void) spec.GetRepeatedArgument<T>(arg_name_);
+        }
       }
       auto sh = shape_from_size(static_cast<int64_t>(data_.size()));
       view_ = constant_view(nsamples, data_.data(), std::move(sh));
