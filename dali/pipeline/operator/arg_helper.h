@@ -116,7 +116,7 @@ class ArgValue {
       DALI_ENFORCE(is_uniform(view_.shape) && expected_shape == view_.shape[0],
         make_string("Expected uniform shape for argument \"", arg_name_,
                     "\" but got shape ", view_.shape));
-    } else {
+    } else if (view_.empty()) {
       if (ndim == 0) {
         data_ = {spec.GetArgument<T>(arg_name_)};
       } else {
@@ -151,7 +151,7 @@ class ArgValue {
           make_string("Expected uniform shape for argument \"", arg_name_,
                       "\" but got shape ", view_.shape));
       }
-    } else {
+    } else if (view_.empty()) {
       if (ndim == 0) {
         data_ = {spec.GetArgument<T>(arg_name_)};
       } else {
