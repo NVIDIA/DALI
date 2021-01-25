@@ -449,10 +449,17 @@ void ResizeAttr::CalculateSampleParams(ResizeParams &params,
       double real_size = params.dst_size[d];
       double adjustment = real_size / std::fabs(out_sz);
 
+      // This means that our output is 0.1 pixels - we might get inaccurate results
+      // with 1x1 real output and small ROI, but it means that the user should use a proper ROI
+      // and real output size instead.
+      adjustment = clamp(adjustment, -10.0, 10.0);
+
       // keep center of the ROI - adjust the edges
       double center = (params.src_lo[d] + params.src_hi[d]) * 0.5;
-      params.src_lo[d] = center + (params.src_lo[d] - center) * adjustment;
-      params.src_hi[d] = center + (params.src_hi[d] - center) * adjustment;
+
+      // clamp to more-or-less sane interval to avoid arithmetic problems downstream
+      params.src_lo[d] = clamp(center + (params.src_lo[d] - center) * adjustment, -1e+9, 1e+9);
+      params.src_hi[d] = clamp(center + (params.src_hi[d] - center) * adjustment, -1e+9, 1e+9);
     }
   }
 }

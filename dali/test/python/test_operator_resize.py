@@ -569,3 +569,30 @@ def test_empty_input():
     for device in ["cpu", "gpu"]:
         for dim in [2, 3]:
             yield _test_empty_input, dim, device
+
+def _test_very_small_output(dim, device):
+    batch_size = 8
+    pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
+    if dim == 2:
+        files, labels = dali.fn.caffe_reader(path = db_2d_folder, random_shuffle = True)
+        images_cpu = dali.fn.image_decoder(files, device="cpu")
+    else:
+        images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
+
+    images = images_cpu if device == "cpu" else images_cpu.gpu()
+
+    resize_tiny = fn.resize(images, size = 1e-10)
+
+    pipe.set_outputs(resize_tiny)
+    pipe.build()
+
+    for it in range(3):
+        out, = pipe.run()
+        ref_size = [1,1,1,1] if dim == 3 else [1,1,3]
+        for t in out:
+            assert t.shape() == ref_size
+
+def test_very_small_output():
+    for device in ["cpu", "gpu"]:
+        for dim in [2, 3]:
+            yield _test_very_small_output, dim, device

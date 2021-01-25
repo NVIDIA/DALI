@@ -22,6 +22,8 @@ namespace dali {
 namespace kernels {
 namespace resampling {
 
+constexpr int kMaxGPUFilterSupport = 8192;
+
 ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const FilterDesc &params) {
   switch (params.type) {
     case ResamplingFilterType::Linear:
@@ -90,6 +92,8 @@ SeparableResamplingSetup<spatial_ndim>::ComputeScaleAndROI(
     auto &filter = desc.filter[axis];
 
     int support = filter.num_coeffs ? filter.support() : 1;
+    if (support > kMaxGPUFilterSupport)
+      filter.rescale(kMaxGPUFilterSupport);
 
     float lo, hi;
     if (roi_start <= roi_end) {
