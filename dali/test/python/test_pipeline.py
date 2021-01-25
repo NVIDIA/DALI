@@ -1719,7 +1719,7 @@ def test_return_constants():
         assert o.at(0) == types[i](42)
         assert o.at(0).dtype == types[i]
 
-def test_preserver():
+def test_preserve_arg():
     pipe = dali.pipeline.Pipeline(1, 1, 0)
     with pipe:
         out = dali.fn.external_source(source=[[np.array([-0.5, 1.25])]], preserve = True)
