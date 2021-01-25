@@ -161,7 +161,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   FileStream::MappingReserver mmap_reserver_;
   static constexpr int INVALID_INDEX = -1;
   bool should_seek_ = false;
-  int64 next_seek_pos_;
+  int64 next_seek_pos_ = 0;
 };
 
 }  // namespace dali
