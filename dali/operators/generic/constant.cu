@@ -88,9 +88,9 @@ void Constant<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     TYPE_SWITCH(output_type_, type2id, type, CONSTANT_OP_SUPPORTED_TYPES,
       (
         if (!fdata_.empty()) {
-          FillTensorList<type>(output_, output_shape_, fdata_, ws.stream());
+          FillTensorList<type>(output_, max_output_shape_, fdata_, ws.stream());
         } else {
-          FillTensorList<type>(output_, output_shape_, idata_, ws.stream());
+          FillTensorList<type>(output_, max_output_shape_, idata_, ws.stream());
         }
       ), (DALI_FAIL(make_string("Unsupported type: ", output_type_))));  // NOLINT
   }
@@ -98,6 +98,7 @@ void Constant<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
 
   out.Reset();
   out.ShareData(&output_);
+  out.Resize(output_shape_);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
     assert(out.raw_tensor(i) == output_.raw_tensor(i));

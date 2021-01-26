@@ -80,11 +80,12 @@ class Constant : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    auto curr_batch_size = ws.GetRequestedBatchSize(0);
-    if (output_shape_.empty() || output_shape_.num_samples() != curr_batch_size) {
-      output_shape_ = uniform_list_shape(curr_batch_size, shape_arg_);
+    if (max_output_shape_.empty()) {
+      max_output_shape_ = uniform_list_shape(max_batch_size_, shape_arg_);
       output_.Reset();
     }
+    output_shape_ = max_output_shape_;
+    output_shape_.resize(ws.GetRequestedBatchSize(0));
     output_desc[0] = {output_shape_, TypeTable::GetTypeInfo(output_type_)};
     return false;
   }
@@ -97,6 +98,7 @@ class Constant : public Operator<Backend> {
   std::vector<int> idata_;
   std::vector<float> fdata_;
   TensorListShape<> output_shape_;
+  TensorListShape<> max_output_shape_;
   TensorLayout layout_;
   DALIDataType output_type_;
   using storage_t = std::conditional_t<std::is_same<Backend, CPUBackend>::value,
