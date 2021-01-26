@@ -5,7 +5,6 @@ import nvidia.dali.types as types
 import nvidia.dali.math as math
 from test_utils import check_batch, dali_type
 import random
-from segmentation_test_utils import make_batch_select_masks
 from nose.tools import assert_raises
 
 np.random.seed(4321)
@@ -45,9 +44,9 @@ def check_roi_random_crop(ndim=2, batch_size=3,
                                       shape=(ndim,), dtype=types.INT32, device='cpu')
         roi_start = fn.random.uniform(range=(roi_min_start, roi_max_start + 1),
                                       shape=(ndim,), dtype=types.INT32, device='cpu')
-        crop_start = fn.segmentation.roi_random_crop(*inputs, crop_shape=crop_shape, 
-                                                     roi_start=roi_start, roi_shape=roi_shape, 
-                                                     in_shape=in_shape_arg, device='cpu')
+        crop_start = fn.roi_random_crop(*inputs, crop_shape=crop_shape,
+                                        roi_start=roi_start, roi_shape=roi_shape,
+                                        in_shape=in_shape_arg, device='cpu')
     outputs = [roi_start, roi_shape, crop_start, crop_shape]
     if use_in_shape_arg or use_shape_like_in:
         outputs += [in_shape_out]

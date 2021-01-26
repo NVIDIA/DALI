@@ -19,7 +19,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(segmentation__ROIRandomCrop)
+DALI_SCHEMA(ROIRandomCrop)
     .DocStr(R"code(Produces a fixed shape cropping window, randomly placed so that as much of the
 provided region of interest (ROI) is contained in it.
 If the ROI is bigger than the cropping window, the cropping window will be a subwindow of the ROI.
@@ -202,6 +202,6 @@ void ROIRandomCropCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   thread_pool.RunAll();
 }
 
-DALI_REGISTER_OPERATOR(segmentation__ROIRandomCrop, ROIRandomCropCPU, CPU);
+DALI_REGISTER_OPERATOR(ROIRandomCrop, ROIRandomCropCPU, CPU);
 
 }  // namespace dali
