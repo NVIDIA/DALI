@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.pipeline import pipeline
+from nvidia.dali.pipeline import pipeline_args, pipeline_combined, pipeline_class
 from nose.tools import nottest
 import nvidia.dali.fn as fn
 from test_utils import get_dali_extra_path, compare_pipelines
@@ -46,14 +46,18 @@ def pipeline_under_test1(flip_vertical, flip_horizontal):
     return flipped, img
 
 
-# @nottest
-# @pipeline_class(batch_size, num_threads, device_id)
-# def pipeline_under_test2(flip_vertical, flip_horizontal):
-#     data, _ = fn.file_reader(file_root=images_dir)
-#     img = fn.image_decoder(data, device="mixed")
-#     flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
-#     return flipped, img
+@nottest
+@pipeline_class(batch_size=batch_size, num_threads=num_threads,
+                device_id=device_id)  # kwargs only :(
+def pipeline_under_test2(flip_vertical, flip_horizontal):
+    data, _ = fn.file_reader(file_root=images_dir)
+    img = fn.image_decoder(data, device="mixed")
+    flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
+    return flipped, img
 
+
+
+### THIS ONE I LIKE THE MOST
 @nottest
 @pipeline_combined
 def pipeline_under_test3(flip_vertical, flip_horizontal):
@@ -64,23 +68,48 @@ def pipeline_under_test3(flip_vertical, flip_horizontal):
 
 
 
+
 @nottest
-def test_pipeline_decorator_helper(flip_vertical, flip_horizontal):
+def test_pipeline_decorator_helper_args(flip_vertical, flip_horizontal):
     put_args = pipeline_under_test1(flip_vertical, flip_horizontal)
-
-    # pipeline_under_test2.set_params(batch_size=batch_size, max_streams=-1)
-    # pipeline_under_test2.batch_size=batch_size
-    # put_class=pipeline_under_test2(flip_vertical, flip_horizontal)
-
-    put_combined=pipeline_under_test3(flip_vertical, flip_horizontal, batch_size=batch_size)
-
     ref = reference_pipeline(flip_vertical, flip_horizontal)
     compare_pipelines(put_args, ref, batch_size=batch_size, N_iterations=7)
-    # compare_pipelines(put_class, ref, batch_size=batch_size, N_iterations=7)
+
+
+@nottest
+def test_pipeline_decorator_helper_class(flip_vertical, flip_horizontal):
+    pipeline_under_test2.set_params(batch_size=batch_size, max_streams=-1)
+    pipeline_under_test2.batch_size = batch_size
+    put_class = pipeline_under_test2(flip_vertical, flip_horizontal)
+    ref = reference_pipeline(flip_vertical, flip_horizontal)
+    compare_pipelines(put_class, ref, batch_size=batch_size, N_iterations=7)
+
+
+
+### THIS ONE I LIKE THE MOST
+@nottest
+def test_pipeline_decorator_helper_combined(flip_vertical, flip_horizontal):
+    put_combined = pipeline_under_test3(flip_vertical, flip_horizontal, batch_size=batch_size,
+                                        num_threads=num_threads, device_id=device_id)
+    ref = reference_pipeline(flip_vertical, flip_horizontal)
     compare_pipelines(put_combined, ref, batch_size=batch_size, N_iterations=7)
 
 
-def test_pipeline_decorator():
+
+
+def test_pipeline_decorator_args():
     for vert in [0, 1]:
         for hori in [0, 1]:
-            yield test_pipeline_decorator_helper, vert, hori
+            yield test_pipeline_decorator_helper_args, vert, hori
+
+
+def test_pipeline_decorator_class():
+    for vert in [0, 1]:
+        for hori in [0, 1]:
+            yield test_pipeline_decorator_helper_class, vert, hori
+
+
+def test_pipeline_decorator_combined():
+    for vert in [0, 1]:
+        for hori in [0, 1]:
+            yield test_pipeline_decorator_helper_combined, vert, hori

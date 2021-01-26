@@ -1020,10 +1020,27 @@ def pipeline_combined(fn):
     """
     TODO
     """
+
     def create_pipeline(*args, **kwargs):
         ctor_args, fn_args = _discriminate_args(**kwargs)
         pipe = Pipeline(**ctor_args)
         with pipe:
-            pipe.set_outputs(fn(*args, **fn_args))
+            pipe.set_outputs(*fn(*args, **fn_args))
         return pipe
+
     return create_pipeline
+
+
+class pipeline_class(object):
+    def __init__(self, fn=None, **ctor_kwargs):
+        self._fn = fn
+        self._ctor_kwargs = ctor_kwargs
+
+    def __call__(self, *fn_args, **fn_kwargs):
+        pipe = Pipeline(**self._ctor_kwargs)
+        with pipe:
+            pipe.set_outputs(*self._fn(*fn_args, **fn_kwargs))
+        return pipe
+
+    def set_params(self, **params):
+        self._ctor_kwargs = {**self._ctor_kwargs, **params}
