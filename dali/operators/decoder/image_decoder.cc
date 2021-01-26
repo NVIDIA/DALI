@@ -237,9 +237,8 @@ The slice arguments can be specified by the following named arguments:
 #. ``rel_shape``: Slice shape (relative)
 
 The slice can be configured by providing start and end coordinates or start and shape.
-Relative and absolute arguments can be used for different arguments (e.g. ``rel_start``
-and ``shape``) but should not be specified for the same argument (e.g. ``start`` and ``rel_start``
-should not be provided together).
+Relative and absolute arguments can be mixed (for example, ``rel_start`` can be used with ``shape``)
+as long as start and shape or end are uniquely defined.
 
 Alternatively, two extra positional inputs can be provided, specifying ``anchor`` and ``shape``.
 When using positional inputs, two extra boolean arguments ``normalized_anchor``/``normalized_shape``
@@ -266,7 +265,7 @@ The output of the decoder is in the *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
 Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
-  .NumInput(3)
+  .NumInput(1, 3)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
   .AddParent("SliceAttr");
