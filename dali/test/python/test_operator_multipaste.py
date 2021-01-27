@@ -112,7 +112,7 @@ def get_pipeline(
         out_size=None,
         even_paste_count=False,
         k=4,
-        d_type=types.DALIDataType.UINT8,
+        dtype=types.DALIDataType.UINT8,
         no_intersections=True,
         full_input=False,
         in_anchor_top_left=False,
@@ -133,7 +133,7 @@ def get_pipeline(
         kwargs = {
             "in_ids": in_idx,
             "output_size": out_size,
-            "dtype": d_type
+            "dtype": dtype
         }
 
         if not full_input:
@@ -180,7 +180,7 @@ def show_images(batch_size, image_batch):
     plt.show()
 
 
-def run_vs_python(bs, pastes, in_size, out_size, even_paste_count, no_intersections, full_input, in_anchor_top_left,
+def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, no_intersections, full_input, in_anchor_top_left,
                   out_anchor_top_left):
     pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l = get_pipeline(
         batch_size=bs,
@@ -188,21 +188,20 @@ def run_vs_python(bs, pastes, in_size, out_size, even_paste_count, no_intersecti
         out_size=out_size,
         even_paste_count=even_paste_count,
         k=pastes,
-        d_type=types.DALIDataType.UINT8,
+        dtype=types.DALIDataType.UINT8,
         no_intersections=no_intersections,
         full_input=full_input,
         in_anchor_top_left=in_anchor_top_left,
         out_anchor_top_left=out_anchor_top_left
     )
     pipe.build()
-    print('build')
     result, input = pipe.run()
     if SHOW_IMAGES:
         show_images(bs, result)
     manual_verify(bs, input, result, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, [out_size + (3,)] * bs)
 
 
-def test_simple():
+def test_operator_multipaste():
     tests = [
         [4, 2, (128, 256), (128, 128), False, False, False, False, False],
         [4, 2, (256, 128), (128, 128), False, True, False, False, False],
@@ -214,5 +213,4 @@ def test_simple():
         [4, 2, (64, 64), (128, 128), False, False, False, False, True]
     ]
     for t in tests:
-        print(f"Running with params: {t}")
-        run_vs_python(*t)
+        yield check_operator_multipaste, *t

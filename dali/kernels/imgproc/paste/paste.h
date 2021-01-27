@@ -32,24 +32,16 @@ namespace dali {
 namespace kernels {
 
 template<typename OutputType, typename InputType>
-class PasteCpu {
+class PasteCPU {
  public:
   using Image = InTensorCPU<InputType, 3>;
   using OutImage = OutTensorCPU<OutputType, 3>;
   using Coords = InTensorCPU<const int, 1>;
 
-  KernelRequirements
-  Setup(KernelContext &context, const OutTensorCPU<OutputType> &pasteFrom, const Coords &in_anchors,
-        const Coords &in_shapes, const Coords &out_anchors) {
-    // Kernel is not aware of the size of the output. This should be handled in the operator.
-    return nullptr;
-  }
-
-
   /**
-   * Assumes HWC memory layout
+   * Pastes regions of inputs onto the output.
    *
-   * @param out         Assumes, that memory is already allocated
+   * @param out         Output image data
    * @param pasteFrom   Input image data.
    * @param in_anchors  1D int view denoting where the selected part starts.
    * @param in_shapes   1D int view denoting what size is the selected part.

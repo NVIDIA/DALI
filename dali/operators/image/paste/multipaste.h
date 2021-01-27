@@ -81,6 +81,9 @@ class MultiPasteOp : public Operator<Backend> {
     const auto &images = ws.template InputRef<Backend>(0);
 
     auto curr_batch_size = ws.GetRequestedBatchSize(0);
+    if (curr_batch_size == 0)
+      return;
+
     output_size_.Acquire(spec, ws, curr_batch_size, true);
     in_idx_.Acquire(spec, ws, curr_batch_size, false);
     if (out_anchors_.IsDefined()) {
@@ -98,24 +101,38 @@ class MultiPasteOp : public Operator<Backend> {
         ? output_type_arg_
         : input_type_;
 
+    raw_input_size_mem_.clear();
+    const auto &input_shape = images.shape();
+    const int spatial_ndim = 2;  // in the future we may want to support 3D
+    raw_input_size_mem_.reserve(spatial_ndim * input_shape.num_samples());
     for (int i = 0; i < curr_batch_size; i++) {
-      raw_input_size_mem_.push_back(static_cast<int>(images.shape()[i].data()[0]));
-      raw_input_size_mem_.push_back(static_cast<int>(images.shape()[i].data()[1]));
+      auto shape = input_shape.tensor_shape_span(i);
+      for (int j = 0; j < spatial_ndim; j++) {
+        auto extent = static_cast<int>(shape[j]);
+        raw_input_size_mem_.push_back(extent);
+      }
     }
 
+    no_intersections_.clear();
     for (int i = 0; i < curr_batch_size; i++) {
       const int64_t n_paste = in_idx_[i].shape[0];
 
       if (in_anchors_.IsDefined()) {
         DALI_ENFORCE(in_anchors_[i].shape[0] == n_paste,
                      "in_anchors must be same length as in_idx");
+        DALI_ENFORCE(in_anchors_[i].shape[1] == spatial_ndim,
+         "in_anchors must have number of coordinates equal to that of input images - 1 (channel)");
       }
       if (in_shapes_.IsDefined()) {
         DALI_ENFORCE(in_shapes_[i].shape[0] == n_paste, "in_shapes must be same length as in_idx");
+        DALI_ENFORCE(in_shapes_[i].shape[1] == spatial_ndim,
+           "in_shapes must have number of coordinates equal to that of input images - 1 (channel)");
       }
       if (out_anchors_.IsDefined()) {
         DALI_ENFORCE(out_anchors_[i].shape[0] == n_paste,
                      "out_anchors must be same length as in_idx");
+        DALI_ENFORCE(out_anchors_[i].shape[1] == spatial_ndim,
+         "out_anchors must have number of coordinates equal to that of input images - 1 (channel)");
       }
 
       bool found_intersection = false;
