@@ -16,6 +16,7 @@
 #define DALI_KERNELS_COMMON_DISJOINT_SET_H_
 
 #include <type_traits>
+#include <utility>
 #include "dali/core/span.h"
 
 namespace dali {
@@ -48,7 +49,7 @@ struct disjoint_set {
     }
   }
 
-  void init(T *items, int n, GroupId start_index = {}) {
+  void init(T *items, GroupId n, GroupId start_index = {}) {
     init(make_span(items, n, start_index));
   }
 
@@ -97,4 +98,3 @@ struct disjoint_set {
 }  // namespace dali
 
 #endif  // DALI_KERNELS_COMMON_DISJOINT_SET_H_
-
