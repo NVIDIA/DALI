@@ -14,6 +14,7 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
 import os
@@ -162,3 +163,23 @@ def test_constant_fn():
 def test_scalar_constant_promotion():
     yield _test_scalar_constant_promotion, "cpu"
     yield _test_scalar_constant_promotion, "gpu"
+
+def test_variable_batch():
+    pipe = Pipeline(6, 1, 0)
+    batches = [
+        [np.array(1), np.array(2)],
+        [np.array(1)],
+        [np.array(1), np.array(2), np.array(3), np.array(4), np.array(5), np.array(5)]
+    ]
+    dummy = fn.external_source(batches, cycle=True)
+    val = np.float32([[1,2],[3,4]])
+    pipe.set_outputs(types.Constant(val, device="cpu"), types.Constant(val, device="gpu"), dummy)
+    pipe.build()
+    for batch in batches:
+        cpu, gpu, _ = pipe.run()
+        assert len(cpu) == len(batch)
+        assert len(gpu) == len(batch)
+        gpu = gpu.as_cpu()
+        for i in range(len(batch)):
+            assert np.array_equal(cpu.at(i), val)
+            assert np.array_equal(gpu.at(i), val)
