@@ -170,7 +170,7 @@ class SliceAttr {
             DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
               make_string("shape value out of range [", 0, ", ", i64max, "]. Got: ", shape_val));
 
-            end_val = std::llround(anchor_val + shape_val);
+            end_val = anchor_val + shape_val;
           } else if (rel_start_.IsDefined() && rel_shape_.IsDefined()) {
             // special case - minimize the floating point error by multiplying only once after sum
             double rel_start_val = rel_start_[data_idx].data[i];
@@ -178,13 +178,13 @@ class SliceAttr {
             DALI_ENFORCE(rel_shape_val >= 0,
               make_string("negative shapes are not allowed. Got: ", rel_shape_val));
 
-            end_val = std::llround((rel_start_val + rel_shape_val) * shape[dim]);
+            end_val = (rel_start_val + rel_shape_val) * shape[dim];
           } else if (rel_shape_.IsDefined()) {
             double shape_val = rel_shape_[data_idx].data[i] * shape[dim];
             DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
                          make_string("shape value out of range [", 0, ", ", i64max,
                                      "]. Got: ", shape_val));
-            end_val = std::llround(anchor_val + shape_val);
+            end_val = anchor_val + shape_val;
           }
           DALI_ENFORCE(end_val >= i64min && i64max <= i64max,
                        make_string("end coordinates out of range [", i64min, ", ", i64max,
@@ -195,7 +195,7 @@ class SliceAttr {
                                    anchor_val, " end=", end_val));
 
           slice.anchor[dim] = std::llround(anchor_val);
-          slice.shape[dim] = end_val - slice.anchor[dim];
+          slice.shape[dim] = std::llround(end_val) - slice.anchor[dim];
         }
         return slice;
       };
@@ -232,9 +232,8 @@ class SliceAttr {
           double end_val = 0.0;
           // special case - minimize the floating point error by multiplying only once after sum
           if (normalized_anchor && normalized_shape) {
-            end_val = std::llround((anchor_val + shape_val) * shape[dim]);
+            end_val = (anchor_val + shape_val) * shape[dim];
             anchor_val *= shape[dim];
-            shape_val *= shape[dim];
           } else {
             if (normalized_anchor) {
               anchor_val *= shape[dim];
@@ -242,7 +241,7 @@ class SliceAttr {
             if (normalized_shape) {
               shape_val *= shape[dim];
             }
-            end_val = std::llround(anchor_val + shape_val);
+            end_val = anchor_val + shape_val;
           }
 
           DALI_ENFORCE(anchor_val >= i64min && anchor_val <= i64max,
@@ -256,7 +255,7 @@ class SliceAttr {
                                    anchor_val, " end=", end_val));
 
           slice.anchor[dim] = std::llround(anchor_val);
-          slice.shape[dim] = end_val - slice.anchor[dim];
+          slice.shape[dim] = std::llround(end_val) - slice.anchor[dim];
         }
         return slice;
       };
