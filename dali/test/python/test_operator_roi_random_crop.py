@@ -52,17 +52,17 @@ def check_roi_random_crop(ndim=2, batch_size=3,
         outputs += [in_shape_out]
     pipe.set_outputs(*outputs)
     pipe.build()
-    for iter in range(niter):
+    for _ in range(niter):
         outputs = pipe.run()
         for idx in range(batch_size):
-            roi_start = outputs[0].at(idx).tolist()
-            roi_shape = outputs[1].at(idx).tolist()
-            crop_start = outputs[2].at(idx).tolist()
-            crop_shape = outputs[3].at(idx).tolist()
+            roi_start = np.array(outputs[0][idx]).tolist()
+            roi_shape = np.array(outputs[1][idx]).tolist()
+            crop_start = np.array(outputs[2][idx]).tolist()
+            crop_shape = np.array(outputs[3][idx]).tolist()
 
             in_shape = None
             if use_in_shape_arg or use_shape_like_in:
-                in_shape = outputs[4].at(idx).tolist()
+                in_shape = np.array(outputs[4][idx]).tolist()
 
             roi_end = [roi_start[d] + roi_shape[d] for d in range(ndim)]
             crop_end = [crop_start[d] + crop_shape[d] for d in range(ndim)]
