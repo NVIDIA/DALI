@@ -181,11 +181,9 @@ class WorkspaceBase : public ArgumentWorkspace {
    */
   auto GetInputShape(int input_idx) const {
     if (InputIsType<GPUBackend>(input_idx)) {
-      const auto& input = *InputHandle(input_idx, GPUBackend{});
-      return input.shape();
+      return InputRef<GPUBackend>(input_idx).shape();
     } else {
-      const auto& input = *InputHandle(input_idx, CPUBackend{});
-      return input.shape();
+      return InputRef<CPUBackend>(input_idx).shape();
     }
   }
 
@@ -196,7 +194,11 @@ class WorkspaceBase : public ArgumentWorkspace {
     DALI_ENFORCE(NumInput() > 0, "No inputs found");
     DALI_ENFORCE(input_idx >= 0 && input_idx < NumInput(),
                  make_string("Invalid input index: ", input_idx, "; while NumInput: ", NumInput()));
-    return GetInputShape(input_idx).num_samples();
+    if (InputIsType<GPUBackend>(input_idx)) {
+      return InputRef<GPUBackend>(input_idx).ntensor();
+    } else {
+      return InputRef<CPUBackend>(input_idx).ntensor();
+    }
   }
 
   /**
@@ -206,7 +208,11 @@ class WorkspaceBase : public ArgumentWorkspace {
     DALI_ENFORCE(NumInput() > 0, "No inputs found");
     DALI_ENFORCE(input_idx >= 0 && input_idx < NumInput(),
                  make_string("Invalid input index: ", input_idx, "; while NumInput: ", NumInput()));
-    return GetInputShape(input_idx).sample_dim();
+    if (InputIsType<GPUBackend>(input_idx)) {
+      return InputRef<GPUBackend>(input_idx).sample_dim();
+    } else {
+      return InputRef<CPUBackend>(input_idx).sample_dim();
+    }
   }
 
   /**

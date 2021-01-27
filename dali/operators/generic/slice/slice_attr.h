@@ -144,8 +144,8 @@ class SliceAttr {
           axes = GetDimIndices(shape_layout, axis_names_).to_vector();
         }
 
-        constexpr double i64min = std::numeric_limits<int64_t>::min();
-        constexpr double i64max = std::numeric_limits<int64_t>::max();
+        constexpr double i64min = static_cast<double>(std::numeric_limits<int64_t>::min());
+        constexpr double i64max = static_cast<double>(std::numeric_limits<int64_t>::max());
 
         for (size_t i = 0; i < axes.size(); i++) {
           auto dim = axes[i];
@@ -222,8 +222,8 @@ class SliceAttr {
           axes = GetDimIndices(shape_layout, axis_names_).to_vector();
         }
 
-        constexpr double i64min = std::numeric_limits<int64_t>::min();
-        constexpr double i64max = std::numeric_limits<int64_t>::max();
+        constexpr double i64min = static_cast<double>(std::numeric_limits<int64_t>::min());
+        constexpr double i64max = static_cast<double>(std::numeric_limits<int64_t>::max());
 
         for (size_t i = 0; i < axes.size(); i++) {
           auto dim = axes[i];
