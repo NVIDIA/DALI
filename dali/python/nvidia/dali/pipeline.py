@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#pylint: disable=no-member
+# pylint: disable=no-member
 from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
@@ -20,12 +20,17 @@ from nvidia.dali import types
 from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
+import functools
+import inspect
 import warnings
 import ctypes
+
 pipeline_tls = tls()
 
 from .data_node import DataNode
-DataNode.__module__ = __name__      # move to pipeline
+
+DataNode.__module__ = __name__  # move to pipeline
+
 
 def _show_deprecation_warning(deprecated, in_favor_of):
     # show only this warning
@@ -33,6 +38,7 @@ def _show_deprecation_warning(deprecated, in_favor_of):
         warnings.simplefilter("default")
         warnings.warn("{} is deprecated, please use {} instead".format(deprecated, in_favor_of),
                       Warning, stacklevel=2)
+
 
 def _get_default_stream_for_array(array):
     if types._is_torch_tensor(array):
@@ -992,55 +998,62 @@ Parameters
         pass
 
 
-import inspect
-
-
-def pipeline_args(*pipeline_args, **pipeline_kwargs):
-    """
-    TODO
-    """
-    def pipeline_arguments_decorator(fn):
-        def create_pipeline(*fn_args, **fn_kwargs):
-            pipe = Pipeline(*pipeline_args, **pipeline_kwargs)
-            with pipe:
-                pipe.set_outputs(*fn(*fn_args, **fn_kwargs))
-            return pipe
-        return create_pipeline
-    return pipeline_arguments_decorator
-
-
 def _discriminate_args(**kwargs):
-    fca = inspect.getfullargspec(Pipeline.__init__)  # full_ctor_args
-    ctor_args = dict(filter(lambda x:x[0] in fca.args, kwargs.items()))  # TODO: add remaining args filter
-    fn_args = dict(filter(lambda x:x[0] not in fca.args, kwargs.items()))
+    """Split args on those applicable to Pipeline constructor and the rest."""
+    fca = inspect.getfullargspec(Pipeline.__init__)  # Full Ctor Args
+    ctor_args = dict(filter(lambda x: x[0] in fca.args or x[0] in fca.kwonlyargs, kwargs.items()))
+    fn_args = dict(filter(lambda x: x[0] not in ctor_args.keys(), kwargs.items()))
     return ctor_args, fn_args
 
 
-def pipeline_combined(fn):
+def pipeline(fn=None, **pipeline_kwargs):
     """
-    TODO
+    Decorator for wrapping functions that define DALI pipelines.
+
+    Usage
+    -----
+        First, implement a function, that defines a DALI pipeline.
+        Such function shall return DALI's DataNodes. These return
+        values will denote output from the pipeline. You can
+        decorate this function with @pipeline::
+
+            @nvidia.dali.pipeline.pipeline
+            def pipe(flip_vertical, flip_horizontal):
+                data, _ = fn.file_reader(file_root=images_dir)
+                img = fn.image_decoder(data, device="mixed")
+                flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
+                return flipped, img
+
+        When creating a Pipeline object using the decorated function,
+        you can pass any number of Pipeline.__init__ arguments as
+        keyword-args to the call::
+
+            my_pipe = pipe(0, batch_size=32, num_threads=1, device_id=0, flip_horizontal=1)
+            my_pipe.build()
+
+        Additionally, decorator can accept Pipeline constructor
+        parameters. Please note, that in this case you MUST use
+        keyword args only. Any Pipeline constructor parameter
+        passed later at pipeline instantiation will overwrite
+        the decorator-defined params::
+
+            @nvidia.dali.pipeline.pipeline(batch_size=32, num_threads=3)
+            def pipe():
+                data = fn.external_source(source=my_generator)
+                return data
+
+            my_pipe = pipe(batch_size=128)  # batch_size=128 overwrites batch_size=32
     """
-
-    def create_pipeline(*args, **kwargs):
-        ctor_args, fn_args = _discriminate_args(**kwargs)
-        pipe = Pipeline(**ctor_args)
-        with pipe:
-            pipe.set_outputs(*fn(*args, **fn_args))
-        return pipe
-
-    return create_pipeline
-
-
-class pipeline_class(object):
-    def __init__(self, fn=None, **ctor_kwargs):
-        self._fn = fn
-        self._ctor_kwargs = ctor_kwargs
-
-    def __call__(self, *fn_args, **fn_kwargs):
-        pipe = Pipeline(**self._ctor_kwargs)
-        with pipe:
-            pipe.set_outputs(*self._fn(*fn_args, **fn_kwargs))
-        return pipe
-
-    def set_params(self, **params):
-        self._ctor_kwargs = {**self._ctor_kwargs, **params}
+    def actual_decorator(func):
+        @functools.wraps(func)
+        def create_pipeline(*args, **kwargs):
+            ctor_args, fn_kwargs = _discriminate_args(**kwargs)
+            pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
+            with pipe:
+                pipe_outputs = func(*args, **fn_kwargs)
+                for out in pipe_outputs:
+                    assert isinstance(out, DataNode), "Pipeline function shall return DataNodes"
+                pipe.set_outputs(*pipe_outputs)
+            return pipe
+        return create_pipeline
+    return actual_decorator(fn) if fn else actual_decorator
