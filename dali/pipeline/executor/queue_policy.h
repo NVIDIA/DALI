@@ -112,10 +112,15 @@ struct UniformQueuePolicy {
     }
   }
 
+  template <OpType op_type>
   bool AreValid(QueueIdxs idxs) {
-    return idxs[OpType::CPU] != kInvalidIdx &&
-           idxs[OpType::MIXED] != kInvalidIdx &&
-           idxs[OpType::GPU] != kInvalidIdx;
+    OpType prev_stage = op_type;
+    bool ret = true;
+    while (prev_stage != static_cast<OpType>(-1)) {
+      ret = ret && (idxs[prev_stage] != kInvalidIdx);
+      prev_stage = PreviousStage(prev_stage);
+    }
+    return ret;
   }
 
   void QueueOutputIdxs(QueueIdxs idxs, cudaStream_t = 0) {
@@ -204,18 +209,6 @@ struct UniformQueuePolicy {
 
 struct SeparateQueuePolicy;
 
-namespace detail {
-
-struct ReleaseCommand {
-  SeparateQueuePolicy *policy;
-  OpType stage;
-  int idx;
-};
-
-static void release_callback(cudaStream_t stream, cudaError_t status, void *userData);
-
-}  // namespace detail
-
 // Ready buffers from previous stage imply that we can process corresponding buffers from current
 // stage
 struct SeparateQueuePolicy {
@@ -237,7 +230,6 @@ struct SeparateQueuePolicy {
         stage_free_[stage].push(i);
       }
     }
-    cpu_release_commands_.resize(stage_queue_depths[OpType::CPU]);
   }
 
   QueueIdxs AcquireIdxs(OpType stage) {
@@ -246,8 +238,9 @@ struct SeparateQueuePolicy {
 
     int current_stage = static_cast<int>(stage);
     // We actually have a previous stage
+    int previous_stage = -1;
     if (HasPreviousStage(stage)) {
-      int previous_stage = static_cast<int>(PreviousStage(stage));
+      previous_stage = static_cast<int>(PreviousStage(stage));
       std::unique_lock<std::mutex> ready_previous_lock(stage_ready_mutex_[previous_stage]);
       stage_ready_cv_[previous_stage].wait(ready_previous_lock, [previous_stage, this]() {
         return !stage_ready_[previous_stage].empty() || stage_ready_stop_[previous_stage];
@@ -255,7 +248,7 @@ struct SeparateQueuePolicy {
       if (stage_ready_stop_[previous_stage]) {
         return QueueIdxs{kInvalidIdx};
       }
-      // We fill the information about all the previous stages herew
+      // We fill the information about all the previous stages here
       result = stage_ready_[previous_stage].front();
       stage_ready_[previous_stage].pop();
       // We are the only ones waiting for the lock, so we do not try to wake anyone
@@ -281,12 +274,6 @@ struct SeparateQueuePolicy {
       return;
     }
     int current_stage = static_cast<int>(stage);
-    // TODO(klecki) when we move to CUDA 10, we should move to cudaLaunchHostFunc
-    if (stage == OpType::MIXED) {
-      auto &command = cpu_release_commands_[idxs[OpType::CPU]];
-      command = detail::ReleaseCommand{this, OpType::CPU, idxs[OpType::CPU]};
-      CUDA_CALL(cudaStreamAddCallback(stage_stream, &detail::release_callback, &command, 0));
-    }
     {
       std::lock_guard<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);
       // Store the idxs up to the point of stage that we processed
@@ -295,17 +282,21 @@ struct SeparateQueuePolicy {
     stage_ready_cv_[current_stage].notify_one();
   }
 
+  template <OpType op_type>
   bool AreValid(QueueIdxs idxs) {
-    return idxs[OpType::CPU] != kInvalidIdx &&
-           idxs[OpType::MIXED] != kInvalidIdx &&
-           idxs[OpType::GPU] != kInvalidIdx;
+    OpType prev_stage = op_type;
+    bool ret = true;
+    while (prev_stage != static_cast<OpType>(-1)) {
+      ret = ret && (idxs[prev_stage] != kInvalidIdx);
+      prev_stage = PreviousStage(prev_stage);
+    }
+    return ret;
   }
-
 
   void QueueOutputIdxs(QueueIdxs idxs, cudaStream_t gpu_op_stream) {
     {
       std::lock_guard<std::mutex> ready_output_lock(ready_output_mutex_);
-      ready_output_queue_.push({idxs[OpType::MIXED], idxs[OpType::GPU]});
+      ready_output_queue_.push({idxs[OpType::CPU], idxs[OpType::MIXED], idxs[OpType::GPU]});
     }
     ready_output_cv_.notify_all();
   }
@@ -318,7 +309,7 @@ struct SeparateQueuePolicy {
       return !ready_output_queue_.empty() || ready_stop_;
     });
     if (ready_stop_) {
-      return OutputIdxs{kInvalidIdx, kInvalidIdx};
+      return OutputIdxs{kInvalidIdx, kInvalidIdx, kInvalidIdx};
     }
     auto output_idx = ready_output_queue_.front();
     ready_output_queue_.pop();
@@ -337,6 +328,7 @@ struct SeparateQueuePolicy {
       // python calls
       auto processed = in_use_queue_.front();
       in_use_queue_.pop();
+      ReleaseStageIdx(OpType::CPU, processed.cpu);
       ReleaseStageIdx(OpType::MIXED, processed.mixed);
       ReleaseStageIdx(OpType::GPU, processed.gpu);
     }
@@ -380,8 +372,6 @@ struct SeparateQueuePolicy {
   }
 
  private:
-  friend void detail::release_callback(cudaStream_t stream, cudaError_t status, void *userData);
-
   void ReleaseStageIdx(OpType stage, int idx) {
     auto released_stage = static_cast<int>(stage);
     // We release the consumed buffer
@@ -427,19 +417,7 @@ struct SeparateQueuePolicy {
 
   std::queue<OutputIdxs> ready_output_queue_;
   std::queue<OutputIdxs> in_use_queue_;
-  std::vector<detail::ReleaseCommand> support_release_commands_;
-  std::vector<detail::ReleaseCommand> cpu_release_commands_;
 };
-
-namespace detail {
-
-// void (CUDART_CB *cudaStreamCallback_t)(cudaStream_t stream, cudaError_t status, void *userData);
-void release_callback(cudaStream_t stream, cudaError_t status, void *userData) {
-  auto command = static_cast<ReleaseCommand*>(userData);
-  command->policy->ReleaseStageIdx(command->stage, command->idx);
-}
-
-}  // namespace detail
 
 
 }  // namespace dali
