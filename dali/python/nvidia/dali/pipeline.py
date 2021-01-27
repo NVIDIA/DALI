@@ -1051,8 +1051,6 @@ def pipeline(fn=None, **pipeline_kwargs):
             pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
             with pipe:
                 pipe_outputs = func(*args, **fn_kwargs)
-                for out in pipe_outputs:
-                    assert isinstance(out, DataNode), "Pipeline function shall return DataNodes"
                 pipe.set_outputs(*pipe_outputs)
             return pipe
         return create_pipeline
