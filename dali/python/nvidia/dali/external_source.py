@@ -234,7 +234,7 @@ Keyword Args
 
     If set to False, StopIteration is raised when the end of data is reached.
     This flag requires that the ``source`` is a collection, for example, an iterable object where
-    ``iter(source)`` returns a fresh iterator on each call or a gensource erator function.
+    ``iter(source)`` returns a fresh iterator on each call or a gensource iterator function.
     In the latter case, the generator function is called again when more data than was
     yielded by the function is requested.
 

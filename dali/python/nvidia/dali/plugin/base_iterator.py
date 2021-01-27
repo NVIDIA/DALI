@@ -21,8 +21,8 @@ from enum import Enum, unique
 
 def _iterator_deprecation_warning():
     warnings.warn("Please set `reader_name` and don't set last_batch_padded and size manually " +
-                  " whenever possible. This may lead, in some situations, to miss some " +
-                  " samples or return duplicated ones. Check the Sharding section of the "
+                  "whenever possible. This may lead, in some situations, to miss some " +
+                  "samples or return duplicated ones. Check the Sharding section of the "
                   "documentation for more details.",
                   Warning, stacklevel=2)
 
@@ -127,8 +127,8 @@ class _DaliBaseIterator(object):
         self._num_gpus = len(pipelines)
         # frameworks expect from its data iterators to have batch_size field,
         # so it is not possible to use _batch_size instead
-        self.batch_size = pipelines[0].batch_size
-        assert np.all(np.equal([pipe.batch_size for pipe in pipelines], self.batch_size)), \
+        self.batch_size = pipelines[0].max_batch_size
+        assert np.all(np.equal([pipe.max_batch_size for pipe in pipelines], self.batch_size)), \
                 "All pipelines should have the same batch size set"
 
         self._size = int(size)
@@ -252,7 +252,17 @@ class _DaliBaseIterator(object):
             if self._size < 0 and self._auto_reset:
                 self.reset()
             raise e
+        for out in outputs:
+            self._check_batch_size(out)
         return outputs
+
+    def _check_batch_size(self, out):
+        if self._reader_name or self._size != -1:
+            for o in out:
+                batch_len = len(o)
+                assert self.batch_size == batch_len, \
+                    "Variable batch size is not supported by the iterator when reader_name is " + \
+                    "provided or iterator size is set explicitly"
 
     def _end_iteration(self):
         if self._auto_reset:

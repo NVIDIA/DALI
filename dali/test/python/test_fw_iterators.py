@@ -22,6 +22,7 @@ import os
 from test_utils import get_dali_extra_path
 from nose.tools import raises, assert_raises
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy as LastBatchPolicy
+import random
 
 class COCOReaderPipeline(Pipeline):
     def __init__(self, data_paths, batch_size, num_threads, shard_id, num_gpus, random_shuffle, stick_to_shard, shuffle_after_epoch, pad_last_batch, initial_fill=1024, return_labels=False):
@@ -1051,6 +1052,33 @@ def check_external_source_autoreset(Iterator, *args, **kwargs):
             counter += 1
     assert counter == iter_limit * runs
 
+def check_external_source_variable_size(Iterator, *args, iter_size=-1, **kwargs):
+    batch_size = 4
+    iter_limit = 4
+    runs = 3
+    test_data_shape = [2, 3, 4]
+    i = 0
+    def get_data():
+        nonlocal i
+        if i == iter_limit:
+            i = 0
+            raise StopIteration
+        out = [[np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(random.randint(1, batch_size))]]
+        i += 1
+        return out
+
+    pipe = Pipeline(batch_size = batch_size, num_threads = 1, device_id = 0)
+    with pipe:
+        outs = fn.external_source(source = get_data, num_outputs=1)
+    pipe.set_outputs(*outs)
+
+    it = Iterator([pipe], *args, auto_reset=True, size=iter_size, **kwargs)
+    counter = 0
+    for _ in range(runs):
+        for __ in enumerate(it):
+            counter += 1
+    assert counter == iter_limit * runs
+
 # MXNet
 def test_stop_iteration_mxnet():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
@@ -1076,6 +1104,14 @@ def test_mxnet_iterator_wrapper_first_iteration():
 def test_mxnet_external_source_autoreset():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     check_external_source_autoreset(MXNetIterator, [("data", MXNetIterator.DATA_TAG)])
+
+def test_mxnet_external_source_variable_size_pass():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    check_external_source_variable_size(MXNetIterator, [("data", MXNetIterator.DATA_TAG)], dynamic_shape=True)
+
+def test_mxnet_external_source_variable_size_fail():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    assert_raises(AssertionError, check_external_source_variable_size, MXNetIterator, [("data", MXNetIterator.DATA_TAG)], iter_size=5, dynamic_shape=True)
 
 # Gluon
 def test_stop_iteration_gluon():
@@ -1103,6 +1139,14 @@ def test_gluon_external_source_autoreset():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     check_external_source_autoreset(GluonIterator, output_types=[GluonIterator.DENSE_TAG])
 
+def test_gluon_external_source_variable_size_pass():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    check_external_source_variable_size(GluonIterator, output_types=[GluonIterator.DENSE_TAG])
+
+def test_gluon_external_source_variable_size_fail():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    assert_raises(AssertionError, check_external_source_variable_size, GluonIterator, output_types=[GluonIterator.DENSE_TAG], iter_size=5)
+
 # PyTorch
 def test_stop_iteration_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
@@ -1129,6 +1173,14 @@ def test_pytorch_external_source_autoreset():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     check_external_source_autoreset(PyTorchIterator, output_map=["data"])
 
+def test_pytorch_external_source_variable_size_pass():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    check_external_source_variable_size(PyTorchIterator, output_map=["data"], dynamic_shape=True)
+
+def test_pytorch_external_source_variable_size_fail():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    assert_raises(AssertionError, check_external_source_variable_size, PyTorchIterator, output_map=["data"], iter_size=5, dynamic_shape=True)
+
 # PaddlePaddle
 def test_stop_iteration_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
@@ -1154,3 +1206,11 @@ def test_paddle_iterator_wrapper_first_iteration():
 def test_paddle_external_source_autoreset():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     check_external_source_autoreset(PaddleIterator, output_map=["data"])
+
+def test_paddle_external_source_variable_size_pass():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+    check_external_source_variable_size(PaddleIterator, output_map=["data"], dynamic_shape=True)
+
+def test_paddle_external_source_variable_size_fail():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+    assert_raises(AssertionError, check_external_source_variable_size, PaddleIterator, output_map=["data"], iter_size=5, dynamic_shape=True)
