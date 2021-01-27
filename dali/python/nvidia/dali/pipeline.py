@@ -1010,39 +1010,39 @@ def pipeline(fn=None, **pipeline_kwargs):
     """
     Decorator for wrapping functions that define DALI pipelines.
 
-    Usage
-    -----
-        First, implement a function, that defines a DALI pipeline.
-        Such function shall return DALI's DataNodes. These return
-        values will denote output from the pipeline. You can
-        decorate this function with @pipeline::
+    **Usage**
 
-            @nvidia.dali.pipeline.pipeline
-            def pipe(flip_vertical, flip_horizontal):
-                data, _ = fn.file_reader(file_root=images_dir)
-                img = fn.image_decoder(data, device="mixed")
-                flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
-                return flipped, img
+    First, implement a function, that defines a DALI pipeline.
+    Such function shall return DALI's DataNodes. These return
+    values will denote output from the pipeline. You can
+    decorate this function with ``@pipeline``::
 
-        When creating a Pipeline object using the decorated function,
-        you can pass any number of Pipeline.__init__ arguments as
-        keyword-args to the call::
+        @nvidia.dali.pipeline.pipeline
+        def pipe(flip_vertical, flip_horizontal):
+            data, _ = fn.file_reader(file_root=images_dir)
+            img = fn.image_decoder(data, device="mixed")
+            flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
+            return flipped, img
 
-            my_pipe = pipe(0, batch_size=32, num_threads=1, device_id=0, flip_horizontal=1)
-            my_pipe.build()
+    When creating a Pipeline object using the decorated function,
+    you can pass any number of ``Pipeline.__init__`` arguments as
+    keyword-args to the call::
 
-        Additionally, decorator can accept Pipeline constructor
-        parameters. Please note, that in this case you MUST use
-        keyword args only. Any Pipeline constructor parameter
-        passed later at pipeline instantiation will overwrite
-        the decorator-defined params::
+        my_pipe = pipe(0, batch_size=32, num_threads=1, device_id=0, flip_horizontal=1)
+        my_pipe.build()
 
-            @nvidia.dali.pipeline.pipeline(batch_size=32, num_threads=3)
-            def pipe():
-                data = fn.external_source(source=my_generator)
-                return data
+    Additionally, decorator can accept Pipeline constructor
+    parameters. Please note, that in this case you must use
+    keyword args only. Any Pipeline constructor parameter
+    passed later at pipeline instantiation will overwrite
+    the decorator-defined params::
 
-            my_pipe = pipe(batch_size=128)  # batch_size=128 overwrites batch_size=32
+        @nvidia.dali.pipeline.pipeline(batch_size=32, num_threads=3)
+        def pipe():
+            data = fn.external_source(source=my_generator)
+            return data
+
+        my_pipe = pipe(batch_size=128)  # batch_size=128 overwrites batch_size=32
     """
     def actual_decorator(func):
         @functools.wraps(func)

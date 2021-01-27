@@ -71,3 +71,9 @@ DataNode
 --------
 .. autoclass:: DataNode
    :members:
+
+
+Decorator
+---------
+.. autoclass:: pipeline
+   :members:

@@ -21,6 +21,8 @@ import os
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
+N_ITER = 7
+
 max_batch_size = 16
 num_threads = 4
 device_id = 0
@@ -58,7 +60,7 @@ def pipeline_runtime(flip_vertical, flip_horizontal):
 def test_pipeline_static(flip_vertical, flip_horizontal):
     put_args = pipeline_static(flip_vertical, flip_horizontal)
     ref = reference_pipeline(flip_vertical, flip_horizontal)
-    compare_pipelines(put_args, ref, batch_size=max_batch_size, N_iterations=7)
+    compare_pipelines(put_args, ref, batch_size=max_batch_size, N_iterations=N_ITER)
 
 
 @nottest
@@ -66,7 +68,7 @@ def test_pipeline_runtime(flip_vertical, flip_horizontal):
     put_combined = pipeline_runtime(flip_vertical, flip_horizontal, batch_size=max_batch_size,
                                     num_threads=num_threads, device_id=device_id)
     ref = reference_pipeline(flip_vertical, flip_horizontal)
-    compare_pipelines(put_combined, ref, batch_size=max_batch_size, N_iterations=7)
+    compare_pipelines(put_combined, ref, batch_size=max_batch_size, N_iterations=N_ITER)
 
 
 @nottest
@@ -74,8 +76,7 @@ def test_pipeline_override(flip_vertical, flip_horizontal, batch_size):
     put_combined = pipeline_static(flip_vertical, flip_horizontal, batch_size=batch_size,
                                    num_threads=num_threads, device_id=device_id)
     ref = reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=batch_size)
-    compare_pipelines(put_combined, ref, batch_size=batch_size, N_iterations=7)
-
+    compare_pipelines(put_combined, ref, batch_size=batch_size, N_iterations=N_ITER)
 
 
 def test_pipeline_decorator():
@@ -84,3 +85,5 @@ def test_pipeline_decorator():
             yield test_pipeline_static, vert, hori
             yield test_pipeline_runtime, vert, hori
             yield test_pipeline_override, vert, hori, 16
+    yield test_pipeline_runtime, fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234)
+    yield test_pipeline_static, fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234)
