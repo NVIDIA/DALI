@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_GENERIC_SLICE_SLICE_ATTR_H_
 #define DALI_OPERATORS_GENERIC_SLICE_SLICE_ATTR_H_
 
+#include <limits>
 #include <utility>
 #include <vector>
 #include "dali/core/common.h"
@@ -89,11 +90,10 @@ class SliceAttr {
     else if (rel_shape_.IsDefined())
       rel_shape_.Acquire(spec_, ws, curr_batch_size, args_shape);
 
-    if (has_end_ || has_shape_) {  // ``start`` can be omitted
-      DALI_ENFORCE(!spec_.HasArgument("normalized_anchor")
-                && !spec_.HasArgument("normalized_shape"),
-        "``normalized_anchor``/``normalized_shape`` is only relevant when using positional "
-        "slice arguments");
+    if (has_start_ || has_end_ || has_shape_) {
+      if (spec_.HasArgument("normalized_anchor") || spec_.HasArgument("normalized_shape"))
+        DALI_WARN("Warning: ``normalized_anchor``/``normalized_shape`` is only relevant "
+                  "when using positional slice arguments");
 
       DALI_ENFORCE(ws.NumInput() == 1,
         "Named arguments start/end/shape are not compatible with positional"
@@ -144,6 +144,9 @@ class SliceAttr {
           axes = GetDimIndices(shape_layout, axis_names_).to_vector();
         }
 
+        constexpr double i64min = std::numeric_limits<int64_t>::min();
+        constexpr double i64max = std::numeric_limits<int64_t>::max();
+
         for (size_t i = 0; i < axes.size(); i++) {
           auto dim = axes[i];
 
@@ -153,26 +156,44 @@ class SliceAttr {
           } else if (rel_start_.IsDefined()) {
             anchor_val = rel_start_[data_idx].data[i] * shape[dim];
           }
+          DALI_ENFORCE(anchor_val >= i64min && anchor_val <= i64max,
+                       make_string("anchor value out of range [", i64min, ", ", i64max,
+                                   "]. Got: ", anchor_val));
 
-          double end_val = -1.0;
+          double end_val = shape[dim];
           if (end_.IsDefined()) {
             end_val = end_[data_idx].data[i];
           } else if (rel_end_.IsDefined()) {
             end_val = rel_end_[data_idx].data[i] * shape[dim];
           } else if (shape_.IsDefined()) {
             double shape_val = shape_[data_idx].data[i];
+            DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
+              make_string("shape value out of range [", 0, ", ", i64max, "]. Got: ", shape_val));
+
             end_val = std::llround(anchor_val + shape_val);
           } else if (rel_start_.IsDefined() && rel_shape_.IsDefined()) {
             // special case - minimize the floating point error by multiplying only once after sum
             double rel_start_val = rel_start_[data_idx].data[i];
             double rel_shape_val = rel_shape_[data_idx].data[i];
+            DALI_ENFORCE(rel_shape_val >= 0,
+              make_string("negative shapes are not allowed. Got: ", rel_shape_val));
+
             end_val = std::llround((rel_start_val + rel_shape_val) * shape[dim]);
           } else if (rel_shape_.IsDefined()) {
             double shape_val = rel_shape_[data_idx].data[i] * shape[dim];
+            DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
+                         make_string("shape value out of range [", 0, ", ", i64max,
+                                     "]. Got: ", shape_val));
             end_val = std::llround(anchor_val + shape_val);
-          } else {
-            assert(false);  // should not happen
           }
+          DALI_ENFORCE(end_val >= i64min && i64max <= i64max,
+                       make_string("end coordinates out of range [", i64min, ", ", i64max,
+                                   "]. Got: ", end_val));
+
+          DALI_ENFORCE(end_val >= anchor_val,
+                       make_string("end coordinates can't be before start coordinates. Got: start=",
+                                   anchor_val, " end=", end_val));
+
           slice.anchor[dim] = std::llround(anchor_val);
           slice.shape[dim] = end_val - slice.anchor[dim];
         }
@@ -201,34 +222,39 @@ class SliceAttr {
           axes = GetDimIndices(shape_layout, axis_names_).to_vector();
         }
 
+        constexpr double i64min = std::numeric_limits<int64_t>::min();
+        constexpr double i64max = std::numeric_limits<int64_t>::max();
+
         for (size_t i = 0; i < axes.size(); i++) {
           auto dim = axes[i];
           double anchor_val = slice_anchor_data[i];
           double shape_val = slice_shape_data ? slice_shape_data[i] : 0;
-          double end_val = slice_end_data ? slice_end_data[i] : 0;
-          if (slice_end_data != nullptr) {
-            if (normalized_end) {
-              end_val *= shape[dim];
-            }
+          double end_val = 0.0;
+          // special case - minimize the floating point error by multiplying only once after sum
+          if (normalized_anchor && normalized_shape) {
+            end_val = std::llround((anchor_val + shape_val) * shape[dim]);
+            anchor_val *= shape[dim];
+            shape_val *= shape[dim];
+          } else {
             if (normalized_anchor) {
               anchor_val *= shape[dim];
             }
-          } else {
-            // special case - minimize the floating point error by multiplying only once after sum
-            if (normalized_anchor && normalized_shape) {
-              end_val = std::llround((anchor_val + shape_val) * shape[dim]);
-              anchor_val *= shape[dim];
+            if (normalized_shape) {
               shape_val *= shape[dim];
-            } else {
-              if (normalized_anchor) {
-                anchor_val *= shape[dim];
-              }
-              if (normalized_shape) {
-                shape_val *= shape[dim];
-              }
-              end_val = std::llround(anchor_val + shape_val);
             }
+            end_val = std::llround(anchor_val + shape_val);
           }
+
+          DALI_ENFORCE(anchor_val >= i64min && anchor_val <= i64max,
+                       make_string("anchor value out of range [", i64min, ", ", i64max,
+                                   "]. Got: ", anchor_val));
+          DALI_ENFORCE(end_val >= i64min && end_val <= i64max,
+                       make_string("end coordinates value out of range [", i64min, ", ", i64max,
+                                   "]. Got: ", end_val));
+          DALI_ENFORCE(anchor_val <= end_val,
+                       make_string("end coordinates can't be before start coordinates. Got: start=",
+                                   anchor_val, " end=", end_val));
+
           slice.anchor[dim] = std::llround(anchor_val);
           slice.shape[dim] = end_val - slice.anchor[dim];
         }
