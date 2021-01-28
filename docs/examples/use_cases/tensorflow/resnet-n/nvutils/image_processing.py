@@ -20,7 +20,7 @@ import numpy as np
 from subprocess import call
 import horovod.tensorflow.keras as hvd
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
@@ -143,73 +143,65 @@ def fake_image_set(batch_size, height, width, with_label=True):
   ds = ds.repeat()
   return ds
 
+
+@pipeline
 def get_dali_pipeline(
             tfrec_filenames,
             tfrec_idx_filenames,
             height, width,
-            batch_size,
-            num_threads,
-            device_id,
             shard_id,
             num_gpus,
-            deterministic=False,
             dali_cpu=True,
             training=True):
 
-    kwargs = dict()
+    inputs = fn.tfrecord_reader(
+                    path=tfrec_filenames,
+                    index_path=tfrec_idx_filenames,
+                    random_shuffle=training,
+                    shard_id=shard_id,
+                    num_shards=num_gpus,
+                    initial_fill=10000,
+                    features={
+                        'image/encoded': tfrec.FixedLenFeature((), tfrec.string, ""),
+                        'image/class/label': tfrec.FixedLenFeature([1], tfrec.int64,  -1),
+                        'image/class/text': tfrec.FixedLenFeature([ ], tfrec.string, ''),
+                        'image/object/bbox/xmin': tfrec.VarLenFeature(tfrec.float32, 0.0),
+                        'image/object/bbox/ymin': tfrec.VarLenFeature(tfrec.float32, 0.0),
+                        'image/object/bbox/xmax': tfrec.VarLenFeature(tfrec.float32, 0.0),
+                        'image/object/bbox/ymax': tfrec.VarLenFeature(tfrec.float32, 0.0)})
 
-    if deterministic:
-        kwargs['seed'] = 7 * (1 + hvd.rank())
-    pipeline = Pipeline(batch_size, num_threads, device_id, **kwargs)
-    with pipeline:
-        inputs = fn.tfrecord_reader(
-                        path=tfrec_filenames,
-                        index_path=tfrec_idx_filenames,
-                        random_shuffle=training,
-                        shard_id=shard_id,
-                        num_shards=num_gpus,
-                        initial_fill=10000,
-                        features={
-                            'image/encoded': tfrec.FixedLenFeature((), tfrec.string, ""),
-                            'image/class/label': tfrec.FixedLenFeature([1], tfrec.int64,  -1),
-                            'image/class/text': tfrec.FixedLenFeature([ ], tfrec.string, ''),
-                            'image/object/bbox/xmin': tfrec.VarLenFeature(tfrec.float32, 0.0),
-                            'image/object/bbox/ymin': tfrec.VarLenFeature(tfrec.float32, 0.0),
-                            'image/object/bbox/xmax': tfrec.VarLenFeature(tfrec.float32, 0.0),
-                            'image/object/bbox/ymax': tfrec.VarLenFeature(tfrec.float32, 0.0)})
+    decode_device = "cpu" if dali_cpu else "mixed"
+    resize_device = "cpu" if dali_cpu else "gpu"
+    if training:
+        images = fn.image_decoder_random_crop(
+            inputs["image/encoded"],
+            device=decode_device,
+            output_type=types.RGB,
+            random_aspect_ratio=[0.75, 1.25],
+            random_area=[0.05, 1.0],
+            num_attempts=100)
+        images = fn.resize(images, device=resize_device, resize_x=width, resize_y=height)
+    else:
+        images = fn.image_decoder(
+            inputs["image/encoded"],
+            device=decode_device,
+            output_type=types.RGB)
+        # Make sure that every image > 224 for CropMirrorNormalize
+        images = fn.resize(images, device=resize_device, resize_shorter=256)
 
-        decode_device = "cpu" if dali_cpu else "mixed"
-        resize_device = "cpu" if dali_cpu else "gpu"
-        if training:
-            images = fn.image_decoder_random_crop(
-                inputs["image/encoded"],
-                device=decode_device,
-                output_type=types.RGB,
-                random_aspect_ratio=[0.75, 1.25],
-                random_area=[0.05, 1.0],
-                num_attempts=100)
-            images = fn.resize(images, device=resize_device, resize_x=width, resize_y=height)
-        else:
-            images = fn.image_decoder(
-                inputs["image/encoded"],
-                device=decode_device,
-                output_type=types.RGB)
-            # Make sure that every image > 224 for CropMirrorNormalize
-            images = fn.resize(images, device=resize_device, resize_shorter=256)
+    images = fn.crop_mirror_normalize(
+        images.gpu(),
+        dtype=types.FLOAT,
+        crop=(height, width),
+        mean=[123.68, 116.78, 103.94],
+        std=[58.4, 57.12, 57.3],
+        output_layout="HWC",
+        mirror = fn.random.coin_flip())
+    labels = inputs["image/class/label"].gpu()
 
-        images = fn.crop_mirror_normalize(
-            images.gpu(),
-            dtype=types.FLOAT,
-            crop=(height, width),
-            mean=[123.68, 116.78, 103.94],
-            std=[58.4, 57.12, 57.3],
-            output_layout="HWC",
-            mirror = fn.random.coin_flip())
-        labels = inputs["image/class/label"].gpu()
+    labels -= 1 # Change to 0-based (don't use background class)
+    return images, labels
 
-        labels -= 1 # Change to 0-based (don't use background class)
-        pipeline.set_outputs(images, labels)
-    return pipeline
 
 class DALIPreprocessor(object):
   def __init__(self,
@@ -235,9 +227,9 @@ class DALIPreprocessor(object):
         device_id=device_id,
         shard_id=shard_id,
         num_gpus=num_gpus,
-        deterministic=deterministic,
         dali_cpu=dali_cpu,
-        training=training)
+        training=training,
+        seed=7 * (1 + hvd.rank()) if deterministic else None)
 
     self.daliop = dali_tf.DALIIterator()
 

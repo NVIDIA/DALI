@@ -9,26 +9,24 @@ from torch.utils.data import DataLoader
 
 from dataloading.datasets import imageDataset
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import pipeline
 from nvidia.dali.plugin import pytorch
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 
 
-def create_video_reader_pipeline(batch_size, sequence_length, num_threads, device_id, files, crop_size):
-    pipeline = Pipeline(batch_size, num_threads, device_id, seed=12)
-    with pipeline:
-        images = fn.video_reader(device="gpu", filenames=files, sequence_length=sequence_length,
-                                 normalized=False, random_shuffle=True, image_type=types.RGB,
-                                 dtype=types.UINT8, initial_fill=16, pad_last_batch=True, name="Reader")
-        images = fn.crop(images, crop=crop_size, dtype=types.FLOAT,
-                          crop_pos_x=fn.uniform(range=(0.0, 1.0)),
-                          crop_pos_y=fn.uniform(range=(0.0, 1.0)))
+@pipeline
+def create_video_reader_pipeline(sequence_length, files, crop_size):
+    images = fn.video_reader(device="gpu", filenames=files, sequence_length=sequence_length,
+                             normalized=False, random_shuffle=True, image_type=types.RGB,
+                             dtype=types.UINT8, initial_fill=16, pad_last_batch=True, name="Reader")
+    images = fn.crop(images, crop=crop_size, dtype=types.FLOAT,
+                     crop_pos_x=fn.uniform(range=(0.0, 1.0)),
+                     crop_pos_y=fn.uniform(range=(0.0, 1.0)))
 
-        images = fn.transpose(images, perm=[3, 0, 1, 2])
+    images = fn.transpose(images, perm=[3, 0, 1, 2])
 
-        pipeline.set_outputs(images)
-    return pipeline
+    return images
 
 
 class DALILoader():
