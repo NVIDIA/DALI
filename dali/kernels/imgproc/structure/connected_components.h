@@ -16,9 +16,12 @@
 #define DALI_KERNELS_IMGPROC_STRUCTURE_CONNECTED_COMPONENTS_H_
 
 #include <set>
+#include <stdexcept>
 #include <unordered_map>
 #include "dali/core/tensor_view.h"
 #include "dali/core/geom/vec.h"
+#include "dali/core/geom/box.h"
+#include "dali/core/static_switch.h"
 #include "dali/kernels/common/disjoint_set.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/kernel.h"
@@ -161,9 +164,10 @@ auto FullTensorSlice(const TensorView<StorageCPU, T, ndim> &tensor) {
  * @param labels    Object labels; the structure must be usable as disjoint set structure.
  * @param volume    Number of elements in `labels`
  * @param bg_label  The output label assigned to background.
+ * @return Number of non-background connected regions.
  */
 template <typename OutLabel>
-void CompactLabels(OutLabel *labels, int64_t volume, OutLabel bg_label = 0) {
+int64_t CompactLabels(OutLabel *labels, int64_t volume, OutLabel bg_label = 0) {
   constexpr OutLabel old_bg_label = static_cast<OutLabel>(-1);
   OutLabel curr_label = 1;
   std::set<OutLabel> label_set;
@@ -210,6 +214,34 @@ void CompactLabels(OutLabel *labels, int64_t volume, OutLabel bg_label = 0) {
       labels[i] = bg_label;
     }
   }
+  return label_set.size();
+}
+
+/**
+ * @brief Labels connected components in tensor `in` and stores the labels in `out`
+ *
+ * This function detects connected blobs having the same input label.
+ * Elements equal to background_in are assigned the same special class index even if not connected.
+ *
+ * @tparam OutLabel type of the output label; must have enough capacity to hold offset to the last
+ *                  element.
+ *
+ * @param out Tensor where each connected object is assigned a unique label
+ * @param in  Tensor with objects, where one label value may be used to mark multiple objects
+ * @param background_out Value in the output which will be set for background pixels
+ * @param background_in  Value in the input which denotes background pixels
+ *
+ * @return Number of non-background connected detected.
+ */
+template <typename OutLabel, typename InLabel, int ndim>
+int64_t LabelConnectedRegionsImpl(const OutTensorCPU<OutLabel, ndim> &out,
+                                  const InTensorCPU<InLabel, ndim> &in,
+                                  same_as_t<OutLabel> background_out = 0,
+                                  same_as_t<InLabel> background_in = 0) {
+  auto out_slice = detail::FullTensorSlice(out);
+  auto in_slice = detail::FullTensorSlice(in);
+  detail::LabelSlice(out.data, out_slice, in_slice, background_in);
+  return detail::CompactLabels(out.data, out.num_elements(), background_out);
 }
 
 }  // namespace detail
@@ -227,16 +259,43 @@ void CompactLabels(OutLabel *labels, int64_t volume, OutLabel bg_label = 0) {
  * @param in  Tensor with objects, where one label value may be used to mark multiple objects
  * @param background_out Value in the output which will be set for background pixels
  * @param background_in  Value in the input which denotes background pixels
+ *
+ * @return Number of non-background connected detected.
  */
 template <typename OutLabel, typename InLabel, int ndim>
-void LabelConnectedRegions(const OutTensorCPU<OutLabel, ndim> &out,
-                           const InTensorCPU<InLabel, ndim> &in,
-                           same_as_t<OutLabel> background_out = 0,
-                           same_as_t<InLabel> background_in = 0) {
-  auto out_slice = detail::FullTensorSlice(out);
-  auto in_slice = detail::FullTensorSlice(in);
-  detail::LabelSlice(out.data, out_slice, in_slice, background_in);
-  detail::CompactLabels(out.data, out.num_elements(), background_out);
+int64_t LabelConnectedRegions(const OutTensorCPU<OutLabel, ndim> &out,
+                              const InTensorCPU<InLabel, ndim> &in,
+                              same_as_t<OutLabel> background_out = 0,
+                              same_as_t<InLabel> background_in = 0) {
+  assert(out.shape == in.shape);
+  if (in.num_elements() == 0)
+    return 0;
+  TensorShape<> simplified;
+  for (int i = 0; i < in.shape.size(); i++)
+    if (in.shape[i] > 1)
+      simplified.shape.push_back(in.shape[i]);
+  if (simplified.empty()) {
+    // The tensor has just one element.
+    // If it's background, assign background label to it, otherwise assign the firs
+    // non-background label.
+    bool is_foreground = in.data[0] != background_in;
+    out.data[0] = is_foreground ? (background_in == 0 ? 1 : 0)
+                                : background_out;
+    return is_foreground ? 1 : 0;
+  }
+  int64_t ret = 0;
+  VALUE_SWITCH(simplified.size(), simplified_ndim, (1, 2, 3, 4, 5, 6), (
+      TensorShape<simplified_ndim> sh = simplified.to_static<simplified_ndim>();
+      auto s_out = make_tensor_cpu(out.data, sh);
+      auto s_in  = make_tensor_cpu(in.data, sh);
+      ret = detail::LabelConnectedRegionsImpl(s_out, s_in, background_out, background_in);
+    ), (  // NOLINT
+      throw std::invalid_argument(make_string(
+          "Unsupported number of non-degenerate dimensions: ", simplified.size(),
+          ". Valid range is 0..6."));
+    )     // NOLINT
+  );      // NOLINT
+  return ret;
 }
 
 }  // namespace connected_components

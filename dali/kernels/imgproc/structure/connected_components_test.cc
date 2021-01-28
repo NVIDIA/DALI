@@ -38,7 +38,8 @@ TEST(ConnectedComponents, Compact) {
      4,  4,  3,  3,  3,  3,  2,  2,
   };
 
-  connected_components::detail::CompactLabels(labels.data(), labels.size(), 0);
+  int64_t n = connected_components::detail::CompactLabels(labels.data(), labels.size(), 0);
+  EXPECT_EQ(n, 4);
   EXPECT_EQ(labels, compacted);
 }
 
@@ -80,9 +81,41 @@ TEST(ConnectedComponets, 2D) {
   InTensorCPU<int, 2> in = make_tensor_cpu<2>(objects, { H, W });
   OutTensorCPU<unsigned, 2> out = make_tensor_cpu<2>(output, { H, W });
   InTensorCPU<unsigned, 2> ref = make_tensor_cpu<2>(labels, { H, W });
-  connected_components::LabelConnectedRegions(out, in, 0, -2);
+  int64_t n = connected_components::LabelConnectedRegions(out, in, 0, -2);
+  EXPECT_EQ(n, 5);
   Check(out, ref);
 }
+
+TEST(ConnectedComponets, 2D_WithDegenerateDims) {
+  const int H = 5;
+  const int W = 8;
+
+  const int objects[H*W] = {
+     5,  5,  5,  5,  2,  2,  2,  2,
+     5,  5,  3,  5,  2,  2,  3,  2,
+    -2,  5,  3,  3,  3,  3,  3,  2,
+    -2, -2, -2, -2, -2,  3, -2,  2,
+     5,  5,  3,  3,  3,  3,  2, -2,
+  };
+
+  const unsigned labels[H*W] = {
+     1,  1,  1,  1,  2,  2,  2,  2,
+     1,  1,  3,  1,  2,  2,  3,  2,
+     0,  1,  3,  3,  3,  3,  3,  2,
+     0,  0,  0,  0,  0,  3,  0,  2,
+     4,  4,  3,  3,  3,  3,  5,  0,
+  };
+
+  unsigned output[H*W] = {};
+
+  InTensorCPU<int, 4> in = make_tensor_cpu<4>(objects, { H, 1, W, 1 });
+  OutTensorCPU<unsigned, 4> out = make_tensor_cpu<4>(output, { H, 1, W, 1 });
+  InTensorCPU<unsigned, 4> ref = make_tensor_cpu<4>(labels, { H, 1, W, 1 });
+  int64_t n = connected_components::LabelConnectedRegions(out, in, 0, -2);
+  EXPECT_EQ(n, 5);
+  Check(out, ref);
+}
+
 
 TEST(ConnectedComponets, 3D) {
   const int D = 2;
@@ -117,7 +150,8 @@ TEST(ConnectedComponets, 3D) {
   InTensorCPU<char, 3> in = make_tensor_cpu<3>(objects, { D, H, W });
   OutTensorCPU<int, 3> out = make_tensor_cpu<3>(output, { D, H, W });
   InTensorCPU<int, 3> ref = make_tensor_cpu<3>(labels, { D, H, W });
-  connected_components::LabelConnectedRegions(out, in, -1, ' ');
+  int64_t n = connected_components::LabelConnectedRegions(out, in, -1, ' ');
+  EXPECT_EQ(n, 5);
   Check(out, ref);
 }
 
