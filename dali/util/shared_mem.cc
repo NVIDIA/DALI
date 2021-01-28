@@ -37,10 +37,10 @@ bool dir_exists(const char * str) {
 }  // namespace detail
 
 namespace python {
-// Abstract away the fact that shm_open requires filename.
 ShmFdWrapper::ShmFdWrapper(int fd) : fd_{fd} {}
 
 ShmFdWrapper::ShmFdWrapper() {
+  // Abstract away the fact that shm_open requires filename.
   constexpr char dev_shm_path[] = "/dev/shm/";
   constexpr char run_shm_path[] = "/run/shm/";
   constexpr char temp_filename_template[] = "nvidia_dali_XXXXXX";
@@ -184,5 +184,5 @@ void SharedMem::resize(uint64_t size, bool trunc) {
     }
   }
 
-}  // namespace python
+  }  // namespace python
 }  // namespace dali

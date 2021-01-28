@@ -13,91 +13,70 @@
 # limitations under the License.
 
 import threading
+import traceback
 from multiprocessing import reduction
-from nvidia.dali.shared_batch import SharedMemChunk, SharedBatchSerialized, SharedBatchWriter
-
-
-class ScheduledTasks:
-    """Message send from pool to a worker to schedule tasks for the worker"""
-
-    def __init__(self, context_i, batch_i, tasks):
-        self.context_i = context_i
-        self.batch_i = batch_i
-        self.tasks = tasks
+from nvidia.dali.shared_batch import SharedMemChunk, SharedBatchMeta, SharedBatchWriter
+from nvidia.dali.messages import CompletedTasks
 
 
 class _ProcessedTasks:
     """Internal worker message send to disptacher with completed tasks where it is
-serialized and dispatched to the pool"""
+    serialized and dispatched to the pool"""
 
-    def __init__(self, scheduled, mem_chunk=None, data_batch=None, exception=None):
+    def __init__(self, scheduled, mem_chunk=None, data_batch=None, exception=None,
+                 traceback_str=None):
         self.context_i = scheduled.context_i
         self.batch_i = scheduled.batch_i
         self.mem_chunk = mem_chunk
         self.data_batch = data_batch
         self.exception = exception
+        self.traceback_str = traceback_str
 
     @classmethod
     def done(cls, scheduled, mem_chunk, data_batch):
         return cls(scheduled, mem_chunk, data_batch)
 
     @classmethod
-    def failed(cls, scheduled, exception):
-        return cls(scheduled, exception=exception)
+    def failed(cls, scheduled, exception, traceback_str=None):
+        return cls(scheduled, exception=exception, traceback_str=traceback_str)
 
-
-class CompletedTasks:
-    """Message send from a worker to the pool to notify the pool about completed tasks
-along with meta data needed to fetch and deserialize results stored in the shared memory"""
-
-    def __init__(self, worker_id, context_i, batch_i, batch_serialized=None, exception=None):
-        self.worker_id = worker_id
-        self.context_i = context_i
-        self.batch_i = batch_i
-        self.batch_serialized = batch_serialized
-        self.exception = exception
-
-    @classmethod
-    def done(cls, worker_id, processed, batch_serialized):
-        return cls(worker_id, processed.context_i, processed.batch_i, batch_serialized=batch_serialized)
-
-    @classmethod
-    def failed(cls, worker_id, processed):
-        return cls(worker_id, processed.context_i, processed.batch_i, exception=processed.exception)
+    def is_failed(self):
+        return self.exception is not None
 
 
 class SharedBatchesDispatcher:
     """SharedBatchesDispatcher serializes batches, puts them into provided
-shared memory chunks and notifies parent process of batch ready to be read from shared memory.
-It keeps track of what shared memory chunks have been already sent and if needed, sends
-file descriptors of memory chunks that parent process hasn't seen yet.
+    shared memory chunks and notifies parent process of batch ready to be read from shared memory.
+    It keeps track of what shared memory chunks have been already sent and if needed, sends
+    file descriptors of memory chunks that parent process hasn't seen yet.
 
-Parameters
-----------
-`worker_id` : int
-    Id of the worker passed by the parent process. Added to messages sent over the ``res_pipe``
-    to simplify bookeeping in parent process.
-`sock` : socket
-    Python wrapper around Unix socket, capable of sending file descriptors between processes.
-`res_pipe`: pipe
-    Pipe used to send parent process a notification (along with essential meta data info) about
-    ready batch in a given shared memory chunk.
-"""
+    Parameters
+    ----------
+    `worker_id` : int
+        Id of the worker passed by the parent process. Added to messages sent over the ``res_pipe``
+        to simplify bookeeping in parent process.
+    `sock` : socket
+        Python wrapper around Unix socket, capable of sending file descriptors between processes.
+    `res_pipe`: pipe
+        Pipe used to send parent process a notification (along with essential meta data info) about
+        ready batch in a given shared memory chunk.
+    """
+
     def __init__(self, worker_id, sock, res_pipe):
         self.worker_id = worker_id
         self.fd_sent = set()
         self.sock = sock
         self.res_pipe = res_pipe
 
-    def send(self, processed_tasks):
-        if processed_tasks.exception is not None:  # one of the tasks failed
+    def send(self, processed_tasks: _ProcessedTasks):
+        if processed_tasks.is_failed():  # one of the tasks failed
             completed_tasks = CompletedTasks.failed(self.worker_id, processed_tasks)
             self.res_pipe.send(completed_tasks)
             return
         mem_chunk = processed_tasks.mem_chunk
         writer = SharedBatchWriter(processed_tasks.mem_chunk)
         writer.write_batch(processed_tasks.data_batch)
-        batch_serialized = SharedBatchSerialized.from_writer(writer)
+        batch_serialized = SharedBatchMeta.from_writer(writer)
         completed_tasks = CompletedTasks.done(self.worker_id, processed_tasks, batch_serialized)
         self.res_pipe.send(completed_tasks)
         # send file descriptor for underlaying shared memory chunk if it hasn't been sent ever before
@@ -108,34 +87,35 @@ Parameters
 
 
 class CallbackContext:
-    """Worker can run multiple Python callbacks, CallbackContext is used to (independently from other callbacks)
-manage shared memory used to pass results of the callback calls.
-"""
+    """Worker can run multiple Python callbacks, CallbackContext is used to
+    (independently from other callbacks) manage shared memory used to pass
+    results of the callback calls.
+    """
 
     def __init__(self, callback, mem_chunks):
         self.callback = callback
         self.mem_chunks = mem_chunks
         self.batch_i = 0
 
-    def next_batch_i(self):
+    def _next_batch_i(self):
         res = self.batch_i
         self.batch_i = (self.batch_i + 1) % len(self.mem_chunks)
         return res
 
     def next_mem_chunk(self):
-        batch_i = self.next_batch_i()
+        batch_i = self._next_batch_i()
         return self.mem_chunks[batch_i]
 
     def close(self):
         for chunk in self.mem_chunks:
             chunk.close()
 
-
+# TODO(klecki): Add exception handling to this thread
 def dispatcher(batch_dispatcher, ready_cv, ready_queue):
     """Receives batches produced in the main thread and dispatches them to the parent process.
-It is run in a separate thread because both callback and dispatcher may
-wait on IO operations a lot and in that case Python threads provide some performance gain.
-"""
+    It is run in a separate thread because both callback and dispatcher may
+    wait on IO operations a lot and in that case Python threads provide some performance gain.
+    """
     while True:
         with ready_cv:
             while len(ready_queue) == 0:
@@ -148,9 +128,9 @@ wait on IO operations a lot and in that case Python threads provide some perform
 
 def receiver(task_pipe, tasks_cv, tasks_queue):
     """Receives list of tasks scheduled to be done by the worker, run in a separate thread
-to avoid blocking of the main process when it schedules another batch for the worker and
-worker is busy with previously scheduled computations.
-"""
+    to avoid blocking of the main process when it schedules another batch for the worker and
+    worker is busy with previously scheduled computations.
+    """
     try:
         while True:
             scheduled = task_pipe.recv()
@@ -168,22 +148,26 @@ worker is busy with previously scheduled computations.
 def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task_pipe, res_pipe, sock):
     """Entry point of worker process.
 
-Parameters
-----------
-`callbacks` : callable list
-    List of callables that worker can call to perform a (part of parallelized) task.
-`prefetch_queue_depths` : int
-    Number of shared memory chunks that should be allocated per callaback, used in cycle buffer manner
-    to pass callback results to parent process.
-`initial_chunk_size` : int
-    Initial size of shared memory chunk.
-`task_pipe`: Pipe
-    Pipe used to read list of tasks that given callback should be run on to produce (part of a) result batch.
-`res_pipe`: Pipe
-    Pipe used to notify the parent process about another batch ready to read in the given memory chunk.
-`sock` : socket
-    Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to parent process.
-"""
+    Computes the data in the main thread, in separate threads:
+    * waits for incoming tasks,
+    * serializes results and passes them to the main process.
+
+    Parameters
+    ----------
+    `callbacks` : callable list
+        List of callables that worker can call to perform a (part of parallelized) task.
+    `prefetch_queue_depths` : int
+        Number of shared memory chunks that should be allocated per callaback, used in cycle buffer manner
+        to pass callback results to parent process.
+    `initial_chunk_size` : int
+        Initial size of shared memory chunk.
+    `task_pipe`: Pipe
+        Pipe used to read list of tasks that given callback should be run on to produce (part of a) result batch.
+    `res_pipe`: Pipe
+        Pipe used to notify the parent process about another batch ready to read in the given memory chunk.
+    `sock` : socket
+        Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to parent process.
+    """
     contexts = None
     ready_cv = threading.Condition()
     tasks_cv = threading.Condition()
@@ -191,17 +175,19 @@ Parameters
     batch_dispatcher = SharedBatchesDispatcher(worker_id, sock, res_pipe)
     # run the thread as a daemon so that even when results queue blocks worker process can exit anyway
     # and can be joined in the parent process
-    dispatcher_thread = threading.Thread(target=dispatcher, args=(batch_dispatcher, ready_cv, ready_queue), daemon=True)
-    receiver_thread = threading.Thread(target=receiver, args=(task_pipe, tasks_cv, tasks_queue), daemon=True)
+    dispatcher_thread = threading.Thread(target=dispatcher, args=(
+        batch_dispatcher, ready_cv, ready_queue), daemon=True)
+    receiver_thread = threading.Thread(target=receiver, args=(
+        task_pipe, tasks_cv, tasks_queue), daemon=True)
     dispatcher_thread.start()
     receiver_thread.start()
     try:
         contexts = [
             CallbackContext(callback, [
-                SharedMemChunk("chunk_{}_{}_{}".format(worker_id, i, j), initial_chunk_size)
-                for j in range(prefetch_queue_depth)
+                SharedMemChunk("chunk_{}_{}_{}".format(worker_id, callback_idx, prefetch_idx), initial_chunk_size)
+                for prefetch_idx in range(prefetch_queue_depth)
             ])
-            for i, (callback, prefetch_queue_depth) in enumerate(zip(callbacks, prefetch_queue_depths))
+            for callback_idx, (callback, prefetch_queue_depth) in enumerate(zip(callbacks, prefetch_queue_depths))
         ]
         while True:
             with tasks_cv:
@@ -213,9 +199,11 @@ Parameters
             context = contexts[scheduled.context_i]
             callback = context.callback
             try:
-                data_batch = [(task_id, callback(*task_args)) for (task_id, task_args) in scheduled.tasks]
+                data_batch = [(task_id, callback(*task_args))
+                              for (task_id, task_args) in scheduled.tasks]
             except Exception as exception:
-                processed = _ProcessedTasks.failed(scheduled, exception)
+                tb_str = traceback.format_exc()
+                processed = _ProcessedTasks.failed(scheduled, exception, tb_str)
             else:
                 mem_chunk = context.next_mem_chunk()
                 processed = _ProcessedTasks.done(scheduled, mem_chunk, data_batch)

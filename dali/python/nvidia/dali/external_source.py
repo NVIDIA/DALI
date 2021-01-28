@@ -74,7 +74,10 @@ class _CycleGenFunc():
 
 
 class _ExternalSourceGroup(object):
-    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None, use_copy_kernel = None, batch=True, parallel=False, prefetch_queue_depth=None):
+    def __init__(
+            self, callback, is_multioutput, instances=[], *,
+            cuda_stream=None, use_copy_kernel=None, batch=True, parallel=False,
+            prefetch_queue_depth=None):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
@@ -95,6 +98,12 @@ class _ExternalSourceGroup(object):
         self.instances.append(instance)
 
     def callback_args(self, idx_in_batch):
+        """Generate information to be passed to ES callback.
+
+        Args:
+            idx_in_batch: Index in batch for per-sample mode, None indicates batch mode where we
+            pass only the iteration number.
+        """
         if not self.accepts_arg:
             return ()
         if idx_in_batch is not None:
@@ -108,6 +117,7 @@ class _ExternalSourceGroup(object):
         self.current_sample = 0
 
     def schedule_batch(self, pool, context_i, batch_size):
+        """Schedule computing new batch from source callback by the parallel pool."""
         pool.schedule_batch(context_i, self.current_iter, [
             self.callback_args(i) for i in range(batch_size)
         ])
@@ -115,6 +125,13 @@ class _ExternalSourceGroup(object):
         self.current_iter += 1
 
     def schedule_and_feed(self, pipeline, pool, context_i, batch_size):
+        """Obtain the computed results of calling source callback in parallel pool and feed
+        the results to the ExternalSource nodes in `pipeline`.
+        Schedule the execution of the source callback in the pool to compute next batch.
+        Used by the parallel ExternalSource variant.
+
+        Args:
+            context_i (int): Index of the callback (in the list of parallel groups)"""
         try:
             callback_out = pool.receive_batch(context_i)
             self.schedule_batch(pool, context_i, batch_size)
@@ -125,6 +142,8 @@ class _ExternalSourceGroup(object):
             raise
 
     def call_and_feed(self, pipeline, batch_size):
+        """Call the source callback and feed the results to the ExternalSource nodes in `pipeline`.
+        Used for the sequential ExternalSource variant."""
         try:
             if self.batch:
                 callback_out = self.callback(*self.callback_args(None))
@@ -138,6 +157,8 @@ class _ExternalSourceGroup(object):
         self.feed(pipeline, callback_out, batch_size)
 
     def feed(self, pipeline, callback_out, batch_size):
+        """Feed the `callback_out` data from obtained from source to the ExternalSource nodes
+        in the `pipeline`"""
         if self.is_multioutput:
             for op in self.instances:
                 if self.batch:
@@ -375,8 +396,10 @@ Keyword Args
     in the internal buffer, otherwise parameter is ignored.
 """
 
-    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu",
-                 cuda_stream = None, use_copy_kernel = None, batch = None, parallel = None, no_copy = None, prefetch_queue_depth=None, **kwargs):
+    def __init__(
+            self, source=None, num_outputs=None, *, cycle=None, layout=None, name=None,
+            device="cpu", cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None,
+            no_copy=None, prefetch_queue_depth=None, **kwargs):
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
         self._device = device
@@ -420,8 +443,10 @@ Keyword Args
     def preserve(self):
         return False
 
-    def __call__(self, *, source = None, cycle = None, name = None, layout = None, cuda_stream = None,
-                 use_copy_kernel = None, batch = None, parallel = None, no_copy = None, prefetch_queue_depth=None, **kwargs):
+    def __call__(
+            self, *, source=None, cycle=None, name=None, layout=None, cuda_stream=None,
+            use_copy_kernel=None, batch=None, parallel=None, no_copy=None,
+            prefetch_queue_depth=None, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
 
@@ -462,11 +487,15 @@ Keyword Args
             if no_copy is None:
                 no_copy = True
             if not no_copy:
-                raise ValueError("no_copy cannot be specified to False when used with parallel=True")
+                raise ValueError(
+                    "The argument ``no_copy`` cannot be specified to False when used with ``parallel=True``.")
             if batch:
-                raise ValueError("ExternalSource can be run in parallel only in per-sample (batch=False) mode")
+                raise ValueError(
+                    "ExternalSource can be run in parallel only in per-sample (``batch=False``) mode.")
             if prefetch_queue_depth < 1:
-                raise ValueError("Prefetch queue depth must be a positive integer")
+                raise ValueError(
+                    "``prefetch_queue_depth`` must be a positive integer, got {}.".format(
+                        prefetch_queue_depth))
 
         if self._layout is not None:
             if layout is not None:
@@ -490,14 +519,14 @@ Keyword Args
             name = self._name
 
         if name is not None and self._num_outputs is not None:
-            raise RuntimeError("``num_outputs`` is not compatible with named ``ExternalSource``")
+            raise RuntimeError("``num_outputs`` is not compatible with named ``ExternalSource``.")
 
         if self._num_outputs is not None:
             outputs = []
             kwargs = {"no_copy": no_copy}
             group = _ExternalSourceGroup(
-                callback, True, cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch,
-                parallel=parallel, prefetch_queue_depth=prefetch_queue_depth)
+                callback, True, cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel,
+                batch=batch, parallel=parallel, prefetch_queue_depth=prefetch_queue_depth)
             for i in range(self._num_outputs):
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
@@ -524,9 +553,10 @@ Keyword Args
             op_instance = _OperatorInstance([], self, **kwargs)
             op_instance._callback = callback
             op_instance._output_index = None
-            op_instance._group = _ExternalSourceGroup(callback, False, [op_instance], cuda_stream=cuda_stream,
-                                                      use_copy_kernel=use_copy_kernel, batch=batch, parallel=parallel,
-                                                      prefetch_queue_depth=prefetch_queue_depth)
+            op_instance._group = _ExternalSourceGroup(
+                callback, False, [op_instance],
+                cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch,
+                parallel=parallel, prefetch_queue_depth=prefetch_queue_depth)
             op_instance._layout = layout
             op_instance.generate_outputs()
 

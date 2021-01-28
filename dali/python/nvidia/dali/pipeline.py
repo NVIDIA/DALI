@@ -128,8 +128,9 @@ Parameters
     If ``spawn`` method is used, ExternalSource's callback must be picklable.
     If you use ``fork``, there must be no CUDA context acquired at the moment of starting
     the workers. For this reason, if you need to build multiple pipelines that use Python workers,
-    you will need to call :meth`start_py_workers` before calling :meth`build` of any of the pipelines.
-    You can find more details and caveats of both methods in Python's ``multiprocessing`` module documentation.
+    you will need to call :meth:`start_py_workers` before calling :meth:`build` of any
+    of the pipelines. You can find more details and caveats of both methods in Python's
+    ``multiprocessing`` module documentation.
 """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
@@ -145,6 +146,14 @@ Parameters
         self._device_id = device_id
         self._seed = seed if seed is not None else -1
         self._exec_pipelined = exec_pipelined
+        # When initializing DALI, we do the following in order:
+        # * Discover the ops specified in Python, group the ExternalSources
+        # * Start the Python workers pool
+        # * Construct the C++ Pipeline backend and pass the graph to it
+        # * Build the pieline.
+        self._py_graph_built = False
+        self._py_pool_started = False
+        self._backend_prepared = False
         self._built = False
         self._first_iter = True
         self._last_iter = False
@@ -152,7 +161,6 @@ Parameters
         self._batches_to_consume = 0
         self._cpu_batches_to_consume = 0
         self._gpu_batches_to_consume = 0
-        self._prepared = False
         self._names_and_devices = None
         self._exec_async = exec_async
         self._bytes_per_sample = bytes_per_sample
@@ -480,6 +488,7 @@ Parameters
         self._ops = ops
         self._graph_outputs = outputs
         self._setup_input_callbacks()
+        self._py_graph_built = True
 
     def _start_py_workers(self):
         if not self._parallel_input_callbacks:
@@ -489,6 +498,7 @@ Parameters
         # pool instance releases shared memory when garbage collected, thus it must outlive the pipeline instance
         # when external source is used with no_copy=True
         weakref.finalize(self, lambda pool : pool.close(), self._py_pool)
+        self._py_pool_started = True
 
     def _init_pipeline_backend(self):
         self._pipe = b.Pipeline(self._max_batch_size,
@@ -514,7 +524,7 @@ Parameters
                 related_logical_id[op.relation_id] = self._pipe.AddOperator(op.spec, op.name)
             else:
                 self._pipe.AddOperator(op.spec, op.name, related_logical_id[op.relation_id])
-        self._prepared = True
+        self._backend_prepared = True
         self._names_and_devices = [(e.name, e.device) for e in self._graph_outputs]
 
     def _setup_input_callbacks(self):
@@ -532,20 +542,27 @@ Parameters
     def start_py_workers(self):
         """
         Start Python workers (that will run ExternalSource callbacks).
-        It is called automatically by Pipeline's build method.
+        You need to call :meth:`start_py_workers` before you call any functionality that creates
+        or acquires CUDA context when using fork to start Python workers (``py_workers_init=fork``).
+        It is called automatically by Pipeline's build method when such separation is not necessary.
 
-        If you are going to build more than one pipeline that starts Python workers by forking the process
-        (``py_workers_init=fork``) then you need to call :meth`start_py_workers` method on all those pipelines before
-        calling build method of any pipeline or accessing any other functionality that acquires CUDA context
-        (as calling build method does). This is because forking with CUDA context is unsupported and may lead
-        to unexpected errors. The same applies for using any other functionality that would create CUDA
-        context - you need to call :meth`start_py_workers` before you call such functionality when
+        If you are going to build more than one pipeline that starts Python workers by forking
+        the process then you need to call :meth:`start_py_workers` method on all those pipelines
+        before calling :meth:`build` method of any pipeline, as build acquires CUDA context
+        for current process.
+
+        The same applies to using any other functionality that would create CUDA context -
+        for example initializing a framework that uses CUDA or creating CUDA tensors with it.
+        You need to call :meth:`start_py_workers` before you call such functionality when
         using ``py_workers_init=fork``.
 
-        If you use the method you cannot specify ``define_graph`` when calling :meth`build`.
+        Forking a process that has a CUDA context is unsupported and may lead to unexpected errors.
+
+        If you use the method you cannot specify ``define_graph`` argument when calling :meth:`build`.
         """
-        if self._ops is None:
+        if not self._py_graph_built:
             self._build_graph()
+        if not self._py_pool_started:
             self._start_py_workers()
 
     def build(self, define_graph = None):
@@ -559,7 +576,7 @@ Parameters
         define_graph : callable
             If specified, this function will be used instead of member :meth:`define_graph`.
             This parameter must not be set, if the pipeline outputs are specified with
-            :meth:`set_outputs` or if the :meth`start_py_workers` is used.
+            :meth:`set_outputs` or if the :meth:`start_py_workers` is used.
         """
         if self._built:
             return
@@ -568,10 +585,8 @@ Parameters
             raise ValueError("Pipeline created with `num_threads` < 1 can only be used "
                              "for serialization.")
 
-        if not self._prepared:
-            if self._ops is None:
-                self._build_graph(define_graph)
-                self._start_py_workers()
+        self.start_py_workers()
+        if not self._backend_prepared:
             self._init_pipeline_backend()
 
         self._pipe.Build(self._names_and_devices)
@@ -934,9 +949,9 @@ Parameters
         kwargs : dict
                 Refer to Pipeline constructor for full list of arguments.
         """
-        if not self._prepared:
-            if self._ops is None:
-                self._build_graph(define_graph)
+        if not self._py_graph_built:
+            self._build_graph(define_graph)
+        if not self._backend_prepared:
             self._init_pipeline_backend()
             self._pipe.SetOutputNames(self._names_and_devices)
         ret = self._pipe.SerializeToProtobuf()
@@ -998,7 +1013,7 @@ Parameters
                                          pipeline._exec_async)
         pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
         pipeline._pipe.EnableExecutorMemoryStats(pipeline._enable_memory_stats)
-        pipeline._prepared = True
+        pipeline._backend_prepared = True
         pipeline._pipe.Build()
         pipeline._built = True
         return pipeline
@@ -1025,7 +1040,7 @@ Parameters
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
-        self._prepared = True
+        self._backend_prepared = True
         self._pipe.Build()
         self._built = True
 

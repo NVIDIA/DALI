@@ -16,24 +16,24 @@ from nvidia.dali import backend as _b
 
 class SharedMem:
     """SharedMem allows you to allocate and access shared memory.
-Provides memory view of the allocated memory via buf property.
-You can transfer access to the same shared memory chunk by sending related
-file descriptor available as fd property. Use SharedMem.allocate
-to allocate new chunk of shared memory and SharedMem.open if
-you received file descriptor to already existing memory chunk.
+    Provides memory view of the allocated memory via buf property.
+    You can transfer access to the same shared memory chunk by sending related
+    file descriptor available as fd property. Use SharedMem.allocate
+    to allocate new chunk of shared memory and SharedMem.open if
+    you received file descriptor to already existing memory chunk.
 
-There is out of the box support for shared memory starting from Python3.8, though
-the only way there to transfer the memory to other processes is via filename,
-which might 'leak' if process was closed abruptly.
+    There is out of the box support for shared memory starting from Python3.8, though
+    the only way there to transfer the memory to other processes is via filename,
+    which might 'leak' if process was closed abruptly.
 
-Parameters
-----------
-`fd` : int
-    File descriptor identifying related shared memory object. Pass -1 to allocate new memory chunk.
-`size` : int
-    When fd=-1 it is the size of shared memory to allocate in bytes, otherwise it must be
-    the size of shared memory objects that provided fd represents.
-"""
+    Parameters
+    ----------
+    `fd` : int
+        File descriptor identifying related shared memory object. Pass -1 to allocate new memory chunk.
+    `size` : int
+        When fd=-1 it is the size of shared memory to allocate in bytes, otherwise it must be
+        the size of shared memory objects that provided fd represents.
+    """
 
     def __init__(self, fd, size):
         self.shm = _b.SharedMem(fd, size)

@@ -272,6 +272,7 @@ class RandomlyShapedDataIterator(object):
         return self
 
     def __next__(self):
+        import_numpy()
         np.random.seed(self.seed)
         random.seed(self.seed)
         self.test_data = []

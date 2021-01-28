@@ -23,14 +23,20 @@ namespace dali {
 namespace python {
 
 /**
- * @brief Depending if fd != -1 is provied it creates or simply stores file descriptor
- * identifying shared memory chunk. Closes file descriptor in the desctructor if it
+ * @brief Creates or simply stores (if provided) file descriptor used for identifying
+ * shared memory chunk. Closes file descriptor in the desctructor if it
  * wasn't closed earlier.
  */
 class DLL_PUBLIC ShmFdWrapper {
  public:
+  /**
+   * @brief Wrap a file descriptor, fd shouldn't be -1.
+   */
   explicit ShmFdWrapper(int fd);
 
+  /**
+   * Create new file descriptor that can be used for shared memory chunk.
+   */
   ShmFdWrapper();
 
   ~ShmFdWrapper();
@@ -90,6 +96,10 @@ class DLL_PUBLIC SharedMem {
 
   DLL_PUBLIC b_type *get_raw_ptr();
 
+  /**
+   * @brief Resize the current chunk with optional call to ftruncate (to actually change the size)
+   * or just remap to the new size.
+   */
   DLL_PUBLIC void resize(uint64_t size, bool trunc = false);
 
   DLL_PUBLIC void close_fd();

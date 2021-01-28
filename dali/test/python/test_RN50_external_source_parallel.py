@@ -196,12 +196,14 @@ def parse_args():
                         help='number of python external source workers (default: 3)')
     parser.add_argument('--epochs', default=2, type=int, metavar='N',
                         help='Number of epochs to run')
+    parser.add_argument('--benchmark_iters', type=int, metavar='N',
+                        help='Number of iterations to run in each epoch')
     parser.add_argument('--assign_gpu', default=0, type=int, metavar='N',
                         help='Assign a given GPU. Cannot be used with --gpus')
     parser.add_argument('--worker_init', default='fork', choices=['fork', 'spawn'], type=str,
                         help='Python workers initialization method')
     parser.add_argument('--prefetch', default=2, type=int, metavar='N',
-                        help='Pipeline cpu/gpu prefetch queue depth (default: 2)')
+                        help='Pipeline cpu/gpu prefetch queue depth')
     parser.add_argument('--reader_queue_depth', default=1, type=int, metavar='N',
                         help='Depth of prefetching queue for file reading operators (FileReader/parallel ExternalSource) (default: 1)')
     parser.add_argument('--training', default=False, type=bool,
@@ -230,7 +232,10 @@ def iteration_test(args):
         pipe.build()
 
         samples_no = pipe.epoch_size("Reader")
-        expected_iters = samples_no // args.batch_size + (samples_no % args.batch_size != 0)
+        if args.benchmark_iters is None:
+            expected_iters = samples_no // args.batch_size + (samples_no % args.batch_size != 0)
+        else:
+            expected_iters = args.benchmark_iters
 
         print("RUN {}".format(pipe_factory.__name__))
         for i in range(args.epochs):
@@ -294,7 +299,10 @@ def training_test(args):
         )
 
         samples_no = pipe.epoch_size("Reader")
-        expected_iters = samples_no // args.batch_size + (samples_no % args.batch_size != 0)
+        if args.benchmark_iters is None:
+            expected_iters = samples_no // args.batch_size + (samples_no % args.batch_size != 0)
+        else:
+            expected_iters = args.benchmark_iters
 
         end = time.time()
         if pipe_factory == file_reader_pipeline:
@@ -338,6 +346,8 @@ def training_test(args):
                             losses.avg
                     ))
                 end = time.time()
+                if j >= expected_iters:
+                    break
             if pipe_factory == file_reader_pipeline:
                 iterator.reset()
 
