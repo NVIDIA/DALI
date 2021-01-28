@@ -15,26 +15,38 @@ def random_shape(min_sh, max_sh, ndim):
       dtype=np.int32
     )
 
-def check_roi_random_crop(ndim=2, batch_size=3,
+def batch_gen(max_batch_size, sample_shape_fn, dtype=np.float32):
+    bs = np.random.randint(1, max_batch_size)
+    data = []
+    for i in range(bs):
+        sample_sh = sample_shape_fn()
+        data += [np.zeros(sample_sh, dtype=dtype)]
+    return data
+
+def check_roi_random_crop(ndim=2, max_batch_size=16,
                           roi_min_start = 0, roi_max_start = 100,
                           roi_min_extent = 20, roi_max_extent = 50,
                           crop_min_extent = 20, crop_max_extent = 50,
                           in_shape_min = 400, in_shape_max = 500,
                           niter=3):
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
+    pipe = dali.pipeline.Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
         assert in_shape_min < in_shape_max
-        shape_gen_f = lambda: random_shape(in_shape_min, in_shape_max, ndim)
-        shape_like_in = dali.fn.external_source(lambda: np.zeros(shape_gen_f()),
-                                                device='cpu', batch=False)
+        shape_gen_fn = lambda: random_shape(in_shape_min, in_shape_max, ndim)
+        data_gen_f = lambda: batch_gen(max_batch_size, shape_gen_fn)
+        shape_like_in = dali.fn.external_source(data_gen_f, device='cpu')
         in_shape = dali.fn.shapes(shape_like_in, dtype=types.INT32)
 
-        crop_shape = fn.random.uniform(range=(crop_min_extent, crop_max_extent + 1), 
-                                       shape=(ndim,), dtype=types.INT32, device='cpu')
-        roi_shape = fn.random.uniform(range=(roi_min_extent, roi_max_extent + 1),
-                                      shape=(ndim,), dtype=types.INT32, device='cpu')
-        roi_start = fn.random.uniform(range=(roi_min_start, roi_max_start + 1),
-                                      shape=(ndim,), dtype=types.INT32, device='cpu')
+        crop_shape =  [(crop_min_extent + crop_max_extent) // 2] * ndim if random.choice([True, False]) \
+            else  fn.random.uniform(range=(crop_min_extent, crop_max_extent + 1), 
+                                    shape=(ndim,), dtype=types.INT32, device='cpu')
+
+        roi_shape = np.array([(roi_min_extent + roi_max_extent) // 2] * ndim, dtype=np.int32) if random.choice([True, False]) \
+            else fn.random.uniform(range=(roi_min_extent, roi_max_extent + 1),
+                                    shape=(ndim,), dtype=types.INT32, device='cpu')
+        roi_start = np.array([(roi_min_start + roi_max_start) // 2] * ndim, dtype=np.int32) if random.choice([True, False]) \
+            else fn.random.uniform(range=(roi_min_start, roi_max_start + 1),
+                                    shape=(ndim,), dtype=types.INT32, device='cpu')
         roi_end = roi_start + roi_shape
 
         outs = [
@@ -63,6 +75,7 @@ def check_roi_random_crop(ndim=2, batch_size=3,
     pipe.build()
     for _ in range(niter):
         outputs = pipe.run()
+        batch_size = len(outputs[0])
         for s in range(batch_size):
             in_shape = np.array(outputs[0][s]).tolist()
             roi_start = np.array(outputs[1][s]).tolist()
@@ -89,8 +102,8 @@ def check_roi_random_crop(ndim=2, batch_size=3,
             for idx in range(6, 10):
                 check_crop_start(np.array(outputs[idx][s]).tolist(), roi_start, roi_shape, crop_shape, in_shape)
 
-def test_random_mask_pixel():
-    batch_size = 3
+def test_roi_random_crop():
+    batch_size = 16
     niter = 3
     for ndim in (2, 3):
         in_shape_min = 250
@@ -124,7 +137,7 @@ def check_roi_random_crop_error(shape_like_in=None, in_shape=None, crop_shape=No
         for _ in range(niter):
             outputs = pipe.run()
 
-def test_random_mask_pixel_error_incompatible_args():
+def test_roi_random_crop_error_incompatible_args():
     in_shape = np.array([4, 4])
     crop_shape = np.array([2, 2])
     roi_start = np.array([1, 1])
@@ -133,7 +146,7 @@ def test_random_mask_pixel_error_incompatible_args():
     yield check_roi_random_crop_error, np.zeros(in_shape), in_shape, crop_shape, roi_start, roi_shape, None
     yield check_roi_random_crop_error, np.zeros(in_shape), None, crop_shape, roi_start, roi_shape, roi_end
 
-def test_random_mask_pixel_error_wrong_args():
+def test_roi_random_crop_error_wrong_args():
     in_shape = np.array([4, 4])
     crop_shape = np.array([2, 2])
     roi_start = np.array([1, 1])
