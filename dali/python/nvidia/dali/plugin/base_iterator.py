@@ -18,11 +18,12 @@ import logging
 import numpy as np
 import warnings
 from enum import Enum, unique
+from collections import Iterable
 
 def _iterator_deprecation_warning():
     warnings.warn("Please set `reader_name` and don't set last_batch_padded and size manually " +
-                  "whenever possible. This may lead, in some situations, to miss some " +
-                  "samples or return duplicated ones. Check the Sharding section of the "
+                  "whenever possible. This may lead, in some situations, to missing some " +
+                  "samples or returning duplicated ones. Check the Sharding section of the "
                   "documentation for more details.",
                   Warning, stacklevel=2)
 
@@ -252,17 +253,19 @@ class _DaliBaseIterator(object):
             if self._size < 0 and self._auto_reset:
                 self.reset()
             raise e
-        for out in outputs:
-            self._check_batch_size(out)
+        self._check_batch_size(outputs)
         return outputs
 
-    def _check_batch_size(self, out):
+    def _check_batch_size(self, outs):
+        if not isinstance(outs, Iterable):
+            outs = [outs]
         if self._reader_name or self._size != -1:
-            for o in out:
-                batch_len = len(o)
-                assert self.batch_size == batch_len, \
-                    "Variable batch size is not supported by the iterator when reader_name is " + \
-                    "provided or iterator size is set explicitly"
+            for out in outs:
+                for o in out:
+                    batch_len = len(o)
+                    assert self.batch_size == batch_len, \
+                        "Variable batch size is not supported by the iterator when reader_name is " + \
+                        "provided or iterator size is set explicitly"
 
     def _end_iteration(self):
         if self._auto_reset:
