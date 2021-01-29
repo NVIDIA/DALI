@@ -48,33 +48,28 @@ def _numpydoc_formatter(name, type, doc, optional = False):
         type += ", optional"
     return "`{}` : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
 
-def _get_kwargs(schema, only_tensor = False):
+def _get_kwargs(schema):
     """
     Get the keywords arguments from the schema.
 
     `schema`
         the schema in which to lookup arguments
-    `only_tensor`: bool
-        If True list only keyword arguments that can be passed as TensorLists (argument inputs)
-        If False list all the arguments. False indicates that we list arguments to the
-        constructor of the operator which does not accept TensorLists (argument inputs) - that
-        fact will be reflected in specified type
     """
     ret = ""
     for arg in schema.GetArgumentNames():
-        if not only_tensor or schema.IsTensorArgument(arg):
-            arg_name_doc = arg
-            dtype = schema.GetArgumentType(arg)
-            type_name = _type_name_convert_to_string(dtype, is_tensor = only_tensor)
-            if schema.IsArgumentOptional(arg):
-                type_name += ", optional"
-                if schema.HasArgumentDefaultValue(arg):
-                    default_value_string = schema.GetArgumentDefaultValueString(arg)
-                    default_value = eval(default_value_string)
-                    type_name += ", default = {}".format(_default_converter(dtype, default_value))
-            doc = schema.GetArgumentDox(arg)
-            ret += _numpydoc_formatter(arg, type_name, doc)
-            ret += '\n'
+        allow_tensors = schema.IsTensorArgument(arg)
+        arg_name_doc = arg
+        dtype = schema.GetArgumentType(arg)
+        type_name = _type_name_convert_to_string(dtype, allow_tensors = allow_tensors)
+        if schema.IsArgumentOptional(arg):
+            type_name += ", optional"
+            if schema.HasArgumentDefaultValue(arg):
+                default_value_string = schema.GetArgumentDefaultValueString(arg)
+                default_value = eval(default_value_string)
+                type_name += ", default = {}".format(_default_converter(dtype, default_value))
+        doc = schema.GetArgumentDox(arg)
+        ret += _numpydoc_formatter(arg, type_name, doc)
+        ret += '\n'
     return ret
 
 def _schema_name(cls):
@@ -211,7 +206,7 @@ def _docstring_generator_call(op_name):
         ret = "See :meth:`nvidia.dali.ops." + op_full_name + "` class for complete information.\n"
     if schema.AppendKwargsSection():
         # Kwargs section
-        tensor_kwargs = _get_kwargs(schema, only_tensor = True)
+        tensor_kwargs = _get_kwargs(schema)
         if tensor_kwargs:
             ret += """
 Keyword Args
@@ -343,6 +338,9 @@ class _OperatorInstance(object):
                                 "`DataNode` or convertible to constant nodes. Received " +
                                 "input `{}` of type '{}'.")
                                 .format(k, type(arg_inp).__name__)) from e
+
+                _check_arg_input(op._schema, type(self._op).__name__, k)
+
                 self._spec.AddArgumentInput(k, arg_inp.name)
                 self._inputs = list(self._inputs) + [arg_inp]
 
@@ -428,6 +426,13 @@ class _DaliOperatorMeta(type):
     def __doc__(self):
         return _docstring_generator(self)
 
+def _check_arg_input(schema, op_name, name):
+    if name == "name":
+        return
+    if not schema.IsTensorArgument(name):
+        raise TypeError("The argument `{}` for operator `{}` should not be a `DataNode` but a {}".format(
+            name, op_name, _type_name_convert_to_string(schema.GetArgumentType(name), False)))
+
 def python_op_factory(name, schema_name = None, op_device = "cpu"):
     class Operator(metaclass=_DaliOperatorMeta):
         def __init__(self, **kwargs):
@@ -445,6 +450,9 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
             self._spec.AddArg("device", self._device)
 
             kwargs, self._call_args = _separate_kwargs(kwargs)
+
+            for k in self._call_args.keys():
+                _check_arg_input(self._schema, type(self).__name__, k)
 
             if "preserve" in kwargs.keys():
                 self._preserve = kwargs["preserve"]
