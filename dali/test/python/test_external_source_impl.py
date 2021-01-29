@@ -355,7 +355,7 @@ def test_external_source_collection_cycling_raise():
         for b in batches:
             yield b
 
-    pipe.set_outputs(fn.external_source(batches, cycle = "rise"), fn.external_source(batch_gen, cycle = "raise"))
+    pipe.set_outputs(fn.external_source(batches, cycle = "raise"), fn.external_source(batch_gen, cycle = "raise"))
     pipe.build()
 
     # epochs are cycles over the source iterable
