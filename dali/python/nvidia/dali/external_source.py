@@ -250,7 +250,8 @@ Keyword Args
 ------------
 
 `cycle`: string or bool, optional
-    Specifies if and how to cycle through the source. It can be one of the following values:
+    Specifies if and how to cycle through the source.
+    It can be one of the following values:
         * ``"no"``, ``False`` or ``None`` - don't cycle; StopIteration is raised whe end of data is reached; this is the default behavior
         * ``"quiet"`` or ``True`` - the data is repeated indefinitely,
         * ``"raise"`` - when the end of data is reached, StopIteration is raised, but the iteration is restarted on subsequent call.
