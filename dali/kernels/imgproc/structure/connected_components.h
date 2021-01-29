@@ -57,23 +57,6 @@ struct TensorSlice {
   }
 };
 
-template <typename T>
-struct TensorSlice<T, 1> {
-  T        *data;
-  i64vec<1> stride;  // unused
-  i64vec<1> size;
-
-  DALI_HOST_DEV DALI_FORCEINLINE
-  int64_t offset(i64vec<1> pos) const noexcept {
-    return pos.x;
-  }
-
-  DALI_HOST_DEV DALI_FORCEINLINE
-  T &operator()(i64vec<1> pos) const noexcept {
-    return data[pos.x];
-  }
-};
-
 
 template <typename OutLabel, typename InLabel>
 void LabelRow(OutLabel *label_base,
@@ -105,6 +88,16 @@ void LabelSlice(OutLabel *label_base,
   LabelRow(label_base, out.data, slice.data, slice.size[0], background);
 }
 
+/**
+ * @brief Merges corresponding labels in out1 and out2 slices when the correspinding
+ *        input labels match.
+ *
+ * @param label_base Start of the output tensor.
+ * @param out1 A slice of the output tensor. The tensor base pointer must be label_base.
+ * @param out2 Another slice of the output tensor. The tensor base pointer must be label_base.
+ * @param in1  A slice of the input tensor.
+ * @param in2  Another slice of the input tensor (the same as in1).
+ */
 template <typename OutLabel, typename InLabel>
 void MergeSlices(OutLabel *label_base,
                  TensorSlice<OutLabel, 1> out1,
@@ -116,12 +109,15 @@ void MergeSlices(OutLabel *label_base,
   OutLabel prev1 = bg_label;
   OutLabel prev2 = bg_label;
   disjoint_set<OutLabel, OutLabel> ds;
-  for (int64_t i = 0; i < n; i++) {
-    OutLabel o1 = out1(i);
-    OutLabel o2 = out2(i);
+  int64_t in_stride  = in1.stride.x;  // manual strength reduction
+  int64_t out_stride = out1.stride.x;
+  for (int64_t i = 0, in_offset = 0, out_offset = 0; i < n; i++,
+       in_offset += in_stride, out_offset += out_stride) {
+    OutLabel o1 = out1.data[out_offset];
+    OutLabel o2 = out2.data[out_offset];
     if (o1 != prev1 || o2 != prev2) {
       if (o1 != bg_label) {
-        if (in1(i) == in2(i)) {
+        if (in1.data[in_offset] == in2.data[in_offset]) {
           ds.merge(label_base, o1, o2);
         }
       }
@@ -131,6 +127,16 @@ void MergeSlices(OutLabel *label_base,
   }
 }
 
+/**
+ * @brief Merges corresponding labels in out1 and out2 slices when the correspinding
+ *        input labels match.
+ *
+ * @param label_base Start of the output tensor.
+ * @param out1 A slice of the output tensor. The tensor base pointer must be label_base.
+ * @param out2 Another slice of the output tensor. The tensor base pointer must be label_base.
+ * @param in1  A slice of the input tensor.
+ * @param in2  Another slice of the input tensor (the same as in1).
+ */
 template <typename OutLabel, typename InLabel, int ndim>
 void MergeSlices(OutLabel *label_base,
                  TensorSlice<OutLabel, ndim> out1,
@@ -296,7 +302,7 @@ int64_t LabelConnectedRegions(const OutTensorCPU<OutLabel, ndim> &out,
       simplified.shape.push_back(in.shape[i]);
   if (simplified.empty()) {
     // The tensor has just one element.
-    // If it's background, assign background label to it, otherwise assign the firs
+    // If it's background, assign background label to it, otherwise assign the first
     // non-background label.
     bool is_foreground = in.data[0] != background_in;
     out.data[0] = is_foreground ? (background_in == 0 ? 1 : 0)

@@ -30,11 +30,12 @@ void random_merge(disjoint_set<T, Index, Ops> ds,
                   std::uniform_int_distribution<Index> &idx_dist,
                   std::bernoulli_distribution &op_order,
                   Index prev_idx = -1) {
+  // the mask is empty - all bits have been used
   if (!mask)
     return;
   Index idx = idx_dist(rng);
-  while ((mask & (1u << idx)) == 0)
-    idx = idx_dist(rng);
+  while ((mask & (1u << idx)) == 0)  // if the index has been used (it's bit in the mask is 0)...
+    idx = idx_dist(rng);             // ...generate a new index and retry
   mask &= ~(1u << idx);
 
   bool merge_first = op_order(rng);
@@ -53,7 +54,7 @@ void random_merge(disjoint_set<T, Index, Ops> ds,
 }
 
 template <typename Sequence>
-void CheckNoForwarLinks(Sequence &&seq) {
+void CheckNoForwardLinks(Sequence &&seq) {
   auto b = dali::begin(seq);
   auto e = dali::end(seq);
   auto i = b;
@@ -81,40 +82,40 @@ TEST(DisjointSet, BasicTest) {
   }
 
   ds.merge(data, 0, 1);
-  CheckNoForwarLinks(data);
+  CheckNoForwardLinks(data);
   EXPECT_EQ(ds.find(data, 0), 0);
   EXPECT_EQ(ds.find(data, 1), 0);
 
   ds.merge(data, 3, 2);
-  CheckNoForwarLinks(data);
+  CheckNoForwardLinks(data);
   EXPECT_EQ(ds.find(data, 2), 2);
   EXPECT_EQ(ds.find(data, 3), 2);
 
   ds.merge(data, 6, 5);
-  CheckNoForwarLinks(data);
+  CheckNoForwardLinks(data);
   EXPECT_EQ(data[6], 5);
   ds.merge(data, 4, 5);
-  CheckNoForwarLinks(data);
+  CheckNoForwardLinks(data);
   EXPECT_EQ(data[5], 4);
   EXPECT_EQ(data[6], 5);
 
   ds.merge(data, 4, 0);
-  CheckNoForwarLinks(data);
+  CheckNoForwardLinks(data);
   EXPECT_EQ(data[4], 0);
   EXPECT_EQ(ds.find(data, 6), 0);
   EXPECT_EQ(data[6], 0) << "`find` should update the entry.";
 
   ds.merge(data, 8, 9);
-  CheckNoForwarLinks(data);
+  CheckNoForwardLinks(data);
   ds.merge(data, 7, 9);
-  CheckNoForwarLinks(data);
+  CheckNoForwardLinks(data);
   EXPECT_EQ(ds.find(data, 8), 7);
   EXPECT_EQ(data[8], 7) << "`find` should update the entry.";
   ds.merge(data, 6, 7);
-  CheckNoForwarLinks(data);
+  CheckNoForwardLinks(data);
   EXPECT_EQ(ds.find(data, 9), 0) << "`merge` didn't propagate";
   ds.merge(data, 8, 3);
-  CheckNoForwarLinks(data);
+  CheckNoForwardLinks(data);
   for (int i = 0; i < N; i++) {
     EXPECT_EQ(ds.find(data, i), 0);
     EXPECT_EQ(data[i], 0) << "`find` should update the entry.";
@@ -135,7 +136,7 @@ TEST(DisjointSet, RandomMergeAll) {
 
     std::bernoulli_distribution op_order(0.5);
     std::uniform_int_distribution<> idx_dist(0, N-1);
-    unsigned mask = 0xffffffffu;  // 32 bits set
+    unsigned mask = 0xffffffffu;  // 1 bit for each element of the array - initially, all set
 
     random_merge(ds, data, mask, rng, idx_dist, op_order);
 
