@@ -34,9 +34,9 @@ def _check_data_batch(data, batch_size, layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
 
 class _CycleIter:
-    def __init__(self, iterable, how):
+    def __init__(self, iterable, mode):
         self.source = iterable
-        self.signaling = (how == "raise")
+        self.signaling = (mode == "raise")
 
     def __iter__(self):
         self.it = iter(self.source)
@@ -53,9 +53,9 @@ class _CycleIter:
                 return next(self.it)
 
 class _CycleGenFunc():
-    def __init__(self, gen_func, how):
+    def __init__(self, gen_func, mode):
         self.source = gen_func
-        self.signaling = (how == "raise")
+        self.signaling = (mode == "raise")
 
     def __iter__(self):
         self.it = iter(self.source())
@@ -147,7 +147,7 @@ def _cycle_enabled(cycle):
     raise ValueError("""Invalid value {} for the argument `cycle`. Valid values are
   - "no", False or None - cycling disabled
   - "quiet", True - quietly rewind the data
-  - "raise" - raise StopIteration on each rewind.""".format(cycle))
+  - "raise" - raise StopIteration on each rewind.""".format(repr(cycle)))
 
 def _get_callback_from_source(source, cycle):
     iterable = False
@@ -251,16 +251,16 @@ Keyword Args
 
 `cycle`: string or bool, optional
     Specifies if and how to cycle through the source. It can be one of the following values:
-        * ``"no"`` or ``False`` - don't cycle; StopIteration is raised whe end of data is reached
-        * ``"quiet"`` or ``True`` - the data is repeated indefinitely
-        * ``"raise"`` - when the end of data is reached, StopIteration is raised, but the iteration is restarted on subsequent call
+        * ``"no"``, ``False`` or ``None`` - don't cycle; StopIteration is raised whe end of data is reached; this is the default behavior
+        * ``"quiet"`` or ``True`` - the data is repeated indefinitely,
+        * ``"raise"`` - when the end of data is reached, StopIteration is raised, but the iteration is restarted on subsequent call.
 
     This flag requires that the ``source`` is a collection, for example, an iterable object where
     ``iter(source)`` returns a fresh iterator on each call or a gensource erator function.
     In the latter case, the generator function is called again when more data than was
     yielded by the function is requested.
 
-    Specifying ``"raise"`` can be used with DL framework iterators to create a notion of epoch.
+    Specifying ``"raise"`` can be used with DALI iterators to create a notion of epoch.
 
 `name` : str, optional
     The name of the data node.
