@@ -181,8 +181,6 @@ void ROIRandomCropCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   int nsamples = crop_start.shape.size();
   int ndim = crop_start[0].shape[0];
 
-  auto& thread_pool = ws.GetThreadPool();
-
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     int64_t* sample_sh = nullptr;
     if (!in_shape_.empty())

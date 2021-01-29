@@ -41,13 +41,16 @@ def check_roi_random_crop(ndim=2, max_batch_size=16,
             else  fn.random.uniform(range=(crop_min_extent, crop_max_extent + 1), 
                                     shape=(ndim,), dtype=types.INT32, device='cpu')
 
-        roi_shape = np.array([(roi_min_extent + roi_max_extent) // 2] * ndim, dtype=np.int32) if random.choice([True, False]) \
-            else fn.random.uniform(range=(roi_min_extent, roi_max_extent + 1),
-                                    shape=(ndim,), dtype=types.INT32, device='cpu')
-        roi_start = np.array([(roi_min_start + roi_max_start) // 2] * ndim, dtype=np.int32) if random.choice([True, False]) \
-            else fn.random.uniform(range=(roi_min_start, roi_max_start + 1),
-                                    shape=(ndim,), dtype=types.INT32, device='cpu')
-        roi_end = roi_start + roi_shape
+        if random.choice([True, False]):
+            roi_shape = [(roi_min_extent + roi_max_extent) // 2] * ndim
+            roi_start = [(roi_min_start + roi_max_start) // 2] * ndim
+            roi_end = [roi_start[d] + roi_shape[d] for d in range(ndim)]
+        else:
+            roi_shape = fn.random.uniform(range=(roi_min_extent, roi_max_extent + 1),
+                                          shape=(ndim,), dtype=types.INT32, device='cpu')
+            roi_start = fn.random.uniform(range=(roi_min_start, roi_max_start + 1),
+                                          shape=(ndim,), dtype=types.INT32, device='cpu')
+            roi_end = roi_start + roi_shape
 
         outs = [
             fn.roi_random_crop(crop_shape=crop_shape,
