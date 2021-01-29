@@ -57,6 +57,24 @@ struct TensorSlice {
   }
 };
 
+template <typename T>
+struct TensorSlice<T, 1> {
+  T        *data;
+  i64vec<1> stride;  // unused
+  i64vec<1> size;
+
+  DALI_HOST_DEV DALI_FORCEINLINE
+  int64_t offset(i64vec<1> pos) const noexcept {
+    return pos.x;
+  }
+
+  DALI_HOST_DEV DALI_FORCEINLINE
+  T &operator()(i64vec<1> pos) const noexcept {
+    return data[pos.x];
+  }
+};
+
+
 template <typename OutLabel, typename InLabel>
 void LabelRow(OutLabel *label_base,
               OutLabel *out_row,
@@ -67,6 +85,8 @@ void LabelRow(OutLabel *label_base,
   for (int i = 0; i < length; i++) {
     if (row[i] != prev) {
       if (row[i] != background) {
+        // The label is the offset of current element with respect to `label_base`.
+        // This label is usable in union/find algorithms.
         curr_label = out_row + i - label_base;
       } else {
         curr_label = bg_label;
@@ -101,7 +121,7 @@ void MergeSlices(OutLabel *label_base,
     OutLabel o2 = out2(i);
     if (o1 != prev1 || o2 != prev2) {
       if (o1 != bg_label) {
-        if (in1(i) == in2(i) && in1(i)) {
+        if (in1(i) == in2(i)) {
           ds.merge(label_base, o1, o2);
         }
       }
@@ -164,7 +184,7 @@ auto FullTensorSlice(const TensorView<StorageCPU, T, ndim> &tensor) {
  * @param labels    Object labels; the structure must be usable as disjoint set structure.
  * @param volume    Number of elements in `labels`
  * @param bg_label  The output label assigned to background.
- * @return Number of non-background connected regions.
+ * @return Number of distinct non-background labels.
  */
 template <typename OutLabel>
 int64_t CompactLabels(OutLabel *labels, int64_t volume, OutLabel bg_label = 0) {
