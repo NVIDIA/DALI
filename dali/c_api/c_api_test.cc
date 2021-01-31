@@ -108,7 +108,8 @@ std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string
 // Allows only for uint8_t CPU/GPU output data to be compared
 template <typename Backend>
 void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
-                             unsigned int copy_output_flags = DALI_ext_default) {
+                             unsigned int copy_output_flags = DALI_ext_default,
+                             int batch_size = dali::batch_size) {
   dali::DeviceWorkspace ws;
   baseline.Outputs(&ws);
   daliOutput(&handle);
@@ -230,6 +231,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     input.Copy(input_cpu, cuda_stream);
     pipe_ptr->SetExternalInput(input_name, input);
+    daliSetExternalInputBatchSize(&handle, input_name.c_str(), input_shape.num_samples());
     daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                               input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                               input_shape.sample_dim(), nullptr, cuda_stream, DALI_ext_default);
@@ -261,8 +263,62 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
 }
 
 
+TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
+  TensorListShape<> reference_input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
+                                             {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
+                                             {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
+  int max_batch_size = reference_input_shape.num_samples();
+  std::vector<TensorListShape<>> trimmed_input_shapes = {
+      sample_range(reference_input_shape, 0, max_batch_size / 2),
+      sample_range(reference_input_shape, 0, max_batch_size / 4),
+      sample_range(reference_input_shape, 0, max_batch_size),
+  };
+
+  auto pipe_ptr = GetTestPipeline<TypeParam>(false, this->output_device_);
+  auto serialized = pipe_ptr->SerializeToProtobuf();
+
+  daliPipelineHandle handle;
+  daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
+                     device_id, false, prefetch_queue_depth, prefetch_queue_depth,
+                     prefetch_queue_depth, false);
+
+  for (auto &input_shape : trimmed_input_shapes) {
+    pipe_ptr = GetTestPipeline<TypeParam>(false, this->output_device_);
+    pipe_ptr->Build();
+
+    TensorList<CPUBackend> input_cpu;
+    TensorList<TypeParam> input;
+    input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+
+    for (int i = 0; i < prefetch_queue_depth; i++) {
+      SequentialFill(view<uint8_t>(input_cpu), 42 * i);
+      // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
+      input.Copy(input_cpu, cuda_stream);
+      pipe_ptr->SetExternalInput(input_name, input);
+      daliSetExternalInputBatchSize(&handle, input_name.c_str(), input_shape.num_samples());
+      daliSetExternalInputAsync(&handle, input_name.c_str(),
+                                backend_to_device_type<TypeParam>::value, input.raw_data(),
+                                dali_data_type_t::DALI_UINT8, input_shape.data(),
+                                input_shape.sample_dim(), nullptr, cuda_stream, DALI_ext_default);
+    }
+
+    for (int i = 0; i < prefetch_queue_depth; i++) {
+      pipe_ptr->RunCPU();
+      pipe_ptr->RunGPU();
+    }
+    daliPrefetchUniform(&handle, prefetch_queue_depth);
+
+    dali::DeviceWorkspace ws;
+    for (int i = 0; i < prefetch_queue_depth; i++) {
+      ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr, DALI_ext_default,
+                                         input_shape.num_samples());
+    }
+  }
+}
+
+
 TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
-  TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8,  8,  3},
+  TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
   TensorList<CPUBackend> input_cpu;

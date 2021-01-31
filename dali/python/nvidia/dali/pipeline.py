@@ -51,10 +51,15 @@ encapsulates the data processing graph and the execution engine.
 Parameters
 ----------
 `batch_size` : int, optional, default = -1
-    Batch size of the pipeline. Negative values for this parameter
+    Maximum batch size of the pipeline. Negative values for this parameter
     are invalid - the default value may only be used with
     serialized pipeline (the value stored in serialized pipeline
-    is used instead).
+    is used instead). In most cases, the actual batch size of the pipeline
+    will be equal to the maximum one. Running the DALI Pipeline with a smaller batch size
+    is also supported. The batch size might change from iteration to iteration.
+
+    Please note, that DALI might perform memory preallocations according to this
+    parameter. Setting it too high might result in out-of-memory failure.
 `num_threads` : int, optional, default = -1
     Number of CPU threads used by the pipeline.
     Negative values for this parameter are invalid - the default
@@ -155,6 +160,12 @@ Parameters
     @property
     def batch_size(self):
         """Batch size."""
+        _show_deprecation_warning("batch_size", "max_batch_size")
+        return self._max_batch_size
+
+    @property
+    def max_batch_size(self):
+        """Maximum batch size."""
         return self._max_batch_size
 
     @property

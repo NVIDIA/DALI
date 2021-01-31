@@ -284,20 +284,20 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
             resized = resize_dali(images, channel_first, dtype, interp, mode, size, None, None, None, roi_start, roi_end, minibatch_size=minibatch_size, max_size=max_size(dim))
         else:
             if w_input:
-                has_w = fn.coin_flip(probability=0.8)
+                has_w = fn.random.coin_flip(probability=0.8)
                 w = fn.random.uniform(range=size_range) * has_w
             else:
                 w = 320  # some fixed value
 
             if h_input:
-                has_h = fn.coin_flip(probability=0.8)
+                has_h = fn.random.coin_flip(probability=0.8)
                 h = fn.random.uniform(range=size_range) * has_h
             else:
                 h = 240  # some other fixed value
 
             if dim >= 3:
                 if d_input:
-                    has_d = fn.coin_flip(probability=0.8)
+                    has_d = fn.random.coin_flip(probability=0.8)
                     d = fn.random.uniform(range=size_range) * has_d
                 else:
                     d = 31  # some other fixed value
@@ -527,3 +527,72 @@ def test_stitching():
                 for channel_first in [False, True]:
                     for interp in [types.INTERP_LINEAR, types.INTERP_CUBIC, types.INTERP_TRIANGULAR, types.INTERP_LANCZOS3]:
                         yield _test_stitching, device, dim, channel_first, dtype, interp
+
+def _test_empty_input(dim, device):
+    batch_size = 8
+    pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
+    if dim == 2:
+        files, labels = dali.fn.caffe_reader(path = db_2d_folder, random_shuffle = True)
+        images_cpu = dali.fn.image_decoder(files, device="cpu")
+    else:
+        images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
+
+    images = images_cpu if device == "cpu" else images_cpu.gpu()
+
+    in_rel_shapes = np.ones([batch_size, dim], dtype=np.float32)
+
+    in_rel_shapes[::2,:] *= 0 # all zeros in every second sample
+
+    degenerate_images = fn.slice(images, np.zeros([dim]), fn.external_source(lambda: in_rel_shapes), axes=list(range(dim)))
+
+    sizes = np.random.randint(20, 50, [batch_size, dim], dtype=np.int32)
+    size_inp = fn.external_source(lambda: [x.astype(np.float32) for x in sizes])
+
+    resize_no_empty = fn.resize(images, size = size_inp, mode="not_larger")
+    resize_with_empty = fn.resize(degenerate_images, size = size_inp, mode="not_larger")
+
+    pipe.set_outputs(resize_no_empty, resize_with_empty)
+    pipe.build()
+
+    for it in range(3):
+        out_no_empty, out_with_empty = pipe.run()
+        if device == "gpu":
+            out_no_empty = out_no_empty.as_cpu()
+            out_with_empty = out_with_empty.as_cpu()
+        for i in range(batch_size):
+            if i%2 != 0:
+                assert np.array_equal(out_no_empty.at(i), out_with_empty.at(i))
+            else:
+                assert np.prod(out_with_empty.at(i).shape) == 0
+
+def test_empty_input():
+    for device in ["cpu", "gpu"]:
+        for dim in [2, 3]:
+            yield _test_empty_input, dim, device
+
+def _test_very_small_output(dim, device):
+    batch_size = 8
+    pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
+    if dim == 2:
+        files, labels = dali.fn.caffe_reader(path = db_2d_folder, random_shuffle = True)
+        images_cpu = dali.fn.image_decoder(files, device="cpu")
+    else:
+        images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
+
+    images = images_cpu if device == "cpu" else images_cpu.gpu()
+
+    resize_tiny = fn.resize(images, size = 1e-10)
+
+    pipe.set_outputs(resize_tiny)
+    pipe.build()
+
+    for it in range(3):
+        out, = pipe.run()
+        ref_size = [1,1,1,1] if dim == 3 else [1,1,3]
+        for t in out:
+            assert t.shape() == ref_size
+
+def test_very_small_output():
+    for device in ["cpu", "gpu"]:
+        for dim in [2, 3]:
+            yield _test_very_small_output, dim, device

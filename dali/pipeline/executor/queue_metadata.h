@@ -37,7 +37,7 @@ struct StageQueues {
   }
 
  private:
-  std::array<int, static_cast<size_t>(OpType::COUNT)> idxs = {{0, 0, 0}};
+  std::array<int, static_cast<size_t>(OpType::COUNT)> idxs = {{-1, -1, -1}};
 };
 
 // Used for indexing into stage queues
@@ -54,25 +54,30 @@ struct QueueSizes {
 };
 
 struct OutputIdxs {
-  explicit OutputIdxs(int queue_idx) : mixed(queue_idx), gpu(queue_idx) {}
-  OutputIdxs(int mixed, int gpu) : mixed(mixed), gpu(gpu) {}
+  explicit OutputIdxs(int queue_idx) : cpu(queue_idx),  mixed(queue_idx), gpu(queue_idx) {}
+  OutputIdxs(int cpu, int mixed, int gpu) : cpu(cpu), mixed(mixed), gpu(gpu) {}
 
+  int cpu;
   int mixed;
   int gpu;
 
   int &operator[](OpType op_type) {
     if (op_type == OpType::MIXED) {
       return mixed;
-    } else {
+    } else if (op_type == OpType::GPU) {
       return gpu;
+    } else {
+      return cpu;
     }
   }
 
   const int &operator[](OpType op_type) const {
     if (op_type == OpType::MIXED) {
       return mixed;
-    } else {
+    } else if (op_type == OpType::GPU) {
       return gpu;
+    } else {
+      return cpu;
     }
   }
 };

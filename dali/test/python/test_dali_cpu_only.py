@@ -167,7 +167,7 @@ def test_image_decoder_random_crop_device():
         pipe.run()
 
 def test_coin_flip_device():
-    check_no_input(fn.coin_flip)
+    check_no_input(fn.random.coin_flip)
 
 def test_uniform_device():
     check_no_input(fn.random.uniform)
@@ -669,7 +669,7 @@ def test_reduce_max_cpu():
 
 def test_reduce_sum_cpu():
     check_single_input(fn.reductions.sum)
-    
+
 def test_segmentation_select_masks():
     def get_data_source(*args, **kwargs):
         return lambda: make_batch_select_masks(*args, **kwargs)
@@ -737,5 +737,48 @@ def test_random_mask_pixel_cpu():
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def test_cat_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    data = fn.external_source(source = get_data, layout = "HWC")
+    data2 = fn.external_source(source = get_data, layout = "HWC")
+    data3 = fn.external_source(source = get_data, layout = "HWC")
+    pixel_pos = fn.cat(data, data2, data3)
+    pipe.set_outputs(pixel_pos)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
+def test_stack_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    data = fn.external_source(source = get_data, layout = "HWC")
+    data2 = fn.external_source(source = get_data, layout = "HWC")
+    data3 = fn.external_source(source = get_data, layout = "HWC")
+    pixel_pos = fn.stack(data, data2, data3)
+    pipe.set_outputs(pixel_pos)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
+def test_separated_exec_setup():
+    batch_size = 128
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None, prefetch_queue_depth = {"cpu_size": 5, "gpu_size": 3})
+    inputs, labels = fn.caffe_reader(path = caffe_dir, shard_id = 0, num_shards = 1)
+    images = fn.image_decoder(inputs, output_type = types.RGB)
+    images = fn.resize(images, resize_x=224, resize_y=224)
+    images_cpu = fn.dump_image(images, suffix = "cpu")
+    pipe.set_outputs(images, images_cpu)
+
+    pipe.build()
+    out = pipe.run()
+    assert(out[0].is_dense_tensor())
+    assert(out[1].is_dense_tensor())
+    assert(out[0].as_tensor().shape() == out[1].as_tensor().shape())
+    a_raw = out[0]
+    a_cpu = out[1]
+    for i in range(batch_size):
+        t_raw = a_raw.at(i)
+        t_cpu = a_cpu.at(i)
+        assert(np.sum(np.abs(t_cpu - t_raw)) == 0)
 
 # ToDo add tests for DLTensorPythonFunction if easily possible

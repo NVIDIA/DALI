@@ -206,7 +206,6 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps=1e-07, max_all
                 current_expected_layout = expected_layout
             check_batch(out1_data, out2_data, batch_size, eps, max_allowed_error,
                         expected_layout=current_expected_layout, compare_layouts=compare_layouts)
-    print("OK: ({} iterations)".format(N_iterations))
 
 
 class RandomDataIterator(object):
@@ -435,3 +434,28 @@ def np_type_to_dali(type):
         np.float64: types.FLOAT64,
     }
     return np_types_to_dali_dict[type]
+
+
+def read_file_bin(filename):
+    """
+    Read file as bytes and insert it into numpy array
+    :param filename: path to the file
+    :return: numpy array
+    """
+    import_numpy()
+    return np.fromfile(filename, dtype='uint8')
+
+
+def filter_files(dirpath, suffix):
+    """
+    Read all file names recursively from a directory and filter those, which end with given suffix
+    :param dirpath: Path to directory, from which the file names will be read
+    :param suffix: String, which will be used to filter the files
+    :return: List of file names
+    """
+    fnames = []
+    for dir_name, subdir_list, file_list in os.walk(dirpath):
+        flist = filter(lambda fname: fname.endswith(suffix), file_list)
+        flist = map(lambda fname: os.path.join(dir_name, fname), flist)
+        fnames.extend(flist)
+    return fnames

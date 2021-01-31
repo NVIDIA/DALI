@@ -28,7 +28,7 @@ import librosa as librosa
 
 class MelFilterBankPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, nfilter, sample_rate, freq_low, freq_high,
-                 normalize, mel_formula, num_threads=1, device_id=0):
+                 normalize, mel_formula, layout='ft', num_threads=1, device_id=0):
         super(MelFilterBankPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
         self.iterator = iterator
@@ -40,6 +40,7 @@ class MelFilterBankPipeline(Pipeline):
                                        freq_high = freq_high,
                                        normalize = normalize,
                                        mel_formula = mel_formula)
+        self.layout=layout
 
     def define_graph(self):
         self.data = self.inputs()
@@ -49,11 +50,13 @@ class MelFilterBankPipeline(Pipeline):
 
     def iter_setup(self):
         data = self.iterator.next()
-        self.feed_input(self.data, data)
+        self.feed_input(self.data, data, layout=self.layout)
 
 def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula, input_data):
     in_shape = input_data.shape
-    nfft = 2 * (input_data.shape[-2] - 1)
+    axis = -2 if len(in_shape) > 1 else 0
+    fftbin_size = in_shape[axis]
+    nfft = 2 * (fftbin_size - 1)
     librosa_norm = 'slaney' if normalize else None
     librosa_htk = (mel_formula == 'htk')
     mel_transform = librosa.filters.mel(
@@ -62,20 +65,20 @@ def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_for
         norm=librosa_norm, dtype=np.float32, htk=librosa_htk)
 
     out_shape = list(in_shape)
-    out_shape[-2] = nfilter
+    out_shape[axis] = nfilter
     out_shape = tuple(out_shape)
     out = np.zeros(out_shape, dtype=np.float32)
 
     if len(in_shape) == 3:
         for i in range(in_shape[0]):
             out[i, :, :] = np.dot(mel_transform, input_data[i, :, :])
-    elif len(in_shape) == 2:
+    elif len(in_shape) <= 2:
         out = np.dot(mel_transform, input_data)
     return out
 
 class MelFilterBankPythonPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, nfilter, sample_rate, freq_low, freq_high,
-                 normalize, mel_formula, num_threads=1, device_id=0, func=mel_fbank_func):
+                 normalize, mel_formula, layout='ft', num_threads=1, device_id=0, func=mel_fbank_func):
         super(MelFilterBankPythonPipeline, self).__init__(
               batch_size, num_threads, device_id,
               seed=12345, exec_async=False, exec_pipelined=False)
@@ -85,29 +88,44 @@ class MelFilterBankPythonPipeline(Pipeline):
 
         function = partial(func, nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula)
         self.mel_fbank = ops.PythonFunction(function=function)
+        self.layout=layout
+        self.freq_major = layout.find('f') != len(layout) - 1
+        self.need_transpose = not self.freq_major and len(layout) > 1
+        if self.need_transpose:
+            perm = [i for i in range(len(layout))]
+            f = layout.find('f')
+            perm[f] = len(layout) - 2
+            perm[-2] = f
+            self.transpose = ops.Transpose(perm=perm)
+
+    def _transposed(self, op):
+        return lambda x: self.transpose(op(self.transpose(x)))
 
     def define_graph(self):
         self.data = self.inputs()
-        out = self.mel_fbank(self.data)
+        mel_fbank = self._transposed(self.mel_fbank) if self.need_transpose else self.mel_fbank
+        out = mel_fbank(self.data)
         return out
 
     def iter_setup(self):
         data = self.iterator.next()
-        self.feed_input(self.data, data)
+        self.feed_input(self.data, data, layout=self.layout)
 
 def check_operator_mel_filter_bank_vs_python(device, batch_size, max_shape,
                                              nfilter, sample_rate, freq_low, freq_high,
-                                             normalize, mel_formula):
-    min_shape = [max_shape[0], 1]
+                                             normalize, mel_formula, layout):
+    f_axis = layout.find('f')
+    min_shape = [1 for _ in max_shape]
+    min_shape[f_axis] = max_shape[f_axis]
     eii1 = RandomlyShapedDataIterator(batch_size, min_shape=min_shape, max_shape=max_shape, dtype=np.float32)
     eii2 = RandomlyShapedDataIterator(batch_size, min_shape=min_shape, max_shape=max_shape, dtype=np.float32)
     compare_pipelines(
         MelFilterBankPipeline(device, batch_size, iter(eii1),
                               nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,
-                              normalize=normalize, mel_formula=mel_formula),
+                              normalize=normalize, mel_formula=mel_formula, layout=layout),
         MelFilterBankPythonPipeline(device, batch_size, iter(eii2),
                                     nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,
-                                    normalize=normalize, mel_formula=mel_formula),
+                                    normalize=normalize, mel_formula=mel_formula, layout=layout),
         batch_size=batch_size, N_iterations=5, eps=1e-03)
 
 def test_operator_mel_filter_bank_vs_python():
@@ -115,13 +133,14 @@ def test_operator_mel_filter_bank_vs_python():
         for batch_size in [1, 3]:
             for normalize in [True, False]:
                 for mel_formula in ['htk', 'slaney']:
-                    for nfilter, sample_rate, freq_low, freq_high, shape in \
-                        [(4, 16000.0, 0.0, 8000.0, (17, 1)),
-                        (128, 16000.0, 0.0, 8000.0, (513, 100)),
-                        (128, 16000.0, 0.0, 8000.0, (10, 513, 100)),
-                        (128, 48000.0, 0.0, 24000.0, (513, 100)),
-                        (128, 48000.0, 4000.0, 24000.0, (513, 100)),
-                        (128, 44100.0, 0.0, 22050.0, (513, 100)),
-                        (128, 44100.0, 1000.0, 22050.0, (513, 100))]:
+                    for nfilter, sample_rate, freq_low, freq_high, shape, layout in \
+                        [(4, 16000.0, 0.0, 8000.0, (17,), 'f'),
+                         (4, 16000.0, 0.0, 8000.0, (17, 1), 'ft'),
+                         (128, 16000.0, 0.0, 8000.0, (513, 100), 'ft'),
+                         (128, 48000.0, 0.0, 24000.0, (513, 100), 'ft'),
+                         (128, 16000.0, 0.0, 8000.0, (10, 513, 100), 'Ctf'),
+                         (128, 48000.0, 4000.0, 24000.0, (513, 100), 'tf'),
+                         (128, 44100.0, 0.0, 22050.0, (513, 100), 'tf'),
+                         (128, 44100.0, 1000.0, 22050.0, (513, 100), 'tf')]:
                         yield check_operator_mel_filter_bank_vs_python, device, batch_size, shape, \
-                            nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula
+                            nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula, layout

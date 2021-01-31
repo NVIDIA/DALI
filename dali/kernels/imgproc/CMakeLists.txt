@@ -17,6 +17,7 @@ add_subdirectory(convolution)
 add_subdirectory(pointwise)
 add_subdirectory(resample)
 add_subdirectory(paste)
+add_subdirectory(structure)
 
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)

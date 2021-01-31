@@ -75,7 +75,7 @@ class ArgumentWorkspace {
  protected:
   struct ArgumentInputDesc {
     shared_ptr<TensorVector<CPUBackend>> tvec;
-    // If true, the views in TensorBector are updated to reflect the underlying TensorList;
+    // If true, the views in TensorVector are updated to reflect the underlying TensorList;
     // this only happens if AddArgumentInput is called with a TensorList pointer - which for now
     // is only when passing an argument input to a GPU stage when using separated queue policy
     // (see queue_policy.h and pipeline.cc for details).
@@ -83,8 +83,27 @@ class ArgumentWorkspace {
   };
 
   // Argument inputs
-  std::unordered_map<std::string, ArgumentInputDesc> argument_inputs_;
+  using argument_input_storage_t = std::unordered_map<std::string, ArgumentInputDesc>;
+  argument_input_storage_t argument_inputs_;
+
+ public:
+  using const_iterator = argument_input_storage_t::const_iterator;
+  friend const_iterator begin(const ArgumentWorkspace&);
+  friend const_iterator end(const ArgumentWorkspace&);
 };
+
+/// @{
+/**
+ * Iterator-handling functions for ArgumentWorkspace
+ */
+inline ArgumentWorkspace::const_iterator begin(const ArgumentWorkspace& ws) {
+  return ws.argument_inputs_.begin();
+}
+
+inline ArgumentWorkspace::const_iterator end(const ArgumentWorkspace& ws) {
+  return ws.argument_inputs_.end();
+}
+/// @}
 
 /**
  * @brief WorkspaceBase is a base class of objects
@@ -189,7 +208,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   /**
    * Set requested batch size for all outputs
    */
-  void set_batch_size(int batch_size) {
+  void SetBatchSizes(int batch_size) {
     batch_sizes_.clear();
     batch_sizes_.resize(NumOutput(), batch_size);
   }

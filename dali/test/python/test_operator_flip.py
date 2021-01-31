@@ -67,7 +67,7 @@ class SynthFlipPipeline(Pipeline):
         self.iterator = data_iterator
         self.layout = layout
         self.input = ops.ExternalSource()
-        self.coin = ops.CoinFlip(seed=1234)
+        self.coin = ops.random.CoinFlip(seed=1234)
         self.flip = ops.Flip(device=device)
 
     def define_graph(self):
@@ -106,7 +106,7 @@ class SynthPythonFlipPipeline(Pipeline):
         self.iterator = data_iterator
         self.layout = layout
         self.input = ops.ExternalSource()
-        self.coin = ops.CoinFlip(seed=1234)
+        self.coin = ops.random.CoinFlip(seed=1234)
         h_dim, v_dim, d_dim = find_dims(layout)
         fun = lambda d, hor, ver, depth: numpy_flip(d, h_dim, v_dim, d_dim, hor, ver, depth)
         self.python_flip = ops.PythonFunction(function=fun, output_layouts=layout)

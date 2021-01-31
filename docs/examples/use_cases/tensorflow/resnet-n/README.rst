@@ -4,34 +4,90 @@ ResNet-N with TensorFlow and DALI
 This demo implements residual networks model and use DALI for the data
 augmentation pipeline from `the original paper`_.
 
-Common utilities for defining the network and performing basic training
-are located in the nvutils directory. Use of nvutils is demonstrated in
-the model scripts available in :fileref:`docs/examples/use_cases/tensorflow/resnet-n/resnet.py`.
+It implements the ResNet50 v1.5 CNN model and demonstrates efficient
+single-node training on multi-GPU systems. They can be used for benchmarking, or
+as a starting point for implementing and training your own network.
 
-For parallelization, we use the Horovod distribution framework, which
-works in concert with MPI. To train ResNet-50 (``--layers=50``) using 8
-V100 GPUs, for example on DGX-1, use the following command
-(``--dali_cpu`` indicates to the script to use CPU backend for DALI):
+Common utilities for defining CNN networks and performing basic training are
+located in the nvutils directory. The utilities are written in Tensorflow 2.0.
+Use of nvutils is demonstrated in the model script (i.e. resnet.py). The scripts
+support both Keras Fit/Compile and Custom Training Loop (CTL) modes with
+Horovod.
 
-::
+To use DALI pipeline for data loading and preprocessing
+```
+--dali_mode=GPU #or
+--dali_mode=CPU
+```
 
-   $ mpiexec --allow-run-as-root --bind-to socket -np 8 python resnet.py \
-                                                        --layers=50 \
-                                                        --data_dir=/data/imagenet \
-                                                        --data_idx_dir=/data/imagenet-idx \
-                                                        --precision=fp16 \
-                                                        --log_dir=/output/resnet50 \
-                                                        --dali_cpu
+## Training in Keras Fit/Compile mode
+For the full training on 8 GPUs:
+```
+mpiexec --allow-run-as-root --bind-to socket -np 8 \
+  python resnet.py --num_iter=90 --iter_unit=epoch \
+  --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+  --precision=fp16 --display_every=100 \
+  --export_dir=/tmp --dali_mode="GPU"
+```
 
-Here we have assumed that imagenet is stored in tfrecord format in the
-directory '/data/imagenet'. After training completes, evaluation is
-performed using the validation dataset.
+For the benchmark training on 8 GPUs:
+```
+mpiexec --allow-run-as-root --bind-to socket -np 8 \
+  python resnet.py --num_iter=400 --iter_unit=batch \
+  --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+  --precision=fp16 --display_every=100 --dali_mode="GPU"
+```
 
-Some common training parameters can tweaked from the command line.
-Others must be configured within the network scripts themselves.
+## Predicting in Keras Fit/Compile mode
+For predicting with previously saved mode in `/tmp`:
+```
+python resnet.py --predict --export_dir=/tmp --dali_mode="GPU"
+```
 
-Original scripts modified from ``nvidia-examples`` scripts in `NGC
-TensorFlow Container`_
+## Training in CTL (Custom Training Loop) mode
+For the full training on 8 GPUs:
+```
+mpiexec --allow-run-as-root --bind-to socket -np 8 \
+  python resnet_ctl.py --num_iter=90 --iter_unit=epoch \
+  --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+  --precision=fp16 --display_every=100 \
+  --export_dir=/tmp --dali_mode="GPU"
+```
+
+For the benchmark training on 8 GPUs:
+```
+mpiexec --allow-run-as-root --bind-to socket -np 8 \
+  python resnet_ctl.py --num_iter=400 --iter_unit=batch \
+  --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+  --precision=fp16 --display_every=100 --dali_mode="GPU"
+```
+
+## Predicting in CTL (Custom Training Loop) mode
+For predicting with previously saved mode in `/tmp`:
+```
+python resnet_ctl.py --predict --export_dir=/tmp --dali_mode="GPU"
+```
+
+## Other useful options
+To use tensorboard (Note, `/tmp/some_dir` needs to be created by users):
+```
+--tensorboard_dir=/tmp/some_dir
+```
+
+To export saved model at the end of training (Note, `/tmp/some_dir` needs to be created by users):
+```
+--export_dir=/tmp/some_dir
+```
+
+To store checkpoints at the end of every epoch (Note, `/tmp/some_dir` needs to be created by users):
+```
+--log_dir=/tmp/some_dir
+```
+
+To enable XLA
+```
+--use_xla
+```
 
 Requirements
 ~~~~~~~~~~~~
@@ -41,7 +97,7 @@ TensorFlow
 
 ::
 
-   pip install tensorflow-gpu==1.10.0
+   pip install tensorflow-gpu==2.3.1
 
 OpenMPI
 ^^^^^^^

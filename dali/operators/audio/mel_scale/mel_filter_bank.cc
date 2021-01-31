@@ -23,8 +23,8 @@ DALI_SCHEMA(MelFilterBank)
     .DocStr(R"code(Converts a spectrogram to a mel spectrogram by applying a bank of
 triangular filters.
 
-Expects an input with at least 2 dimensions where the last two dimensions correspond to
-the fft bin index and the window index, respectively.
+The frequency ('f') dimension is selected from the input layout.
+In case of no layout, "f", "ft", or "*ft" is assumed, depending on the number of dimensions.
 )code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
@@ -73,20 +73,22 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto in_shape = input.shape();
   int nsamples = input.size();
   auto nthreads = ws.GetThreadPool().size();
-
+  auto layout = input.GetLayout();
+  auto ndim = in_shape.sample_dim();
+  args_.axis = layout.empty() ? std::max(0, ndim - 2) : layout.find('f');
+  DALI_ENFORCE(args_.axis >= 0 && args_.axis < ndim,
+    make_string("'f' axis not present in the layout. Got: `", layout, "`"));
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
-    VALUE_SWITCH(in_shape.sample_dim(), Dims, MEL_FBANK_SUPPORTED_NDIMS, (
-      using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T, Dims>;
-      kmgr_.Initialize<MelFilterBankKernel>();
-      kmgr_.Resize<MelFilterBankKernel>(nthreads, nsamples);
-      output_desc[0].type = TypeTable::GetTypeInfo(TypeTable::GetTypeID<T>());
-      output_desc[0].shape.resize(nsamples, Dims);
-      for (int i = 0; i < nsamples; i++) {
-        const auto in_view = view<const T, Dims>(input[i]);
-        auto &req = kmgr_.Setup<MelFilterBankKernel>(i, ctx_, in_view, args_);
-        output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
-      }
-    ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.sample_dim())));  // NOLINT
+    using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T>;
+    kmgr_.Initialize<MelFilterBankKernel>();
+    kmgr_.Resize<MelFilterBankKernel>(nthreads, nsamples);
+    output_desc[0].type = TypeTable::GetTypeInfo(TypeTable::GetTypeID<T>());
+    const auto in_view = view<const T>(input);
+    output_desc[0].shape.resize(nsamples, in_view.sample_dim());
+    for (int i = 0; i < nsamples; i++) {
+      auto &req = kmgr_.Setup<MelFilterBankKernel>(i, ctx_, in_view[i], args_);
+      output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
+    }
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
   return true;
 }
@@ -99,17 +101,15 @@ void MelFilterBank<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   auto& thread_pool = ws.GetThreadPool();
 
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
-    VALUE_SWITCH(in_shape.sample_dim(), Dims, MEL_FBANK_SUPPORTED_NDIMS, (
-      using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T, Dims>;
-      for (int i = 0; i < input.shape().num_samples(); i++) {
-        thread_pool.AddWork(
-          [this, &input, &output, i](int thread_id) {
-            auto in_view = view<const T, Dims>(input[i]);
-            auto out_view = view<T, Dims>(output[i]);
-            kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx_, out_view, in_view, args_);
-          }, in_shape.tensor_size(i));
-      }
-    ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
+    using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T>;
+    for (int i = 0; i < input.shape().num_samples(); i++) {
+      thread_pool.AddWork(
+        [this, &input, &output, i](int thread_id) {
+          auto in_view = view<const T>(input[i]);
+          auto out_view = view<T>(output[i]);
+          kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx_, out_view, in_view);
+        }, in_shape.tensor_size(i));
+    }
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 
   thread_pool.RunAll();

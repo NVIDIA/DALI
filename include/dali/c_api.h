@@ -33,6 +33,7 @@ extern "C" {
 typedef struct {
   void *pipe;
   void *ws;
+  void *batch_sizes_map;     /// @see batch_size_map_t
   cudaStream_t copy_stream;  /// Stream to perform copy operations on
 } daliPipelineHandle;
 
@@ -96,7 +97,7 @@ DLL_PUBLIC void daliInitialize();
 
 /// @{
 /**
- * @brief Create DALI pipeline. Setting batch_size,
+ * @brief Create DALI pipeline. Setting max_batch_size,
  * num_threads or device_id here overrides
  * values stored in the serialized pipeline.
  * When separated_execution is equal to 0, prefetch_queue_depth is considered,
@@ -104,16 +105,10 @@ DLL_PUBLIC void daliInitialize();
  * When separated_execution is not equal to 0, cpu_prefetch_queue_depth and
  * gpu_prefetch_queue_depth are considered and prefetch_queue_depth is ignored.
  */
-DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle,
-                                   const char *serialized_pipeline,
-                                   int length,
-                                   int batch_size,
-                                   int num_threads,
-                                   int device_id,
-                                   int separated_execution,
-                                   int prefetch_queue_depth,
-                                   int cpu_prefetch_queue_depth,
-                                   int gpu_prefetch_queue_depth,
+DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
+                                   int length, int max_batch_size, int num_threads, int device_id,
+                                   int separated_execution, int prefetch_queue_depth,
+                                   int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                                    int enable_memory_stats);
 
 /**
@@ -135,14 +130,25 @@ enum {
   /**
    * If provided CPU memory is page-locked
    */
-  DALI_ext_pinned = (1<<1),
+  DALI_ext_pinned = (1 << 1),
 
   /**
    * If provided, a CUDA copy kernel will be used to feed external source instead of cudaMemcpyAsync
    * Only relevant when the input is either pinned host memory or device memory
    */
-  DALI_use_copy_kernel = (1<<2),
+  DALI_use_copy_kernel = (1 << 2),
 };
+
+/**
+ * @brief Set the batch size for the upcoming call to `daliSetExternalInput*(...)`
+ *
+ * @param pipe_handle Pointer to pipeline handle
+ * @param name Pointer to a null-terminated byte string with the name of the External Source
+ *             to be fed
+ * @param batch_size Batch size of the data
+ */
+DLL_PUBLIC void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, const char *name,
+                                              int batch_size);
 
 /**
  * @brief Feed the data to ExternalSource as contiguous memory.
@@ -157,6 +163,11 @@ enum {
  *
  * A convenience, synchronous, overload function is provided,
  * which handles the stream synchronization.
+ *
+ * If `daliSetExternalInputBatchSize` has been called prior to this function, given batch size
+ * is assumed. Otherwise, the function will default to max batch size.
+ * @see daliSetExternalInputBatchSize
+ * @see daliCreatePipeline
  *
  * @param pipe_handle Pointer to pipeline handle
  * @param name Pointer to a null-terminated byte string with the name of the External Source
@@ -201,6 +212,11 @@ daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
  *
  * A convenience, synchronous, overload function is provided,
  * which handles the stream synchronization.
+ *
+ * If `daliSetExternalInputBatchSize` has been called prior to this function, given batch size
+ * is assumed. Otherwise, the function will default to max batch size.
+ * @see daliSetExternalInputBatchSize
+ * @see daliCreatePipeline
  *
  * @param pipe_handle Pointer to pipeline handle
  * @param name Pointer to a null-terminated byte string with the name of the External Source

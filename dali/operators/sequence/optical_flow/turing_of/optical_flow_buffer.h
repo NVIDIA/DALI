@@ -35,15 +35,15 @@ class OpticalFlowBuffer {
           turing_of_(function_list),
           descriptor_(GenerateBufferDescriptor(width, height, format, usage)) {
     // Buffer alloc
-    TURING_OF_API_CALL(turing_of_.nvOFCreateGPUBufferCuda(of_handle, &descriptor_,
-                                                          NV_OF_CUDA_BUFFER_TYPE_CUDEVICEPTR,
-                                                          &handle_));
+    CUDA_CALL(turing_of_.nvOFCreateGPUBufferCuda(of_handle, &descriptor_,
+                                                 NV_OF_CUDA_BUFFER_TYPE_CUDEVICEPTR,
+                                                 &handle_));
     ptr_ = turing_of_.nvOFGPUBufferGetCUdeviceptr(handle_);
     DALI_ENFORCE(ptr_ != 0, "Invalid pointer");
 
     // Assigning stride
     NV_OF_CUDA_BUFFER_STRIDE_INFO stride_info;
-    TURING_OF_API_CALL(turing_of_.nvOFGPUBufferGetStrideInfo(handle_, &stride_info));
+    CUDA_CALL(turing_of_.nvOFGPUBufferGetStrideInfo(handle_, &stride_info));
     stride_ = {stride_info.strideInfo[0].strideXInBytes, stride_info.strideInfo[0].strideYInBytes};
   }
 

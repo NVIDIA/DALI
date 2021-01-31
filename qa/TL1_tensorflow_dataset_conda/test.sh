@@ -14,9 +14,13 @@ test_body() {
     is_compatible=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; print(dali_tf.dataset_compatible_tensorflow())')
     if [ $is_compatible = 'True' ]; then
         # DALI TF DATASET run
-        nosetests --verbose -s test_dali_tf_dataset.py:_test_tf_dataset_other_gpu
-        nosetests --verbose -s test_dali_tf_dataset.py:_test_tf_dataset_multigpu
-        nosetests --verbose -s test_dali_tf_dataset_mnist.py
+        nosetests --verbose -s test_dali_tf_dataset_graph.py:_test_tf_dataset_other_gpu
+        nosetests --verbose -s test_dali_tf_dataset_graph.py:_test_tf_dataset_multigpu_manual_placement
+        nosetests --verbose -s test_dali_tf_dataset_eager.py:_test_tf_dataset_other_gpu
+        nosetests --verbose -s test_dali_tf_dataset_eager.py:_test_tf_dataset_multigpu_manual_placement
+        nosetests --verbose -s test_dali_tf_dataset_eager.py:_test_tf_dataset_multigpu_mirrored_strategy
+        nosetests --verbose -s test_dali_tf_dataset_mnist_eager.py
+        nosetests --verbose -s test_dali_tf_dataset_mnist_graph.py
 
         # DALI TF Notebooks run
         pushd ../../../docs/examples/frameworks/tensorflow/
@@ -24,10 +28,15 @@ test_body() {
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600
-        jupyter nbconvert tensorflow-dataset-multigpu.ipynb \
-                  --to notebook --inplace --execute \
-                  --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                  --ExecutePreprocessor.timeout=600
+
+        is_compatible_distributed=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; print(dali_tf.dataset_distributed_compatible_tensorflow())')
+        if [ $is_compatible_distributed = 'True' ]; then
+            jupyter nbconvert tensorflow-dataset-multigpu.ipynb \
+                    --to notebook --inplace --execute \
+                    --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
+                    --ExecutePreprocessor.timeout=600
+        fi
+        
         popd
     fi
 }

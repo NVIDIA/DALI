@@ -1350,8 +1350,8 @@ PYBIND11_MODULE(backend_impl, m) {
           // tries to call the deleted copy constructor for Tensor.
           // instead, we cast to a reference type and manually
           // move into the vector.
-          DALI_ENFORCE(p->batch_size() == static_cast<int>(list.size()),
-             "Data list provided to feed_input needs to have batch_size length.");
+          DALI_ENFORCE(static_cast<int>(list.size()) <= p->max_batch_size(),
+             "Data list provided to feed_input exceeds maximum batch_size for this pipeline.");
 
           // not the most beautiful but at least it doesn't throw as plain cast<T>()
           py::detail::make_caster<Tensor<CPUBackend>&> conv;

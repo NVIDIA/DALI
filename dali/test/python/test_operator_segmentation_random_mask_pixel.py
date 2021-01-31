@@ -24,7 +24,7 @@ def check_random_mask_pixel(ndim=2, batch_size=3,
         fg_pixel2 = fn.segmentation.random_mask_pixel(in_mask, foreground=1, threshold=0.99)  # > 0.99
         fg_pixel3 = fn.segmentation.random_mask_pixel(in_mask, foreground=1, value=2)  # == 2
         rnd_pixel = fn.segmentation.random_mask_pixel(in_mask, foreground=0)
-        coin_flip = fn.coin_flip(probability=0.7)
+        coin_flip = fn.random.coin_flip(probability=0.7)
         fg_biased = fn.segmentation.random_mask_pixel(in_mask, foreground=coin_flip)
 
         # Demo purposes: Taking a random pixel and produce a valid anchor to feed slice

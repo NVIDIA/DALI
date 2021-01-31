@@ -448,6 +448,8 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
 
             if "preserve" in kwargs.keys():
                 self._preserve = kwargs["preserve"]
+                # we don't want to set "preserve" arg twice
+                del kwargs["preserve"]
             else:
                 self._preserve = False
             self._spec.AddArg("preserve", self._preserve)

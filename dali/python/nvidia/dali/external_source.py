@@ -19,9 +19,9 @@ def _get_batch_shape(data):
 
 def _check_data_batch(data, batch_size, layout):
     shape, uniform = _get_batch_shape(data)
-    if len(shape) != batch_size:
+    if len(shape) > batch_size:
         raise RuntimeError("The external source callback returned an unexpected batch "
-                           "size. Expected batch_size == {}, actual: {}".format(batch_size,
+                           "size. Expected batch_size <= {}, actual: {}".format(batch_size,
                                                                                 len(shape)))
 
     if len(shape) > 0:
@@ -234,7 +234,7 @@ Keyword Args
 
     If set to False, StopIteration is raised when the end of data is reached.
     This flag requires that the ``source`` is a collection, for example, an iterable object where
-    ``iter(source)`` returns a fresh iterator on each call or a gensource erator function.
+    ``iter(source)`` returns a fresh iterator on each call, or a generator function.
     In the latter case, the generator function is called again when more data than was
     yielded by the function is requested.
 

@@ -35,9 +35,9 @@ class CoordFlipPipeline(Pipeline):
         self.iterator = iterator
         self.coord_flip = ops.CoordFlip(device = self.device, layout=layout,
                                         center_x=center_x, center_y=center_y, center_z=center_z)
-        self.flip_x = ops.CoinFlip(probability = 0.5)
-        self.flip_y = ops.CoinFlip(probability = 0.5)
-        self.flip_z = ops.CoinFlip(probability = 0.5) if len(layout) == 3 else None
+        self.flip_x = ops.random.CoinFlip(probability = 0.5)
+        self.flip_y = ops.random.CoinFlip(probability = 0.5)
+        self.flip_z = ops.random.CoinFlip(probability = 0.5) if len(layout) == 3 else None
 
     def define_graph(self):
         inputs = fn.external_source(lambda: next(self.iterator))

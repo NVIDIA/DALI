@@ -441,14 +441,17 @@ class DLL_PUBLIC OpSpec {
                      "\" is not uniform. To access non-uniform argument inputs use "
                      "ArgumentWorkspace::ArgumentInput method directly.");
 
-    bool valid_shape =
-        shape.num_elements() == batch_size &&
-        (shape.num_samples() == batch_size || shape.num_samples() == 1);
+    bool valid_shape = true;
+    for (int i = 0; i < shape.num_samples() && valid_shape; i++) {
+      valid_shape = volume(shape[i]) == 1 || shape[i].empty();
+    }
+
     if (should_throw) {
-      DALI_ENFORCE(valid_shape, make_string(
-                   "Unexpected shape of argument \"", name, "\". Expected batch of ", batch_size,
-                   " scalars or a batch of tensors containing one element per sample or a single "
-                   "tensor with ", batch_size, " elements. Got:\n", shape));
+      DALI_ENFORCE(
+          valid_shape,
+          make_string(
+              "Unexpected shape of argument \"", name, "\". Expected batch of ", batch_size,
+              " scalars or a batch of tensors containing one element per sample. Got:\n", shape));
     }
     return valid_shape;
   }

@@ -12,8 +12,8 @@ do_once() {
 
     CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
 
-    # install any for CUDA 9 and the 1.15 for CUDA 10
-    pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
+    # install TF 2.x
+    pip install $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
 
     # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
     pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
@@ -69,10 +69,10 @@ do_once() {
 test_body() {
     # test code
     mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
-        python -u resnet.py --layers=18 \
+        python -u resnet.py \
         --data_dir=/data/imagenet/train-val-tfrecord-480-subset --data_idx_dir=idx-files/ \
         --precision=fp16 --num_iter=100  --iter_unit=batch --display_every=50 \
-        --batch=256 --dali_cpu --use_xla --log_dir=dali_log
+        --batch=128 --use_xla --dali_mode="GPU" --log_dir=./
 }
 
 pushd ../..

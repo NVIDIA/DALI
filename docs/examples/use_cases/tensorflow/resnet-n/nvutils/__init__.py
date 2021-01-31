@@ -14,25 +14,23 @@
 # limitations under the License.
 # ==============================================================================
 
-from .optimizers import LarcOptimizer
-from .optimizers import LossScalingOptimizer
-from .builder import LayerBuilder
-from .var_storage import fp32_trainable_vars
-from .image_processing import image_set
 from .runner import train
-from .runner import validate
-from .cmdline import RequireInCmdline
+from .runner_ctl import train_ctl
+from .runner import predict
+from .runner_ctl import predict_ctl
 from .cmdline import parse_cmdline
 import os, sys, random
 import tensorflow as tf
-import horovod.tensorflow as hvd
+import horovod.tensorflow.keras as hvd
 
 def init():
-    gpu_thread_count = 2
-    os.environ['TF_GPU_THREAD_MODE']  = 'gpu_private'
-    os.environ['TF_GPU_THREAD_COUNT'] = str(gpu_thread_count)
-    os.environ['TF_USE_CUDNN_BATCHNORM_SPATIAL_PERSISTENT'] = '1'
-    os.environ['TF_ENABLE_WINOGRAD_NONFUSED'] = '1'
+  gpu_thread_count = 2
+  os.environ['TF_GPU_THREAD_MODE']  = 'gpu_private'
+  os.environ['TF_GPU_THREAD_COUNT'] = str(gpu_thread_count)
+  os.environ['TF_USE_CUDNN_BATCHNORM_SPATIAL_PERSISTENT'] = '1'
+  os.environ['TF_ENABLE_WINOGRAD_NONFUSED'] = '1'
+  hvd.init()
+  if hvd.rank() == 0:
     print('PY', sys.version)
-    print('TF', tf.__version__)
-    hvd.init()
+    print('TF', tf.version.VERSION)
+

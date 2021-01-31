@@ -83,8 +83,8 @@ TEST(ArgValue, TensorInput_3D) {
 
 TEST(ArgValueTests, Constant_0D) {
   int nsamples = 5;
-  auto spec = OpSpec("opname").AddArg("argname", 0.123f);
-  ArgValue<float, 0> arg("argname", spec);
+  auto spec = OpSpec("Erase").AddArg("shape", 0.123f);
+  ArgValue<float, 0> arg("shape", spec);
   workspace_t<CPUBackend> ws;
   arg.Acquire(spec, ws, nsamples, true);
   ASSERT_TRUE(arg.IsConstant());
@@ -92,8 +92,8 @@ TEST(ArgValueTests, Constant_0D) {
   ASSERT_EQ(0.123f, *arg[0].data);
 
   // Passing a vector to a scalar ArgValue
-  auto spec2 = OpSpec("opname").AddArg("argname", vector<float>{0.1f, 0.2f});
-  ArgValue<float, 0> arg2("argname", spec2);
+  auto spec2 = OpSpec("Erase").AddArg("shape", vector<float>{0.1f, 0.2f});
+  ArgValue<float, 0> arg2("shape", spec2);
   EXPECT_THROW(arg2.Acquire(spec2, ws, nsamples, true), std::runtime_error);
 }
 
@@ -102,8 +102,8 @@ TEST(ArgValueTests, Constant_1D) {
   int nsamples = 5;
   std::vector<float> data{0.1f, 0.2f, 0.3f};
   TensorShape<1> expected_shape{3};
-  auto spec = OpSpec("opname").AddArg("argname", data);
-  ArgValue<float, 1> arg("argname", spec);
+  auto spec = OpSpec("Erase").AddArg("shape", data);
+  ArgValue<float, 1> arg("shape", spec);
   workspace_t<CPUBackend> ws;
   arg.Acquire(spec, ws, nsamples, true);
   ASSERT_TRUE(arg.IsConstant());

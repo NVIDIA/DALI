@@ -104,14 +104,15 @@ void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
     TYPE_SWITCH(output_type_, type2id, type, CONSTANT_OP_SUPPORTED_TYPES,
       (
         if (!fdata_.empty()) {
-          FillTensorVector<type>(output_, output_shape_, fdata_);
+          FillTensorVector<type>(output_, max_output_shape_, fdata_);
         } else {
-          FillTensorVector<type>(output_, output_shape_, idata_);
+          FillTensorVector<type>(output_, max_output_shape_, idata_);
         }
       ), (DALI_FAIL(make_string("Unsupported type: ", output_type_))));  // NOLINT
   }
 
   out.ShareData(&output_);
+  out.Resize(output_shape_);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
     assert(out[i].raw_data() == output_[i].raw_data());

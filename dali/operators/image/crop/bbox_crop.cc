@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -157,6 +157,13 @@ of the original image. ``anchor`` and ``shape`` contain the starting coordinates
 for the crop in the ``[x, y, (z)]`` and ``[w, h, (d)]`` formats, respectively. The coordinates can
 be represented in absolute or relative terms, and the represetnation depends on whether
 the fixed ``crop_shape`` was used.
+
+.. note::
+  Both ``anchor`` and ``shape`` are returned as a ``float``, even if they represent absolute
+  coordinates due to providing ``crop_shape`` argument. In order for them to be interpreted
+  correctly by :meth:`nvidia.dali.ops.Slice`, ``normalized_anchor`` and ``normalized_shape``
+  should be set to False.
+
 
 The third output contains the bounding boxes, after filtering out the ones with a centroid outside
 of the cropping window, and with the coordinates mapped to the new coordinate space.
@@ -717,8 +724,12 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
           }
 
           for (int d = 0; d < ndim; d++) {
-            std::uniform_int_distribution<> anchor_dist(0, input_shape[d] - crop_shape[d]);
-            anchor[d] = static_cast<float>(anchor_dist(rng));
+            if (input_shape[d] > crop_shape[d]) {
+              std::uniform_int_distribution<> anchor_dist(0, input_shape[d] - crop_shape[d]);
+              anchor[d] = static_cast<float>(anchor_dist(rng));
+            } else {
+              anchor[d] = 0.0f;
+            }
             out_crop.lo[d] = anchor[d];
             rel_crop.lo[d] = anchor[d] / input_shape[d];
           }

@@ -1434,6 +1434,44 @@ auto permute_dims(const TensorListShape<in_ndim> &in, const Permutation &axis_or
   return out;
 }
 
+/**
+ * Stores a (strided) range of sample shapes in the output list shape.
+ *
+ * @param begin      index of the first sample to include in the subrange
+ * @param end        index one past the last sample to include in the subrange
+ * @param step       stride between consecutive source samples
+ */
+template <int out_ndim, int ndim>
+void sample_range(TensorListShape<out_ndim> &out, const TensorListShape<ndim> &in,
+                  int begin, int end, int step = 1) {
+  detail::check_compatible_ndim<out_ndim, ndim>();
+  assert(begin >= 0 && begin <= in.num_samples());
+  assert(end >= begin && end <= in.num_samples());
+
+  int nsamples = div_ceil(end - begin, step);
+  out.resize(nsamples, in.sample_dim());
+
+  for (int i = begin, j = 0; j < nsamples; i += step, j++) {
+    out.set_tensor_shape(j, in.tensor_shape_span(i));
+  }
+}
+
+/**
+ * Returns a (strided) range of sample shapes as a new TensorListShape.
+ *
+ * @param begin      index of the first sample to include in the subrange
+ * @param end        index one past the last sample to include in the subrange
+ * @param step       stride between consecutive source samples
+ */
+template <int out_ndim = InferDimensions, int ndim,
+          int output_ndim = (out_ndim == InferDimensions ? ndim : out_ndim)>
+TensorListShape<output_ndim> sample_range(const TensorListShape<ndim> &in,
+                                          int begin, int end, int step = 1) {
+  TensorListShape<output_ndim> ret;
+  sample_range(ret, in, begin, end, step);
+  return ret;
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_TENSOR_SHAPE_H_

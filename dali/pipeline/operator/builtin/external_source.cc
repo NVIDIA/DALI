@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <functional>
 #include "dali/pipeline/operator/builtin/external_source.h"
+#include <functional>
 
 namespace dali {
 
-template<>
+template <>
 void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
   std::list<uptr_tv_type> tensor_vector_elm;
   {
@@ -34,12 +34,14 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     output.Resize(shapes, tensor_vector_elm.front()->type());
 
     for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
-      thread_pool.AddWork([&ws, sample_id, &tensor_vector_elm] (int tid) {
-        Tensor<CPUBackend> &output_tensor = ws.Output<CPUBackend>(0, sample_id);
-        // HostWorkspace doesn't have any stream
-        cudaStream_t stream = 0;
-        output_tensor.Copy((*tensor_vector_elm.front())[sample_id], stream);
-      }, shapes.tensor_size(sample_id));
+      thread_pool.AddWork(
+          [&ws, sample_id, &tensor_vector_elm](int tid) {
+            Tensor<CPUBackend> &output_tensor = ws.Output<CPUBackend>(0, sample_id);
+            // HostWorkspace doesn't have any stream
+            cudaStream_t stream = 0;
+            output_tensor.Copy((*tensor_vector_elm.front())[sample_id], stream);
+          },
+          shapes.tensor_size(sample_id));
     }
     thread_pool.RunAll();
     // as we copy element by element and the output is contiguous we need to set layout

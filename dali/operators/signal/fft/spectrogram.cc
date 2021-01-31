@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <memory>
+#include <string>
 #include <vector>
 #include "dali/operators/signal/fft/spectrogram.h"
 #include "dali/kernels/kernel_manager.h"
@@ -27,69 +28,74 @@
 namespace dali {
 
 DALI_SCHEMA(Spectrogram)
-  .DocStr(R"code(Produces a spectrogram from a 1D signal (for example, audio).
+  .DocStr(R"(Produces a spectrogram from a 1D signal (for example, audio).
 
 Input data is expected to be one channel (shape being ``(nsamples,)``, ``(nsamples, 1)``, or
-``(1, nsamples)``) of type float32.)code")
+``(1, nsamples)``) of type float32.)")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg<int>("nfft",
-    R"code(Size of the FFT.
+    R"(Size of the FFT.
 
 The number of bins that are created in the output is ``nfft // 2 + 1``.
 
 .. note::
-  The output only represents the positive part of the spectrum.)code",
+  The output only represents the positive part of the spectrum.)",
   nullptr)
   .AddOptionalArg("window_length",
-    R"code(Window size in number of samples.)code",
+    R"(Window size in number of samples.)",
     512)
   .AddOptionalArg("window_step",
-    R"code(Step betweeen the STFT windows in number of samples.)code",
+    R"(Step betweeen the STFT windows in number of samples.)",
     256)
   .AddOptionalArg("window_fn",
-    R"code(Samples of the window function that will be multiplied to each extracted window when
+    R"(Samples of the window function that will be multiplied to each extracted window when
 calculating the STFT.
 
 If a value is provided, it should be a list of floating point numbers of size ``window_length``.
-If a value is not provided, a Hann window will be used.)code",
+If a value is not provided, a Hann window will be used.)",
     std::vector<float>{})
   .AddOptionalArg("power",
-    R"code(Exponent of the magnitude of the spectrum.
+    R"(Exponent of the magnitude of the spectrum.
 
 Supported values:
 
 - ``1`` - amplitude,
 - ``2`` - power (faster to compute).
-)code",
+)",
     2)
   .AddOptionalArg("center_windows",
-    R"code(Indicates whether extracted windows should be padded so that the window function is
+    R"(Indicates whether extracted windows should be padded so that the window function is
 centered at multiples of ``window_step``.
 
 If set to False, the signal will not be padded, that is, only windows within the input range
-will be extracted.)code",
+will be extracted.)",
     true)
   .AddOptionalArg("reflect_padding",
-    R"code(Indicates the padding policy when sampling outside the bounds of the signal.
+    R"(Indicates the padding policy when sampling outside the bounds of the signal.
 
 If set to True, the signal is mirrored with respect to the boundary, otherwise the signal
 is padded with zeros.
 
 .. note::
   When ``center_windows`` is set to False, this option is ignored.
-)code",
-    true);
+)",
+    true)
+  .AddOptionalArg("layout", R"(Output layout: "ft" (frequency-major) or "tf" (time-major).)",
+    TensorLayout("ft"));
 
+template <bool time_major>
 struct SpectrogramImplCpu : OpImplBase<CPUBackend> {
   using OutputType = float;
   using InputType = float;
 
   static constexpr int InputDims = 1;
+  static constexpr bool vertical_win = !time_major;
   using WindowKernel =
-    kernels::signal::ExtractWindowsCpu<InputType, InputType, InputDims>;
+    kernels::signal::ExtractWindowsCpu<InputType, InputType, InputDims, vertical_win>;
 
   static constexpr int WindowsDims = 2;
+  static constexpr int transform_dim = time_major ? 1 : 0;
   using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, WindowsDims>;
 
   explicit SpectrogramImplCpu(const OpSpec & spec);
@@ -103,6 +109,7 @@ struct SpectrogramImplCpu : OpImplBase<CPUBackend> {
   std::vector<float> window_fn_;
   int window_center_ = -1;
   int nfft_ = -1;
+  TensorLayout layout_;
 
   using Padding = kernels::signal::Padding;
   Padding padding_;
@@ -119,7 +126,7 @@ struct SpectrogramImplCpu : OpImplBase<CPUBackend> {
 
 namespace {
   void FillFftArgs(kernels::signal::fft::FftArgs& args,
-                   int power, int window_length, int nfft, int ndims) {
+                   int power, int window_length, int nfft, int transform_axis) {
     args.nfft = nfft;
     DALI_ENFORCE(window_length <= nfft, make_string(
       "Window length (", window_length, ") can't be bigger than the FFT size (", nfft, ")"));
@@ -134,13 +141,14 @@ namespace {
         DALI_FAIL(make_string("`power` can be only 1 (energy) or 2 (power), received ", power));
     }
 
-    // layout (.., freq, time)
-    args.transform_axis = ndims - 2;
+    // Time major (.., freq, time) or Freq major (.., time, freq)
+    args.transform_axis = transform_axis;
   }
 
 }  // namespace
 
-SpectrogramImplCpu::SpectrogramImplCpu(const OpSpec &spec)
+template <bool time_major>
+SpectrogramImplCpu<time_major>::SpectrogramImplCpu(const OpSpec &spec)
     : window_length_(spec.GetArgument<int>("window_length"))
     , window_step_(spec.GetArgument<int>("window_step"))
     , power_(spec.GetArgument<int>("power"))
@@ -148,6 +156,9 @@ SpectrogramImplCpu::SpectrogramImplCpu(const OpSpec &spec)
   DALI_ENFORCE(window_length_ > 0, make_string("Invalid window length: ", window_length_));
   DALI_ENFORCE(window_step_ > 0, make_string("Invalid window step: ", window_step_));
   nfft_ = spec.HasArgument("nfft") ? spec.GetArgument<int>("nfft") : window_length_;
+
+  layout_ = spec.GetArgument<TensorLayout>("layout");
+  assert((time_major && layout_ == "tf") || (!time_major && layout_ == "ft"));
 
   if (window_fn_.empty()) {
     window_fn_.resize(window_length_);
@@ -165,9 +176,9 @@ SpectrogramImplCpu::SpectrogramImplCpu(const OpSpec &spec)
   }
 }
 
-
-bool SpectrogramImplCpu::SetupImpl(std::vector<OutputDesc> &out_desc,
-                                   const workspace_t<CPUBackend> &ws) {
+template <bool time_major>
+bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc,
+                                               const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   kernels::KernelContext ctx;
@@ -206,7 +217,7 @@ bool SpectrogramImplCpu::SetupImpl(std::vector<OutputDesc> &out_desc,
 
   kmgr_fft_.Initialize<FftKernel>();
   kmgr_fft_.Resize<FftKernel>(nthreads, nsamples);
-  FillFftArgs(fft_args_, power_, window_length_, nfft_, WindowsDims);
+  FillFftArgs(fft_args_, power_, window_length_, nfft_, transform_dim);
 
   window_out_desc_.resize(1);
   window_out_desc_[0].type = TypeInfo::Create<InputType>();
@@ -241,13 +252,15 @@ bool SpectrogramImplCpu::SetupImpl(std::vector<OutputDesc> &out_desc,
   return true;
 }
 
-void SpectrogramImplCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+template <bool time_major>
+void SpectrogramImplCpu<time_major>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto out_shape = output.shape();
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
   auto view_window_fn = make_tensor_cpu<1>(window_fn_.data(), window_length_);
+  output.SetLayout(layout_);
 
   for (int i = 0; i < nsamples; i++) {
     thread_pool.AddWork(
@@ -280,8 +293,16 @@ void SpectrogramImplCpu::RunImpl(workspace_t<CPUBackend> &ws) {
 
 template <>
 Spectrogram<CPUBackend>::Spectrogram(const OpSpec &spec)
-    : Operator<CPUBackend>(spec)
-    , impl_(std::make_unique<SpectrogramImplCpu>(spec)) {}
+    : Operator<CPUBackend>(spec) {
+  auto layout = spec.GetArgument<std::string>("layout");
+  DALI_ENFORCE(layout == "tf" || layout == "ft",
+               make_string("Unexpected layout: ", layout));
+  bool time_major = layout == "tf";
+  if (time_major)
+    impl_ = std::make_unique<SpectrogramImplCpu<true>>(spec);
+  else
+    impl_ = std::make_unique<SpectrogramImplCpu<false>>(spec);
+}
 
 DALI_REGISTER_OPERATOR(Spectrogram, Spectrogram<CPUBackend>, CPU);
 

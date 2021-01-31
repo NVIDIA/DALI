@@ -123,6 +123,9 @@ def _get_tf_version():
 MIN_TENSORFLOW_VERSION = LooseVersion('1.15')
 def dataset_compatible_tensorflow():
     return LooseVersion(tf.__version__) >= MIN_TENSORFLOW_VERSION
+ 
+def dataset_distributed_compatible_tensorflow():
+    return LooseVersion(tf.__version__) >= LooseVersion('2.5.0')
 
 
 if dataset_compatible_tensorflow():
