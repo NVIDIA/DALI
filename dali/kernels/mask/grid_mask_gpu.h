@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_MASK_GRID_MASK_GPU_H
-#define DALI_KERNELS_MASK_GRID_MASK_GPU_H
+#ifndef DALI_KERNELS_MASK_GRID_MASK_GPU_H_
+#define DALI_KERNELS_MASK_GRID_MASK_GPU_H_
 
 #include <cuda_runtime.h>
+#include <vector>
 #include "dali/kernels/kernel.h"
 
 namespace dali {
@@ -74,10 +75,10 @@ class GridMaskGpu {
       int channels = shape[2];
       int height = shape[0];
       detail::Args args{
-        width, height, channels, 
-        cos(angle[i]) / tile[i], sin(angle[i]) / tile[i], 
+        width, height, channels,
+        cos(angle[i]) / tile[i], sin(angle[i]) / tile[i],
         sx[i] / tile[i], sy[i] / tile[i], ratio[i] };
-      
+
       dim3 block(32, 32, 1);
       dim3 grid((width + 31) / 32, (height + 31) / 32, 1);
       detail::GridMaskKernel<<<grid, block, 0, ctx.gpu.stream>>>(
@@ -89,4 +90,4 @@ class GridMaskGpu {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_MASK_GRID_MASK_GPU_H
+#endif  // DALI_KERNELS_MASK_GRID_MASK_GPU_H_

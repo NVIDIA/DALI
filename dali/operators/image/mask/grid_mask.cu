@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <vector>
 #include "dali/core/static_switch.h"
 #include "dali/operators/image/mask/grid_mask.h"
-#include <vector>
 #include "dali/kernels/mask/grid_mask_gpu.h"
 
 #define TYPES (float, uint8_t)
