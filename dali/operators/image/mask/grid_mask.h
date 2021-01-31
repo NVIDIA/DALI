@@ -57,6 +57,15 @@ class GridMaskCpu : public GridMask<CPUBackend> {
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 };
 
+class GridMaskGpu : public GridMask<GPUBackend> {
+ public:
+  explicit GridMaskGpu(const OpSpec &spec) : GridMask(spec) { }
+
+ protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
+  void RunImpl(workspace_t<GPUBackend> &ws) override;
+};
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_IMAGE_MASK_GRID_MASK_H_
