@@ -65,8 +65,8 @@ bool MultiPasteCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
             TensorListShape<> sh = images.shape();
             TensorListShape<> shapes(sh.num_samples(), sh.sample_dim());
             for (int i = 0; i < sh.num_samples(); i++) {
-              const TensorShape<> &out_sh =
-                dali::TensorShape<>(output_size_[i].data[0], output_size_[i].data[1], sh[i][2]);
+              const TensorShape<> &out_sh = { output_size_[i].data[0],
+                                              output_size_[i].data[1], sh[i][2] };
               shapes.set_tensor_shape(i, out_sh);
             }
 
