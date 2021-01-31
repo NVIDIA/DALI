@@ -50,8 +50,8 @@ void GridMaskGpu::RunImpl(workspace_t<GPUBackend> &ws) {
           auto in_view = view<const Type>(input);
           auto out_view = view<Type>(output);
 
-          kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, out_view, in_view) /*,
-                tile_, ratio_, angle_, shift_x_, shift_y_)*/;
+          kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, out_view, in_view,
+                tile_, ratio_, angle_, shift_x_, shift_y_);
       }
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id()))) // NOLINT
 }
