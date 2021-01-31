@@ -45,8 +45,8 @@ void GridMaskGpu::RunImpl(workspace_t<GPUBackend> &ws) {
   TYPE_SWITCH(input.type().id(), type2id, Type, TYPES, (
       {
           using Kernel = kernels::GridMaskGpu<Type>;
-	  kernels::KernelContext ctx;
-	  ctx.gpu.stream = ws.stream();
+          kernels::KernelContext ctx;
+          ctx.gpu.stream = ws.stream();
           auto in_view = view<const Type>(input);
           auto out_view = view<Type>(output);
 
