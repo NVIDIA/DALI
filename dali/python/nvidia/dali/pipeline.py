@@ -1051,7 +1051,8 @@ def pipeline(fn=None, **pipeline_kwargs):
             pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
             with pipe:
                 pipe_outputs = func(*args, **fn_kwargs)
-                pipe.set_outputs(*pipe_outputs)
+                _ = pipe_outputs if isinstance(pipe_outputs, tuple) else pipe_outputs,
+                pipe.set_outputs(*_)
             return pipe
         return create_pipeline
     return actual_decorator(fn) if fn else actual_decorator
