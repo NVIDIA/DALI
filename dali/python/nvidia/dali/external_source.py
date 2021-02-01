@@ -33,9 +33,10 @@ def _check_data_batch(data, batch_size, layout):
         if layout is not None and layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
 
-class _CycleIter():
-    def __init__(self, iterable):
+class _CycleIter:
+    def __init__(self, iterable, mode):
         self.source = iterable
+        self.signaling = (mode == "raise")
 
     def __iter__(self):
         self.it = iter(self.source)
@@ -46,11 +47,15 @@ class _CycleIter():
             return next(self.it)
         except StopIteration:
             self.it = iter(self.source)
-            return next(self.it)
+            if self.signaling:
+                raise
+            else:
+                return next(self.it)
 
 class _CycleGenFunc():
-    def __init__(self, gen_func):
+    def __init__(self, gen_func, mode):
         self.source = gen_func
+        self.signaling = (mode == "raise")
 
     def __iter__(self):
         self.it = iter(self.source())
@@ -61,7 +66,10 @@ class _CycleGenFunc():
             return next(self.it)
         except StopIteration:
             self.it = iter(self.source())
-            return next(self.it)
+            if self.signaling:
+                raise
+            else:
+                return next(self.it)
 
 class _ExternalSourceGroup(object):
     def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None, use_copy_kernel = None, batch = True):
@@ -129,18 +137,30 @@ def _is_generator_function(x):
     call = getattr(x, "__call__", None)
     return _is_generator_function(call)
 
+def _cycle_enabled(cycle):
+    if cycle is None:
+        return False
+    if cycle == False or cycle == "no":
+        return False
+    if cycle == True or cycle == "quiet" or cycle == "raise":
+        return True
+    raise ValueError("""Invalid value {} for the argument `cycle`. Valid values are
+  - "no", False or None - cycling disabled
+  - "quiet", True - quietly rewind the data
+  - "raise" - raise StopIteration on each rewind.""".format(repr(cycle)))
+
 def _get_callback_from_source(source, cycle):
     iterable = False
     if source is not None:
         try:
-            if cycle:
+            if _cycle_enabled(cycle):
                 if inspect.isgenerator(source):
                     raise TypeError("Cannot cycle through a generator - if the generator is a result "
                         "of calling a generator function, pass that function instead as `source`.")
                 if _is_generator_function(source):
-                    iterator = iter(_CycleGenFunc(source))
+                    iterator = iter(_CycleGenFunc(source, cycle))
                 else:
-                    iterator = iter(_CycleIter(source))
+                    iterator = iter(_CycleIter(source, cycle))
             else:
                 if _is_generator_function(source):
                     source = source()
@@ -229,14 +249,19 @@ Args
 Keyword Args
 ------------
 
-`cycle`: bool, optional
-    If set to True, the source will be wrapped.
+`cycle`: string or bool, optional
+    Specifies if and how to cycle through the source.
+    It can be one of the following values:
+        * ``"no"``, ``False`` or ``None`` - don't cycle; ``StopIteration`` is raised whe end of data is reached; this is the default behavior
+        * ``"quiet"`` or ``True`` - the data is repeated indefinitely,
+        * ``"raise"`` - when the end of data is reached, ``StopIteration`` is raised, but the iteration is restarted on subsequent call.
 
-    If set to False, StopIteration is raised when the end of data is reached.
     This flag requires that the ``source`` is a collection, for example, an iterable object where
     ``iter(source)`` returns a fresh iterator on each call, or a generator function.
     In the latter case, the generator function is called again when more data than was
     yielded by the function is requested.
+
+    Specifying ``"raise"`` can be used with DALI iterators to create a notion of epoch.
 
 `name` : str, optional
     The name of the data node.

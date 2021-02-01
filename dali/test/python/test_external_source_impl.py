@@ -343,6 +343,33 @@ def test_external_source_collection_cycling():
             batch = asnumpy(batch)
             check_output(pipe.run(), batch)
 
+def test_external_source_collection_cycling_raise():
+    pipe = Pipeline(1, 3, 0, prefetch_queue_depth=1)
+
+    batches = [
+        [make_array([1.5,2.5], dtype=datapy.float32)],
+        [make_array([-1, 3.5,4.5], dtype=datapy.float32)]
+    ]
+
+    def batch_gen():
+        for b in batches:
+            yield b
+
+    pipe.set_outputs(fn.external_source(batches, cycle = "raise"), fn.external_source(batch_gen, cycle = "raise"))
+    pipe.build()
+
+    # epochs are cycles over the source iterable
+    for _ in range(3):
+        for batch in batches:
+            pipe_out = pipe.run()
+            batch = asnumpy(batch)
+            batch = batch, batch
+            check_output(pipe_out, batch)
+
+        with assert_raises(StopIteration):
+            pipe.run()
+        pipe.reset()
+
 def test_external_source_with_iter():
     for attempt in range(10):
         pipe = Pipeline(1, 3, 0)

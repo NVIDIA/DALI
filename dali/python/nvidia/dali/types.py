@@ -74,13 +74,14 @@ if _tfrecord_support:
     _known_types[DALIDataType._FEATURE_DICT] = ("dict of (string, nvidia.dali.tfrecord.Feature)",
             _not_implemented)
 
-def _type_name_convert_to_string(dtype, is_tensor):
+def _type_name_convert_to_string(dtype, allow_tensors):
     if dtype in _known_types:
-        ret = _known_types[dtype][0]
-        if is_tensor:
-            ret = "TensorList of " + ret
-        elif dtype in _vector_types:
-            ret = ret + " or list of " + _known_types[dtype][0]
+        type_name = _known_types[dtype][0]
+        ret = type_name
+        if dtype in _vector_types:
+            ret += " or list of " + type_name
+        if allow_tensors:
+            ret += " or TensorList of " + type_name
         return ret
     else:
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")

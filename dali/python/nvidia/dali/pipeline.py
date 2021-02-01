@@ -976,8 +976,14 @@ Parameters
         if self._input_callbacks is None:
             return
 
+        stop_iter = False
         for group in self._input_callbacks:
-            group.call_and_feed(self, self._max_batch_size)
+            try:
+                group.call_and_feed(self, self._max_batch_size)
+            except StopIteration:
+                stop_iter = True
+        if stop_iter:
+            raise StopIteration()
 
     def _iter_setup(self):
         self._run_input_callbacks()

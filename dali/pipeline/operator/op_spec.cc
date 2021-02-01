@@ -49,11 +49,13 @@ OpSpec& OpSpec::AddOutput(const string &name, const string &device) {
 }
 
 OpSpec& OpSpec::AddArgumentInput(const string &arg_name, const string &inp_name) {
-  DALI_ENFORCE(!this->HasArgument(arg_name),
-      "Argument " + arg_name + " was already added to the op.");
+  DALI_ENFORCE(!this->HasArgument(arg_name), make_string(
+      "Argument ", arg_name, " is already specified."));
   const OpSchema& schema = GetSchema();
-  DALI_ENFORCE(schema.HasArgument(arg_name),
-      "Argument '" + arg_name + "' is not part of the op schema '" + schema.name() + "'");
+  DALI_ENFORCE(schema.HasArgument(arg_name), make_string(
+      "Argument '", arg_name, "' is not part of the op schema '", schema.name(), "'"));
+  DALI_ENFORCE(schema.IsTensorArgument(arg_name), make_string(
+      "Argument `", arg_name, "` in operator `", schema.name(), "` is not a a tensor argument."));
   argument_inputs_[arg_name] = inputs_.size();
   argument_inputs_indexes_.insert(inputs_.size());
   AddInput(inp_name, "cpu", false);
