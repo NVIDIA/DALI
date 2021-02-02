@@ -44,6 +44,9 @@ enable_if_t<std::is_floating_point<T>::value, T> next(T x) {
   return std::nextafter(x, std::numeric_limits<T>::max());
 }
 
+/**
+ * @brief Sets idx-th bit in hits and returns the previous value.
+ */
 inline bool hit(span<uint32_t> hits, unsigned idx) {
   uint32_t flag = (1u << (idx&31));
   uint32_t &h = hits[idx >> 5];
@@ -100,8 +103,6 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
 
   for (int word = 0; word < hits.size(); word++) {
     uint32_t mask = hits[word];
-    if (!mask)
-      continue;  // skip 32 labels not found in this row
     int i = 32 * word;
     while (mask) {
       if ((mask & 0xffu) == 0) {  // skip 8 labels if not set
@@ -177,27 +178,27 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
   SmallVector<uint32_t, 4> hits;
   ranges.resize(boxes.size());
   hits.resize(div_ceil(boxes.size(), 32));
-  TensorShape<> simpilfied_shape;
+  TensorShape<> simplified_shape;
   SmallVector<int, 6> dim_mapping;
   for (int d = 0; d < ndim; d++) {
     if (in.shape[d] == 1)
       continue;
     dim_mapping.push_back(d);
-    simpilfied_shape.shape.push_back(in.shape[d]);
+    simplified_shape.shape.push_back(in.shape[d]);
   }
 
-  if (simpilfied_shape.empty()) {
+  if (simplified_shape.empty()) {
     // add artificial dimension, so we can process a scalar as a 1D object
-    simpilfied_shape.shape.push_back(1);
-    dim_mapping.push_back(1);
+    simplified_shape.shape.push_back(1);
+    dim_mapping.push_back(0);
   }
 
-  VALUE_SWITCH(simpilfied_shape.size(), simplified_ndim, (1, 2, 3, 4, 5, 6), (
+  VALUE_SWITCH(simplified_shape.size(), simplified_ndim, (1, 2, 3, 4, 5, 6), (
     ivec<simplified_ndim> coord_vec;
-    for (int i = 0; i < simplified_ndim; i++)
-      coord_vec[i] = dim_mapping[i];
+    for (int d = 0; d < simplified_ndim; d++)
+      coord_vec[d] = dim_mapping[d];
     auto simplified_in = make_tensor_cpu<simplified_ndim, const Label>(
-      in.data, simpilfied_shape.to_static<simplified_ndim>());
+      in.data, simplified_shape.to_static<simplified_ndim>());
     GetLabelBoundingBoxes<std::remove_const_t<Label>>(
         boxes, make_span(ranges), make_span(hits),
         detail::FullTensorSlice(simplified_in), coord_vec,

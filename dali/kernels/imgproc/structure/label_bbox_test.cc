@@ -70,6 +70,16 @@ TEST(LabelBBoxes, RemapDim) {
   EXPECT_EQ(boxes[3], (Box<3, int>({0, 7, 0}, {1, 8, 1})));
 }
 
+TEST(LabelBBoxes, Degenerate) {
+  int only_value = 1;
+  auto input = make_tensor_cpu<3>(&only_value, {1, 1, 1});
+  std::vector<Box<3, int>> boxes(3);
+  label_bbox::GetLabelBoundingBoxes(make_span(boxes), input, 10);
+  EXPECT_EQ(boxes[0], (Box<3, int>{}));
+  EXPECT_EQ(boxes[1], (Box<3, int>({0, 0, 0}, {1, 1, 1})));
+  EXPECT_EQ(boxes[2], (Box<3, int>{}));
+}
+
 TEST(LabelBBoxes, Random5D) {
   TensorShape<5> shape = { 5, 6, 7, 8, 9 };
   std::mt19937_64 rng;
