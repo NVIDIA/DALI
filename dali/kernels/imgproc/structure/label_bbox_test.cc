@@ -21,7 +21,7 @@ namespace dali {
 namespace kernels {
 
 TEST(LabelBBoxes, 1D) {
-  int N = 10;
+  const int N = 10;
   const int labels[N] = {
     1, -1, 0, 1, 0, 0, 1, 4, 1, 3
   };
@@ -51,7 +51,7 @@ TEST(LabelBBoxes, 1D) {
 }
 
 TEST(LabelBBoxes, RemapDim) {
-  int N = 10;
+  const int N = 10;
   const int labels[N] = {
     1, 1, 0, 1, 0, 0, 1, 4, 1, 3
   };
