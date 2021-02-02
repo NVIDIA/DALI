@@ -77,7 +77,7 @@ def _wrap_op_fn(op_class, wrapper_name):
 
     op_wrapper.__name__ = wrapper_name
     op_wrapper.__qualname__ = wrapper_name
-    op_wrapper.__doc__ = "see :class:`{0}.{1}`".format(op_class.__module__, op_class.__name__)
+    op_wrapper.__doc__ = op_class.__doc__
     return op_wrapper
 
 def _wrap_op(op_class, submodule, parent_module=None):
