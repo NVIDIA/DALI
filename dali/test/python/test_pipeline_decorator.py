@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline, pipeline
-from nose.tools import nottest
+from nvidia.dali.pipeline import Pipeline, pipeline_def
+from nose.tools import nottest, raises
 import nvidia.dali.fn as fn
 from test_utils import get_dali_extra_path, compare_pipelines
 import os
@@ -39,7 +39,7 @@ def reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=max_batch_
 
 
 @nottest
-@pipeline(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
+@pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
 def pipeline_static(flip_vertical, flip_horizontal):
     data, _ = fn.file_reader(file_root=images_dir)
     img = fn.image_decoder(data, device="mixed")
@@ -48,12 +48,18 @@ def pipeline_static(flip_vertical, flip_horizontal):
 
 
 @nottest
-@pipeline
+@pipeline_def
 def pipeline_runtime(flip_vertical, flip_horizontal):
     data, _ = fn.file_reader(file_root=images_dir)
     img = fn.image_decoder(data, device="mixed")
     flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
     return flipped, img
+
+
+@pipeline_def
+def pipeline_duplicated_arg(max_streams):
+    data, _ = fn.file_reader(file_root=images_dir)
+    return data
 
 
 @nottest
@@ -87,3 +93,13 @@ def test_pipeline_decorator():
             yield test_pipeline_override, vert, hori, 16
     yield test_pipeline_runtime, fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234)
     yield test_pipeline_static, fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234)
+
+
+@raises(TypeError)
+def test_invalid_argument():
+    pipeline_static(0, 0, this_argument_doesnt_exist=42)
+
+
+def test_duplicated_argument():
+    pipe = pipeline_duplicated_arg(max_streams=42)
+    assert pipe._max_streams == -1

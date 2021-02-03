@@ -20,7 +20,7 @@ import numpy as np
 
 try:
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator, LastBatchPolicy
-    from nvidia.dali.pipeline import pipeline
+    from nvidia.dali.pipeline import pipeline_def
     import nvidia.dali.types as types
     import nvidia.dali.fn as fn
 except ImportError:
@@ -91,7 +91,7 @@ def to_python_float(t):
         return t[0]
 
 
-@pipeline
+@pipeline_def
 def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=False, is_training=True):
     images, labels = fn.file_reader(file_root=data_dir,
                                     shard_id=shard_id,

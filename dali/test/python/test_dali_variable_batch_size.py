@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import pipeline
+from nvidia.dali.pipeline import pipeline_def
 from segmentation_test_utils import make_batch_select_masks
 from PIL import Image
 from nose.tools import nottest
@@ -93,7 +93,7 @@ def generate_data(max_batch_size, n_iter, sample_shape, lo=0., hi=1., dtype=np.f
         raise RuntimeError("Invalid type argument")
 
 
-@pipeline
+@pipeline_def
 def single_op_pipeline(input_data, device, /, *, input_layout=None, operator_fn=None, **opfn_args):
     input = fn.external_source(source=input_data, cycle=False, device=device, layout=input_layout)
     output = input if operator_fn is None else operator_fn(input, device=device, **opfn_args)
@@ -317,7 +317,7 @@ def test_sequence_ops():
 
 
 def test_batch_permute():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         perm = fn.batch_permutation(seed=420)
         data = fn.external_source(source=input_data, cycle=False, device=device)
@@ -328,7 +328,7 @@ def test_batch_permute():
 
 
 def test_coin_flip():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         depthwise = fn.random.coin_flip()
         horizontal = fn.random.coin_flip()
@@ -342,7 +342,7 @@ def test_coin_flip():
 
 
 def test_uniform():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         dist = fn.random.uniform()
         data = fn.external_source(source=input_data, cycle=False, device=device)
@@ -353,13 +353,13 @@ def test_uniform():
 
 
 def test_normal_distribution():
-    @pipeline
+    @pipeline_def
     def pipe_input(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device)
         dist = fn.random.normal(data)
         return dist
 
-    @pipeline
+    @pipeline_def
     def pipe_no_input(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device)
         dist = data + fn.random.normal()
@@ -370,7 +370,7 @@ def test_normal_distribution():
 
 
 def test_constant():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         shape = fn.external_source(source=input_data, cycle=False, device='cpu')
         data = fn.constant(fdata=3.1415, shape=shape, device=device)
@@ -388,7 +388,7 @@ def test_reshape():
 
 
 def test_slice():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         anch = fn.constant(fdata=.1, device='cpu')
         sh = fn.constant(fdata=.5, device='cpu')
@@ -412,7 +412,7 @@ def test_1_hot():
 
 
 def test_bbox_paste():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device)
         paste_posx = fn.random.uniform(range=(0, 1))
@@ -426,7 +426,7 @@ def test_bbox_paste():
 
 
 def test_coord_flip():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device)
         processed = fn.coord_flip(data)
@@ -436,7 +436,7 @@ def test_coord_flip():
 
 
 def test_lookup_table():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device)
         processed = fn.lookup_table(data, keys=[1, 3], values=[10, 50])
@@ -453,7 +453,7 @@ def test_reduce():
         fn.reductions.variance
     ]
 
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device, /, reduce_fn):
         data = fn.external_source(source=input_data, cycle=False, device=device)
         mean = fn.reductions.mean(data)
@@ -465,7 +465,7 @@ def test_reduce():
 
 
 def test_arithm_ops():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device)
         data = dali.math.clamp(data, 0.1, 0.9)
@@ -483,7 +483,7 @@ def test_arithm_ops():
 
 
 def test_sequence_rearrange():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device,
                                   layout="FHWC")
@@ -494,7 +494,7 @@ def test_sequence_rearrange():
 
 
 def test_element_extract():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device,
                                   layout="FHWC")
@@ -505,7 +505,7 @@ def test_element_extract():
 
 
 def test_nonsilent_region():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device)
         processed, _ = fn.nonsilent_region(data)
@@ -516,7 +516,7 @@ def test_nonsilent_region():
 
 
 def test_mel_filter_bank():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device)
         spectrum = fn.spectrogram(data, nfft=60, window_length=50, window_step=25)
@@ -527,7 +527,7 @@ def test_mel_filter_bank():
 
 
 def test_mfcc():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device)
         spectrum = fn.spectrogram(data, nfft=60, window_length=50, window_step=25)
@@ -578,7 +578,7 @@ def test_decoders_run(pipeline_fn, data_dir, data_extension, devices=['cpu']):
 
 
 def test_audio_decoders():
-    @pipeline
+    @pipeline_def
     def audio_decoder_pipe(input_data, device):
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
         decoded, _ = fn.audio_decoder(encoded, downmix=True, sample_rate=12345, device=device)
@@ -589,19 +589,19 @@ def test_audio_decoders():
 
 
 def test_image_decoders():
-    @pipeline
+    @pipeline_def
     def image_decoder_pipe(input_data, device):
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
         decoded = fn.image_decoder(encoded, device=device)
         return decoded
 
-    @pipeline
+    @pipeline_def
     def image_decoder_crop_pipe(input_data, device):
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
         decoded = fn.image_decoder_crop(encoded, device=device)
         return decoded
 
-    @pipeline
+    @pipeline_def
     def image_decoder_slice_pipe(input_data, device):
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
         anch = fn.constant(fdata=.1)
@@ -609,13 +609,13 @@ def test_image_decoders():
         decoded = fn.image_decoder_slice(encoded, anch, sh, axes=0, device=device)
         return decoded
 
-    @pipeline
+    @pipeline_def
     def image_decoder_rcrop_pipe(input_data, device):
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
         decoded = fn.image_decoder_random_crop(encoded, device=device)
         return decoded
 
-    @pipeline
+    @pipeline_def
     def peek_image_shape_pipe(input_data, device):
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
         shape = fn.peek_image_shape(encoded, device=device)
@@ -645,7 +645,7 @@ def test_python_function():
         data += 13
         return data
 
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device):
         data = fn.external_source(source=input_data, cycle=False, device=device)
         processed = fn.python_function(data, function=resize, num_outputs=1)
@@ -656,7 +656,7 @@ def test_python_function():
 
 
 def test_reinterpret():
-    @pipeline
+    @pipeline_def
     def pipe(input_data, device, input_layout):
         data = fn.external_source(source=input_data, cycle=False, device=device,
                                   layout=input_layout)

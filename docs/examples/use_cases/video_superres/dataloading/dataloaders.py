@@ -9,13 +9,13 @@ from torch.utils.data import DataLoader
 
 from dataloading.datasets import imageDataset
 
-from nvidia.dali.pipeline import pipeline
+from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.plugin import pytorch
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 
 
-@pipeline
+@pipeline_def
 def create_video_reader_pipeline(sequence_length, files, crop_size):
     images = fn.video_reader(device="gpu", filenames=files, sequence_length=sequence_length,
                              normalized=False, random_shuffle=True, image_type=types.RGB,

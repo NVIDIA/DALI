@@ -20,7 +20,7 @@ import numpy as np
 from subprocess import call
 import horovod.tensorflow.keras as hvd
 
-from nvidia.dali.pipeline import pipeline
+from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
@@ -144,7 +144,7 @@ def fake_image_set(batch_size, height, width, with_label=True):
   return ds
 
 
-@pipeline
+@pipeline_def
 def get_dali_pipeline(
             tfrec_filenames,
             tfrec_idx_filenames,

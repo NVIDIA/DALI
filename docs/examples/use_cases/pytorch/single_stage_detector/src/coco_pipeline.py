@@ -14,12 +14,12 @@
 
 
 import torch
-from nvidia.dali.pipeline import pipeline
+from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.types as types
 import nvidia.dali.fn as fn
 
 
-@pipeline
+@pipeline_def
 def create_coco_pipeline(default_boxes, args):
     try:
         shard_id = torch.distributed.get_rank()

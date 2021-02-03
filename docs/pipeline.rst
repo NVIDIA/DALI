@@ -80,13 +80,13 @@ You can find more info about decorator syntax and how to use it in the
    :special-members: __enter__, __exit__
 
 
-DataNode
---------
-.. autoclass:: DataNode
-   :members:
-
-
 Decorator
 ---------
 .. autoclass:: pipeline
+   :members:
+
+
+DataNode
+--------
+.. autoclass:: DataNode
    :members:

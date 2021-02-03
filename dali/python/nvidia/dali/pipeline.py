@@ -998,32 +998,46 @@ Parameters
         pass
 
 
-def _discriminate_args(**kwargs):
-    """Split args on those applicable to Pipeline constructor and the rest."""
-    fca = inspect.getfullargspec(Pipeline.__init__)  # Full Ctor Args
-    ctor_args = dict(filter(lambda x: x[0] in fca.args or x[0] in fca.kwonlyargs, kwargs.items()))
-    fn_args = dict(filter(lambda x: x[0] not in ctor_args.keys(), kwargs.items()))
+def _discriminate_args(func, **func_kwargs):
+    """Split args on those applicable to Pipeline constructor and the decorated function."""
+    func_argspec = inspect.getfullargspec(func)
+    ctor_argspec = inspect.getfullargspec(Pipeline.__init__)
+
+    ctor_args = {}
+    fn_args = {}
+
+    for farg in func_kwargs.items():
+        if farg[0] in func_argspec.args or farg[0] in func_argspec.kwonlyargs:
+            fn_args[farg[0]] = farg[1]
+        elif farg[0] in ctor_argspec.args or farg[0] in ctor_argspec.kwonlyargs:
+            ctor_args[farg[0]] = farg[1]
+        else:
+            fn_args[farg[0]] = farg[1]
+
     return ctor_args, fn_args
 
 
-def pipeline(fn=None, **pipeline_kwargs):
+def pipeline_def(fn=None, **pipeline_kwargs):
     """
-    Decorator for wrapping functions that define DALI pipelines.
+    A decorator which creates a factory of DALI pipelines.
+    DALI processing graph is defined by the decorated function.
 
     **Usage**
 
-    First, implement a function, that defines a DALI pipeline.
-    Such function shall return DALI's DataNodes. These return
-    values will denote output from the pipeline. You can
-    decorate this function with ``@pipeline``::
+    First, implement a function that defines a DALI pipeline.
+    Return values of such function will denote output from the
+    DALI pipeline. You can decorate this function with ``@pipeline_def``::
 
-        @nvidia.dali.pipeline.pipeline
+        @nvidia.dali.pipeline.pipeline_def
         def pipe(flip_vertical, flip_horizontal):
+            ''' Creates a DALI pipeline, which returns flipped and original images '''
             data, _ = fn.file_reader(file_root=images_dir)
             img = fn.image_decoder(data, device="mixed")
             flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
             return flipped, img
 
+    Please note, that the decorated function will return
+    **DALI's Pipeline object** (see example below).
     When creating a Pipeline object using the decorated function,
     you can pass any number of ``Pipeline.__init__`` arguments as
     keyword-args to the call::
@@ -1031,28 +1045,37 @@ def pipeline(fn=None, **pipeline_kwargs):
         my_pipe = pipe(0, batch_size=32, num_threads=1, device_id=0, flip_horizontal=1)
         my_pipe.build()
 
-    Additionally, decorator can accept Pipeline constructor
-    parameters. Please note, that in this case you must use
-    keyword args only. Any Pipeline constructor parameter
-    passed later at pipeline instantiation will overwrite
-    the decorator-defined params::
+    Additionally, the decorator itself can accept Pipeline
+    constructor parameters. Please note, that in this case
+    you must use keyword args only. Any Pipeline constructor
+    parameter passed later at pipeline instantiation will
+    overwrite the decorator-defined params::
 
-        @nvidia.dali.pipeline.pipeline(batch_size=32, num_threads=3)
+        @nvidia.dali.pipeline.pipeline_def(batch_size=32, num_threads=3)
         def pipe():
             data = fn.external_source(source=my_generator)
             return data
 
         my_pipe = pipe(batch_size=128)  # batch_size=128 overwrites batch_size=32
+
+    The function returned by this decorator is roughly equivalent to::
+
+        def factory(arg1, arg2, ...)
+            pipe = nvidia.dali.Pipeline()
+            with pipe:
+                pipe.set_outputs(*fn(arg1, arg2, ...))
+            return pipe
+
     """
     def actual_decorator(func):
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
-            ctor_args, fn_kwargs = _discriminate_args(**kwargs)
+            ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
             pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
             with pipe:
                 pipe_outputs = func(*args, **fn_kwargs)
-                _ = pipe_outputs if isinstance(pipe_outputs, tuple) else pipe_outputs,
-                pipe.set_outputs(*_)
+                po = pipe_outputs if isinstance(pipe_outputs, tuple) else (pipe_outputs,)
+                pipe.set_outputs(*po)
             return pipe
         return create_pipeline
     return actual_decorator(fn) if fn else actual_decorator
