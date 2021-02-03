@@ -1044,6 +1044,7 @@ def pipeline_def(fn=None, **pipeline_kwargs):
 
         my_pipe = pipe(0, batch_size=32, num_threads=1, device_id=0, flip_horizontal=1)
         my_pipe.build()
+        flipped, img = my_pipe.run()
 
     Additionally, the decorator itself can accept Pipeline
     constructor parameters. Please note, that in this case
@@ -1058,9 +1059,10 @@ def pipeline_def(fn=None, **pipeline_kwargs):
 
         my_pipe = pipe(batch_size=128)  # batch_size=128 overwrites batch_size=32
 
-    The function returned by this decorator is roughly equivalent to::
+    The function returned by this decorator is roughly equivalent to the following
+    (``fn`` is the decorated function)::
 
-        def factory(arg1, arg2, ...)
+        def factory(arg1, arg2, ...):
             pipe = nvidia.dali.Pipeline()
             with pipe:
                 pipe.set_outputs(*fn(arg1, arg2, ...))

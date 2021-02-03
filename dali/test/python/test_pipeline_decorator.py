@@ -56,10 +56,7 @@ def pipeline_runtime(flip_vertical, flip_horizontal):
     return flipped, img
 
 
-@pipeline_def
-def pipeline_duplicated_arg(max_streams):
-    data, _ = fn.file_reader(file_root=images_dir)
-    return data
+
 
 
 @nottest
@@ -95,11 +92,18 @@ def test_pipeline_decorator():
     yield test_pipeline_static, fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234)
 
 
-@raises(TypeError)
-def test_invalid_argument():
-    pipeline_static(0, 0, this_argument_doesnt_exist=42)
-
-
 def test_duplicated_argument():
+    @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
+    def ref_pipeline(val):
+        data, _ = fn.file_reader(file_root=images_dir)
+        return data + val
+
+    @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
+    def pipeline_duplicated_arg(max_streams):
+        data, _ = fn.file_reader(file_root=images_dir)
+        return data + max_streams
+
     pipe = pipeline_duplicated_arg(max_streams=42)
     assert pipe._max_streams == -1
+    ref = ref_pipeline(42)
+    compare_pipelines(pipe, ref, batch_size=max_batch_size, N_iterations=N_ITER)

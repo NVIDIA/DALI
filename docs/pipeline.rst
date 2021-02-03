@@ -15,7 +15,7 @@ You can define a DALI Pipeline in the following ways:
 #. by implementing a function that uses DALI's ``Operators`` inside and decorating it with the
 :meth:`pipeline` decorator
 #. by instantiating :class:`Pipeline` object directly, building the graph and setting the pipeline
-   outputs with :meth:`Pipeline.set_outputs`
+outputs with :meth:`Pipeline.set_outputs`
 #. by inheriting from :class:`Pipeline` class and overriding :meth:`Pipeline.define_graph`
 (this is the legacy way of defining DALI Pipelines)
 
@@ -65,7 +65,7 @@ Otherwise, it can be set using context manager (``with`` statement)::
         a, b = src()
         pipe.set_outputs(a, b)
 
-The code above may also be expressed using some python syntactic-sugar::
+The code above may also be expressed using some Python syntactic-sugar::
 
     @dali.pipeline.pipeline(batch_size=N, num_threads=3, device_id=0)
     def pipe(my_source):
@@ -82,8 +82,7 @@ You can find more info about decorator syntax and how to use it in the
 
 Decorator
 ---------
-.. autoclass:: pipeline
-   :members:
+.. autodecorator:: pipeline_def
 
 
 DataNode
