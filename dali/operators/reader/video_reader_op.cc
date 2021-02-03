@@ -70,7 +70,11 @@ the hardware-accelerated video decoding feature in the NVIDIA(R) GPU.
 The video streams can be in most of the container file formats. FFmpeg is used to parse video
 containers and returns a batch of sequences of ``sequence_length`` frames with shape
 ``(N, F, H, W, C)``, where ``N`` is the batch size, and ``F`` is the number of frames).
-This class only supports constant frame rate videos.)code")
+This class only supports constant frame rate videos.
+
+.. note::
+  Containers which doesn't support indexing, like mpeg, requires DALI to seek to the sequence  when
+  each new sequence needs to be decoded.)code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderOutputFn)
   .AddOptionalArg("filenames",

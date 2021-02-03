@@ -221,9 +221,12 @@ TEST_F(VideoReaderTest, Vp9Profile0) {
   Pipeline pipe(1, 1, 0);
   const int sequence_length = 60;
 
+  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
+  // for this video
   pipe.AddOperator(OpSpec("VideoReader")
                        .AddArg("device", "gpu")
                        .AddArg("sequence_length", sequence_length)
+                       .AddArg("skip_vfr_check", true)
                        .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
                                                                      "/db/video/vp9/vp9_0.mp4"})
                        .AddOutput("frames", "gpu"));
@@ -257,9 +260,12 @@ TEST_F(VideoReaderTest, Vp9Profile2) {
       "Decoder hardware does not support this video codec"
       " and/or chroma format";
 
+  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
+  // for this video
   pipe.AddOperator(OpSpec("VideoReader")
                        .AddArg("device", "gpu")
                        .AddArg("sequence_length", sequence_length)
+                       .AddArg("skip_vfr_check", true)
                        .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
                                                                      "/db/video/vp9/vp9_2.mp4"})
                        .AddOutput("frames", "gpu"));
