@@ -77,9 +77,14 @@ def create_pipe(
     return pipe
 
 
-def build_and_run_pipeline(pipe, *args):
+def build_and_run_pipeline(pipe, iters=None, *args):
     pipe.build()
-    pipe.run()
+    if iters is None:
+        while True:
+            pipe.run()
+    else:
+        for i in range(iters):
+            pipe.run()
 
 
 # dtype is ignored but pass it so that is showed by nosetest
@@ -117,7 +122,6 @@ def check_spawn_with_callback(
 class ExtCallbackMultipleOutputs(ExtCallback):
 
     def __call__(self, sample_info):
-        import torch
         a = super().__call__(sample_info)
         return a, np.array([sample_info.idx_in_batch])
 

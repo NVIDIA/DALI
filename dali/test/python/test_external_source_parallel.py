@@ -52,7 +52,7 @@ def test_parallel_fork():
     # test that another pipline with forking initialization fails as there is CUDA contexts already initialized
     parallel_pipe = create_pipe(callback, 'cpu', 16, py_workers_num=4,
                                 py_workers_init='fork', parallel=True)
-    yield raises(RuntimeError)(build_and_run_pipeline), parallel_pipe
+    yield raises(RuntimeError)(build_and_run_pipeline), parallel_pipe, 1
 
 
 def test_dtypes():
@@ -76,14 +76,14 @@ def test_tensor_cpu():
 
 
 def test_exception_propagation():
-    for exception in [StopIteration, CustomException]:
-        callback = ExtCallback((4, 4), 250, 'int32', exception_class=exception)
+    for raised, expected in [(StopIteration, StopIteration), (CustomException, Exception)]:
+        callback = ExtCallback((4, 4), 250, np.int32, exception_class=raised)
         for workers_num in [1, 4]:
             for batch_size in [1, 15, 150]:
                 pipe = create_pipe(
                     callback, 'cpu', batch_size, py_workers_num=workers_num,
                     py_workers_init='spawn', parallel=True)
-                yield raises(exception)(build_and_run_pipeline), pipe, exception
+                yield raises(expected)(build_and_run_pipeline), pipe, None, raised, expected
 
 
 def test_stop_iteration_resume():

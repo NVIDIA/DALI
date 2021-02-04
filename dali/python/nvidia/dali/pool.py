@@ -130,10 +130,9 @@ received so far.
             if isinstance(exception, StopIteration):
                 raise exception
             else:
-                # Propagate the users' exception type with new message containing
-                # the traceback from worker thread.
-                # TODO(klecki): We don't know if we can construct it that way.
-                raise type(exception)(
+                # Raise new exception propagating the traceback from worker thread as error
+                # message, originating from original exception
+                raise Exception(
                     "\n\nException traceback received from worker thread:\n\n" + tb_str) from exception
 
     def is_error(self, batch_i):
