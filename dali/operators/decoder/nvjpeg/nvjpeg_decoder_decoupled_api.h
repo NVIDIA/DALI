@@ -706,11 +706,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         j++;
       }
 
-      hw_decoder_images_staging_.Copy(tv, 0);
+      CUDA_CALL(cudaEventSynchronize(hw_decode_event_));
+      // it is H2H copy so the stream doesn't metter much as we don't use cudaMemcpy but
+      // maybe someday...
+      hw_decoder_images_staging_.Copy(tv, hw_decode_stream_);
       for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
         in_data_[k] = hw_decoder_images_staging_.mutable_tensor<uint8_t>(k);
       }
-      CUDA_CALL(cudaEventSynchronize(hw_decode_event_));
       NVJPEG_CALL(nvjpegDecodeBatched(handle_, state, in_data_.data(), in_lengths_.data(),
                                       nvjpeg_destinations_.data(), hw_decode_stream_));
       for (auto *sample : samples_hw_batched_) {
