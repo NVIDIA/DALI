@@ -199,7 +199,7 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
       coord_vec[d] = dim_mapping[d];
     auto simplified_in = make_tensor_cpu<simplified_ndim, const Label>(
       in.data, simplified_shape.to_static<simplified_ndim>());
-    GetLabelBoundingBoxes<std::remove_const_t<Label>>(
+    GetLabelBoundingBoxes<Coord, std::remove_const_t<Label>>(
         boxes, make_span(ranges), make_span(hits),
         detail::FullTensorSlice(simplified_in), coord_vec,
         background);

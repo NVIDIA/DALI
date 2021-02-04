@@ -76,10 +76,100 @@ class RandomObjectBBox : public Operator<CPUBackend> {
  private:
   void AcquireArgs(const HostWorkspace &ws, int N, int ndim);
 
-  void ProcessSample(Context &context);
+  using ClassVec = SmallVector<int, 32>;
+  using WeightVec = SmallVector<float, 32>;
+
+  void GetClassesAndWeightsArgs(ClassVec &classes, WeightVec &weights,
+                                int &background, int sample_idx);
+
+  struct SampleContext {
+    void Init(int sample_idx, const Tensor<CPUBackend> *in) {
+      this->sample_idx = sample_idx;
+      input = in;
+      auto &shape = input->shape();
+      int64_t n = volume(shape);
+      filtered_data.resize(2);
+      blob_data.resize(2);
+      filtered = make_tensor_cpu(filtered_data.data(), shape);
+      blobs = make_tensor_cpu(blob_data.data(), shape);
+      labels.clear();
+    }
+
+    /**
+     * @brief Calculate CDF from weights
+     */
+    bool CalculateCDF() {
+      int ncls = weights.size();
+      cdf.resize(ncls);
+      double sum = 0;  // accumulate in double for increased precision
+      for (int i = 0; i < ncls; i++) {
+        sum += weights[i];
+        cdf[i] = static_cast<float>(sum);  // downconvert to float
+      }
+      return sum > 0;
+    }
+
+    /**
+     * @brief Pick a random label according to CDF
+     *
+     * Use binary search to find the label in CDF
+     */
+    template <typename RNG>
+    int PickClassLabel(RNG &rng) {
+      int ncls = cdf.size();
+      if (!ncls)
+        return -1;
+
+      double pos = class_dist(rng) * cdf.back();
+
+      int idx = std::lower_bound(cdf.begin(), cdf.end(), pos) - cdf.begin();
+      // the index may be ambiguous if there are zero weights, so we need to skip these
+      while (idx < ncls && weights[idx] == 0)
+        idx++;
+      return idx >= ncls ? -1 : idx;
+    }
+
+    TensorView<StorageCPU, int> out1, out2;
+    const Tensor<CPUBackend> *input = nullptr;
+    int sample_idx;
+
+    ClassVec classes;
+    WeightVec weights;
+    WeightVec cdf;
+    int background;
+
+    vector<uint8_t> filtered_data;
+    vector<int64_t> blob_data;
+    TensorView<StorageCPU, uint8_t> filtered;
+    TensorView<StorageCPU, int64_t> blobs;
+    std::unordered_set<int> labels, tmp_labels;
+    std::uniform_real_distribution<double> class_dist{0, 1};
+    vector<int> box_data;
+    struct {
+      SmallVector<int, 6> lo, hi;
+    } selected_box;
+
+    void SelectBox(int index) {
+      int ndim = blobs.dim();
+      selected_box.lo.resize(ndim);
+      selected_box.hi.resize(ndim);
+      for (int d = 0; d < ndim; d++) {
+        selected_box.lo[d] = box_data[2*index*ndim + d];
+        selected_box.hi[d] = box_data[2*index*ndim + d + ndim];
+      }
+    }
+  };
+  vector<SampleContext> contexts_;
+
+  bool PickForegroundBox(SampleContext &context);
 
   template <typename T>
-  void ProcessSample(Context &context, const TensorView<StorageCPU, const T> &input);
+  bool PickForegroundBox(SampleContext &context, const TensorView<StorageCPU, const T> &input);
+
+  bool PickBlob(SampleContext &ctx, int nblobs);
+
+  template <int ndim>
+  int PickBox(span<Box<ndim, int>> boxes, int sample_idx);
 
   template <typename T>
   void FindLabels(std::unordered_set<int> &labels, const T *data, int64_t N);
@@ -99,33 +189,6 @@ class RandomObjectBBox : public Operator<CPUBackend> {
   ArgValue<float, 1> weights_;
   ArgValue<int, 1> threshold_;
   OutputFormat format_;
-
-  struct Context {
-    void Init(int sample_idx, const Tensor<CPUBackend> &in) {
-      this->sample_idx = sample_idx;
-      input = in;
-      auto &shape = input.shape;
-      int64_t n = volume(shape);
-      filtered_data.resize(2);
-      blob_data.resize(2);
-      filtered = make_tensor_cpu(filtered_data.data(), shape);
-      blobs = make_tensor_cpu(blob_data.data(), shape);
-      labels.clear();
-    }
-
-    TensorView<StorageCPU, int> out1, out2;
-    Tensor<CPUBackend> input;
-    int sample_idx;
-
-    vector<int> filtered_data;
-    vector<int64_t> blob_data;
-    TensorView<StorageCPU, int> filtered;
-    TensorView<StorageCPU, int64_t> blobs;
-    std::unordered_set<int> labels, tmp_labels;
-    vector<int> ordered_labels;
-    vector<int> box_data;
-  };
-  vector<Context> contexts_;
 };
 
 }  // namespace dali
