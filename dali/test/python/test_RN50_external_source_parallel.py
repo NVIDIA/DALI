@@ -95,14 +95,14 @@ class SampleLoader(object):
 
 class ShuffledFilesDataSet(FilesDataSet):
 
-        def __init__(self, data_path):
-            super().__init__(data_path)
-            self.perm = np.random.permutation(self.size)
+    def __init__(self, data_path):
+        super().__init__(data_path)
+        self.perm = np.random.permutation(self.size)
 
-        def __getitem__(self, i):
-            if i >= self.size:
-                raise StopIteration
-            return super().__getitem__(self.perm[i])
+    def __getitem__(self, i):
+        if i >= self.size:
+            raise StopIteration
+        return super().__getitem__(self.perm[i])
 
 
 class CV2SampleLoader(SampleLoader):
@@ -118,7 +118,7 @@ class CV2SampleLoaderPerm(CV2SampleLoader):
 
 
 def common_pipeline(images):
-    images = dali.fn.random_resized_crop(images, device="gpu", size =(224,224))
+    images = dali.fn.random_resized_crop(images, device="gpu", size=(224, 224))
     rng = dali.fn.coin_flip(probability=0.5)
     images = dali.fn.crop_mirror_normalize(
         images, mirror=rng,
@@ -131,9 +131,11 @@ def common_pipeline(images):
     return images
 
 
-def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch, reader_queue_depth, **kwargs,):
+def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch,
+                         reader_queue_depth, **kwargs,):
     pipe = dali.pipeline.Pipeline(
-        batch_size=batch_size, num_threads=num_threads, device_id=device_id, prefetch_queue_depth=prefetch)
+        batch_size=batch_size, num_threads=num_threads, device_id=device_id,
+        prefetch_queue_depth=prefetch)
     with pipe:
         images, labels = dali.fn.file_reader(
             name="Reader",
@@ -156,7 +158,8 @@ class ExternalSourcePipeline(dali.pipeline.Pipeline):
         return len(self.loader.data_set)
 
 
-def external_source_pipeline(data_path, batch_size, num_threads, device_id, prefetch, reader_queue_depth, **kwargs,):
+def external_source_pipeline(
+        data_path, batch_size, num_threads, device_id, prefetch, reader_queue_depth, **kwargs,):
     pipe = ExternalSourcePipeline(
         batch_size=batch_size, num_threads=num_threads, device_id=device_id, data_path=data_path)
     with pipe:
@@ -166,13 +169,17 @@ def external_source_pipeline(data_path, batch_size, num_threads, device_id, pref
     return pipe
 
 
-def external_source_parallel_pipeline(data_path, batch_size, num_threads, device_id, prefetch, reader_queue_depth,
+def external_source_parallel_pipeline(
+        data_path, batch_size, num_threads, device_id, prefetch, reader_queue_depth,
         py_workers_num=None, py_workers_init="fork"):
     pipe = ExternalSourcePipeline(
-        batch_size=batch_size, num_threads=num_threads, device_id=device_id, prefetch_queue_depth=prefetch,
-        py_workers_init=py_workers_init, py_workers_num=py_workers_num, data_path=data_path)
+        batch_size=batch_size, num_threads=num_threads, device_id=device_id,
+        prefetch_queue_depth=prefetch, py_workers_init=py_workers_init,
+        py_workers_num=py_workers_num, data_path=data_path)
     with pipe:
-        images, labels = dali.fn.external_source(pipe.loader, num_outputs=2, batch=False, parallel=True, prefetch_queue_depth=reader_queue_depth)
+        images, labels = dali.fn.external_source(
+            pipe.loader, num_outputs=2, batch=False, parallel=True,
+            prefetch_queue_depth=reader_queue_depth)
         images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
@@ -184,12 +191,16 @@ TEST_DATA = [
     external_source_pipeline,
 ]
 
+
 def parse_args():
 
-    parser = argparse.ArgumentParser(description='Compare external source vs filereader performance in RN50 data pipeline case')
+    parser = argparse.ArgumentParser(
+        description='Compare external source vs filereader performance in RN50 data pipeline case')
     parser.add_argument('data_path', type=str, help='Directory path of training dataset')
     parser.add_argument('-b', '--batch_size', default=1024, type=int, metavar='N',
-                        help='batch size (default: 1024)')
+                        help='batch size')
+    parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
+                        help='number of GPUs')
     parser.add_argument('-j', '--workers', default=3, type=int, metavar='N',
                         help='number of data loading workers (default: 3)')
     parser.add_argument('--py_workers', default=3, type=int, metavar='N',
@@ -198,20 +209,20 @@ def parse_args():
                         help='Number of epochs to run')
     parser.add_argument('--benchmark_iters', type=int, metavar='N',
                         help='Number of iterations to run in each epoch')
-    parser.add_argument('--assign_gpu', default=0, type=int, metavar='N',
-                        help='Assign a given GPU. Cannot be used with --gpus')
     parser.add_argument('--worker_init', default='fork', choices=['fork', 'spawn'], type=str,
                         help='Python workers initialization method')
     parser.add_argument('--prefetch', default=2, type=int, metavar='N',
                         help='Pipeline cpu/gpu prefetch queue depth')
-    parser.add_argument('--reader_queue_depth', default=1, type=int, metavar='N',
-                        help='Depth of prefetching queue for file reading operators (FileReader/parallel ExternalSource) (default: 1)')
-    parser.add_argument('--training', default=False, type=bool,
-                        help='When specified to True pipeline is run alongside RN18 training, otherwise only data pipeline is run.')
+    parser.add_argument(
+        '--reader_queue_depth', default=1, type=int, metavar='N',
+        help='Depth of prefetching queue for file reading operators (FileReader/parallel ExternalSource) (default: 1)')
+    parser.add_argument(
+        '--training', default=False, type=bool,
+        help='When specified to True pipeline is run alongside RN18 training, otherwise only data pipeline is run.')
     args = parser.parse_args()
 
-    print("GPU ID: {}, batch: {}, epochs: {}, workers: {}, py_workers: {}, prefetch depth: {}, reader_queue_depth: {}, worker_init: {}"
-        .format(args.assign_gpu, args.batch_size, args.epochs, args.workers, args.py_workers, args.prefetch, args.reader_queue_depth, args.worker_init))
+    print("GPU ID: {}, batch: {}, epochs: {}, workers: {}, py_workers: {}, prefetch depth: {}, reader_queue_depth: {}, worker_init: {}" .format(
+        args.gpus, args.batch_size, args.epochs, args.workers, args.py_workers, args.prefetch, args.reader_queue_depth, args.worker_init))
 
     return args
 
@@ -219,19 +230,24 @@ def parse_args():
 def iteration_test(args):
 
     for pipe_factory in TEST_DATA:
-        pipe = pipe_factory(
+        # TODO(klecki): We don't handle sharding in this test yet, would need to do it manually
+        # for External Source pipelines
+        pipes = [pipe_factory(
             batch_size=args.batch_size,
             num_threads=args.workers,
-            device_id=args.assign_gpu,
+            device_id=gpu,
             data_path=args.data_path,
             prefetch=args.prefetch,
             reader_queue_depth=args.reader_queue_depth,
             py_workers_init=args.worker_init,
             py_workers_num=args.py_workers
-            )
-        pipe.build()
+        ) for gpu in range(args.gpus)]
+        for pipe in pipes:
+            pipe.start_py_workers()
+        for pipe in pipes:
+            pipe.build()
 
-        samples_no = pipe.epoch_size("Reader")
+        samples_no = pipes[0].epoch_size("Reader")
         if args.benchmark_iters is None:
             expected_iters = samples_no // args.batch_size + (samples_no % args.batch_size != 0)
         else:
@@ -246,23 +262,28 @@ def iteration_test(args):
             data_time = AverageMeter()
             end = time.time()
             for j in range(expected_iters):
-                try:
-                    pipe.run()
-                except StopIteration:
-                    assert j == expected_iters - 1
+                stop_iter = False
+                for pipe in pipes:
+                    try:
+                        pipe.run()
+                    except StopIteration:
+                        assert j == expected_iters - 1
+                        stop_iter = True
+                if stop_iter:
                     break
                 data_time.update(time.time() - end)
                 if j % 10 == 0:
                     print("{} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s]".format(
-                            pipe_factory.__name__,
-                            j,
-                            expected_iters,
-                            data_time.avg,
-                            data_time.max_val,
-                            args.batch_size / data_time.avg,
+                        pipe_factory.__name__,
+                        j,
+                        expected_iters,
+                        data_time.avg,
+                        data_time.max_val,
+                        args.batch_size * args.gpus / data_time.avg,
                     ))
                 end = time.time()
-            pipe.reset()
+            for pipe in pipes:
+                pipe.reset()
 
         print("OK {}".format(pipe_factory.__name__))
 
@@ -276,19 +297,23 @@ def training_test(args):
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
 
     for pipe_factory in TEST_DATA:
-        pipe = pipe_factory(
+        pipes = [pipe_factory(
             batch_size=args.batch_size,
             num_threads=args.workers,
-            device_id=args.assign_gpu,
+            device_id=gpu,
             data_path=args.data_path,
             prefetch=args.prefetch,
             reader_queue_depth=args.reader_queue_depth,
             py_workers_init=args.worker_init,
             py_workers_num=args.py_workers
-            )
-        pipe.build()
+        ) for gpu in range(args.gpus)]
 
-        model =  models.resnet18().cuda()
+        for pipe in pipes:
+            pipe.start_py_workers()
+        for pipe in pipes:
+            pipe.build()
+
+        model = models.resnet18().cuda()
         model.train()
         loss_fun = nn.CrossEntropyLoss().cuda()
         lr = 0.1 * args.batch_size / 256
@@ -298,7 +323,8 @@ def training_test(args):
             momentum=0.9,
         )
 
-        samples_no = pipe.epoch_size("Reader")
+        samples_no = pipes[0].epoch_size("Reader")
+        print(samples_no)
         if args.benchmark_iters is None:
             expected_iters = samples_no // args.batch_size + (samples_no % args.batch_size != 0)
         else:
@@ -306,9 +332,11 @@ def training_test(args):
 
         end = time.time()
         if pipe_factory == file_reader_pipeline:
-            iterator = DALIClassificationIterator([pipe], reader_name="Reader", last_batch_policy=LastBatchPolicy.DROP)
+            iterator = DALIClassificationIterator(
+                pipes, reader_name="Reader", last_batch_policy=LastBatchPolicy.DROP)
         else:
-            iterator = DALIClassificationIterator([pipe], auto_reset=True)
+            iterator = DALIClassificationIterator(
+                pipes, size=samples_no * args.gpus, auto_reset=True)
 
         print("RUN {}".format(pipe_factory.__name__))
         losses = AverageMeter()
@@ -336,14 +364,14 @@ def training_test(args):
                     losses.update(reduced_loss.item())
 
                     print("{} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s], loss: {}, loss_avg: {}".format(
-                            pipe_factory.__name__,
-                            j,
-                            expected_iters,
-                            data_time.avg,
-                            data_time.max_val,
-                            args.batch_size / data_time.avg,
-                            reduced_loss.item(),
-                            losses.avg
+                        pipe_factory.__name__,
+                        j,
+                        expected_iters,
+                        data_time.avg,
+                        data_time.max_val,
+                        args.batch_size * args.gpus / data_time.avg,
+                        reduced_loss.item(),
+                        losses.avg
                     ))
                 end = time.time()
                 if j >= expected_iters:

@@ -157,7 +157,7 @@ class _ExternalSourceGroup(object):
         self.feed(pipeline, callback_out, batch_size)
 
     def feed(self, pipeline, callback_out, batch_size):
-        """Feed the `callback_out` data from obtained from source to the ExternalSource nodes
+        """Feed the `callback_out` data obtained from source to the ExternalSource nodes
         in the `pipeline`"""
         if self.is_multioutput:
             for op in self.instances:

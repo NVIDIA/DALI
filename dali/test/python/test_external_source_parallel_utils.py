@@ -82,7 +82,7 @@ def build_and_run_pipeline(pipe, iters=None, *args):
         while True:
             pipe.run()
     else:
-        for i in range(iters):
+        for _ in range(iters):
             pipe.run()
 
 

@@ -47,7 +47,7 @@ class CompletedTasks:
     `batch_serialized` :  nvidia.dali.shared_batch.SharedBatchMeta
         Serialized result of computing the task.
     `exception`
-        Exception if the task was failed.
+        Exception if the task failed.
     """
 
     def __init__(

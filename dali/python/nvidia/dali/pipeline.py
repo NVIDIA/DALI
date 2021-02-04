@@ -147,10 +147,10 @@ Parameters
         self._seed = seed if seed is not None else -1
         self._exec_pipelined = exec_pipelined
         # When initializing DALI, we do the following in order:
-        # * Discover the ops specified in Python, group the ExternalSources
-        # * Start the Python workers pool
-        # * Construct the C++ Pipeline backend and pass the graph to it
-        # * Build the pieline.
+        # * Discover the ops specified in Python, group the ExternalSources (_build_graph())
+        # * Start the Python workers pool (_start_py_workers())
+        # * Construct the C++ Pipeline backend and pass the graph to it (_init_pipeline_backend())
+        # * Build the pieline. (_pipe.Build())
         self._py_graph_built = False
         self._py_pool_started = False
         self._backend_prepared = False

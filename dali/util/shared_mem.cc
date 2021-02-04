@@ -44,19 +44,24 @@ ShmFdWrapper::ShmFdWrapper() {
   constexpr char dev_shm_path[] = "/dev/shm/";
   constexpr char run_shm_path[] = "/run/shm/";
   constexpr char temp_filename_template[] = "nvidia_dali_XXXXXX";
-  constexpr int kShmPathSize = sizeof(dev_shm_path) - 1;
-  constexpr int kPathSize = kShmPathSize + sizeof(temp_filename_template);
-  char temp_path[kPathSize];
+  constexpr int kDevShmPathSize = sizeof(dev_shm_path) - 1;
+  constexpr int kRunShmPathSize = sizeof(run_shm_path) - 1;
+  constexpr int kPathSizeMax =
+      std::max(kDevShmPathSize, kRunShmPathSize) + sizeof(temp_filename_template);
+  char temp_path[kPathSizeMax];
   const char *shm_path = nullptr;
+  size_t shm_size = 0;
   if (detail::dir_exists(dev_shm_path)) {
     shm_path = dev_shm_path;
+    shm_size = kDevShmPathSize;
   } else if (detail::dir_exists(run_shm_path)) {
     shm_path = run_shm_path;
+    shm_size = kRunShmPathSize;
   } else {
     throw std::runtime_error("shared memory dir not found");
   }
-  memcpy(temp_path, shm_path, kShmPathSize);
-  memcpy(temp_path + kShmPathSize, temp_filename_template, sizeof(temp_filename_template));
+  memcpy(temp_path, shm_path, shm_size);
+  memcpy(temp_path + shm_size, temp_filename_template, sizeof(temp_filename_template));
   int temp_fd = mkstemp(temp_path);
   if (temp_fd < 0) {
     throw std::runtime_error("temporary file creation failed");
@@ -64,7 +69,7 @@ ShmFdWrapper::ShmFdWrapper() {
   if (unlink(temp_path) != 0) {
     throw std::runtime_error("couldn't unlink temporary file");
   }
-  const char * temp_filename = temp_path + kShmPathSize;
+  const char *temp_filename = temp_path + shm_size;
   fd_ = shm_open(temp_filename, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
   if (fd_ < 0) {
     throw std::runtime_error("shm_open call failed");
