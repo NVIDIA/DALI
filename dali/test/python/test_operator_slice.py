@@ -361,8 +361,8 @@ def test_slice_synth_data_vs_numpy():
                 ((200,400,3), "HWC", None, "HW", types.INT32, types.FLOAT),
                 ((200,400,3), "HWC", None, "HW", types.INT64, types.UINT8),
                 ((200,400,3), "HWC", None, "C", types.FLOAT, None),
-                ((200,400,3), "HWC", (1,0), None, types.FLOAT, None),
-                ((200,400,3), "HWC", (0,1), None, types.FLOAT, None),
+                ((200,400,3), "HWC", (1,0), None, types.FLOAT, types.FLOAT16),
+                ((200,400,3), "HWC", (0,1), None, types.FLOAT16, types.FLOAT16),
                 ((200,400,3), "HWC", (2,), None, types.FLOAT, None),
                 ((200,), "H", (0,), None, types.FLOAT, None),
                 ((200,), "H", None, "H", types.FLOAT, None),
@@ -467,7 +467,7 @@ def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start
         for d in range(len(flip)):
             if flip[d]:
                 expected = np.flip(expected, d)
-   
+
     if permute is not None:
         expected = np.transpose(expected, permute)
 
