@@ -15,8 +15,7 @@
 import numpy as np
 from nose.tools import raises
 
-import nvidia.dali as dali
-from test_utils import compare_pipelines, check_batch
+from test_utils import compare_pipelines
 from test_external_source_parallel_utils import *
 
 

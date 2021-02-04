@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import numpy as np
-from nose.tools import raises
 
 import nvidia.dali as dali
 

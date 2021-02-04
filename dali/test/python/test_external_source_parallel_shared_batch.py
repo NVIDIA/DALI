@@ -14,15 +14,10 @@
 
 
 import numpy as np
-from nose.tools import raises
-
-import nvidia.dali as dali
 
 import nvidia.dali.shared_batch as sb
 
 from test_utils import RandomlyShapedDataIterator
-
-import pickle
 
 
 def recursive_equals(left, right, top_level=True):

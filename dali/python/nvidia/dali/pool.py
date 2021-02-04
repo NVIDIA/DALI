@@ -14,13 +14,12 @@
 
 import os
 import socket
-import pickle
 import threading
 import multiprocessing
 from collections import OrderedDict
 from nvidia.dali import backend as _b
 from nvidia.dali.worker import worker
-from nvidia.dali.messages import ScheduledTasks, CompletedTasks
+from nvidia.dali.messages import ScheduledTasks
 from nvidia.dali.shared_batch import SharedBatchMeta
 from nvidia.dali.shared_batch import deserialize_sample_meta, deserialize_batch, import_numpy
 from nvidia.dali import shared_mem
