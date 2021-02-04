@@ -116,8 +116,7 @@ class SliceAttr {
           float *slice_end = nullptr;  // not used
           ProcessPositionalInputArgs(data_idx,
                                      anchor_view.tensor_data(data_idx),
-                                     shape_view.tensor_data(data_idx),
-                                     slice_end);
+                                     shape_view.tensor_data(data_idx));
         }
       ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT
     } else {
@@ -204,13 +203,12 @@ class SliceAttr {
   template <typename AnchorT, typename ShapeT, typename EndT>
   void ProcessPositionalInputArgs(int data_idx,
                                   const AnchorT *slice_anchor_data,
-                                  const ShapeT *slice_shape_data,
-                                  const EndT *slice_end_data) {
+                                  const ShapeT *slice_shape_data) {
     bool normalized_anchor = std::is_floating_point<AnchorT>::value && normalized_anchor_;
     bool normalized_shape  = std::is_floating_point<ShapeT>::value && normalized_shape_;
     bool normalized_end = std::is_floating_point<EndT>::value;
     crop_window_generators_[data_idx] =
-      [this, slice_anchor_data, slice_shape_data, slice_end_data,
+      [this, slice_anchor_data, slice_shape_data,
        normalized_anchor, normalized_shape, normalized_end]
       (const TensorShape<> &shape, const TensorLayout& shape_layout) {
         CropWindow slice;
