@@ -89,7 +89,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       hw_decoder_images_staging_.SetGrowthFactor(2);
       // assume close the worst case size 300kb per image
       auto shapes = uniform_list_shape(CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
-                                       std::vector<int64_t>{300*1024});
+                                       TensorShape<1>{300*1024});
       hw_decoder_images_staging_.Resize(shapes, TypeInfo::Create<uint8_t>());
 #if defined(NVJPEG_PREALLOCATE_API)
       // TODO(awolant): How to expose chroma subsampling to the user?
