@@ -113,7 +113,6 @@ class SliceAttr {
         auto shape_view = view<const ArgsType>(crop_shape);
         for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
           VerifyArgsShape(anchor_view.tensor_shape(data_idx), shape_view.tensor_shape(data_idx));
-          float *slice_end = nullptr;  // not used
           ProcessPositionalInputArgs(data_idx,
                                      anchor_view.tensor_data(data_idx),
                                      shape_view.tensor_data(data_idx));
@@ -200,16 +199,15 @@ class SliceAttr {
       };
   }
 
-  template <typename AnchorT, typename ShapeT, typename EndT>
+  template <typename AnchorT, typename ShapeT>
   void ProcessPositionalInputArgs(int data_idx,
                                   const AnchorT *slice_anchor_data,
                                   const ShapeT *slice_shape_data) {
     bool normalized_anchor = std::is_floating_point<AnchorT>::value && normalized_anchor_;
     bool normalized_shape  = std::is_floating_point<ShapeT>::value && normalized_shape_;
-    bool normalized_end = std::is_floating_point<EndT>::value;
     crop_window_generators_[data_idx] =
       [this, slice_anchor_data, slice_shape_data,
-       normalized_anchor, normalized_shape, normalized_end]
+       normalized_anchor, normalized_shape]
       (const TensorShape<> &shape, const TensorLayout& shape_layout) {
         CropWindow slice;
         slice.anchor = std::vector<int64_t>(shape.size(), 0);
