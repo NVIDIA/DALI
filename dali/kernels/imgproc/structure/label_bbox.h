@@ -81,7 +81,8 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
   for (int64_t i = 0; i < in.size[0]; i++) {
     if (in.data[i] != background) {
       // We make a "hole" in the label indices for the background.
-      unsigned idx = static_cast<unsigned>(in.data[i]) - (in.data[i] >= background);
+      int skip_bg = (background >= 0 && in.data[i] >= background);
+      unsigned idx = static_cast<unsigned>(in.data[i]) - skip_bg;
 
       // deliberate use of unsigned overflow to detect negative labels as out-of-range
       if (idx < nboxes) {

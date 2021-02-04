@@ -89,6 +89,9 @@ bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorksp
   auto in_shape = ws.InputRef<CPUBackend>(0).shape();
   int ndim = in_shape.sample_dim();
   int N = in_shape.num_samples();
+
+  DALI_ENFORCE(N == 0 || (ndim >= 1 && ndim <= 6),
+      make_string("Unsuported number of dimensions ", ndim, "; must be 1..6"));
   AcquireArgs(ws, N, ndim);
   out_descs[0].type = TypeTable::GetTypeInfo(DALI_INT32);
   out_descs[0].shape = uniform_list_shape<DynamicDimensions>(
@@ -198,6 +201,7 @@ void RandomObjectBBox::GetClassesAndWeightsArgs(
     int ncls = cls_tv.shape[0];
     classes.resize(ncls);
     if (!weights_.IsDefined()) {
+      weights.clear();
       weights.resize(ncls, 1.0f);
     }
     for (int i = 0; i < ncls; i++)
@@ -234,21 +238,21 @@ int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
       return any_coord(box.extent() < threshold);
     });
   }
-  int n = beg - end;
-  if (n == 0)
+  int n = end - beg;
+  if (n <= 0)
     return -1;
 
-  if (k_largest_ >= 0) {
+  if (k_largest_ > 0) {
     SmallVector<std::pair<int64_t, int>, 32> vol_idx;
     vol_idx.resize(n);
     for (int i = 0; i < n; i++) {
       vol_idx[i] = { volume(boxes[i]), i };
     }
     std::sort(vol_idx.begin(), vol_idx.end());
-    std::uniform_int_distribution<int> dist(0, std::min(n, k_largest_));
+    std::uniform_int_distribution<int> dist(0, std::min(n, k_largest_)-1);
     return vol_idx[dist(rngs_[sample_idx])].second;
   } else {
-    std::uniform_int_distribution<int> dist(0, n);
+    std::uniform_int_distribution<int> dist(0, n-1);
     return dist(rngs_[sample_idx]);
   }
 }
@@ -269,13 +273,12 @@ bool RandomObjectBBox::PickBlob(SampleContext &ctx, int nblobs) {
       if (box_idx >= 0) {
         ctx.SelectBox(box_idx);
         return true;
-      } else {
-        return false;
       }
     ), (  // NOLINT
       DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim, "; must be 1..6"));
     )  // NOLINT
   );  // NOLINT
+  return false;
 }
 
 template <typename T>
@@ -316,10 +319,11 @@ bool RandomObjectBBox::PickForegroundBox(
       int nblobs = LabelConnectedRegions<int64_t, uint8_t, -1>(
           context.blobs, context.filtered, -1, 0);
 
-      if (!PickBlob(context, nblobs)) {
-        // we couldn't find a satisfactory blob in this class, so let's exclude it and try again
-        context.weights[class_idx] = 0;
-      }
+      if (PickBlob(context, nblobs))
+        return true;
+
+      // we couldn't find a satisfactory blob in this class, so let's exclude it and try again
+      context.weights[class_idx] = 0;
     }
     // we've run out of classes and still there's no good blob
     return false;
@@ -339,6 +343,9 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
   const auto &in_shape = input.shape();
   int N = in_shape.num_samples();
+  if (N == 0)
+    return;
+
   int ndim = in_shape.sample_dim();
   auto &tp = ws.GetThreadPool();
 
@@ -358,20 +365,24 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
     if (!fg) {
       StoreBox(out1, out2, format_, i, default_anchor, in_shape[i]);
     } else {
-      tp.AddWork([&, i](int thread_idx) {
+      //tp.AddWork([&, i](int thread_idx) {
+        int thread_idx = 0;
         SampleContext &ctx = contexts_[thread_idx];
         ctx.Init(i, &input[i]);
         ctx.out1 = out1[i];
         if (out2.num_samples() > 0)
           ctx.out2 = out2[i];
 
-        if (!PickForegroundBox(ctx))
+        if (PickForegroundBox(ctx))
+          StoreBox(out1, out2, format_, i, ctx.selected_box);
+        else
           StoreBox(out1, out2, format_, i, default_anchor, in_shape[i]);
-      }, volume(in_shape.tensor_shape_span(i)));
+      //}, volume(in_shape.tensor_shape_span(i)));
     }
   }
-  tp.RunAll();
+  //tp.RunAll();
 }
 
+DALI_REGISTER_OPERATOR(segmentation__RandomObjectBBox, RandomObjectBBox, CPU);
 
 }  // namespace dali

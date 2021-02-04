@@ -88,8 +88,8 @@ class RandomObjectBBox : public Operator<CPUBackend> {
       input = in;
       auto &shape = input->shape();
       int64_t n = volume(shape);
-      filtered_data.resize(2);
-      blob_data.resize(2);
+      filtered_data.resize(n);
+      blob_data.resize(n);
       filtered = make_tensor_cpu(filtered_data.data(), shape);
       blobs = make_tensor_cpu(blob_data.data(), shape);
       labels.clear();
