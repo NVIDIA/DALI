@@ -256,7 +256,7 @@ class SliceGPU {
     for (int i = 0; i < in.size(); i++) {
       if (default_fill_values_) {
         assert(nfill_values_ == 1);
-        fill_values_cpu[i] = static_cast<OutputType>(0.f);
+        fill_values_cpu[i] = OutputType{};
       } else {
         auto *fill_values = fill_values_cpu + i * nfill_values_;
         for (int d = 0; d < nfill_values_; d++)
@@ -324,10 +324,10 @@ class SliceGPU {
 
     const auto grid = block_count_;
     if (any_padded_sample)
-      detail::SliceKernel<to_gpu_t<OutputType>, to_gpu_t<InputType>, Dims, true>
+      detail::SliceKernel<DALI_TO_GPU_T(OutputType), DALI_TO_GPU_T(InputType), Dims, true>
         <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
     else
-      detail::SliceKernel<to_gpu_t<OutputType>, to_gpu_t<InputType>, Dims, false>
+      detail::SliceKernel<DALI_TO_GPU_T(OutputType), DALI_TO_GPU_T(InputType), Dims, false>
         <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
     CUDA_CALL(cudaGetLastError());
   }
