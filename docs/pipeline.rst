@@ -84,8 +84,8 @@ You can find more info about decorator syntax and how to use it in the
    :special-members: __enter__, __exit__
 
 
-Decorator
----------
+Pipeline Decorator
+------------------
 .. autodecorator:: pipeline_def
 
 
