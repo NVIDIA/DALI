@@ -222,7 +222,7 @@ TEST_F(VideoReaderTest, Vp9Profile0) {
   const int sequence_length = 60;
 
   // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
-  // for this video
+  // this video
   pipe.AddOperator(OpSpec("VideoReader")
                        .AddArg("device", "gpu")
                        .AddArg("sequence_length", sequence_length)
@@ -261,7 +261,7 @@ TEST_F(VideoReaderTest, Vp9Profile2) {
       " and/or chroma format";
 
   // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
-  // for this video
+  // this video
   pipe.AddOperator(OpSpec("VideoReader")
                        .AddArg("device", "gpu")
                        .AddArg("sequence_length", sequence_length)
