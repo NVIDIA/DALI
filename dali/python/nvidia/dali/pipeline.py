@@ -1021,8 +1021,6 @@ def pipeline_def(fn=None, **pipeline_kwargs):
     """
     Decorator that converts a graph definition function into a DALI pipeline factory.
 
-    **Usage**
-
     A graph definition function is a function that returns intended pipeline outputs.
     You can decorate this function with ``@pipeline_def``::
 
