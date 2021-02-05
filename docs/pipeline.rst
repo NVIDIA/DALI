@@ -25,7 +25,7 @@ Data processing graphs
 DALI pipeline is represented as a graph of operations. There are two kinds of nodes in the graph:
 
  * Operators - created on each call to an operator
- * Data nodes (see :class:`nvidia.dali.pipeline.DataNode`) - represent outputs and inputs of operators; they are
+ * Data nodes (see :class:`~nvidia.dali.pipeline.DataNode`) - represent outputs and inputs of operators; they are
    returned from calls to operators and passing them as inputs to other operators establishes
    connections in the graph.
 
@@ -53,7 +53,7 @@ The resulting graph is:
 Current pipeline
 """"""""""""""""
 
-Sub-graphs that do not contribute to the pipeline output are automatically pruned.
+Subgraphs that do not contribute to the pipeline output are automatically pruned.
 If an operator has side effects (e.g. ``PythonFunction`` operator family), it cannot be invoked
 without setting the current pipeline. Current pipeline is set implicitly when the graph is
 defined inside derived pipelines' :meth:`Pipeline.define_graph` method.
@@ -65,11 +65,15 @@ Otherwise, it can be set using context manager (``with`` statement)::
         a, b = src()
         pipe.set_outputs(a, b)
 
-The code above may also be expressed using some Python syntactic-sugar::
+When creating a pipeline with :meth:`pipeline_def`, the function which defines the pipeline is
+executed within the scope of the newly created pipeline. The following example is equivalent
+to the previous one::
 
     @dali.pipeline_def(batch_size=N, num_threads=3, device_id=0)
-    def pipe(my_source):
+    def my_pipe(my_source):
         return dali.fn.external_source(my_source, num_outputs=2)
+
+    pipe = my_pipe(my_source)
 
 And the decorated function will return ``Pipeline`` object.
 You can find more info about decorator syntax and how to use it in the
