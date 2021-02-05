@@ -4,10 +4,10 @@ Pipeline
 Pipeline class
 --------------
 
-.. currentmodule:: nvidia.dali.pipeline
+.. currentmodule:: nvidia.dali
 
 In DALI, any data processing task has a central object called Pipeline. Pipeline object is an
-instance of :class:`nvidia.dali.pipeline.Pipeline` or a derived class. Pipeline encapsulates the
+instance of :class:`nvidia.dali.Pipeline` or a derived class. Pipeline encapsulates the
 data processing graph and the execution engine.
 
 You can define a DALI Pipeline in the following ways:
@@ -25,7 +25,7 @@ Data processing graphs
 DALI pipeline is represented as a graph of operations. There are two kinds of nodes in the graph:
 
  * Operators - created on each call to an operator
- * Data nodes (see :class:`DataNode`) - represent outputs and inputs of operators; they are
+ * Data nodes (see :class:`nvidia.dali.pipeline.DataNode`) - represent outputs and inputs of operators; they are
    returned from calls to operators and passing them as inputs to other operators establishes
    connections in the graph.
 
@@ -59,7 +59,7 @@ without setting the current pipeline. Current pipeline is set implicitly when th
 defined inside derived pipelines' :meth:`Pipeline.define_graph` method.
 Otherwise, it can be set using context manager (``with`` statement)::
 
-    pipe = dali.pipeline.Pipeline(batch_size=N, num_threads=3, device_id=0)
+    pipe = dali.Pipeline(batch_size=N, num_threads=3, device_id=0)
     with pipe:
         src = dali.ops.ExternalSource(my_source, num_outputs=2)
         a, b = src()
@@ -67,7 +67,7 @@ Otherwise, it can be set using context manager (``with`` statement)::
 
 The code above may also be expressed using some Python syntactic-sugar::
 
-    @dali.pipeline.pipeline(batch_size=N, num_threads=3, device_id=0)
+    @dali.pipeline_def(batch_size=N, num_threads=3, device_id=0)
     def pipe(my_source):
         return dali.fn.external_source(my_source, num_outputs=2)
 
@@ -87,5 +87,5 @@ Decorator
 
 DataNode
 --------
-.. autoclass:: DataNode
+.. autoclass:: nvidia.dali.pipeline.DataNode
    :members:

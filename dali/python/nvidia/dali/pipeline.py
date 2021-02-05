@@ -1019,55 +1019,57 @@ def _discriminate_args(func, **func_kwargs):
 
 def pipeline_def(fn=None, **pipeline_kwargs):
     """
-    A decorator which creates a factory of DALI pipelines.
-    DALI processing graph is defined by the decorated function.
+    Decorator that converts a graph definition function into a DALI pipeline factory.
 
     **Usage**
 
-    First, implement a function that defines a DALI pipeline.
-    Return values of such function will denote output from the
-    DALI pipeline. You can decorate this function with ``@pipeline_def``::
+    A graph definition function is a function that returns intended pipeline outputs.
+    You can decorate this function with ``@pipeline_def``::
 
-        @nvidia.dali.pipeline.pipeline_def
-        def pipe(flip_vertical, flip_horizontal):
+        @pipeline_def
+        def my_pipe(flip_vertical, flip_horizontal):
             ''' Creates a DALI pipeline, which returns flipped and original images '''
             data, _ = fn.file_reader(file_root=images_dir)
             img = fn.image_decoder(data, device="mixed")
             flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
             return flipped, img
 
-    Please note, that the decorated function will return
-    **DALI's Pipeline object** (see example below).
-    When creating a Pipeline object using the decorated function,
-    you can pass any number of ``Pipeline.__init__`` arguments as
-    keyword-args to the call::
+    The decorated function returns a DALI Pipeline object::
 
-        my_pipe = pipe(0, batch_size=32, num_threads=1, device_id=0, flip_horizontal=1)
-        my_pipe.build()
-        flipped, img = my_pipe.run()
+        pipe = my_pipe(True, False)
+        # pipe.build()  # the pipeline is not configured properly yet
 
-    Additionally, the decorator itself can accept Pipeline
-    constructor parameters. Please note, that in this case
-    you must use keyword args only. Any Pipeline constructor
-    parameter passed later at pipeline instantiation will
-    overwrite the decorator-defined params::
+    A pipeline requires additional parameters such as batch size, number of worker threads,
+    GPU device id and so on (see :meth:`Pipeline.__init__` for a complete list of pipeline parameters).
+    These parameters can be supplied as additional keyword arguments, passed to the decorated function::
 
-        @nvidia.dali.pipeline.pipeline_def(batch_size=32, num_threads=3)
-        def pipe():
+        pipe = my_pipe(True, False, batch_size=32, num_threads=1, device_id=0)
+        pipe.build()  # the pipeline is properly configured, we can build it now
+
+    The outputs from the original function became the outputs of the Pipeline::
+
+        flipped, img = pipe.run()
+
+    When some of the pipeline parameters are fixed, they can be specified by name in the decorator::
+
+        @pipeline_def(batch_size=42, num_threads=3)
+        def my_pipe(flip_vertical, flip_horizontal):
+            ...
+
+    Any Pipeline constructor parameter passed later when calling the decorated function will
+    override the decorator-defined params::
+
+        @pipeline_def(batch_size=32, num_threads=3)
+        def my_pipe():
             data = fn.external_source(source=my_generator)
             return data
 
-        my_pipe = pipe(batch_size=128)  # batch_size=128 overwrites batch_size=32
+        pipe = my_pipe(batch_size=128)  # batch_size=128 overrides batch_size=32
 
-    The function returned by this decorator is roughly equivalent to the following
-    (``fn`` is the decorated function)::
+    .. warning::
 
-        def factory(arg1, arg2, ...):
-            pipe = nvidia.dali.Pipeline()
-            with pipe:
-                pipe.set_outputs(*fn(arg1, arg2, ...))
-            return pipe
-
+        The arguments of the function being decorated can shadow pipeline constructor arguments -
+        in which case there's no way to alter their values.
     """
     def actual_decorator(func):
         @functools.wraps(func)

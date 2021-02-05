@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline, pipeline_def
+from nvidia.dali import Pipeline, pipeline_def
 from nose.tools import nottest, raises
 import nvidia.dali.fn as fn
 from test_utils import get_dali_extra_path, compare_pipelines
