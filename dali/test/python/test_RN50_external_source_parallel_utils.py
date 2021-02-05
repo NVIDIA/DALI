@@ -66,6 +66,18 @@ class FilesDataSet:
         return self.files_map[i]
 
 
+class ShuffledFilesDataSet(FilesDataSet):
+
+    def __init__(self, data_path):
+        super().__init__(data_path)
+        self.perm = np.random.permutation(self.size)
+
+    def __getitem__(self, i):
+        if i >= self.size:
+            raise StopIteration
+        return super().__getitem__(self.perm[i])
+
+
 class SampleLoader(object):
 
     DATA_SET = FilesDataSet
@@ -91,18 +103,6 @@ class SampleLoader(object):
     def __call__(self, sample_info):
         file_path, class_no = self.data_set[sample_info.idx_in_epoch]
         return self.read_file(file_path), np.array([class_no])
-
-
-class ShuffledFilesDataSet(FilesDataSet):
-
-    def __init__(self, data_path):
-        super().__init__(data_path)
-        self.perm = np.random.permutation(self.size)
-
-    def __getitem__(self, i):
-        if i >= self.size:
-            raise StopIteration
-        return super().__getitem__(self.perm[i])
 
 
 class CV2SampleLoader(SampleLoader):
@@ -185,22 +185,13 @@ def external_source_parallel_pipeline(
     return pipe
 
 
-TEST_DATA = [
-    external_source_parallel_pipeline,
-    file_reader_pipeline,
-    external_source_pipeline,
-]
-
-
-def parse_args():
+def parse_test_arguments(supports_distributed):
 
     parser = argparse.ArgumentParser(
         description='Compare external source vs filereader performance in RN50 data pipeline case')
     parser.add_argument('data_path', type=str, help='Directory path of training dataset')
     parser.add_argument('-b', '--batch_size', default=1024, type=int, metavar='N',
                         help='batch size')
-    parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
-                        help='number of GPUs')
     parser.add_argument('-j', '--workers', default=3, type=int, metavar='N',
                         help='number of data loading workers (default: 3)')
     parser.add_argument('--py_workers', default=3, type=int, metavar='N',
@@ -216,176 +207,20 @@ def parse_args():
     parser.add_argument(
         '--reader_queue_depth', default=1, type=int, metavar='N',
         help='Depth of prefetching queue for file reading operators (FileReader/parallel ExternalSource) (default: 1)')
-    parser.add_argument(
-        '--training', default=False, type=bool,
-        help='When specified to True pipeline is run alongside RN18 training, otherwise only data pipeline is run.')
+
+    if supports_distributed:
+        parser.add_argument('--local_rank', default=0, type=int,
+                            help="Id of the local rank in distributed scenario.")
+    else:
+        parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
+                            help='number of GPUs')
     args = parser.parse_args()
 
-    print("GPU ID: {}, batch: {}, epochs: {}, workers: {}, py_workers: {}, prefetch depth: {}, reader_queue_depth: {}, worker_init: {}" .format(
-        args.gpus, args.batch_size, args.epochs, args.workers, args.py_workers, args.prefetch, args.reader_queue_depth, args.worker_init))
+    if supports_distributed:
+        print("GPU ID: {}, batch: {}, epochs: {}, workers: {}, py_workers: {}, prefetch depth: {}, reader_queue_depth: {}, worker_init: {}" .format(
+            args.local_rank, args.batch_size, args.epochs, args.workers, args.py_workers, args.prefetch, args.reader_queue_depth, args.worker_init))
+    else:
+        print("GPUS: {}, batch: {}, epochs: {}, workers: {}, py_workers: {}, prefetch depth: {}, reader_queue_depth: {}, worker_init: {}" .format(
+            args.gpus, args.batch_size, args.epochs, args.workers, args.py_workers, args.prefetch, args.reader_queue_depth, args.worker_init))
 
     return args
-
-
-def iteration_test(args):
-
-    for pipe_factory in TEST_DATA:
-        # TODO(klecki): We don't handle sharding in this test yet, would need to do it manually
-        # for External Source pipelines
-        pipes = [pipe_factory(
-            batch_size=args.batch_size,
-            num_threads=args.workers,
-            device_id=gpu,
-            data_path=args.data_path,
-            prefetch=args.prefetch,
-            reader_queue_depth=args.reader_queue_depth,
-            py_workers_init=args.worker_init,
-            py_workers_num=args.py_workers
-        ) for gpu in range(args.gpus)]
-        for pipe in pipes:
-            pipe.start_py_workers()
-        for pipe in pipes:
-            pipe.build()
-
-        samples_no = pipes[0].epoch_size("Reader")
-        if args.benchmark_iters is None:
-            expected_iters = samples_no // args.batch_size + (samples_no % args.batch_size != 0)
-        else:
-            expected_iters = args.benchmark_iters
-
-        print("RUN {}".format(pipe_factory.__name__))
-        for i in range(args.epochs):
-            if i == 0:
-                print("Warm up")
-            else:
-                print("Test run " + str(i))
-            data_time = AverageMeter()
-            end = time.time()
-            for j in range(expected_iters):
-                stop_iter = False
-                for pipe in pipes:
-                    try:
-                        pipe.run()
-                    except StopIteration:
-                        assert j == expected_iters - 1
-                        stop_iter = True
-                if stop_iter:
-                    break
-                data_time.update(time.time() - end)
-                if j % 10 == 0:
-                    print("{} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s]".format(
-                        pipe_factory.__name__,
-                        j,
-                        expected_iters,
-                        data_time.avg,
-                        data_time.max_val,
-                        args.batch_size * args.gpus / data_time.avg,
-                    ))
-                end = time.time()
-            for pipe in pipes:
-                pipe.reset()
-
-        print("OK {}".format(pipe_factory.__name__))
-
-
-def training_test(args):
-
-    import torch
-    import torch.nn as nn
-    import torch.optim
-    import torchvision.models as models
-    from nvidia.dali.plugin.pytorch import DALIClassificationIterator
-
-    for pipe_factory in TEST_DATA:
-        pipes = [pipe_factory(
-            batch_size=args.batch_size,
-            num_threads=args.workers,
-            device_id=gpu,
-            data_path=args.data_path,
-            prefetch=args.prefetch,
-            reader_queue_depth=args.reader_queue_depth,
-            py_workers_init=args.worker_init,
-            py_workers_num=args.py_workers
-        ) for gpu in range(args.gpus)]
-
-        for pipe in pipes:
-            pipe.start_py_workers()
-        for pipe in pipes:
-            pipe.build()
-
-        model = models.resnet18().cuda()
-        model.train()
-        loss_fun = nn.CrossEntropyLoss().cuda()
-        lr = 0.1 * args.batch_size / 256
-        optimizer = torch.optim.SGD(
-            model.parameters(),
-            lr,
-            momentum=0.9,
-        )
-
-        samples_no = pipes[0].epoch_size("Reader")
-        print(samples_no)
-        if args.benchmark_iters is None:
-            expected_iters = samples_no // args.batch_size + (samples_no % args.batch_size != 0)
-        else:
-            expected_iters = args.benchmark_iters
-
-        end = time.time()
-        if pipe_factory == file_reader_pipeline:
-            iterator = DALIClassificationIterator(
-                pipes, reader_name="Reader", last_batch_policy=LastBatchPolicy.DROP)
-        else:
-            iterator = DALIClassificationIterator(
-                pipes, size=samples_no * args.gpus, auto_reset=True)
-
-        print("RUN {}".format(pipe_factory.__name__))
-        losses = AverageMeter()
-        for i in range(args.epochs):
-            if i == 0:
-                print("Warm up")
-            else:
-                print("Test run " + str(i))
-            data_time = AverageMeter()
-            for j, data in enumerate(iterator):
-                inputs = data[0]["data"]
-                target = data[0]["label"].squeeze(-1).cuda().long()
-                if data[0]["label"].squeeze(-1).min() < 0:
-                    print(data[0]["label"].squeeze(-1))
-                outputs = model(inputs)
-                loss = loss_fun(outputs, target)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                data_time.update(time.time() - end)
-
-                if j % 50 == 0:
-                    reduced_loss = loss.data
-                    print(reduced_loss.item())
-                    losses.update(reduced_loss.item())
-
-                    print("{} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s], loss: {}, loss_avg: {}".format(
-                        pipe_factory.__name__,
-                        j,
-                        expected_iters,
-                        data_time.avg,
-                        data_time.max_val,
-                        args.batch_size * args.gpus / data_time.avg,
-                        reduced_loss.item(),
-                        losses.avg
-                    ))
-                end = time.time()
-                if j >= expected_iters:
-                    break
-            if pipe_factory == file_reader_pipeline:
-                iterator.reset()
-
-        print("OK {}".format(pipe_factory.__name__))
-
-
-if __name__ == "__main__":
-
-    args = parse_args()
-    if args.training:
-        training_test(args)
-    else:
-        iteration_test(args)
