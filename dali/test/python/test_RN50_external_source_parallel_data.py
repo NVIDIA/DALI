@@ -24,19 +24,14 @@ from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 from test_RN50_external_source_parallel_utils import (
     parse_test_arguments, external_source_parallel_pipeline, external_source_pipeline,
-    file_reader_pipeline)
-
-
-TEST_PIPES_FACTORIES = [
-    external_source_parallel_pipeline,
-    file_reader_pipeline,
-    external_source_pipeline,
-]
+    file_reader_pipeline, get_pipe_factories)
 
 
 def iteration_test(args):
-
-    for pipe_factory in TEST_PIPES_FACTORIES:
+    test_pipe_factories = get_pipe_factories(
+        args.test_pipes, external_source_parallel_pipeline, file_reader_pipeline,
+        external_source_pipeline)
+    for pipe_factory in test_pipe_factories:
         # TODO(klecki): We don't handle sharding in this test yet, would need to do it manually
         # for External Source pipelines
         pipes = [pipe_factory(

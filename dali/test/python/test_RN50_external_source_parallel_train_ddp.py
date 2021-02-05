@@ -31,7 +31,7 @@ from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 from test_RN50_external_source_parallel_utils import (
     parse_test_arguments, external_source_parallel_pipeline, external_source_pipeline,
-    file_reader_pipeline)
+    file_reader_pipeline, get_pipe_factories)
 
 
 # We place the parallel External Source as first as we need to fork before we call anything
@@ -60,7 +60,11 @@ def training_test(args):
     if 'WORLD_SIZE' in os.environ:
         args.distributed = int(os.environ['WORLD_SIZE']) > 1
 
-    for pipe_factory in TEST_PIPES_FACTORIES:
+    test_pipe_factories = get_pipe_factories(
+        args.test_pipes, external_source_parallel_pipeline, file_reader_pipeline,
+        external_source_pipeline)
+
+    for pipe_factory in test_pipe_factories:
         pipe = pipe_factory(
             batch_size=args.batch_size,
             num_threads=args.workers,

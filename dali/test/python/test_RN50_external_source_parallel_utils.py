@@ -185,6 +185,16 @@ def external_source_parallel_pipeline(
     return pipe
 
 
+def get_pipe_factories(test_pipes, parallel_pipe, file_reader_pipe, scalar_pipe):
+    result = []
+    if "parallel" in test_pipes:
+        result.append(parallel_pipe)
+    if "file_reader" in test_pipes:
+        result.append(file_reader_pipe)
+    if "scalar" in test_pipes:
+        result.append(scaler_pipe)
+    return result
+
 def parse_test_arguments(supports_distributed):
 
     parser = argparse.ArgumentParser(
@@ -206,21 +216,24 @@ def parse_test_arguments(supports_distributed):
                         help='Pipeline cpu/gpu prefetch queue depth')
     parser.add_argument(
         '--reader_queue_depth', default=1, type=int, metavar='N',
-        help='Depth of prefetching queue for file reading operators (FileReader/parallel ExternalSource) (default: 1)')
+        help='Depth of prefetching queue for file reading operators (FileReader/parallel ExternalSource)')
+    parser.add_argument(
+        "--test_pipes", nargs="+", default=["parallel", "file_reader", "scalar"],
+        help="Pipelines to be tested, allowed values: 'parallel', 'file_reader', 'scalar'")
 
     if supports_distributed:
         parser.add_argument('--local_rank', default=0, type=int,
-                            help="Id of the local rank in distributed scenario.")
+            help="Id of the local rank in distributed scenario.")
     else:
         parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
-                            help='number of GPUs')
+            help='number of GPUs')
     args = parser.parse_args()
 
     if supports_distributed:
-        print("GPU ID: {}, batch: {}, epochs: {}, workers: {}, py_workers: {}, prefetch depth: {}, reader_queue_depth: {}, worker_init: {}" .format(
-            args.local_rank, args.batch_size, args.epochs, args.workers, args.py_workers, args.prefetch, args.reader_queue_depth, args.worker_init))
+        print("GPU ID: {}, batch: {}, epochs: {}, workers: {}, py_workers: {}, prefetch depth: {}, reader_queue_depth: {}, worker_init: {}, test_pipes: {}" .format(
+            args.local_rank, args.batch_size, args.epochs, args.workers, args.py_workers, args.prefetch, args.reader_queue_depth, args.worker_init, args.test_pipes))
     else:
-        print("GPUS: {}, batch: {}, epochs: {}, workers: {}, py_workers: {}, prefetch depth: {}, reader_queue_depth: {}, worker_init: {}" .format(
-            args.gpus, args.batch_size, args.epochs, args.workers, args.py_workers, args.prefetch, args.reader_queue_depth, args.worker_init))
+        print("GPUS: {}, batch: {}, epochs: {}, workers: {}, py_workers: {}, prefetch depth: {}, reader_queue_depth: {}, worker_init: {}, test_pipes: {}" .format(
+            args.gpus, args.batch_size, args.epochs, args.workers, args.py_workers, args.prefetch, args.reader_queue_depth, args.worker_init, args.test_pipes))
 
     return args
