@@ -44,17 +44,27 @@ extracts connected blobs of pixels with the selected label and randomly selects 
 With probability 1-foreground_prob, entire area of the input is returned.)")
   .NumInput(1)
   .OutputFn([](const OpSpec& spec) {
-    return spec.GetArgument<string>("format") == "box" ? 1 : 2;
+    int separate_corners = spec.GetArgument<string>("format") != "box";
+    int output_class = spec.GetArgument<bool>("output_class");
+    return 1 + separate_corners + output_class;
   })
   .AddOptionalArg("ignore_class", R"(If True, all objects are picked with equal probability,
 regardless of the class they belong to. Otherwise, a class is picked first and then object is
 randomly selected from this class.
 
-This argument is incompatible with ``classes`` or ``class_weights``.
+This argument is incompatible with ``classes``, ``class_weights`` or ``output_class``.
 
 .. note::
   This flag only affects the probability with which blobs are selected. It does not cause
   blobs of different classes to be merged.)", false)
+  .AddOptionalArg("output_class", R"(If True, an additional output is produced which contains the
+label of the class to which the resulting box belongs, or background label if foreground box
+is not an object bounding box.
+
+The output may not be an object bounding box when any of the following conditions occur:
+  - the sample was randomly (according to ``foreground_prob``) chosen not be be a foreground one
+  - the sample contained no foreground objects
+  - no bounding box met the required size threshold.)", false)
   .AddOptionalArg("foreground_prob", "Probability of selecting a foreground bounding box.", 1.0f,
     true)
   .AddOptionalArg<vector<int>>("classes", R"(List of labels considered as foreground.
@@ -85,7 +95,7 @@ Possible choices are::
 
 
 bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorkspace &ws) {
-  out_descs.resize(format_ == Out_Box ? 1 : 2);
+  out_descs.resize(spec_.NumOutput());
   auto in_shape = ws.InputRef<CPUBackend>(0).shape();
   int ndim = in_shape.sample_dim();
   int N = in_shape.num_samples();
@@ -96,8 +106,13 @@ bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorksp
   out_descs[0].type = TypeTable::GetTypeInfo(DALI_INT32);
   out_descs[0].shape = uniform_list_shape<DynamicDimensions>(
       N, TensorShape<1>{ format_ == Out_Box ? 2*ndim : ndim });
-  for (size_t i = 1; i < out_descs.size(); i++)
-    out_descs[i] = out_descs[0];
+  if (format_ != Out_Box)
+    out_descs[1] = out_descs[0];
+  if (HasClassLabelOutput()) {
+    out_descs[class_output_idx_].type = TypeTable::GetTypeInfo(DALI_INT32);
+    out_descs[class_output_idx_].shape.resize(N, 0);
+  }
+
   return true;
 }
 
@@ -120,7 +135,7 @@ void RandomObjectBBox::AcquireArgs(const HostWorkspace &ws, int N, int ndim) {
 }
 
 
-#define INPUT_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t)
+#define INPUT_TYPES (bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t)
 
 template <typename T>
 void RandomObjectBBox::FindLabels(std::unordered_set<int> &labels, const T *data, int64_t N) {
@@ -285,7 +300,8 @@ template <typename T>
 bool RandomObjectBBox::PickForegroundBox(
       SampleContext &context, const InTensorCPU<T> &input) {
   GetClassesAndWeightsArgs(context.classes, context.weights, context.background,
-                            context.sample_idx);
+                           context.sample_idx);
+  context.class_label = context.background;
   if (ignore_class_) {
     int nblobs = LabelConnectedRegions(context.blobs, input, -1, context.background);
     return PickBlob(context, nblobs);
@@ -309,12 +325,11 @@ bool RandomObjectBBox::PickForegroundBox(
     }
 
     while (context.CalculateCDF()) {
-      int class_idx = context.PickClassLabel(rngs_[context.sample_idx]);
-      if (class_idx < 0)
+      if (!context.PickClassLabel(rngs_[context.sample_idx]))
         return false;
-      int label = context.classes[class_idx];
-      assert(label != context.background);
-      FilterByLabel(context.filtered, input, label);
+
+      assert(context.class_label != context.background);
+      FilterByLabel(context.filtered, input, context.class_label);
 
       int nblobs = LabelConnectedRegions<int64_t, uint8_t, -1>(
           context.blobs, context.filtered, -1, 0);
@@ -323,7 +338,8 @@ bool RandomObjectBBox::PickForegroundBox(
         return true;
 
       // we couldn't find a satisfactory blob in this class, so let's exclude it and try again
-      context.weights[class_idx] = 0;
+      context.weights[context.class_idx] = 0;
+      context.class_label = context.background;
     }
     // we've run out of classes and still there's no good blob
     return false;
@@ -353,6 +369,9 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
   OutListCPU<int, 1> out2;
   if (ws.NumOutput() > 1)
     out2 = view<int, 1>(ws.OutputRef<CPUBackend>(1));
+  OutListCPU<int, 0> class_label_out;
+  if (HasClassLabelOutput())
+    class_label_out = view<int, 0>(ws.OutputRef<CPUBackend>(class_output_idx_));
 
   TensorShape<> default_anchor;
   default_anchor.resize(ndim);
@@ -364,6 +383,8 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
     bool fg = foreground(rngs_[i]) < foreground_prob_[i].data[0];
     if (!fg) {
       StoreBox(out1, out2, format_, i, default_anchor, in_shape[i]);
+      if (HasClassLabelOutput())
+        class_label_out.data[i][0] = background_[i].data[0];
     } else {
       //tp.AddWork([&, i](int thread_idx) {
         int thread_idx = 0;
@@ -373,10 +394,17 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
         if (out2.num_samples() > 0)
           ctx.out2 = out2[i];
 
-        if (PickForegroundBox(ctx))
+        if (PickForegroundBox(ctx)) {
+          assert(ctx.class_label != ctx.background || ignore_class_);
           StoreBox(out1, out2, format_, i, ctx.selected_box);
-        else
+        } else {
+          assert(ctx.class_label == ctx.background);
           StoreBox(out1, out2, format_, i, default_anchor, in_shape[i]);
+        }
+
+      if (HasClassLabelOutput())
+        class_label_out.data[i][0] = ctx.class_label;
+
       //}, volume(in_shape.tensor_shape_span(i)));
     }
   }

@@ -42,12 +42,19 @@ class RandomObjectBBox : public Operator<CPUBackend> {
         weights_("class_weights", spec),
         threshold_("threshold", spec) {
     format_ = ParseOutputFormat(spec.GetArgument<string>("format"));
-
     ignore_class_ = spec.GetArgument<bool>("ignore_class");
-    if (ignore_class_ && (classes_.IsDefined() || weights_.IsDefined())) {
-      DALI_FAIL("Class-related arguments ``classes`` and ``weights`` cannot be used "
-                "when ``ignore_class`` is True");
+
+    bool output_class_ = spec.GetArgument<bool>("output_class");
+
+    if (ignore_class_ && (classes_.IsDefined() || weights_.IsDefined() || output_class_)) {
+      DALI_FAIL("Class-related arguments ``classes``, ``weights`` and ``output_class`` "
+                "cannot be used when ``ignore_class`` is True");
     }
+
+    // additional class id output goes last, if at all; -1 denotes that it's absent
+    class_output_idx_ = output_class_ ? (format_ == Out_Box ? 1 : 2) : -1;
+
+
     if (spec.TryGetArgument(k_largest_, "k_largest")) {
       DALI_ENFORCE(k_largest_ >= 1, make_string(
                    "``k_largest`` must be at least 1; got ", k_largest_));
@@ -75,6 +82,10 @@ class RandomObjectBBox : public Operator<CPUBackend> {
 
  private:
   void AcquireArgs(const HostWorkspace &ws, int N, int ndim);
+
+  bool HasClassLabelOutput() const {
+    return class_output_idx_ >= 0;
+  }
 
   using ClassVec = SmallVector<int, 32>;
   using WeightVec = SmallVector<float, 32>;
@@ -115,10 +126,10 @@ class RandomObjectBBox : public Operator<CPUBackend> {
      * Use binary search to find the label in CDF
      */
     template <typename RNG>
-    int PickClassLabel(RNG &rng) {
+    bool PickClassLabel(RNG &rng) {
       int ncls = cdf.size();
       if (!ncls)
-        return -1;
+        return false;
 
       double pos = class_dist(rng) * cdf.back();
 
@@ -126,7 +137,9 @@ class RandomObjectBBox : public Operator<CPUBackend> {
       // the index may be ambiguous if there are zero weights, so we need to skip these
       while (idx < ncls && weights[idx] == 0)
         idx++;
-      return idx >= ncls ? -1 : idx;
+      class_idx = idx >= ncls ? -1 : idx;
+      class_label = class_idx >= 0 ? classes[class_idx] : background;
+      return class_idx >= 0;
     }
 
     TensorView<StorageCPU, int> out1, out2;
@@ -137,6 +150,8 @@ class RandomObjectBBox : public Operator<CPUBackend> {
     WeightVec weights;
     WeightVec cdf;
     int background;
+    int class_idx;
+    int class_label;
 
     vector<uint8_t> filtered_data;
     vector<int64_t> blob_data;
@@ -181,7 +196,8 @@ class RandomObjectBBox : public Operator<CPUBackend> {
 
 
   bool  ignore_class_ = false;
-  int   k_largest_ = -1;
+  int   k_largest_ = -1;          // -1 means no k largest
+  int   class_output_idx_ = -1;   // -1 means no class output
   BatchRNG<> rngs_;
   ArgValue<int> background_;
   ArgValue<int, 1> classes_;
