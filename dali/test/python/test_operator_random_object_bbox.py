@@ -31,7 +31,6 @@ def count_outputs(outs):
         return 1
     return len(outs)
 
-
 data = [
     np.int32([[1, 0, 0, 0],
               [1, 2, 2, 1],
