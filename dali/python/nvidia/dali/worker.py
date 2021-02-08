@@ -15,7 +15,7 @@
 import threading
 import traceback
 from multiprocessing import reduction
-from nvidia.dali.shared_batch import SharedMemChunk, SharedBatchMeta, SharedBatchWriter
+from nvidia.dali.shared_batch import SharedMemChunk, write_batch
 from nvidia.dali.messages import CompletedTasks
 
 
@@ -73,17 +73,14 @@ class SharedBatchesDispatcher:
             completed_tasks = CompletedTasks.failed(self.worker_id, processed_tasks)
             self.res_pipe.send(completed_tasks)
             return
-        mem_chunk = processed_tasks.mem_chunk
-        writer = SharedBatchWriter(processed_tasks.mem_chunk)
-        writer.write_batch(processed_tasks.data_batch)
-        batch_serialized = SharedBatchMeta.from_writer(writer)
+        batch_serialized = write_batch(processed_tasks.mem_chunk, processed_tasks.data_batch)
         completed_tasks = CompletedTasks.done(self.worker_id, processed_tasks, batch_serialized)
         self.res_pipe.send(completed_tasks)
         # send file descriptor for underlaying shared memory chunk if it hasn't been sent ever before
         mem_chunk_id = batch_serialized.mem_chunk_id
         if mem_chunk_id not in self.fd_sent:
             self.fd_sent.add(mem_chunk_id)
-            reduction.sendfds(self.sock, [mem_chunk.shm_chunk.fd])
+            reduction.sendfds(self.sock, [processed_tasks.mem_chunk.shm_chunk.fd])
 
 
 class CallbackContext:
@@ -208,8 +205,7 @@ def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task
                 mem_chunk = context.next_mem_chunk()
                 processed = _ProcessedTasks.done(scheduled, mem_chunk, data_batch)
             with ready_cv:
-                if len(ready_queue) >= prefetch_queue_depths[scheduled.context_i]:
-                    raise RuntimeError("Worker queue size exceeded")
+                assert len(ready_queue) < prefetch_queue_depths[scheduled.context_i], "Worker queue size exceeded."
                 ready_queue.append(processed)
                 ready_cv.notify()
     finally:

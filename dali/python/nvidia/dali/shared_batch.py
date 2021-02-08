@@ -170,11 +170,12 @@ class SharedBatchWriter:
     memory chunk (``mem_batch``).
     """
 
-    def __init__(self, mem_batch: SharedMemChunk):
+    def __init__(self, mem_batch: SharedMemChunk, batch):
         import_numpy()
         self.mem_batch = mem_batch
         self.data_size = 0
         self.meta_data_size = 0
+        self._write_batch(batch)
 
     def _prepare_samples_meta(self, indexed_samples):
         """Calculate metadata and total size of data to be serialized"""
@@ -200,7 +201,7 @@ class SharedBatchWriter:
             np_array.shape, dtype=np_array.dtype, buffer=buffer)
         shared_array[:] = np_array[:]
 
-    def write_batch(self, batch):
+    def _write_batch(self, batch):
         if not batch:
             return
         batch = [(idx, _apply_to_sample(_to_numpy, sample)) for idx, sample in batch]
@@ -213,9 +214,32 @@ class SharedBatchWriter:
             self.mem_batch.resize(max([needed_capacity, 2 * self.mem_batch.capacity]))
         memview = self.mem_batch.shm_chunk.buf
         self.written_size = 0
+        # write serialized samples
         for idx, sample in batch:
             _apply_to_sample(self._add_array_to_batch, sample, memview)
         assert self.written_size == self.data_size, "Mismatch in written and precalculated size."
         # copy meta data at the end of shared memory chunk
         buffer = memview[self.data_size:(self.data_size + self.meta_data_size)]
         buffer[:] = serialized_meta
+
+
+
+def write_batch(mem_batch: SharedMemChunk, batch):
+    """Serialize and write the indexed data batch `batch` into the shared memory `mem_batch`.
+
+    Returns description of serialized memory.
+
+    Parameters
+    ----------
+    mem_batch : SharedMemChunk
+        Target memory to write to.
+    batch : List of (idx, Sample)
+        Batch of data to be serialized
+
+    Returns
+    -------
+        SharedBatchMeta
+    """
+    sbw = SharedBatchWriter(mem_batch, batch)
+    return SharedBatchMeta.from_writer(sbw)
+

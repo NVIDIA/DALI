@@ -476,12 +476,19 @@ Keyword Args
 
         if prefetch_queue_depth is None:
             prefetch_queue_depth = self._prefetch_queue_depth or 1
+        elif self._prefetch_queue_depth is not None:
+            raise ValueError(
+                        "The argument ``prefetch_queue_depth`` already specified in constructor.")
 
         if parallel is None:
             parallel = self._parallel or False
+        elif self._parallel is not None:
+            raise ValueError("The argument ``parallel`` already specified in constructor.")
 
         if no_copy is None:
             no_copy = self._no_copy
+        elif self._no_copy is not None:
+            raise ValueError("The argument ``no_copy`` already specified in constructor.")
 
         if parallel:
             if no_copy is None:
