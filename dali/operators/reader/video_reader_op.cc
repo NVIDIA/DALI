@@ -115,6 +115,52 @@ When the value is less than 0, ``step`` is set to ``sequence_length``.)code",
   .AddOptionalArg("channels",
       R"code(Number of channels.)code",
       3)
+  .AddOptionalArg("interleave_size",
+      R"code(Reorganizes the video sequences.
+When ``interleave_size`` is greater 0 it reorganizes the video sequences into different
+interleaved batches by selecting from the provided videos in a round robin order.
+
+For example if an ``interleave_size`` of 2 is specified and 4 different videos are provided the video
+sequences will be interleaved into the following order:
+
+.. code-block:: python
+
+  video 0 sequence 0, video 1 sequence 0,
+  video 0 sequence 1, video 1 sequence 1,
+                   ...
+  video 0 sequence n, video 1 sequence n,
+  video 2 sequence 0, video 3 sequence 0,
+  video 2 sequence 1, video 3 sequence 1,
+                   ...
+  video 2 sequence m, video 3 sequence m
+ 
+
+If ``interleave_size > 0`` it affects how video sequences are shuffled. As only the order of the
+videos is shuffled but not the sequences. Otherwise, the default shuffle behavior is kept.)code", 0)
+  .AddOptionalArg("interleave_mode", R"code(
+Determines how to reorganize video sequences when ``interleave_size > 0``. If a continuous mode has
+been selected boundaries between different videos are disregarded except for the last ones.
+Otherwise, boundaries in between video frames are kept.
+
+Here is a list of supported modes:
+
+* | ``"shorten_continuous"`` - interleaves all sequences while disregarding boundary in between
+  | different videos except for the last ones. In this case, the last videos are shortened to the
+  | length of the shortest video in the interleaved batch.
+* | ``"repeat_continuous"`` - interleaves all sequences while disregarding boundary in between
+  | different videos except for the last ones. In this case, the shorter videos are repeated until
+  | all other video sequences have been read.
+* | ``"clamp_continuous"`` - interleaves all sequences while disregarding boundary in between
+  | different videos except for the last ones. In this case, the last sequence of the shorter
+  | videos is repeated until all other video sequences have been read.
+* | ``"shorten"`` - interleaves all sequences while keeping the boundary in between different
+  | videos. In this case, all videos are shortened to the shortest video of the interleave batch.
+* | ``"repeat"`` - interleaves all sequences while keeping the boundary in between different
+  | videos. In this case, all shorter videos are repeated until all other video sequences of
+  | the interleaved batch have been read.
+* | ``"clamp"`` - interleaves all sequences while keeping the boundary in between different
+  | videos. In this case, the last sequence of all shorter videos is repeated until all other
+  | video sequences of the interleave batch have been read.)code", "shorten")
   .AddOptionalArg("additional_decode_surfaces",
       R"code(Additional decode surfaces to use beyond minimum required.
 

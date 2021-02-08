@@ -23,6 +23,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import re
 import tempfile
+import fractions
 
 from nose.tools import assert_raises, raises
 
@@ -40,6 +41,7 @@ video_data_root = os.path.join(test_data_root, 'db', 'video')
 corrupted_video_data_root = os.path.join(video_data_root, 'corrupted')
 
 ITER=6
+LONG_ITER=600
 BATCH_SIZE=4
 COUNT=5
 
@@ -49,6 +51,21 @@ class VideoPipe(Pipeline):
                  dtype=types.FLOAT, sequence_length=COUNT):
         super(VideoPipe, self).__init__(batch_size, num_threads=2, device_id=device_id, seed=12)
         self.input = ops.VideoReader(device="gpu", filenames=data, sequence_length=sequence_length,
+                                     shard_id=0, num_shards=num_shards, random_shuffle=shuffle,
+                                     normalized=True, image_type=types.YCbCr, dtype=dtype,
+                                     step=step, stride=stride)
+
+    def define_graph(self):
+        output = self.input(name="Reader")
+        return output
+
+class LabeledVideoPipe(Pipeline):
+    def __init__(self, batch_size, data, shuffle=False, stride=1, step=-1, device_id=0, num_shards=1,
+                 interleave_size=0, interleave_mode="shorten", dtype=types.FLOAT, sequence_length=COUNT):
+        super(LabeledVideoPipe, self).__init__(batch_size, num_threads=2, device_id=device_id, seed=12)
+        self.input = ops.VideoReader(device="gpu", filenames=data, sequence_length=sequence_length,
+                                     interleave_size=interleave_size, interleave_mode=interleave_mode,
+                                     labels=[k for k in range(len(data))], enable_frame_num=True, 
                                      shard_id=0, num_shards=num_shards, random_shuffle=shuffle,
                                      normalized=True, image_type=types.YCbCr, dtype=dtype,
                                      step=step, stride=stride)
@@ -252,3 +269,382 @@ def check_corrupted_videos():
 
 def test_corrupted_videos():
     check_corrupted_videos()
+
+@raises(RuntimeError)
+def _test_wrong_interleave_size(interleave_size):
+    pipe = LabeledVideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, sequence_length=1,
+                            interleave_size=interleave_size, interleave_mode="shorten")
+    pipe.build()
+
+def _test_interleave_size(interleave_size):
+    pipe = LabeledVideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, sequence_length=1,
+                            interleave_size=interleave_size, interleave_mode="shorten")
+    pipe.build()
+
+def test_wrong_interleave_size():
+    sizes = [
+        -1,
+        # x / (x - 1) should be non divisible without rest for all cases except 0
+        len(VIDEO_FILES) - 1,
+
+        # is bigger than the provided amount of videos
+        len(VIDEO_FILES) + 1
+    ]
+    for i in range(1, len(VIDEO_FILES) + 1):
+        if len(VIDEO_FILES) % i != 0:
+            sizes.append(i)
+
+    for size in sizes:
+        yield _test_interleave_size, size
+
+def test_interleave_size():
+    sizes = [0]
+    for i in range(1, len(VIDEO_FILES) + 1):
+        if len(VIDEO_FILES) % i == 0:
+            sizes.append(i)
+
+    for size in sizes:
+        yield _test_interleave_size, size
+
+def test_interleave_batch_size():
+    size = len(VIDEO_FILES)
+    sequence_length = 1
+    for i in range(3, len(VIDEO_FILES) + 1):
+        if len(VIDEO_FILES) % i == 0:
+            size = i
+            break
+
+    pipe = LabeledVideoPipe(batch_size=size * 2, data=VIDEO_FILES,
+                            sequence_length=sequence_length,
+                            interleave_size=size, interleave_mode="shorten")
+    pipe.build()
+
+    _, labels, time = pipe.run()
+    labels = [int(x) for x in labels.as_cpu().as_array()]
+    time   = [int(x) for x in time.as_cpu().as_array()]
+
+    assert(len(set(labels)) == size)
+    assert(len(set(time)) == 2)
+    assert(all(time[i] + sequence_length == time[i + size] for i in range(size)))
+
+@raises(RuntimeError)
+def check_wrong_interleave_mode(mode):
+    pipe = LabeledVideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, sequence_length=1,
+                            interleave_size=-1, interleave_mode=mode)
+    pipe.build()
+
+def test_wrong_interleave_mode():
+    check_wrong_interleave_mode("default")
+
+def _test_interleave_mode(test_func):
+    sizes = []
+    for i in range(1, len(VIDEO_FILES) + 1):
+        if len(VIDEO_FILES) % i == 0:
+            sizes.append(i)
+    lengths = [1, 2]
+
+    for size in sizes:
+        for length in lengths:
+            test_func(size, length, ITER)
+
+    size = len(VIDEO_FILES)
+    for i in range(3, len(VIDEO_FILES) + 1):
+        if len(VIDEO_FILES) % i == 0:
+            size = i
+            break
+    test_func(size, 40, LONG_ITER)
+
+def _test_continuous_interleave_mode(test_func):
+    size = len(VIDEO_FILES)
+    for i in range(3, len(VIDEO_FILES) + 1):
+        if len(VIDEO_FILES) % i == 0:
+            size = i
+            break
+    test_func(size, 40, LONG_ITER)
+
+def _test_shorten_interleave_mode(batch_size, sequence_length, iters):
+    assert(len(VIDEO_FILES) % batch_size == 0)
+    pipe = LabeledVideoPipe(batch_size=batch_size, data=VIDEO_FILES,
+                            sequence_length=sequence_length,
+                            interleave_size=batch_size,
+                            interleave_mode="shorten",
+                            shuffle=False)
+    pipe.build()
+    
+    last_time   = [-sequence_length for _ in range(batch_size)]
+    last_labels = [-batch_size + i  for i in range(batch_size)]
+    run_once = False
+
+    for i in range(iters):
+        _, labels, time = pipe.run()
+        labels = labels.as_cpu().as_array()
+        time   = time.as_cpu().as_array()
+        print(labels.flatten(), time.flatten())
+        
+        assert(len(set(int(t) for t in time)) == 1)
+        assert(len(set(int(label) for label in labels)) == len(labels))
+        for k in range(batch_size):
+            if labels[k] == last_labels[k]:
+                assert(time[k] == last_time[k] + sequence_length)
+            else:
+                assert(labels[k] == last_labels[k] + batch_size)
+                assert(time[k] == 0)
+                
+                if run_once:
+                    # reached a boundary no need for further testing
+                    del pipe
+                    return
+
+            last_labels[k] = labels[k]
+            last_time[k] = time[k]
+        run_once = True
+
+def _test_repeat_interleave_mode(batch_size, sequence_length, iters):
+    assert(len(VIDEO_FILES) % batch_size == 0)
+    pipe = LabeledVideoPipe(batch_size=batch_size, data=VIDEO_FILES,
+                            sequence_length=sequence_length,
+                            interleave_size=batch_size,
+                            interleave_mode="repeat",
+                            shuffle=False)
+    pipe.build()
+    
+    last_time   = [-sequence_length for _ in range(batch_size)]
+    last_labels = [-batch_size + i  for i in range(batch_size)]
+    run_once = False
+
+    for i in range(iters):
+        _, labels, time = pipe.run()
+        labels = labels.as_cpu().as_array()
+        time   = time.as_cpu().as_array()
+        print(labels.flatten(), time.flatten())
+
+        assert(len(set(int(label) for label in labels)) == len(labels))
+        for k in range(batch_size):
+            if labels[k] == last_labels[k]:
+                # we either add the time or repeat.
+                # if we repeat we restart at zero and at least on other video has to
+                # be non zero as we would change the batch otherwise.
+                assert(time[k] == last_time[k] + sequence_length or time[k] == 0)
+                assert(any(time[j] != 0 for j in range(batch_size)))
+            else:
+                assert(labels[k] == last_labels[k] + batch_size)
+                assert(all(time[j] == 0 for j in range(batch_size)))
+                
+                if run_once:
+                    # reached a boundary no need for further testing
+                    del pipe
+                    return
+
+            last_labels[k] = labels[k]
+            last_time[k] = time[k]
+        run_once = True
+
+def _test_clamp_interleave_mode(batch_size, sequence_length, iters):
+    assert(len(VIDEO_FILES) % batch_size == 0)
+    pipe = LabeledVideoPipe(batch_size=batch_size, data=VIDEO_FILES,
+                            sequence_length=sequence_length,
+                            interleave_size=batch_size,
+                            interleave_mode="clamp",
+                            shuffle=False)
+    pipe.build()
+    
+    last_time   = [-sequence_length for _ in range(batch_size)]
+    max_time    = [0 for _ in range(batch_size)]
+    last_labels = [-batch_size + i  for i in range(batch_size)]
+    run_once = False
+
+    for i in range(iters):
+        _, labels, time = pipe.run()
+        labels = labels.as_cpu().as_array()
+        time   = time.as_cpu().as_array()
+        print(labels.flatten(), time.flatten())
+
+        assert(len(set(int(label) for label in labels)) == len(labels))
+        for k in range(batch_size):
+            if labels[k] == last_labels[k]:
+                # we either add the time or repeat.
+                # if we repeat we restart at zero and at least on other video has to
+                # be non zero as we would change the batch otherwise.
+                assert(time[k] == last_time[k] + sequence_length or time[k] == max_time[k])
+                assert(any(time[j] != 0 for j in range(batch_size)))
+            else:
+                assert(labels[k] == last_labels[k] + batch_size)
+                assert(all(time[j] == 0 for j in range(batch_size)))
+
+                if run_once:
+                    # reached a boundary no need for further testing
+                    del pipe
+                    return
+
+            last_labels[k] = labels[k]
+            last_time[k] = time[k]
+            max_time[k] = max(max_time[k], time[k])
+        run_once = True
+
+def _test_shorten_continuous_interleave_mode(batch_size, sequence_length, iters):
+    assert(len(VIDEO_FILES) % batch_size == 0)
+    pipe = LabeledVideoPipe(batch_size=batch_size, data=VIDEO_FILES,
+                            sequence_length=sequence_length,
+                            interleave_size=batch_size,
+                            interleave_mode="shorten_continuous",
+                            shuffle=False)
+    pipe.build()
+    
+    last_times  = [-sequence_length for _ in range(batch_size)]
+    last_labels = [-batch_size + i  for i in range(batch_size)]
+    end_labels  = [len(VIDEO_FILES) - i - 1 for i in range(batch_size)]
+    init_labels = [i for i in range(batch_size)]
+    last_data   = []
+    run_through = False
+    for i in range(iters):
+        _, labels, time = pipe.run()
+        labels = labels.as_cpu().as_array()
+        time   = time.as_cpu().as_array()
+        last_data.append((labels, time))
+        if len(last_data) > 2: last_data.pop(0)
+        print(labels.flatten(), time.flatten())
+
+        assert(len(set(int(label) for label in labels)) == len(labels))
+        for k in range(batch_size):
+            if labels[k] == last_labels[k]:
+                assert(time[k] == last_times[k] + sequence_length)
+            elif run_through and all(labels[j] == init_labels[j] for j in range(batch_size)):
+                # Reached the end of the video data
+                # here all time stamps must be zero and because
+                # we shortened the sequences. Thus, all last sequences must 
+                # have the same length.
+                last_label, last_time = last_data[-1]
+                assert(all(time[k] == 0 for k in range(batch_size)))
+                assert(len(set([int(last_time[k]) for k in range(batch_size)])) == 1)
+
+                # no need for further testing.
+                del pipe
+                return
+            else:
+                assert(labels[k] == last_labels[k] + batch_size)
+                assert(time[k] == 0)
+
+            # we can be sure that we run through the data once
+            # if we got at least one label that belongs to
+            # the last of the videos.
+            run_through = True if labels[k] == end_labels[k] else run_through
+            last_labels[k] = labels[k]
+            last_times[k] = time[k]
+    del pipe
+
+def _test_repeat_continuous_interleave_mode(batch_size, sequence_length, iters):
+    assert(len(VIDEO_FILES) % batch_size == 0)
+    pipe = LabeledVideoPipe(batch_size=batch_size, data=VIDEO_FILES,
+                            sequence_length=sequence_length,
+                            interleave_size=batch_size,
+                            interleave_mode="repeat_continuous",
+                            shuffle=False)
+    pipe.build()
+    
+    last_times  = [-sequence_length for _ in range(batch_size)]
+    last_labels = [-batch_size + i  for i in range(batch_size)]
+    end_labels = [len(VIDEO_FILES) - i - 1 for i in range(batch_size)]
+    init_labels = [i for i in range(batch_size)]
+    run_through = False
+    for i in range(iters):
+        _, labels, time = pipe.run()
+        labels = labels.as_cpu().as_array()
+        time   = time.as_cpu().as_array()
+        print(labels.flatten(), time.flatten())
+
+        assert(len(set(int(label) for label in labels)) == len(labels))
+        for k in range(batch_size):
+            if labels[k] == last_labels[k]:
+                # it is possible to restart a series hence time may be zero
+                assert(time[k] == last_times[k] + sequence_length or time[k] == 0)
+
+                # but it is not possible to restart all at once since the shorter
+                # videos should repeat themself.
+                if any(labels[j] != init_labels[j] for j in range(batch_size)):
+                    assert(any(time[j] != 0 for j in range(batch_size)))
+            elif run_through and all(labels[j] == init_labels[j] for j in range(batch_size)):
+                assert(all(time[k] == 0 for k in range(batch_size)))
+
+                # no need for further testing.
+                del pipe
+                return
+            else:
+                assert(labels[k] == last_labels[k] + batch_size)
+                assert(time[k] == 0)
+
+            # we can be sure that we run through the data once
+            # if we got at least one label that belongs to
+            # the last of the videos.
+            run_through = True if labels[k] == end_labels[k] else run_through
+            last_labels[k] = labels[k]
+            last_times[k] = time[k]
+    del pipe
+
+def _test_clamp_continuous_interleave_mode(batch_size, sequence_length, iters):
+    assert(len(VIDEO_FILES) % batch_size == 0)
+    pipe = LabeledVideoPipe(batch_size=batch_size, data=VIDEO_FILES,
+                            sequence_length=sequence_length,
+                            interleave_size=batch_size,
+                            interleave_mode="clamp_continuous",
+                            shuffle=False)
+    pipe.build()
+    
+    last_times  = [-sequence_length for _ in range(batch_size)]
+    max_times   = [0 for _ in range(batch_size)]
+    last_labels = [-batch_size + i  for i in range(batch_size)]
+    end_labels = [len(VIDEO_FILES) - i - 1 for i in range(batch_size)]
+    init_labels = [i for i in range(batch_size)]
+    run_through = False
+    for i in range(iters):
+        _, labels, time = pipe.run()
+        labels = labels.as_cpu().as_array()
+        time   = time.as_cpu().as_array()
+        print(labels.flatten(), time.flatten())
+
+        assert(len(set(int(label) for label in labels)) == len(labels))
+        for k in range(batch_size):
+            if labels[k] == last_labels[k]:
+                # it may be the end of a series hence the time may be equal to the last one
+                assert(time[k] == last_times[k] + sequence_length or time[k] == max_times[k])
+
+                # but it is not possible to restart all at once since the shorter
+                # videos should repeat the last sequence.
+                if any(labels[j] != init_labels[j] for j in range(batch_size)):
+                    assert(any(time[j] != max_times[j] for j in range(batch_size)))
+            elif run_through and all(labels[j] == init_labels[j] for j in range(batch_size)):
+                assert(all(time[k] == 0 for k in range(batch_size)))
+
+                # no need for further testing.
+                del pipe
+                return
+            else:
+                assert(labels[k] == last_labels[k] + batch_size)
+                assert(time[k] == 0 or time[k] == max_times[k])
+                max_times[k] = 0
+
+            # we can be sure that we run through the data once
+            # if we got at least one label that belongs to
+            # the last of the videos.
+            run_through = True if labels[k] == end_labels[k] else run_through
+            last_labels[k] = labels[k]
+            last_times[k] = time[k]
+            max_times[k] = max(max_times[k], time[k])
+    del pipe
+
+def test_shorten_interleave_mode():
+    _test_interleave_mode(_test_shorten_interleave_mode)
+
+def test_repeat_interleave_mode():
+    _test_interleave_mode(_test_repeat_interleave_mode)
+
+def test_clamp_interleave_mode():
+    _test_interleave_mode(_test_clamp_interleave_mode)
+
+def test_shorten_continuous_interleave_mode():
+    _test_continuous_interleave_mode(_test_shorten_continuous_interleave_mode)
+
+def test_repeat_continuous_interleave_mode():
+    _test_continuous_interleave_mode(_test_repeat_continuous_interleave_mode)
+
+def test_clamp_continuous_interleave_mode():
+    _test_continuous_interleave_mode(_test_clamp_continuous_interleave_mode)
