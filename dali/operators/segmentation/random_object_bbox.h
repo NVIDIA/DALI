@@ -157,7 +157,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
     vector<int64_t> blob_data;
     TensorView<StorageCPU, uint8_t> filtered;
     TensorView<StorageCPU, int64_t> blobs;
-    std::unordered_set<int> labels, tmp_labels;
+    std::unordered_set<int> labels;
     std::uniform_real_distribution<double> class_dist{0, 1};
     vector<int> box_data;
     struct {

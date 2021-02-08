@@ -22,7 +22,6 @@
 #include "dali/operators/segmentation/random_object_bbox.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/kernels/imgproc/structure/connected_components.h"
-#include "dali/kernels/imgproc/structure/label_bbox.h"
 
 namespace dali {
 
@@ -38,7 +37,7 @@ DALI_SCHEMA(segmentation__RandomObjectBBox)
   .DocStr(R"(Randomly selects an object from a mask and returns its bounding box.
 
 This operator takes a labeled segmentation map as its input. With probability ``foreground_prob``
-it randomly selects a label (uniformly or according to the distribution given as ``weights``),
+it randomly selects a label (uniformly or according to the distribution given as ``class_weights``),
 extracts connected blobs of pixels with the selected label and randomly selects one of them
 (with additional constraints given as ``k_largest`` and ``threshold``).
 With probability 1-foreground_prob, entire area of the input is returned.)")
@@ -69,7 +68,7 @@ The output may not be an object bounding box when any of the following condition
     true)
   .AddOptionalArg<vector<int>>("classes", R"(List of labels considered as foreground.
 
-If left unspecified, all labels not equal to ``background`` are considered foreground)",
+If left unspecified, all labels not equal to ``background`` are considered foreground.)",
     nullptr, true)
   .AddOptionalArg("background", R"(Background label.
 
@@ -84,7 +83,7 @@ The values are normalized so that they sum to 1.)", nullptr, true)
   .AddOptionalArg<vector<int>>("threshold", R"(Minimum extent(s) of the bounding boxes to return.
 
 If current class doesn't contain any bounding box that meets this condition, the largest one
-is returned.)", nullptr)
+is returned.)", nullptr, true)
   .AddOptionalArg("format", R"(Format in which the data is returned.
 
 Possible choices are::
@@ -128,7 +127,7 @@ void RandomObjectBBox::AcquireArgs(const HostWorkspace &ws, int N, int ndim) {
 
   if (weights_.IsDefined() && classes_.IsDefined()) {
     DALI_ENFORCE(weights_.get().shape == classes_.get().shape, make_string(
-      "If both ``classes`` and ``weights`` are provided, their shapes must match. Got:"
+      "If both ``classes`` and ``class_weights`` are provided, their shapes must match. Got:"
       "\n  classes.shape  = ", classes_.get().shape,
       "\n  weights.shape  = ", weights_.get().shape));
   }
@@ -219,8 +218,31 @@ void RandomObjectBBox::GetClassesAndWeightsArgs(
       weights.clear();
       weights.resize(ncls, 1.0f);
     }
-    for (int i = 0; i < ncls; i++)
+
+    int min_class_label = ncls ? cls_tv.data[0] : 0;
+    bool choose_different_background = false;
+    for (int i = 0; i < ncls; i++) {
       classes[i] = cls_tv.data[i];
+      if (classes[i] < min_class_label)
+        min_class_label = classes[i];
+
+      if (classes[i] == background) {
+        if (background_.IsDefined()) {
+          // Background was explicitly specified this way - that's an error
+          DALI_FAIL(make_string("Class label ", classes[i],
+            " coincides with background label - please specify a different background label or "
+            " remove it from your list of foreground classes."));
+        } else {
+          // Not specified? Pick a different one.
+          choose_different_background = true;
+        }
+      }
+    }
+    if (choose_different_background) {
+      // This will yield incorrect result if the set of classes contains both INT_MIN and INT_MAX,
+      // which is a sacrifice I am willing to make.
+      background = min_class_label - 1;
+    }
   }
   if (weights_.IsDefined()) {
     const auto &cls_tv = weights_[sample_idx];
@@ -234,7 +256,7 @@ void RandomObjectBBox::GetClassesAndWeightsArgs(
       for (int i = 0; i < ncls; i++, cls++) {
         if (cls == background)
           cls++;
-        classes.push_back(cls);
+        classes[i] = cls;
       }
     }
   }
@@ -261,7 +283,7 @@ int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
     SmallVector<std::pair<int64_t, int>, 32> vol_idx;
     vol_idx.resize(n);
     for (int i = 0; i < n; i++) {
-      vol_idx[i] = { volume(boxes[i]), i };
+      vol_idx[i] = { -volume(boxes[i]), i };
     }
     std::sort(vol_idx.begin(), vol_idx.end());
     std::uniform_int_distribution<int> dist(0, std::min(n, k_largest_)-1);
@@ -277,6 +299,7 @@ bool RandomObjectBBox::PickBlob(SampleContext &ctx, int nblobs) {
     return false;
 
   int ndim = ctx.blobs.dim();
+  ctx.box_data.clear();
   ctx.box_data.resize(2*ndim*nblobs);
 
   VALUE_SWITCH(ndim, static_ndim, (1, 2, 3, 4, 5, 6),
@@ -367,7 +390,7 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
 
   OutListCPU<int, 1> out1 = view<int, 1>(ws.OutputRef<CPUBackend>(0));
   OutListCPU<int, 1> out2;
-  if (ws.NumOutput() > 1)
+  if (format_ != Out_Box)
     out2 = view<int, 1>(ws.OutputRef<CPUBackend>(1));
   OutListCPU<int, 0> class_label_out;
   if (HasClassLabelOutput())
@@ -376,19 +399,21 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
   TensorShape<> default_anchor;
   default_anchor.resize(ndim);
 
-  contexts_.resize(tp.size());
+  contexts_.resize(tp.size()+1);
 
   std::uniform_real_distribution<> foreground(0, 1);
   for (int i = 0; i < N; i++) {
     bool fg = foreground(rngs_[i]) < foreground_prob_[i].data[0];
     if (!fg) {
       StoreBox(out1, out2, format_, i, default_anchor, in_shape[i]);
-      if (HasClassLabelOutput())
-        class_label_out.data[i][0] = background_[i].data[0];
+      if (HasClassLabelOutput()) {
+        SampleContext &ctx = contexts_[0];
+        GetClassesAndWeightsArgs(ctx.classes, ctx.weights, ctx.background, i);
+        class_label_out.data[i][0] = ctx.background;
+      }
     } else {
-      //tp.AddWork([&, i](int thread_idx) {
-        int thread_idx = 0;
-        SampleContext &ctx = contexts_[thread_idx];
+      tp.AddWork([&, i](int thread_idx) {
+        SampleContext &ctx = contexts_[thread_idx+1];
         ctx.Init(i, &input[i]);
         ctx.out1 = out1[i];
         if (out2.num_samples() > 0)
@@ -402,13 +427,12 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
           StoreBox(out1, out2, format_, i, default_anchor, in_shape[i]);
         }
 
-      if (HasClassLabelOutput())
-        class_label_out.data[i][0] = ctx.class_label;
-
-      //}, volume(in_shape.tensor_shape_span(i)));
+        if (HasClassLabelOutput())
+          class_label_out.data[i][0] = ctx.class_label;
+      }, volume(in_shape.tensor_shape_span(i)));
     }
   }
-  //tp.RunAll();
+  tp.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(segmentation__RandomObjectBBox, RandomObjectBBox, CPU);

@@ -465,12 +465,16 @@ Parameters
 
     def _setup_input_callbacks(self):
         from nvidia.dali.external_source import _is_external_source_with_callback
-        groups = set()
+        groups_batch = set()
+        groups_sample = set()
         for op in self._ops:
             if _is_external_source_with_callback(op):
                 group = op._group
-                groups.add(group)
-        self._input_callbacks = list(groups)
+                if group.batch:
+                    groups_batch.add(group)
+                else:
+                    groups_sample.add(group)
+        self._input_callbacks = list(groups_batch) + list(groups_sample)
 
     def build(self, define_graph = None):
         """Build the pipeline.
@@ -983,9 +987,15 @@ Parameters
             return
 
         stop_iter = False
+        batch_size = self._max_batch_size
+        first = True
         for group in self._input_callbacks:
             try:
-                group.call_and_feed(self, self._max_batch_size)
+                actual_batch_size = group.call_and_feed(self, batch_size)
+                if first:
+                    batch_size = actual_batch_size
+                elif actual_batch_size != batch_size:
+                    raise RuntimeError("Batch size inconsistency between ExternalSource operators")
             except StopIteration:
                 stop_iter = True
         if stop_iter:
