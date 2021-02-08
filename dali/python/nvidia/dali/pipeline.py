@@ -1007,9 +1007,15 @@ def _discriminate_args(func, **func_kwargs):
     fn_args = {}
 
     for farg in func_kwargs.items():
-        if farg[0] in func_argspec.args or farg[0] in func_argspec.kwonlyargs:
+        is_ctor_arg = farg[0] in ctor_argspec.args or farg[0] in ctor_argspec.kwonlyargs
+        is_fn_arg = farg[0] in func_argspec.args or farg[0] in func_argspec.kwonlyargs
+        if is_fn_arg:
             fn_args[farg[0]] = farg[1]
-        elif farg[0] in ctor_argspec.args or farg[0] in ctor_argspec.kwonlyargs:
+            if is_ctor_arg:
+                print(
+                    "Warning: the argument `{}` shadows a Pipeline constructor argument of the same name.".format(
+                        farg[0]))
+        elif is_ctor_arg:
             ctor_args[farg[0]] = farg[1]
         else:
             fn_args[farg[0]] = farg[1]
@@ -1067,7 +1073,9 @@ def pipeline_def(fn=None, **pipeline_kwargs):
     .. warning::
 
         The arguments of the function being decorated can shadow pipeline constructor arguments -
-        in which case there's no way to alter their values.
+        in which case there's no way to alter their values. Be especially mindful about using
+        ``**kwargs``, since code written this way may break with future versions of DALI, when
+        new parameters are added to the ``Pipeline`` constructor.
     """
     def actual_decorator(func):
         @functools.wraps(func)
