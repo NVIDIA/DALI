@@ -13,7 +13,7 @@ data processing graph and the execution engine.
 You can define a DALI Pipeline in the following ways:
 
 #. by implementing a function that uses DALI's ``Operators`` inside and decorating it with the
-:meth:`pipeline` decorator
+:meth:`pipeline_def` decorator
 #. by instantiating :class:`Pipeline` object directly, building the graph and setting the pipeline
 outputs with :meth:`Pipeline.set_outputs`
 #. by inheriting from :class:`Pipeline` class and overriding :meth:`Pipeline.define_graph`
@@ -31,18 +31,16 @@ DALI pipeline is represented as a graph of operations. There are two kinds of no
 
 Example::
 
-    class MyPipeline(Pipeline):
-        def define_graph(self):
-            img_reader  = ops.FileReader(file_root="image_dir", seed=1)
-            mask_reader = ops.FileReader(file_root="mask_dir", seed=1)
-            img_files, labels = img_reader()  # creates an instance of `FileReader`
-            mask_files, _ = mask_reader()     # creates another instance of `FileReader`
-            decode = ops.ImageDecoder()
-            images = decode(img_files)  # creates an instance of `ImageDecoder`
-            masks  = decode(mask_files)   # creates another instance of `ImageDecoder`
-            return [images, masks, labels]
+    @pipeline_def  # create a pipeline with processing graph defined by the function below
+    def my_pipeline():
+        """ Create a pipeline which reads images and masks, decodes the images and returns them. """
+        img_files, labels = fn.file_reader(file_root="image_dir", seed=1)
+        mask_files, _ = fn.file_reader(file_root="mask_dir", seed=1)
+        images = fn.image_decoder(img_files, device="mixed")
+        masks  = fn.image_decoder(mask_files, device="mixed")
+        return images, masks, labels
 
-    pipe = MyPipeline(batch_size=4, num_threads=2, device_id=0)
+    pipe = my_pipeline(batch_size=4, num_threads=2, device_id=0)
     pipe.build()
 
 
@@ -74,10 +72,6 @@ to the previous one::
         return dali.fn.external_source(my_source, num_outputs=2)
 
     pipe = my_pipe(my_source)
-
-And the decorated function will return ``Pipeline`` object.
-You can find more info about decorator syntax and how to use it in the
-:meth:`pipeline` documentation below.
 
 .. autoclass:: Pipeline
    :members:

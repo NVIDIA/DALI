@@ -1076,7 +1076,12 @@ def pipeline_def(fn=None, **pipeline_kwargs):
             pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
             with pipe:
                 pipe_outputs = func(*args, **fn_kwargs)
-                po = pipe_outputs if isinstance(pipe_outputs, tuple) else (pipe_outputs,)
+                if isinstance(pipe_outputs, tuple):
+                    po = pipe_outputs
+                elif pipe_outputs is None:
+                    po = ()
+                else:
+                    po = (pipe_outputs,)
                 pipe.set_outputs(*po)
             return pipe
         return create_pipeline
