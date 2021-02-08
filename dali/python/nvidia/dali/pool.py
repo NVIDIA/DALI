@@ -278,7 +278,7 @@ def join_thread(processes, tracker_pipe, main_thread_pipe, task_pipes, task_pipe
     `tracker_pipe` : Pipe
         Read pipe for communicating stop to join_thread from main process.
     `main_thread_pipe` : Pipe
-        Pipe where stop will for main thread.
+        Pipe where stop will be sent for main thread.
     `task_pipes` : List of Pipe
         Pipes where tasks are sent to worker processes, used to signal stop.
     `task_pipes_lock`
