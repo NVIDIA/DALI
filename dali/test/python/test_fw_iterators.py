@@ -1197,6 +1197,12 @@ def test_mxnet_external_source_autoreset():
         "data", MXNetIterator.DATA_TAG)], to_np=lambda x: x.data[0].asnumpy())
 
 
+def test_mxnet_external_source_do_not_prepare():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    check_external_source_autoreset(MXNetIterator, [(
+        "data", MXNetIterator.DATA_TAG)], to_np=lambda x: x.data[0].asnumpy(), prepare_first_batch=False)
+
+
 def test_mxnet_external_source_variable_size_pass():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     check_external_source_variable_size(MXNetIterator, [(
@@ -1244,6 +1250,12 @@ def test_gluon_external_source_autoreset():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     check_external_source_autoreset(GluonIterator, output_types=[
                                     GluonIterator.DENSE_TAG], to_np=lambda x: x[0].asnumpy())
+
+
+def test_gluon_external_source_do_not_prepare():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    check_external_source_autoreset(GluonIterator, output_types=[
+                                    GluonIterator.DENSE_TAG], to_np=lambda x: x[0].asnumpy(), prepare_first_batch=False)
 
 
 def test_gluon_external_source_variable_size_pass():
@@ -1295,6 +1307,12 @@ def test_pytorch_external_source_autoreset():
                                     "data"], to_np=lambda x: x["data"].numpy())
 
 
+def test_pytorch_external_source_do_not_prepare():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    check_external_source_autoreset(PyTorchIterator, output_map=[
+                                    "data"], to_np=lambda x: x["data"].numpy(), prepare_first_batch=False)
+
+
 def test_pytorch_external_source_variable_size_pass():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     check_external_source_variable_size(PyTorchIterator, output_map=[
@@ -1342,6 +1360,12 @@ def test_paddle_external_source_autoreset():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     check_external_source_autoreset(PaddleIterator, output_map=[
                                     "data"], to_np=lambda x: np.array(x["data"]))
+
+
+def test_paddle_external_source_do_not_prepare():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+    check_external_source_autoreset(PaddleIterator, output_map=[
+                                    "data"], to_np=lambda x: np.array(x["data"]), prepare_first_batch=False)
 
 
 def test_paddle_external_source_variable_size_pass():

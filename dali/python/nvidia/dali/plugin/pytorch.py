@@ -126,6 +126,9 @@ class DALIGenericIterator(_DaliBaseIterator):
                 True next epoch would be the same length as the first one. For this to happen,
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
+    prepare_first_batch : bool, optional, default = True
+                Whether DALI should buffer the first batch right after the creation so when it is
+                prompted for the data have one batch already prepared
 
     Example
     -------
@@ -152,24 +155,34 @@ class DALIGenericIterator(_DaliBaseIterator):
                  fill_last_batch=None,
                  dynamic_shape=False,
                  last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL):
+                 last_batch_policy=LastBatchPolicy.FILL,
+                 prepare_first_batch=True):
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
         self._output_categories = set(output_map)
         self.output_map = output_map
 
-        _DaliBaseIterator.__init__(self, pipelines, size, reader_name, auto_reset, fill_last_batch, last_batch_padded, last_batch_policy)
+        _DaliBaseIterator.__init__(self,
+                                   pipelines,
+                                   size,
+                                   reader_name,
+                                   auto_reset,
+                                   fill_last_batch,
+                                   last_batch_padded,
+                                   last_batch_policy,
+                                   prepare_first_batch=prepare_first_batch)
         self._dynamic_shape = dynamic_shape
 
         # Use double-buffering of data batches
         self._data_batches = [None for i in range(self._num_gpus)]
 
         self._first_batch = None
-        try:
-            self._first_batch = DALIGenericIterator.__next__(self)
-        except StopIteration:
-            assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
+        if self._prepare_first_batch:
+            try:
+                self._first_batch = DALIGenericIterator.__next__(self)
+            except StopIteration:
+                assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
 
     def __next__(self):
         if self._first_batch is not None:
@@ -340,6 +353,9 @@ class DALIClassificationIterator(DALIGenericIterator):
                 True next epoch would be the same length as the first one. For this to happen,
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
+    prepare_first_batch : bool, optional, default = True
+                Whether DALI should buffer the first batch right after the creation so when it is
+                prompted for the data have one batch already prepared
 
     Example
     -------
@@ -365,14 +381,17 @@ class DALIClassificationIterator(DALIGenericIterator):
                  fill_last_batch=None,
                  dynamic_shape=False,
                  last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL):
+                 last_batch_policy=LastBatchPolicy.FILL,
+                 prepare_first_batch=True):
         super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
-                                                         size, reader_name=reader_name,
-                                                         auto_reset = auto_reset,
-                                                         fill_last_batch = fill_last_batch,
-                                                         dynamic_shape = dynamic_shape,
-                                                         last_batch_padded = last_batch_padded,
-                                                         last_batch_policy = last_batch_policy)
+                                                         size,
+                                                         reader_name=reader_name,
+                                                         auto_reset=auto_reset,
+                                                         fill_last_batch=fill_last_batch,
+                                                         dynamic_shape=dynamic_shape,
+                                                         last_batch_padded=last_batch_padded,
+                                                         last_batch_policy=last_batch_policy,
+                                                         prepare_first_batch=prepare_first_batch)
 
 
 class TorchPythonFunction(ops.PythonFunctionBase):
