@@ -140,7 +140,10 @@ a dedicated hardware decoder.
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
   .AddOptionalArg("hw_decoder_load",
       R"code(The percentage of the image data to be processed by the HW JPEG decoder.
 
@@ -189,7 +192,10 @@ image format, it will decode the entire image and crop the selected ROI.
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -214,7 +220,10 @@ image format, it will decode the entire image and crop the selected ROI.
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -224,7 +233,7 @@ Please note that GPU acceleration for JPEG 2000 decoding is only available for C
 DALI_SCHEMA(ImageDecoderSlice)
   .DocStr(R"code(Decodes images and extracts regions of interest.
 
-The slice can be specified by proving the start and end coordinates, or start coordinates 
+The slice can be specified by proving the start and end coordinates, or start coordinates
 and shape of the slice. Both coordinates and shapes can be provided in absolute or relative terms.
 
 The slice arguments can be specified by the following named arguments:
@@ -264,7 +273,10 @@ image format, it will decode the entire image and crop the selected ROI.
 The output of the decoder is in the *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
   .NumInput(1, 3)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
