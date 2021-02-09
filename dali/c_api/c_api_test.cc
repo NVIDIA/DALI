@@ -40,7 +40,8 @@ constexpr int prefetch_queue_depth = 2;
 constexpr bool async = true;
 constexpr float output_size = 20.f;
 constexpr cudaStream_t cuda_stream = 0;
-const std::string input_name = "inputs"s;  // NOLINT
+const std::string input_name = "inputs"s;    // NOLINT
+const std::string output_name = "outputs"s;  // NOLINT
 
 template<typename Backend>
 struct backend_to_device_type {
@@ -97,7 +98,7 @@ std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string
                            .AddInput(input_name, exec_device)
                            .AddOutput("outputs", exec_device));
 
-  std::vector<std::pair<std::string, std::string>> outputs = {{"outputs", output_device}};
+  std::vector<std::pair<std::string, std::string>> outputs = {{output_name, output_device}};
 
   pipe.SetOutputNames(outputs);
   return pipe_ptr;
@@ -153,6 +154,21 @@ class CApiTest : public ::testing::Test {
 
 using Backends = ::testing::Types<CPUBackend, GPUBackend>;
 TYPED_TEST_SUITE(CApiTest, Backends);
+
+
+TYPED_TEST(CApiTest, GetOutputNameTest) {
+  auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
+  auto serialized = pipe_ptr->SerializeToProtobuf();
+
+  daliPipelineHandle handle;
+  daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
+                     device_id, false, prefetch_queue_depth, prefetch_queue_depth,
+                     prefetch_queue_depth, false);
+
+  ASSERT_EQ(daliGetNumOutput(&handle), 1);
+  EXPECT_EQ(daliGetOutputName(&handle, 0), output_name.c_str());
+}
+
 
 TYPED_TEST(CApiTest, FileReaderPipe) {
   auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
