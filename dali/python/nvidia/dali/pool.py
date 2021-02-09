@@ -123,7 +123,7 @@ received so far.
     def handle_error(self, batch_i):
         """Check if given batch notified error and raise it"""
         if batch_i in self.iter_failed:
-            exception, tb_str = self.iter_failed[batch_i]
+            exception, traceback_str = self.iter_failed[batch_i]
             del self.iter_failed[batch_i]
             del self.partially_received[batch_i]
             if isinstance(exception, StopIteration):
@@ -132,13 +132,13 @@ received so far.
                 # Raise new exception propagating the traceback from worker thread as error
                 # message, originating from original exception
                 raise Exception(
-                    "\n\nException traceback received from worker thread:\n\n" + tb_str) from exception
+                    "\n\nException traceback received from worker thread:\n\n" + traceback_str) from exception
 
     def is_error(self, batch_i):
         return batch_i in self.iter_failed
 
-    def set_error(self, batch_i, error):
-        self.iter_failed[batch_i] = error
+    def set_error(self, batch_i, excpetion, traceback_str):
+        self.iter_failed[batch_i] = (excpetion, traceback_str)
 
     def is_cleared(self, batch_i):
         return batch_i not in self.partially_received
@@ -431,14 +431,21 @@ class WorkersPool:
                 raise RuntimeError("Worker exited unexpectedly")
             worker_id = completed_tasks.worker_id
             batch_i = completed_tasks.batch_i
+            if completed_tasks.context_i == -1:
+                assert completed_tasks.is_failed(), "Anonymous task can only be failed"
+                # Raise new exception propagating the traceback from worker thread as error
+                # message, originating from original exception. There is no originating context
+                # or batch, so we just reraise the error.
+                raise Exception(
+                    "\n\nException traceback received from worker thread:\n\n" + \
+                     completed_tasks.traceback_str) from completed_tasks.exception
             context = self.contexts[completed_tasks.context_i]
             # batch has been discarded
             if context.is_cleared(batch_i) or context.is_error(batch_i):
                 continue
             # iteration failed with exception
             if completed_tasks.is_failed():
-                context.set_error(batch_i, (completed_tasks.exception,
-                                            completed_tasks.traceback_str))
+                context.set_error(batch_i, completed_tasks.exception, completed_tasks.traceback_str)
             # received a valid chunk
             else:
                 context.receive_chunk(

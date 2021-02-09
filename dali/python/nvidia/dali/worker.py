@@ -16,7 +16,7 @@ import threading
 import traceback
 from multiprocessing import reduction
 from nvidia.dali.shared_batch import SharedMemChunk, write_batch
-from nvidia.dali.messages import CompletedTasks
+from nvidia.dali.messages import CompletedTasks, ScheduledTasks
 
 
 class _ProcessedTasks:
@@ -39,6 +39,10 @@ class _ProcessedTasks:
     @classmethod
     def failed(cls, scheduled, exception, traceback_str=None):
         return cls(scheduled, exception=exception, traceback_str=traceback_str)
+
+    @classmethod
+    def unknown_failed(cls, exception, traceback_str=None):
+        return cls(ScheduledTasks.anonymous_task(), exception=exception, traceback_str=traceback_str)
 
     def is_failed(self):
         return self.exception is not None
@@ -107,20 +111,26 @@ class CallbackContext:
         for chunk in self.mem_chunks:
             chunk.close()
 
-# TODO(klecki): Add exception handling to this thread
 def dispatcher(batch_dispatcher, ready_cv, ready_queue):
     """Receives batches produced in the main thread and dispatches them to the parent process.
     It is run in a separate thread because both callback and dispatcher may
     wait on IO operations a lot and in that case Python threads provide some performance gain.
     """
-    while True:
-        with ready_cv:
-            while len(ready_queue) == 0:
-                ready_cv.wait()
-            message = ready_queue.pop(0)
-        if message is None:
-            break
-        batch_dispatcher.send(message)
+    try:
+        while True:
+            with ready_cv:
+                while len(ready_queue) == 0:
+                    ready_cv.wait()
+                message = ready_queue.pop(0)
+            if message is None:
+                break
+            batch_dispatcher.send(message)
+    except Exception as exception:
+        tb_str = traceback.format_exc()
+        # create dummy failed task
+        failed_task = _ProcessedTasks.unknown_failed(exception, tb_str)
+        batch_dispatcher.send(failed_task)
+
 
 
 def receiver(task_pipe, tasks_cv, tasks_queue):
