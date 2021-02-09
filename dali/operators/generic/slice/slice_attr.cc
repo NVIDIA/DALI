@@ -55,18 +55,18 @@ is incompatible with providing positional inputs anchor and shape.)code",
 Note: Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
 is incompatible with providing positional inputs anchor and shape.)code",
         nullptr, true)
-    .AddOptionalArg<int>("shape",
+    .AddOptionalArg<std::vector<int>>("shape",
         R"code(Shape of the slice.
 
 Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
 is incompatible with providing positional inputs anchor and shape.)code",
-        true)
-    .AddOptionalArg<int>("rel_shape",
+        nullptr, true)
+    .AddOptionalArg<std::vector<int>>("rel_shape",
         R"code(Relative shape of the slice (range [0.0 - 1.0]).
 
 Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
 is incompatible with providing positional inputs anchor and shape.)code",
-        true)
+        nullptr, true)
     .AddOptionalArg("normalized_anchor",
         R"code(Determines whether the anchor positional input should be interpreted as normalized
 (range [0.0, 1.0]) or as absolute coordinates.
