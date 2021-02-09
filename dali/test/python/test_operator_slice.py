@@ -14,6 +14,7 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
@@ -375,11 +376,11 @@ def test_slice_synth_data_vs_numpy():
                 ((80, 30, 20, 3), "DHWC", None, "DHW", types.FLOAT, None),
                 ((80, 30, 20, 3), "DHWC", None, "WH", types.FLOAT, None),
                 ((80, 30, 20, 3), "DHWC", None, "C", types.FLOAT, None)]:
-                for normalized_anchor in [True, False]:
-                    for normalized_shape in [True, False]:
-                        yield check_slice_synth_data_vs_numpy, device, batch_size, \
-                            input_shape, layout, axes, axis_names, normalized_anchor, normalized_shape, \
-                            input_type, output_type
+                    normalized_anchor = np.random.choice([True, False])
+                    normalized_shape = np.random.choice([True, False])
+                    yield check_slice_synth_data_vs_numpy, device, batch_size, \
+                        input_shape, layout, axes, axis_names, normalized_anchor, normalized_shape, \
+                        input_type, output_type
 
 def check_slice_vs_fused_decoder(device, batch_size, axes, axis_names):
     eii_args = [SliceArgsIterator(batch_size, image_layout="HWC", axes=axes, axis_names=axis_names)
@@ -567,3 +568,97 @@ def test_slice_with_out_of_bounds_error():
             for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
                 yield check_slice_with_out_of_bounds_error, \
                     device, batch_size, in_shape, normalized_anchor, normalized_shape
+
+
+def check_slice_named_args(device, batch_size):
+    test_data_shape = [5, 4, 3]
+    def get_data():
+        out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        return out
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    with pipe:
+        data = fn.external_source(source = get_data, layout = "HWC")
+        in_shape = np.array([5, 4])
+        start = np.array([1, 2])
+        shape = np.array([3, 1])
+        end = start + shape
+        rel_start = start / in_shape
+        rel_shape = shape / in_shape
+        rel_end = end / in_shape 
+        outs = [
+            fn.slice(data, start, shape, axes = (0, 1)),
+            fn.slice(data, rel_start, rel_shape, axes = (0, 1)),
+            fn.slice(data, start=start, shape=shape, axes = (0, 1)),
+            fn.slice(data, start=start, end=end, axes = (0, 1)),
+            fn.slice(data, rel_start=rel_start, rel_shape=rel_shape, axes = (0, 1)),
+            fn.slice(data, rel_start=rel_start, rel_end=rel_end, axes = (0, 1)),
+            fn.slice(data, rel_start=rel_start, shape=shape, axes = (0, 1)),
+        ]
+        pipe.set_outputs(*outs)
+    pipe.build()
+    for _ in range(3):
+        outs = pipe.run()
+        for out_idx in range(1, len(outs)):
+            for sample in range(batch_size):
+                np.testing.assert_equal(np.array(outs[0][sample]), np.array(outs[out_idx][sample]))
+
+def test_slice_named_args():
+    yield check_slice_named_args, 'cpu', 3
+    yield check_slice_named_args, 'gpu', 3
+
+def check_slice_named_args_default_start_or_end(device, batch_size):
+    test_data_shape = [5, 4, 3]
+    def get_data():
+        out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        return out
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    with pipe:
+        data = fn.external_source(source = get_data, layout = "HWC")
+        in_shape = np.array([5, 4])
+        start = np.array([1, 2])
+        shape = np.array([3, 1])
+        end = start + shape
+        rel_start = start / in_shape
+        rel_shape = shape / in_shape
+        rel_end = end / in_shape
+        outs = [
+            fn.slice(data, start=start, end=in_shape, axes = (0, 1)),
+            fn.slice(data, start=[0, 0], end=end, axes = (0, 1)),
+            fn.slice(data, start=start, axes = (0, 1)),
+            fn.slice(data, end=end, axes = (0, 1)),
+        ]
+        pipe.set_outputs(*outs)
+    pipe.build()
+    for _ in range(3):
+        outs = pipe.run()
+        for sample in range(batch_size):
+            np.testing.assert_equal(np.array(outs[0][sample]), np.array(outs[2][sample]))
+            np.testing.assert_equal(np.array(outs[1][sample]), np.array(outs[3][sample]))
+
+def test_slice_named_default_start_or_end_args():
+    yield check_slice_named_args_default_start_or_end, 'cpu', 3
+    yield check_slice_named_args_default_start_or_end, 'gpu', 3
+
+def check_slice_named_args_errors(device, batch_size):
+    test_data_shape = [5, 4, 3]
+    def get_data():
+        out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        return out
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    with pipe:
+        data = fn.external_source(source = get_data, layout = "HWC")
+        in_shape = np.array([5, 4])
+        start = np.array([1, 2])
+        shape = np.array([3, 1])
+        outs = [
+            fn.slice(data, start, shape, start=start, end=start+shape, shape=shape, axes = (0, 1)),
+        ]
+        pipe.set_outputs(*outs)
+    with assert_raises(RuntimeError):
+        pipe.build()
+        for _ in range(1):
+            outs = pipe.run()
+
+def test_slice_named_args_errors():
+    yield check_slice_named_args_errors, 'cpu', 1
+    yield check_slice_named_args_errors, 'gpu', 1
