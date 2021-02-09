@@ -269,6 +269,7 @@ int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
   if (threshold_.IsDefined()) {
     vec<ndim, int> threshold;
     const int *thresh = threshold_[sample_idx].data;
+    assert(threshold_.get().shape[sample_idx] == TensorShape<1>{ ndim });
     for (int i = 0; i < ndim; i++)
       threshold[i] = thresh[i];
     end = std::remove_if(beg, end, [threshold](auto box) {
@@ -340,6 +341,7 @@ bool RandomObjectBBox::PickForegroundBox(
         context.classes.push_back(cls);
         context.weights.push_back(1);
       }
+      std::sort(context.classes.begin(), context.classes.end());
     } else {
       for (int i = 0; i < static_cast<int>(context.classes.size()); i++) {
         if (!context.labels.count(context.classes[i]))
