@@ -166,7 +166,7 @@ TYPED_TEST(CApiTest, GetOutputNameTest) {
                      prefetch_queue_depth, false);
 
   ASSERT_EQ(daliGetNumOutput(&handle), 1);
-  EXPECT_EQ(daliGetOutputName(&handle, 0), output_name.c_str());
+  EXPECT_STREQ(daliGetOutputName(&handle, 0), output_name.c_str());
 }
 
 
