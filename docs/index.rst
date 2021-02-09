@@ -27,18 +27,41 @@ This library is open sourced and it is available in the `NVIDIA GitHub repositor
    Documentation home <self>
 
 .. toctree::
-   :maxdepth: 2
-   :caption: User Guide
+   :maxdepth: 1
+   :caption: Getting Started
 
    installation
-   compilation
-   Platform support matrix <support_matrix>
-   examples/getting started.ipynb
-   examples/index
-   framework_plugins
-   api
+   Platform Support <support_matrix>
+   Getting Started Tutorial <examples/getting started.ipynb>
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Python API Documentation
+
+   pipeline
+   data_types
    supported_ops
+   math
+   framework_plugins
+   supported_ops_legacy
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Examples and Tutorials
+
+   examples/index
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Advanced
+
    advanced_topics
+   compilation
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference
+
    Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes/index.html>
 
 Indices and tables

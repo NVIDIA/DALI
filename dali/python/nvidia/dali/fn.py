@@ -62,9 +62,9 @@ def _to_snake_case(pascal):
     return out
 
 def _wrap_op_fn(op_class, wrapper_name):
-    def op_wrapper(*inputs, **arguments):
+    def op_wrapper(*inputs, **kwargs):
         import nvidia.dali.ops
-        init_args, call_args = nvidia.dali.ops._separate_kwargs(arguments)
+        init_args, call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
         default_dev = nvidia.dali.ops._choose_device(inputs)
         if default_dev == "gpu" and init_args.get("device") == "cpu":
@@ -78,6 +78,8 @@ def _wrap_op_fn(op_class, wrapper_name):
     op_wrapper.__name__ = wrapper_name
     op_wrapper.__qualname__ = wrapper_name
     op_wrapper.__doc__ = op_class.__doc__
+    if op_class.__call__.__doc__ is not None:
+        op_wrapper.__doc__ += "\n\n" + op_class.__call__.__doc__
     return op_wrapper
 
 def _wrap_op(op_class, submodule, parent_module=None):

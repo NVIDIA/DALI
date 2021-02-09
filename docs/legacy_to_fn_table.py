@@ -27,30 +27,19 @@ def main(out_filename):
     longest_module = max(ops_modules.keys(), key = len)
     link_formatter = ':meth:`{op} <{module}.{op}>`'
     op_name_max_len = len(link_formatter.format(op = "", module = longest_module)) + \
-                      5 * len(max(all_ops, key=len))
+                      2 * len(max(all_ops, key=len))
     name_bar = op_name_max_len * '='
-    formater = '{:{c}<{op_name_max_len}} {:{c}^6}  {:{c}^6}  {:{c}^7} {:{c}^9} {:{c}^10}\n'
+    formater = '{:{c}<{op_name_max_len}} {:{c}<{op_name_max_len}}\n'
     doc_table = ''
-    doc_table += '.. |v| image:: images/tick.gif\n'
-    doc_table += '\n'
-    doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
-    doc_table += formater.format('Operator name', 'CPU', 'GPU', 'Mixed', 'Sequences', 'Volumes', op_name_max_len = op_name_max_len, c=' ')
-    doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
+    doc_table += formater.format('', '', op_name_max_len = op_name_max_len, c='=')
+    doc_table += formater.format('Function (fn.*)', 'Operator Object (ops.*)', op_name_max_len = op_name_max_len, c=' ')
+    doc_table += formater.format('', '', op_name_max_len = op_name_max_len, c='=')
     for op in sorted(all_ops, key=name_sort):
         op_full_name, submodule, op_name = ops._process_op_name(op)
-        #op_name = fn._to_snake_case(op_name)
-        is_cpu = '|v|' if op in cpu_ops else ''
-        is_gpu = '|v|' if op in gpu_ops else ''
-        is_mixed = '|v|' if op in mix_ops else ''
         schema = b.TryGetSchema(op)
         if schema:
-            supports_seq = '|v|' if schema.AllowsSequences() or schema.IsSequenceOperator() else ''
-            volumetric = '|v|' if schema.SupportsVolumetric() else ''
             if schema.IsDocHidden():
                 continue
-        else:
-            supports_seq = ''
-            volumetric = ''
         for (module_name, module) in ops_modules.items():
             m = module
             for part in submodule:
@@ -61,9 +50,9 @@ def main(out_filename):
                 submodule_str = ".".join([*submodule])
                 op_string = link_formatter.format(op = op_full_name, module = module_name)
                 fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = module_name.replace('.ops', '.fn'))
-        op_doc = formater.format(' / '.join([fn_string, op_string]), is_cpu, is_gpu, is_mixed, supports_seq, volumetric, op_name_max_len = op_name_max_len, c=' ')
+        op_doc = formater.format(fn_string, op_string, op_name_max_len = op_name_max_len, c=' ')
         doc_table += op_doc
-    doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')
+    doc_table += formater.format('', '', op_name_max_len = op_name_max_len, c='=')
     with open(out_filename, 'w') as f:
         f.write(doc_table)
 

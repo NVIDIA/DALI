@@ -54,8 +54,11 @@ release = str(version_long)
 # mock torch required by supported_op_devices
 with mock(["torch"]):
     sys.path.insert(0, os.path.abspath('./'))
-    import supported_op_devices
-    supported_op_devices.main("op_inclusion")
+    import operations_table
+    operations_table.main("fn_table")
+    import legacy_to_fn_table
+    legacy_to_fn_table.main("fn_to_op_table")
+
     import autodoc_submodules
     autodoc_submodules.op_autodoc("op_autodoc")
     autodoc_submodules.fn_autodoc("fn_autodoc")

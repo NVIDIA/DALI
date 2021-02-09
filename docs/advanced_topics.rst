@@ -1,14 +1,13 @@
 Advanced Topics
-=================
+===============
 
-This section covers a few advanced topics that are mentioned in the API documentation.
+Thread Affinity
+---------------
 
 .. note::
   For typical use cases, the default DALI configuration performs well out of the box, and you do
   not need to review this section.
 
-Thread Affinity
----------------
 
 This functionality allows you to pin DALI threads to the specified CPU. Thread affinity avoids
 the overhead of worker threads jumping from core to core and improves performance with CPU-heavy
@@ -40,6 +39,10 @@ and thread 4 to the CPU ID that is returned by nvmlDeviceGetCpuAffinity.
 
 Memory Consumption
 ------------------
+
+.. note::
+  For typical use cases, the default DALI configuration performs well out of the box, and you do
+  not need to review this section.
 
 DALI uses the following memory types:
 
@@ -86,6 +89,10 @@ growth factor for the host and the GPU buffers.
 Operator Buffer Presizing
 -------------------------
 
+.. note::
+  For typical use cases, the default DALI configuration performs well out of the box, and you do
+  not need to review this section.
+
 When you can precisely forecast the memory consumption during a DALI run, this functionality helps
 you fine tune the processing pipeline. One of the benefits is that the overhead of some
 reallocations can be avoided.
@@ -116,6 +123,10 @@ the allocation is contiguous. This value should be provided to ``bytes_per_sampl
 
 Prefetching Queue Depth
 -----------------------
+
+.. note::
+  For typical use cases, the default DALI configuration performs well out of the box, and you do
+  not need to review this section.
 
 The DALI pipeline allows the buffering of one or more batches of data, which is important when
 the processing time varies from batch to batch.

@@ -1,11 +1,6 @@
 Pipeline
 ========
 
-Pipeline class
---------------
-
-.. currentmodule:: nvidia.dali.pipeline
-
 In DALI, any data processing task has a central object called pipeline. Pipeline object is an
 instance of :class:`nvidia.dali.pipeline.Pipeline` or a derived class. Pipeline encapsulates the
 data processing graph and the execution engine.
@@ -16,8 +11,14 @@ There are two ways to define a DALI pipelines:
 #. by instantiating `Pipeline` directly, building the graph and setting the pipeline
    outputs with :meth:`Pipeline.set_outputs`
 
+.. currentmodule:: nvidia.dali.pipeline
+
+.. autoclass:: Pipeline
+   :members:
+   :special-members: __enter__, __exit__
+
 Data processing graphs
-""""""""""""""""""""""
+----------------------
 
 DALI pipeline is represented as a graph of operations. There are two kinds of nodes in the graph:
 
@@ -48,7 +49,7 @@ The resulting graph is:
 .. image:: images/two_readers.svg
 
 Current pipeline
-""""""""""""""""
+----------------
 
 Subgraphs that do not contribute to the pipeline output are automatically pruned.
 If an operator has side effects (e.g. PythonFunction operator family), it cannot be invoked
@@ -62,12 +63,8 @@ manager (`with` statement)::
         a, b = src()
         pipe.set_outputs(a, b)
 
-.. autoclass:: Pipeline
-   :members:
-   :special-members: __enter__, __exit__
-
-
 DataNode
 --------
+
 .. autoclass:: DataNode
    :members:
