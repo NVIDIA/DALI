@@ -182,7 +182,8 @@ starts thread keeping track of running processes and initializes communication.
                 "If you are trying to build multiple pipelines that use Python workers, you will need to "
                 "call ``start_py_workers`` method on all of them before calling ``build`` method of any pipeline.")
         mp = multiprocessing.get_context(init_method)
-        workers_num = workers_num or mp.cpu_count()
+        if worker is None:
+            workers_num = mp.cpu_count()
         if workers_num < 1:
             raise RuntimeError("workers_num must be a positive integer")
         self._workers_num = workers_num

@@ -60,22 +60,27 @@ class FilesDataSet:
     def __len__(self):
         return self.size
 
-    def __getitem__(self, i):
-        if i >= self.size:
+    def get_sample(self, sample_idx, epoch_idx):
+        if sample_idx >= self.size:
             raise StopIteration
-        return self.files_map[i]
+        return self.files_map[sample_idx]
 
 
 class ShuffledFilesDataSet(FilesDataSet):
 
     def __init__(self, data_path):
         super().__init__(data_path)
-        self.perm = np.random.permutation(self.size)
+        self.rng = np.random.default_rng(seed=42)
+        self.epoch_idx = 0
+        self.perm = self.rng.permutation(self.size)
 
-    def __getitem__(self, i):
-        if i >= self.size:
+    def get_sample(self, sample_idx, epoch_idx):
+        if self.epoch_idx != epoch_idx:
+            self.perm = self.rng.permutation(self.size)
+            self.epoch_idx = epoch_idx
+        if sample_idx >= self.size:
             raise StopIteration
-        return super().__getitem__(self.perm[i])
+        return super().get_sample(self.perm[sample_idx], epoch_idx)
 
 
 class SampleLoader(object):
@@ -101,7 +106,7 @@ class SampleLoader(object):
             return f.read()
 
     def __call__(self, sample_info):
-        file_path, class_no = self.data_set[sample_info.idx_in_epoch]
+        file_path, class_no = self.data_set.get_sample(sample_info.idx_in_epoch, sample_info.iteration)
         return self.read_file(file_path), np.array([class_no])
 
 

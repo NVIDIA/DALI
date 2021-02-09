@@ -120,6 +120,7 @@ Parameters
     Usefull for `bytes_per_sample_hint` operator parameter.
 `py_workers_num`: int, optional, default = None
     Specify the number of Python workers that will process ExternalSource callbacks.
+    If a number is not specified, the pool will use the cpu count as the number of Python workers.
     The pool starts only if there is at least one ExternalSource with ``parallel`` set to True.
 `py_workers_init` : str, default = "fork"
     Specify how Python workers should start. Supported methods:
