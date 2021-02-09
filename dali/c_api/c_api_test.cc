@@ -96,7 +96,7 @@ std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string
                            .AddArg("resize_x", output_size)
                            .AddArg("resize_y", output_size)
                            .AddInput(input_name, exec_device)
-                           .AddOutput("outputs", exec_device));
+                           .AddOutput(output_name, exec_device));
 
   std::vector<std::pair<std::string, std::string>> outputs = {{output_name, output_device}};
 
