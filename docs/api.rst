@@ -12,9 +12,6 @@ important part of every program using DALI.
 
 `Types <data_types.rst>`_ section describes types used to construct and returned by DALI pipelines.
 
-`Functional API <functional_api.rst>`_ (Experimental!) section describes a psuedo-imperative API
-which can be used to define DALI pipelines with less verbosity.
-
 .. toctree::
    :maxdepth: 2
    :caption:
@@ -22,5 +19,4 @@ which can be used to define DALI pipelines with less verbosity.
 
    pipeline
    data_types
-   functional_api
    math

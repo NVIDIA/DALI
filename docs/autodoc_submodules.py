@@ -27,7 +27,7 @@ def op_autodoc(out_filename):
         for doc_module in ops_modules:
             if module.startswith(doc_module) and not module.endswith('hidden'):
                 s += module + "\n"
-                s += "~" * len(module) + "\n"
+                s += "^" * len(module) + "\n"
                 s += ".. automodule:: {}\n".format(module)
                 s += "   :members:\n"
                 s += "   :special-members: __call__\n"
