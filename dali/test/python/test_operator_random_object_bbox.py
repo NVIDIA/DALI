@@ -8,7 +8,7 @@ from test_utils import check_batch
 from test_utils import np_type_to_dali
 from nose.tools import raises, assert_raises, nottest
 
-np.random.seed=1234
+np.random.seed(1234)
 
 def count_outputs(outs):
     if isinstance(outs, dali.pipeline.DataNode):
@@ -268,7 +268,7 @@ def _test_random_object_bbox_with_class(max_batch_size, ndim, dtype, format=None
 
 
 def test_random_object_bbox_with_class():
-    np.random.seed = 12345
+    np.random.seed(12345)
     types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
 
     formats = [None, "anchor_shape", "start_end", "box"]
@@ -350,7 +350,7 @@ def _test_random_object_bbox_ignore_class(max_batch_size, ndim, dtype, format=No
                 assert contains_box(ref_boxes, boxes[i])
 
 def test_random_object_bbox_ignore_class():
-    np.random.seed = 43210
+    np.random.seed(43210)
     types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
     for bg in [None, 0, -1, 5, fn.random.uniform(range=(-5, 10), dtype=dali.types.INT32, seed=1313)]:
         ndim = np.random.randint(1, 5)

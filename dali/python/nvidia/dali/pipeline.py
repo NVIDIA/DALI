@@ -994,6 +994,7 @@ Parameters
                 actual_batch_size = group.call_and_feed(self, batch_size)
                 if first:
                     batch_size = actual_batch_size
+                    first = False
                 elif actual_batch_size != batch_size:
                     raise RuntimeError("Batch size inconsistency between ExternalSource operators")
             except StopIteration:
