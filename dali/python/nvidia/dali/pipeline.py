@@ -122,6 +122,8 @@ Parameters
     Specify the number of Python workers that will process ExternalSource callbacks.
     If a number is not specified, the pool will use the cpu count as the number of Python workers.
     The pool starts only if there is at least one ExternalSource with ``parallel`` set to True.
+    Setting it to 0 disables the pool and all ExternalSource operators fall back to non parallel
+    mode even if ``parallel`` is set to True.
 `py_workers_init` : str, default = "fork"
     Specify how Python workers should start. Supported methods:
         * ``fork`` - start by forking the process
@@ -537,8 +539,12 @@ Parameters
                 groups.add(group)
         groups = list(groups)
         self._input_callbacks = groups
-        self._parallel_input_callbacks = [group for group in groups if group.parallel]
-        self._seq_input_callbacks = [group for group in groups if not group.parallel]
+        if self._py_workers_num is not None and self._py_workers_num == 0:
+            self._parallel_input_callbacks = []
+            self._seq_input_callbacks = self._input_callbacks
+        else:
+            self._parallel_input_callbacks = [group for group in groups if group.parallel]
+            self._seq_input_callbacks = [group for group in groups if not group.parallel]
 
     def start_py_workers(self):
         """

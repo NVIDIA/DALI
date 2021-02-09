@@ -33,6 +33,16 @@ def test_parallel_fork_cpu_only():
         compare_pipelines(parallel_pipes[2 * i], parallel_pipes[2 * i + 1], batch_size, iters)
 
 
+def test_parallel_no_workers():
+    batch_size = 10
+    iters = 4
+    callback = ExtCallback((4, 5), iters * batch_size, np.int32)
+    parallel_pipe = create_pipe(callback, 'cpu', batch_size, py_workers_num=0,
+                                py_workers_init='spawn', parallel=True, device_id=None)
+    parallel_pipe.build()
+    assert parallel_pipe._py_pool is None
+    assert parallel_pipe._py_pool_started == False
+
 def test_parallel_fork():
     epoch_size = 250
     callback = ExtCallback((4, 5), epoch_size, np.int32)
