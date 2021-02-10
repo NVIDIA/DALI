@@ -1020,6 +1020,13 @@ def _discriminate_args(func, **func_kwargs):
         else:
             fn_args[farg[0]] = farg[1]
 
+    for farg in fn_args.items():
+        if farg[0] not in func_argspec.args and farg[0] not in func_argspec.kwonlyargs:
+            raise TypeError(
+                "Using non-explicitly declared arguments in graph-defining function is not allowed. "
+                "Please remove `{}` argument or declare it explicitly in the function signature.".format(
+                    farg[0]))
+
     return ctor_args, fn_args
 
 
@@ -1073,9 +1080,14 @@ def pipeline_def(fn=None, **pipeline_kwargs):
     .. warning::
 
         The arguments of the function being decorated can shadow pipeline constructor arguments -
-        in which case there's no way to alter their values. Be especially mindful about using
-        ``**kwargs``, since code written this way may break with future versions of DALI, when
-        new parameters are added to the ``Pipeline`` constructor.
+        in which case there's no way to alter their values.
+
+    .. note::
+
+        Using non-explicitly declared arguments in graph-defining function is not allowed.
+        They may result in unwanted, silent hijacking of some arguments of the same name by
+        Pipeline constructor. Code written this way may cease to work with future versions of DALI
+        when new parameters are added to the Pipeline constructor.
     """
     def actual_decorator(func):
         @functools.wraps(func)

@@ -56,9 +56,6 @@ def pipeline_runtime(flip_vertical, flip_horizontal):
     return flipped, img
 
 
-
-
-
 @nottest
 def test_pipeline_static(flip_vertical, flip_horizontal):
     put_args = pipeline_static(flip_vertical, flip_horizontal)
@@ -107,3 +104,43 @@ def test_duplicated_argument():
     assert pipe._max_streams == -1
     ref = ref_pipeline(42)
     compare_pipelines(pipe, ref, batch_size=max_batch_size, N_iterations=N_ITER)
+
+
+# test_kwargs_exception tests against user introducing arguments,
+# that are not explicitly declared in function signature
+
+@pipeline_def
+def pipeline_kwargs(arg1, arg2, *args, **kwargs):
+    pass
+
+
+@pipeline_def
+def pipeline_kwonlyargs(arg1, *, arg2, **kwargs):
+    pass
+
+
+def test_kwargs_exception_1():
+    pipeline_kwargs(1, arg2=2)
+
+
+def test_kwargs_exception_2():
+    pipeline_kwonlyargs(1, arg2=2)
+
+
+@raises(TypeError)
+def test_kwargs_exception_3():
+    pipeline_kwargs(arg1=1, arg2=2, arg3=3)
+
+
+def test_kwargs_exception_4():
+    pipeline_kwargs(1, 2, 3, 4, 5)
+
+
+@raises(TypeError)
+def test_kwargs_exception_5():
+    pipeline_kwonlyargs(1, arg2=2, arg3=3)
+
+
+@raises(TypeError)
+def test_kwargs_exception_6():
+    pipeline_kwargs(1, arg2=2, arg3=3)
