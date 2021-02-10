@@ -336,7 +336,8 @@ DLL_PUBLIC size_t daliMaxDimTensors(daliPipelineHandle *pipe_handle, int n);
 DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle);
 
 /**
- * @brief Returns a string indicating name of the output given by id
+ * @brief Returns a string indicating name of the output given by id.
+ * @remark The returned pointer is invalidated after calling `daliDeletePipeline(pipe_handle)`.
  */
 DLL_PUBLIC const char *daliGetOutputName(daliPipelineHandle *pipe_handle, int id);
 

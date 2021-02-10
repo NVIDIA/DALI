@@ -157,16 +157,35 @@ TYPED_TEST_SUITE(CApiTest, Backends);
 
 
 TYPED_TEST(CApiTest, GetOutputNameTest) {
-  auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
-  auto serialized = pipe_ptr->SerializeToProtobuf();
+  std::string output0_name = "compressed_images";
+  std::string output1_name = "labels";
+  auto pipe_ptr = std::make_unique<Pipeline>(batch_size, num_thread, device_id, seed, pipelined,
+                                             prefetch_queue_depth, async);
+  auto &pipe = *pipe_ptr;
+  std::string file_root = testing::dali_extra_path() + "/db/single/jpeg/";
+  std::string file_list = file_root + "image_list.txt";
+  pipe.AddOperator(OpSpec("FileReader")
+                       .AddArg("device", "cpu")
+                       .AddArg("file_root", file_root)
+                       .AddArg("file_list", file_list)
+                       .AddOutput(output0_name, "cpu")
+                       .AddOutput(output1_name, "cpu"));
+
+  std::vector<std::pair<std::string, std::string>> outputs = {{output0_name, "cpu"},
+                                                              {output1_name, "cpu"}};
+
+  pipe.SetOutputNames(outputs);
+
+  auto serialized = pipe.SerializeToProtobuf();
 
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, false);
 
-  ASSERT_EQ(daliGetNumOutput(&handle), 1);
-  EXPECT_STREQ(daliGetOutputName(&handle, 0), output_name.c_str());
+  ASSERT_EQ(daliGetNumOutput(&handle), 2);
+  EXPECT_STREQ(daliGetOutputName(&handle, 0), output0_name.c_str());
+  EXPECT_STREQ(daliGetOutputName(&handle, 1), output1_name.c_str());
 }
 
 
