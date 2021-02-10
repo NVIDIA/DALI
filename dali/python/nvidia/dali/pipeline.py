@@ -1006,6 +1006,11 @@ def _discriminate_args(func, **func_kwargs):
     ctor_args = {}
     fn_args = {}
 
+    if func_argspec.varkw is not None:
+        raise TypeError(
+            "Using variadic keyword argument `**{}` in graph-defining function is not allowed.".format(
+                func_argspec.varkw))
+
     for farg in func_kwargs.items():
         is_ctor_arg = farg[0] in ctor_argspec.args or farg[0] in ctor_argspec.kwonlyargs
         is_fn_arg = farg[0] in func_argspec.args or farg[0] in func_argspec.kwonlyargs
@@ -1018,14 +1023,7 @@ def _discriminate_args(func, **func_kwargs):
         elif is_ctor_arg:
             ctor_args[farg[0]] = farg[1]
         else:
-            fn_args[farg[0]] = farg[1]
-
-    for farg in fn_args.items():
-        if farg[0] not in func_argspec.args and farg[0] not in func_argspec.kwonlyargs:
-            raise TypeError(
-                "Using non-explicitly declared arguments in graph-defining function is not allowed. "
-                "Please remove `{}` argument or declare it explicitly in the function signature.".format(
-                    farg[0]))
+            assert False, "This shouldn't happen. Please double-check the `{}` argument".format(farg[0])
 
     return ctor_args, fn_args
 
@@ -1084,9 +1082,9 @@ def pipeline_def(fn=None, **pipeline_kwargs):
 
     .. note::
 
-        Using non-explicitly declared arguments in graph-defining function is not allowed.
+        Using ``**kwargs`` (variadic keyword arguments) in graph-defining function is not allowed.
         They may result in unwanted, silent hijacking of some arguments of the same name by
-        Pipeline constructor. Code written this way may cease to work with future versions of DALI
+        Pipeline constructor. Code written this way would cease to work with future versions of DALI
         when new parameters are added to the Pipeline constructor.
     """
     def actual_decorator(func):

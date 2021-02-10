@@ -38,7 +38,7 @@ def reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=max_batch_
     return pipeline
 
 
-@nottest
+@nottest  # pipeline_def works with other decorators too
 @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
 def pipeline_static(flip_vertical, flip_horizontal):
     data, _ = fn.file_reader(file_root=images_dir)
@@ -106,41 +106,11 @@ def test_duplicated_argument():
     compare_pipelines(pipe, ref, batch_size=max_batch_size, N_iterations=N_ITER)
 
 
-# test_kwargs_exception tests against user introducing arguments,
-# that are not explicitly declared in function signature
-
 @pipeline_def
 def pipeline_kwargs(arg1, arg2, *args, **kwargs):
     pass
 
 
-@pipeline_def
-def pipeline_kwonlyargs(arg1, *, arg2, **kwargs):
-    pass
-
-
-def test_kwargs_exception_1():
-    pipeline_kwargs(1, arg2=2)
-
-
-def test_kwargs_exception_2():
-    pipeline_kwonlyargs(1, arg2=2)
-
-
 @raises(TypeError)
-def test_kwargs_exception_3():
+def test_kwargs_exception():
     pipeline_kwargs(arg1=1, arg2=2, arg3=3)
-
-
-def test_kwargs_exception_4():
-    pipeline_kwargs(1, 2, 3, 4, 5)
-
-
-@raises(TypeError)
-def test_kwargs_exception_5():
-    pipeline_kwonlyargs(1, arg2=2, arg3=3)
-
-
-@raises(TypeError)
-def test_kwargs_exception_6():
-    pipeline_kwargs(1, arg2=2, arg3=3)
