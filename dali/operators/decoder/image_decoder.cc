@@ -227,11 +227,9 @@ anchors and shapes.
 
 Inputs must be supplied as tensors in the following order:
 
-* ``data`` that contains the input data.
-* ``anchor`` that contains normalized or absolute coordinates, depending on the
-  ``normalized_anchor`` value, for the starting point of the slice (x0, x1, x2, and so on),
-* ``shape`` that contains normalized or absolute coordinates, depending on the
-  ``normalized_shape`` value, for the dimensions of the slice (s0, s1, s2, and so on).
+#. ``data``
+#. ``anchor``
+#. ``shape``
 
 The anchor and shape coordinates must be within the interval [0.0, 1.0] for normalized
 coordinates or within the image shape for the absolute coordinates. The ``anchor`` and ``shape``
@@ -257,6 +255,21 @@ Please note that GPU acceleration for JPEG 2000 decoding is only available for C
   .NumInput(3)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
-  .AddParent("SliceAttr");
+  .AddParent("SliceAttr")
+  .InputDox(0, "data", "TensorList", R"code(Batch that contains the input data.)code")
+  .InputDox(1, "anchor", "1D TensorList of float or int",
+            R"code(Input that contains normalized or absolute coordinates for the starting
+point of the slice (x0, x1, x2, …).
+
+Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
+interpreted as absolute or relative coordinates, depending on the value of
+``normalized_anchor``.)code")
+  .InputDox(2, "shape", "1D TensorList of float or int",
+            R"code(Input that contains normalized or absolute coordinates for the dimensions
+of the slice (s0, s1, s2, …).
+
+Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
+interpreted as absolute or relative coordinates, depending on the value of
+``normalized_shape``.)code");
 
 }  // namespace dali

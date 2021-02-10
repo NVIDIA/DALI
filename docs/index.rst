@@ -63,6 +63,7 @@ This library is open sourced and it is available in the `NVIDIA GitHub repositor
    :caption: Reference
 
    Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes/index.html>
+   GitHub <https://github.com/NVIDIA/DALI>
 
 Indices and tables
 ==================

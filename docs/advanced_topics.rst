@@ -1,13 +1,12 @@
-Advanced Topics
-===============
-
-Thread Affinity
----------------
+Performance Tuning
+==================
 
 .. note::
   For typical use cases, the default DALI configuration performs well out of the box, and you do
   not need to review this section.
 
+Thread Affinity
+---------------
 
 This functionality allows you to pin DALI threads to the specified CPU. Thread affinity avoids
 the overhead of worker threads jumping from core to core and improves performance with CPU-heavy
@@ -39,10 +38,6 @@ and thread 4 to the CPU ID that is returned by nvmlDeviceGetCpuAffinity.
 
 Memory Consumption
 ------------------
-
-.. note::
-  For typical use cases, the default DALI configuration performs well out of the box, and you do
-  not need to review this section.
 
 DALI uses the following memory types:
 
@@ -89,10 +84,6 @@ growth factor for the host and the GPU buffers.
 Operator Buffer Presizing
 -------------------------
 
-.. note::
-  For typical use cases, the default DALI configuration performs well out of the box, and you do
-  not need to review this section.
-
 When you can precisely forecast the memory consumption during a DALI run, this functionality helps
 you fine tune the processing pipeline. One of the benefits is that the overhead of some
 reallocations can be avoided.
@@ -124,10 +115,6 @@ the allocation is contiguous. This value should be provided to ``bytes_per_sampl
 Prefetching Queue Depth
 -----------------------
 
-.. note::
-  For typical use cases, the default DALI configuration performs well out of the box, and you do
-  not need to review this section.
-
 The DALI pipeline allows the buffering of one or more batches of data, which is important when
 the processing time varies from batch to batch.
 The default prefetch depth is 2. You can change this value by using the ``prefetch_queue_depth``
@@ -137,59 +124,8 @@ we recommend that you prefetch more data ahead of time.
 .. note::
   Increasing queue depth also increases memory consumption.
 
-Running DALI pipeline
----------------------
-
-DALI pipeline can be run in one of the following ways:
-
-- | Simple run method, which runs the computations and returns the results.
-  | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.BASIC` API type.
-- | :meth:`nvidia.dali.pipeline.Pipeline.schedule_runs`,
-    :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`,
-    :meth:`nvidia.dali.pipeline.Pipeline.release_outputs` that allows a fine-grain control for
-    the duration of the output buffers' lifetime.
-  | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.SCHEDULED` API type.
-- | Built-in iterators for MXNet, PyTorch, and TensorFlow.
-  | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.ITERATOR` API type.
-
-The first API, :meth:`nvidia.dali.pipeline.Pipeline.run()` method completes the following tasks:
-
-#. Launches the DALI pipeline.
-#. Executes the prefetch iterations if necessary.
-#. Waits until the first batch is ready.
-#. Returns the resulting buffers.
-
-Buffers are marked as in-use until the next call to
-:meth:`nvidia.dali.pipeline.Pipeline.run`. This process can be wasteful because the data is usually
-copied to the DL framework's native storage objects and DALI pipeline outputs could be returned to
-DALI for reuse.
-
-The second API, which consists of :meth:`nvidia.dali.pipeline.Pipeline.schedule_run()`,
-:meth:`nvidia.dali.pipeline.Pipeline.share_outputs()`, and :meth:`nvidia.dali.pipeline.Pipeline.release_outputs()`
-allows you to explicitly manage the lifetime of the output buffers. The
-:meth:`nvidia.dali.pipeline.Pipeline.schedule_run()` method instructs DALI to prepare the next
-batch of data, and, if necessary, to prefetch. If the execution mode is set to asynchronous,
-this call returns immediately, without waiting for the results. This way, another task can be
-simultaneously executed. The data batch can be requested from DALI by calling
-:meth:`nvidia.dali.pipeline.Pipeline.share_outputs`, which returns the result buffer. If the data
-batch is not yet ready, DALI will wait for it. The data is ready as soon as the
-:meth:`nvidia.dali.pipeline.Pipeline.share_outputs()`` is complete. When the DALI buffers are
-no longer needed, because data was copied or has already been consumed, call
-:meth:`nvidia.dali.pipeline.Pipeline.release_outputs()` to return the DALI buffers for reuse
-in subsequent iterations.
-
-Built-in iterators use the second API to provide convenient wrappers for immediate use in
-Deep Learning Frameworks. The data is returned in the framework's native buffers. The iterator's
-implementation copies the data internally from DALI buffers and recycles the data by calling
-:meth:`nvidia.dali.pipeline.Pipeline.release_outputs()`.
-
-We recommend that you do not mix the APIs. The APIs follow a different logic for the output
-buffer lifetime management, and the details of the process are subject to change without notice.
-Mixing the APIs might result in undefined behavior, such as a deadlock or an attempt to access
-an invalid buffer.
-
 Sharding
---------
+========
 
 Sharding allows DALI to partition the dataset into nonoverlapping pieces on which each DALI pipeline
 instance can work. This functionality addresses the issue of having a global and a shared state
@@ -254,8 +190,60 @@ When this occurs, use the first formula.
 To address these challenges, use the ``reader_name`` parameter and allow the iterator
 handle the details.
 
+
+Pipeline run methods
+====================
+
+DALI pipeline can be run in one of the following ways:
+
+- | Simple run method, which runs the computations and returns the results.
+  | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.BASIC` API type.
+- | :meth:`nvidia.dali.pipeline.Pipeline.schedule_runs`,
+    :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`,
+    :meth:`nvidia.dali.pipeline.Pipeline.release_outputs` that allows a fine-grain control for
+    the duration of the output buffers' lifetime.
+  | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.SCHEDULED` API type.
+- | Built-in iterators for MXNet, PyTorch, and TensorFlow.
+  | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.ITERATOR` API type.
+
+The first API, :meth:`nvidia.dali.pipeline.Pipeline.run()` method completes the following tasks:
+
+#. Launches the DALI pipeline.
+#. Executes the prefetch iterations if necessary.
+#. Waits until the first batch is ready.
+#. Returns the resulting buffers.
+
+Buffers are marked as in-use until the next call to
+:meth:`nvidia.dali.pipeline.Pipeline.run`. This process can be wasteful because the data is usually
+copied to the DL framework's native storage objects and DALI pipeline outputs could be returned to
+DALI for reuse.
+
+The second API, which consists of :meth:`nvidia.dali.pipeline.Pipeline.schedule_run()`,
+:meth:`nvidia.dali.pipeline.Pipeline.share_outputs()`, and :meth:`nvidia.dali.pipeline.Pipeline.release_outputs()`
+allows you to explicitly manage the lifetime of the output buffers. The
+:meth:`nvidia.dali.pipeline.Pipeline.schedule_run()` method instructs DALI to prepare the next
+batch of data, and, if necessary, to prefetch. If the execution mode is set to asynchronous,
+this call returns immediately, without waiting for the results. This way, another task can be
+simultaneously executed. The data batch can be requested from DALI by calling
+:meth:`nvidia.dali.pipeline.Pipeline.share_outputs`, which returns the result buffer. If the data
+batch is not yet ready, DALI will wait for it. The data is ready as soon as the
+:meth:`nvidia.dali.pipeline.Pipeline.share_outputs()`` is complete. When the DALI buffers are
+no longer needed, because data was copied or has already been consumed, call
+:meth:`nvidia.dali.pipeline.Pipeline.release_outputs()` to return the DALI buffers for reuse
+in subsequent iterations.
+
+Built-in iterators use the second API to provide convenient wrappers for immediate use in
+Deep Learning Frameworks. The data is returned in the framework's native buffers. The iterator's
+implementation copies the data internally from DALI buffers and recycles the data by calling
+:meth:`nvidia.dali.pipeline.Pipeline.release_outputs()`.
+
+We recommend that you do not mix the APIs. The APIs follow a different logic for the output
+buffer lifetime management, and the details of the process are subject to change without notice.
+Mixing the APIs might result in undefined behavior, such as a deadlock or an attempt to access
+an invalid buffer.
+
 C++ API
--------
+=======
 
 .. note::
   **This feature is not officially supported and may change without notice**

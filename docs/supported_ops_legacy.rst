@@ -1,4 +1,4 @@
-(Legacy) Operator Objects
+Operator Objects (Legacy)
 =========================
 
 In older versions of DALI, an object-oriented API was used to define operations instead of

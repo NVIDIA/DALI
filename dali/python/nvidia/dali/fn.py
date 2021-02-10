@@ -61,7 +61,7 @@ def _to_snake_case(pascal):
     out = _handle_special_case(out)
     return out
 
-def _wrap_op_fn(op_class, wrapper_name):
+def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     def op_wrapper(*inputs, **kwargs):
         import nvidia.dali.ops
         init_args, call_args = nvidia.dali.ops._separate_kwargs(kwargs)
@@ -77,12 +77,10 @@ def _wrap_op_fn(op_class, wrapper_name):
 
     op_wrapper.__name__ = wrapper_name
     op_wrapper.__qualname__ = wrapper_name
-    op_wrapper.__doc__ = op_class.__doc__
-    if op_class.__call__.__doc__ is not None:
-        op_wrapper.__doc__ += "\n\n" + op_class.__call__.__doc__
+    op_wrapper.__doc__ = wrapper_doc
     return op_wrapper
 
-def _wrap_op(op_class, submodule, parent_module=None):
+def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
     """Wrap the DALI Operator with fn API and insert the function into appropriate module.
 
     Args:
@@ -90,6 +88,7 @@ def _wrap_op(op_class, submodule, parent_module=None):
         submodule: Additional submodule (scope)
         parent_module (str): If set to None, the wrapper is placed in nvidia.dali.fn module,
             otherwise in a specified parent module.
+        wrapper_doc (str): Documentation of the wrapper function
     """
     schema = _b.TryGetSchema(op_class.__name__)
     make_hidden = schema.IsDocHidden() if schema else False
@@ -100,7 +99,7 @@ def _wrap_op(op_class, submodule, parent_module=None):
         fn_module = sys.modules[parent_module]
     module = _internal.get_submodule(fn_module, submodule)
     if not hasattr(module, wrapper_name):
-        wrap_func = _wrap_op_fn(op_class, wrapper_name)
+        wrap_func = _wrap_op_fn(op_class, wrapper_name, wrapper_doc)
         setattr(module, wrapper_name, wrap_func)
         if submodule:
             wrap_func.__module__ = module.__name__

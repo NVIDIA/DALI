@@ -48,6 +48,45 @@ def _numpydoc_formatter(name, type, doc, optional = False):
         type += ", optional"
     return "`{}` : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
 
+def _get_inputs_doc(schema):
+    # Inputs section
+    if schema.MaxNumInput() == 0:
+        return ""
+    ret = """
+Args
+----
+"""
+    if schema.HasInputDox():
+        for i in range(schema.MaxNumInput()):
+            optional = i >= schema.MinNumInput()
+            input_type_str = schema.GetInputType(i) + _supported_layouts_str(schema.GetSupportedLayouts(i))
+            dox = schema.GetInputDox(i)
+            input_name = schema.GetInputName(i)
+            ret += _numpydoc_formatter(input_name, input_type_str, dox, optional) + "\n"
+    else:
+        for i in range(schema.MinNumInput()):
+            input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
+            dox = "Input to the operator."
+            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "data"
+            ret += _numpydoc_formatter(input_name, input_type_str, dox, False) + "\n"
+
+        extra_opt_args = schema.MaxNumInput() - schema.MinNumInput()
+        if extra_opt_args == 1:
+            i = schema.MinNumInput()
+            input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
+            dox = "Input to the operator."
+            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "data"
+            ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
+        elif extra_opt_args > 1:
+            input_type_str = "TensorList"
+            input_name = f"input[{schema.MinNumInput()}..{schema.MaxNumInput()}]"
+            dox = f"This function accepts up to {extra_opt_args} optional positional inputs"
+            ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
+
+    ret += "\n"
+    return ret
+
+
 def _get_kwargs(schema):
     """
     Get the keywords arguments from the schema.
@@ -75,7 +114,7 @@ def _get_kwargs(schema):
 def _schema_name(cls):
     return getattr(cls, 'schema_name', cls.__name__)
 
-def _docstring_generator(cls):
+def _docstring_generator_main(cls):
     """
         Generate docstring for the class obtaining it from schema based on cls.__name__
         This lists all the Keyword args that can be used when creating operator
@@ -126,13 +165,19 @@ Supported backends
     for dev in op_dev:
         ret += " * " + dev + "\n"
     ret += "\n"
+    return ret
 
+def _docstring_generator(cls):
+    op_name = _schema_name(cls)
+    schema = _b.GetSchema(op_name)
+    ret = _docstring_generator_main(cls)
     ret += """
 Keyword args
 ------------
 """
     ret += _get_kwargs(schema)
     return ret
+
 
 def _supported_layouts_str(supported_layouts):
     if len(supported_layouts) == 0:
@@ -152,16 +197,7 @@ def _docstring_prefix_from_inputs(op_name):
     # __call__ docstring
     ret += "\nOperator call to be used in graph definition.\n"
     # Args section
-    ret += """
-Args
-----
-"""
-    for i in range(schema.MaxNumInput()):
-        optional = i >= schema.MinNumInput()
-        input_type_str = schema.GetInputType(i) + _supported_layouts_str(schema.GetSupportedLayouts(i))
-        ret += _numpydoc_formatter(schema.GetInputName(i), input_type_str, schema.GetInputDox(i), optional)
-        ret += "\n"
-    ret += "\n"
+    ret += _get_inputs_doc(schema)
     return ret
 
 def _docstring_prefix_auto(op_name):
@@ -213,6 +249,18 @@ Keyword Args
 ------------
 """
             ret += tensor_kwargs
+    return ret
+
+def _docstring_generator_fn(cls):
+    op_name = _schema_name(cls)
+    schema = _b.GetSchema(op_name)
+    ret = _docstring_generator_main(cls)
+    ret += _get_inputs_doc(schema)
+    ret += """
+Keyword args
+------------
+"""
+    ret += _get_kwargs(schema)
     return ret
 
 class _OpCounter(object):
@@ -621,7 +669,7 @@ def _process_op_name(op_schema_name, make_hidden=False):
     return op_full_name, submodule, op_name
 
 def _wrap_op(op_class, submodule = [], parent_module=None):
-    return _functional._wrap_op(op_class, submodule, parent_module)
+    return _functional._wrap_op(op_class, submodule, parent_module, _docstring_generator_fn(op_class))
 
 def _load_ops():
     global _cpu_ops
