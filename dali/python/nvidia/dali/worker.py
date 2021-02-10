@@ -14,6 +14,7 @@
 
 import threading
 import traceback
+import os
 from multiprocessing import reduction
 from nvidia.dali.shared_batch import SharedMemChunk, write_batch
 from nvidia.dali.messages import CompletedTasks, ScheduledTasks
@@ -84,7 +85,7 @@ class SharedBatchesDispatcher:
         mem_chunk_id = batch_serialized.mem_chunk_id
         if mem_chunk_id not in self.fd_sent:
             self.fd_sent.add(mem_chunk_id)
-            reduction.sendfds(self.sock, [processed_tasks.mem_chunk.shm_chunk.fd])
+            reduction.send_handle(self.sock, processed_tasks.mem_chunk.shm_chunk.fd, os.getppid())
 
 
 class CallbackContext:

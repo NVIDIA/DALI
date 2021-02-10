@@ -62,7 +62,7 @@ class SharedBatchesConsumer:
             return chunk
         fd, shm_chunk = -1, None
         try:
-            [fd] = multiprocessing.reduction.recvfds(sock, 1)
+            fd = multiprocessing.reduction.recv_handle(sock)
             assert os.fstat(fd).st_size >= batch.capacity
             shm_chunk = shared_mem.SharedMem.open(fd, batch.capacity)
         except:
@@ -198,7 +198,7 @@ starts thread keeping track of running processes and initializes communication.
         for i in range(self._workers_num):
             task_r, task_w = mp.Pipe(duplex=False)
             res_r, res_w = mp.Pipe(duplex=False)
-            sock_reader, sock_writer = socket.socketpair(family=socket.AF_UNIX)
+            sock_reader, sock_writer = socket.socketpair()
             process = mp.Process(
                 target=worker,
                 args=(i, callbacks, prefetch_queue_depths, initial_chunk_size,
