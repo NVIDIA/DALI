@@ -14,7 +14,9 @@
 
 #include <algorithm>
 #include <cassert>
+#include <limits>
 #include <random>
+#include <unordered_set>
 #include <utility>
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/operator/operator.h"
@@ -38,9 +40,11 @@ DALI_SCHEMA(segmentation__RandomObjectBBox)
 
 This operator takes a labeled segmentation map as its input. With probability ``foreground_prob``
 it randomly selects a label (uniformly or according to the distribution given as ``class_weights``),
-extracts connected blobs of pixels with the selected label and randomly selects one of them
-(with additional constraints given as ``k_largest`` and ``threshold``).
-With probability 1-foreground_prob, entire area of the input is returned.)")
+extracts connected blobs of pixels with the selected label and randomly selects one of the blobs.
+The blobs may be further filtered according to ``k_largest`` and ``threshold``.
+The output is a bounding box of the selected blob in one of the formats described in ``format``.
+
+With probability 1-foreground_prob, the entire area of the input is returned.)")
   .NumInput(1)
   .OutputFn([](const OpSpec& spec) {
     int separate_corners = spec.GetArgument<string>("format") != "box";
@@ -48,7 +52,7 @@ With probability 1-foreground_prob, entire area of the input is returned.)")
     return 1 + separate_corners + output_class;
   })
   .AddOptionalArg("ignore_class", R"(If True, all objects are picked with equal probability,
-regardless of the class they belong to. Otherwise, a class is picked first and then object is
+regardless of the class they belong to. Otherwise, a class is picked first and then an object is
 randomly selected from this class.
 
 This argument is incompatible with ``classes``, ``class_weights`` or ``output_class``.
@@ -57,7 +61,7 @@ This argument is incompatible with ``classes``, ``class_weights`` or ``output_cl
   This flag only affects the probability with which blobs are selected. It does not cause
   blobs of different classes to be merged.)", false)
   .AddOptionalArg("output_class", R"(If True, an additional output is produced which contains the
-label of the class to which the resulting box belongs, or background label if foreground box
+label of the class to which the selected box belongs, or background label if the selected box
 is not an object bounding box.
 
 The output may not be an object bounding box when any of the following conditions occur:
@@ -75,21 +79,26 @@ If left unspecified, all labels not equal to ``background`` are considered foreg
 If left unspecified, it's either 0 or any value not in ``classes``.)", 0, true)
   .AddOptionalArg<vector<float>>("class_weights", R"(Relative probabilities of foreground classes.
 
-Each value corresponds to a class label in ``classes`` or a 1-based number if ``classes`` are
-not specified.
-The values are normalized so that they sum to 1.)", nullptr, true)
-  .AddOptionalArg<int>("k_largest", "If specified, at most k largest bounding boxes are consider",
-    nullptr)
-  .AddOptionalArg<vector<int>>("threshold", R"(Minimum extent(s) of the bounding boxes to return.
+Each value corresponds to a class label in ``classes``. If ``classes`` are not specified,
+consecutive 1-based labels are assigned.
 
-If current class doesn't contain any bounding box that meets this condition, the largest one
+The sum of the weights doesn't have to be equal to 1 - if it isn't the weights will be
+normalized .)", nullptr, true)
+  .AddOptionalArg<int>("k_largest", R"(If specified, the boxes are sorted by decreasing volume
+and only ``k_largest`` are considered.)",
+    nullptr)
+  .AddOptionalArg<vector<int>>("threshold", R"(Per-axis minimum size of the bounding boxes
+to return.
+
+If the selected class doesn't contain any bounding box that meets this condition, it is rejected
+and another class is picked. If no class contains a satisfactory box, the entire input area
 is returned.)", nullptr, true)
   .AddOptionalArg("format", R"(Format in which the data is returned.
 
 Possible choices are::
   * "anchor_shape" (the default) - there are two outputs: anchor and shape
   * "start_end" - there are two outputs - bounding box start and one-past-end coordinates
-  * "box" - ther'es one output that contains concatenated start and end coordinates
+  * "box" - there's one output that contains concatenated start and end coordinates
 )", "anchor_shape");
 
 
@@ -239,9 +248,18 @@ void RandomObjectBBox::GetClassesAndWeightsArgs(
       }
     }
     if (choose_different_background) {
-      // This will yield incorrect result if the set of classes contains both INT_MIN and INT_MAX,
-      // which is a sacrifice I am willing to make.
-      background = min_class_label - 1;
+      if (min_class_label == std::numeric_limits<int>::min()) {
+        background = std::numeric_limits<int>::max();  // wrap around
+
+        std::unordered_set<int> cls_set;
+        for (auto cls : classes)
+          cls_set.insert(cls);
+
+        while (cls_set.count(background))
+          background--;
+      } else {
+        background = min_class_label - 1;
+      }
     }
   }
   if (weights_.IsDefined()) {
