@@ -35,9 +35,7 @@ def recursive_equals(left, right, top_level=True):
 
 def check_serialize_deserialize(indexed_batch):
     mem_chunk = sb.SharedMemChunk("chunk_0", 100)
-    shared_batch_writer = sb.SharedBatchWriter(mem_chunk)
-    shared_batch_writer.write_batch(indexed_batch)
-    shared_batch_meta = sb.SharedBatchMeta.from_writer(shared_batch_writer)
+    shared_batch_meta = sb.write_batch(mem_chunk, indexed_batch)
     sample_meta = sb.deserialize_sample_meta(mem_chunk.shm_chunk, shared_batch_meta)
     deserlized_indexed_batch = sb.deserialize_batch(mem_chunk.shm_chunk, sample_meta)
     assert len(indexed_batch) == len(
