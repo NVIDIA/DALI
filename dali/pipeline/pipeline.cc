@@ -765,16 +765,20 @@ ReaderMeta Pipeline::GetReaderMeta(std::string name) {
   return meta;
 }
 
+const std::string &Pipeline::output_name(int id) const {
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_name()\".");
+  DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
+  return output_names_[id].first;
+}
+
 const std::string &Pipeline::output_device(int id) const {
-  DALI_ENFORCE(built_,
-      "\"Build()\" must be called prior to calling \"output_device()\".");
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_device()\".");
   DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
   return output_names_[id].second;
 }
 
 int Pipeline::num_outputs() const {
-  DALI_ENFORCE(built_,
-      "\"Build()\" must be called prior to calling \"num_outputs()\".");
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"num_outputs()\".");
   return output_names_.size();
 }
 
