@@ -108,8 +108,8 @@ def deserialize_batch(buffer: shared_mem.SharedMem, samples):
 class SharedMemChunk:
     """Simple wrapper around shared memory chunks. Most importantly adds mem_chunk_id used
     to identify chunks in the communication between parent and worker process
-    (file descriptors cannot serve this purpose easily as the same memory chunk
-    can have different fds in both processes).
+    (shared memory handles/file descriptors cannot serve this purpose easily as the same
+    mapped memory chunk can have different handles in both processes).
     """
 
     def __init__(self, mem_chunk_id: str, capacity: int):
@@ -126,7 +126,7 @@ class SharedMemChunk:
         self.capacity = new_capacity
 
     def close(self):
-        # Memory fd and mapping will be freed automatically when shm pybind wrapper gets
+        # Shared memory handle and mapping will be freed automatically when shm pybind wrapper gets
         # garbage collected anyway, but you can be so nice to free them as soon as you know
         # you won't use them
         self.shm_chunk.close()

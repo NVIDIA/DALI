@@ -39,13 +39,13 @@ class SharedBatchesConsumer:
         self.batch_pool = {}
 
     def get_mem_chunk(self, sock: socket.socket, batch: SharedBatchMeta) -> MemChunk:
-        """Get the fd for shared memory through sock and mmap the memory based on metadata
+        """Get the handle for shared memory through sock and mmap the memory based on metadata
         in `batch`. Adjust if it was previously mapped.
 
         Parameters
         ----------
         `sock` : socket.socket
-            Socket used to transfer file descriptors.
+            Socket used to transfer shared memory handles.
         `batch` : SharedBatchMeta
             Serialized batch metadata
 
@@ -60,18 +60,20 @@ class SharedBatchesConsumer:
                 chunk.shm_chunk.resize(batch.capacity, trunc=False)
                 chunk.capacity = batch.capacity
             return chunk
-        fd, shm_chunk = -1, None
+        handle, shm_chunk = -1, None
         try:
-            fd = multiprocessing.reduction.recv_handle(sock)
-            assert os.fstat(fd).st_size >= batch.capacity
-            shm_chunk = shared_mem.SharedMem.open(fd, batch.capacity)
+            handle = multiprocessing.reduction.recv_handle(sock)
+            # TODO(windows): We're pretending here that the handle is not a fd, which in fact
+            # it is. The call below probably needs to be adjusted.
+            assert os.fstat(handle).st_size >= batch.capacity
+            shm_chunk = shared_mem.SharedMem.open(handle, batch.capacity)
         except:
             if shm_chunk is not None:
                 shm_chunk.close()
-            # close fd manually if shm_chunk creation failed, otherwise shm_chunk
+            # close handle manually if shm_chunk creation failed, otherwise shm_chunk
             # is responsible for doing so
-            elif fd >= 0:
-                os.close(fd)
+            elif handle >= 0:
+                os.close(handle)
             raise
         chunk = self.MemChunk(shm_chunk, batch.capacity)
         self.batch_pool[batch.mem_chunk_id] = chunk

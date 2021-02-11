@@ -28,15 +28,17 @@ class SharedMem:
 
     Parameters
     ----------
-    `fd` : int
-        File descriptor identifying related shared memory object. Pass -1 to allocate new memory chunk.
+    `handle` : int
+        Handle identifying related shared memory object. Pass None to allocate new memory chunk.
     `size` : int
-        When fd=-1 it is the size of shared memory to allocate in bytes, otherwise it must be
-        the size of shared memory objects that provided fd represents.
+        When handle=None it is the size of shared memory to allocate in bytes, otherwise it must be
+        the size of shared memory objects that provided handle represents.
     """
 
-    def __init__(self, fd, size):
-        self.shm = _b.SharedMem(fd, size)
+    def __init__(self, handle, size):
+        if handle is None:
+            handle = -1
+        self.shm = _b.SharedMem(handle, size)
 
     def __getattr__(self, key):
         # lazily evaluate and cache 'buf' property, so that it is created only once and only when requested
@@ -56,26 +58,27 @@ class SharedMem:
         `size` : int
             Number of bytes to allocate.
         """
-        return cls(-1, size)
+        return cls(None, size)
 
     @classmethod
-    def open(cls, fd, size):
+    def open(cls, handle, size):
         """Creates new SharedMem instance that points to already allocated shared
-        memory chunk accessible via provided file descriptor ``fd``.
+        memory chunk accessible via provided shared memory ``handle``.
 
         Parameters
         ----------
-        `fd`: int
-            File descriptor pointing to already existing shared memory chunk.
+        `handle`: int
+            Handle pointing to already existing shared memory chunk.
         `size` : int
             Size of the existing shared memory chunk.
         """
-        return cls(fd, size)
+        return cls(handle, size)
 
     @property
     def handle(self):
-        """File descriptor, use it to transfer access to the shared memory object to another process.
-        You can transfer it between processes via socket using multiprocessing.reduction.sendfds
+        """Shared memory handle (file descriptor on Unix), use it to transfer access
+        to the shared memory object to another process.
+        You can transfer it between processes via socket using multiprocessing.reduction.send_handle
         """
         return self.shm.handle
 

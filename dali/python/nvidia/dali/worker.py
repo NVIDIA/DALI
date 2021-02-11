@@ -82,7 +82,8 @@ class SharedBatchesDispatcher:
         completed_tasks = CompletedTasks.done(self.worker_id, processed_tasks, batch_serialized)
         # TODO(klecki): Sending a task and failing to send the handle may block the main process
         self.res_pipe.send(completed_tasks)
-        # send file descriptor for underlaying shared memory chunk if it hasn't been sent ever before
+        # send shared memory handle for underlaying shared memory chunk
+        # if it hasn't been sent ever before
         mem_chunk_id = batch_serialized.mem_chunk_id
         if mem_chunk_id not in self.handle_sent:
             self.handle_sent.add(mem_chunk_id)
