@@ -18,37 +18,48 @@
 #include <stdint.h>
 #include <memory>
 #include "dali/core/common.h"
+#include "dali/core/unique_handle.h"
 
 namespace dali {
 namespace python {
 
+#if defined(__unix__)
+using shm_handle_t = int;
+#else
+#error Platform not supported
+#endif
+
+
 /**
- * @brief Creates or simply stores (if provided) file descriptor used for identifying
- * shared memory chunk. Closes file descriptor in the desctructor if it
+ * @brief Creates or simply stores (if provided) handle used for identifying
+ * shared memory chunk. Closes handle in the desctructor if it
  * wasn't closed earlier.
  */
-class DLL_PUBLIC ShmFdWrapper {
+class DLL_PUBLIC ShmHandle : public UniqueHandle<shm_handle_t, ShmHandle> {
  public:
   /**
-   * @brief Wrap a file descriptor, fd shouldn't be -1.
+   * @brief Wrap a handle (file descriptor on Unix), h shouldn't be -1.
    */
-  explicit ShmFdWrapper(int fd);
+  explicit ShmHandle(shm_handle_t h);
 
   /**
-   * Create new file descriptor that can be used for shared memory chunk.
+   * Create new handle (file descriptor on Unix) that can be used for shared memory chunk.
    */
-  ShmFdWrapper();
+  static ShmHandle CreateHandle();
 
-  ~ShmFdWrapper();
 
-  DISABLE_COPY_MOVE_ASSIGN(ShmFdWrapper);
+  static void DestroyHandle(shm_handle_t h);
+  DALI_INHERIT_UNIQUE_HANDLE(shm_handle_t, ShmHandle);
 
-  int get_fd();
 
-  int close();
+  shm_handle_t get_handle();
+
+  static constexpr shm_handle_t null_handle() {
+    return -1;
+  }
 
  private:
-  int fd_;
+  shm_handle_t h_;
 };
 
 
@@ -108,7 +119,7 @@ class DLL_PUBLIC SharedMem {
 
  private:
   uint64_t size_;
-  std::unique_ptr<ShmFdWrapper> fd_;
+  ShmHandle fd_;
   std::unique_ptr<MapMemWrapper> mem_;
 };
 

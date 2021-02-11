@@ -14,12 +14,14 @@
 
 #include <errno.h>
 #include <fcntl.h> /* For O_* constants */
+#include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <exception>
 #include <cstring>
+#include <exception>
 
+#include "dali/core/format.h"
 #include "dali/util/shared_mem.h"
 
 namespace dali {
@@ -37,9 +39,13 @@ bool dir_exists(const char * str) {
 }  // namespace detail
 
 namespace python {
-ShmFdWrapper::ShmFdWrapper(int fd) : fd_{fd} {}
 
-ShmFdWrapper::ShmFdWrapper() {
+ShmHandle::ShmHandle(shm_handle_t h) : h_{h} {
+  std::cout << "CREATING HANDLES: " << h_ << std::endl;
+}
+
+ShmHandle ShmHandle::CreateHandle() {
+  std::cout << "CREATING HANDLES" << std::endl;
   // Abstract away the fact that shm_open requires filename.
   constexpr char dev_shm_path[] = "/dev/shm/";
   constexpr char run_shm_path[] = "/run/shm/";
@@ -70,8 +76,8 @@ ShmFdWrapper::ShmFdWrapper() {
     throw std::runtime_error("couldn't unlink temporary file");
   }
   const char *temp_filename = temp_path + shm_size;
-  fd_ = shm_open(temp_filename, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
-  if (fd_ < 0) {
+  shm_handle_t fd = shm_open(temp_filename, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
+  if (fd < 0) {
     throw std::runtime_error("shm_open call failed");
   }
   ::close(temp_fd);
@@ -80,23 +86,24 @@ ShmFdWrapper::ShmFdWrapper() {
   // filelike objects in /dev/shm or /tmp. The OS guarantees to keep the memory as long as
   // any process has fds or has mmaped the memory.
   shm_unlink(temp_filename);
+  return ShmHandle(fd);
 }
 
-ShmFdWrapper::~ShmFdWrapper() {
-  close();
-}
 
-int ShmFdWrapper::get_fd() {
-  return fd_;
-}
-
-int ShmFdWrapper::close() {
-  int ret = 0;
-  if (fd_ >= 0) {
-    ret = ::close(fd_);
-    fd_ = -1;
+void ShmHandle::DestroyHandle(shm_handle_t h) {
+  if (h >= 0) {
+    int ret = ::close(h);
+    // fd_ = -1;
+    // todo: throw error on failed close
   }
-  return ret;
+}
+
+// constexpr shm_handle_t ShmHandle::null_handle() {
+//   return -1;
+// }
+
+int ShmHandle::get_handle() {
+  return h_;
 }
 
 MapMemWrapper::MapMemWrapper(int fd, uint64_t size)
@@ -138,14 +145,17 @@ int MapMemWrapper::unmap() {
 
 SharedMem::SharedMem(int fd, uint64_t size) : size_{size * sizeof(SharedMem::b_type)} {
   if (fd >= 0) {
-    fd_ = std::make_unique<ShmFdWrapper>(fd);
+    fd_ = ShmHandle(fd);
   } else {
-    fd_ = std::make_unique<ShmFdWrapper>();
-    if (ftruncate(fd_->get_fd(), size_) == -1) {
-      throw std::runtime_error("failed to resize shared memory");
+    fd_ = ShmHandle::CreateHandle();
+    if (ftruncate(fd_.get_handle(), size_) == -1) {
+      constexpr int buf_len = 250;
+      char buf[buf_len];
+      strerror_r(errno, buf, buf_len);
+      throw std::runtime_error(make_string("failed to resize shared memory", buf));
     }
   }
-  mem_ = std::make_unique<MapMemWrapper>(fd_->get_fd(), size_);
+  mem_ = std::make_unique<MapMemWrapper>(fd_.get_handle(), size_);
 }
 
 uint64_t SharedMem::size() const {
@@ -153,7 +163,7 @@ uint64_t SharedMem::size() const {
 }
 
 int SharedMem::fd() {
-  return !fd_ ? -1 : fd_->get_fd();
+  return !fd_ ? -1 : fd_.get_handle();
 }
 
 SharedMem::b_type *SharedMem::get_raw_ptr() {
@@ -163,7 +173,7 @@ SharedMem::b_type *SharedMem::get_raw_ptr() {
 void SharedMem::resize(uint64_t size, bool trunc) {
   size_ = size * sizeof(SharedMem::b_type);
   if (trunc) {
-    if (ftruncate(fd_->get_fd(), size_) == -1) {
+    if (ftruncate(fd_.get_handle(), size_) == -1) {
       throw std::runtime_error("failed to resize shared memory");
     }
   }
@@ -173,15 +183,16 @@ void SharedMem::resize(uint64_t size, bool trunc) {
     if (!fd_) {
       throw std::runtime_error("cannot mmap memory - no file descriptor");
     }
-    mem_ = std::make_unique<MapMemWrapper>(fd_->get_fd(), size_);
+    mem_ = std::make_unique<MapMemWrapper>(fd_.get_handle(), size_);
   }
 }
 
-  void SharedMem::close_fd() {
-    if (fd_ && fd_->close() != 0) {
-      throw std::runtime_error("closing fd failed");
-    }
+void SharedMem::close_fd() {
+  if (fd_) {
+    fd_.reset();
+    // throw std::runtime_error("closing fd failed");
   }
+}
 
   void SharedMem::close_map() {
     if (mem_ && mem_->unmap() != 0) {
