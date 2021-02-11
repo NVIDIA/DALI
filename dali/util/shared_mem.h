@@ -108,9 +108,9 @@ class DLL_PUBLIC MemoryMapping : public UniqueHandle<MappedMemoryChunk, MemoryMa
 
 
 /**
- * @brief Allocate or access existing shared memory chunk identified by file descriptor.
- * When created with fd = -1, it allocates new shared memory of size ``size`` and mmaps
- * it into process address space. When fd of existing shared memory chunk is
+ * @brief Allocate or access existing shared memory chunk identified by handle (file descriptor).
+ * When created with handle = -1, it allocates new shared memory of size ``size`` and mmaps
+ * it into process address space. When handle of existing shared memory chunk is
  * passed the related shared memory chunk will be mmaped into process address space,
  * ``size`` should match the size of underlying shared memory chunk.
  */
@@ -118,13 +118,13 @@ class DLL_PUBLIC SharedMem {
  public:
   using b_type = uint8_t;
 
-  DLL_PUBLIC SharedMem(int fd, uint64_t size);
+  DLL_PUBLIC SharedMem(shm_handle_t handle, uint64_t size);
 
   DLL_PUBLIC ~SharedMem() = default;
 
   DLL_PUBLIC uint64_t size() const;
 
-  DLL_PUBLIC int fd();
+  DLL_PUBLIC shm_handle_t handle();
 
   DLL_PUBLIC b_type *get_raw_ptr();
 
@@ -134,14 +134,12 @@ class DLL_PUBLIC SharedMem {
    */
   DLL_PUBLIC void resize(uint64_t size, bool trunc = false);
 
-  DLL_PUBLIC void close_fd();
-
-  DLL_PUBLIC void close_map();
+  DLL_PUBLIC void close();
 
  private:
   uint64_t size_;
-  ShmHandle fd_;
-  MemoryMapping mem_;
+  ShmHandle shm_handle_;
+  MemoryMapping memory_mapping_;
 };
 
 }  // namespace python

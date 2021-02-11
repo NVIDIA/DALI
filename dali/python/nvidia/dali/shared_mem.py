@@ -17,10 +17,10 @@ from nvidia.dali import backend as _b
 class SharedMem:
     """SharedMem allows you to allocate and access shared memory.
     Provides memory view of the allocated memory via buf property.
-    You can transfer access to the same shared memory chunk by sending related
-    file descriptor available as fd property. Use SharedMem.allocate
-    to allocate new chunk of shared memory and SharedMem.open if
-    you received file descriptor to already existing memory chunk.
+    You can transfer access to the same shared memory chunk by sending related shared memory
+    handle (file descriptor on Unix) available as handle property. Use SharedMem.allocate
+    to allocate new chunk of shared memory and SharedMem.open if you received handle to already
+    existing memory chunk.
 
     There is out of the box support for shared memory starting from Python3.8, though
     the only way there to transfer the memory to other processes is via filename,
@@ -73,11 +73,11 @@ class SharedMem:
         return cls(fd, size)
 
     @property
-    def fd(self):
+    def handle(self):
         """File descriptor, use it to transfer access to the shared memory object to another process.
         You can transfer it between processes via socket using multiprocessing.reduction.sendfds
         """
-        return self.shm.fd
+        return self.shm.handle
 
     def resize(self, size, trunc=False):
         """Resize already allocated shared memory chunk. If you want to resize the underlying
@@ -89,20 +89,12 @@ class SharedMem:
             del self.__dict__['buf']
         self.shm.resize(size, trunc)
 
-    def close_fd(self):
-        """Close file descriptor identifying memory chunk. You can access the memory
-        via buf property after closing fd, but you neither can transfer the access via fd
-        to another process nor you can resize the chunk anymore.
-        """
-        self.shm.close_fd()
-
     def close(self):
-        """Removes maping of the memory into process address space and closes related file descriptor.
+        """Removes maping of the memory into process address space and closes related handle.
         If all processes sharing given chunk close it, it will be automatically released by the OS.
         You don't have to call this method, as corresponding clean up is performed when instance
         gets garbage collected but you can call it as soon as you no longer need it for more
         effective resources handling.
         """
         self.buf = None
-        self.shm.close_map()
-        self.shm.close_fd()
+        self.shm.close()

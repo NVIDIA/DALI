@@ -1134,21 +1134,20 @@ PYBIND11_MODULE(backend_impl, m) {
   py::class_<SharedMem>(m, "SharedMem")
       .def(py::init<int, int>())
       .def_property_readonly("size", &SharedMem::size)
-      .def_property_readonly("fd", &SharedMem::fd)
+      .def_property_readonly("handle", &SharedMem::handle)
       .def("buf",
-        [](SharedMem *shm) {
-          if (shm == nullptr) {
-            throw py::value_error("Cannot create buffer - no shared memory object provided");
-          }
-          auto ptr = shm->get_raw_ptr();
-          if (ptr == nullptr) {
-            throw py::value_error("Cannot create buffer - no memory has been mapped");
-          }
-          return py::memoryview::from_buffer(ptr, {shm->size()}, {sizeof(SharedMem::b_type)});
-        })
+           [](SharedMem *shm) {
+             if (shm == nullptr) {
+               throw py::value_error("Cannot create buffer - no shared memory object provided");
+             }
+             auto *ptr = shm->get_raw_ptr();
+             if (ptr == nullptr) {
+               throw py::value_error("Cannot create buffer - no memory has been mapped");
+             }
+             return py::memoryview::from_buffer(ptr, {shm->size()}, {sizeof(SharedMem::b_type)});
+           })
       .def("resize", &SharedMem::resize)
-      .def("close_fd", &SharedMem::close_fd)
-      .def("close_map", &SharedMem::close_map);
+      .def("close", &SharedMem::close);
 
   // Types
   py::module types_m = m.def_submodule("types");

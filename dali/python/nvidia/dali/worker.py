@@ -69,7 +69,7 @@ class SharedBatchesDispatcher:
 
     def __init__(self, worker_id, sock, res_pipe):
         self.worker_id = worker_id
-        self.fd_sent = set()
+        self.handle_sent = set()
         self.sock = sock
         self.res_pipe = res_pipe
 
@@ -80,12 +80,13 @@ class SharedBatchesDispatcher:
             return
         batch_serialized = write_batch(processed_tasks.mem_chunk, processed_tasks.data_batch)
         completed_tasks = CompletedTasks.done(self.worker_id, processed_tasks, batch_serialized)
+        # TODO(klecki): Sending a task and failing to send the handle may block the main process
         self.res_pipe.send(completed_tasks)
         # send file descriptor for underlaying shared memory chunk if it hasn't been sent ever before
         mem_chunk_id = batch_serialized.mem_chunk_id
-        if mem_chunk_id not in self.fd_sent:
-            self.fd_sent.add(mem_chunk_id)
-            reduction.send_handle(self.sock, processed_tasks.mem_chunk.shm_chunk.fd, os.getppid())
+        if mem_chunk_id not in self.handle_sent:
+            self.handle_sent.add(mem_chunk_id)
+            reduction.send_handle(self.sock, processed_tasks.mem_chunk.shm_chunk.handle, os.getppid())
 
 
 class CallbackContext:
@@ -131,7 +132,6 @@ def dispatcher(batch_dispatcher, ready_cv, ready_queue):
         # create dummy failed task
         failed_task = _ProcessedTasks.unknown_failed(exception, tb_str)
         batch_dispatcher.send(failed_task)
-
 
 
 def receiver(task_pipe, tasks_cv, tasks_queue):
