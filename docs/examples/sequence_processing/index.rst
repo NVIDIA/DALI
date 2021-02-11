@@ -1,5 +1,5 @@
-Sequence Processing
-===================
+Video Processing
+================
 
 .. toctree::
    :maxdepth: 2

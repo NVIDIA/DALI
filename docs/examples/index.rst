@@ -5,11 +5,11 @@ Examples and Tutorials
    :maxdepth: 2
 
    general/index
-   custom_operations/index
    audio_processing/index
    image_processing/index
-   math/index
    sequence_processing/index
+   math/index
+   custom_operations/index
    use_cases/index
    advanced/index
 

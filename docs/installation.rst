@@ -29,7 +29,8 @@ Prerequisites
 NGC Containers
 --------------
 
-DALI is preinstalled in the `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_ TensorFlow, PyTorch, and MXNet containers in versions 18.07 and later.
+DALI is preinstalled in the TensorFlow, PyTorch, and MXNet containers in versions 18.07 and
+later on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_.
 
 ----
 
