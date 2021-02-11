@@ -87,6 +87,15 @@ void ShmHandle::DestroyHandle(shm_handle_t h) {
   }
 }
 
+MappedMemoryHandle::MappedMemoryHandle(int fd, uint64_t size)
+    : UniqueHandle<MappedMemoryChunk, MappedMemoryHandle>(
+          {size, static_cast<uint8_t *>(
+                     mmap(nullptr, size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0))}) {
+  if (handle_.ptr == MAP_FAILED) {
+    POSIX_CHECK_STATUS(-1, "mmap");
+  }
+}
+
 MapMemWrapper::MapMemWrapper(int fd, uint64_t size)
     : size_{size},
       ptr_{static_cast<SharedMem::b_type *>(
@@ -95,6 +104,20 @@ MapMemWrapper::MapMemWrapper(int fd, uint64_t size)
     throw std::runtime_error("mmap failed");
   }
 }
+
+void MappedMemoryHandle::DestroyHandle(MappedMemoryChunk handle) {
+  int ret = 0;
+  if (handle.ptr) {
+    ret = munmap(handle.ptr, handle.size);
+  }
+  // todo error checks
+  // return ret;
+}
+
+uint8_t *MappedMemoryHandle::get_raw_ptr() {
+  return handle_.ptr;
+}
+
 
 MapMemWrapper::~MapMemWrapper() {
   unmap();

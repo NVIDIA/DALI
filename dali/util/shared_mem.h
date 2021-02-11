@@ -62,14 +62,14 @@ using shm_handle_t = int;
  */
 class DLL_PUBLIC ShmHandle : public UniqueHandle<shm_handle_t, ShmHandle> {
  public:
+  DALI_INHERIT_UNIQUE_HANDLE(shm_handle_t, ShmHandle);
+
   /**
    * Create new handle (file descriptor on Unix) that can be used for shared memory chunk.
    */
   static ShmHandle CreateHandle();
 
   static void DestroyHandle(shm_handle_t h);
-
-  DALI_INHERIT_UNIQUE_HANDLE(shm_handle_t, ShmHandle);
 
   static constexpr shm_handle_t null_handle() {
     return -1;
@@ -99,6 +99,32 @@ class DLL_PUBLIC MapMemWrapper {
   uint64_t size_;
   uint8_t *ptr_;
 };
+
+struct MappedMemoryChunk {
+  uint64_t size;
+  uint8_t *ptr;
+  bool operator==(const MappedMemoryChunk &other) const {
+    return size == other.size && ptr == other.ptr;
+  }
+};
+
+class DLL_PUBLIC MappedMemoryHandle : public UniqueHandle<MappedMemoryChunk, MappedMemoryHandle> {
+ public:
+  DALI_INHERIT_UNIQUE_HANDLE(MappedMemoryChunk, MappedMemoryHandle);
+
+  MappedMemoryHandle(int fd, uint64_t size);
+
+  void resize(uint64_t size);
+
+  uint8_t *get_raw_ptr();
+
+  static void DestroyHandle(MappedMemoryChunk);
+
+  static constexpr MappedMemoryChunk null_handle() {
+    return {0, nullptr};
+  }
+};
+
 
 /**
  * @brief Allocate or access existing shared memory chunk identified by file descriptor.
