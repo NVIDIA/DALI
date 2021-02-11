@@ -77,29 +77,6 @@ class DLL_PUBLIC ShmHandle : public UniqueHandle<shm_handle_t, ShmHandle> {
 };
 
 
-/**
- * @brief Map/unmap and resize mapping of shared memory into process address space.
- * Unmaps memory in the destructor if it wasn't unmapped earlier.
- */
-class DLL_PUBLIC MapMemWrapper {
- public:
-  MapMemWrapper(int fd, uint64_t size);
-
-  ~MapMemWrapper();
-
-  DISABLE_COPY_MOVE_ASSIGN(MapMemWrapper);
-
-  uint8_t *get_raw_ptr();
-
-  void resize(uint64_t size);
-
-  int unmap();
-
- private:
-  uint64_t size_;
-  uint8_t *ptr_;
-};
-
 struct MappedMemoryChunk {
   uint64_t size;
   uint8_t *ptr;
@@ -108,11 +85,15 @@ struct MappedMemoryChunk {
   }
 };
 
-class DLL_PUBLIC MappedMemoryHandle : public UniqueHandle<MappedMemoryChunk, MappedMemoryHandle> {
+/**
+ * @brief Map/unmap and resize mapping of shared memory into process address space.
+ * Unmaps memory in the destructor if it wasn't unmapped earlier.
+ */
+class DLL_PUBLIC MemoryMapping : public UniqueHandle<MappedMemoryChunk, MemoryMapping> {
  public:
-  DALI_INHERIT_UNIQUE_HANDLE(MappedMemoryChunk, MappedMemoryHandle);
+  DALI_INHERIT_UNIQUE_HANDLE(MappedMemoryChunk, MemoryMapping);
 
-  MappedMemoryHandle(int fd, uint64_t size);
+  MemoryMapping(shm_handle_t handle, uint64_t size);
 
   void resize(uint64_t size);
 
@@ -160,7 +141,7 @@ class DLL_PUBLIC SharedMem {
  private:
   uint64_t size_;
   ShmHandle fd_;
-  std::unique_ptr<MapMemWrapper> mem_;
+  MemoryMapping mem_;
 };
 
 }  // namespace python

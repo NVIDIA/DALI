@@ -81,70 +81,39 @@ ShmHandle ShmHandle::CreateHandle() {
 
 void ShmHandle::DestroyHandle(shm_handle_t h) {
   if (h >= 0) {
-    int ret = ::close(h);
-    // fd_ = -1;
-    // todo: throw error on failed close
+    POSIX_CALL(::close(h));
   }
 }
 
-MappedMemoryHandle::MappedMemoryHandle(int fd, uint64_t size)
-    : UniqueHandle<MappedMemoryChunk, MappedMemoryHandle>(
+MemoryMapping::MemoryMapping(shm_handle_t handle, uint64_t size)
+    : UniqueHandle<MappedMemoryChunk, MemoryMapping>(
           {size, static_cast<uint8_t *>(
-                     mmap(nullptr, size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0))}) {
+                     mmap(nullptr, size, PROT_WRITE | PROT_READ, MAP_SHARED, handle, 0))}) {
   if (handle_.ptr == MAP_FAILED) {
     POSIX_CHECK_STATUS(-1, "mmap");
   }
 }
 
-MapMemWrapper::MapMemWrapper(int fd, uint64_t size)
-    : size_{size},
-      ptr_{static_cast<SharedMem::b_type *>(
-          mmap(nullptr, size_, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0))} {
-  if (ptr_ == MAP_FAILED) {
-    throw std::runtime_error("mmap failed");
-  }
-}
-
-void MappedMemoryHandle::DestroyHandle(MappedMemoryChunk handle) {
-  int ret = 0;
+void MemoryMapping::DestroyHandle(MappedMemoryChunk handle) {
   if (handle.ptr) {
-    ret = munmap(handle.ptr, handle.size);
+    POSIX_CALL(munmap(handle.ptr, handle.size));
   }
-  // todo error checks
-  // return ret;
 }
 
-uint8_t *MappedMemoryHandle::get_raw_ptr() {
+uint8_t *MemoryMapping::get_raw_ptr() {
   return handle_.ptr;
 }
 
 
-MapMemWrapper::~MapMemWrapper() {
-  unmap();
-}
-
-uint8_t *MapMemWrapper::get_raw_ptr() {
-  return ptr_;
-}
-
-void MapMemWrapper::resize(uint64_t new_size) {
-  if (!ptr_) {
+void MemoryMapping::resize(uint64_t new_size) {
+  if (!handle_.ptr) {
     throw std::runtime_error("cannot resize the memory mapping, because no memory is mapped");
   }
-  ptr_ = static_cast<SharedMem::b_type *>(mremap(ptr_, size_, new_size, MREMAP_MAYMOVE));
-  if (ptr_ == MAP_FAILED) {
-    throw std::runtime_error("mremap failed");
+  handle_.ptr = static_cast<uint8_t *>(mremap(handle_.ptr, handle_.size, new_size, MREMAP_MAYMOVE));
+  if (handle_.ptr == MAP_FAILED) {
+    POSIX_CHECK_STATUS(-1, "mremap");
   }
-  size_ = new_size;
-}
-
-int MapMemWrapper::unmap() {
-  int ret = 0;
-  if (ptr_) {
-    ret = munmap(ptr_, size_);
-    ptr_ = nullptr;
-  }
-  return ret;
+  handle_.size = new_size;
 }
 
 SharedMem::SharedMem(int fd, uint64_t size) : size_{size * sizeof(SharedMem::b_type)} {
@@ -159,7 +128,7 @@ SharedMem::SharedMem(int fd, uint64_t size) : size_{size * sizeof(SharedMem::b_t
       throw std::runtime_error(make_string("failed to resize shared memory", buf));
     }
   }
-  mem_ = std::make_unique<MapMemWrapper>(fd_, size_);
+  mem_ = MemoryMapping(fd_, size_);
 }
 
 uint64_t SharedMem::size() const {
@@ -171,7 +140,7 @@ int SharedMem::fd() {
 }
 
 SharedMem::b_type *SharedMem::get_raw_ptr() {
-  return !mem_ ? nullptr : mem_->get_raw_ptr();
+  return !mem_ ? nullptr : mem_.get_raw_ptr();
 }
 
 void SharedMem::resize(uint64_t size, bool trunc) {
@@ -182,12 +151,12 @@ void SharedMem::resize(uint64_t size, bool trunc) {
     }
   }
   if (mem_) {
-    mem_->resize(size_);
+    mem_.resize(size_);
   } else {
     if (!fd_) {
       throw std::runtime_error("cannot mmap memory - no file descriptor");
     }
-    mem_ = std::make_unique<MapMemWrapper>(fd_, size_);
+    mem_ = MemoryMapping(fd_, size_);
   }
 }
 
@@ -199,8 +168,9 @@ void SharedMem::close_fd() {
 }
 
   void SharedMem::close_map() {
-    if (mem_ && mem_->unmap() != 0) {
-      throw std::runtime_error("unmaping shared memory failed");
+    if (mem_) {
+      mem_.reset();
+      // throw std::runtime_error("unmaping shared memory failed");
     }
   }
 
