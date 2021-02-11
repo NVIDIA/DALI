@@ -55,9 +55,8 @@ release = str(version_long)
 with mock(["torch"]):
     sys.path.insert(0, os.path.abspath('./'))
     import operations_table
-    operations_table.main("fn_table")
-    import legacy_to_fn_table
-    legacy_to_fn_table.main("fn_to_op_table")
+    operations_table.operations_table("fn_table")
+    operations_table.fn_to_op_table("fn_to_op_table")
 
     import autodoc_submodules
     autodoc_submodules.op_autodoc("op_autodoc")

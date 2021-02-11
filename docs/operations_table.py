@@ -10,6 +10,16 @@ ops_modules = {
     'nvidia.dali.plugin.pytorch': nvidia.dali.plugin.pytorch
 }
 
+cpu_ops = ops.cpu_ops()
+gpu_ops = ops.gpu_ops()
+mix_ops = ops.mixed_ops()
+all_ops = cpu_ops.union(gpu_ops).union(mix_ops)
+longest_module = max(ops_modules.keys(), key = len)
+link_formatter = ':meth:`{op} <{module}.{op}>`'
+op_name_max_len = len(link_formatter.format(op = "", module = longest_module)) + \
+                    2 * len(max(all_ops, key=len))
+name_bar = op_name_max_len * '='
+
 def to_fn_name(full_op_name):
     tokens = full_op_name.split('.')
     tokens[-1] = fn._to_snake_case(tokens[-1])
@@ -19,16 +29,36 @@ def name_sort(op_name):
     _, module, name = ops._process_op_name(op_name)
     return '.'.join(module + [name.upper()])
 
-def main(out_filename):
-    cpu_ops = ops.cpu_ops()
-    gpu_ops = ops.gpu_ops()
-    mix_ops = ops.mixed_ops()
-    all_ops = cpu_ops.union(gpu_ops).union(mix_ops)
-    longest_module = max(ops_modules.keys(), key = len)
-    link_formatter = ':meth:`{op} <{module}.{op}>`'
-    op_name_max_len = len(link_formatter.format(op = "", module = longest_module)) + \
-                      2 * len(max(all_ops, key=len))
-    name_bar = op_name_max_len * '='
+def fn_to_op_table(out_filename):
+    formater = '{:{c}<{op_name_max_len}} {:{c}<{op_name_max_len}}\n'
+    doc_table = ''
+    doc_table += formater.format('', '', op_name_max_len = op_name_max_len, c='=')
+    doc_table += formater.format('Function (fn.*)', 'Operator Object (ops.*)', op_name_max_len = op_name_max_len, c=' ')
+    doc_table += formater.format('', '', op_name_max_len = op_name_max_len, c='=')
+    for op in sorted(all_ops, key=name_sort):
+        op_full_name, submodule, op_name = ops._process_op_name(op)
+        schema = b.TryGetSchema(op)
+        if schema:
+            if schema.IsDocHidden():
+                continue
+        for (module_name, module) in ops_modules.items():
+            m = module
+            for part in submodule:
+                m = getattr(m, part, None)
+                if m is None:
+                    break
+            if m is not None and hasattr(m, op_name):
+                submodule_str = ".".join([*submodule])
+                op_string = link_formatter.format(op = op_full_name, module = module_name)
+                fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = module_name.replace('.ops', '.fn'))
+        op_doc = formater.format(fn_string, op_string, op_name_max_len = op_name_max_len, c=' ')
+        doc_table += op_doc
+    doc_table += formater.format('', '', op_name_max_len = op_name_max_len, c='=')
+    with open(out_filename, 'w') as f:
+        f.write(doc_table)
+
+
+def operations_table(out_filename):
     formater = '{:{c}<{op_name_max_len}} {:{c}^16} {:{c}^150}\n'
     doc_table = ''
     doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')
@@ -69,5 +99,7 @@ def main(out_filename):
         f.write(doc_table)
 
 if __name__ == "__main__":
-    assert(len(sys.argv) == 2)
-    main(sys.argv[1])
+    assert(len(sys.argv) >= 2 and len(sys.argv) <=  3)
+    operations_table(sys.argv[1])
+    if len(sys.argv) == 3:
+        fn_to_op_table(sys.argv[2])

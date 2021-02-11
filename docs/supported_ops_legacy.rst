@@ -30,21 +30,23 @@ and the legacy implementation using the operator object API::
 
     import nvidia.dali as dali
 
-    reader = dali.ops.FileReader(file_root='./my_file_root')
-    decoder = dali.ops.ImageDecoder(device='mixed')
-    rotate = dali.ops.Rotate()
-    resize = dali.ops.Resize(resize_x=300, resize_y=300)
-    rng = dali.ops.random.Uniform(range=(-45, 45))
+    class CustomPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(CustomPipe, self).__init__(batch_size, num_threads, device_id)
+            self.reader = dali.ops.FileReader(file_root='./my_file_root')
+            self.decoder = dali.ops.ImageDecoder(device='mixed')
+            self.rotate = dali.ops.Rotate()
+            self.resize = dali.ops.Resize(resize_x=300, resize_y=300)
+            self.rng = dali.ops.random.Uniform(range=(-45, 45))
 
-    pipe = dali.pipeline.Pipeline(batch_size = 3, num_threads = 2, device_id = 0)
-    with pipe:
-        files, labels = reader()
-        images = decoder(files)
-        angle = rng()
-        images = rotate(images, angle=angle)
-        images = resize(images)
-        pipe.set_outputs(images, labels)
+        def define_graph(self):
+            files, labels = self.reader()
+            images = self.decoder(files)
+            images = self.rotate(images, angle=self.rng())
+            images = self.resize(images)
+            return images, labels
 
+    pipe = CustomPipe(batch_size = 3, num_threads = 2, device_id = 0)
     pipe.build()
     outputs = pipe.run()
 

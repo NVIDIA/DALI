@@ -21,12 +21,6 @@ DALI_SCHEMA(Slice)
     .DocStr(
         R"code(Extracts a subtensor, or slice, with a specified shape and anchor.
 
-Inputs must be supplied as the following separate tensors in the following order:
-
-#. ``data``
-#. ``anchor``
-#. ``shape``
-
 The ``anchor`` and ``shape`` coordinates must be in the  [0.0, 1.0] interval for normalized
 coordinates, or in the image shape for absolute coordinates. The ``anchor`` and ``shape`` inputs
 must provide as many dimensions as are specified with the ``axis_names`` or ``axes`` arguments.

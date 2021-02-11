@@ -225,12 +225,6 @@ DALI_SCHEMA(ImageDecoderSlice)
   .DocStr(R"code(Decodes images and extracts regions of interest based on externally provided
 anchors and shapes.
 
-Inputs must be supplied as tensors in the following order:
-
-#. ``data``
-#. ``anchor``
-#. ``shape``
-
 The anchor and shape coordinates must be within the interval [0.0, 1.0] for normalized
 coordinates or within the image shape for the absolute coordinates. The ``anchor`` and ``shape``
 inputs will provide as many dimensions as were specified with arguments ``axis_names`` or ``axes``.
