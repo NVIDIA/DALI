@@ -85,6 +85,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         nvjpegCreate(NVJPEG_BACKEND_HARDWARE, NULL, &handle_) == NVJPEG_STATUS_SUCCESS) {
       LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
       NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
+      hw_decoder_images_staging_.set_pinned(true);
+      hw_decoder_images_staging_.SetGrowthFactor(2);
+      // assume close the worst case size 300kb per image
+      auto shapes = uniform_list_shape(CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
+                                       TensorShape<1>{300*1024});
+      hw_decoder_images_staging_.Resize(shapes, TypeInfo::Create<uint8_t>());
 #if defined(NVJPEG_PREALLOCATE_API)
       // TODO(awolant): How to expose chroma subsampling to the user?
       if (spec.GetArgument<int>("preallocate_width_hint") > 0 &&
@@ -685,19 +691,28 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       memset(nvjpeg_destinations_.data(), 0, nvjpeg_destinations_.size() * sizeof(nvjpegImage_t));
 
       int j = 0;
+      TensorVector<CPUBackend> tv(samples_hw_batched_.size());
+
       for (auto *sample : samples_hw_batched_) {
         assert(!sample->roi);
         int i = sample->sample_idx;
         const auto &in = ws.Input<CPUBackend>(0, i);
         const auto &out_shape = output_shape_.tensor_shape(i);
 
-        in_data_[j] = in.data<uint8_t>();
+        tv[j].ShareData(const_cast<Tensor<CPUBackend>*>(&in));
         in_lengths_[j] = in.size();
         nvjpeg_destinations_[j].channel[0] = output.mutable_tensor<uint8_t>(i);
         nvjpeg_destinations_[j].pitch[0] = out_shape[1] * out_shape[2];
         j++;
       }
+
       CUDA_CALL(cudaEventSynchronize(hw_decode_event_));
+      // it is H2H copy so the stream doesn't metter much as we don't use cudaMemcpy but
+      // maybe someday...
+      hw_decoder_images_staging_.Copy(tv, hw_decode_stream_);
+      for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
+        in_data_[k] = hw_decoder_images_staging_.mutable_tensor<uint8_t>(k);
+      }
       NVJPEG_CALL(nvjpegDecodeBatched(handle_, state, in_data_.data(), in_lengths_.data(),
                                       nvjpeg_destinations_.data(), hw_decode_stream_));
       for (auto *sample : samples_hw_batched_) {
@@ -873,6 +888,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   ThreadPool thread_pool_;
   ThreadPool nvjpeg2k_thread_;
   static constexpr int kOutputDim = 3;
+
+  TensorList<CPUBackend> hw_decoder_images_staging_;
 
  private:
   void UpdateTestCounters(int nsamples_hw, int nsamples_cuda,

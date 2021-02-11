@@ -140,7 +140,10 @@ a dedicated hardware decoder.
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
   .AddOptionalArg("hw_decoder_load",
       R"code(The percentage of the image data to be processed by the HW JPEG decoder.
 
@@ -189,7 +192,10 @@ image format, it will decode the entire image and crop the selected ROI.
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -214,7 +220,10 @@ image format, it will decode the entire image and crop the selected ROI.
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -222,12 +231,31 @@ Please note that GPU acceleration for JPEG 2000 decoding is only available for C
 
 
 DALI_SCHEMA(ImageDecoderSlice)
-  .DocStr(R"code(Decodes images and extracts regions of interest based on externally provided
-anchors and shapes.
+  .DocStr(R"code(Decodes images and extracts regions of interest.
 
-The anchor and shape coordinates must be within the interval [0.0, 1.0] for normalized
-coordinates or within the image shape for the absolute coordinates. The ``anchor`` and ``shape``
-inputs will provide as many dimensions as were specified with arguments ``axis_names`` or ``axes``.
+The slice can be specified by proving the start and end coordinates, or start coordinates
+and shape of the slice. Both coordinates and shapes can be provided in absolute or relative terms.
+
+The slice arguments can be specified by the following named arguments:
+
+#. ``start``: Slice start coordinates (absolute)
+#. ``rel_start``: Slice start coordinates (relative)
+#. ``end``: Slice end coordinates (absolute)
+#. ``rel_end``: Slice end coordinates (relative)
+#. ``shape``: Slice shape (absolute)
+#. ``rel_shape``: Slice shape (relative)
+
+The slice can be configured by providing start and end coordinates or start and shape.
+Relative and absolute arguments can be mixed (for example, ``rel_start`` can be used with ``shape``)
+as long as start and shape or end are uniquely defined.
+
+Alternatively, two extra positional inputs can be provided, specifying ``anchor`` and ``shape``.
+When using positional inputs, two extra boolean arguments ``normalized_anchor``/``normalized_shape``
+can be used to specify the nature of the arguments provided. Using positional inputs for anchor
+and shape is incompatible with the named arguments specified above.
+
+The slice arguments should provide as many dimensions as specified by the ``axis_names`` or ``axes``
+arguments.
 
 By default, the :meth:`nvidia.dali.ops.ImageDecoderSlice` operator uses normalized coordinates
 and "WH" order for the slice arguments.
@@ -245,8 +273,11 @@ image format, it will decode the entire image and crop the selected ROI.
 The output of the decoder is in the *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
-  .NumInput(3)
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
+  .NumInput(1, 3)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
   .AddParent("SliceAttr")

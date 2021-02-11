@@ -40,7 +40,8 @@ constexpr int prefetch_queue_depth = 2;
 constexpr bool async = true;
 constexpr float output_size = 20.f;
 constexpr cudaStream_t cuda_stream = 0;
-const std::string input_name = "inputs"s;  // NOLINT
+const std::string input_name = "inputs"s;    // NOLINT
+const std::string output_name = "outputs"s;  // NOLINT
 
 template<typename Backend>
 struct backend_to_device_type {
@@ -95,9 +96,9 @@ std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string
                            .AddArg("resize_x", output_size)
                            .AddArg("resize_y", output_size)
                            .AddInput(input_name, exec_device)
-                           .AddOutput("outputs", exec_device));
+                           .AddOutput(output_name, exec_device));
 
-  std::vector<std::pair<std::string, std::string>> outputs = {{"outputs", output_device}};
+  std::vector<std::pair<std::string, std::string>> outputs = {{output_name, output_device}};
 
   pipe.SetOutputNames(outputs);
   return pipe_ptr;
@@ -153,6 +154,40 @@ class CApiTest : public ::testing::Test {
 
 using Backends = ::testing::Types<CPUBackend, GPUBackend>;
 TYPED_TEST_SUITE(CApiTest, Backends);
+
+
+TYPED_TEST(CApiTest, GetOutputNameTest) {
+  std::string output0_name = "compressed_images";
+  std::string output1_name = "labels";
+  auto pipe_ptr = std::make_unique<Pipeline>(batch_size, num_thread, device_id, seed, pipelined,
+                                             prefetch_queue_depth, async);
+  auto &pipe = *pipe_ptr;
+  std::string file_root = testing::dali_extra_path() + "/db/single/jpeg/";
+  std::string file_list = file_root + "image_list.txt";
+  pipe.AddOperator(OpSpec("FileReader")
+                       .AddArg("device", "cpu")
+                       .AddArg("file_root", file_root)
+                       .AddArg("file_list", file_list)
+                       .AddOutput(output0_name, "cpu")
+                       .AddOutput(output1_name, "cpu"));
+
+  std::vector<std::pair<std::string, std::string>> outputs = {{output0_name, "cpu"},
+                                                              {output1_name, "cpu"}};
+
+  pipe.SetOutputNames(outputs);
+
+  auto serialized = pipe.SerializeToProtobuf();
+
+  daliPipelineHandle handle;
+  daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
+                     device_id, false, prefetch_queue_depth, prefetch_queue_depth,
+                     prefetch_queue_depth, false);
+
+  ASSERT_EQ(daliGetNumOutput(&handle), 2);
+  EXPECT_STREQ(daliGetOutputName(&handle, 0), output0_name.c_str());
+  EXPECT_STREQ(daliGetOutputName(&handle, 1), output1_name.c_str());
+}
+
 
 TYPED_TEST(CApiTest, FileReaderPipe) {
   auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);

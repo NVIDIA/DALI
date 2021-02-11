@@ -38,6 +38,8 @@ MUTLIPLE_RESOLUTION_ROOT = '/tmp/video_resolution/'
 test_data_root = os.environ['DALI_EXTRA_PATH']
 video_data_root = os.path.join(test_data_root, 'db', 'video')
 corrupted_video_data_root = os.path.join(video_data_root, 'corrupted')
+video_containers_data_root = os.path.join(test_data_root, 'db', 'video', 'containers')
+video_types = ['avi', 'mov', 'mkv', 'mpeg']
 
 ITER=6
 BATCH_SIZE=4
@@ -252,3 +254,22 @@ def check_corrupted_videos():
 
 def test_corrupted_videos():
     check_corrupted_videos()
+
+def check_container(cont):
+    pipe = Pipeline(batch_size=1, num_threads=4, device_id=0)
+    path = os.path.join(video_containers_data_root, cont)
+    test_videos = [path + '/' + f for f in os.listdir(path)]
+    with pipe:
+        # mkv container for some reason fails in DALI VFR heuristics
+        vid = fn.video_reader(device="gpu", filenames=test_videos, sequence_length=10,
+                              skip_vfr_check=True, stride=1, name="Reader")
+        pipe.set_outputs(vid)
+    pipe.build()
+
+    iter_num = pipe.reader_meta("Reader")["epoch_size"]
+    for _ in range(iter_num):
+        pipe.run()
+
+def check_container():
+    for cont in video_types:
+        yield test_container, cont

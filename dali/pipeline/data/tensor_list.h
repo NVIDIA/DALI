@@ -427,6 +427,14 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   }
 
   /**
+   * @brief Returns the number of dimensions of the samples.
+   */
+  DLL_PUBLIC inline int sample_dim() const {
+    return shape_.sample_dim();
+  }
+
+
+  /**
    * @brief Returns the offset of the tensor with the given index.
    */
   DLL_PUBLIC inline Index tensor_offset(int idx) const {

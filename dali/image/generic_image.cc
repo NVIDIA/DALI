@@ -30,7 +30,7 @@ GenericImage::DecodeImpl(DALIImageType image_type,
   // Decode image to tmp cv::Mat
   cv::Mat decoded_image = cv::imdecode(
     cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),         //NOLINT
-    IsColor(image_type) ? cv::IMREAD_COLOR : cv::IMREAD_GRAYSCALE);
+    IsColor(image_type) ? cv::IMREAD_COLOR : cv::IMREAD_GRAYSCALE | cv::IMREAD_IGNORE_ORIENTATION);
 
   int W = decoded_image.cols;
   int H = decoded_image.rows;
