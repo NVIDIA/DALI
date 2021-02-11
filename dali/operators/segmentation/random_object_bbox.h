@@ -90,8 +90,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
   using ClassVec = SmallVector<int, 32>;
   using WeightVec = SmallVector<float, 32>;
 
-  void GetClassesAndWeightsArgs(ClassVec &classes, WeightVec &weights,
-                                int &background, int sample_idx);
+  void GetBgFgAndWeights(ClassVec &classes, WeightVec &weights, int &background, int sample_idx);
 
   struct SampleContext {
     void Init(int sample_idx, const Tensor<CPUBackend> *in) {

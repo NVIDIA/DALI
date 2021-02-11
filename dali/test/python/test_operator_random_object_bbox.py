@@ -296,16 +296,16 @@ def test_random_object_bbox_with_class():
                 ndim = np.random.randint(1, 5)
 
                 threshold_opt = [None, 3, list(range(1, 1+ndim)), fn.random.uniform(range=(1,5), shape=[ndim], dtype=dali.types.INT32, seed=13231)]
-                threshold = threshold_opt[np.random.randint(len(threshold_opt))]
+                threshold = np.random.choice(threshold_opt);
                 k_largest_opt = [None, 1, 2, 5]
-                k_largest = k_largest_opt[np.random.randint(len(k_largest_opt))]
+                k_largest = np.random.choice(k_largest_opt);
 
                 fg_prob_opt = [None, 0.1, 0.7, fn.random.uniform(range=(0,1), seed=1515)]
-                fg_prob = fg_prob_opt[np.random.randint(len(fg_prob_opt))]
+                fg_prob = np.random.choice(fg_prob_opt)
 
                 format = formats[fmt]
                 fmt = (fmt + 1) % len(formats)
-                dtype = types[np.random.randint(0, len(types))]
+                dtype = np.random.choice(types)
                 yield _test_random_object_bbox_with_class, 5, ndim, dtype, format, fg_prob, classes, weights, bg, threshold, k_largest
 
 @nottest
@@ -354,11 +354,37 @@ def test_random_object_bbox_ignore_class():
     types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
     for bg in [None, 0, -1, 5, fn.random.uniform(range=(-5, 10), dtype=dali.types.INT32, seed=1313)]:
         ndim = np.random.randint(1, 5)
-        dtype = types[np.random.randint(0, len(types))]
+        dtype = np.random.choice(types)
         for format in [None, "anchor_shape", "start_end", "box"]:
             threshold_opt = [None, 3, list(range(1, 1+ndim)), fn.random.uniform(range=(1,5), shape=[ndim], dtype=dali.types.INT32, seed=3214)]
-            threshold = threshold_opt[np.random.randint(len(threshold_opt))]
+            threshold = np.random.choice(threshold_opt)
             k_largest_opt = [None, 1, 2, 5]
-            k_largest = k_largest_opt[np.random.randint(len(k_largest_opt))]
+            k_largest = np.random.choice(k_largest_opt)
 
             yield _test_random_object_bbox_ignore_class, 5, ndim, dtype, format, bg, threshold, k_largest
+
+@nottest
+def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
+    """Checks that a correct backgorund labels is chosen:
+        0, if 0 is not present in the list of foreground classes
+        smallest label - 1 if 0 is present
+        if the smallest label -1 overflows, decrement the label until no collision
+    """
+    pipe = dali.pipeline.Pipeline(batch_size=1, num_threads=1, device_id=0, seed=1234)
+    data = np.uint32([0,1,2,3])
+    box, label = fn.segmentation.random_object_bbox(data, foreground_prob=1e-9, format="box", output_class=1, classes=fg_labels);
+    pipe.set_outputs(box, label)
+    pipe.build()
+    _, labels = pipe.run()
+    assert int(labels.at(0)) == expected_bg
+
+def test_random_object_bbox_auto_bg():
+    for fg, expected_bg in [
+            ([1,2,3], 0),
+            ([0,1,2], -1),
+            ([-1,1], 0),
+            ([0, -5], -6),
+            ([-0x80000000, 0x7fffffff], 0),
+            ([-0x80000000, 0x7fffffff, 0, 0x7ffffffe], 0x7ffffffd)
+            ]:
+        yield _test_random_object_bbox_auto_bg, fg, expected_bg

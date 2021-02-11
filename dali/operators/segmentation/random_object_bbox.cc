@@ -213,7 +213,7 @@ void StoreBox(const OutListCPU<int, 1> &out1,
   StoreBox(out1, out2, format, sample_idx, box.lo, box.hi);
 }
 
-void RandomObjectBBox::GetClassesAndWeightsArgs(
+void RandomObjectBBox::GetBgFgAndWeights(
       ClassVec &classes, WeightVec &weights, int &background, int sample_idx) {
   background = background_[sample_idx].data[0];
   if (ignore_class_)
@@ -341,8 +341,7 @@ bool RandomObjectBBox::PickBlob(SampleContext &ctx, int nblobs) {
 template <typename T>
 bool RandomObjectBBox::PickForegroundBox(
       SampleContext &context, const InTensorCPU<T> &input) {
-  GetClassesAndWeightsArgs(context.classes, context.weights, context.background,
-                           context.sample_idx);
+  GetBgFgAndWeights(context.classes, context.weights, context.background, context.sample_idx);
   context.class_label = context.background;
   if (ignore_class_) {
     int nblobs = LabelConnectedRegions(context.blobs, input, -1, context.background);
@@ -428,7 +427,7 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
       StoreBox(out1, out2, format_, i, default_anchor, in_shape[i]);
       if (HasClassLabelOutput()) {
         SampleContext &ctx = contexts_[0];
-        GetClassesAndWeightsArgs(ctx.classes, ctx.weights, ctx.background, i);
+        GetBgFgAndWeights(ctx.classes, ctx.weights, ctx.background, i);
         class_label_out.data[i][0] = ctx.background;
       }
     } else {
@@ -449,7 +448,7 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
 
         if (HasClassLabelOutput())
           class_label_out.data[i][0] = ctx.class_label;
-      }, volume(in_shape.tensor_shape_span(i)));
+      }, in_shape.tensor_size(i));
     }
   }
   tp.RunAll();
