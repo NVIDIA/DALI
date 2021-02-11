@@ -40,12 +40,7 @@ bool dir_exists(const char * str) {
 
 namespace python {
 
-ShmHandle::ShmHandle(shm_handle_t h) : h_{h} {
-  std::cout << "CREATING HANDLES: " << h_ << std::endl;
-}
-
 ShmHandle ShmHandle::CreateHandle() {
-  std::cout << "CREATING HANDLES" << std::endl;
   // Abstract away the fact that shm_open requires filename.
   constexpr char dev_shm_path[] = "/dev/shm/";
   constexpr char run_shm_path[] = "/run/shm/";
@@ -64,22 +59,17 @@ ShmHandle ShmHandle::CreateHandle() {
     shm_path = run_shm_path;
     shm_size = kRunShmPathSize;
   } else {
-    throw std::runtime_error("shared memory dir not found");
+    throw std::runtime_error(make_string("Shared memory dir not found, looked for: {", dev_shm_path,
+                                         ", ", run_shm_path, "}."));
   }
   memcpy(temp_path, shm_path, shm_size);
   memcpy(temp_path + shm_size, temp_filename_template, sizeof(temp_filename_template));
-  int temp_fd = mkstemp(temp_path);
-  if (temp_fd < 0) {
-    throw std::runtime_error("temporary file creation failed");
-  }
-  if (unlink(temp_path) != 0) {
-    throw std::runtime_error("couldn't unlink temporary file");
-  }
+  int temp_fd = mkstemp(temp_path);  // posix
+  POSIX_CHECK_STATUS_EX(temp_fd, "mkstemp", "Temporary file creation failed.");
+  POSIX_CALL_EX(unlink(temp_path), "Couldn't unlink temporary file.");
   const char *temp_filename = temp_path + shm_size;
   shm_handle_t fd = shm_open(temp_filename, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
-  if (fd < 0) {
-    throw std::runtime_error("shm_open call failed");
-  }
+  POSIX_CHECK_STATUS(temp_fd, "shm_open");
   ::close(temp_fd);
   // The memory chunks will be passed between processes by sending descriptors over the sockets,
   // not through the filenames; this way in case of unexpected process exit we're not leaking any
@@ -89,21 +79,12 @@ ShmHandle ShmHandle::CreateHandle() {
   return ShmHandle(fd);
 }
 
-
 void ShmHandle::DestroyHandle(shm_handle_t h) {
   if (h >= 0) {
     int ret = ::close(h);
     // fd_ = -1;
     // todo: throw error on failed close
   }
-}
-
-// constexpr shm_handle_t ShmHandle::null_handle() {
-//   return -1;
-// }
-
-int ShmHandle::get_handle() {
-  return h_;
 }
 
 MapMemWrapper::MapMemWrapper(int fd, uint64_t size)
@@ -148,14 +129,14 @@ SharedMem::SharedMem(int fd, uint64_t size) : size_{size * sizeof(SharedMem::b_t
     fd_ = ShmHandle(fd);
   } else {
     fd_ = ShmHandle::CreateHandle();
-    if (ftruncate(fd_.get_handle(), size_) == -1) {
+    if (ftruncate(fd_, size_) == -1) {
       constexpr int buf_len = 250;
       char buf[buf_len];
       strerror_r(errno, buf, buf_len);
       throw std::runtime_error(make_string("failed to resize shared memory", buf));
     }
   }
-  mem_ = std::make_unique<MapMemWrapper>(fd_.get_handle(), size_);
+  mem_ = std::make_unique<MapMemWrapper>(fd_, size_);
 }
 
 uint64_t SharedMem::size() const {
@@ -163,7 +144,7 @@ uint64_t SharedMem::size() const {
 }
 
 int SharedMem::fd() {
-  return !fd_ ? -1 : fd_.get_handle();
+  return !fd_ ? -1 : fd_;
 }
 
 SharedMem::b_type *SharedMem::get_raw_ptr() {
@@ -173,7 +154,7 @@ SharedMem::b_type *SharedMem::get_raw_ptr() {
 void SharedMem::resize(uint64_t size, bool trunc) {
   size_ = size * sizeof(SharedMem::b_type);
   if (trunc) {
-    if (ftruncate(fd_.get_handle(), size_) == -1) {
+    if (ftruncate(fd_, size_) == -1) {
       throw std::runtime_error("failed to resize shared memory");
     }
   }
@@ -183,7 +164,7 @@ void SharedMem::resize(uint64_t size, bool trunc) {
     if (!fd_) {
       throw std::runtime_error("cannot mmap memory - no file descriptor");
     }
-    mem_ = std::make_unique<MapMemWrapper>(fd_.get_handle(), size_);
+    mem_ = std::make_unique<MapMemWrapper>(fd_, size_);
   }
 }
 

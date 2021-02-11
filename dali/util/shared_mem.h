@@ -18,13 +18,38 @@
 #include <stdint.h>
 #include <memory>
 #include "dali/core/common.h"
+#include "dali/core/error_handling.h"
 #include "dali/core/unique_handle.h"
 
 namespace dali {
 namespace python {
 
+
 #if defined(__unix__)
 using shm_handle_t = int;
+
+#define POSIX_CHECK_STATUS_EX(status, call_str, message)                               \
+  do {                                                                                 \
+    if (status == -1) {                                                                \
+      std::string errmsg(256, '\0');                                                   \
+      int e = errno;                                                                   \
+      strerror_r(e, &errmsg[0], errmsg.size());                                        \
+      DALI_FAIL(make_string("Call to ", call_str, " failed. ", errmsg, " ", message)); \
+    }                                                                                  \
+  } while (0)
+
+
+#define POSIX_CHECK_STATUS(status, call_str) POSIX_CHECK_STATUS_EX(status, call_str, "")
+
+#define POSIX_CALL_EX(code, message)               \
+  do {                                             \
+    int status = code;                             \
+    POSIX_CHECK_STATUS_EX(status, #code, message); \
+  } while (0)
+
+
+#define POSIX_CALL(code) POSIX_CALL_EX(code, "")
+
 #else
 #error Platform not supported
 #endif
@@ -38,28 +63,17 @@ using shm_handle_t = int;
 class DLL_PUBLIC ShmHandle : public UniqueHandle<shm_handle_t, ShmHandle> {
  public:
   /**
-   * @brief Wrap a handle (file descriptor on Unix), h shouldn't be -1.
-   */
-  explicit ShmHandle(shm_handle_t h);
-
-  /**
    * Create new handle (file descriptor on Unix) that can be used for shared memory chunk.
    */
   static ShmHandle CreateHandle();
 
-
   static void DestroyHandle(shm_handle_t h);
+
   DALI_INHERIT_UNIQUE_HANDLE(shm_handle_t, ShmHandle);
-
-
-  shm_handle_t get_handle();
 
   static constexpr shm_handle_t null_handle() {
     return -1;
   }
-
- private:
-  shm_handle_t h_;
 };
 
 
