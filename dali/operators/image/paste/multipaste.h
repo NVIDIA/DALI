@@ -84,8 +84,11 @@ class MultiPasteOp : public Operator<Backend> {
     if (curr_batch_size == 0)
       return;
 
+    const int spatial_ndim = 2;  // in the future we may want to support 3D
+
     output_size_.Acquire(spec, ws, curr_batch_size, true);
     in_idx_.Acquire(spec, ws, curr_batch_size, false);
+
     if (out_anchors_.IsDefined()) {
       out_anchors_.Acquire(spec, ws, curr_batch_size, false);
     }
@@ -103,7 +106,7 @@ class MultiPasteOp : public Operator<Backend> {
 
     raw_input_size_mem_.clear();
     const auto &input_shape = images.shape();
-    const int spatial_ndim = 2;  // in the future we may want to support 3D
+
     raw_input_size_mem_.reserve(spatial_ndim * input_shape.num_samples());
     for (int i = 0; i < curr_batch_size; i++) {
       auto shape = input_shape.tensor_shape_span(i);
@@ -121,30 +124,33 @@ class MultiPasteOp : public Operator<Backend> {
         DALI_ENFORCE(in_anchors_[i].shape[0] == n_paste,
                      "in_anchors must be same length as in_idx");
         DALI_ENFORCE(in_anchors_[i].shape[1] == spatial_ndim,
-         "in_anchors must have number of coordinates equal to that of input images - 1 (channel)");
+                     make_string("Unexpected number of dimensions for ``in_anchors``. Expected ",
+                     spatial_ndim, ", got ", in_anchors_[i].shape[1]));
       }
       if (in_shapes_.IsDefined()) {
         DALI_ENFORCE(in_shapes_[i].shape[0] == n_paste, "in_shapes must be same length as in_idx");
         DALI_ENFORCE(in_shapes_[i].shape[1] == spatial_ndim,
-           "in_shapes must have number of coordinates equal to that of input images - 1 (channel)");
+                     make_string("Unexpected number of dimensions for ``in_shapes``. Expected ",
+                     spatial_ndim, ", got ", in_shapes_[i].shape[1]));
       }
       if (out_anchors_.IsDefined()) {
         DALI_ENFORCE(out_anchors_[i].shape[0] == n_paste,
                      "out_anchors must be same length as in_idx");
         DALI_ENFORCE(out_anchors_[i].shape[1] == spatial_ndim,
-         "out_anchors must have number of coordinates equal to that of input images - 1 (channel)");
+                     make_string("Unexpected number of dimensions for ``out_anchors``. Expected ",
+                     spatial_ndim, ", got ", out_anchors_[i].shape[1]));
       }
 
       bool found_intersection = false;
 
       for (int j = 0; j < n_paste; j++) {
-        auto out_anchor = GetInAnchors(i, j);
+        auto out_anchor = GetOutAnchors(i, j);
         auto j_idx = in_idx_[i].data[j];
         const auto &shape = GetShape(i, j, Coords(raw_input_size_mem_.data() + 2 * j_idx,
                                                   dali::TensorShape<>(2)));
         for (int k = 0; k < j; k++) {
           auto k_idx = in_idx_[i].data[k];
-          if (Intersects(out_anchor, shape, GetInAnchors(i, k), GetShape(
+          if (Intersects(out_anchor, shape, GetOutAnchors(i, k), GetShape(
                   i, k, Coords(raw_input_size_mem_.data() + 2 * k_idx, dali::TensorShape<>(2))))) {
             found_intersection = true;
             break;
@@ -196,20 +202,24 @@ class MultiPasteOp : public Operator<Backend> {
 };
 
 
-class MultiPasteCpu : public MultiPasteOp<CPUBackend> {
+class MultiPasteCPU : public MultiPasteOp<CPUBackend> {
  public:
-  explicit MultiPasteCpu(const OpSpec &spec) : MultiPasteOp(spec) {}
+  explicit MultiPasteCPU(const OpSpec &spec) : MultiPasteOp(spec) {}
 
   using Operator<CPUBackend>::RunImpl;
 
-  ~MultiPasteCpu() override = default;
+  ~MultiPasteCPU() override = default;
 
-  DISABLE_COPY_MOVE_ASSIGN(MultiPasteCpu);
+  DISABLE_COPY_MOVE_ASSIGN(MultiPasteCPU);
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
 
   void RunImpl(workspace_t<CPUBackend> &ws) override;
+
+ private:
+  template<typename InputType, typename OutputType>
+  void RunImplExplicitlyTyped(workspace_t<CPUBackend> &ws);
 };
 
 }  // namespace dali

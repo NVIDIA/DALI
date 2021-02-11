@@ -39,7 +39,7 @@ class PasteCPU {
   using Coords = InTensorCPU<const int, 1>;
 
   /**
-   * Pastes regions of inputs onto the output.
+   * @brief Pastes regions of inputs onto the output.
    *
    * @param out         Output image data
    * @param pasteFrom   Input image data.
