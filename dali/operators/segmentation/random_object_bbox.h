@@ -93,8 +93,9 @@ class RandomObjectBBox : public Operator<CPUBackend> {
   void GetBgFgAndWeights(ClassVec &classes, WeightVec &weights, int &background, int sample_idx);
 
   struct SampleContext {
-    void Init(int sample_idx, const Tensor<CPUBackend> *in) {
+    void Init(int sample_idx, const Tensor<CPUBackend> *in, ThreadPool *tp) {
       this->sample_idx = sample_idx;
+      thread_pool = tp;
       input = in;
       auto &shape = input->shape();
       int64_t n = volume(shape);
@@ -143,6 +144,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
       return class_idx >= 0;
     }
 
+    ThreadPool *thread_pool = nullptr;
     TensorView<StorageCPU, int> out1, out2;
     const Tensor<CPUBackend> *input = nullptr;
     int sample_idx;
@@ -159,6 +161,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
     TensorView<StorageCPU, uint8_t> filtered;
     TensorView<StorageCPU, int64_t> blobs;
     std::unordered_set<int> labels;
+    SmallVector<std::unordered_set<int>, 8> tmp_labels;
     std::uniform_real_distribution<double> class_dist{0, 1};
     vector<int> box_data;
     struct {
@@ -175,7 +178,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
       }
     }
   };
-  vector<SampleContext> contexts_;
+  SampleContext context_;
 
   bool PickForegroundBox(SampleContext &context);
 
@@ -191,10 +194,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
   void FindLabels(std::unordered_set<int> &labels, const T *data, int64_t N);
 
   template <typename T>
-  void FindLabels(std::unordered_set<int> &labels, const TensorView<StorageCPU, const T> &in) {
-    FindLabels(labels, in.data, in.num_elements());
-  }
-
+  void FindLabels(SampleContext &ctx, const TensorView<StorageCPU, const T> &in);
 
   bool  ignore_class_ = false;
   int   k_largest_ = -1;          // -1 means no k largest
