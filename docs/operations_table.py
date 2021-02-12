@@ -14,11 +14,7 @@ cpu_ops = ops.cpu_ops()
 gpu_ops = ops.gpu_ops()
 mix_ops = ops.mixed_ops()
 all_ops = cpu_ops.union(gpu_ops).union(mix_ops)
-longest_module = max(ops_modules.keys(), key = len)
 link_formatter = ':meth:`{op} <{module}.{op}>`'
-op_name_max_len = len(link_formatter.format(op = "", module = longest_module)) + \
-                    2 * len(max(all_ops, key=len))
-name_bar = op_name_max_len * '='
 
 def to_fn_name(full_op_name):
     tokens = full_op_name.split('.')
@@ -28,6 +24,26 @@ def to_fn_name(full_op_name):
 def name_sort(op_name):
     _, module, name = ops._process_op_name(op_name)
     return '.'.join(module + [name.upper()])
+
+def longest_fn_string():
+    longest_str = ""
+    for op in sorted(all_ops, key=name_sort):
+        fn_string = ""
+        op_full_name, submodule, op_name = ops._process_op_name(op)
+        for (module_name, module) in ops_modules.items():
+            m = module
+            for part in submodule:
+                m = getattr(m, part, None)
+                if m is None:
+                    break
+            if m is not None and hasattr(m, op_name):
+                fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = module_name.replace('.ops', '.fn'))
+                if len(fn_string) > len(longest_str):
+                    longest_str = fn_string
+    return longest_str
+
+op_name_max_len = len(longest_fn_string())
+name_bar = op_name_max_len * '='
 
 def fn_to_op_table(out_filename):
     formater = '{:{c}<{op_name_max_len}} {:{c}<{op_name_max_len}}\n'
@@ -48,7 +64,6 @@ def fn_to_op_table(out_filename):
                 if m is None:
                     break
             if m is not None and hasattr(m, op_name):
-                submodule_str = ".".join([*submodule])
                 op_string = link_formatter.format(op = op_full_name, module = module_name)
                 fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = module_name.replace('.ops', '.fn'))
         op_doc = formater.format(fn_string, op_string, op_name_max_len = op_name_max_len, c=' ')
@@ -59,7 +74,7 @@ def fn_to_op_table(out_filename):
 
 
 def operations_table(out_filename):
-    formater = '{:{c}<{op_name_max_len}} {:{c}^16} {:{c}^150}\n'
+    formater = '{:{c}<{op_name_max_len}} {:{c}^48} {:{c}<150}\n'
     doc_table = ''
     doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')
     doc_table += formater.format('Function', 'Device support', 'Short description', op_name_max_len = op_name_max_len, c=' ')
@@ -90,7 +105,6 @@ def operations_table(out_filename):
                 if m is None:
                     break
             if m is not None and hasattr(m, op_name):
-                submodule_str = ".".join([*submodule])
                 fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = module_name.replace('.ops', '.fn'))
         op_doc = formater.format(fn_string, devices_str, short_descr, op_name_max_len = op_name_max_len, c=' ')
         doc_table += op_doc
