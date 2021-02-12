@@ -433,14 +433,6 @@ class WorkersPool:
                 raise RuntimeError("Worker exited unexpectedly")
             worker_id = completed_tasks.worker_id
             batch_i = completed_tasks.batch_i
-            if completed_tasks.context_i == -1:
-                assert completed_tasks.is_failed(), "Anonymous task can only be failed"
-                # Raise new exception propagating the traceback from worker thread as error
-                # message, originating from original exception. There is no originating context
-                # or batch, so we just reraise the error.
-                raise Exception(
-                    "\n\nException traceback received from worker thread:\n\n" + \
-                     completed_tasks.traceback_str) from completed_tasks.exception
             context = self.contexts[completed_tasks.context_i]
             # batch has been discarded
             if context.is_cleared(batch_i) or context.is_error(batch_i):

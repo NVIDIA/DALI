@@ -15,6 +15,7 @@
 import threading
 import traceback
 import os
+import socket
 from multiprocessing import reduction
 from nvidia.dali.shared_batch import SharedMemChunk, write_batch
 from nvidia.dali.messages import CompletedTasks, ScheduledTasks
@@ -40,10 +41,6 @@ class _ProcessedTasks:
     @classmethod
     def failed(cls, scheduled, exception, traceback_str=None):
         return cls(scheduled, exception=exception, traceback_str=traceback_str)
-
-    @classmethod
-    def unknown_failed(cls, exception, traceback_str=None):
-        return cls(ScheduledTasks.anonymous_task(), exception=exception, traceback_str=traceback_str)
 
     def is_failed(self):
         return self.exception is not None
@@ -80,7 +77,6 @@ class SharedBatchesDispatcher:
             return
         batch_serialized = write_batch(processed_tasks.mem_chunk, processed_tasks.data_batch)
         completed_tasks = CompletedTasks.done(self.worker_id, processed_tasks, batch_serialized)
-        # TODO(klecki): Sending a task and failing to send the handle may block the main process
         self.res_pipe.send(completed_tasks)
         # send shared memory handle for underlaying shared memory chunk
         # if it hasn't been sent ever before
@@ -89,6 +85,13 @@ class SharedBatchesDispatcher:
             self.handle_sent.add(mem_chunk_id)
             reduction.send_handle(self.sock, processed_tasks.mem_chunk.shm_chunk.handle, os.getppid())
 
+    def shutdown(self):
+        """Force to close all communication channels (sockets and pipes) to unlock main process
+        in case of error, when it may be waiting for messages that we can't deliver or the
+        state of protocol is mismatched"""
+        self.res_pipe.close()
+        self.sock.shutdown(socket.SHUT_RDWR)
+        self.sock.close()
 
 class CallbackContext:
     """Worker can run multiple Python callbacks, CallbackContext is used to
@@ -128,11 +131,12 @@ def dispatcher(batch_dispatcher, ready_cv, ready_queue):
             if message is None:
                 break
             batch_dispatcher.send(message)
-    except Exception as exception:
-        tb_str = traceback.format_exc()
-        # create dummy failed task
-        failed_task = _ProcessedTasks.unknown_failed(exception, tb_str)
-        batch_dispatcher.send(failed_task)
+    finally:
+        # In case of error, we don't know when exactly we were interrupted and the main process
+        # may be waiting for differant message that we would try to send. Close the communication
+        # to indicate an error for main process and allow the exception to propagate
+        # in the worker process.
+        batch_dispatcher.shutdown()
 
 
 def receiver(task_pipe, tasks_cv, tasks_queue):

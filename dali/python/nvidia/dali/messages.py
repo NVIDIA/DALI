@@ -20,7 +20,6 @@ class ScheduledTasks:
     ----------
     `context_i` : int
         Index identifying the callback in the order of parallel callbacks passed to pool.
-        -1 for anonymous context.
     `batch_i` : int
         Ordinal of the batch that tasks list corresponds to.
     `tasks` : nvidia.dali.types.SampleInfo list
@@ -32,12 +31,6 @@ class ScheduledTasks:
         self.batch_i = batch_i
         self.tasks = tasks
 
-    @classmethod
-    def anonymous_task(cls):
-        """Defines an anonymous tasks passed when there is an exception originating not from the
-        work performed for scheduled tasks.
-        """
-        return cls(-1, 0, [])
 
 class CompletedTasks:
     """Message send from a worker to the pool to notify the pool about completed tasks

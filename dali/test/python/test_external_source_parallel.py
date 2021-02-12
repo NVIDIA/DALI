@@ -22,7 +22,7 @@ from test_external_source_parallel_utils import *
 def test_parallel_fork_cpu_only():
     pipeline_pairs = 4
     batch_size = 10
-    iters = 4
+    iters = 40
     callback = ExtCallback((4, 5), iters * batch_size, np.int32)
     parallel_pipes = [create_pipe(callback, 'cpu', batch_size, py_workers_num=4,
                                   py_workers_init='fork', parallel=True, device_id=None)
