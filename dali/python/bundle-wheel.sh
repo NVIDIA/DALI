@@ -78,14 +78,17 @@ fname_with_sha256() {
 
 make_wheel_record() {
     FPATH=$1
+    RECORD_FILE=$2
+    TMPDIR=$3
     if echo $FPATH | grep RECORD >/dev/null 2>&1; then
     # if the RECORD file, then
-    echo "$FPATH,,"
+    result="$FPATH,,"
     else
     HASH=$(openssl dgst -sha256 -binary $FPATH | openssl base64 | sed -e 's/+/-/g' | sed -e 's/\//_/g' | sed -e 's/=//g')
     FSIZE=$(ls -nl $FPATH | awk '{print $5}')
-    echo "$FPATH,sha256=$HASH,$FSIZE"
+    result="$FPATH,sha256=$HASH,$FSIZE"
     fi
+    flock $TMPDIR/dali_rec.lock echo $result>>$RECORD_FILE
 }
 
 DEPS_LIST=(
@@ -115,7 +118,9 @@ popd
 # copy over needed dependent .so files over and tag them with their hash
 original=()
 patched=()
-for filepath in "${DEPS_LIST[@]}"; do
+
+copy_and_patch() {
+    local filepath=$1
     filename=$(basename $filepath)
 
     if [[ ! -f "$filepath" ]]; then
@@ -130,26 +135,21 @@ for filepath in "${DEPS_LIST[@]}"; do
     echo "Copying $filepath to $patchedpath"
     cp $filepath $TMPDIR/$patchedpath
 
-    # HACK: CUDA libraries like libnvjpeg.so.9.0 set their .gnu.version info
-    # in the ELF... to their own name.  which means that if we go messing
-    # around with the SONAME, then anything that ever linked against that
-    # library will be broken.  For the rest of CUDA we don't have to deal
-    # with this because we rely on the CUDA libs to be installed as system
-    # libs.  libnvjpeg.so.9.0 is a special case because it's a newer addition
-    # that didn't originally ship with 9.0.
-    if [[ "$filename" == "libnvjpeg.so.9.0" ]]; then
-        echo "Skipping patch of DT_SONAME for $filename"
-        continue
-    fi
-
     echo "Patching DT_SONAME field in $patchedpath"
-    patchelf --set-soname $patchedname $TMPDIR/$patchedpath
+    patchelf --set-soname $patchedname $TMPDIR/$patchedpath &
+}
+
+echo "Patching DT_SONAMEs..."
+for filepath in "${DEPS_LIST[@]}"; do
+    copy_and_patch $filepath
 done
+wait
+echo "Patched DT_SONAMEs"
 
 pushd $TMPDIR
 
-echo "patching to fix the so names to the hashed names"
-find $PKGNAME_PATH -name '*.so*' -o -name '*.bin' | while read sofile; do
+patch_hashed_names() {
+    local sofile=$1
     for ((i=0;i<${#original[@]};++i)); do
         origname=${original[i]}
         patchedname=${patched[i]}
@@ -164,22 +164,58 @@ find $PKGNAME_PATH -name '*.so*' -o -name '*.bin' | while read sofile; do
             fi
         fi
     done
+}
+echo "Patching to fix the so names to the hashed names..."
+# get list of files to iterate over
+sofile_list=()
+while IFS=  read -r -d $'\0'; do
+    sofile_list+=("$REPLY")
+done < <(find $PKGNAME_PATH -name '*.so*' -print0)
+while IFS=  read -r -d $'\0'; do
+    sofile_list+=("$REPLY")
+done < <(find $PKGNAME_PATH -name '*.bin' -print0)
+for ((i=0;i<${#sofile_list[@]};++i)); do
+    sofile=${sofile_list[i]}
+    patch_hashed_names $sofile &
 done
+wait
+echo "Fixed hashed names"
 
-# set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
-find $PKGNAME_PATH/* -type f -name "*.so*" -o -name "*.bin" | while read FILE; do
+patch_rpath() {
+    local FILE=$1
     UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
     echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs'"
     patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs" $FILE
     patchelf --print-rpath $FILE
+}
+echo "Fixing rpath of main files..."
+# set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
+for ((i=0;i<${#sofile_list[@]};++i)); do
+    sofile=${sofile_list[i]}
+    patch_rpath $sofile &
 done
+wait
+echo "Fixed rpath of main files"
 
-# set RPATH of .libs/ files to $ORIGIN
-find $PKGNAME_PATH/.libs -maxdepth 1 -type f -name "*.so*" | while read sofile; do
+patch_other_rpath() {
+    local sofile=$1
     echo "Setting rpath of $sofile to " '$ORIGIN'
     patchelf --set-rpath '$ORIGIN' $sofile
     patchelf --print-rpath $sofile
+}
+echo "Fixing rpath of .lib files..."
+# get list of files to iterate over
+sofile_list=()
+while IFS=  read -r -d $'\0'; do
+    sofile_list+=("$REPLY")
+done < <(find $PKGNAME_PATH/.libs -maxdepth 1 -type f -name "*.so*"  -print0)
+# set RPATH of .libs/ files to $ORIGIN
+for ((i=0;i<${#sofile_list[@]};++i)); do
+    sofile=${sofile_list[i]}
+    patch_other_rpath $sofile &
 done
+wait
+echo "Fixed rpath of .lib files"
 
 # correct the metadata in the dist-info/WHEEL, e.g.:
 #Root-Is-Purelib: true
@@ -191,10 +227,17 @@ RECORD_FILE=$(ls $PKGNAME-*.dist-info/RECORD)
 echo "Generating new record file $RECORD_FILE"
 rm -f $RECORD_FILE
 # generate records for $PKGNAME_S folder
-find * -type f | while read FNAME; do
-    echo $(make_wheel_record $FNAME) >>$RECORD_FILE
+rec_list=()
+while IFS=  read -r -d $'\0'; do
+    rec_list+=("$REPLY")
+done < <(find * -type f -print0)
+for ((i=0;i<${#rec_list[@]};++i)); do
+    FNAME=${rec_list[i]}
+   make_wheel_record $FNAME $RECORD_FILE $TMPDIR &
 done
+wait
 echo "$RECORD_FILE,," >> $RECORD_FILE
+echo "Finished generating new record file $RECORD_FILE"
 
 # zip up the new wheel into the wheelhouse
 mkdir -p $OUTDIR

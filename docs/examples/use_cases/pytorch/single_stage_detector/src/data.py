@@ -64,6 +64,9 @@ def get_train_dali_loader(args, default_boxes, local_seed):
     train_pipe = create_coco_pipeline(
         default_boxes,
         args,
+        batch_size=args.batch_size,
+        num_threads=args.num_workers,
+        device_id=args.local_rank,
         seed=local_seed)
 
     train_loader = DALIGenericIterator(
