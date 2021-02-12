@@ -475,10 +475,10 @@ Keyword Args
             batch = True
 
         if prefetch_queue_depth is None:
-            prefetch_queue_depth = self._prefetch_queue_depth or 1
+            prefetch_queue_depth = self._prefetch_queue_depth
         elif self._prefetch_queue_depth is not None:
             raise ValueError(
-                        "The argument ``prefetch_queue_depth`` already specified in constructor.")
+                "The argument ``prefetch_queue_depth`` already specified in constructor.")
 
         if parallel is None:
             parallel = self._parallel or False
@@ -491,18 +491,24 @@ Keyword Args
             raise ValueError("The argument ``no_copy`` already specified in constructor.")
 
         if parallel:
+            if prefetch_queue_depth is None:
+                prefetch_queue_depth = 1
             if no_copy is None:
                 no_copy = True
             if not no_copy:
-                raise ValueError(
-                    "The argument ``no_copy`` cannot be specified to False when used with ``parallel=True``.")
+                raise ValueError("The argument ``no_copy`` cannot be specified to False " +
+                    " when used with ``parallel=True``.")
             if batch:
-                raise ValueError(
-                    "ExternalSource can be run in parallel only in per-sample (``batch=False``) mode.")
+                raise ValueError("ExternalSource can be run in parallel only in per-sample " +
+                    "(``batch=False``) mode.")
             if prefetch_queue_depth < 1:
                 raise ValueError(
                     "``prefetch_queue_depth`` must be a positive integer, got {}.".format(
                         prefetch_queue_depth))
+        else:
+            if prefetch_queue_depth is not None:
+                raise ValueError("The argument `prefetch_queue_depth` is valid only for " +
+                    "parallel external sources (when ``parallel`` is True).")
 
         if self._layout is not None:
             if layout is not None:
@@ -528,12 +534,18 @@ Keyword Args
         if name is not None and self._num_outputs is not None:
             raise RuntimeError("``num_outputs`` is not compatible with named ``ExternalSource``.")
 
+        group_common_kwargs = {
+            'cuda_stream': cuda_stream,
+            'use_copy_kernel': use_copy_kernel,
+            'batch': batch,
+            'parallel': parallel,
+            'prefetch_queue_depth': prefetch_queue_depth,
+        }
+
         if self._num_outputs is not None:
             outputs = []
             kwargs = {"no_copy": no_copy}
-            group = _ExternalSourceGroup(
-                callback, True, cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel,
-                batch=batch, parallel=parallel, prefetch_queue_depth=prefetch_queue_depth)
+            group = _ExternalSourceGroup(callback, True, **group_common_kwargs)
             for i in range(self._num_outputs):
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
@@ -561,9 +573,7 @@ Keyword Args
             op_instance._callback = callback
             op_instance._output_index = None
             op_instance._group = _ExternalSourceGroup(
-                callback, False, [op_instance],
-                cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch,
-                parallel=parallel, prefetch_queue_depth=prefetch_queue_depth)
+                callback, False, [op_instance], **group_common_kwargs)
             op_instance._layout = layout
             op_instance.generate_outputs()
 

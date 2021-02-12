@@ -22,13 +22,13 @@
 #include <exception>
 
 #include "dali/core/format.h"
-#include "dali/util/shared_mem.h"
+#include "dali/core/os/shared_mem.h"
 
 namespace dali {
 
 namespace detail {
 
-bool dir_exists(const char * str) {
+bool dir_exists(const char *str) {
   struct stat sb;
   if (stat(str, &sb) == -1) {
     return false;
@@ -38,7 +38,6 @@ bool dir_exists(const char * str) {
 
 }  // namespace detail
 
-namespace python {
 
 ShmHandle ShmHandle::CreateHandle() {
   // Abstract away the fact that shm_open requires filename.
@@ -162,5 +161,4 @@ void SharedMem::close() {
   }
 }
 
-}  // namespace python
 }  // namespace dali

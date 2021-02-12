@@ -12,18 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_SHARED_MEM_H_
-#define DALI_UTIL_SHARED_MEM_H_
+#ifndef DALI_CORE_OS_SHARED_MEM_H_
+#define DALI_CORE_OS_SHARED_MEM_H_
 
 #include <stdint.h>
 #include <memory>
+#include <string>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/unique_handle.h"
 
 namespace dali {
-namespace python {
-
 
 #if defined(__unix__)
 using shm_handle_t = int;
@@ -142,7 +141,6 @@ class DLL_PUBLIC SharedMem {
   MemoryMapping memory_mapping_;
 };
 
-}  // namespace python
 }  // namespace dali
 
-#endif  // DALI_UTIL_SHARED_MEM_H_
+#endif  // DALI_CORE_OS_SHARED_MEM_H_
