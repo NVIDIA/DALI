@@ -1,6 +1,6 @@
 .. _mathematical expressions:
 
-Mathematical expressions
+Mathematical Expressions
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 DALI allows you to use regular Python arithmetic operations and other mathematical functions in

@@ -191,7 +191,7 @@ To address these challenges, use the ``reader_name`` parameter and allow the ite
 handle the details.
 
 
-Pipeline run methods
+Pipeline Run Methods
 ====================
 
 DALI pipeline can be run in one of the following ways:

@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-NVIDIA DALI documentation
+NVIDIA DALI Documentation
 =========================
 
 .. ifconfig:: "dev" in release
@@ -24,7 +24,7 @@ This library is open sourced and it is available in the `NVIDIA GitHub repositor
 .. toctree::
    :hidden:
 
-   Documentation home <self>
+   Documentation Home <self>
 
 .. toctree::
    :maxdepth: 1
@@ -65,7 +65,7 @@ This library is open sourced and it is available in the `NVIDIA GitHub repositor
    Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes/index.html>
    GitHub <https://github.com/NVIDIA/DALI>
 
-Indices and tables
+Indices and Tables
 ==================
 
 * :ref:`genindex`

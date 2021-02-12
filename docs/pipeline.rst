@@ -17,7 +17,7 @@ There are two ways to define a DALI pipelines:
    :members:
    :special-members: __enter__, __exit__
 
-Data processing graphs
+Data Processing Graphs
 ----------------------
 
 DALI pipeline is represented as a graph of operations. There are two kinds of nodes in the graph:
@@ -48,7 +48,7 @@ The resulting graph is:
 
 .. image:: images/two_readers.svg
 
-Current pipeline
+Current Pipeline
 ----------------
 
 Subgraphs that do not contribute to the pipeline output are automatically pruned.

@@ -1,4 +1,4 @@
-DL Framework plugins
+DL Framework Plugins
 ====================
 
 .. toctree::
