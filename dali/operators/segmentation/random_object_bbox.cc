@@ -104,9 +104,9 @@ Possible choices are::
 
 bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorkspace &ws) {
   out_descs.resize(spec_.NumOutput());
-  auto in_shape = ws.InputRef<CPUBackend>(0).shape();
-  int ndim = in_shape.sample_dim();
-  int N = in_shape.num_samples();
+  auto &input = ws.InputRef<CPUBackend>(0);
+  int ndim = input.sample_dim();
+  int N = input.ntensor();
 
   DALI_ENFORCE(N == 0 || (ndim >= 1 && ndim <= 6),
       make_string("Unsuported number of dimensions ", ndim, "; must be 1..6"));
@@ -399,12 +399,11 @@ bool RandomObjectBBox::PickForegroundBox(SampleContext &context) {
 
 void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
-  const auto &in_shape = input.shape();
-  int N = in_shape.num_samples();
+  int N = input.ntensor();
   if (N == 0)
     return;
 
-  int ndim = in_shape.sample_dim();
+  int ndim = input.sample_dim();
   auto &tp = ws.GetThreadPool();
 
   OutListCPU<int, 1> out1 = view<int, 1>(ws.OutputRef<CPUBackend>(0));
@@ -424,7 +423,7 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
   for (int i = 0; i < N; i++) {
     bool fg = foreground(rngs_[i]) < foreground_prob_[i].data[0];
     if (!fg) {
-      StoreBox(out1, out2, format_, i, default_anchor, in_shape[i]);
+      StoreBox(out1, out2, format_, i, default_anchor, input.tensor_shape(i));
       if (HasClassLabelOutput()) {
         SampleContext &ctx = contexts_[0];
         GetBgFgAndWeights(ctx.classes, ctx.weights, ctx.background, i);
@@ -443,12 +442,12 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
           StoreBox(out1, out2, format_, i, ctx.selected_box);
         } else {
           assert(ctx.class_label == ctx.background);
-          StoreBox(out1, out2, format_, i, default_anchor, in_shape[i]);
+          StoreBox(out1, out2, format_, i, default_anchor, input.tensor_shape(i));
         }
 
         if (HasClassLabelOutput())
           class_label_out.data[i][0] = ctx.class_label;
-      }, in_shape.tensor_size(i));
+      }, input.tensor_shape(i).num_elements());
     }
   }
   tp.RunAll();
