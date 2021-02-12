@@ -79,15 +79,16 @@ fname_with_sha256() {
 make_wheel_record() {
     FPATH=$1
     RECORD_FILE=$2
+    TMPDIR=$3
     if echo $FPATH | grep RECORD >/dev/null 2>&1; then
     # if the RECORD file, then
     result="$FPATH,,"
     else
     HASH=$(openssl dgst -sha256 -binary $FPATH | openssl base64 | sed -e 's/+/-/g' | sed -e 's/\//_/g' | sed -e 's/=//g')
     FSIZE=$(ls -nl $FPATH | awk '{print $5}')
-    retult="$FPATH,sha256=$HASH,$FSIZE"
+    result="$FPATH,sha256=$HASH,$FSIZE"
     fi
-    flock /tmp/dali_rec.lock echo $retult>>$RECORD_FILE
+    flock $TMPDIR/dali_rec.lock echo $result>>$RECORD_FILE
 }
 
 DEPS_LIST=(
@@ -135,7 +136,7 @@ copy_and_patch() {
     cp $filepath $TMPDIR/$patchedpath
 
     echo "Patching DT_SONAME field in $patchedpath"
-    patchelf --set-soname $patchedname $TMPDIR/$patchedpath
+    patchelf --set-soname $patchedname $TMPDIR/$patchedpath &
 }
 
 echo "Patching DT_SONAMEs..."
@@ -232,7 +233,7 @@ while IFS=  read -r -d $'\0'; do
 done < <(find * -type f -print0)
 for ((i=0;i<${#rec_list[@]};++i)); do
     FNAME=${rec_list[i]}
-   make_wheel_record $FNAME $RECORD_FILE &
+   make_wheel_record $FNAME $RECORD_FILE $TMPDIR &
 done
 wait
 echo "$RECORD_FILE,," >> $RECORD_FILE
