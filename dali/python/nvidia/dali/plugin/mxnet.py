@@ -198,9 +198,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
     prepare_first_batch : bool, optional, default = True
-                Whether DALI should buffer the first batch right after the creation so when it is
-                prompted for the data have one batch already prepared
-
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so when it is prompted for the data have one batch already prepared
     Example
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
@@ -241,15 +240,14 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             "output_names in output_map should be distinct"
         self.output_map = output_map
 
-        _DALIMXNetIteratorBase.__init__(self,
-                                        pipelines,
-                                        size,
-                                        reader_name,
-                                        fill_last_batch,
-                                        last_batch_padded,
-                                        auto_reset,
-                                        last_batch_policy,
-                                        prepare_first_batch=prepare_first_batch)
+        super().__init__(pipelines,
+                         size,
+                         reader_name,
+                         fill_last_batch,
+                         last_batch_padded,
+                         auto_reset,
+                         last_batch_policy,
+                         prepare_first_batch=prepare_first_batch)
         self._squeeze_labels = squeeze_labels
         self._dynamic_shape = dynamic_shape
         # Use double-buffering of data batches
@@ -266,10 +264,13 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
 
     def __getattr__(self, key):
+        # these attributes are required by MXNet thus DALI needs to provide them
         if key == 'provide_data' or key == 'provide_label':
             # obtain the first batch to populate the metadata
             try:
                 self._first_batch = DALIGenericIterator.__next__(self)
+                # this entries should be there thanks to the above call
+                return self.__dict__[key]
             except StopIteration:
                 assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
         raise AttributeError
@@ -486,8 +487,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
     prepare_first_batch : bool, optional, default = True
-                Whether DALI should buffer the first batch right after the creation so when it is
-                prompted for the data have one batch already prepared
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so when it is prompted for the data have one batch already prepared
 
     Example
     -------
@@ -626,8 +627,8 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
     prepare_first_batch : bool, optional, default = True
-                Whether DALI should buffer the first batch right after the creation so when it is
-                prompted for the data have one batch already prepared
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so when it is prompted for the data have one batch already prepared
 
     Example
     -------

@@ -97,8 +97,8 @@ class _DaliBaseIterator(object):
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
     prepare_first_batch : bool, optional, default = True
-                Whether DALI should buffer the first batch right after the creation so when it is
-                prompted for the data have one batch already prepared
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so when it is prompted for the data have one batch already prepared
 
     Example
     -------
@@ -124,7 +124,7 @@ class _DaliBaseIterator(object):
                  fill_last_batch=None,
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL,
-                 prepare_first_batch = True):
+                 prepare_first_batch=True):
 
         assert pipelines is not None, "Number of provided pipelines has to be at least 1"
         if not isinstance(pipelines, list):

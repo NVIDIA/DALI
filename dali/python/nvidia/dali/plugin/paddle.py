@@ -189,8 +189,8 @@ class DALIGenericIterator(_DaliBaseIterator):
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
     prepare_first_batch : bool, optional, default = True
-                Whether DALI should buffer the first batch right after the creation so when it is
-                prompted for the data have one batch already prepared
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so when it is prompted for the data have one batch already prepared
 
     Example
     -------
@@ -448,8 +448,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
     prepare_first_batch : bool, optional, default = True
-                Whether DALI should buffer the first batch right after the creation so when it is
-                prompted for the data have one batch already prepared
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so when it is prompted for the data have one batch already prepared
 
     Example
     -------
