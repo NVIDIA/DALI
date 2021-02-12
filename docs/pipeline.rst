@@ -12,7 +12,7 @@ data processing graph and the execution engine.
 
 You can define a DALI Pipeline in the following ways:
 
-#. by implementing a function that uses DALI's ``Operators`` inside and decorating it with the
+#. by implementing a function that uses DALI operators inside and decorating it with the
 :meth:`pipeline_def` decorator
 #. by instantiating :class:`Pipeline` object directly, building the graph and setting the pipeline
 outputs with :meth:`Pipeline.set_outputs`
