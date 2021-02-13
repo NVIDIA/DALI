@@ -94,15 +94,15 @@ void MultiPasteCPU::RunImplExplicitlyTyped(workspace_t<CPUBackend> &ws) {
   auto in_view = view<const InputType, 3>(images);
   auto out_view = view<OutputType, 3>(output);
   for (int i = 0; i < batch_size; i++) {
-  auto paste_count = in_idx_[i].shape[0];
-  memset(out_view[i].data, 0, out_view[i].num_elements() * sizeof(OutputType));
+    auto paste_count = in_idx_[i].shape[0];
+    memset(out_view[i].data, 0, out_view[i].num_elements() * sizeof(OutputType));
 
-  if (no_intersections_[i]) {
-    for (int iter = 0; iter < paste_count; iter++) {
-      int from_sample = in_idx_[i].data[iter];
-      int to_sample = i;
+    if (no_intersections_[i]) {
+      for (int iter = 0; iter < paste_count; iter++) {
+        int from_sample = in_idx_[i].data[iter];
+        int to_sample = i;
 
-      tp.AddWork(
+        tp.AddWork(
           [&, i, iter, from_sample, to_sample, in_view, out_view](int thread_id) {
             kernels::KernelContext ctx;
             auto tvin = in_view[from_sample];
