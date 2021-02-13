@@ -80,70 +80,70 @@ bool MultiPasteCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template<typename InputType, typename OutputType>
 void MultiPasteCPU::RunImplExplicitlyTyped(workspace_t<CPUBackend> &ws) {
-    const auto &images = ws.template InputRef<CPUBackend>(0);
-    auto &output = ws.template OutputRef<CPUBackend>(0);
+  const auto &images = ws.template InputRef<CPUBackend>(0);
+  auto &output = ws.template OutputRef<CPUBackend>(0);
 
-    output.SetLayout(images.GetLayout());
-    auto out_shape = output.shape();
+  output.SetLayout(images.GetLayout());
+  auto out_shape = output.shape();
 
-    auto& tp = ws.GetThreadPool();
+  auto& tp = ws.GetThreadPool();
 
-    auto batch_size = output.shape().num_samples();
+  auto batch_size = output.shape().num_samples();
 
-    using Kernel = kernels::PasteCPU<OutputType, InputType>;
-    auto in_view = view<const InputType, 3>(images);
-    auto out_view = view<OutputType, 3>(output);
-    for (int i = 0; i < batch_size; i++) {
-        auto paste_count = in_idx_[i].shape[0];
-        memset(out_view[i].data, 0, out_view[i].num_elements() * sizeof(OutputType));
+  using Kernel = kernels::PasteCPU<OutputType, InputType>;
+  auto in_view = view<const InputType, 3>(images);
+  auto out_view = view<OutputType, 3>(output);
+  for (int i = 0; i < batch_size; i++) {
+  auto paste_count = in_idx_[i].shape[0];
+  memset(out_view[i].data, 0, out_view[i].num_elements() * sizeof(OutputType));
 
-        if (no_intersections_[i]) {
+  if (no_intersections_[i]) {
+    for (int iter = 0; iter < paste_count; iter++) {
+      int from_sample = in_idx_[i].data[iter];
+      int to_sample = i;
+
+      tp.AddWork(
+          [&, i, iter, from_sample, to_sample, in_view, out_view](int thread_id) {
+            kernels::KernelContext ctx;
+            auto tvin = in_view[from_sample];
+            auto tvout = out_view[to_sample];
+
+            auto in_anchor_view = GetInAnchors(i, iter);
+            auto in_shape_view = GetShape(i, iter, Coords(
+                    raw_input_size_mem_.data() + 2 * from_sample,
+                    dali::TensorShape<>(2)));
+            auto out_anchor_view = GetOutAnchors(i, iter);
+            kernel_manager_.Run<Kernel>(
+                    thread_id, to_sample, ctx, tvout, tvin,
+                    in_anchor_view, in_shape_view, out_anchor_view);
+          },
+          out_shape.tensor_size(to_sample));
+      }
+    } else {
+      tp.AddWork(
+          [&, i, paste_count, in_view, out_view](int thread_id) {
             for (int iter = 0; iter < paste_count; iter++) {
-                int from_sample = in_idx_[i].data[iter];
-                int to_sample = i;
+              int from_sample = in_idx_[i].data[iter];
+              int to_sample = i;
 
-                tp.AddWork(
-                        [&, i, iter, from_sample, to_sample, in_view, out_view](int thread_id) {
-                            kernels::KernelContext ctx;
-                            auto tvin = in_view[from_sample];
-                            auto tvout = out_view[to_sample];
+              kernels::KernelContext ctx;
+              auto tvin = in_view[from_sample];
+              auto tvout = out_view[to_sample];
 
-                            auto in_anchor_view = GetInAnchors(i, iter);
-                            auto in_shape_view = GetShape(i, iter, Coords(
-                                    raw_input_size_mem_.data() + 2 * from_sample,
-                                    dali::TensorShape<>(2)));
-                            auto out_anchor_view = GetOutAnchors(i, iter);
-                            kernel_manager_.Run<Kernel>(
-                                    thread_id, to_sample, ctx, tvout, tvin,
-                                    in_anchor_view, in_shape_view, out_anchor_view);
-                        },
-                        out_shape.tensor_size(to_sample));
+              auto in_anchor_view = GetInAnchors(i, iter);
+              auto in_shape_view = GetShape(i, iter, Coords(
+                      raw_input_size_mem_.data() + 2 * from_sample,
+                      dali::TensorShape<>(2)));
+              auto out_anchor_view = GetOutAnchors(i, iter);
+              kernel_manager_.Run<Kernel>(
+                      thread_id, to_sample, ctx, tvout, tvin,
+                      in_anchor_view, in_shape_view, out_anchor_view);
             }
-        } else {
-            tp.AddWork(
-                    [&, i, paste_count, in_view, out_view](int thread_id) {
-                        for (int iter = 0; iter < paste_count; iter++) {
-                            int from_sample = in_idx_[i].data[iter];
-                            int to_sample = i;
-
-                            kernels::KernelContext ctx;
-                            auto tvin = in_view[from_sample];
-                            auto tvout = out_view[to_sample];
-
-                            auto in_anchor_view = GetInAnchors(i, iter);
-                            auto in_shape_view = GetShape(i, iter, Coords(
-                                    raw_input_size_mem_.data() + 2 * from_sample,
-                                    dali::TensorShape<>(2)));
-                            auto out_anchor_view = GetOutAnchors(i, iter);
-                            kernel_manager_.Run<Kernel>(
-                                    thread_id, to_sample, ctx, tvout, tvin,
-                                    in_anchor_view, in_shape_view, out_anchor_view);
-                        }
-                    },
-                    paste_count * out_shape.tensor_size(0));
-        }
+          },
+          paste_count * out_shape.tensor_size(0));
     }
-    tp.RunAll();
+  }
+  tp.RunAll();
 }
 
 
