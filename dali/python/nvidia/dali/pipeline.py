@@ -129,7 +129,7 @@ Parameters
         if device_id is None:
             device_id = types.CPU_ONLY_DEVICE_ID
         self._device_id = device_id
-        self._seed = seed
+        self._seed = seed if seed is not None else -1
         self._exec_pipelined = exec_pipelined
         self._built = False
         self._first_iter = True
