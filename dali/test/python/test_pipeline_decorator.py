@@ -21,9 +21,9 @@ import os
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
-N_ITER = 7
+N_ITER = 2
 
-max_batch_size = 16
+max_batch_size = 4
 num_threads = 4
 device_id = 0
 
@@ -32,7 +32,7 @@ def reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=max_batch_
     pipeline = Pipeline(ref_batch_size, num_threads, device_id)
     with pipeline:
         data, _ = fn.file_reader(file_root=images_dir)
-        img = fn.image_decoder(data, device="mixed")
+        img = fn.image_decoder(data)
         flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
         pipeline.set_outputs(flipped, img)
     return pipeline
@@ -42,7 +42,7 @@ def reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=max_batch_
 @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
 def pipeline_static(flip_vertical, flip_horizontal):
     data, _ = fn.file_reader(file_root=images_dir)
-    img = fn.image_decoder(data, device="mixed")
+    img = fn.image_decoder(data)
     flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
     return flipped, img
 
@@ -51,7 +51,7 @@ def pipeline_static(flip_vertical, flip_horizontal):
 @pipeline_def
 def pipeline_runtime(flip_vertical, flip_horizontal):
     data, _ = fn.file_reader(file_root=images_dir)
-    img = fn.image_decoder(data, device="mixed")
+    img = fn.image_decoder(data)
     flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
     return flipped, img
 
@@ -84,7 +84,7 @@ def test_pipeline_decorator():
         for hori in [0, 1]:
             yield test_pipeline_static, vert, hori
             yield test_pipeline_runtime, vert, hori
-            yield test_pipeline_override, vert, hori, 16
+            yield test_pipeline_override, vert, hori, 5
     yield test_pipeline_runtime, fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234)
     yield test_pipeline_static, fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234)
 
