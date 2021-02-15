@@ -85,7 +85,10 @@ consecutive 1-based labels are assigned.
 The sum of the weights doesn't have to be equal to 1 - if it isn't the weights will be
 normalized .)", nullptr, true)
   .AddOptionalArg<int>("k_largest", R"(If specified, the boxes are sorted by decreasing volume
-and only ``k_largest`` are considered.)",
+and only ``k_largest`` are considered.
+
+If ``ignore_class`` is True, ``k_largest`` referes to all boxes; otherwise it refers to the
+selected class.)",
     nullptr)
   .AddOptionalArg<vector<int>>("threshold", R"(Per-axis minimum size of the bounding boxes
 to return.
@@ -97,8 +100,8 @@ is returned.)", nullptr, true)
 
 Possible choices are::
   * "anchor_shape" (the default) - there are two outputs: anchor and shape
-  * "start_end" - there are two outputs - bounding box start and one-past-end coordinates
-  * "box" - there's one output that contains concatenated start and end coordinates
+  * "start_end" - there are two outputs: bounding box start and one-past-end coordinates
+  * "box" - there is one output that contains concatenated start and end coordinates
 )", "anchor_shape");
 
 
@@ -298,7 +301,7 @@ int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
   if (n <= 0)
     return -1;
 
-  if (k_largest_ > 0) {
+  if (k_largest_ > 0 && k_largest_ < n) {
     SmallVector<std::pair<int64_t, int>, 32> vol_idx;
     vol_idx.resize(n);
     for (int i = 0; i < n; i++) {
@@ -390,8 +393,8 @@ bool RandomObjectBBox::PickForegroundBox(
 
 bool RandomObjectBBox::PickForegroundBox(SampleContext &context) {
   bool ret = false;
-  TYPE_SWITCH(context.input->type().id(), type2id, input_type, INPUT_TYPES,
-    (ret = PickForegroundBox(context, view<const input_type>(*context.input));),
+  TYPE_SWITCH(context.input->type().id(), type2id, T, INPUT_TYPES,
+    (ret = PickForegroundBox(context, view<const T>(*context.input));),
     (DALI_FAIL(make_string("Unsupported input type: ", context.input->type().id())))
   );  // NOLINT
   return ret;
