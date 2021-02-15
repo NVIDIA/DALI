@@ -424,6 +424,19 @@ def test_seed():
             img_chw = img_chw_test
         assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
 
+def test_none_seed():
+    batch_size = 10
+    shape = (120, 60, 3)
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=None)
+    data = RandomDataIterator(batch_size, shape=shape, dtype=np.uint8)
+    with pipe:
+        input = fn.external_source(data, layout="HWC")
+        coin = fn.random.coin_flip(seed=None)
+        pipe.set_outputs(input, coin)
+    pipe.build()
+
+    result = pipe.run()
+
 def test_as_array():
     batch_size = 64
     class HybridPipe(Pipeline):
