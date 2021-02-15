@@ -425,17 +425,20 @@ def test_seed():
         assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
 
 def test_none_seed():
-    batch_size = 10
-    shape = (120, 60, 3)
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=None)
-    data = RandomDataIterator(batch_size, shape=shape, dtype=np.uint8)
-    with pipe:
-        input = fn.external_source(data, layout="HWC")
-        coin = fn.random.coin_flip(seed=None)
-        pipe.set_outputs(input, coin)
-    pipe.build()
+    batch_size = 60
 
-    result = pipe.run()
+    for i in range(50):
+        pipe = Pipeline(batch_size=batch_size, num_threads=2, device_id=0, seed=None)
+        with pipe:
+            coin = fn.random.uniform(range = (0.0,1.0))
+        pipe.set_outputs(coin)
+        pipe.build()
+        pipe_out = pipe.run()[0]
+        img_chw_test = pipe_out.as_array()
+        if i == 0:
+            img_chw = img_chw_test
+        else:
+            assert(np.sum(np.abs(img_chw - img_chw_test)) != 0)
 
 def test_as_array():
     batch_size = 64
