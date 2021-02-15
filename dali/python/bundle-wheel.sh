@@ -125,7 +125,7 @@ copy_and_patch() {
 
     if [[ ! -f "$filepath" ]]; then
         echo "Didn't find $filename, skipping..."
-        continue
+        return
     fi
     patchedname=$(fname_with_sha256 $filepath)
     patchedpath=$PKGNAME_PATH/.libs/$patchedname
