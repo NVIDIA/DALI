@@ -26,16 +26,16 @@ Prerequisites
   - |tf link|_ or later.
 
 
-NGC Containers
---------------
+DALI in NGC Containers
+----------------------
 
 DALI is preinstalled in the TensorFlow, PyTorch, and MXNet containers in versions 18.07 and
 later on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_.
 
 ----
 
-pip
----
+pip - Official Releases
+-----------------------
 
 
 nvidia-dali
@@ -94,7 +94,7 @@ Installing this package will install ``nvidia-dali-cudaXXX`` and its dependencie
   Therefore, installing the latest ``nvidia-dali-tf-plugin-cudaXXX``, will replace any older ``nvidia-dali-cudaXXX`` version already installed.
   To work with older versions of DALI, provide the version explicitly to the ``pip install`` command.
 
-pip (Nightly and weekly releases)
+pip - Nightly and Weekly Releases
 ---------------------------------
 
 .. note::
@@ -109,7 +109,7 @@ pip (Nightly and weekly releases)
   It is recommended to uninstall regular DALI and TensorFlow plugin before installing nightly or weekly
   builds as they are installed in the same path
 
-Nightly builds
+Nightly Builds
 ^^^^^^^^^^^^^^
 
 To access most recent nightly builds please use flowing release channel:
@@ -129,7 +129,7 @@ To access most recent nightly builds please use flowing release channel:
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly nvidia-dali-tf-plugin-nightly-cuda110
 
 
-Weekly builds
+Weekly Builds
 ^^^^^^^^^^^^^
 
 Also, there is a weekly release channel with more thorough testing. To access most recent weekly
@@ -141,8 +141,8 @@ builds please use the following release channel (available only for CUDA 11):
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly nvidia-dali-tf-plugin-weekly-cuda110
 
 
-pip (DALI 0.22 and lower)
--------------------------
+pip - Legacy releases
+---------------------
 
 For older versions of DALI (0.22 and lower), use the package `nvidia-dali`. The CUDA version can be selected by changing the pip index:
 

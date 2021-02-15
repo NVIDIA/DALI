@@ -185,9 +185,9 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.ops.ImageDecoderCrop` automatically disables hardware accelerated
-  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
-  :meth:`nvidia.dali.ops.Crop` operators instead.
+  :meth:`nvidia.dali.fn.image_decoder` automatically disables hardware accelerated
+  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.crop` operators instead.
 
 The output of the decoder is in *HWC* layout.
 
@@ -213,9 +213,9 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.ops.ImageDecoderRandomCrop` automatically disables hardware accelerated
-  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
-  :meth:`nvidia.dali.ops.RandomResizedCrop` operators instead.
+  :meth:`nvidia.dali.fn.image_decoder_random_crop` automatically disables hardware accelerated
+  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.random_crop` operators instead.
 
 The output of the decoder is in *HWC* layout.
 
@@ -257,7 +257,7 @@ and shape is incompatible with the named arguments specified above.
 The slice arguments should provide as many dimensions as specified by the ``axis_names`` or ``axes``
 arguments.
 
-By default, the :meth:`nvidia.dali.ops.ImageDecoderSlice` operator uses normalized coordinates
+By default, the :meth:`nvidia.dali.fn.image_decoder_slice` operator uses normalized coordinates
 and "WH" order for the slice arguments.
 
 When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
@@ -266,9 +266,9 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.ops.ImageDecoderSlice` automatically disables hardware accelerated decoding.
-  To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
-  :meth:`nvidia.dali.ops.Slice` operators instead.
+  :meth:`nvidia.dali.fn.image_decoder_slice` automatically disables hardware accelerated decoding.
+  To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.slice` operators instead.
 
 The output of the decoder is in the *HWC* layout.
 

@@ -493,7 +493,7 @@ device: string, optional, "cpu" or "gpu"
 
 class SampleInfo:
     """
-    Describes the indices of a sample requested from :class:`nvidia.dali.ops.ExternalSource`
+    Describes the indices of a sample requested from :meth:`nvidia.dali.fn.external_source`
 
     :ivar idx_in_epoch: 0-based index of the sample witin epoch
     :ivar idx_in_batch: 0-based index of the sample within batch

@@ -34,7 +34,7 @@ The video streams can be in most of the container file formats. FFmpeg is used t
 containers and returns a batch of sequences with shape ``(N, F, H, W, C)``, with N being
 the batch size, and F the number of frames in the sequence.
 
-This operator combines the features of :meth:`nvidia.dali.ops.VideoDecoder` and :meth:`nvidia.dali.ops.Resize`.
+This operator combines the features of :meth:`nvidia.dali.fn.video_reader` and :meth:`nvidia.dali.fn.resize`.
 
 .. note::
   The decoder supports only constant frame-rate videos.

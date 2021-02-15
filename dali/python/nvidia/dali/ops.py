@@ -79,7 +79,7 @@ Args
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
         elif extra_opt_args > 1:
             input_type_str = "TensorList"
-            input_name = f"input[{schema.MinNumInput()}..{schema.MaxNumInput()}]"
+            input_name = f"input[{schema.MinNumInput()}..{schema.MaxNumInput()-1}]"
             dox = f"This function accepts up to {extra_opt_args} optional positional inputs"
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
 
@@ -127,7 +127,7 @@ def _docstring_generator_main(cls):
         use_instead = schema.DeprecatedInFavorOf()
         ret += ".. warning::\n\n   This operator is now deprecated"
         if use_instead:
-            ret +=". Use :class:`" + use_instead + "` instead."
+            ret +=". Use :meth:`" + use_instead + "` instead."
         ret += "\n\n"
 
     ret += schema.Dox()

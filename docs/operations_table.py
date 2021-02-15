@@ -21,6 +21,9 @@ def to_fn_name(full_op_name):
     tokens[-1] = fn._to_snake_case(tokens[-1])
     return '.'.join(tokens)
 
+def to_fn_module(module_name):
+    return module_name.replace('.ops', '.fn')
+
 def name_sort(op_name):
     _, module, name = ops._process_op_name(op_name)
     return '.'.join(module + [name.upper()])
@@ -37,7 +40,7 @@ def longest_fn_string():
                 if m is None:
                     break
             if m is not None and hasattr(m, op_name):
-                fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = module_name.replace('.ops', '.fn'))
+                fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = to_fn_module(module_name))
                 if len(fn_string) > len(longest_str):
                     longest_str = fn_string
     return longest_str
@@ -65,7 +68,7 @@ def fn_to_op_table(out_filename):
                     break
             if m is not None and hasattr(m, op_name):
                 op_string = link_formatter.format(op = op_full_name, module = module_name)
-                fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = module_name.replace('.ops', '.fn'))
+                fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = to_fn_module(module_name))
         op_doc = formater.format(fn_string, op_string, op_name_max_len = op_name_max_len, c=' ')
         doc_table += op_doc
     doc_table += formater.format('', '', op_name_max_len = op_name_max_len, c='=')
@@ -105,7 +108,7 @@ def operations_table(out_filename):
                 if m is None:
                     break
             if m is not None and hasattr(m, op_name):
-                fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = module_name.replace('.ops', '.fn'))
+                fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = to_fn_module(module_name))
         op_doc = formater.format(fn_string, devices_str, short_descr, op_name_max_len = op_name_max_len, c=' ')
         doc_table += op_doc
     doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')
