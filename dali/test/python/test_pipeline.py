@@ -434,11 +434,11 @@ def test_none_seed():
         pipe.set_outputs(coin)
         pipe.build()
         pipe_out = pipe.run()[0]
-        img_chw_test = pipe_out.as_array()
+        test_out = pipe_out.as_array()
         if i == 0:
-            img_chw = img_chw_test
+            test_out_ref = test_out
         else:
-            assert(np.sum(np.abs(img_chw - img_chw_test)) != 0)
+            assert(np.sum(np.abs(test_out_ref - test_out)) != 0)
 
 def test_as_array():
     batch_size = 64
