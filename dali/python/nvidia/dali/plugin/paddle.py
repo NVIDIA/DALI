@@ -190,7 +190,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 It is overwritten when `reader_name` argument is provided
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
-                so when it is prompted for the data have one batch already prepared
+                so one batch is already prepared when the iterator is prompted for the data
 
     Example
     -------
@@ -449,7 +449,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                 It is overwritten when `reader_name` argument is provided
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
-                so when it is prompted for the data have one batch already prepared
+                so one batch is already prepared when the iterator is prompted for the data
 
     Example
     -------

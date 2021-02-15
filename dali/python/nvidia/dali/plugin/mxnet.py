@@ -199,7 +199,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 It is overwritten when `reader_name` argument is provided
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
-                so when it is prompted for the data have one batch already prepared
+                so one batch is already prepared when the iterator is prompted for the data
     Example
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
@@ -488,7 +488,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                 It is overwritten when `reader_name` argument is provided
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
-                so when it is prompted for the data have one batch already prepared
+                so one batch is already prepared when the iterator is prompted for the data
 
     Example
     -------
@@ -628,7 +628,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 It is overwritten when `reader_name` argument is provided
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
-                so when it is prompted for the data have one batch already prepared
+                so one batch is already prepared when the iterator is prompted for the data
 
     Example
     -------
