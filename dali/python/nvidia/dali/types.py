@@ -141,7 +141,7 @@ class ScalarConstant(object):
 
 Wrapper for a constant value that can be used in DALI :ref:`mathematical expressions`
 and applied element-wise to the results of DALI Operators representing Tensors in
-:meth:`nvidia.dali.pipeline.Pipeline.define_graph` step.
+:meth:`nvidia.dali.Pipeline.define_graph` step.
 
 ScalarConstant indicates what type should the value be treated as with respect
 to type promotions. The actual values passed to the backend from python
@@ -445,7 +445,7 @@ def _is_scalar_value(value):
 
 def Constant(value, dtype = None, shape = None, layout = None, device = None, **kwargs):
     """Wraps a constant value which can then be used in
-:meth:`nvidia.dali.pipeline.Pipeline.define_graph` pipeline definition step.
+:meth:`nvidia.dali.Pipeline.define_graph` pipeline definition step.
 
 If the `value` argument is a scalar and neither `shape`, `layout` nor
 `device` is provided, the function will return a :class:`ScalarConstant`

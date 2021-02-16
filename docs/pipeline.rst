@@ -3,20 +3,17 @@
 Pipeline
 ========
 
+.. currentmodule:: nvidia.dali
+
 In DALI, any data processing task has a central object called Pipeline. Pipeline object is an
 instance of :class:`nvidia.dali.Pipeline` or a derived class. Pipeline encapsulates the
 data processing graph and the execution engine.
 
 You can define a DALI Pipeline in the following ways:
 
-#. by implementing a function that uses DALI operators inside and decorating it with the
-:meth:`pipeline_def` decorator
-#. by instantiating :class:`Pipeline` object directly, building the graph and setting the pipeline
-outputs with :meth:`Pipeline.set_outputs`
-#. by inheriting from :class:`Pipeline` class and overriding :meth:`Pipeline.define_graph`
-(this is the legacy way of defining DALI Pipelines)
-
-.. currentmodule:: nvidia.dali
+#. By implementing a function that uses DALI operators inside and decorating it with the :meth:`pipeline_def` decorator.
+#. By instantiating :class:`Pipeline` object directly, building the graph and setting the pipeline outputs with :meth:`Pipeline.set_outputs`.
+#. By inheriting from :class:`Pipeline` class and overriding :meth:`Pipeline.define_graph` (this is the legacy way of defining DALI Pipelines).
 
 .. autoclass:: Pipeline
    :members:

@@ -106,7 +106,7 @@ To determine the amount of memory output that each operator needs, complete the 
 
 1) Create the pipeline by setting ``enable_memory_stats`` to True.
 2) Query the pipeline for the operator's output memory statistics by calling the
-   :meth:`nvidia.dali.pipeline.Pipeline.executor_statistics` method on the pipeline.
+   :meth:`nvidia.dali.Pipeline.executor_statistics` method on the pipeline.
 
 The ``max_real_memory_size`` value represents the biggest tensor in the batch for the outputs that
 allocate memory per sample and not for the entire batch at the time or the average tensor size when
