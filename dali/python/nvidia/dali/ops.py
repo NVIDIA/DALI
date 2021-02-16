@@ -67,7 +67,7 @@ Args
         for i in range(schema.MinNumInput()):
             input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
             dox = "Input to the operator."
-            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "data"
+            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "input"
             ret += _numpydoc_formatter(input_name, input_type_str, dox, False) + "\n"
 
         extra_opt_args = schema.MaxNumInput() - schema.MinNumInput()
@@ -75,7 +75,7 @@ Args
             i = schema.MinNumInput()
             input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
             dox = "Input to the operator."
-            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "data"
+            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "input"
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
         elif extra_opt_args > 1:
             input_type_str = "TensorList"
