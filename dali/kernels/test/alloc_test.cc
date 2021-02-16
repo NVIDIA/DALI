@@ -99,6 +99,25 @@ TEST(KernelAlloc, Shared) {
   }
 }
 
+TEST(KernelAllocFail, Host) {
+  size_t size = static_cast<size_t>(-1);
+  EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::Host, size), std::bad_alloc);
+  EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::Host, size), std::bad_alloc);
+}
+
+TEST(KernelAllocFail, Pinned) {
+  (void)cudaGetLastError();
+  size_t size = static_cast<size_t>(-1);
+  EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::Pinned, size), CUDABadAlloc);
+  EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::Pinned, size), CUDABadAlloc);
+}
+
+TEST(KernelAllocFail, GPU) {
+  (void)cudaGetLastError();
+  size_t size = static_cast<size_t>(-1);
+  EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::GPU, size), CUDABadAlloc);
+  EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::GPU, size), CUDABadAlloc);
+}
 
 }  // namespace kernels
 }  // namespace dali

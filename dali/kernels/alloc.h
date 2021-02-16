@@ -20,6 +20,7 @@
 #include <type_traits>
 #include "dali/kernels/alloc_type.h"
 #include "dali/core/api_helper.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 namespace kernels {
@@ -27,6 +28,7 @@ namespace memory {
 
 DLL_PUBLIC void *Allocate(AllocType type, size_t size) noexcept;
 DLL_PUBLIC void Deallocate(AllocType type, void *mem, int device) noexcept;
+DLL_PUBLIC void ThrowMemoryError(AllocType type, size_t requested_size);
 
 struct Deleter {
   int device;
@@ -40,7 +42,7 @@ std::shared_ptr<T> alloc_shared(AllocType type, size_t count) {
   static_assert(std::is_pod<T>::value, "Only POD types are supported");
   void *mem = Allocate(type, count*sizeof(T));
   if (!mem)
-    throw std::bad_alloc();
+    ThrowMemoryError(type, count*sizeof(T));
 
   // From cppreference: if additional storage cannot be allocated
   // deleter will be called on the pointer passed to shared_ptr constructor.
@@ -55,7 +57,7 @@ KernelUniquePtr<T> alloc_unique(AllocType type, size_t count) {
   static_assert(std::is_pod<T>::value, "Only POD types are supported");
   void *mem = Allocate(type, count*sizeof(T));
   if (!mem)
-    throw std::bad_alloc();
+    ThrowMemoryError(type, count*sizeof(T));
   return { reinterpret_cast<T*>(mem), GetDeleter(type) };
 }
 

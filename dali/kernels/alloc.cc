@@ -23,6 +23,16 @@ namespace dali {
 namespace kernels {
 namespace memory {
 
+void ThrowMemoryError(AllocType type, size_t requested_size) {
+  if (type == AllocType::Pinned) {
+    throw dali::CUDABadAlloc(requested_size, true);
+  } else if (type == AllocType::GPU) {
+    throw dali::CUDABadAlloc(requested_size, false);
+  } else {
+    throw std::bad_alloc();
+  }
+}
+
 template <AllocType>
 struct Allocator;
 

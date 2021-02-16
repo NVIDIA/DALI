@@ -156,7 +156,7 @@ struct DeviceBuffer {
     T *ptr = nullptr;
     CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&ptr), count * sizeof(T)));
     if (!ptr)
-      throw std::bad_alloc();
+      throw dali::CUDABadAlloc(count * sizeof(T));
     return { ptr, [](T* ptr) { cudaFree(ptr); } };
   }
 
