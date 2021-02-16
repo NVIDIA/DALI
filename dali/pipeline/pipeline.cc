@@ -505,6 +505,9 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
       }
       outputs.push_back("contiguous_" + name + "_" + device);
     } else if (device == "gpu") {
+      DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID,
+                   make_string("Cannot make a gpu output for ", name, " operator,"
+                   " device_id should not be equal CPU_ONLY_DEVICE_ID."));
       if (!it->second.has_gpu) {
         DALI_ENFORCE(it->second.has_cpu, "Output '" + name +
             "' exists on neither cpu or gpu, internal error");
