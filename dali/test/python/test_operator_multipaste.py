@@ -204,7 +204,7 @@ def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, n
     result, input = pipe.run()
     if SHOW_IMAGES:
         show_images(bs, result)
-    manual_verify(bs, input, result, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, [out_size + (3,)] * bs)
+    manual_verify(bs, input, result, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, [out_size + (3,)] * bs, out_dtype)
 
 
 def test_operator_multipaste():
