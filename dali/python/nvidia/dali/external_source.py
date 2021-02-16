@@ -106,7 +106,6 @@ class _ExternalSourceGroup(object):
         try:
             if self.batch:
                 callback_out = self.callback(*self.callback_args(None))
-                batch_size = len(callback_out[0]) if self.is_multioutput else len(callback_out)
             else:
                 callback_out = [self.callback(*self.callback_args(i)) for i in range(batch_size)]
             self.current_sample += batch_size
@@ -119,8 +118,6 @@ class _ExternalSourceGroup(object):
             for op in self.instances:
                 if self.batch:
                     data = callback_out[op._output_index]
-                    if len(data) != batch_size:
-                        raise RuntimeError("External source returned outputs with different batch sizes.")
                 else:
                     # extract a single output
                     data = [callback_out[i][op._output_index] for i in range(batch_size)]
@@ -129,7 +126,6 @@ class _ExternalSourceGroup(object):
             data = callback_out
             op = self.instances[0]
             pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
-        return batch_size
 
 def _is_generator_function(x):
     """Checks whether x is a generator function or a callable object

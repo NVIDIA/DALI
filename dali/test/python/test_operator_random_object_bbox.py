@@ -166,9 +166,9 @@ def generate_data(shape, num_classes, blobs_per_class):
 
     return label
 
-def batch_generator(max_batch_size, ndim, dtype):
+def batch_generator(batch_size, ndim, dtype):
     def gen():
-        batch_size = np.random.randint(1, max_batch_size+1)
+        # batch_size = np.random.randint(1, max_batch_size+1)
         batch = []
         for i in range(batch_size):
             shape = list(np.random.randint(5, 11, [ndim]))

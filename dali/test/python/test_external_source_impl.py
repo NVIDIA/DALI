@@ -22,7 +22,6 @@ from nose.tools import assert_raises
 from test_utils import check_output
 import random
 from collections import Iterable
-import itertools
 datapy = np
 
 make_array = np.array
@@ -700,26 +699,3 @@ def test_iter_setup_zero_copy():
                     # make it -5 as -1 sometimes works, sometimes not due to being close to the limit
                     for additional_num_keep_samples in [-4, 0, 1]:
                         yield _test_iter_setup_zero_copy, use_fn_api, by_name, as_tensor, device, additional_num_keep_samples
-
-def test_external_source_variable_batch_size():
-    batch_data = [
-        [[1,2,3],[4,5]],
-        [[7,8,9,10],[11],[12],[13],[14]],
-        [[15,16]]
-    ]
-    batch_data = [[np.array(x) for x in b] for b in batch_data]
-    sample_data = list(itertools.chain(*batch_data))
-    pipe = Pipeline(5, 3, 0)
-    with pipe:
-        ext_batch = fn.external_source(batch_data, cycle="quiet")
-        ext_sample = fn.external_source(sample_data, cycle="quiet", batch=False)
-        pipe.set_outputs(ext_batch, ext_sample)
-    pipe.build()
-    for epoch in range(2):
-        for i in range(len(batch_data)):
-            batch, sample = pipe.run()
-            N = len(batch_data[i])
-            assert len(batch) == N
-            assert len(sample) == N
-            check_output((batch,), batch_data[i])
-            check_output((sample,), batch_data[i])
