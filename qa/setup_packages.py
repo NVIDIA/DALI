@@ -365,8 +365,8 @@ all_packages = [PlainPackage("opencv-python", ["4.4.0.42"]),
                               "2.3.1"],
                           "110" : [
                               PckgVer("1.15.4",  python_max_ver="3.7"),
-                              "2.2.1",
                               "2.3.1",
+                              "2.4.1",
                               PckgVer("1.15.4+nv20.12", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow")]
                         }),
                 CudaHttpPackage("torch",
