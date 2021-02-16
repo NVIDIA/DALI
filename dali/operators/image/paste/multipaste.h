@@ -28,6 +28,7 @@
 #include "dali/core/format.h"
 #include "dali/util/crop_window.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/kernels/imgproc/paste/paste_gpu_input.h"
 
 
 namespace dali {
@@ -220,6 +221,31 @@ class MultiPasteCPU : public MultiPasteOp<CPUBackend> {
  private:
   template<typename InputType, typename OutputType>
   void RunImplExplicitlyTyped(workspace_t<CPUBackend> &ws);
+};
+
+class MultiPasteGPU : public MultiPasteOp<GPUBackend> {
+ public:
+  explicit MultiPasteGPU(const OpSpec &spec) : MultiPasteOp(spec) {}
+
+  using Operator<GPUBackend>::RunImpl;
+
+  ~MultiPasteGPU() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(MultiPasteGPU);
+
+ protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
+
+  void RunImpl(workspace_t<GPUBackend> &ws) override;
+
+ private:
+  template<typename InputType, typename OutputType>
+  void RunImplExplicitlyTyped(workspace_t<GPUBackend> &ws);
+
+  void FillGPUInput(const workspace_t<GPUBackend> &ws);
+
+  vector<kernels::paste::GridCellInput<2>> grid_cells;
+  vector<kernels::paste::MultiPasteSampleInput<2>> samples;
 };
 
 }  // namespace dali
