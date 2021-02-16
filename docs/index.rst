@@ -58,7 +58,7 @@ This library is open sourced and it is available in the `NVIDIA GitHub repositor
    advanced_topics_performance_tuning
    advanced_topics_sharding
    advanced_topics_pipe_run
-   advanced_topics_c++_api
+   advanced_topics_experimental
    compilation
 
 .. toctree::

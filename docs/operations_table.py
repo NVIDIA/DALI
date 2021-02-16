@@ -10,6 +10,11 @@ ops_modules = {
     'nvidia.dali.plugin.pytorch': nvidia.dali.plugin.pytorch
 }
 
+# Some operators might have a different module for the fn wrapper
+module_mapping = {
+    'nvidia.dali.plugin.pytorch' : 'nvidia.dali.plugin.pytorch.fn'
+}
+
 cpu_ops = ops.cpu_ops()
 gpu_ops = ops.gpu_ops()
 mix_ops = ops.mixed_ops()
@@ -22,7 +27,10 @@ def to_fn_name(full_op_name):
     return '.'.join(tokens)
 
 def to_fn_module(module_name):
-    return module_name.replace('.ops', '.fn')
+    if module_name in module_mapping:
+        return module_mapping[module_name]
+    else:
+        return module_name.replace('.ops', '.fn')
 
 def name_sort(op_name):
     _, module, name = ops._process_op_name(op_name)

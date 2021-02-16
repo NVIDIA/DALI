@@ -1,3 +1,5 @@
+.. _pipeline:
+
 Pipeline
 ========
 
