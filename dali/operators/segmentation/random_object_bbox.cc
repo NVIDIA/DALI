@@ -165,8 +165,9 @@ void RandomObjectBBox::FindLabels(std::unordered_set<int> &labels, const T *data
 }
 
 
-template <typename T>
-void RandomObjectBBox::FindLabels(SampleContext &ctx, const TensorView<StorageCPU, const T> &in) {
+template <typename BlobLabel, typename T>
+void RandomObjectBBox::FindLabels(SampleContext<BlobLabel> &ctx,
+                                  const TensorView<StorageCPU, const T> &in) {
   ctx.labels.clear();
   int64_t N = in.num_elements();
   if (!N)
@@ -366,7 +367,8 @@ int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
   }
 }
 
-bool RandomObjectBBox::PickBlob(SampleContext &ctx, int nblobs) {
+template <typename BlobLabel>
+bool RandomObjectBBox::PickBlob(SampleContext<BlobLabel> &ctx, int nblobs) {
   if (!nblobs)
     return false;
 
@@ -380,7 +382,8 @@ bool RandomObjectBBox::PickBlob(SampleContext &ctx, int nblobs) {
       auto boxes = make_span(box_data, nblobs);
       {
         PROFILE_BLOCK("GetLabelBoundingBoxes")
-        GetLabelBoundingBoxes(boxes, ctx.blobs.to_static<static_ndim>(), -1, *ctx.thread_pool);
+        GetLabelBoundingBoxes(boxes, ctx.blobs.template to_static<static_ndim>(), -1,
+                              *ctx.thread_pool);
       }
       int box_idx = PickBox(boxes, ctx.sample_idx);
       if (box_idx >= 0) {
@@ -394,9 +397,9 @@ bool RandomObjectBBox::PickBlob(SampleContext &ctx, int nblobs) {
   return false;
 }
 
-template <typename T>
+template <typename BlobLabel, typename T>
 bool RandomObjectBBox::PickForegroundBox(
-      SampleContext &context, const InTensorCPU<T> &input) {
+      SampleContext<BlobLabel> &context, const InTensorCPU<T> &input) {
   GetBgFgAndWeights(context.classes, context.weights, context.background, context.sample_idx);
   context.class_label = context.background;
   auto &tp = *context.thread_pool;
@@ -449,7 +452,7 @@ bool RandomObjectBBox::PickForegroundBox(
       int nblobs;
       {
         PROFILE_BLOCK("LabelConnectedRegions")
-        nblobs = LabelConnectedRegions<int64_t, uint8_t, -1>(
+        nblobs = LabelConnectedRegions<BlobLabel, uint8_t, -1>(
             context.blobs, context.filtered, tp, -1, 0);
       }
 
@@ -466,13 +469,32 @@ bool RandomObjectBBox::PickForegroundBox(
   }
 }
 
-bool RandomObjectBBox::PickForegroundBox(SampleContext &context) {
+template <typename BlobLabel>
+bool RandomObjectBBox::PickForegroundBox(SampleContext<BlobLabel> &context) {
   bool ret = false;
   TYPE_SWITCH(context.input->type().id(), type2id, T, INPUT_TYPES,
     (ret = PickForegroundBox(context, view<const T>(*context.input));),
     (DALI_FAIL(make_string("Unsupported input type: ", context.input->type().id())))
   );  // NOLINT
   return ret;
+}
+
+void RandomObjectBBox::AllocateTempStorage(const TensorVector<CPUBackend> &input) {
+  int64_t max_blob_bytes = 0;
+  int64_t max_filtered_bytes = 0;
+  int N = input.ntensor();
+  for (int i = 0; i < N; i++) {
+    int64_t vol = input[i].size();
+    int label_size = vol > 0x80000000 ? 8 : 4;
+    int64_t blob_bytes = vol * label_size;
+    int64_t filtered_bytes = vol;  // * sizeof(uint8_t)
+    if (blob_bytes > max_blob_bytes)
+      max_blob_bytes = blob_bytes;
+    if (vol > max_filtered_bytes)
+      max_filtered_bytes = vol;
+  }
+  tmp_blob_storage_.reserve(max_blob_bytes);
+  tmp_filtered_storage_.reserve(max_filtered_bytes);
 }
 
 void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
@@ -483,6 +505,8 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
 
   int ndim = input.sample_dim();
   auto &tp = ws.GetThreadPool();
+
+  auto input_shape = input.shape();
 
   OutListCPU<int, 1> out1 = view<int, 1>(ws.OutputRef<CPUBackend>(0));
   OutListCPU<int, 1> out2;
@@ -495,8 +519,8 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
   TensorShape<> default_anchor;
   default_anchor.resize(ndim);
 
-  SampleContext &ctx = context_;
-  ctx.thread_pool = &tp;
+  default_context_.thread_pool = &tp;
+  huge_context_.thread_pool = &tp;
 
   std::uniform_real_distribution<> foreground(0, 1);
   for (int i = 0; i < N; i++) {
@@ -504,25 +528,30 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
     if (!fg) {
       StoreBox(out1, out2, format_, i, default_anchor, input.tensor_shape(i));
       if (HasClassLabelOutput()) {
+        auto &ctx = default_context_;
         GetBgFgAndWeights(ctx.classes, ctx.weights, ctx.background, i);
         class_label_out.data[i][0] = ctx.background;
       }
     } else {
-      ctx.Init(i, &input[i], &tp);
-      ctx.out1 = out1[i];
-      if (out2.num_samples() > 0)
-        ctx.out2 = out2[i];
+      auto blob_label = (input[i].size() > 0x80000000L) ? DALI_INT64 : DALI_INT32;
+      TYPE_SWITCH(blob_label, type2id, BlobLabel, (int32_t, int64_t), (
+        auto &ctx = GetContext(BlobLabel());
+        ctx.Init(i, &input[i], &tp, tmp_filtered_storage_, tmp_blob_storage_);
+        ctx.out1 = out1[i];
+        if (out2.num_samples() > 0)
+          ctx.out2 = out2[i];
 
-      if (PickForegroundBox(ctx)) {
-        assert(ctx.class_label != ctx.background || ignore_class_);
-        StoreBox(out1, out2, format_, i, ctx.selected_box);
-      } else {
-        assert(ctx.class_label == ctx.background);
-        StoreBox(out1, out2, format_, i, default_anchor, input.tensor_shape(i));
-      }
+        if (PickForegroundBox(ctx)) {
+          assert(ctx.class_label != ctx.background || ignore_class_);
+          StoreBox(out1, out2, format_, i, ctx.selected_box);
+        } else {
+          assert(ctx.class_label == ctx.background);
+          StoreBox(out1, out2, format_, i, default_anchor, input.tensor_shape(i));
+        }
 
-      if (HasClassLabelOutput())
-        class_label_out.data[i][0] = ctx.class_label;
+        if (HasClassLabelOutput())
+          class_label_out.data[i][0] = ctx.class_label;
+      ), (assert("!Internal error");));  // NOLINT
     }
   }
   tp.RunAll();

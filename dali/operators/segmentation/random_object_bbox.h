@@ -59,6 +59,11 @@ class RandomObjectBBox : public Operator<CPUBackend> {
       DALI_ENFORCE(k_largest_ >= 1, make_string(
                    "``k_largest`` must be at least 1; got ", k_largest_));
     }
+
+    tmp_blob_storage_.set_pinned(false);
+    tmp_blob_storage_.SetGrowthFactor(2);
+    tmp_filtered_storage_.set_pinned(false);
+    tmp_filtered_storage_.SetGrowthFactor(2);
   }
 
   static OutputFormat ParseOutputFormat(const std::string &format)  {
@@ -92,19 +97,20 @@ class RandomObjectBBox : public Operator<CPUBackend> {
 
   void GetBgFgAndWeights(ClassVec &classes, WeightVec &weights, int &background, int sample_idx);
 
+  void AllocateTempStorage(const TensorVector<CPUBackend> &tls);
+
+  template <typename BlobLabel>
   struct SampleContext {
-    void Init(int sample_idx, const Tensor<CPUBackend> *in, ThreadPool *tp) {
+    void Init(int sample_idx, const Tensor<CPUBackend> *in, ThreadPool *tp,
+              Tensor<CPUBackend> &tmp_filtered, Tensor<CPUBackend> &tmp_blob) {
       this->sample_idx = sample_idx;
       thread_pool = tp;
       input = in;
       auto &shape = input->shape();
-      int64_t n = volume(shape);
-      filtered_data.clear();  // avoid copy
-      filtered_data.resize(n);
-      blob_data.clear();  // avoid copy
-      blob_data.resize(n);
-      filtered = make_tensor_cpu(filtered_data.data(), shape);
-      blobs = make_tensor_cpu(blob_data.data(), shape);
+      tmp_filtered.Resize(shape, TypeTable::GetTypeInfo(DALI_UINT8));
+      tmp_blob.Resize(shape, TypeTable::GetTypeInfo(type2id<BlobLabel>::value));
+      filtered = view<uint8_t>(tmp_filtered);
+      blobs = view<BlobLabel>(tmp_blob);
       labels.clear();
     }
 
@@ -157,9 +163,9 @@ class RandomObjectBBox : public Operator<CPUBackend> {
     int class_label;
 
     vector<uint8_t> filtered_data;
-    vector<int64_t> blob_data;
+    vector<BlobLabel> blob_data;
     TensorView<StorageCPU, uint8_t> filtered;
-    TensorView<StorageCPU, int64_t> blobs;
+    TensorView<StorageCPU, BlobLabel> blobs;
     std::unordered_set<int> labels;
     SmallVector<std::unordered_set<int>, 8> tmp_labels;
     std::uniform_real_distribution<double> class_dist{0, 1};
@@ -178,14 +184,27 @@ class RandomObjectBBox : public Operator<CPUBackend> {
       }
     }
   };
-  SampleContext context_;
+  SampleContext<int32_t> default_context_;
+  SampleContext<int64_t> huge_context_;
+  Tensor<CPUBackend> tmp_blob_storage_, tmp_filtered_storage_;
 
-  bool PickForegroundBox(SampleContext &context);
+  SampleContext<int32_t> &GetContext(int32_t) {
+    return default_context_;
+  }
 
-  template <typename T>
-  bool PickForegroundBox(SampleContext &context, const TensorView<StorageCPU, const T> &input);
+  SampleContext<int64_t> &GetContext(int64_t) {
+    return huge_context_;
+  }
 
-  bool PickBlob(SampleContext &ctx, int nblobs);
+  template <typename BlobLabel>
+  bool PickForegroundBox(SampleContext<BlobLabel> &context);
+
+  template <typename BlobLabel, typename T>
+  bool PickForegroundBox(SampleContext<BlobLabel> &context,
+                         const TensorView<StorageCPU, const T> &input);
+
+  template <typename BlobLabel>
+  bool PickBlob(SampleContext<BlobLabel> &ctx, int nblobs);
 
   template <int ndim>
   int PickBox(span<Box<ndim, int>> boxes, int sample_idx);
@@ -193,8 +212,8 @@ class RandomObjectBBox : public Operator<CPUBackend> {
   template <typename T>
   void FindLabels(std::unordered_set<int> &labels, const T *data, int64_t N);
 
-  template <typename T>
-  void FindLabels(SampleContext &ctx, const TensorView<StorageCPU, const T> &in);
+  template <typename BlobLabel, typename T>
+  void FindLabels(SampleContext<BlobLabel> &ctx, const TensorView<StorageCPU, const T> &in);
 
   bool  ignore_class_ = false;
   int   k_largest_ = -1;          // -1 means no k largest
