@@ -235,4 +235,4 @@ def test_operator_multipaste():
         [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.FLOAT]
     ]
     for t in tests:
-        yield check_operator_multipaste, *t
+        yield (check_operator_multipaste, *t)
