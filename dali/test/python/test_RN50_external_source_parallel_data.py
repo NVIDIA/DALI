@@ -19,7 +19,6 @@ import time
 import cv2
 import numpy as np
 
-from nvidia.dali.plugin.pytorch import DALIClassificationIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 from test_RN50_external_source_parallel_utils import (
