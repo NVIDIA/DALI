@@ -39,6 +39,9 @@ DLL_PUBLIC Deleter GetDeleter(AllocType type) noexcept;
 
 template <typename T>
 std::shared_ptr<T> alloc_shared(AllocType type, size_t count) {
+  if (count == 0) {
+    return {};
+  }
   static_assert(std::is_pod<T>::value, "Only POD types are supported");
   void *mem = Allocate(type, count*sizeof(T));
   if (!mem)
@@ -54,6 +57,9 @@ using KernelUniquePtr = std::unique_ptr<T, Deleter>;
 
 template <typename T>
 KernelUniquePtr<T> alloc_unique(AllocType type, size_t count) {
+  if (count == 0) {
+    return {};
+  }
   static_assert(std::is_pod<T>::value, "Only POD types are supported");
   void *mem = Allocate(type, count*sizeof(T));
   if (!mem)

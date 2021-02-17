@@ -24,10 +24,12 @@ namespace kernels {
 namespace memory {
 
 void ThrowMemoryError(AllocType type, size_t requested_size) {
-  if (type == AllocType::Pinned) {
-    throw dali::CUDABadAlloc(requested_size, true);
-  } else if (type == AllocType::GPU) {
-    throw dali::CUDABadAlloc(requested_size, false);
+  if (type != AllocType::Host) {
+    auto err = cudaGetLastError();
+    if (err == cudaErrorMemoryAllocation)
+       throw dali::CUDABadAlloc(requested_size, type == AllocType::Pinned);
+    else
+       throw dali::CUDAError(err);
   } else {
     throw std::bad_alloc();
   }
