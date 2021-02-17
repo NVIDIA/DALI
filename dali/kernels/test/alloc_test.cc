@@ -100,23 +100,31 @@ TEST(KernelAlloc, Shared) {
 }
 
 TEST(KernelAllocFail, Host) {
+  (void)cudaGetLastError();
   size_t size = static_cast<size_t>(-1);
   EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::Host, size), std::bad_alloc);
+  (void)cudaGetLastError();
   EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::Host, size), std::bad_alloc);
+  (void)cudaGetLastError();
 }
 
 TEST(KernelAllocFail, Pinned) {
   (void)cudaGetLastError();
   size_t size = static_cast<size_t>(-1);
   EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::Pinned, size), CUDABadAlloc);
+  (void)cudaGetLastError();
   EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::Pinned, size), CUDABadAlloc);
+  cudaDeviceSynchronize();
+  (void)cudaGetLastError();
 }
 
 TEST(KernelAllocFail, GPU) {
   (void)cudaGetLastError();
   size_t size = static_cast<size_t>(-1);
   EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::GPU, size), CUDABadAlloc);
+  (void)cudaGetLastError();
   EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::GPU, size), CUDABadAlloc);
+  (void)cudaGetLastError();
 }
 
 }  // namespace kernels
