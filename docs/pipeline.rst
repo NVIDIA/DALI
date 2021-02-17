@@ -1,8 +1,7 @@
+.. _pipeline:
+
 Pipeline
 ========
-
-Pipeline class
---------------
 
 .. currentmodule:: nvidia.dali
 
@@ -12,15 +11,16 @@ data processing graph and the execution engine.
 
 You can define a DALI Pipeline in the following ways:
 
-#. by implementing a function that uses DALI operators inside and decorating it with the
-:meth:`pipeline_def` decorator
-#. by instantiating :class:`Pipeline` object directly, building the graph and setting the pipeline
-outputs with :meth:`Pipeline.set_outputs`
-#. by inheriting from :class:`Pipeline` class and overriding :meth:`Pipeline.define_graph`
-(this is the legacy way of defining DALI Pipelines)
+#. By implementing a function that uses DALI operators inside and decorating it with the :meth:`pipeline_def` decorator.
+#. By instantiating :class:`Pipeline` object directly, building the graph and setting the pipeline outputs with :meth:`Pipeline.set_outputs`.
+#. By inheriting from :class:`Pipeline` class and overriding :meth:`Pipeline.define_graph` (this is the legacy way of defining DALI Pipelines).
 
-Data processing graphs
-""""""""""""""""""""""
+.. autoclass:: Pipeline
+   :members:
+   :special-members: __enter__, __exit__
+
+Data Processing Graphs
+----------------------
 
 DALI pipeline is represented as a graph of operations. There are two kinds of nodes in the graph:
 
@@ -48,8 +48,8 @@ The resulting graph is:
 
 .. image:: images/two_readers.svg
 
-Current pipeline
-""""""""""""""""
+Current Pipeline
+----------------
 
 Subgraphs that do not contribute to the pipeline output are automatically pruned.
 If an operator has side effects (e.g. ``PythonFunction`` operator family), it cannot be invoked

@@ -114,7 +114,7 @@ class DataNode(object):
                 " graph of operations for DALI Pipeline. It should not be used for truth evaluation"
                 " in regular Python context. Bool conversion in Pipeline can be achieved"
                 " with \"Cast\" operator. To see what operations are allowed on DataNodes to"
-                " represent computations in DALI Pipeline see the \"Mathematical expressions\""
+                " represent computations in DALI Pipeline see the \"Mathematical Expressions\""
                 " section of DALI documentation."))
 
 

@@ -1,13 +1,11 @@
 .. _mathematical expressions:
 
-Mathematical expressions
+Mathematical Expressions
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 DALI allows you to use regular Python arithmetic operations and other mathematical functions in
-the :meth:`~nvidia.dali.pipeline.Pipeline.define_graph` method on the values that are returned
+the :meth:`~nvidia.dali.Pipeline.define_graph` method on the values that are returned
 from invoking other operators.
-
-Same expressions can be used with :ref:`functional api`.
 
 The expressions that are used will be incorporated into the pipeline without needing to explicitly
 instantiate operators and will describe the element-wise operations on Tensors.

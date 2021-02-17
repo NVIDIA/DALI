@@ -185,9 +185,9 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.ops.ImageDecoderCrop` automatically disables hardware accelerated
-  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
-  :meth:`nvidia.dali.ops.Crop` operators instead.
+  :meth:`nvidia.dali.fn.image_decoder` automatically disables hardware accelerated
+  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.crop` operators instead.
 
 The output of the decoder is in *HWC* layout.
 
@@ -213,9 +213,9 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.ops.ImageDecoderRandomCrop` automatically disables hardware accelerated
-  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
-  :meth:`nvidia.dali.ops.RandomResizedCrop` operators instead.
+  :meth:`nvidia.dali.fn.image_decoder_random_crop` automatically disables hardware accelerated
+  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.random_crop` operators instead.
 
 The output of the decoder is in *HWC* layout.
 
@@ -257,7 +257,7 @@ and shape is incompatible with the named arguments specified above.
 The slice arguments should provide as many dimensions as specified by the ``axis_names`` or ``axes``
 arguments.
 
-By default, the :meth:`nvidia.dali.ops.ImageDecoderSlice` operator uses normalized coordinates
+By default, the :meth:`nvidia.dali.fn.image_decoder_slice` operator uses normalized coordinates
 and "WH" order for the slice arguments.
 
 When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
@@ -266,9 +266,9 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.ops.ImageDecoderSlice` automatically disables hardware accelerated decoding.
-  To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
-  :meth:`nvidia.dali.ops.Slice` operators instead.
+  :meth:`nvidia.dali.fn.image_decoder_slice` automatically disables hardware accelerated decoding.
+  To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.slice` operators instead.
 
 The output of the decoder is in the *HWC* layout.
 
@@ -280,6 +280,21 @@ Please note that GPU acceleration for JPEG 2000 decoding is only available for C
   .NumInput(1, 3)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
-  .AddParent("SliceAttr");
+  .AddParent("SliceAttr")
+  .InputDox(0, "data", "TensorList", R"code(Batch that contains the input data.)code")
+  .InputDox(1, "anchor", "1D TensorList of float or int",
+            R"code(Input that contains normalized or absolute coordinates for the starting
+point of the slice (x0, x1, x2, …).
+
+Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
+interpreted as absolute or relative coordinates, depending on the value of
+``normalized_anchor``.)code")
+  .InputDox(2, "shape", "1D TensorList of float or int",
+            R"code(Input that contains normalized or absolute coordinates for the dimensions
+of the slice (s0, s1, s2, …).
+
+Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
+interpreted as absolute or relative coordinates, depending on the value of
+``normalized_shape``.)code");
 
 }  // namespace dali

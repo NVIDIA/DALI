@@ -138,7 +138,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
 
     Parameters
     ----------
-    pipelines : list of nvidia.dali.pipeline.Pipeline
+    pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     output_map : list of (str, str)
                  List of pairs (output_name, tag) which maps consecutive
@@ -431,7 +431,7 @@ class DALIClassificationIterator(DALIGenericIterator):
 
     Parameters
     ----------
-    pipelines : list of nvidia.dali.pipeline.Pipeline
+    pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     size : int, default = -1
            Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
@@ -577,7 +577,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
 
     Parameters
     ----------
-    pipelines : list of nvidia.dali.pipeline.Pipeline
+    pipelines : list of nvidia.dali.Pipeline
             List of pipelines to use
     size : int, default = -1
             Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)

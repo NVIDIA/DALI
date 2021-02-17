@@ -189,7 +189,7 @@ from Python by several methods.
 The simplest and preferred way is to specify a ``source``, which can be a callable or iterable.
 
 .. warning::
-    :meth:`nvidia.dali.ops.ExternalSource` operator is not compatible with TensorFlow integration.
+    :meth:`nvidia.dali.fn.external_source` operator is not compatible with TensorFlow integration.
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
@@ -475,7 +475,7 @@ and all work is properly queued). If no stream is provided feeding input blocks 
 provided memory is copied to the internal buffer.
 
 .. warning::
-    :meth:`nvidia.dali.ops.ExternalSource` operator is not compatible with TensorFlow integration.
+    :meth:`nvidia.dali.fn.external_source` operator is not compatible with TensorFlow integration.
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
