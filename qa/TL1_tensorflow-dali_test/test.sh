@@ -13,7 +13,7 @@ do_once() {
     CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
 
     # install TF 2.x
-    pip install $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
+    pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
 
     # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
     pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
