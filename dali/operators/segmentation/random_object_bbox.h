@@ -44,15 +44,15 @@ class RandomObjectBBox : public Operator<CPUBackend> {
     format_ = ParseOutputFormat(spec.GetArgument<string>("format"));
     ignore_class_ = spec.GetArgument<bool>("ignore_class");
 
-    bool output_class_ = spec.GetArgument<bool>("output_class");
+    bool output_class = spec.GetArgument<bool>("output_class");
 
-    if (ignore_class_ && (classes_.IsDefined() || weights_.IsDefined() || output_class_)) {
+    if (ignore_class_ && (classes_.IsDefined() || weights_.IsDefined() || output_class)) {
       DALI_FAIL("Class-related arguments ``classes``, ``weights`` and ``output_class`` "
                 "cannot be used when ``ignore_class`` is True");
     }
 
     // additional class id output goes last, if at all; -1 denotes that it's absent
-    class_output_idx_ = output_class_ ? (format_ == Out_Box ? 1 : 2) : -1;
+    class_output_idx_ = output_class ? (format_ == Out_Box ? 1 : 2) : -1;
 
 
     if (spec.TryGetArgument(k_largest_, "k_largest")) {
@@ -98,7 +98,9 @@ class RandomObjectBBox : public Operator<CPUBackend> {
       input = in;
       auto &shape = input->shape();
       int64_t n = volume(shape);
+      filtered_data.clear();  // avoid copy
       filtered_data.resize(n);
+      blob_data.clear();  // avoid copy
       blob_data.resize(n);
       filtered = make_tensor_cpu(filtered_data.data(), shape);
       blobs = make_tensor_cpu(blob_data.data(), shape);

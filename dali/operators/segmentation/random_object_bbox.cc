@@ -293,7 +293,7 @@ int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
     assert(threshold_.get().shape[sample_idx] == TensorShape<1>{ ndim });
     for (int i = 0; i < ndim; i++)
       threshold[i] = thresh[i];
-    end = std::remove_if(beg, end, [threshold](auto box) {
+    end = std::remove_if(beg, end, [threshold](const Box<ndim, int> &box) {
       return any_coord(box.extent() < threshold);
     });
   }
@@ -361,6 +361,10 @@ bool RandomObjectBBox::PickForegroundBox(
         context.classes.push_back(cls);
         context.weights.push_back(1);
       }
+      // We need to sort, because the order in `context.labels` depends on its previous contents
+      // (it changes with the number of bins in the hastable).
+      // We want don't need any particular order here, but it must be deterministic
+      // - thus, sort.
       std::sort(context.classes.begin(), context.classes.end());
     } else {
       for (int i = 0; i < static_cast<int>(context.classes.size()); i++) {
