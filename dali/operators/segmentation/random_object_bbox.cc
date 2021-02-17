@@ -25,8 +25,6 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/kernels/imgproc/structure/connected_components.h"
 
-#define PROFILE_BLOCK(name)
-
 namespace dali {
 
 using dali::kernels::OutTensorCPU;
@@ -174,7 +172,7 @@ void RandomObjectBBox::FindLabels(SampleContext<BlobLabel> &ctx,
     return;
 
   constexpr int64_t chunk_size = 1<<16;
-  int num_chunks = std::min<int>(2*ctx.thread_pool->size(), div_ceil(N, chunk_size));
+  int num_chunks = std::min<int>(2*ctx.thread_pool->NumThreads(), div_ceil(N, chunk_size));
   const T *data = in.data;
 
   ctx.tmp_labels.resize(num_chunks);
@@ -209,7 +207,7 @@ void FilterByLabel(ThreadPool *tp,
   assert(out.shape == in.shape);
   int64_t N = in.num_elements();
   const int64_t chunk_size = 1<<16;
-  int num_chunks = std::min<int>(tp->size(), div_ceil(N, chunk_size));
+  int num_chunks = std::min<int>(tp->NumThreads(), div_ceil(N, chunk_size));
   if (num_chunks == 1) {
     FilterByLabel(out.data, in.data, N, label);
   } else {
@@ -380,11 +378,8 @@ bool RandomObjectBBox::PickBlob(SampleContext<BlobLabel> &ctx, int nblobs) {
     (
       auto *box_data = reinterpret_cast<Box<static_ndim, int>*>(ctx.box_data.data());
       auto boxes = make_span(box_data, nblobs);
-      {
-        PROFILE_BLOCK("GetLabelBoundingBoxes")
-        GetLabelBoundingBoxes(boxes, ctx.blobs.template to_static<static_ndim>(), -1,
-                              *ctx.thread_pool);
-      }
+      GetLabelBoundingBoxes(boxes, ctx.blobs.template to_static<static_ndim>(), -1,
+                            *ctx.thread_pool);
       int box_idx = PickBox(boxes, ctx.sample_idx);
       if (box_idx >= 0) {
         ctx.SelectBox(box_idx);
@@ -404,17 +399,10 @@ bool RandomObjectBBox::PickForegroundBox(
   context.class_label = context.background;
   auto &tp = *context.thread_pool;
   if (ignore_class_) {
-    int nblobs;
-    {
-      PROFILE_BLOCK("LabelConnectedRegions")
-      nblobs = LabelConnectedRegions(context.blobs, input, tp, -1, context.background);
-    }
+    int nblobs = LabelConnectedRegions(context.blobs, input, tp, -1, context.background);
     return PickBlob(context, nblobs);
   } else {
-    {
-      PROFILE_BLOCK("FindLabels")
-      FindLabels(context, input);
-    }
+    FindLabels(context, input);
 
     context.labels.erase(context.background);
 
@@ -437,24 +425,15 @@ bool RandomObjectBBox::PickForegroundBox(
       }
     }
 
-    {
-    PROFILE_BLOCK("TrySelectForeground")
     while (context.CalculateCDF()) {
       if (!context.PickClassLabel(rngs_[context.sample_idx]))
         return false;
 
       assert(context.class_label != context.background);
-      {
-        PROFILE_BLOCK("FilterByLabel")
-        FilterByLabel(context.thread_pool, context.filtered, input, context.class_label);
-      }
+      FilterByLabel(context.thread_pool, context.filtered, input, context.class_label);
 
-      int nblobs;
-      {
-        PROFILE_BLOCK("LabelConnectedRegions")
-        nblobs = LabelConnectedRegions<BlobLabel, uint8_t, -1>(
-            context.blobs, context.filtered, tp, -1, 0);
-      }
+      int nblobs = LabelConnectedRegions<BlobLabel, uint8_t, -1>(
+              context.blobs, context.filtered, tp, -1, 0);
 
       if (PickBlob(context, nblobs))
         return true;
@@ -462,7 +441,6 @@ bool RandomObjectBBox::PickForegroundBox(
       // we couldn't find a satisfactory blob in this class, so let's exclude it and try again
       context.weights[context.class_idx] = 0;
       context.class_label = context.background;
-    }
     }
     // we've run out of classes and still there's no good blob
     return false;
@@ -493,8 +471,14 @@ void RandomObjectBBox::AllocateTempStorage(const TensorVector<CPUBackend> &input
     if (vol > max_filtered_bytes)
       max_filtered_bytes = vol;
   }
-  tmp_blob_storage_.reserve(max_blob_bytes);
-  tmp_filtered_storage_.reserve(max_filtered_bytes);
+  auto grow = [](Tensor<CPUBackend> &tensor, int64_t bytes) {
+    int64_t cap = tensor.capacity();
+    if (cap < bytes) {
+      tensor.reserve(std::max(2*cap, bytes));
+    }
+  };
+  grow(tmp_blob_storage_, max_blob_bytes);
+  grow(tmp_filtered_storage_, max_filtered_bytes);
 }
 
 void RandomObjectBBox::RunImpl(HostWorkspace &ws) {

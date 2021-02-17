@@ -26,16 +26,16 @@ concept ExecutionEngine {
   /// @brief Adds work to the engine
   /// @param f           work item, callable with `int thread_idx`
   /// @param priority    priority hint fort the job, the higher, the earlier it should start
-  /// @param finished_adding_work        if true, all jobs can start - it's just a hint
-  ///                                     and implementations may start running the jobs earlier
+  /// @param start_immediately        if true, all jobs can start - it's just a hint
+  ///                                 and implementations may start running the jobs earlier
   void AddWork(CallableWithInt f, int64_t priority, bool finished_adding_work = false);
 
   /// @brief Starts the work and waits for it to complete.
   /// If there was an exception in one of the jobs, rethrows one of them.
   void RunAll();
 
-  /// @brief Returns number of workers in this execution engine.
-  int size() const noexcept;
+  /// @brief Returns number of threads in this execution engine.
+  int NumThreads() const noexcept;
 };
 */
 
@@ -45,38 +45,20 @@ concept ExecutionEngine {
 class SequentialExecutionEngine {
  public:
   /**
-   * @brief Immediately execute a callable object `f` with argument 0.
-   *
-   * If an exception occurs, it's stored for later
+   * @brief Immediately execute a callable object `f` with thread index 0.
    */
   template <typename FunctionLike>
-  void AddWork(FunctionLike &&f, int64_t priority = 0, bool finished_adding_work = true) noexcept {
-    try {
-      const int idx = 0;  // make it an integer to avoid ambiguity with NULL pointer
-      f(idx);
-    } catch (...) {
-      if (!exception_)
-        exception_ = std::current_exception();
-    }
+  void AddWork(FunctionLike &&f, int64_t priority = 0, bool start_immediately = true) {
+    const int idx = 0;  // use of 0 literal would successfully call f expecting a pointer
+    f(idx);
   }
 
-  /**
-   * @brief Doesn't execute anything (AddWork did it)
-   *
-   * This function rethrows the exception that was thrown by the function passed to AddWork, if any.
-   */
-  void RunAll() {
-    if (exception_) {
-      std::exception_ptr eptr = std::move(exception_);
-      exception_ = {};  // in case move doesn't do it
-      std::rethrow_exception(std::move(eptr));
-    }
-  }
+  void RunAll() {}
 
   /**
    * @brief Returns 1
    */
-  constexpr int size() const noexcept { return 1; }
+  constexpr int NumThreads() const noexcept { return 1; }
 
  private:
   std::exception_ptr exception_;

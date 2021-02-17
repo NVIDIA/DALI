@@ -61,9 +61,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
     }
 
     tmp_blob_storage_.set_pinned(false);
-    tmp_blob_storage_.SetGrowthFactor(2);
     tmp_filtered_storage_.set_pinned(false);
-    tmp_filtered_storage_.SetGrowthFactor(2);
   }
 
   static OutputFormat ParseOutputFormat(const std::string &format)  {

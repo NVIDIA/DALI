@@ -252,32 +252,6 @@ void RemapChunk(span<OutLabel> chunk, const LabelMapping &mapping) {
   }
 }
 
-class spinlock_v2 {
- public:
-  void lock() noexcept {
-    int spin = 100;
-    while (flag_.test_and_set(std::memory_order_acquire)) {
-      if (spin > 0) {
-        spin--;
-      } else {
-        std::this_thread::yield();
-      }
-    }
-  }
-
-  bool try_lock() noexcept {
-      return !flag_.test_and_set(std::memory_order_acquire);
-  }
-
-  void unlock() noexcept {
-    flag_.clear(std::memory_order_release);
-  }
-
- private:
-  std::atomic_flag flag_ = ATOMIC_FLAG_INIT;
-};
-
-
 /**
  * @brief Compacts label indices in `labels`
  *
@@ -301,7 +275,7 @@ int64_t CompactLabels(OutLabel *labels,
   disjoint_set<OutLabel, OutLabel> ds;
 
   const int64_t chunk_size = 16<<10;
-  int num_chunks = std::min<int>(div_ceil(volume, chunk_size), engine.size());
+  int num_chunks = std::min<int>(div_ceil(volume, chunk_size), engine.NumThreads());
 
   // Optimized label compaction algorithm:
   //
@@ -332,8 +306,8 @@ int64_t CompactLabels(OutLabel *labels,
       label_set.insert(l);
   } else {
     SmallVector<std::unordered_set<OutLabel>, 16> tmp_sets;
-    tmp_sets.resize(engine.size());
-    spinlock_v2 lock;
+    tmp_sets.resize(engine.NumThreads());
+    spinlock lock;
     for (int chunk = 0; chunk < num_chunks; chunk++) {
       int64_t chunk_start = volume * chunk / num_chunks;
       int64_t chunk_end = volume * (chunk + 1) / num_chunks;
@@ -346,7 +320,7 @@ int64_t CompactLabels(OutLabel *labels,
           if (curr != old_bg_label) {
             if (curr != prev) {
               {
-                std::lock_guard<spinlock_v2> g(lock);
+                std::lock_guard<spinlock> g(lock);
                 prev = curr;
                 // look up `ds` only when the value changes - this saves a lot of lookups
                 remapped = ds.find(labels, i);

@@ -203,7 +203,7 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
                            Label background,
                            ExecutionEngine &engine) {
   const int64_t min_parallel_elements = 1<<16;
-  if (engine.size() == 1 || in.size[0] * in.stride[0] < min_parallel_elements) {
+  if (engine.NumThreads() == 1 || in.size[0] * in.stride[0] < min_parallel_elements) {
     GetLabelBoundingBoxes(boxes, in, dim_mapping, background, {});
     return;
   }
@@ -218,7 +218,7 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
       max_result = result;
     }
   }
-  int num_chunks = std::min<int64_t>(in.size[max_d], engine.size());
+  int num_chunks = std::min<int64_t>(in.size[max_d], engine.NumThreads());
   tmp_boxes.resize(boxes.size() * (num_chunks - 1));
   int64_t stride = in.stride[max_d];
   TensorSlice<const Label, remaining_dims> part = in;
