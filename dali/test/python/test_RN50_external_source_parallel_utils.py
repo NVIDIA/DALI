@@ -197,7 +197,7 @@ def get_pipe_factories(test_pipes, parallel_pipe, file_reader_pipe, scalar_pipe)
     if "file_reader" in test_pipes:
         result.append(file_reader_pipe)
     if "scalar" in test_pipes:
-        result.append(scaler_pipe)
+        result.append(scalar_pipe)
     return result
 
 def parse_test_arguments(supports_distributed):

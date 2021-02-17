@@ -80,7 +80,6 @@ def training_test(args):
         pipe.start_py_workers()
 
         if args.distributed and not args.distributed_initialized:
-            print("Distributed {}".format(args.local_rank))
             args.gpu = args.local_rank
             torch.cuda.set_device(args.gpu)
             torch.distributed.init_process_group(backend='nccl', init_method='env://')
@@ -98,7 +97,6 @@ def training_test(args):
         optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9)
 
         samples_no = pipe.epoch_size("Reader")
-        print(samples_no)
         if args.benchmark_iters is None:
             expected_iters = samples_no // args.batch_size + (samples_no % args.batch_size != 0)
         else:

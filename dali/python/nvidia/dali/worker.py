@@ -18,7 +18,7 @@ import os
 import socket
 from multiprocessing import reduction
 from nvidia.dali.shared_batch import SharedMemChunk, write_batch
-from nvidia.dali.messages import CompletedTasks, ScheduledTasks
+from nvidia.dali.messages import CompletedTasks
 
 
 class _ProcessedTasks:

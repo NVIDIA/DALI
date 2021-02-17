@@ -39,43 +39,49 @@ bool dir_exists(const char *str) {
 }  // namespace detail
 
 
+void FdHandle::DestroyHandle(fd_handle_t h) {
+  if (h >= 0) {
+    POSIX_CALL(::close(h));
+  }
+}
+
 ShmHandle ShmHandle::CreateHandle() {
   // Abstract away the fact that shm_open requires filename.
   constexpr char dev_shm_path[] = "/dev/shm/";
   constexpr char run_shm_path[] = "/run/shm/";
   constexpr char temp_filename_template[] = "nvidia_dali_XXXXXX";
-  constexpr int kDevShmPathSize = sizeof(dev_shm_path) - 1;
-  constexpr int kRunShmPathSize = sizeof(run_shm_path) - 1;
-  constexpr int kPathSizeMax =
-      std::max(kDevShmPathSize, kRunShmPathSize) + sizeof(temp_filename_template);
-  char temp_path[kPathSizeMax];
+  constexpr int kDevShmPathLen = sizeof(dev_shm_path) - 1;
+  constexpr int kRunShmPathLen = sizeof(run_shm_path) - 1;
+  constexpr int kPathLenMax =
+      std::max(kDevShmPathLen, kRunShmPathLen) + sizeof(temp_filename_template);
+  char temp_path[kPathLenMax];
   const char *shm_path = nullptr;
-  size_t shm_size = 0;
+  size_t shm_len = 0;
   if (detail::dir_exists(dev_shm_path)) {
     shm_path = dev_shm_path;
-    shm_size = kDevShmPathSize;
+    shm_len = kDevShmPathLen;
   } else if (detail::dir_exists(run_shm_path)) {
     shm_path = run_shm_path;
-    shm_size = kRunShmPathSize;
+    shm_len = kRunShmPathLen;
   } else {
     throw std::runtime_error(make_string("Shared memory dir not found, looked for: {", dev_shm_path,
                                          ", ", run_shm_path, "}."));
   }
-  memcpy(temp_path, shm_path, shm_size);
-  memcpy(temp_path + shm_size, temp_filename_template, sizeof(temp_filename_template));
-  int temp_fd = mkstemp(temp_path);  // posix
+  memcpy(temp_path, shm_path, shm_len);
+  memcpy(temp_path + shm_len, temp_filename_template, sizeof(temp_filename_template));
+  auto temp_fd = FdHandle(mkstemp(temp_path));  // posix
   POSIX_CHECK_STATUS_EX(temp_fd, "mkstemp", "Temporary file creation failed.");
   POSIX_CALL_EX(unlink(temp_path), "Couldn't unlink temporary file.");
-  const char *temp_filename = temp_path + shm_size;
-  shm_handle_t fd = shm_open(temp_filename, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
-  POSIX_CHECK_STATUS(temp_fd, "shm_open");
-  ::close(temp_fd);
+  const char *temp_filename = temp_path + shm_len;
+  auto fd = ShmHandle(shm_open(temp_filename, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR));
+  POSIX_CHECK_STATUS(fd, "shm_open");
+  temp_fd.reset();
   // The memory chunks will be passed between processes by sending descriptors over the sockets,
   // not through the filenames; this way in case of unexpected process exit we're not leaking any
   // filelike objects in /dev/shm or /tmp. The OS guarantees to keep the memory as long as
   // any process has fds or has mmaped the memory.
   shm_unlink(temp_filename);
-  return ShmHandle(fd);
+  return fd;
 }
 
 void ShmHandle::DestroyHandle(shm_handle_t h) {
@@ -153,12 +159,8 @@ void SharedMem::resize(uint64_t size, bool trunc) {
 }
 
 void SharedMem::close() {
-  if (memory_mapping_) {
-    memory_mapping_.reset();
-  }
-  if (shm_handle_) {
-    shm_handle_.reset();
-  }
+  memory_mapping_.reset();
+  shm_handle_.reset();
 }
 
 }  // namespace dali

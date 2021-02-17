@@ -89,10 +89,10 @@ class _ExternalSourceGroup(object):
         self.parallel = parallel
         self.prefetch_queue_depth = prefetch_queue_depth
         if callback is not None:
-            args_count = _accepted_arg_count(callback)
-            if args_count not in [0, 1]:
+            arg_count = _accepted_arg_count(callback)
+            if arg_count not in [0, 1]:
                 raise TypeError("External source callback must be a callable with 0 or 1 argument")
-            self.accepts_arg = args_count > 0
+            self.accepts_arg = arg_count > 0
 
     def append(self, instance):
         self.instances.append(instance)

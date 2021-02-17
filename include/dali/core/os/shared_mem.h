@@ -26,6 +26,7 @@ namespace dali {
 
 #if defined(__unix__)
 using shm_handle_t = int;
+using fd_handle_t = int;
 
 #define POSIX_CHECK_STATUS_EX(status, call_str, message)                               \
   do {                                                                                 \
@@ -52,6 +53,17 @@ using shm_handle_t = int;
 #else
 #error Platform not supported
 #endif
+
+class DLL_PUBLIC FdHandle : public UniqueHandle<fd_handle_t, FdHandle> {
+ public:
+  DALI_INHERIT_UNIQUE_HANDLE(fd_handle_t, FdHandle);
+
+  static void DestroyHandle(fd_handle_t h);
+
+  static constexpr fd_handle_t null_handle() {
+    return -1;
+  }
+};
 
 
 /**
