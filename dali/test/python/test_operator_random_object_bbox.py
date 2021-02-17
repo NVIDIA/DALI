@@ -18,16 +18,32 @@ import nvidia.dali.ops as ops
 import numpy as np
 import scipy.ndimage
 import scipy.ndimage.measurements
+import random
 from test_utils import check_batch
 from test_utils import np_type_to_dali
 from nose.tools import raises, assert_raises, nottest
 
 np.random.seed(1234)
+random.seed(1234)
 
 def count_outputs(outs):
     if isinstance(outs, dali.pipeline.DataNode):
         return 1
     return len(outs)
+
+
+data = [
+    np.int32([[1, 0, 0, 0],
+              [1, 2, 2, 1],
+              [1, 1, 2, 0],
+              [2, 0, 0, 1]]),
+
+    np.int32([[0, 3, 3, 0],
+              [1, 0, 1, 2],
+              [0, 1, 1, 0],
+              [0, 2, 0, 1],
+              [0, 2, 2, 1]])
+]
 
 def test_num_output():
     """Test that a proper number of outputs is produced, depending on arguments"""
@@ -100,19 +116,6 @@ def class_boxes(array, label):
     cc, _ = scipy.ndimage.measurements.label(mask)
     objects = scipy.ndimage.find_objects(cc)
     return objects2boxes(objects, array.shape)
-
-data = [
-    np.int32([[1, 0, 0, 0],
-              [1, 2, 2, 1],
-              [1, 1, 2, 0],
-              [2, 0, 0, 1]]),
-
-    np.int32([[0, 3, 3, 0],
-              [1, 0, 1, 2],
-              [0, 1, 1, 0],
-              [0, 2, 0, 1],
-              [0, 2, 2, 1]])
-]
 
 
 def axis_indices(shape, axis):
@@ -211,7 +214,7 @@ def convert_boxes(outs, format):
 def _test_random_object_bbox_with_class(max_batch_size, ndim, dtype, format=None, fg_prob=None,
                                         classes=None, weights=None, background=None,
                                         threshold=None, k_largest=None):
-    pipe = dali.pipeline.Pipeline(max_batch_size, 4, device_id = None, seed=4321)
+    pipe = dali.Pipeline(max_batch_size, 4, device_id = None, seed=4321)
     background_out = 0 if background is None else background
     classes_out = np.int32([]) if classes is None else classes
     weights_out = np.int32([]) if weights is None else weights
@@ -310,21 +313,21 @@ def test_random_object_bbox_with_class():
                 ndim = np.random.randint(1, 5)
 
                 threshold_opt = [None, 3, list(range(1, 1+ndim)), fn.random.uniform(range=(1,5), shape=[ndim], dtype=dali.types.INT32, seed=13231)]
-                threshold = np.random.choice(threshold_opt);
+                threshold = random.choice(threshold_opt);
                 k_largest_opt = [None, 1, 2, 5]
-                k_largest = np.random.choice(k_largest_opt);
+                k_largest = random.choice(k_largest_opt);
 
                 fg_prob_opt = [None, 0.1, 0.7, fn.random.uniform(range=(0,1), seed=1515)]
-                fg_prob = np.random.choice(fg_prob_opt)
+                fg_prob = random.choice(fg_prob_opt)
 
                 format = formats[fmt]
                 fmt = (fmt + 1) % len(formats)
-                dtype = np.random.choice(types)
-                yield _test_random_object_bbox_with_class, 5, ndim, dtype, format, fg_prob, classes, weights, bg, threshold, k_largest
+                dtype = random.choice(types)
+                yield _test_random_object_bbox_with_class, 4, ndim, dtype, format, fg_prob, classes, weights, bg, threshold, k_largest
 
 @nottest
 def _test_random_object_bbox_ignore_class(max_batch_size, ndim, dtype, format=None, background=None, threshold=None, k_largest=None):
-    pipe = dali.pipeline.Pipeline(max_batch_size, 4, device_id = None, seed=4321)
+    pipe = dali.Pipeline(max_batch_size, 4, device_id = None, seed=4321)
     background_out = 0 if background is None else background
     threshold_out = np.int32([]) if threshold is None else threshold
 
@@ -368,12 +371,12 @@ def test_random_object_bbox_ignore_class():
     types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
     for bg in [None, 0, -1, 5, fn.random.uniform(range=(-5, 10), dtype=dali.types.INT32, seed=1313)]:
         ndim = np.random.randint(1, 5)
-        dtype = np.random.choice(types)
+        dtype = random.choice(types)
         for format in [None, "anchor_shape", "start_end", "box"]:
             threshold_opt = [None, 3, list(range(1, 1+ndim)), fn.random.uniform(range=(1,5), shape=[ndim], dtype=dali.types.INT32, seed=3214)]
-            threshold = np.random.choice(threshold_opt)
+            threshold = random.choice(threshold_opt)
             k_largest_opt = [None, 1, 2, 5]
-            k_largest = np.random.choice(k_largest_opt)
+            k_largest = random.choice(k_largest_opt)
 
             yield _test_random_object_bbox_ignore_class, 5, ndim, dtype, format, bg, threshold, k_largest
 
@@ -384,7 +387,7 @@ def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
         smallest label - 1 if 0 is present
         if the smallest label -1 overflows, decrement the label until no collision
     """
-    pipe = dali.pipeline.Pipeline(batch_size=1, num_threads=1, device_id=0, seed=1234)
+    pipe = dali.Pipeline(batch_size=1, num_threads=1, device_id=0, seed=1234)
     data = np.uint32([0,1,2,3])
     box, label = fn.segmentation.random_object_bbox(data, foreground_prob=1e-9, format="box", output_class=1, classes=fg_labels);
     pipe.set_outputs(box, label)
@@ -402,3 +405,37 @@ def test_random_object_bbox_auto_bg():
             ([-0x80000000, 0x7fffffff, 0, 0x7ffffffe], 0x7ffffffd)
             ]:
         yield _test_random_object_bbox_auto_bg, fg, expected_bg
+
+@nottest
+def _test_err_args(**kwargs):
+    pipe = dali.Pipeline(batch_size=1, num_threads=1, device_id=0, seed=1234)
+    inp = fn.external_source(data, batch=False)
+    outs = fn.segmentation.random_object_bbox(inp, **kwargs)
+    pipe.set_outputs(*outs)
+    pipe.build()
+    pipe.run()
+
+
+def test_err_classes_bg():
+    with assert_raises(RuntimeError):
+        _test_err_args(classes=[0,1,2,3], background=0)
+
+def test_err_classes_weights_length_clash():
+    with assert_raises(RuntimeError):
+        _test_err_args(classes=[0,1,2,3], weights=np.float32([1,2,3]))
+    with assert_raises(RuntimeError):
+        _test_err_args(classes=np.int32([0,1,2,3]), weights=[3,2,1])
+
+def test_err_classes_ignored():
+    with assert_raises(RuntimeError):
+        _test_err_args(classes=[0,1,2,3], ignore_classes=True)
+
+def test_err_k_largest_nonpositive():
+    with assert_raises(RuntimeError):
+        _test_err_args(k_largest=-1)
+    with assert_raises(RuntimeError):
+        _test_err_args(k_largest=0)
+
+def test_err_threshold_dim_clash():
+    with assert_raises(RuntimeError):
+        _test_err_args(threshold=[1,2,3,4,5])
