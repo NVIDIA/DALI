@@ -140,7 +140,7 @@ void MultiPasteCPU::RunImplExplicitlyTyped(workspace_t<CPUBackend> &ws) {
                     in_anchor_view, in_shape_view, out_anchor_view);
           }
         },
-        paste_count * out_shape.tensor_size(0));
+        paste_count * out_shape.tensor_size(i));
     }
   }
   tp.RunAll();
