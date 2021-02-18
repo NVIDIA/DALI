@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <cstring>
 #include "dali/kernels/alloc.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 namespace kernels {
