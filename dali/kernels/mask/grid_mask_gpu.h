@@ -27,7 +27,7 @@ template <typename T>
 struct GridMaskSampleDesc {
   T *out;
   const T *in;
-  int width, height;
+  int width, height, channels;
   float ca, sa, sx, sy, ratio;
 };
 
@@ -39,17 +39,17 @@ __global__ void GridMaskKernel(const GridMaskSampleDesc<T> *samples,
 
   for (int y = block.start.y + threadIdx.y; y < block.end.y; y += blockDim.y) {
     int x = block.start.x + threadIdx.x;
-    int off = C * (x + y * sample.width);
+    int off = (C ? C : sample.channels) * (x + y * sample.width);
     float fxy = -fmaf(y, sample.sa,  sample.sx);
     float fyy =  fmaf(y, sample.ca, -sample.sy);
     for (; x < block.end.x; x += blockDim.x) {
       float fx = fmaf(x, sample.ca, fxy);
       float fy = fmaf(x, sample.sa, fyy);
       if ((fx - ::floor(fx) >= sample.ratio) || (fy - ::floor(fy) >= sample.ratio)) {
-        for (int i = 0; i < C; i++)
+        for (int i = 0; i < (C ? C : sample.channels); i++)
           sample.out[off + i] = sample.in[off + i];
       } else {
-        for (int i = 0; i < C; i++)
+        for (int i = 0; i < (C ? C : sample.channels); i++)
           sample.out[off + i] = 0;
       }
       off += C * blockDim.x;
@@ -83,16 +83,18 @@ class GridMaskGpu {
            const std::vector<float> &sx,
            const std::vector<float> &sy) {
     int n = in.num_samples();
-    int c = 0;
+    int c = in.tensor_shape(0)[2];
 
     sample_descs_.resize(n);
     for (int i = 0; i < n; i++) {
       const auto &shape = in.tensor_shape(i);
-      DALI_ENFORCE(!c || c == shape[2], "All images in a batch must have the same "
-                                        "number of channels");
-      c = shape[2];
+      // if the number of channels is not uniform in the batch, use the
+      // non-const version of the kernel.
+      if (c != shape[2]) c = 0;
+
       sample_descs_[i].out = out[i].data;
       sample_descs_[i].in = in[i].data;
+      sample_descs_[i].channels = shape[2];
       sample_descs_[i].width = shape[1];
       sample_descs_[i].height = shape[0];
 
@@ -111,7 +113,9 @@ class GridMaskGpu {
     dim3 block = block_setup_.BlockDim();
     VALUE_SWITCH(c, C, (1, 2, 3, 4), (
       GridMaskKernel<Type, C><<<grid, block, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
-    ), ()); //NOLINT
+    ), (  // NOLINT
+      GridMaskKernel<Type, 0><<<grid, block, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
+    ));  // NOLINT
   }
 };
 
