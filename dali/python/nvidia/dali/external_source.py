@@ -384,7 +384,7 @@ Keyword Args
 
 `parallel` : bool, optional, default = False
     If set to ``True`` the corresponding pipeline will run pool of Python workers to run the
-    callback in parallel. You can specify the number of workers by passing ``py_workers_num``
+    callback in parallel. You can specify the number of workers by passing ``py_num_workers``
     into pipeline's constructor.
 
     When parallel=True ``source`` must return NumPy/MXNet/PyTorch CPU array, TensorCPU, or

@@ -37,6 +37,6 @@ def test_pytorch_cuda_context():
     # Create a dummy MXNet CUDA tensor so we acquire CUDA context
     _ = mx.nd.zeros((1, 1), ctx=mx.gpu(0))
     callback = ExtCallback((4, 5), 10, np.int32)
-    pipe = create_pipe(callback, 'cpu', 5, py_workers_num=6,
+    pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
                 py_workers_init='fork', parallel=True)
     pipe.start_py_workers()

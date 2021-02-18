@@ -118,13 +118,13 @@ Parameters
 `enable_memory_stats`: bool, optional, default = False
     If DALI should print operator output buffer statistics.
     Usefull for `bytes_per_sample_hint` operator parameter.
-`py_workers_num`: int, optional, default = None
+`py_num_workers`: int, optional, default = None
     Specify the number of Python workers that will process ExternalSource callbacks.
     If a number is not specified, the pool will use the cpu count as the number of Python workers.
     The pool starts only if there is at least one ExternalSource with ``parallel`` set to True.
     Setting it to 0 disables the pool and all ExternalSource operators fall back to non parallel
     mode even if ``parallel`` is set to True.
-`py_workers_init` : str, default = "fork"
+`py_start_method` : str, default = "fork"
     Specify how Python workers should start. Supported methods:
         * ``fork`` - start by forking the process
         * ``spawn`` - start fresh interpreter process
@@ -140,7 +140,7 @@ Parameters
                  exec_async=True, bytes_per_sample=0,
                  set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
                  *,
-                 enable_memory_stats=False, py_workers_num=None, py_workers_init="fork"):
+                 enable_memory_stats=False, py_num_workers=None, py_start_method="fork"):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -170,8 +170,8 @@ Parameters
         self._set_affinity = set_affinity
         self._max_streams = max_streams
         self._default_cuda_stream_priority = default_cuda_stream_priority
-        self._py_workers_num = py_workers_num
-        self._py_workers_init = py_workers_init
+        self._py_num_workers = py_num_workers
+        self._py_start_method = py_start_method
         self._api_type = None
         self._skip_api_check = False
         self._graph_out = None
@@ -497,7 +497,7 @@ Parameters
         if not self._parallel_input_callbacks:
             return
         self._py_pool = WorkersPool.from_groups(
-            self._parallel_input_callbacks, self._prefetch_queue_depth, self._py_workers_init, self._py_workers_num)
+            self._parallel_input_callbacks, self._prefetch_queue_depth, self._py_start_method, self._py_num_workers)
         # pool instance releases shared memory when garbage collected, thus it must outlive the pipeline instance
         # when external source is used with no_copy=True
         weakref.finalize(self, lambda pool : pool.close(), self._py_pool)
@@ -539,7 +539,7 @@ Parameters
                 groups.add(group)
         groups = list(groups)
         self._input_callbacks = groups
-        if self._py_workers_num is not None and self._py_workers_num == 0:
+        if self._py_num_workers is not None and self._py_num_workers == 0:
             self._parallel_input_callbacks = []
             self._seq_input_callbacks = self._input_callbacks
         else:
@@ -550,7 +550,7 @@ Parameters
         """
         Start Python workers (that will run ExternalSource callbacks).
         You need to call :meth:`start_py_workers` before you call any functionality that creates
-        or acquires CUDA context when using fork to start Python workers (``py_workers_init=fork``).
+        or acquires CUDA context when using fork to start Python workers (``py_start_method=fork``).
         It is called automatically by Pipeline's build method when such separation is not necessary.
 
         If you are going to build more than one pipeline that starts Python workers by forking
@@ -561,7 +561,7 @@ Parameters
         The same applies to using any other functionality that would create CUDA context -
         for example initializing a framework that uses CUDA or creating CUDA tensors with it.
         You need to call :meth:`start_py_workers` before you call such functionality when
-        using ``py_workers_init=fork``.
+        using ``py_start_method=fork``.
 
         Forking a process that has a CUDA context is unsupported and may lead to unexpected errors.
 

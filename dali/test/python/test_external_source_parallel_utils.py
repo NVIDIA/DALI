@@ -62,10 +62,10 @@ class ExtCallbackTensorCPU(ExtCallback):
 
 
 def create_pipe(
-        callback, device, batch_size, num_outputs=None, layout=None, py_workers_num=None,
+        callback, device, batch_size, num_outputs=None, layout=None, py_num_workers=None,
         py_workers_init="fork", parallel=True, device_id=0):
     pipe = dali.pipeline.Pipeline(
-        batch_size, 1, device_id, py_workers_num=py_workers_num, py_workers_init=py_workers_init)
+        batch_size, 1, device_id, py_num_workers=py_num_workers, py_workers_init=py_workers_init)
     inputs = dali.fn.external_source(
         callback, num_outputs=num_outputs, device=device, layout=layout, batch=False,
         parallel=parallel)
@@ -110,7 +110,7 @@ def check_spawn_with_callback(
             for workers_num in [1, 4]:
                 for batch_size in [1, 16, 150]:
                     pipe_parallel = create_pipe(
-                        callback, 'cpu', batch_size, py_workers_num=workers_num,
+                        callback, 'cpu', batch_size, py_num_workers=workers_num,
                         py_workers_init='spawn', parallel=True, num_outputs=num_outputs,
                         layout=layout)
                     pipe = create_pipe(callback_ref, 'cpu', batch_size, parallel=False,

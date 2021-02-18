@@ -77,7 +77,7 @@ def training_test(args):
             prefetch=args.prefetch,
             reader_queue_depth=args.reader_queue_depth,
             py_workers_init=args.worker_init,
-            py_workers_num=args.py_workers)
+            py_num_workers=args.py_workers)
 
         # Start the pipeline workers first, before any CUDA call. The first pipeline factory
         # is the one with Parallel External Source that needs that.
