@@ -170,27 +170,32 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
 
 #if NVJPEG2K_ENABLED
-    auto nvjpeg2k_thread_id = nvjpeg2k_thread_.GetThreadIds()[0];
-    if (device_memory_padding_jpeg2k > 0) {
-      // Adding smaller buffers that are allocated by nvjpeg2k on startup.
-      // The sizes were obtained empirically.
-      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 1024);
-      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 4 * 1024);
-      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 16 * 1024);
-      nvjpeg2k_intermediate_buffer_.resize(device_memory_padding_jpeg2k / 8);
-      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU,
-                               device_memory_padding_jpeg2k);
-      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU,
-                               device_memory_padding_jpeg2k);
-    }
-    if (host_memory_padding_jpeg2k > 0) {
-      nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::Pinned,
-                               host_memory_padding_jpeg2k);
-    }
-    nvjpeg2k_thread_.AddWork([this](int) {
+
+    nvjpeg2k_thread_.AddWork([this, device_memory_padding_jpeg2k, host_memory_padding_jpeg2k](int) {
       nvjpeg2k_handle_ = NvJPEG2KHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
 
-      nvjpeg2k_decoder_ = NvJPEG2KDecodeState(nvjpeg2k_handle_);
+      // nvJPEG2k doesn't support deprecated sm while DALI does. In this case, NvJPEG2KHandle may
+      // be empty and we need to fall back to the CPU implementation
+      if (nvjpeg2k_handle_) {
+        auto nvjpeg2k_thread_id = nvjpeg2k_thread_.GetThreadIds()[0];
+        if (device_memory_padding_jpeg2k > 0) {
+          // Adding smaller buffers that are allocated by nvjpeg2k on startup.
+          // The sizes were obtained empirically.
+          nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 1024);
+          nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 4 * 1024);
+          nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 16 * 1024);
+          nvjpeg2k_intermediate_buffer_.resize(device_memory_padding_jpeg2k / 8);
+          nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU,
+                                  device_memory_padding_jpeg2k);
+          nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU,
+                                  device_memory_padding_jpeg2k);
+        }
+        if (host_memory_padding_jpeg2k > 0) {
+          nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::Pinned,
+                                  host_memory_padding_jpeg2k);
+        }
+        nvjpeg2k_decoder_ = NvJPEG2KDecodeState(nvjpeg2k_handle_);
+      }
     });
     nvjpeg2k_thread_.RunAll();
 
@@ -433,29 +438,31 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   bool ParseNvjpeg2k(SampleData &data, span<const uint8_t> input) {
 #if NVJPEG2K_ENABLED
-    const auto &jpeg2k_stream = nvjpeg2k_streams_[data.sample_idx];
-    auto ret = nvjpeg2kStreamParse(nvjpeg2k_handle_, input.data(), input.size(),
-                                   0, 0, jpeg2k_stream);
-    if (ret == NVJPEG2K_STATUS_SUCCESS) {
-      nvjpeg2kImageInfo_t image_info;
-      NVJPEG2K_CALL(nvjpeg2kStreamGetImageInfo(jpeg2k_stream, &image_info));
-      nvjpeg2kImageComponentInfo_t comp;
-      NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, 0));
-      uint32_t height = comp.component_height;
-      uint32_t width = comp.component_width;
-      for (uint32_t c = 1; c < image_info.num_components; ++c) {
-        NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, c));
-        DALI_ENFORCE(height == comp.component_height &&
-                     width == comp.component_width,
-                     make_string("Components dimensions do not match: "
-                                 "component 0 has a shape of {", comp.component_height, ", ",
-                                 comp.component_width, "} and component ", c, " has a shape of {",
-                                 height, ", ", width, "}"));
+    if (nvjpeg2k_handle_) {
+      const auto &jpeg2k_stream = nvjpeg2k_streams_[data.sample_idx];
+      auto ret = nvjpeg2kStreamParse(nvjpeg2k_handle_, input.data(), input.size(),
+                                    0, 0, jpeg2k_stream);
+      if (ret == NVJPEG2K_STATUS_SUCCESS) {
+        nvjpeg2kImageInfo_t image_info;
+        NVJPEG2K_CALL(nvjpeg2kStreamGetImageInfo(jpeg2k_stream, &image_info));
+        nvjpeg2kImageComponentInfo_t comp;
+        NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, 0));
+        uint32_t height = comp.component_height;
+        uint32_t width = comp.component_width;
+        for (uint32_t c = 1; c < image_info.num_components; ++c) {
+          NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, c));
+          DALI_ENFORCE(height == comp.component_height &&
+                      width == comp.component_width,
+                      make_string("Components dimensions do not match: "
+                                  "component 0 has a shape of {", comp.component_height, ", ",
+                                  comp.component_width, "} and component ", c, " has a shape of {",
+                                  height, ", ", width, "}"));
+        }
+        data.shape = {height, width, image_info.num_components};
+        data.method = DecodeMethod::Nvjpeg2k;
+        samples_jpeg2k_.push_back(&data);
+        return true;
       }
-      data.shape = {height, width, image_info.num_components};
-      data.method = DecodeMethod::Nvjpeg2k;
-      samples_jpeg2k_.push_back(&data);
-      return true;
     }
 #endif  // NVJPEG2K_ENABLED
     return false;
@@ -526,7 +533,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           data.method = DecodeMethod::NvjpegCuda;
           samples_single_.push_back(&data);
         }
-      } else if (!ParseNvjpeg2k(data, span<const uint8_t>(input_data, in_size))) {
+      } else if (crop_generator || !ParseNvjpeg2k(data, span<const uint8_t>(input_data, in_size))) {
         try {
           data.method = DecodeMethod::Host;
           auto image = ImageFactory::CreateImage(input_data, in_size, output_image_type_);
@@ -642,19 +649,21 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   void ProcessImagesJpeg2k(MixedWorkspace &ws) {
 #if NVJPEG2K_ENABLED
-    nvjpeg2k_thread_.AddWork([this, &ws](int) {
-      auto &output = ws.OutputRef<GPUBackend>(0);
-      auto &input = ws.InputRef<CPUBackend>(0);
-      for (auto *sample : samples_jpeg2k_) {
-        assert(sample);
-        auto i = sample->sample_idx;
-        auto output_data = output.mutable_tensor<uint8_t>(i);
-        auto in = span<const uint8_t>(input[i].data<uint8_t>(), input[i].size());
-        ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
-        DecodeJpeg2k(output_data, sample, in);
-        CacheStore(sample->file_name, output_data, shape, nvjpeg2k_cu_stream_);
-      }
-    });
+    if (nvjpeg2k_handle_) {
+      nvjpeg2k_thread_.AddWork([this, &ws](int) {
+        auto &output = ws.OutputRef<GPUBackend>(0);
+        auto &input = ws.InputRef<CPUBackend>(0);
+        for (auto *sample : samples_jpeg2k_) {
+          assert(sample);
+          auto i = sample->sample_idx;
+          auto output_data = output.mutable_tensor<uint8_t>(i);
+          auto in = span<const uint8_t>(input[i].data<uint8_t>(), input[i].size());
+          ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
+          DecodeJpeg2k(output_data, sample, in);
+          CacheStore(sample->file_name, output_data, shape, nvjpeg2k_cu_stream_);
+        }
+      });
+    }
 #endif  // NVJPEG2K_ENABLED
   }
 
