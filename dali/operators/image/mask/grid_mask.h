@@ -51,6 +51,7 @@ class GridMask : public Operator<Backend> {
 class GridMaskCpu : public GridMask<CPUBackend> {
  public:
   explicit GridMaskCpu(const OpSpec &spec) : GridMask(spec) { }
+  using Operator<CPUBackend>::RunImpl;
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
