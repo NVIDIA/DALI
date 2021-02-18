@@ -180,7 +180,7 @@ starts thread keeping track of running processes and initializes communication.
             raise RuntimeError(
                 "Cannot fork process when there is CUDA context bound to it. "
                 "Make sure you build pipeline before CUDA context is acquired or change Python workers "
-                "starting method from ``fork`` to ``spawn`` (see Piepline's ``py_workers_init`` option). "
+                "starting method from ``fork`` to ``spawn`` (see Piepline's ``py_start_method`` option). "
                 "If you are trying to build multiple pipelines that use Python workers, you will need to "
                 "call ``start_py_workers`` method on all of them before calling ``build`` method of any pipeline.")
         mp = multiprocessing.get_context(init_method)

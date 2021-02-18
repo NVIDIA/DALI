@@ -25,7 +25,7 @@ def test_parallel_fork_cpu_only():
     iters = 40
     callback = ExtCallback((4, 5), iters * batch_size, np.int32)
     parallel_pipes = [create_pipe(callback, 'cpu', batch_size, py_num_workers=4,
-                                  py_workers_init='fork', parallel=True, device_id=None)
+                                  py_start_method='fork', parallel=True, device_id=None)
                       for i in range(2 * pipeline_pairs)]
     for i in range(pipeline_pairs):
         parallel_pipes[2 * i].build()
@@ -38,7 +38,7 @@ def test_parallel_no_workers():
     iters = 4
     callback = ExtCallback((4, 5), iters * batch_size, np.int32)
     parallel_pipe = create_pipe(callback, 'cpu', batch_size, py_num_workers=0,
-                                py_workers_init='spawn', parallel=True, device_id=None)
+                                py_start_method='spawn', parallel=True, device_id=None)
     parallel_pipe.build()
     assert parallel_pipe._py_pool is None
     assert parallel_pipe._py_pool_started == False
@@ -48,7 +48,7 @@ def test_parallel_fork():
     callback = ExtCallback((4, 5), epoch_size, np.int32)
     pipes = [(
         create_pipe(
-            callback, 'cpu', batch_size, py_num_workers=workers_num, py_workers_init='fork',
+            callback, 'cpu', batch_size, py_num_workers=workers_num, py_start_method='fork',
             parallel=True),
         create_pipe(callback, 'cpu', batch_size, parallel=False),
         dtype, batch_size)
@@ -60,7 +60,7 @@ def test_parallel_fork():
         yield check_callback, parallel_pipe, pipe, epoch_size, batch_size, dtype
     # test that another pipline with forking initialization fails as there is CUDA contexts already initialized
     parallel_pipe = create_pipe(callback, 'cpu', 16, py_num_workers=4,
-                                py_workers_init='fork', parallel=True)
+                                py_start_method='fork', parallel=True)
     yield raises(RuntimeError)(build_and_run_pipeline), parallel_pipe, 1
 
 
@@ -91,7 +91,7 @@ def test_exception_propagation():
             for batch_size in [1, 15, 150]:
                 pipe = create_pipe(
                     callback, 'cpu', batch_size, py_num_workers=workers_num,
-                    py_workers_init='spawn', parallel=True)
+                    py_start_method='spawn', parallel=True)
                 yield raises(expected)(build_and_run_pipeline), pipe, None, raised, expected
 
 
@@ -101,7 +101,7 @@ def test_stop_iteration_resume():
     for workers_num in [1, 4]:
         for batch_size in [1, 15, 150]:
             pipe = create_pipe(callback, 'cpu', batch_size, layout=layout,
-                               py_num_workers=workers_num, py_workers_init='spawn', parallel=True)
+                               py_num_workers=workers_num, py_start_method='spawn', parallel=True)
             yield check_stop_iteration_resume, pipe, batch_size, layout
 
 
@@ -112,5 +112,5 @@ def test_layout():
             for batch_size in [1, 256, 600]:
                 pipe = create_pipe(
                     callback, 'cpu', batch_size, layout=layout, py_num_workers=workers_num,
-                    py_workers_init='spawn', parallel=True)
+                    py_start_method='spawn', parallel=True)
                 yield check_layout, pipe, layout
