@@ -18,72 +18,100 @@
 #include <cuda_runtime.h>
 #include <vector>
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/common/block_setup.h"
 
 namespace dali {
 namespace kernels {
 
-namespace detail {
-
-struct Args {
-  int width, height, channels;
+template <typename T>
+struct GridMaskSampleDesc {
+  T *out;
+  const T *in;
+  int width, height;
   float ca, sa, sx, sy, ratio;
 };
 
-template <typename T>
-__global__ void GridMaskKernel(T *output, const T *input, const Args args) {
-  int x = 32 * blockIdx.x + threadIdx.x;
-  int y = 32 * blockIdx.y + threadIdx.y;
-  if (x >= args.width || y >= args.height)
-    return;
+template <typename T, unsigned C>
+__global__ void GridMaskKernel(const GridMaskSampleDesc<T> *samples,
+                               const BlockDesc<2> *blocks) {
+  auto block = blocks[blockIdx.x];
+  auto sample = samples[block.sample_idx];
 
-  int off = args.channels * (x + y * args.width);
-  float fx = -args.sx + x * args.ca - y * args.sa;
-  float fy = -args.sy + x * args.sa + y * args.ca;
-  float m = (fx - floor(fx) >= args.ratio) || (fy - floor(fy) >= args.ratio);
-  for (int i = 0; i < args.channels; i++)
-    output[off + i] = input[off + i] * m;
+  for (int y = block.start.y + threadIdx.y; y < block.end.y; y += blockDim.y) {
+    int x = block.start.x + threadIdx.x;
+    int off = C * (x + y * sample.width);
+    float fxy = -fmaf(y, sample.sa,  sample.sx);
+    float fyy =  fmaf(y, sample.ca, -sample.sy);
+    for (; x < block.end.x; x += blockDim.x) {
+      float fx = fmaf(x, sample.ca, fxy);
+      float fy = fmaf(x, sample.sa, fyy);
+      if ((fx - ::floor(fx) >= sample.ratio) || (fy - ::floor(fy) >= sample.ratio)) {
+        for (int i = 0; i < C; i++)
+          sample.out[off + i] = sample.in[off + i];
+      } else {
+        for (int i = 0; i < C; i++)
+          sample.out[off + i] = 0;
+      }
+      off += C * blockDim.x;
+    }
+  }
 }
-
-}  // namespace detail
 
 template <typename Type>
 class GridMaskGpu {
+  using SampleDesc = GridMaskSampleDesc<Type>;
+  using BlockDesc = kernels::BlockDesc<2>;
+  std::vector<SampleDesc> sample_descs_;
+  BlockSetup<2, 2> block_setup_;
+
  public:
-  KernelRequirements Setup(KernelContext &context, const InListGPU<Type> &in) {
+  KernelRequirements Setup(KernelContext &context, const InListGPU<Type, 3> &in) {
     KernelRequirements req;
     req.output_shapes = {in.shape};
+    ScratchpadEstimator se;
+    block_setup_.SetupBlocks(in.shape, true);
+    se.add<SampleDesc>(AllocType::GPU, in.num_samples());
+    se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
+    req.scratch_sizes = se.sizes;
     return req;
   }
 
-  void Run(KernelContext &ctx, OutListGPU<Type> &out, const InListGPU<Type> &in,
+  void Run(KernelContext &ctx, OutListGPU<Type, 3> &out, const InListGPU<Type, 3> &in,
            const std::vector<int> &tile,
            const std::vector<float> &ratio,
            const std::vector<float> &angle,
            const std::vector<float> &sx,
            const std::vector<float> &sy) {
-    /*
-    int tile = 50;
-    float ratio = 0.5;
-    float angle = 0.2;
-    float sx = 20;
-    float sy = 50;
-    */
+    int n = in.num_samples();
+    int c = 0;
 
-    for (int i = 0; i < in.num_samples(); i++) {
+    sample_descs_.resize(n);
+    for (int i = 0; i < n; i++) {
       const auto &shape = in.tensor_shape(i);
-      int width = shape[1];
-      int channels = shape[2];
-      int height = shape[0];
-      detail::Args args{
-        width, height, channels,
-        cos(angle[i]) / tile[i], sin(angle[i]) / tile[i],
-        sx[i] / tile[i], sy[i] / tile[i], ratio[i] };
+      DALI_ENFORCE(!c || c == shape[2], "All images in a batch must have the same "
+                                        "number of channels");
+      c = shape[2];
+      sample_descs_[i].out = out[i].data;
+      sample_descs_[i].in = in[i].data;
+      sample_descs_[i].width = shape[1];
+      sample_descs_[i].height = shape[0];
 
-      dim3 block(32, 32, 1);
-      dim3 grid((width + 31) / 32, (height + 31) / 32, 1);
-      detail::GridMaskKernel<<<grid, block, 0, ctx.gpu.stream>>>(
-        out[i].data, in[i].data, args);
+      sample_descs_[i].ca = cos(angle[i]) / tile[i];
+      sample_descs_[i].sa = sin(angle[i]) / tile[i];
+      sample_descs_[i].sx = sx[i] / tile[i];
+      sample_descs_[i].sy = sy[i] / tile[i];
+      sample_descs_[i].ratio = ratio[i];
     }
+
+    SampleDesc *samples_gpu;
+    BlockDesc *blocks_gpu;
+    std::tie(samples_gpu, blocks_gpu) = ctx.scratchpad->ToContiguousGPU(
+        ctx.gpu.stream, sample_descs_, block_setup_.Blocks());
+    dim3 grid = block_setup_.GridDim();
+    dim3 block = block_setup_.BlockDim();
+    VALUE_SWITCH(c, C, (1, 2, 3, 4), (
+      GridMaskKernel<Type, C><<<grid, block, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
+    ), ()); //NOLINT
   }
 };
 
