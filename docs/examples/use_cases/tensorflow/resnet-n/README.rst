@@ -14,80 +14,76 @@ Use of nvutils is demonstrated in the model script (i.e. resnet.py). The scripts
 support both Keras Fit/Compile and Custom Training Loop (CTL) modes with
 Horovod.
 
-To use DALI pipeline for data loading and preprocessing
-```
---dali_mode=GPU #or
---dali_mode=CPU
-```
+To use DALI pipeline for data loading and preprocessing ``--dali_mode=GPU`` or
+``--dali_mode=CPU``
 
-## Training in Keras Fit/Compile mode
-For the full training on 8 GPUs:
-```
-mpiexec --allow-run-as-root --bind-to socket -np 8 \
-  python resnet.py --num_iter=90 --iter_unit=epoch \
-  --data_dir=/data/imagenet/train-val-tfrecord-480/ \
-  --precision=fp16 --display_every=100 \
-  --export_dir=/tmp --dali_mode="GPU"
-```
+Training in Keras Fit/Compile mode
+----------------------------------
+For the full training on 8 GPUs::
 
-For the benchmark training on 8 GPUs:
-```
-mpiexec --allow-run-as-root --bind-to socket -np 8 \
-  python resnet.py --num_iter=400 --iter_unit=batch \
-  --data_dir=/data/imagenet/train-val-tfrecord-480/ \
-  --precision=fp16 --display_every=100 --dali_mode="GPU"
-```
+    mpiexec --allow-run-as-root --bind-to socket -np 8 \
+      python resnet.py --num_iter=90 --iter_unit=epoch \
+      --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+      --precision=fp16 --display_every=100 \
+      --export_dir=/tmp --dali_mode="GPU"
 
-## Predicting in Keras Fit/Compile mode
-For predicting with previously saved mode in `/tmp`:
-```
-python resnet.py --predict --export_dir=/tmp --dali_mode="GPU"
-```
+For the benchmark training on 8 GPUs::
 
-## Training in CTL (Custom Training Loop) mode
-For the full training on 8 GPUs:
-```
-mpiexec --allow-run-as-root --bind-to socket -np 8 \
-  python resnet_ctl.py --num_iter=90 --iter_unit=epoch \
-  --data_dir=/data/imagenet/train-val-tfrecord-480/ \
-  --precision=fp16 --display_every=100 \
-  --export_dir=/tmp --dali_mode="GPU"
-```
+    mpiexec --allow-run-as-root --bind-to socket -np 8 \
+      python resnet.py --num_iter=400 --iter_unit=batch \
+      --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+      --precision=fp16 --display_every=100 --dali_mode="GPU"
 
-For the benchmark training on 8 GPUs:
-```
-mpiexec --allow-run-as-root --bind-to socket -np 8 \
-  python resnet_ctl.py --num_iter=400 --iter_unit=batch \
-  --data_dir=/data/imagenet/train-val-tfrecord-480/ \
-  --precision=fp16 --display_every=100 --dali_mode="GPU"
-```
 
-## Predicting in CTL (Custom Training Loop) mode
-For predicting with previously saved mode in `/tmp`:
-```
-python resnet_ctl.py --predict --export_dir=/tmp --dali_mode="GPU"
-```
+Predicting in Keras Fit/Compile mode
+------------------------------------
+For predicting with previously saved mode in `/tmp`::
 
-## Other useful options
-To use tensorboard (Note, `/tmp/some_dir` needs to be created by users):
-```
---tensorboard_dir=/tmp/some_dir
-```
+    python resnet.py --predict --export_dir=/tmp --dali_mode="GPU"
 
-To export saved model at the end of training (Note, `/tmp/some_dir` needs to be created by users):
-```
---export_dir=/tmp/some_dir
-```
 
-To store checkpoints at the end of every epoch (Note, `/tmp/some_dir` needs to be created by users):
-```
---log_dir=/tmp/some_dir
-```
+Training in CTL (Custom Training Loop) mode
+-------------------------------------------
+For the full training on 8 GPUs::
 
-To enable XLA
-```
---use_xla
-```
+    mpiexec --allow-run-as-root --bind-to socket -np 8 \
+      python resnet_ctl.py --num_iter=90 --iter_unit=epoch \
+      --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+      --precision=fp16 --display_every=100 \
+      --export_dir=/tmp --dali_mode="GPU"
+
+For the benchmark training on 8 GPUs::
+
+    mpiexec --allow-run-as-root --bind-to socket -np 8 \
+      python resnet_ctl.py --num_iter=400 --iter_unit=batch \
+      --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+      --precision=fp16 --display_every=100 --dali_mode="GPU"
+
+Predicting in CTL (Custom Training Loop) mode
+---------------------------------------------
+For predicting with previously saved mode in `/tmp`::
+
+    python resnet_ctl.py --predict --export_dir=/tmp --dali_mode="GPU"
+
+Other useful options
+--------------------
+To use tensorboard (Note, `/tmp/some_dir` needs to be created by users)::
+
+    --tensorboard_dir=/tmp/some_dir
+
+
+To export saved model at the end of training (Note, `/tmp/some_dir` needs to be created by users)::
+
+    --export_dir=/tmp/some_dir
+
+To store checkpoints at the end of every epoch (Note, `/tmp/some_dir` needs to be created by users)::
+
+    --log_dir=/tmp/some_dir
+
+To enable XLA::
+
+    --use_xla
+
 
 Requirements
 ~~~~~~~~~~~~
@@ -138,7 +134,7 @@ Horovod
    export HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu
    export HOROVOD_NCCL_LINK=SHARED
    export HOROVOD_WITHOUT_PYTORCH=1
-   pip install horovod==0.15.1
+   pip install horovod==0.19.1
 
 .. _the original paper: https://arxiv.org/pdf/1512.03385.pdf
 .. _NGC TensorFlow Container: https://www.nvidia.com/en-us/gpu-cloud/deep-learning-containers/
