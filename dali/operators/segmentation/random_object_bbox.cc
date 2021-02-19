@@ -506,6 +506,8 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
   default_context_.thread_pool = &tp;
   huge_context_.thread_pool = &tp;
 
+  AllocateTempStorage(input);
+
   std::uniform_real_distribution<> foreground(0, 1);
   for (int i = 0; i < N; i++) {
     bool fg = foreground(rngs_[i]) < foreground_prob_[i].data[0];

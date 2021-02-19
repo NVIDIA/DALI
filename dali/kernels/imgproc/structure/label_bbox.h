@@ -65,7 +65,7 @@ inline bool hit(span<uint32_t> hits, unsigned idx) {
  * @param in          current tensor slice
  * @param dim_mapping mapping from simplified to original (and bounding box) dimensions
  * @param background  label value interpreted as background (background has no bounding box)
- * @param pos         origin of current slice
+ * @param origin      origin of current slice
  */
 template <typename Coord, typename Label, int simplified_ndim, int ndim>
 void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
@@ -74,7 +74,7 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
                            TensorSlice<const Label, 1> in,
                            ivec<simplified_ndim> dim_mapping,
                            Label background,
-                           i64vec<ndim> pos = {}) {
+                           i64vec<ndim> origin = {}) {
   for (auto &mask : hits)
     mask = 0u;  // mark all labels as not found in this row
 
@@ -97,8 +97,8 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
 
   vec<ndim, Coord> lo, hi = 0;
   for (int i = 0; i < ndim; i++) {
-    lo[i] = pos[i];
-    hi[i] = next<Coord>(pos[i]);  // one past
+    lo[i] = origin[i];
+    hi[i] = next<Coord>(origin[i]);  // one past
   }
 
   const int d = dim_mapping[simplified_ndim-1];
@@ -113,8 +113,8 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
         continue;
       }
       if (mask & 1) {  // label found? mark it
-        lo[d] = ranges[i].lo + pos[d];
-        hi[d] = next<Coord>(ranges[i].hi + pos[d]);  // one past the index found in this function
+        lo[d] = ranges[i].lo + origin[d];
+        hi[d] = next<Coord>(ranges[i].hi + origin[d]);  // one past the index found in this function
         if (boxes[i].empty()) {
           // empty box - create a new one
           boxes[i] = { lo, hi };
@@ -139,7 +139,7 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
  * @param in          current tensor slice
  * @param dim_mapping mapping from simplified to original (and bounding box) dimensions
  * @param background  label value interpreted as background (background has no bounding box)
- * @param pos         origin of current slice
+ * @param origin      origin of current slice
  */
 template <typename Coord, typename Label, int simplified_ndim, int ndim, int remaining_dims>
 void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
@@ -148,26 +148,27 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
                            TensorSlice<const Label, remaining_dims> in,
                            ivec<simplified_ndim> dim_mapping,
                            Label background,
-                           i64vec<ndim> pos) {
+                           i64vec<ndim> origin) {
   int64_t n = in.size[0];
   int d = dim_mapping[simplified_ndim - remaining_dims];
-  for (int64_t i = 0, p = pos[d]; i < n; i++, p++) {
-    pos[d] = p;
-    GetLabelBoundingBoxes(boxes, ranges, hits, in.slice(i), dim_mapping, background, pos);
+  for (int64_t i = 0, p = origin[d]; i < n; i++, p++) {
+    origin[d] = p;
+    GetLabelBoundingBoxes(boxes, ranges, hits, in.slice(i), dim_mapping, background, origin);
   }
 }
 
 
 /**
- * @brief Calculates a bounding box for each lablel in `in`
+ * @brief Calculates a bounding box for each label in `in`
  *
- * @param boxes     output bounding boxes; labels whose box index is outside of valid range of
- *                  indices in `boxes` are ignored; box index for a label is calculaed as:
- *                  label > background ? label-1 : label
- * @param in        input tensor containing zero-based labels
- * @param backgroun the label value interpreted as a background; it doesn't have its corresponding
- *                  bounding box
- * @param engine    thread-pool-like object
+ * @param boxes       output bounding boxes; labels whose box index is outside of valid range of
+ *                    indices in `boxes` are ignored; box index for a label is calculated as:
+ *                    background >= 0 && label > background ? label-1 : label
+ * @param in          input tensor containing zero-based labels
+ * @param background  the label value interpreted as a background; it doesn't have its corresponding
+ *                    bounding box
+ * @param engine      thread-pool-like object
+ * @param origin      origin of current slice
  */
 template <typename Coord, typename Label, int simplified_ndim, int ndim,
           int remaining_dims>
@@ -175,25 +176,25 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
                            TensorSlice<const Label, remaining_dims> in,
                            ivec<simplified_ndim> dim_mapping,
                            Label background,
-                           i64vec<ndim> pos) {
+                           i64vec<ndim> origin) {
   SmallVector<detail::Range, 16> ranges;
   SmallVector<uint32_t, 4> hits;
   ranges.resize(boxes.size());
   hits.resize(div_ceil(boxes.size(), 32));
   GetLabelBoundingBoxes(boxes, make_span(ranges), make_span(hits),
-                        in, dim_mapping, background, pos);
+                        in, dim_mapping, background, origin);
 }
 
 /**
- * @brief Calculates a bounding box for each lablel in `in`
+ * @brief Calculates a bounding box for each label in `in`
  *
- * @param boxes     output bounding boxes; labels whose box index is outside of valid range of
- *                  indices in `boxes` are ignored; box index for a label is calculaed as:
- *                  label > background ? label-1 : label
- * @param in        input tensor containing zero-based labels
- * @param backgroun the label value interpreted as a background; it doesn't have its corresponding
- *                  bounding box
- * @param engine    thread-pool-like object
+ * @param boxes       output bounding boxes; labels whose box index is outside of valid range of
+ *                    indices in `boxes` are ignored; box index for a label is calculated as:
+ *                    background >= 0 && label > background ? label-1 : label
+ * @param in          input tensor containing zero-based labels
+ * @param background  the label value interpreted as a background; it doesn't have its corresponding
+ *                    bounding box
+ * @param engine      thread-pool-like object
  */
 template <typename Coord, typename Label, int simplified_ndim, int ndim,
           int remaining_dims, typename ExecutionEngine>
@@ -233,9 +234,9 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
     part.size[max_d] = end - start;
     part.data = in.data + start * stride;
     engine.AddWork([=](int) {
-      i64vec<ndim> pos = {};
-      pos[dim_mapping[max_d]] = start;
-      GetLabelBoundingBoxes(part_boxes, part, dim_mapping, background, pos);
+      i64vec<ndim> origin = {};
+      origin[dim_mapping[max_d]] = start;
+      GetLabelBoundingBoxes(part_boxes, part, dim_mapping, background, origin);
     });
   }
   engine.RunAll();
@@ -258,15 +259,15 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
 }  // namespace detail
 
 /**
- * @brief Calculates a bounding box for each lablel in `in`
+ * @brief Calculates a bounding box for each label in `in`
  *
- * @param boxes     output bounding boxes; labels whose box index is outside of valid range of
- *                  indices in `boxes` are ignored; box index for a label is calculaed as:
- *                  label > background ? label-1 : label
- * @param in        input tensor containing zero-based labels
- * @param backgroun the label value interpreted as a background; it doesn't have its corresponding
- *                  bounding box
- * @param engine    thread-pool-like object
+ * @param boxes       output bounding boxes; labels whose box index is outside of valid range of
+ *                    indices in `boxes` are ignored; box index for a label is calculated as:
+ *                    background >= 0 && label > background ? label-1 : label
+ * @param in          input tensor containing zero-based labels
+ * @param background  the label value interpreted as a background; it doesn't have its corresponding
+ *                    bounding box
+ * @param engine      thread-pool-like object
  */
 template <typename Coord, typename Label, int ndim, typename ExecutionEngine>
 void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
