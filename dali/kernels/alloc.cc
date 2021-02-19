@@ -18,6 +18,7 @@
 #include "dali/kernels/alloc.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/device_guard.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 namespace kernels {

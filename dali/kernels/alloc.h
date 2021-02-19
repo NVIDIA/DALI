@@ -20,7 +20,6 @@
 #include <type_traits>
 #include "dali/kernels/alloc_type.h"
 #include "dali/core/api_helper.h"
-#include "dali/core/cuda_error.h"
 
 namespace dali {
 namespace kernels {
