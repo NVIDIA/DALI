@@ -194,8 +194,9 @@ The output of the decoder is in *HWC* layout.
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
 
 .. note::
-  JPEG 2000 decoding and extraction of regions-of-interest (ROI) in not accelerated on the GPU when
-  and uses CPU fallback for mixed backend.
+  JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
+  a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
+  consider using separate ``image_decoder`` and ``crop`` operators.
 
 .. note::
   EXIF orientation metadata is disregarded.)code")
@@ -225,8 +226,9 @@ The output of the decoder is in *HWC* layout.
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
 
 .. note::
-  JPEG 2000 decoding and random crop in not accelerated on the GPU when and uses CPU fallback
-  for mixed backend.
+  JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
+  a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
+  consider using separate ``image_decoder`` and ``random_crop`` operators.
 
 .. note::
   EXIF orientation metadata is disregarded.)code")
@@ -281,8 +283,9 @@ The output of the decoder is in the *HWC* layout.
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
 
 .. note::
-  JPEG 2000 decoding and extraction of regions-of-interest (ROI) in not accelerated on the GPU when
-  and uses CPU fallback for mixed backend.
+  JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
+  a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
+  consider using separate ``image_decoder`` and ``slice`` operators.
 
 .. note::
   EXIF orientation metadata is disregarded.)code")
