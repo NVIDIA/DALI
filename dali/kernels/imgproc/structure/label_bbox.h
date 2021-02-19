@@ -158,8 +158,7 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
                            i64vec<ndim> origin) {
   int64_t n = in.size[0];
   int d = dim_mapping[simplified_ndim - remaining_dims];
-  for (int64_t i = 0, p = origin[d]; i < n; i++, p++) {
-    origin[d] = p;
+  for (int64_t i = 0; i < n; i++, origin[d]++) {
     GetLabelBoundingBoxes(boxes, ranges, hits, in.slice(i), dim_mapping, background, origin);
   }
 }

@@ -296,6 +296,7 @@ int64_t CompactLabels(OutLabel *labels,
           prev = labels[i];
           // look up `ds` only when the value changes - this saves a lot of lookups
           remapped = ds.find(labels, i);
+          // no need to assign labels[i] = remapped; find did it
           tmp_set.insert(remapped);
         } else {
           labels[i] = remapped;
