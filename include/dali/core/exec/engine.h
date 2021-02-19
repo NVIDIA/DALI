@@ -26,7 +26,7 @@ concept ExecutionEngine {
   /// @param priority    priority hint for the job, the higher, the earlier it should start
   /// @param start_immediately        if true, all jobs can start - it's just a hint
   ///                                 and implementations may start running the jobs earlier
-  void AddWork(CallableWithInt f, int64_t priority, bool finished_adding_work = false);
+  void AddWork(CallableWithInt f, int64_t priority, bool start_immediately = false);
 
   /// @brief Starts the work and waits for it to complete.
   /// If there was an exception in one of the jobs, rethrows one of them.
