@@ -64,7 +64,8 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
     work_complete_ = false;
     started_ |= start_immediately;
   }
-  condition_.notify_all();
+  if (started_)
+    condition_.notify_all();
 }
 
 // Blocks until all work issued to the thread pool is complete
