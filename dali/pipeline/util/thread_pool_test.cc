@@ -32,12 +32,12 @@ TEST(ThreadPool, AddWork) {
   ASSERT_EQ(count, 64);
 }
 
-TEST(ThreadPool, DoWorkWithID) {
+TEST(ThreadPool, AddWorkImmediateStart) {
   ThreadPool tp(16, 0, false);
   std::atomic<int> count{0};
   auto increase = [&count](int thread_id) { count++; };
   for (int i = 0; i < 64; i++) {
-    tp.DoWorkWithID(increase);
+    tp.AddWork(increase, 0, true);
   }
   tp.WaitForWork();
   ASSERT_EQ(count, 64);

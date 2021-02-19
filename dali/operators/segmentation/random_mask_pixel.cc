@@ -120,7 +120,7 @@ void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   auto pixel_pos_view = view<int64_t>(out_pixel_pos);
   auto& thread_pool = ws.GetThreadPool();
 
-  rle_.resize(thread_pool.size());
+  rle_.resize(thread_pool.NumThreads());
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     thread_pool.AddWork(
