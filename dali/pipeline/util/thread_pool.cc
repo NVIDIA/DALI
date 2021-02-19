@@ -58,14 +58,20 @@ ThreadPool::~ThreadPool() {
 }
 
 void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
+  bool started_before = false;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     work_queue_.push({priority, std::move(work)});
     work_complete_ = false;
+    started_before = started_;
     started_ |= start_immediately;
   }
-  if (started_)
-    condition_.notify_all();
+  if (started_) {
+    if (!started_before)
+      condition_.notify_all();
+    else
+      condition_.notify_one();
+  }
 }
 
 // Blocks until all work issued to the thread pool is complete
