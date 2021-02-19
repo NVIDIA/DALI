@@ -125,7 +125,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   }
 
   void SetupBackend(TensorListShape<> &shape, const HostWorkspace &ws) {
-    int threads = ws.HasThreadPool() ? ws.GetThreadPool().size() : 1;
+    int threads = ws.HasThreadPool() ? ws.GetThreadPool().NumThreads() : 1;
     int N = input_.num_samples();
     kmgr_.Resize<Kernel>(threads, N);
 

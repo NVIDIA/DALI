@@ -424,7 +424,7 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
   TensorShape<> default_anchor;
   default_anchor.resize(ndim);
 
-  contexts_.resize(tp.size()+1);
+  contexts_.resize(tp.NumThreads()+1);
 
   std::uniform_real_distribution<> foreground(0, 1);
   for (int i = 0; i < N; i++) {

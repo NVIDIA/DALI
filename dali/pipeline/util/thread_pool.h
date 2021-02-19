@@ -39,21 +39,14 @@ class DLL_PUBLIC ThreadPool {
   DLL_PUBLIC ~ThreadPool();
 
   /**
-   * @brief Adds work to the queue with optional priority.
-   *        The work only gets queued and it will only start after invoking
-   *        `RunAll` (wakes up all threads to complete all remaining works) or
-   *        `DoWorkWithID` (wakes up a single thread to complete one work unit).
-   * @remarks if finished_adding_work == true, the thread pool will proceed picking
-   *          tasks from its queue, otherwise it will hold execution until `RunAll`
-   *          is invoked.
+   * @brief Adds work to the queue with optional priority, and optionally starts processing
+   *
+   * The jobs are queued but the workers don't pick up the work unless they have
+   * already been started by a previous call to AddWork with start_immediately = true or RunAll.
+   * Once work is started, the threads will continue to pick up whatever work is scheduled
+   * until WaitForWork is called.
    */
-  DLL_PUBLIC void AddWork(Work work, int64_t priority = 0, bool finished_adding_work = false);
-
-  /**
-   * @brief Adds work to the queue with optional priority and wakes up a single
-   *        thread that will pick the task in the queue with highest priority.
-   */
-  DLL_PUBLIC void DoWorkWithID(Work work, int64_t priority = 0);
+  DLL_PUBLIC void AddWork(Work work, int64_t priority = 0, bool start_immediately = false);
 
   /**
    * @brief Wakes up all the threads to complete all the queued work,
@@ -67,7 +60,7 @@ class DLL_PUBLIC ThreadPool {
    */
   DLL_PUBLIC void WaitForWork(bool checkForErrors = true);
 
-  DLL_PUBLIC int size() const;
+  DLL_PUBLIC int NumThreads() const;
 
   DLL_PUBLIC std::vector<std::thread::id> GetThreadIds() const;
 
@@ -88,7 +81,7 @@ class DLL_PUBLIC ThreadPool {
 
   bool running_;
   bool work_complete_;
-  bool adding_work_;
+  bool started_;
   int active_threads_;
   std::mutex mutex_;
   std::condition_variable condition_;

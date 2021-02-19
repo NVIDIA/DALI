@@ -199,7 +199,7 @@ void TensorJoin<Backend, new_axis>::RunTyped(
     const TensorListView<Storage, T> &out, HostWorkspace &ws) {
   using Kernel = kernels::TensorJoinCPU<T, new_axis>;
   ThreadPool &tp = ws.GetThreadPool();
-  int num_threads = tp.size();
+  int num_threads = tp.NumThreads();
   kmgr_.Resize<Kernel>(num_threads, num_threads);
   auto &inputs = this->template inputs<T>();
   SmallVector<kernels::InTensorCPU<T>, 128> in_tensors;

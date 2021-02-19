@@ -72,7 +72,7 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto in_shape = input.shape();
   int nsamples = input.size();
-  auto nthreads = ws.GetThreadPool().size();
+  auto nthreads = ws.GetThreadPool().NumThreads();
   auto layout = input.GetLayout();
   auto ndim = in_shape.sample_dim();
   args_.axis = layout.empty() ? std::max(0, ndim - 2) : layout.find('f');

@@ -183,7 +183,7 @@ bool EraseImplCpu<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto type = input.type();
   auto shape = input.shape();
   int nsamples = input.size();
-  auto nthreads = ws.GetThreadPool().size();
+  auto nthreads = ws.GetThreadPool().NumThreads();
 
   args_ = detail::GetEraseArgs<T, Dims>(spec_, ws, shape, layout);
 
