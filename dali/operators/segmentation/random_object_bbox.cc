@@ -148,8 +148,10 @@ void RandomObjectBBox::AcquireArgs(const HostWorkspace &ws, int N, int ndim) {
 
 #define INPUT_TYPES (bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t)
 
+namespace detail {
+
 template <typename T>
-void RandomObjectBBox::FindLabels(std::unordered_set<int> &labels, const T *data, int64_t N) {
+void FindLabels(std::unordered_set<int> &labels, const T *data, int64_t N) {
   if (!N)
     return;
   T prev = data[0];
@@ -162,34 +164,36 @@ void RandomObjectBBox::FindLabels(std::unordered_set<int> &labels, const T *data
   }
 }
 
+}  // namespace detail
 
-template <typename BlobLabel, typename T>
-void RandomObjectBBox::FindLabels(SampleContext<BlobLabel> &ctx,
-                                  const TensorView<StorageCPU, const T> &in) {
-  ctx.labels.clear();
+template <typename BlobLabel>
+template <typename T>
+void RandomObjectBBox::SampleContext<BlobLabel>::FindLabels(const InTensorCPU<T> &in) {
+  labels.clear();
   int64_t N = in.num_elements();
   if (!N)
     return;
 
-  constexpr int64_t chunk_size = 1<<16;
-  int num_chunks = std::min<int>(2*ctx.thread_pool->NumThreads(), div_ceil(N, chunk_size));
+  constexpr int64_t min_chunk_size = 1<<16;
+  int num_chunks = std::min<int>(2*thread_pool->NumThreads(), div_ceil(N, min_chunk_size));
   const T *data = in.data;
 
-  ctx.tmp_labels.resize(num_chunks);
+  tmp_labels.resize(num_chunks);
 
   for (int i = 0; i < num_chunks; i++) {
     int64_t start = N * i / num_chunks;
     int64_t end = N * (i + 1)  / num_chunks;
-    ctx.thread_pool->AddWork([=, &ctx](int) {
-      auto &lbl = ctx.tmp_labels[i];
+    thread_pool->AddWork([=](int) {
+      auto &lbl = tmp_labels[i];
       lbl.clear();
-      FindLabels(lbl, data + start, end - start);
+      detail::FindLabels(lbl, data + start, end - start);
     });
   }
-  ctx.thread_pool->RunAll();
-  for (auto &tmp : ctx.tmp_labels) {
+  thread_pool->RunAll();
+
+  for (auto &tmp : tmp_labels) {
     for (auto l : tmp)
-      ctx.labels.insert(l);
+      labels.insert(l);
   }
 }
 
@@ -206,8 +210,8 @@ void FilterByLabel(ThreadPool *tp,
                    const OutTensorCPU<Out> &out, const InTensorCPU<In> &in, same_as_t<In> label) {
   assert(out.shape == in.shape);
   int64_t N = in.num_elements();
-  const int64_t chunk_size = 1<<16;
-  int num_chunks = std::min<int>(tp->NumThreads(), div_ceil(N, chunk_size));
+  const int64_t min_chunk_size = 1<<16;
+  int num_chunks = std::min<int>(tp->NumThreads(), div_ceil(N, min_chunk_size));
   if (num_chunks == 1) {
     FilterByLabel(out.data, in.data, N, label);
   } else {
@@ -265,17 +269,16 @@ void StoreBox(const OutListCPU<int, 1> &out1,
   StoreBox(out1, out2, format, sample_idx, box.lo, box.hi);
 }
 
-void RandomObjectBBox::GetBgFgAndWeights(
-      ClassVec &classes, WeightVec &weights, int &background, int sample_idx) {
-  background = background_[sample_idx].data[0];
-  if (ignore_class_)
-    return;  // we don't care about classes at all
+void RandomObjectBBox::ClassInfo::Init(const int *bg_ptr,
+                                       const InTensorCPU<int, 1> &cls_tv,
+                                       const InTensorCPU<float, 1> &weight_tv) {
+  Reset();
+  background = bg_ptr ? *bg_ptr : 0;
 
-  if (classes_.IsDefined()) {
-    const auto &cls_tv = classes_[sample_idx];
+  if (cls_tv.data) {
     int ncls = cls_tv.shape[0];
     classes.resize(ncls);
-    if (!weights_.IsDefined()) {
+    if (!cls_tv.data) {
       weights.clear();
       weights.resize(ncls, 1.0f);
     }
@@ -288,7 +291,7 @@ void RandomObjectBBox::GetBgFgAndWeights(
         min_class_label = classes[i];
 
       if (classes[i] == background) {
-        if (background_.IsDefined()) {
+        if (bg_ptr) {
           // Background was explicitly specified this way - that's an error
           DALI_FAIL(make_string("Class label ", classes[i],
             " coincides with background label - please specify a different background label or "
@@ -314,13 +317,12 @@ void RandomObjectBBox::GetBgFgAndWeights(
       }
     }
   }
-  if (weights_.IsDefined()) {
-    const auto &cls_tv = weights_[sample_idx];
-    int ncls = cls_tv.shape[0];
+  if (weight_tv.data) {
+    int ncls = weight_tv.shape[0];
     weights.resize(ncls);
     for (int i = 0; i < ncls; i++)
-      weights[i] = cls_tv.data[i];
-    if (!classes_.IsDefined()) {
+      weights[i] = weight_tv.data[i];
+    if (!cls_tv.data) {
       classes.resize(ncls);
       int cls = 0;
       for (int i = 0; i < ncls; i++, cls++) {
@@ -330,6 +332,15 @@ void RandomObjectBBox::GetBgFgAndWeights(
       }
     }
   }
+}
+
+void RandomObjectBBox::InitClassInfo(int sample_idx) {
+  const int *bg = background_.IsDefined() ? background_[sample_idx].data : nullptr;
+  InTensorCPU<int, 1> class_tv;
+  InTensorCPU<float, 1> weight_tv;
+  if (classes_.IsDefined() && !ignore_class_) class_tv  = classes_[sample_idx];
+  if (weights_.IsDefined() && !ignore_class_) weight_tv = weights_[sample_idx];
+  class_info_.Init(bg, class_tv, weight_tv);
 }
 
 template <int ndim>
@@ -392,44 +403,57 @@ bool RandomObjectBBox::PickBlob(SampleContext<BlobLabel> &ctx, int nblobs) {
   return false;
 }
 
+void RandomObjectBBox::ClassInfo::Reset() {
+  classes.clear();
+  weights.clear();
+  cdf.clear();
+}
+
+void RandomObjectBBox::ClassInfo::FromLabels(const LabelSet &labels) {
+  classes.clear();
+  weights.clear();
+  for (auto cls : labels) {
+    classes.push_back(cls);
+    weights.push_back(1);
+  }
+  // We need to sort, because the order in `context.labels` depends on its previous contents
+  // (it changes with the number of bins in the hastable).
+  // We want don't need any particular order here, but it must be deterministic
+  // - thus, sort.
+  std::sort(classes.begin(), classes.end());
+}
+
+void RandomObjectBBox::ClassInfo::DisableAbsentClasses(const LabelSet &labels) {
+  for (int i = 0; i < static_cast<int>(classes.size()); i++) {
+    if (!labels.count(classes[i]))
+      weights[i] = 0;  // label not present - reduce its weight to 0
+  }
+}
+
 template <typename BlobLabel, typename T>
 bool RandomObjectBBox::PickForegroundBox(
       SampleContext<BlobLabel> &context, const InTensorCPU<T> &input) {
-  GetBgFgAndWeights(context.classes, context.weights, context.background, context.sample_idx);
-  context.class_label = context.background;
+  InitClassInfo(context.sample_idx);
+  context.class_label = class_info_.background;
   auto &tp = *context.thread_pool;
   if (ignore_class_) {
-    int nblobs = LabelConnectedRegions(context.blobs, input, tp, -1, context.background);
+    int nblobs = LabelConnectedRegions(context.blobs, input, tp, -1, class_info_.background);
     return PickBlob(context, nblobs);
   } else {
-    FindLabels(context, input);
-
-    context.labels.erase(context.background);
+    context.FindLabels(input);
+    context.labels.erase(class_info_.background);
 
     if (!classes_.IsDefined() && !weights_.IsDefined()) {
-      context.classes.clear();
-      context.weights.clear();
-      for (auto cls : context.labels) {
-        context.classes.push_back(cls);
-        context.weights.push_back(1);
-      }
-      // We need to sort, because the order in `context.labels` depends on its previous contents
-      // (it changes with the number of bins in the hastable).
-      // We want don't need any particular order here, but it must be deterministic
-      // - thus, sort.
-      std::sort(context.classes.begin(), context.classes.end());
+      class_info_.FromLabels(context.labels);
     } else {
-      for (int i = 0; i < static_cast<int>(context.classes.size()); i++) {
-        if (!context.labels.count(context.classes[i]))
-          context.weights[i] = 0;  // label not present - reduce its weight to 0
-      }
+      class_info_.DisableAbsentClasses(context.labels);
     }
 
-    while (context.CalculateCDF()) {
-      if (!context.PickClassLabel(rngs_[context.sample_idx]))
+    while (class_info_.CalculateCDF()) {
+      if (!context.PickClassLabel(class_info_, rngs_[context.sample_idx]))
         return false;
 
-      assert(context.class_label != context.background);
+      assert(context.class_label != class_info_.background);
       FilterByLabel(context.thread_pool, context.filtered, input, context.class_label);
 
       int nblobs = LabelConnectedRegions<BlobLabel, uint8_t, -1>(
@@ -439,8 +463,8 @@ bool RandomObjectBBox::PickForegroundBox(
         return true;
 
       // we couldn't find a satisfactory blob in this class, so let's exclude it and try again
-      context.weights[context.class_idx] = 0;
-      context.class_label = context.background;
+      class_info_.weights[context.class_idx] = 0;
+      context.class_label = class_info_.background;
     }
     // we've run out of classes and still there's no good blob
     return false;
@@ -490,8 +514,6 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
   int ndim = input.sample_dim();
   auto &tp = ws.GetThreadPool();
 
-  auto input_shape = input.shape();
-
   OutListCPU<int, 1> out1 = view<int, 1>(ws.OutputRef<CPUBackend>(0));
   OutListCPU<int, 1> out2;
   if (format_ != Out_Box)
@@ -514,12 +536,17 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
     if (!fg) {
       StoreBox(out1, out2, format_, i, default_anchor, input.tensor_shape(i));
       if (HasClassLabelOutput()) {
-        auto &ctx = default_context_;
-        GetBgFgAndWeights(ctx.classes, ctx.weights, ctx.background, i);
-        class_label_out.data[i][0] = ctx.background;
+        InitClassInfo(i);
+        class_label_out.data[i][0] = class_info_.background;
       }
     } else {
-      auto blob_label = (input[i].size() > 0x80000000L) ? DALI_INT64 : DALI_INT32;
+      // Blobl labeling uses disjoint sets as an implementation - as such,
+      // the label type must be large enough to store flattened element indices within
+      // the input tensor.
+      // We want to limit the size of this auxiliary storage to limit memory traffic.
+      // To that end, when the indices fit in int32_t, we use that type for the labels,
+      // otherwise we fall back to int64_t.
+      auto blob_label = (input[i].size() > 0x80000000) ? DALI_INT64 : DALI_INT32;
       TYPE_SWITCH(blob_label, type2id, BlobLabel, (int32_t, int64_t), (
         auto &ctx = GetContext(BlobLabel());
         ctx.Init(i, &input[i], &tp, tmp_filtered_storage_, tmp_blob_storage_);
@@ -528,10 +555,10 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
           ctx.out2 = out2[i];
 
         if (PickForegroundBox(ctx)) {
-          assert(ctx.class_label != ctx.background || ignore_class_);
+          assert(ctx.class_label != class_info_.background || ignore_class_);
           StoreBox(out1, out2, format_, i, ctx.selected_box);
         } else {
-          assert(ctx.class_label == ctx.background);
+          assert(ctx.class_label == class_info_.background);
           StoreBox(out1, out2, format_, i, default_anchor, input.tensor_shape(i));
         }
 

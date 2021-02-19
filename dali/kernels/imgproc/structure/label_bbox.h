@@ -59,6 +59,11 @@ inline bool hit(span<uint32_t> hits, unsigned idx) {
 /**
  * @brief Calculates a bounding box for each label in `in`
  *
+ * First, 1D ranges are found for each foreground label present in `in`.
+ * Then, the boxes that correspond to these labels are updated by expanding their
+ * extent in the innermost dimension to match the range found and in the others to
+ * contain `origin`.
+ *
  * @param boxes       output span of bounding boxes
  * @param ranges      information about first and last occurrence of each label in current row
  * @param hits        information about which labels have been encountered in this row
@@ -133,6 +138,8 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
 /**
  * @brief Calculates a bounding box for each label in `in`
  *
+ * This function simply recurses down and adances origin as it traverses the input tensor.
+ *
  * @param boxes       output span of bounding boxes
  * @param ranges      information about first and last occurrence of each label in current row
  * @param hits        information about which labels have been encountered in this row
@@ -159,7 +166,10 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
 
 
 /**
- * @brief Calculates a bounding box for each label in `in`
+ * @brief Calculates a bounding box for each label in `in`.
+ *
+ * This function creates execution environment (ranges, hits) and invokes an overload
+ * that uses this environment.
  *
  * @param boxes       output bounding boxes; labels whose box index is outside of valid range of
  *                    indices in `boxes` are ignored; box index for a label is calculated as:
@@ -167,7 +177,6 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
  * @param in          input tensor containing zero-based labels
  * @param background  the label value interpreted as a background; it doesn't have its corresponding
  *                    bounding box
- * @param engine      thread-pool-like object
  * @param origin      origin of current slice
  */
 template <typename Coord, typename Label, int simplified_ndim, int ndim,
@@ -187,6 +196,10 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
 
 /**
  * @brief Calculates a bounding box for each label in `in`
+ *
+ * This function checks whether the tensor slice is suitable for parallel execution and, if so,
+ * tries to splits the input along the most suitable dimension and launches several subproblems.
+ * Once finished, the results are combined and stored in the final output `boxes`.
  *
  * @param boxes       output bounding boxes; labels whose box index is outside of valid range of
  *                    indices in `boxes` are ignored; box index for a label is calculated as:

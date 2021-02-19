@@ -15,8 +15,6 @@
 #ifndef DALI_CORE_EXEC_ENGINE_H_
 #define DALI_CORE_EXEC_ENGINE_H_
 
-#include <stdexcept>
-#include <functional>
 #include <utility>
 
 namespace dali {
@@ -25,7 +23,7 @@ namespace dali {
 concept ExecutionEngine {
   /// @brief Adds work to the engine
   /// @param f           work item, callable with `int thread_idx`
-  /// @param priority    priority hint fort the job, the higher, the earlier it should start
+  /// @param priority    priority hint for the job, the higher, the earlier it should start
   /// @param start_immediately        if true, all jobs can start - it's just a hint
   ///                                 and implementations may start running the jobs earlier
   void AddWork(CallableWithInt f, int64_t priority, bool finished_adding_work = false);
@@ -59,9 +57,6 @@ class SequentialExecutionEngine {
    * @brief Returns 1
    */
   constexpr int NumThreads() const noexcept { return 1; }
-
- private:
-  std::exception_ptr exception_;
 };
 
 }  // namespace dali
