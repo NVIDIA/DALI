@@ -410,6 +410,9 @@ Parameters
             if isinstance(outputs[i], types.ScalarConstant):
                 import nvidia.dali.ops
                 outputs[i] = nvidia.dali.ops._instantiate_constant_node("cpu", outputs[i])
+            elif isinstance(outputs[i], (list, tuple)) and any(isinstance(x, DataNode) for x in outputs[i]):
+                raise RuntimeError("Pipeline output cannot be a list or tuple of DataNodes, only "
+                                   "data types convertible to ``types.Constant`` are allowed.")
             elif not isinstance(outputs[i], DataNode):
                 outputs[i] = types.Constant(outputs[i], device="cpu")
             _data_node._check(outputs[i])

@@ -2,6 +2,8 @@ import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import numpy as np
+from test_utils import compare_pipelines
+from nose.tools import assert_raises
 
 def _test_fn_rotate(device):
     pipe = Pipeline(batch_size = 1, num_threads = 1, device_id = 0)
@@ -27,6 +29,12 @@ def _test_fn_rotate(device):
         [2, 6, 10],
         [1, 5, 9]])[:,:,np.newaxis]
     assert(np.array_equal(arr, ref))
+
+def test_set_outputs():
+    data = [[[np.random.rand(1, 3, 2)], [np.random.rand(1, 4, 5)]]]
+    pipe = Pipeline(batch_size = 1, num_threads = 1, device_id = None)
+    pipe.set_outputs(fn.external_source(data, num_outputs = 2, cycle = 'quiet'))
+    assert_raises(RuntimeError, pipe.build)
 
 def test_fn_rotate():
     for device in ["cpu", "gpu"]:
