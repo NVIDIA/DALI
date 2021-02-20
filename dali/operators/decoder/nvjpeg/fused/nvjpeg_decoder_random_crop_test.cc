@@ -60,4 +60,8 @@ TYPED_TEST(ImageDecoderRandomCropTest_GPU, TiffDecode) {
   this->Run(t_tiffImgType);
 }
 
+TYPED_TEST(ImageDecoderRandomCropTest_GPU, Jpeg2kDecode) {
+  this->Run(t_jpeg2kImgType);
+}
+
 }  // namespace dali

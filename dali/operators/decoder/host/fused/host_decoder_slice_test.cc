@@ -88,4 +88,8 @@ TYPED_TEST(ImageDecoderSliceTest_CPU, TiffDecode) {
   this->Run(t_tiffImgType);
 }
 
+TYPED_TEST(ImageDecoderSliceTest_CPU, Jpeg2kDecode) {
+  this->Run(t_jpeg2kImgType);
+}
+
 }  // namespace dali
