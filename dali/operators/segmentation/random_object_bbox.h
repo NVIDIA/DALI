@@ -20,11 +20,16 @@
 #include <random>
 #include <unordered_set>
 #include <vector>
+#include <algorithm>
+#include <utility>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/util/batch_rng.h"
+#include "dali/kernels/kernel_params.h"
 
 namespace dali {
+
+using kernels::InTensorCPU;
 
 class RandomObjectBBox : public Operator<CPUBackend> {
  public:
@@ -59,6 +64,9 @@ class RandomObjectBBox : public Operator<CPUBackend> {
       DALI_ENFORCE(k_largest_ >= 1, make_string(
                    "``k_largest`` must be at least 1; got ", k_largest_));
     }
+
+    tmp_blob_storage_.set_pinned(false);
+    tmp_filtered_storage_.set_pinned(false);
   }
 
   static OutputFormat ParseOutputFormat(const std::string &format)  {
@@ -89,23 +97,24 @@ class RandomObjectBBox : public Operator<CPUBackend> {
 
   using ClassVec = SmallVector<int, 32>;
   using WeightVec = SmallVector<float, 32>;
+  using LabelSet = std::unordered_set<int>;
 
-  void GetBgFgAndWeights(ClassVec &classes, WeightVec &weights, int &background, int sample_idx);
+  struct ClassInfo {
+    void Reset();
 
-  struct SampleContext {
-    void Init(int sample_idx, const Tensor<CPUBackend> *in) {
-      this->sample_idx = sample_idx;
-      input = in;
-      auto &shape = input->shape();
-      int64_t n = volume(shape);
-      filtered_data.clear();  // avoid copy
-      filtered_data.resize(n);
-      blob_data.clear();  // avoid copy
-      blob_data.resize(n);
-      filtered = make_tensor_cpu(filtered_data.data(), shape);
-      blobs = make_tensor_cpu(blob_data.data(), shape);
-      labels.clear();
-    }
+    /**
+     * @brief Creates classes from non-background labels in `labels`
+     */
+    void FromLabels(const LabelSet &labels);
+
+    /**
+     * @brief Reduces weights of classes not found in `labels` to 0.
+     */
+    void DisableAbsentClasses(const LabelSet &labels);
+
+    void Init(const int *bg_ptr,
+              const InTensorCPU<int, 1> &cls_tv,
+              const InTensorCPU<float, 1> &weight_tv);
 
     /**
      * @brief Calculate CDF from weights
@@ -127,39 +136,64 @@ class RandomObjectBBox : public Operator<CPUBackend> {
      * Use binary search to find the label in CDF
      */
     template <typename RNG>
-    bool PickClassLabel(RNG &rng) {
+    std::pair<int, int> PickClassLabel(RNG &rng) const {
       int ncls = cdf.size();
       if (!ncls)
-        return false;
+        return { -1, 0 };
 
+      std::uniform_real_distribution<double> class_dist{0, 1};
       double pos = class_dist(rng) * cdf.back();
 
       int idx = std::lower_bound(cdf.begin(), cdf.end(), pos) - cdf.begin();
       // the index may be ambiguous if there are zero weights, so we need to skip these
       while (idx < ncls && weights[idx] == 0)
         idx++;
-      class_idx = idx >= ncls ? -1 : idx;
-      class_label = class_idx >= 0 ? classes[class_idx] : background;
-      return class_idx >= 0;
+      int class_idx = idx >= ncls ? -1 : idx;
+      int class_label = class_idx >= 0 ? classes[class_idx] : background;
+      return { class_idx, class_label };
     }
-
-    TensorView<StorageCPU, int> out1, out2;
-    const Tensor<CPUBackend> *input = nullptr;
-    int sample_idx;
 
     ClassVec classes;
     WeightVec weights;
     WeightVec cdf;
     int background;
+  };
+
+  ClassInfo class_info_;
+
+  void InitClassInfo(int sample_idx);
+
+  void GetBgFgAndWeights(ClassVec &classes, WeightVec &weights, int &background, int sample_idx);
+
+  void AllocateTempStorage(const TensorVector<CPUBackend> &tls);
+
+  template <typename BlobLabel>
+  struct SampleContext {
+    void Init(int sample_idx, const Tensor<CPUBackend> *in, ThreadPool *tp,
+              Tensor<CPUBackend> &tmp_filtered, Tensor<CPUBackend> &tmp_blob) {
+      this->sample_idx = sample_idx;
+      thread_pool = tp;
+      input = in;
+      auto &shape = input->shape();
+      tmp_filtered.Resize(shape, TypeTable::GetTypeInfo(DALI_UINT8));
+      tmp_blob.Resize(shape, TypeTable::GetTypeInfo(type2id<BlobLabel>::value));
+      filtered = view<uint8_t>(tmp_filtered);
+      blobs = view<BlobLabel>(tmp_blob);
+      labels.clear();
+    }
+
+    ThreadPool *thread_pool = nullptr;
+    TensorView<StorageCPU, int> out1, out2;
+    const Tensor<CPUBackend> *input = nullptr;
+
+    int sample_idx;
     int class_idx;
     int class_label;
 
-    vector<uint8_t> filtered_data;
-    vector<int64_t> blob_data;
     TensorView<StorageCPU, uint8_t> filtered;
-    TensorView<StorageCPU, int64_t> blobs;
-    std::unordered_set<int> labels;
-    std::uniform_real_distribution<double> class_dist{0, 1};
+    TensorView<StorageCPU, BlobLabel> blobs;
+    LabelSet labels;
+    SmallVector<std::unordered_set<int>, 8> tmp_labels;
     vector<int> box_data;
     struct {
       SmallVector<int, 6> lo, hi;
@@ -174,27 +208,41 @@ class RandomObjectBBox : public Operator<CPUBackend> {
         selected_box.hi[d] = box_data[2*index*ndim + d + ndim];
       }
     }
+
+    template <typename RNG>
+    bool PickClassLabel(const ClassInfo &ci, RNG &rng) {
+      std::tie(class_idx, class_label) = ci.PickClassLabel(rng);
+      return class_idx >= 0;
+    }
+
+    template <typename T>
+    void FindLabels(const InTensorCPU<T> &labels);
   };
-  vector<SampleContext> contexts_;
 
-  bool PickForegroundBox(SampleContext &context);
+  SampleContext<int32_t> default_context_;
+  SampleContext<int64_t> huge_context_;
+  Tensor<CPUBackend> tmp_blob_storage_, tmp_filtered_storage_;
 
-  template <typename T>
-  bool PickForegroundBox(SampleContext &context, const TensorView<StorageCPU, const T> &input);
+  SampleContext<int32_t> &GetContext(int32_t) {
+    return default_context_;
+  }
 
-  bool PickBlob(SampleContext &ctx, int nblobs);
+  SampleContext<int64_t> &GetContext(int64_t) {
+    return huge_context_;
+  }
+
+  template <typename BlobLabel>
+  bool PickForegroundBox(SampleContext<BlobLabel> &context);
+
+  template <typename BlobLabel, typename T>
+  bool PickForegroundBox(SampleContext<BlobLabel> &context,
+                         const TensorView<StorageCPU, const T> &input);
+
+  template <typename BlobLabel>
+  bool PickBlob(SampleContext<BlobLabel> &ctx, int nblobs);
 
   template <int ndim>
   int PickBox(span<Box<ndim, int>> boxes, int sample_idx);
-
-  template <typename T>
-  void FindLabels(std::unordered_set<int> &labels, const T *data, int64_t N);
-
-  template <typename T>
-  void FindLabels(std::unordered_set<int> &labels, const TensorView<StorageCPU, const T> &in) {
-    FindLabels(labels, in.data, in.num_elements());
-  }
-
 
   bool  ignore_class_ = false;
   int   k_largest_ = -1;          // -1 means no k largest

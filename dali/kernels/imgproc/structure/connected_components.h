@@ -18,6 +18,9 @@
 #include <set>
 #include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
+#include <mutex>
+#include <thread>
 #include "dali/core/tensor_view.h"
 #include "dali/core/geom/vec.h"
 #include "dali/core/geom/box.h"
@@ -25,6 +28,8 @@
 #include "dali/kernels/common/disjoint_set.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/kernel.h"
+#include "dali/core/exec/engine.h"
+#include "dali/core/spinlock.h"
 
 namespace dali {
 namespace kernels {
@@ -80,16 +85,17 @@ void LabelRow(OutLabel *label_base,
   }
 }
 
-template <typename OutLabel, typename InLabel>
+template <typename OutLabel, typename InLabel, typename ExecutionEngine>
 void LabelSlice(OutLabel *label_base,
                 TensorSlice<OutLabel, 1> out,
                 TensorSlice<const InLabel, 1> slice,
-                InLabel background) {
+                InLabel background,
+                ExecutionEngine &engine) {
   LabelRow(label_base, out.data, slice.data, slice.size[0], background);
 }
 
 /**
- * @brief Merges corresponding labels in out1 and out2 slices when the correspinding
+ * @brief Merges corresponding labels in out1 and out2 slices when the corresponding
  *        input labels match.
  *
  * @param label_base Start of the output tensor.
@@ -128,7 +134,7 @@ void MergeSlices(OutLabel *label_base,
 }
 
 /**
- * @brief Merges corresponding labels in out1 and out2 slices when the correspinding
+ * @brief Merges corresponding labels in out1 and out2 slices when the corresponding
  *        input labels match.
  *
  * @param label_base Start of the output tensor.
@@ -150,23 +156,75 @@ void MergeSlices(OutLabel *label_base,
 }
 
 template <typename OutLabel, typename InLabel, int ndim>
-void LabelSlice(OutLabel *label_base,
-                TensorSlice<OutLabel, ndim> out,
-                TensorSlice<const InLabel, ndim> in,
-                InLabel background) {
+enable_if_t<(ndim > 1)> LabelSlice(OutLabel *label_base,
+                                   TensorSlice<OutLabel, ndim> out,
+                                   TensorSlice<const InLabel, ndim> in,
+                                   InLabel background,
+                                   SequentialExecutionEngine &engine) {
   int64_t n = in.size[0];
   TensorSlice<OutLabel, ndim-1> prev_out;
   TensorSlice<const InLabel, ndim-1> prev_in;
   for (int64_t i = 0; i < n; i++) {
     auto out_slice = out.slice(i);
     auto in_slice = in.slice(i);
-    LabelSlice(label_base, out_slice, in_slice, background);
+    LabelSlice(label_base, out_slice, in_slice, background, engine);
 
     if (i > 0)
       MergeSlices(label_base, prev_out, out_slice, prev_in, in_slice);
 
     prev_out = out_slice;
     prev_in  = in_slice;
+  }
+}
+
+template <typename OutLabel, typename InLabel, int ndim, typename ExecutionEngine>
+void LabelSlice(OutLabel *label_base,
+                TensorSlice<OutLabel, ndim> out,
+                TensorSlice<const InLabel, ndim> in,
+                InLabel background,
+                ExecutionEngine &engine) {
+  int64_t n = in.size[0];
+
+  constexpr int kMinParallelInner = 1000;
+  if (n < 3 || volume(sub<ndim-1>(in.size, 1)) < kMinParallelInner) {
+    TensorSlice<OutLabel, ndim-1> prev_out;
+    TensorSlice<const InLabel, ndim-1> prev_in;
+    for (int64_t i = 0; i < n; i++) {
+      auto out_slice = out.slice(i);
+      auto in_slice = in.slice(i);
+      LabelSlice(label_base, out_slice, in_slice, background, engine);
+
+      if (i > 0)
+        MergeSlices(label_base, prev_out, out_slice, prev_in, in_slice);
+
+      prev_out = out_slice;
+      prev_in  = in_slice;
+    }
+    return;
+  }
+
+  SequentialExecutionEngine seq_engn;
+
+  for (int64_t i = 0; i < n; i++) {
+    auto out_slice = out.slice(i);
+    auto in_slice = in.slice(i);
+    engine.AddWork([=, &seq_engn](int){
+      LabelSlice(label_base, out_slice, in_slice, background, seq_engn);
+    });
+  }
+  engine.RunAll();
+
+  for (int64_t stride = 1; stride <= n; stride *= 2) {
+    for (int64_t i = stride; i < n; i += 2*stride) {
+      auto out_slice = out.slice(i);
+      auto in_slice = in.slice(i);
+      auto prev_out = out.slice(i-1);
+      auto prev_in = in.slice(i-1);
+      engine.AddWork([=](int){
+        MergeSlices(label_base, prev_out, out_slice, prev_in, in_slice);
+      });
+    }
+    engine.RunAll();
   }
 }
 
@@ -178,6 +236,20 @@ auto FullTensorSlice(const TensorView<StorageCPU, T, ndim> &tensor) {
     slice.size[i] = tensor.shape[i];
   CalcStrides(slice.stride, slice.size);
   return slice;
+}
+
+template <typename OutLabel, typename LabelMapping>
+void RemapChunk(span<OutLabel> chunk, const LabelMapping &mapping) {
+  assert(!chunk.empty());
+  OutLabel prev = chunk[0];
+  OutLabel remapped = mapping.find(prev)->second;
+  for (auto &label : chunk) {
+    if (label != prev) {
+      prev = label;
+      remapped = mapping.find(prev)->second;
+    }
+    label = remapped;
+  }
 }
 
 /**
@@ -192,13 +264,18 @@ auto FullTensorSlice(const TensorView<StorageCPU, T, ndim> &tensor) {
  * @param bg_label  The output label assigned to background.
  * @return Number of distinct non-background labels.
  */
-template <typename OutLabel>
-int64_t CompactLabels(OutLabel *labels, int64_t volume, OutLabel bg_label = 0) {
+template <typename OutLabel, typename ExecutionEngine>
+int64_t CompactLabels(OutLabel *labels,
+                      int64_t volume,
+                      ExecutionEngine &engine,
+                      OutLabel bg_label = 0) {
   constexpr OutLabel old_bg_label = static_cast<OutLabel>(-1);
   OutLabel curr_label = 1;
-  std::set<OutLabel> label_set;
   std::unordered_map<OutLabel, OutLabel> label_map;
   disjoint_set<OutLabel, OutLabel> ds;
+
+  const int64_t chunk_size = 16<<10;
+  int num_chunks = std::min<int>(div_ceil(volume, chunk_size), engine.NumThreads());
 
   // Optimized label compaction algorithm:
   //
@@ -207,13 +284,61 @@ int64_t CompactLabels(OutLabel *labels, int64_t volume, OutLabel bg_label = 0) {
   // can't call ds.find, because we're overwriting the labels array and the disjoint set
   // structure is effectively corrupted.
 
-  OutLabel prev = old_bg_label;
-  for (int64_t i = 0; i < volume; i++) {
-    if (labels[i] != old_bg_label && labels[i] != prev) {
-      // look up `ds` only when the value changes - this saves a lot of lookups
-      label_set.insert(ds.find(labels, i));
-      prev = labels[i];
+  std::set<OutLabel> label_set;
+
+  if (num_chunks == 1) {
+    std::unordered_set<OutLabel> tmp_set;
+    OutLabel prev = old_bg_label;
+    OutLabel remapped = old_bg_label;
+    for (int64_t i = 0; i < volume; i++) {
+      if (labels[i] != old_bg_label) {
+        if (labels[i] != prev) {
+          prev = labels[i];
+          // look up `ds` only when the value changes - this saves a lot of lookups
+          remapped = ds.find(labels, i);
+          // no need to assign labels[i] = remapped; find did it
+          tmp_set.insert(remapped);
+        } else {
+          labels[i] = remapped;
+        }
+      }
     }
+    for (auto l : tmp_set)
+      label_set.insert(l);
+  } else {
+    SmallVector<std::unordered_set<OutLabel>, 16> tmp_sets;
+    tmp_sets.resize(engine.NumThreads());
+    spinlock lock;
+    for (int chunk = 0; chunk < num_chunks; chunk++) {
+      int64_t chunk_start = volume * chunk / num_chunks;
+      int64_t chunk_end = volume * (chunk + 1) / num_chunks;
+
+      engine.AddWork([=, &tmp_sets, &lock](int thread) {
+        OutLabel prev = old_bg_label;
+        OutLabel remapped = old_bg_label;
+        for (int64_t i = chunk_start; i < chunk_end; i++) {
+          OutLabel curr = labels[i];
+          if (curr != old_bg_label) {
+            if (curr != prev) {
+              {
+                std::lock_guard<spinlock> g(lock);
+                prev = curr;
+                // look up `ds` only when the value changes - this saves a lot of lookups
+                remapped = ds.find(labels, i);
+              }
+              tmp_sets[thread].insert(remapped);
+            } else {
+              labels[i] = remapped;
+            }
+          }
+        }
+      });
+    }
+    engine.RunAll();
+
+    for (auto &tmp_set : tmp_sets)
+      for (OutLabel l : tmp_set)
+        label_set.insert(l);
   }
 
   OutLabel next_label = 0;
@@ -222,25 +347,27 @@ int64_t CompactLabels(OutLabel *labels, int64_t volume, OutLabel bg_label = 0) {
       next_label++;
     label_map[old] = next_label++;
   }
+  label_map[old_bg_label] = bg_label;
 
-  prev = old_bg_label;
-  OutLabel remapped = 0;
-  for (int64_t i = 0; i < volume; i++) {
-    if (labels[i] != old_bg_label) {
-      if (labels[i] != prev) {
-        // We can't call ds.find, because the beginning of the labels array is overwritten
-        // - but we don't have to, because we've already done that in the previous pass.
-        auto it = label_map.find(labels[i]);
-        assert(it != label_map.end());
-        remapped = it->second;
-        prev = labels[i];
-      }
-      labels[i] = remapped;
-    } else {
-      labels[i] = bg_label;
-    }
+  OutLabel prev = old_bg_label;
+
+  for (int chunk = 0; chunk < num_chunks; chunk++) {
+    int64_t chunk_start = volume * chunk / num_chunks;
+    int64_t chunk_end = volume * (chunk + 1) / num_chunks;
+    engine.AddWork([=, &label_map](int) {
+      RemapChunk(make_span(labels + chunk_start, chunk_end - chunk_start), label_map);
+    });
   }
+  engine.RunAll();
   return label_set.size();
+}
+
+template <typename OutLabel>
+int64_t CompactLabels(OutLabel *labels,
+                      int64_t volume,
+                      OutLabel bg_label = 0) {
+  SequentialExecutionEngine engine;
+  return CompactLabels(labels, volume, engine, bg_label);
 }
 
 /**
@@ -259,15 +386,16 @@ int64_t CompactLabels(OutLabel *labels, int64_t volume, OutLabel bg_label = 0) {
  *
  * @return Number of non-background connected detected.
  */
-template <typename OutLabel, typename InLabel, int ndim>
+template <typename OutLabel, typename InLabel, int ndim, typename ExecutionEngine>
 int64_t LabelConnectedRegionsImpl(const OutTensorCPU<OutLabel, ndim> &out,
                                   const InTensorCPU<InLabel, ndim> &in,
+                                  ExecutionEngine &engine,
                                   same_as_t<OutLabel> background_out = 0,
                                   same_as_t<InLabel> background_in = 0) {
   auto out_slice = detail::FullTensorSlice(out);
   auto in_slice = detail::FullTensorSlice(in);
-  detail::LabelSlice(out.data, out_slice, in_slice, background_in);
-  return detail::CompactLabels(out.data, out.num_elements(), background_out);
+  detail::LabelSlice(out.data, out_slice, in_slice, background_in, engine);
+  return detail::CompactLabels(out.data, out.num_elements(), engine, background_out);
 }
 
 }  // namespace detail
@@ -283,14 +411,16 @@ int64_t LabelConnectedRegionsImpl(const OutTensorCPU<OutLabel, ndim> &out,
  *
  * @param out Tensor where each connected object is assigned a unique label
  * @param in  Tensor with objects, where one label value may be used to mark multiple objects
+ * @param engine  Execution engine for deferred execution (e.g. ThreadPool)
  * @param background_out Value in the output which will be set for background pixels
  * @param background_in  Value in the input which denotes background pixels
  *
  * @return Number of non-background connected detected.
  */
-template <typename OutLabel, typename InLabel, int ndim>
+template <typename OutLabel, typename InLabel, int ndim, typename ExecutionEngine>
 int64_t LabelConnectedRegions(const OutTensorCPU<OutLabel, ndim> &out,
                               const InTensorCPU<InLabel, ndim> &in,
+                              ExecutionEngine &engine,
                               same_as_t<OutLabel> background_out = 0,
                               same_as_t<InLabel> background_in = 0) {
   assert(out.shape == in.shape);
@@ -314,7 +444,7 @@ int64_t LabelConnectedRegions(const OutTensorCPU<OutLabel, ndim> &out,
       TensorShape<simplified_ndim> sh = simplified.to_static<simplified_ndim>();
       auto s_out = make_tensor_cpu(out.data, sh);
       auto s_in  = make_tensor_cpu(in.data, sh);
-      ret = detail::LabelConnectedRegionsImpl(s_out, s_in, background_out, background_in);
+      ret = detail::LabelConnectedRegionsImpl(s_out, s_in, engine, background_out, background_in);
     ), (  // NOLINT
       throw std::invalid_argument(make_string(
           "Unsupported number of non-degenerate dimensions: ", simplified.size(),
@@ -322,6 +452,15 @@ int64_t LabelConnectedRegions(const OutTensorCPU<OutLabel, ndim> &out,
     )     // NOLINT
   );      // NOLINT
   return ret;
+}
+
+template <typename OutLabel, typename InLabel, int ndim>
+int64_t LabelConnectedRegions(const OutTensorCPU<OutLabel, ndim> &out,
+                              const InTensorCPU<InLabel, ndim> &in,
+                              same_as_t<OutLabel> background_out = 0,
+                              same_as_t<InLabel> background_in = 0) {
+  SequentialExecutionEngine engine;
+  return LabelConnectedRegions(out, in, engine, background_out, background_in);
 }
 
 }  // namespace connected_components

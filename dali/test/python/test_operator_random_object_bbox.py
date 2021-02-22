@@ -31,7 +31,6 @@ def count_outputs(outs):
         return 1
     return len(outs)
 
-
 data = [
     np.int32([[1, 0, 0, 0],
               [1, 2, 2, 1],
@@ -174,7 +173,7 @@ def batch_generator(batch_size, ndim, dtype):
         # batch_size = np.random.randint(1, max_batch_size+1)
         batch = []
         for i in range(batch_size):
-            shape = list(np.random.randint(5, 11, [ndim]))
+            shape = list(np.random.randint(5, 13, [ndim]))
             num_classes = np.random.randint(1, 10)
             blobs_per_class = np.random.randint(1, 10);
             batch.append(generate_data(shape, num_classes, blobs_per_class).astype(dtype))
@@ -439,3 +438,6 @@ def test_err_k_largest_nonpositive():
 def test_err_threshold_dim_clash():
     with assert_raises(RuntimeError):
         _test_err_args(threshold=[1,2,3,4,5])
+
+def test_large_data():
+    yield _test_random_object_bbox_with_class, 4, 5, np.int32, None, 1., [1,2,3], None, None, None, 10
