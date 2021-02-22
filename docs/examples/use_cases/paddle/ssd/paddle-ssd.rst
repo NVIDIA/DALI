@@ -1,4 +1,4 @@
-Single Shot MultiBox Detector training in PaddlePaddle
+Single Shot MultiBox Detector Training in PaddlePaddle
 ======================================================
 
 This demo shows how to use DALI with PaddlePaddle for training Single Shot Multibox Detector (`SSD: Single Shot MultiBox Detector <https://arxiv.org/abs/1512.02325>`_).
