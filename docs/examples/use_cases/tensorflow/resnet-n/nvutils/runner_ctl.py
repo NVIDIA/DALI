@@ -35,7 +35,10 @@ from tensorflow.python.keras.optimizer_v2 import (gradient_descent as
 from tensorflow.python.keras import backend
 print(tf.__version__)
 if tf.__version__ > "2.1.0":
-  from tensorflow.python.keras.mixed_precision.experimental import device_compatibility_check
+  if tf.__version__ >= "2.4.0":
+    from tensorflow.python.keras.mixed_precision import device_compatibility_check
+  else:
+    from tensorflow.python.keras.mixed_precision.experimental import device_compatibility_check
   device_compatibility_check._logged_compatibility_check = True
 
 import horovod.tensorflow as hvd
@@ -109,9 +112,12 @@ def train_ctl(model_func, params):
     summary_writer = None
 
   if precision == 'fp16':
-    policy = keras.mixed_precision.experimental.Policy('mixed_float16',
-                                                       loss_scale)
-    keras.mixed_precision.experimental.set_policy(policy)
+    if tf.__version__ >= "2.4.0":
+      policy = keras.mixed_precision.Policy('mixed_float16')
+      keras.mixed_precision.set_global_policy(policy)
+    else:
+      policy = keras.mixed_precision.experimental.Policy('mixed_float16', loss_scale)
+      keras.mixed_precision.experimental.set_policy(policy)
 
   lr_schedule = common.create_piecewise_constant_decay_with_warmup(
       batch_size=batch_size * hvd.size(),
