@@ -54,9 +54,9 @@ using fd_handle_t = int;
 #error Platform not supported
 #endif
 
-class DLL_PUBLIC FdHandle : public UniqueHandle<fd_handle_t, FdHandle> {
+class DLL_PUBLIC FileHandle : public UniqueHandle<fd_handle_t, FileHandle> {
  public:
-  DALI_INHERIT_UNIQUE_HANDLE(fd_handle_t, FdHandle);
+  DALI_INHERIT_UNIQUE_HANDLE(fd_handle_t, FileHandle);
 
   static void DestroyHandle(fd_handle_t h);
 

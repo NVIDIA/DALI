@@ -75,12 +75,12 @@ class SharedBatchesDispatcher:
             completed_tasks = CompletedTasks.failed(self.worker_id, processed_tasks)
             self.res_pipe.send(completed_tasks)
             return
-        batch_serialized = write_batch(processed_tasks.mem_chunk, processed_tasks.data_batch)
-        completed_tasks = CompletedTasks.done(self.worker_id, processed_tasks, batch_serialized)
+        serialized_batch = write_batch(processed_tasks.mem_chunk, processed_tasks.data_batch)
+        completed_tasks = CompletedTasks.done(self.worker_id, processed_tasks, serialized_batch)
         self.res_pipe.send(completed_tasks)
         # send shared memory handle for underlaying shared memory chunk
         # if it hasn't been sent ever before
-        mem_chunk_id = batch_serialized.mem_chunk_id
+        mem_chunk_id = serialized_batch.mem_chunk_id
         if mem_chunk_id not in self.handle_sent:
             self.handle_sent.add(mem_chunk_id)
             reduction.send_handle(self.sock, processed_tasks.mem_chunk.shm_chunk.handle, os.getppid())
@@ -169,7 +169,7 @@ def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task
     ----------
     `callbacks` : callable list
         List of callables that worker can call to perform a (part of parallelized) task.
-    `prefetch_queue_depths` : int
+    `prefetch_queue_depths` : list of int
         Number of shared memory chunks that should be allocated per callaback, used in cycle buffer manner
         to pass callback results to parent process.
     `initial_chunk_size` : int
@@ -186,7 +186,7 @@ def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task
     tasks_cv = threading.Condition()
     ready_queue, tasks_queue = [], []
     batch_dispatcher = SharedBatchesDispatcher(worker_id, sock, res_pipe)
-    # run the thread as a daemon so that even when results queue blocks worker process can exit anyway
+    # run the thread as a daemon so that even when results queue blocks, worker process can exit anyway
     # and can be joined in the parent process
     dispatcher_thread = threading.Thread(target=dispatcher, args=(
         batch_dispatcher, ready_cv, ready_queue), daemon=True)

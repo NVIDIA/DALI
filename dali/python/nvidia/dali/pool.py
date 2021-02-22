@@ -21,7 +21,7 @@ from nvidia.dali import backend as _b
 from nvidia.dali.worker import worker
 from nvidia.dali.messages import ScheduledTasks
 from nvidia.dali.shared_batch import SharedBatchMeta
-from nvidia.dali.shared_batch import deserialize_sample_meta, deserialize_batch, import_numpy
+from nvidia.dali.shared_batch import deserialize_batch, import_numpy
 from nvidia.dali import shared_mem
 
 
@@ -90,8 +90,7 @@ class SharedBatchesConsumer:
         """
         chunk = self.get_mem_chunk(sock, batch_meta)
         # Load list of indexed SampleMeta: (idx, SampleMeta) or (idx, tuple of SampleMeta)
-        sample_meta = deserialize_sample_meta(chunk.shm_chunk, batch_meta)
-        return deserialize_batch(chunk.shm_chunk, sample_meta)
+        return deserialize_batch(chunk.shm_chunk, batch_meta)
 
 
 class CallbackContext:
@@ -156,9 +155,9 @@ received so far.
         del full_batch
         return res
 
-    def receive_chunk(self, batch_i, sock, batch_serialized):
+    def receive_chunk(self, batch_i, sock, serialized_batch):
         """Obtain the chunk and decode it, add to partially gathered result"""
-        worker_batch = self.batch_consumer.load_batch(sock, batch_serialized)
+        worker_batch = self.batch_consumer.load_batch(sock, serialized_batch)
         self.partially_received[batch_i].update(worker_batch)
 
 
@@ -168,7 +167,7 @@ starts thread keeping track of running processes and initializes communication.
 """
 
     def __init__(
-            self, callbacks, prefetch_queue_depths, workers_num=None, init_method="fork",
+            self, callbacks, prefetch_queue_depths, num_workers=1, start_method="fork",
             initial_chunk_size=1024 * 1024):
         if len(callbacks) != len(prefetch_queue_depths):
             raise RuntimeError("Number of prefetch queues must match number of callbacks")
@@ -176,19 +175,17 @@ starts thread keeping track of running processes and initializes communication.
             raise RuntimeError("Prefetch queue must have at least one element")
         if initial_chunk_size <= 0:
             raise RuntimeError("Chunk capacity must be positive integer")
-        if init_method == 'fork' and _b.HasCudaContext():
+        if start_method == 'fork' and _b.HasCudaContext():
             raise RuntimeError(
                 "Cannot fork process when there is CUDA context bound to it. "
                 "Make sure you build pipeline before CUDA context is acquired or change Python workers "
                 "starting method from ``fork`` to ``spawn`` (see Piepline's ``py_start_method`` option). "
                 "If you are trying to build multiple pipelines that use Python workers, you will need to "
                 "call ``start_py_workers`` method on all of them before calling ``build`` method of any pipeline.")
-        mp = multiprocessing.get_context(init_method)
-        if worker is None:
-            workers_num = mp.cpu_count()
-        if workers_num < 1:
-            raise RuntimeError("workers_num must be a positive integer")
-        self._workers_num = workers_num
+        mp = multiprocessing.get_context(start_method)
+        if num_workers < 1:
+            raise RuntimeError("num_workers must be a positive integer")
+        self._num_workers = num_workers
         self._processes = []
         self._task_pipes = []
         self._res_pipes = []
@@ -197,7 +194,7 @@ starts thread keeping track of running processes and initializes communication.
         self._from_tracker = None
         self._to_tracker = None
         self._tracker_thread = None
-        for i in range(self._workers_num):
+        for i in range(self._num_workers):
             task_r, task_w = mp.Pipe(duplex=False)
             res_r, res_w = mp.Pipe(duplex=False)
             sock_reader, sock_writer = socket.socketpair()
@@ -220,8 +217,8 @@ starts thread keeping track of running processes and initializes communication.
         return self._res_pipes + [self._from_tracker]
 
     @property
-    def workers_num(self):
-        return self._workers_num
+    def num_workers(self):
+        return self._num_workers
 
     @property
     def task_pipes_lock(self):
@@ -338,7 +335,7 @@ class WorkersPool:
 
     @classmethod
     def from_groups(
-            cls, groups, keep_alive_queue_size, init_method="fork", workers_num=None,
+            cls, groups, keep_alive_queue_size, start_method="fork", num_workers=1,
             initial_chunk_size=1024 * 1024):
         """Creates new WorkerPool instance for given list of ExternalSource groups.
 
@@ -351,16 +348,16 @@ class WorkersPool:
             remain untouched (because they might still be referenced further in the pipeline).
             Note that actual number of simultaneously kept batches will probably be greater
             because of additional prefetching.
-        `init_method` : str
+        `start_method` : str
             Method of starting worker processes, either fork or spawn.
-        `workers_num` : int
+        `num_workers` : int
             Number of workers to be created in ProcPool.
         `initial_chunk_size` : int
             Initial size of each shared memory chunk.
         """
         callbacks = [group.callback for group in groups]
         queue_depths = [keep_alive_queue_size + group.prefetch_queue_depth for group in groups]
-        pool = ProcPool(callbacks, queue_depths, workers_num, init_method, initial_chunk_size)
+        pool = ProcPool(callbacks, queue_depths, num_workers, start_method, initial_chunk_size)
         return cls(len(callbacks), pool)
 
     def schedule_batch(self, context_i, batch_i, tasks):
@@ -391,13 +388,13 @@ class WorkersPool:
         context.push_scheduled(batch_i, tasks)
 
     def _distribute(self, context_i, batch_i, tasks):
-        workers_num = self.pool.workers_num
+        num_workers = self.pool.num_workers
         tasks_no = len(tasks)
-        chunk_size = tasks_no // workers_num
-        remainder = tasks_no % workers_num
+        chunk_size = tasks_no // num_workers
+        remainder = tasks_no % num_workers
         queued_no = 0
         with self.pool.task_pipes_lock:
-            for worker_id in range(workers_num):
+            for worker_id in range(num_workers):
                 worker_chunk = chunk_size + (worker_id < remainder)
                 if worker_chunk == 0:
                     break
@@ -444,7 +441,7 @@ class WorkersPool:
             else:
                 context.receive_chunk(
                     batch_i, self.pool.sock(worker_id),
-                    completed_tasks.batch_serialized)
+                    completed_tasks.serialized_batch)
 
     def reset(self):
         for context in self.contexts:

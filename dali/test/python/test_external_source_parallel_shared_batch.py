@@ -36,8 +36,7 @@ def recursive_equals(left, right, top_level=True):
 def check_serialize_deserialize(indexed_batch):
     mem_chunk = sb.SharedMemChunk("chunk_0", 100)
     shared_batch_meta = sb.write_batch(mem_chunk, indexed_batch)
-    sample_meta = sb.deserialize_sample_meta(mem_chunk.shm_chunk, shared_batch_meta)
-    deserlized_indexed_batch = sb.deserialize_batch(mem_chunk.shm_chunk, sample_meta)
+    deserlized_indexed_batch = sb.deserialize_batch(mem_chunk.shm_chunk, shared_batch_meta)
     assert len(indexed_batch) == len(
         deserlized_indexed_batch), "Lengths before and after should be the same"
     for i in range(len(deserlized_indexed_batch)):

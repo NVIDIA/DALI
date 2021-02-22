@@ -39,7 +39,7 @@ bool dir_exists(const char *str) {
 }  // namespace detail
 
 
-void FdHandle::DestroyHandle(fd_handle_t h) {
+void FileHandle::DestroyHandle(fd_handle_t h) {
   if (h >= 0) {
     POSIX_CALL(::close(h));
   }
@@ -69,7 +69,7 @@ ShmHandle ShmHandle::CreateHandle() {
   }
   memcpy(temp_path, shm_path, shm_len);
   memcpy(temp_path + shm_len, temp_filename_template, sizeof(temp_filename_template));
-  auto temp_fd = FdHandle(mkstemp(temp_path));  // posix
+  auto temp_fd = FileHandle(mkstemp(temp_path));  // posix
   POSIX_CHECK_STATUS_EX(temp_fd, "mkstemp", "Temporary file creation failed.");
   POSIX_CALL_EX(unlink(temp_path), "Couldn't unlink temporary file.");
   const char *temp_filename = temp_path + shm_len;

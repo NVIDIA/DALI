@@ -20,6 +20,12 @@ import pickle
 np = None
 
 
+def _div_ceil(a, b):
+    """Calculate ceil of a/b without decaying to float.
+    """
+    return -(-a // b)
+
+
 def import_numpy():
     global np
     if np is None:
@@ -75,9 +81,7 @@ def deserialize_sample(buffer: shared_mem.SharedMem, sample):
 
 
 def deserialize_sample_meta(buffer: shared_mem.SharedMem, shared_batch_meta: SharedBatchMeta):
-    """Deserialize SampleMeta from memory based on SharedBatchMeta.
-    Deserialized SampleMeta can be used to reconstruct the batch data by passing it
-    to the `deserialize_batch`.
+    """Helper to deserialize SampleMeta from memory based on SharedBatchMeta.
     """
     sbm = shared_batch_meta
     if sbm.meta_size == 0:
@@ -87,21 +91,22 @@ def deserialize_sample_meta(buffer: shared_mem.SharedMem, shared_batch_meta: Sha
     return samples_meta
 
 
-def deserialize_batch(buffer: shared_mem.SharedMem, samples):
+def deserialize_batch(buffer: shared_mem.SharedMem, shared_batch_meta: SharedBatchMeta):
     """Deserialize samples from the smem buffer and SampleMeta descriptions.
 
     Parameters
     ----------
     buffer : shared_mem.SharedMem
         Buffer with serialized sample data
-    samples : List of (idx, SampleMeta) or list of (idx, tuple of SampleMeta).
-        Metadata describing the samples
+    shared_batch_meta : SharedBatchMeta
+        Metadata about serialized data in memory
 
     Returns
     -------
     List of (idx, numpy array) or (idx, tuple of numpy arrays)
         List of indexed deserialized samples
     """
+    samples = deserialize_sample_meta(buffer, shared_batch_meta)
     return [(idx, deserialize_sample(buffer, sample)) for (idx, sample) in samples]
 
 
@@ -119,9 +124,7 @@ class SharedMemChunk:
         self.shm_chunk = shared_mem.SharedMem.allocate(capacity)
         self.capacity = capacity
 
-    def resize(self, new_capacity=None):
-        capacity = self.capacity
-        new_capacity = new_capacity or 2 * capacity
+    def resize(self, new_capacity):
         self.shm_chunk.resize(new_capacity, trunc=True)
         self.capacity = new_capacity
 
@@ -148,7 +151,7 @@ def _to_numpy(sample):
         "or list or tuple of them.")
 
 
-def _apply_to_sample(func, sample, *args):
+def _apply_to_sample(func, sample, *args, nest_with_sample=1):
     """Apply to a sample traversing the nesting of the data (tuple/list).
 
     Parameters
@@ -157,9 +160,19 @@ def _apply_to_sample(func, sample, *args):
         Function to be applied to every sample data object
     sample : sample object or any nesting of those in tuple/list
         Representation of sample
+    nest_with_sample: int
+        Specify how many consecutive (additional) arguments have the same level of nesting
+        as the sample.
     """
     if isinstance(sample, (tuple, list,)):
-        return type(sample)(_apply_to_sample(func, part, *args) for part in sample)
+        # Check that all the samples have common nesting
+        for i in range(nest_with_sample):
+            assert type(args[i]) == type(sample)
+        nest_group = sample, *args[0:nest_with_sample]
+        scalar_args = args[nest_with_sample:]
+        if nest_with_sample > 0:
+            print("nesting {}: {}".format(nest_with_sample, nest_group))
+        return type(sample)(_apply_to_sample(func, *part, *scalar_args) for part in zip(*nest_group))
     else:
         # we unpacked all nesting levels, now is actual data:
         return func(sample, *args)
@@ -169,6 +182,9 @@ class SharedBatchWriter:
     """SharedBatchWriter can serialize and write batch into given shared
     memory chunk (``mem_batch``).
     """
+
+    SAMPLE_ALIGNMENT = 128
+    BUFFER_ALIGNMENT = 4096
 
     def __init__(self, mem_batch: SharedMemChunk, batch):
         import_numpy()
@@ -183,8 +199,8 @@ class SharedBatchWriter:
 
         def make_meta(np_array):
             nonlocal data_size
-            offset = data_size
-            data_size += np_array.nbytes
+            offset = _div_ceil(data_size, self.SAMPLE_ALIGNMENT) * self.SAMPLE_ALIGNMENT
+            data_size = offset + np_array.nbytes
             return SampleMeta(offset, np_array.shape, np_array.dtype, np_array.nbytes)
 
         meta = []
@@ -192,10 +208,9 @@ class SharedBatchWriter:
             meta.append((idx, _apply_to_sample(make_meta, sample)))
         return meta, data_size
 
-    def _add_array_to_batch(self, np_array, memview):
-        sample_size = np_array.nbytes
-        offset = self.written_size
-        self.written_size += sample_size
+    def _add_array_to_batch(self, np_array, meta, memview):
+        sample_size = meta.nbytes
+        offset = meta.offset
         buffer = memview[offset:(offset + sample_size)]
         shared_array = np.ndarray(
             np_array.shape, dtype=np_array.dtype, buffer=buffer)
@@ -208,16 +223,16 @@ class SharedBatchWriter:
         meta, data_size = self._prepare_samples_meta(batch)
         serialized_meta = pickle.dumps(meta)
         self.meta_data_size = len(serialized_meta)
-        self.data_size = data_size
+        self.data_size = _div_ceil(data_size, self.SAMPLE_ALIGNMENT) * self.SAMPLE_ALIGNMENT
         needed_capacity = self.data_size + self.meta_data_size
         if self.mem_batch.capacity < needed_capacity:
-            self.mem_batch.resize(max([needed_capacity, 2 * self.mem_batch.capacity]))
+            grow_capacity = max(needed_capacity, 2 * self.mem_batch.capacity)
+            grow_capacity = _div_ceil(grow_capacity, self.BUFFER_ALIGNMENT) * self.BUFFER_ALIGNMENT
+            self.mem_batch.resize(grow_capacity)
         memview = self.mem_batch.shm_chunk.buf
-        self.written_size = 0
-        # write serialized samples
-        for idx, sample in batch:
-            _apply_to_sample(self._add_array_to_batch, sample, memview)
-        assert self.written_size == self.data_size, "Mismatch in written and precalculated size."
+        for (idx, sample), (meta_idx, sample_meta) in zip(batch, meta):
+            assert idx == meta_idx
+            _apply_to_sample(self._add_array_to_batch, sample, sample_meta, memview, nest_with_sample=1)
         # copy meta data at the end of shared memory chunk
         buffer = memview[self.data_size:(self.data_size + self.meta_data_size)]
         buffer[:] = serialized_meta

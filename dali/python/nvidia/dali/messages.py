@@ -14,7 +14,7 @@
 
 
 class ScheduledTasks:
-    """Message send from pool to a worker to schedule tasks for the worker
+    """Message sent from the pool to a worker to schedule tasks for the worker
 
     Parameters
     ----------
@@ -33,7 +33,7 @@ class ScheduledTasks:
 
 
 class CompletedTasks:
-    """Message send from a worker to the pool to notify the pool about completed tasks
+    """Message sent from a worker to the pool to notify the pool about completed tasks
     along with meta data needed to fetch and deserialize results stored in the shared memory
 
     Parameters
@@ -44,26 +44,26 @@ class CompletedTasks:
         Index identifying the callback in the order of parallel callbacks passed to pool.
     `batch_i` : int
         Ordinal of the batch that tasks corresponds to.
-    `batch_serialized` :  nvidia.dali.shared_batch.SharedBatchMeta
-        Serialized result of computing the task.
+    `serialized_batch` :  nvidia.dali.shared_batch.SharedBatchMeta
+        Serialized result of the task.
     `exception`
         Exception if the task failed.
     """
 
     def __init__(
-            self, worker_id, context_i, batch_i, batch_serialized=None, exception=None,
+            self, worker_id, context_i, batch_i, serialized_batch=None, exception=None,
             traceback_str=None):
         self.worker_id = worker_id
         self.context_i = context_i
         self.batch_i = batch_i
-        self.batch_serialized = batch_serialized
+        self.serialized_batch = serialized_batch
         self.exception = exception
         self.traceback_str = traceback_str
 
     @classmethod
-    def done(cls, worker_id, processed, batch_serialized):
+    def done(cls, worker_id, processed, serialized_batch):
         return cls(worker_id, processed.context_i, processed.batch_i,
-                   batch_serialized=batch_serialized)
+                   serialized_batch=serialized_batch)
 
     @classmethod
     def failed(cls, worker_id, processed):

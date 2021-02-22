@@ -115,12 +115,11 @@ Parameters
     unrestricted number of streams is assumed).
 `default_cuda_stream_priority` : int, optional, default = 0
     CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
-`enable_memory_stats`: bool, optional, default = False
+`enable_memory_stats`: bool, optional, default = 1
     If DALI should print operator output buffer statistics.
     Usefull for `bytes_per_sample_hint` operator parameter.
-`py_num_workers`: int, optional, default = None
+`py_num_workers`: int, optional, default = 1
     Specify the number of Python workers that will process ExternalSource callbacks.
-    If a number is not specified, the pool will use the cpu count as the number of Python workers.
     The pool starts only if there is at least one ExternalSource with ``parallel`` set to True.
     Setting it to 0 disables the pool and all ExternalSource operators fall back to non parallel
     mode even if ``parallel`` is set to True.
@@ -140,7 +139,7 @@ Parameters
                  exec_async=True, bytes_per_sample=0,
                  set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
                  *,
-                 enable_memory_stats=False, py_num_workers=None, py_start_method="fork"):
+                 enable_memory_stats=False, py_num_workers=1, py_start_method="fork"):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -539,7 +538,7 @@ Parameters
                 groups.add(group)
         groups = list(groups)
         self._input_callbacks = groups
-        if self._py_num_workers is not None and self._py_num_workers == 0:
+        if self._py_num_workers == 0:
             self._parallel_input_callbacks = []
             self._seq_input_callbacks = self._input_callbacks
         else:

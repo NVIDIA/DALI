@@ -108,7 +108,7 @@ def training_test(args):
 
         if pipe_factory == file_reader_pipeline:
             iterator = DALIClassificationIterator(
-                [pipe], reader_name="Reader", last_batch_policy=LastBatchPolicy.DROP)
+                [pipe], reader_name="Reader", last_batch_policy=LastBatchPolicy.DROP, auto_reset=True)
         else:
             iterator = DALIClassificationIterator(
                 [pipe], size=samples_no * args.world_size, auto_reset=True)
@@ -160,8 +160,6 @@ def training_test(args):
                         ))
                 if j >= expected_iters:
                     break
-            if pipe_factory == file_reader_pipeline:
-                iterator.reset()
 
         print("OK {}".format(pipe_factory.__name__))
 
