@@ -74,11 +74,16 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
           output.Resize(f.Shape());
         }
       }
+      ssize_t number_of_elms = 0;
       switch (f.GetType()) {
         case FeatureType::int64:
+          number_of_elms = encoded_feature.int64_list().value().size();
           if (!f.HasShape()) {
-            output.Resize(InferShape(f, encoded_feature.int64_list().value().size()));
+            output.Resize(InferShape(f, number_of_elms));
           }
+          DALI_ENFORCE(number_of_elms <= output.size(), make_string("Output tensor is too "
+                        "small, make sure that provided shape: [", output.shape(),
+                        "], is insufficient."));
           std::memcpy(output.mutable_data<int64_t>(),
               encoded_feature.int64_list().value().data(),
               encoded_feature.int64_list().value().size()*sizeof(int64_t));
@@ -93,12 +98,16 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               encoded_feature.bytes_list().value(0).size()*sizeof(uint8_t));
           break;
         case FeatureType::float32:
+          number_of_elms = encoded_feature.float_list().value().size();
           if (!f.HasShape()) {
-            output.Resize(InferShape(f, encoded_feature.float_list().value().size()));
+            output.Resize(InferShape(f, number_of_elms));
           }
+          DALI_ENFORCE(number_of_elms <= output.size(), make_string("Output tensor is too "
+                        "small, make sure that provided shape: [", output.shape(),
+                        "], is insufficient."));
           std::memcpy(output.mutable_data<float>(),
               encoded_feature.float_list().value().data(),
-              encoded_feature.float_list().value().size()*sizeof(float));
+              number_of_elms * sizeof(float));
           break;
       }
       output.SetSourceInfo(data.GetSourceInfo());
