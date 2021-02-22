@@ -45,7 +45,7 @@ and shape is incompatible with the named arguments specified above.
 The slice arguments should provide as many dimensions as specified by the ``axis_names`` or ``axes``
 arguments.
 
-By default, the :meth:`nvidia.dali.ops.Slice` operator uses normalized coordinates and ``WH``
+By default, the :meth:`nvidia.dali.fn.slice` operator uses normalized coordinates and ``WH``
 order for the slice arguments.)code")
     .NumInput(1, 3)
     .InputDevice(1, 3, InputDevice::CPU)

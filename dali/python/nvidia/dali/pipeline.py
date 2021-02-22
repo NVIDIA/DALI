@@ -506,7 +506,7 @@ Parameters
         Parameters
         ----------
         data_node : :class:`DataNode` or str
-            The name of the :class:`nvidia.dali.ops.ExternalSource` node or a :class:`DataNode`
+            The name of the :class:`nvidia.dali.fn.external_source` node or a :class:`DataNode`
             object returned by a call to that ExternalSource.
 
         data : an ndarray or DLPack or a list thereof

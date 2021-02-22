@@ -48,7 +48,7 @@ class _DaliBaseIterator(object):
 
     Parameters
     ----------
-    pipelines : list of nvidia.dali.pipeline.Pipeline
+    pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     output_map : list of (str, str)
                  List of pairs (output_name, tag) which maps consecutive

@@ -86,11 +86,8 @@ and bandwidth.)code", false)
   .MakeInternal();
 
 DALI_SCHEMA(ExternalSource)
-  .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline,
-see :meth:`nvidia.dali.ops.ExternalSource.__init__`,
-see :meth:`nvidia.dali.fn.external_source`,
-:meth:`nvidia.dali.pipeline.Pipeline.feed_input` and
-:meth:`nvidia.dali.pipeline.Pipeline.iter_setup`.
+  .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline.
+
 Currently this operator is not supported in TensorFlow. It is worth noting that fed inputs
 should match the number of dimensions expected by the next operator in the pipeline
 (e.g. HWC will expect 3-dimensional tensors
