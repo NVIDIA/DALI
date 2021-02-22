@@ -141,7 +141,7 @@ builds please use the following release channel (available only for CUDA 11):
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly nvidia-dali-tf-plugin-weekly-cuda110
 
 
-pip - Legacy releases
+pip - Legacy Releases
 ---------------------
 
 For older versions of DALI (0.22 and lower), use the package `nvidia-dali`. The CUDA version can be selected by changing the pip index:

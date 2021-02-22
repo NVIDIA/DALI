@@ -1,4 +1,4 @@
-Single Shot MultiBox Detector training in PyTorch
+Single Shot MultiBox Detector Training in PyTorch
 =================================================
 
 This example shows how DALI can be used in detection networks, specifically Single Shot Multibox Detector originally published by Wei Liu, Dragomir Anguelov, Dumitru Erhan, Christian Szegedy, 
