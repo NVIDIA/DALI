@@ -54,6 +54,29 @@ def test_num_output():
         assert count_outputs(fn.segmentation.random_object_bbox(inp, format="start_end", output_class=label_out_param)) == 2 + label_out
         assert count_outputs(fn.segmentation.random_object_bbox(inp, format="box", output_class=label_out_param)) == 1 + label_out
 
+@nottest
+def _test_use_foreground(classes, weights, bg):
+    """Test that a proper number of outputs is produced, depending on arguments"""
+    inp = fn.external_source(data, batch=False, cycle="quiet")
+    pipe = dali.pipeline.Pipeline(10, 4, 0, 12345)
+    pipe_outs = fn.segmentation.random_object_bbox(inp, output_class=True, foreground_prob=1, classes=classes, class_weights=weights, background=bg)
+    pipe.set_outputs(*pipe_outs)
+    pipe.build()
+    outs = pipe.run()
+    for i in range(len(outs[2])):
+        assert outs[2].at(i) != (bg or 0)
+
+def test_use_foreground():
+    for classes, weights, bg in [
+        (None, None, None),
+        (None, None, 1),
+        ([1,2,3], None, None),
+        (None, [1,1,1], None),
+        (None, [1,1,1], 0),
+        ([1,2,3], [1,1,1], None)]:
+        yield _test_use_foreground, classes, weights, bg
+
+
 def objects2boxes(objects, input_shape):
     if len(objects) == 0:
         return np.int32([[0] * len(input_shape) + list(input_shape)])

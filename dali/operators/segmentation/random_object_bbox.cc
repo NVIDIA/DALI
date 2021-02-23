@@ -278,7 +278,7 @@ void RandomObjectBBox::ClassInfo::Init(const int *bg_ptr,
   if (cls_tv.data) {
     int ncls = cls_tv.shape[0];
     classes.resize(ncls);
-    if (!cls_tv.data) {
+    if (!weight_tv.data) {
       weights.clear();
       weights.resize(ncls, 1.0f);
     }
