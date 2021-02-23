@@ -16,16 +16,18 @@
 #ifndef DALI_OPERATORS_SEGMENTATION_RANDOM_OBJECT_BBOX_H_
 #define DALI_OPERATORS_SEGMENTATION_RANDOM_OBJECT_BBOX_H_
 
+#include <algorithm>
 #include <string>
 #include <random>
 #include <unordered_set>
-#include <vector>
-#include <algorithm>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/kernels/kernel_params.h"
+#include "dali/kernels/common/fast_hash.h"
 
 namespace dali {
 
@@ -39,6 +41,8 @@ class RandomObjectBBox : public Operator<CPUBackend> {
     Out_Box
   };
 
+  using hash_t = kernels::fast_hash_t;
+
   explicit RandomObjectBBox(const OpSpec &spec) : Operator<CPUBackend>(spec),
         rngs_(spec.GetArgument<int>("seed"), max_batch_size_),
         background_("background", spec),
@@ -48,7 +52,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
         threshold_("threshold", spec) {
     format_ = ParseOutputFormat(spec.GetArgument<string>("format"));
     ignore_class_ = spec.GetArgument<bool>("ignore_class");
-
+    use_cache_ = spec.GetArgument<bool>("cache_objects");
     bool output_class = spec.GetArgument<bool>("output_class");
 
     if (ignore_class_ && (classes_.IsDefined() || weights_.IsDefined() || output_class)) {
@@ -63,6 +67,11 @@ class RandomObjectBBox : public Operator<CPUBackend> {
     if (spec.TryGetArgument(k_largest_, "k_largest")) {
       DALI_ENFORCE(k_largest_ >= 1, make_string(
                    "``k_largest`` must be at least 1; got ", k_largest_));
+    }
+
+    if (use_cache_) {
+      DALI_ENFORCE(!classes_.IsArgInput() && !background_.IsArgInput(),
+        "`cache_objects` option cannot be used when `classes` or `background` are DataNodes.");
     }
 
     tmp_blob_storage_.set_pinned(false);
@@ -180,6 +189,8 @@ class RandomObjectBBox : public Operator<CPUBackend> {
       filtered = view<uint8_t>(tmp_filtered);
       blobs = view<BlobLabel>(tmp_blob);
       labels.clear();
+      class_idx = -1;
+      class_label = -1;
     }
 
     ThreadPool *thread_pool = nullptr;
@@ -239,7 +250,10 @@ class RandomObjectBBox : public Operator<CPUBackend> {
                          const TensorView<StorageCPU, const T> &input);
 
   template <typename BlobLabel>
-  bool PickBlob(SampleContext<BlobLabel> &ctx, int nblobs);
+  void GetBoxes(SampleContext<BlobLabel> &ctx, int nblobs);
+
+  template <typename BlobLabel>
+  bool PickBox(SampleContext<BlobLabel> &ctx);
 
   template <int ndim>
   int PickBox(span<Box<ndim, int>> boxes, int sample_idx);
@@ -254,6 +268,25 @@ class RandomObjectBBox : public Operator<CPUBackend> {
   ArgValue<float, 1> weights_;
   ArgValue<int, 1> threshold_;
   OutputFormat format_;
+
+  bool use_cache_ = false;
+  struct CacheEntry {
+    LabelSet labels;
+    std::unordered_map<int, vector<int>> class_boxes;
+
+    bool Get(vector<int> &boxes, int label) const {
+      auto it = class_boxes.find(label);
+      if (it == class_boxes.end())
+        return false;
+      boxes = it->second;
+      return true;
+    }
+
+    void Put(int label, const vector<int> &boxes) {
+      class_boxes[label] = boxes;
+    }
+  };
+  std::unordered_map<hash_t, CacheEntry> cache_;
 };
 
 }  // namespace dali

@@ -102,8 +102,16 @@ Possible choices are::
   * "anchor_shape" (the default) - there are two outputs: anchor and shape
   * "start_end" - there are two outputs: bounding box start and one-past-end coordinates
   * "box" - there is one output that contains concatenated start and end coordinates
-)", "anchor_shape");
+)", "anchor_shape")
+  .AddOptionalArg("cache_objects", R"(Cache boxes to avoid the computational cost of finding
+object blobs.
 
+Searching for blobs of connected pixels and finding boxes can take a long time. When the dataset
+has few items, but item size is big, you can use caching to save the boxes and reuse them when
+the same input is seen again. The inputs are compared based on 256-bit hash, which is much faster
+to compute than to recalculate the object boxes.
+
+This argument cannot be used when `classes` or `background` change at run-time.)", false);
 
 bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorkspace &ws) {
   out_descs.resize(spec_.NumOutput());
@@ -377,12 +385,12 @@ int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
 }
 
 template <typename BlobLabel>
-bool RandomObjectBBox::PickBlob(SampleContext<BlobLabel> &ctx, int nblobs) {
+void RandomObjectBBox::GetBoxes(SampleContext<BlobLabel> &ctx, int nblobs) {
+  ctx.box_data.clear();
   if (!nblobs)
-    return false;
+    return;
 
   int ndim = ctx.blobs.dim();
-  ctx.box_data.clear();
   ctx.box_data.resize(2*ndim*nblobs);
 
   VALUE_SWITCH(ndim, static_ndim, (1, 2, 3, 4, 5, 6),
@@ -391,6 +399,23 @@ bool RandomObjectBBox::PickBlob(SampleContext<BlobLabel> &ctx, int nblobs) {
       auto boxes = make_span(box_data, nblobs);
       GetLabelBoundingBoxes(boxes, ctx.blobs.template to_static<static_ndim>(), -1,
                             *ctx.thread_pool);
+    ), (  // NOLINT
+      DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim, "; must be 1..6"));
+    )  // NOLINT
+  );  // NOLINT
+}
+
+template <typename BlobLabel>
+bool RandomObjectBBox::PickBox(SampleContext<BlobLabel> &ctx) {
+  int ndim = ctx.blobs.dim();
+  int nblobs = ctx.box_data.size() / (2 * ndim);
+  if (!nblobs)
+    return false;
+
+  VALUE_SWITCH(ndim, static_ndim, (1, 2, 3, 4, 5, 6),
+    (
+      auto *box_data = reinterpret_cast<Box<static_ndim, int>*>(ctx.box_data.data());
+      auto boxes = make_span(box_data, nblobs);
       int box_idx = PickBox(boxes, ctx.sample_idx);
       if (box_idx >= 0) {
         ctx.SelectBox(box_idx);
@@ -436,12 +461,31 @@ bool RandomObjectBBox::PickForegroundBox(
   InitClassInfo(context.sample_idx);
   context.class_label = class_info_.background;
   auto &tp = *context.thread_pool;
+
+  CacheEntry *cache_entry = nullptr;
+  kernels::fast_hash_t hash = {};
+  if (use_cache_) {
+    kernels::fast_hash(hash, input.data, input.num_elements() * sizeof(T));
+    cache_entry = &cache_[hash];
+  }
+
   if (ignore_class_) {
-    int nblobs = LabelConnectedRegions(context.blobs, input, tp, -1, class_info_.background);
-    return PickBlob(context, nblobs);
+    if (!cache_entry || !cache_entry->Get(context.box_data, class_info_.background)) {
+      int nblobs = LabelConnectedRegions(context.blobs, input, tp, -1, class_info_.background);
+      GetBoxes(context, nblobs);
+      if (cache_entry)
+        cache_entry->Put(class_info_.background, context.box_data);
+    }
+    return PickBox(context);
   } else {
-    context.FindLabels(input);
-    context.labels.erase(class_info_.background);
+    /*if (cache_entry && !cache_entry->labels.empty()) {
+      context.labels = cache_entry->labels;
+    } else {*/
+      context.FindLabels(input);
+      context.labels.erase(class_info_.background);
+      if (cache_entry)
+        cache_entry->labels = context.labels;
+    //}
 
     if (!classes_.IsDefined() && !weights_.IsDefined()) {
       class_info_.FromLabels(context.labels);
@@ -454,12 +498,17 @@ bool RandomObjectBBox::PickForegroundBox(
         return false;
 
       assert(context.class_label != class_info_.background);
-      FilterByLabel(context.thread_pool, context.filtered, input, context.class_label);
 
-      int nblobs = LabelConnectedRegions<BlobLabel, uint8_t, -1>(
-              context.blobs, context.filtered, tp, -1, 0);
+      if (!cache_entry || !cache_entry->Get(context.box_data, context.class_label)) {
+        FilterByLabel(context.thread_pool, context.filtered, input, context.class_label);
+        int nblobs = LabelConnectedRegions<BlobLabel, uint8_t, -1>(
+                context.blobs, context.filtered, tp, -1, 0);
+        GetBoxes(context, nblobs);
+        if (cache_entry)
+          cache_entry->Put(context.class_label, context.box_data);
+      }
 
-      if (PickBlob(context, nblobs))
+      if (PickBox(context))
         return true;
 
       // we couldn't find a satisfactory blob in this class, so let's exclude it and try again
