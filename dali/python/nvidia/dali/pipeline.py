@@ -406,17 +406,17 @@ Parameters
         elif not isinstance(outputs, list):
             outputs = [outputs]
 
-        def in_nested(container, pred, container_type):
-            if isinstance(container, container_type):
+        def is_nested(container, pred, container_types):
+            if isinstance(container, container_types):
                 if any(pred(x) for x in container):
                     return True
                 for x in container:
-                    if in_nested(x, pred, container_type):
+                    if is_nested(x, pred, container_types):
                         return True
             return False
 
         def contains_nested_datanode(nested):
-            return in_nested(nested, lambda x: isinstance(x, DataNode), (list, tuple))
+            return is_nested(nested, lambda x: isinstance(x, DataNode), (list, tuple))
 
         for i in range(len(outputs)):
             if isinstance(outputs[i], types.ScalarConstant):
