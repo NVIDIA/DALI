@@ -575,6 +575,9 @@ void VideoLoader::read_file() {
           if (!is_first_frame) {
             nonkey_frame_count = 0;
             if (frame > req.frame + req.count) {
+              // Found a key frame past the requested range. We can stop searching
+              // (If there were missing frames in the range they won't be found after
+              // the next key frame)
               break;
             }
           }
