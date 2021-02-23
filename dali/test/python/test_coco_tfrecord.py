@@ -122,7 +122,7 @@ class COCODetectionPipeline(Pipeline):
         super(COCODetectionPipeline, self).__init__(
             args.batch_size, args.num_workers, 0, 0)
 
-        self.input = ops.COCOReader(
+        self.input = ops.readers.COCO(
             file_root=os.path.join(data_path, 'images'),
             annotations_file=os.path.join(data_path, 'instances.json'),
             shard_id=0,

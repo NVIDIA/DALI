@@ -86,12 +86,12 @@ def video_reader_pipeline_base(
 
 def video_reader_resize_pipeline(batch_size, video_reader_params, resize_params):
     return video_reader_pipeline_base(
-        dali.fn.video_reader_resize, batch_size, video_reader_params, resize_params)
+        dali.fn.readers.video_resize, batch_size, video_reader_params, resize_params)
 
 
 def video_reader_pipeline(batch_size, video_reader_params):
     return video_reader_pipeline_base(
-        dali.fn.video_reader, batch_size, video_reader_params)
+        dali.fn.readers.video, batch_size, video_reader_params)
 
 
 def ground_truth_pipeline(batch_size, video_reader_params, resize_params):

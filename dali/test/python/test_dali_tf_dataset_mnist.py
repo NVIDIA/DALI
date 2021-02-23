@@ -42,13 +42,13 @@ def mnist_pipeline(
         num_threads, path, device, device_id=0, shard_id=0, num_shards=1, seed=0):
     pipeline = Pipeline(BATCH_SIZE, num_threads, device_id, seed)
     with pipeline:
-        jpegs, labels = fn.caffe2_reader(
+        jpegs, labels = fn.readers.caffe2(
             path=path, random_shuffle=True, shard_id=shard_id, num_shards=num_shards)
         images = fn.image_decoder(jpegs, device='mixed' if device == 'gpu' else 'cpu', output_type=types.GRAY)
         if device == 'gpu':
             labels = labels.gpu()
         images = fn.crop_mirror_normalize(
-            images, 
+            images,
             dtype=types.FLOAT,
             mean=[0.],
             std=[255.],
@@ -93,7 +93,7 @@ def get_dataset_multi_gpu(strategy):
 
     train_dataset = strategy.distribute_datasets_from_function(dataset_fn, input_options)
     return train_dataset
-    
+
 
 def keras_model():
     model = tf.keras.models.Sequential([

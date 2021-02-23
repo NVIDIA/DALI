@@ -52,7 +52,7 @@ class CommonPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, _seed, image_dir):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id, seed=_seed, exec_async=False,
                                              exec_pipelined=False)
-        self.input = ops.FileReader(file_root=image_dir)
+        self.input = ops.readers.File(file_root=image_dir)
         self.decode = ops.ImageDecoder(device = 'cpu', output_type=types.RGB)
         self.resize = ops.PythonFunction(function=resize, output_layouts='HWC')
 
@@ -498,7 +498,7 @@ def test_output_layout():
                                         function=lambda x: (x, x.mean(2)),
                                         num_outputs=2,
                                         output_layouts=['ABC', 'DE'])
-        out3, out4 = fn.python_function(images, 
+        out3, out4 = fn.python_function(images,
                                         function=lambda x: (x, x/2),
                                         num_outputs=2,
                                         output_layouts='FGH')

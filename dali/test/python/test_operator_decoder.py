@@ -26,9 +26,9 @@ from test_utils import check_output_pattern
 class DecoderPipeline(Pipeline):
     def __init__(self, data_path, batch_size, num_threads, device_id, device, use_fast_idct=False, memory_stats=False):
         super(DecoderPipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth=1)
-        self.input = ops.FileReader(file_root = data_path,
-                                    shard_id = 0,
-                                    num_shards = 1)
+        self.input = ops.readers.File(file_root = data_path,
+                                      shard_id = 0,
+                                      num_shards = 1)
         self.decode = ops.ImageDecoder(device = device, output_type = types.RGB, use_fast_idct=use_fast_idct,
                                        memory_stats=memory_stats)
 
@@ -74,9 +74,9 @@ def check(img_type, size, device, threads):
 class DecoderPipelineFastIDC(Pipeline):
     def __init__(self, data_path, batch_size, num_threads, use_fast_idct=False):
         super(DecoderPipelineFastIDC, self).__init__(batch_size, num_threads, 0, prefetch_queue_depth=1)
-        self.input = ops.FileReader(file_root = data_path,
-                                    shard_id = 0,
-                                    num_shards = 1)
+        self.input = ops.readers.File(file_root = data_path,
+                                      shard_id = 0,
+                                      num_shards = 1)
         self.decode = ops.ImageDecoder(device = 'cpu', output_type = types.RGB, use_fast_idct=use_fast_idct)
 
     def define_graph(self):

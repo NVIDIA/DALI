@@ -36,9 +36,9 @@ class CommonPipeline(Pipeline):
 class MXNetReaderPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, dont_use_mmap):
         super(MXNetReaderPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.MXNetReader(path = data_paths[0], index_path=data_paths[1],
-                                     shard_id = device_id, num_shards = num_gpus,
-                                     dont_use_mmap=dont_use_mmap)
+        self.input = ops.readers.MXNet(path = data_paths[0], index_path=data_paths[1],
+                                       shard_id = device_id, num_shards = num_gpus,
+                                       dont_use_mmap=dont_use_mmap)
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
@@ -47,8 +47,8 @@ class MXNetReaderPipeline(CommonPipeline):
 class CaffeReadPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, dont_use_mmap):
         super(CaffeReadPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.CaffeReader(path = data_paths[0], shard_id = device_id,
-                                     num_shards = num_gpus, dont_use_mmap=dont_use_mmap)
+        self.input = ops.readers.Caffe(path = data_paths[0], shard_id = device_id,
+                                       num_shards = num_gpus, dont_use_mmap=dont_use_mmap)
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
@@ -57,8 +57,8 @@ class CaffeReadPipeline(CommonPipeline):
 class Caffe2ReadPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, dont_use_mmap):
         super(Caffe2ReadPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.Caffe2Reader(path = data_paths[0], shard_id = device_id,
-                                      num_shards = num_gpus, dont_use_mmap=dont_use_mmap)
+        self.input = ops.readers.Caffe2(path = data_paths[0], shard_id = device_id,
+                                        num_shards = num_gpus, dont_use_mmap=dont_use_mmap)
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
@@ -67,8 +67,8 @@ class Caffe2ReadPipeline(CommonPipeline):
 class FileReadPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, dont_use_mmap):
         super(FileReadPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.FileReader(file_root = data_paths[0], shard_id = device_id,
-                                    num_shards = num_gpus, dont_use_mmap=dont_use_mmap)
+        self.input = ops.readers.File(file_root = data_paths[0], shard_id = device_id,
+                                      num_shards = num_gpus, dont_use_mmap=dont_use_mmap)
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
@@ -96,9 +96,9 @@ class TFRecordPipeline(CommonPipeline):
 class COCOReaderPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, dont_use_mmap):
         super(COCOReaderPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.COCOReader(file_root = data_paths[0], annotations_file=data_paths[1],
-                                    shard_id = device_id, num_shards = num_gpus,
-                                    dont_use_mmap=dont_use_mmap)
+        self.input = ops.readers.COCO(file_root = data_paths[0], annotations_file=data_paths[1],
+                                      shard_id = device_id, num_shards = num_gpus,
+                                      dont_use_mmap=dont_use_mmap)
 
     def define_graph(self):
         images, bb, labels = self.input(name="Reader")

@@ -241,7 +241,7 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
     dali_pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
     with dali_pipe:
         if dim == 2:
-            files, labels = dali.fn.caffe_reader(path = db_2d_folder, random_shuffle = True)
+            files, labels = dali.fn.readers.caffe(path = db_2d_folder, random_shuffle = True)
             images_cpu = dali.fn.image_decoder(files, device="cpu")
         else:
             images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
@@ -450,7 +450,7 @@ def _test_stitching(device, dim, channel_first, dtype, interp):
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=1, device_id=0, seed=1234, prefetch_queue_depth=1)
     with pipe:
         if dim == 2:
-            files, labels = dali.fn.caffe_reader(path = db_2d_folder, random_shuffle = True)
+            files, labels = dali.fn.readers.caffe(path = db_2d_folder, random_shuffle = True)
             images_cpu = dali.fn.image_decoder(files, device="cpu")
         else:
             images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
@@ -532,7 +532,7 @@ def _test_empty_input(dim, device):
     batch_size = 8
     pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
     if dim == 2:
-        files, labels = dali.fn.caffe_reader(path = db_2d_folder, random_shuffle = True)
+        files, labels = dali.fn.readers.caffe(path = db_2d_folder, random_shuffle = True)
         images_cpu = dali.fn.image_decoder(files, device="cpu")
     else:
         images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
@@ -574,7 +574,7 @@ def _test_very_small_output(dim, device):
     batch_size = 8
     pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
     if dim == 2:
-        files, labels = dali.fn.caffe_reader(path = db_2d_folder, random_shuffle = True)
+        files, labels = dali.fn.readers.caffe(path = db_2d_folder, random_shuffle = True)
         images_cpu = dali.fn.image_decoder(files, device="cpu")
     else:
         images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")

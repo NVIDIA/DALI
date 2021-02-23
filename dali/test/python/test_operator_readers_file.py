@@ -51,7 +51,7 @@ def _test_reader_files_arg(use_root, use_labels, shuffle):
 
     batch_size = 3
     pipe = Pipeline(batch_size, 1, 0)
-    files, labels = fn.file_reader(file_root=root, files=fnames, labels=lbl, random_shuffle=shuffle)
+    files, labels = fn.readers.file(file_root=root, files=fnames, labels=lbl, random_shuffle=shuffle)
     pipe.set_outputs(files, labels)
     pipe.build()
 
@@ -76,7 +76,7 @@ def test_file_reader_relpath():
     fnames = [os.path.join(rel_root, f) for f in g_files]
 
     pipe = Pipeline(batch_size, 1, 0)
-    files, labels = fn.file_reader(files=fnames, random_shuffle=True)
+    files, labels = fn.readers.file(files=fnames, random_shuffle=True)
     pipe.set_outputs(files, labels)
     pipe.build()
 
@@ -98,7 +98,7 @@ def test_file_reader_relpath_file_list():
             f.write("{0} {1}\n".format(name, 10000 - i))
 
     pipe = Pipeline(batch_size, 1, 0)
-    files, labels = fn.file_reader(file_list=list_file, random_shuffle=True)
+    files, labels = fn.readers.file(file_list=list_file, random_shuffle=True)
     pipe.set_outputs(files, labels)
     pipe.build()
 

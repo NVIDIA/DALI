@@ -28,16 +28,16 @@ def create_coco_pipeline(default_boxes, args):
         shard_id = 0
         num_shards = 1
 
-    images, bboxes, labels = fn.coco_reader(file_root=args.train_coco_root,
-                                            annotations_file=args.train_annotate,
-                                            skip_empty=True,
-                                            shard_id=shard_id,
-                                            num_shards=num_shards,
-                                            ratio=True,
-                                            ltrb=True,
-                                            random_shuffle=False,
-                                            shuffle_after_epoch=True,
-                                            name="Reader")
+    images, bboxes, labels = fn.readers.coco(file_root=args.train_coco_root,
+                                             annotations_file=args.train_annotate,
+                                             skip_empty=True,
+                                             shard_id=shard_id,
+                                             num_shards=num_shards,
+                                             ratio=True,
+                                             ltrb=True,
+                                             random_shuffle=False,
+                                             shuffle_after_epoch=True,
+                                             name="Reader")
 
     crop_begin, crop_size, bboxes, labels = fn.random_bbox_crop(bboxes, labels,
                                                                 device="cpu",

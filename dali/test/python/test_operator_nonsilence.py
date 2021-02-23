@@ -45,7 +45,7 @@ class NonsilencePipeline(Pipeline):
         super(NonsilencePipeline, self).__init__(batch_size, num_threads, 0, seed=42,
                                                  exec_async=exec_async,
                                                  exec_pipelined=exec_pipelined)
-        self.input = ops.FileReader(device="cpu", file_root=audio_files)
+        self.input = ops.readers.File(device="cpu", file_root=audio_files)
         self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
 
         self.nonsilence = None
