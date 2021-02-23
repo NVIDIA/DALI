@@ -578,22 +578,38 @@ def check_slice_named_args(device, batch_size):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
         data = fn.external_source(source = get_data, layout = "HWC")
-        in_shape = np.array([5, 4])
-        start = np.array([1, 2])
-        shape = np.array([3, 1])
+        in_shape_list = [5, 4]
+        start_list = [1, 2]
+        shape_list = [3, 1]
+        in_shape = np.array(in_shape_list)
+        start = np.array(start_list)
+        shape = np.array(shape_list)
+        end_list = [start_list[i] + shape_list[i] for i in range(2)]
         end = start + shape
+        rel_start_list = [start_list[i] / in_shape_list[i] for i in range(2)]
         rel_start = start / in_shape
+        rel_shape_list = [shape_list[i] / in_shape_list[i] for i in range(2)]
         rel_shape = shape / in_shape
-        rel_end = end / in_shape 
+        rel_end_list = [end_list[i] / in_shape_list[i] for i in range(2)]
+        rel_end = end / in_shape
+
         outs = [
             fn.slice(data, start, shape, axes = (0, 1)),
             fn.slice(data, rel_start, rel_shape, axes = (0, 1)),
-            fn.slice(data, start=start, shape=shape, axes = (0, 1)),
-            fn.slice(data, start=start, end=end, axes = (0, 1)),
-            fn.slice(data, rel_start=rel_start, rel_shape=rel_shape, axes = (0, 1)),
-            fn.slice(data, rel_start=rel_start, rel_end=rel_end, axes = (0, 1)),
-            fn.slice(data, rel_start=rel_start, shape=shape, axes = (0, 1)),
         ]
+
+        for start_arg in [start, start_list]:
+            for shape_arg in [shape, shape_list]:
+                outs += [fn.slice(data, start=start_arg, shape=shape_arg, axes = (0, 1))]
+            for end_arg in [end, end_list]:
+                outs += [fn.slice(data, start=start_arg, end=end_arg, axes = (0, 1))]
+        for rel_start_arg in [rel_start, rel_start_list]:
+            for rel_shape_arg in [rel_shape, rel_shape_list]:
+                outs += [fn.slice(data, rel_start=rel_start_arg, rel_shape=rel_shape_arg, axes = (0, 1))]
+            for rel_end_arg in [rel_end, rel_end_list]:
+                outs += [fn.slice(data, rel_start=rel_start_arg, rel_end=rel_end_arg, axes = (0, 1))]
+            for shape_arg in [shape, shape_list]:
+                outs += [fn.slice(data, rel_start=start_arg, shape=shape_arg, axes = (0, 1))]
         pipe.set_outputs(*outs)
     pipe.build()
     for _ in range(3):
