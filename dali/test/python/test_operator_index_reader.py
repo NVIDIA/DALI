@@ -1,12 +1,13 @@
 import math
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.tfrecord as tfrec
 import os.path
 import tempfile
 import numpy as np
-
-test_data_root = os.environ['DALI_EXTRA_PATH']
+from test_utils import get_dali_extra_path
+from nose.tools import assert_raises
 
 def skip_second(src, dst):
     with open(src, 'r') as tmp_f:
@@ -32,8 +33,8 @@ def test_tfrecord():
             images = inputs["image/encoded"]
             return images
 
-    tfrecord = os.path.join(test_data_root, 'db', 'tfrecord', 'train')
-    tfrecord_idx_org = os.path.join(test_data_root, 'db', 'tfrecord', 'train.idx')
+    tfrecord = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train')
+    tfrecord_idx_org = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train.idx')
     tfrecord_idx = "tfr_train.idx"
 
     idx_files_dir = tempfile.TemporaryDirectory()
@@ -64,8 +65,8 @@ def test_recordio():
             images, _ = self.input(name="Reader")
             return images
 
-    recordio = os.path.join(test_data_root, 'db', 'recordio', 'train.rec')
-    recordio_idx_org = os.path.join(test_data_root, 'db', 'recordio', 'train.idx')
+    recordio = os.path.join(get_dali_extra_path(), 'db', 'recordio', 'train.rec')
+    recordio_idx_org = os.path.join(get_dali_extra_path(), 'db', 'recordio', 'train.idx')
     recordio_idx = "rio_train.idx"
 
     idx_files_dir = tempfile.TemporaryDirectory()
@@ -84,3 +85,20 @@ def test_recordio():
         for a, b in zip(out, out_ref):
             assert np.array_equal(a.as_array(), b.as_array())
         _ = pipe_org.run()
+
+def test_wrong_feature_shape():
+    features = {
+        'image/encoded': tfrec.FixedLenFeature((), tfrec.string, ""),
+        'image/object/bbox': tfrec.FixedLenFeature([], tfrec.float32, -1.0),
+        'image/object/class/label': tfrec.FixedLenFeature([], tfrec.int64, -1),
+    }
+    test_dummy_data_path = os.path.join(get_dali_extra_path(), 'db', 'coco_dummy')
+    pipe = Pipeline(1, 1, 0)
+    with pipe:
+        input = fn.tfrecord_reader(path = os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
+                                   index_path = os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
+                                   features = features)
+    pipe.set_outputs(input['image/encoded'], input['image/object/class/label'], input['image/object/bbox'])
+    pipe.build()
+    # the error is raised because FixedLenFeature is used with insufficient shape to house the input
+    assert_raises(RuntimeError, pipe.run)
