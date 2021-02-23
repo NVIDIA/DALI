@@ -63,17 +63,95 @@ void MultiPasteGPU::FillGPUInput(const workspace_t<GPUBackend> &ws) {
   auto out_shape = output.shape();
   int batch_size = out_shape.num_samples();
   for (int i = 0; i < batch_size; i++) {
-      set<int> x_borders;
-      x_borders.insert(0);
-      x_borders.insert(out_shape[i].data[1]);
-      int n_paste = in_idx_[i].shape[0];
-      for (int j = 0; j < n_paste; j++) {
+    // Get all significant points on x and y axis - those will be the starts and ends of the cells
+    int NO_DATA = 0;
+    map<int, int> x_points;
+    map<int, int> y_points;
+    x_points[0] = NO_DATA;
+    x_points[x_size] = NO_DATA;
+    y_points[0] = NO_DATA;
+    y_points[y_size] = NO_DATA;
+    for (int i = 0; i < n; i++) {
+      x_points[out_x_anchors[i]] = NO_DATA;
+      x_points[out_x_anchors[i] + x_paste_size[i]] = NO_DATA;
+      y_points[out_y_anchors[i]] = NO_DATA;
+      y_points[out_y_anchors[i] + y_paste_size[i]] = NO_DATA;
+    }
 
+    // When we know how many of those points there are, we know how big our grid is for this output
+    int x_grid_size = x_points.size() - 1;
+    int y_grid_size = y_points.size() - 1;
+
+    // Now lets fill forward and backward mapping of those significant points to grid cell indices
+    vector<int> scaled_x_to_x;
+    for (auto i = x_points.begin(); i != x_points.end(); i++) {
+      i->second = scaled_x_to_x.size();
+      scaled_x_to_x.push_back(i->first);
+    }
+    vector<int> scaled_y_to_y;
+    for (auto i = y_points.begin(); i != y_points.end(); i++) {
+      i->second = scaled_y_to_y.size();
+      scaled_y_to_y.push_back(i->first);
+    }
+
+    // We create events that will fire when sweeping
+    vector<vector<tuple<int, int, int>>> y_starting(y_grid_size + 1);
+    vector<vector<tuple<int, int, int>>> y_ending(y_grid_size + 1);
+    for (int i = 0; i < n; i++) {
+      y_starting[y_points[out_y_anchors[i]]].emplace_back(
+              i, x_points[out_x_anchors[i]], x_points[out_x_anchors[i] + x_paste_size[i]]);
+      y_ending[y_points[out_y_anchors[i] + y_paste_size[i]]].emplace_back(
+              i, x_points[out_x_anchors[i]], x_points[out_x_anchors[i] + x_paste_size[i]]);
+    }
+    y_starting[0].emplace_back(-1, 0, x_grid_size);
+    y_ending[y_grid_size].emplace_back(-1, 0, x_grid_size);
+
+    // And now the sweeping itself
+    vector<GridCellInput> cells(x_grid_size * y_grid_size);
+    vector<unordered_set<int>> starting(x_grid_size + 1);
+    vector<unordered_set<int>> ending(x_grid_size + 1);
+    set<int> open_pastes;
+    for (int y = 0; y < y_grid_size; y++) {
+      // Add open and close events on x axis for regions with given y start coordinate
+      for (auto i = y_starting[y].begin(); i != y_starting[y].end(); i++) {
+        starting[get<1>(*i)].insert(get<0>(*i));
+        ending[get<2>(*i)].insert(get<0>(*i));
       }
+      // Now sweep through x
+      for (int x = 0; x < x_grid_size; x++) {
+        // Open regions starting here
+        for (auto i = starting[x].begin(); i != starting[x].end(); i++) {
+          open_pastes.insert(*i);
+        }
 
+        // Take top most region
+        int max_paste = *(--open_pastes.end());
+        GridCellInput& cell = cells[y * x_grid_size + x];
 
+        // And fill grid cell
+        cell.cell_start[0] = scaled_y_to_y[y];
+        cell.cell_start[1] = scaled_x_to_x[x];
+        cell.cell_end[0] = scaled_y_to_y[y + 1];
+        cell.cell_end[1] = scaled_x_to_x[x + 1];
+        cell.input_idx = max_paste == -1 ? -1 : out_idx[max_paste];
+
+        if (max_paste != -1) {
+          cell.in_anchor[0] = in_y_anchors[max_paste] + cell.cell_start[0] - out_y_anchors[max_paste];
+          cell.in_anchor[1] = in_x_anchors[max_paste] + cell.cell_start[1] - out_x_anchors[max_paste];
+        }
+
+        // Now remove regions that end here
+        for (auto i = ending[x + 1].begin(); i != ending[x + 1].end(); i++) {
+          open_pastes.erase(*i);
+        }
+      }
+      // And remove start/events for regions whose y ends here
+      for (auto i = y_ending[y + 1].begin(); i != y_ending[y + 1].end(); i++) {
+        starting[get<1>(*i)].erase(get<0>(*i));
+        ending[get<2>(*i)].erase(get<0>(*i));
+      }
+    }
   }
-  DALI_FAIL("As for now, MultiPasteGUP does not support intersecting pastes");
 }
 
 template<typename InputType, typename OutputType>
