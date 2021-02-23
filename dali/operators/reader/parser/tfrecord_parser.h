@@ -82,7 +82,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
             output.Resize(InferShape(f, number_of_elms));
           }
           DALI_ENFORCE(number_of_elms <= output.size(), make_string("Output tensor shape is too "
-                       "small: [", output.shape(),"]. Expected at least ", number_of_elms,
+                       "small: [", output.shape(), "]. Expected at least ", number_of_elms,
                        " elements."));
           std::memcpy(output.mutable_data<int64_t>(),
               encoded_feature.int64_list().value().data(),
@@ -103,7 +103,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
             output.Resize(InferShape(f, number_of_elms));
           }
           DALI_ENFORCE(number_of_elms <= output.size(), make_string("Output tensor shape is too "
-                       "small: [", output.shape(),"]. Expected at least ", number_of_elms,
+                       "small: [", output.shape(), "]. Expected at least ", number_of_elms,
                        " elements."));
           std::memcpy(output.mutable_data<float>(),
               encoded_feature.float_list().value().data(),
