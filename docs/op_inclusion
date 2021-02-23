@@ -1,0 +1,110 @@
+.. |v| image:: images/tick.gif
+
+================================================================================================ ======  ======  ======= ========= ==========
+Operator name                                                                                     CPU     GPU     Mixed  Sequences Volumetric
+================================================================================================ ======  ======  ======= ========= ==========
+:meth:`AudioDecoder <nvidia.dali.ops.AudioDecoder>`                                               |v|                                        
+:meth:`BatchPermutation <nvidia.dali.ops.BatchPermutation>`                                       |v|                                        
+:meth:`BbFlip <nvidia.dali.ops.BbFlip>`                                                           |v|     |v|                                
+:meth:`BBoxPaste <nvidia.dali.ops.BBoxPaste>`                                                     |v|                                        
+:meth:`BoxEncoder <nvidia.dali.ops.BoxEncoder>`                                                   |v|     |v|                                
+:meth:`Brightness <nvidia.dali.ops.Brightness>`                                                   |v|     |v|                                
+:meth:`BrightnessContrast <nvidia.dali.ops.BrightnessContrast>`                                   |v|     |v|                                
+:meth:`Caffe2Reader <nvidia.dali.ops.Caffe2Reader>`                                               |v|                                        
+:meth:`CaffeReader <nvidia.dali.ops.CaffeReader>`                                                 |v|                                        
+:meth:`Cast <nvidia.dali.ops.Cast>`                                                               |v|     |v|               |v|       |v|    
+:meth:`Cat <nvidia.dali.ops.Cat>`                                                                 |v|     |v|                                
+:meth:`COCOReader <nvidia.dali.ops.COCOReader>`                                                   |v|                                        
+:meth:`CoinFlip <nvidia.dali.ops.CoinFlip>`                                                       |v|     |v|                                
+:meth:`ColorSpaceConversion <nvidia.dali.ops.ColorSpaceConversion>`                               |v|     |v|                                
+:meth:`ColorTwist <nvidia.dali.ops.ColorTwist>`                                                   |v|     |v|                                
+:meth:`Compose <nvidia.dali.ops.Compose>`                                                         |v|     |v|                                
+:meth:`Constant <nvidia.dali.ops.Constant>`                                                       |v|     |v|                                
+:meth:`Contrast <nvidia.dali.ops.Contrast>`                                                       |v|     |v|                                
+:meth:`CoordFlip <nvidia.dali.ops.CoordFlip>`                                                     |v|     |v|                                
+:meth:`CoordTransform <nvidia.dali.ops.CoordTransform>`                                           |v|     |v|                                
+:meth:`Copy <nvidia.dali.ops.Copy>`                                                               |v|     |v|               |v|       |v|    
+:meth:`Crop <nvidia.dali.ops.Crop>`                                                               |v|     |v|               |v|       |v|    
+:meth:`CropMirrorNormalize <nvidia.dali.ops.CropMirrorNormalize>`                                 |v|     |v|               |v|       |v|    
+:meth:`DLTensorPythonFunction <nvidia.dali.ops.DLTensorPythonFunction>`                           |v|     |v|               |v|       |v|    
+:meth:`DumpImage <nvidia.dali.ops.DumpImage>`                                                     |v|     |v|                                
+:meth:`ElementExtract <nvidia.dali.ops.ElementExtract>`                                           |v|     |v|               |v|              
+:meth:`Erase <nvidia.dali.ops.Erase>`                                                             |v|     |v|               |v|       |v|    
+:meth:`ExternalSource <nvidia.dali.ops.ExternalSource>`                                           |v|     |v|                                
+:meth:`FastResizeCropMirror <nvidia.dali.ops.FastResizeCropMirror>`                               |v|                                        
+:meth:`FileReader <nvidia.dali.ops.FileReader>`                                                   |v|                                        
+:meth:`Flip <nvidia.dali.ops.Flip>`                                                               |v|     |v|               |v|       |v|    
+:meth:`GaussianBlur <nvidia.dali.ops.GaussianBlur>`                                               |v|     |v|               |v|       |v|    
+:meth:`GridMask <nvidia.dali.ops.GridMask>`                                                       |v|                                        
+:meth:`Hsv <nvidia.dali.ops.Hsv>`                                                                 |v|     |v|                                
+:meth:`Hue <nvidia.dali.ops.Hue>`                                                                 |v|     |v|                                
+:meth:`ImageDecoder <nvidia.dali.ops.ImageDecoder>`                                               |v|              |v|                       
+:meth:`ImageDecoderCrop <nvidia.dali.ops.ImageDecoderCrop>`                                       |v|              |v|                       
+:meth:`ImageDecoderRandomCrop <nvidia.dali.ops.ImageDecoderRandomCrop>`                           |v|              |v|                       
+:meth:`ImageDecoderSlice <nvidia.dali.ops.ImageDecoderSlice>`                                     |v|              |v|                       
+:meth:`Jitter <nvidia.dali.ops.Jitter>`                                                                   |v|                                
+:meth:`LookupTable <nvidia.dali.ops.LookupTable>`                                                 |v|     |v|               |v|       |v|    
+:meth:`MelFilterBank <nvidia.dali.ops.MelFilterBank>`                                             |v|     |v|                                
+:meth:`MFCC <nvidia.dali.ops.MFCC>`                                                               |v|     |v|                                
+:meth:`MXNetReader <nvidia.dali.ops.MXNetReader>`                                                 |v|                                        
+:meth:`NemoAsrReader <nvidia.dali.ops.NemoAsrReader>`                                             |v|                                        
+:meth:`NonsilentRegion <nvidia.dali.ops.NonsilentRegion>`                                         |v|                                        
+:meth:`NormalDistribution <nvidia.dali.ops.NormalDistribution>`                                   |v|     |v|                                
+:meth:`Normalize <nvidia.dali.ops.Normalize>`                                                     |v|     |v|               |v|       |v|    
+:meth:`NumpyReader <nvidia.dali.ops.NumpyReader>`                                                 |v|                                        
+:meth:`OldColorTwist <nvidia.dali.ops.OldColorTwist>`                                             |v|     |v|                                
+:meth:`OneHot <nvidia.dali.ops.OneHot>`                                                           |v|     |v|                                
+:meth:`OpticalFlow <nvidia.dali.ops.OpticalFlow>`                                                         |v|               |v|              
+:meth:`Pad <nvidia.dali.ops.Pad>`                                                                 |v|     |v|                                
+:meth:`Paste <nvidia.dali.ops.Paste>`                                                                     |v|                                
+:meth:`PeekImageShape <nvidia.dali.ops.PeekImageShape>`                                           |v|                                        
+:meth:`PermuteBatch <nvidia.dali.ops.PermuteBatch>`                                               |v|     |v|                                
+:meth:`PowerSpectrum <nvidia.dali.ops.PowerSpectrum>`                                             |v|                                        
+:meth:`PreemphasisFilter <nvidia.dali.ops.PreemphasisFilter>`                                     |v|     |v|                                
+:meth:`PythonFunction <nvidia.dali.ops.PythonFunction>`                                           |v|     |v|               |v|       |v|    
+:meth:`RandomBBoxCrop <nvidia.dali.ops.RandomBBoxCrop>`                                           |v|                                        
+:meth:`RandomResizedCrop <nvidia.dali.ops.RandomResizedCrop>`                                     |v|     |v|               |v|              
+:meth:`Reinterpret <nvidia.dali.ops.Reinterpret>`                                                 |v|     |v|               |v|       |v|    
+:meth:`Reshape <nvidia.dali.ops.Reshape>`                                                         |v|     |v|               |v|       |v|    
+:meth:`Resize <nvidia.dali.ops.Resize>`                                                           |v|     |v|               |v|       |v|    
+:meth:`ResizeCropMirror <nvidia.dali.ops.ResizeCropMirror>`                                       |v|                                        
+:meth:`ROIRandomCrop <nvidia.dali.ops.ROIRandomCrop>`                                             |v|                                        
+:meth:`Rotate <nvidia.dali.ops.Rotate>`                                                           |v|     |v|                         |v|    
+:meth:`Saturation <nvidia.dali.ops.Saturation>`                                                   |v|     |v|                                
+:meth:`SequenceReader <nvidia.dali.ops.SequenceReader>`                                           |v|                       |v|              
+:meth:`SequenceRearrange <nvidia.dali.ops.SequenceRearrange>`                                     |v|     |v|               |v|              
+:meth:`Shapes <nvidia.dali.ops.Shapes>`                                                           |v|     |v|               |v|       |v|    
+:meth:`Slice <nvidia.dali.ops.Slice>`                                                             |v|     |v|                         |v|    
+:meth:`Spectrogram <nvidia.dali.ops.Spectrogram>`                                                 |v|     |v|                                
+:meth:`Sphere <nvidia.dali.ops.Sphere>`                                                           |v|     |v|                                
+:meth:`SSDRandomCrop <nvidia.dali.ops.SSDRandomCrop>`                                             |v|                                        
+:meth:`Stack <nvidia.dali.ops.Stack>`                                                             |v|     |v|                                
+:meth:`TFRecordReader <nvidia.dali.ops.TFRecordReader>`                                           |v|                                        
+:meth:`ToDecibels <nvidia.dali.ops.ToDecibels>`                                                   |v|     |v|                                
+:meth:`TorchPythonFunction <nvidia.dali.plugin.pytorch.TorchPythonFunction>`                      |v|     |v|               |v|       |v|    
+:meth:`Transpose <nvidia.dali.ops.Transpose>`                                                     |v|     |v|               |v|       |v|    
+:meth:`Uniform <nvidia.dali.ops.Uniform>`                                                         |v|     |v|                                
+:meth:`VideoReader <nvidia.dali.ops.VideoReader>`                                                         |v|                                
+:meth:`VideoReaderResize <nvidia.dali.ops.VideoReaderResize>`                                             |v|                                
+:meth:`WarpAffine <nvidia.dali.ops.WarpAffine>`                                                   |v|     |v|                         |v|    
+:meth:`Water <nvidia.dali.ops.Water>`                                                             |v|     |v|                                
+:meth:`random.CoinFlip <nvidia.dali.ops.random.CoinFlip>`                                         |v|     |v|                                
+:meth:`random.Normal <nvidia.dali.ops.random.Normal>`                                             |v|     |v|                                
+:meth:`random.Uniform <nvidia.dali.ops.random.Uniform>`                                           |v|     |v|                                
+:meth:`reductions.Max <nvidia.dali.ops.reductions.Max>`                                           |v|     |v|                                
+:meth:`reductions.Mean <nvidia.dali.ops.reductions.Mean>`                                         |v|     |v|                                
+:meth:`reductions.MeanSquare <nvidia.dali.ops.reductions.MeanSquare>`                             |v|     |v|                                
+:meth:`reductions.Min <nvidia.dali.ops.reductions.Min>`                                           |v|     |v|                                
+:meth:`reductions.RMS <nvidia.dali.ops.reductions.RMS>`                                           |v|     |v|                                
+:meth:`reductions.StdDev <nvidia.dali.ops.reductions.StdDev>`                                     |v|     |v|                                
+:meth:`reductions.Sum <nvidia.dali.ops.reductions.Sum>`                                           |v|     |v|                                
+:meth:`reductions.Variance <nvidia.dali.ops.reductions.Variance>`                                 |v|     |v|                                
+:meth:`segmentation.RandomMaskPixel <nvidia.dali.ops.segmentation.RandomMaskPixel>`               |v|                                        
+:meth:`segmentation.SelectMasks <nvidia.dali.ops.segmentation.SelectMasks>`                       |v|                                        
+:meth:`transforms.Combine <nvidia.dali.ops.transforms.Combine>`                                   |v|                                        
+:meth:`transforms.Crop <nvidia.dali.ops.transforms.Crop>`                                         |v|                                        
+:meth:`transforms.Rotation <nvidia.dali.ops.transforms.Rotation>`                                 |v|                                        
+:meth:`transforms.Scale <nvidia.dali.ops.transforms.Scale>`                                       |v|                                        
+:meth:`transforms.Shear <nvidia.dali.ops.transforms.Shear>`                                       |v|                                        
+:meth:`transforms.Translation <nvidia.dali.ops.transforms.Translation>`                           |v|                                        
+================================================================================================ ======  ======  ======= ========= ==========
