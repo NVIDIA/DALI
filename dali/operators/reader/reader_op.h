@@ -251,6 +251,7 @@ class DataReader : public Operator<Backend> {
 
       // We don't want to cache the image itself
       auto& first_output = cached_outputs[0];
+      first_output.set_pinned(false);
       first_output.SetSourceInfo(source_info);
       first_output.SetSkipSample(should_skip_sample);
       first_output.set_type(TypeInfo::Create<uint8_t>());
@@ -258,6 +259,7 @@ class DataReader : public Operator<Backend> {
 
       for (std::size_t i = 1; i < cached_outputs.size(); i++) {
         auto& output = ws->Output<CPUBackend>(i);
+        cached_outputs[i].set_pinned(false);
         cached_outputs[i].Copy(output, 0);
       }
     }

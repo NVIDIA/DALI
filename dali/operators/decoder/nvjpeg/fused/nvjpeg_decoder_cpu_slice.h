@@ -32,8 +32,13 @@ class nvJPEGDecoderCPUStageSlice : public nvJPEGDecoderCPUStage {
 
  protected:
   using Operator<CPUBackend>::RunImpl;
+
+  void RunImpl(HostWorkspace &ws) override {
+    slice_attr_.ProcessArguments<CPUBackend>(ws);
+    Operator<CPUBackend>::RunImpl(ws);
+  }
+
   void RunImpl(SampleWorkspace &ws) override {
-    slice_attr_.ProcessArguments(ws);
     nvJPEGDecoderCPUStage::RunImpl(ws);
   }
 

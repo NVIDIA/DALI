@@ -45,6 +45,29 @@ def get_data():
     out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
     return out
 
+def test_move_to_device_end():
+    test_data_shape = [1, 3, 0, 4]
+    def get_data():
+        out = [np.empty(test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        return out
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    outs = fn.external_source(source = get_data)
+    pipe.set_outputs(outs.gpu())
+    assert_raises(RuntimeError, pipe.build)
+
+def test_move_to_device_middle():
+    test_data_shape = [1, 3, 0, 4]
+    def get_data():
+        out = [np.empty(test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        return out
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    data = fn.external_source(source = get_data)
+    outs = fn.rotate(data.gpu(), angle = 25)
+    pipe.set_outputs(outs)
+    assert_raises(RuntimeError, pipe.build)
+
 def check_bad_device(device_id):
     test_data_shape = [1, 3, 0, 4]
     def get_data():
@@ -722,6 +745,13 @@ def test_arithm_ops_cpu():
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def test_arithm_ops_cpu_gpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+    data = fn.external_source(source = get_data, layout = "HWC")
+    processed = [data * data.gpu(), data + data.gpu(), data - data.gpu(), data / data.gpu(), data // data.gpu()]
+    pipe.set_outputs(*processed)
+    assert_raises(RuntimeError, pipe.build)
 
 def test_pytorch_plugin_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)

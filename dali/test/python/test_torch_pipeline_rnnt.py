@@ -159,7 +159,7 @@ class FilterbankFeatures():
         return x.to(dtype)
 
 
-class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
+class RnntTrainPipeline(nvidia.dali.Pipeline):
     def __init__(self,
                  device_id,
                  n_devices,

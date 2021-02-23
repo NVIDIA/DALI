@@ -424,6 +424,22 @@ def test_seed():
             img_chw = img_chw_test
         assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
 
+def test_none_seed():
+    batch_size = 60
+
+    for i in range(50):
+        pipe = Pipeline(batch_size=batch_size, num_threads=2, device_id=0, seed=None)
+        with pipe:
+            coin = fn.random.uniform(range = (0.0,1.0))
+        pipe.set_outputs(coin)
+        pipe.build()
+        pipe_out = pipe.run()[0]
+        test_out = pipe_out.as_array()
+        if i == 0:
+            test_out_ref = test_out
+        else:
+            assert(np.sum(np.abs(test_out_ref - test_out)) != 0)
+
 def test_as_array():
     batch_size = 64
     class HybridPipe(Pipeline):
@@ -1575,6 +1591,29 @@ def test_executor_meta():
             assert(calc_avg_max(v["real_memory_size"]) == v["max_real_memory_size"])
             assert(calc_avg_max(v["reserved_memory_size"]) == v["max_reserved_memory_size"])
 
+def test_bytes_per_sample_hint():
+    import nvidia.dali.backend
+    nvidia.dali.backend.SetHostBufferShrinkThreshold(0)
+    def obtain_reader_meta(iters = 3, **kvargs):
+        batch_size = 10
+        pipe = Pipeline(batch_size, 1, 0, enable_memory_stats=True)
+        with pipe:
+            out = fn.caffe_reader(path = caffe_db_folder, shard_id = 0, num_shards = 1, **kvargs)
+            out = [o.gpu() for o in out]
+            pipe.set_outputs(*out)
+        pipe.build()
+        for _ in range(iters):
+            pipe.run()
+        meta = pipe.executor_statistics()
+        reader_meta = None
+        for k in meta.keys():
+            if "CPU___CaffeReader" in k:
+                reader_meta = meta[k]
+        return reader_meta
+
+    reader_meta = obtain_reader_meta(iters=10)
+    new_reader_meta = obtain_reader_meta(iters=1, bytes_per_sample_hint = [int(v * 1.1) for v in reader_meta['max_reserved_memory_size']])
+    assert new_reader_meta['max_reserved_memory_size'] > reader_meta['max_reserved_memory_size']
 
 def trigger_output_dtype_deprecated_warning():
     batch_size = 10

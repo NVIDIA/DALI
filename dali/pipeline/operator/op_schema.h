@@ -83,7 +83,7 @@ If not provided, it will be populated based on the global seed of the pipeline.)
     AddOptionalArg("bytes_per_sample_hint", R"code(Output size hint, in bytes per sample.
 
 If specified, the operator's outputs residing in GPU or page-locked host memory will be preallocated
-to accommodate a batch of samples of this size.)code", 0);
+to accommodate a batch of samples of this size.)code", std::vector<int>{0});
 
     AddOptionalArg("preserve",  R"code(Prevents the operator from being removed from the
 graph even if its outputs are not used.)code", false);
@@ -156,7 +156,7 @@ graph even if its outputs are not used.)code", false);
    * @param doc
    * @param append_kwargs_section
    */
-  DLL_PUBLIC inline OpSchema &CallDocStr(const string &doc, bool append_kwargs_section = true) {
+  DLL_PUBLIC inline OpSchema &CallDocStr(const string &doc, bool append_kwargs_section = false) {
     DALI_ENFORCE(!doc.empty(), "The custom docstring for __call__ should not be empty.");
 
     DALI_ENFORCE(!input_dox_set_,
@@ -894,9 +894,9 @@ graph even if its outputs are not used.)code", false);
   // Custom docstring, if not empty should be used in place of input_dox_ descriptions
   std::string call_dox_ = {};
 
-  // Whether to append kwargs section to __call__ docstring. On by default,
-  // can be turned off for call_dox_ specified manually
-  bool append_kwargs_section_ = true;
+  // Whether to append kwargs section to __call__ docstring. Off by default,
+  // can be turned on for call_dox_ specified manually
+  bool append_kwargs_section_ = false;
 
   SpecFunc output_fn_, in_place_fn_, additional_outputs_fn_;
 

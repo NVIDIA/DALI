@@ -369,8 +369,8 @@ class DALITest : public ::testing::Test {
   int GetNumColorComp() const { return c_; }
 
   std::mt19937 rand_gen_;
-  vector<string> jpeg_names_, png_names_, tiff_names_;
-  ImgSetDescr jpegs_, png_, tiff_, bmp_;
+  vector<string> jpeg_names_, png_names_, tiff_names_, jpeg2k_names_;
+  ImgSetDescr jpegs_, png_, tiff_, bmp_, jpeg2ks_;
 
   // Decoded images
   vector<vector<uint8>> images_;

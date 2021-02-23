@@ -25,7 +25,7 @@
 namespace dali {
 
 ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity)
-    : threads_(num_thread), running_(true), work_complete_(true), adding_work_(false)
+    : threads_(num_thread), running_(true), work_complete_(true), started_(false)
     , active_threads_(0) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
 #if NVML_ENABLED
@@ -57,24 +57,28 @@ ThreadPool::~ThreadPool() {
 #endif
 }
 
-void ThreadPool::AddWork(Work work, int64_t priority, bool finished_adding_work) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  work_queue_.push({priority, std::move(work)});
-  work_complete_ = false;
-  adding_work_ = !finished_adding_work;
-}
-
-void ThreadPool::DoWorkWithID(Work work, int64_t priority) {
-  AddWork(std::move(work), priority, true);
-  // Signal a thread to complete the work
-  condition_.notify_one();
+void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
+  bool started_before = false;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    work_queue_.push({priority, std::move(work)});
+    work_complete_ = false;
+    started_before = started_;
+    started_ |= start_immediately;
+  }
+  if (started_) {
+    if (!started_before)
+      condition_.notify_all();
+    else
+      condition_.notify_one();
+  }
 }
 
 // Blocks until all work issued to the thread pool is complete
 void ThreadPool::WaitForWork(bool checkForErrors) {
   std::unique_lock<std::mutex> lock(mutex_);
   completed_.wait(lock, [this] { return this->work_complete_; });
-
+  started_ = false;
   if (checkForErrors) {
     // Check for errors
     for (size_t i = 0; i < threads_.size(); ++i) {
@@ -91,15 +95,15 @@ void ThreadPool::WaitForWork(bool checkForErrors) {
 void ThreadPool::RunAll(bool wait) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    adding_work_ = false;
+    started_ = true;
   }
-  condition_.notify_one();  // other threads will be waken up if needed
+  condition_.notify_all();  // other threads will be waken up if needed
   if (wait) {
     WaitForWork();
   }
 }
 
-int ThreadPool::size() const {
+int ThreadPool::NumThreads() const {
   return threads_.size();
 }
 
@@ -141,7 +145,7 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
   while (running_) {
     // Block on the condition to wait for work
     std::unique_lock<std::mutex> lock(mutex_);
-    condition_.wait(lock, [this] { return !running_ || (!work_queue_.empty() && !adding_work_); });
+    condition_.wait(lock, [this] { return !running_ || (!work_queue_.empty() && started_); });
     // If we're no longer running, exit the run loop
     if (!running_) break;
 
@@ -149,15 +153,10 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
     // this thread as active
     Work work = std::move(work_queue_.top().second);
     work_queue_.pop();
-    bool should_wake_next = !work_queue_.empty();
     ++active_threads_;
 
     // Unlock the lock
     lock.unlock();
-
-    if (should_wake_next) {
-      condition_.notify_one();
-    }
 
     // If an error occurs, we save it in tl_errors_. When
     // WaitForWork is called, we will check for any errors

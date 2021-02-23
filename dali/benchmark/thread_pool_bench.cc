@@ -27,7 +27,7 @@ static void ThreadPoolArgs(benchmark::internal::Benchmark *b) {
   b->Args({batch_size, work_size_min, work_size_max, nthreads});
 }
 
-BENCHMARK_DEFINE_F(ThreadPoolBench, DoWorkWithID)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(ThreadPoolBench, AddWork)(benchmark::State& st) {
   int batch_size = st.range(0);
   int work_size_min = st.range(1);
   int work_size_max = st.range(2);
@@ -40,7 +40,7 @@ BENCHMARK_DEFINE_F(ThreadPoolBench, DoWorkWithID)(benchmark::State& st) {
   while (st.KeepRunning()) {
     for (int i = 0; i < batch_size; i++) {
         auto size = this->RandInt(work_size_min, work_size_max);
-        thread_pool.DoWorkWithID(
+        thread_pool.AddWork(
           [&data, size, &total_count](int thread_id){
             std::vector<uint8_t> other_data;
             for (int i = 0; i < size; i++) {
@@ -48,7 +48,7 @@ BENCHMARK_DEFINE_F(ThreadPoolBench, DoWorkWithID)(benchmark::State& st) {
             }
             std::this_thread::sleep_for(std::chrono::nanoseconds(size * 10));
             total_count += size;
-          });
+          }, 0, true);
     }
     thread_pool.WaitForWork();
 
@@ -59,13 +59,13 @@ BENCHMARK_DEFINE_F(ThreadPoolBench, DoWorkWithID)(benchmark::State& st) {
   std::cout << total_count << std::endl;
 }
 
-BENCHMARK_REGISTER_F(ThreadPoolBench, DoWorkWithID)->Iterations(1000)
+BENCHMARK_REGISTER_F(ThreadPoolBench, AddWork)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(ThreadPoolArgs);
 
 
-BENCHMARK_DEFINE_F(ThreadPoolBench, AddWork)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(ThreadPoolBench, AddWorkDeferred)(benchmark::State& st) {
   int batch_size = st.range(0);
   int work_size_min = st.range(1);
   int work_size_max = st.range(2);
@@ -98,7 +98,7 @@ BENCHMARK_DEFINE_F(ThreadPoolBench, AddWork)(benchmark::State& st) {
 }
 
 
-BENCHMARK_REGISTER_F(ThreadPoolBench, AddWork)->Iterations(1000)
+BENCHMARK_REGISTER_F(ThreadPoolBench, AddWorkDeferred)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(ThreadPoolArgs);

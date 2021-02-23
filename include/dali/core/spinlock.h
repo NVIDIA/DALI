@@ -16,10 +16,14 @@
 #define DALI_CORE_SPINLOCK_H_
 
 #include <atomic>
+#include <thread>
 
 namespace dali {
 
-class spinlock {
+/**
+ * @brief A spinlock that purely busy-waits on an atomic flag
+ */
+class busy_spinlock {
  public:
   void lock() noexcept {
     while (flag_.test_and_set(std::memory_order_acquire)) {
@@ -38,6 +42,37 @@ class spinlock {
  private:
   std::atomic_flag flag_ = ATOMIC_FLAG_INIT;
 };
+
+/**
+ * @brief A spinlock that spins a predefined number of cycles and then yields.
+ */
+template <int yield_after_n_spins>
+class yielding_spinlock {
+ public:
+  void lock() noexcept {
+    int spin = yield_after_n_spins;
+    while (flag_.test_and_set(std::memory_order_acquire)) {
+      if (spin > 0) {
+        spin--;
+      } else {
+        std::this_thread::yield();
+      }
+    }
+  }
+
+  bool try_lock() noexcept {
+      return !flag_.test_and_set(std::memory_order_acquire);
+  }
+
+  void unlock() noexcept {
+    flag_.clear(std::memory_order_release);
+  }
+
+ private:
+  std::atomic_flag flag_ = ATOMIC_FLAG_INIT;
+};
+
+using spinlock = yielding_spinlock<100>;
 
 }  // namespace dali
 

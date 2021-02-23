@@ -140,7 +140,10 @@ a dedicated hardware decoder.
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
   .AddOptionalArg("hw_decoder_load",
       R"code(The percentage of the image data to be processed by the HW JPEG decoder.
 
@@ -182,14 +185,21 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.ops.ImageDecoderCrop` automatically disables hardware accelerated
-  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
-  :meth:`nvidia.dali.ops.Crop` operators instead.
+  :meth:`nvidia.dali.fn.image_decoder` automatically disables hardware accelerated
+  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.crop` operators instead.
 
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
+
+.. note::
+  JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
+  a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
+  consider using separate ``image_decoder`` and ``crop`` operators.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -207,14 +217,21 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.ops.ImageDecoderRandomCrop` automatically disables hardware accelerated
-  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
-  :meth:`nvidia.dali.ops.RandomResizedCrop` operators instead.
+  :meth:`nvidia.dali.fn.image_decoder_random_crop` automatically disables hardware accelerated
+  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.random_crop` operators instead.
 
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
+
+.. note::
+  JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
+  a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
+  consider using separate ``image_decoder`` and ``random_crop`` operators.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
@@ -222,22 +239,33 @@ Please note that GPU acceleration for JPEG 2000 decoding is only available for C
 
 
 DALI_SCHEMA(ImageDecoderSlice)
-  .DocStr(R"code(Decodes images and extracts regions of interest based on externally provided
-anchors and shapes.
+  .DocStr(R"code(Decodes images and extracts regions of interest.
 
-Inputs must be supplied as tensors in the following order:
+The slice can be specified by proving the start and end coordinates, or start coordinates
+and shape of the slice. Both coordinates and shapes can be provided in absolute or relative terms.
 
-* ``data`` that contains the input data.
-* ``anchor`` that contains normalized or absolute coordinates, depending on the
-  ``normalized_anchor`` value, for the starting point of the slice (x0, x1, x2, and so on),
-* ``shape`` that contains normalized or absolute coordinates, depending on the
-  ``normalized_shape`` value, for the dimensions of the slice (s0, s1, s2, and so on).
+The slice arguments can be specified by the following named arguments:
 
-The anchor and shape coordinates must be within the interval [0.0, 1.0] for normalized
-coordinates or within the image shape for the absolute coordinates. The ``anchor`` and ``shape``
-inputs will provide as many dimensions as were specified with arguments ``axis_names`` or ``axes``.
+#. ``start``: Slice start coordinates (absolute)
+#. ``rel_start``: Slice start coordinates (relative)
+#. ``end``: Slice end coordinates (absolute)
+#. ``rel_end``: Slice end coordinates (relative)
+#. ``shape``: Slice shape (absolute)
+#. ``rel_shape``: Slice shape (relative)
 
-By default, the :meth:`nvidia.dali.ops.ImageDecoderSlice` operator uses normalized coordinates
+The slice can be configured by providing start and end coordinates or start and shape.
+Relative and absolute arguments can be mixed (for example, ``rel_start`` can be used with ``shape``)
+as long as start and shape or end are uniquely defined.
+
+Alternatively, two extra positional inputs can be provided, specifying ``anchor`` and ``shape``.
+When using positional inputs, two extra boolean arguments ``normalized_anchor``/``normalized_shape``
+can be used to specify the nature of the arguments provided. Using positional inputs for anchor
+and shape is incompatible with the named arguments specified above.
+
+The slice arguments should provide as many dimensions as specified by the ``axis_names`` or ``axes``
+arguments.
+
+By default, the :meth:`nvidia.dali.fn.image_decoder_slice` operator uses normalized coordinates
 and "WH" order for the slice arguments.
 
 When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
@@ -246,17 +274,39 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.ops.ImageDecoderSlice` automatically disables hardware accelerated decoding.
-  To use the hardware decoder, use the :meth:`nvidia.dali.ops.ImageDecoder` and
-  :meth:`nvidia.dali.ops.Slice` operators instead.
+  :meth:`nvidia.dali.fn.image_decoder_slice` automatically disables hardware accelerated decoding.
+  To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.slice` operators instead.
 
 The output of the decoder is in the *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.)code")
-  .NumInput(3)
+
+.. note::
+  JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
+  a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
+  consider using separate ``image_decoder`` and ``slice`` operators.
+
+.. note::
+  EXIF orientation metadata is disregarded.)code")
+  .NumInput(1, 3)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
-  .AddParent("SliceAttr");
+  .AddParent("SliceAttr")
+  .InputDox(0, "data", "TensorList", R"code(Batch that contains the input data.)code")
+  .InputDox(1, "anchor", "1D TensorList of float or int",
+            R"code(Input that contains normalized or absolute coordinates for the starting
+point of the slice (x0, x1, x2, …).
+
+Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
+interpreted as absolute or relative coordinates, depending on the value of
+``normalized_anchor``.)code")
+  .InputDox(2, "shape", "1D TensorList of float or int",
+            R"code(Input that contains normalized or absolute coordinates for the dimensions
+of the slice (s0, s1, s2, …).
+
+Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
+interpreted as absolute or relative coordinates, depending on the value of
+``normalized_shape``.)code");
 
 }  // namespace dali

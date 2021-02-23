@@ -104,7 +104,7 @@ def test_transpose_vs_numpy():
 def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
                            transpose_layout, out_layout_arg):
     eii = RandomDataIterator(batch_size, shape=shape)
-    pipe = TransposePipeline(device, batch_size, "HWC", iter(eii),
+    pipe = TransposePipeline(device, batch_size, in_layout, iter(eii),
                              permutation=permutation,
                              transpose_layout=transpose_layout,
                              out_layout_arg=out_layout_arg)
@@ -117,23 +117,22 @@ def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
     elif transpose_layout:
         expected_out_layout = "".join([list(in_layout)[d] for d in permutation])
     else:
-        expected_out_layout = in_layout
+        expected_out_layout = "" if in_layout is None else in_layout
 
     assert(out[0].layout() == expected_out_layout)
 
 def test_transpose_layout():
     batch_size = 3
-    in_layout = "HWC"
     for device in {'cpu', 'gpu'}:
         for batch_size in (1, 3):
             for shape in [(600, 400, 3), (600, 400, 1)]:
-                for permutation, transpose_layout, out_layout_arg in \
-                    [((2, 0, 1), True, None),
-                     ((2, 0, 1), True, "CHW"),
-                     ((2, 0, 1), False, "CHW"),
-                     ((1, 0, 2), False, None),
-                     ((1, 0, 2), True, None),
-                     ((1, 0, 2), True, "HWC")]:
+                for permutation, in_layout, transpose_layout, out_layout_arg in \
+                    [((2, 0, 1), "HWC", True, None),
+                     ((2, 0, 1), "HWC", True, "CHW"),
+                     ((2, 0, 1), "HWC", False, "CHW"),
+                     ((1, 0, 2), None, False, None),
+                     ((1, 0, 2), "XYZ", True, None),
+                     ((1, 0, 2), None, None, "ABC")]:
                     yield check_transpose_layout, device, batch_size, shape, \
                         in_layout, permutation, transpose_layout, out_layout_arg
 

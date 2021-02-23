@@ -74,13 +74,14 @@ if _tfrecord_support:
     _known_types[DALIDataType._FEATURE_DICT] = ("dict of (string, nvidia.dali.tfrecord.Feature)",
             _not_implemented)
 
-def _type_name_convert_to_string(dtype, is_tensor):
+def _type_name_convert_to_string(dtype, allow_tensors):
     if dtype in _known_types:
-        ret = _known_types[dtype][0]
-        if is_tensor:
-            ret = "TensorList of " + ret
-        elif dtype in _vector_types:
-            ret = ret + " or list of " + _known_types[dtype][0]
+        type_name = _known_types[dtype][0]
+        ret = type_name
+        if dtype in _vector_types:
+            ret += " or list of " + type_name
+        if allow_tensors:
+            ret += " or TensorList of " + type_name
         return ret
     else:
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")
@@ -140,7 +141,7 @@ class ScalarConstant(object):
 
 Wrapper for a constant value that can be used in DALI :ref:`mathematical expressions`
 and applied element-wise to the results of DALI Operators representing Tensors in
-:meth:`nvidia.dali.pipeline.Pipeline.define_graph` step.
+:meth:`nvidia.dali.Pipeline.define_graph` step.
 
 ScalarConstant indicates what type should the value be treated as with respect
 to type promotions. The actual values passed to the backend from python
@@ -444,7 +445,7 @@ def _is_scalar_value(value):
 
 def Constant(value, dtype = None, shape = None, layout = None, device = None, **kwargs):
     """Wraps a constant value which can then be used in
-:meth:`nvidia.dali.pipeline.Pipeline.define_graph` pipeline definition step.
+:meth:`nvidia.dali.Pipeline.define_graph` pipeline definition step.
 
 If the `value` argument is a scalar and neither `shape`, `layout` nor
 `device` is provided, the function will return a :class:`ScalarConstant`
@@ -492,7 +493,7 @@ device: string, optional, "cpu" or "gpu"
 
 class SampleInfo:
     """
-    Describes the indices of a sample requested from :class:`nvidia.dali.ops.ExternalSource`
+    Describes the indices of a sample requested from :meth:`nvidia.dali.fn.external_source`
 
     :ivar idx_in_epoch: 0-based index of the sample witin epoch
     :ivar idx_in_batch: 0-based index of the sample within batch

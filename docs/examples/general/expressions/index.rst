@@ -1,4 +1,4 @@
-DALI expressions and arithmetic operations
+DALI Expressions and Arithmetic Operations
 ==========================================
 
 .. toctree::

@@ -1,5 +1,5 @@
-Framework integration
-=====================
+DL Framework Plugins
+====================
 
 .. toctree::
    :maxdepth: 2

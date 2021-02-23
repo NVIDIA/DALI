@@ -505,6 +505,9 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
       }
       outputs.push_back("contiguous_" + name + "_" + device);
     } else if (device == "gpu") {
+      DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID,
+                   make_string("Cannot make a gpu output for ", name, " operator,"
+                   " device_id should not be equal CPU_ONLY_DEVICE_ID."));
       if (!it->second.has_gpu) {
         DALI_ENFORCE(it->second.has_cpu, "Output '" + name +
             "' exists on neither cpu or gpu, internal error");
@@ -765,16 +768,20 @@ ReaderMeta Pipeline::GetReaderMeta(std::string name) {
   return meta;
 }
 
+const std::string &Pipeline::output_name(int id) const {
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_name()\".");
+  DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
+  return output_names_[id].first;
+}
+
 const std::string &Pipeline::output_device(int id) const {
-  DALI_ENFORCE(built_,
-      "\"Build()\" must be called prior to calling \"output_device()\".");
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_device()\".");
   DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
   return output_names_[id].second;
 }
 
 int Pipeline::num_outputs() const {
-  DALI_ENFORCE(built_,
-      "\"Build()\" must be called prior to calling \"num_outputs()\".");
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"num_outputs()\".");
   return output_names_.size();
 }
 

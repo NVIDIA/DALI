@@ -48,7 +48,7 @@ class _DaliBaseIterator(object):
 
     Parameters
     ----------
-    pipelines : list of nvidia.dali.pipeline.Pipeline
+    pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     output_map : list of (str, str)
                  List of pairs (output_name, tag) which maps consecutive
@@ -96,6 +96,9 @@ class _DaliBaseIterator(object):
                 True next epoch would be the same length as the first one. For this to happen,
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
+    prepare_first_batch : bool, optional, default = True
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so one batch is already prepared when the iterator is prompted for the data
 
     Example
     -------
@@ -120,7 +123,8 @@ class _DaliBaseIterator(object):
                  auto_reset=False,
                  fill_last_batch=None,
                  last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL):
+                 last_batch_policy=LastBatchPolicy.FILL,
+                 prepare_first_batch=True):
 
         assert pipelines is not None, "Number of provided pipelines has to be at least 1"
         if not isinstance(pipelines, list):
@@ -134,6 +138,7 @@ class _DaliBaseIterator(object):
 
         self._size = int(size)
         self._auto_reset = auto_reset
+        self._prepare_first_batch = prepare_first_batch
 
         if fill_last_batch is not None:
             warnings.warn("Please do not use `fill_last_batch` and use `last_batch_policy` instead.",
