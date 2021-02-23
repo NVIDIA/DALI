@@ -21,35 +21,41 @@ fn_modules = {
 exclude_fn_members = {
 }
 
+def get_modules(top_modules):
+    modules = []
+    for module in sys.modules.keys():
+        for doc_module in top_modules:
+            if module.startswith(doc_module) and not module.endswith('hidden'):
+                modules += [module]
+    return sorted(modules)
+
 def op_autodoc(out_filename):
     s = ""
-    for module in sys.modules.keys():
-        for doc_module in ops_modules:
-            if module.startswith(doc_module) and not module.endswith('hidden'):
-                s += module + "\n"
-                s += "~" * len(module) + "\n"
-                s += ".. automodule:: {}\n".format(module)
-                s += "   :members:\n"
-                s += "   :special-members: __call__\n"
-                if module in exclude_ops_members:
-                    excluded = exclude_ops_members[module]
-                    s += "   :exclude-members: {}\n".format(", ".join(excluded))
-                s += "\n"
+    for module in get_modules(ops_modules):
+        s += module + "\n"
+        s += "~" * len(module) + "\n"
+        s += ".. automodule:: {}\n".format(module)
+        s += "   :members:\n"
+        s += "   :special-members: __call__\n"
+        if module in exclude_ops_members:
+            excluded = exclude_ops_members[module]
+            s += "   :exclude-members: {}\n".format(", ".join(excluded))
+        s += "\n"
     with open(out_filename, 'w') as f:
         f.write(s)
 
 def fn_autodoc(out_filename):
     s = ""
-    for module in sys.modules.keys():
-        for doc_module in fn_modules:
-            if module.startswith(doc_module) and not module.endswith('hidden'):
-                s += ".. automodule:: {}\n".format(module)
-                s += "   :members:\n"
-                s += "   :undoc-members:\n"
-                if module in exclude_fn_members:
-                    excluded = exclude_fn_members[module]
-                    s += "   :exclude-members: {}\n".format(", ".join(excluded))
-                s += "\n"
+    for module in get_modules(fn_modules):
+        s += module + "\n"
+        s += "~" * len(module) + "\n"
+        s += ".. automodule:: {}\n".format(module)
+        s += "   :members:\n"
+        s += "   :undoc-members:\n"
+        if module in exclude_fn_members:
+            excluded = exclude_fn_members[module]
+            s += "   :exclude-members: {}\n".format(", ".join(excluded))
+        s += "\n"
     with open(out_filename, 'w') as f:
         f.write(s)
 

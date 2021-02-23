@@ -129,8 +129,8 @@ void AudioDecoderCpu::DecodeBatch(workspace_t<Backend> &ws) {
   int batch_size = decoded_output.shape.num_samples();
   auto &tp = ws.GetThreadPool();
 
-  scratch_decoder_.resize(tp.size());
-  scratch_resampler_.resize(tp.size());
+  scratch_decoder_.resize(tp.NumThreads());
+  scratch_resampler_.resize(tp.NumThreads());
 
   for (int i = 0; i < batch_size; i++) {
     tp.AddWork([&, i](int thread_id) {

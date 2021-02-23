@@ -57,7 +57,7 @@ def to_paddle_type(tensor):
     return dtype_map[dtype]
 
 
-def feed_ndarray(dali_tensor, ptr, cuda_stream = None):
+def feed_ndarray(dali_tensor, ptr, cuda_stream=None):
     """
     Copy contents of DALI tensor to Paddle's Tensor.
 
@@ -76,7 +76,8 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream = None):
 
     c_type_pointer = ctypes.c_void_p(ptr)
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
-        dali_tensor.copy_to_external(c_type_pointer, None if cuda_stream is None else ctypes.c_void_p(cuda_stream))
+        dali_tensor.copy_to_external(
+            c_type_pointer, None if cuda_stream is None else ctypes.c_void_p(cuda_stream))
     else:
         dali_tensor.copy_to_external(c_type_pointer)
     return ptr
@@ -141,7 +142,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
     Parameters
     ----------
-    pipelines : list of nvidia.dali.pipeline.Pipeline
+    pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     output_map : list of str or pair of type (str, int)
                  The strings maps consecutive outputs of DALI pipelines to
@@ -187,6 +188,9 @@ class DALIGenericIterator(_DaliBaseIterator):
                 True next epoch would be the same length as the first one. For this to happen,
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
+    prepare_first_batch : bool, optional, default = True
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so one batch is already prepared when the iterator is prompted for the data
 
     Example
     -------
@@ -204,6 +208,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
     last_batch_policy = DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
+
     def __init__(self,
                  pipelines,
                  output_map,
@@ -213,7 +218,8 @@ class DALIGenericIterator(_DaliBaseIterator):
                  fill_last_batch=None,
                  dynamic_shape=False,
                  last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL):
+                 last_batch_policy=LastBatchPolicy.FILL,
+                 prepare_first_batch=True):
 
         normalized_map = {}
         for v in output_map:
@@ -229,7 +235,15 @@ class DALIGenericIterator(_DaliBaseIterator):
             "output_map names should be distinct"
         self.output_map = output_map
 
-        _DaliBaseIterator.__init__(self, pipelines, size, reader_name, auto_reset, fill_last_batch, last_batch_padded, last_batch_policy)
+        _DaliBaseIterator.__init__(self,
+                                   pipelines,
+                                   size,
+                                   reader_name,
+                                   auto_reset,
+                                   fill_last_batch,
+                                   last_batch_padded,
+                                   last_batch_policy,
+                                   prepare_first_batch=prepare_first_batch)
         self._dynamic_shape = dynamic_shape
 
         # Use double-buffering of data batches
@@ -237,10 +251,11 @@ class DALIGenericIterator(_DaliBaseIterator):
         self._counter = 0
 
         self._first_batch = None
-        try:
-            self._first_batch = DALIGenericIterator.__next__(self)
-        except StopIteration:
-            assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
+        if self._prepare_first_batch:
+            try:
+                self._first_batch = DALIGenericIterator.__next__(self)
+            except StopIteration:
+                assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
 
     def __next__(self):
         if self._first_batch is not None:
@@ -340,7 +355,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 # First calculate how much data is required to
                 # return exactly self._size entries.
                 diff = self._num_gpus * self.batch_size - (self._counter
-                                                        - self._size)
+                                                           - self._size)
                 # Figure out how many GPUs to grab from.
                 num_gpus_to_grab = int(math.ceil(diff / self.batch_size))
                 # Figure out how many results to grab from the last GPU
@@ -357,10 +372,12 @@ class DALIGenericIterator(_DaliBaseIterator):
                 output[-1] = output[-1].copy()
                 for cat in self.output_map:
                     lod_tensor = output[-1][cat]
-                    output[-1][cat] = lod_tensor_clip(lod_tensor, data_from_last_gpu)
+                    output[-1][cat] = lod_tensor_clip(
+                        lod_tensor, data_from_last_gpu)
                 return output
 
         return self._data_batches
+
 
 class DALIClassificationIterator(DALIGenericIterator):
     """
@@ -385,7 +402,7 @@ class DALIClassificationIterator(DALIGenericIterator):
 
     Parameters
     ----------
-    pipelines : list of nvidia.dali.pipeline.Pipeline
+    pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     size : int, default = -1
            Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
@@ -430,6 +447,9 @@ class DALIClassificationIterator(DALIGenericIterator):
                 True next epoch would be the same length as the first one. For this to happen,
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
+    prepare_first_batch : bool, optional, default = True
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so one batch is already prepared when the iterator is prompted for the data
 
     Example
     -------
@@ -447,6 +467,7 @@ class DALIClassificationIterator(DALIGenericIterator):
 
     last_batch_policy = DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
+
     def __init__(self,
                  pipelines,
                  size=-1,
@@ -455,11 +476,13 @@ class DALIClassificationIterator(DALIGenericIterator):
                  fill_last_batch=None,
                  dynamic_shape=False,
                  last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL):
+                 last_batch_policy=LastBatchPolicy.FILL,
+                 prepare_first_batch=True):
         super(DALIClassificationIterator, self).__init__(
             pipelines, ["data", "label"], size, reader_name=reader_name,
             auto_reset=auto_reset,
             fill_last_batch=fill_last_batch,
             dynamic_shape=dynamic_shape,
             last_batch_padded=last_batch_padded,
-            last_batch_policy=last_batch_policy)
+            last_batch_policy=last_batch_policy,
+            prepare_first_batch=prepare_first_batch)

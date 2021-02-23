@@ -64,6 +64,9 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
       case t_bmpImgType:
         this->EncodedBmpData(&encoded_data);
         break;
+      case t_jpeg2kImgType:
+        this->EncodedJpeg2kData(&encoded_data);
+        break;
       default: {
         char buff[32];
         snprintf(buff, sizeof(buff), "%d", imageType);
@@ -115,7 +118,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
   }
 
   uint32_t GetImageLoadingFlags() const override {
-    return t_loadJPEGs | t_loadPNGs | t_loadTiffs | t_loadBmps;
+    return t_loadJPEGs | t_loadPNGs | t_loadTiffs | t_loadBmps | t_loadJPEG2ks;
   }
 };
 

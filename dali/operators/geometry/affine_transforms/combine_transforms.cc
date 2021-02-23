@@ -36,7 +36,7 @@ using affine_mat_t = mat<mat_dim, mat_dim, T>;
 
 DALI_SCHEMA(transforms__Combine)
   .DocStr(R"code(Combines two or more affine transforms.
-  
+
 By default, the transforms are combined such that applying the resulting transform to a point is equivalent to
  applying the input transforms in the order as listed.
 

@@ -1,4 +1,4 @@
-ResNet training in PaddlePaddle
+ResNet Training in PaddlePaddle
 ===============================
 
 This simple demo showcases ResNet50 training on ImageNet.

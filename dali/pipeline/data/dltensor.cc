@@ -19,10 +19,10 @@ namespace dali {
 
 DLDataType GetDLType(const TypeInfo &type) {
   DLDataType dl_type{};
-  DALI_TYPE_SWITCH(type.id(), T,
+  DALI_TYPE_SWITCH_WITH_FP16(type.id(), T,
       dl_type.bits = sizeof(T) * 8;
       dl_type.lanes = 1;
-      if (std::is_floating_point<T>::value) {
+      if (dali::is_fp_or_half<T>::value) {
         dl_type.code = kDLFloat;
       } else if (std::is_unsigned<T>::value) {
         dl_type.code = kDLUInt;

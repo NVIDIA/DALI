@@ -284,7 +284,7 @@ DALI_SCHEMA(OldColorTwist)
 
 .. note::
     This is an old implementation which uses NPP.)code")
-    .Deprecate("ColorTwist")
+    .Deprecate("color_twist")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue", R"code(Hue change, in degrees.)code", 0.f, true)

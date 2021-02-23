@@ -147,7 +147,7 @@ template <typename OutputType, typename InputType>
 void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
   int nsamples = input.ntensor();
-  int nthreads = ws.GetThreadPool().size();
+  int nthreads = ws.GetThreadPool().NumThreads();
 
   using Kernel = kernels::NormalizeCPU<OutputType, InputType, float>;
   kmgr_.Resize<Kernel>(nthreads, nsamples);
@@ -256,7 +256,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   output.SetLayout(input.GetLayout());
 
   int nsamples = input.ntensor();
-  int nthreads = ws.GetThreadPool().size();
+  int nthreads = ws.GetThreadPool().NumThreads();
 
   float scalar_mean = 0;
   float scalar_inv_stddev = 1;

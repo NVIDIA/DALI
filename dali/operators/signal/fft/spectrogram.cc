@@ -184,7 +184,7 @@ bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
   int nsamples = input.size();
-  auto nthreads = ws.GetThreadPool().size();
+  auto nthreads = ws.GetThreadPool().NumThreads();
 
   // Check that input is 1-D (allowing having extra dims with extent 1)
   if (in_shape.sample_dim() > 1) {

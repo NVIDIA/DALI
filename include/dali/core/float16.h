@@ -66,14 +66,16 @@ struct is_fp_or_half {
 template <typename T>
 using to_gpu_t = std::conditional_t<is_half<T>::value, __half, T>;
 
+#define DALI_TO_GPU_T(T) to_gpu_t<T>
+
 #else
 
 template <typename T>
 using to_gpu_t = T;
 
+#define DALI_TO_GPU_T(T) T
+
 #endif
-
-
 
 }  // namespace dali
 

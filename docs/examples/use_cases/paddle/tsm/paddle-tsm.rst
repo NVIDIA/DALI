@@ -1,4 +1,4 @@
-Temporal Shift Module inference in PaddlePaddle
+Temporal Shift Module Inference in PaddlePaddle
 ===============================================
 
 This demo shows how to use DALI pipeline for video classification in PaddlePaddle.

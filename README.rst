@@ -57,8 +57,8 @@ Table of Contents
 Installing or building DALI
 ---------------------------
 
-DALI is preinstalled in the `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_ TensorFlow, PyTorch,
-and MXNet containers in versions 18.07 and later.
+DALI is preinstalled in the TensorFlow, PyTorch, and MXNet containers in versions 18.07 and
+later on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_.
 
 Latest DALI release as well as weekly and nightly developer builds can be installed using pip.
 Detailed instructions can be found in the documentation |docs_install|_.

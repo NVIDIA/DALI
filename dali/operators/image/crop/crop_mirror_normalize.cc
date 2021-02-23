@@ -80,7 +80,7 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
   auto in_shape = input.shape();
   int ndim = in_shape.sample_dim();
   int nsamples = in_shape.size();
-  auto nthreads = ws.GetThreadPool().size();
+  auto nthreads = ws.GetThreadPool().NumThreads();
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, CMN_OUT_TYPES, (
       VALUE_SWITCH(ndim, Dims, CMN_NDIMS, (

@@ -31,8 +31,44 @@ as described in layout.
 
 If a value is provided, ``axis_names`` will have a higher priority than ``axes``.)code",
         TensorLayout("WH"))
+    .AddOptionalArg<std::vector<int>>("start",
+        R"code(Start coordinates of the slice.
+
+Note: Providing named arguments ``start``/``end`` or ``start``/``shape`` is incompatible with
+providing positional inputs anchor and shape.)code",
+        nullptr, true)
+    .AddOptionalArg<std::vector<float>>("rel_start",
+        R"code(Start relative coordinates of the slice (range [0.0 - 1.0]).
+
+Note: Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
+is incompatible with providing positional inputs anchor and shape.)code",
+        nullptr, true)
+    .AddOptionalArg<std::vector<int>>("end",
+        R"code(End coordinates of the slice.
+
+Note: Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
+is incompatible with providing positional inputs anchor and shape.)code",
+        nullptr, true)
+    .AddOptionalArg<std::vector<float>>("rel_end",
+        R"code(End relative coordinates of the slice (range [0.0 - 1.0].
+
+Note: Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
+is incompatible with providing positional inputs anchor and shape.)code",
+        nullptr, true)
+    .AddOptionalArg<std::vector<int>>("shape",
+        R"code(Shape of the slice.
+
+Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
+is incompatible with providing positional inputs anchor and shape.)code",
+        nullptr, true)
+    .AddOptionalArg<std::vector<int>>("rel_shape",
+        R"code(Relative shape of the slice (range [0.0 - 1.0]).
+
+Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
+is incompatible with providing positional inputs anchor and shape.)code",
+        nullptr, true)
     .AddOptionalArg("normalized_anchor",
-        R"code(Determines whether the anchor input should be interpreted as normalized
+        R"code(Determines whether the anchor positional input should be interpreted as normalized
 (range [0.0, 1.0]) or as absolute coordinates.
 
 .. note::
@@ -40,7 +76,7 @@ If a value is provided, ``axis_names`` will have a higher priority than ``axes``
   the coordinates are always absolute.)code",
         true)
     .AddOptionalArg("normalized_shape",
-        R"code(Determines whether the shape input should be interpreted as normalized
+        R"code(Determines whether the shape positional input should be interpreted as normalized
 (range [0.0, 1.0]) or as absolute coordinates.
 
 .. note::

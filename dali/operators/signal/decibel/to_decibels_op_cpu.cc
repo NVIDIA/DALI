@@ -56,7 +56,7 @@ bool ToDecibels<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
   int nsamples = input.size();
-  auto nthreads = ws.GetThreadPool().size();
+  auto nthreads = ws.GetThreadPool().NumThreads();
 
   TYPE_SWITCH(input.type().id(), type2id, T, (float), (
     using ToDbKernel = kernels::signal::ToDecibelsCpu<T>;
