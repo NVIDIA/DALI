@@ -32,7 +32,10 @@ from tensorflow.python.keras.optimizer_v2 import (gradient_descent as
 from tensorflow.python.keras import backend
 print(tf.__version__)
 if tf.__version__ > "2.1.0":
-  from tensorflow.python.keras.mixed_precision.experimental import device_compatibility_check
+  if tf.__version__ >= "2.4.0":
+    from tensorflow.python.keras.mixed_precision import device_compatibility_check
+  else:
+    from tensorflow.python.keras.mixed_precision.experimental import device_compatibility_check
   device_compatibility_check._logged_compatibility_check = True
 
 class _ProfileKerasFitCallback(keras.callbacks.Callback):
@@ -143,9 +146,12 @@ def train(model_func, params):
     tf.config.experimental.set_visible_devices(gpus[hvd.local_rank()], 'GPU')
 
   if precision == 'fp16':
-    policy = keras.mixed_precision.experimental.Policy('mixed_float16',
-                                                       loss_scale)
-    keras.mixed_precision.experimental.set_policy(policy)
+    if tf.__version__ >= "2.4.0":
+      policy = keras.mixed_precision.Policy('mixed_float16')
+      keras.mixed_precision.set_global_policy(policy)
+    else:
+      policy = keras.mixed_precision.experimental.Policy('mixed_float16', loss_scale)
+      keras.mixed_precision.experimental.set_policy(policy)
 
   lr_schedule = common.create_piecewise_constant_decay_with_warmup(
       batch_size=batch_size * hvd.size(),
@@ -158,6 +164,9 @@ def train(model_func, params):
   # Horovod: add Horovod DistributedOptimizer. We use a modified version to
   # support the custom learning rate schedule.
   opt = hvd_patch.DistributedOptimizer(opt)
+  if tf.__version__ >= "2.4.0" and precision == 'fp16':
+    opt = keras.mixed_precision.LossScaleOptimizer(opt, dynamic=False,
+                                                   initial_scale=loss_scale)
 
   backend.set_image_data_format(image_format)
   dtype='float16' if precision == 'fp16' else 'float32'
