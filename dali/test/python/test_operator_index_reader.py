@@ -100,4 +100,5 @@ def test_wrong_feature_shape():
                                    features = features)
     pipe.set_outputs(input['image/encoded'], input['image/object/class/label'], input['image/object/bbox'])
     pipe.build()
+    # the error is raised because FixedLenFeature is used with insufficient shape to house the input
     assert_raises(RuntimeError, pipe.run)
