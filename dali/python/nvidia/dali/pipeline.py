@@ -425,7 +425,6 @@ Parameters
             elif contains_nested_datanode(outputs[i]):
                 raise TypeError(f"Illegal pipeline output type. The output {i} contains a nested "
                                 "`DataNode`. Missing list/tuple expansion (*) is the likely cause.")
-
             elif not isinstance(outputs[i], DataNode):
                 try:
                     outputs[i] = types.Constant(outputs[i], device="cpu")

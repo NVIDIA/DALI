@@ -3,6 +3,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import numpy as np
 from test_utils import compare_pipelines
+from test_utils import check_output_pattern
 from nose.tools import assert_raises
 
 def _test_fn_rotate(device):
@@ -34,7 +35,29 @@ def test_set_outputs():
     data = [[[np.random.rand(1, 3, 2)], [np.random.rand(1, 4, 5)]]]
     pipe = Pipeline(batch_size = 1, num_threads = 1, device_id = None)
     pipe.set_outputs(fn.external_source(data, num_outputs = 2, cycle = 'quiet'))
-    assert_raises(RuntimeError, pipe.build)
+    assert_raises(TypeError, pipe.build)
+
+def test_set_outputs_err_msg_unpack():
+    data = [[[np.random.rand(1, 3, 2)], [np.random.rand(1, 4, 5)]]]
+    pipe = Pipeline(batch_size = 1, num_threads = 1, device_id = None)
+    pipe.set_outputs(fn.external_source(data, num_outputs = 2, cycle = 'quiet'))
+    pattern = 'Illegal pipeline output type. The output 0 contains a nested `DataNode`. ' + \
+              'Missing list/tuple expansion (*) is the likely cause.'
+    try:
+        pipe.build()
+    except TypeError as e:
+        assert(pattern == e.__str__())
+
+def test_set_outputs_err_msg_random_type():
+    pipe = Pipeline(batch_size = 1, num_threads = 1, device_id = None)
+    pipe.set_outputs("test")
+    pattern = "Illegal output type. The output 0 is a `<class 'str'>`. Allowed types are " + \
+              "``DataNode`` and types convertible to `types.Constant` (numerical constants, " + \
+              "1D lists/tuple of numbers and ND arrays)."
+    try:
+        pipe.build()
+    except TypeError as e:
+        assert(pattern == e.__str__())
 
 def test_fn_rotate():
     for device in ["cpu", "gpu"]:
