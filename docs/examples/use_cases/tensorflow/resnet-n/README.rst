@@ -97,7 +97,7 @@ TensorFlow
 
 ::
 
-   pip install tensorflow-gpu==2.3.1
+   pip install tensorflow-gpu==2.4.1
 
 OpenMPI
 ^^^^^^^
@@ -138,7 +138,7 @@ Horovod
    export HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu
    export HOROVOD_NCCL_LINK=SHARED
    export HOROVOD_WITHOUT_PYTORCH=1
-   pip install horovod==0.15.1
+   pip install horovod==0.21.0
 
 .. _the original paper: https://arxiv.org/pdf/1512.03385.pdf
 .. _NGC TensorFlow Container: https://www.nvidia.com/en-us/gpu-cloud/deep-learning-containers/
