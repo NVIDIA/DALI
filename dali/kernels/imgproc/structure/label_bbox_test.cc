@@ -50,6 +50,25 @@ TEST(LabelBBoxes, 1D) {
   EXPECT_EQ(boxes[1+3], (Box<1, int>(7, 8)));
 }
 
+
+
+TEST(LabelBBoxes, NegativeBackground) {
+  const int N = 10;
+  const int labels[N] = {
+    1, -1, 0, 1, 0, 0, 1, 2, 1, 3
+  };
+  std::vector<Box<1, int>> boxes(4);
+  label_bbox::GetLabelBoundingBoxes(
+      make_span(boxes.data(), 4), make_tensor_cpu<1>(labels, { N }), -1);
+
+  // no label remapping should occur
+  EXPECT_EQ(boxes[0], (Box<1, int>(2, 6)));
+  EXPECT_EQ(boxes[1], (Box<1, int>(0, 9)));
+  EXPECT_EQ(boxes[2], (Box<1, int>(7, 8)));
+  EXPECT_EQ(boxes[3], (Box<1, int>(9, 10)));
+}
+
+
 TEST(LabelBBoxes, RemapDim) {
   const int N = 10;
   const int labels[N] = {

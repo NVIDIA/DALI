@@ -83,14 +83,14 @@ def get_gpu_num():
 
 # If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
 def check_batch(
-        batch1, batch2, batch_size, eps=1e-07, max_allowed_error=None, expected_layout=None,
+        batch1, batch2, batch_size=None, eps=1e-07, max_allowed_error=None, expected_layout=None,
         compare_layouts=True):
     """Compare two batches of data, be it dali TensorList or list of numpy arrays.
 
     Args:
         batch1: input batch
         batch2: input batch
-        batch_size
+        batch_size: reference batch size - if None, only equality is enforced
         eps (float, optional): Used for mean error validation. Defaults to 1e-07.
         max_allowed_error (int or float, optional): If provided the max diff between elements.
         expected_layout (str, optional): If provided, the batches that are DALI types will be checked
@@ -112,6 +112,9 @@ def check_batch(
         batch1 = batch1.as_cpu()
     if isinstance(batch2, dali.backend_impl.TensorListGPU):
         batch2 = batch2.as_cpu()
+
+    if batch_size is None:
+        batch_size = len(batch1)
 
     def _verify_batch_size(batch):
         if isinstance(batch, dali.backend.TensorListCPU) or isinstance(batch, list):
@@ -170,7 +173,6 @@ def check_batch(
                     print(left)
                     print(right)
                 assert False, error_msg
-
 
 def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps=1e-07, max_allowed_error=None,
                       expected_layout=None, compare_layouts=True):

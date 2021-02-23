@@ -15,6 +15,7 @@
 #pylint: disable=no-member
 import sys
 import copy
+import ast
 from itertools import count
 import threading
 import warnings
@@ -104,7 +105,7 @@ def _get_kwargs(schema):
             type_name += ", optional"
             if schema.HasArgumentDefaultValue(arg):
                 default_value_string = schema.GetArgumentDefaultValueString(arg)
-                default_value = eval(default_value_string)
+                default_value = ast.literal_eval(default_value_string)
                 type_name += ", default = {}".format(_default_converter(dtype, default_value))
         doc = schema.GetArgumentDox(arg)
         ret += _numpydoc_formatter(arg, type_name, doc)

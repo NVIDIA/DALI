@@ -361,7 +361,6 @@ all_packages = [PlainPackage("opencv-python", ["4.4.0.42"]),
                 CudaPackage("tensorflow-gpu",
                         { "100" : [
                               PckgVer("1.15.4",  python_max_ver="3.7"),
-                              "2.2.1",
                               "2.3.1"],
                           "110" : [
                               PckgVer("1.15.4",  python_max_ver="3.7"),

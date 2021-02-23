@@ -1,10 +1,10 @@
-Compiling DALI from source
+Compiling DALI from Source
 ==========================
 
 .. _DockerBuilderAnchor:
 
-Compiling DALI from source (using Docker builder) - recommended
----------------------------------------------------------------
+Using Docker builder - recommended
+----------------------------------
 
 Following these steps, it is possible to recreate Python wheels in a similar fashion as we provide as an official prebuild binary.
 
@@ -32,8 +32,8 @@ Prerequisites
    |                                        | Required for building DALI TensorFlow Plugin.                                               |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
 
-Building Python wheel and (optionally) Docker image
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Building Python Wheel
+^^^^^^^^^^^^^^^^^^^^^
 
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed,
 set the following environment variables:
@@ -109,8 +109,8 @@ The produced DALI wheel and TensorFlow Plugin are compatible with all Python ver
 
 ----
 
-Compiling DALI from source (bare metal)
----------------------------------------
+Bare Metal build
+----------------
 
 Prerequisites
 ^^^^^^^^^^^^^
@@ -300,7 +300,7 @@ Build DALI
 
 .. _PythonBindingsAnchor:
 
-Install Python bindings
+Install Python Bindings
 +++++++++++++++++++++++
 
 In order to run DALI using Python API, you need to install Python bindings
@@ -314,10 +314,10 @@ In order to run DALI using Python API, you need to install Python bindings
 
   Although you can create a wheel here by calling ``pip wheel dali/python``, we don't really recommend doing so. Such whl is not self-contained (doesn't have all the dependencies) and it will work only on the system where you built DALI bare-metal. To build a wheel that contains the dependencies and might be therefore used on other systems, follow :ref:`DockerBuilderAnchor`.
 
-Verify the build (optional)
+Verify the Build (Optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Obtain test data
+Obtain Test Data
 ++++++++++++++++
 
 .. _DALI_extra_link: https://github.com/NVIDIA/DALI_extra#nvidia-dali
@@ -325,7 +325,7 @@ Obtain test data
 You can verify the build by running GTest and Nose tests. To do so, you'll need DALI_extra repository, which contains test data. To download it follow `DALI_extra README <https://github.com/NVIDIA/DALI_extra#nvidia-dali>`_. Keep in mind, that you need git-lfs to properly clone DALI_extra repo. To install git-lfs, follow `this tutorial <https://github.com/git-lfs/git-lfs/wiki/Tutorial>`_.
 
 
-Set test data path
+Set Test Data Path
 ++++++++++++++++++
 
 DALI uses ``DALI_EXTRA_PATH`` environment variable to localize the test data. You can set it by invoking:
@@ -335,7 +335,7 @@ DALI uses ``DALI_EXTRA_PATH`` environment variable to localize the test data. Yo
   $ export DALI_EXTRA_PATH=<path_to_DALI_extra>
   e.g. export DALI_EXTRA_PATH=/home/yourname/workspace/DALI_extra
 
-Run tests
+Run Tests
 +++++++++
 
 DALI tests consist of 2 parts: C++ (GTest) and Python (usually Nose, but that's not always true). To run the tests there are convenient targets for Make, that you can run after building finished
@@ -345,8 +345,8 @@ DALI tests consist of 2 parts: C++ (GTest) and Python (usually Nose, but that's 
   cd <path_to_DALI>/build
   make check-gtest check-python
 
-Building DALI using Clang (experimental)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Building DALI with Clang (Experimental)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. note::
 
@@ -361,7 +361,7 @@ Building DALI using Clang (experimental)
 
 .. _OptionalCmakeParamsAnchor:
 
-Optional CMake build parameters
+Optional CMake Build Parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 -  ``BUILD_PYTHON`` - build Python bindings (default: ON)
@@ -422,8 +422,8 @@ Following CMake parameters could be helpful in setting the right paths:
 * protobuf options can be obtained from |protobuf_cmake link|_
 
 
-Cross-compiling DALI C++ API for aarch64 Linux (Docker)
--------------------------------------------------------
+Cross-compiling for aarch64 Linux (Docker)
+------------------------------------------
 
 .. note::
 
@@ -458,8 +458,8 @@ From the root of the DALI source tree
 
 The relevant python wheel will be in ``dali_root_dir/wheelhouse``
 
-Cross-compiling DALI C++ API for aarch64 QNX (Docker)
------------------------------------------------------
+Cross-compiling for aarch64 QNX (Docker)
+----------------------------------------
 
 .. note::
 

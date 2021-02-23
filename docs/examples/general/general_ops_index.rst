@@ -1,5 +1,6 @@
-General Purpose Operations
-==========================
+=======
+General Purpose
+===============
 
 .. toctree::
    :maxdepth: 2

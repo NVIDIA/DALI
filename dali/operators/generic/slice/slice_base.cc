@@ -52,7 +52,7 @@ bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto in_shape = input.shape();
   int nsamples = in_shape.num_samples();
-  auto nthreads = ws.GetThreadPool().size();
+  auto nthreads = ws.GetThreadPool().NumThreads();
   assert(nsamples == static_cast<int>(args_.size()));
   output_desc.resize(1);
   output_desc[0].type = TypeInfo::Create<OutputType>();

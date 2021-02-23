@@ -66,7 +66,7 @@ It is worth noting that the two APIs can be used together in a single pipeline. 
     pipe.build()
     outputs = pipe.run()
 
-Mapping to functional API
+Mapping to Functional API
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following table shows the correspondence between the operations in the current functional API

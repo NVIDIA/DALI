@@ -64,7 +64,7 @@ class Transpose : public Operator<Backend> {
     DALI_ENFORCE(in_layout.ndim() == sample_ndim || in_layout.empty());
     output_layout_ = in_layout;
     if (!output_layout_arg_.empty()) {
-      DALI_ENFORCE(output_layout_.ndim() == sample_ndim);
+      DALI_ENFORCE(output_layout_arg_.ndim() == sample_ndim);
       output_layout_ = output_layout_arg_;
     } else if (transpose_layout_ && !in_layout.empty()) {
       output_layout_ = permute(in_layout, perm_);

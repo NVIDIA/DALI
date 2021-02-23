@@ -31,53 +31,69 @@ RUN LIBZ_VERSION=1.2.11 && \
       CFLAGS="-fPIC" \
       CXXFLAGS="-fPIC" \
     ./configure --prefix=/usr/local && \
-    make install -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    make install && \
     cd && \
     rm -rf /tmp/zlib-${LIBZ_VERSION}
 
 # CMake
 RUN CMAKE_VERSION=3.13 && \
     CMAKE_BUILD=3.13.5 && \
+    cd /tmp && \
     curl -L https://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_BUILD}.tar.gz | tar -xzf - && \
-    cd /cmake-${CMAKE_BUILD} && \
+    cd cmake-${CMAKE_BUILD} && \
     ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /cmake-${CMAKE_BUILD}
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    make install && \
+    cd && \
+    rm -rf /tmp/cmake-${CMAKE_BUILD}
 
 # protobuf
 RUN PROTOBUF_VERSION=3.14.0 && \
+    cd /tmp && \
     curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
-    cd /protobuf-${PROTOBUF_VERSION} && \
+    cd protobuf-${PROTOBUF_VERSION} && \
     ./autogen.sh && \
     ./configure CXXFLAGS="-fPIC" --prefix=/usr/local --disable-shared 2>&1 > /dev/null && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 > /dev/null && \
-    rm -rf /protobuf-${PROTOBUF_VERSION}
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 > /dev/null && \
+    make install 2>&1 > /dev/null && \
+    cd && \
+    rm -rf /tmp/protobuf-${PROTOBUF_VERSION}
 
 # LMDB
 COPY docker/Makefile-lmdb.patch /tmp
 RUN LMDB_VERSION=0.9.24 && \
+    cd /tmp && \
     git clone -b LMDB_${LMDB_VERSION} --single-branch https://github.com/LMDB/lmdb && \
-    cd /lmdb/libraries/liblmdb && \
+    cd lmdb/libraries/liblmdb && \
     patch -p3 < /tmp/Makefile-lmdb.patch && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    make install && \
+    cd && \
     rm -f /tmp/Makefile-lmdb.patch && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /lmdb
+    rm -rf /tmp/lmdb
 
 # libjpeg-turbo
 RUN JPEG_TURBO_VERSION=2.0.6 && \
+    cd /tmp && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
     cmake -G"Unix Makefiles" -DENABLE_SHARED=TRUE -DCMAKE_INSTALL_PREFIX=/usr/local . 2>&1 >/dev/null && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
-    rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 >/dev/null && \
+    make install 2>&1 >/dev/null && \
+    cd && \
+    rm -rf /tmp/libjpeg-turbo-${JPEG_TURBO_VERSION}
 
 # zstandard compression library
 RUN ZSTANDARD_VERSION=1.4.5 && \
+    cd /tmp && \
     curl -L https://github.com/facebook/zstd/releases/download/v${ZSTANDARD_VERSION}/zstd-${ZSTANDARD_VERSION}.tar.gz | tar -xzf - && \
     cd zstd-${ZSTANDARD_VERSION} && \
       CFLAGS="-fPIC" CXXFLAGS="-fPIC" \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
-    rm -rf /zstd-${ZSTANDARD_VERSION}
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 >/dev/null && \
+    make install 2>&1 >/dev/null && \
+    cd && \
+    rm -rf /tmp/zstd-${ZSTANDARD_VERSION}
 
 # libtiff
 RUN LIBTIFF_VERSION=4.1.0 && \
@@ -97,13 +113,16 @@ RUN OPENJPEG_VERSION=2.3.1 && \
     curl -L https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz | tar -xzf - && \
     cd openjpeg-${OPENJPEG_VERSION} && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CODEC=OFF -DCMAKE_INSTALL_PREFIX=/usr/local .. && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf openjpeg-${OPENJPEG_VERSION}
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    make install && \
+    cd && \
+    rm -rf /tmp/openjpeg-${OPENJPEG_VERSION}
 
 # OpenCV
 RUN OPENCV_VERSION=4.5.0 && \
+    cd /tmp && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
-    cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
+    cd opencv-${OPENCV_VERSION} && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
           -DBUILD_SHARED_LIBS=OFF \
           -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
@@ -114,6 +133,8 @@ RUN OPENCV_VERSION=4.5.0 && \
           -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF \
           -DWITH_TBB=OFF -DWITH_OPENMP=OFF -DWITH_PTHREADS_PF=OFF -DWITH_CSTRIPES=OFF .. && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+    make install && \
+    cd && \
     rm -rf /opencv-${OPENCV_VERSION}
 
 # Clang, but only for x86_64
@@ -129,7 +150,8 @@ ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
 # FFmpeg
 RUN FFMPEG_VERSION=4.3.1 && \
-    cd /tmp && wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
+    cd /tmp && \
+    wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
     tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
     rm ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
     cd ffmpeg-$FFMPEG_VERSION && \
@@ -172,7 +194,8 @@ RUN FFMPEG_VERSION=4.3.1 && \
       --disable-bsfs \
       --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
-    cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION
+    cd / && \
+    rm -rf /tmp/ffmpeg-$FFMPEG_VERSION
 
 # flac
 RUN FLAC_VERSION=1.3.3 && cd /tmp                                                    && \
@@ -183,7 +206,8 @@ RUN FLAC_VERSION=1.3.3 && cd /tmp                                               
     ./autogen.sh                                                                     && \
     ./configure                                                                      && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
-    cd /tmp && rm -rf flac-$FLAC_VERSION
+    cd / && \
+    rm -rf /tmp/flac-$FLAC_VERSION
 
 # libogg
 RUN OGG_VERSION=1.3.4 && cd /tmp                                                     && \
@@ -193,7 +217,8 @@ RUN OGG_VERSION=1.3.4 && cd /tmp                                                
     cd libogg-${OGG_VERSION}                                                         && \
     ./configure                                                                      && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
-    cd /tmp && rm -rf libogg-$OGG_VERSION
+    cd / && \
+    rm -rf /tmp/libogg-$OGG_VERSION
 
 # libvorbis
 # Install after libogg
@@ -205,7 +230,8 @@ RUN VORBIS_VERSION=1.3.7 && cd /tmp                                             
     ./autogen.sh                                                                      && \
     ./configure                                                                       && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
-    cd /tmp && rm -rf vorbis-$VORBIS_VERSION
+    cd / && \
+    rm -rf /tmp/vorbis-$VORBIS_VERSION
 
 # libsnd
 RUN LIBSND_VERSION=1.0.28 && cd /tmp                                                                           && \
@@ -214,7 +240,8 @@ RUN LIBSND_VERSION=1.0.28 && cd /tmp                                            
     rm libsndfile-$LIBSND_VERSION.tar.gz                                                                       && \
     cd libsndfile-$LIBSND_VERSION                                                                              && \
     ./configure && make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                           && \
-    cd /tmp && rm -rf libsndfile-$LIBSND_VERSION
+    cd / && \
+    rm -rf /tmp/libsndfile-$LIBSND_VERSION
 
 # CUDA
 COPY --from=cuda /usr/local/cuda /usr/local/cuda

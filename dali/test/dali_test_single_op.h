@@ -52,6 +52,8 @@ const vector<string> tiff_test_images =
     ImageList(testing::dali_extra_path() + "/db/single/tiff", {".tiff", ".tif"});
 const vector<string> bmp_test_images =
     ImageList(testing::dali_extra_path() + "/db/single/bmp", {".bmp"});
+const vector<string> jpeg2k_test_images =
+    ImageList(testing::dali_extra_path() + "/db/single/jpeg2k", {".jp2"}, 5);
 
 
 }  // namespace images
@@ -71,6 +73,7 @@ typedef enum {
   t_pngImgType,
   t_tiffImgType,
   t_bmpImgType,
+  t_jpeg2kImgType,
 } t_imgType;
 
 typedef enum {
@@ -82,6 +85,8 @@ typedef enum {
   t_decodeTiffs = (1<<5),
   t_loadBmps    = (1<<6),
   t_decodeBmps  = (1<<7),
+  t_loadJPEG2ks  = (1<<6),
+  t_decodeJPEG2ks = (1<<7),
 } t_loadingFlags;
 
 struct OpArg {
@@ -187,9 +192,15 @@ class DALISingleOpTest : public DALITest {
     if (flags & t_loadBmps) {
       LoadImages(images::bmp_test_images, &bmp_);
 
-      if (flags & t_decodeTiffs) {
+      if (flags & t_decodeBmps) {
         DecodeImages(img_type_, bmp_, &bmp_decoded_, &bmp_dims_);
       }
+    }
+
+    if (flags & t_loadJPEG2ks) {
+      LoadImages(images::jpeg2k_test_images, &jpeg2ks_);
+      if (flags & t_decodeJPEGs)
+        DecodeImages(img_type_, jpeg2ks_, &jpeg2k_decoded_, &jpeg2k_dims_);
     }
 
     // Set the pipeline batch size
@@ -320,6 +331,10 @@ class DALISingleOpTest : public DALITest {
 
   void EncodedBmpData(TensorList<CPUBackend>* t) {
     DALITest::MakeEncodedBatch(t, batch_size_, bmp_);
+  }
+
+  void EncodedJpeg2kData(TensorList<CPUBackend>* t) {
+    DALITest::MakeEncodedBatch(t, batch_size_, jpeg2ks_);
   }
 
 
@@ -766,8 +781,8 @@ class DALISingleOpTest : public DALITest {
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
 
-  vector<vector<uint8>> jpeg_decoded_, png_decoded_, tiff_decoded_, bmp_decoded_;
-  vector<DimPair> jpeg_dims_, png_dims_, tiff_dims_, bmp_dims_;
+  vector<vector<uint8>> jpeg_decoded_, png_decoded_, tiff_decoded_, bmp_decoded_, jpeg2k_decoded_;
+  vector<DimPair> jpeg_dims_, png_dims_, tiff_dims_, bmp_dims_, jpeg2k_dims_;
 
 
  protected:
