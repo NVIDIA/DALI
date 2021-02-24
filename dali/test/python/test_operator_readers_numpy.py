@@ -329,7 +329,7 @@ def numpy_reader_pipe(numpy_op, path, device="cpu",  path_filter="*.npy",
     return data
 
 
-def check_batch(test_data_root, device, arr_np_all):
+def check_numpy_reader_alias(test_data_root, device, arr_np_all):
     new_pipe = numpy_reader_pipe(fn.readers.numpy,
                                  path=test_data_root,
                                  device=device,
@@ -355,4 +355,4 @@ def test_numpy_reader_alias():
         arr_np_all = np.stack(arr_np_list, axis=0)
 
         for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-            yield check_batch, test_data_root, device, arr_np_all
+            yield check_numpy_reader_alias, test_data_root, device, arr_np_all
