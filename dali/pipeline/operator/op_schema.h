@@ -331,8 +331,6 @@ graph even if its outputs are not used.)code", false);
    *
    * @param in_favor_of schema name of the replacement
    * @param explanation additional explanation
-   * @return DLL_PUBLIC&
-   *
    */
   DLL_PUBLIC inline OpSchema &Deprecate(const std::string &in_favor_of,
                                         const std::string &explanation = "") {

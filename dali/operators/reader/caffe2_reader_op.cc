@@ -17,22 +17,28 @@
 
 namespace dali {
 
+namespace {
+
+int Caffe2ReaderOutputFn(const OpSpec& spec) {
+  int img_idx = spec.GetArgument<bool>("image_available") ? 1 : 0;
+  auto label_type = static_cast<LabelType>(spec.GetArgument<int>("label_type"));
+
+  int num_label_outputs = (label_type == NO_LABEL) ? 0 : 1;
+  num_label_outputs +=
+      (label_type == MULTI_LABEL_SPARSE || label_type == MULTI_LABEL_WEIGHTED_SPARSE) ? 1 : 0;
+  int additional_inputs = spec.GetArgument<int>("additional_inputs");
+  int has_bbox = static_cast<int>(spec.GetArgument<bool>("bbox"));
+  return img_idx + num_label_outputs + additional_inputs + has_bbox;
+}
+
+}  // namespace
+
 DALI_REGISTER_OPERATOR(readers__Caffe2, Caffe2Reader, CPU);
 
 DALI_SCHEMA(readers__Caffe2)
   .DocStr("Reads sample data from a Caffe2 Lightning Memory-Mapped Database (LMDB).")
   .NumInput(0)
-  .OutputFn([](const OpSpec& spec) {
-      int img_idx = spec.GetArgument<bool>("image_available") ? 1 : 0;
-      auto label_type = static_cast<LabelType>(spec.GetArgument<int>("label_type"));
-
-      int num_label_outputs = (label_type == NO_LABEL) ? 0 : 1;
-      num_label_outputs += (label_type == MULTI_LABEL_SPARSE ||
-                            label_type == MULTI_LABEL_WEIGHTED_SPARSE) ? 1 : 0;
-      int additional_inputs = spec.GetArgument<int>("additional_inputs");
-      int has_bbox = static_cast<int>(spec.GetArgument<bool>("bbox"));
-    return img_idx + num_label_outputs + additional_inputs + has_bbox;
-  })
+  .OutputFn(Caffe2ReaderOutputFn)
   .AddArg("path",
       R"code(List of paths to the Caffe2 LMDB directories.)code",
       DALI_STRING_VEC)
@@ -65,17 +71,7 @@ DALI_REGISTER_OPERATOR(Caffe2Reader, Caffe2Reader, CPU);
 DALI_SCHEMA(Caffe2Reader)
     .DocStr("Legacy alias for :meth:`readers.caffe2`.")
     .NumInput(0)
-    .OutputFn([](const OpSpec& spec) {
-      int img_idx = spec.GetArgument<bool>("image_available") ? 1 : 0;
-      auto label_type = static_cast<LabelType>(spec.GetArgument<int>("label_type"));
-
-      int num_label_outputs = (label_type == NO_LABEL) ? 0 : 1;
-      num_label_outputs +=
-          (label_type == MULTI_LABEL_SPARSE || label_type == MULTI_LABEL_WEIGHTED_SPARSE) ? 1 : 0;
-      int additional_inputs = spec.GetArgument<int>("additional_inputs");
-      int has_bbox = static_cast<int>(spec.GetArgument<bool>("bbox"));
-      return img_idx + num_label_outputs + additional_inputs + has_bbox;
-    })
+    .OutputFn(Caffe2ReaderOutputFn)
     .AddParent("readers__Caffe2")
     .MakeDocPartiallyHidden()
     .Deprecate(

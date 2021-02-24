@@ -16,6 +16,15 @@
 
 namespace dali {
 
+namespace {
+
+int CaffeReaderOutputFn(const OpSpec& spec) {
+  return static_cast<int>(spec.GetArgument<bool>("read_sample_rate")) +
+          static_cast<int>(spec.GetArgument<bool>("read_text"));
+}
+
+}  // namespace
+
 DALI_REGISTER_OPERATOR(readers__NemoAsr, NemoAsrReader, CPU);
 
 DALI_SCHEMA(readers__NemoAsr)
@@ -87,10 +96,7 @@ Samples with a duration longer than this value will be ignored.)code",
     0.0f)
   .AddOptionalArg<bool>("normalize_text", "Normalize text.", nullptr)
   .DeprecateArg("normalize_text")  // deprecated since 0.28dev
-  .AdditionalOutputsFn([](const OpSpec& spec) {
-    return static_cast<int>(spec.GetArgument<bool>("read_sample_rate"))
-         + static_cast<int>(spec.GetArgument<bool>("read_text"));
-  })
+  .AdditionalOutputsFn(CaffeReaderOutputFn)
   .AddParent("LoaderBase");
 
 
@@ -101,10 +107,7 @@ DALI_SCHEMA(NemoAsrReader)
     .NumInput(0)
     .NumOutput(1)
     .DocStr("Legacy alias for :meth:`readers.nemo_asr`.")
-    .AdditionalOutputsFn([](const OpSpec &spec) {
-      return static_cast<int>(spec.GetArgument<bool>("read_sample_rate")) +
-             static_cast<int>(spec.GetArgument<bool>("read_text"));
-    })
+    .AdditionalOutputsFn(CaffeReaderOutputFn)
     .AddParent("readers__NemoAsr")
     .MakeDocPartiallyHidden()
     .Deprecate(

@@ -16,16 +16,22 @@
 
 namespace dali {
 
+namespace {
+
+int CaffeReaderOutputFn(const OpSpec& spec) {
+  auto image_available = spec.GetArgument<bool>("image_available");
+  auto label_available = spec.GetArgument<bool>("label_available");
+  return image_available + label_available;
+}
+
+}  // namespace
+
 DALI_REGISTER_OPERATOR(readers__Caffe, CaffeReader, CPU);
 
 DALI_SCHEMA(readers__Caffe)
   .DocStr("Reads (Image, label) pairs from a Caffe LMDB.")
   .NumInput(0)
-  .OutputFn([](const OpSpec& spec) {
-    auto image_available = spec.GetArgument<bool>("image_available");
-    auto label_available = spec.GetArgument<bool>("label_available");
-    return image_available + label_available;
-  })
+  .OutputFn(CaffeReaderOutputFn)
   .AddArg("path",
       R"code(List of paths to the Caffe LMDB directories.)code",
       DALI_STRING_VEC)
@@ -42,11 +48,7 @@ DALI_REGISTER_OPERATOR(CaffeReader, CaffeReader, CPU);
 DALI_SCHEMA(CaffeReader)
     .DocStr("Legacy alias for :meth:`readers.caffe`.")
     .NumInput(0)
-    .OutputFn([](const OpSpec& spec) {
-      auto image_available = spec.GetArgument<bool>("image_available");
-      auto label_available = spec.GetArgument<bool>("label_available");
-      return image_available + label_available;
-    })
+    .OutputFn(CaffeReaderOutputFn)
     .AddParent("readers__Caffe")
     .MakeDocPartiallyHidden()
     .Deprecate(
