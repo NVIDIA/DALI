@@ -61,7 +61,7 @@ is incompatible with providing positional inputs anchor and shape.)code",
 Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
 is incompatible with providing positional inputs anchor and shape.)code",
         nullptr, true)
-    .AddOptionalArg<std::vector<int>>("rel_shape",
+    .AddOptionalArg<std::vector<float>>("rel_shape",
         R"code(Relative shape of the slice (range [0.0 - 1.0]).
 
 Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
