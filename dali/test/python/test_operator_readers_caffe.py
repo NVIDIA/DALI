@@ -14,6 +14,7 @@
 
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
@@ -29,6 +30,8 @@ from test_utils import get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
+c2lmdb_db_folder = os.path.join(test_data_root, 'db', 'c2lmdb')
+c2lmdb_no_label_db_folder = os.path.join(test_data_root, 'db', 'c2lmdb_no_label')
 
 class CaffeReaderPipeline(Pipeline):
     def __init__(self, path, batch_size, num_threads=1, device_id=0, num_gpus=1):
