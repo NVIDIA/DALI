@@ -22,7 +22,9 @@ extern "C" {
 
 namespace dali {
 
-DALI_SCHEMA(COCOReader)
+DALI_REGISTER_OPERATOR(readers__COCO, COCOReader, CPU);
+
+DALI_SCHEMA(readers__COCO)
   .NumInput(0)
   .NumOutput(3)
   .DocStr(R"code(Reads data from a COCO dataset that is composed of a directory with
@@ -156,7 +158,25 @@ preprocessed COCO annotations.)code",
     })
   .AddParent("LoaderBase");
 
+
+// Deprecated alias
 DALI_REGISTER_OPERATOR(COCOReader, COCOReader, CPU);
+
+DALI_SCHEMA(COCOReader)
+    .NumInput(0)
+    .NumOutput(3)
+    .DocStr("Legacy alias for :meth:`readers.coco`.")
+    .AdditionalOutputsFn([](const OpSpec &spec) {
+      return OutPolygonMasksEnabled(spec) * 2 + OutPixelwiseMasksEnabled(spec) +
+             OutImageIdsEnabled(spec);
+    })
+    .AddParent("readers__COCO")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "readers__COCO",
+        R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
+submodule and renamed to fit a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 COCOReader::COCOReader(const OpSpec& spec): DataReader<CPUBackend, ImageLabelWrapper>(spec) {
   DALI_ENFORCE(!skip_cached_images_, "COCOReader doesn't support `skip_cached_images` option");

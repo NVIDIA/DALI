@@ -17,9 +17,9 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(Caffe2Reader, Caffe2Reader, CPU);
+DALI_REGISTER_OPERATOR(readers__Caffe2, Caffe2Reader, CPU);
 
-DALI_SCHEMA(Caffe2Reader)
+DALI_SCHEMA(readers__Caffe2)
   .DocStr("Reads sample data from a Caffe2 Lightning Memory-Mapped Database (LMDB).")
   .NumInput(0)
   .OutputFn([](const OpSpec& spec) {
@@ -58,5 +58,30 @@ Here is a list of the available values:
   .AddOptionalArg("bbox",
       R"code(Denotes whether the bounding-box information is present.)code", false)
   .AddParent("LoaderBase");
+
+// Deprecated alias
+DALI_REGISTER_OPERATOR(Caffe2Reader, Caffe2Reader, CPU);
+
+DALI_SCHEMA(Caffe2Reader)
+    .DocStr("Legacy alias for :meth:`readers.caffe2`.")
+    .NumInput(0)
+    .OutputFn([](const OpSpec& spec) {
+      int img_idx = spec.GetArgument<bool>("image_available") ? 1 : 0;
+      auto label_type = static_cast<LabelType>(spec.GetArgument<int>("label_type"));
+
+      int num_label_outputs = (label_type == NO_LABEL) ? 0 : 1;
+      num_label_outputs +=
+          (label_type == MULTI_LABEL_SPARSE || label_type == MULTI_LABEL_WEIGHTED_SPARSE) ? 1 : 0;
+      int additional_inputs = spec.GetArgument<int>("additional_inputs");
+      int has_bbox = static_cast<int>(spec.GetArgument<bool>("bbox"));
+      return img_idx + num_label_outputs + additional_inputs + has_bbox;
+    })
+    .AddParent("readers__Caffe2")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "readers__Caffe2",
+        R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
+submodule and renamed to fit a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 }  // namespace dali

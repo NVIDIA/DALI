@@ -46,9 +46,9 @@ void NumpyReader::TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBa
   ), DALI_FAIL(make_string("Unsupported input type: ", input_type)));  // NOLINT
 }
 
-DALI_REGISTER_OPERATOR(NumpyReader, NumpyReader, CPU);
+DALI_REGISTER_OPERATOR(readers__Numpy, NumpyReader, CPU);
 
-DALI_SCHEMA(NumpyReader)
+DALI_SCHEMA(readers__Numpy)
   .DocStr(R"(Reads Numpy arrays from a directory.
 
 This operator can be used in the following modes:
@@ -98,7 +98,22 @@ sizes vary a lot.)code", true)
       R"code(If set to True, the header information for each file is cached, improving access
 speed.)code",
       false)
-
   .AddParent("LoaderBase");
+
+
+// Deprecated alias
+DALI_REGISTER_OPERATOR(NumpyReader, NumpyReader, CPU);
+
+DALI_SCHEMA(NumpyReader)
+    .DocStr("Legacy alias for :meth:`readers.numpy`.")
+    .NumInput(0)
+    .NumOutput(1)  // (Arrays)
+    .AddParent("readers__Numpy")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "readers__Numpy",
+        R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
+submodule and renamed to fit a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 }  // namespace dali

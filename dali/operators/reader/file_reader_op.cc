@@ -18,9 +18,9 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(FileReader, FileReader, CPU);
+DALI_REGISTER_OPERATOR(readers__File, FileReader, CPU);
 
-DALI_SCHEMA(FileReader)
+DALI_SCHEMA(readers__File)
   .DocStr(R"(Reads file contents and returns file-label pairs.
 
 This operator can be used in the following modes:
@@ -99,5 +99,21 @@ This argument is mutually exclusive with ``file_list``.)", nullptr)
 
 If not used, sequential 0-based indices are used as labels)", nullptr)
   .AddParent("LoaderBase");
+
+
+// Deprecated alias
+DALI_REGISTER_OPERATOR(FileReader, FileReader, CPU);
+
+DALI_SCHEMA(FileReader)
+    .DocStr("Legacy alias for :meth:`readers.file`.")
+    .NumInput(0)
+    .NumOutput(2)  // (Images, Labels)
+    .AddParent("readers__File")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "readers__File",
+        R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
+submodule and renamed to fit a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 }  // namespace dali

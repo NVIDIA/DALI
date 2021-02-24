@@ -317,11 +317,28 @@ graph even if its outputs are not used.)code", false);
   }
 
   /**
-   * @brief Notes that this operator is deprecated and optionally specifies the operator to be used instead
+   * @brief Notes that for this operator only the doc_str should be visible, but not the docs for
+   * the inputs, outputs or argument (the Op is exposed in Python API)
    */
-  DLL_PUBLIC inline OpSchema& Deprecate(const std::string &in_favor_of) {
+  DLL_PUBLIC inline OpSchema &MakeDocPartiallyHidden() {
+    is_doc_partially_hidden_ = true;
+    return *this;
+  }
+
+  /**
+   * @brief Notes that this operator is deprecated and optionally specifies the operator to be used
+   * instead
+   *
+   * @param in_favor_of schema name of the replacement
+   * @param explanation additional explanation
+   * @return DLL_PUBLIC&
+   *
+   */
+  DLL_PUBLIC inline OpSchema &Deprecate(const std::string &in_favor_of,
+                                        const std::string &explanation = "") {
     is_deprecated_ = true;
     deprecated_in_favor_of_ = in_favor_of;
+    deprecated_explanation_ = explanation;
     return *this;
   }
 
@@ -722,6 +739,10 @@ graph even if its outputs are not used.)code", false);
     return is_doc_hidden_;
   }
 
+  DLL_PUBLIC inline bool IsDocPartiallyHidden() const {
+    return is_doc_partially_hidden_;
+  }
+
   DLL_PUBLIC inline bool IsDeprecated() const {
     return is_deprecated_;
   }
@@ -730,7 +751,11 @@ graph even if its outputs are not used.)code", false);
     return deprecated_in_favor_of_;
   }
 
-  DLL_PUBLIC inline bool IsDeprecatedArg(const std::string& arg_name) const  {
+  DLL_PUBLIC inline const std::string &DeprecatedExplanation() const {
+    return deprecated_explanation_;
+  }
+
+  DLL_PUBLIC inline bool IsDeprecatedArg(const std::string &arg_name) const {
     return deprecated_arguments_.find(arg_name) != deprecated_arguments_.end();
   }
 
@@ -913,6 +938,7 @@ graph even if its outputs are not used.)code", false);
 
   bool is_internal_ = false;
   bool is_doc_hidden_ = false;
+  bool is_doc_partially_hidden_ = false;
 
   bool no_prune_ = false;
 
@@ -921,7 +947,8 @@ graph even if its outputs are not used.)code", false);
   std::map<int, int> passthrough_map_;
 
   bool is_deprecated_ = false;
-  string deprecated_in_favor_of_;
+  std::string deprecated_in_favor_of_;
+  std::string deprecated_explanation_;
 
   std::map<std::string, RequiredArgumentDef> arguments_;
   std::map<std::string, DefaultedArgumentDef> optional_arguments_;
