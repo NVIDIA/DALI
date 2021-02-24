@@ -58,7 +58,7 @@ DALI_SCHEMA(VideoReaderResize)
     .Deprecate(
         "readers__VideoResize",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
-submodule and renamed to fit a common pattern. This is a placeholder operator with identical
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 }  // namespace dali

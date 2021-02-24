@@ -18,9 +18,9 @@ namespace dali {
 
 namespace {
 
-int NemoAsrReaderOutputFn(const OpSpec& spec) {
+int NemoAsrReaderOutputFn(const OpSpec &spec) {
   return static_cast<int>(spec.GetArgument<bool>("read_sample_rate")) +
-          static_cast<int>(spec.GetArgument<bool>("read_text"));
+         static_cast<int>(spec.GetArgument<bool>("read_text"));
 }
 
 }  // namespace
@@ -113,7 +113,7 @@ DALI_SCHEMA(NemoAsrReader)
     .Deprecate(
         "readers__NemoAsr",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
-submodule and renamed to fit a common pattern. This is a placeholder operator with identical
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 NemoAsrReader::NemoAsrReader(const OpSpec& spec)

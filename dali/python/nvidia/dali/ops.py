@@ -129,7 +129,7 @@ def _docstring_generator_main(cls, api):
         ret += ".. warning::\n\n   This operator is now deprecated"
         if use_instead:
             ret +=". Use :meth:`" + use_instead + "` instead."
-        explanation = schema.DeprecatedExplanation()
+        explanation = schema.DeprecationMessage()
         if explanation:
             indent = "\n" + " " * 3
             ret += indent

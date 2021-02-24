@@ -1498,7 +1498,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsNoPrune", &OpSchema::IsNoPrune)
     .def("IsDeprecated", &OpSchema::IsDeprecated)
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf)
-    .def("DeprecatedExplanation", &OpSchema::DeprecatedExplanation)
+    .def("DeprecationMessage", &OpSchema::DeprecationMessage)
     .def("IsDeprecatedArg", &OpSchema::IsDeprecatedArg)
     .def("DeprecatedArgMeta",
         [](OpSchema *schema, const std::string &arg_name) {

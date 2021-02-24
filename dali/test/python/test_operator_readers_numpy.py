@@ -318,9 +318,9 @@ def check_array(filename, shape, typ, device, fortran_order=False):
     delete_numpy_file(filename)
 
 
-alias_batch_size=64
+batch_size_alias_test=64
 
-@pipeline_def(batch_size=alias_batch_size, device_id=0, num_threads=4)
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def numpy_reader_pipe(numpy_op, path, batch_size, device="cpu", file_list=None, files=None, path_filter="*.npy",
                       num_threads=1, device_id=0, num_gpus=1, cache_header_information=False):
     data = numpy_op(device = device,
@@ -356,7 +356,7 @@ def check_batch(test_data_root, batch_size, num_samples, device, arr_np_all, fil
                                     num_threads=num_threads,
                                     device_id=0,
                                     cache_header_information=False)
-    compare_pipelines(new_pipe, legacy_pipe, alias_batch_size, 50)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
 
 
 def test_numpy_reader_alias():

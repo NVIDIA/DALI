@@ -19,7 +19,7 @@ namespace dali {
 
 namespace {
 
-int Caffe2ReaderOutputFn(const OpSpec& spec) {
+int Caffe2ReaderOutputFn(const OpSpec &spec) {
   int img_idx = spec.GetArgument<bool>("image_available") ? 1 : 0;
   auto label_type = static_cast<LabelType>(spec.GetArgument<int>("label_type"));
 
@@ -77,7 +77,7 @@ DALI_SCHEMA(Caffe2Reader)
     .Deprecate(
         "readers__Caffe2",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
-submodule and renamed to fit a common pattern. This is a placeholder operator with identical
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 }  // namespace dali

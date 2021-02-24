@@ -177,9 +177,9 @@ def test_decoded_vs_generated(batch_size=3):
           f"'{text_non_ascii_str}' != '{ref_text_non_ascii_literal[idx]}'"
 
 
-alias_batch_size=64
+batch_size_alias_test=64
 
-@pipeline_def(batch_size=alias_batch_size, device_id=0, num_threads=4)
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def nemo_pipe(nemo_op, path, read_text, read_sample_rate, dtype, downmix):
     if read_sample_rate:
         audio, sr = nemo_op(manifest_filepaths=path, read_sample_rate=read_sample_rate,
@@ -200,4 +200,4 @@ def test_nemo_asr_reader_alias():
             for downmix in [True, False]:
                 new_pipe = nemo_pipe(fn.readers.nemo_asr, [nemo_asr_manifest], read_sr, read_text, dtype, downmix)
                 legacy_pipe = nemo_pipe(fn.nemo_asr_reader, [nemo_asr_manifest], read_sr, read_text, dtype, downmix)
-                compare_pipelines(new_pipe, legacy_pipe, alias_batch_size, 50)
+                compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)

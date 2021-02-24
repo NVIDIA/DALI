@@ -336,7 +336,7 @@ graph even if its outputs are not used.)code", false);
                                         const std::string &explanation = "") {
     is_deprecated_ = true;
     deprecated_in_favor_of_ = in_favor_of;
-    deprecated_explanation_ = explanation;
+    deprecation_message_ = explanation;
     return *this;
   }
 
@@ -749,8 +749,8 @@ graph even if its outputs are not used.)code", false);
     return deprecated_in_favor_of_;
   }
 
-  DLL_PUBLIC inline const std::string &DeprecatedExplanation() const {
-    return deprecated_explanation_;
+  DLL_PUBLIC inline const std::string &DeprecationMessage() const {
+    return deprecation_message_;
   }
 
   DLL_PUBLIC inline bool IsDeprecatedArg(const std::string &arg_name) const {
@@ -946,7 +946,7 @@ graph even if its outputs are not used.)code", false);
 
   bool is_deprecated_ = false;
   std::string deprecated_in_favor_of_;
-  std::string deprecated_explanation_;
+  std::string deprecation_message_;
 
   std::map<std::string, RequiredArgumentDef> arguments_;
   std::map<std::string, DefaultedArgumentDef> optional_arguments_;
