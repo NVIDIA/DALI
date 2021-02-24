@@ -411,10 +411,13 @@ class _OperatorInstance(object):
 
         if self._op.schema.IsDeprecated():
             # TODO(klecki): how to know if this is fn or ops?
+            msg = "WARNING: `{}` is now deprecated".format(_op_name(type(self._op).__name__, "fn"))
             use_instead = _op_name(self._op.schema.DeprecatedInFavorOf(), "fn")
-            msg = "WARNING: `{}` is now deprecated".format(type(self._op).__name__)
             if use_instead:
-                msg +=". Use `" + use_instead + "` instead"
+                msg +=". Use `" + use_instead + "` instead."
+            explanation = self._op.schema.DeprecationMessage()
+            if explanation:
+                msg += "\n" + explanation
             with warnings.catch_warnings():
                 warnings.simplefilter("default")
                 warnings.warn(msg, DeprecationWarning, stacklevel=2)
