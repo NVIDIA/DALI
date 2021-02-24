@@ -7,8 +7,8 @@ NVIDIA DALI
 The NVIDIA Data Loading Library (DALI) is a library for data loading and
 pre-processing to accelerate deep learning applications. It provides a
 collection of highly optimized building blocks for loading and processing
-image, video and audio data, and it can be used as a portable drop-in replacement
-for built in data loaders and data iterations in popular deep learning frameworks.
+image, video and audio data. It can be used as a portable drop-in replacement
+for built in data loaders and data iterators in popular deep learning frameworks.
 
 Deep learning applications require complex, multi-stage data processing pipelines
 that include loading, decoding, cropping, resizing, and many other augmentations.
@@ -33,7 +33,7 @@ can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle.
 Highlights
 ----------
 - Easy-to-use functional style Python API.
-- Multiple data formats support - LMDB, RecordIO, TFRecord, COCO, JPEG, JPEG 2000, WAV, FLAC, OGG, H.264 and HEVC.
+- Multiple data formats support - LMDB, RecordIO, TFRecord, COCO, JPEG, JPEG 2000, WAV, FLAC, OGG, H.264, VP9 and HEVC.
 - Portable accross popular deep learning frameworks: TensorFlow, PyTorch, MXNet, PaddlePaddle.
 - Supports CPU and GPU execution.
 - Scalable across multiple GPUs.
@@ -110,8 +110,8 @@ Additional Resources
 - GPU Technology Conference 2019; Fast AI data pre-preprocessing with DALI; Janusz Lisiecki, Michał Zientkiewicz: |slides2|_, |recording2|_.
 - GPU Technology Conference 2019; Integration of DALI with TensorRT on Xavier; Josh Park and Anurag Dixit: |slides3|_, |recording3|_.
 - GPU Technology Conference 2020; Fast Data Pre-Processing with NVIDIA Data Loading Library (DALI); Albert Wolant, Joaquin Anton Guirao |recording4|_.
-- `Developer page <https://developer.nvidia.com/DALI>`_.
-- `Blog post: Fast AI Data Preprocessing with NVIDIA DALI <https://devblogs.nvidia.com/fast-ai-data-preprocessing-with-nvidia-dali/>`_.
+- `Developer Page <https://developer.nvidia.com/DALI>`_.
+- `Blog Posts <https://developer.nvidia.com/blog/tag/dali/>`_.
 
 .. |slides1| replace:: slides
 .. _slides1:  http://on-demand.gputechconf.com/gtc/2018/presentation/s8906-fast-data-pipelines-for-deep-learning-training.pdf
