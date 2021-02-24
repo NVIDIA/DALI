@@ -264,9 +264,6 @@ def _test_random_object_bbox_with_class(max_batch_size, ndim, dtype, format=None
 
     format = format or "anchor_shape"
 
-    foreground_hits = 0
-    total_samples = 0
-
     for _ in range(50):
         inp, classes_out, weights_out, background_out, threshold_out, *outs = pipe.run()
         nout = (len(outs) - 1) // 2
@@ -296,8 +293,6 @@ def _test_random_object_bbox_with_class(max_batch_size, ndim, dtype, format=None
                 assert label == background_label or label in list(class_labels)
 
             is_foreground = label != background_label
-            if is_foreground:
-                foreground_hits += 1
             cls_boxes = class_boxes(in_tensor, label if is_foreground else None)
 
             if is_foreground:

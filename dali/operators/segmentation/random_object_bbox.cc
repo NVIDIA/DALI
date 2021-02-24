@@ -465,7 +465,7 @@ bool RandomObjectBBox::PickForegroundBox(
   CacheEntry *cache_entry = nullptr;
   kernels::fast_hash_t hash = {};
   if (use_cache_) {
-    kernels::fast_hash(hash, input.data, input.num_elements() * sizeof(T));
+    fast_hash(hash, input.data, input.num_elements() * sizeof(T));
     cache_entry = &cache_[hash];
   }
 
@@ -478,14 +478,14 @@ bool RandomObjectBBox::PickForegroundBox(
     }
     return PickBox(context);
   } else {
-    /*if (cache_entry && !cache_entry->labels.empty()) {
+    if (cache_entry && !cache_entry->labels.empty()) {
       context.labels = cache_entry->labels;
-    } else {*/
+    } else {
       context.FindLabels(input);
       context.labels.erase(class_info_.background);
       if (cache_entry)
         cache_entry->labels = context.labels;
-    //}
+    }
 
     if (!classes_.IsDefined() && !weights_.IsDefined()) {
       class_info_.FromLabels(context.labels);
