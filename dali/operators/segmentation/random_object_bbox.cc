@@ -103,8 +103,8 @@ Possible choices are::
   * "start_end" - there are two outputs: bounding box start and one-past-end coordinates
   * "box" - there is one output that contains concatenated start and end coordinates
 )", "anchor_shape")
-  .AddOptionalArg("cache_objects", R"(Cache boxes to avoid the computational cost of finding
-object blobs.
+  .AddOptionalArg("cache_objects", R"(Cache object bounding boxes to avoid the computational cost
+of finding object blobs in previously seen inputs.
 
 Searching for blobs of connected pixels and finding boxes can take a long time. When the dataset
 has few items, but item size is big, you can use caching to save the boxes and reuse them when
