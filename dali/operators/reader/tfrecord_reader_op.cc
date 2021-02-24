@@ -22,9 +22,11 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(_TFRecordReader, TFRecordReader, CPU);
+// Internal readers._tfrecord, note the triple underscore.
+DALI_REGISTER_OPERATOR(readers___TFRecord, TFRecordReader, CPU);
 
-DALI_SCHEMA(_TFRecordReaderBase)
+// Common part of schema for internal readers._tfrecord and public readers.tfrecord schema.
+DALI_SCHEMA(readers___TFRecordBase)
   .DocStr(R"code(Read sample data from a TensorFlow TFRecord file.)code")
   .AddArg("path",
       R"code(List of paths to TFRecord files.)code",
@@ -36,7 +38,8 @@ The index files can be obtained from TFRecord files by using the ``tfrecord2idx`
 that is distributed with DALI.)code",
       DALI_STRING_VEC);
 
-DALI_SCHEMA(_TFRecordReader)
+// Internal readers._tfrecord schema.
+DALI_SCHEMA(readers___TFRecord)
   .DocStr(R"code(Reads samples from a TensorFlow TFRecord file.)code")
   .OutputFn([](const OpSpec &spec) {
       std::vector<std::string> v = spec.GetRepeatedArgument<std::string>("feature_names");
@@ -47,13 +50,13 @@ DALI_SCHEMA(_TFRecordReader)
       DALI_STRING_VEC)
   .AddArg("features", "List of features.",
       DALI_TF_FEATURE_VEC)
-  .AddParent("_TFRecordReaderBase")
+  .AddParent("readers___TFRecordBase")
   .AddParent("LoaderBase")
   .MakeInternal();
 
-// Schema for the actual TFRecordReader op exposed
-// in Python. It is here for proper docstring generation
-DALI_SCHEMA(TFRecordReader)
+// Schema for the actual readers.tfrecord op expose in Python.
+// It is here for proper docstring generation. Note the double underscore.
+DALI_SCHEMA(readers__TFRecord)
   .DocStr(R"code(Reads samples from a TensorFlow TFRecord file.)code")
   .AddArg("features",
       R"code(A dictionary that maps names of the TFRecord features to extract to the feature type.
@@ -65,8 +68,20 @@ Typically obtained by using the ``dali.tfrecord.FixedLenFeature`` and
 the data will be reshaped to match its value, and the first dimension will be inferred from
 the data size.)code",
       DALI_TF_FEATURE_DICT)
-  .AddParent("_TFRecordReaderBase")
+  .AddParent("readers___TFRecordBase")
   .AddParent("LoaderBase");
+
+
+// Deprecated alias
+DALI_SCHEMA(TFRecordReader)
+    .DocStr("Legacy alias for :meth:`readers.tfrecord`.")
+    .AddParent("readers__TFRecord")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "readers__TFRecord",
+        R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 }  // namespace dali
 

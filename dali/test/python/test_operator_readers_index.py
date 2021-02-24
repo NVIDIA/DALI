@@ -22,11 +22,11 @@ def test_tfrecord():
     class TFRecordPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, data, data_idx):
             super(TFRecordPipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.TFRecordReader(path = data,
-                                            index_path = data_idx,
-                                            features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
-                                                        "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)
-                                            })
+            self.input = ops.readers.TFRecord(path = data,
+                                              index_path = data_idx,
+                                              features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+                                                          "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)}
+                                             )
 
         def define_graph(self):
             inputs = self.input(name="Reader")
@@ -95,9 +95,9 @@ def test_wrong_feature_shape():
     test_dummy_data_path = os.path.join(get_dali_extra_path(), 'db', 'coco_dummy')
     pipe = Pipeline(1, 1, 0)
     with pipe:
-        input = fn.tfrecord_reader(path = os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
-                                   index_path = os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
-                                   features = features)
+        input = fn.readers.tfrecord(path = os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
+                                    index_path = os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
+                                    features = features)
     pipe.set_outputs(input['image/encoded'], input['image/object/class/label'], input['image/object/bbox'])
     pipe.build()
     # the error is raised because FixedLenFeature is used with insufficient shape to house the input

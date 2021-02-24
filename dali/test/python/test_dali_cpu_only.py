@@ -416,7 +416,7 @@ def test_tfrecord_reader_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     tfrecord = sorted(glob.glob(os.path.join(tfrecord_dir, '*[!i][!d][!x]')))
     tfrecord_idx = sorted(glob.glob(os.path.join(tfrecord_dir, '*idx')))
-    input = fn.tfrecord_reader(path = tfrecord,
+    input = fn.readers.tfrecord(path = tfrecord,
                                 index_path = tfrecord_idx,
                                 shard_id=0, num_shards=1,
                                 features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),

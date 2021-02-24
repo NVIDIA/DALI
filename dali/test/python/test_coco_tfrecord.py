@@ -81,7 +81,7 @@ class TFRecordDetectionPipeline(Pipeline):
     def __init__(self, args):
         super(TFRecordDetectionPipeline, self).__init__(
             args.batch_size, args.num_workers, 0, 0)
-        self.input = ops.TFRecordReader(
+        self.input = ops.readers.TFRecord(
             path = os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
             index_path = os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
             features = {
