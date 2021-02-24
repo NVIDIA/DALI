@@ -1,12 +1,12 @@
 import math
-from nvidia.dali import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.tfrecord as tfrec
 import os.path
 import tempfile
 import numpy as np
-from test_utils import get_dali_extra_path
+from test_utils import compare_pipelines, get_dali_extra_path
 from nose.tools import assert_raises
 
 def skip_second(src, dst):

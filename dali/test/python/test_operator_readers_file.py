@@ -2,7 +2,8 @@ import tempfile
 import os
 import nvidia.dali.fn as fn
 from functools import partial
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
+from test_utils import compare_pipelines
 
 def ref_contents(path):
     fname = path[path.rfind('/')+1:]

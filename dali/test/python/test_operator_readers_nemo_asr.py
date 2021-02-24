@@ -1,4 +1,4 @@
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
 from nvidia.dali import fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -10,6 +10,7 @@ import librosa
 import tempfile
 import os
 from test_audio_decoder_utils import generate_waveforms, rosa_resample
+from test_utils import compare_pipelines
 
 def create_manifest_file(manifest_file, names, lengths, rates, texts):
   assert(len(names) == len(lengths) == len(rates) == len(texts))

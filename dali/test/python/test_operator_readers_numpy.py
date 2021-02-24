@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali as dali
@@ -23,6 +23,7 @@ import os
 import platform
 import tempfile
 import nose.tools
+from test_utils import compare_pipelines
 
 gds_data_root = '/scratch/'
 if not os.path.isdir(gds_data_root):
@@ -329,7 +330,7 @@ def numpy_reader_pipe(numpy_op, path, batch_size, device="cpu", file_list=None, 
                     file_filter = path_filter,
                     shard_id = 0,
                     num_shards = 1,
-                    cache_header_information = cache_header_information)``
+                    cache_header_information = cache_header_information)
     return data
 
 
@@ -358,7 +359,7 @@ def check_batch(test_data_root, batch_size, num_samples, device, arr_np_all, fil
     compare_pipelines(new_pipe, legacy_pipe, alias_batch_size, 50)
 
 
-def test_batch():
+def test_numpy_reader_alias():
     with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         # create files
         num_samples = 20
