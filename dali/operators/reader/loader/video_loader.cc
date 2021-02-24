@@ -552,9 +552,9 @@ void VideoLoader::read_file() {
       if ((!key && is_first_frame) ||
           (key && frame > req.frame && is_first_frame)) {
           LOG_LINE << device_id_ << ": We got ahead of ourselves! "
-                    << frame << " > " << req.frame << " + "
-                    << nonkey_frame_count
-                    << " seek_hack = " << seek_hack << std::endl;
+                   << frame << " > " << req.frame << " + "
+                   << nonkey_frame_count
+                   << " seek_hack = " << seek_hack << std::endl;
           if (seek_must_succeed) {
             std::stringstream ss;
             ss << device_id_ << ": failed to seek frame "
@@ -572,10 +572,14 @@ void VideoLoader::read_file() {
       }
       if (frame > req.frame) {
         if (key) {
-          if (frames_left <= 0)
-            break;
           if (!is_first_frame) {
             nonkey_frame_count = 0;
+            if (frame > req.frame + req.count) {
+              // Found a key frame past the requested range. We can stop searching
+              // (If there were missing frames in the range they won't be found after
+              // the next key frame)
+              break;
+            }
           }
           seek_must_succeed = false;
         } else {
