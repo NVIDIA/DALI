@@ -321,15 +321,14 @@ def check_array(filename, shape, typ, device, fortran_order=False):
 batch_size_alias_test=64
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
-def numpy_reader_pipe(numpy_op, path, device="cpu",  path_filter="*.npy",
-                      cache_header_information=False):
+def numpy_reader_pipe(numpy_op, path, device="cpu",  path_filter="*.npy"):
     data = numpy_op(device=device,
                     file_root=path,
-                    file_filter=path_filter )
+                    file_filter=path_filter)
     return data
 
 
-def check_numpy_reader_alias(test_data_root, device, arr_np_all):
+def check_numpy_reader_alias(test_data_root, device):
     new_pipe = numpy_reader_pipe(fn.readers.numpy,
                                  path=test_data_root,
                                  device=device,
@@ -352,7 +351,6 @@ def test_numpy_reader_alias():
             filenames.append(filename)
             create_numpy_file(filename, (5, 2, 8), np.float32, False)
             arr_np_list.append(np.load(filename))
-        arr_np_all = np.stack(arr_np_list, axis=0)
 
         for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-            yield check_numpy_reader_alias, test_data_root, device, arr_np_all
+            yield check_numpy_reader_alias, test_data_root, device
