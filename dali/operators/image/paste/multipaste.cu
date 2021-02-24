@@ -13,6 +13,10 @@
 // limitations under the License.
 
 #include <vector>
+#include <unordered_set>
+#include <set>
+#include <map>
+#include <tuple>
 #include "dali/operators/image/paste/multipaste.h"
 #include "dali/kernels/imgproc/paste/paste_gpu.h"
 #include "dali/core/tensor_view.h"
@@ -59,23 +63,33 @@ bool MultiPasteGPU::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 
 void MultiPasteGPU::FillGPUInput(const workspace_t<GPUBackend> &ws) {
-  auto &output = ws.template Output<GPUBackend>(0);
-  auto out_shape = output.shape();
-  int batch_size = out_shape.num_samples();
-  for (int i = 0; i < batch_size; i++) {
+  auto &output = ws.template OutputRef<GPUBackend>(0);
+  int batch_size = output.shape().num_samples();
+
+  grid_cells.clear();
+  samples.resize(batch_size);
+  for (int out_idx = 0; out_idx < batch_size; out_idx++) {
+    int n = in_idx_[out_idx].num_elements();
+
     // Get all significant points on x and y axis - those will be the starts and ends of the cells
     int NO_DATA = 0;
-    map<int, int> x_points;
-    map<int, int> y_points;
+    std::map<int, int> x_points;
+    std::map<int, int> y_points;
     x_points[0] = NO_DATA;
-    x_points[x_size] = NO_DATA;
+    x_points[output_size_[out_idx].data[1]] = NO_DATA;
     y_points[0] = NO_DATA;
-    y_points[y_size] = NO_DATA;
+    y_points[output_size_[out_idx].data[0]] = NO_DATA;
+
     for (int i = 0; i < n; i++) {
-      x_points[out_x_anchors[i]] = NO_DATA;
-      x_points[out_x_anchors[i] + x_paste_size[i]] = NO_DATA;
-      y_points[out_y_anchors[i]] = NO_DATA;
-      y_points[out_y_anchors[i] + y_paste_size[i]] = NO_DATA;
+      int from_sample = in_idx_[out_idx].data[i];
+      auto out_anchor_view = GetOutAnchors(out_idx, i);
+      auto in_shape_view = GetShape(out_idx, i, Coords(
+              raw_input_size_mem_.data() + 2 * from_sample,
+              dali::TensorShape<>(2)));
+      x_points[out_anchor_view.data[1]] = NO_DATA;
+      x_points[out_anchor_view.data[1] + in_shape_view.data[1]] = NO_DATA;
+      y_points[out_anchor_view.data[0]] = NO_DATA;
+      y_points[out_anchor_view.data[0] + in_shape_view.data[0]] = NO_DATA;
     }
 
     // When we know how many of those points there are, we know how big our grid is for this output
@@ -84,71 +98,85 @@ void MultiPasteGPU::FillGPUInput(const workspace_t<GPUBackend> &ws) {
 
     // Now lets fill forward and backward mapping of those significant points to grid cell indices
     vector<int> scaled_x_to_x;
-    for (auto i = x_points.begin(); i != x_points.end(); i++) {
-      i->second = scaled_x_to_x.size();
-      scaled_x_to_x.push_back(i->first);
+    for (auto &x_point : x_points) {
+      x_point.second = scaled_x_to_x.size();
+      scaled_x_to_x.push_back(x_point.first);
     }
     vector<int> scaled_y_to_y;
-    for (auto i = y_points.begin(); i != y_points.end(); i++) {
-      i->second = scaled_y_to_y.size();
-      scaled_y_to_y.push_back(i->first);
+    for (auto &y_point : y_points) {
+      y_point.second = scaled_y_to_y.size();
+      scaled_y_to_y.push_back(y_point.first);
     }
 
     // We create events that will fire when sweeping
-    vector<vector<tuple<int, int, int>>> y_starting(y_grid_size + 1);
-    vector<vector<tuple<int, int, int>>> y_ending(y_grid_size + 1);
+    vector<vector<std::tuple<int, int, int>>> y_starting(y_grid_size + 1);
+    vector<vector<std::tuple<int, int, int>>> y_ending(y_grid_size + 1);
     for (int i = 0; i < n; i++) {
-      y_starting[y_points[out_y_anchors[i]]].emplace_back(
-              i, x_points[out_x_anchors[i]], x_points[out_x_anchors[i] + x_paste_size[i]]);
-      y_ending[y_points[out_y_anchors[i] + y_paste_size[i]]].emplace_back(
-              i, x_points[out_x_anchors[i]], x_points[out_x_anchors[i] + x_paste_size[i]]);
+      int from_sample = in_idx_[out_idx].data[i];
+      auto out_anchor_view = GetOutAnchors(out_idx, i);
+      auto in_shape_view = GetShape(out_idx, i, Coords(
+              raw_input_size_mem_.data() + 2 * from_sample,
+              dali::TensorShape<>(2)));
+      y_starting[y_points[out_anchor_view.data[0]]].emplace_back(
+              i, x_points[out_anchor_view.data[1]],
+              x_points[out_anchor_view.data[1] + in_shape_view.data[1]]);
+      y_ending[y_points[out_anchor_view.data[0] + in_shape_view.data[0]]].emplace_back(
+              i, x_points[out_anchor_view.data[1]],
+              x_points[out_anchor_view.data[1] + in_shape_view.data[1]]);
     }
     y_starting[0].emplace_back(-1, 0, x_grid_size);
     y_ending[y_grid_size].emplace_back(-1, 0, x_grid_size);
 
     // And now the sweeping itself
-    vector<GridCellInput> cells(x_grid_size * y_grid_size);
-    vector<unordered_set<int>> starting(x_grid_size + 1);
-    vector<unordered_set<int>> ending(x_grid_size + 1);
-    set<int> open_pastes;
+    int prev_cell_count = grid_cells.size();
+    auto &sample = samples[out_idx];
+    sample.grid_cell_start_idx = prev_cell_count;
+    sample.cell_counts[1] = x_grid_size;
+    sample.cell_counts[0] = y_grid_size;
+    grid_cells.resize(prev_cell_count + x_grid_size * y_grid_size);
+    vector<std::unordered_set<int>> starting(x_grid_size + 1);
+    vector<std::unordered_set<int>> ending(x_grid_size + 1);
+    std::set<int> open_pastes;
     for (int y = 0; y < y_grid_size; y++) {
       // Add open and close events on x axis for regions with given y start coordinate
-      for (auto i = y_starting[y].begin(); i != y_starting[y].end(); i++) {
-        starting[get<1>(*i)].insert(get<0>(*i));
-        ending[get<2>(*i)].insert(get<0>(*i));
+      for (auto &i : y_starting[y]) {
+        starting[std::get<1>(i)].insert(std::get<0>(i));
+        ending[std::get<2>(i)].insert(std::get<0>(i));
       }
       // Now sweep through x
       for (int x = 0; x < x_grid_size; x++) {
         // Open regions starting here
-        for (auto i = starting[x].begin(); i != starting[x].end(); i++) {
-          open_pastes.insert(*i);
+        for (int i : starting[x]) {
+          open_pastes.insert(i);
         }
 
         // Take top most region
         int max_paste = *(--open_pastes.end());
-        GridCellInput& cell = cells[y * x_grid_size + x];
+        auto& cell = grid_cells[prev_cell_count + y * x_grid_size + x];
 
         // And fill grid cell
         cell.cell_start[0] = scaled_y_to_y[y];
         cell.cell_start[1] = scaled_x_to_x[x];
         cell.cell_end[0] = scaled_y_to_y[y + 1];
         cell.cell_end[1] = scaled_x_to_x[x + 1];
-        cell.input_idx = max_paste == -1 ? -1 : out_idx[max_paste];
+        cell.input_idx = max_paste == -1 ? -1 : in_idx_[out_idx].data[max_paste];
 
         if (max_paste != -1) {
-          cell.in_anchor[0] = in_y_anchors[max_paste] + cell.cell_start[0] - out_y_anchors[max_paste];
-          cell.in_anchor[1] = in_x_anchors[max_paste] + cell.cell_start[1] - out_x_anchors[max_paste];
+          auto out_anchor_view = GetOutAnchors(out_idx, max_paste);
+          auto in_anchor_view = GetInAnchors(out_idx, max_paste);
+          cell.in_anchor[0] = in_anchor_view.data[0] + cell.cell_start[0] - out_anchor_view.data[0];
+          cell.in_anchor[1] = in_anchor_view.data[1] + cell.cell_start[1] - out_anchor_view.data[1];
         }
 
         // Now remove regions that end here
-        for (auto i = ending[x + 1].begin(); i != ending[x + 1].end(); i++) {
-          open_pastes.erase(*i);
+        for (int i : ending[x + 1]) {
+          open_pastes.erase(i);
         }
       }
       // And remove start/events for regions whose y ends here
-      for (auto i = y_ending[y + 1].begin(); i != y_ending[y + 1].end(); i++) {
-        starting[get<1>(*i)].erase(get<0>(*i));
-        ending[get<2>(*i)].erase(get<0>(*i));
+      for (auto &i : y_ending[y + 1]) {
+        starting[std::get<1>(i)].erase(std::get<0>(i));
+        ending[std::get<2>(i)].erase(std::get<0>(i));
       }
     }
   }

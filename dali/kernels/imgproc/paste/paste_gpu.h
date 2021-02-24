@@ -114,24 +114,25 @@ void CreateSampleDescriptors(
     gpu_sample.out = out[i].data;
     gpu_sample.grid_cell_start_idx = cpu_sample.grid_cell_start_idx;
     gpu_sample.cell_counts = cpu_sample.cell_counts;
-    gpu_sample.out_pitch.x = out[i].shape[1];
+    gpu_sample.out_pitch[1] = out[i].shape[1];
 
-    gpu_sample.out_pitch.x *= channels;
+    gpu_sample.out_pitch[1] *= channels;
   }
 
   for (int i = 0; i < grid.size(); i++) {
     auto &cpu_grid_cell = grid[i];
     auto &gpu_grid_cell = out_grid_cells[i];
 
-    gpu_grid_cell.in = in[cpu_grid_cell.input_idx].data;
+    gpu_grid_cell.in = cpu_grid_cell.input_idx == -1 ? nullptr : in[cpu_grid_cell.input_idx].data;
     gpu_grid_cell.cell_start = cpu_grid_cell.cell_start;
     gpu_grid_cell.cell_end = cpu_grid_cell.cell_end;
     gpu_grid_cell.in_anchor = cpu_grid_cell.in_anchor;
-    gpu_grid_cell.in_pitch.x = in[cpu_grid_cell.input_idx].shape[1];
+    gpu_grid_cell.in_pitch[1] =
+            cpu_grid_cell.input_idx == -1 ? -1 : in[cpu_grid_cell.input_idx].shape[1];
 
-    gpu_grid_cell.cell_start.x *= channels;
-    gpu_grid_cell.cell_end.x *= channels;
-    gpu_grid_cell.in_anchor *= channels;
+    gpu_grid_cell.cell_start[1] *= channels;
+    gpu_grid_cell.cell_end[1] *= channels;
+    gpu_grid_cell.in_anchor[1] *= channels;
     gpu_grid_cell.in_pitch *= channels;
   }
 }
@@ -153,15 +154,19 @@ PasteKernel(const SampleDescriptorGPU<OutputType, InputType, ndims> *samples,
   int grid_y = 0;
 
   for (int y = threadIdx.y + block.start.y; y < block.end.y; y += blockDim.y) {
-    while (y >= my_grid_cells[grid_y * sample.cell_counts.x].cell_end.y) grid_y++;
+    while (y >= my_grid_cells[grid_y * sample.cell_counts[1]].cell_end[0]) grid_y++;
     int grid_x = 0;
     for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
-      while (x >= my_grid_cells[grid_y * sample.cell_counts.x + grid_x].cell_end.x) grid_x++;
+      while (x >= my_grid_cells[grid_y * sample.cell_counts[1] + grid_x].cell_end[1]) grid_x++;
       const GridCellGPU<InputType, ndims> *cell =
-              &my_grid_cells[grid_y * sample.cell_counts.x + grid_x];
-      out[y * sample.out_pitch.x + x] = ConvertSat<OutputType>(
-              cell->in[(y - cell->cell_start.y + cell->in_anchor.y) * cell->in_pitch.x
-                      + (x - cell->cell_start.x + cell->in_anchor.x)]);
+              &my_grid_cells[grid_y * sample.cell_counts[1] + grid_x];
+      if (cell->in == nullptr) {
+          out[y * sample.out_pitch[1] + x] = 0;
+      } else {
+        out[y * sample.out_pitch[1] + x] = ConvertSat<OutputType>(
+                cell->in[(y - cell->cell_start[0] + cell->in_anchor[0]) * cell->in_pitch[1]
+                         + (x - cell->cell_start[1] + cell->in_anchor[1])]);
+      }
     }
   }
 }

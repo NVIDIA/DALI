@@ -17,9 +17,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
-import math
 import os
-import cv2
 from test_utils import get_dali_extra_path
 
 
@@ -119,9 +117,10 @@ def get_pipeline(
         no_intersections=True,
         full_input=False,
         in_anchor_top_left=False,
-        out_anchor_top_left=False
+        out_anchor_top_left=False,
+        use_gpu=False
 ):
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=types.CPU_ONLY_DEVICE_ID)
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
         input, _ = fn.file_reader(file_root=img_dir)
         decoded = fn.image_decoder(input, device='cpu', output_type=types.RGB)
@@ -148,7 +147,10 @@ def get_pipeline(
         if not out_anchor_top_left:
             kwargs["out_anchors"] = out_anchors
 
-        pasted = fn.multi_paste(resized, **kwargs)
+        if use_gpu:
+            kwargs["device"] = "gpu"
+
+        pasted = fn.multi_paste(resized.gpu() if use_gpu else resized, **kwargs)
         pipe.set_outputs(pasted, resized)
     return pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l
 
@@ -187,7 +189,7 @@ def show_images(batch_size, image_batch):
 
 
 def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, no_intersections, full_input, in_anchor_top_left,
-                  out_anchor_top_left, out_dtype):
+                              out_anchor_top_left, out_dtype, use_gpu):
     pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l = get_pipeline(
         batch_size=bs,
         in_size=in_size,
@@ -198,13 +200,15 @@ def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, n
         no_intersections=no_intersections,
         full_input=full_input,
         in_anchor_top_left=in_anchor_top_left,
-        out_anchor_top_left=out_anchor_top_left
+        out_anchor_top_left=out_anchor_top_left,
+        use_gpu=use_gpu
     )
     pipe.build()
     result, input = pipe.run()
+    r = result.as_cpu() if use_gpu else result
     if SHOW_IMAGES:
-        show_images(bs, result)
-    manual_verify(bs, input, result, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, [out_size + (3,)] * bs, out_dtype)
+        show_images(bs, r)
+    manual_verify(bs, input, r, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, [out_size + (3,)] * bs, out_dtype)
 
 
 def test_operator_multipaste():
@@ -220,19 +224,34 @@ def test_operator_multipaste():
         # - should "in_anchors" parameter be omitted
         # - should "out_anchors" parameter be omitted
         # - output dtype
-        [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8],
-        [4, 2, (256, 128), (128, 128), False, True, False, False, False, types.UINT8],
-        [4, 2, (128, 128), (256, 128), True, False, False, False, False, types.UINT8],
-        [4, 2, (128, 128), (128, 256), True, True, False, False, False, types.UINT8],
+        # - should use GPU operator
+        [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8, False],
+        [4, 2, (256, 128), (128, 128), False, True, False, False, False, types.UINT8, False],
+        [4, 2, (128, 128), (256, 128), True, False, False, False, False, types.UINT8, False],
+        [4, 2, (128, 128), (128, 256), True, True, False, False, False, types.UINT8, False],
 
-        [4, 2, (64, 64), (128, 128), False, False, True, False, False, types.UINT8],
-        [4, 2, (64, 64), (128, 128), False, False, False, True, False, types.UINT8],
-        [4, 2, (64, 64), (128, 128), False, False, False, False, True, types.UINT8],
+        [4, 2, (64, 64), (128, 128), False, False, True, False, False, types.UINT8, False],
+        [4, 2, (64, 64), (128, 128), False, False, False, True, False, types.UINT8, False],
+        [4, 2, (64, 64), (128, 128), False, False, False, False, True, types.UINT8, False],
 
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.UINT8],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT16],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT32],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.FLOAT]
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.UINT8, False],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT16, False],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT32, False],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.FLOAT, False],
+
+        [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8, True],
+        [4, 2, (256, 128), (128, 128), False, True, False, False, False, types.UINT8, True],
+        [4, 2, (128, 128), (256, 128), True, False, False, False, False, types.UINT8, True],
+        [4, 2, (128, 128), (128, 256), True, True, False, False, False, types.UINT8, True],
+
+        [4, 2, (64, 64), (128, 128), False, False, True, False, False, types.UINT8, True],
+        [4, 2, (64, 64), (128, 128), False, False, False, True, False, types.UINT8, True],
+        [4, 2, (64, 64), (128, 128), False, False, False, False, True, types.UINT8, True],
+
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.UINT8, True],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT16, True],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT32, True],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.FLOAT, True]
     ]
     for t in tests:
         yield (check_operator_multipaste, *t)
