@@ -609,7 +609,7 @@ def check_slice_named_args(device, batch_size):
             for rel_end_arg in [rel_end, rel_end_list]:
                 outs += [fn.slice(data, rel_start=rel_start_arg, rel_end=rel_end_arg, axes = (0, 1))]
             for shape_arg in [shape, shape_list]:
-                outs += [fn.slice(data, rel_start=start_arg, shape=shape_arg, axes = (0, 1))]
+                outs += [fn.slice(data, rel_start=rel_start_arg, shape=shape_arg, axes = (0, 1))]
         pipe.set_outputs(*outs)
     pipe.build()
     for _ in range(3):
