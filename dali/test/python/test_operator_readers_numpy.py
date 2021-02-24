@@ -321,41 +321,23 @@ def check_array(filename, shape, typ, device, fortran_order=False):
 batch_size_alias_test=64
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
-def numpy_reader_pipe(numpy_op, path, batch_size, device="cpu", file_list=None, files=None, path_filter="*.npy",
-                      num_threads=1, device_id=0, num_gpus=1, cache_header_information=False):
-    data = numpy_op(device = device,
-                    file_list = file_list,
-                    files = files,
-                    file_root = path,
-                    file_filter = path_filter,
-                    shard_id = 0,
-                    num_shards = 1,
-                    cache_header_information = cache_header_information)
+def numpy_reader_pipe(numpy_op, path, device="cpu",  path_filter="*.npy",
+                      cache_header_information=False):
+    data = numpy_op(device=device,
+                    file_root=path,
+                    file_filter=path_filter )
     return data
 
 
-def check_batch(test_data_root, batch_size, num_samples, device, arr_np_all, file_list=None, files=None, cache_header_information=False):
-    num_threads = 4
+def check_batch(test_data_root, device, arr_np_all):
     new_pipe = numpy_reader_pipe(fn.readers.numpy,
                                  path=test_data_root,
-                                 file_list=file_list,
-                                 files=files,
                                  device=device,
-                                 path_filter="test_*.npy",
-                                 batch_size=batch_size,
-                                 num_threads=num_threads,
-                                 device_id=0,
-                                 cache_header_information=False)
+                                 path_filter="test_*.npy")
     legacy_pipe = numpy_reader_pipe(fn.numpy_reader,
                                     path=test_data_root,
-                                    file_list=file_list,
-                                    files=files,
                                     device=device,
-                                    path_filter="test_*.npy",
-                                    batch_size=batch_size,
-                                    num_threads=num_threads,
-                                    device_id=0,
-                                    cache_header_information=False)
+                                    path_filter="test_*.npy")
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
 
 
@@ -363,7 +345,6 @@ def test_numpy_reader_alias():
     with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         # create files
         num_samples = 20
-        batch_size = 4
         filenames = []
         arr_np_list = []
         for index in range(0,num_samples):
@@ -374,4 +355,4 @@ def test_numpy_reader_alias():
         arr_np_all = np.stack(arr_np_list, axis=0)
 
         for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-            yield check_batch, test_data_root, batch_size, num_samples, device, arr_np_all
+            yield check_batch, test_data_root, device, arr_np_all
