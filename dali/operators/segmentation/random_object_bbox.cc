@@ -109,9 +109,7 @@ object blobs.
 Searching for blobs of connected pixels and finding boxes can take a long time. When the dataset
 has few items, but item size is big, you can use caching to save the boxes and reuse them when
 the same input is seen again. The inputs are compared based on 256-bit hash, which is much faster
-to compute than to recalculate the object boxes.
-
-This argument cannot be used when `classes` or `background` change at run-time.)", false);
+to compute than to recalculate the object boxes.)", false);
 
 bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorkspace &ws) {
   out_descs.resize(spec_.NumOutput());

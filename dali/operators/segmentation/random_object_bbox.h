@@ -69,11 +69,6 @@ class RandomObjectBBox : public Operator<CPUBackend> {
                    "``k_largest`` must be at least 1; got ", k_largest_));
     }
 
-    if (use_cache_) {
-      DALI_ENFORCE(!classes_.IsArgInput() && !background_.IsArgInput(),
-        "`cache_objects` option cannot be used when `classes` or `background` are DataNodes.");
-    }
-
     tmp_blob_storage_.set_pinned(false);
     tmp_filtered_storage_.set_pinned(false);
   }
