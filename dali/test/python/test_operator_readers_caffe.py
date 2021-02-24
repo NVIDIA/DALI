@@ -51,7 +51,7 @@ class CaffeReaderPipeline(Pipeline):
 # test: compare caffe_db_folder with [caffe_db_folder] and [caffe_db_folder, caffe_db_folder],
 # with different batch_size and num_threads
 def check_reader_path_vs_paths(paths, batch_size1, batch_size2, num_threads1, num_threads2):
- 
+
     pipe1 = CaffeReaderPipeline(caffe_db_folder, batch_size1, num_threads1)
     pipe1.build()
 
@@ -83,3 +83,34 @@ def test_reader_path_vs_paths():
                         yield check_reader_path_vs_paths, paths, \
                           batch_size1, batch_size2, num_threads1, num_threads2
 
+
+alias_batch_size=64
+
+@pipeline_def(batch_size=alias_batch_size, device_id=0, num_threads=4)
+def caffe_pipe(caffe_op, path):
+    data, label = caffe_op(path = path)
+    return data, label
+
+def test_caffe_reader_alias():
+    new_pipe = caffe_pipe(fn.readers.caffe, caffe_db_folder)
+    legacy_pipe = caffe_pipe(fn.caffe_reader, caffe_db_folder)
+    compare_pipelines(new_pipe, legacy_pipe, alias_batch_size, 50)
+
+@pipeline_def(batch_size=alias_batch_size, device_id=0, num_threads=4)
+def caffe2_pipe(caffe2_op, path, label_type):
+    if label_type == 4:
+        data = caffe2_op(path=path, label_type=label_type)
+        return data
+    else:
+        data, label = caffe2_op(path=path, label_type=label_type)
+        return data, label
+
+def check_caffe2(label_type):
+    path = c2lmdb_no_label_db_folder if label_type == 4 else c2lmdb_db_folder
+    new_pipe = caffe2_pipe(fn.readers.caffe2, path, label_type)
+    legacy_pipe = caffe2_pipe(fn.caffe2_reader, path, label_type)
+    compare_pipelines(new_pipe, legacy_pipe, alias_batch_size, 50)
+
+def test_caffe2_reader_alias():
+    for label_type in [0, 4]:
+        yield check_caffe2, label_type

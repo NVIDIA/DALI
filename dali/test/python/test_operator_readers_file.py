@@ -109,3 +109,22 @@ def test_file_reader_relpath_file_list():
             label = out_l.at(j)[0]
             index = 10000 - label
             assert contents == ref_contents(fnames[index])
+
+
+alias_batch_size=64
+
+@pipeline_def(batch_size=alias_batch_size, device_id=0, num_threads=4)
+def file_pipe(file_op, file_list):
+    files, labels = file_op(file_list=file_list)
+    return files, labels
+
+def test_file_reader_alias():
+    fnames = g_files
+
+    file_list = os.path.join(g_root, "list.txt")
+    with open(file_list, "w") as f:
+        for i, name in enumerate(fnames):
+            f.write("{0} {1}\n".format(name, 10000 - i))
+    new_pipe = file_pipe(fn.readers.file, file_list)
+    legacy_pipe = file_pipe(fn.file_reader, file_list)
+    compare_pipelines(new_pipe, legacy_pipe, alias_batch_size, 50)

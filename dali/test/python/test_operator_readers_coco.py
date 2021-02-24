@@ -155,3 +155,19 @@ def test_invalid_args():
         pipeline.set_outputs(ids)
     pipeline.build()
 
+
+alias_batch_size=64
+
+@pipeline_def(batch_size=alias_batch_size, device_id=0, num_threads=4)
+def coco_pipe(coco_op, file_root, annotations_file, polygon_masks, pixelwise_masks):
+    inputs, boxes, labels, *other = coco_op(file_root=file_root, annotations_file=annotations_file,
+            polygon_masks=polygon_masks, pixelwise_masks=pixelwise_masks)
+    return inputs, boxes, labels
+
+def test_coco_reader_alias():
+    file_root = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'images')
+    train_annotations = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'instances.json')
+    for polygon_masks, pixelwise_masks in [(None, None), (True, None), (None, True)]:
+        new_pipe = coco_pipe(fn.readers.coco, file_root, train_annotations, polygon_masks, pixelwise_masks)
+        legacy_pipe = coco_pipe(fn.coco_reader, file_root, train_annotations, polygon_masks, pixelwise_masks)
+        compare_pipelines(new_pipe, legacy_pipe, alias_batch_size, 50)
