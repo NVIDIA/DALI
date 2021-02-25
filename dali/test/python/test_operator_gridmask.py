@@ -40,9 +40,9 @@ def get_random_pipeline(device, batch_size):
     input, _ = fn.file_reader(file_root=img_dir)
     decoded = fn.image_decoder(input, device='cpu', output_type=types.RGB)
     decoded = decoded.gpu() if device == 'gpu' else decoded
-    tile = fn.cast(fn.uniform(range=(50, 200), shape=[1]), dtype=types.INT32)
-    ratio = fn.uniform(range=(0.3, 0.7), shape=[1])
-    angle = fn.uniform(range=(-math.pi, math.pi), shape=[1])
+    tile = fn.cast(fn.uniform(range=(50, 200)), dtype=types.INT32)
+    ratio = fn.uniform(range=(0.3, 0.7))
+    angle = fn.uniform(range=(-math.pi, math.pi))
     grided = fn.grid_mask(decoded, device=device, tile=tile, ratio=ratio, angle=angle)
     pipe.set_outputs(grided, decoded, tile, ratio, angle)
   return pipe
@@ -105,7 +105,7 @@ def test_cpu_vs_cv_random():
       if device == 'gpu':
         results, inputs = results.as_cpu(), inputs.as_cpu()
       for i in range(batch_size):
-        tile = np.int32(tiles[i])[0]
-        ratio = np.float32(ratios[i])[0]
-        angle = np.float32(angles[i])[0]
+        tile = np.int32(tiles[i])
+        ratio = np.float32(ratios[i])
+        angle = np.float32(angles[i])
         yield check, results[i], inputs[i], tile, ratio, angle
