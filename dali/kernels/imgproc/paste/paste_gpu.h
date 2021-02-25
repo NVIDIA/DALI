@@ -113,10 +113,12 @@ PasteKernel(const SampleDescriptorGPU<OutputType, InputType, ndims> *samples,
   auto *__restrict__ out = sample.out;
 
   int grid_y = 0;
+  int min_grid_x = 0;
+  while (threadIdx.x + block.start.x >= my_grid_cells[min_grid_x].cell_end[1]) min_grid_x++;
 
   for (int y = threadIdx.y + block.start.y; y < block.end.y; y += blockDim.y) {
     while (y >= my_grid_cells[grid_y * sample.cell_counts[1]].cell_end[0]) grid_y++;
-    int grid_x = 0;
+    int grid_x = min_grid_x;
     for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
       while (x >= my_grid_cells[grid_y * sample.cell_counts[1] + grid_x].cell_end[1]) grid_x++;
       const GridCellGPU<InputType, ndims> *cell =
