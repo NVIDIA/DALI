@@ -4,109 +4,114 @@ NVIDIA DALI
 ===========
 .. overview-begin-marker-do-not-remove
 
-Deep learning applications require complex, multi-stage pre-processing
-data pipelines. Such data pipelines involve compute-intensive operations
-that are carried out on the CPU. For example, tasks such as: load data
-from disk, decode, crop, random resize, color and spatial augmentations
-and format conversions, are mainly carried out on the CPUs, limiting the
-performance and scalability of training and inference.
+The NVIDIA Data Loading Library (DALI) is a library for data loading and
+pre-processing to accelerate deep learning applications. It provides a
+collection of highly optimized building blocks for loading and processing
+image, video and audio data. It can be used as a portable drop-in replacement
+for built in data loaders and data iterators in popular deep learning frameworks.
 
-In addition, the deep learning frameworks have multiple data
-pre-processing implementations, resulting in challenges such as
-portability of training and inference workflows, and code
-maintainability.
+Deep learning applications require complex, multi-stage data processing pipelines
+that include loading, decoding, cropping, resizing, and many other augmentations.
+These data processing pipelines, which are currently executed on the CPU, have become a 
+bottleneck, limiting the performance and scalability of training and inference.
 
-NVIDIA DALI (R), NVIDIA's Data Loading Library, is a collection of highly
-optimized building blocks, and an execution engine, to accelerate the
-pre-processing of the input data for deep learning applications. DALI
-provides both the performance and the flexibility to accelerate
-different data pipelines as one library. This library can
-then be easily integrated into different deep learning training and
-inference applications.
+DALI addresses the problem of the CPU bottleneck by offloading data preprocessing to the
+GPU. Additionally, DALI relies on its own execution engine, built to maximize the throughput
+of the input pipeline. Features such as prefetching, parallel execution, and batch processing
+are handled transparently for the user.
+
+In addition, the deep learning frameworks have multiple data pre-processing implementations,
+resulting in challenges such as portability of training and inference workflows, and code
+maintainability. Data processing pipelines implemented using DALI are portable because they
+can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle. 
+
+.. image:: /dali.png
+    :width: 800
+    :align: center 
+    :alt: DALI Diagram
 
 Highlights
 ----------
+- Easy-to-use functional style Python API.
+- Multiple data formats support - LMDB, RecordIO, TFRecord, COCO, JPEG, JPEG 2000, WAV, FLAC, OGG, H.264, VP9 and HEVC.
+- Portable accross popular deep learning frameworks: TensorFlow, PyTorch, MXNet, PaddlePaddle.
+- Supports CPU and GPU execution.
+- Scalable across multiple GPUs.
+- Flexible graphs let developers create custom pipelines.
+- Extensible for user-specific needs with custom operators.
+- Accelerates image classification (ResNet-50), object detection (SSD) workloads as well as ASR models (Jasper, RNN-T).
+- Allows direct data path between storage and GPU memory with |gds|_.
+- Easy integration with |triton|_ with |triton-dali-backend|_.
+- Open source.
 
-- Full data pipeline--accelerated from reading the disk to getting
-  ready for training and inference.
-- Flexibility through configurable graphs and custom operators.
-- Support for image classification and segmentation workloads.
-- Ease of integration through direct framework plugins and open
-  source bindings.
-- Portable training workflows with multiple input formats: JPEG,
-  PNG (fallback to CPU), TIFF (fallback to CPU), BMP (fallback to CPU),
-  raw formats, LMDB, RecordIO, TFRecord.
-- Extensible for user-specific needs through open source license.
+.. |gds| replace:: GPUDirect Storage
+.. _gds: https://developer.nvidia.com/gpudirect-storage
+
+.. |triton| replace:: NVIDIA Triton Inference Server
+.. _triton: https://developer.nvidia.com/nvidia-triton-inference-server
+
+.. |triton-dali-backend| replace:: DALI TRITON Backend
+.. _triton-dali-backend: https://github.com/triton-inference-server/dali_backend
 
 .. overview-end-marker-do-not-remove
 
 ----
 
-Table of Contents
------------------
+Installing DALI
+---------------
 
-- `Installing or building DALI`_
-- `Examples and tutorials`_
-- `Additional resources`_
-- `Contributing to DALI`_
-- `Reporting problems, asking questions`_
-- `Contributors`_
+To install the latest DALI release for the latest CUDA version (11.x)::
 
-----
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda110
 
-Installing or building DALI
----------------------------
+DALI comes preinstalled in the TensorFlow, PyTorch, and MXNet containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_ 
+(versions 18.07 and later).
 
-DALI is preinstalled in the TensorFlow, PyTorch, and MXNet containers in versions 18.07 and
-later on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_.
+For other installation paths (TensorFlow plugin, older CUDA version, nightly and weekly builds, etc),
+please refer to the |docs_install|_.
 
-Latest DALI release as well as weekly and nightly developer builds can be installed using pip.
-Detailed instructions can be found in the documentation |docs_install|_.
-Build instructions for DALI can be found in |dali_compile|_.
+To build DALI from source, please refer to the |dali_compile|_.
 
-.. |docs_install| replace:: installation guide
+.. |docs_install| replace:: Installation Guide
 .. _docs_install: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html
-.. |dali_compile| replace:: compilation guide
+.. |dali_compile| replace:: Compilation Guide
 .. _dali_compile: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/compilation.html
 
 ----
 
-Examples and tutorials
+Examples and Tutorials
 ----------------------
 
-Introduction to DALI can be found at |dali_start|_ docs page.
+An introduction to DALI can be found in the |dali_start|_ page.
 
-The `docs/examples <https://github.com/NVIDIA/DALI/blob/master/docs/examples>`_
-directory contains a few examples (in the form of Jupyter notebooks)
-highlighting different features of DALI and how to use DALI to interface
-with deep learning frameworks.
+More advanced examples can be found in the |dali_examples|_ page.
 
-.. |dali_start| replace:: Getting started
+For an interactive version (Jupyter notebook) of the examples, go to the `docs/examples <https://github.com/NVIDIA/DALI/blob/master/docs/examples>`_
+directory.
+
+**Note:** Select the |release-doc|_ or the |nightly-doc|_, which stays in sync with the main branch,
+depending on your version.
+
+.. |dali_start| replace:: Getting Started
 .. _dali_start: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/getting%20started.html
-
-Also note:
-
-- Documentation for the latest stable release is available
-  |here1|_, and
-- Nightly version of the documentation that stays in sync with the
-  main branch is available |here2|_.
-
-.. |here1| replace:: here
-.. _here1: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
-.. |here2| replace:: here
-.. _here2: https://docs.nvidia.com/deeplearning/dali/master-user-guide/docs/index.html
+.. |dali_examples| replace:: Examples and Tutorials
+.. _dali_examples: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/index.html
+.. |release-doc| replace:: Latest Release Documentation
+.. _release-doc: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
+.. |nightly-doc| replace:: Nightly Release Documentation
+.. _nightly-doc: https://docs.nvidia.com/deeplearning/dali/master-user-guide/docs/index.html
 
 ----
 
-Additional resources
+Additional Resources
 --------------------
 
 - GPU Technology Conference 2018; Fast data pipeline for deep learning training, T. Gale, S. Layton and P. Trędak: |slides1|_, |recording1|_.
 - GPU Technology Conference 2019; Fast AI data pre-preprocessing with DALI; Janusz Lisiecki, Michał Zientkiewicz: |slides2|_, |recording2|_.
 - GPU Technology Conference 2019; Integration of DALI with TensorRT on Xavier; Josh Park and Anurag Dixit: |slides3|_, |recording3|_.
 - GPU Technology Conference 2020; Fast Data Pre-Processing with NVIDIA Data Loading Library (DALI); Albert Wolant, Joaquin Anton Guirao |recording4|_.
-- `Developer page <https://developer.nvidia.com/DALI>`_.
-- `Blog post <https://devblogs.nvidia.com/fast-ai-data-preprocessing-with-nvidia-dali/>`_.
+- `Developer Page <https://developer.nvidia.com/DALI>`_.
+- `Blog Posts <https://developer.nvidia.com/blog/tag/dali/>`_.
 
 .. |slides1| replace:: slides
 .. _slides1:  http://on-demand.gputechconf.com/gtc/2018/presentation/s8906-fast-data-pipelines-for-deep-learning-training.pdf
@@ -135,7 +140,7 @@ document.
 If you are looking for a task good for the start please check one from
 `external contribution welcome label <https://github.com/NVIDIA/DALI/labels/external%20contribution%20welcome>`_.
 
-Reporting problems, asking questions
+Reporting Problems, Asking Questions
 ------------------------------------
 
 We appreciate feedback, questions or bug reports. When you need help
@@ -152,11 +157,11 @@ posted examples are:
   that it reproduces the problem. Remove all other problems that are not
   related to your request.
 
-Contributors
-------------
+Acknowledgements
+----------------
 
-DALI is being built with major contributions from Trevor Gale, Przemek
-Tredak, Simon Layton, Andrei Ivanov, Serge Panev.
+DALI was originally built with major contributions from Trevor Gale, Przemek Tredak,
+Simon Layton, Andrei Ivanov and Serge Panev.
 
 .. |License| image:: https://img.shields.io/badge/License-Apache%202.0-blue.svg
    :target: https://opensource.org/licenses/Apache-2.0
