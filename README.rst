@@ -37,7 +37,7 @@ Highlights
 - Portable accross popular deep learning frameworks: TensorFlow, PyTorch, MXNet, PaddlePaddle.
 - Supports CPU and GPU execution.
 - Scalable across multiple GPUs.
-- Flexible graphs lets developers create custom pipelines.
+- Flexible graphs let developers create custom pipelines.
 - Extensible for user-specific needs with custom operators.
 - Accelerates image classification (ResNet-50), object detection (SSD) workloads as well as ASR models (Jasper, RNN-T).
 - Allows direct data path between storage and GPU memory with |gds|_.
