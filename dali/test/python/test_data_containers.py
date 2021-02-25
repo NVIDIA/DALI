@@ -79,13 +79,13 @@ class TFRecordPipeline(CommonPipeline):
         super(TFRecordPipeline, self).__init__(batch_size, num_threads, device_id)
         tfrecord = sorted(glob.glob(data_paths[0]))
         tfrecord_idx = sorted(glob.glob(data_paths[1]))
-        self.input = ops.TFRecordReader(path = tfrecord,
-                                        index_path = tfrecord_idx,
-                                        shard_id = device_id,
-                                        num_shards = num_gpus,
-                                        features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
-                                                    "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)
-                                        }, dont_use_mmap=dont_use_mmap)
+        self.input = ops.readers.TFRecord(path = tfrecord,
+                                          index_path = tfrecord_idx,
+                                          shard_id = device_id,
+                                          num_shards = num_gpus,
+                                          features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+                                                      "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)
+                                          }, dont_use_mmap=dont_use_mmap)
 
     def define_graph(self):
         inputs = self.input(name="Reader")

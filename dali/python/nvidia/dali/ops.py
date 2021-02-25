@@ -735,9 +735,7 @@ def Reload():
     _load_ops()
 
 # custom wrappers around ops
-class TFRecordReader(metaclass=_DaliOperatorMeta):
-    global _cpu_ops
-    _cpu_ops = _cpu_ops.union({'TFRecordReader'})
+class _TFRecordReaderImpl():
 
     def __init__(self, path, index_path, features, **kwargs):
         if isinstance(path, list):
@@ -748,8 +746,8 @@ class TFRecordReader(metaclass=_DaliOperatorMeta):
             self._index_path = index_path
         else:
             self._index_path = [index_path]
-        self._schema = _b.GetSchema("_TFRecordReader")
-        self._spec = _b.OpSpec("_TFRecordReader")
+        self._schema = _b.GetSchema(self._internal_schema_name)
+        self._spec = _b.OpSpec(self._internal_schema_name)
         self._device = "cpu"
 
         self._spec.AddArg("path", self._path)
@@ -806,7 +804,26 @@ class TFRecordReader(metaclass=_DaliOperatorMeta):
         op_instance.spec.AddArg("features", features)
         return outputs
 
-TFRecordReader.__call__.__doc__ = _docstring_generator_call("TFRecordReader")
+_TFRecordReaderImpl.__call__.__doc__ = _docstring_generator_call("readers__TFRecord")
+
+def _load_readers_tfrecord():
+    global _cpu_ops
+    _cpu_ops = _cpu_ops.union({'readers__TFRecord', 'TFRecordReader'})
+
+    ops_module = sys.modules[__name__]
+    class TFRecordReader(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta): pass
+    class TFRecord(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta): pass
+    for op_reg_name, internal_schema, op_class in [('readers__TFRecord', 'readers___TFRecord', TFRecord),
+                                                   ('TFRecordReader', '_TFRecordReader', TFRecordReader)]:
+        op_class.schema_name = op_reg_name
+        op_class._internal_schema_name = internal_schema
+        op_full_name, submodule, op_name = _process_op_name(op_reg_name)
+        module = _internal.get_submodule(ops_module, submodule)
+        if not hasattr(module, op_name):
+            op_class.__module__ = module.__name__
+            setattr(module, op_name, op_class)
+            _wrap_op(op_class, submodule)
+
 
 class PythonFunctionBase(metaclass=_DaliOperatorMeta):
     def __init__(self, impl_name, function, num_outputs=1, device='cpu', **kwargs):
@@ -988,7 +1005,6 @@ class DLTensorPythonFunction(PythonFunctionBase):
 
 _wrap_op(PythonFunction)
 _wrap_op(DLTensorPythonFunction)
-_wrap_op(TFRecordReader)
 
 
 def _choose_device(inputs):
@@ -1230,4 +1246,6 @@ example, ``Compose`` automatically arranges copying the data to GPU memory.
 _cpu_ops = _cpu_ops.union({"Compose"})
 _gpu_ops = _gpu_ops.union({"Compose"})
 
+
 _load_ops()
+_load_readers_tfrecord()

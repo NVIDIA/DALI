@@ -145,17 +145,17 @@ class TFRecordPipeline(CommonPipeline):
         tfrecord = sorted(glob.glob(kwargs['data_paths'][0]))
         tfrecord_idx = sorted(glob.glob(kwargs['data_paths'][1]))
         cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
-        self.input = ops.TFRecordReader(path = tfrecord,
-                                        index_path = tfrecord_idx,
-                                        shard_id = kwargs['shard_id'],
-                                        num_shards = kwargs['num_shards'],
-                                        random_shuffle = kwargs['random_shuffle'],
-                                        dont_use_mmap = kwargs['dont_use_mmap'],
-                                        stick_to_shard = cache_enabled,
-                                        #skip_cached_images = cache_enabled,
-                                        features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
-                                                    "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)
-                                        })
+        self.input = ops.readers.TFRecord(path = tfrecord,
+                                          index_path = tfrecord_idx,
+                                          shard_id = kwargs['shard_id'],
+                                          num_shards = kwargs['num_shards'],
+                                          random_shuffle = kwargs['random_shuffle'],
+                                          dont_use_mmap = kwargs['dont_use_mmap'],
+                                          stick_to_shard = cache_enabled,
+                                          #skip_cached_images = cache_enabled,
+                                          features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+                                                      "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)
+                                          })
 
     def define_graph(self):
         inputs = self.input(name="Reader")

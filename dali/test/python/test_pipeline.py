@@ -1049,17 +1049,17 @@ class CachedPipeline(Pipeline):
                                         skip_cached_images = skip_cached_images,
                                         prefetch_queue_depth = 1)
 
-        elif reader_type == "TFRecordReader":
+        elif reader_type == "readers.TFRecord":
             tfrecord = sorted(glob.glob(os.path.join(tfrecord_db_folder, '*[!i][!d][!x]')))
             tfrecord_idx = sorted(glob.glob(os.path.join(tfrecord_db_folder, '*idx')))
-            self.input = ops.TFRecordReader(path = tfrecord,
-                                            index_path = tfrecord_idx,
-                                            shard_id = 0,
-                                            num_shards = num_shards,
-                                            stick_to_shard = True,
-                                            skip_cached_images = skip_cached_images,
-                                            features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
-                                                        "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
+            self.input = ops.readers.TFRecord(path = tfrecord,
+                                              index_path = tfrecord_idx,
+                                              shard_id = 0,
+                                              num_shards = num_shards,
+                                              stick_to_shard = True,
+                                              skip_cached_images = skip_cached_images,
+                                              features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+                                                          "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
 
         if is_cached:
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB,
@@ -1073,7 +1073,7 @@ class CachedPipeline(Pipeline):
             # hw_decoder_load=0.0 for deterministic results
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB, hw_decoder_load = 0.0)
     def define_graph(self):
-        if self.reader_type == "TFRecordReader":
+        if self.reader_type == "readers.TFRecord":
             inputs = self.input()
             jpegs = inputs["image/encoded"]
             labels = inputs["image/class/label"]
@@ -1085,14 +1085,14 @@ class CachedPipeline(Pipeline):
 
 def test_nvjpeg_cached_batch_copy_pipelines():
     batch_size = 26
-    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "TFRecordReader"}:
+    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "readers.TFRecord"}:
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=True),
                           CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=False),
                           batch_size=batch_size, N_iterations=20)
 
 def test_nvjpeg_cached_pipelines():
     batch_size = 26
-    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "TFRecordReader"}:
+    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "readers.TFRecord"}:
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
                           CachedPipeline(reader_type, batch_size, is_cached=True),
                           batch_size=batch_size, N_iterations=20)
