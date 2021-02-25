@@ -73,6 +73,7 @@ class SharedBatchMeta:
 def deserialize_sample(buffer: shared_mem.SharedMem, sample):
     if isinstance(sample, SampleMeta):
         offset = sample.offset
+        assert offset % sample.dtype.itemsize == 0, "Sample offset is missaligned."
         buffer = buffer.buf[offset:offset + sample.nbytes]
         return np.ndarray(sample.shape, dtype=sample.dtype, buffer=buffer)
     if isinstance(sample, (tuple, list,)):

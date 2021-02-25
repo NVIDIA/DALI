@@ -315,21 +315,21 @@ def join_thread(processes, tracker_pipe, main_thread_pipe, task_pipes, task_pipe
         main_thread_pipe.send(None)
 
 
-class WorkersPool:
+class WorkerPool:
     """"Combines worker processes pool with callback contexts, can be used to schedule batches
     to be run on the workers and to receive resulting batches from the workers."""
 
-    def __init__(self, callbacks_num, pool):
+    def __init__(self, num_callbacks, pool):
         """
         Parameters
         ----------
-        `callbacks_num` : int
+        `num_callbacks` : int
             Number of callabacks that can be run in the workers, each callback will have separate
             context with dedicated shared memory pool.
         `pool` : ProcPool
             ProcPool instance enabling basic communication with worker processes.
         """
-        self.contexts = [CallbackContext() for _ in range(callbacks_num)]
+        self.contexts = [CallbackContext() for _ in range(num_callbacks)]
         self.pool = pool
         self.rec_pipes = self.pool.get_recv_pipes()
 

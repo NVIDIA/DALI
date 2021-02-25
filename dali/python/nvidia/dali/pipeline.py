@@ -17,7 +17,7 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
-from nvidia.dali.pool import WorkersPool
+from nvidia.dali.pool import WorkerPool
 from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
@@ -119,16 +119,18 @@ Parameters
     If DALI should print operator output buffer statistics.
     Usefull for `bytes_per_sample_hint` operator parameter.
 `py_num_workers`: int, optional, default = 1
-    Specify the number of Python workers that will process ExternalSource callbacks.
+    The number of Python workers that will process ``ExternalSource`` callbacks.
     The pool starts only if there is at least one ExternalSource with ``parallel`` set to True.
-    Setting it to 0 disables the pool and all ExternalSource operators fall back to non parallel
+    Setting it to 0 disables the pool and all ExternalSource operators fall back to non-parallel
     mode even if ``parallel`` is set to True.
 `py_start_method` : str, default = "fork"
-    Specify how Python workers should start. Supported methods:
-        * ``fork`` - start by forking the process
-        * ``spawn`` - start fresh interpreter process
+    Determines how Python workers are started. Supported methods:
+
+      * ``"fork"`` - start by forking the process
+      * ``"spawn"`` - start a fresh interpreter process
+
     If ``spawn`` method is used, ExternalSource's callback must be picklable.
-    If you use ``fork``, there must be no CUDA context acquired at the moment of starting
+    In order to use ``fork``, there must be no CUDA contexts acquired at the moment of starting
     the workers. For this reason, if you need to build multiple pipelines that use Python workers,
     you will need to call :meth:`start_py_workers` before calling :meth:`build` of any
     of the pipelines. You can find more details and caveats of both methods in Python's
@@ -250,17 +252,17 @@ Parameters
 
         Available metadata keys for each operator:
 
-        ``real_memory_size``:     list of memory sizes that is used by each output of the operator;
-                                  index in the list corresponds to the output index
+            * ``real_memory_size`` - list of memory sizes that is used by each output of the operator.
+              Index in the list corresponds to the output index.
 
-        ``max_real_memory_size``: list of maximum tensor size that is used by each output of the operator;
-                                  index in the list corresponds to the output index
+            * ``max_real_memory_size`` - list of maximum tensor size that is used by each output of the operator.
+              Index in the list corresponds to the output index.
 
-        ``reserved_memory_size``: list of memory sizes that is reserved for each of the operator outputs
-                                  index in the list corresponds to the output index
+            * ``reserved_memory_size`` - list of memory sizes that is reserved for each of the operator outputs.
+              Index in the list corresponds to the output index.
 
-        ``max_reserved_memory_size``: list of maximum memory sizes per tensor that is reserved for each of the operator outputs
-                                  index in the list corresponds to the output index
+            * ``max_reserved_memory_size`` - list of maximum memory sizes per tensor that is reserved for each of the operator outputs.
+              Index in the list corresponds to the output index.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -495,7 +497,7 @@ Parameters
     def _start_py_workers(self):
         if not self._parallel_input_callbacks:
             return
-        self._py_pool = WorkersPool.from_groups(
+        self._py_pool = WorkerPool.from_groups(
             self._parallel_input_callbacks, self._prefetch_queue_depth, self._py_start_method, self._py_num_workers)
         # pool instance releases shared memory when garbage collected, thus it must outlive the pipeline instance
         # when external source is used with no_copy=True
@@ -547,10 +549,10 @@ Parameters
 
     def start_py_workers(self):
         """
-        Start Python workers (that will run ExternalSource callbacks).
+        Start Python workers (that will run ``ExternalSource`` callbacks).
         You need to call :meth:`start_py_workers` before you call any functionality that creates
-        or acquires CUDA context when using fork to start Python workers (``py_start_method=fork``).
-        It is called automatically by Pipeline's build method when such separation is not necessary.
+        or acquires CUDA context when using ``fork`` to start Python workers (``py_start_method="fork"``).
+        It is called automatically by :meth:`Pipeline.build` method when such separation is not necessary.
 
         If you are going to build more than one pipeline that starts Python workers by forking
         the process then you need to call :meth:`start_py_workers` method on all those pipelines
@@ -558,7 +560,7 @@ Parameters
         for current process.
 
         The same applies to using any other functionality that would create CUDA context -
-        for example initializing a framework that uses CUDA or creating CUDA tensors with it.
+        for example, initializing a framework that uses CUDA or creating CUDA tensors with it.
         You need to call :meth:`start_py_workers` before you call such functionality when
         using ``py_start_method=fork``.
 
@@ -583,6 +585,9 @@ Parameters
             If specified, this function will be used instead of member :meth:`define_graph`.
             This parameter must not be set, if the pipeline outputs are specified with
             :meth:`set_outputs` or if the :meth:`start_py_workers` is used.
+
+        ..note::
+            This method of defining the processing graph cannot be used with parallel ``ExternalSource``.
         """
         if self._built:
             return
@@ -611,6 +616,7 @@ Parameters
 
         data : an ndarray or DLPack or a list thereof
             The array(s) may be one of:
+
               * NumPy ndarray (CPU)
               * MXNet ndarray (CPU)
               * PyTorch tensor (CPU or GPU)
@@ -637,6 +643,7 @@ Parameters
             explicitly.
 
             Special values:
+
               *  0 - use default CUDA stream
               * -1 - use DALI's internal stream
 

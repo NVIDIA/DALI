@@ -77,8 +77,7 @@ def save_image(image, file_name):
         elif min >= -128 and max <= 127:
             image = image + 128
     else:
-        image = (image - np.iinfo(image.dtype).min) * (255.0 /
-                                                       (np.iinfo(image.dtype).max - np.iinfo(image.dtype).min))
+        image = (image - np.iinfo(image.dtype).min) * (255.0 / (np.iinfo(image.dtype).max - np.iinfo(image.dtype).min))
     image = image.astype(np.uint8)
     Image.fromarray(image).save(file_name)
 

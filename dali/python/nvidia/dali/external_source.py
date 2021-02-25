@@ -267,6 +267,7 @@ Args
     respective return value of the external_source.
 
     The data samples must be in one of the compatible array types:
+
         * NumPy ndarray (CPU)
         * MXNet ndarray (CPU)
         * PyTorch tensor (CPU or GPU)
@@ -307,6 +308,7 @@ Keyword Args
 `cycle`: string or bool, optional
     Specifies if and how to cycle through the source.
     It can be one of the following values:
+
         * ``"no"``, ``False`` or ``None`` - don't cycle; ``StopIteration`` is raised whe end of data is reached; this is the default behavior
         * ``"quiet"`` or ``True`` - the data is repeated indefinitely,
         * ``"raise"`` - when the end of data is reached, ``StopIteration`` is raised, but the iteration is restarted on subsequent call.
@@ -341,6 +343,7 @@ Keyword Args
     explicitly supply the stream handle.
 
     This argument has two special values:
+
       * 0 - Use the default CUDA stream
       * 1 - Use DALI's internal stream
 
@@ -379,17 +382,22 @@ Keyword Args
     Automatically set to ``True`` when ``parallel=True``
 
 `batch` : bool, optional
-    If set to ``True`` or ``None``, the ``source`` is expected to produce an entire batch at once.
-    If set to ``False``, the ``source`` is called per-sample.
+    If set to True or None, the ``source`` is expected to produce an entire batch at once.
+    If set to False, the ``source`` is called per-sample.
+
+    Setting ``parallel`` to True automatically sets ``batch`` to False if it was not provided.
 
 `parallel` : bool, optional, default = False
-    If set to ``True`` the corresponding pipeline will run pool of Python workers to run the
+    If set to True, the corresponding pipeline will run pool of Python workers to run the
     callback in parallel. You can specify the number of workers by passing ``py_num_workers``
     into pipeline's constructor.
 
-    When parallel=True ``source`` must return NumPy/MXNet/PyTorch CPU array, TensorCPU, or
-    tuple/list of these types with length matching num_outputs.
+    When ``parallel`` is set to True, ``source`` must return NumPy/MXNet/PyTorch CPU array,
+    TensorCPU, or tuple/list of these types with length matching num_outputs.
     The ``source`` callback must raise StopIteration when the end of data is reached.
+
+    Setting ``parallel`` to True makes the external source work in per-sample mode.
+    If ``batch`` was not set it is set to False.
 
 `prefetch_queue_depth` : int, option, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in advance and stored
@@ -465,25 +473,25 @@ Keyword Args
                 raise RuntimeError("``source`` already specified in constructor.")
             callback = _get_callback_from_source(source, cycle)
 
+        if parallel is None:
+            parallel = self._parallel or False
+        elif self._parallel is not None:
+            raise ValueError("The argument ``parallel`` already specified in constructor.")
 
         if batch is None:
             batch = self._batch
         elif self._batch is not None:
             raise ValueError("The argument ``batch`` already specified in constructor.")
 
+        # By default parallel is False, so batch will be True
         if batch is None:
-            batch = True
+            batch = not parallel
 
         if prefetch_queue_depth is None:
             prefetch_queue_depth = self._prefetch_queue_depth
         elif self._prefetch_queue_depth is not None:
             raise ValueError(
                 "The argument ``prefetch_queue_depth`` already specified in constructor.")
-
-        if parallel is None:
-            parallel = self._parallel or False
-        elif self._parallel is not None:
-            raise ValueError("The argument ``parallel`` already specified in constructor.")
 
         if no_copy is None:
             no_copy = self._no_copy
