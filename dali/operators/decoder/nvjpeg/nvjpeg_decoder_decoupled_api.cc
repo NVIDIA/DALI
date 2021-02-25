@@ -18,6 +18,7 @@
 
 namespace dali {
 
+DALI_REGISTER_OPERATOR(decoders__Image, nvJPEGDecoder, Mixed);
 DALI_REGISTER_OPERATOR(ImageDecoder, nvJPEGDecoder, Mixed);
 
 }  // namespace dali
