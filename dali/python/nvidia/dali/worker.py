@@ -132,6 +132,43 @@ class SharedBatchesDispatcher:
         self.sock.shutdown(socket.SHUT_RDWR)
         self.sock.close()
 
+class TaskReceiver:
+    def __init__(self, task_pipe):
+        self.task_pipe = task_pipe
+        self.tasks_cv = threading.Condition()
+        self.tasks_queue = []
+
+    def get_task(self):
+        with self.tasks_cv:
+            while len(self.tasks_queue) == 0:
+                self.tasks_cv.wait()
+            scheduled = self.tasks_queue.pop(0)
+        return scheduled
+
+    def receiver_thread(self):
+        """Receives list of tasks scheduled to be done by the worker.
+        Intended to be run in a separate thread to avoid blocking of the main process when
+        it schedules another batch for the worker and worker is busy with previously scheduled
+        computations.
+        """
+        try:
+            while True:
+                scheduled = self.task_pipe.recv()
+                if scheduled is None:
+                    break
+                self._insert_task(scheduled)
+        finally:
+            self._insert_task(None)
+
+    def _insert_task(self, scheduled_task):
+        with self.tasks_cv:
+            if scheduled_task is None:
+                self.tasks_queue.insert(0, None)
+            else:
+                self.tasks_queue.append(scheduled_task)
+            self.tasks_cv.notify()
+
+
 class CallbackContext:
     """Worker can run multiple Python callbacks, CallbackContext is used to
     (independently from other callbacks) manage shared memory used to pass
@@ -155,25 +192,6 @@ class CallbackContext:
     def close(self):
         for chunk in self.mem_chunks:
             chunk.close()
-
-
-def receiver(task_pipe, tasks_cv, tasks_queue):
-    """Receives list of tasks scheduled to be done by the worker, run in a separate thread
-    to avoid blocking of the main process when it schedules another batch for the worker and
-    worker is busy with previously scheduled computations.
-    """
-    try:
-        while True:
-            scheduled = task_pipe.recv()
-            if scheduled is None:
-                break
-            with tasks_cv:
-                tasks_queue.append(scheduled)
-                tasks_cv.notify()
-    finally:
-        with tasks_cv:
-            tasks_queue.insert(0, None)
-            tasks_cv.notify()
 
 
 def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task_pipe, res_pipe, sock):
@@ -200,15 +218,12 @@ def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task
         Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to parent process.
     """
     contexts = None
-
-    tasks_cv = threading.Condition()
-    ready_queue, tasks_queue = [], []
     batch_dispatcher = SharedBatchesDispatcher(worker_id, sock, res_pipe)
+    task_receiver = TaskReceiver(task_pipe)
     # run the thread as a daemon so that even when results queue blocks, worker process can exit anyway
     # and can be joined in the parent process
     dispatcher_thread = threading.Thread(target=batch_dispatcher.dispatcher_thread, daemon=True)
-    receiver_thread = threading.Thread(target=receiver, args=(
-        task_pipe, tasks_cv, tasks_queue), daemon=True)
+    receiver_thread = threading.Thread(target=task_receiver.receiver_thread, daemon=True)
     dispatcher_thread.start()
     receiver_thread.start()
     try:
@@ -220,10 +235,7 @@ def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task
             for callback_idx, (callback, prefetch_queue_depth) in enumerate(zip(callbacks, prefetch_queue_depths))
         ]
         while True:
-            with tasks_cv:
-                while len(tasks_queue) == 0:
-                    tasks_cv.wait()
-                scheduled = tasks_queue.pop(0)
+            scheduled = task_receiver.get_task()
             if scheduled is None:
                 break
             context = contexts[scheduled.context_i]
@@ -238,15 +250,8 @@ def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task
                 mem_chunk = context.next_mem_chunk()
                 processed = _ProcessedTasks.done(scheduled, mem_chunk, data_batch)
             batch_dispatcher.dispatch(processed)
-            # with ready_cv:
-            #     assert len(ready_queue) < prefetch_queue_depths[scheduled.context_i], "Worker queue size exceeded."
-            #     ready_queue.append(processed)
-            #     ready_cv.notify()
     finally:
         batch_dispatcher.dispatch(None)
-        # with ready_cv:
-        #     ready_queue.insert(0, None)
-        #     ready_cv.notify()
         if contexts is not None:
             for context in contexts:
                 context.close()
