@@ -1027,12 +1027,14 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
                 any(isinstance(y, _DataNode) for y in x) and \
                 all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x)
 
+    default_input_device = "gpu" if device == "gpu" else "cpu"
+
     for idx, inp in enumerate(inputs):
         if not is_input(inp):
-            input_device = schema.GetInputDevice(idx) or device if schema else device
+            input_device = schema.GetInputDevice(idx) or default_input_device if schema else default_input_device
             if not isinstance(inp, nvidia.dali.types.ScalarConstant):
                 try:
-                    inp = nvidia.dali.types.Constant(inp, device=input_device)
+                    inp = _Constant(inp, device=input_device)
                 except Exception as ex:
                     raise TypeError("""when calling operator {0}:
 Input {1} is neither a DALI `DataNode` nor a list of data nodes but `{2}`.
