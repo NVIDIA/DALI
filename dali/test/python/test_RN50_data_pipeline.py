@@ -75,14 +75,14 @@ class MXNetReaderPipeline(CommonPipeline):
     def __init__(self, **kwargs):
         super(MXNetReaderPipeline, self).__init__(**kwargs)
         cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
-        self.input = ops.MXNetReader(path = kwargs['data_paths'][0],
-                                     index_path = kwargs['data_paths'][1],
-                                     shard_id = kwargs['shard_id'],
-                                     num_shards = kwargs['num_shards'],
-                                     random_shuffle = kwargs['random_shuffle'],
-                                     stick_to_shard = cache_enabled,
-                                     #skip_cached_images = cache_enabled,
-                                     prefetch_queue_depth = kwargs['reader_queue_depth'])
+        self.input = ops.readers.MXNet(path = kwargs['data_paths'][0],
+                                       index_path = kwargs['data_paths'][1],
+                                       shard_id = kwargs['shard_id'],
+                                       num_shards = kwargs['num_shards'],
+                                       random_shuffle = kwargs['random_shuffle'],
+                                       stick_to_shard = cache_enabled,
+                                       #skip_cached_images = cache_enabled,
+                                       prefetch_queue_depth = kwargs['reader_queue_depth'])
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
@@ -92,14 +92,14 @@ class CaffeReadPipeline(CommonPipeline):
     def __init__(self, **kwargs):
         super(CaffeReadPipeline, self).__init__(**kwargs)
         cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
-        self.input = ops.CaffeReader(path = kwargs['data_paths'][0],
-                                     shard_id = kwargs['shard_id'],
-                                     num_shards = kwargs['num_shards'],
-                                     stick_to_shard = cache_enabled,
-                                     random_shuffle = kwargs['random_shuffle'],
-                                     dont_use_mmap = kwargs['dont_use_mmap'],
-                                     #skip_cached_images = cache_enabled,
-                                     prefetch_queue_depth = kwargs['reader_queue_depth'])
+        self.input = ops.readers.Caffe(path = kwargs['data_paths'][0],
+                                       shard_id = kwargs['shard_id'],
+                                       num_shards = kwargs['num_shards'],
+                                       stick_to_shard = cache_enabled,
+                                       random_shuffle = kwargs['random_shuffle'],
+                                       dont_use_mmap = kwargs['dont_use_mmap'],
+                                       #skip_cached_images = cache_enabled,
+                                       prefetch_queue_depth = kwargs['reader_queue_depth'])
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
@@ -109,7 +109,24 @@ class Caffe2ReadPipeline(CommonPipeline):
     def __init__(self, **kwargs):
         super(Caffe2ReadPipeline, self).__init__(**kwargs)
         cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
-        self.input = ops.Caffe2Reader(path = kwargs['data_paths'][0],
+        self.input = ops.readers.Caffe2(path = kwargs['data_paths'][0],
+                                        shard_id = kwargs['shard_id'],
+                                        num_shards = kwargs['num_shards'],
+                                        random_shuffle = kwargs['random_shuffle'],
+                                        dont_use_mmap = kwargs['dont_use_mmap'],
+                                        stick_to_shard = cache_enabled,
+                                        #skip_cached_images = cache_enabled,
+                                        prefetch_queue_depth = kwargs['reader_queue_depth'])
+
+    def define_graph(self):
+        images, labels = self.input(name="Reader")
+        return self.base_define_graph(images, labels)
+
+class FileReadPipeline(CommonPipeline):
+    def __init__(self, **kwargs):
+        super(FileReadPipeline, self).__init__(**kwargs)
+        cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
+        self.input = ops.readers.File(file_root = kwargs['data_paths'][0],
                                       shard_id = kwargs['shard_id'],
                                       num_shards = kwargs['num_shards'],
                                       random_shuffle = kwargs['random_shuffle'],
@@ -122,40 +139,23 @@ class Caffe2ReadPipeline(CommonPipeline):
         images, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
 
-class FileReadPipeline(CommonPipeline):
-    def __init__(self, **kwargs):
-        super(FileReadPipeline, self).__init__(**kwargs)
-        cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
-        self.input = ops.FileReader(file_root = kwargs['data_paths'][0],
-                                    shard_id = kwargs['shard_id'],
-                                    num_shards = kwargs['num_shards'],
-                                    random_shuffle = kwargs['random_shuffle'],
-                                    dont_use_mmap = kwargs['dont_use_mmap'],
-                                    stick_to_shard = cache_enabled,
-                                    #skip_cached_images = cache_enabled,
-                                    prefetch_queue_depth = kwargs['reader_queue_depth'])
-
-    def define_graph(self):
-        images, labels = self.input(name="Reader")
-        return self.base_define_graph(images, labels)
-
 class TFRecordPipeline(CommonPipeline):
     def __init__(self, **kwargs):
         super(TFRecordPipeline, self).__init__(**kwargs)
         tfrecord = sorted(glob.glob(kwargs['data_paths'][0]))
         tfrecord_idx = sorted(glob.glob(kwargs['data_paths'][1]))
         cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
-        self.input = ops.TFRecordReader(path = tfrecord,
-                                        index_path = tfrecord_idx,
-                                        shard_id = kwargs['shard_id'],
-                                        num_shards = kwargs['num_shards'],
-                                        random_shuffle = kwargs['random_shuffle'],
-                                        dont_use_mmap = kwargs['dont_use_mmap'],
-                                        stick_to_shard = cache_enabled,
-                                        #skip_cached_images = cache_enabled,
-                                        features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
-                                                    "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)
-                                        })
+        self.input = ops.readers.TFRecord(path = tfrecord,
+                                          index_path = tfrecord_idx,
+                                          shard_id = kwargs['shard_id'],
+                                          num_shards = kwargs['num_shards'],
+                                          random_shuffle = kwargs['random_shuffle'],
+                                          dont_use_mmap = kwargs['dont_use_mmap'],
+                                          stick_to_shard = cache_enabled,
+                                          #skip_cached_images = cache_enabled,
+                                          features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+                                                      "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)
+                                          })
 
     def define_graph(self):
         inputs = self.input(name="Reader")

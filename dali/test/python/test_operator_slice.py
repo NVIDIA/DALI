@@ -110,7 +110,7 @@ class SlicePipeline(Pipeline):
         self.is_fused_decoder = is_fused_decoder
         self.pos_size_iter = pos_size_iter
         self.device = device
-        self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle=False)
+        self.input = ops.readers.Caffe(path = caffe_db_folder, random_shuffle=False)
         self.input_crop_pos = ops.ExternalSource()
         self.input_crop_size = ops.ExternalSource()
 
@@ -310,7 +310,7 @@ class SlicePythonOp(Pipeline):
         self.layout = "HWC"
         self.pos_size_iter = pos_size_iter
 
-        self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle=False)
+        self.input = ops.readers.Caffe(path = caffe_db_folder, random_shuffle=False)
         self.decode = ops.ImageDecoder(device = 'cpu', output_type = types.RGB)
 
         self.input_crop_pos = ops.ExternalSource()

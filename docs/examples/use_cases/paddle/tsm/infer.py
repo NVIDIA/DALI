@@ -33,10 +33,10 @@ PRETRAIN_WEIGHTS = 'https://paddlemodels.bj.bcebos.com/video_classification/TSM_
 def create_video_pipe(video_files, sequence_length=8, target_size=224,stride=30):
     pipeline = Pipeline(1, 4, 0, seed=42)
     with pipeline:
-        images = fn.video_reader(device="gpu", filenames=video_files,
-                                 sequence_length=sequence_length, stride=stride,
-                                 shard_id=0, num_shards=1, random_shuffle=False,
-                                 pad_last_batch=True, name="Reader")
+        images = fn.readers.video(device="gpu", filenames=video_files,
+                                  sequence_length=sequence_length, stride=stride,
+                                  shard_id=0, num_shards=1, random_shuffle=False,
+                                  pad_last_batch=True, name="Reader")
         images = fn.crop_mirror_normalize(images,
                                           dtype=types.FLOAT,
                                           output_layout="FCHW",

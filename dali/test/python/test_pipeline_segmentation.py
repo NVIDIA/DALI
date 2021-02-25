@@ -26,15 +26,15 @@ from test_utils import get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
 
-def check_bbox_random_crop_adjust_polygons(file_root, annotations_file, batch_size = 3, 
+def check_bbox_random_crop_adjust_polygons(file_root, annotations_file, batch_size = 3,
                                            num_iters = 4, num_threads = 4, device_id = 0, seed=1234):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed=seed)
     with pipe:
         # Read data from COCO
         # ratio=True means both bboxes and masks coordinates will be relative to the image dimensions (range [0.0, 1.0])
         inputs, in_bboxes, labels, in_polygons, in_vertices = \
-            fn.coco_reader(
-                file_root=file_root, annotations_file=annotations_file, shard_id=0, num_shards=1, 
+            fn.readers.coco(
+                file_root=file_root, annotations_file=annotations_file, shard_id=0, num_shards=1,
                 ratio=True, ltrb=True, polygon_masks=True
             )
 
@@ -42,7 +42,7 @@ def check_bbox_random_crop_adjust_polygons(file_root, annotations_file, batch_si
         slice_anchor, slice_shape, out_bboxes, labels, bbox_indices = \
             fn.random_bbox_crop(
                 in_bboxes, labels,
-                aspect_ratio=[0.5, 2.0], thresholds=[0, 0.1, 0.3, 0.5, 0.7, 0.9], 
+                aspect_ratio=[0.5, 2.0], thresholds=[0, 0.1, 0.3, 0.5, 0.7, 0.9],
                 scaling=[0.3, 1.0], bbox_layout='xyXY', output_bbox_indices=True
             )
         # Crop the image

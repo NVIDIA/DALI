@@ -113,7 +113,7 @@ class TestLoadedPlugin(unittest.TestCase):
 
     def test_python_operator_and_custom_plugin(self):
         plugin_manager.load_library( test_bin_dir + "/libcustomdummyplugin.so")
-        ops.TFRecordReader(path="dummy", index_path="dummy", features={})
+        ops.readers.TFRecord(path="dummy", index_path="dummy", features={})
 
 if __name__ == '__main__':
     unittest.main()

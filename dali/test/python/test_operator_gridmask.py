@@ -27,7 +27,7 @@ img_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 def get_pipeline(batch_size, tile, ratio, angle):
   pipe = Pipeline(batch_size, 4, None)
   with pipe:
-    input, _ = fn.file_reader(file_root=img_dir)
+    input, _ = fn.readers.file(file_root=img_dir)
     decoded = fn.image_decoder(input, device='cpu', output_type=types.RGB)
     grided = fn.grid_mask(decoded, device='cpu', tile=tile, ratio=ratio, angle=angle)
     pipe.set_outputs(grided, decoded)
@@ -36,7 +36,7 @@ def get_pipeline(batch_size, tile, ratio, angle):
 def get_random_pipeline(batch_size):
   pipe = Pipeline(batch_size, 4, None)
   with pipe:
-    input, _ = fn.file_reader(file_root=img_dir)
+    input, _ = fn.readers.file(file_root=img_dir)
     decoded = fn.image_decoder(input, device='cpu', output_type=types.RGB)
     tile = fn.cast(fn.uniform(range=(50, 200), shape=[1]), dtype=types.INT32)
     ratio = fn.uniform(range=(0.3, 0.7), shape=[1])
@@ -63,7 +63,7 @@ def check(result, input, tile, ratio, angle):
   w = result.shape[1]
   h = result.shape[0]
   eps = 0.1
-  
+
   # inside of squares should be black
   mask = np.uint8(1 - get_mask(w, h, tile, ratio, angle, -eps))
   result2 = cv2.bitwise_and(result, result, mask=mask)

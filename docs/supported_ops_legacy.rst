@@ -8,7 +8,7 @@ here for reference purposes.
 The legacy object "operators" are contained in the ``dali.ops`` module and their names are camel cased, instead of snake cased.
 For example, ``dali.ops.ImageDecoder`` is the legacy counterpart of ``dali.fn.image_decoder``.
 
-When using the operator object API, the definition of the operator is separated from its use in a 
+When using the operator object API, the definition of the operator is separated from its use in a
 DALI pipeline, which allows to set static arguments during instantiation.
 
 Here is an example pipeline using the (recommended) functional API::
@@ -17,7 +17,7 @@ Here is an example pipeline using the (recommended) functional API::
 
     pipe = dali.pipeline.Pipeline(batch_size = 3, num_threads = 2, device_id = 0)
     with pipe:
-        files, labels = dali.fn.file_reader(file_root = "./my_file_root")
+        files, labels = dali.fn.readers.file(file_root = "./my_file_root")
         images = dali.fn.image_decoder(files, device = "mixed")
         images = dali.fn.rotate(images, angle = dali.fn.random.uniform(range=(-45,45)))
         images = dali.fn.resize(images, resize_x = 300, resize_y = 300)

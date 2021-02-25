@@ -31,7 +31,7 @@ class DetectionPipeline(Pipeline):
             batch_size, 2, device_id, True, 12)
 
         # Reading COCO dataset
-        self.input = ops.COCOReader(
+        self.input = ops.readers.COCO(
             file_root=file_root,
             annotations_file=annotations_file,
             shard_id=device_id,

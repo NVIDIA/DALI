@@ -111,7 +111,7 @@ class DetectionPipeline(Pipeline):
             seed=args.seed)
 
         # Reading COCO dataset
-        self.input = ops.COCOReader(
+        self.input = ops.readers.COCO(
             file_root=file_root,
             annotations_file=annotations_file,
             shard_id=device_id,
