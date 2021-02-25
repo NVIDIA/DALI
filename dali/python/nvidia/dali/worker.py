@@ -69,8 +69,47 @@ class SharedBatchesDispatcher:
         self.handle_sent = set()
         self.sock = sock
         self.res_pipe = res_pipe
+        self.ready_cv = threading.Condition()
+        self.ready_queue = []
 
-    def send(self, processed_tasks: _ProcessedTasks):
+    def dispatch(self, processed_task: _ProcessedTasks):
+        """Pass the processed task (or None to end) to the dispatcher.
+        """
+        with self.ready_cv:
+            if processed_task is None:
+                self.ready_queue.insert(0, None)
+            else:
+                # assert len(ready_queue) < prefetch_queue_depths[scheduled.context_i], "Worker queue size exceeded."
+                self.ready_queue.append(processed_task)
+            self.ready_cv.notify()
+
+    def dispatcher_thread(self):
+        """Receives batches produced in the main thread and dispatches them to the parent process.
+        It is intended to be run in a separate thread because both callback and dispatcher may
+        wait on IO operations a lot and in that case Python threads provide some performance gain.
+        """
+        try:
+            while True:
+                message = self._wait_for_processed()
+                if message is None:
+                    break
+                self._send(message)
+        finally:
+            # In case of error, we don't know when exactly we were interrupted and the main process
+            # may be waiting for differant message that we would try to send. Close the communication
+            # to indicate an error for main process and allow the exception to propagate
+            # in the worker process.
+            self._shutdown()
+
+    def _wait_for_processed(self):
+        with self.ready_cv:
+            while len(self.ready_queue) == 0:
+                self.ready_cv.wait()
+            message = self.ready_queue.pop(0)
+        return message
+
+    def _send(self, processed_tasks: _ProcessedTasks):
+        """Send the processed task back to the main process"""
         if processed_tasks.is_failed():  # one of the tasks failed
             completed_tasks = CompletedTasks.failed(self.worker_id, processed_tasks)
             self.res_pipe.send(completed_tasks)
@@ -85,7 +124,7 @@ class SharedBatchesDispatcher:
             self.handle_sent.add(mem_chunk_id)
             reduction.send_handle(self.sock, processed_tasks.mem_chunk.shm_chunk.handle, os.getppid())
 
-    def shutdown(self):
+    def _shutdown(self):
         """Force to close all communication channels (sockets and pipes) to unlock main process
         in case of error, when it may be waiting for messages that we can't deliver or the
         state of protocol is mismatched"""
@@ -116,27 +155,6 @@ class CallbackContext:
     def close(self):
         for chunk in self.mem_chunks:
             chunk.close()
-
-def dispatcher(batch_dispatcher, ready_cv, ready_queue):
-    """Receives batches produced in the main thread and dispatches them to the parent process.
-    It is run in a separate thread because both callback and dispatcher may
-    wait on IO operations a lot and in that case Python threads provide some performance gain.
-    """
-    try:
-        while True:
-            with ready_cv:
-                while len(ready_queue) == 0:
-                    ready_cv.wait()
-                message = ready_queue.pop(0)
-            if message is None:
-                break
-            batch_dispatcher.send(message)
-    finally:
-        # In case of error, we don't know when exactly we were interrupted and the main process
-        # may be waiting for differant message that we would try to send. Close the communication
-        # to indicate an error for main process and allow the exception to propagate
-        # in the worker process.
-        batch_dispatcher.shutdown()
 
 
 def receiver(task_pipe, tasks_cv, tasks_queue):
@@ -182,14 +200,13 @@ def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task
         Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to parent process.
     """
     contexts = None
-    ready_cv = threading.Condition()
+
     tasks_cv = threading.Condition()
     ready_queue, tasks_queue = [], []
     batch_dispatcher = SharedBatchesDispatcher(worker_id, sock, res_pipe)
     # run the thread as a daemon so that even when results queue blocks, worker process can exit anyway
     # and can be joined in the parent process
-    dispatcher_thread = threading.Thread(target=dispatcher, args=(
-        batch_dispatcher, ready_cv, ready_queue), daemon=True)
+    dispatcher_thread = threading.Thread(target=batch_dispatcher.dispatcher_thread, daemon=True)
     receiver_thread = threading.Thread(target=receiver, args=(
         task_pipe, tasks_cv, tasks_queue), daemon=True)
     dispatcher_thread.start()
@@ -220,14 +237,16 @@ def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task
             else:
                 mem_chunk = context.next_mem_chunk()
                 processed = _ProcessedTasks.done(scheduled, mem_chunk, data_batch)
-            with ready_cv:
-                assert len(ready_queue) < prefetch_queue_depths[scheduled.context_i], "Worker queue size exceeded."
-                ready_queue.append(processed)
-                ready_cv.notify()
+            batch_dispatcher.dispatch(processed)
+            # with ready_cv:
+            #     assert len(ready_queue) < prefetch_queue_depths[scheduled.context_i], "Worker queue size exceeded."
+            #     ready_queue.append(processed)
+            #     ready_cv.notify()
     finally:
-        with ready_cv:
-            ready_queue.insert(0, None)
-            ready_cv.notify()
+        batch_dispatcher.dispatch(None)
+        # with ready_cv:
+        #     ready_queue.insert(0, None)
+        #     ready_cv.notify()
         if contexts is not None:
             for context in contexts:
                 context.close()
