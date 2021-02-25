@@ -152,7 +152,7 @@ def _to_numpy(sample):
         "or list or tuple of them.")
 
 
-def _apply_to_sample(func, sample, *args, nest_with_sample=1):
+def _apply_to_sample(func, sample, *args, nest_with_sample=0):
     """Apply to a sample traversing the nesting of the data (tuple/list).
 
     Parameters
@@ -168,11 +168,9 @@ def _apply_to_sample(func, sample, *args, nest_with_sample=1):
     if isinstance(sample, (tuple, list,)):
         # Check that all the samples have common nesting
         for i in range(nest_with_sample):
-            assert type(args[i]) == type(sample)
+            assert len(args[i]) == len(sample)
         nest_group = sample, *args[0:nest_with_sample]
         scalar_args = args[nest_with_sample:]
-        if nest_with_sample > 0:
-            print("nesting {}: {}".format(nest_with_sample, nest_group))
         return type(sample)(_apply_to_sample(func, *part, *scalar_args) for part in zip(*nest_group))
     else:
         # we unpacked all nesting levels, now is actual data:
