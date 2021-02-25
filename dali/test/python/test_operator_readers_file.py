@@ -2,7 +2,8 @@ import tempfile
 import os
 import nvidia.dali.fn as fn
 from functools import partial
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
+from test_utils import compare_pipelines
 
 def ref_contents(path):
     fname = path[path.rfind('/')+1:]
@@ -109,3 +110,22 @@ def test_file_reader_relpath_file_list():
             label = out_l.at(j)[0]
             index = 10000 - label
             assert contents == ref_contents(fnames[index])
+
+
+batch_size_alias_test=64
+
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+def file_pipe(file_op, file_list):
+    files, labels = file_op(file_list=file_list)
+    return files, labels
+
+def test_file_reader_alias():
+    fnames = g_files
+
+    file_list = os.path.join(g_root, "list.txt")
+    with open(file_list, "w") as f:
+        for i, name in enumerate(fnames):
+            f.write("{0} {1}\n".format(name, 10000 - i))
+    new_pipe = file_pipe(fn.readers.file, file_list)
+    legacy_pipe = file_pipe(fn.file_reader, file_list)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)

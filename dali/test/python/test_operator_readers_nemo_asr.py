@@ -1,4 +1,4 @@
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
 from nvidia.dali import fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -10,6 +10,7 @@ import librosa
 import tempfile
 import os
 from test_audio_decoder_utils import generate_waveforms, rosa_resample
+from test_utils import compare_pipelines
 
 def create_manifest_file(manifest_file, names, lengths, rates, texts):
   assert(len(names) == len(lengths) == len(rates) == len(texts))
@@ -174,3 +175,29 @@ def test_decoded_vs_generated(batch_size=3):
       # String comparison (utf-8)
       assert text_non_ascii_str == ref_text_non_ascii_literal[idx], \
           f"'{text_non_ascii_str}' != '{ref_text_non_ascii_literal[idx]}'"
+
+
+batch_size_alias_test=64
+
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+def nemo_pipe(nemo_op, path, read_text, read_sample_rate, dtype, downmix):
+    if read_sample_rate:
+        audio, sr = nemo_op(manifest_filepaths=path, read_sample_rate=read_sample_rate,
+                read_text=read_text, dtype=dtype, downmix=downmix)
+        return audio, sr
+    elif read_text:
+        audio, text = nemo_op(manifest_filepaths=path, read_sample_rate=read_sample_rate,
+                read_text=read_text, dtype=dtype, downmix=downmix)
+        return audio, text
+    else:
+        audio = nemo_op(manifest_filepaths=path, read_sample_rate=read_sample_rate,
+                read_text=read_text, dtype=dtype, downmix=downmix)
+        return audio
+
+def test_nemo_asr_reader_alias():
+    for read_sr, read_text in [(True, False), (False, True), (False, False)]:
+        for dtype in [types.INT16, types.FLOAT]:
+            for downmix in [True, False]:
+                new_pipe = nemo_pipe(fn.readers.nemo_asr, [nemo_asr_manifest], read_sr, read_text, dtype, downmix)
+                legacy_pipe = nemo_pipe(fn.nemo_asr_reader, [nemo_asr_manifest], read_sr, read_text, dtype, downmix)
+                compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)

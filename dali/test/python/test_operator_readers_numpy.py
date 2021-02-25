@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali as dali
@@ -23,6 +23,7 @@ import os
 import platform
 import tempfile
 import nose.tools
+from test_utils import compare_pipelines
 
 gds_data_root = '/scratch/'
 if not os.path.isdir(gds_data_root):
@@ -315,3 +316,41 @@ def check_array(filename, shape, typ, device, fortran_order=False):
 
     # delete temp files
     delete_numpy_file(filename)
+
+
+batch_size_alias_test=64
+
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+def numpy_reader_pipe(numpy_op, path, device="cpu",  path_filter="*.npy"):
+    data = numpy_op(device=device,
+                    file_root=path,
+                    file_filter=path_filter)
+    return data
+
+
+def check_numpy_reader_alias(test_data_root, device):
+    new_pipe = numpy_reader_pipe(fn.readers.numpy,
+                                 path=test_data_root,
+                                 device=device,
+                                 path_filter="test_*.npy")
+    legacy_pipe = numpy_reader_pipe(fn.numpy_reader,
+                                    path=test_data_root,
+                                    device=device,
+                                    path_filter="test_*.npy")
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+
+
+def test_numpy_reader_alias():
+    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
+        # create files
+        num_samples = 20
+        filenames = []
+        arr_np_list = []
+        for index in range(0,num_samples):
+            filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+            filenames.append(filename)
+            create_numpy_file(filename, (5, 2, 8), np.float32, False)
+            arr_np_list.append(np.load(filename))
+
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
+            yield check_numpy_reader_alias, test_data_root, device

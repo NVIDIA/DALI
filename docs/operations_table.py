@@ -87,6 +87,7 @@ def fn_to_op_table(out_filename):
 def operations_table(out_filename):
     formater = '{:{c}<{op_name_max_len}} {:{c}^48} {:{c}<150}\n'
     doc_table = ''
+    doc_table += '\n.. currentmodule:: nvidia.dali.fn\n\n'
     doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')
     doc_table += formater.format('Function', 'Device support', 'Short description', op_name_max_len = op_name_max_len, c=' ')
     doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')

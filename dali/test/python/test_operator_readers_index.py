@@ -1,12 +1,12 @@
 import math
-from nvidia.dali import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.tfrecord as tfrec
 import os.path
 import tempfile
 import numpy as np
-from test_utils import get_dali_extra_path
+from test_utils import compare_pipelines, get_dali_extra_path
 from nose.tools import assert_raises
 
 def skip_second(src, dst):
@@ -102,3 +102,18 @@ def test_wrong_feature_shape():
     pipe.build()
     # the error is raised because FixedLenFeature is used with insufficient shape to house the input
     assert_raises(RuntimeError, pipe.run)
+
+
+batch_size_alias_test=64
+
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+def mxnet_pipe(mxnet_op, path, index_path):
+    files, labels = mxnet_op(path=path, index_path=index_path)
+    return files, labels
+
+def test_mxnet_reader_alias():
+    recordio = [os.path.join(get_dali_extra_path(), 'db', 'recordio', 'train.rec')]
+    recordio_idx = [os.path.join(get_dali_extra_path(), 'db', 'recordio', 'train.idx')]
+    new_pipe = mxnet_pipe(fn.readers.mxnet, recordio, recordio_idx)
+    legacy_pipe = mxnet_pipe(fn.mxnet_reader, recordio, recordio_idx)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)

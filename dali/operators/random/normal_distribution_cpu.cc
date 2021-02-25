@@ -48,7 +48,7 @@ sample is generated.
     .NumInput(0, 1)
     .NumOutput(1)
     .AddParent("random__Normal")
-    .Deprecate("random.normal");  // Deprecated in 0.30
+    .Deprecate("random__Normal");  // Deprecated in 0.30
 
 
 DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistribution<CPUBackend>, CPU);

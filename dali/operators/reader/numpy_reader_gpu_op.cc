@@ -162,6 +162,9 @@ void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
   }
 }
 
+DALI_REGISTER_OPERATOR(readers__Numpy, NumpyReaderGPU, GPU);
+
+// Deprecated alias
 DALI_REGISTER_OPERATOR(NumpyReader, NumpyReaderGPU, GPU);
 
 }  // namespace dali
