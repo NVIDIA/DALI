@@ -17,7 +17,7 @@
 #include "dali/operators/image/mask/grid_mask.h"
 #include "dali/kernels/mask/grid_mask_gpu.h"
 
-#define TYPES (float, uint8_t)
+#define GRID_MASK_TYPES (float, uint8_t)
 
 namespace dali {
 
@@ -29,7 +29,7 @@ bool GridMaskGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   GetArguments(ws);
   output_desc[0] = {input.shape(), input.type()};
   kernel_manager_.Resize(num_threads_, max_batch_size_);
-  TYPE_SWITCH(input.type().id(), type2id, Type, TYPES, (
+  TYPE_SWITCH(input.type().id(), type2id, Type, GRID_MASK_TYPES, (
       {
           using Kernel = kernels::GridMaskGpu<Type>;
           kernels::KernelContext ctx;
@@ -45,7 +45,7 @@ void GridMaskGpu::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.template InputRef<GPUBackend>(0);
   auto &output = ws.template OutputRef<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
-  TYPE_SWITCH(input.type().id(), type2id, Type, TYPES, (
+  TYPE_SWITCH(input.type().id(), type2id, Type, GRID_MASK_TYPES, (
       {
           using Kernel = kernels::GridMaskGpu<Type>;
           kernels::KernelContext ctx;
