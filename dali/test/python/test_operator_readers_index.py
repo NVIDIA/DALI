@@ -117,3 +117,18 @@ def test_mxnet_reader_alias():
     new_pipe = mxnet_pipe(fn.readers.mxnet, recordio, recordio_idx)
     legacy_pipe = mxnet_pipe(fn.mxnet_reader, recordio, recordio_idx)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+
+
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+def tfrecord_pipe(tfrecord_op, path, index_path):
+    inputs = tfrecord_op(path=path, index_path=index_path,
+            features={"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+                      "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
+    return inputs["image/encoded"]
+
+def test_tfrecord_reader_alias():
+    tfrecord = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train')
+    tfrecord_idx = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train.idx')
+    new_pipe = tfrecord_pipe(fn.readers.tfrecord, tfrecord, tfrecord_idx)
+    legacy_pipe = tfrecord_pipe(fn.tfrecord_reader, tfrecord, tfrecord_idx)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)

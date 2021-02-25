@@ -22,6 +22,15 @@
 
 namespace dali {
 
+namespace {
+
+int TFRecordReaderOutputFn(const OpSpec &spec) {
+  std::vector<std::string> v = spec.GetRepeatedArgument<std::string>("feature_names");
+  return v.size();
+}
+
+}  // namespace
+
 // Internal readers._tfrecord, note the triple underscore.
 DALI_REGISTER_OPERATOR(readers___TFRecord, TFRecordReader, CPU);
 
@@ -41,10 +50,7 @@ that is distributed with DALI.)code",
 // Internal readers._tfrecord schema.
 DALI_SCHEMA(readers___TFRecord)
   .DocStr(R"code(Reads samples from a TensorFlow TFRecord file.)code")
-  .OutputFn([](const OpSpec &spec) {
-      std::vector<std::string> v = spec.GetRepeatedArgument<std::string>("feature_names");
-      return v.size();
-    })
+  .OutputFn(TFRecordReaderOutputFn)
   .NumInput(0)
   .AddArg("feature_names", "Names of the features in TFRecord.",
       DALI_STRING_VEC)
@@ -70,6 +76,22 @@ the data size.)code",
       DALI_TF_FEATURE_DICT)
   .AddParent("readers___TFRecordBase")
   .AddParent("LoaderBase");
+
+
+// Deprecated alias for internal op. Necessary for deprecation warning.
+DALI_REGISTER_OPERATOR(_TFRecordReader, TFRecordReader, CPU);
+
+DALI_SCHEMA(_TFRecordReader)
+    .DocStr("Legacy alias for :meth:`readers.tfrecord`.")
+    .OutputFn(TFRecordReaderOutputFn)
+    .NumInput(0)
+    .AddParent("readers___TFRecord")
+    .MakeInternal()
+    .Deprecate(
+        "readers__TFRecord",
+        R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 
 // Deprecated alias

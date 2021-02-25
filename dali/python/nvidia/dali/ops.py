@@ -746,8 +746,8 @@ class _TFRecordReaderImpl():
             self._index_path = index_path
         else:
             self._index_path = [index_path]
-        self._schema = _b.GetSchema("readers___TFRecord")
-        self._spec = _b.OpSpec("readers___TFRecord")
+        self._schema = _b.GetSchema(self._internal_schema_name)
+        self._spec = _b.OpSpec(self._internal_schema_name)
         self._device = "cpu"
 
         self._spec.AddArg("path", self._path)
@@ -813,8 +813,10 @@ def _load_readers_tfrecord():
     ops_module = sys.modules[__name__]
     class TFRecordReader(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta): pass
     class TFRecord(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta): pass
-    for op_reg_name, op_class in [('readers__TFRecord', TFRecord), ('TFRecordReader', TFRecordReader)]:
+    for op_reg_name, internal_schema, op_class in [('readers__TFRecord', 'readers___TFRecord', TFRecord),
+                                                   ('TFRecordReader', '_TFRecordReader', TFRecordReader)]:
         op_class.schema_name = op_reg_name
+        op_class._internal_schema_name = internal_schema
         op_full_name, submodule, op_name = _process_op_name(op_reg_name)
         module = _internal.get_submodule(ops_module, submodule)
         if not hasattr(module, op_name):
