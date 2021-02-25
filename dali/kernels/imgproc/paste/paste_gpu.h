@@ -42,45 +42,6 @@ struct SampleDescriptorGPU {
   ivec<ndims> cell_counts, out_pitch;
 };
 
-/**
- * Flattens the TensorShape
- *
- * Flattened TensorShape in case of MultiplyAdd kernel is a TensorShape,
- * in which channel-dimension is removed. Instead, the one-before dimension is
- * multiplied by channel-dimension size.
- *
- * E.g. [640, 480, 3] -> [640, 1440]
- *
- * The reason is that MultiplyAdd calculations are channel-agnostic
- * (the same operation is applied for every channel), therefore BlockSetup
- * and SampleDescriptor don't need to know about channels.
- */
-template <int ndims>
-TensorShape<ndims - 1> FlattenChannels(const TensorShape<ndims> &shape) {
-  static_assert(ndims >= 2, "If there are less than 2 dims, there's nothing to flatten...");
-  TensorShape<ndims - 1> ret;
-  for (int i = 0; i < shape.size() - 1; i++) {
-    ret[i] = shape[i];
-  }
-  ret[shape.size() - 2] *= shape[shape.size() - 1];
-  return ret;
-}
-
-
-/**
- * Convenient overload for TensorListShape case
- */
-template <int ndims>
-TensorListShape<ndims - 1> FlattenChannels(const TensorListShape<ndims> &shape) {
-  static_assert(ndims >= 2, "If there are less than 2 dims, there's nothing to flatten...");
-  TensorListShape<ndims - 1> ret(shape.size());
-  for (int i = 0; i < shape.size(); i++) {
-    ret.set_tensor_shape(i, FlattenChannels<ndims>(shape[i]));
-  }
-  return ret;
-}
-
-
 template <int ndim>
 ivec<ndim - 2> pitch_flatten_channels(const TensorShape<ndim> &shape) {
   ivec<ndim - 2> ret;
@@ -104,8 +65,8 @@ void CreateSampleDescriptors(
     span<GridCellGPU<InputType, ndims - 1>> out_grid_cells,
     const OutListGPU<OutputType, ndims> &out,
     const InListGPU<InputType, ndims> &in,
-    const std::vector<paste::MultiPasteSampleInput<ndims - 1>> &samples,
-    const std::vector<paste::GridCellInput<ndims - 1>> &grid, int channels) {
+    span<paste::MultiPasteSampleInput<ndims - 1>> samples,
+    span<paste::GridCellInput<ndims - 1>> grid, int channels) {
   assert(out_descs.size() >= in.num_samples());
 
   for (int i = 0; i < samples.size(); i++) {
@@ -190,8 +151,8 @@ class PasteGPU {
   KernelRequirements Setup(
       KernelContext &context,
       const InListGPU<InputType, ndims> &in,
-      const std::vector<paste::MultiPasteSampleInput<spatial_dims>> &samples,
-      const std::vector<paste::GridCellInput<spatial_dims>> &grid_cells,
+      span<paste::MultiPasteSampleInput<spatial_dims>> samples,
+      span<paste::GridCellInput<spatial_dims>> grid_cells,
       TensorListShape<ndims> out_shape) {
     DALI_ENFORCE([=]() -> bool {
       auto ref_nchannels = in.shape[0][ndims - 1];
@@ -205,7 +166,7 @@ class PasteGPU {
 
     KernelRequirements req;
     ScratchpadEstimator se;
-    TensorListShape<spatial_dims> flattened_shape(paste::FlattenChannels<ndims>(out_shape));
+    auto flattened_shape = collapse_dim(out_shape, 1);
     block_setup_.SetupBlocks(flattened_shape, true);
     sample_descriptors_.resize(samples.size());
     grid_cell_descriptors_.resize(grid_cells.size());
@@ -221,8 +182,8 @@ class PasteGPU {
   void Run(
       KernelContext &context,
       const OutListGPU<OutputType, ndims> &out, const InListGPU<InputType, ndims> &in,
-      const std::vector<paste::MultiPasteSampleInput<spatial_dims>> &samples,
-      const std::vector<paste::GridCellInput<spatial_dims>> &grid) {
+      span<paste::MultiPasteSampleInput<spatial_dims>> samples,
+      span<paste::GridCellInput<spatial_dims>> grid) {
     paste::CreateSampleDescriptors(
         make_span(sample_descriptors_),
         make_span(grid_cell_descriptors_), out, in, samples, grid, 3);

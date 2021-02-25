@@ -189,7 +189,7 @@ def show_images(batch_size, image_batch):
 
 
 def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, no_intersections, full_input, in_anchor_top_left,
-                              out_anchor_top_left, out_dtype, use_gpu):
+                              out_anchor_top_left, out_dtype, device):
     pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l = get_pipeline(
         batch_size=bs,
         in_size=in_size,
@@ -201,11 +201,11 @@ def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, n
         full_input=full_input,
         in_anchor_top_left=in_anchor_top_left,
         out_anchor_top_left=out_anchor_top_left,
-        use_gpu=use_gpu
+        use_gpu=device == 'gpu'
     )
     pipe.build()
     result, input = pipe.run()
-    r = result.as_cpu() if use_gpu else result
+    r = result.as_cpu() if device == 'gpu' else result
     if SHOW_IMAGES:
         show_images(bs, r)
     manual_verify(bs, input, r, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, [out_size + (3,)] * bs, out_dtype)
@@ -225,33 +225,20 @@ def test_operator_multipaste():
         # - should "out_anchors" parameter be omitted
         # - output dtype
         # - should use GPU operator
-        [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8, False],
-        [4, 2, (256, 128), (128, 128), False, True, False, False, False, types.UINT8, False],
-        [4, 2, (128, 128), (256, 128), True, False, False, False, False, types.UINT8, False],
-        [4, 2, (128, 128), (128, 256), True, True, False, False, False, types.UINT8, False],
+        [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8],
+        [4, 2, (256, 128), (128, 128), False, True, False, False, False, types.UINT8],
+        [4, 2, (128, 128), (256, 128), True, False, False, False, False, types.UINT8],
+        [4, 2, (128, 128), (128, 256), True, True, False, False, False, types.UINT8],
 
-        [4, 2, (64, 64), (128, 128), False, False, True, False, False, types.UINT8, False],
-        [4, 2, (64, 64), (128, 128), False, False, False, True, False, types.UINT8, False],
-        [4, 2, (64, 64), (128, 128), False, False, False, False, True, types.UINT8, False],
+        [4, 2, (64, 64), (128, 128), False, False, True, False, False, types.UINT8],
+        [4, 2, (64, 64), (128, 128), False, False, False, True, False, types.UINT8],
+        [4, 2, (64, 64), (128, 128), False, False, False, False, True, types.UINT8],
 
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.UINT8, False],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT16, False],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT32, False],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.FLOAT, False],
-
-        [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8, True],
-        [4, 2, (256, 128), (128, 128), False, True, False, False, False, types.UINT8, True],
-        [4, 2, (128, 128), (256, 128), True, False, False, False, False, types.UINT8, True],
-        [4, 2, (128, 128), (128, 256), True, True, False, False, False, types.UINT8, True],
-
-        [4, 2, (64, 64), (128, 128), False, False, True, False, False, types.UINT8, True],
-        [4, 2, (64, 64), (128, 128), False, False, False, True, False, types.UINT8, True],
-        [4, 2, (64, 64), (128, 128), False, False, False, False, True, types.UINT8, True],
-
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.UINT8, True],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT16, True],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT32, True],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.FLOAT, True]
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.UINT8],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT16],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT32],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.FLOAT],
     ]
     for t in tests:
-        yield (check_operator_multipaste, *t)
+        yield (check_operator_multipaste, *t, "cpu")
+        yield (check_operator_multipaste, *t, "gpu")

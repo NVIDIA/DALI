@@ -52,7 +52,7 @@ bool MultiPasteGPU::SetupImpl(std::vector<OutputDesc> &output_desc,
             ctx.gpu.stream = ws.stream();
             const auto tvin = view<const InputType, 3>(images);
             const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin,
-                                                             samples, grid_cells, shapes);
+                                                 make_span(samples), make_span(grid_cells), shapes);
 
             output_desc[0] = {shapes, TypeTable::GetTypeInfo(output_type_)};
           }
@@ -194,7 +194,9 @@ void MultiPasteGPU::RunImplExplicitlyTyped(workspace_t<GPUBackend> &ws) {
   auto out_view = view<OutputType, 3>(output);
 
   kernels::KernelContext ctx;
-  kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, out_view, in_view, samples, grid_cells);
+  ctx.gpu.stream = ws.stream();
+  kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, out_view, in_view,
+                              make_span(samples), make_span(grid_cells));
 }
 
 
