@@ -60,7 +60,7 @@ DALI_SCHEMA(readers___TFRecord)
   .AddParent("LoaderBase")
   .MakeInternal();
 
-// Schema for the actual readers.tfrecord op expose in Python.
+// Schema for the actual readers.tfrecord op exposed in Python.
 // It is here for proper docstring generation. Note the double underscore.
 DALI_SCHEMA(readers__TFRecord)
   .DocStr(R"code(Reads samples from a TensorFlow TFRecord file.)code")
