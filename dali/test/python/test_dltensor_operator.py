@@ -86,7 +86,7 @@ class CommonPipeline(Pipeline):
     def __init__(self, device):
         super(CommonPipeline, self).__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, seed=SEED,
                                              exec_async=False, exec_pipelined=False)
-        self.input = ops.FileReader(file_root=images_dir)
+        self.input = ops.readers.File(file_root=images_dir)
         self.decode = ops.ImageDecoder(device='mixed' if device == 'gpu' else 'cpu',
                                        output_type=types.RGB)
         self.resize = ops.Resize(resize_x=400, resize_y=400, device=device)

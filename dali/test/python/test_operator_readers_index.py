@@ -58,8 +58,8 @@ def test_recordio():
     class MXNetReaderPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, data, data_idx):
             super(MXNetReaderPipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.MXNetReader(path = [data], index_path=[data_idx],
-                                        shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.MXNet(path = [data], index_path=[data_idx],
+                                           shard_id = device_id, num_shards = num_gpus)
 
         def define_graph(self):
             images, _ = self.input(name="Reader")

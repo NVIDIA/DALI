@@ -24,7 +24,7 @@ data_paths = ["/data/imagenet/train-jpeg"]
 class RN50Pipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, prefetch, fp16, nhwc):
         super(RN50Pipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth=prefetch)
-        self.input = ops.FileReader(file_root = data_paths[0], shard_id = device_id, num_shards = num_gpus)
+        self.input = ops.readers.File(file_root = data_paths[0], shard_id = device_id, num_shards = num_gpus)
         self.decode_gpu = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
         self.res = ops.RandomResizedCrop(device="gpu", size =(224,224))
 

@@ -38,7 +38,7 @@ class CaffeReaderPipeline(Pipeline):
         super(CaffeReaderPipeline, self).__init__(batch_size,
                                            num_threads,
                                            device_id)
-        self.input = ops.CaffeReader(path = path, shard_id = device_id, num_shards = num_gpus)
+        self.input = ops.readers.Caffe(path = path, shard_id = device_id, num_shards = num_gpus)
 
         self.decode = ops.ImageDecoderCrop(device = "cpu",
                                            crop = (224, 224),

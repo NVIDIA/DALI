@@ -60,8 +60,8 @@ class CommonPipeline(Pipeline):
 class CaffeReadPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus):
         super(CaffeReadPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.CaffeReader(path = lmdb_folder,
-                                     random_shuffle = True, shard_id = device_id, num_shards = num_gpus)
+        self.input = ops.readers.Caffe(path = lmdb_folder,
+                                       random_shuffle = True, shard_id = device_id, num_shards = num_gpus)
 
     def define_graph(self):
         images, labels = self.input()

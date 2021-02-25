@@ -56,7 +56,7 @@ def test_tensor_multiple_uses():
             super(HybridPipe, self).__init__(batch_size,
                                              num_threads,
                                              device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.res = ops.Resize(device="cpu", resize_x=224, resize_y=224)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
@@ -99,7 +99,7 @@ def test_multiple_input_sets():
             super(MISPipe, self).__init__(batch_size, num_threads, device_id, num_gpus)
 
             # Reading COCO dataset
-            self.input = ops.COCOReader(
+            self.input = ops.readers.COCO(
                 file_root=file_root,
                 annotations_file=annotations_file,
                 shard_id=device_id,
@@ -158,7 +158,7 @@ def test_pipeline_separated_exec_setup():
             super(HybridPipe, self).__init__(batch_size,
                                              num_threads,
                                              device_id, prefetch_queue_depth = prefetch_queue_depth)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.res = ops.Resize(device="cpu", resize_x=224, resize_y=224)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
@@ -202,7 +202,7 @@ def test_pipeline_simple_sync_no_prefetch():
                                              num_threads=1,
                                              device_id=0, prefetch_queue_depth=1,
                                              exec_async=False, exec_pipelined=False)
-            self.input = ops.CaffeReader(path = caffe_db_folder)
+            self.input = ops.readers.Caffe(path = caffe_db_folder)
             self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.dump_gpu = ops.DumpImage(device = "gpu", suffix = "gpu")
 
@@ -222,7 +222,7 @@ def test_use_twice():
     class Pipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus):
             super(Pipe, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.res = ops.Resize(device="cpu", resize_x=224, resize_y=224)
 
@@ -249,7 +249,7 @@ def test_cropmirrornormalize_layout():
             super(HybridPipe, self).__init__(batch_size,
                                              num_threads,
                                              device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_nhwc = ops.CropMirrorNormalize(device = "gpu",
                                                      dtype = types.FLOAT,
@@ -295,7 +295,7 @@ def test_cropmirrornormalize_pad():
             super(HybridPipe, self).__init__(batch_size,
                                              num_threads,
                                              device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp_pad  = ops.CropMirrorNormalize(device = "gpu",
                                                      dtype = types.FLOAT,
@@ -352,7 +352,7 @@ def test_cropmirrornormalize_multiple_inputs():
                                              num_threads,
                                              device_id)
             self.device = device
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.decode2 = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = device,
@@ -393,7 +393,7 @@ def test_seed():
                                              num_threads,
                                              device_id,
                                              seed = 12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, random_shuffle = True)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 dtype = types.FLOAT,
@@ -448,7 +448,7 @@ def test_as_array():
                                              num_threads,
                                              device_id,
                                              seed = 12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, random_shuffle = True)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 dtype = types.FLOAT,
@@ -488,7 +488,7 @@ def test_seed_serialize():
                                              num_threads,
                                              device_id,
                                              seed = 12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, random_shuffle = True)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 dtype = types.FLOAT,
@@ -526,7 +526,7 @@ def test_make_contiguous_serialize():
     class COCOPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
             super(COCOPipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.COCOReader(file_root=coco_image_folder, annotations_file=coco_annotation_file, ratio=True, ltrb=True)
+            self.input = ops.readers.COCO(file_root=coco_image_folder, annotations_file=coco_annotation_file, ratio=True, ltrb=True)
             self.decode = ops.ImageDecoder(device="mixed")
             self.crop = ops.RandomBBoxCrop(device="cpu", seed = 12)
             self.slice = ops.Slice(device="gpu")
@@ -549,7 +549,7 @@ def test_make_contiguous_serialize_and_use():
     class COCOPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
             super(COCOPipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.COCOReader(file_root=coco_image_folder, annotations_file=coco_annotation_file, ratio=True, ltrb=True)
+            self.input = ops.readers.COCO(file_root=coco_image_folder, annotations_file=coco_annotation_file, ratio=True, ltrb=True)
             self.decode = ops.ImageDecoder(device="mixed")
             self.crop = ops.RandomBBoxCrop(device="cpu", seed = 25)
             self.slice = ops.Slice(device="gpu")
@@ -572,7 +572,7 @@ def test_warpaffine():
     class HybridPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
             super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, random_shuffle = True)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 dtype = types.FLOAT,
@@ -612,7 +612,7 @@ def test_type_conversion():
     class HybridPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
             super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, random_shuffle = True)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp_all = ops.CropMirrorNormalize(device = "gpu",
                                                     dtype = types.FLOAT,
@@ -672,7 +672,7 @@ def test_equal_ImageDecoderCrop_ImageDecoder():
             super(NonFusedPipeline, self).__init__(batch_size,
                                              num_threads,
                                              device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             # Fixing HW load to 0 to be able to compare with ImageDecoderCrop (which uses CUDA decoder only)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB, hw_decoder_load = 0.0)
             self.pos_rng_x = ops.random.Uniform(range = (0.0, 1.0), seed=1234)
@@ -693,7 +693,7 @@ def test_equal_ImageDecoderCrop_ImageDecoder():
             super(FusedPipeline, self).__init__(batch_size,
                                              num_threads,
                                              device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.pos_rng_x = ops.random.Uniform(range = (0.0, 1.0), seed=1234)
             self.pos_rng_y = ops.random.Uniform(range = (0.0, 1.0), seed=5678)
             self.decode = ops.ImageDecoderCrop(device = 'mixed', output_type = types.RGB, crop = (224, 224))
@@ -725,7 +725,7 @@ def test_equal_ImageDecoderRandomCrop_ImageDecoder():
     class NonFusedPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(NonFusedPipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.res = ops.RandomResizedCrop(device="gpu", size =(224,224), seed=seed)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
@@ -746,7 +746,7 @@ def test_equal_ImageDecoderRandomCrop_ImageDecoder():
     class FusedPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(FusedPipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
             self.decode = ops.ImageDecoderRandomCrop(device = "mixed", output_type = types.RGB, seed=seed)
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
@@ -803,7 +803,7 @@ class LazyPipeline(Pipeline):
         super(LazyPipeline, self).__init__(batch_size,
                                            num_threads,
                                            device_id)
-        self.input = ops.CaffeReader(path = db_folder, shard_id = device_id, num_shards = num_gpus, lazy_init = lazy_type)
+        self.input = ops.readers.Caffe(path = db_folder, shard_id = device_id, num_shards = num_gpus, lazy_init = lazy_type)
         self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
         self.pos_rng_x = ops.random.Uniform(range = (0.0, 1.0), seed=1234)
         self.pos_rng_y = ops.random.Uniform(range = (0.0, 1.0), seed=5678)
@@ -858,7 +858,7 @@ def test_equal_ImageDecoderSlice_ImageDecoder():
             super(NonFusedPipeline, self).__init__(batch_size,
                                              num_threads,
                                              device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.input_crop_pos = ops.ExternalSource()
             self.input_crop_size = ops.ExternalSource()
             self.input_crop = ops.ExternalSource()
@@ -885,7 +885,7 @@ def test_equal_ImageDecoderSlice_ImageDecoder():
             super(FusedPipeline, self).__init__(batch_size,
                                              num_threads,
                                              device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.input_crop_pos = ops.ExternalSource()
             self.input_crop_size = ops.ExternalSource()
             self.input_crop = ops.ExternalSource()
@@ -993,7 +993,7 @@ def test_pipeline_default_cuda_stream_priority():
                                              device_id=0, prefetch_queue_depth=1,
                                              exec_async=False, exec_pipelined=False,
                                              default_cuda_stream_priority=default_cuda_stream_priority)
-            self.input = ops.CaffeReader(path = caffe_db_folder)
+            self.input = ops.readers.Caffe(path = caffe_db_folder)
             self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
 
         def define_graph(self):
@@ -1019,35 +1019,35 @@ class CachedPipeline(Pipeline):
     def __init__(self, reader_type, batch_size, is_cached=False, is_cached_batch_copy=True,  seed=123456, skip_cached_images=False, num_shards=100000):
         super(CachedPipeline, self).__init__(batch_size, num_threads=1, device_id=0, prefetch_queue_depth=1, seed=seed)
         self.reader_type = reader_type
-        if reader_type == "MXNetReader":
-            self.input = ops.MXNetReader(path = os.path.join(recordio_db_folder, "train.rec"),
-                                         index_path = os.path.join(recordio_db_folder, "train.idx"),
-                                         shard_id = 0,
-                                         num_shards = num_shards,
-                                         stick_to_shard = True,
-                                         skip_cached_images = skip_cached_images,
-                                         prefetch_queue_depth = 1)
-        elif reader_type == "CaffeReader":
-            self.input = ops.CaffeReader(path = caffe_db_folder,
-                                         shard_id = 0,
-                                         num_shards = num_shards,
-                                         stick_to_shard = True,
-                                         skip_cached_images = skip_cached_images,
-                                         prefetch_queue_depth = 1)
-        elif reader_type == "Caffe2Reader":
-            self.input = ops.Caffe2Reader(path = c2lmdb_db_folder,
+        if reader_type == "readers.MXNet":
+            self.input = ops.readers.MXNet(path = os.path.join(recordio_db_folder, "train.rec"),
+                                           index_path = os.path.join(recordio_db_folder, "train.idx"),
+                                           shard_id = 0,
+                                           num_shards = num_shards,
+                                           stick_to_shard = True,
+                                           skip_cached_images = skip_cached_images,
+                                           prefetch_queue_depth = 1)
+        elif reader_type == "readers.Caffe":
+            self.input = ops.readers.Caffe(path = caffe_db_folder,
+                                           shard_id = 0,
+                                           num_shards = num_shards,
+                                           stick_to_shard = True,
+                                           skip_cached_images = skip_cached_images,
+                                           prefetch_queue_depth = 1)
+        elif reader_type == "readers.Caffe2":
+            self.input = ops.readers.Caffe2(path = c2lmdb_db_folder,
+                                            shard_id = 0,
+                                            num_shards = num_shards,
+                                            stick_to_shard = True,
+                                            skip_cached_images = skip_cached_images,
+                                            prefetch_queue_depth = 1)
+        elif reader_type == "readers.File":
+            self.input = ops.readers.File(file_root = jpeg_folder,
                                           shard_id = 0,
                                           num_shards = num_shards,
                                           stick_to_shard = True,
                                           skip_cached_images = skip_cached_images,
                                           prefetch_queue_depth = 1)
-        elif reader_type == "FileReader":
-            self.input = ops.FileReader(file_root = jpeg_folder,
-                                        shard_id = 0,
-                                        num_shards = num_shards,
-                                        stick_to_shard = True,
-                                        skip_cached_images = skip_cached_images,
-                                        prefetch_queue_depth = 1)
 
         elif reader_type == "readers.TFRecord":
             tfrecord = sorted(glob.glob(os.path.join(tfrecord_db_folder, '*[!i][!d][!x]')))
@@ -1085,21 +1085,21 @@ class CachedPipeline(Pipeline):
 
 def test_nvjpeg_cached_batch_copy_pipelines():
     batch_size = 26
-    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "readers.TFRecord"}:
+    for reader_type in {"readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File", "readers.TFRecord"}:
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=True),
                           CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=False),
                           batch_size=batch_size, N_iterations=20)
 
 def test_nvjpeg_cached_pipelines():
     batch_size = 26
-    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "readers.TFRecord"}:
+    for reader_type in {"readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File", "readers.TFRecord"}:
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
                           CachedPipeline(reader_type, batch_size, is_cached=True),
                           batch_size=batch_size, N_iterations=20)
 
 def test_skip_cached_images():
     batch_size = 1
-    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader"}:
+    for reader_type in {"readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File"}:
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
                           CachedPipeline(reader_type, batch_size, is_cached=True, skip_cached_images=True),
                           batch_size=batch_size, N_iterations=100)
@@ -1108,12 +1108,12 @@ def test_caffe_no_label():
     class CaffePipeline(Pipeline):
         def __init__(self, batch_size, path_to_data, labels, seed=123456, skip_cached_images=False, num_shards=1):
             super(CaffePipeline, self).__init__(batch_size, num_threads=1, device_id=0, prefetch_queue_depth=1, seed=seed)
-            self.input = ops.CaffeReader(path = path_to_data,
-                                          shard_id = 0,
-                                          num_shards = num_shards,
-                                          stick_to_shard = True,
-                                          prefetch_queue_depth = 1,
-                                          label_available = labels)
+            self.input = ops.readers.Caffe(path = path_to_data,
+                                           shard_id = 0,
+                                           num_shards = num_shards,
+                                           stick_to_shard = True,
+                                           prefetch_queue_depth = 1,
+                                           label_available = labels)
             self.decode = ops.ImageDecoder(output_type = types.RGB)
             self.labels = labels
 
@@ -1136,12 +1136,12 @@ def test_caffe2_no_label():
     class Caffe2Pipeline(Pipeline):
         def __init__(self, batch_size, path_to_data, label_type, seed=123456, skip_cached_images=False, num_shards=1):
             super(Caffe2Pipeline, self).__init__(batch_size, num_threads=1, device_id=0, prefetch_queue_depth=1, seed=seed)
-            self.input = ops.Caffe2Reader(path = path_to_data,
-                                          shard_id = 0,
-                                          num_shards = num_shards,
-                                          stick_to_shard = True,
-                                          prefetch_queue_depth = 1,
-                                          label_type = label_type)
+            self.input = ops.readers.Caffe2(path = path_to_data,
+                                            shard_id = 0,
+                                            num_shards = num_shards,
+                                            stick_to_shard = True,
+                                            prefetch_queue_depth = 1,
+                                            label_type = label_type)
             self.decode = ops.ImageDecoder(output_type = types.RGB)
             self.label_type = label_type
 
@@ -1164,7 +1164,7 @@ def test_as_tensor():
     class HybridPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
             super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, random_shuffle = True)
 
         def define_graph(self):
             _, self.labels = self.input()
@@ -1184,7 +1184,7 @@ def test_as_tensor_fail():
     class HybridPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
             super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, random_shuffle = True)
 
         def define_graph(self):
             _, self.labels = self.input()
@@ -1237,7 +1237,7 @@ def test_api_check1():
             super(TestPipeline, self).__init__(batch_size,
                                              num_threads,
                                              device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
 
         def define_graph(self):
             inputs, labels = self.input(name="Reader")
@@ -1268,7 +1268,7 @@ def test_api_check2():
             super(TestPipeline, self).__init__(batch_size,
                                              num_threads,
                                              device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
 
         def define_graph(self):
             inputs, labels = self.input(name="Reader")
@@ -1299,7 +1299,7 @@ class DupPipeline(Pipeline):
         super(DupPipeline, self).__init__(batch_size, num_threads, device_id)
         self.first_out_device = first_out_device
         self.second_out_device = second_out_device
-        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
+        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
         self.decode = ops.ImageDecoder(device = "mixed" if first_out_device == "mixed" else "cpu", output_type = types.RGB)
         if self.second_out_device:
             self.cmnp = ops.CropMirrorNormalize(device = second_out_device,
@@ -1525,7 +1525,7 @@ def test_ref_count():
     class HybridPipe(Pipeline):
         def __init__(self):
             super(HybridPipe, self).__init__(1, 1, 0, seed = 12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, random_shuffle = True)
 
         def define_graph(self):
             _, self.labels = self.input()
@@ -1540,7 +1540,7 @@ def test_executor_meta():
     class TestPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(TestPipeline, self).__init__(batch_size, num_threads, device_id, enable_memory_stats=True)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
+            self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
             self.decode = ops.ImageDecoderRandomCrop(device = "mixed", output_type = types.RGB, seed=seed)
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
@@ -1565,7 +1565,7 @@ def test_executor_meta():
     test_pipe.build()
     test_pipe.run()
     meta = test_pipe.executor_statistics()
-    # all operators (CaffeReader, ImageDecoderRandomCrop, Resize, CropMirrorNormalize, CoinFlip) + make_contiguous
+    # all operators (readers.Caffe, ImageDecoderRandomCrop, Resize, CropMirrorNormalize, CoinFlip) + make_contiguous
     assert(len(meta) == 6)
     for k in meta.keys():
         if "CropMirrorNormalize" in k:
@@ -1598,7 +1598,7 @@ def test_bytes_per_sample_hint():
         batch_size = 10
         pipe = Pipeline(batch_size, 1, 0, enable_memory_stats=True)
         with pipe:
-            out = fn.caffe_reader(path = caffe_db_folder, shard_id = 0, num_shards = 1, **kvargs)
+            out = fn.readers.caffe(path = caffe_db_folder, shard_id = 0, num_shards = 1, **kvargs)
             out = [o.gpu() for o in out]
             pipe.set_outputs(*out)
         pipe.build()
@@ -1607,7 +1607,7 @@ def test_bytes_per_sample_hint():
         meta = pipe.executor_statistics()
         reader_meta = None
         for k in meta.keys():
-            if "CPU___CaffeReader" in k:
+            if "CPU___Caffe" in k:
                 reader_meta = meta[k]
         return reader_meta
 
@@ -1702,38 +1702,38 @@ def test_epoch_size():
     class ReaderPipeline(Pipeline):
         def __init__(self, batch_size):
             super(ReaderPipeline, self).__init__(batch_size, num_threads=1, device_id=0, prefetch_queue_depth=1)
-            self.input_mxnet = ops.MXNetReader(path = os.path.join(recordio_db_folder, "train.rec"),
+            self.input_mxnet = ops.readers.MXNet(path = os.path.join(recordio_db_folder, "train.rec"),
                                             index_path = os.path.join(recordio_db_folder, "train.idx"),
                                             shard_id = 0,
                                             num_shards = 1,
                                             prefetch_queue_depth = 1)
-            self.input_caffe = ops.CaffeReader(path = caffe_db_folder,
+            self.input_caffe = ops.readers.Caffe(path = caffe_db_folder,
                                             shard_id = 0,
                                             num_shards = 1,
                                             prefetch_queue_depth = 1)
-            self.input_caffe2 = ops.Caffe2Reader(path = c2lmdb_db_folder,
+            self.input_caffe2 = ops.readers.Caffe2(path = c2lmdb_db_folder,
                                             shard_id = 0,
                                             num_shards = 1,
                                             prefetch_queue_depth = 1)
-            self.input_file = ops.FileReader(file_root = jpeg_folder,
+            self.input_file = ops.readers.File(file_root = jpeg_folder,
                                         shard_id = 0,
                                         num_shards = 1,
                                         prefetch_queue_depth = 1)
 
         def define_graph(self):
-            jpegs_mxnet, _ = self.input_mxnet(name="mxnet_reader")
-            jpegs_caffe, _ = self.input_caffe(name="caffe_reader")
-            jpegs_caffe2, _ = self.input_caffe2(name="caffe2_reader")
-            jpegs_file, _ = self.input_file(name="file_reader")
+            jpegs_mxnet, _ = self.input_mxnet(name="readers.mxnet")
+            jpegs_caffe, _ = self.input_caffe(name="readers.caffe")
+            jpegs_caffe2, _ = self.input_caffe2(name="readers.caffe2")
+            jpegs_file, _ = self.input_file(name="readers.file")
             return jpegs_mxnet, jpegs_caffe, jpegs_caffe2, jpegs_file
     pipe = ReaderPipeline(1)
     pipe.build()
     meta =pipe.reader_meta()
     assert(len(meta) == 4)
-    assert(pipe.epoch_size("mxnet_reader") != 0)
-    assert(pipe.epoch_size("caffe_reader") != 0)
-    assert(pipe.epoch_size("caffe2_reader") != 0)
-    assert(pipe.epoch_size("file_reader") != 0)
+    assert(pipe.epoch_size("readers.mxnet") != 0)
+    assert(pipe.epoch_size("readers.caffe") != 0)
+    assert(pipe.epoch_size("readers.caffe2") != 0)
+    assert(pipe.epoch_size("readers.file") != 0)
     assert(len(pipe.epoch_size()) == 4)
 
 def test_pipeline_out_of_scope():

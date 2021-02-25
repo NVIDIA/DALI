@@ -52,14 +52,14 @@ def is_gds_supported(device_id=0):
 def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None, path_filter="*.npy",
                         num_threads=1, device_id=0, num_gpus=1, cache_header_information=False):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=0)
-    data = fn.numpy_reader(device = device,
-                           file_list = file_list,
-                           files = files,
-                           file_root = path,
-                           file_filter = path_filter,
-                           shard_id = 0,
-                           num_shards = 1,
-                           cache_header_information = cache_header_information)
+    data = fn.readers.numpy(device = device,
+                            file_list = file_list,
+                            files = files,
+                            file_root = path,
+                            file_filter = path_filter,
+                            shard_id = 0,
+                            num_shards = 1,
+                            cache_header_information = cache_header_information)
     pipe.set_outputs(data)
     return pipe
 
@@ -232,7 +232,7 @@ def test_batch_files_arg():
 
 def check_dim_mismatch(device, test_data_root, names):
     pipe = Pipeline(2, 2, 0)
-    pipe.set_outputs(fn.numpy_reader(device=device, file_root=test_data_root, files=names))
+    pipe.set_outputs(fn.readers.numpy(device=device, file_root=test_data_root, files=names))
     pipe.build()
     err = None
     try:
@@ -255,7 +255,7 @@ def test_dim_mismatch():
 
 def check_type_mismatch(device, test_data_root, names):
     pipe = Pipeline(2, 2, 0)
-    pipe.set_outputs(fn.numpy_reader(device=device, file_root=test_data_root, files=names))
+    pipe.set_outputs(fn.readers.numpy(device=device, file_root=test_data_root, files=names))
     pipe.build()
 
     err = None

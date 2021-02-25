@@ -53,7 +53,7 @@ def check_operator_coco_reader_custom_order(order=None, add_invalid_paths=False)
     with tempfile.TemporaryDirectory() as annotations_dir:
         pipeline = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
         with pipeline:
-            inputs, _, _, ids = fn.coco_reader(
+            inputs, _, _, ids = fn.readers.coco(
                 file_root=file_root,
                 annotations_file=train_annotations,
                 image_ids=True,
@@ -103,19 +103,19 @@ def test_operator_coco_reader_same_images():
         (coco_pixelwise_dir_imgs, os.path.join(coco_pixelwise_dir, 'instances_rle_counts.json'))]:
         pipe = Pipeline(batch_size=1, num_threads=4, device_id=0)
         with pipe:
-            inputs1, boxes1, labels1, *other = fn.coco_reader(
+            inputs1, boxes1, labels1, *other = fn.readers.coco(
                 file_root=file_root,
                 annotations_file=train_annotations,
                 name="reader1",
                 seed=1234
             )
-            inputs2, boxes2, labels2, *other = fn.coco_reader(
+            inputs2, boxes2, labels2, *other = fn.readers.coco(
                 file_root=file_root,
                 annotations_file=train_annotations,
                 polygon_masks=True,
                 name="reader2"
             )
-            inputs3, boxes3, labels3, *other = fn.coco_reader(
+            inputs3, boxes3, labels3, *other = fn.readers.coco(
                 file_root=file_root,
                 annotations_file=train_annotations,
                 pixelwise_masks=True,
@@ -146,7 +146,7 @@ def test_operator_coco_reader_same_images():
 def test_invalid_args():
     pipeline = Pipeline(batch_size=2, num_threads=4, device_id=0)
     with pipeline:
-        inputs, _, _, ids = fn.coco_reader(
+        inputs, _, _, ids = fn.readers.coco(
             file_root=file_root,
             annotations_file=train_annotations,
             image_ids=True,

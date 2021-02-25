@@ -39,7 +39,7 @@ def compare(tl1, tl2):
 class HybridDecoderPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, cache_size):
         super(HybridDecoderPipeline, self).__init__(batch_size, num_threads, device_id, seed = seed)
-        self.input = ops.FileReader(file_root = image_dir)
+        self.input = ops.readers.File(file_root = image_dir)
         policy = None
         if cache_size > 0:
           policy = "threshold"

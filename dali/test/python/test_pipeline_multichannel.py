@@ -182,7 +182,7 @@ class MultichannelPipeline(Pipeline):
         super(MultichannelPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
 
-        self.reader = ops.FileReader(file_root=multichannel_tiff_root)
+        self.reader = ops.readers.File(file_root=multichannel_tiff_root)
 
         decoder_device = 'mixed' if self.device == 'gpu' else 'cpu'
         self.decoder = ops.ImageDecoder(device = decoder_device, output_type = types.ANY_DATA)
@@ -221,7 +221,7 @@ class MultichannelPythonOpPipeline(Pipeline):
                                                            device_id,
                                                            exec_async=False,
                                                            exec_pipelined=False)
-        self.reader = ops.FileReader(file_root=multichannel_tiff_root)
+        self.reader = ops.readers.File(file_root=multichannel_tiff_root)
         self.decoder = ops.ImageDecoder(device = 'cpu', output_type = types.ANY_DATA)
         self.oper = ops.PythonFunction(function=function, output_layouts="HWC")
 

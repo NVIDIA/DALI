@@ -95,7 +95,7 @@ def gaussian_baseline(image, sigma, window_size, axes=2, skip_axes=0, dtype=np.u
 def get_gaussian_pipe(batch_size, sigma, window_size, op_type):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
-        input, _ = fn.file_reader(file_root=images_dir, shard_id=0, num_shards=1)
+        input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
         decoded = fn.image_decoder(input, device="cpu", output_type=types.RGB)
         if op_type == "gpu":
             decoded = decoded.gpu()
