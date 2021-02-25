@@ -5,7 +5,9 @@ General Purpose
 .. toctree::
    :maxdepth: 2
 
-   erase.ipynb
-   normalize.ipynb
-   tensor_join.ipynb
+   expressions/index
    reductions.ipynb
+   tensor_join.ipynb
+   normalize.ipynb
+   ../math/geometric_transforms.ipynb
+   erase.ipynb

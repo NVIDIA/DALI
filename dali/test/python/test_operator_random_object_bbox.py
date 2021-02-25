@@ -54,6 +54,29 @@ def test_num_output():
         assert count_outputs(fn.segmentation.random_object_bbox(inp, format="start_end", output_class=label_out_param)) == 2 + label_out
         assert count_outputs(fn.segmentation.random_object_bbox(inp, format="box", output_class=label_out_param)) == 1 + label_out
 
+@nottest
+def _test_use_foreground(classes, weights, bg):
+    inp = fn.external_source(data, batch=False, cycle="quiet")
+    pipe = dali.pipeline.Pipeline(10, 4, 0, 12345)
+    pipe_outs = fn.segmentation.random_object_bbox(inp, output_class=True, foreground_prob=1, classes=classes, class_weights=weights, background=bg)
+    pipe.set_outputs(*pipe_outs)
+    pipe.build()
+    outs = pipe.run()
+    for i in range(len(outs[2])):
+        assert outs[2].at(i) != (bg or 0)
+
+def test_use_foreground():
+    """Test that a foreground box is returned when required (prob=1) and possible (fixed data)"""
+    for classes, weights, bg in [
+        (None, None, None),
+        (None, None, 1),
+        ([1,2,3], None, None),
+        (None, [1,1,1], None),
+        (None, [1,1,1], 0),
+        ([1,2,3], [1,1,1], None)]:
+        yield _test_use_foreground, classes, weights, bg
+
+
 def objects2boxes(objects, input_shape):
     if len(objects) == 0:
         return np.int32([[0] * len(input_shape) + list(input_shape)])
@@ -168,16 +191,29 @@ def generate_data(shape, num_classes, blobs_per_class):
 
     return label
 
+def generate_samples(num_samples, ndim, dtype):
+    samples = []
+    for i in range(num_samples):
+        shape = list(np.random.randint(5, 13, [ndim]))
+        num_classes = np.random.randint(1, 10)
+        blobs_per_class = np.random.randint(1, 10);
+        samples.append(generate_data(shape, num_classes, blobs_per_class).astype(dtype))
+    return samples
+
+
 def batch_generator(batch_size, ndim, dtype):
+    """Returns a generator that generates completely new data each time it's called"""
     def gen():
         # batch_size = np.random.randint(1, max_batch_size+1)
-        batch = []
-        for i in range(batch_size):
-            shape = list(np.random.randint(5, 13, [ndim]))
-            num_classes = np.random.randint(1, 10)
-            blobs_per_class = np.random.randint(1, 10);
-            batch.append(generate_data(shape, num_classes, blobs_per_class).astype(dtype))
-        return batch
+        return generate_samples(batch_size, ndim, dtype)
+    return gen
+
+def sampled_dataset(dataset_size, batch_size, ndim, dtype):
+    """Returns a generator that returns random samples from a pre-generated dataset"""
+    data = generate_samples(dataset_size, ndim, dtype)
+    def gen():
+        # batch_size = np.random.randint(1, max_batch_size+1)
+        return [random.choice(data) for _ in range(batch_size)]
     return gen
 
 def random_classes(background):
@@ -212,15 +248,20 @@ def convert_boxes(outs, format):
 @nottest
 def _test_random_object_bbox_with_class(max_batch_size, ndim, dtype, format=None, fg_prob=None,
                                         classes=None, weights=None, background=None,
-                                        threshold=None, k_largest=None):
+                                        threshold=None, k_largest=None, cache=None):
     pipe = dali.Pipeline(max_batch_size, 4, device_id = None, seed=4321)
     background_out = 0 if background is None else background
     classes_out = np.int32([]) if classes is None else classes
     weights_out = np.int32([]) if weights is None else weights
     threshold_out = np.int32([]) if threshold is None else threshold
 
+    if cache:
+        source = sampled_dataset(2 * max_batch_size, max_batch_size, ndim, dtype)
+    else:
+        source = batch_generator(max_batch_size, ndim, dtype)
+
     with pipe:
-        inp = fn.external_source(batch_generator(max_batch_size, ndim, dtype))
+        inp = fn.external_source(source)
         if isinstance(background, dali.pipeline.DataNode) or (background is not None and background >= 0):
             inp = fn.cast(inp + (background_out + 1), dtype=np_type_to_dali(dtype))
         # preconfigure
@@ -229,7 +270,7 @@ def _test_random_object_bbox_with_class(max_batch_size, ndim, dtype, format=None
                                                classes=classes, class_weights=weights, background=background,
                                                threshold=threshold, k_largest=k_largest,
                                                seed=1234)
-        outs1 = op(inp)
+        outs1 = op(inp, cache_objects=cache)
         outs2 = op(inp, output_class=True)
         if not isinstance(outs1, list):
             outs1 = [outs1]
@@ -322,7 +363,8 @@ def test_random_object_bbox_with_class():
                 format = formats[fmt]
                 fmt = (fmt + 1) % len(formats)
                 dtype = random.choice(types)
-                yield _test_random_object_bbox_with_class, 4, ndim, dtype, format, fg_prob, classes, weights, bg, threshold, k_largest
+                cache = np.random.randint(2) == 1
+                yield _test_random_object_bbox_with_class, 4, ndim, dtype, format, fg_prob, classes, weights, bg, threshold, k_largest, cache
 
 @nottest
 def _test_random_object_bbox_ignore_class(max_batch_size, ndim, dtype, format=None, background=None, threshold=None, k_largest=None):
@@ -413,7 +455,6 @@ def _test_err_args(**kwargs):
     pipe.set_outputs(*outs)
     pipe.build()
     pipe.run()
-
 
 def test_err_classes_bg():
     with assert_raises(RuntimeError):

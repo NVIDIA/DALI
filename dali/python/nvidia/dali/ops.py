@@ -115,7 +115,7 @@ def _get_kwargs(schema):
 def _schema_name(cls):
     return getattr(cls, 'schema_name', cls.__name__)
 
-def _docstring_generator_main(cls):
+def _docstring_generator_main(cls, api):
     """
         Generate docstring for the class obtaining it from schema based on cls.__name__
         This lists all the Keyword args that can be used when creating operator
@@ -125,14 +125,24 @@ def _docstring_generator_main(cls):
     ret = '\n'
 
     if schema.IsDeprecated():
-        use_instead = schema.DeprecatedInFavorOf()
+        use_instead = _op_name(schema.DeprecatedInFavorOf(), api)
         ret += ".. warning::\n\n   This operator is now deprecated"
         if use_instead:
             ret +=". Use :meth:`" + use_instead + "` instead."
+        explanation = schema.DeprecationMessage()
+        if explanation:
+            indent = "\n" + " " * 3
+            ret += indent
+            ret += indent
+            explanation = explanation.replace("\n", indent)
+            ret += explanation
         ret += "\n\n"
 
     ret += schema.Dox()
     ret += '\n'
+
+    if schema.IsDocPartiallyHidden():
+        return ret
 
     supported_statements = []
     if schema.IsSequenceOperator():
@@ -171,7 +181,9 @@ Supported backends
 def _docstring_generator(cls):
     op_name = _schema_name(cls)
     schema = _b.GetSchema(op_name)
-    ret = _docstring_generator_main(cls)
+    ret = _docstring_generator_main(cls, "ops")
+    if schema.IsDocPartiallyHidden():
+        return ret
     ret += """
 Keyword args
 ------------
@@ -232,6 +244,8 @@ def _docstring_generator_call(op_name):
         Generate full docstring for `__call__` of Operator `op_name`.
     """
     schema = _b.GetSchema(op_name)
+    if schema.IsDocPartiallyHidden():
+        return ""
     if schema.HasCallDox():
         ret = schema.GetCallDox()
     elif schema.HasInputDox():
@@ -255,7 +269,9 @@ Keyword Args
 def _docstring_generator_fn(cls):
     op_name = _schema_name(cls)
     schema = _b.GetSchema(op_name)
-    ret = _docstring_generator_main(cls)
+    ret = _docstring_generator_main(cls, "fn")
+    if schema.IsDocPartiallyHidden():
+        return ret
     ret += _get_inputs_doc(schema)
     ret += """
 Keyword args
@@ -394,10 +410,14 @@ class _OperatorInstance(object):
                 self._inputs = list(self._inputs) + [arg_inp]
 
         if self._op.schema.IsDeprecated():
-            use_instead = self._op.schema.DeprecatedInFavorOf()
-            msg = "WARNING: `{}` is now deprecated".format(type(self._op).__name__)
+            # TODO(klecki): how to know if this is fn or ops?
+            msg = "WARNING: `{}` is now deprecated".format(_op_name(type(self._op).__name__, "fn"))
+            use_instead = _op_name(self._op.schema.DeprecatedInFavorOf(), "fn")
             if use_instead:
-                msg +=". Use `" + use_instead + "` instead"
+                msg +=". Use `" + use_instead + "` instead."
+            explanation = self._op.schema.DeprecationMessage()
+            if explanation:
+                msg += "\n" + explanation
             with warnings.catch_warnings():
                 warnings.simplefilter("default")
                 warnings.warn(msg, DeprecationWarning, stacklevel=2)
@@ -668,6 +688,16 @@ def _process_op_name(op_schema_name, make_hidden=False):
     if make_hidden:
         submodule = (*submodule, 'hidden')
     return op_full_name, submodule, op_name
+
+def _op_name(op_schema_name, api="fn"):
+    full_name, submodule, op_name = _process_op_name(op_schema_name)
+    if api == "fn":
+        return ".".join([*submodule, _functional._to_snake_case(op_name)])
+    elif api == "ops":
+        return full_name
+    else:
+        raise ValueError('{} is not a valid DALI api name, try one of {"fn", "ops"}'.format(api))
+
 
 def _wrap_op(op_class, submodule = [], parent_module=None):
     return _functional._wrap_op(op_class, submodule, parent_module, _docstring_generator_fn(op_class))
@@ -1185,7 +1215,7 @@ The  ``decode_and_resize`` object can be called as if it was an operator::
         ops.Resize(size=fn.random.uniform(range=400,500)), device="gpu")
     ])
 
-    files, labels = fn.caffe_reader(path=caffe_db_folder, seed=1)
+    files, labels = fn.readers.caffe(path=caffe_db_folder, seed=1)
     pipe.set_ouputs(decode_and_resize(files), labels)
 
 If there's a transition from CPU to GPU in the middle of the ``op_list``, as is the case in this

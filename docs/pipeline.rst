@@ -34,8 +34,8 @@ Example::
     @pipeline_def  # create a pipeline with processing graph defined by the function below
     def my_pipeline():
         """ Create a pipeline which reads images and masks, decodes the images and returns them. """
-        img_files, labels = fn.file_reader(file_root="image_dir", seed=1)
-        mask_files, _ = fn.file_reader(file_root="mask_dir", seed=1)
+        img_files, labels = fn.readers.file(file_root="image_dir", seed=1)
+        mask_files, _ = fn.readers.file(file_root="mask_dir", seed=1)
         images = fn.image_decoder(img_files, device="mixed")
         masks  = fn.image_decoder(mask_files, device="mixed")
         return images, masks, labels

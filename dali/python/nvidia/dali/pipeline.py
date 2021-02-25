@@ -406,12 +406,34 @@ Parameters
         elif not isinstance(outputs, list):
             outputs = [outputs]
 
+        def is_nested(container, pred, container_types):
+            if isinstance(container, container_types):
+                if any(pred(x) for x in container):
+                    return True
+                for x in container:
+                    if is_nested(x, pred, container_types):
+                        return True
+            return False
+
+        def contains_nested_datanode(nested):
+            return is_nested(nested, lambda x: isinstance(x, DataNode), (list, tuple))
+
         for i in range(len(outputs)):
             if isinstance(outputs[i], types.ScalarConstant):
                 import nvidia.dali.ops
                 outputs[i] = nvidia.dali.ops._instantiate_constant_node("cpu", outputs[i])
+            elif contains_nested_datanode(outputs[i]):
+                raise TypeError(f"Illegal pipeline output type. The output {i} contains a nested "
+                                "`DataNode`. Missing list/tuple expansion (*) is the likely cause.")
             elif not isinstance(outputs[i], DataNode):
-                outputs[i] = types.Constant(outputs[i], device="cpu")
+                try:
+                    outputs[i] = types.Constant(outputs[i], device="cpu")
+                except TypeError:
+                    raise TypeError(f"Illegal output type. The output {i} is a `{type(outputs[i])}`. "
+                                     "Allowed types are ``DataNode`` and types convertible to "
+                                     "`types.Constant` (numerical constants, 1D lists/tuple of numbers "
+                                     "and ND arrays).")
+
             _data_node._check(outputs[i])
 
         # Backtrack to construct the graph
@@ -1044,7 +1066,7 @@ def pipeline_def(fn=None, **pipeline_kwargs):
         @pipeline_def
         def my_pipe(flip_vertical, flip_horizontal):
             ''' Creates a DALI pipeline, which returns flipped and original images '''
-            data, _ = fn.file_reader(file_root=images_dir)
+            data, _ = fn.readers.file(file_root=images_dir)
             img = fn.image_decoder(data, device="mixed")
             flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
             return flipped, img

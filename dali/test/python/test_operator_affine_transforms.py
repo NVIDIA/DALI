@@ -482,7 +482,7 @@ def verify_deprecation(callback):
         # Verify DeprecationWarning
         assert len(w) == 1
         assert issubclass(w[-1].category, DeprecationWarning)
-        assert "WARNING: `TransformTranslation` is now deprecated. Use `transforms.translation` instead" \
+        assert "WARNING: `transform_translation` is now deprecated. Use `transforms.translation` instead." \
                 == str(w[-1].message)
 
 def test_transform_translation_deprecation():
