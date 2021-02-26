@@ -27,7 +27,7 @@ template <typename T>
 struct GridMaskSampleDesc {
   T *out;
   const T *in;
-  int width, height, channels;
+  unsigned width, height, channels;
   float ca, sa, sx, sy, ratio;
 };
 
@@ -46,10 +46,10 @@ __global__ void GridMaskKernel(const GridMaskSampleDesc<T> *samples,
       float fx = fmaf(x, sample.ca, fxy);
       float fy = fmaf(x, sample.sa, fyy);
       if ((fx - ::floor(fx) >= sample.ratio) || (fy - ::floor(fy) >= sample.ratio)) {
-        for (int i = 0; i < (C ? C : sample.channels); i++)
+        for (unsigned i = 0; i < (C ? C : sample.channels); i++)
           sample.out[off + i] = sample.in[off + i];
       } else {
-        for (int i = 0; i < (C ? C : sample.channels); i++)
+        for (unsigned i = 0; i < (C ? C : sample.channels); i++)
           sample.out[off + i] = 0;
       }
       off += C * blockDim.x;
