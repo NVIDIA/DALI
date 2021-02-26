@@ -31,7 +31,7 @@ device_id = 0
 def reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=max_batch_size):
     pipeline = Pipeline(ref_batch_size, num_threads, device_id)
     with pipeline:
-        data, _ = fn.file_reader(file_root=images_dir)
+        data, _ = fn.readers.file(file_root=images_dir)
         img = fn.image_decoder(data)
         flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
         pipeline.set_outputs(flipped, img)
@@ -41,7 +41,7 @@ def reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=max_batch_
 @nottest  # pipeline_def works with other decorators too
 @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
 def pipeline_static(flip_vertical, flip_horizontal):
-    data, _ = fn.file_reader(file_root=images_dir)
+    data, _ = fn.readers.file(file_root=images_dir)
     img = fn.image_decoder(data)
     flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
     return flipped, img
@@ -50,7 +50,7 @@ def pipeline_static(flip_vertical, flip_horizontal):
 @nottest
 @pipeline_def
 def pipeline_runtime(flip_vertical, flip_horizontal):
-    data, _ = fn.file_reader(file_root=images_dir)
+    data, _ = fn.readers.file(file_root=images_dir)
     img = fn.image_decoder(data)
     flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
     return flipped, img
@@ -92,12 +92,12 @@ def test_pipeline_decorator():
 def test_duplicated_argument():
     @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
     def ref_pipeline(val):
-        data, _ = fn.file_reader(file_root=images_dir)
+        data, _ = fn.readers.file(file_root=images_dir)
         return data + val
 
     @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
     def pipeline_duplicated_arg(max_streams):
-        data, _ = fn.file_reader(file_root=images_dir)
+        data, _ = fn.readers.file(file_root=images_dir)
         return data + max_streams
 
     pipe = pipeline_duplicated_arg(max_streams=42)

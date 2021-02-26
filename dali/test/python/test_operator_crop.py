@@ -38,7 +38,7 @@ class CropPipeline(Pipeline):
         super(CropPipeline, self).__init__(batch_size, num_threads, device_id)
         self.is_fused_decoder = is_fused_decoder
         self.device = device
-        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
 
         if self.is_fused_decoder:
             self.decode = ops.ImageDecoderCrop(device = "cpu",
@@ -192,7 +192,7 @@ class CropCastPipeline(Pipeline):
                                                device_id)
         self.should_perform_cast = should_perform_cast
         self.device = device
-        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu",
                                       output_type = types.RGB)
 

@@ -30,10 +30,10 @@ def create_coco_pipeline(data_paths, batch_size, num_threads, shard_id, num_gpus
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads,
                     device_id=0, prefetch_queue_depth=1)
     with pipe:
-        _, _, labels, ids = fn.coco_reader(file_root=data_paths[0], annotations_file=data_paths[1],
-                                           shard_id=shard_id, num_shards=num_gpus, random_shuffle=random_shuffle,
-                                           image_ids=True, stick_to_shard=stick_to_shard, shuffle_after_epoch=shuffle_after_epoch,
-                                           pad_last_batch=pad_last_batch, initial_fill=initial_fill, name="Reader")
+        _, _, labels, ids = fn.readers.coco(file_root=data_paths[0], annotations_file=data_paths[1],
+                                            shard_id=shard_id, num_shards=num_gpus, random_shuffle=random_shuffle,
+                                            image_ids=True, stick_to_shard=stick_to_shard, shuffle_after_epoch=shuffle_after_epoch,
+                                            pad_last_batch=pad_last_batch, initial_fill=initial_fill, name="Reader")
         if return_labels:
             pipe.set_outputs(labels, ids)
         else:
@@ -88,7 +88,7 @@ def test_mxnet_iterator_model_fit():
     def create_test_pipeline(batch_size, num_threads, device_id, num_gpus, data_paths):
         pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
         with pipe:
-            _, labels = fn.file_reader(
+            _, labels = fn.readers.file(
                 file_root=data_paths, shard_id=device_id, num_shards=num_gpus, name="Reader")
         pipe.set_outputs(labels)
         return pipe
@@ -661,7 +661,7 @@ def create_custom_pipeline(batch_size, num_threads, device_id, num_gpus, data_pa
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads,
                     device_id=0, prefetch_queue_depth=1)
     with pipe:
-        jpegs, _ = fn.file_reader(
+        jpegs, _ = fn.readers.file(
             file_root=data_paths, shard_id=device_id, num_shards=num_gpus, name="Reader")
         images = fn.image_decoder(jpegs, device="mixed", output_type=types.RGB)
         images = fn.random_resized_crop(images, size=(224, 224))

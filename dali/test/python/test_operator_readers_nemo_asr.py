@@ -86,26 +86,26 @@ class NemoAsrReaderPipeline(Pipeline):
 
   def define_graph(self):
     fixed_seed = 12345
-    audio_plain_i = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = False,
-                                       read_sample_rate = False, read_text = False, seed=fixed_seed)
-    audio_plain_f = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = False,
-                                       read_sample_rate = False, read_text = False, seed=fixed_seed)
-    audio_downmix_i = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
-                                         read_sample_rate=False, read_text=False, seed=fixed_seed)
-    audio_downmix_f = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = True,
-                                         read_sample_rate=False, read_text=False, seed=fixed_seed)
-    audio_resampled1_i, sr1_i = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
-                                                   sample_rate=rate1, read_sample_rate=True, read_text=False, seed=fixed_seed)
-    audio_resampled1_f, sr1_f = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = True,
-                                                   sample_rate=rate1, read_sample_rate=True, read_text=False, seed=fixed_seed)
-    audio_resampled2_i, sr1_i = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
-                                                   sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
-    audio_resampled2_f, sr1_f = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = True,
-                                                   sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
-    _, _, text = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
-                                    read_sample_rate=True, read_text=True, seed=fixed_seed)
-    _, _, text_non_ascii = fn.nemo_asr_reader(manifest_filepaths = [nemo_asr_manifest_non_ascii], dtype = types.INT16, downmix = True,
-                                              read_sample_rate=True, read_text=True, seed=fixed_seed)
+    audio_plain_i = fn.readers.nemo_asr(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = False,
+                                        read_sample_rate = False, read_text = False, seed=fixed_seed)
+    audio_plain_f = fn.readers.nemo_asr(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = False,
+                                        read_sample_rate = False, read_text = False, seed=fixed_seed)
+    audio_downmix_i = fn.readers.nemo_asr(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
+                                          read_sample_rate=False, read_text=False, seed=fixed_seed)
+    audio_downmix_f = fn.readers.nemo_asr(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = True,
+                                          read_sample_rate=False, read_text=False, seed=fixed_seed)
+    audio_resampled1_i, sr1_i = fn.readers.nemo_asr(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
+                                                    sample_rate=rate1, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    audio_resampled1_f, sr1_f = fn.readers.nemo_asr(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = True,
+                                                    sample_rate=rate1, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    audio_resampled2_i, sr1_i = fn.readers.nemo_asr(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
+                                                    sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    audio_resampled2_f, sr1_f = fn.readers.nemo_asr(manifest_filepaths = [nemo_asr_manifest], dtype = types.FLOAT, downmix = True,
+                                                    sample_rate=rate2, read_sample_rate=True, read_text=False, seed=fixed_seed)
+    _, _, text = fn.readers.nemo_asr(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = True,
+                                     read_sample_rate=True, read_text=True, seed=fixed_seed)
+    _, _, text_non_ascii = fn.readers.nemo_asr(manifest_filepaths = [nemo_asr_manifest_non_ascii], dtype = types.INT16, downmix = True,
+                                               read_sample_rate=True, read_text=True, seed=fixed_seed)
     return audio_plain_i, audio_plain_f, audio_downmix_i, audio_downmix_f, \
            audio_resampled1_i, audio_resampled1_f, audio_resampled2_i, audio_resampled2_f, \
            text, text_non_ascii

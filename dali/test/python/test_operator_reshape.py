@@ -34,7 +34,7 @@ class ReshapePipeline(Pipeline):
     def __init__(self, device, batch_size, relative, use_wildcard, num_threads=3, device_id=0, num_gpus=1):
         super(ReshapePipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=True, exec_pipelined=True)
         self.device = device
-        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         W = 320
         H = 224
@@ -69,7 +69,7 @@ class ReshapeWithInput(Pipeline):
     def __init__(self, device, batch_size, use_wildcard, num_threads=3, device_id=0, num_gpus=1):
         super(ReshapeWithInput, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.device = device
-        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         fn = CollapseChannelsWildcard if use_wildcard else CollapseChannels
         self.gen_shapes = ops.PythonFunction(function=fn)
@@ -97,7 +97,7 @@ class ReshapeWithArgInput(Pipeline):
     def __init__(self, device, batch_size, relative, use_wildcard, num_threads=3, device_id=0, num_gpus=1):
         super(ReshapeWithArgInput, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.device = device
-        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.resize = ops.Resize(device = "cpu");
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         self.gen_shapes = ops.PythonFunction(function=MakeTallFunc(relative, use_wildcard))

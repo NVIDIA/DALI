@@ -33,12 +33,12 @@ def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, siz
                          shard_id, num_shards, dali_cpu=False, is_training=True):
     pipeline = Pipeline(batch_size, num_threads, device_id, seed=12 + device_id)
     with pipeline:
-        images, labels = fn.file_reader(file_root=data_dir,
-                                        shard_id=shard_id,
-                                        num_shards=num_shards,
-                                        random_shuffle=is_training,
-                                        pad_last_batch=True,
-                                        name="Reader")
+        images, labels = fn.readers.file(file_root=data_dir,
+                                         shard_id=shard_id,
+                                         num_shards=num_shards,
+                                         random_shuffle=is_training,
+                                         pad_last_batch=True,
+                                         name="Reader")
         dali_device = 'cpu' if dali_cpu else 'gpu'
         decoder_device = 'cpu' if dali_cpu else 'mixed'
         device_memory_padding = 211025920 if decoder_device == 'mixed' else 0

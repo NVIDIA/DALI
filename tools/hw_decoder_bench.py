@@ -21,7 +21,7 @@ args = parser.parse_args()
 class SamplePipeline(Pipeline):
     def __init__(self, batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id):
         super(SamplePipeline, self).__init__(batch_size, num_threads, device_id, seed=0)
-        self.input = dali.ops.FileReader(file_root = args.images_dir)
+        self.input = dali.ops.readers.File(file_root = args.images_dir)
         self.decode = dali.ops.ImageDecoder(
             device = 'mixed',
             output_type = dali.types.RGB,

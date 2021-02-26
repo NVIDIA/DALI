@@ -171,6 +171,8 @@ favicon_rel_path = "nvidia.ico"
 subprocess.call(["wget", "-O", favicon_rel_path, "https://docs.nvidia.com/images/nvidia.ico"])
 html_favicon = favicon_rel_path
 
+subprocess.call(["wget", "-O", "dali.png", "https://developer.nvidia.com/sites/default/files/akamai/dali.png"])
+
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
 #

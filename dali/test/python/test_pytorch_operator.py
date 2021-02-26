@@ -38,7 +38,7 @@ class CommonPipeline(Pipeline):
                  image_dir=images_dir):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id,
                                              exec_async=False, exec_pipelined=False)
-        self.input = ops.FileReader(file_root=image_dir)
+        self.input = ops.readers.File(file_root=image_dir)
         self.decode = ops.ImageDecoder(device='cpu', output_type=types.RGB)
 
     def load(self):

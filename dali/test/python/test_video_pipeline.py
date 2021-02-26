@@ -50,10 +50,10 @@ class VideoPipe(Pipeline):
     def __init__(self, batch_size, data, shuffle=False, stride=1, step=-1, device_id=0, num_shards=1,
                  dtype=types.FLOAT, sequence_length=COUNT):
         super(VideoPipe, self).__init__(batch_size, num_threads=2, device_id=device_id, seed=12)
-        self.input = ops.VideoReader(device="gpu", filenames=data, sequence_length=sequence_length,
-                                     shard_id=0, num_shards=num_shards, random_shuffle=shuffle,
-                                     normalized=True, image_type=types.YCbCr, dtype=dtype,
-                                     step=step, stride=stride)
+        self.input = ops.readers.Video(device="gpu", filenames=data, sequence_length=sequence_length,
+                                       shard_id=0, num_shards=num_shards, random_shuffle=shuffle,
+                                       normalized=True, image_type=types.YCbCr, dtype=dtype,
+                                       step=step, stride=stride)
 
     def define_graph(self):
         output = self.input(name="Reader")
@@ -62,8 +62,8 @@ class VideoPipe(Pipeline):
 class VideoPipeList(Pipeline):
     def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT, step=-1, stride=1):
         super(VideoPipeList, self).__init__(batch_size, num_threads=2, device_id=device_id)
-        self.input = ops.VideoReader(device="gpu", file_list=data, sequence_length=sequence_length,
-                                     step=step, stride=stride, file_list_frame_num=True)
+        self.input = ops.readers.Video(device="gpu", file_list=data, sequence_length=sequence_length,
+                                       step=step, stride=stride, file_list_frame_num=True)
 
     def define_graph(self):
         output = self.input(name="Reader")
@@ -72,8 +72,8 @@ class VideoPipeList(Pipeline):
 class VideoPipeRoot(Pipeline):
     def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT):
         super(VideoPipeRoot, self).__init__(batch_size, num_threads=2, device_id=device_id)
-        self.input = ops.VideoReader(device="gpu", file_root=data, sequence_length=sequence_length,
-                                     random_shuffle=True)
+        self.input = ops.readers.Video(device="gpu", file_root=data, sequence_length=sequence_length,
+                                       random_shuffle=True)
 
     def define_graph(self):
         output = self.input(name="Reader")
@@ -232,7 +232,7 @@ def test_multi_gpu_video_pipeline():
         p.build()
         p.run()
 
-# checks if the VideoReader can handle more than OS max open file limit of opened files at once
+# checks if the readers.Video can handle more than OS max open file limit of opened files at once
 def test_plenty_of_video_files():
     # make sure that there is one sequence per video file
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=PLENTY_VIDEO_FILES, step=1000000, sequence_length=1)
@@ -248,7 +248,7 @@ def check_corrupted_videos():
     for corrupted in corrupted_videos:
         pipe = Pipeline(batch_size=BATCH_SIZE, num_threads=4, device_id=0)
         with pipe:
-            vid = fn.video_reader(device="gpu", filenames=corrupted, sequence_length=1)
+            vid = fn.readers.video(device="gpu", filenames=corrupted, sequence_length=1)
             pipe.set_outputs(vid)
         pipe.build()
 
@@ -261,8 +261,8 @@ def check_container(cont):
     test_videos = [path + '/' + f for f in os.listdir(path)]
     with pipe:
         # mkv container for some reason fails in DALI VFR heuristics
-        vid = fn.video_reader(device="gpu", filenames=test_videos, sequence_length=10,
-                              skip_vfr_check=True, stride=1, name="Reader")
+        vid = fn.readers.video(device="gpu", filenames=test_videos, sequence_length=10,
+                               skip_vfr_check=True, stride=1, name="Reader")
         pipe.set_outputs(vid)
     pipe.build()
 

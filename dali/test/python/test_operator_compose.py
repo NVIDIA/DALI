@@ -69,7 +69,7 @@ def test_compose_change_device():
         ops.ImageDecoder(device="cpu"),
         ops.Resize(size=size, device="gpu")
     ])
-    files, labels = fn.caffe_reader(path=caffe_db_folder, seed=1)
+    files, labels = fn.readers.caffe(path=caffe_db_folder, seed=1)
     pipe.set_outputs(c(files), fn.resize(fn.image_decoder(files).gpu(), size=size))
 
     pipe.build()

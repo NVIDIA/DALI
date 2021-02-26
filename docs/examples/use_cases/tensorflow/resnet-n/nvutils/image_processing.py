@@ -154,7 +154,7 @@ def get_dali_pipeline(
             dali_cpu=True,
             training=True):
 
-    inputs = fn.tfrecord_reader(
+    inputs = fn.readers.tfrecord(
                     path=tfrec_filenames,
                     index_path=tfrec_idx_filenames,
                     random_shuffle=training,

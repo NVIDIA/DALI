@@ -40,11 +40,11 @@ ITER=100
 class VideoPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, data):
         super(VideoPipe, self).__init__(batch_size, num_threads, device_id, seed=12)
-        self.input = ops.VideoReader(device="gpu", file_root = data, sequence_length=COUNT,
+        self.input = ops.readers.Video(device="gpu", file_root = data, sequence_length=COUNT,
         # instead of file_root, path to text file with pairs video_filepath label_value can be provided
-        # self.input = ops.VideoReader(device="gpu", file_list = "file_list.txt", sequence_length=COUNT,
-                                     shard_id=0, num_shards=1, random_shuffle=False,
-                                     normalized=True, image_type=types.YCbCr, dtype=types.FLOAT)
+        # self.input = ops.readers.Video(device="gpu", file_list = "file_list.txt", sequence_length=COUNT,
+                                       shard_id=0, num_shards=1, random_shuffle=False,
+                                       normalized=True, image_type=types.YCbCr, dtype=types.FLOAT)
 
     def define_graph(self):
         output = self.input(name="Reader")
