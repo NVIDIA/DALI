@@ -370,8 +370,8 @@ class WorkerPool:
             to the order of callbacks passed when constructing WorkerPool.
         `batch_i` : int
             Ordinal of the batch that tasks list corresponds to.
-        `tasks` : nvidia.dali.types.SampleInfo list
-            You can think of resulting batch as [callback(task) for task in tasks] with the exception that
+        `tasks` : list of (nvidia.dali.types.SampleInfo,)
+            You can think of resulting batch as [callback(*task) for task in tasks] with the exception that
             callbacks will be run in parallel.
         """
         tasks = list(enumerate(tasks))
