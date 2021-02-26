@@ -9,8 +9,8 @@ test_nose() {
         "scipy"
         "librosa"
         "\"mixed\""
-        "\'mixed\'"
-        "video\n"
+        "'mixed'"
+        "video\("
         "caffe"
     )
 
