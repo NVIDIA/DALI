@@ -92,6 +92,30 @@ allocations will occur during the pipeline execution. One way to find the ideal 
 do a complete run over the dataset with the ``memory_stats`` argument set to True, and then copy
 the largest allocation value that is printed in the statistics.)code",
       0)
+  .AddOptionalArg("hw_decoder_load",
+      R"code(The percentage of the image data to be processed by the HW JPEG decoder.
+
+Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
+
+Determines the percentage of the workload that will be offloaded to the hardware decoder,
+if available. The optimal workload depends on the number of threads that are provided to
+the DALI pipeline and should be found empirically. More details can be found at
+https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100)code",
+      0.65f)
+  .AddOptionalArg("preallocate_width_hint",
+      R"code(Image width hint.
+
+Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
+
+The hint is used to preallocate memory for the HW JPEG decoder.)code",
+      0)
+  .AddOptionalArg("preallocate_height_hint",
+      R"code(Image width hint.
+
+Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
+
+The hint is used to preallocate memory for the HW JPEG decoder.)code",
+      0)
   .AddOptionalArg("affine",
       R"code(Applies **only** to the ``mixed`` backend type.
 
@@ -150,30 +174,6 @@ Please note that GPU acceleration for JPEG 2000 decoding is only available for C
 
 .. note::
   EXIF orientation metadata is disregarded.)code")
-  .AddOptionalArg("hw_decoder_load",
-      R"code(The percentage of the image data to be processed by the HW JPEG decoder.
-
-Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
-
-Determines the percentage of the workload that will be offloaded to the hardware decoder,
-if available. The optimal workload depends on the number of threads that are provided to
-the DALI pipeline and should be found empirically. More details can be found at
-https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100)code",
-      0.65f)
-  .AddOptionalArg("preallocate_width_hint",
-      R"code(Image width hint.
-
-Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
-
-The hint is used to preallocate memory for the HW JPEG decoder.)code",
-      0)
-  .AddOptionalArg("preallocate_height_hint",
-      R"code(Image width hint.
-
-Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
-
-The hint is used to preallocate memory for the HW JPEG decoder.)code",
-      0)
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")

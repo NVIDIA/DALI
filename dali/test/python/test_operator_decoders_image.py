@@ -47,19 +47,20 @@ def get_img_files(data_path, subdir='*', ext=None):
         txt_files = glob.glob(data_path  + f"/{subdir}/*.txt")
         return list(set(files) - set(txt_files))
 
-class DecoderPipeline(Pipeline):
-    def __init__(self, data_path, batch_size, num_threads, device_id, device, use_fast_idct=False, memory_stats=False):
-        super(DecoderPipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth=1)
-        self.input = ops.readers.File(file_root = data_path,
-                                      shard_id = 0,
-                                      num_shards = 1)
-        self.decode = ops.decoders.Image(device = device, output_type = types.RGB, use_fast_idct=use_fast_idct,
-                                         memory_stats=memory_stats)
+@pipeline_def
+def create_decoder(data_path, device, use_fast_idct=False, memory_stats=False):
+    inputs, labels = fn.readers.file(file_root = data_path,
+                                     shard_id = 0,
+                                     num_shards = 1,
+                                     name="Reader")
+    decoded = fn.decoders.image(inputs, device = device, output_type = types.RGB, use_fast_idct=use_fast_idct,
+                                memory_stats=memory_stats)
 
-    def define_graph(self):
-        inputs, labels = self.input(name="Reader")
-        output = self.decode(inputs)
-        return (output, labels)
+    return decoded, labels
+
+def to_array(dali_out):
+    if isinstance(dali_out, TensorGPU):
+        dali_out = dali_out.as_cpu()
 
 test_data_root = get_dali_extra_path()
 good_path = 'db/single'
@@ -68,7 +69,7 @@ test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k'}
 test_missnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 
 def run_decode(data_path, batch, device, threads, memory_stats=False):
-    pipe = DecoderPipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, memory_stats=memory_stats)
+    pipe = create_decoder(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, memory_stats=memory_stats, prefetch_queue_depth=1)
     pipe.build()
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for _ in range(iters):
@@ -90,19 +91,152 @@ def test_image_decoder():
                     run_decode(data_path, batch_size, device, threads)
                     yield log, img_type, batch_size, device, threads
 
+# ToDo - check padding behavior
+@pipeline_def
+def create_decoder_slice_pipeline(data_path, device):
+    jpegs, _ = fn.readers.file(file_root = data_path,
+                               shard_id = 0,
+                               num_shards = 1,
+                               name = "Reader")
 
-class DecoderPipelineFastIDC(Pipeline):
-    def __init__(self, data_path, batch_size, num_threads, use_fast_idct=False):
-        super(DecoderPipelineFastIDC, self).__init__(batch_size, num_threads, 0, prefetch_queue_depth=1)
-        self.input = ops.readers.File(file_root = data_path,
-                                      shard_id = 0,
-                                      num_shards = 1)
-        self.decode = ops.decoders.Image(device = 'cpu', output_type = types.RGB, use_fast_idct=use_fast_idct)
+    # ToDo make window random?
+    images_sliced_1 = fn.decoders.image_slice(jpegs,
+                                              [0.1, 0.1],
+                                              [0.6, 0.6],
+                                              device = device,
+                                              hw_decoder_load = 0.7,
+                                              output_type = types.RGB,
+                                              normalized_anchor=True,
+                                              normalized_shape=True,
+                                              axis_names = None,
+                                              axes = None)
 
-    def define_graph(self):
-        inputs, labels = self.input(name="Reader")
-        output = self.decode(inputs)
-        return (output, labels)
+    images = fn.decoders.image(jpegs,
+                               device = device,
+                               hw_decoder_load = 0.7,
+                               output_type = types.RGB)
+    # ToDo make window random?
+    images_sliced_2 = fn.slice(images,
+                               [0.1, 0.1],
+                               [0.6, 0.6],
+                               normalized_anchor=True,
+                               normalized_shape=True,
+                               axis_names = None,
+                               axes = None)
+
+    return images_sliced_1, images_sliced_2
+
+def run_decode_slice(path, img_type, batch, device, threads):
+    data_path = os.path.join(test_data_root, path, img_type)
+    pipe = create_decoder_slice_pipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, prefetch_queue_depth=1)
+    pipe.build()
+    iters = math.ceil(pipe.epoch_size("Reader") / batch)
+    for _ in range(iters):
+        out_1, out_2 = pipe.run()
+        for img_1, img_2 in zip(out_1, out_2):
+            img_1 = to_array(img_1)
+            img_2 = to_array(img_2)
+            assert np.allclose(img_1, img_2)
+
+def test_image_decoder_slice():
+    for device in {'cpu', 'mixed'}:
+        for threads in {4}:
+            for size in {10}:
+                for img_type in test_good_path:
+                    yield run_decode_slice, good_path, img_type, size, device, threads
+
+# ToDo - check padding behavior
+@pipeline_def
+def create_decoder_crop_pipeline(data_path, device):
+    jpegs, _ = fn.readers.file(file_root = data_path,
+                               shard_id = 0,
+                               num_shards = 1,
+                               name = "Reader")
+
+    # ToDo make window random?
+    images_crop_1 = fn.decoders.image_crop(jpegs,
+                                           device = device,
+                                           output_type = types.RGB,
+                                           hw_decoder_load = 0.7,
+                                           crop = (224, 224),
+                                           crop_pos_x = 0.3,
+                                           crop_pos_y = 0.2)
+
+    images = fn.decoders.image(jpegs,
+                               device = device,
+                               hw_decoder_load = 0.7,
+                               output_type = types.RGB)
+    # ToDo make window random?
+    images_crop_2 = fn.crop(images,
+                            crop = (224, 224),
+                            crop_pos_x = 0.3,
+                            crop_pos_y = 0.2)
+
+    return images_crop_1, images_crop_2
+
+def run_decode_crop(path, img_type, batch, device, threads):
+    data_path = os.path.join(test_data_root, path, img_type)
+    pipe = create_decoder_crop_pipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, prefetch_queue_depth=1)
+    pipe.build()
+    iters = math.ceil(pipe.epoch_size("Reader") / batch)
+    for _ in range(iters):
+        out_1, out_2 = pipe.run()
+        for img_1, img_2 in zip(out_1, out_2):
+            img_1 = to_array(img_1)
+            img_2 = to_array(img_2)
+            assert np.allclose(img_1, img_2)
+
+def test_image_decoder_crop():
+    for device in {'cpu', 'mixed'}:
+        for threads in {4}:
+            for size in {10}:
+                for img_type in test_good_path:
+                    yield run_decode_crop, good_path, img_type, size, device, threads
+
+
+@pipeline_def
+def create_decoder_random_crop_pipeline(data_path, device):
+    seed = 1234
+    jpegs, _ = fn.readers.file(file_root = data_path,
+                               shard_id = 0,
+                               num_shards = 1,
+                               name = "Reader")
+
+    images_random_crop_1 = fn.decoders.image_random_crop(jpegs,
+                                                         device = device,
+                                                         output_type = types.RGB,
+                                                         hw_decoder_load = 0.7,
+                                                         seed = seed)
+    images_random_crop_1 = fn.resize(images_random_crop_1, size = (224,224))
+
+    images = fn.decoders.image(jpegs,
+                               device = device,
+                               hw_decoder_load = 0.7,
+                               output_type = types.RGB)
+    images_random_crop_2 = fn.random_resized_crop(images, size = (224,224), seed = seed)
+
+    return images_random_crop_1, images_random_crop_2
+
+def run_decode_random_crop(path, img_type, batch, device, threads):
+    data_path = os.path.join(test_data_root, path, img_type)
+    pipe = create_decoder_random_crop_pipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, prefetch_queue_depth=1)
+    pipe.build()
+    iters = math.ceil(pipe.epoch_size("Reader") / batch)
+    for _ in range(iters):
+        out_1, out_2 = pipe.run()
+        for img_1, img_2 in zip(out_1, out_2):
+            img_1 = to_array(img_1)
+            img_2 = to_array(img_2)
+            # random_resized_crop can properly handle border as it has pixels that are cropped out, while
+            # plain resize folowing image_decoder_random_crop cannot do that and must duplicate the border pixels
+            assert np.mean(np.abs(img_1 - img_2) < 0.5)
+
+def test_image_decoder_random_crop():
+    for device in {'cpu', 'mixed'}:
+        for threads in {4}:
+            for size in {10}:
+                for img_type in test_good_path:
+                    yield run_decode_random_crop, good_path, img_type, size, device, threads
 
 def check_FastDCT_body(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)

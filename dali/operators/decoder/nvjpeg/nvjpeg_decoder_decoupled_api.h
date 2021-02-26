@@ -525,8 +525,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                               &subsampling, widths, heights);
 
       auto crop_generator = GetCropWindowGenerator(i);
+      bool hw_decode = false;
       if (ret == NVJPEG_STATUS_SUCCESS) {
-        bool hw_decode = false;
 #if NVJPEG_VER_MAJOR >= 11
         if (!crop_generator && state_hw_batched_ != nullptr) {
           NVJPEG_CALL(nvjpegJpegStreamParseHeader(handle_, input_data, in_size,
@@ -747,7 +747,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       TensorVector<CPUBackend> tv(samples_hw_batched_.size());
 
       for (auto *sample : samples_hw_batched_) {
-        assert(!sample->roi);
         int i = sample->sample_idx;
         const auto &in = ws.Input<CPUBackend>(0, i);
         const auto &out_shape = output_shape_.tensor_shape(i);
