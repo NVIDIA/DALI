@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy librosa torch"
+pip_packages="nose numpy librosa torch psutil"
 target_dir=./dali/test/python
 
 test_body() {

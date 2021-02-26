@@ -13,15 +13,11 @@
 # limitations under the License.
 
 import numpy as np
-from nose.tools import raises
+from nose.tools import raises, with_setup
 
 from test_utils import compare_pipelines
 from test_external_source_parallel_utils import *
 
-from nose.tools import with_setup
-
-global pipe_processes
-pipe_processes = set()
 
 # Test that we can launch several CPU-only pipelines by fork as we don't touch CUDA context.
 @with_setup(setup_function, teardown_function)

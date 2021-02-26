@@ -18,7 +18,7 @@
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
 
 import mxnet as mx
-from nose.tools import raises
+from nose.tools import raises, with_setup
 
 from test_external_source_parallel_utils import *
 
@@ -28,11 +28,13 @@ class ExtCallbackMX(ExtCallback):
         return mx.nd.array(a, dtype=a.dtype)
 
 
+@with_setup(setup_function, teardown_function)
 def test_mxnet():
     yield from check_spawn_with_callback(ExtCallbackMX)
 
 
 @raises(RuntimeError)
+@with_setup(setup_function, teardown_function)
 def test_pytorch_cuda_context():
     # Create a dummy MXNet CUDA tensor so we acquire CUDA context
     _ = mx.nd.zeros((1, 1), ctx=mx.gpu(0))
@@ -40,3 +42,4 @@ def test_pytorch_cuda_context():
     pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
                 py_start_method='fork', parallel=True)
     pipe.start_py_workers()
+    capture_processes(pipe)
