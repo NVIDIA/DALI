@@ -650,7 +650,7 @@ def test_dump_image_cpu():
 
 def test_sequence_reader_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    processed = fn.sequence_reader(file_root=sequence_dir, sequence_length=2, shard_id=0, num_shards=1)
+    processed = fn.readers.sequence(file_root=sequence_dir, sequence_length=2, shard_id=0, num_shards=1)
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
