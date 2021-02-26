@@ -134,6 +134,8 @@ DLL_PUBLIC const DeprecatedArgDef &OpSchema::DeprecatedArgMeta(const std::string
   }
   DALI_ENFORCE(IsDeprecatedArg(arg_name),
                make_string("Argument \"", arg_name, "\" is not marked as a deprecated argument"));
+  throw std::runtime_error(
+      make_string("No deprecation metadata for deprecated argument \"", arg_name, "\" found."));
 }
 
 std::string OpSchema::GetArgumentDox(const std::string &name) const {
