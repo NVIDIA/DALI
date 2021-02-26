@@ -13,10 +13,38 @@
 # limitations under the License.
 
 import numpy as np
-
+import os
+import psutil
+import time
 import nvidia.dali as dali
 
 from test_utils import compare_pipelines, check_batch, RandomDataIterator, RandomlyShapedDataIterator
+
+def setup_function():
+    global pipe_processes
+    pipe_processes = set()
+
+def teardown_function():
+    global pipe_processes
+    current_process = psutil.Process()
+    children = set(current_process.children())
+    left = pipe_processes.intersection(children)
+    assert len(left) == 0, ("Pipeline-started processes left after " +
+          "test is finished, pids alive:\n{},\npids started during tests:\n{}").format(left, pipe_processes)
+
+def check_shm_for_dali(msg):
+    shm_paths = ["/dev/shm/", "/run/shm/"]
+    for shm_path in shm_paths:
+        if os.path.isdir(shm_path):
+            shm_handles = os.listdir(shm_path)
+            for handle in shm_handles:
+                assert "nvidia_dali_" not in handle, msg.format(shm_path + handle)
+
+def setup_module():
+    check_shm_for_dali("Expected clear shared mem environment before starting tests, found old DALI file handle: {}")
+
+def teardown_module():
+    check_shm_for_dali("Test left opened shared memory file handle: {}")
 
 
 class ExtCallback:
@@ -66,18 +94,26 @@ def create_pipe(
         py_start_method="fork", parallel=True, device_id=0):
     pipe = dali.pipeline.Pipeline(
         batch_size, 1, device_id, py_num_workers=py_num_workers, py_start_method=py_start_method)
-    inputs = dali.fn.external_source(
-        callback, num_outputs=num_outputs, device=device, layout=layout, batch=False,
-        parallel=parallel)
-    if num_outputs is None:
-        pipe.set_outputs(inputs)
-    else:
-        pipe.set_outputs(*inputs)
+    with pipe:
+        inputs = dali.fn.external_source(
+            callback, num_outputs=num_outputs, device=device, layout=layout, batch=False,
+            parallel=parallel)
+        if num_outputs is None:
+            pipe.set_outputs(inputs)
+        else:
+            pipe.set_outputs(*inputs)
     return pipe
 
 
+def capture_processes(pipe):
+    global pipe_processes
+    if pipe._py_pool is not None:
+        for proc in pipe._py_pool.pool._processes:
+            pipe_processes.add(proc.pid)
+
 def build_and_run_pipeline(pipe, iters=None, *args):
     pipe.build()
+    capture_processes(pipe)
     if iters is None:
         while True:
             pipe.run()
@@ -91,6 +127,7 @@ def check_callback(parallel_pipe, pipe, epoch_size, batch_size, dtype=None):
     iters_no = epoch_size // batch_size
     parallel_pipe.build()
     pipe.build()
+    capture_processes(parallel_pipe)
     compare_pipelines(parallel_pipe, pipe, batch_size, iters_no)
     parallel_pipe._py_pool.close()
 
@@ -131,6 +168,7 @@ class CustomException(Exception):
 
 def check_stop_iteration_resume(pipe, batch_size, layout):
     pipe.build()
+    capture_processes(pipe)
     outputs_epoch_1, outputs_epoch_2 = [], []
     for output in [outputs_epoch_1, outputs_epoch_2]:
         try:
@@ -147,6 +185,7 @@ def check_stop_iteration_resume(pipe, batch_size, layout):
 
 def check_layout(pipe, layout):
     pipe.build()
+    capture_processes(pipe)
     while True:
         try:
             (res, ) = pipe.run()

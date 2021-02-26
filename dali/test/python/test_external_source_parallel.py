@@ -18,21 +18,32 @@ from nose.tools import raises
 from test_utils import compare_pipelines
 from test_external_source_parallel_utils import *
 
+from nose.tools import with_setup
 
+global pipe_processes
+pipe_processes = set()
+
+# Test that we can launch several CPU-only pipelines by fork as we don't touch CUDA context.
+@with_setup(setup_function, teardown_function)
 def test_parallel_fork_cpu_only():
+    global pipe_processes
     pipeline_pairs = 4
     batch_size = 10
     iters = 40
     callback = ExtCallback((4, 5), iters * batch_size, np.int32)
-    parallel_pipes = [create_pipe(callback, 'cpu', batch_size, py_num_workers=4,
-                                  py_start_method='fork', parallel=True, device_id=None)
-                      for i in range(2 * pipeline_pairs)]
-    for i in range(pipeline_pairs):
-        parallel_pipes[2 * i].build()
-        parallel_pipes[2 * i + 1].build()
-        compare_pipelines(parallel_pipes[2 * i], parallel_pipes[2 * i + 1], batch_size, iters)
+    parallel_pipes = [(create_pipe(callback, 'cpu', batch_size, py_num_workers=4,
+                                   py_start_method='fork', parallel=True, device_id=None),
+                       create_pipe(callback, 'cpu', batch_size, py_num_workers=4,
+                                   py_start_method='fork', parallel=True, device_id=None))
+                      for i in range(pipeline_pairs)]
+    for pipe0, pipe1 in parallel_pipes:
+        pipe0.build()
+        pipe1.build()
+        capture_processes(pipe0)
+        capture_processes(pipe1)
+        compare_pipelines(pipe0, pipe1, batch_size, iters)
 
-
+@with_setup(setup_function, teardown_function)
 def test_parallel_no_workers():
     batch_size = 10
     iters = 4
@@ -40,9 +51,11 @@ def test_parallel_no_workers():
     parallel_pipe = create_pipe(callback, 'cpu', batch_size, py_num_workers=0,
                                 py_start_method='spawn', parallel=True, device_id=None)
     parallel_pipe.build()
+    capture_processes(parallel_pipe)
     assert parallel_pipe._py_pool is None
     assert parallel_pipe._py_pool_started == False
 
+@with_setup(setup_function, teardown_function)
 def test_parallel_fork():
     epoch_size = 250
     callback = ExtCallback((4, 5), epoch_size, np.int32)
@@ -63,27 +76,27 @@ def test_parallel_fork():
                                 py_start_method='fork', parallel=True)
     yield raises(RuntimeError)(build_and_run_pipeline), parallel_pipe, 1
 
-
+@with_setup(setup_function, teardown_function)
 def test_dtypes():
     yield from check_spawn_with_callback(ExtCallback)
 
-
+@with_setup(setup_function, teardown_function)
 def test_random_data():
     yield from check_spawn_with_callback(ExtCallback, shapes=[(100, 40, 3), (8, 64, 64, 3)], random_data=True)
 
-
+@with_setup(setup_function, teardown_function)
 def test_randomly_shaped_data():
     yield from check_spawn_with_callback(ExtCallback, shapes=[(100, 40, 3), (8, 64, 64, 3)], random_data=True, random_shape=True)
 
-
+@with_setup(setup_function, teardown_function)
 def test_num_outputs():
     yield from check_spawn_with_callback(ExtCallbackMultipleOutputs, ExtCallbackMultipleOutputs, num_outputs=2, dtypes=[np.uint8, np.float])
 
-
+@with_setup(setup_function, teardown_function)
 def test_tensor_cpu():
     yield from check_spawn_with_callback(ExtCallbackTensorCPU)
 
-
+@with_setup(setup_function, teardown_function)
 def test_exception_propagation():
     for raised, expected in [(StopIteration, StopIteration), (CustomException, Exception)]:
         callback = ExtCallback((4, 4), 250, np.int32, exception_class=raised)
@@ -94,7 +107,7 @@ def test_exception_propagation():
                     py_start_method='spawn', parallel=True)
                 yield raises(expected)(build_and_run_pipeline), pipe, None, raised, expected
 
-
+@with_setup(setup_function, teardown_function)
 def test_stop_iteration_resume():
     callback = ExtCallback((4, 4), 250, 'int32')
     layout = "XY"
@@ -104,7 +117,7 @@ def test_stop_iteration_resume():
                                py_num_workers=num_workers, py_start_method='spawn', parallel=True)
             yield check_stop_iteration_resume, pipe, batch_size, layout
 
-
+@with_setup(setup_function, teardown_function)
 def test_layout():
     for layout, dims in zip(["X", "XY", "XYZ"], ((4,), (4, 4), (4, 4, 4))):
         callback = ExtCallback(dims, 1024, 'int32')
