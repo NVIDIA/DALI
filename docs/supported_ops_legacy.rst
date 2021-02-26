@@ -33,7 +33,7 @@ and the legacy implementation using the operator object API::
     class CustomPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
             super(CustomPipe, self).__init__(batch_size, num_threads, device_id)
-            self.reader = dali.ops.FileReader(file_root='./my_file_root')
+            self.reader = dali.ops.readers.File(file_root='./my_file_root')
             self.decoder = dali.ops.ImageDecoder(device='mixed')
             self.rotate = dali.ops.Rotate()
             self.resize = dali.ops.Resize(resize_x=300, resize_y=300)
@@ -53,7 +53,7 @@ and the legacy implementation using the operator object API::
 It is worth noting that the two APIs can be used together in a single pipeline. Here is an example of that::
 
     pipe = dali.pipeline.Pipeline(batch_size = 3, num_threads = 2, device_id = 0)
-    reader = dali.ops.FileReader(file_root = ".")
+    reader = dali.ops.readers.File(file_root = ".")
     resize = dali.ops.Resize(device = "gpu", resize_x = 300, resize_y = 300)
 
     with pipe:
