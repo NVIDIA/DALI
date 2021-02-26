@@ -1,3 +1,5 @@
+.. title:: Examples and Tutorials
+
 .. toctree::
    :maxdepth: 2
 
