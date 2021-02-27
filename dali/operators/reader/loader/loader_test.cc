@@ -26,7 +26,7 @@
 #include "dali/operators/reader/loader/indexed_file_loader.h"
 #include "dali/operators/reader/loader/coco_loader.h"
 
-#if BUILD_LMDB_ENABLED
+#if LMDB_ENABLED
 #include "dali/operators/reader/loader/lmdb.h"
 #endif
 
@@ -44,7 +44,7 @@ string loader_test_image_folder = testing::dali_extra_path() + "/db/single/jpeg"
 
 TYPED_TEST_SUITE(DataLoadStoreTest, TestTypes);
 
-#if BUILD_LMDB_ENABLED
+#if LMDB_ENABLED
 TYPED_TEST(DataLoadStoreTest, LMDBTest) {
   shared_ptr<dali::LMDBLoader> reader(
       new LMDBLoader(
